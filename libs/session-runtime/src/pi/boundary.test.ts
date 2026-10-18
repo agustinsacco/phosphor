@@ -18,7 +18,8 @@ const portableRuntime: Plugin = {
       if (
         ['electron', 'src'].some((directory) =>
           path.startsWith(join(root, 'apps/desktop', directory) + sep),
-        )
+        ) ||
+        path.startsWith(join(root, 'libs/client-ui') + sep)
       ) {
         throw new Error('Session runtime must not import Desktop source')
       }
@@ -73,21 +74,23 @@ describe('session runtime source package boundary', () => {
     }
   })
 
-  it.each(['electron', './apps/desktop/electron/store', './apps/desktop/src/lib/format'])(
-    'rejects the forbidden import fixture %s',
-    async (path) => {
-      await expect(
-        build({
-          absWorkingDir: library,
-          stdin: { contents: `import ${JSON.stringify(path)}`, resolveDir: root, loader: 'ts' },
-          bundle: true,
-          platform: 'node',
-          write: false,
-          tsconfig,
-          logLevel: 'silent',
-          plugins: [portableRuntime],
-        }),
-      ).rejects.toThrow(/Session runtime must not import/)
-    },
-  )
+  it.each([
+    'electron',
+    './apps/desktop/electron/store',
+    './apps/desktop/src/main',
+    './libs/client-ui/src/lib/format',
+  ])('rejects the forbidden import fixture %s', async (path) => {
+    await expect(
+      build({
+        absWorkingDir: library,
+        stdin: { contents: `import ${JSON.stringify(path)}`, resolveDir: root, loader: 'ts' },
+        bundle: true,
+        platform: 'node',
+        write: false,
+        tsconfig,
+        logLevel: 'silent',
+        plugins: [portableRuntime],
+      }),
+    ).rejects.toThrow(/Session runtime must not import/)
+  })
 })

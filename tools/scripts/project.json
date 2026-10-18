@@ -9,10 +9,13 @@
     "host",
     "control",
     "runtime",
+    "host-client",
     "shared",
     "pi-extensions",
     "site",
-    "schema"
+    "schema",
+    "client-ui",
+    "web"
   ],
   "targets": {
     "typecheck": {

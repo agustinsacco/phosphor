@@ -18,11 +18,11 @@ export default defineConfig({
   root: resolve(import.meta.dirname, 'src'),
   plugins: [react(), tailwindcss()],
   resolve: {
-    dedupe: ['luxon', 'cron-parser'],
+    dedupe: ['react', 'react-dom', 'zustand', 'luxon', 'cron-parser'],
     alias: {
       '@shared': resolve(import.meta.dirname, '../../libs/shared/src'),
       '@phosphor/shared': resolve(import.meta.dirname, '../../libs/shared/src'),
-      '@': resolve(import.meta.dirname, 'src'),
+      '@': resolve(import.meta.dirname, '../../libs/client-ui/src'),
     },
   },
 })

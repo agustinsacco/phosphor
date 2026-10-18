@@ -1,0 +1,1357 @@
+@import 'tailwindcss';
+@import 'katex/dist/katex.min.css';
+
+/* Quiet action hints. No animation, arrow, or accent surface. Above startup and modals. */
+.action-tooltip {
+  @apply bg-surface-raised text-text border-border font-sans text-base leading-snug;
+  position: fixed;
+  z-index: 1100;
+  width: max-content;
+  max-width: min(20rem, calc(100vw - 16px));
+  padding: 4px 8px;
+  border-width: 1px;
+  border-radius: var(--px-radius-sm);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  overflow-wrap: anywhere;
+  /* Multi-line hints (command provenance, PR state) keep their line breaks. */
+  white-space: pre-line;
+  /* Click-through: a hint can sit over a neighbouring control and must never
+     intercept it (a lane row's hint covers its workspace header's buttons). */
+  pointer-events: none;
+  -webkit-app-region: no-drag;
+}
+
+/* Opaque, full-window startup surface. Uses the same tokens as the app so
+   saved light/dark/system appearance carries through without a palette swap. */
+.startup-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--px-bg);
+  color: var(--px-text);
+}
+
+.startup-action {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--px-border-strong);
+  border-radius: var(--px-radius);
+  background: var(--px-surface);
+  cursor: pointer;
+}
+
+.startup-action:hover {
+  background: var(--px-bg-secondary);
+}
+.startup-action:focus-visible {
+  outline: 2px solid var(--px-accent);
+  outline-offset: 3px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Phosphor design tokens — the "Phosphor" system (specs/reference/style-guide.md).
+ * Paper light theme / graphite dark theme, amber-phosphor accent.
+ * Every surface in the app (Monaco, xterm, Shiki, Mermaid) reads these vars.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  /* Light theme — neutral grey/white. Deliberately NOT warm: the warm "paper"
+     tint read as brownish/aged next to the editors this sits beside. The amber
+     accent stays; only the neutrals were desaturated. */
+  --px-bg: #f7f7f8;
+  --px-bg-secondary: #efeff1;
+  /* Sidebar: a touch darker than the page so the column reads as a panel
+     without needing a border (which was producing a translucent "card"
+     edge — see Sidebar.tsx). */
+  --px-sidebar: #ededef;
+  /* Sidebar row states. A row highlight has to move AWAY from the sidebar
+     ground, and the sidebar is already a step off the page — so these go
+     DARKER in light and LIGHTER in dark. Reusing --px-bg-secondary here was
+     the bug: in light it sits 2 units on the wrong side of --px-sidebar, so
+     an active row was invisible and needed an accent rail to be findable. */
+  --px-sidebar-hover: #e6e6ea;
+  --px-sidebar-active: #dedee3;
+  /* Inline chips (`wt`, branch count, workspace badge). TRANSLUCENT on
+     purpose: a chip lives inside a row, so its ground is the sidebar on an
+     inactive row and --px-sidebar-active on the selected one. A flat colour
+     has to pick one of those and washes out against the other; an overlay
+     keeps the same step against every ground it lands on, page and modal
+     included. Ink over paper in light, paper over ink in dark. */
+  --px-chip: rgb(38 38 42 / 0.09);
+  --px-surface: #ffffff;
+  --px-surface-raised: #ffffff;
+  --px-border: #e4e4e7;
+  --px-border-strong: #c9c9ce;
+  /* Composer focus: one small step darker than the resting border, not a
+     jump to border-strong. The reference barely moves on focus. */
+  --px-border-focus: #d6d6db;
+  --px-text: #26262a;
+  --px-text-secondary: #66666e;
+  --px-text-tertiary: #96969e;
+  --px-accent: #b35c0f;
+  --px-accent-hover: #9d500b;
+  --px-accent-soft: #f6e9d4;
+  --px-accent-text: #ffffff;
+  --px-success: #4c8a54;
+  --px-warning: #a8842e;
+  --px-danger: #bb4a3c;
+  --px-danger-soft: #f8e8e4;
+  /* Merged PRs. Deliberately NOT --px-success: "merged" and "open and green"
+     are the two states the sidebar is scanned to tell apart, and rendering
+     both green makes the one that means "this lane is done, delete it"
+     invisible. Violet is the only hue not already spoken for here. */
+  --px-merged: #7c5cbf;
+  --px-merged-soft: #efe9fa;
+  --px-info: #47708f;
+  --px-user-bubble: #eeeef1;
+  --px-code-bg: #f2f2f4;
+  --px-scrollbar: #c9c9ce;
+  /* Terminal ground: white in light; in dark the terminal sits on --px-bg
+     itself (brand: the terminal is the page, not a card). Must stay in sync
+     with xtermTheme.ts backgrounds. */
+  --px-terminal-bg: #ffffff;
+  /* A search match's wash: find-in-page highlights and workspace search
+     previews. Derived here, on the root, so it follows .dark's --px-warning. */
+  --px-find-match: color-mix(in srgb, var(--px-warning) 32%, transparent);
+
+  --px-font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+  --px-font-serif: 'Lora', ui-serif, Georgia, 'Times New Roman', serif;
+  --px-font-mono:
+    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+
+  --px-radius-sm: 6px;
+  --px-radius: 10px;
+  --px-radius-lg: 14px;
+  --px-beacon-duration: 2.4s;
+
+  /* Font sizes driven by settings (see stores/settings.ts) */
+  --px-chat-font-size: 14.5px;
+  --px-editor-font-size: 12.5px;
+  --px-terminal-font-size: 12.5px;
+}
+
+.dark {
+  /* Dark theme — "Phosphor". NOTE: --px-accent-text flips to dark ink here;
+     white on amber fails contrast (2.2:1). Always use the token pair. */
+  --px-bg: #1e1c18;
+  --px-bg-secondary: #26231e;
+  /* Sidebar: one step darker than the page so it sits flush (no border). */
+  --px-sidebar: #15130f;
+  --px-sidebar-hover: #221f19;
+  --px-sidebar-active: #2d2921;
+  --px-chip: rgb(236 231 219 / 0.11);
+  --px-surface: #2a2721;
+  --px-surface-raised: #322e27;
+  --px-border: #3a352c;
+  --px-border-strong: #4b453a;
+  --px-border-focus: #453f34;
+  --px-text: #ece7db;
+  --px-text-secondary: #aca496;
+  --px-text-tertiary: #7c766a;
+  --px-accent: #eca03d;
+  --px-accent-hover: #f2b158;
+  --px-accent-soft: #3d3220;
+  --px-accent-text: #241503;
+  --px-success: #7fbe88;
+  --px-warning: #d8ab52;
+  --px-danger: #dd7663;
+  --px-danger-soft: #46302a;
+  --px-merged: #a98ce0;
+  --px-merged-soft: #2f2740;
+  --px-info: #82a9c9;
+  --px-user-bubble: #2f2b24;
+  --px-code-bg: #24211c;
+  --px-scrollbar: #4b453a;
+  --px-terminal-bg: #1e1c18;
+}
+
+@theme inline {
+  --color-bg: var(--px-bg);
+  --color-bg-secondary: var(--px-bg-secondary);
+  --color-sidebar: var(--px-sidebar);
+  --color-sidebar-hover: var(--px-sidebar-hover);
+  --color-sidebar-active: var(--px-sidebar-active);
+  --color-chip: var(--px-chip);
+  --color-surface: var(--px-surface);
+  --color-surface-raised: var(--px-surface-raised);
+  --color-border: var(--px-border);
+  --color-border-strong: var(--px-border-strong);
+  --color-border-focus: var(--px-border-focus);
+  --color-text: var(--px-text);
+  --color-text-secondary: var(--px-text-secondary);
+  --color-text-tertiary: var(--px-text-tertiary);
+  --color-accent: var(--px-accent);
+  --color-accent-hover: var(--px-accent-hover);
+  --color-accent-soft: var(--px-accent-soft);
+  --color-accent-text: var(--px-accent-text);
+  --color-success: var(--px-success);
+  --color-warning: var(--px-warning);
+  --color-danger: var(--px-danger);
+  --color-danger-soft: var(--px-danger-soft);
+  --color-merged: var(--px-merged);
+  --color-merged-soft: var(--px-merged-soft);
+  --color-info: var(--px-info);
+  --color-user-bubble: var(--px-user-bubble);
+  --color-code-bg: var(--px-code-bg);
+
+  /* ---------------------------------------------------------------------
+   * Type scale.
+   *
+   * Before this existed the UI carried 18 distinct hard-coded sizes between
+   * 8.5px and 30px (404 `text-[Npx]` utilities across 70 files), most of them
+   * half-pixel neighbours picked ad hoc — `text-[11px]` and `text-[11.5px]`
+   * were both used for tertiary metadata in the same components. Nine steps
+   * replace all of it. Sizes stay in px on purpose: `rem` here would ride the
+   * root font-size, and UI scale is page zoom (electron/window-chrome.ts),
+   * which scales px and rem alike.
+   *
+   * Every step pins its line-height to `inherit`. Overriding only `--text-sm`
+   * leaves Tailwind's own `--text-sm--line-height` (1.43) in place, so the
+   * utility would quietly re-lead every converted site; the arbitrary values
+   * these replace set font-size alone and inherited their container's leading
+   * (`body` 1.55, `.md-content` 1.65). `leading-*` still wins — it sets
+   * `--tw-leading`, which the utility reads first.
+   * ------------------------------------------------------------------- */
+  --text-2xs: 9px; /* dense badges, superscript-ish labels */
+  --text-2xs--line-height: inherit;
+  --text-xs: 10.5px; /* uppercase section eyebrows, chips */
+  --text-xs--line-height: inherit;
+  --text-sm: 11.5px; /* tertiary metadata, timestamps, paths */
+  --text-sm--line-height: inherit;
+  --text-base: 12.5px; /* the workhorse: controls, rows, secondary copy */
+  --text-base--line-height: inherit;
+  --text-lg: 13.5px; /* primary UI copy, titles in headers and menus */
+  --text-lg--line-height: inherit;
+  --text-xl: 16px; /* stat values, settings section headings */
+  --text-xl--line-height: inherit;
+  --text-2xl: 20px; /* empty-state headline */
+  --text-2xl--line-height: inherit;
+  --text-3xl: 24px; /* setup screen headline */
+  --text-3xl--line-height: inherit;
+  --text-4xl: 28px; /* home / picker hero headline */
+  --text-4xl--line-height: inherit;
+
+  --font-sans: var(--px-font-sans);
+  --font-serif: var(--px-font-serif);
+  --font-mono: var(--px-font-mono);
+
+  --radius-sm: var(--px-radius-sm);
+  --radius-DEFAULT: var(--px-radius);
+  --radius-lg: var(--px-radius-lg);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--px-bg);
+  color: var(--px-text);
+  font-family: var(--px-font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--px-scrollbar);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Terminal surface matches the xterm theme background */
+.terminal-surface {
+  background: var(--px-terminal-bg);
+}
+/**
+ * The pane is a flex column, so every wrapper between it and xterm needs
+ * min-height:0 — otherwise `.xterm { height: 100% }` resolves against an
+ * auto-height parent, the viewport collapses to nothing, and the DOM
+ * renderer paints an empty block instead of the shell.
+ */
+.terminal-surface {
+  min-height: 0;
+}
+.terminal-container {
+  min-height: 0;
+}
+.terminal-container .xterm {
+  height: 100%;
+  padding: 4px 6px;
+}
+/**
+ * xterm paints `.xterm-viewport` with its own default background (pure
+ * black) before/independently of the JS theme, which shows through as a
+ * hard black rectangle inside the pane card. Drive it from our tokens
+ * instead so it always matches the surrounding surface.
+ */
+.terminal-container .xterm-viewport {
+  background-color: var(--px-terminal-bg) !important;
+}
+.terminal-container .xterm-screen {
+  background-color: transparent;
+}
+/**
+ * xterm's bundled stylesheet draws a 1px border on .xterm-screen and shows a
+ * focus outline on the hidden textarea, which rendered as a heavy black box
+ * inside the pane card. The pane already provides the frame.
+ */
+.terminal-container .xterm,
+.terminal-container .xterm-screen,
+.terminal-container .xterm-viewport {
+  border: none !important;
+  outline: none !important;
+}
+.terminal-container .xterm .xterm-helper-textarea:focus {
+  outline: none !important;
+}
+
+/*
+ * Pane resize handles (react-resizable-panels).
+ *
+ * The right pane is a floating rounded card (see RightPane), so the gutter has
+ * to read as empty background: the grab affordance only appears on hover or
+ * while dragging. An always-on rule here welded the card to the chat column.
+ */
+.pane-handle {
+  width: 5px;
+  background: transparent;
+  position: relative;
+  transition: background 0.15s;
+}
+.pane-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0 2px;
+  background: transparent;
+  border-radius: 1px;
+  transition: background 0.15s;
+}
+.pane-handle:hover,
+.pane-handle[data-resize-handle-active] {
+  background: var(--px-accent-soft);
+}
+.pane-handle:hover::after,
+.pane-handle[data-resize-handle-active]::after {
+  background: var(--px-accent);
+}
+
+/* Window drag region: macOS traffic lights, Windows/Linux controls overlay */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+.titlebar-drag button,
+.titlebar-drag input,
+.titlebar-drag [data-popup-menu] {
+  -webkit-app-region: no-drag;
+}
+
+/*
+ * On Windows/Linux the Window Controls Overlay paints close/minimize over the
+ * top-right of the page, so anything in that strip must inset past them.
+ * `titlebar-area-width` is the width NOT covered by the controls; the fallback
+ * of 100vw collapses this to the plain 0.75rem gutter on macOS, where the env
+ * vars do not exist and the traffic lights sit top-left instead.
+ *
+ * This arithmetic is viewport-relative, so it is only correct on an element
+ * that actually spans the window. It belongs to the one full-width top bar
+ * (src/app/TopBar.tsx) and nowhere else. It used to sit on the chat header,
+ * which stops spanning the window the moment a right-hand pane opens — and
+ * then the pane's own expand/close buttons rendered underneath the real OS
+ * buttons with nothing compensating. One bar, one inset, no collision.
+ */
+.titlebar-inset-end {
+  padding-right: calc(100vw - env(titlebar-area-width, 100vw) + 0.75rem);
+}
+
+/*
+ * The mirror image, for the top-LEFT corner: only macOS parks window controls
+ * there (the traffic lights, ~70px under `hiddenInset`). On Windows/Linux the
+ * controls are top-right — .titlebar-inset-end's job — so this collapses to a
+ * plain gutter. Previously a 44px-tall vertical spacer above the sidebar's
+ * workspace switcher; with a single top bar the corner has exactly one
+ * occupant, so a horizontal inset on that bar replaces it.
+ */
+.titlebar-inset-start {
+  padding-left: 0.5rem;
+}
+.platform-darwin .titlebar-inset-start {
+  padding-left: 5rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * Markdown typography
+ * ------------------------------------------------------------------------- */
+
+.md-content {
+  font-size: var(--px-chat-font-size);
+  line-height: 1.65;
+  word-break: break-word;
+}
+.md-content > *:first-child {
+  margin-top: 0;
+}
+.md-content > *:last-child {
+  margin-bottom: 0;
+}
+.md-content p {
+  margin: 0.65em 0;
+}
+.md-content h1,
+.md-content h2,
+.md-content h3,
+.md-content h4 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.2em 0 0.5em;
+}
+.md-content h1 {
+  font-size: 1.4em;
+}
+.md-content h2 {
+  font-size: 1.25em;
+}
+.md-content h3 {
+  font-size: 1.1em;
+}
+.md-content h4 {
+  font-size: 1em;
+  color: var(--px-text-secondary);
+}
+/* Subagent detail: authored Markdown follows the pane's type scale, so a
+   prompt's own `# Heading` never outranks the agent's title. */
+.subagent-prose .md-content {
+  font-size: inherit;
+}
+.subagent-prose .md-content :is(h1, h2, h3) {
+  font-size: 1.1em;
+}
+.md-content ul,
+.md-content ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+.md-content ul {
+  list-style: disc;
+}
+.md-content ol {
+  list-style: decimal;
+}
+.md-content li {
+  margin: 0.3em 0;
+}
+.md-content li > ul,
+.md-content li > ol {
+  margin: 0.15em 0;
+}
+.md-content blockquote {
+  border-left: 3px solid var(--px-border-strong);
+  color: var(--px-text-secondary);
+  margin: 0.8em 0;
+  padding: 0.1em 0 0.1em 1em;
+}
+.md-content hr {
+  border: none;
+  border-top: 1px solid var(--px-border);
+  margin: 1.5em 0;
+}
+.md-content input[type='checkbox'] {
+  accent-color: var(--px-accent);
+  margin-right: 0.4em;
+}
+.md-table th,
+.md-table td {
+  border-bottom: 1px solid var(--px-border);
+  padding: 6px 12px;
+  text-align: left;
+}
+.md-table thead th {
+  background: var(--px-bg-secondary);
+  font-weight: 600;
+}
+.md-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Shiki dual-theme: switch via CSS variables, no re-highlight needed. */
+.shiki-container pre {
+  margin: 0;
+  background: transparent !important;
+}
+.shiki-container code {
+  display: block;
+  white-space: pre;
+}
+.shiki-container .shiki span {
+  color: var(--shiki-light);
+}
+.dark .shiki-container .shiki span {
+  color: var(--shiki-dark);
+}
+
+/* KaTeX sizing inside chat */
+.md-content .katex {
+  font-size: 1.05em;
+}
+.md-content .katex-display {
+  margin: 0.8em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Streaming cursor */
+@keyframes px-blink {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    opacity: 0;
+  }
+}
+.streaming-cursor::after {
+  content: '▍';
+  color: var(--px-accent);
+  animation: px-blink 1.1s infinite;
+  margin-left: 1px;
+}
+
+/* Trailing cursor on the last streaming markdown block */
+.streaming-tail .md-content > *:last-child::after {
+  content: '▍';
+  color: var(--px-accent);
+  animation: px-blink 1.1s infinite;
+  margin-left: 1px;
+}
+
+/* The Phosphor "working" spark */
+@keyframes px-pulse-spark {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+}
+.pulse-spark {
+  display: inline-block;
+  animation: px-pulse-spark 1.6s ease-in-out infinite;
+}
+
+/* Shimmer on "Thinking…" label */
+@keyframes px-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.thinking-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--px-text-tertiary) 40%,
+    var(--px-text) 50%,
+    var(--px-text-tertiary) 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: px-shimmer 2.2s linear infinite;
+}
+
+/* Notifications (ToastHost).
+ *
+ * The ROW owns height and the CARD owns motion. A row grows its grid track
+ * from 0fr on entry and collapses back on exit, so the rest of the stack
+ * glides instead of jumping; the card slides in from the right edge it hangs
+ * off, and back out the same way. `TOAST_EXIT_MS` in stores/extensionUi.ts is
+ * the exit's total (card 180ms + row 200ms starting at 60ms). */
+@keyframes px-toast-row-in {
+  from {
+    grid-template-rows: 0fr;
+  }
+  to {
+    grid-template-rows: 1fr;
+  }
+}
+@keyframes px-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes px-toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(24px) scale(0.97);
+  }
+}
+/* Two identical keyframes so a data-attribute flip replays the pulse on
+ * every in-place replacement without remounting the card. */
+@keyframes px-toast-bump-a {
+  40% {
+    transform: scale(1.025);
+  }
+}
+@keyframes px-toast-bump-b {
+  40% {
+    transform: scale(1.025);
+  }
+}
+/* `minmax(0, 1fr)` pins the column to the stack's width. The implicit `auto`
+ * column sizes to the card's min-content instead, which a nowrap title or an
+ * unbreakable path or URL stretches past the window's right edge. */
+.toast-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  animation: px-toast-row-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: grid-template-rows 200ms cubic-bezier(0.4, 0, 0.2, 1) 60ms;
+}
+.toast-row[data-leaving] {
+  grid-template-rows: 0fr;
+}
+/* Clips vertically only, so the collapsing track hides the card below it
+ * while the card's sideways exit and its shadow still paint past the edge.
+ * (`clip`, not `hidden`: `hidden` on one axis forces the other to clip too.) */
+.toast-row-inner {
+  min-height: 0;
+  overflow-x: visible;
+  overflow-y: clip;
+}
+.toast-card {
+  animation: px-toast-in 280ms cubic-bezier(0.21, 1.02, 0.73, 1) both;
+  transition: border-color 120ms ease-out;
+}
+.toast-card[data-bump='odd'] {
+  animation: px-toast-bump-a 260ms ease-out;
+}
+.toast-card[data-bump='even'] {
+  animation: px-toast-bump-b 260ms ease-out;
+}
+.toast-row[data-leaving] .toast-card {
+  animation: px-toast-out 180ms ease-in both;
+  pointer-events: none;
+}
+/* A clickable card says what the click does, but only when you are on it.
+ * Opacity only: a hint that took space would push every card below it down
+ * the moment the pointer arrived. */
+.toast-open-hint {
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity 140ms ease-out,
+    transform 140ms ease-out;
+}
+.toast-card:hover .toast-open-hint,
+.toast-card:focus-within .toast-open-hint {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * Accessibility
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Pointer cursors on interactive elements.
+ *
+ * Tailwind v4's preflight drops the UA `cursor: pointer` on <button>, so
+ * without this every control in the app shows a text/arrow cursor and
+ * nothing reads as clickable. Declared once here rather than as ~70
+ * `cursor-pointer` utilities.
+ */
+button:not(:disabled),
+summary,
+select:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+[role='tab']:not([aria-disabled='true']),
+[role='option']:not([aria-disabled='true']),
+label[for] {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+/* Visible focus rings for keyboard users only (no rings on mouse clicks). */
+:focus-visible {
+  outline: 2px solid var(--px-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/*
+ * Composer fields opt out of the accent ring. The card around them already
+ * signals focus by deepening its own border (grey → stronger grey), which is
+ * what the reference does; an accent outline on top of that read as a loud
+ * orange box around the whole input.
+ *
+ * Scoped to .composer-field rather than all textareas so keyboard focus stays
+ * visible everywhere else (rename fields, settings inputs, Monaco hosts).
+ */
+.composer-field:focus,
+.composer-field:focus-visible {
+  outline: none;
+}
+
+/*
+ * A heading that receives focus programmatically (so a screen reader starts
+ * there after a selection) is not a control: no ring that makes it look like
+ * an input. Utilities cannot override the unlayered `:focus-visible` above.
+ */
+.focus-target:focus-visible {
+  outline: none;
+}
+
+/*
+ * The composer's placeholder carries its affordance hints ("/ commands · @
+ * files · ! shell"). At laptop widths, and with any pane open, that string
+ * wrapped onto a second line and the resting composer grew a row it never
+ * needed. Keep the hint, clip it instead of wrapping it — a placeholder is
+ * never read by the caret, so an ellipsis there costs nothing.
+ */
+.composer-field::placeholder {
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * Same trade for the sidebar's lane search: its field is the bordered row
+ * around the input, which already turns accent on `focus-within`. The ring on
+ * the input itself drew a second box inside the first and, at 2px offset,
+ * covered the match count sitting next to it.
+ */
+.lane-search-field:focus,
+.lane-search-field:focus-visible,
+.find-field:focus,
+.find-field:focus-visible {
+  outline: none;
+}
+
+/*
+ * Find-in-page matches (components/search/domFind.ts). Painted with the CSS
+ * Custom Highlight API, so no markup is touched. Every match gets a quiet
+ * amber wash; the current one takes the full accent pair, the same ink-on-
+ * amber the rest of the app uses for "this one".
+ */
+::highlight(phosphor-find) {
+  background-color: var(--px-find-match);
+}
+::highlight(phosphor-find-active) {
+  background-color: var(--px-accent);
+  color: var(--px-accent-text);
+}
+
+/* A match inside a workspace search result's line preview (files/WorkspaceSearch.tsx). */
+.search-hit {
+  background-color: var(--px-find-match);
+  color: inherit;
+  border-radius: 2px;
+}
+
+/*
+ * A find hit whose text is not on screen as text (a tool row summarised to a
+ * label, an image caption) flashes its container instead, so the jump still
+ * lands somewhere visible.
+ */
+@keyframes find-flash {
+  from {
+    box-shadow: 0 0 0 2px var(--px-accent);
+  }
+  to {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+.find-flash {
+  border-radius: var(--px-radius-sm);
+  animation: find-flash 1.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .streaming-cursor::after,
+  .streaming-tail .md-content > *:last-child::after {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Chat motion
+ * All of these are disabled by the prefers-reduced-motion block above.
+ * ------------------------------------------------------------------------- */
+
+/* New messages fade + rise into place rather than popping in. */
+@keyframes px-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.message-enter {
+  animation: px-message-in 180ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* Lane switching. Whatever the transcript area mounts — the history, its
+ * skeleton, the empty state — rises in, so a switch between two live lanes
+ * reads as the content changing under a stable frame (the composer and top
+ * bar do not move) rather than a hard cut. */
+@keyframes px-lane-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.transcript-enter {
+  animation: px-lane-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* OpeningLane. Transitions, not keyframes, so an exit that interrupts the
+ * entry reverses from wherever the fade has got to: a warm open that lands
+ * inside the 90ms beat never paints the overlay at all. The beat is a delay,
+ * not motion, so reduced motion keeps it. `OPENING_LANE_EXIT_MS` matches the
+ * exit. */
+.opening-lane {
+  opacity: 1;
+  transition: opacity 180ms ease-out 90ms;
+}
+.opening-lane-copy {
+  transform: none;
+  transition: transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1) 90ms;
+}
+@starting-style {
+  .opening-lane {
+    opacity: 0;
+  }
+  .opening-lane-copy {
+    transform: translateY(6px);
+  }
+}
+.opening-lane[data-leaving] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease-in;
+}
+
+/* Activity groups animate their real height with a grid track. Unlike a
+ * max-height guess this works for short and very long tool runs alike. */
+.activity-group-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 140ms ease-out;
+}
+.activity-group-body-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* Each newly appended step arrives independently without replaying motion on
+ * the already-visible group. */
+@keyframes px-activity-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.activity-step-enter {
+  animation: px-activity-step-in 180ms ease-out both;
+}
+
+/* Final prose enters after the activity card starts its one-time collapse. */
+@keyframes px-activity-response-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.activity-response-enter {
+  animation: px-activity-response-in 180ms 90ms ease-out both;
+}
+
+/* Tool detail panels expand instead of snapping open. */
+@keyframes px-expand-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.expand-enter {
+  animation: px-expand-in 140ms ease-out both;
+}
+
+/**
+ * A running tool: the verb label shimmers instead of a spinning circle
+ * competing with the ✳ spark for attention.
+ */
+.tool-running-label {
+  background: linear-gradient(
+    90deg,
+    var(--px-text-secondary) 40%,
+    var(--px-text) 50%,
+    var(--px-text-secondary) 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: px-shimmer 2s linear infinite;
+}
+
+/**
+ * A session whose real name is still being decided.
+ *
+ * A chat's branch is cut from a slug of its first message and pi starts
+ * immediately, so for a few seconds the title on screen is a placeholder that
+ * is about to be replaced (see specs/log/2026-08-22-fast-session-start.md).
+ * Shimmering the actual glyphs rather than swapping in a skeleton bar is the
+ * point: the provisional title is real, readable, useful text — it just is not
+ * final. A skeleton would hide information the user already has.
+ *
+ * **Three of four surfaces use this: the top bar's session title and both
+ * sidebar row types.** It used to be on all four, which set four continuous
+ * animations running at once and read as busy — cut back to just the top
+ * bar for a while, but a session's title is watched in the sidebar list at
+ * least as often as in the top bar, so a temporary name sitting motionless
+ * there read as settled rather than still in flight. The branch chip
+ * (`BranchControl`) is the one holdout: it stays arrival-only (`.name-enter`)
+ * so a single naming event still tops out at two shimmering surfaces instead
+ * of going back to four.
+ */
+.name-pending {
+  background: linear-gradient(
+    90deg,
+    var(--px-text-tertiary) 40%,
+    var(--px-text) 50%,
+    var(--px-text-tertiary) 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: px-shimmer 2s linear infinite;
+}
+
+/**
+ * ...and the arrival of the real one. Short and small: this fires on a name
+ * the user did not ask for, several seconds after they moved on, so it should
+ * register as "that settled" in peripheral vision, never pull focus back.
+ */
+@keyframes px-name-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.name-enter {
+  animation: px-name-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/**
+ * Phosphor Beacon — the brand mark, and the agent/loading identity, from 20px
+ * lanes to 80px startup. A bright, persistent core and a single orbit: no
+ * fading the whole mark away, per-frame JS, SVG filters, or layout animation
+ * across busy lanes.
+ *
+ * `.phosphor-mark` is the same glyph at rest (identity); `.phosphor-loader`
+ * is it turning (activity). Only the wrapper differs — the element rules
+ * below are deliberately unscoped so both get them. `build/icon.svg` is the
+ * same geometry at 28×.
+ */
+.phosphor-loader,
+.phosphor-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  vertical-align: middle;
+  color: var(--px-accent);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--px-accent-soft) 25%, transparent 72%);
+}
+.phosphor-loader svg,
+.phosphor-mark svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  stroke: currentColor;
+}
+/* Shell and inner-shell geometry is NOT here: radii, stroke widths and
+   opacities are all in `BEACON` in components/PhosphorMark.tsx, so one object
+   describes the mark and build/icon.svg can be diffed against it. A CSS
+   declaration beats a presentation attribute, so adding stroke-width back
+   here would silently override the component. */
+.phosphor-loader-core {
+  fill: currentColor;
+  stroke: none;
+  transform-origin: 16px 16px;
+}
+.phosphor-loader-orbit {
+  transform-origin: 16px 16px;
+}
+.phosphor-loader[data-animated='true'] .phosphor-loader-orbit {
+  animation: px-beacon-orbit var(--px-beacon-duration) linear infinite;
+}
+.phosphor-loader[data-animated='true'] .phosphor-loader-core {
+  animation: px-beacon-core var(--px-beacon-duration) ease-in-out infinite;
+}
+@keyframes px-beacon-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes px-beacon-core {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(0.85);
+  }
+}
+
+/* Working is NOT selection. Keep the neutral selected-row fill and add a
+   straight, inset beacon rail only while the lane is actually in flight. */
+.session-sort-row[data-dragging] {
+  opacity: 0.4;
+}
+.session-sort-row[data-drop]::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset-inline: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--px-accent);
+  pointer-events: none;
+}
+.session-sort-row[data-drop='before']::after {
+  top: -1px;
+}
+.session-sort-row[data-drop='after']::after {
+  bottom: -1px;
+}
+
+.lane-row {
+  position: relative;
+  container-type: inline-size;
+}
+.lane-row[data-activity]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--px-accent);
+  pointer-events: none;
+}
+.lane-activity-label {
+  color: var(--px-text);
+  background: var(--px-accent-soft);
+  border-radius: var(--px-radius-sm);
+  padding: 0 0.3rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Prioritize activity, branch and PR over secondary git chips in a narrow
+   working lane; never let the label push controls outside the sidebar. */
+@container (max-width: 16rem) {
+  .lane-row[data-activity] [data-segment='dirty'] {
+    display: none;
+  }
+}
+@container (max-width: 14rem) {
+  .lane-row[data-activity] [data-segment='worktree'] {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phosphor-loader[data-animated] .phosphor-loader-orbit,
+  .phosphor-loader[data-animated] .phosphor-loader-core {
+    animation: none;
+  }
+}
+
+/* Small pulsing dot marking an in-flight tool. */
+@keyframes px-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
+}
+.tool-running-dot {
+  animation: px-dot-pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-enter,
+  .activity-step-enter,
+  .activity-response-enter,
+  .expand-enter,
+  .name-enter,
+  .tool-running-dot,
+  .tool-running-label,
+  .name-pending {
+    animation: none;
+  }
+  /* Both of these paint their glyphs with a transparent fill over a moving
+     gradient. Stopping the animation without restoring the fill would leave
+     the text invisible, not merely still — for .name-pending that is a
+     session's title, i.e. the only thing identifying the row. */
+  .tool-running-label,
+  .name-pending {
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
+/* Loading skeletons */
+@keyframes px-skeleton {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+.skeleton {
+  background: var(--px-border);
+  border-radius: 6px;
+  animation: px-skeleton 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The global reduce block clamps iteration-count, which would leave the bar
+     frozen at whatever opacity its single pass ended on. Pin it instead. */
+  .skeleton {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* Compact is a shell capability, not a breakpoint: web stays compact on all widths. */
+@source '../';
+html[data-form-factor='compact'] {
+  overscroll-behavior: none;
+}
+[data-form-factor='compact'] :is(button, [role='button'], [role='option'], select, summary) {
+  min-height: 44px;
+  min-width: 44px;
+}
+[data-form-factor='compact'] :is(textarea, input, select) {
+  font-size: 16px;
+}
+.compact-shell {
+  position: fixed;
+  inset: var(--compact-top, 0px) 0 auto;
+  height: 100dvh;
+  height: var(--compact-height, 100dvh);
+  display: flex;
+  flex-direction: column;
+  background: var(--px-bg);
+  color: var(--px-text);
+  overflow: hidden;
+  padding-top: env(safe-area-inset-top);
+}
+.compact-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--px-border);
+}
+.compact-header strong {
+  flex: 1;
+}
+.compact-header select {
+  max-width: 60%;
+}
+.compact-main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.compact-tabs,
+.compact-lane-tabs {
+  display: flex;
+  flex-shrink: 0;
+  overflow-x: auto;
+  gap: 4px;
+  background: var(--px-surface);
+  border-top: 1px solid var(--px-border);
+  padding: 4px 8px max(4px, env(safe-area-inset-bottom));
+}
+.compact-lane-tabs {
+  padding-bottom: 4px;
+  border-top: 0;
+  border-bottom: 1px solid var(--px-border);
+}
+.compact-tabs button,
+.compact-lane-tabs button {
+  flex: 1;
+  padding: 6px;
+  font-size: 13px;
+}
+.compact-shell [aria-current='page'] {
+  color: var(--px-accent);
+  font-weight: 650;
+  background: var(--px-bg-secondary);
+  border-radius: 10px;
+}
+.compact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.compact-list h1 {
+  font-size: 28px;
+  font-weight: 700;
+}
+.compact-list select {
+  display: block;
+  width: 100%;
+}
+.compact-sign-in {
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 24px;
+  text-align: center;
+}
+[data-compact-sheet] {
+  top: var(--compact-top, 0px);
+  bottom: auto;
+  height: var(--compact-height, 100dvh);
+  align-items: flex-end;
+  padding-top: env(safe-area-inset-top);
+}
+[data-compact-sheet] > .contents > * {
+  max-width: 100vw;
+  max-height: calc(var(--compact-height, 100dvh) - env(safe-area-inset-top));
+  overflow: auto;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+[data-compact-menu] {
+  position: fixed !important;
+  inset: auto 8px
+    max(
+      8px,
+      calc(
+        100dvh - var(--compact-height, 100dvh) - var(--compact-top, 0px) +
+          env(safe-area-inset-bottom)
+      )
+    ) !important;
+  transform: none !important;
+  z-index: 100;
+  width: auto !important;
+  max-width: none !important;
+  max-height: min(65dvh, 500px, calc(var(--compact-height, 100dvh) - 32px));
+  overflow-y: auto;
+}
+[data-form-factor='compact'] [data-testid='attachment-chips'] button {
+  display: flex;
+}
+[data-form-factor='compact'] .action-tooltip {
+  display: none;
+}
+
+[data-form-factor='compact'] label:has(input[type='checkbox']),
+[data-form-factor='compact'] label:has(input[type='radio']) {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.compact-tabs > button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.compact-header strong {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

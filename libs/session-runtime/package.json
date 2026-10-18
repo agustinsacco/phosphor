@@ -194,6 +194,7 @@
   },
   "dependencies": {
     "@phosphor/shared": "0.0.0",
-    "@phosphor/pi-extensions": "0.0.0"
+    "@phosphor/pi-extensions": "0.0.0",
+    "@phosphor/host-client": "0.0.0"
   }
 }

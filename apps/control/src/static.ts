@@ -6,6 +6,7 @@ const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
+  '.webmanifest': 'application/manifest+json',
   '.json': 'application/json; charset=utf-8',
   '.txt': 'text/plain; charset=utf-8',
   '.svg': 'image/svg+xml',
@@ -26,11 +27,23 @@ export async function serveStatic(
   request: Request,
   siteDir: string,
   rejectPath = false,
+  web = false,
 ): Promise<Response> {
   const headers = new Headers({
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
   })
+  if (web) {
+    headers.set('Cache-Control', 'no-store')
+    headers.set('Referrer-Policy', 'no-referrer')
+    // WebKit inherits CSP frame-ancestors into Blob previews and refuses them.
+    // DENY protects the app from framing without propagating into opaque Blobs.
+    headers.set('X-Frame-Options', 'DENY')
+    headers.set(
+      'Content-Security-Policy',
+      "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.ts.net:* wss://*.ts.net:*; manifest-src 'self'; worker-src 'self'; frame-src blob:; base-uri 'none'; form-action 'self'",
+    )
+  }
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     headers.set('Allow', 'GET, HEAD')
     return new Response(null, { status: 405, headers })
@@ -120,7 +133,7 @@ export async function serveStatic(
     )
   }
   // Keep the site's existing guide redirect relative to the public origin.
-  if (/^\/guides\/claude-code\/?$/.test(path))
+  if (!web && /^\/guides\/claude-code\/?$/.test(path))
     return new Response(null, {
       status: 301,
       headers: { ...Object.fromEntries(headers), Location: '/guides/accounts/' },
@@ -128,11 +141,22 @@ export async function serveStatic(
   const candidate = resolve(root, `.${path}`)
   if (candidate !== root && !inside(root, candidate))
     return new Response(null, { status: 404, headers })
-  const immutable = path.startsWith('/_astro/') || path.startsWith('/fonts/')
+  const immutable = !web && (path.startsWith('/_astro/') || path.startsWith('/fonts/'))
   const direct = await file(root, candidate, 200, immutable)
   if (direct) return direct
   if (!immutable) {
     const index = await file(root, resolve(candidate, 'index.html'), 200, false)
+    if (index) return index
+  }
+  if (
+    web &&
+    path !== '/api' &&
+    !path.startsWith('/api/') &&
+    /^\/(?:[A-Za-z0-9_-]+\/?)*$/.test(path) &&
+    !/^\/(?:assets|fonts|icons|_astro)(?:\/|$)/.test(path) &&
+    request.headers.get('accept')?.includes('text/html')
+  ) {
+    const index = await file(root, resolve(root, 'index.html'), 200, false)
     if (index) return index
   }
   return (

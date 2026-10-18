@@ -2,7 +2,12 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 
-const rendererFiles = ['apps/desktop/src/**/*.{ts,tsx}', 'apps/desktop/test/renderer/**/*.{ts,tsx}']
+const rendererFiles = [
+  'apps/desktop/src/**/*.{ts,tsx}',
+  'apps/desktop/test/renderer/**/*.{ts,tsx}',
+  'libs/client-ui/src/**/*.{ts,tsx}',
+  'apps/web/src/**/*.{ts,tsx}',
+]
 
 // no-restricted-syntax must stay an error for prompt; this separate rule stages
 // the nested RPC escape hatch as a warning, including computed literal access.
@@ -73,6 +78,7 @@ export default tseslint.config(
       'apps/site/dist/**',
       'apps/host/dist/**',
       'apps/control/dist/**',
+      'apps/web/dist/**',
       'apps/site/shots-raw/**',
       'apps/site/test-results/**',
       'apps/site/playwright-report/**',
@@ -112,7 +118,7 @@ export default tseslint.config(
   {
     files: rendererFiles,
     // Tests mock window.confirm on purpose; enforce app choices in production.
-    ignores: ['apps/desktop/src/**/*.test.{ts,tsx}', 'apps/desktop/test/renderer/**'],
+    ignores: ['**/*.test.{ts,tsx}', 'apps/desktop/test/renderer/**'],
     rules: {
       'no-restricted-properties': [
         'error',
@@ -128,8 +134,8 @@ export default tseslint.config(
     files: rendererFiles,
     ignores: [
       // The wrapper owns envelope handling; tests deliberately mock the raw API.
-      'apps/desktop/src/lib/rpc.ts',
-      'apps/desktop/src/**/*.test.{ts,tsx}',
+      'libs/client-ui/src/lib/rpc.ts',
+      '**/*.test.{ts,tsx}',
       'apps/desktop/test/renderer/**',
     ],
     plugins: { phosphor },
@@ -139,8 +145,22 @@ export default tseslint.config(
     // Main/preload and libraries have owning TS projects. Keep renderer, Host,
     // e2e and tooling syntax-only; never allow a fallback untyped/default project.
     files: ['apps/desktop/electron/**/*.ts', 'apps/desktop/test/main/**/*.ts', 'libs/**/*.ts'],
+    ignores: ['libs/client-ui/**', 'libs/host-client/**'],
     languageOptions: {
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'warn',
+      '@typescript-eslint/no-misused-promises': 'warn',
+    },
+  },
+  {
+    files: ['libs/host-client/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: './libs/host-client/tsconfig.tests.json',
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     rules: {
       '@typescript-eslint/no-floating-promises': 'warn',

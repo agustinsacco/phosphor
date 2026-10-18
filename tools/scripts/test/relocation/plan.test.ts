@@ -11,6 +11,7 @@ import { validateRelocationMap } from '../../test-inventory.mjs'
 const directories: string[] = []
 const projects = [
   { name: 'desktop', roots: ['apps/desktop'] },
+  { name: 'client-ui', roots: ['libs/client-ui'] },
   { name: 'host', roots: ['apps/host'] },
   { name: 'shared', roots: ['libs/shared'] },
   { name: 'tooling', roots: ['tools/scripts', 'tools/host-release'] },
@@ -56,8 +57,8 @@ describe('relocation planner', () => {
   })
 
   it('routes the shipping replay fixture to dev and reports its shipping consumer', () => {
-    const test = 'apps/desktop/src/features/chat/replay.test.ts'
-    const mock = 'apps/desktop/src/dev/mockPhosphor.ts'
+    const test = 'libs/client-ui/src/features/chat/replay.test.ts'
+    const mock = 'libs/client-ui/src/dev/mockPhosphor.ts'
     const repo = repository({
       [SHIPPING_FIXTURE]: '{}',
       [mock]: "import raw from '../features/chat/__fixtures__/real-session-events.jsonl?raw'",
@@ -71,7 +72,7 @@ describe('relocation planner', () => {
       hash: digest('{}'),
     })
     expect(plan.importerEdits.find((edit) => edit.file === test)?.edits[0]?.to).toBe(
-      '../../../../src/dev/fixtures/real-session-events.jsonl?raw',
+      '../../../src/dev/fixtures/real-session-events.jsonl?raw',
     )
     expect(plan.importerEdits.some((edit) => edit.file === mock)).toBe(false)
     expect(plan.reports).toContainEqual(
@@ -108,7 +109,7 @@ describe('relocation planner', () => {
   })
 
   it('rewrites imports, exports, require, aliases and dynamic literal imports exactly', () => {
-    const test = 'apps/desktop/src/a.test.ts'
+    const test = 'libs/client-ui/src/a.test.ts'
     const content = [
       "import './a.js'",
       "export * from './a'",
@@ -119,16 +120,16 @@ describe('relocation planner', () => {
     ].join('\n')
     const repo = repository({
       [test]: content,
-      'apps/desktop/src/a.ts': '',
-      'apps/desktop/src/__fixtures__/a.json': '{}',
+      'libs/client-ui/src/a.ts': '',
+      'libs/client-ui/src/__fixtures__/a.json': '{}',
     })
     const plan = repo.plan([test])
     const edits = plan.importerEdits.find((edit) => edit.file === test)!.edits
     expect(edits.map(({ to }) => to)).toEqual([
-      '../../src/a.js',
-      '../../src/a',
-      '../../src/a',
-      '../../src/a',
+      '../src/a.js',
+      '../src/a',
+      '../src/a',
+      '../src/a',
       './__fixtures__/a.json?raw',
     ])
     for (const edit of edits) expect(content.slice(edit.start, edit.end)).toBe(edit.from)

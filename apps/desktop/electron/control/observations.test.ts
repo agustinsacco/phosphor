@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { machineObservations } from './observations'
-import { MACHINE } from '../../src/features/machines/__fixtures__/control'
+import { MACHINE } from '../../../../libs/client-ui/src/features/machines/__fixtures__/control'
 
 it('records initial states, clock-corrected transitions, removal once, and clears account history', () => {
   const log = vi.fn()

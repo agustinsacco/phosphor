@@ -4,7 +4,10 @@ import { CONTROL_ROUTES, machineRoute, type Parsed } from '@shared/control-api'
 import type { ControlResult } from '@shared/ipc'
 import { createControlOperations } from './operations'
 import { controlFailure } from './transport'
-import { LOOKUP, MACHINE } from '../../src/features/machines/__fixtures__/control'
+import {
+  LOOKUP,
+  MACHINE,
+} from '../../../../libs/client-ui/src/features/machines/__fixtures__/control'
 
 function harness() {
   let now = Date.parse(LOOKUP.expiresAt) - 1000

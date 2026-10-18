@@ -4,7 +4,7 @@
   "root": "apps/desktop",
   "projectType": "application",
   "tags": ["scope:desktop"],
-  "implicitDependencies": ["runtime", "shared", "pi-extensions"],
+  "implicitDependencies": ["runtime", "shared", "host-client", "pi-extensions", "client-ui"],
   "namedInputs": {
     "release": [
       "{workspaceRoot}/tools/scripts/fix-node-pty.mjs",

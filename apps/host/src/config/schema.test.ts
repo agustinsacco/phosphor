@@ -183,3 +183,43 @@ it('validates api.port bounds and refuses unknown API keys', () => {
   expect(errorsOf({ ...minimal, api: null }).map((e) => e.pointer)).toContain('/api')
   expect(errorsOf({ ...minimal, api: {} }).map((e) => e.pointer)).toContain('/api/port')
 })
+
+describe('api.webOrigin', () => {
+  it.each([
+    null,
+    'https://phosphor-app.saccolabs.com',
+    'https://app.example:8443',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://[::1]:5173',
+  ])('accepts an explicit origin or disable: %s', (webOrigin) => {
+    expect(errorsOf({ ...minimal, api: { port: 47615, webOrigin } })).toEqual([])
+  })
+  it.each([
+    'null',
+    '*',
+    'https://*.example',
+    ['https://app.example'],
+    ' https://app.example',
+    'https://app.example ',
+    'https://app.example/',
+    'https://app.example/path',
+    'https://app.example?x',
+    'https://app.example#x',
+    'https://user@app.example',
+    'https://app.example:443',
+    'https://app.example:08443',
+    'https://APP.example',
+    'http://127.1:5173',
+    'http://localhost.example:5173',
+    'http://app.example',
+    'https://app.example, https://app.example',
+  ])('refuses noncanonical origins without echoing input: %s', (webOrigin) => {
+    expect(errorsOf({ ...minimal, api: { port: 47615, webOrigin } })).toEqual([
+      {
+        pointer: '/api/webOrigin',
+        message: 'must be null or an exact bare https origin, or http on loopback',
+      },
+    ])
+  })
+})

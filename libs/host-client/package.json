@@ -1,0 +1,62 @@
+{
+  "name": "@phosphor/host-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./connection": {
+      "types": "./src/connection.ts",
+      "default": "./src/connection.ts"
+    },
+    "./crypto": {
+      "types": "./src/crypto.ts",
+      "default": "./src/crypto.ts"
+    },
+    "./socket": {
+      "types": "./src/socket.ts",
+      "default": "./src/socket.ts"
+    },
+    "./lane-ops": {
+      "types": "./src/lane-ops.ts",
+      "default": "./src/lane-ops.ts"
+    },
+    "./remote-lanes": {
+      "types": "./src/remote-lanes.ts",
+      "default": "./src/remote-lanes.ts"
+    },
+    "./projection": {
+      "types": "./src/projection.ts",
+      "default": "./src/projection.ts"
+    },
+    "./ports": {
+      "types": "./src/ports.ts",
+      "default": "./src/ports.ts"
+    },
+    "./read-features": {
+      "types": "./src/read-features.ts",
+      "default": "./src/read-features.ts"
+    },
+    "./machine-reads": {
+      "types": "./src/machine-reads.ts",
+      "default": "./src/machine-reads.ts"
+    },
+    "./repository-reads": {
+      "types": "./src/repository-reads.ts",
+      "default": "./src/repository-reads.ts"
+    },
+    "./artifacts": {
+      "types": "./src/artifacts.ts",
+      "default": "./src/artifacts.ts"
+    },
+    "./routines": {
+      "types": "./src/routines.ts",
+      "default": "./src/routines.ts"
+    }
+  },
+  "dependencies": {
+    "@phosphor/shared": "0.0.0"
+  },
+  "nx": {
+    "includedScripts": []
+  }
+}

@@ -12,6 +12,8 @@ name: Deploy Site
 #   SUPABASE_SECRET_KEY                    control RPC key
 #   CONTROL_EDGE_SECRET                    shared Cloudflare Transform Rule header
 #   CONTROL_GRANT_KEYS                     Host grant signing keys (kid=seed, comma-separated)
+# Optional rollout: PHOSPHOR_WEB_ENABLED repository variable defaults to false.
+# When true, also requires repository secret CONTROL_WEB_SESSION_KEYS.
 
 on:
   push:
@@ -19,11 +21,19 @@ on:
     paths:
       - 'apps/site/**'
       - 'apps/control/**'
+      - 'apps/web/**'
+      - 'libs/client-ui/**'
+      - 'libs/pi-extensions/**'
+      - 'libs/host-client/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.base.json'
       - 'libs/shared/src/**'
       - 'tools/scripts/site-image.sh'
       - '.infra/phosphor-site/**'
       - '.github/workflows/deploy-site.yml'
       - 'tools/scripts/site-deploy-policy.mjs'
+      - 'tools/scripts/site-web-*.mjs'
       - 'tools/scripts/should-skip-release.sh'
   workflow_dispatch:
     inputs:
@@ -62,6 +72,7 @@ jobs:
     outputs:
       should_deploy: ${{ steps.decide.outputs.should_deploy }}
       sha: ${{ steps.decide.outputs.sha }}
+      web_enabled: ${{ steps.web.outputs.enabled }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -70,6 +81,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Validate browser rollout flag
+        id: web
+        env:
+          PHOSPHOR_WEB_ENABLED: ${{ vars.PHOSPHOR_WEB_ENABLED }}
+        run: |
+          set -euo pipefail
+          enabled=$(node tools/scripts/site-web-config.mjs)
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
       - name: Wait for CI and check deployment holds
         id: decide
         env:
@@ -108,6 +127,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: site-production
+    env:
+      PHOSPHOR_WEB_ENABLED: ${{ needs.guard.outputs.web_enabled }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -125,6 +146,15 @@ jobs:
           test "$(git rev-parse HEAD)" = "$DEPLOY_SHA"
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$DEPLOY_SHA"
           test -z "$SITE_DEPLOY_HOLD" || test "$SITE_DEPLOY_HOLD" = false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate browser keys before publishing
+        env:
+          CONTROL_WEB_SESSION_KEYS: ${{ secrets.CONTROL_WEB_SESSION_KEYS }}
+        run: node tools/scripts/site-web-config.mjs --require-keys
 
       # Keep the real full-IDE source capture in the self-contained image context.
       - name: Require the IDE capture
@@ -148,6 +178,9 @@ jobs:
           context: .
           file: apps/control/Dockerfile
           push: true
+          build-args: |
+            PHOSPHOR_BUILD_SHA=${{ needs.guard.outputs.sha }}
+            PHOSPHOR_WEB_ENABLED=${{ needs.guard.outputs.web_enabled }}
           tags: |
             ${{ env.IMAGE_NAME }}:${{ needs.guard.outputs.sha }}
             ${{ env.IMAGE_NAME }}:latest
@@ -169,6 +202,8 @@ jobs:
         env:
           KUBE_CONFIG_BASE64: ${{ secrets.ULTRON_KUBE_CONFIG }}
         run: |
+          set -euo pipefail
+          umask 077
           install -d -m 700 "$RUNNER_TEMP/phosphor-kube"
           printf '%s' "$KUBE_CONFIG_BASE64" | base64 --decode > "$RUNNER_TEMP/phosphor-kube/config"
           chmod 600 "$RUNNER_TEMP/phosphor-kube/config"
@@ -190,6 +225,7 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           CONTROL_EDGE_SECRET: ${{ secrets.CONTROL_EDGE_SECRET }}
           CONTROL_GRANT_KEYS: ${{ secrets.CONTROL_GRANT_KEYS }}
+          CONTROL_WEB_SESSION_KEYS: ${{ secrets.CONTROL_WEB_SESSION_KEYS }}
         run: |
           set -euo pipefail
           export LC_ALL=C
@@ -206,10 +242,12 @@ jobs:
             echo "::error::Invalid or missing CONTROL_GRANT_KEYS"
             exit 1
           fi
+          web_enabled=$(node tools/scripts/site-web-config.mjs --require-keys)
           umask 077
           secret="$RUNNER_TEMP/phosphor-control-secret.yaml"
+          web_secret="$RUNNER_TEMP/phosphor-web-secret.yaml"
           manifest="$RUNNER_TEMP/phosphor-site.yaml"
-          trap 'rm -f "$secret" "$manifest"' EXIT
+          trap 'rm -f "$secret" "$web_secret" "$manifest"' EXIT
           install -m 600 /dev/null "$secret"
           kubectl create namespace phosphor --dry-run=client -o yaml | kubectl apply -f -
           # The image is public, so the pull secret only matters for Docker Hub's
@@ -217,9 +255,12 @@ jobs:
           # imagePullSecret is a warning event, not a failed pull.
           if ! kubectl get secret docker-registry-key -n phosphor >/dev/null 2>&1; then
             if kubectl get secret docker-registry-key -n tars >/dev/null 2>&1; then
-              kubectl get secret docker-registry-key -n tars -o json \
+              if ! (kubectl get secret docker-registry-key -n tars -o json \
                 | jq 'del(.metadata.namespace, .metadata.uid, .metadata.resourceVersion, .metadata.creationTimestamp, .metadata.managedFields)' \
-                | kubectl apply -n phosphor -f -
+                | kubectl apply -n phosphor -f -) >/dev/null 2>&1; then
+                echo '::error::Could not copy image pull Secret'
+                exit 1
+              fi
             else
               echo "::warning::no docker-registry-key in namespace tars; pulling anonymously"
             fi
@@ -237,7 +278,23 @@ jobs:
             exit 1
           fi
           rm -f "$secret"
-          kubectl kustomize .infra/phosphor-site > "$manifest"
+          kustomization=.infra/phosphor-site
+          if [ "$web_enabled" = true ]; then
+            install -m 600 /dev/null "$web_secret"
+            envsubst '${CONTROL_WEB_SESSION_KEYS}' < .infra/phosphor-site/web/secret.yaml > "$web_secret"
+            if grep -Fq '${' "$web_secret"; then
+              echo '::error::Unresolved Web Secret placeholder'
+              exit 1
+            fi
+            if ! kubectl apply -f "$web_secret" >/dev/null 2>&1; then
+              echo '::error::Could not apply Secret phosphor-web'
+              exit 1
+            fi
+            rm -f "$web_secret"
+            kustomization=.infra/phosphor-site/web
+          fi
+          # Base omits all three Web variables; disabling never deletes credentials.
+          kubectl kustomize "$kustomization" > "$manifest"
           if grep -Fq '${' "$manifest"; then
             echo '::error::Unresolved manifest placeholder'
             exit 1
@@ -253,7 +310,7 @@ jobs:
 
       - name: Remove rendered Secret manifest
         if: always()
-        run: rm -f "$RUNNER_TEMP/phosphor-control-secret.yaml" "$RUNNER_TEMP/phosphor-site.yaml"
+        run: rm -f "$RUNNER_TEMP/phosphor-control-secret.yaml" "$RUNNER_TEMP/phosphor-web-secret.yaml" "$RUNNER_TEMP/phosphor-site.yaml"
 
       - name: Wait for the Service address
         run: |
@@ -291,3 +348,11 @@ jobs:
             done
           ' || { echo '::error::Public site or configured API unavailable after 120s'; exit 1; }
           kubectl get pods,svc -n phosphor -o wide
+
+      - name: Smoke the isolated public app (no OAuth or cookies)
+        if: needs.guard.outputs.web_enabled == 'true'
+        run: node tools/scripts/site-web-smoke.mjs
+
+      - name: Remove Kubernetes credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/phosphor-kube/config"

@@ -19,7 +19,7 @@ import {
   type HostFrame,
   type LaneOp,
 } from '../../../../libs/shared/src/host-protocol'
-import { MACHINE } from '../../src/features/machines/__fixtures__/control'
+import { MACHINE } from '../../../../libs/client-ui/src/features/machines/__fixtures__/control'
 import { accountControlFixture } from './account-control'
 import { scratchDir } from './scratch'
 

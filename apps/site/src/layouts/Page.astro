@@ -9,6 +9,7 @@ const {
   title = 'Phosphor | One mission. Many agents. Your IDE.',
   description = 'The open-source multi-agent IDE built on pi. Work in parallel lanes, delegate bounded tasks, inspect every decision and diff, and use the models you already pay for.',
 } = Astro.props
+const webEnabled = import.meta.env.PUBLIC_PHOSPHOR_WEB_ENABLED === 'true'
 const canonical = new URL(Astro.url.pathname, Astro.site)
 ---
 
@@ -39,7 +40,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
-      <div class="header-inner">
+      <div class:list={['header-inner', { 'web-enabled': webEnabled }]}>
         <a class="wordmark" href="/" aria-label="Phosphor home"
           ><img src="/favicon.svg" width="36" height="36" alt="" /><span>Phosphor</span></a
         >
@@ -49,6 +50,13 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
           ><a href="/#faq">FAQ</a>
         </nav>
         <div class="header-links">
+          {
+            webEnabled && (
+              <a class="header-link" href="https://phosphor-app.saccolabs.com/">
+                Open the app
+              </a>
+            )
+          }
           <a class="header-link" href={repo}
             ><span class="github-mark" aria-hidden="true"></span><span class="header-link-label"
               >GitHub</span

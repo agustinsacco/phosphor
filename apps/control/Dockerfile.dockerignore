@@ -1,6 +1,10 @@
-# Repo-root context: include only the two builders and shared source.
+# Repo-root context: three builders and explicit source-library closure only.
 **
+!package.json
+!package-lock.json
 !apps/
+!apps/web/
+!apps/web/**
 !apps/site/
 !apps/site/**
 !apps/control/
@@ -14,6 +18,23 @@
 !apps/control/scripts/build.mjs
 !libs/
 !libs/shared/
+!libs/shared/package.json
+!libs/session-runtime/
+!libs/session-runtime/package.json
+!libs/pi-extensions/
+!libs/pi-extensions/package.json
+!libs/pi-extensions/pi-ext/
+!libs/pi-extensions/pi-ext/lane-reload.ts
+!libs/pi-extensions/pi-ext/swarm.ts
+!libs/pi-extensions/pi-ext/subagent-snapshot.ts
+!libs/host-client/
+!libs/host-client/package.json
+!libs/host-client/src/
+!libs/host-client/src/**
+!libs/client-ui/
+!libs/client-ui/package.json
+!libs/client-ui/src/
+!libs/client-ui/src/**
 !libs/shared/src/
 !libs/shared/src/**
 !tsconfig.base.json
@@ -28,6 +49,8 @@
 apps/desktop
 apps/host
 **/*.test.ts
+**/*.test.tsx
+**/e2e/**
 **/__fixtures__
 apps/site/tests
 **/.env*

@@ -1,11 +1,13 @@
 import { posix } from 'node:path'
 
 const aliases = [
+  ['@phosphor/host-client/', 'libs/host-client/src/'],
+  ['@phosphor/client-ui/', 'libs/client-ui/src/'],
   ['@phosphor/session-runtime/', 'libs/session-runtime/src/'],
   ['@phosphor/pi-extensions/', 'libs/pi-extensions/pi-ext/'],
   ['@phosphor/shared/', 'libs/shared/src/'],
   ['@shared/', 'libs/shared/src/'],
-  ['@/', 'apps/desktop/src/'],
+  ['@/', 'libs/client-ui/src/'],
 ]
 export const compareCodeUnits = (a, b) => (a < b ? -1 : a > b ? 1 : 0)
 

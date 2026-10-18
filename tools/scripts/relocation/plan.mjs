@@ -150,7 +150,7 @@ function importerEdits(records, moves, reports, contents) {
       if (replacement === entry.specifier) continue
       if (
         reportOnlyConsumer(file) ||
-        (file === 'apps/desktop/src/dev/mockPhosphor.ts' && entry.target === SHIPPING_FIXTURE)
+        (file === 'libs/client-ui/src/dev/mockPhosphor.ts' && entry.target === SHIPPING_FIXTURE)
       ) {
         reports.push({ file, line: entry.line, reason: 'external-consumer', text: entry.specifier })
         continue

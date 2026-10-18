@@ -144,7 +144,7 @@ Fourteen curated OAuth connectors: Linear, Notion, Braintrust, Datadog,
 Supabase, Questrade, Fellow, Slack, and Google Workspace's Gmail, Drive,
 Calendar, Docs, Sheets and Slides. Each endpoint is checked against the vendor's docs
 _and_ the server's own OAuth metadata, because a wrong URL fails as "broken
-auth" (`apps/desktop/src/features/connectors/catalog.ts`).
+auth" (`libs/client-ui/src/features/connectors/catalog.ts`).
 
 **Add starts the sign-in.** Add writes `{url}` to the global file (plus
 `oauth` where the entry needs it) and immediately runs `pi mcp login`, so the
@@ -295,7 +295,7 @@ Until then the adapter keeps working: pi loads it and nothing is rewritten.
 Phosphor just no longer shows or signs in to those servers. So people find the
 card without opening Settings, every launch with the adapter set up globally
 shows a notice, "Move your MCP connectors", that opens Connectors
-(`apps/desktop/src/features/connectors/migrationNotice.ts`). It moves nothing.
+(`libs/client-ui/src/features/connectors/migrationNotice.ts`). It moves nothing.
 
 **The card previews the whole change** (`mcp:migrationPlan`): each server and
 the file it goes to, with a note for anything translated or dropped; servers
@@ -372,10 +372,10 @@ prompts) and its `mcp` / `mcpScript` tools go with the package.
   `mcp:readFile / writeFile`, `mcp:list`, `mcp:authorize / cancelAuth / logout`,
   `mcp:migrationPlan / migrate` and the `mcp:authState` broadcast
   (`apps/desktop/electron/ipc/mcp-handlers.ts`).
-- Renderer: `apps/desktop/src/features/settings/tabs/ConnectorsTab.tsx`,
-  `apps/desktop/src/features/connectors/` (`catalog.ts`, `mcpStatus.ts`,
+- Renderer: `libs/client-ui/src/features/settings/tabs/ConnectorsTab.tsx`,
+  `libs/client-ui/src/features/connectors/` (`catalog.ts`, `mcpStatus.ts`,
   `FlowCard.tsx`, `MigrationCard.tsx`, `ServerEditor.tsx`, `useMcpServers.ts`),
-  `apps/desktop/src/stores/connectors.ts`. Mock cases in
-  `apps/desktop/src/dev/mockPhosphor.ts`.
+  `libs/client-ui/src/stores/connectors.ts`. Mock cases in
+  `libs/client-ui/src/dev/mockPhosphor.ts`.
 - In pi: `libs/pi-extensions/pi-ext/context-breakdown.ts` (per-server counts),
   `lane-reload.ts` (applying changes between turns).

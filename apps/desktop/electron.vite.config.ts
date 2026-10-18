@@ -6,13 +6,16 @@ import { resolve } from 'node:path'
 export default defineConfig({
   main: {
     plugins: [
-      externalizeDepsPlugin({ exclude: ['@phosphor/shared', '@phosphor/session-runtime'] }),
+      externalizeDepsPlugin({
+        exclude: ['@phosphor/shared', '@phosphor/session-runtime', '@phosphor/host-client'],
+      }),
     ],
     resolve: {
       alias: {
         '@shared': resolve(import.meta.dirname, '../../libs/shared/src'),
         '@phosphor/shared': resolve(import.meta.dirname, '../../libs/shared/src'),
         '@phosphor/session-runtime': resolve(import.meta.dirname, '../../libs/session-runtime/src'),
+        '@phosphor/host-client': resolve(import.meta.dirname, '../../libs/host-client/src'),
       },
     },
     build: {
@@ -27,13 +30,16 @@ export default defineConfig({
   },
   preload: {
     plugins: [
-      externalizeDepsPlugin({ exclude: ['@phosphor/shared', '@phosphor/session-runtime'] }),
+      externalizeDepsPlugin({
+        exclude: ['@phosphor/shared', '@phosphor/session-runtime', '@phosphor/host-client'],
+      }),
     ],
     resolve: {
       alias: {
         '@shared': resolve(import.meta.dirname, '../../libs/shared/src'),
         '@phosphor/shared': resolve(import.meta.dirname, '../../libs/shared/src'),
         '@phosphor/session-runtime': resolve(import.meta.dirname, '../../libs/session-runtime/src'),
+        '@phosphor/host-client': resolve(import.meta.dirname, '../../libs/host-client/src'),
       },
     },
     build: {
@@ -53,11 +59,11 @@ export default defineConfig({
     resolve: {
       // Source libraries sit outside the app install domain. Keep their JS
       // dependencies on the app's copies rather than bundling a second copy.
-      dedupe: ['luxon', 'cron-parser'],
+      dedupe: ['react', 'react-dom', 'zustand', 'luxon', 'cron-parser'],
       alias: {
         '@shared': resolve(import.meta.dirname, '../../libs/shared/src'),
         '@phosphor/shared': resolve(import.meta.dirname, '../../libs/shared/src'),
-        '@': resolve(import.meta.dirname, 'src'),
+        '@': resolve(import.meta.dirname, '../../libs/client-ui/src'),
       },
     },
     build: {

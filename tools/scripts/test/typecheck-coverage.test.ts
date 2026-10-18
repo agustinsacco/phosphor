@@ -149,20 +149,27 @@ describe('comprehensive typecheck runner', () => {
       args: ['run', 'check'],
       cwd: join(root, 'apps/site'),
     })
-    expect(typecheckProjects).toHaveLength(11)
+    expect(typecheckProjects).toHaveLength(18)
   })
 
-  it.each(['apps/host/tsconfig.json', 'apps/control/tsconfig.json', 'site'])(
-    'propagates %s check failure',
-    (failed) => {
-      const root = runnerFixture()
-      expect(
-        runTypecheck(root, (_command, args, cwd) =>
-          (failed === 'site' ? cwd.endsWith('/apps/site') : args.includes(failed)) ? 7 : 0,
-        ),
-      ).toBe(7)
-    },
-  )
+  it.each([
+    'apps/host/tsconfig.json',
+    'apps/control/tsconfig.json',
+    'libs/host-client/tsconfig.tests.json',
+    'libs/client-ui/tsconfig.json',
+    'apps/web/tsconfig.json',
+    'apps/web/tsconfig.tests.json',
+    'apps/web/tsconfig.worker.json',
+    'apps/web/e2e/tsconfig.json',
+    'site',
+  ])('propagates %s check failure', (failed) => {
+    const root = runnerFixture()
+    expect(
+      runTypecheck(root, (_command, args, cwd) =>
+        (failed === 'site' ? cwd.endsWith('/apps/site') : args.includes(failed)) ? 7 : 0,
+      ),
+    ).toBe(7)
+  })
 
   it('propagates an actual independent site command failure', () => {
     const root = runnerFixture()

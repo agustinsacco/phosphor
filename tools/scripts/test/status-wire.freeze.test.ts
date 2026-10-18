@@ -7,17 +7,26 @@ import { describe, expect, it } from 'vitest'
 import { SWARM_STATUS_KEY } from '../../../libs/pi-extensions/pi-ext/swarm'
 import { LANE_RELOAD_STATUS_KEY } from '../../../libs/pi-extensions/pi-ext/lane-reload'
 import { HEADROOM_STATUS_KEY } from '../../../libs/pi-extensions/pi-ext/headroom'
-import { CONTEXT_BREAKDOWN_STATUS_KEY } from '../../../apps/desktop/src/features/chat/composer/contextBreakdown'
-import { HEADROOM_STATUS_KEY as RENDERER_HEADROOM_KEY } from '../../../apps/desktop/src/features/chat/composer/headroomStatus'
-import { RATE_LIMIT_STATUS_KEY } from '../../../apps/desktop/src/features/chat/composer/rateLimit'
-import { SUBAGENTS_STATUS_KEY } from '../../../apps/desktop/src/features/chat/subagentStatus'
+import { CONTEXT_BREAKDOWN_STATUS_KEY } from '../../../libs/client-ui/src/features/chat/composer/contextBreakdown'
+import { HEADROOM_STATUS_KEY as RENDERER_HEADROOM_KEY } from '../../../libs/client-ui/src/features/chat/composer/headroomStatus'
+import { RATE_LIMIT_STATUS_KEY } from '../../../libs/client-ui/src/features/chat/composer/rateLimit'
+import { SUBAGENTS_STATUS_KEY } from '../../../libs/client-ui/src/features/chat/subagentStatus'
 import {
   parseFleetWidget,
   SUBAGENT_ASYNC_WIDGET_KEY,
   SUBAGENT_INSPECT_WIDGET_KEY,
-} from '../../../apps/desktop/src/features/chat/subagentRuns'
-import { useExtensionUiStore } from '../../../apps/desktop/src/stores/extensionUi'
-import fixture from './__fixtures__/status-wire.json'
+} from '../../../libs/client-ui/src/features/chat/subagentRuns'
+import { useExtensionUiStore } from '../../../libs/client-ui/src/stores/extensionUi'
+import frozenFixture from './__fixtures__/status-wire.json'
+
+// Keep the reviewed wire baseline intact; only its source locations moved.
+const fixture = {
+  ...frozenFixture,
+  statuses: frozenFixture.statuses.map((entry) => ({
+    ...entry,
+    consumer: entry.consumer.replace('apps/desktop/src/', 'libs/client-ui/src/'),
+  })),
+}
 
 // Runtime characterization uses public constants/parsers/store only, never pi or a provider.
 describe('status wire runtime characterization', () => {
@@ -82,7 +91,7 @@ describe('status wire runtime characterization', () => {
 })
 
 const root = resolve(import.meta.dirname, '../../..')
-const hostPath = 'apps/desktop/src/features/extension-ui/ExtensionUiHosts.tsx'
+const hostPath = 'libs/client-ui/src/features/extension-ui/ExtensionUiHosts.tsx'
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(resolve(root, directory), { withFileTypes: true }).flatMap((entry) => {
@@ -100,7 +109,7 @@ function literalResolver(sources: Map<string, ts.SourceFile>) {
     const base = name.startsWith('.')
       ? posix.normalize(`${dirname(from)}/${name}`)
       : name
-          .replace(/^@\//, 'apps/desktop/src/')
+          .replace(/^@\//, 'libs/client-ui/src/')
           .replace(/^@phosphor\/pi-extensions\//, 'libs/pi-extensions/pi-ext/')
           .replace(/^(@shared|@phosphor\/shared)\//, 'libs/shared/src/')
     return (
@@ -272,6 +281,8 @@ const auditedTexts = new Map(
   [
     ...sourceFiles('libs/pi-extensions/pi-ext'),
     ...sourceFiles('apps/desktop/src'),
+    ...sourceFiles('libs/client-ui/src'),
+    ...sourceFiles('apps/web/src'),
     'libs/session-runtime/src/pi/lane-reload.ts',
     'libs/session-runtime/src/pi/session-startup.ts',
     'libs/shared/src/claude-limits.ts',
@@ -448,7 +459,7 @@ describe('status wire audit regressions', () => {
     const audit = baseAudit
     for (const path of [
       'libs/session-runtime/src/pi/session-startup.ts',
-      'apps/desktop/src/features/home/accountUsage.ts',
+      'libs/client-ui/src/features/home/accountUsage.ts',
     ]) {
       expect(audit.consumers.get(path), path).toContain(RATE_LIMIT_STATUS_KEY)
     }
@@ -465,13 +476,13 @@ describe('status wire audit regressions', () => {
           `setStatus('phosphor-swarm', '')
            setStatus.apply(ctx.ui, ['phosphor-headroom', ''])`,
         ],
-        ['apps/desktop/src/example.tsx', `setStatus('loading')`],
+        ['libs/client-ui/src/example.tsx', `setStatus('loading')`],
       ]),
     )
     expect(audit.producers.get('libs/pi-extensions/pi-ext/example.ts')).toEqual([
       'phosphor-swarm',
       'phosphor-headroom',
     ])
-    expect(audit.producers.has('apps/desktop/src/example.tsx')).toBe(false)
+    expect(audit.producers.has('libs/client-ui/src/example.tsx')).toBe(false)
   })
 })

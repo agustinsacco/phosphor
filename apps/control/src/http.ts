@@ -32,6 +32,9 @@ export type Env = {
     }
   }
   Variables: {
+    effectiveAuthorization: string
+    webClientId: string
+    webCsrf: string
     rawBody: Uint8Array
     actor: string
     requestId: string

@@ -3,9 +3,16 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const root = resolve(import.meta.dirname, '../../..')
-const eslint = new ESLint({ cwd: root })
-const renderer = 'apps/desktop/src/lib/rpc.ts'
-const rendererCaller = 'apps/desktop/src/stores/sessions.ts'
+const eslint = new ESLint({
+  cwd: root,
+  // lintText repeatedly supplies synthetic source. CI's one-shot inference can
+  // reuse the on-disk TypeScript program instead of checking that supplied text.
+  overrideConfig: {
+    languageOptions: { parserOptions: { disallowAutomaticSingleRunInference: true } },
+  },
+})
+const renderer = 'libs/client-ui/src/lib/rpc.ts'
+const rendererCaller = 'libs/client-ui/src/stores/sessions.ts'
 
 async function messages(code: string, filePath: string, ruleId: string) {
   const [result] = await eslint.lintText(code, { filePath })
@@ -29,7 +36,11 @@ describe('eslint staged warning policy', () => {
   })
 
   it('stages hooks warnings only in renderer source and relocated renderer tests', async () => {
-    for (const file of [rendererCaller, 'apps/desktop/test/renderer/helpers/fakePhosphor.ts']) {
+    for (const file of [
+      rendererCaller,
+      'apps/web/src/main.tsx',
+      'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
+    ]) {
       expect(await severity(file, 'react-hooks/rules-of-hooks')).toBe(1)
       expect(await severity(file, 'react-hooks/exhaustive-deps')).toBe(1)
     }
@@ -52,6 +63,8 @@ describe('eslint staged warning policy', () => {
     'apps/desktop/electron/preload.ts',
     'apps/desktop/electron/pi/session-writer.test.ts',
     'apps/desktop/test/main/preload.freeze.test.ts',
+    'libs/host-client/src/connection.ts',
+    'libs/host-client/src/connection.test.ts',
     'libs/shared/src/errors.ts',
     'libs/shared/test/ipc.freeze.test.ts',
     'libs/session-runtime/src/bundled-extensions.ts',
@@ -120,20 +133,20 @@ describe('eslint staged warning policy', () => {
       await messages('piCall("id", {})', rendererCaller, 'phosphor/no-raw-pi-command'),
     ).toEqual([])
     for (const file of [
-      'apps/desktop/src/lib/rpc.test.ts',
+      'libs/client-ui/src/lib/rpc.test.ts',
       'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
       'apps/desktop/electron/preload.ts',
     ]) {
       expect(await severity(file, 'phosphor/no-raw-pi-command')).toBe(0)
     }
     expect(
-      await severity('apps/desktop/src/dev/mockPhosphor.ts', 'phosphor/no-raw-pi-command'),
+      await severity('libs/client-ui/src/dev/mockPhosphor.ts', 'phosphor/no-raw-pi-command'),
     ).toBe(1)
   })
 
   it('exempts test mocks of window.confirm', async () => {
     for (const file of [
-      'apps/desktop/src/features/files/FilesChangedPane.test.tsx',
+      'libs/client-ui/src/features/files/FilesChangedPane.test.tsx',
       'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
     ])
       expect(await severity(file, 'no-restricted-properties')).toBe(0)

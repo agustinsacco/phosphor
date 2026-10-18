@@ -1,0 +1,32 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "client-ui",
+  "root": "libs/client-ui",
+  "sourceRoot": "libs/client-ui/src",
+  "projectType": "library",
+  "tags": ["scope:client"],
+  "implicitDependencies": ["shared", "pi-extensions"],
+  "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^default", "rootInstall"],
+      "options": {
+        "command": "tsc --noEmit -p libs/client-ui/tsconfig.json",
+        "cwd": "."
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^default", "rootUnitRunner"],
+      "options": {
+        "command": "vitest run libs/client-ui",
+        "cwd": ".",
+        "env": {
+          "VITEST_MAX_WORKERS": "2"
+        }
+      }
+    }
+  }
+}

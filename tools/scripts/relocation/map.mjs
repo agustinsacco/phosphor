@@ -6,6 +6,9 @@ import { repoPath } from '../select-unit-tests.mjs'
 export const MAPPING_ROWS = [
   ['apps/desktop/electron/', 'apps/desktop/test/main/'],
   ['apps/desktop/src/', 'apps/desktop/test/renderer/'],
+  ['libs/client-ui/src/', 'libs/client-ui/test/'],
+  ['libs/host-client/src/', 'libs/host-client/test/'],
+  ['apps/web/src/', 'apps/web/test/'],
   ['apps/desktop/scripts/', 'apps/desktop/test/scripts/'],
   ['apps/host/src/', 'apps/host/test/'],
   ['apps/host/scripts/', 'apps/host/test/scripts/'],
@@ -18,8 +21,8 @@ export const MAPPING_ROWS = [
   ['tools/host-release/', 'tools/host-release/test/'],
 ]
 export const SHIPPING_FIXTURE =
-  'apps/desktop/src/features/chat/__fixtures__/real-session-events.jsonl'
-export const SHIPPING_DESTINATION = 'apps/desktop/src/dev/fixtures/real-session-events.jsonl'
+  'libs/client-ui/src/features/chat/__fixtures__/real-session-events.jsonl'
+export const SHIPPING_DESTINATION = 'libs/client-ui/src/dev/fixtures/real-session-events.jsonl'
 
 export function relocationTarget(file) {
   repoPath(file)
@@ -37,8 +40,8 @@ export function relocationTarget(file) {
         .join('/')
     )
   }
-  if (/^apps\/desktop\/[^/]+\.test\.tsx?$/.test(file))
-    return file.replace('apps/desktop/', 'apps/desktop/test/')
+  if (/^apps\/(?:desktop|web)\/[^/]+\.test\.tsx?$/.test(file))
+    return file.replace(/^(apps\/[^/]+)\//, '$1/test/')
   return file
 }
 

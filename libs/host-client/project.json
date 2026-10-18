@@ -1,0 +1,32 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "host-client",
+  "root": "libs/host-client",
+  "sourceRoot": "libs/host-client/src",
+  "projectType": "library",
+  "tags": ["scope:client"],
+  "implicitDependencies": ["shared"],
+  "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^default", "rootInstall"],
+      "options": {
+        "command": "tsc --noEmit -p libs/host-client/tsconfig.json",
+        "cwd": "."
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^default", "rootUnitRunner"],
+      "options": {
+        "command": "vitest run libs/host-client",
+        "cwd": ".",
+        "env": {
+          "VITEST_MAX_WORKERS": "2"
+        }
+      }
+    }
+  }
+}

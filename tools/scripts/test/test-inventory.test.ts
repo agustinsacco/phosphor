@@ -35,6 +35,20 @@ const execution = (statuses = ['passed'], path = file) => ({
 const options = { root }
 
 describe('test-inventory normalization and move parity', () => {
+  it.each([
+    ['web', 'apps/web'],
+    ['client-ui', 'libs/client-ui'],
+    ['host-client', 'libs/host-client'],
+  ])('retains %s ownership and identity across planned test moves', (project, prefix) => {
+    const from = `${prefix}/src/sample.test.ts`
+    const to = `${prefix}/test/sample.test.ts`
+    const map = { version: 1, moves: [{ from, to }] }
+    const before = normalizeCollection(collected(undefined, from), options)
+    const after = normalizeCollection(collected(undefined, to), { root, map })
+    expect(before.cases[0]).toMatchObject({ project, path: 'src/sample.test.ts' })
+    expect(compareInventories(before, after, { map }).equal).toBe(true)
+  })
+
   it('maps relocated paths back to old source-equivalent identities', () => {
     const before = normalizeCollection(collected(), options)
     const after = normalizeCollection(collected(undefined, moved), { root, map })
