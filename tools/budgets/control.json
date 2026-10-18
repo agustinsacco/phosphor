@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "package": "control",
+  "offenders": {
+    "src/routes/enrollments.ts::enrollments[1]": 159,
+    "src/routes/grants.test.ts::it[1]": 99,
+    "src/routes/grants.ts::grants[1]": 103,
+    "src/routes/routes.test.ts::it[10]": 119,
+    "src/routes/stack.test.ts::%3Canonymous%3E[1]/it[1]": 277,
+    "src/static.ts::serveStatic[1]": 118
+  },
+  "exemptions": [],
+  "renames": {}
+}

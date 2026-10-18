@@ -328,28 +328,32 @@ Six facts that explain the rest:
 Requires Node 22+ (pi itself needs ≥ 22.19) and `pi` on PATH for `npm run dev`.
 
 ```bash
-npm install
+npm ci
+npm ci --prefix apps/site
 npm run dev
 ```
 
-| Script               | Purpose                                                        |
-| -------------------- | -------------------------------------------------------------- |
-| `npm run dev`        | Electron + Vite dev server with HMR                            |
-| `npm run dev:web`    | Renderer alone, in a browser, against the mock preload API     |
-| `npm run build`      | Bundle main, preload and renderer to `apps/desktop/out/`       |
-| `npm run typecheck`  | TypeScript project checks (main + renderer)                    |
-| `npm run lint`       | ESLint                                                         |
-| `npm run format`     | Prettier                                                       |
-| `npm test`           | Vitest unit tests                                              |
-| `npm run test:e2e`   | Playwright-Electron smoke tests against the deterministic `pi` |
-| `npm run validate`   | All of the above, quiet — one PASS/FAIL line per step + a log  |
-| `npm run pack`       | Package for the current platform without packing (quick check) |
-| `npm run dist`       | Package for the current platform via electron-builder          |
-| `npm run shots`      | Deterministic screenshots against the e2e pi stub (see below)  |
-| `npm run shots:live` | Re-shoot this README against a real pi instance (see below)    |
+| Script               | Purpose                                                                   |
+| -------------------- | ------------------------------------------------------------------------- |
+| `npm run dev`        | Electron + Vite dev server with HMR                                       |
+| `npm run dev:web`    | Renderer alone, in a browser, against the mock preload API                |
+| `npm run build`      | Bundle main, preload and renderer to `apps/desktop/out/`                  |
+| `npm run typecheck`  | All-file audit; Desktop/tests, libraries, Host, Control, tooling and site |
+| `npm run lint`       | ESLint                                                                    |
+| `npm run format`     | Prettier                                                                  |
+| `npm test`           | Vitest unit tests                                                         |
+| `npm run test:e2e`   | Playwright-Electron smoke tests against the deterministic `pi`            |
+| `npm run validate`   | Check, test and build, quiet; one PASS/FAIL line per step + a log         |
+| `npm run pack`       | Package for the current platform without packing (quick check)            |
+| `npm run dist`       | Package for the current platform via electron-builder                     |
+| `npm run shots`      | Deterministic screenshots against the e2e pi stub (see below)             |
+| `npm run shots:live` | Re-shoot this README against a real pi instance (see below)               |
 
-Tests live beside their subject as `*.test.ts`, in `apps/desktop/electron/`, `apps/host/src/`,
-`libs/shared/src/` and `libs/pi-extensions/pi-ext/` included.
+[Testing](docs/testing.md) is the contract for dependency installation, check
+commands, typed test helpers, frozen interfaces, coverage evidence, size budgets
+and staged lint warnings. Tests currently live beside their subjects as
+`*.test.ts`; this is temporary until RL-03 moves them to `test/` folders.
+Foundation and freeze suites already use the new layout.
 
 ### Nx task orchestration
 

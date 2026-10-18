@@ -20,7 +20,7 @@ in the same diff as the behaviour it describes.
 
 ```bash
 npm run dev        # Electron + Vite with HMR (needs pi on PATH; see below)
-npm run typecheck  # tsc for main (tsconfig.node) + renderer (tsconfig.web)
+npm run typecheck  # all-file audit + Desktop/tests, libraries, Host, Control, tooling, site
 npm run lint       # eslint
 npm run format     # prettier --write
 npm test           # vitest unit tests
@@ -28,9 +28,14 @@ npm run test:e2e   # builds, then Playwright-Electron against the pi stub
 npm run validate   # all of the above, quiet: PASS/FAIL summary + a log file
 ```
 
-CI runs typecheck, lint, `prettier --check .`, unit tests, build, and the e2e
-matrix (ubuntu + macOS). Run typecheck + lint + test before considering a
-change done; run e2e when touching IPC, session lifecycle, or visible UI flow.
+Install with `npm ci` and `npm ci --prefix apps/site` before checking the whole
+repository. [Testing](docs/testing.md) owns the commands, frozen-test rules,
+coverage evidence, size budgets and staged lint warnings.
+
+CI runs comprehensive typecheck once (including the all-file audit), lint,
+`prettier --check .`, unit tests, size ratchet, build, and the e2e matrix
+(ubuntu + macOS). Run typecheck + lint + test before considering a change done;
+run e2e when touching IPC, session lifecycle, or visible UI flow.
 
 `npm run validate` (`tools/scripts/validate.sh`) is the one to reach for when you
 just want a verdict: it prints one line per step and sends everything else to
@@ -266,13 +271,15 @@ you want to watch.
 
 ## Conventions
 
-- Tests live beside their subject as `*.test.ts` — **everywhere**, `apps/desktop/electron/`
-  and `libs/shared/src/` and `libs/pi-extensions/pi-ext/` included. One `__tests__/` directory is left
-  (`tools/scripts/__tests__/`); the rest were moved next to their subjects. Shared
-  inputs go in a sibling `__fixtures__/`.
-  DOM suites opt in per file with `// @vitest-environment jsdom`. Prefer
-  testing pure logic extracted into `apps/desktop/src/lib/` / plain modules over component
-  tests.
+- Tests currently live beside their subject as `*.test.ts`, including
+  `apps/desktop/electron/`, `libs/shared/src/` and `libs/pi-extensions/pi-ext/`.
+  This is temporary until RL-03 moves them to `test/` folders; foundation and
+  freeze suites already use that layout. The legacy `tools/scripts/__tests__/`
+  directory also remains. Shared inputs go in sibling `__fixtures__/` folders.
+  Follow [Testing](docs/testing.md#layout-and-helpers) for the typed `fakePhosphor`
+  helper and [characterization/freeze rules](docs/testing.md#characterization-and-freeze-rules).
+  DOM suites opt in per file with `// @vitest-environment jsdom`. Prefer pure
+  logic extracted into `apps/desktop/src/lib/` or plain modules over component tests.
 - Modals use `ModalOverlay` from `apps/desktop/src/components/Modal.tsx` — portalling,
   backdrop dismissal, and depth-aware Escape (innermost wins). Don't add
   window-level Escape listeners in modal content.

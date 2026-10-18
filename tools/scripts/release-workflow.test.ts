@@ -159,7 +159,9 @@ it('a CI-verified manual release skips only the desktop affected check', () => {
 function block(name: string, key: string): string {
   const after = workflow.slice(workflow.indexOf(`- name: ${name}`))
   const match = after.match(new RegExp(`( +)${key}: \\|\\n`))!
-  const indent = match[1].length + 2
+  const indentation = match[1]
+  if (indentation === undefined) throw new Error(`Missing indentation for ${name}: ${key}`)
+  const indent = indentation.length + 2
   const body: string[] = []
   for (const line of after.slice(match.index! + match[0].length).split('\n')) {
     if (line && !line.startsWith(' '.repeat(indent))) break

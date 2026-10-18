@@ -34,8 +34,6 @@ it.each([
     expect(result.status).toBe(failBuild ? 1 : 0)
     const expected = [
       'run typecheck',
-      'run typecheck:host',
-      'run typecheck:control',
       'run lint',
       'prettier --check .',
       'test',

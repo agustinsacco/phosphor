@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
+    // Resolves the .mjs scripts under test; they are not type-checked.
+    "allowJs": true
+  },
+  "include": ["*.test.ts", "scripts/**/*.ts", "test/*.ts", "test/scripts/**/*.ts"]
+}

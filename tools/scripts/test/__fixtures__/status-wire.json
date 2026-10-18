@@ -1,0 +1,43 @@
+{
+  "statuses": [
+    {
+      "key": "phosphor-swarm",
+      "producer": "libs/pi-extensions/pi-ext/swarm.ts",
+      "consumer": "apps/desktop/src/features/chat/composer/SwarmSwitch.tsx"
+    },
+    {
+      "key": "phosphor-context-breakdown",
+      "producer": "libs/pi-extensions/pi-ext/context-breakdown.ts",
+      "consumer": "apps/desktop/src/features/chat/composer/ContextMeter.tsx"
+    },
+    {
+      "key": "phosphor-reload",
+      "producer": "libs/pi-extensions/pi-ext/lane-reload.ts",
+      "consumer": "libs/session-runtime/src/pi/lane-reload.ts"
+    },
+    {
+      "key": "phosphor-headroom",
+      "producer": "libs/pi-extensions/pi-ext/headroom.ts",
+      "consumer": "apps/desktop/src/features/chat/composer/ContextMeter.tsx"
+    },
+    {
+      "key": "claude-rate-limit",
+      "producer": null,
+      "externalCompatibility": "@saccolabs/pi-claude-cli >= 0.4.5; opaque external provider",
+      "consumer": "apps/desktop/src/features/chat/composer/ContextMeter.tsx"
+    },
+    {
+      "key": "claude-subagents",
+      "producer": null,
+      "externalCompatibility": "@saccolabs/pi-claude-cli >= 0.4.13; legacy sessions before 0.9.0",
+      "consumer": "apps/desktop/src/features/extension-ui/ExtensionUiHosts.tsx"
+    }
+  ],
+  "structuredWidgets": ["subagent-async", "subagent-inspect", "phosphor-subagent-save"],
+  "asyncWidget": {
+    "key": "subagent-async",
+    "prefix": "PI_SUBAGENT_ASYNC_JSON:",
+    "kind": "pi-subagents.async-status-snapshot",
+    "version": 1
+  }
+}

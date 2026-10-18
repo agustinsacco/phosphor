@@ -47,6 +47,12 @@ export function replaceRefusal(dir) {
 }
 
 /**
+ * @typedef {object} BuildFilesystem
+ * @property {(from: string, to: string) => void} renameSync
+ * @property {(path: string, options: { recursive?: boolean, force?: boolean }) => void} rmSync
+ */
+
+/**
  * Run `work` on a fresh folder beside `out`, a sibling so that relative
  * paths and the final rename hold, then put that folder at `out`. The
  * earlier output is moved aside first, moved back if the new one cannot
@@ -55,6 +61,7 @@ export function replaceRefusal(dir) {
  * as it was. A build killed outright can leave a `.phosphor-build-*` folder.
  * `fs` is for tests. Returns what `work` returned, and the earlier output's
  * folder if it could not be deleted.
+ * @param {BuildFilesystem} [fs]
  */
 export async function buildInto(out, work, fs = { renameSync, rmSync }) {
   const refusal = replaceRefusal(out)

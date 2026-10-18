@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "package": "shared",
+  "offenders": {
+    "src/command-approval.ts::file": 415,
+    "src/control-api.ts::file": 822,
+    "src/host-protocol-machine.ts::parseMachineModels[1]": 84,
+    "src/host-protocol-testing/conformance.ts::file": 1129,
+    "src/host-protocol-testing/conformance.ts::defineHostConformance[1]": 1058,
+    "src/host-protocol-testing/conformance.ts::defineHostConformance[1]/describe[1]": 1050,
+    "src/host-protocol-testing/fake-host.test.ts::it[2]": 90,
+    "src/host-protocol-testing/fake-host.ts::file": 1004,
+    "src/host-protocol-testing/fake-host.ts::createFakeHost[1]": 902,
+    "src/host-protocol-testing/fake-host.ts::createFakeHost[1]/command[1]": 182,
+    "src/host-protocol-testing/fake-host.ts::createFakeHost[1]/handle[1]": 254,
+    "src/host-protocol-testing/loopback.ts::createLoopbackPair[1]": 96,
+    "src/host-protocol.test.ts::describe[1]/it[5]": 100,
+    "src/host-protocol.test.ts::describe[2]/it[5]": 107,
+    "src/host-protocol.ts::file": 1209,
+    "src/host-protocol.ts::op[1]": 94,
+    "src/host-protocol.ts::parseClientFrame[1]": 108,
+    "src/host-protocol.ts::parseHostFrame[1]": 165,
+    "src/ipc.ts::file": 1263,
+    "src/models.ts::file": 1268,
+    "src/rpc.ts::file": 588
+  },
+  "exemptions": [],
+  "renames": {}
+}

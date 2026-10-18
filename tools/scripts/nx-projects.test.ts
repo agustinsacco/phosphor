@@ -52,8 +52,7 @@ const commands = {
     test: 'npx --yes supabase@2.119.0 test db',
   },
   tooling: {
-    typecheck:
-      'tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p apps/desktop/tsconfig.web.json && tsc --noEmit -p apps/host/tsconfig.json && tsc --noEmit -p apps/control/tsconfig.json',
+    typecheck: 'node tools/scripts/typecheck.mjs',
     lint: 'eslint .',
     test: 'vitest run',
     validate: './tools/scripts/validate.sh',
@@ -193,11 +192,12 @@ describe('explicit Nx project contract', () => {
       const project = graph.nodes[name].data
       assertTargets(name as keyof typeof commands, project.targets)
       for (const [target, command] of Object.entries(expected)) {
+        const projectInputs = inputs[name as keyof typeof inputs]
+        if (!projectInputs) throw new Error(`Missing inputs for ${name}`)
         expect(project.targets[target]).toMatchObject({
           executor: 'nx:run-commands',
           cache: false,
-          inputs:
-            inputs[name as keyof typeof inputs][target] ?? inputs[name as keyof typeof inputs]['*'],
+          inputs: projectInputs[target] ?? projectInputs['*'],
           options: {
             command,
             cwd: name === 'site' ? 'apps/site' : name === 'desktop' ? 'apps/desktop' : '.',

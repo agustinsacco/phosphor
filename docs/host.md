@@ -1397,10 +1397,11 @@ The Nx project `host` has `typecheck` (`tsc --noEmit -p apps/host/tsconfig.json`
 `test` (`vitest run apps/host`) and `build` (`node apps/host/scripts/build.mjs`,
 output `apps/host/dist`), all uncached. It depends on the runtime,
 shared and pi-extensions libraries, and only `tooling` depends on it, so a
-Host-only change selects `host` and `tooling` and never releases Desktop. Root
-`npm run typecheck:host` and `npm run build:host` run in the validator and in
-CI's checks job; the unit tests, the bundle's included, run with every other
-suite in `npm test`.
+Host-only change selects `host` and `tooling` and never releases Desktop.
+The validator's `npm run typecheck` includes the Host project; it also runs
+`npm run build:host`. CI's checks job runs the comprehensive `npm run typecheck`,
+which includes the Host project, and `npm run build:host`; the unit tests, the bundle's included, run with every
+other suite in `npm test`.
 
 ## Machine features
 
