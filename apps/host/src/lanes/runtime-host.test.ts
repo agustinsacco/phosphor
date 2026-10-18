@@ -96,6 +96,7 @@ function setup(
   const saved = () => store.ensureLane({ repositoryId, cwd: machine.repository, sessionFile: null })
   return { runtime, binding, saved, log, push: (push: SessionPush) => deliver(push) }
 }
+// Runtime binding guards: startup buffering, attachment readiness, stop/resume and delete authority.
 describe('runtime lane binding', () => {
   it.each(['none', 'rename', 'native-rename', 'stop', 'removed'] as const)(
     'names once through its own runtime and skips after %s',
