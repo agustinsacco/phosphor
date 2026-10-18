@@ -168,13 +168,48 @@ export interface ClaudeUsagePorts {
   run: UsageRunner
 }
 
+interface CacheEntry {
+  fetchedAt: number
+  snapshot: ClaudeUsageSnapshot
+}
+
+interface UsageOptions {
+  claudeOverride?: string
+  nowMs?: number
+  runner?: UsageRunner
+  /** Account id. Omitted means the CLI's default credential. */
+  cacheKey?: string
+  /** Credential-scoping env for one account; see electron/claude/accounts.ts. */
+  extraEnv?: Record<string, string>
+  /**
+   * Ignore a fresh cache entry and re-run. For a user-initiated refresh only:
+   * a refresh button that returns the cached answer looks broken. The
+   * in-flight share below still applies, so a double click is one run.
+   */
+  force?: boolean
+}
+
+/** Resolve and run one probe; only successful, parsed readings enter the cache. */
+async function runUsageProbe(
+  ports: ClaudeUsagePorts,
+  cached: Map<string, CacheEntry>,
+  key: string,
+  nowMs: number,
+  options?: UsageOptions,
+): Promise<ClaudeUsageSnapshotResult> {
+  const binaryPath = options?.claudeOverride ?? (await ports.binary())
+  if (!binaryPath) return { ok: false, error: 'claude-not-found' }
+  const env = { ...(await ports.environment()), ...options?.extraEnv }
+  const stdout = await (options?.runner ?? ports.run)(binaryPath, env)
+  if (stdout === null) return { ok: false, error: 'run-failed' }
+  const snapshot = parseUsageOutput(stdout, nowMs)
+  if (!snapshot) return { ok: false, error: 'no-usage' }
+  cached.set(key, { fetchedAt: snapshot.fetchedAt, snapshot })
+  return { ok: true, snapshot }
+}
+
 /** Machine-local caches: never share account quota readings between execution machines. */
 export function createClaudeUsage(ports: ClaudeUsagePorts) {
-  interface CacheEntry {
-    fetchedAt: number
-    snapshot: ClaudeUsageSnapshot
-  }
-
   /**
    * Keyed by account id, because every Claude account has its own quota and one
    * shared slot would show whichever one asked last. The default key covers
@@ -207,21 +242,7 @@ export function createClaudeUsage(ports: ClaudeUsagePorts) {
    * so a second identical request must not spawn a second CLI). Failure
    * results are never cached — the next ask retries.
    */
-  async function fetchUsageSnapshot(options?: {
-    claudeOverride?: string
-    nowMs?: number
-    runner?: UsageRunner
-    /** Account id. Omitted means the CLI's default credential. */
-    cacheKey?: string
-    /** Credential-scoping env for one account; see electron/claude/accounts.ts. */
-    extraEnv?: Record<string, string>
-    /**
-     * Ignore a fresh cache entry and re-run. For a user-initiated refresh only:
-     * a refresh button that returns the cached answer looks broken. The
-     * in-flight share below still applies, so a double click is one run.
-     */
-    force?: boolean
-  }): Promise<ClaudeUsageSnapshotResult> {
+  async function fetchUsageSnapshot(options?: UsageOptions): Promise<ClaudeUsageSnapshotResult> {
     const nowMs = options?.nowMs ?? Date.now()
     const key = options?.cacheKey ?? DEFAULT_KEY
     const hit = cached.get(key)
@@ -231,17 +252,7 @@ export function createClaudeUsage(ports: ClaudeUsagePorts) {
     const pending = inFlight.get(key)
     if (pending) return pending
 
-    const run = (async (): Promise<ClaudeUsageSnapshotResult> => {
-      const binaryPath = options?.claudeOverride ?? (await ports.binary())
-      if (!binaryPath) return { ok: false, error: 'claude-not-found' }
-      const env = { ...(await ports.environment()), ...options?.extraEnv }
-      const stdout = await (options?.runner ?? ports.run)(binaryPath, env)
-      if (stdout === null) return { ok: false, error: 'run-failed' }
-      const snapshot = parseUsageOutput(stdout, nowMs)
-      if (!snapshot) return { ok: false, error: 'no-usage' }
-      cached.set(key, { fetchedAt: snapshot.fetchedAt, snapshot })
-      return { ok: true, snapshot }
-    })()
+    const run = runUsageProbe(ports, cached, key, nowMs, options)
     inFlight.set(key, run)
 
     try {
