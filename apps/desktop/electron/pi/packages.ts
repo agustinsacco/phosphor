@@ -8,7 +8,7 @@ import { listPackages, npmNameFromSpec } from '@phosphor/session-runtime/pi/pack
 import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
 import { claudeOneShotEnv, claudeProviderSpawnEnv } from './provider-detect'
 import { piProcessEnv } from './shell-env'
-import { cachedPiHealth } from './health'
+import { PiUnavailableError, resolvePiInvoker } from './invoker'
 import { lookupPosixBinary, windowsWhereOutput } from './binary-lookup'
 import { pickWhereMatch, resolveWindowsLaunch } from './win-launch'
 import { killProcessTree, OWN_GROUP, runPrintMode } from './print-mode'
@@ -261,32 +261,13 @@ export function failedJob(sender: JobSender, message: string): { jobId: string }
 /**
  * How to invoke pi for package jobs. The e2e stub is a Node script, so it
  * runs through Electron-as-Node exactly like the session spawner does
- * (pi-session-handlers computes and passes the override; this module stays
- * Electron-free for unit tests).
+ * (package IPC handlers compute and pass the override). The shared resolver
+ * uses the inherited-stub environment profile for these jobs.
  */
 export interface PiInvoker {
   command: string
   prefixArgs: string[]
   env: Record<string, string>
-}
-
-async function resolvePiInvoker(stubPath?: string): Promise<PiInvoker | null> {
-  if (stubPath) {
-    return {
-      command: process.execPath,
-      prefixArgs: [stubPath],
-      env: { ...(process.env as Record<string, string>), ELECTRON_RUN_AS_NODE: '1' },
-    }
-  }
-  // Through the health probe, not `resolveBinary('pi')`: on Windows the thing
-  // to spawn is node.exe plus pi's entry script (PiHealth.prefixArgs).
-  const health = await cachedPiHealth()
-  if (!health.ok || !health.binaryPath) return null
-  return {
-    command: health.binaryPath,
-    prefixArgs: health.prefixArgs ?? [],
-    env: await piProcessEnv(),
-  }
 }
 
 /** `pi install|remove|update` through pi's own package manager. */
@@ -300,7 +281,10 @@ export async function runPackageAction(
   /** See `startJob`'s `onExit`. */
   onExit?: (code: number) => void,
 ): Promise<{ jobId: string }> {
-  const invoker = await resolvePiInvoker(stubPath)
+  const invoker = await resolvePiInvoker('inherited-stub', { stubPath }).catch((error: unknown) => {
+    if (error instanceof PiUnavailableError) return null
+    throw error
+  })
   if (!invoker) return failedJob(sender, 'pi binary not found on PATH')
   if (scope === 'project' && !workspacePath) {
     return failedJob(sender, 'project scope requires a workspace')
@@ -311,7 +295,7 @@ export async function runPackageAction(
   if (spec) args.push(spec)
   if (scope === 'project') args.push('-l')
 
-  return startJob(sender, invoker.command, args, {
+  return startJob(sender, invoker.binaryPath, args, {
     cwd: scope === 'project' ? workspacePath : undefined,
     env: invoker.env,
     ...(onExit ? { onExit } : {}),
@@ -523,11 +507,14 @@ export async function runClaudeProviderTest(
   sender: JobSender,
   stubPath?: string,
 ): Promise<{ jobId: string }> {
-  const invoker = await resolvePiInvoker(stubPath)
+  const invoker = await resolvePiInvoker('inherited-stub', { stubPath }).catch((error: unknown) => {
+    if (error instanceof PiUnavailableError) return null
+    throw error
+  })
   if (!invoker) return failedJob(sender, 'pi binary not found on PATH')
   return startPrintModeJob(
     sender,
-    invoker.command,
+    invoker.binaryPath,
     [
       ...invoker.prefixArgs,
       '-p',
