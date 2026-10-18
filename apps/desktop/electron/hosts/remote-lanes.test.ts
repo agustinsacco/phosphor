@@ -1,3 +1,4 @@
+// DM-18 frozen inventory: 38 cases; full original names recorded in the characterization commit.
 import { generateKeyPairSync, randomBytes, randomUUID, sign } from 'node:crypto'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createFakeHost, createLoopbackPair } from '@shared/host-protocol-testing'
