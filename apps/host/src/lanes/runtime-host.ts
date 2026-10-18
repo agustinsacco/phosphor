@@ -1,179 +1,28 @@
-import { lstat } from 'node:fs/promises'
-import { titleCandidates, type createLaneNamer, type NamingOutcome } from './naming'
-import type { SessionPush } from '@phosphor/shared/models'
-import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
+import { titleCandidates, type NamingOutcome } from './naming'
 import type { HostRuntime } from '../session/runtime'
 import { piState } from './pi-results'
 import type { LaneSessions } from './create'
-import { promptTitle, type createLiveLanes } from './live'
-import type { HostStore, StoredLane } from './store'
+import { promptTitle } from './live'
+import type { RuntimeLaneOptions, RuntimeLaneState } from './runtime-host/state'
+import { MODEL_TRANSCRIPT_REFUSAL } from './runtime-host/state'
+import * as lifecycle from './runtime-host/lifecycle'
 
-const STARTUP_PUSHES = 256
-const STARTUP_BYTES = 1024 * 1024
-const MODEL_TRANSCRIPT_REFUSAL = 'The lane transcript could not be verified. Model was not changed.'
-type Binding = {
-  switching?: boolean
-  namingEligible?: boolean
-  namingConsidered?: boolean
-  renameRevision?: number
-  laneId?: string
-  pushes: SessionPush[]
-  bytes: number
-  overflow: boolean
-  attachment?: ReturnType<ReturnType<typeof createLiveLanes>['attach']>
-}
-
-export function createRuntimeLanes(options: {
-  runtime: Pick<HostRuntime, 'start' | 'stop' | 'command' | 'extensionUiResponse'>
-  store: Pick<HostStore, 'getLane' | 'updateLane' | 'bindSessionFile'>
-  live: ReturnType<typeof createLiveLanes>
-  nameLane?: (...args: Parameters<ReturnType<typeof createLaneNamer>>) => void
-  log: RuntimeLog
-}) {
+export function createRuntimeLanes(options: RuntimeLaneOptions) {
   const { runtime, live } = options
-  const bindings = new Map<string, Binding>()
-  async function start(request: unknown) {
-    const binding: Binding = { pushes: [], bytes: 0, overflow: false }
-    const session = await runtime.start(request, (push) => {
-      if (push.kind === 'stderr') return
-      if (binding.laneId !== undefined) return live.push(binding.laneId, push)
-      if (binding.overflow) return
-      const bytes = Buffer.byteLength(JSON.stringify(push))
-      if (binding.pushes.length >= STARTUP_PUSHES || binding.bytes + bytes > STARTUP_BYTES) {
-        binding.overflow = true
-        binding.pushes = []
-        binding.bytes = 0
-      } else {
-        binding.pushes.push(push)
-        binding.bytes += bytes
-      }
-    })
-    bindings.set(session.sessionId, binding)
-    try {
-      const state = await runtime.command(session.sessionId, { type: 'get_state' })
-      const data = state.success ? piState(state.data) : null
-      if (!data) throw new Error('the lane could not start')
-      return {
-        sessionId: session.sessionId,
-        sessionFile: typeof data.sessionFile === 'string' ? data.sessionFile : null,
-      }
-    } catch (error) {
-      await stop(session.sessionId)
-      throw error
-    }
-  }
-  async function attach(laneId: string, sessionId: string) {
-    const binding = bindings.get(sessionId)
-    if (!binding || !options.store.getLane(laneId)) throw new Error('unknown lane start')
-    // An unexpected exit keeps its failed projection until an explicit resume.
-    for (const [id, previous] of bindings)
-      if (id !== sessionId && previous.laneId === laneId) bindings.delete(id)
-    live.detach(laneId)
-    binding.attachment = live.attach(laneId, sessionId)
-    binding.laneId = laneId
-    if (binding.overflow) {
-      try {
-        options.log('host', 'lane.startup_overflow', { laneId })
-      } catch {
-        // Logging cannot fail an attachment.
-      }
-    }
-    for (const push of binding.pushes) live.push(laneId, push)
-    binding.pushes = []
-    binding.bytes = 0
-    await binding.attachment.ready
-    if (options.nameLane) {
-      const response = await runtime.command(sessionId, { type: 'get_state' })
-      const state = response.success ? piState(response.data) : null
-      binding.namingEligible = state?.messageCount === 0 && !state.sessionName
-    }
-  }
-  async function stop(sessionId: string) {
-    const binding = bindings.get(sessionId)
-    // Failed creations must discard their startup pushes even if stopping fails.
-    bindings.delete(sessionId)
-    binding?.pushes.splice(0)
-    const laneId = binding?.laneId
-    try {
-      await runtime.stop(sessionId)
-    } finally {
-      if (binding) binding.laneId = undefined
-      if (laneId !== undefined) live.detach(laneId)
-    }
-  }
-  async function learnFile(laneId: string, sessionId: string) {
-    const response = await runtime.command(sessionId, { type: 'get_state' })
-    const state = response.success ? piState(response.data) : null
-    if (state?.sessionFile) options.store.bindSessionFile(laneId, state.sessionFile)
-    return state
-  }
-  function persistModel(laneId: string, model: { provider: string; id: string }) {
-    try {
-      options.store.updateLane(laneId, { provider: model.provider, model: model.id })
-    } catch {
-      // pi has already switched. A summary write must not turn its success into
-      // an uncertain command outcome, even if logging is also unavailable.
-      try {
-        options.log('host', 'lane.model_persistence_failed')
-      } catch {
-        // Logging cannot fail a confirmed model selection.
-      }
-    }
-  }
-  async function hasSavedSession(file: string | undefined): Promise<boolean> {
-    if (!file) return false
-    try {
-      const info = await lstat(file)
-      if (info.isFile()) return true
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if (code === 'ENOENT' || code === 'ENOTDIR') return false
-    }
-    throw new Error(MODEL_TRANSCRIPT_REFUSAL)
-  }
+  const context: RuntimeLaneState = { options, bindings: new Map() }
+  const { bindings } = context
+  const start = lifecycle.start.bind(null, context)
+  const attach = lifecycle.attach.bind(null, context)
+  const stop = lifecycle.stop.bind(null, context)
+  const learnFile = lifecycle.learnFile.bind(null, context)
+  const persistModel = lifecycle.persistModel.bind(null, context)
+  const { hasSavedSession } = lifecycle
   const sessions: LaneSessions = { start, attach, stop }
   return {
     sessions,
-    async resumeLane(lane: StoredLane) {
-      if (lane.sessionFile === null) throw new Error('the lane could not start')
-      // The runtime parser requires the recorded file to still exist.
-      const session = await start({ repository: lane.cwd, sessionPath: lane.sessionFile })
-      try {
-        await attach(lane.laneId, session.sessionId)
-      } catch (error) {
-        await stop(session.sessionId)
-        throw error
-      }
-    },
-    async deleteStop(laneId: string, allowed: () => boolean = () => true) {
-      const sessionId = live.sessionFor(laneId)
-      if (sessionId !== null) {
-        const state = await learnFile(laneId, sessionId)
-        if (!state || (!state.sessionFile && (state.messageCount > 0 || state.isStreaming)))
-          throw new Error('Lane file identity could not be verified.')
-        if (!allowed()) throw new Error('Lane control changed.')
-        await stop(sessionId)
-      }
-    },
-    async stopLane(laneId: string) {
-      const sessionId = live.sessionFor(laneId)
-      if (sessionId !== null) {
-        const state = await learnFile(laneId, sessionId)
-        // pi reports its session path before the file exists; it writes the file when a
-        // turn ends. Stopping before then leaves nothing to resume, so require the file.
-        const persisted =
-          !!state?.sessionFile &&
-          (await lstat(state.sessionFile).then(
-            (info) => info.isFile(),
-            () => false,
-          ))
-        if (!persisted)
-          throw Object.assign(new Error('Send a first message before stopping this lane.'), {
-            code: 'first-prompt-required',
-          })
-        await stop(sessionId)
-      }
-    },
+    resumeLane: lifecycle.resumeLane.bind(null, context),
+    deleteStop: lifecycle.deleteStop.bind(null, context),
+    stopLane: lifecycle.stopLane.bind(null, context),
     async command(...args: Parameters<HostRuntime['command']>) {
       const binding = bindings.get(args[0])
       if (binding?.switching)
