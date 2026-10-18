@@ -31,7 +31,12 @@ test('bee1 receipt stays machine scoped while This Mac is selected', async ({
     await h.page.getByRole('button', { name: 'Start session', exact: true }).click()
     await expect(h.page.getByRole('textbox', { name: 'Chat message', exact: true })).toBeVisible()
     await h.backgroundTurn('fail-turn')
-    const attention = h.frames.filter((frame) => frame.type === 'attention').at(-1)
+    // Only this lane's attention: the PHX-receipt lane started above settles on
+    // its own schedule, and its `finished` can land after this lane's `failed`.
+    const attention = h.frames
+      .filter((frame) => frame.type === 'attention')
+      .filter((frame) => frame.event.laneId === h.laneId)
+      .at(-1)
     expect(attention?.event.kind).toBe('failed')
     const stopped = h.page.locator('[data-testid="toast"][data-kind="error"]')
     await expect(stopped).toBeVisible()
