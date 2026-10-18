@@ -11,22 +11,15 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { isBuiltin } from 'node:module'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { build } from 'esbuild'
 import { validateNative } from '../../../tools/host-release/build-native.mjs'
+import { bundleHost, NODE_TARGET, OUTFILE } from './build-bundle.mjs'
 import { buildInto, INFO } from './output.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
-const NODE_TARGET = 'node22'
-const OUTFILE = 'phosphor.mjs'
-/** Modules and folders the Host must never carry. */
-const FORBIDDEN = [
-  /(^|\/)node_modules\/(electron|electron-store|electron-updater|node-pty)\//,
-  /^apps\/(desktop|site)\//,
-]
 
 const { values } = parseArgs({
   options: {
@@ -63,69 +56,7 @@ console.log(
 
 /** Build into `stage`, which holds nothing yet. Any failure throws. */
 async function stageBuild(stage) {
-  let boundary = null
-  const result = await build({
-    absWorkingDir: ROOT,
-    entryPoints: ['apps/host/src/main.ts'],
-    outfile: join(stage, OUTFILE),
-    bundle: true,
-    platform: 'node',
-    format: 'esm',
-    target: NODE_TARGET,
-    sourcemap: releaseVersion === undefined ? 'linked' : false,
-    metafile: true,
-    logLevel: 'warning',
-    // Library source still uses the @shared/* alias internally.
-    tsconfigRaw: { compilerOptions: { paths: { '@shared/*': ['./libs/shared/src/*'] } } },
-    banner: {
-      js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
-    },
-    define: {
-      ...(stamped ? { __PHOSPHOR_HOST_SOURCE_SHA__: JSON.stringify(stamped) } : {}),
-      ...(releaseVersion
-        ? { __PHOSPHOR_HOST_RELEASE_VERSION__: JSON.stringify(releaseVersion) }
-        : {}),
-    },
-    plugins: [
-      {
-        name: 'ws-plain-js',
-        setup(b) {
-          b.onResolve({ filter: /^(bufferutil|utf-8-validate)$/ }, (args) => ({
-            path: args.path,
-            namespace: 'ws-optional',
-          }))
-          b.onLoad({ filter: /.*/, namespace: 'ws-optional' }, () => ({
-            contents: 'throw new Error("Optional native helper disabled")',
-          }))
-        },
-      },
-      {
-        name: 'host-boundary',
-        setup(b) {
-          b.onResolve(
-            { filter: /^(electron|electron-store|electron-updater|node-pty)(\/|$)/ },
-            (args) => {
-              boundary ??= `the Host reached ${args.path} from ${args.importer}`
-              return { errors: [{ text: boundary }] }
-            },
-          )
-        },
-      },
-    ],
-  }).catch((error) => {
-    throw boundary ? new Error(boundary) : error
-  })
-
-  const inputs = Object.keys(result.metafile.inputs)
-  const reached = inputs.filter((input) => FORBIDDEN.some((pattern) => pattern.test(input)))
-  if (reached.length > 0) throw new Error(`the Host bundled ${reached.join(', ')}`)
-  const imports = Object.values(result.metafile.outputs).flatMap((output) =>
-    output.imports.map((entry) => entry.path),
-  )
-  const foreign = [...new Set(imports.filter((path) => !isBuiltin(path)))]
-  if (foreign.length > 0) {
-    throw new Error(`the bundle imports ${foreign.join(', ')}, which are not Node builtins`)
-  }
+  const inputs = await bundleHost(stage, { root: ROOT, stamped, releaseVersion })
 
   if (values.native) {
     validateNative(resolve(values.native), values.target ?? `${process.platform}-${process.arch}`)
