@@ -210,3 +210,9 @@ describe('windowsWhereOutput', () => {
     expect(await windowsWhereOutput('claude')).toBe('')
   })
 })
+
+it('packages preserves the shared binary resolver identity', async () => {
+  const packages = await import('./packages')
+  const binaryLookup = await import('./binary-lookup')
+  expect(packages.resolveBinary).toBe(binaryLookup.resolveBinary)
+})
