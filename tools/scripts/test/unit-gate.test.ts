@@ -64,7 +64,15 @@ function fixture(kind = 'decompose', characterization = true) {
     subject = 'refactor(FD-X): preserve entry',
   ) => {
     options.finalSha = commit(files, subject)
-    const beforeSha = options.characterizationSha ?? baseSha
+    const regressionShas = git(
+      'log',
+      '--format=%H',
+      '--grep=^test(FD-X): regression ',
+      `${baseSha}..HEAD`,
+    )
+      .split('\n')
+      .filter(Boolean)
+    const beforeSha = options.characterizationSha ?? regressionShas[0] ?? baseSha
     const aggregate = { covered: 1, total: 1, files: [{ file: 'entry.mjs', covered: 1, total: 1 }] }
     options.coverage = {
       beforeSha,
@@ -372,4 +380,112 @@ describe('unit-gate history enforcement', () => {
       f.options.finalSha,
     )
   })
+})
+
+describe('unit-gate review regressions', () => {
+  it.each(['fix', 'security', 'perf'])(
+    'accepts and freezes red characterize_first files for %s units',
+    (kind) => {
+      const f = fixture(kind)
+      f.options.characterizationSha = f.commit(
+        { 'entry.test.ts': test.replace('toBe(1)', 'toBe(2)') },
+        'test(FD-X): regression specified defect',
+      )
+      f.finish({ 'entry.mjs': 'export const value = () => 2' }, 'fix(FD-X): correct value')
+      const result = runUnitGate(f.options)
+      expect(result.failures).toEqual([])
+      expect(result.runs.map((run) => run.label)).toEqual(['regression', 'final'])
+      expect(result.runs[0]?.status).not.toBe(0)
+      expect(result.runs[0]?.failed).toBe(1)
+      expect(result.runs[0]?.suiteErrors).toBe(0)
+      expect(result.frozen.some((entry) => entry.original === 'entry.test.ts')).toBe(true)
+      f.finish({ 'entry.test.ts': test }, 'test(FD-X): rewrite frozen regression')
+      f.options.evidencePath = join(f.root, 'evidence-frozen.json')
+      expect(runUnitGate(f.options).failures.join()).toMatch(/frozen/)
+    },
+    30000,
+  )
+
+  it('uses the last regression ref when no characterization exists', () => {
+    const f = fixture('fix', false)
+    f.commit(
+      { 'entry.test.ts': test.replace('toBe(1)', 'toBe(2)') },
+      'test(FD-X): regression first assertion',
+    )
+    const lastRegression = f.commit(
+      { 'unrelated.test.ts': test.replace('toBe(1)', 'toBe(2)') },
+      'test(FD-X): regression second assertion',
+    )
+    f.finish({ 'entry.mjs': 'export const value = () => 2' }, 'fix(FD-X): correct value')
+    expect(f.options.coverage?.beforeSha).toBe(lastRegression)
+    expect(runUnitGate(f.options).failures).toEqual([])
+    f.options.evidencePath = join(f.root, 'evidence-base.json')
+    f.options.coverage!.beforeSha = f.options.baseSha
+    expect(runUnitGate(f.options).failures.join()).toMatch(/stale coverage/)
+  }, 30000)
+
+  it('records empty executable scope and rejects coverage for it', () => {
+    const f = fixture('tooling', false)
+    f.options.unit.owns = ['package.json', '.nvmrc', 'entry.test.ts']
+    f.options.manifest.units[0]!.owns = [...f.options.unit.owns]
+    f.finish({ '.nvmrc': '22.19.0', 'entry.test.ts': test }, 'chore(FD-X): pin node')
+    delete f.options.coverage
+    const result = runUnitGate(f.options)
+    expect(result.failures).toEqual([])
+    expect(JSON.parse(readFileSync(f.options.evidencePath, 'utf8')).coverageNote).toBe(
+      'no owned executable source',
+    )
+    f.finish({ '.nvmrc': '22.20.0' }, 'chore(FD-X): update node')
+    f.options.evidencePath = join(f.root, 'evidence-coverage.json')
+    expect(runUnitGate(f.options).failures.join()).toMatch(/coverage must be absent/i)
+  }, 30000)
+
+  it.each(['--config=entry.test.ts', 'nested/-option/entry.test.ts'])(
+    'rejects option-like test path segments in %s',
+    (file) => {
+      const f = fixture()
+      f.options.unit.owns.push(file)
+      f.options.manifest.units[0]!.owns.push(file)
+      f.options.unit.characterize_first = [{ test: file }]
+      f.options.unit.new_tests = [{ test: file }]
+      f.options.characterizationSha = f.commit(
+        { [file]: "import { test } from 'vitest'; test('safe', () => {})" },
+        'test(FD-X): characterize option path',
+      )
+      f.finish()
+      expect(runUnitGate(f.options).failures.join()).toMatch(/option-like test path/i)
+    },
+    30000,
+  )
+
+  it.each(['characterize', 'regression'])(
+    'allows added __fixtures__ inputs in %s commits and freezes them',
+    (mode) => {
+      const f = fixture(mode === 'regression' ? 'fix' : 'decompose')
+      const file = '__fixtures__/value.json'
+      f.options.unit.owns.push(file)
+      f.options.manifest.units[0]!.owns.push(file)
+      const expected = mode === 'regression' ? 2 : 1
+      f.options.characterizationSha = f.commit(
+        {
+          [file]: JSON.stringify(expected),
+          'entry.test.ts': test
+            .replace(
+              'import { value }',
+              "import expected from './__fixtures__/value.json'; import { value }",
+            )
+            .replace('toBe(1)', 'toBe(expected)'),
+        },
+        `test(FD-X): ${mode} fixture input`,
+      )
+      f.finish({ 'entry.mjs': `export const value = () => ${expected}` }, 'fix(FD-X): finish')
+      const result = runUnitGate(f.options)
+      expect(result.failures).toEqual([])
+      expect(result.runs.every((run) => !run.files.includes(file))).toBe(true)
+      f.finish({ [file]: '3' }, 'test(FD-X): change fixture')
+      f.options.evidencePath = join(f.root, 'evidence-fixture.json')
+      expect(runUnitGate(f.options).failures.join()).toMatch(/frozen/)
+    },
+    30000,
+  )
 })
