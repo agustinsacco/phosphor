@@ -56,8 +56,9 @@ you want to watch.
 1. **Desktop's main process owns its side effects.** The renderer runs sandboxed
    (contextIsolation, no Node) and is pure UI over typed IPC. If a feature
    needs disk/network/subprocess, it goes in `apps/desktop/electron/`, not `apps/desktop/src/`.
-2. **IPC is a typed contract.** A new channel = an entry in
-   `libs/shared/src/ipc.ts` `IpcInvokeMap` + a handler in
+2. **IPC is a typed contract.** A new channel = an entry in its
+   prefix's map under `libs/shared/src/ipc/` (combined into `IpcInvokeMap` by
+   `libs/shared/src/ipc.ts`) + a handler in
    `apps/desktop/electron/ipc/<prefix>-handlers.ts` (the module matching the channel prefix;
    23 modules, listed in [README.md](README.md#repo-layout)) + a case in
    `apps/desktop/src/dev/mockPhosphor.ts` if the browser harness should exercise it.

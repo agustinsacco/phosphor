@@ -98,7 +98,7 @@ voice-worker.js (worker.ts): Silero VAD → Moonshine → text, returned by voic
   normalized on read and write.
 - IPC: `voice:status`, `voice:setPrefs`, `voice:start`, `voice:audio`,
   `voice:stop` and `voice:cancel`, plus the `voice:statusChanged` push
-  (`libs/shared/src/ipc.ts`). The renderer's projection is `stores/voice.ts`.
+  (`libs/shared/src/ipc/services.ts`). The renderer's projection is `stores/voice.ts`.
 
 ## Tests
 
