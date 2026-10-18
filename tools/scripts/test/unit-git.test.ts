@@ -1,9 +1,23 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { changedPaths, commitHistory, frozenBlobs, immutableCommit } from '../unit-git.mjs'
+import {
+  changedPaths,
+  commitHistory,
+  frozenBlobs,
+  immutableCommit,
+  withSnapshot,
+} from '../unit-git.mjs'
 
 const roots: string[] = []
 function repository() {
@@ -13,7 +27,10 @@ function repository() {
     execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim()
   git('init', '-q')
   const commit = (files: Record<string, string>, message = 'fixture') => {
-    for (const [file, content] of Object.entries(files)) writeFileSync(join(root, file), content)
+    for (const [file, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(root, file)), { recursive: true })
+      writeFileSync(join(root, file), content)
+    }
     git('add', '--all')
     git(
       '-c',
@@ -33,6 +50,36 @@ afterEach(() => {
 })
 
 describe('unit-git immutable histories', () => {
+  it('links workspace packages to snapshot source, and cleans up on success and failure', () => {
+    const { root, git, commit } = repository()
+    const base = commit({
+      'package.json': JSON.stringify({ workspaces: ['libs/*'] }),
+      'libs/example/package.json': JSON.stringify({ name: '@fixture/example' }),
+      'libs/example/entry.mjs': 'export const value = 1',
+    })
+    mkdirSync(join(root, 'node_modules/@fixture'), { recursive: true })
+    symlinkSync(join(root, 'libs/example'), join(root, 'node_modules/@fixture/example'), 'junction')
+    writeFileSync(join(root, '.git/info/exclude'), 'node_modules\n')
+    commit({ 'libs/example/entry.mjs': 'export const value = 2' })
+    let snapshotPath = ''
+    const check = (snapshot: string) => {
+      snapshotPath = snapshot
+      expect(
+        readFileSync(join(snapshot, 'node_modules/@fixture/example/entry.mjs'), 'utf8'),
+      ).toContain('value = 1')
+    }
+    withSnapshot(root, base, check)
+    expect(existsSync(snapshotPath)).toBe(false)
+    expect(() =>
+      withSnapshot(root, base, (snapshot) => {
+        check(snapshot)
+        throw new Error('fixture failure')
+      }),
+    ).toThrow('fixture failure')
+    expect(existsSync(snapshotPath)).toBe(false)
+    expect(git('worktree', 'list', '--porcelain').match(/^worktree /gm)).toHaveLength(1)
+  })
+
   it('requires full commit object ids, not mutable refs, options or blobs', () => {
     const { root, git, commit } = repository()
     const base = commit({ 'entry.ts': 'original' })

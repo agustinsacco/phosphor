@@ -36,7 +36,7 @@ function fixture(kind = 'decompose', characterization = true) {
     'base',
   )
   symlinkSync(resolve('node_modules'), join(root, 'node_modules'), 'junction')
-  writeFileSync(join(root, '.git/info/exclude'), 'node_modules/\nevidence*.json\n')
+  writeFileSync(join(root, '.git/info/exclude'), 'node_modules\nevidence*.json\n')
   const owns = ['entry.mjs', 'entry.test.ts', 'new.test.ts', 'package.json', 'unrelated.test.ts']
   const options: GateOptions = {
     root,
@@ -45,7 +45,7 @@ function fixture(kind = 'decompose', characterization = true) {
     unit: {
       id: 'FD-X',
       kind,
-      owns,
+      owns: [...owns],
       characterize_first: characterization ? [{ test: 'entry.test.ts' }] : [],
       new_tests: [{ test: 'entry.test.ts' }],
     },
@@ -60,7 +60,7 @@ function fixture(kind = 'decompose', characterization = true) {
     return options.characterizationSha
   }
   const finish = (
-    files = { 'entry.mjs': 'export function value() { return 1 }\n' },
+    files: Record<string, string> = { 'entry.mjs': 'export function value() { return 1 }\n' },
     subject = 'refactor(FD-X): preserve entry',
   ) => {
     options.finalSha = commit(files, subject)
@@ -69,7 +69,7 @@ function fixture(kind = 'decompose', characterization = true) {
     options.coverage = {
       beforeSha,
       afterSha: options.finalSha,
-      report: { before: aggregate, after: aggregate },
+      report: { before: aggregate, after: structuredClone(aggregate) },
     }
   }
   return { root, git, commit, options, characterize, finish }
@@ -95,6 +95,8 @@ describe('unit-gate history enforcement', () => {
       'characterization',
       'final',
     ])
+    expect(evidence.runs[0].report.testResults[0].assertionResults[0].title).toBe('public entry')
+    expect(evidence.runtime.node).toBe(process.version)
     expect(evidence.frozen[0].blob).toMatch(/^[a-f0-9]{40}$/)
     expect(evidence.coverage.report.before.total).toBe(1)
     expect(() => runUnitGate(f.options)).toThrow(/exists/)
@@ -104,7 +106,7 @@ describe('unit-gate history enforcement', () => {
     const f = fixture()
     f.characterize({ 'entry.mjs': 'export const value = () => 2' })
     f.finish()
-    expect(runUnitGate(f.options).failures.join()).toMatch(/characterization.*test-only/)
+    expect(runUnitGate(f.options).failures.join()).toMatch(/characterization.*test-only/i)
   })
 
   it('requires the first commit, all specified tests and immutable SHAs', () => {
@@ -155,6 +157,30 @@ describe('unit-gate history enforcement', () => {
     }
   })
 
+  it('requires complete expansion of ownership globs and covers rename destinations', () => {
+    const f = fixture()
+    f.options.unit.owns = [
+      'entry*.mjs',
+      'entry*.test.ts',
+      'new.test.ts',
+      'package.json',
+      'unrelated.test.ts',
+    ]
+    f.characterize()
+    f.finish({
+      'entry.mjs': 'export const value = () => 1',
+      'entry-extra.mjs': 'export const hidden = 1',
+    })
+    expect(runUnitGate(f.options).failures.join()).toMatch(/fully expanded/)
+    const renamed = fixture()
+    renamed.characterize()
+    renamed.git('mv', 'entry.mjs', 'not-owned.mjs')
+    renamed.finish({ 'entry.mjs': 'export const value = () => 1' })
+    expect(runUnitGate(renamed.options).failures.join()).toMatch(
+      /outside.*ownership.*not-owned.mjs/,
+    )
+  })
+
   it('requires dependencies accepted at immutable commits already in base history', () => {
     const f = fixture()
     f.characterize()
@@ -163,6 +189,22 @@ describe('unit-gate history enforcement', () => {
     f.options.manifest.units.push({ id: 'FD-Y', owns: ['other.mjs'] })
     expect(runUnitGate(f.options).failures.join()).toMatch(/dependency/)
   })
+
+  it('accepts integrated dependency evidence and rejects acceptance of a future commit', () => {
+    const f = fixture()
+    f.characterize()
+    f.finish()
+    f.options.unit.depends_on = ['FD-Y']
+    f.options.manifest.units.push({
+      id: 'FD-Y',
+      owns: ['other.mjs'],
+      accepted: { pass: true, finalSha: f.options.baseSha },
+    })
+    expect(runUnitGate(f.options).pass).toBe(true)
+    f.options.evidencePath = join(f.root, 'evidence-future.json')
+    f.options.manifest.units[1]!.accepted!.finalSha = f.options.finalSha
+    expect(runUnitGate(f.options).failures.join()).toMatch(/dependency not integrated/)
+  }, 30000)
 
   it('rejects missing, stale or decreasing coverage evidence', () => {
     for (const mutation of ['missing', 'stale', 'decrease']) {
@@ -184,7 +226,7 @@ describe('unit-gate history enforcement', () => {
     const f = fixture()
     f.characterize({ 'entry.test.ts': test.replace('toBe(1)', 'toBe(2)') })
     f.finish()
-    expect(runUnitGate(f.options).failures.join()).toMatch(/characterization.*pass/)
+    expect(runUnitGate(f.options).failures.join()).toMatch(/characterization.*pass/i)
   }, 30000)
 
   it('accepts a fix with assertion-red regression and green final, without demanding passing characterization', () => {
@@ -206,7 +248,27 @@ describe('unit-gate history enforcement', () => {
     early.commit({ 'entry.mjs': 'export const value = () => 2' }, 'perf(FD-X): too soon')
     early.commit({ 'entry.test.ts': test }, 'test(FD-X): regression late')
     early.finish(undefined, 'perf(FD-X): finish')
-    expect(runUnitGate(early.options).failures.join()).toMatch(/source.*before/)
+    expect(runUnitGate(early.options).failures.join()).toMatch(/source.*before/i)
+  }, 30000)
+
+  it('rejects a weakened regression and executes regression files absent from explicit selection', () => {
+    const f = fixture('fix', false)
+    f.commit(
+      { 'entry.test.ts': test.replace('toBe(1)', 'toBe(2)') },
+      'test(FD-X): regression wrong value',
+    )
+    f.finish({ 'entry.test.ts': test }, 'fix(FD-X): weaken regression')
+    expect(runUnitGate(f.options).failures.join()).toMatch(/frozen/)
+    const omitted = fixture('fix', false)
+    omitted.commit(
+      { 'entry.test.ts': test.replace('toBe(1)', 'toBe(2)') },
+      'test(FD-X): regression wrong value',
+    )
+    omitted.options.unit.new_tests = [{ test: 'unrelated.test.ts' }]
+    omitted.finish({ 'unrelated.test.ts': test }, 'fix(FD-X): unrelated passing test')
+    const result = runUnitGate(omitted.options)
+    expect(result.failures.join()).toMatch(/final.*pass/i)
+    expect(result.runs.find((run) => run.label === 'final')?.files).toContain('entry.test.ts')
   }, 30000)
 
   it('checks every regression at its own commit and rejects load errors as red evidence', () => {
@@ -267,9 +329,31 @@ describe('unit-gate history enforcement', () => {
     )
     f.finish({ 'package.json': '{"type":"module"}' })
     const result = runUnitGate(f.options)
-    expect(result.failures.join()).toMatch(/final.*pass/)
+    expect(result.failures.join()).toMatch(/final.*pass/i)
     expect(result.runs.find((r) => r.label === 'final')?.files).toEqual([])
   }, 30000)
+
+  it.each(['apps/desktop/package.json', 'tsconfig.tools.json'])(
+    'requires the full suite for %s',
+    (file) => {
+      const f = fixture()
+      f.options.unit.owns.push(file)
+      f.options.manifest.units[0]!.owns.push(file)
+      f.options.baseSha = f.commit(
+        {
+          'unrelated.test.ts':
+            "import { test, expect } from 'vitest'; test('unrelated failure', () => expect(1).toBe(2))",
+        },
+        'baseline unrelated test',
+      )
+      f.characterize()
+      f.finish({ [file]: '{}' })
+      const result = runUnitGate(f.options)
+      expect(result.failures.join()).toMatch(/final.*pass/i)
+      expect(result.runs.find((run) => run.label === 'final')?.files).toEqual([])
+    },
+    30000,
+  )
 
   it('provides a fail-closed CLI and writes evidence even for invalid history', () => {
     const f = fixture()
