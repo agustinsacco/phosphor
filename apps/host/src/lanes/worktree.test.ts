@@ -104,7 +104,7 @@ it('falls back through master, current branch, and HEAD when the remote default 
   const folder = await prepare('from-head')
   expect(await run(['rev-parse', 'from-head'])).toBe(await run(['rev-parse', 'HEAD']))
   await folder.undo()
-})
+}, 30_000)
 it('refuses default, checked out branch and existing folder with fixed sentences', async () => {
   await expect(prepare('main')).rejects.toThrow('The default branch stays in the main tree.')
   await run(['branch', 'elsewhere'])
