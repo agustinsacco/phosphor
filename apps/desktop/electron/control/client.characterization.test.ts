@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { CONTROL_ROUTES, DEFAULT_CONTROL_URL } from '@shared/control-api'
 import { createControlClient } from './client'
-import { LOOKUP, MACHINE } from '../../src/features/machines/__fixtures__/control'
+import {
+  LOOKUP,
+  MACHINE,
+} from '../../../../libs/client-ui/src/features/machines/__fixtures__/control'
 
 const me = { account: { login: 'octo' }, enabled: true, maxHosts: 20 }
 const machines = { machines: [], serverTime: '2026-01-01T00:00:00.000Z' }

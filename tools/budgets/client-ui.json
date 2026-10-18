@@ -248,7 +248,7 @@
       "rule": "file400",
       "kind": "declaration",
       "rationale": "Approved icon declaration registry (A13); each icon remains separately function-budgeted.",
-      "owner": "desktop"
+      "owner": "client-ui"
     }
   ],
   "renames": {}

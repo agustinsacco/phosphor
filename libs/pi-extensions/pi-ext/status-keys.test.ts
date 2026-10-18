@@ -7,14 +7,14 @@ import { HEADROOM_STATUS_KEY } from './headroom'
 import { SNAPSHOT_COMMAND, SNAPSHOT_WIDGET, SNAPSHOT_PREFIX } from './subagent-snapshot'
 import { CONTEXT_FILES_COMMAND } from './context-files'
 import contextBudget from './context-budget'
-import { CONTEXT_BREAKDOWN_STATUS_KEY } from '../../../apps/desktop/src/features/chat/composer/contextBreakdown'
-import { RATE_LIMIT_STATUS_KEY } from '../../../apps/desktop/src/features/chat/composer/rateLimit'
-import { SUBAGENTS_STATUS_KEY } from '../../../apps/desktop/src/features/chat/subagentStatus'
+import { CONTEXT_BREAKDOWN_STATUS_KEY } from '../../client-ui/src/features/chat/composer/contextBreakdown'
+import { RATE_LIMIT_STATUS_KEY } from '../../client-ui/src/features/chat/composer/rateLimit'
+import { SUBAGENTS_STATUS_KEY } from '../../client-ui/src/features/chat/subagentStatus'
 import {
   SUBAGENT_ASYNC_WIDGET_KEY,
   SUBAGENT_INSPECT_WIDGET_KEY,
   parseFleetWidget,
-} from '../../../apps/desktop/src/features/chat/subagentRuns'
+} from '../../client-ui/src/features/chat/subagentRuns'
 
 const goldenInventory = {
   SWARM_STATUS_KEY: 'phosphor-swarm',
@@ -58,11 +58,11 @@ describe('status-keys existing wire inventory', () => {
       SUBAGENTS_STATUS_KEY,
       SUBAGENT_ASYNC_WIDGET_KEY,
       SUBAGENT_INSPECT_WIDGET_KEY,
-      SUBAGENT_ASYNC_WIDGET_PREFIX: source('apps/desktop/src/features/chat/subagentRuns.ts').match(
-        /const ASYNC_WIDGET_PREFIX = '([^']+)'/,
-      )?.[1],
+      SUBAGENT_ASYNC_WIDGET_PREFIX: source(
+        'libs/client-ui/src/features/chat/subagentRuns.ts',
+      ).match(/const ASYNC_WIDGET_PREFIX = '([^']+)'/)?.[1],
       SUBAGENT_INSPECT_WIDGET_PREFIX: source(
-        'apps/desktop/src/features/chat/subagentInspect.ts',
+        'libs/client-ui/src/features/chat/subagentInspect.ts',
       ).match(/const prefix = '([^']+)'/)?.[1],
       SNAPSHOT_WIDGET,
       SNAPSHOT_PREFIX,
