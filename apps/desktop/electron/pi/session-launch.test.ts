@@ -9,11 +9,21 @@ const h = vi.hoisted(() => ({
     getPath: vi.fn(() => '/user-data'),
   },
   health: vi.fn<() => Promise<PiHealth>>(),
+  resetHealth: vi.fn(),
   environment: vi.fn(async () => ({ PATH: '/login-shell/bin', PI_CLAUDE_CLI_CONTEXT: 'old' })),
   provider: vi.fn(() => ({ PI_CLAUDE_CLI_CONTEXT: 'pi' })),
 }))
 vi.mock('electron', () => ({ app: h.app }))
-vi.mock('./health', () => ({ checkPiHealth: h.health }))
+vi.mock('./health', async () => {
+  const { createTtlCache } = await import('./ttl-cache')
+  const cache = createTtlCache(async () => {
+    const health = await h.health()
+    if (!health.ok) throw health
+    return health
+  }, 5 * 60_000)
+  h.resetHealth.mockImplementation(cache.invalidate)
+  return { cachedPiHealth: () => cache.get().catch((health: PiHealth) => health) }
+})
 vi.mock('./shell-env', () => ({ piProcessEnv: h.environment }))
 vi.mock('./provider-detect', () => ({ claudeProviderSpawnEnv: h.provider }))
 const prepare = async () => (await import('./session-launch')).prepareDesktopSessionLaunch()
@@ -22,6 +32,7 @@ const originalResources = Object.getOwnPropertyDescriptor(process, 'resourcesPat
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+  h.resetHealth()
   h.app.isPackaged = false
   h.health.mockResolvedValue({
     ok: true,

@@ -2,10 +2,10 @@ import { handle } from './handle'
 import { remoteLanes } from './hosts-handlers'
 import { isRemoteHandle } from '../hosts/remote-lanes'
 import { desktopSessions } from '../pi/session-runtime'
-import { checkPiHealth } from '../pi/health'
+import { cachedPiHealth } from '../pi/health'
+import { PiUnavailableError, resolvePiInvoker } from '../pi/invoker'
 import { piStubPath } from '../pi/stub'
 import { runPrintMode } from '../pi/print-mode'
-import { piProcessEnv } from '../pi/shell-env'
 import {
   CLAUDE_TITLE_FALLBACK,
   dedupeTitle,
@@ -28,11 +28,9 @@ import {
 } from '../pi/provider-detect'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { getLanePrefs } from '../store'
-import { MIN_PI_VERSION, type CreateSessionOptions, type PiHealth } from '@shared/models'
+import { MIN_PI_VERSION, type CreateSessionOptions } from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
 import { log } from '../debug-log'
-
-let cachedHealth: PiHealth | null = null
 
 /** Providers whose title run failed under `-ne`: always boot them fully. */
 const fullBootProviders = new Set<string>()
@@ -111,16 +109,12 @@ export function registerPiSessionHandlers(): void {
         minVersion: MIN_PI_VERSION,
       }
     }
-    if (!cachedHealth || !cachedHealth.ok) {
-      cachedHealth = await checkPiHealth()
-      // One line per fresh probe, beside the spawn argv this log already
-      // records: on Windows this is the only place that shows WHICH node.exe
-      // and entry script the launcher settled on (win-launch.ts), and it is
-      // what the packaged-app smoke in CI asserts on.
-      const { message: _message, ...facts } = cachedHealth
-      log('pi', 'health', facts)
-    }
-    return cachedHealth
+    const health = await cachedPiHealth()
+    // Beside the spawn argv, record WHICH node.exe and entry script the
+    // Windows launcher settled on (also asserted by the packaged-app smoke).
+    const { message: _message, ...facts } = health
+    log('pi', 'health', facts)
+    return health
   })
 
   handle('pi:createSession', (event, options: CreateSessionOptions) =>
@@ -152,31 +146,21 @@ export function registerPiSessionHandlers(): void {
     'pi:generateTitle',
     async (_event, workspacePath: string, message: string, existingNames: string[]) => {
       const lanePrefs = getLanePrefs()
-      const stub = piStubPath()
-      let binaryPath: string
-      let prefixArgs: string[]
-      let env: NodeJS.ProcessEnv
-      if (stub) {
-        binaryPath = process.execPath
-        prefixArgs = [stub]
-        env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
-      } else {
-        const health = cachedHealth?.ok ? cachedHealth : (cachedHealth = await checkPiHealth())
-        if (!health.ok || !health.binaryPath) return null
-        binaryPath = health.binaryPath
-        prefixArgs = health.prefixArgs ?? []
-        env = {
-          ...process.env,
-          ...(await piProcessEnv()),
-          // The pi ownership every session gets, so a title run on the Claude
-          // provider loads none of Claude Code's own prompt, skills, MCP
-          // servers or settings either. Harmless env for every other provider.
-          ...claudeProviderSpawnEnv(),
-          // Without this the run prints the title and then hangs until
-          // runPrintMode kills it — see claudeOneShotEnv.
-          ...claudeOneShotEnv(),
-        }
-      }
+      const invoker = await resolvePiInvoker('inherited-stub').catch((error: unknown) => {
+        if (error instanceof PiUnavailableError) return null
+        throw error
+      })
+      if (!invoker) return null
+      const { binaryPath, prefixArgs, stub } = invoker
+      const env = stub
+        ? invoker.env
+        : {
+            ...process.env,
+            ...invoker.env,
+            // Match sessions' pi ownership; one-shot runs must exit after answering.
+            ...claudeProviderSpawnEnv(),
+            ...claudeOneShotEnv(),
+          }
 
       // `--no-session` keeps this run out of the sidebar; `--no-tools`
       // keeps a title request from being able to touch anything; the rest of

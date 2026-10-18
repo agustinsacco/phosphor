@@ -151,6 +151,8 @@ it('uses the newly discovered executable for titles after invalidation', async (
 it('expires the shared healthy result after the health TTL', async () => {
   const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
   try {
+    vi.resetModules()
+    ;(await import('./pi-session-handlers')).registerPiSessionHandlers()
     await call('pi:health')
     h.binary = '/replacement/pi'
     now.mockReturnValue(1_000 + 5 * 60_000)
@@ -160,4 +162,15 @@ it('expires the shared healthy result after the health TTL', async () => {
   } finally {
     now.mockRestore()
   }
+})
+
+it('deduplicates concurrent consumers before and after invalidation', async () => {
+  await Promise.all([call('pi:health'), session(), title()])
+  expect(h.version).toHaveBeenCalledTimes(1)
+  h.binary = '/replacement/pi'
+  ;(await import('../pi/health')).invalidatePiHealth()
+  const [health, launch] = await Promise.all([call('pi:health'), session(), title()])
+  expect(health).toMatchObject({ binaryPath: '/replacement/pi' })
+  expect(launch).toMatchObject({ binaryPath: '/replacement/pi' })
+  expect(h.version).toHaveBeenCalledTimes(2)
 })
