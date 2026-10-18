@@ -4,6 +4,26 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./claude/auth-status": {
+      "types": "./src/claude/auth-status.ts",
+      "default": "./src/claude/auth-status.ts"
+    },
+    "./claude/accounts": {
+      "types": "./src/claude/accounts.ts",
+      "default": "./src/claude/accounts.ts"
+    },
+    "./claude/routing": {
+      "types": "./src/claude/routing.ts",
+      "default": "./src/claude/routing.ts"
+    },
+    "./claude/usage": {
+      "types": "./src/claude/usage.ts",
+      "default": "./src/claude/usage.ts"
+    },
+    "./pi/print-mode": {
+      "types": "./src/pi/print-mode.ts",
+      "default": "./src/pi/print-mode.ts"
+    },
     "./pi/machine-prompt": {
       "types": "./src/pi/machine-prompt.ts",
       "default": "./src/pi/machine-prompt.ts"

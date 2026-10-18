@@ -1,6 +1,6 @@
 import { hostname, type as osType } from 'node:os'
 import type { MachineContext } from '@phosphor/shared/machine-prompt'
-import { realpathSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { lstat, realpath, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import {
@@ -43,6 +43,8 @@ import {
 import type { SessionServiceRuntime } from '@phosphor/session-runtime/pi/session-service'
 import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
 import { parseSessionRequest } from './request'
+import { claudeAccountEnv } from '@phosphor/session-runtime/claude/routing'
+import type { HostClaudeAccounts } from '../providers/accounts'
 
 /** What a validated Host knows about its machine. 05-D assembles it from doctor's checks. */
 export interface HostMachine {
@@ -92,6 +94,7 @@ export function createHostRuntime(
   machine: HostMachine,
   options: {
     trashTranscript?: (path: string) => Promise<void>
+    claudeAccounts?: HostClaudeAccounts
     life?: Lifecycle
     timings?: Partial<DrainTimings>
     dialogs?: 'cancel' | 'forward'
@@ -121,6 +124,27 @@ export function createHostRuntime(
       ),
     assertCanStart: life.assertReady,
   })
+  // Chosen once per process. Persist the binding when pi learns its file, including routines.
+  const accountIds = new Map<string, string>()
+  const boundFiles = new Map<string, string>()
+  function bindAccount(sessionId: string, path?: string): void {
+    const accountId = accountIds.get(sessionId)
+    if (!accountId || !path || !existsSync(path) || boundFiles.get(sessionId) === path) return
+    boundFiles.set(sessionId, path)
+    void options.claudeAccounts?.bindSession(path, accountId).catch(() => {
+      boundFiles.delete(sessionId)
+      log.write('host', 'account.binding-failed', { sessionId })
+    })
+  }
+  registry.on('created', (session) => {
+    session.client.on('session-file', (path) => bindAccount(session.sessionId, path))
+    // get_state can name a file before pi creates it on the first prompt.
+    session.client.on('event', () => bindAccount(session.sessionId, session.client.sessionFile))
+  })
+  registry.on('disposed', ({ sessionId }) => {
+    accountIds.delete(sessionId)
+    boundFiles.delete(sessionId)
+  })
   const groups = trackProcessGroups(registry)
   const paths = createSessionPathRuntime()
   const budget = createContextBudgetRuntime(log.write)
@@ -148,7 +172,11 @@ export function createHostRuntime(
       }),
       defaultProvider: async (cwd) => (await readAgentSettings(cwd)).defaultProvider,
       packages: listPackages,
-      account: async () => null,
+      account: async (selection) => {
+        const account = await options.claudeAccounts?.accountForSpawn(selection)
+        return account ? { id: account.id, env: claudeAccountEnv(account) } : null
+      },
+      strictAccountSelection: true,
       compressionEnvironment: () => ({}),
       resetCompaction: async () => {},
     },
@@ -157,7 +185,19 @@ export function createHostRuntime(
       read: () => machine.contextBudget,
       paused: (id) => options.routines?.owns(id) ?? false,
     },
-    accounts: { remember: () => {}, forget: () => {}, hold: async () => {} },
+    accounts: {
+      remember: (id, accountId) => {
+        accountIds.set(id, accountId)
+        bindAccount(id, registry.get(id)?.client.sessionFile)
+      },
+      forget: (id) => {
+        accountIds.delete(id)
+        boundFiles.delete(id)
+      },
+      hold: async (id, until) => {
+        await options.claudeAccounts?.holdAccount(id, until)
+      },
+    },
     recordWorkspace: () => {},
   })
   // The deliveries a pi was started for. The service hands back a session
@@ -306,6 +346,7 @@ export function createHostRuntime(
       if (session) await stopSession(session, registry, timings)
     },
     list: (): LiveSessionInfo[] => registry.list(),
+    accountForSession: (sessionId: string) => accountIds.get(sessionId),
     /** Start a session, or resume one from its file. One already running is refused. */
     async start(request: unknown, deliver: Delivery = ignore): Promise<LiveSessionInfo> {
       const options = await parse(request)

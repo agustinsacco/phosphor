@@ -1,6 +1,7 @@
 import { createRepositories } from '../features/repositories'
 import { createLaneDeletion, transcriptTrash } from '../lanes/delete'
 import { createProviderLogins } from '../providers/login'
+import { createHostClaudeAccounts } from '../providers/accounts'
 import { realpathSync } from 'node:fs'
 import { createAttachments, type HostAttachments } from '../features/attachments'
 import { loadHostPty } from '../terminals/native'
@@ -253,9 +254,15 @@ async function runHostCommand(context: RunContext): Promise<number> {
         const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
         const trash = transcriptTrash(hostStateDirectory(context.env, context.home))
         await trash.sweep().catch(() => {})
+        const claudeAccounts = createHostClaudeAccounts({
+          directory: stateDirectory,
+          home: context.home,
+          env: machine.env,
+        })
         runtime = createHostRuntime(
           { ...machine, log },
           {
+            claudeAccounts,
             dialogs: 'forward',
             trashTranscript: trash.move,
             routines: routineOwnership(async (id) => {

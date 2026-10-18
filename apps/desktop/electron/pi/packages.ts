@@ -3,7 +3,9 @@ import { promisify } from 'node:util'
 import { readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
-import type { ClaudeAuthStatus, ClaudeStatus, PiPackageEntry } from '@shared/models'
+import type { ClaudeStatus, PiPackageEntry } from '@shared/models'
+import { parseClaudeAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
+export { parseClaudeAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
 import { listPackages, npmNameFromSpec } from '@phosphor/session-runtime/pi/packages'
 import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
 import { claudeOneShotEnv, claudeProviderSpawnEnv } from './provider-detect'
@@ -446,32 +448,6 @@ export async function runClaudeUpdate(
  * Parse `claude auth status` output (JSON on Claude Code 2.x). Tolerates
  * leading noise before the JSON object and non-JSON output from older CLIs.
  */
-export function parseClaudeAuthStatus(stdout: string): ClaudeAuthStatus {
-  const start = stdout.indexOf('{')
-  if (start === -1) return { ok: false, error: stdout.trim().slice(0, 200) || 'no output' }
-  try {
-    const parsed = JSON.parse(stdout.slice(start)) as {
-      loggedIn?: unknown
-      authMethod?: unknown
-      email?: unknown
-      subscriptionType?: unknown
-      orgName?: unknown
-      orgId?: unknown
-    }
-    return {
-      ok: true,
-      loggedIn: parsed.loggedIn === true,
-      orgId: typeof parsed.orgId === 'string' ? parsed.orgId : undefined,
-      plan: typeof parsed.subscriptionType === 'string' ? parsed.subscriptionType : undefined,
-      organization: typeof parsed.orgName === 'string' ? parsed.orgName : undefined,
-      method: typeof parsed.authMethod === 'string' ? parsed.authMethod : undefined,
-      email: typeof parsed.email === 'string' ? parsed.email : undefined,
-    }
-  } catch {
-    return { ok: false, error: 'unparseable auth status output' }
-  }
-}
-
 /** Extract a version like "2.1.219" from mixed CLI output. */
 function versionFrom(output: string): string | undefined {
   return /(\d+\.\d+\.\d+(?:-[\w.]+)?)/.exec(output)?.[1]

@@ -36,12 +36,13 @@ not a direct structured-history API; this is continuity, not identical wire inpu
 - **An account is a config directory.** `CLAUDE_CONFIG_DIR` and
   `CLAUDE_SECURESTORAGE_CONFIG_DIR` scope the CLI's config and keychain entry,
   so Phosphor holds several Claude logins and picks one per session at spawn
-  (`apps/desktop/electron/claude/`; routing modes `specific | ordered | round-robin`, with
-  cooldowns keyed off the window each account last exhausted). The credential
+  (`libs/session-runtime/src/claude/`, with machine-specific adapters;
+  routing modes `specific | ordered | round-robin`, with cooldowns keyed off the
+  window each account last exhausted). The credential
   is fixed for the life of the process; moving a lane is a respawn.
 - **Each account's `/usage` probe runs in its own config dir**
   (`<userData>/claude-accounts/usage/<id>`, `usageProbeEnv` in
-  `apps/desktop/electron/claude/routing.ts`). The CLI caches a usage snapshot in
+  `libs/session-runtime/src/claude/routing.ts`). The CLI caches a usage snapshot in
   `.claude.json` under that file's shared `oauthAccount`, answers from it for
   a minute without asking, and falls back to it for an hour when the endpoint
   fails. On the shared `~/.claude.json` one account's numbers were shown for
@@ -197,6 +198,21 @@ flowchart TB
 ```
 
 ## Accounts, in Phosphor
+
+Desktop and Host share the account selection, isolated credential environment,
+usage parsing/cache, cooldown and resume-binding implementation in
+`libs/session-runtime/src/claude/`. Desktop binds it to electron-store and its
+userData directory; the Host uses a private `claude-accounts/accounts.json`
+under its state directory. That file holds metadata and file-to-account bindings,
+never credentials. Claude owns its keychain entry or private credential file.
+Host native and Claude sessions still use the same shared session runtime;
+account selection changes only Claude's credential environment, not its prompt,
+tools, compaction or thinking. Once pi creates a session file, the Host persists
+its spawn account so resuming keeps the same billing identity. Rate-limit status
+feeds cooldowns for later spawns, never an automatic mid-turn account switch.
+A Host refuses a Claude spawn on invalid account metadata rather than silently
+billing the default credential. Concurrent round-robin starts serialize cursor
+selection within their execution machine.
 
 Settings → **Accounts** (`tabs/AccountsTab.tsx`) lists the providers pi can
 sign into: `openai-codex`, `anthropic`, `github-copilot`, `kimi-for-coding` as

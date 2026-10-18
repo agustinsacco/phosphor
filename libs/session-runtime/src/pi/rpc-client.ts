@@ -66,6 +66,8 @@ export interface PiSpawnOptions {
 }
 
 interface PiRpcClientEvents {
+  /** Private machine-local notification; the session file is never a remote frame. */
+  'session-file': [string]
   /** Any protocol event from pi stdout (not responses, not extension UI). */
   event: [PiEvent]
   /** Extension UI request needing user interaction or display. */
@@ -331,7 +333,10 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
       this.activity.responded(response)
       if (response.command === 'get_state' && response.success) {
         const state = response.data as RpcResponseDataMap['get_state'] | undefined
-        if (state?.sessionFile) this.learnedSessionFile = state.sessionFile
+        if (state?.sessionFile && state.sessionFile !== this.learnedSessionFile) {
+          this.learnedSessionFile = state.sessionFile
+          this.emit('session-file', state.sessionFile)
+        }
       }
       if (response.id && this.pending.has(response.id)) {
         const pending = this.pending.get(response.id)!

@@ -24,6 +24,8 @@ export interface SessionPolicyRuntime {
     id: string
     env: Record<string, string>
   } | null>
+  /** Hosts must not silently bill the default credential when configured account metadata fails. */
+  strictAccountSelection?: boolean
   compressionEnvironment: () => Record<string, string>
   resetCompaction: () => Promise<void>
 }
@@ -59,7 +61,10 @@ export async function prepareSessionPolicy(
   const account = claudeProvider
     ? await runtime
         .account(options.sessionPath ? { sessionPath: options.sessionPath } : {})
-        .catch(() => null)
+        .catch((error: unknown) => {
+          if (runtime.strictAccountSelection) throw error
+          return null
+        })
     : null
   if (account) Object.assign(env, account.env)
   if (!stub) Object.assign(env, runtime.compressionEnvironment())

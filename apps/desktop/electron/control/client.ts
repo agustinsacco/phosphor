@@ -244,8 +244,12 @@ export function createControlClient(ports: {
         ? call(CONTROL_ROUTES.clients, 'POST', parseClientRegisterResponse, parsed.value)
         : Promise.resolve(controlFailure('bad-request'))
     },
-    grant(hostId: unknown, clientId: unknown) {
-      const parsed = parseGrantIssueRequest({ hostId, clientId })
+    grant(hostId: unknown, clientId: unknown, configure?: true) {
+      const parsed = parseGrantIssueRequest({
+        hostId,
+        clientId,
+        ...(configure ? { configure } : {}),
+      })
       return parsed.ok
         ? call(CONTROL_ROUTES.grants, 'POST', parseGrantIssueResponse, parsed.value)
         : Promise.resolve(controlFailure('bad-request'))

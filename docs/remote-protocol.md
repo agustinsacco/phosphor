@@ -114,6 +114,17 @@ clients. A renewal cannot change the owner or client identity. Effective
 capabilities are the intersection of grant and Host capabilities. Seeing an
 enrolled machine is never a grant to execute on it.
 
+Machine configuration is a separate, explicit grant request (`configure: true`).
+Control signs an optional `configure: true` claim rather than adding a new name
+to every grant's legacy `caps` array: older Hosts reject unknown capability names
+but safely ignore additive claims. A supporting Host intersects that signed
+opt-in with its own `machine.configure` feature. Without the opt-in, ready frames
+omit the new name from both capability arrays and advertise support through the
+additive `settings` boolean instead, preserving older Desktop parsers. Renewal
+reports effective capabilities in an optional `auth-renewed.capabilities` array;
+losing configuration authority removes it immediately. Desktop requests this
+privilege separately from normal lane access and forgets the request on sign-out.
+
 The Host remembers each revoked session and client id for 15 minutes after the
 last heartbeat that named it, at most 1000 of each
 (`apps/host/src/api/authority.ts`). A repeated id only refreshes its time, and a

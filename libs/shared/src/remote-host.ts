@@ -10,7 +10,13 @@ export const HOST_CAPABILITIES = [
   'skills.read',
   'terminal',
   'routines',
+  'machine.configure',
 ] as const
+
+/** Keep the legacy grant array consumable by old Hosts. New authority is opt-in. */
+export const LEGACY_HOST_CAPABILITIES = HOST_CAPABILITIES.filter(
+  (cap) => cap !== 'machine.configure',
+)
 
 export type HostCapability = (typeof HOST_CAPABILITIES)[number]
 

@@ -356,6 +356,8 @@ export interface ClientRegisterResponse {
 export interface GrantIssueRequest {
   readonly hostId: string
   readonly clientId: string
+  /** Owner-authorized machine administration, independent of lane control. */
+  readonly configure?: true
 }
 export interface GrantIssueResponse {
   readonly grant: string
@@ -778,7 +780,12 @@ export function parseClientRegisterResponse(value: unknown): Parsed<ClientRegist
 }
 export function parseGrantIssueRequest(value: unknown): Parsed<GrantIssueRequest> {
   if (!isRecord(value) || !isUuid(value.hostId) || !isUuid(value.clientId)) return fail('ids')
-  return ok({ hostId: value.hostId, clientId: value.clientId })
+  if (value.configure !== undefined && value.configure !== true) return fail('configure')
+  return ok({
+    hostId: value.hostId,
+    clientId: value.clientId,
+    ...(value.configure === true ? { configure: true as const } : {}),
+  })
 }
 export function parseGrantIssueResponse(value: unknown): Parsed<GrantIssueResponse> {
   if (!isRecord(value) || !isRecord(value.host)) return fail('body')

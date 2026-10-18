@@ -419,10 +419,16 @@ export type HostFrame =
       readonly connectionId: string
       readonly grantExpiresAt: string
       readonly client: { readonly id: string; readonly label: string }
+      /** Additive support marker: old clients never receive a new capability in legacy grants. */
+      readonly settings?: boolean
       /** Effective capabilities for this connection. */
       readonly capabilities: readonly HostCapability[]
     }
-  | { readonly type: 'auth-renewed'; readonly grantExpiresAt: string }
+  | {
+      readonly type: 'auth-renewed'
+      readonly grantExpiresAt: string
+      readonly capabilities?: readonly HostCapability[]
+    }
   | {
       readonly type: 'lanes'
       readonly id: string
@@ -1069,6 +1075,7 @@ export function parseHostFrame(s: string): Parsed<HostFrame> {
         !isUuid(v.client.id) ||
         !label(v.client.label) ||
         !capabilities(v.capabilities) ||
+        (v.settings !== undefined && typeof v.settings !== 'boolean') ||
         !v.capabilities.every((c) => h.hello.capabilities.includes(c))
       )
         return bad()
@@ -1081,12 +1088,21 @@ export function parseHostFrame(s: string): Parsed<HostFrame> {
         grantExpiresAt: v.grantExpiresAt,
         client: { id: v.client.id, label: v.client.label },
         capabilities: v.capabilities,
+        ...(v.settings !== undefined ? { settings: v.settings as boolean } : {}),
       })
     }
-    case 'auth-renewed':
-      return isIsoTime(v.grantExpiresAt)
-        ? good({ type: v.type, grantExpiresAt: v.grantExpiresAt })
-        : bad()
+    case 'auth-renewed': {
+      if (
+        !isIsoTime(v.grantExpiresAt) ||
+        (v.capabilities !== undefined && !capabilities(v.capabilities))
+      )
+        return bad()
+      return good({
+        type: v.type,
+        grantExpiresAt: v.grantExpiresAt,
+        ...(v.capabilities ? { capabilities: v.capabilities as HostCapability[] } : {}),
+      })
+    }
     case 'lanes': {
       const c = cursor(v.cursor),
         r = list(v.repositories, HOST_LIMITS.repositoriesPerHost, repository),

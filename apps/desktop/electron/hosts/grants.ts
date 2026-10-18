@@ -15,7 +15,14 @@ export function createGrants(ports: {
     { promise: Promise<GrantIssueResponse>; token: { valid: boolean } }
   >()
   let generation = 0
+  const configurationHosts = new Set<string>()
   return {
+    /** Explicitly requested from this machine's Settings page; forgotten on sign-out. */
+    configure(hostId: string) {
+      if (!ports.present(hostId)) throw new Error('grant-refused')
+      configurationHosts.add(hostId)
+      this.clear(hostId)
+    },
     clear(hostId?: string) {
       if (!hostId) generation++
       if (hostId) {
@@ -27,6 +34,7 @@ export function createGrants(ports: {
         cache.clear()
         flights.clear()
         ports.clients.clear()
+        configurationHosts.clear()
       }
     },
     grantFor(hostId: string): Promise<GrantIssueResponse> {
@@ -43,7 +51,11 @@ export function createGrants(ports: {
       const epoch = generation
       const active = { valid: true }
       const promise = (async () => {
-        let result = await ports.control.grant(hostId, await ports.clients.get())
+        const issue = async () =>
+          configurationHosts.has(hostId)
+            ? ports.control.grant(hostId, await ports.clients.get(), true)
+            : ports.control.grant(hostId, await ports.clients.get())
+        let result = await issue()
         if (
           !result.ok &&
           result.error.code === 'not-found' &&
@@ -52,7 +64,7 @@ export function createGrants(ports: {
           ports.present(hostId) &&
           (await ports.clients.replace())
         )
-          result = await ports.control.grant(hostId, await ports.clients.get())
+          result = await issue()
         if (epoch !== generation || !active.valid || !ports.present(hostId))
           throw new Error('signed-out')
         if (!result.ok)

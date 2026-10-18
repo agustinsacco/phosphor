@@ -335,6 +335,7 @@ export function createHostConnection(ports: {
         state: 'ready',
         lastError: undefined,
         hostVersion: f.hello.hostVersion,
+        configurationSupported: f.settings === true,
         capabilities: [...f.capabilities],
       })
       log('hosts', 'ready', {
@@ -365,6 +366,7 @@ export function createHostConnection(ports: {
         timers.delete(renewalTimeout)
       }
       renewalTimeout = undefined
+      if (f.capabilities) update({ capabilities: [...f.capabilities] })
       renew(f.grantExpiresAt)
     } else if (f.type === 'pong') lastPong = now()
     else if (f.type === 'lanes' && f.id === 'lanes') {

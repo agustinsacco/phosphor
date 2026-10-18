@@ -182,7 +182,10 @@ export function createConnection(ports: ConnectionPorts) {
     if (!grant && !ports.admit(payload.client.id)) return refuse(4429, 'connections')
     const initial = !grant
     grant = payload
-    caps = ports.hello.capabilities.filter((cap) => payload.caps.includes(cap))
+    caps = ports.hello.capabilities.filter(
+      (cap) =>
+        payload.caps.includes(cap) || (cap === 'machine.configure' && payload.configure === true),
+    )
     clearTimeout(deadline)
     clearTimeout(expiry)
     expiry = setTimeout(
@@ -194,7 +197,18 @@ export function createConnection(ports: ConnectionPorts) {
       send({
         type: 'ready',
         protocolVersion: HOST_PROTOCOL_VERSION,
-        hello: ports.hello,
+        // Old clients strictly parse capability arrays. Without the signed opt-in,
+        // advertise settings through an additive field, not an unknown capability.
+        hello: {
+          ...ports.hello,
+          capabilities: ports.hello.capabilities.filter(
+            (cap) =>
+              cap !== 'machine.configure' ||
+              payload.configure === true ||
+              payload.caps.includes(cap),
+          ),
+        },
+        settings: ports.hello.capabilities.includes('machine.configure'),
         proof: hostProof(ports.hello, challenge, ports.key),
         connectionId,
         grantExpiresAt,
@@ -209,7 +223,7 @@ export function createConnection(ports: ConnectionPorts) {
       }
     } else {
       handler?.renew(caps)
-      send({ type: 'auth-renewed', grantExpiresAt })
+      send({ type: 'auth-renewed', grantExpiresAt, capabilities: caps })
     }
   }
   socket.onClose((code) => finish(code))

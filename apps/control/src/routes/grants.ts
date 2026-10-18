@@ -8,7 +8,7 @@ import {
   parseGrantIssueResponse,
 } from '@phosphor/shared/control-api'
 import { GRANT_VERSION, GRANT_LIMITS, type GrantPayload } from '@phosphor/shared/host-grant'
-import { HOST_CAPABILITIES } from '@phosphor/shared/remote-host'
+import { LEGACY_HOST_CAPABILITIES } from '@phosphor/shared/remote-host'
 import { userGuard, type createUserAuth } from '../auth/user'
 import type { AppDeps } from '../app'
 import type { TraceEvents } from '../events'
@@ -104,7 +104,8 @@ export function grants(
       hostId: input.hostId,
       epoch: value.epoch,
       client,
-      caps: HOST_CAPABILITIES,
+      caps: LEGACY_HOST_CAPABILITIES,
+      ...(input.configure === true ? { configure: true as const } : {}),
       iat,
       exp: iat + GRANT_LIMITS.ttlSec,
       jti: Buffer.from(deps.random(8)).toString('hex'),

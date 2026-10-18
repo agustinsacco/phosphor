@@ -122,6 +122,7 @@ async function start() {
     stop: vi.fn<HostRuntime['stop']>(),
     remove: vi.fn<HostRuntime['remove']>(),
     list: vi.fn<HostRuntime['list']>().mockReturnValue([]),
+    accountForSession: vi.fn<HostRuntime['accountForSession']>(),
     startRoutine: vi.fn<HostRuntime['startRoutine']>().mockImplementation(async (_, deliver) => {
       push = deliver
       return { sessionId, workspacePath: root }
