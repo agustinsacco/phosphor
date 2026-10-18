@@ -180,13 +180,13 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
         },
       ),
     )
-  // No library depends on an app, so a Desktop or Host change selects only
-  // itself and the whole-workspace checks. A library change selects everything
-  // above it, both apps included.
-  const desktop = ['desktop', 'tooling']
+  // Control's stack test imports Desktop auth, so Desktop and its dependencies
+  // conservatively select Control too. Host still selects only itself and the
+  // whole-workspace checks; no library depends on an app.
+  const desktop = ['control', 'desktop', 'tooling']
   const host = ['host', 'tooling']
-  const runtime = ['desktop', 'host', 'runtime', 'tooling']
-  const extensions = ['desktop', 'host', 'pi-extensions', 'runtime', 'tooling']
+  const runtime = ['control', 'desktop', 'host', 'runtime', 'tooling']
+  const extensions = ['control', 'desktop', 'host', 'pi-extensions', 'runtime', 'tooling']
   const libraries = ['control', 'desktop', 'host', 'pi-extensions', 'runtime', 'shared', 'tooling']
   // Site and Desktop never select each other; docs and CI select only the
   // whole-workspace checks. Root install/config keep Nx's select-everything rule.
@@ -196,6 +196,8 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
     ['.infra/phosphor-site/deployment.yaml', ['site', 'tooling']],
     ['.github/workflows/deploy-site.yml', ['site', 'tooling']],
     ['apps/desktop/src/main.tsx', desktop],
+    ['apps/desktop/electron/account/gotrue.ts', desktop],
+    ['apps/desktop/electron/account/loopback.ts', desktop],
     ['apps/desktop/package-lock.json', desktop],
     ['tools/scripts/fix-node-pty.mjs', desktop],
     ['tools/scripts/install.sh', desktop],

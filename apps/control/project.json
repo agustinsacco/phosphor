@@ -5,7 +5,7 @@
   "sourceRoot": "apps/control/src",
   "projectType": "application",
   "tags": ["scope:control"],
-  "implicitDependencies": ["shared"],
+  "implicitDependencies": ["shared", "desktop"],
   "targets": {
     "typecheck": {
       "executor": "nx:run-commands",
