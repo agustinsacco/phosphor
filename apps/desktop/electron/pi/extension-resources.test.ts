@@ -38,6 +38,7 @@ const shippedFiles = [
   'lane-reload.ts',
   'message-ledger.ts',
   'optional/permission-gate.ts',
+  'pi-api.ts',
   'status-keys.ts',
   'subagent-snapshot.ts',
   'swarm.ts',
