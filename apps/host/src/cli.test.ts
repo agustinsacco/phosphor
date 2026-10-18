@@ -10,14 +10,7 @@ import type { Drainable } from './shutdown'
 import { controlMachine, oldIdentity } from './control/__fixtures__/machine'
 import { createIdentityStore, identityDirectory } from './control/identity'
 import { freshKey } from './control/signer'
-import {
-  runCli,
-  USAGE,
-  CLI_PARSE_CONFIG,
-  scannedCommand,
-  supervisedRun,
-  type CliContext,
-} from './cli'
+import { runCli, USAGE, CLI_PARSE_CONFIG, supervisedRun, type CliContext } from './cli'
 
 let machine: FakeMachine | undefined
 afterEach(() => {
@@ -26,7 +19,8 @@ afterEach(() => {
   machine = undefined
 })
 
-// Every argv the CLI tests feed in also checks the raw scan against parseArgs.
+// Every argv the CLI tests feed in also checks the raw scan against parseArgs:
+// the scan calls a run supervised exactly when parseArgs reads run under launchd.
 function expectScanAgrees(argv: readonly string[]) {
   let parsed: ReturnType<typeof parseArgs>
   try {
@@ -34,7 +28,8 @@ function expectScanAgrees(argv: readonly string[]) {
   } catch {
     return
   }
-  expect(scannedCommand(argv), JSON.stringify(argv)).toBe(parsed.positionals[0])
+  const launchdRun = parsed.positionals[0] === 'run' && parsed.values.supervisor === 'launchd'
+  expect(supervisedRun(argv), JSON.stringify(argv)).toBe(launchdRun)
 }
 
 async function run(argv: readonly string[], context: Partial<CliContext> = {}) {
@@ -137,7 +132,7 @@ describe('phosphor', () => {
     expect(result.stderr.endsWith(USAGE)).toBe(true)
   })
 
-  it('scans the same command as parseArgs for shared CLI fixtures', () => {
+  it('agrees with parseArgs on supervised runs for shared CLI fixtures', () => {
     const cases = [
       ...USAGE_CASES.map(([argv]) => argv),
       ...VERSION_CASES,
@@ -152,10 +147,13 @@ describe('phosphor', () => {
     ]
     for (const argv of cases) expectScanAgrees(argv)
   })
-  it('does not mistake --config run for the command', () => {
+  it('does not mistake --config run for the command', async () => {
     const parsed = parseArgs({ ...CLI_PARSE_CONFIG, args: [...CONFIG_RUN_VALUE] })
-    expect(scannedCommand(CONFIG_RUN_VALUE)).toBe(parsed.positionals[0])
+    expect(parsed.positionals[0]).toBe('doctor')
     expect(supervisedRun(CONFIG_RUN_VALUE)).toBe(false)
+    const result = await run(CONFIG_RUN_VALUE)
+    expect(result).toMatchObject({ code: 64, stdout: '' })
+    expect(result.stderr).toContain('doctor does not take --supervisor')
   })
   it.each([
     [['run', '--supervisor=launchd'], true],
