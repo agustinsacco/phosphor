@@ -101,6 +101,13 @@ describe('readme scenario steps', () => {
     ])
   })
 
+  it('stores the home composer it used for the later scenarios', async () => {
+    const { homeComposer: _, ...fresh } = scenarioState()
+    const state: Parameters<typeof startSession>[0] = fresh
+    await startSession(state)
+    expect(String(state.homeComposer)).toBe(home)
+  })
+
   it('does not open the folder picker when already on workspace home', async () => {
     const state = scenarioState({ pickerVisible: false })
     await startSession(state)

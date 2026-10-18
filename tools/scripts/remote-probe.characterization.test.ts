@@ -160,10 +160,11 @@ it('allows 4096 buffered bytes but terminates above the backpressure limit', asy
   const peer = connect(probe.url)
   await once(peer, 'open')
   Object.defineProperty(accepted[0], 'bufferedAmount', { configurable: true, value: 4096 })
-  expect(JSON.parse(String((await once(peer, 'message'))[0]))).toEqual({
-    type: 'tick',
-    sequence: 1,
-  })
+  // 'ready' may arrive with the 101 or in a later read; skip it either way.
+  let first: unknown
+  do first = JSON.parse(String((await once(peer, 'message'))[0]))
+  while ((first as { type?: string }).type === 'ready')
+  expect(first).toEqual({ type: 'tick', sequence: 1 })
   Object.defineProperty(accepted[0], 'bufferedAmount', { value: 4097 })
   expect((await once(peer, 'close'))[0]).toBe(1006)
 })
