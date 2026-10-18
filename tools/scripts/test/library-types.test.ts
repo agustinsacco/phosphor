@@ -133,9 +133,11 @@ it('allows only the Host build modules imported by its TypeScript script tests',
     'apps/host/scripts/build-info.mjs',
     'apps/host/scripts/build-resources.mjs',
     'apps/host/scripts/output.mjs',
-    // The fake pi's modules, which their own unit tests import (HB-33).
+    // The fake pi's modules, which their own unit tests import (HB-33, HB-34).
+    'apps/host/src/__fixtures__/fake-pi/commands.cjs',
     'apps/host/src/__fixtures__/fake-pi/persistence.cjs',
     'apps/host/src/__fixtures__/fake-pi/tools.cjs',
+    'apps/host/src/__fixtures__/fake-pi/turns.cjs',
     'tools/host-release/build-native.mjs',
     'tools/host-release/common.mjs',
     'tools/host-release/native-stage.mjs',
