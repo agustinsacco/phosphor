@@ -192,52 +192,54 @@ function median(values: number[]): number {
   return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
 }
 
+interface MeasuredPair {
+  readonly output: number
+  readonly rest: number
+  readonly restChars: number
+  readonly plainText: boolean
+}
+
+function rangeChars(chars: readonly number[], from: number, to: number): number {
+  let sum = 0
+  for (let i = from; i < to; i++) sum += chars[i]!
+  return sum
+}
+
 /**
- * Measure pi's context entries (`buildContextEntries()`: a compaction applied,
- * so it is the only cut). With no usage at all this is pi's own estimate.
+ * Exact size of the entries after call k, or null when the pair does not
+ * add up: a different model, input that fell (a rebuild) or grew by more
+ * than the entries could hold (a cache-miss spike), or a reply that was not
+ * kept whole.
  */
-export function measureMessages(entries: LedgerEntry[]): MessageLedger {
-  const count = entries.filter((entry) => entry.type === 'message').length
-  const chars = entries.map(entryChars)
-  const calls: number[] = []
-  entries.forEach((entry, index) => {
-    if (usageOf(entry)) calls.push(index)
-  })
-
-  const between = (from: number, to: number): number => {
-    let sum = 0
-    for (let i = from; i < to; i++) sum += chars[i]!
-    return sum
-  }
-
-  /**
-   * Exact size of the entries after call k, or null when the pair does not
-   * add up: a different model, input that fell (a rebuild) or grew by more
-   * than the entries could hold (a cache-miss spike), or a reply that was not
-   * kept whole.
-   */
-  const pairs = calls.slice(0, -1).map((at, k) => {
+export function measuredPairs(
+  entries: readonly LedgerEntry[],
+  chars: readonly number[],
+  calls: readonly number[],
+): (MeasuredPair | null)[] {
+  return calls.slice(0, -1).map((at, k) => {
     const next = calls[k + 1]!
     const usage = usageOf(entries[at]!)!
     const nextUsage = usageOf(entries[next]!)!
     const output = num(usage.output)
     const rest = inputOf(nextUsage) - inputOf(usage) - output
-    const restChars = between(at + 1, next)
+    const restChars = rangeChars(chars, at + 1, next)
     if (!sameModel(entries[at]!, entries[next]!)) return null
     if (rest < 0 || rest > restChars + FRAMING_SLACK * (next - at)) return null
     return { output, rest, restChars, plainText: !entries.slice(at + 1, next).some(hasImage) }
   })
+}
 
+export function measuredRatio(pairs: readonly (MeasuredPair | null)[]): number {
   const samples = pairs
     .filter((pair) => pair && pair.plainText && pair.restChars >= RATIO_MIN_CHARS && pair.rest > 0)
     .map((pair) => pair!.restChars / pair!.rest)
-  const charsPerToken =
-    samples.length >= RATIO_MIN_SAMPLES
-      ? Math.min(DEFAULT_CHARS_PER_TOKEN, Math.max(1, median(samples)))
-      : DEFAULT_CHARS_PER_TOKEN
-  const estimate = (charCount: number): number => Math.ceil(charCount / charsPerToken)
+  return samples.length >= RATIO_MIN_SAMPLES
+    ? Math.min(DEFAULT_CHARS_PER_TOKEN, Math.max(1, median(samples)))
+    : DEFAULT_CHARS_PER_TOKEN
+}
 
-  // The request was last rebuilt here; only pairs from here on are still in it.
+/** The request was last rebuilt here; only pairs from here on are still in it. */
+export function rebuildAnchor(entries: readonly LedgerEntry[], calls: readonly number[]): number {
   const compactedAt = entries[0]?.type === 'compaction' ? entries[0].timestamp : undefined
   let anchor = 0
   calls.forEach((at, k) => {
@@ -255,30 +257,44 @@ export function measureMessages(entries: LedgerEntry[]): MessageLedger {
       anchor = k
     }
   })
+  return anchor
+}
 
+const estimate = (charCount: number, charsPerToken: number): number =>
+  Math.ceil(charCount / charsPerToken)
+
+/** A reply's exact size, split into what it shows and the reasoning it holds. */
+export function splitReply(
+  entry: LedgerEntry,
+  size: number,
+  charsPerToken: number,
+): { visible: number; hidden: number } {
+  // The summary is not what the model holds; the full reasoning is, and it
+  // is the remainder of the output.
+  const visible = Math.min(
+    size,
+    estimate(assistantChars(entry.message?.content).visible, charsPerToken),
+  )
+  return { visible, hidden: size - visible }
+}
+
+export function accumulateLedger(
+  entries: readonly LedgerEntry[],
+  chars: readonly number[],
+  calls: readonly number[],
+  pairs: readonly (MeasuredPair | null)[],
+  anchor: number,
+  charsPerToken: number,
+): Pick<MessageLedger, 'tokens' | 'thinking' | 'measuredCalls'> {
   if (anchor >= calls.length) {
     return {
-      tokens: estimate(between(0, entries.length)),
+      tokens: estimate(rangeChars(chars, 0, entries.length), charsPerToken),
       thinking: 0,
-      count,
-      charsPerToken,
       measuredCalls: 0,
-      calls: calls.length,
     }
   }
 
-  /** A reply's exact size, split into what it shows and the reasoning it holds. */
-  const splitReply = (index: number, size: number): { visible: number; hidden: number } => {
-    // The summary is not what the model holds; the full reasoning is, and it
-    // is the remainder of the output.
-    const visible = Math.min(
-      size,
-      estimate(assistantChars(entries[index]!.message?.content).visible),
-    )
-    return { visible, hidden: size - visible }
-  }
-
-  let tokens = estimate(between(0, calls[anchor]!))
+  let tokens = estimate(rangeChars(chars, 0, calls[anchor]!), charsPerToken)
   let thinking = 0
   let measuredCalls = 0
   for (let k = anchor; k < calls.length; k++) {
@@ -288,17 +304,42 @@ export function measureMessages(entries: LedgerEntry[]): MessageLedger {
       // pi's total holds the last reply only as far as its usage does: some
       // providers' totalTokens leave the output out, and then so do we.
       const usage = usageOf(entries[at]!)!
-      const reply = splitReply(at, contextTokensOf(usage) - inputOf(usage))
-      tokens += reply.visible + estimate(between(at + 1, entries.length))
+      const reply = splitReply(entries[at]!, contextTokensOf(usage) - inputOf(usage), charsPerToken)
+      tokens += reply.visible + estimate(rangeChars(chars, at + 1, entries.length), charsPerToken)
       thinking += reply.hidden
     } else if (pair) {
-      const reply = splitReply(at, pair.output)
+      const reply = splitReply(entries[at]!, pair.output, charsPerToken)
       tokens += reply.visible + pair.rest
       thinking += reply.hidden
       measuredCalls++
     } else {
-      tokens += estimate(between(at, calls[k + 1]!))
+      tokens += estimate(rangeChars(chars, at, calls[k + 1]!), charsPerToken)
     }
   }
+  return { tokens, thinking, measuredCalls }
+}
+
+/**
+ * Measure pi's context entries (`buildContextEntries()`: a compaction applied,
+ * so it is the only cut). With no usage at all this is pi's own estimate.
+ */
+export function measureMessages(entries: LedgerEntry[]): MessageLedger {
+  const count = entries.filter((entry) => entry.type === 'message').length
+  const chars = entries.map(entryChars)
+  const calls: number[] = []
+  entries.forEach((entry, index) => {
+    if (usageOf(entry)) calls.push(index)
+  })
+  const pairs = measuredPairs(entries, chars, calls)
+  const charsPerToken = measuredRatio(pairs)
+  const anchor = rebuildAnchor(entries, calls)
+  const { tokens, thinking, measuredCalls } = accumulateLedger(
+    entries,
+    chars,
+    calls,
+    pairs,
+    anchor,
+    charsPerToken,
+  )
   return { tokens, thinking, count, charsPerToken, measuredCalls, calls: calls.length }
 }
