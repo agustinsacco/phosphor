@@ -118,7 +118,7 @@ describe.each(homes)('$directory/tsconfig.json', (home) => {
   })
 })
 
-it('allows only the Host output module imported by its TypeScript script test', () => {
+it('allows only the Host build modules imported by its TypeScript script tests', () => {
   const config = parseConfig(resolve(root, 'apps/host/tsconfig.json'))
   expect(config.options.allowJs).toBe(true)
   expect(config.options.checkJs).not.toBe(true)
@@ -128,5 +128,12 @@ it('allows only the Host output module imported by its TypeScript script test', 
     .getSourceFiles()
     .map((file) => relative(root, file.fileName).replaceAll('\\', '/'))
     .filter((path) => !path.includes('node_modules/') && /\.(c|m)?js$/.test(path))
-  expect(javascript).toEqual(['apps/host/scripts/output.mjs'])
+  expect(javascript.sort()).toEqual([
+    'apps/host/scripts/build-bundle.mjs',
+    'apps/host/scripts/build-info.mjs',
+    'apps/host/scripts/build-resources.mjs',
+    'apps/host/scripts/output.mjs',
+    'tools/host-release/build-native.mjs',
+    'tools/host-release/common.mjs',
+  ])
 })

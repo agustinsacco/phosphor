@@ -2,7 +2,6 @@
   "version": 1,
   "package": "host",
   "offenders": {
-    "scripts/build.mjs::stageBuild[1]": 112,
     "src/__fixtures__/fake-pi.cjs::file": 706,
     "src/__fixtures__/fake-pi.cjs::handle[1]": 187,
     "src/__fixtures__/machine.ts::fakeMachine[1]": 129,
