@@ -5,7 +5,6 @@ import {
   grantUtf8,
   encodeBase64url,
   GRANT_LIMITS,
-  type GrantExpectations,
   type GrantPayload,
 } from '../host-grant'
 import {
@@ -18,94 +17,42 @@ import {
   type FrameSocket,
   type HostFrame,
   type ClientFrame,
-  type LaneSummary,
-  type LaneSnapshot,
   type LaneEvent,
-  type StreamCursor,
-  type Receipt,
-  type RepositorySummary,
+  type LaneSummary,
   type RejectCode,
   type AttentionEvent,
 } from '../host-protocol'
 import type { HostCapability } from '../remote-host'
-import type { ExtensionUIRequest, PiEvent, AgentMessage, ThinkingLevel } from '../rpc'
+import type { ExtensionUIRequest, ThinkingLevel } from '../rpc'
+import { send as sendFrame } from './fake-host/delivery'
+import {
+  createFakeHostState,
+  now,
+  type Command,
+  type Connection,
+  type FakeHostOptions,
+  type Lane,
+  type Stored,
+} from './fake-host/state'
+import * as streams from './fake-host/streams'
 
-type Limits = { -readonly [K in keyof typeof HOST_LIMITS]: number }
-type Command = Extract<ClientFrame, { type: 'command' }>
-interface Lane {
-  summary: LaneSummary
-  thinkingLevel: ThinkingLevel
-  sessionId: string
-  seq: number
-  events: { cursor: StreamCursor; event: LaneEvent; bytes: number }[]
-  replayBytes: number
-  messages: AgentMessage[]
-  pending: PiEvent[]
-  dialogs: ExtensionUIRequest[]
-  ui: Map<string, ExtensionUIRequest>
-}
-interface Connection {
-  socket: FrameSocket
-  grant: GrantPayload | null
-  subscriptions: Map<string, Extract<ClientFrame, { type: 'subscribe'; topic: 'lanes' | 'lane' }>>
-  wanted: Set<string>
-  delivered: Set<string>
-  pending: number
-  calls: number
-  stale: Set<string>
-  recoveryTimer?: ReturnType<typeof setTimeout>
-  authTimer: ReturnType<typeof setTimeout>
-  expiryTimer?: ReturnType<typeof setTimeout>
-  idleTimer?: ReturnType<typeof setTimeout>
-}
-interface Stored {
-  clientId: string
-  hash: string
-  receipt: Receipt
-  finishedAt?: number
-}
-export interface FakeHostOptions {
-  expectations: Omit<GrantExpectations, 'revokedSessions' | 'revokedClients'>
-  verify: (bytes: Uint8Array, signature: Uint8Array, kid: string) => boolean
-  sign: (bytes: Uint8Array) => Uint8Array
-  verifyGrant?: (token: string) => GrantPayload | null
-  id: () => string
-  epoch: () => string
-  capabilities?: readonly HostCapability[]
-  repositories?: readonly RepositorySummary[]
-  limits?: Partial<Limits>
-  commandDelayMs?: number
-}
+export type { FakeHostOptions } from './fake-host/state'
 
 /** In-memory executable protocol model. It never starts pi, reads disk or opens a listener. */
 export function createFakeHost(options: FakeHostOptions) {
-  const limits: Limits = { ...HOST_LIMITS }
-  for (const key in HOST_LIMITS) {
-    if (!limitKey(key)) continue
-    const value = options.limits?.[key]
-    if (value !== undefined) {
-      if (!Number.isSafeInteger(value) || value < 1 || value > limits[key])
-        throw new Error('Invalid limit')
-      limits[key] = value
-    }
-  }
-  const caps = options.capabilities ?? ['sessions.read', 'sessions.control']
-  const repositories = options.repositories ?? [
-    { id: '0123456789abcdef', name: 'Test repository', path: '/test/repository' },
-  ]
-  if (repositories.length > limits.repositoriesPerHost) throw new Error('Too many repositories')
-  const connections = new Set<Connection>(),
-    lanes = new Map<string, Lane>(),
-    receipts = new Map<string, Stored>()
-  const revokedSessions = new Set<string>(),
-    revokedClients = new Set<string>()
-  const attention: { cursor: StreamCursor; event: AttentionEvent }[] = []
-  const timers = new Set<ReturnType<typeof setTimeout>>()
-  let epoch = options.epoch(),
-    hostSeq = 0,
-    stopped = false,
-    executions = 0
-  const now = () => new Date().toISOString()
+  const state = createFakeHostState(options)
+  const { limits, caps, repositories, connections, lanes, receipts } = state
+  const { revokedSessions, revokedClients, attention, timers } = state
+  const send = (c: Connection, frame: HostFrame) => sendFrame(state, c, frame)
+  const snap = (lane: Lane) => streams.snapshot(state, lane)
+  const publish = (lane: Lane, event: LaneEvent) => streams.publish(state, sendFrame, lane, event)
+  const summary = (lane: Lane) => streams.summary(state, sendFrame, lane)
+  const announce = (lane: Lane) => streams.announce(state, sendFrame, lane)
+  const notify = (lane: Lane, kind: AttentionEvent['kind']) =>
+    streams.notify(state, sendFrame, lane, kind)
+  const changeControl = (lane: Lane, controller: LaneSummary['control']['controller']) =>
+    streams.changeControl(state, sendFrame, lane, controller)
+  const turn = (lane: Lane) => streams.turn(state, sendFrame, lane)
   function forget(id: string) {
     receipts.delete(id)
     for (const c of connections) {
@@ -120,216 +67,8 @@ export function createFakeHost(options: FakeHostOptions) {
     for (const [id] of finished.slice(0, Math.max(0, finished.length - limits.receiptsKept)))
       forget(id)
   }
-  function catchUp(c: Connection, id: string): HostFrame | null {
-    const sub = c.subscriptions.get(id)
-    if (!sub) return null
-    if (sub.topic === 'lanes')
-      return {
-        type: 'lanes',
-        id,
-        cursor: { epoch, seq: hostSeq },
-        repositories,
-        lanes: [...lanes.values()].map((l) => l.summary),
-      }
-    const l = lanes.get(sub.laneId)
-    return l ? { type: 'snapshot', id, laneId: sub.laneId, reset: true, snapshot: snap(l) } : null
-  }
-  function recover(c: Connection) {
-    if (c.recoveryTimer !== undefined) return
-    c.recoveryTimer = setTimeout(() => {
-      c.recoveryTimer = undefined
-      if (!c.socket.isOpen()) return
-      if (c.socket.bufferedBytes() < limits.sendQueueBytes / 2) {
-        for (const id of [...c.stale]) {
-          c.stale.delete(id)
-          const frame = catchUp(c, id)
-          if (frame) send(c, frame)
-        }
-      }
-      if (c.stale.size) recover(c)
-    }, 50)
-    c.recoveryTimer.unref?.()
-  }
-  function send(c: Connection, frame: HostFrame): 'sent' | 'reset' | 'failed' | 'dropped' {
-    if (!c.socket.isOpen()) return 'dropped'
-    let outcome: 'sent' | 'failed' = 'sent'
-    const subId =
-      'id' in frame && c.subscriptions.has(frame.id) && frame.type !== 'result' ? frame.id : null
-    if (subId && c.stale.has(subId)) return 'dropped'
-    let s = JSON.stringify(frame)
-    if (
-      utf8Length(s) > limits.outboundFrameBytes ||
-      (subId && utf8Length(s) > limits.sendQueueBytes)
-    ) {
-      if (frame.type === 'event') {
-        const replacement = catchUp(c, frame.id)
-        if (!replacement) return 'dropped'
-        const result = send(c, replacement)
-        return result === 'sent' ? 'reset' : result
-      }
-      if (subId) {
-        c.subscriptions.delete(subId)
-        c.stale.delete(subId)
-        frame = { type: 'subscribe-failed', id: subId, code: 'too-large' }
-        outcome = 'failed'
-      } else if (frame.type === 'result')
-        frame = {
-          type: 'result',
-          id: frame.id,
-          ok: false,
-          error: { code: 'too-large', message: 'Result too large' },
-        }
-      else {
-        c.socket.close(4429, 'Outbound limit')
-        return 'failed'
-      }
-      s = JSON.stringify(frame)
-    }
-    if (c.socket.bufferedBytes() + utf8Length(s) > limits.sendQueueBytes) {
-      if (subId && c.subscriptions.has(subId)) {
-        c.stale.add(subId)
-        recover(c)
-      } else c.socket.close(4429, 'Slow client')
-      return 'dropped'
-    }
-    c.socket.send(s)
-    return outcome
-  }
   function authorized(c: Connection, cap: HostCapability) {
     return c.grant?.caps.includes(cap) && caps.includes(cap)
-  }
-  function snap(lane: Lane): LaneSnapshot {
-    return {
-      cursor: { epoch, seq: lane.seq },
-      summary: lane.summary,
-      state:
-        lane.summary.activity === 'stopped' || lane.summary.activity === 'failed'
-          ? null
-          : {
-              sessionId: lane.sessionId,
-              thinkingLevel: lane.thinkingLevel,
-              isStreaming: lane.summary.activity === 'working',
-              isCompacting: false,
-              steeringMode: 'all',
-              followUpMode: 'all',
-              autoCompactionEnabled: true,
-              messageCount: lane.messages.length,
-              pendingMessageCount: lane.pending.length,
-              ...(lane.summary.title !== null ? { sessionName: lane.summary.title } : {}),
-            },
-      messages: lane.messages,
-      pending: lane.pending,
-      dialogs: lane.dialogs,
-      ui: [...lane.ui.values()],
-    }
-  }
-  function publish(lane: Lane, event: LaneEvent) {
-    const entry = {
-      cursor: { epoch, seq: ++lane.seq },
-      event,
-      bytes: utf8Length(JSON.stringify(event)),
-    }
-    lane.events.push(entry)
-    lane.replayBytes += entry.bytes
-    while (lane.events.length > limits.replayEvents || lane.replayBytes > limits.replayBytes) {
-      const old = lane.events.shift()
-      if (old) lane.replayBytes -= old.bytes
-    }
-    for (const c of connections)
-      for (const s of c.subscriptions.values()) {
-        if (s.topic === 'lane' && s.laneId === lane.summary.laneId) {
-          const frame: HostFrame = {
-            type: 'event',
-            id: s.id,
-            laneId: s.laneId,
-            cursor: entry.cursor,
-            event,
-          }
-          if (utf8Length(JSON.stringify(frame)) > limits.outboundFrameBytes)
-            send(c, {
-              type: 'snapshot',
-              id: s.id,
-              laneId: s.laneId,
-              reset: true,
-              snapshot: snap(lane),
-            })
-          else send(c, frame)
-        }
-      }
-  }
-  function summary(lane: Lane) {
-    lane.summary = { ...lane.summary, updatedAt: now() }
-    publish(lane, { kind: 'summary', summary: lane.summary })
-    announce(lane)
-  }
-  function announce(lane: Lane) {
-    const cursor = { epoch, seq: ++hostSeq }
-    for (const c of connections)
-      for (const s of c.subscriptions.values())
-        if (s.topic === 'lanes')
-          send(c, { type: 'lanes-delta', id: s.id, cursor, upsert: [lane.summary], remove: [] })
-  }
-  function notify(lane: Lane, kind: AttentionEvent['kind']) {
-    lane.summary = { ...lane.summary, attention: lane.summary.attention + 1 }
-    summary(lane)
-    const entry = {
-      cursor: { epoch, seq: ++hostSeq },
-      event: {
-        id: `${lane.summary.laneId}:${lane.summary.attention}`,
-        laneId: lane.summary.laneId,
-        kind,
-        attention: lane.summary.attention,
-        at: now(),
-        title: lane.summary.title,
-      },
-    }
-    attention.push(entry)
-    while (attention.length > limits.attentionReplay) attention.shift()
-    for (const c of connections)
-      for (const s of c.subscriptions.values())
-        if (s.topic === 'lanes') send(c, { type: 'attention', id: s.id, ...entry })
-  }
-  function changeControl(lane: Lane, controller: LaneSummary['control']['controller']) {
-    lane.summary = {
-      ...lane.summary,
-      control: { fence: lane.summary.control.fence + 1, controller },
-    }
-    publish(lane, { kind: 'control', control: lane.summary.control })
-    summary(lane)
-  }
-  function push(lane: Lane, event: PiEvent) {
-    if (lane.pending.length >= limits.pendingEvents)
-      throw new Error('Scripted pending limit exceeded')
-    lane.pending.push(event)
-    publish(lane, { kind: 'pi', push: { kind: 'event', event } })
-  }
-  function turn(lane: Lane) {
-    const messageCount = lane.messages.length
-    lane.summary = { ...lane.summary, activity: 'working' }
-    summary(lane)
-    push(lane, { type: 'agent_start' })
-    const message: AgentMessage = {
-      role: 'assistant',
-      content: [{ type: 'text', text: 'Scripted reply' }],
-      timestamp: Date.now(),
-    }
-    // The fake's deltas are intentionally shallow; pi owns the inner event shape.
-    for (const delta of ['Scripted ', 'reply'])
-      push(lane, {
-        type: 'message_update',
-        assistantMessageEvent: { type: 'text_delta', contentIndex: 0, delta },
-      })
-    push(lane, { type: 'message_end', message })
-    lane.messages.push(message)
-    // A fake transcript stops growing at the wire cap; it never silently truncates history.
-    if (utf8Length(JSON.stringify(lane.messages)) > HOST_LIMITS.outboundFrameBytes)
-      throw new Error('Scripted transcript limit exceeded')
-    lane.pending.length = 0
-    push(lane, { type: 'agent_end', messages: [message] })
-    lane.pending.length = 0
-    lane.summary = { ...lane.summary, activity: 'idle' }
-    notify(lane, 'finished')
-    return { messages: lane.messages.length - messageCount, turns: 1 }
   }
   function deliver(requestId: string, stored: Stored) {
     if (stored.receipt.status !== 'pending') {
@@ -513,11 +252,11 @@ export function createFakeHost(options: FakeHostOptions) {
       summary(l)
     }
     c.pending++
-    executions++
-    const startingEpoch = epoch
+    state.executions++
+    const startingEpoch = state.epoch
     const timer = setTimeout(() => {
       timers.delete(timer)
-      if (epoch !== startingEpoch || stored.receipt.status !== 'pending') return
+      if (state.epoch !== startingEpoch || stored.receipt.status !== 'pending') return
       clearTimeout(deadline)
       timers.delete(deadline)
       c.pending--
@@ -532,7 +271,7 @@ export function createFakeHost(options: FakeHostOptions) {
     }, options.commandDelayMs ?? 1)
     const deadline = setTimeout(() => {
       timers.delete(deadline)
-      if (epoch !== startingEpoch || stored.receipt.status !== 'pending') return
+      if (state.epoch !== startingEpoch || stored.receipt.status !== 'pending') return
       clearTimeout(timer)
       timers.delete(timer)
       c.pending--
@@ -615,12 +354,12 @@ export function createFakeHost(options: FakeHostOptions) {
             hostId: options.expectations.hostId,
             hostVersion: '0.0.0',
             protocolVersion: 1,
-            runtimeEpoch: epoch,
+            runtimeEpoch: state.epoch,
             capabilities: [...caps],
           },
           proof: encodeBase64url(
             options.sign(
-              grantUtf8(helloProofMessage(options.expectations.hostId, epoch, challenge)),
+              grantUtf8(helloProofMessage(options.expectations.hostId, state.epoch, challenge)),
             ),
           ),
           connectionId: options.epoch(),
@@ -690,12 +429,12 @@ export function createFakeHost(options: FakeHostOptions) {
           const result = send(c, {
             type: 'lanes',
             id: f.id,
-            cursor: { epoch, seq: hostSeq },
+            cursor: { epoch: state.epoch, seq: state.hostSeq },
             repositories,
             lanes: [...lanes.values()].map((l) => l.summary),
           })
           if (result !== 'sent') break
-          if (f.after?.epoch === epoch)
+          if (f.after?.epoch === state.epoch)
             for (const entry of attention)
               if (
                 entry.cursor.seq > f.after.seq &&
@@ -710,7 +449,7 @@ export function createFakeHost(options: FakeHostOptions) {
           }
           c.subscriptions.set(f.id, f)
           if (
-            f.after?.epoch === epoch &&
+            f.after?.epoch === state.epoch &&
             f.after.seq <= l.seq &&
             f.after.seq >= (l.events[0]?.cursor.seq ?? l.seq + 1) - 1
           ) {
@@ -803,7 +542,7 @@ export function createFakeHost(options: FakeHostOptions) {
   }
   return {
     attach(socket: FrameSocket) {
-      if (stopped) {
+      if (state.stopped) {
         socket.close(1001, 'Host stopping')
         return
       }
@@ -943,8 +682,8 @@ export function createFakeHost(options: FakeHostOptions) {
       notify(l, 'failed')
     },
     restart() {
-      epoch = options.epoch()
-      hostSeq = 0
+      state.epoch = options.epoch()
+      state.hostSeq = 0
       attention.length = 0
       for (const timer of timers) clearTimeout(timer)
       timers.clear()
@@ -971,9 +710,9 @@ export function createFakeHost(options: FakeHostOptions) {
       revokedClients.add(id)
       for (const c of connections) if (c.grant?.client.id === id) c.socket.close(4403, 'Revoked')
     },
-    executions: () => executions,
+    executions: () => state.executions,
     stop() {
-      stopped = true
+      state.stopped = true
       for (const timer of timers) clearTimeout(timer)
       timers.clear()
       for (const c of connections) c.socket.close(1001, 'Host stopping')
@@ -983,9 +722,6 @@ export function createFakeHost(options: FakeHostOptions) {
 function paramsLane(v: unknown): string | null {
   if (v === null || typeof v !== 'object' || !('laneId' in v)) return null
   return isUuid(v.laneId) ? v.laneId : null
-}
-function limitKey(key: string): key is keyof Limits {
-  return key in HOST_LIMITS
 }
 
 function thinkingLevel(value: string): ThinkingLevel {
