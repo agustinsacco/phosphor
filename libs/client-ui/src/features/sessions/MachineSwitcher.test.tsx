@@ -1,8 +1,4 @@
 // @vitest-environment jsdom
-vi.mock('@/features/machines/RemoteModelPicker', () => ({
-  useRemoteModel: () => ({ model: { id: 'test-model', provider: 'test' }, thinking: 'off' }),
-  RemoteModelPicker: () => null,
-}))
 import { act, Profiler } from 'react'
 import { useChatStore } from '@/stores/chat'
 import type * as ChatStoreModule from '@/stores/chat'

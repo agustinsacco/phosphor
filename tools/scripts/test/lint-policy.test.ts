@@ -25,7 +25,7 @@ async function severity(file: string, rule: string) {
   return config?.rules?.[rule]?.[0] ?? 0
 }
 
-describe('eslint staged warning policy', () => {
+describe('eslint policy', () => {
   it('preserves the existing renderer prompt error and Host boundary errors', async () => {
     expect(await messages('window.prompt("name")', rendererCaller, 'no-restricted-syntax')).toEqual(
       [expect.objectContaining({ severity: 2 })],
@@ -35,13 +35,13 @@ describe('eslint staged warning policy', () => {
     ).toEqual([expect.objectContaining({ severity: 2 })])
   })
 
-  it('stages hooks warnings only in renderer source and relocated renderer tests', async () => {
+  it('applies hooks rules only in renderer source and relocated renderer tests', async () => {
     for (const file of [
       rendererCaller,
       'apps/web/src/main.tsx',
       'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
     ]) {
-      expect(await severity(file, 'react-hooks/rules-of-hooks')).toBe(1)
+      expect(await severity(file, 'react-hooks/rules-of-hooks')).toBe(2)
       expect(await severity(file, 'react-hooks/exhaustive-deps')).toBe(1)
     }
     const code = `import { useEffect, useState } from 'react'
@@ -50,9 +50,12 @@ describe('eslint staged warning policy', () => {
         useEffect(() => { console.log(value) }, [])
         return null
       }`
-    for (const rule of ['react-hooks/rules-of-hooks', 'react-hooks/exhaustive-deps']) {
+    for (const [rule, level] of [
+      ['react-hooks/rules-of-hooks', 2],
+      ['react-hooks/exhaustive-deps', 1],
+    ] as const) {
       expect(await messages(code, rendererCaller, rule)).toEqual([
-        expect.objectContaining({ severity: 1 }),
+        expect.objectContaining({ severity: level }),
       ])
       expect(await severity('apps/host/src/main.ts', rule)).toBe(0)
       expect(await severity('apps/desktop/electron/preload.ts', rule)).toBe(0)
@@ -71,15 +74,22 @@ describe('eslint staged warning policy', () => {
     'libs/session-runtime/src/pi/pi-paths.test.ts',
     'libs/pi-extensions/pi-ext/context-budget.ts',
     'libs/pi-extensions/pi-ext/context-budget.test.ts',
+    rendererCaller,
+    'libs/client-ui/src/features/files/FilesChangedPane.test.tsx',
+    'apps/host/src/main.ts',
+    'apps/control/src/main.ts',
+    'apps/web/src/main.tsx',
+    'apps/web/src/service-worker.ts',
+    'apps/web/vite.config.ts',
   ])(
-    'resolves typed promise warnings for %s without missing-project failures',
+    'rejects unhandled promises in %s without missing-project failures',
     async (file) => {
       const code = `declare function accepts(callback: () => void): void;
       Promise.resolve('unhandled');
       accepts(async () => {});`
       for (const rule of ['no-floating-promises', 'no-misused-promises']) {
         expect(await messages(code, file, `@typescript-eslint/${rule}`)).toEqual([
-          expect.objectContaining({ severity: 1 }),
+          expect.objectContaining({ severity: 2 }),
         ])
       }
     },
@@ -88,15 +98,14 @@ describe('eslint staged warning policy', () => {
   )
 
   it.each([
-    rendererCaller,
     'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
-    'apps/host/src/main.ts',
-    'apps/control/src/main.ts',
     'tools/scripts/test/lint-policy.test.ts',
     'apps/desktop/e2e/smoke.spec.ts',
-  ])('does not enable typed linting outside main/libraries: %s', async (file) => {
+    'apps/web/e2e/fixture.ts',
+  ])('does not enable typed linting outside owning projects: %s', async (file) => {
     const config = await eslint.calculateConfigForFile(file)
     expect(config?.languageOptions?.parserOptions?.projectService).toBeUndefined()
+    expect(config?.languageOptions?.parserOptions?.project).toBeUndefined()
     for (const rule of ['no-floating-promises', 'no-misused-promises']) {
       expect(await severity(file, `@typescript-eslint/${rule}`)).toBe(0)
     }
@@ -121,9 +130,9 @@ describe('eslint staged warning policy', () => {
     '(window as Window).phosphor.piCommand("id", {})',
     'window.phosphor!.piCommand("id", {})',
     'window[`phosphor`][`piCommand`]("id", {})',
-  ])('warns about raw RPC escape hatches: %s', async (code) => {
+  ])('rejects raw RPC escape hatches: %s', async (code) => {
     expect(await messages(code, rendererCaller, 'phosphor/no-raw-pi-command')).toEqual([
-      expect.objectContaining({ severity: 1 }),
+      expect.objectContaining({ severity: 2 }),
     ])
     expect(await messages(code, renderer, 'phosphor/no-raw-pi-command')).toEqual([])
   })
@@ -141,7 +150,7 @@ describe('eslint staged warning policy', () => {
     }
     expect(
       await severity('libs/client-ui/src/dev/mockPhosphor.ts', 'phosphor/no-raw-pi-command'),
-    ).toBe(1)
+    ).toBe(2)
   })
 
   it('exempts test mocks of window.confirm', async () => {

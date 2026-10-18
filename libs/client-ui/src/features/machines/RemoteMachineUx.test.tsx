@@ -1,8 +1,4 @@
 // @vitest-environment jsdom
-vi.mock('@/features/machines/RemoteModelPicker', () => ({
-  useRemoteModel: () => ({ model: { id: 'test-model', provider: 'test' }, thinking: 'off' }),
-  RemoteModelPicker: () => null,
-}))
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'

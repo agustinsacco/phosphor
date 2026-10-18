@@ -64,6 +64,20 @@ const phosphor = {
   },
 }
 
+// An unawaited promise loses its rejection: the IPC failures fixed in the
+// engineering review started this way. Errors wherever a TS project types the
+// file; eslint-suppressions.json records the debt that predates the rule, and
+// eslint fails on a suppression that no longer occurs, so the record only shrinks.
+const promiseRules = {
+  '@typescript-eslint/no-floating-promises': 'error',
+  '@typescript-eslint/no-misused-promises': 'error',
+}
+const typedProject = (files, project) => ({
+  files,
+  languageOptions: { parserOptions: { project, tsconfigRootDir: import.meta.dirname } },
+  rules: promiseRules,
+})
+
 export default tseslint.config(
   {
     ignores: [
@@ -100,8 +114,8 @@ export default tseslint.config(
     files: rendererFiles,
     plugins: { 'react-hooks': reactHooks },
     rules: {
+      'react-hooks/rules-of-hooks': 'error',
       // Warnings are an inventory for app owners, not a cleanup or a CI budget.
-      'react-hooks/rules-of-hooks': 'warn',
       'react-hooks/exhaustive-deps': 'warn',
       // Electron overrides window.prompt to throw "prompt() is not supported."
       // — every renderer prompt must go through promptText (stores/prompt.ts).
@@ -139,34 +153,28 @@ export default tseslint.config(
       'apps/desktop/test/renderer/**',
     ],
     plugins: { phosphor },
-    rules: { 'phosphor/no-raw-pi-command': 'warn' },
+    rules: { 'phosphor/no-raw-pi-command': 'error' },
   },
   {
-    // Main/preload and libraries have owning TS projects. Keep renderer, Host,
-    // e2e and tooling syntax-only; never allow a fallback untyped/default project.
+    // Typed linting uses each file's owning TS project, never a fallback
+    // default project. Desktop renderer tests, e2e and tooling stay syntax-only.
     files: ['apps/desktop/electron/**/*.ts', 'apps/desktop/test/main/**/*.ts', 'libs/**/*.ts'],
     ignores: ['libs/client-ui/**', 'libs/host-client/**'],
     languageOptions: {
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },
-    rules: {
-      '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-misused-promises': 'warn',
-    },
+    rules: promiseRules,
   },
-  {
-    files: ['libs/host-client/**/*.ts'],
-    languageOptions: {
-      parserOptions: {
-        project: './libs/host-client/tsconfig.tests.json',
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-    rules: {
-      '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-misused-promises': 'warn',
-    },
-  },
+  typedProject(['libs/host-client/**/*.ts'], './libs/host-client/tsconfig.tests.json'),
+  typedProject(['libs/client-ui/**/*.{ts,tsx}'], './libs/client-ui/tsconfig.json'),
+  typedProject(['apps/host/**/*.ts'], './apps/host/tsconfig.json'),
+  typedProject(['apps/control/**/*.ts'], './apps/control/tsconfig.json'),
+  typedProject(
+    ['apps/web/*.ts', 'apps/web/src/**/*.{ts,tsx}'],
+    ['tsconfig.json', 'tsconfig.platform.json', 'tsconfig.tests.json', 'tsconfig.worker.json'].map(
+      (name) => `./apps/web/${name}`,
+    ),
+  ),
   {
     // The Host runs under plain Node: no Electron, no native Desktop modules,
     // and the libraries only through their package subpaths. boundary.test.ts

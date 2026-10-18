@@ -17,10 +17,6 @@ vi.mock('../pi/catalogue', () => ({
   invalidateCatalogueModels: h.models,
   invalidatePiCommands: h.commands,
 }))
-vi.mock('./pi-config-handlers', () => ({
-  invalidateCatalogueModels: h.models,
-  invalidatePiCommands: h.commands,
-}))
 vi.mock('node:child_process', () => ({ spawn: h.spawn, execFile: vi.fn() }))
 vi.mock('../pi/stub', () => ({ piStubPath: () => '/stub.cjs', claudeBinOverride: () => undefined }))
 vi.mock('../pi/print-mode', () => ({
