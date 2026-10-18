@@ -30,6 +30,8 @@ export class RoutineRepository {
         created_at INTEGER NOT NULL, data TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS runs_history ON runs(routine_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS runs_active ON runs(created_at)
+        WHERE json_extract(data, '$.status') IN ('queued','running');
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       PRAGMA user_version=1;
     `)
