@@ -7,34 +7,28 @@ const remote = { kind: 'remote-supported' } as const
 const browser = { kind: 'browser-local' } as const
 const unsupported = (reason: string) => ({ kind: 'unsupported', reason }) as const
 
+const native = unsupported('This native or mutating Host feature is unavailable in the browser.')
+
 /** Every new IPC channel requires an explicit browser admission decision. */
 export const IPC_WEB = {
-  'hosts:tailscaleStatus': unsupported(
-    'This native or mutating Host feature is unavailable in the browser.',
-  ),
+  'hosts:tailscaleStatus': native,
   'hosts:models': remote,
   'hosts:claude': remote,
   'hosts:providers': remote,
   'hosts:repositoryFiles': remote,
   'hosts:repositoryFile': remote,
   'hosts:skills': remote,
-  'hosts:providerLogin': unsupported(
-    'This native or mutating Host feature is unavailable in the browser.',
-  ),
+  'hosts:providerLogin': native,
   'hosts:settingsAccess': unsupported('Machine configuration requires Desktop.'),
   'hosts:settingsRead': unsupported('Machine configuration requires Desktop.'),
   'hosts:settingsPatch': unsupported('Machine configuration requires Desktop.'),
   'hosts:settingsCheck': unsupported('Machine configuration requires Desktop.'),
   'hosts:machineTask': unsupported('Machine configuration requires Desktop.'),
   'hosts:claudeAccount': unsupported('Machine configuration requires Desktop.'),
-  'hosts:uploadAttachments': unsupported(
-    'This native or mutating Host feature is unavailable in the browser.',
-  ),
+  'hosts:uploadAttachments': native,
   'hosts:snapshot': remote,
   'hosts:reconnect': remote,
-  'hosts:traffic': unsupported(
-    'This native or mutating Host feature is unavailable in the browser.',
-  ),
+  'hosts:traffic': native,
   'hosts:setFocusedLane': remote,
   'hosts:openLane': remote,
   'hosts:createLane': remote,
@@ -42,21 +36,11 @@ export const IPC_WEB = {
   'hosts:resumeLane': remote,
   'hosts:takeControl': remote,
   'hosts:markRead': remote,
-  'hosts:deleteLane': unsupported(
-    'This native or mutating Host feature is unavailable in the browser.',
-  ),
-  'hosts:listFolders': unsupported(
-    'This native or mutating Host feature is unavailable in the browser.',
-  ),
-  'hosts:addRepository': unsupported(
-    'This native or mutating Host feature is unavailable in the browser.',
-  ),
-  'hosts:createFolder': unsupported(
-    'This native or mutating Host feature is unavailable in the browser.',
-  ),
-  'hosts:removeRepository': unsupported(
-    'This native or mutating Host feature is unavailable in the browser.',
-  ),
+  'hosts:deleteLane': native,
+  'hosts:listFolders': native,
+  'hosts:addRepository': native,
+  'hosts:createFolder': native,
+  'hosts:removeRepository': native,
   'hosts:releaseControl': remote,
   'routines:list': remote,
   'routines:save': remote,

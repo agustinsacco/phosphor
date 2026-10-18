@@ -1,14 +1,22 @@
 import type { GrantIssueResponse } from '@shared/control-api'
+import type { DesktopControlErrorCode } from '@shared/ipc'
 import { HOST_LIMITS } from '@shared/host-protocol'
 import type { createControlClient } from '../control/client'
 import type { createClientIds } from './client-id'
 
-export function createGrants(ports: {
+interface GrantPorts {
   control: Pick<ReturnType<typeof createControlClient>, 'grant'>
   clients: ReturnType<typeof createClientIds>
   present: (hostId: string) => boolean
   now?: () => number
-}) {
+}
+function grantFailure(code: DesktopControlErrorCode): Error {
+  return new Error(
+    code === 'not-found' ? 'grant-refused' : code === 'forbidden' ? 'account-disabled' : code,
+  )
+}
+
+export function createGrants(ports: GrantPorts) {
   const cache = new Map<string, GrantIssueResponse>()
   const flights = new Map<
     string,
@@ -68,14 +76,7 @@ export function createGrants(ports: {
           result = await issue()
         if (epoch !== generation || !active.valid || !ports.present(hostId))
           throw new Error('signed-out')
-        if (!result.ok)
-          throw new Error(
-            result.error.code === 'not-found'
-              ? 'grant-refused'
-              : result.error.code === 'forbidden'
-                ? 'account-disabled'
-                : result.error.code,
-          )
+        if (!result.ok) throw grantFailure(result.error.code)
         if (result.host.id !== hostId) throw new Error('grant-refused')
         cache.set(hostId, result)
         if (cache.size > 32) {

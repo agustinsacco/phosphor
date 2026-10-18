@@ -1,6 +1,7 @@
 import type { TerminalFrame } from '@phosphor/shared/host-protocol-terminals'
 import { browserCrypto, type IdentityCrypto } from './crypto'
 import { createHandshake } from './handshake'
+import { readyView } from './ready-view'
 import { createRequests, type CommandResult } from './requests'
 export type { CommandResult, NotSent } from './requests'
 import { isEndpoint, type GrantIssueResponse } from '@phosphor/shared/control-api'
@@ -260,13 +261,7 @@ export function createHostConnection(ports: {
       lastPong = now()
       runtimeEpoch = f.hello.runtimeEpoch
       requests.prepareReplay()
-      update({
-        state: 'ready',
-        lastError: undefined,
-        hostVersion: f.hello.hostVersion,
-        configurationSupported: f.settings === true,
-        capabilities: [...f.capabilities],
-      })
+      update(readyView(f))
       if (stopped) return
       log('hosts', 'ready', {
         hostId: ports.hostId,

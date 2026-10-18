@@ -97,141 +97,165 @@ export function parseMachineSettings(value: unknown): MachineSettings | null {
     revision: value.revision,
     ...(value.repositoryId ? { repositoryId: value.repositoryId as string } : {}),
   }
-  if (value.section === 'providers') {
-    const p = value.providers
+  switch (value.section) {
+    case 'providers':
+      return parseProviders(value, base)
+    case 'connectors':
+      return parseConnectors(value, base)
+    case 'agent':
+      return parseAgent(value, base)
+    case 'resources':
+      return parseResources(value, base)
+    default:
+      return parseAdvanced(value, base)
+  }
+}
+function parseProviders(
+  value: Record<string, unknown>,
+  base: MachineSettings,
+): MachineSettings | null {
+  const p = value.providers
+  if (
+    !machineRecord(p) ||
+    !list(p.accounts, 16) ||
+    !['specific', 'ordered', 'round-robin'].includes(String(p.mode)) ||
+    (p.pinnedId !== undefined && !isMachineAccountId(p.pinnedId)) ||
+    typeof p.authenticating !== 'boolean'
+  )
+    return null
+  const providers = parseMachineProviders(p.providers),
+    claude = parseMachineClaude(p.claude)
+  const accounts = p.accounts.map(account)
+  if (!providers || !claude || accounts.some((a) => a === null)) return null
+  return {
+    ...base,
+    providers: {
+      providers,
+      claude,
+      accounts: accounts as MachineAccount[],
+      mode: p.mode as 'specific' | 'ordered' | 'round-robin',
+      ...(p.pinnedId ? { pinnedId: p.pinnedId as string } : {}),
+      authenticating: p.authenticating,
+    },
+  }
+}
+function parseConnectors(
+  value: Record<string, unknown>,
+  base: MachineSettings,
+): MachineSettings | null {
+  const c = value.connectors
+  if (
+    !machineRecord(c) ||
+    !list(c.servers, 128) ||
+    !(c.trusted === null || typeof c.trusted === 'boolean') ||
+    typeof c.legacy !== 'boolean' ||
+    typeof c.malformed !== 'boolean'
+  )
+    return null
+  const servers: NonNullable<MachineSettings['connectors']>['servers'] = []
+  for (const s of c.servers) {
+    if (
+      !machineRecord(s) ||
+      !text(s.name, 64) ||
+      !['global', 'project'].includes(String(s.scope)) ||
+      !['https', 'stdio'].includes(String(s.transport)) ||
+      typeof s.enabled !== 'boolean' ||
+      !text(s.exposure, 32)
+    )
+      return null
+    servers.push({
+      name: s.name,
+      scope: s.scope as 'global' | 'project',
+      transport: s.transport as 'https' | 'stdio',
+      enabled: s.enabled,
+      exposure: s.exposure,
+      ...(typeof s.state === 'string' &&
+      [
+        'connected',
+        'needs-auth',
+        'failed',
+        'disconnected',
+        'connecting',
+        'closed',
+        'disabled',
+      ].includes(s.state)
+        ? { state: s.state }
+        : {}),
+      ...(number(s.tools) && s.tools <= 10000 ? { tools: s.tools } : {}),
+    })
+  }
+  return {
+    ...base,
+    connectors: {
+      servers,
+      trusted: c.trusted,
+      legacy: c.legacy,
+      malformed: c.malformed,
+      ...(number(c.checkedAt) ? { checkedAt: c.checkedAt } : {}),
+      ...(Array.isArray(c.inactiveNames) &&
+      c.inactiveNames.length <= 128 &&
+      c.inactiveNames.every((name) => text(name, 64))
+        ? { inactiveNames: c.inactiveNames as string[] }
+        : {}),
+    },
+  }
+}
+function parseAgent(value: Record<string, unknown>, base: MachineSettings): MachineSettings | null {
+  const a = value.agent
+  if (
+    !machineRecord(a) ||
+    !optional(a.defaultProvider) ||
+    !optional(a.defaultModel) ||
+    (a.defaultThinkingLevel !== undefined && !levels.includes(String(a.defaultThinkingLevel))) ||
+    !text(a.contextBudget, 32) ||
+    typeof a.autoNameLanes !== 'boolean'
+  )
+    return null
+  return {
+    ...base,
+    ...(typeof value.projectTrusted === 'boolean' ? { projectTrusted: value.projectTrusted } : {}),
+    agent: {
+      ...(a.defaultProvider ? { defaultProvider: a.defaultProvider } : {}),
+      ...(a.defaultModel ? { defaultModel: a.defaultModel } : {}),
+      ...(a.defaultThinkingLevel
+        ? { defaultThinkingLevel: a.defaultThinkingLevel as ThinkingLevel }
+        : {}),
+      contextBudget: a.contextBudget,
+      autoNameLanes: a.autoNameLanes,
+    },
+  }
+}
+function parseResources(
+  value: Record<string, unknown>,
+  base: MachineSettings,
+): MachineSettings | null {
+  const r = value.resources
+  if (!machineRecord(r) || !list(r.packages, 256)) return null
+  const packages: NonNullable<MachineSettings['resources']>['packages'] = []
+  for (const p of r.packages) {
     if (
       !machineRecord(p) ||
-      !list(p.accounts, 16) ||
-      !['specific', 'ordered', 'round-robin'].includes(String(p.mode)) ||
-      (p.pinnedId !== undefined && !isMachineAccountId(p.pinnedId)) ||
-      typeof p.authenticating !== 'boolean'
+      !text(p.spec, 512) ||
+      !text(p.name) ||
+      !optional(p.version) ||
+      typeof p.installed !== 'boolean' ||
+      !text(p.scope, 32)
     )
       return null
-    const providers = parseMachineProviders(p.providers),
-      claude = parseMachineClaude(p.claude)
-    const accounts = p.accounts.map(account)
-    if (!providers || !claude || accounts.some((a) => a === null)) return null
-    return {
-      ...base,
-      providers: {
-        providers,
-        claude,
-        accounts: accounts as MachineAccount[],
-        mode: p.mode as 'specific' | 'ordered' | 'round-robin',
-        ...(p.pinnedId ? { pinnedId: p.pinnedId as string } : {}),
-        authenticating: p.authenticating,
-      },
-    }
+    packages.push({
+      spec: isMachinePackageSpec(p.spec) ? p.spec : 'Source managed on Host',
+      name: p.name,
+      ...(p.version ? { version: p.version } : {}),
+      installed: p.installed,
+      scope: p.scope,
+    })
   }
-  if (value.section === 'connectors') {
-    const c = value.connectors
-    if (
-      !machineRecord(c) ||
-      !list(c.servers, 128) ||
-      !(c.trusted === null || typeof c.trusted === 'boolean') ||
-      typeof c.legacy !== 'boolean' ||
-      typeof c.malformed !== 'boolean'
-    )
-      return null
-    const servers: NonNullable<MachineSettings['connectors']>['servers'] = []
-    for (const s of c.servers) {
-      if (
-        !machineRecord(s) ||
-        !text(s.name, 64) ||
-        !['global', 'project'].includes(String(s.scope)) ||
-        !['https', 'stdio'].includes(String(s.transport)) ||
-        typeof s.enabled !== 'boolean' ||
-        !text(s.exposure, 32)
-      )
-        return null
-      servers.push({
-        name: s.name,
-        scope: s.scope as 'global' | 'project',
-        transport: s.transport as 'https' | 'stdio',
-        enabled: s.enabled,
-        exposure: s.exposure,
-        ...(typeof s.state === 'string' &&
-        [
-          'connected',
-          'needs-auth',
-          'failed',
-          'disconnected',
-          'connecting',
-          'closed',
-          'disabled',
-        ].includes(s.state)
-          ? { state: s.state }
-          : {}),
-        ...(number(s.tools) && s.tools <= 10000 ? { tools: s.tools } : {}),
-      })
-    }
-    return {
-      ...base,
-      connectors: {
-        servers,
-        trusted: c.trusted,
-        legacy: c.legacy,
-        malformed: c.malformed,
-        ...(number(c.checkedAt) ? { checkedAt: c.checkedAt } : {}),
-        ...(Array.isArray(c.inactiveNames) &&
-        c.inactiveNames.length <= 128 &&
-        c.inactiveNames.every((name) => text(name, 64))
-          ? { inactiveNames: c.inactiveNames as string[] }
-          : {}),
-      },
-    }
-  }
-  if (value.section === 'agent') {
-    const a = value.agent
-    if (
-      !machineRecord(a) ||
-      !optional(a.defaultProvider) ||
-      !optional(a.defaultModel) ||
-      (a.defaultThinkingLevel !== undefined && !levels.includes(String(a.defaultThinkingLevel))) ||
-      !text(a.contextBudget, 32) ||
-      typeof a.autoNameLanes !== 'boolean'
-    )
-      return null
-    return {
-      ...base,
-      ...(typeof value.projectTrusted === 'boolean'
-        ? { projectTrusted: value.projectTrusted }
-        : {}),
-      agent: {
-        ...(a.defaultProvider ? { defaultProvider: a.defaultProvider } : {}),
-        ...(a.defaultModel ? { defaultModel: a.defaultModel } : {}),
-        ...(a.defaultThinkingLevel
-          ? { defaultThinkingLevel: a.defaultThinkingLevel as ThinkingLevel }
-          : {}),
-        contextBudget: a.contextBudget,
-        autoNameLanes: a.autoNameLanes,
-      },
-    }
-  }
-  if (value.section === 'resources') {
-    const r = value.resources
-    if (!machineRecord(r) || !list(r.packages, 256)) return null
-    const packages: NonNullable<MachineSettings['resources']>['packages'] = []
-    for (const p of r.packages) {
-      if (
-        !machineRecord(p) ||
-        !text(p.spec, 512) ||
-        !text(p.name) ||
-        !optional(p.version) ||
-        typeof p.installed !== 'boolean' ||
-        !text(p.scope, 32)
-      )
-        return null
-      packages.push({
-        spec: isMachinePackageSpec(p.spec) ? p.spec : 'Source managed on Host',
-        name: p.name,
-        ...(p.version ? { version: p.version } : {}),
-        installed: p.installed,
-        scope: p.scope,
-      })
-    }
-    return { ...base, resources: { packages } }
-  }
+  return { ...base, resources: { packages } }
+}
+function parseAdvanced(
+  value: Record<string, unknown>,
+  base: MachineSettings,
+): MachineSettings | null {
   const a = value.advanced
   if (
     !machineRecord(a) ||
