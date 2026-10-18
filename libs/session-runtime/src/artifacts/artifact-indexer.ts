@@ -73,8 +73,11 @@ function tryParse(line: string): Record<string, unknown> | undefined {
   }
 }
 
-/** Exported for tests: what one line contributes. */
-export function scanLine(state: ScanState, line: string): void {
+export function parseEntryHead(
+  line: string,
+):
+  | { type: unknown; id: unknown; parentId: string | null; parsed?: Record<string, unknown> }
+  | undefined {
   let parsed: Record<string, unknown> | undefined
   let type: unknown
   let id: unknown
@@ -86,12 +89,21 @@ export function scanLine(state: ScanState, line: string): void {
     parentId = head[3] ?? null
   } else {
     parsed = tryParse(line)
-    if (!parsed) return
+    if (!parsed) return undefined
     type = parsed.type
     id = parsed.id
     parentId = typeof parsed.parentId === 'string' ? parsed.parentId : null
   }
 
+  return { type, id, parentId, parsed }
+}
+
+/** Exported for tests: what one line contributes. */
+export function scanLine(state: ScanState, line: string): void {
+  const head = parseEntryHead(line)
+  if (!head) return
+  const { type, id, parentId } = head
+  let { parsed } = head
   if (type === 'session') {
     parsed ??= tryParse(line)
     state.header = parsed as ScanState['header']
@@ -118,6 +130,15 @@ export function scanLine(state: ScanState, line: string): void {
 
   if (!saved && !line.includes('"toolName":"artifact_')) return
   parsed ??= tryParse(line)
+  const candidate = extractCandidate(parsed, id, saved)
+  if (candidate) state.candidates.push(candidate)
+}
+
+export function extractCandidate(
+  parsed: Record<string, unknown> | undefined,
+  id: string,
+  saved: boolean,
+): Candidate | undefined {
   if (saved && parsed?.customType !== ARTIFACT_ENTRY_TYPE) return
   const message = (
     saved
@@ -140,7 +161,7 @@ export function scanLine(state: ScanState, line: string): void {
   if (typeof slug !== 'string' || !slug || slug.length > MAX_ID_LENGTH) return
   if (typeof details?.content !== 'string' || typeof details.version !== 'number') return
   const timestamp = parsed?.timestamp
-  state.candidates.push({
+  return {
     slug,
     title: typeof details.title === 'string' ? details.title : undefined,
     type: typeof details.type === 'string' ? details.type : undefined,
@@ -157,7 +178,7 @@ export function scanLine(state: ScanState, line: string): void {
       typeof timestamp === 'string'
         ? timestamp
         : new Date(typeof message.timestamp === 'number' ? message.timestamp : 0).toISOString(),
-  })
+  }
 }
 
 export function emptyScan(): ScanState {
@@ -276,8 +297,36 @@ export async function indexSessionFile(
     onBranch = walkBranch(state.parents, state.lastId).path
   }
 
-  const artifacts = resumable ? cloneArtifacts(previous.artifacts) : {}
-  for (const candidate of state.candidates) {
+  const artifacts = await accumulateCandidates(
+    root,
+    state.candidates,
+    onBranch,
+    resumable ? previous.artifacts : undefined,
+  )
+  return buildIndex(
+    path,
+    previous,
+    state,
+    resumable,
+    {
+      offset,
+      size: info.size,
+      mtimeMs: info.mtimeMs,
+      signature: (await readSignature(path, offset)) ?? '',
+      leafId: state.lastId ?? (resumable ? previous.scan.leafId : null),
+    },
+    artifacts,
+  )
+}
+
+export async function accumulateCandidates(
+  root: string,
+  candidates: Candidate[],
+  onBranch: Set<string>,
+  previous?: Record<string, StoredArtifact>,
+): Promise<Record<string, StoredArtifact>> {
+  const artifacts = previous ? cloneArtifacts(previous) : {}
+  for (const candidate of candidates) {
     const existing = Object.hasOwn(artifacts, candidate.slug)
       ? artifacts[candidate.slug]
       : undefined
@@ -305,6 +354,17 @@ export async function indexSessionFile(
     artifacts[candidate.slug] = artifact
   }
 
+  return artifacts
+}
+
+export function buildIndex(
+  path: string,
+  previous: SessionArtifactIndex | null,
+  state: ScanState,
+  resumable: boolean,
+  scan: SessionArtifactIndex['scan'],
+  artifacts: Record<string, StoredArtifact>,
+): SessionArtifactIndex {
   const header = resumable ? undefined : state.header
   return {
     format: ARTIFACT_INDEX_FORMAT,
@@ -313,17 +373,11 @@ export async function indexSessionFile(
     cwd: header?.cwd ?? previous?.cwd ?? '',
     createdAt: header?.timestamp ?? previous?.createdAt,
     parentSession: header?.parentSession ?? previous?.parentSession,
-    name: state.name ?? (resumable ? previous.name : undefined),
-    firstUserText: (resumable ? previous.firstUserText : undefined) ?? state.firstUserText,
+    name: state.name ?? (resumable ? previous?.name : undefined),
+    firstUserText: (resumable ? previous?.firstUserText : undefined) ?? state.firstUserText,
     // The file is here, so the session is not deleted (it may be back from the trash).
     deleted: false,
-    scan: {
-      offset,
-      size: info.size,
-      mtimeMs: info.mtimeMs,
-      signature: (await readSignature(path, offset)) ?? '',
-      leafId: state.lastId ?? (resumable ? previous.scan.leafId : null),
-    },
+    scan,
     artifacts,
   }
 }

@@ -2,8 +2,6 @@
   "version": 1,
   "package": "session-runtime",
   "offenders": {
-    "src/artifacts/artifact-indexer.ts::scanLine[1]": 85,
-    "src/artifacts/artifact-indexer.ts::indexSessionFile[1]": 95,
     "src/lanes/projection.ts::createLaneProjection[1]": 284,
     "src/lanes/projection.ts::createLaneProjection[1]/event[1]": 91,
     "src/pi/session-context.test.ts::it[1]": 92,

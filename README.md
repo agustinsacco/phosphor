@@ -527,7 +527,7 @@ supabase/            isolated control-directory migrations and local RLS tests
 libs/shared/src/     types and pure logic shared by main + renderer
   ipc.ts             the typed IpcInvokeMap contract
   rpc.ts             hand-mirrored copy of pi's RPC protocol + drift guards
-  models.ts          model catalogue and shared app types
+  models.ts          model catalogue and shared app types (facade over models/)
   control-api.ts     control wire shapes, parsers, limits and Host signing string
   remote-host.ts     Host hello validation and host-qualified resource keys
 apps/desktop/src/                 renderer (React) — pure UI over typed IPC

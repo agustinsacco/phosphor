@@ -59,6 +59,10 @@
     "./worktree-paths": {
       "types": "./pi-ext/worktree-paths.ts",
       "default": "./pi-ext/worktree-paths.ts"
+    },
+    "./pi-api": {
+      "types": "./pi-ext/pi-api.ts",
+      "default": "./pi-ext/pi-api.ts"
     }
   },
   "dependencies": {

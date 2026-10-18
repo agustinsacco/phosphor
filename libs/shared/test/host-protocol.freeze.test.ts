@@ -284,12 +284,14 @@ describe('compile-time exhaustiveness', () => {
     () => {
       const drift = "{ readonly type: 'freeze-drift' }"
       const errors = compileErrors([fixturePath], {
-        [resolve(sharedSource, 'host-protocol.ts')]: (source) =>
-          ['ClientFrame', 'HostFrame', 'LaneOp'].reduce(
+        [resolve(sharedSource, 'host-protocol/frames.ts')]: (source) =>
+          ['ClientFrame', 'HostFrame'].reduce(
             (next, name) => addUnionMember(next, name, drift),
             source,
           ),
-        [resolve(sharedSource, 'models.ts')]: (source) =>
+        [resolve(sharedSource, 'host-protocol/operations.ts')]: (source) =>
+          addUnionMember(source, 'LaneOp', drift),
+        [resolve(sharedSource, 'models/sessions.ts')]: (source) =>
           addUnionMember(source, 'SessionPush', "{ kind: 'freeze-drift' }"),
       })
       // One error per exhaustive map, each naming the member it lacks.

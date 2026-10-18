@@ -18,6 +18,7 @@ describe('bundledExtensions', () => {
       'artifact-store.ts',
       'subagent-snapshot.ts',
       'status-keys.ts',
+      'pi-api.ts',
     ])
     const files = readdirSync(join(root, 'libs/pi-extensions/pi-ext')).filter(
       (name) => name.endsWith('.ts') && !name.endsWith('.test.ts') && !imported.has(name),
