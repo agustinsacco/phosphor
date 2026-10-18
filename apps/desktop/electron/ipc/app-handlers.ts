@@ -20,7 +20,13 @@ import {
   wouldExceedBlobCap,
   writeDraftBlob,
 } from '../drafts-blobs'
-import { orphanBlobIds, sweepDrafts } from '../prefs-utils'
+import {
+  saveComposerDraft,
+  clearComposerDraft,
+  writeComposerDraftBlob,
+  sweepComposerDrafts,
+} from '../app/draft-service'
+import { resolveResumeTarget } from '../app/resume-target'
 import {
   getPrefs,
   markSessionSeen,
@@ -70,6 +76,15 @@ async function pickFolder(event: Electron.IpcMainInvokeEvent): Promise<string | 
 
 /** App preferences, native dialogs, and runtime info. */
 export function registerAppHandlers(): void {
+  registerPreferenceHandlers()
+  registerContextHandlers()
+  registerDraftHandlers()
+  registerRuntimeHandlers()
+  registerDialogHandlers()
+  registerSandboxHandlers()
+}
+
+function registerPreferenceHandlers(): void {
   handle('app:getPrefs', () => getPrefs())
 
   handle('app:setTheme', (_event, theme) => {
@@ -83,109 +98,22 @@ export function registerAppHandlers(): void {
 
   handle('app:setSessionOrder', (_event, paths) => setSessionOrder(paths))
 
-  handle('app:setPinnedSessions', (_event, paths) => {
-    setPinnedSessions(paths)
-  })
+  handle('app:setPinnedSessions', (_event, paths) => setPinnedSessions(paths))
 
-  handle('app:setRewoundSessions', (_event, record) => {
-    setRewoundSessions(record)
-  })
+  handle('app:setRewoundSessions', (_event, record) => setRewoundSessions(record))
 
-  handle('app:setLanePrefs', (_event, lanes) => {
-    setLanePrefs(lanes)
-  })
+  handle('app:setLanePrefs', (_event, lanes) => setLanePrefs(lanes))
 
-  handle('app:setLaneMarkers', (_event, markers) => {
-    setLaneMarkers(markers)
-  })
+  handle('app:setLaneMarkers', (_event, markers) => setLaneMarkers(markers))
 
-  handle('app:setModelPicks', (_event, picks) => {
-    setModelPicks(picks)
-  })
+  handle('app:setModelPicks', (_event, picks) => setModelPicks(picks))
 
-  handle('app:setLastSession', (_event, sessionPath) => {
-    setLastSession(sessionPath)
-  })
+  handle('app:setLastSession', (_event, sessionPath) => setLastSession(sessionPath))
 
-  handle('app:setCollapsedWorkspaces', (_event, paths) => {
-    setCollapsedWorkspaces(paths)
-  })
+  handle('app:setCollapsedWorkspaces', (_event, paths) => setCollapsedWorkspaces(paths))
 
   handle('app:recordWorkspace', (_event, path: string) => {
     recordWorkspace(path, basename(path))
-  })
-
-  handle('app:setDraft', async (_event, draft) => {
-    // Anything the prune dropped takes its images with it.
-    await deleteDraftBlobs(setDraft(draft))
-  })
-
-  handle('app:clearDraft', async (_event, key) => {
-    await deleteDraftBlobs(clearDraft(key))
-  })
-
-  handle('app:writeDraftBlob', async (_event, blobId, base64) => {
-    // Refuse rather than silently drop: the composer says so out loud.
-    const bytes = Math.floor((base64.length * 3) / 4)
-    if (await wouldExceedBlobCap(bytes)) return false
-    await writeDraftBlob(blobId, base64)
-    return true
-  })
-
-  handle('app:readDraftBlob', (_event, blobId) => readDraftBlob(blobId))
-
-  handle('app:sweepDrafts', async () => {
-    const drafts = getPrefs().drafts
-    // Resolve existence up front: `sweepDrafts` is pure so it can be tested
-    // without a filesystem.
-    const folders = [...new Set(Object.keys(drafts).filter((k) => k.startsWith('home:')))].map(
-      (k) => k.slice('home:'.length),
-    )
-    const alive = new Set(
-      (await Promise.all(folders.map(async (f) => ((await pathExists(f)) ? f : null)))).filter(
-        (f): f is string => f !== null,
-      ),
-    )
-    const swept = sweepDrafts(drafts, (path) => alive.has(path))
-    setDrafts(swept.drafts)
-    const orphans = orphanBlobIds(swept.drafts, await listDraftBlobs())
-    await deleteDraftBlobs([...swept.dropped, ...orphans])
-    return swept.drafts
-  })
-
-  handle('app:resumeTarget', async () => {
-    const { lastSessionPath, lastWorkspacePath, recentWorkspaces } = getPrefs()
-
-    // Prefer the exact session, but only if BOTH it and its workspace still
-    // exist — a session file whose folder was deleted can't be resumed.
-    if (lastSessionPath && lastWorkspacePath) {
-      const [sessionOk, workspaceOk] = await Promise.all([
-        pathExists(lastSessionPath),
-        pathExists(lastWorkspacePath),
-      ])
-      if (sessionOk && workspaceOk) {
-        return {
-          kind: 'session' as const,
-          sessionPath: lastSessionPath,
-          workspacePath: lastWorkspacePath,
-        }
-      }
-    }
-
-    if (lastWorkspacePath && (await pathExists(lastWorkspacePath))) {
-      return { kind: 'workspace' as const, workspacePath: lastWorkspacePath }
-    }
-
-    // Fall back to the newest recent that still exists — the picker should
-    // only ever appear on a true first run, not because lastWorkspacePath
-    // went stale or was never written.
-    for (const ws of [...recentWorkspaces].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)) {
-      if (await pathExists(ws.path)) {
-        return { kind: 'workspace' as const, workspacePath: ws.path }
-      }
-    }
-
-    return { kind: 'none' as const }
   })
 
   handle('app:setFontPrefs', (_event, fonts) => {
@@ -195,18 +123,20 @@ export function registerAppHandlers(): void {
     applyZoom(fonts.uiScale)
   })
 
-  handle('app:setRecentWorkspaces', (_event, workspaces) => {
-    setRecentWorkspaces(workspaces)
-  })
+  handle('app:setRecentWorkspaces', (_event, workspaces) => setRecentWorkspaces(workspaces))
 
-  handle('app:setWorktreePrefs', (_event, worktrees) => {
-    setWorktreePrefs(worktrees)
-  })
+  handle('app:setWorktreePrefs', (_event, worktrees) => setWorktreePrefs(worktrees))
 
-  handle('app:setAgentDirectives', (_event, directives, projectPath) => {
-    setAgentDirectives(directives, projectPath)
-  })
+  handle('app:setAgentDirectives', (_event, directives, projectPath) =>
+    setAgentDirectives(directives, projectPath),
+  )
 
+  handle('app:markSessionSeen', (_event, sessionPath: string) => {
+    markSessionSeen(sessionPath)
+  })
+}
+
+function registerContextHandlers(): void {
   handle('app:setContextBudget', async (_event, value: string) => {
     setContextBudget(value)
     if (piStubPath()) return
@@ -233,11 +163,10 @@ export function registerAppHandlers(): void {
       sessionId,
     ),
   )
+}
 
-  handle('app:markSessionSeen', (_event, sessionPath: string) => {
-    markSessionSeen(sessionPath)
-  })
-
+function registerRuntimeHandlers(): void {
+  handle('app:resumeTarget', () => resolveResumeTarget(getPrefs(), pathExists))
   handle('app:userInfo', () => ({
     username: userInfo().username,
     // Only the profile NAME, never credentials — used to build the right
@@ -253,7 +182,9 @@ export function registerAppHandlers(): void {
     platform: process.platform,
     arch: process.arch,
   }))
+}
 
+function registerDialogHandlers(): void {
   handle('app:selectFolder', async (event) => {
     // E2E hook: avoid the native (undriveable) dialog.
     const picked = e2eWorkspaceOverride() ?? (await pickFolder(event))
@@ -265,13 +196,6 @@ export function registerAppHandlers(): void {
     // sidebar groups over one set of sessions.
     return realPathOrNull(picked) ?? picked
   })
-
-  handle('app:createSandbox', () => openSandboxFolder(sandboxBase()))
-
-  handle('app:listSandboxes', () => listSandboxFolders(sandboxBase()))
-
-  handle('app:renameSandbox', (_event, path, name) => renameSandbox(path, name))
-  handle('app:deleteSandbox', (_event, path) => deleteSandbox(path))
 
   handle('app:saveDialog', async (event, options) => {
     const window = BrowserWindow.fromWebContents(event.sender)
@@ -294,6 +218,36 @@ export function registerAppHandlers(): void {
     const external = externalUrl(url)
     if (external) await shell.openExternal(external)
   })
+}
+
+function registerSandboxHandlers(): void {
+  handle('app:createSandbox', () => openSandboxFolder(sandboxBase()))
+
+  handle('app:listSandboxes', () => listSandboxFolders(sandboxBase()))
+
+  handle('app:renameSandbox', (_event, path, name) => renameSandbox(path, name))
+  handle('app:deleteSandbox', (_event, path) => deleteSandbox(path))
+}
+
+function registerDraftHandlers(): void {
+  const deps = () => ({
+    getDrafts: () => getPrefs().drafts,
+    setDraft,
+    clearDraft,
+    setDrafts,
+    deleteBlobs: deleteDraftBlobs,
+    listBlobs: listDraftBlobs,
+    writeBlob: writeDraftBlob,
+    wouldExceedBlobCap,
+    pathExists,
+  })
+  handle('app:setDraft', (_event, draft) => saveComposerDraft(deps(), draft))
+  handle('app:clearDraft', (_event, key) => clearComposerDraft(deps(), key))
+  handle('app:writeDraftBlob', (_event, blobId, base64) =>
+    writeComposerDraftBlob(deps(), blobId, base64),
+  )
+  handle('app:readDraftBlob', (_event, blobId) => readDraftBlob(blobId))
+  handle('app:sweepDrafts', () => sweepComposerDrafts(deps()))
 }
 
 /**
