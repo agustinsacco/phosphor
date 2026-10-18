@@ -73,6 +73,8 @@ export function createHostConnection(ports: {
     canReplay: () => !stopped && !!socket && view.state === 'ready',
     unrefTimer: ports.unrefTimer,
     transportFailed: () => socket?.close(1000, 'Transport failed'),
+    hostId: ports.hostId,
+    log,
   })
   const watches = new Map<
     string,
@@ -391,15 +393,8 @@ export function createHostConnection(ports: {
         }
         w.listener(f.type === 'snapshot' ? { ...f, reset } : f)
       } else if (f.type === 'subscribe-failed' && f.id === 'lanes') update({ lastError: f.code })
-    } else if (f.type === 'receipt' && f.receipt.status !== 'pending') {
-      const receiptOp = requests.receipt(f.receipt)
-      if (receiptOp && !receiptOp.startsWith('terminal.'))
-        log('hosts', 'receipt', {
-          hostId: ports.hostId,
-          requestId: f.receipt.requestId,
-          status: f.receipt.status,
-        })
-    } else if (f.type === 'result') requests.result(f)
+    } else if (f.type === 'receipt' && f.receipt.status !== 'pending') requests.receipt(f.receipt)
+    else if (f.type === 'result') requests.result(f)
   }
   async function connect() {
     if (stopped) return
