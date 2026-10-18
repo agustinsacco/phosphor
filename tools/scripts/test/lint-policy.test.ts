@@ -58,16 +58,21 @@ describe('eslint staged warning policy', () => {
     'libs/session-runtime/src/pi/pi-paths.test.ts',
     'libs/pi-extensions/pi-ext/context-budget.ts',
     'libs/pi-extensions/pi-ext/context-budget.test.ts',
-  ])('resolves typed promise warnings for %s without missing-project failures', async (file) => {
-    const code = `declare function accepts(callback: () => void): void;
+  ])(
+    'resolves typed promise warnings for %s without missing-project failures',
+    async (file) => {
+      const code = `declare function accepts(callback: () => void): void;
       Promise.resolve('unhandled');
       accepts(async () => {});`
-    for (const rule of ['no-floating-promises', 'no-misused-promises']) {
-      expect(await messages(code, file, `@typescript-eslint/${rule}`)).toEqual([
-        expect.objectContaining({ severity: 1 }),
-      ])
-    }
-  })
+      for (const rule of ['no-floating-promises', 'no-misused-promises']) {
+        expect(await messages(code, file, `@typescript-eslint/${rule}`)).toEqual([
+          expect.objectContaining({ severity: 1 }),
+        ])
+      }
+    },
+    // The first file of each TS project builds that project's program: over 5 s on CI.
+    60_000,
+  )
 
   it.each([
     rendererCaller,
