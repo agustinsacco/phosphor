@@ -1,8 +1,22 @@
-import type { TerminalFrame } from '@phosphor/shared/host-protocol-terminals'
 import { browserCrypto, type IdentityCrypto } from './crypto'
 import { createHandshake } from './handshake'
 import { createRequests, type CommandResult } from './requests'
+import { receiveFrame, type AttentionFrame, type ReceiveContext } from './connection/receive'
+import {
+  clearSubscriptions,
+  createSubscriptionState,
+  dropInputs,
+  resubscribe,
+  sendInput,
+  subscribeLanes,
+  watchLane,
+  watchTerminal,
+  type LaneFrame,
+  type SubscriptionPorts,
+  type TerminalListener,
+} from './connection/subscriptions'
 export type { CommandResult, NotSent } from './requests'
+export type { LaneFrame } from './connection/subscriptions'
 import { isEndpoint, type GrantIssueResponse } from '@phosphor/shared/control-api'
 import {
   HOST_LIMITS,
@@ -14,14 +28,12 @@ import {
   type HostFrame,
   type LaneOp,
   type LaneSummary,
-  type StreamCursor,
 } from '@phosphor/shared/host-protocol'
 import type { HostConnectionView } from '@phosphor/shared/ipc'
 import type { TraceLog } from './ports'
 
 export type HostConnectionSnapshot = Omit<HostConnectionView, 'lanes'> & { lanes: LaneSummary[] }
 
-export type LaneFrame = Extract<HostFrame, { type: 'snapshot' | 'event' | 'subscribe-failed' }>
 export function hostEndpoint(value: unknown): value is string {
   return isEndpoint(value) && new URL(value).hostname.endsWith('.ts.net')
 }
@@ -36,7 +48,7 @@ export function createHostConnection(ports: {
   clearGrant: () => void
   changed: () => void
   onRoutinesChanged?: () => void
-  onAttention?: (event: Extract<HostFrame, { type: 'attention' }>['event']) => void
+  onAttention?: (event: AttentionFrame['event']) => void
   disabled?: () => void
   log?: TraceLog
   /** Every frame sent or received, for the metadata-only traffic log. */
@@ -76,28 +88,48 @@ export function createHostConnection(ports: {
     hostId: ports.hostId,
     log,
   })
-  const watches = new Map<
-    string,
-    { laneId: string; cursor?: StreamCursor; listener: (frame: LaneFrame) => void }
-  >()
   let runtimeEpoch = ''
-  const terminals = new Map<
-    string,
-    {
-      terminalId: string
-      listener: (f: TerminalFrame | Extract<HostFrame, { type: 'subscribe-failed' }>) => void
-    }
-  >()
-  const inputs = new Map<string, { seq: number; resolve: (accepted: boolean) => void }>()
-  function dropInputs() {
-    for (const input of inputs.values()) input.resolve(false)
-    inputs.clear()
+  const subscriptions = createSubscriptionState()
+  const subscriptionPorts: SubscriptionPorts = {
+    identity,
+    write,
+    later,
+    cancel: (timer) => {
+      clearTimeout(timer)
+      timers.delete(timer)
+    },
+    unrefTimer: ports.unrefTimer,
+    transportFailed: () => socket?.close(1000, 'Transport failed'),
+    ready: () => view.state === 'ready',
+    stopped: () => stopped,
   }
-  function subscribeTerminal(id: string, terminalId: string) {
-    if (!write({ type: 'subscribe', topic: 'terminal', id, terminalId }))
-      socket?.close(1000, 'Transport failed')
+  const attention: AttentionFrame[] = []
+  const frames: ReceiveContext = {
+    subscriptions,
+    requests,
+    attention,
+    ports,
+    view: () => view,
+    update,
+    advanceCursor: (cursor) => {
+      view = { ...view, cursor }
+    },
+    subscribe: (id, laneId, after) => subscribeLanes(subscriptionPorts, id, laneId, after),
+    close: (code, reason) => socket?.close(code, reason),
+    renewed(grantExpiresAt) {
+      if (!renewalTimeout) {
+        socket?.close(4400, 'Unexpected renewal')
+        return
+      }
+      clearTimeout(renewalTimeout)
+      timers.delete(renewalTimeout)
+      renewalTimeout = undefined
+      renew(grantExpiresAt)
+    },
+    pong: () => {
+      lastPong = now()
+    },
   }
-  const attention: Extract<HostFrame, { type: 'attention' }>[] = []
   function later(fn: () => void, ms: number) {
     const timer = setTimeout(() => {
       timers.delete(timer)
@@ -137,21 +169,6 @@ export function createHostConnection(ports: {
       /* Ignored on purpose. */
     }
   }
-  function subscribe(id: string, laneId?: string, after?: StreamCursor) {
-    const sent = write(
-      laneId
-        ? {
-            type: 'subscribe',
-            id,
-            topic: 'lane',
-            laneId,
-            after,
-            trace: identity.randomHex(8),
-          }
-        : { type: 'subscribe', id, topic: 'lanes', after, trace: identity.randomHex(8) },
-    )
-    if (!sent) socket?.close(1000, 'Transport failed')
-  }
   function finish() {
     stopped = true
     generation++
@@ -164,9 +181,7 @@ export function createHostConnection(ports: {
     }
     socket = null
     requests.close()
-    watches.clear()
-    terminals.clear()
-    dropInputs()
+    clearSubscriptions(subscriptions)
   }
   function failed(code: number, error?: string) {
     if (stopped) return
@@ -176,7 +191,7 @@ export function createHostConnection(ports: {
     )
       error = 'offline'
     generation++
-    dropInputs()
+    dropInputs(subscriptions)
     for (const timer of timers) clearTimeout(timer)
     timers.clear()
     socket = null
@@ -275,126 +290,13 @@ export function createHostConnection(ports: {
         version: f.hello.hostVersion,
         caps: f.capabilities,
       })
-      subscribe('lanes', undefined, view.cursor)
-      for (const [id, w] of watches) subscribe(id, w.laneId, w.cursor)
-      for (const [id, w] of terminals) subscribeTerminal(id, w.terminalId)
+      resubscribe(subscriptions, subscriptionPorts, view.cursor)
       requests.flushReplay()
       renew(f.grantExpiresAt)
       beat()
       return
     }
-    if (f.type === 'ready') {
-      socket?.close(4400, 'Duplicate ready')
-      return
-    }
-    if (f.type === 'auth-renewed') {
-      if (!renewalTimeout) {
-        socket?.close(4400, 'Unexpected renewal')
-        return
-      }
-      if (renewalTimeout) {
-        clearTimeout(renewalTimeout)
-        timers.delete(renewalTimeout)
-      }
-      renewalTimeout = undefined
-      renew(f.grantExpiresAt)
-    } else if (f.type === 'pong') lastPong = now()
-    else if (f.type === 'lanes' && f.id === 'lanes') {
-      if (view.cursor?.epoch !== f.cursor.epoch) attention.length = 0
-      update({
-        repositories: [...f.repositories],
-        lanes: [...f.lanes],
-        cursor: {
-          epoch: f.cursor.epoch,
-          seq:
-            view.cursor?.epoch === f.cursor.epoch
-              ? Math.max(view.cursor.seq, f.cursor.seq)
-              : f.cursor.seq,
-        },
-      })
-    } else if (f.type === 'routines-changed' && f.id === 'lanes') {
-      if (!view.cursor || view.cursor.epoch !== f.cursor.epoch || f.cursor.seq <= view.cursor.seq)
-        return
-      if (f.cursor.seq !== view.cursor.seq + 1) subscribe('lanes')
-      // Only the routines surface changed; do not invalidate every Host query.
-      view = { ...view, cursor: f.cursor }
-      ports.onRoutinesChanged?.()
-    } else if ((f.type === 'lanes-delta' || f.type === 'attention') && f.id === 'lanes') {
-      if (!view.cursor || view.cursor.epoch !== f.cursor.epoch) return
-      if (f.type === 'attention') {
-        if (!attention.some((a) => a.event.id === f.event.id)) {
-          attention.push(f)
-          ports.onAttention?.(f.event)
-        }
-        attention.sort((a, b) => a.cursor.seq - b.cursor.seq)
-        if (attention.length > 50) attention.shift()
-        update({ cursor: { epoch: f.cursor.epoch, seq: Math.max(view.cursor.seq, f.cursor.seq) } })
-      } else {
-        if (f.cursor.seq <= view.cursor.seq) return
-        if (f.cursor.seq !== view.cursor.seq + 1) {
-          subscribe('lanes')
-          return
-        }
-        const lanes = new Map(view.lanes.map((l) => [l.laneId, l]))
-        for (const id of f.remove) lanes.delete(id)
-        for (const l of f.upsert) lanes.set(l.laneId, l)
-        if (lanes.size > HOST_LIMITS.lanesPerHost) {
-          socket?.close(4400, 'Lane limit')
-          return
-        }
-        update({ lanes: [...lanes.values()], cursor: f.cursor })
-      }
-    } else if (f.type === 'terminal.ack') {
-      const input = inputs.get(f.terminalId)
-      if (input?.seq === f.seq) {
-        inputs.delete(f.terminalId)
-        input.resolve(f.accepted)
-      }
-    } else if (
-      f.type === 'terminal.reset' ||
-      f.type === 'terminal.output' ||
-      f.type === 'terminal.exit'
-    ) {
-      const w = terminals.get(f.id)
-      if (w?.terminalId === f.terminalId) w.listener(f)
-    } else if (f.type === 'subscribe-failed' && terminals.has(f.id)) {
-      terminals.get(f.id)?.listener(f)
-    } else if (f.type === 'snapshot' || f.type === 'event' || f.type === 'subscribe-failed') {
-      const w = watches.get(f.id)
-      if (w && (f.type === 'subscribe-failed' || f.laneId === w.laneId)) {
-        if (
-          f.type === 'event' &&
-          (!w.cursor || w.cursor.epoch !== f.cursor.epoch || f.cursor.seq !== w.cursor.seq + 1)
-        ) {
-          subscribe(f.id, w.laneId)
-          return
-        }
-        const reset =
-          f.type === 'snapshot' &&
-          (f.reset || (!!w.cursor && w.cursor.epoch !== f.snapshot.cursor.epoch))
-        if (f.type !== 'subscribe-failed')
-          w.cursor = f.type === 'snapshot' ? f.snapshot.cursor : f.cursor
-        if (f.type === 'snapshot') {
-          update({ lanes: view.lanes.map((l) => (l.laneId === f.laneId ? f.snapshot.summary : l)) })
-        } else if (
-          f.type === 'event' &&
-          (f.event.kind === 'control' || f.event.kind === 'summary')
-        ) {
-          const event = f.event
-          update({
-            lanes: view.lanes.map((l) =>
-              l.laneId !== f.laneId
-                ? l
-                : event.kind === 'summary'
-                  ? event.summary
-                  : { ...l, control: event.control },
-            ),
-          })
-        }
-        w.listener(f.type === 'snapshot' ? { ...f, reset } : f)
-      } else if (f.type === 'subscribe-failed' && f.id === 'lanes') update({ lastError: f.code })
-    } else if (f.type === 'receipt' && f.receipt.status !== 'pending') requests.receipt(f.receipt)
-    else if (f.type === 'result') requests.result(f)
+    receiveFrame(frames, f)
   }
   async function connect() {
     if (stopped) return
@@ -455,46 +357,11 @@ export function createHostConnection(ports: {
   return {
     snapshot: () => structuredClone(view),
     incarnation: () => ({ generation, runtimeEpoch }),
-    watchTerminal(
-      terminalId: string,
-      listener: (f: TerminalFrame | Extract<HostFrame, { type: 'subscribe-failed' }>) => void,
-    ) {
-      if (stopped || watches.size + terminals.size >= HOST_LIMITS.subscriptionsPerConnection - 1)
-        throw new Error('Subscription unavailable.')
-      const id = identity.randomUUID()
-      terminals.set(id, { terminalId, listener })
-      if (view.state === 'ready') subscribeTerminal(id, terminalId)
-      return {
-        reset: () => subscribeTerminal(id, terminalId),
-        close: () => {
-          terminals.delete(id)
-          if (view.state === 'ready') write({ type: 'unsubscribe', id })
-        },
-      }
+    watchTerminal(terminalId: string, listener: TerminalListener) {
+      return watchTerminal(subscriptions, subscriptionPorts, terminalId, listener)
     },
     input(terminalId: string, seq: number, data: string): Promise<boolean> {
-      if (stopped || view.state !== 'ready' || inputs.has(terminalId)) return Promise.resolve(false)
-      return new Promise((resolve) => {
-        const timer = later(() => {
-          const pending = inputs.get(terminalId)
-          if (pending?.seq === seq) {
-            inputs.delete(terminalId)
-            pending.resolve(false)
-          }
-        }, 5000)
-        const settle = (accepted: boolean) => {
-          clearTimeout(timer)
-          timers.delete(timer)
-          resolve(accepted)
-        }
-        inputs.set(terminalId, { seq, resolve: settle })
-        ports.unrefTimer?.(timer)
-        if (!write({ type: 'terminal.input', terminalId, seq, data })) {
-          inputs.delete(terminalId)
-          settle(false)
-          socket?.close(1000, 'Transport failed')
-        }
-      })
+      return sendInput(subscriptions, subscriptionPorts, terminalId, seq, data)
     },
     attention: () => structuredClone(attention),
     close() {
@@ -552,15 +419,7 @@ export function createHostConnection(ports: {
       )
     },
     watchLane(laneId: string, listener: (frame: LaneFrame) => void) {
-      if (stopped || watches.size >= HOST_LIMITS.subscriptionsPerConnection - 1)
-        throw new Error('Subscription unavailable.')
-      const id = identity.randomUUID()
-      watches.set(id, { laneId, listener })
-      if (view.state === 'ready') subscribe(id, laneId)
-      return () => {
-        watches.delete(id)
-        if (view.state === 'ready') write({ type: 'unsubscribe', id })
-      }
+      return watchLane(subscriptions, subscriptionPorts, laneId, listener)
     },
   }
 }
