@@ -1,189 +1,63 @@
-import {
-  parseRepositoryOp,
-  type RepositoryOp,
-  type DeleteLaneOp,
-} from '@phosphor/shared/host-protocol-repositories'
+import { parseRepositoryOp } from '@phosphor/shared/host-protocol-repositories'
 import { parseProviderLoginOp } from '@phosphor/shared/host-protocol-providers'
-import type { ProviderLogins } from '../providers/login'
 import { parseAttachmentOp } from '@phosphor/shared/host-protocol-attachments'
-import type { HostAttachments } from '../features/attachments'
 import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
-import { TerminalForbidden, type HostTerminals } from '../terminals/service'
-import { parseFileWriteOp, type FileWriteOp } from '@phosphor/shared/host-protocol-writes'
-import type { WriteOutcome } from '../features/writes'
+import { TerminalForbidden } from '../terminals/service'
+import { parseFileWriteOp } from '@phosphor/shared/host-protocol-writes'
 import {
   HOST_LIMITS,
   UNFENCED_OPS,
-  type ClientFrame,
   type LaneEvent,
-  type LaneSummary,
-  type Receipt,
   type RejectCode,
 } from '@phosphor/shared/host-protocol'
 import type { HostCapability } from '@phosphor/shared/remote-host'
-import {
-  parseRoutineOp,
-  routineRequiresControl,
-  type RoutineOp,
-} from '@phosphor/shared/host-protocol-routines'
+import { parseRoutineOp, routineRequiresControl } from '@phosphor/shared/host-protocol-routines'
 import type { RpcCommand } from '@phosphor/shared/rpc'
-import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
-import { commandRefusal, type HostRuntime } from '../session/runtime'
+import { commandRefusal } from '../session/runtime'
 import { normalizeLabel } from '@phosphor/shared/control-api'
-import { LaneCapacityReached, opHash, type HostStore, type StoredLane } from './store'
-import { createLane, type LaneSessions } from './create'
+import { LaneCapacityReached, type StoredLane } from './store'
+import { createLane } from './create'
 import { LaneFolderError } from './worktree'
-import { canonicalJson, JsonTooLarge } from './validation'
+import * as queueing from './commands/queue'
+import * as receipts from './commands/receipts'
+import {
+  createCommandState,
+  type Execution,
+  type Job,
+  type LaneCommandClient,
+  type LaneCommandFrame,
+  type LaneCommandPorts,
+  type LaneQueue,
+  type Terminal,
+} from './commands/state'
 
-export const LANE_QUEUE_LIMIT = 32
-export const COMMAND_CLOSE_GRACE_MS = 2000
-export type LaneCommandFrame = Extract<ClientFrame, { type: 'command' }>
-export interface LaneCommandClient {
-  id: string
-  label: string
-  currentCaps?: () => readonly HostCapability[]
-  connectionId?: string
-  caps: readonly HostCapability[]
-}
-export interface LaneCommandPorts {
-  repositories?: {
-    execute(
-      op: RepositoryOp,
-      allowed: () => boolean,
-    ): Promise<{ ok: true; data?: unknown } | { ok: false; code: RejectCode }>
-  }
-  deleteLane?: (
-    op: DeleteLaneOp,
-    allowed: () => boolean,
-  ) => Promise<{ ok: true; data: { branchKept: boolean } } | { ok: false; code: RejectCode }>
-  providerLogins?: ProviderLogins
-  attachments?: HostAttachments
-  terminals?: HostTerminals
-  store: HostStore
-  writes?: {
-    capabilityFor(type: string): HostCapability | null
-    execute(laneId: string, op: FileWriteOp): Promise<WriteOutcome>
-  }
-  sessions: LaneSessions
-  runtime: Pick<HostRuntime, 'command' | 'extensionUiResponse'>
-  /** Wiring owns projection delivery and the live-session mapping. */
-  resumeLane(lane: StoredLane): Promise<void>
-  stopLane(laneId: string): Promise<void>
-  sessionFor(laneId: string): string | null
-  openDialogs(laneId: string): readonly string[]
-  /** Read after the store write: persisted control, counters and timestamps from
-   * the store; live activity, title and model from the projection. */
-  summaryFor(laneId: string): LaneSummary | null
-  publish(laneId: string, event: LaneEvent): void
-  /** The adapter fans out to interested connections of this client only. */
-  deliver(clientId: string, receipt: Receipt, connectionId?: string): void
-  now(): number
-  log: RuntimeLog
-  routines?: {
-    execute(op: RoutineOp, requestId: string, caps: readonly HostCapability[]): Promise<unknown>
-  }
-  refusal?: (command: RpcCommand) => string | null
-}
-type Terminal = Exclude<Receipt, { status: 'pending' }>
-type Job = {
-  client: LaneCommandClient
-  frame: LaneCommandFrame
-  started: number
-  resolve(): void
-}
-
-type LaneQueue = {
-  jobs: Job[]
-  outstanding: number
-  holds: number
-  draining: boolean
-  controlUnpublished: boolean
-}
-type Answer<T> = { answered: true; value: T } | { answered: false; reason: string }
-type Execution = { completion: Promise<void>; detached: boolean }
-type OperationIdentity = { laneId: string; requestId: string; opType: string }
+export {
+  COMMAND_CLOSE_GRACE_MS,
+  LANE_QUEUE_LIMIT,
+  type LaneCommandClient,
+  type LaneCommandFrame,
+  type LaneCommandPorts,
+} from './commands/state'
+export { receiptMessage } from './commands/receipts'
 
 /** Parsed frames and authenticated grant clients enter here, never raw pi RPC. */
 export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimit?: number } = {}) {
   const { store, runtime } = ports
-  const limit = options.queueLimit ?? LANE_QUEUE_LIMIT
-  if (!Number.isInteger(limit) || limit < 1 || limit > LANE_QUEUE_LIMIT)
-    throw new Error('invalid lane queue limit')
-  const queues = new Map<string, LaneQueue>()
-  let closing = false
-  let closed = false
-  let closePromise: Promise<void> | undefined
-  const work = new Set<Promise<unknown>>()
-  function track(promise: Promise<unknown>) {
-    work.add(promise)
-    void promise.finally(() => work.delete(promise)).catch(() => {})
-  }
+  const state = createCommandState(options.queueLimit)
   const refusal = ports.refusal ?? commandRefusal
-  // Delivery and logging must not strand the next recorded request.
-  function log(message: string, data: unknown): void {
-    try {
-      ports.log('host', message, data)
-    } catch {
-      // Logging is not in the command ordering path.
-    }
-  }
-  function deliver(clientId: string, receipt: Receipt, connectionId?: string): void {
-    try {
-      ports.deliver(clientId, receipt, connectionId)
-    } catch {
-      // A reconnect can ask the store for the request's status.
-    }
-  }
-  function elapsed(started: number): number | undefined {
-    try {
-      return Math.max(0, ports.now() - started)
-    } catch {
-      return undefined
-    }
-  }
-  function terminal(job: Job, receipt: Terminal, recorded: boolean, reason?: string): void {
-    if (closed) return
-    let result: Terminal = { requestId: job.frame.requestId, status: 'unknown' }
-    try {
-      result = durableReceipt(receipt)
-    } catch {
-      // Invalid runtime data cannot become a receipt.
-    }
-    if (recorded) {
-      try {
-        store.finishRequest(job.frame.requestId, result)
-      } catch {
-        log('lane.receipt_unrecorded', {
-          laneId: job.frame.laneId,
-          requestId: job.frame.requestId,
-        })
-      }
-    }
-    // Count pruning can immediately evict a same-millisecond finish. Never reread here.
-    deliver(job.client.id, result, recorded ? undefined : job.client.connectionId)
-    receipt = result
-    log('lane.command', {
-      laneId: job.frame.laneId,
-      requestId: job.frame.requestId,
-      op: job.frame.op.type,
-      status: receipt.status,
-      code:
-        receipt.status === 'rejected'
-          ? receipt.code
-          : receipt.status === 'failed'
-            ? receipt.error.code
-            : undefined,
-      fence:
-        receipt.status === 'done'
-          ? receipt.fence
-          : receipt.status === 'rejected'
-            ? receipt.control?.fence
-            : undefined,
-      ms: elapsed(job.started),
-      trace: job.frame.trace,
-      reason,
-    })
-  }
+  // Bound to this service's state and ports while execute still lives in the factory.
+  const log = (message: string, data: unknown) => receipts.log(ports, message, data)
+  const terminal = (job: Job, receipt: Terminal, recorded: boolean, reason?: string) =>
+    receipts.terminal(state, ports, job, receipt, recorded, reason)
+  const rejected = (job: Job, code: RejectCode, recorded: boolean) =>
+    receipts.rejected(state, ports, job, code, recorded)
+  const controlFailure = (job: Job) => receipts.controlFailure(state, ports, job)
+  const publish = (laneId: string, event: LaneEvent, queue: LaneQueue) =>
+    queueing.publish(state, ports, laneId, event, queue)
+  const dispatch = <T>(job: Job, queue: LaneQueue, run: () => Promise<T> | T) =>
+    queueing.dispatch(state, ports, job, queue, run)
+  const queueFor = (key: string) => queueing.queueFor(state, key)
+  const drain = (key: string, queue: LaneQueue) => queueing.drain(state, ports, execute, key, queue)
   /** Every capability an op needs, at admission and again when a queued op starts. */
   function capabilityFor(op: LaneCommandFrame['op']): readonly HostCapability[] {
     if (op.type === 'lane.delete' || parseRepositoryOp(op))
@@ -195,103 +69,6 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     if (parseProviderLoginOp(op) || parseTerminalOp(op)) return ['terminal', 'sessions.control']
     const write = op.type.startsWith('files.') ? ports.writes?.capabilityFor(op.type) : null
     return write ? [write, 'sessions.control'] : ['sessions.control']
-  }
-  function rejected(job: Job, code: RejectCode, recorded: boolean): void {
-    terminal(job, { requestId: job.frame.requestId, status: 'rejected', code }, recorded)
-  }
-  function cleanup(key: string, queue: LaneQueue): void {
-    if (closed) return
-    if (
-      !queue.draining &&
-      !queue.jobs.length &&
-      !queue.outstanding &&
-      !queue.holds &&
-      !queue.controlUnpublished
-    )
-      queues.delete(key)
-  }
-  function queueFor(key: string): LaneQueue {
-    let queue = queues.get(key)
-    if (!queue) {
-      queue = { jobs: [], outstanding: 0, holds: 0, draining: false, controlUnpublished: false }
-      queues.set(key, queue)
-    }
-    return queue
-  }
-  function publish(laneId: string, event: LaneEvent, queue: LaneQueue): boolean {
-    if (closed) return false
-    try {
-      ports.publish(laneId, event)
-      if (event.kind === 'control') queue.controlUnpublished = false
-      return true
-    } catch {
-      if (event.kind === 'control') queue.controlUnpublished = true
-      log('lane.publish_failed', { laneId, kind: event.kind })
-      return false
-    }
-  }
-  function controlFailure(job: Job): void {
-    terminal(
-      job,
-      {
-        requestId: job.frame.requestId,
-        status: 'failed',
-        error: { code: 'internal', message: "the lane's control change could not be published" },
-      },
-      true,
-    )
-  }
-  /** After a deadline, only the operation identity and slot survive, not the job or payload. */
-  function answer<T>(
-    identity: OperationIdentity,
-    queue: LaneQueue,
-    promise: Promise<T>,
-  ): Promise<Answer<T>> {
-    track(promise)
-    queue.outstanding++
-    return new Promise((resolve) => {
-      let reply: ((answer: Answer<T>) => void) | undefined = resolve
-      const timer = setTimeout(() => {
-        reply?.({ answered: false, reason: 'deadline' })
-        reply = undefined
-      }, HOST_LIMITS.commandAnswerMs)
-      timer.unref()
-      const complete = (value: Answer<T>) => {
-        queue.outstanding--
-        clearTimeout(timer)
-        if (reply) {
-          reply(value)
-          reply = undefined
-        } else {
-          log('lane.command_late', {
-            laneId: identity.laneId,
-            requestId: identity.requestId,
-            op: identity.opType,
-          })
-        }
-        cleanup(identity.laneId, queue)
-      }
-      promise
-        .then(
-          (value) => complete({ answered: true, value }),
-          () => complete({ answered: false, reason: 'transport' }),
-        )
-        .catch(() => {})
-    })
-  }
-  // Invoke outside answer's settle closures so an unresolved runtime cannot retain run or job.
-  function dispatch<T>(job: Job, queue: LaneQueue, run: () => Promise<T> | T): Promise<Answer<T>> {
-    let promise: Promise<T>
-    try {
-      promise = Promise.resolve(run())
-    } catch {
-      promise = Promise.reject(new Error('transport'))
-    }
-    return answer(
-      { laneId: job.frame.laneId ?? '', requestId: job.frame.requestId, opType: job.frame.op.type },
-      queue,
-      promise,
-    )
   }
   function execute(job: Job, queue: LaneQueue): Execution | void {
     const { frame, client } = job
@@ -376,7 +153,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
           let created: StoredLane
           try {
             created = await createLane(
-              { ...ports, closed: () => closed },
+              { ...ports, closed: () => state.closed },
               {
                 root: repository.path,
                 op,
@@ -406,7 +183,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
               },
             }
           }
-          if (closed) return {}
+          if (state.closed) return {}
           if (!held) throw new Error('missing lane queue')
           publish(created.laneId, { kind: 'control', control: created.control }, held.queue)
           const summary = ports.summaryFor(created.laneId)
@@ -558,7 +335,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
               : {
                   requestId,
                   status: 'failed',
-                  error: { code: 'pi-error', message: receiptMessage(response.error) },
+                  error: { code: 'pi-error', message: receipts.receiptMessage(response.error) },
                 },
             true,
           )
@@ -676,135 +453,15 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       } as const
     }
   }
-  async function drain(key: string, queue: LaneQueue): Promise<void> {
-    queue.draining = true
-    while (!closing && queue.jobs.length && !queue.holds) {
-      const job = queue.jobs[0]
-      if (!job) break
-      let execution: Execution | void = undefined
-      try {
-        execution = execute(job, queue)
-      } catch {
-        terminal(job, { requestId: job.frame.requestId, status: 'unknown' }, true, 'host')
-      } finally {
-        queue.jobs.shift()
-        if (!execution) job.resolve()
-      }
-      if (execution) {
-        const completion = execution.completion
-          .catch(() => {
-            terminal(job, { requestId: job.frame.requestId, status: 'unknown' }, true, 'host')
-          })
-          .finally(job.resolve)
-          .catch(() => {})
-        track(completion)
-        if (!execution.detached) await completion
-      }
-    }
-    queue.draining = false
-    cleanup(key, queue)
-  }
+  const router = { capabilityFor, execute }
   return {
     capabilityFor,
-    submit(client: LaneCommandClient, frame: LaneCommandFrame): Promise<void> {
-      if (closing) return Promise.resolve()
-      const jobBase = { client, frame, started: ports.now() }
-      const immediate = { ...jobBase, resolve: () => {} }
-      const caps = client.currentCaps?.() ?? client.caps
-      if (!capabilityFor(frame.op).every((cap) => caps.includes(cap))) {
-        rejected(immediate, 'forbidden', false)
-        return Promise.resolve()
-      }
-      const key = frame.laneId ?? ''
-      let queue = queues.get(key)
-      if (
-        (queue?.jobs.length ?? 0) + (queue?.outstanding ?? 0) >= limit &&
-        store.getReceipt(frame.requestId, client.id) === null
-      ) {
-        rejected(immediate, 'busy', false)
-        return Promise.resolve()
-      }
-      const begin = store.beginRequest(
-        frame.requestId,
-        client.id,
-        opHash(frame.op),
-        frame.laneId ?? null,
-      )
-      if (begin.kind === 'existing') {
-        deliver(client.id, begin.receipt, client.connectionId)
-        return Promise.resolve()
-      }
-      if (begin.kind !== 'new') {
-        rejected(immediate, begin.kind, false)
-        return Promise.resolve()
-      }
-      queue ??= queueFor(key)
-      const completion = new Promise<void>((resolve) => queue.jobs.push({ ...jobBase, resolve }))
-      if (!queue.draining && !queue.holds) void drain(key, queue).catch(() => {})
-      return completion
-    },
-    status(clientId: string, requestId: string, connectionId?: string): void {
-      if (closing) return
-      deliver(
-        clientId,
-        store.getReceipt(requestId, clientId) ?? { requestId, status: 'unknown' },
-        connectionId,
-      )
-    },
-    close(): Promise<void> {
-      if (closePromise) return closePromise
-      closing = true
-      for (const queue of queues.values()) {
-        for (const job of queue.jobs.splice(0)) job.resolve()
-      }
-      closePromise = (async () => {
-        let timer: ReturnType<typeof setTimeout> | undefined
-        try {
-          await Promise.race([
-            Promise.allSettled([...work]),
-            new Promise<void>((resolve) => {
-              timer = setTimeout(resolve, COMMAND_CLOSE_GRACE_MS)
-              timer.unref()
-            }),
-          ])
-        } finally {
-          closed = true
-          clearTimeout(timer)
-          queues.clear()
-        }
-      })()
-      return closePromise
-    },
+    submit: (client: LaneCommandClient, frame: LaneCommandFrame): Promise<void> =>
+      queueing.submit(state, ports, router, client, frame),
+    status: (clientId: string, requestId: string, connectionId?: string): void =>
+      queueing.status(state, ports, clientId, requestId, connectionId),
+    close: (): Promise<void> => queueing.close(state),
   }
-}
-
-function durableReceipt(receipt: Terminal): Terminal {
-  if (receipt.status !== 'done' || receipt.data === undefined) return receipt
-  try {
-    canonicalJson(receipt.data, HOST_LIMITS.receiptDataBytes)
-    return receipt
-  } catch (error) {
-    if (!(error instanceof JsonTooLarge)) throw error
-    const { data: _data, ...withoutData } = receipt
-    return withoutData
-  }
-}
-
-/** Match the store's text predicate and the wire's non-empty message rule. */
-export function receiptMessage(raw: unknown): string {
-  const fallback = 'pi reported an error'
-  if (typeof raw !== 'string') return fallback
-  let normalized = ''
-  for (const char of raw) {
-    const code = char.charCodeAt(0)
-    normalized += code < 32 || code === 127 || code === 0x2028 || code === 0x2029 ? ' ' : char
-  }
-  let message = ''
-  for (const char of normalized.trim()) {
-    if (message.length + char.length > HOST_LIMITS.messageChars) break
-    message += char
-  }
-  return message || fallback
 }
 
 function toPiCommand(op: LaneCommandFrame['op'], id: string): RpcCommand | null {
