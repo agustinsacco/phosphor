@@ -34,7 +34,7 @@ Two more that are worth reading in full because their history is misleading:
   idle-session reaper, and then the reaper was deleted wholesale with the
   orchestration removal on 2026-09-03. Today the only `suspendSession` caller
   is the sidebar menu, and every `disposeSession` caller is user-driven. Treat
-  "there is no cross-session manager" (CLAUDE.md fact 5) as deliberate and this
+  "there is no cross-session manager" (AGENTS.md fact 5) as deliberate and this
   as the cost of it.
 
 - **S14 — while following the tail, a collapsing activity row's re-measure
@@ -177,15 +177,15 @@ means picking one path identity for a session file and using it on both sides.
 
 ## Code health
 
-| #   | Issue                                                                                                          | Where                                                                       |
-| --- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| H1  | `errorText` (`libs/shared/src/errors.ts`) is not enforced; hand-rolled `err instanceof Error ? …` sites remain | across `libs/client-ui/src/features/settings/`, `apps/desktop/electron/pi/` |
-| H3  | One raw `piCommand` site carries no exemption comment, so nobody can tell if it is deliberate (CLAUDE.md #3)   | `libs/client-ui/src/features/chat/composer/queueActions.ts`                 |
-| H4  | `useAsyncAction` is not adopted by `MessageItem`, `ForkPickerModal`, `TreeViewModal`                           | those three files                                                           |
-| H5  | Several public helpers have only one production consumer                                                       | `apps/desktop/electron/pi/agent-settings.ts`, `libs/shared/src/mcp.ts`      |
-| H6  | Three separate banner implementations that a single `Notice` primitive would replace                           | `RetryStrip.tsx`, `banners.tsx`, `composer/RateLimitBanner.tsx`             |
-| H7  | Two hover-action implementations in one file                                                                   | `libs/client-ui/src/features/chat/MessageItem.tsx`                          |
-| H8  | Per-component cost rows are still missing from the usage popover                                               | `libs/client-ui/src/features/chat/composer/` — `ContextMeter`               |
+| #   | Issue                                                                                                            | Where                                                                       |
+| --- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| H1  | `errorText` (`libs/shared/src/errors.ts`) is not enforced; hand-rolled `err instanceof Error ? …` sites remain   | across `libs/client-ui/src/features/settings/`, `apps/desktop/electron/pi/` |
+| H3  | One raw `piCommand` site carries no exemption comment, so nobody can tell if it is deliberate (AGENTS.md fact 3) | `libs/client-ui/src/features/chat/composer/queueActions.ts`                 |
+| H4  | `useAsyncAction` is not adopted by `MessageItem`, `ForkPickerModal`, `TreeViewModal`                             | those three files                                                           |
+| H5  | Several public helpers have only one production consumer                                                         | `apps/desktop/electron/pi/agent-settings.ts`, `libs/shared/src/mcp.ts`      |
+| H6  | Three separate banner implementations that a single `Notice` primitive would replace                             | `RetryStrip.tsx`, `banners.tsx`, `composer/RateLimitBanner.tsx`             |
+| H7  | Two hover-action implementations in one file                                                                     | `libs/client-ui/src/features/chat/MessageItem.tsx`                          |
+| H8  | Per-component cost rows are still missing from the usage popover                                                 | `libs/client-ui/src/features/chat/composer/` — `ContextMeter`               |
 
 H1 would hold better as an ESLint rule than as another conversion pass.
 

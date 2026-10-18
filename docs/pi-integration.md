@@ -40,6 +40,13 @@ Then run `node tools/scripts/pi-live-smoke.mjs`, which drives a real `pi --mode 
 - **Framing is strict JSONL, LF only.** Do NOT use Node `readline` (it also splits on U+2028/U+2029, which are legal inside JSON strings). Buffer on `\n`, strip a trailing `\r`. `JsonlDecoder` scans only new chunks and joins an incomplete record's fragments once at its delimiter or stream end, so framing work is linear in input size. Commands go to stdin one JSON object per line; responses and events stream from stdout. The explicit `node tools/scripts/perf/stream-buffers.mjs` benchmark measures framing and PTY-tail costs without running a model.
 - Commands accept optional `id` for correlation; responses echo it. Events never carry `id`.
 - pi requires Node ≥ 22.19 (it runs as its own process, so Electron's Node version is irrelevant).
+- **`pi -p` blocks until stdin reaches EOF, so it is never run through
+  `execFile`/`exec`.** Both leave the child's stdin an open pipe, and pi then sits
+  there until the caller's timeout, silently, with empty stdout and stderr. That
+  killed session auto-naming for weeks: no session was named and no branch
+  renamed. Print-mode runs spawn through `apps/desktop/electron/pi/print-mode.ts`
+  (`stdio[0] = 'ignore'`). The e2e stub prints and exits without reading stdin,
+  so it cannot catch a regression; `print-mode.test.ts` is the guard.
 
 Desktop's `apps/desktop/electron/pi/session-runtime.ts` binds the shared session service.
 `libs/session-runtime/src/pi/session-service.ts` admits create/resume and manual commands;
@@ -171,6 +178,13 @@ migration, and rewrites only the disposable header cwd to isolate project resour
 - Entry types: `message` (wraps an AgentMessage), `model_change`, `thinking_level_change`, `compaction` (summary, firstKeptEntryId, tokensBefore), `branch_summary` (fromId, summary), `custom` (extension state, not in context), `custom_message` (in context), `label` (targetId, label), `session_info` (name).
 - Sidebar scan: parse header + last `session_info` + first user message + file mtime. Rows order by immutable header creation time (newest first), not mtime, so viewing or updating a session does not move it. Live-update via chokidar on the sessions dir.
 - Sessions are deleted by trashing the `.jsonl` file.
+- pi creates a session's file when the first user message is sent, then appends
+  each entry as it lands (pi 1.2.0: a mid-turn `set_session_name` is on disk
+  before the reply). A session disposed before its first prompt has no file. The
+  scan lags the watcher's `awaitWriteFinish` and debounce, so every surface that
+  shows a LIVE session's title prefers the chat store's `meta.sessionName` over
+  the scanned `meta.name`, and a new session shows a placeholder sidebar row
+  (`PendingSessionRow`) until the scan finds its file.
 - The tree view's labels, branch jumps and forks (`sessions:appendLabel`, `sessions:jump`,
   `sessions:forkAt`) write pi's files from main, through
   `apps/desktop/electron/pi/session-mutation.ts` and inside the same path lock as resume

@@ -7,7 +7,6 @@ const state = vi.hoisted(() => ({
   start: vi.fn<(id: LoginProviderId, emit: (state: LoginFlowState) => void) => Promise<void>>(),
   health: vi.fn(),
   cachedHealth: vi.fn(),
-  stub: vi.fn(),
   cwd: vi.fn(),
   env: vi.fn(),
   create: vi.fn(),
@@ -23,7 +22,6 @@ vi.mock('./health', async (original) => ({
   checkPiHealth: state.health,
   cachedPiHealth: state.cachedHealth,
 }))
-vi.mock('./stub', () => ({ piStubPath: state.stub }))
 vi.mock('./shell-env', () => ({ piProcessEnv: state.env }))
 vi.mock('../pty/pty-manager', () => ({ ptyManager: { create: state.create } }))
 
@@ -123,7 +121,6 @@ describe('startLoginWithBrowser', () => {
 describe('createLoginTerminal', () => {
   it('uses fresh real pi discovery even when a stub is configured', async () => {
     vi.stubEnv('PHOSPHOR_PI_STUB', '/stub.cjs')
-    state.stub.mockReturnValue('/stub.cjs')
     state.health.mockResolvedValueOnce({ ok: true, binaryPath: '/node', prefixArgs: ['/pi.js'] })
     const env = { PATH: '/shell/bin', CUSTOM: 'kept' }
     state.env.mockResolvedValueOnce(env)
@@ -142,21 +139,18 @@ describe('createLoginTerminal', () => {
       env: { PATH: '/shell/bin' },
     })
     expect(state.cachedHealth).not.toHaveBeenCalled()
-    expect(state.stub).not.toHaveBeenCalled()
   })
 
   it.each([{ ok: false, message: 'upgrade required' }, { ok: false }, { ok: true }])(
     'rejects unavailable real pi without using a stub: %j',
     async (health) => {
       state.health.mockResolvedValue(health)
-      state.stub.mockReturnValue('/stub.cjs')
       await expect(createLoginTerminal(80, 24)).rejects.toThrow(
         'message' in health ? health.message : 'pi is not available',
       )
       expect(state.cwd).not.toHaveBeenCalled()
       expect(state.env).not.toHaveBeenCalled()
       expect(state.create).not.toHaveBeenCalled()
-      expect(state.stub).not.toHaveBeenCalled()
     },
   )
 

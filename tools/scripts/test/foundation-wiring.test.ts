@@ -199,12 +199,14 @@ describe('living testing contract', () => {
       'no-floating-promises',
       'no-misused-promises',
       'zero-warning CI budget',
+      'eslint-suppressions.json',
+      'tools/scripts/dead-mocks.mjs',
     ])
       expect(testing).toContain(phrase)
   })
 
   it('links the contract from agent commands/conventions, development and the system index', () => {
-    const claude = read('CLAUDE.md')
+    const claude = read('AGENTS.md')
     const commands = claude.split('## Commands')[1]!.split('## Architecture')[0]!
     const conventions = claude.split('## Conventions')[1]!.split('## Running')[0]!
     expect(commands).toContain('(docs/testing.md)')

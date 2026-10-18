@@ -10,7 +10,7 @@ import { resolve } from 'node:path'
  * `vite` does not read — without this file `vite dev` served the repo root
  * (no index.html) and, once pointed at `src`, mounted the app with no
  * Tailwind and no path aliases. This mirrors the `renderer` block there so the
- * mock-API harness documented in CLAUDE.md actually renders.
+ * mock-API harness documented in AGENTS.md actually renders.
  *
  * Keep the alias and plugin list in sync with electron.vite.config.ts.
  */

@@ -10,7 +10,7 @@
  *
  * Stores keep their own exported accessors (`workspaceFiles`,
  * `sessionTerminals`, `sessionPanes`, `repoWorktrees`) as thin wrappers over
- * `read` — those names are the store API, and CLAUDE.md fact 5 is written in
+ * `read` — those names are the store API, and AGENTS.md fact 6 is written in
  * terms of them.
  */
 
