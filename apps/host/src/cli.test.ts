@@ -20,7 +20,7 @@ afterEach(() => {
 })
 
 // Every argv the CLI tests feed in also checks the raw scan against parseArgs:
-// a run the scan calls supervised is the run parseArgs reads, under launchd.
+// the scan calls a run supervised exactly when parseArgs reads run under launchd.
 function expectScanAgrees(argv: readonly string[]) {
   let parsed: ReturnType<typeof parseArgs>
   try {
@@ -28,11 +28,8 @@ function expectScanAgrees(argv: readonly string[]) {
   } catch {
     return
   }
-  if (!supervisedRun(argv)) return
-  expect(
-    { command: parsed.positionals[0], supervisor: parsed.values.supervisor },
-    JSON.stringify(argv),
-  ).toEqual({ command: 'run', supervisor: 'launchd' })
+  const launchdRun = parsed.positionals[0] === 'run' && parsed.values.supervisor === 'launchd'
+  expect(supervisedRun(argv), JSON.stringify(argv)).toBe(launchdRun)
 }
 
 async function run(argv: readonly string[], context: Partial<CliContext> = {}) {
