@@ -105,10 +105,11 @@ Runtime configuration and key handling are described in
 
 Before an operator sets the repository variable to `true`, separately verify:
 
-- Review and apply the additive
-  `supabase/migrations/20261014120000_control_web_clients.sql` migration to the
-  explicitly verified Supabase target and reconcile its migration ledger.
-  The deployment workflow does not apply migrations.
+- Verify the additive
+  `supabase/migrations/20261014120000_control_web_clients.sql` migration's content,
+  permissions and hosted ledger mapping using the
+  [activation runbook](#repeatable-activation). Do not replay an already installed
+  schema. The deployment workflow does not apply migrations.
 - Allowlist the app's `/api/auth/callback` URL including its state query in
   Supabase, and verify the real GitHub OAuth flow. Do not initiate OAuth from
   the marketing site's origin.
@@ -120,7 +121,8 @@ Before an operator sets the repository variable to `true`, separately verify:
   `cf-connecting-ip`. Do not add CSP `frame-ancestors` to app static responses;
   WebKit inherits it into Blob previews. Preserve `X-Frame-Options: DENY`.
 - Supply the `CONTROL_WEB_SESSION_KEYS` repository secret in the strict format
-  below. Its existence alone does not activate Web.
+  in [Control deployment](control-plane.md#image-and-deployment). Its existence
+  alone does not activate Web.
 - Install a browser-capable Host that admits the exact app Origin, and verify
   physical Pixel/Android installation, OAuth, device Tailscale reachability,
   local-network permission, Host proof, send/control and sleep/reconnect.
@@ -136,3 +138,167 @@ again: it rebuilds the site without the link and applies the base Deployment,
 omitting all three Web variables. It does not delete live keys or revoke
 already-issued Host grants. The regular exact-head CI, environment and hold
 checks still apply to enabling, disabling and key rotation.
+
+### Repeatable activation
+
+This is an operator runbook, not an activation command. The repository helper
+only inspects Auth configuration and optionally appends one redirect pattern.
+It never enables Web, applies migrations, repairs a ledger, creates users,
+revokes clients or seeds credentials. A deployed image and a present
+`CONTROL_WEB_SESSION_KEYS` secret are not proof of an enabled app. With the
+rollout flag unset/false, marketing content on the app hostname is expected.
+
+1. **Verify the target and schema.** Use only the personal Supabase project
+   `bzdbiswndlqvviiywsvj`, named exactly `phosphor`, with status `ACTIVE_HEALTHY`.
+   Never select another product's project or organization/production AWS account
+   `559050243724`. Recheck ownership in the authorized owner's dashboard; a name
+   alone is not an identity check. Follow the
+   [hosted schema checks and version mapping](control-plane.md#hosted-web-schema-verification).
+   Keep the checked-in SQL canonical and stop on any mismatch.
+2. **Preflight the OAuth redirect allowlist.** An authorized owner supplies a
+   Supabase **Management API** token as `SUPABASE_ACCESS_TOKEN`, not the project's
+   publishable/service-role key, and not a GitHub token. Use protected environment
+   injection or a non-echoing Bash prompt in a private terminal (no recording,
+   tracing, `env` dumps or credential-store searches):
+
+   ```bash
+   set +x
+   IFS= read -r -s -p 'Supabase management token: ' SUPABASE_ACCESS_TOKEN; printf '\n'
+   export SUPABASE_ACCESS_TOKEN
+   node tools/scripts/web-activation.mjs --project-ref bzdbiswndlqvviiywsvj
+   ```
+
+   This performs only GETs. It verifies the fetched project ref, id, exact name
+   and health before reading Auth config, then reports whether the exact callback
+   pattern is present. No provider configuration or existing redirect values are
+   printed. `--help` requires no token and makes no request. There is no custom
+   project, API endpoint, callback URL, token argument or credentials-file option.
+
+3. **Append only if approved.** Coordinate with other Auth-config editors first.
+   In the same protected environment, explicitly request the narrow write:
+
+   ```bash
+   node tools/scripts/web-activation.mjs --project-ref bzdbiswndlqvviiywsvj --apply
+   node tools/scripts/web-activation.mjs --project-ref bzdbiswndlqvviiywsvj
+   unset SUPABASE_ACCESS_TOKEN
+   ```
+
+   Unset the token even if a command fails, and retire a temporary management
+   token through the owner's normal process. Never put it in shell arguments,
+   repository files, `.env`, CI artifacts or local Supabase config.
+
+   The helper uses the documented [Management API](https://supabase.com/docs/reference/api/introduction)
+   `GET /v1/projects/{ref}` and `GET/PATCH /v1/projects/{ref}/config/auth`
+   ([public OpenAPI](https://api.supabase.com/api/v1-json)). The token needs project
+   read and Auth read access; apply additionally needs Auth write permission.
+   PATCH contains **only** `uri_allow_list`, preserving the fetched comma-separated
+   string and appending:
+
+   ```text
+   https://phosphor-app.saccolabs.com/api/auth/callback\?state=*
+   ```
+
+   [Supabase redirect globs](https://supabase.com/docs/guides/auth/redirect-urls#use-wildcards-in-redirect-urls)
+   interpret `?` as a wildcard, so `\?` matches the literal query delimiter.
+   The single `*` covers the generated base64url state without allowing another
+   path segment; there is no hostname/path globstar. This allowlists the
+   `redirect_to` URL, not the eventual callback's extra authorization `code`.
+   Control still validates the exact 43-character transaction state and refuses
+   unexpected/duplicate query parameters. The helper does not decode OAuth state.
+   Existing native/loopback redirects, site URL and GitHub provider settings stay
+   intact. An exact existing entry makes even `--apply` a no-write success.
+
+   All requests are fixed HTTPS with redirects refused, deadlines and bounded
+   responses; errors never include upstream bodies, headers or tokens. Apply
+   rechecks the allowlist before PATCH and reads it back afterwards. There is no
+   documented conditional PATCH: **serialize concurrent Auth configuration edits**;
+   the recheck cannot eliminate the final read/write race. On failure after PATCH,
+   the write may have landed. Inspect securely and rerun preflight rather than
+   restoring an old whole-config snapshot. Broader existing redirect patterns are
+   preserved, not audited or tightened by this helper.
+
+4. **Verify routing and prepare enabled acceptance.** Route both HTTPS origins to
+   Control port 5015. Preserve the actual app `Host`, not `X-Forwarded-Host`;
+   retain marketing `/` and `/guides/` on the site host. DNS/tunnel connectivity
+   alone does not prove Host preservation. Overwrite `x-phosphor-edge` with the
+   configured secret on both origins and preserve trusted `cf-connecting-ip`.
+   Bypass edge caches for app navigations, manifest, worker, OAuth and private
+   APIs: preserve origin `no-store`, never cache cookies/authenticated responses.
+   Keep app static CSP without `frame-ancestors` and preserve
+   `X-Frame-Options: DENY`; API CSP remains separate. Prepare a browser-capable
+   enrolled Host with the exact app Origin admitted and the Pixel on Tailscale.
+5. **Use the existing guarded deployment, not the helper, to enable.** Set the
+   repository Actions variable `PHOSPHOR_WEB_ENABLED` to literal `true`, supply
+   valid `CONTROL_WEB_SESSION_KEYS` through the secret store, and dispatch
+   `.github/workflows/deploy-site.yml` on current `main` with `confirm=true`.
+   Exact-head successful push CI, `site-production` environment approval,
+   `SITE_DEPLOY_HOLD` and Skip-Release checks still apply. Do not bypass a hold;
+   `ignore_skip_release` is only an explicit operator override of that footer.
+   Enabled deployment selects the Web overlay and rebuilds the site's app link.
+   From an authorized operator's GitHub CLI session (these commands mutate the
+   repository variable and request deployment):
+
+   ```bash
+   gh variable set PHOSPHOR_WEB_ENABLED --repo agustinsacco/Phosphor --body true
+   gh workflow run deploy-site.yml --repo agustinsacco/Phosphor --ref main -f confirm=true
+   ```
+
+   The workflow's anonymous smoke (also `node tools/scripts/site-web-smoke.mjs`)
+   must pass, but proves only app/site routing, static headers and unsigned 401.
+
+6. **Close the real gates before declaring activation accepted.** Initiate GitHub
+   OAuth from the app, not the marketing site; verify callback with its state
+   query, signed-in session, one bound web client, refresh and sign-out. A real
+   OAuth flow cannot be tested while the rollout is disabled; treat enabling as
+   a guarded acceptance window, not completion. Verify enrolled Host discovery,
+   HTTPS/WSS proof, explicit control/send and revocation. On a physical Pixel,
+   test installation, local-network permission, Tailscale reachability and
+   sleep/reconnect. Record outcomes separately from schema checks and anonymous
+   smoke; headless fixture success does not satisfy these gates.
+
+If enabled smoke or any real gate fails, set `PHOSPHOR_WEB_ENABLED=false` (or
+unset it) and dispatch the same guarded current-main deployment with
+`confirm=true`. This rebuilds the link-free site and reapplies the base, removing
+Web env references. It does not delete keys, undo additive SQL/redirect entries,
+revoke existing clients or immediately invalidate five-minute Host grants.
+
+```bash
+gh variable set PHOSPHOR_WEB_ENABLED --repo agustinsacco/Phosphor --body false
+gh workflow run deploy-site.yml --repo agustinsacco/Phosphor --ref main -f confirm=true
+```
+
+### Repeatable local fixtures
+
+Use the existing isolated Supabase stack, not hosted data. With Docker and the
+repository dependencies installed, run the stack suites **sequentially**:
+
+```bash
+npm run db:start
+npm run test:control-db
+npm run test:auth-stack
+npm run test:control-stack
+npm run db:stop
+```
+
+Always stop the disposable stack after testing (including failures); `db:stop`
+uses `--no-backup`. `supabase/config.toml` pins `phosphor-control-test`, API 54351,
+DB 54352, disabled persistent seeding and fake GitHub credentials only. The stack
+runners obtain local test keys without printing them; never publish raw CLI
+status/start output. pgTAP fixtures use synthetic users and clean up/roll back;
+`supabase/tests/fixtures/fake-github.cjs` supplies deterministic provider behavior.
+The auth runner exercises Desktop PKCE/loopback sign-in, and the control runner
+exercises real local Auth/RPC with two synthetic owners and signed Host traffic.
+They remove their fake-provider container and leave the stack for `db:stop`.
+See [local validation](remote-development.md#local-validation).
+
+There is **no full local PWA-to-real-Supabase OAuth seed command**. These stack
+suites do not test the PWA callback allowlist. `npm run test:e2e:web` separately
+uses the [browser fixture](../apps/web/e2e/README.md): production routes and a real
+disposable Host/fake pi, but synthetic Auth/database ports and test-only socket
+mapping. Do not confuse those fixtures with real OAuth, TLS/Tailscale or mobile
+acceptance. Never seed a real user, session, management token or production
+secret into local config. The activation helper's own offline check is:
+
+```bash
+npx vitest run tools/scripts/web-activation.test.ts --maxWorkers=2
+```
