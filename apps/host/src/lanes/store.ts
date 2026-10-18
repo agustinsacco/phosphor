@@ -16,7 +16,6 @@ import {
   repositoryFromRow,
   summaryQuery,
   str,
-  num,
   timestamp,
   type Row,
 } from './store/rows'
@@ -32,17 +31,9 @@ import {
   type StoreLimits,
   type StorePorts,
 } from './store/types'
+import * as receipts from './store/receipts'
 export * from './store/types'
-import {
-  absolutePath,
-  canonicalJson,
-  check,
-  integer,
-  JsonTooLarge,
-  storedReceipt,
-  text,
-  uuid,
-} from './validation'
+import { absolutePath, check, integer, text, uuid } from './validation'
 export { opHash } from './validation'
 
 /** Only newly added folders are home-confined; owner-configured roots remain unrestricted. */
@@ -57,7 +48,6 @@ export function validateRepositoryIdentity(identity: RepositoryIdentity): void {
 }
 
 export const REMOVED_LANE_TTL_MS = 30 * 24 * 60 * 60 * 1000
-const RECEIPT_EXPIRED = 'finished_at < ?'
 
 export function openStore(
   directory: string,
@@ -368,72 +358,19 @@ export class HostStore {
       return this.requireLane(id).read
     })
   }
-  private decodeReceipt(row: Row): Receipt | null {
-    try {
-      if (row.status === 'started')
-        return storedReceipt({ requestId: str(row, 'request_id'), status: 'pending' })
-      let value: unknown = JSON.parse(str(row, 'receipt_json'))
-      if (
-        typeof value === 'object' &&
-        value !== null &&
-        'status' in value &&
-        value.status === 'rejected' &&
-        'control' in value
-      ) {
-        const control = value.control
-        if (
-          typeof control === 'object' &&
-          control !== null &&
-          'controller' in control &&
-          control.controller !== null
-        ) {
-          const controller = control.controller
-          check(
-            typeof controller === 'object' &&
-              'clientId' in controller &&
-              typeof controller.clientId === 'string' &&
-              !('connected' in controller),
-          )
-          value = {
-            ...value,
-            control: {
-              ...control,
-              controller: {
-                ...controller,
-                connected: this.isConnected(controller.clientId),
-              },
-            },
-          }
-        }
-      }
-      const receipt = storedReceipt(value)
-      check(receipt.requestId === str(row, 'request_id') && receipt.status === str(row, 'status'))
-      return receipt
-    } catch {
-      try {
-        this.logCorruptReceipt(1)
-      } catch {
-        // A logger failure cannot turn corrupt state into a caller-visible error.
-      }
-      return null
+  private receiptContext(): receipts.ReceiptStoreContext {
+    return {
+      db: this.db,
+      transaction: (fn) => this.transaction(fn),
+      clock: () => this.clock(),
+      limits: this.limits,
+      ttl: this.receiptTtlMs,
+      isConnected: this.isConnected,
+      logCorruptReceipt: this.logCorruptReceipt,
     }
   }
   getReceipt(requestId: string, clientId: string): Receipt | null {
-    uuid(requestId)
-    uuid(clientId)
-    const row = this.db
-      .prepare(
-        `SELECT * FROM receipts WHERE request_id=? AND client_id=? AND (finished_at IS NULL OR NOT (${RECEIPT_EXPIRED}))`,
-      )
-      .get(requestId, clientId, this.clock() - this.receiptTtlMs)
-    return row ? this.decodeReceipt(row) : null
-  }
-  private serializeReceipt(receipt: Receipt): string {
-    if (receipt.status === 'rejected' && receipt.control?.controller) {
-      const { connected: _connected, ...controller } = receipt.control.controller
-      return canonicalJson({ ...receipt, control: { ...receipt.control, controller } })
-    }
-    return canonicalJson(receipt)
+    return receipts.getReceipt(this.receiptContext(), requestId, clientId)
   }
   beginRequest(
     requestId: string,
@@ -441,87 +378,16 @@ export class HostStore {
     hash: string,
     laneId: string | null,
   ): RequestStart {
-    uuid(requestId)
-    uuid(clientId)
-    check(/^[0-9a-f]{64}$/.test(hash))
-    if (laneId !== null) uuid(laneId)
-    return this.transaction(() => {
-      const now = this.clock()
-      this.prune(now)
-      const row = this.db.prepare('SELECT * FROM receipts WHERE request_id=?').get(requestId)
-      if (row) {
-        const receipt = this.decodeReceipt(row)
-        if (row.client_id !== clientId || row.op_hash !== hash || row.lane_id !== laneId)
-          return { kind: 'conflict' }
-        return {
-          kind: 'existing',
-          receipt: receipt ?? { requestId, status: 'unknown' },
-        }
-      }
-      if (
-        Number(
-          this.db.prepare("SELECT count(*) AS count FROM receipts WHERE status='started'").get()
-            ?.count,
-        ) >= this.limits.receiptsKept
-      )
-        return { kind: 'busy' }
-      this.db
-        .prepare("INSERT INTO receipts VALUES (?,?,?,?,'started',NULL,?,NULL)")
-        .run(requestId, clientId, hash, laneId, now)
-      return { kind: 'new' }
-    })
+    return receipts.beginRequest(this.receiptContext(), requestId, clientId, hash, laneId)
   }
   finishRequest(requestId: string, receipt: Receipt): void {
-    uuid(requestId)
-    let value = storedReceipt(receipt)
-    check(value.requestId === requestId && value.status !== 'pending')
-    if (value.status === 'done' && value.data !== undefined) {
-      try {
-        canonicalJson(value.data, HOST_LIMITS.receiptDataBytes)
-      } catch (error) {
-        if (!(error instanceof JsonTooLarge)) throw error
-        const { data: _data, ...withoutData } = value
-        value = withoutData
-      }
-    }
-    const json = this.serializeReceipt(value)
-    check(Buffer.byteLength(json) <= HOST_LIMITS.receiptDataBytes + 8192)
-    this.transaction(() => {
-      const row = this.db.prepare('SELECT * FROM receipts WHERE request_id=?').get(requestId)
-      check(row !== undefined)
-      if (row.status !== 'started') {
-        check(row.receipt_json === json)
-        return
-      }
-      this.db
-        .prepare('UPDATE receipts SET status=?,receipt_json=?,finished_at=? WHERE request_id=?')
-        .run(value.status, json, Math.max(this.clock(), num(row, 'started_at')), requestId)
-      this.pruneFinishedCount()
-    })
+    receipts.finishRequest(this.receiptContext(), requestId, receipt)
   }
   markInterrupted(): void {
-    this.transaction(() => {
-      this.db
-        .prepare(
-          `UPDATE receipts SET status='unknown',receipt_json=json_object('requestId',request_id,'status','unknown'),finished_at=max(?,started_at) WHERE status='started'`,
-        )
-        .run(this.clock())
-    })
-  }
-  private pruneFinishedCount(): void {
-    this.db
-      .prepare(
-        `DELETE FROM receipts WHERE request_id IN (SELECT request_id FROM receipts WHERE finished_at IS NOT NULL ORDER BY finished_at DESC,request_id DESC LIMIT -1 OFFSET ?)`,
-      )
-      .run(this.limits.receiptsKept)
-  }
-  private prune(now: number): void {
-    this.db.prepare(`DELETE FROM receipts WHERE ${RECEIPT_EXPIRED}`).run(now - this.receiptTtlMs)
-    this.pruneFinishedCount()
+    receipts.markInterrupted(this.receiptContext())
   }
   pruneReceipts(now: number): void {
-    integer(now)
-    this.transaction(() => this.prune(now))
+    receipts.pruneReceipts(this.receiptContext(), now)
   }
   /** A bounded read for reconciliation, without exposing the database handle. */
   sessionLane(file: string): StoredLane | null {
