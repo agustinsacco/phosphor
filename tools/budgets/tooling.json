@@ -2,14 +2,9 @@
   "version": 1,
   "package": "tooling",
   "offenders": {
-    "tools/host-release/build-native.mjs::buildNative[1]": 85,
-    "tools/host-release/bundles.test.ts::file": 1462,
+    "tools/host-release/bundles.test.ts::file": 1336,
     "tools/host-release/bundles.test.ts::describe[1]/it[4]": 129,
-    "tools/scripts/capture-live-shots.mjs::file": 418,
-    "tools/scripts/capture-live-shots.mjs::main[1]": 301,
-    "tools/scripts/capture-readme-shots.mjs::main[1]": 281,
     "tools/scripts/ci-selection.mjs::shadowSelection[1]": 86,
-    "tools/scripts/remote-probe.mjs::createProbe[1]": 110,
     "tools/scripts/site-deploy-policy.test.ts::describe[2]/%3Canonymous%3E[1]": 109,
     "tools/scripts/site-package.test.ts::it[1]": 186
   },
