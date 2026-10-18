@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LaneOp } from '@phosphor/shared/host-protocol'
 import { createCommandsFixture, type CommandsFixture } from '../__fixtures__/commands.fixture'
 import { admitFence, admitLane, laneRefusal, republishControl } from './admission'
-import { handled, NOT_MATCHED } from './machine'
+import { handled, NOT_MATCHED } from './routing'
 import { queueFor } from './queue'
 import { createCommandState, type Job, type LaneCommandClient } from './state'
 

@@ -1,7 +1,7 @@
 import type { LaneOp } from '@phosphor/shared/host-protocol'
 import type { RpcCommand } from '@phosphor/shared/rpc'
 import type { LaneAdmission } from './admission'
-import { handled, NOT_MATCHED, type Routed } from './machine'
+import { handled, NOT_MATCHED, type Routed } from './routing'
 import { dispatch, publish } from './queue'
 import { receiptMessage, rejected, terminal, type ReceiptPorts } from './receipts'
 import type { CommandState, Execution, Job, LaneCommandPorts, LaneQueue } from './state'

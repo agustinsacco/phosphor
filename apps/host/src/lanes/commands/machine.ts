@@ -5,15 +5,8 @@ import type { HostCapability } from '@phosphor/shared/remote-host'
 import { TerminalForbidden, type HostTerminals } from '../../terminals/service'
 import { dispatch } from './queue'
 import { rejected, terminal, type ReceiptPorts } from './receipts'
-import type { CommandState, Execution, Job, LaneCommandPorts, LaneQueue } from './state'
-
-/**
- * A handler either did not match the op, or handled it: answered it synchronously
- * (no execution) or started an execution the queue tracks.
- */
-export type Routed = { handled: false } | { handled: true; execution?: Execution }
-export const NOT_MATCHED: Routed = { handled: false }
-export const handled = (execution?: Execution): Routed => ({ handled: true, execution })
+import { handled, NOT_MATCHED, type Routed } from './routing'
+import type { CommandState, Job, LaneCommandPorts, LaneQueue } from './state'
 
 export type MachinePorts = ReceiptPorts &
   Pick<LaneCommandPorts, 'repositories' | 'routines' | 'providerLogins'> & {

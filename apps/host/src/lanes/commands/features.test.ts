@@ -10,7 +10,7 @@ import {
   executeWrite,
   type FeaturePorts,
 } from './features'
-import { handled, NOT_MATCHED, type Routed } from './machine'
+import { handled, NOT_MATCHED, type Routed } from './routing'
 import { queueFor } from './queue'
 import { createCommandState, type Job, type LaneCommandPorts } from './state'
 

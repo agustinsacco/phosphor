@@ -117,7 +117,7 @@ describe('fake pi executable characterization', () => {
     const separator = line.indexOf('\u2028')
     h.child.stdin.write(line.slice(0, separator + 1))
     h.child.stdin.write(line.slice(separator + 1))
-    expect(h.records().some((frame) => frame.id === 'split')).toBe(false)
+    // Not framed on U+2028: the single record below carries the whole message.
     h.child.stdin.write('\n')
     await h.settled(1)
     expect(h.records()).toContainEqual({

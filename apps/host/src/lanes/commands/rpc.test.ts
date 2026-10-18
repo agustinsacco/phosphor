@@ -8,7 +8,7 @@ import {
 } from '../__fixtures__/commands.fixture'
 import { opHash } from '../store'
 import type { LaneAdmission } from './admission'
-import { handled, NOT_MATCHED, type Routed } from './machine'
+import { handled, NOT_MATCHED, type Routed } from './routing'
 import { queueFor } from './queue'
 import { executeRpc, toPiCommand } from './rpc'
 import { createCommandState, type Job } from './state'

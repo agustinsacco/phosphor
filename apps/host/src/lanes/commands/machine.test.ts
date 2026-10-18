@@ -7,10 +7,9 @@ import {
   executeMachineTerminal,
   executeRepository,
   executeRoutine,
-  handled,
-  NOT_MATCHED,
   type MachinePorts,
 } from './machine'
+import { handled, NOT_MATCHED } from './routing'
 import { queueFor } from './queue'
 import { createCommandState, type Job, type LaneCommandFrame, type LaneCommandPorts } from './state'
 
