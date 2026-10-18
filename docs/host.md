@@ -1136,7 +1136,7 @@ process, not an already-running pi. Callers still cannot supply
 store. It mints one epoch for the streams and API. The API adapter owns receipt
 delivery and controller presence; composition supplies deferred ports for them.
 
-`lanes/runtime-host.ts` buffers startup pushes until creation knows the lane id,
+`lanes/runtime-host/lifecycle.ts` buffers startup pushes until creation knows the lane id,
 at most 256 pushes and 1 MiB per start. Overflow discards the whole buffer and
 logs only the lane id. Attachment replays the buffer and waits for the first full
 refresh, which resets viewers. Failed creation discards the buffer. Stopping a
