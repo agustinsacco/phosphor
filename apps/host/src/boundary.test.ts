@@ -23,7 +23,12 @@ function assertPackageImport(specifier: string | undefined, file: string, suppor
     if (!file.startsWith(join(src, 'api') + '/')) throw new Error('ws is only allowed in Host api/')
     return
   }
-  expect(support && specifier === 'vitest', `${file}: ${specifier}`).toBe(true)
+  // Tests may use their runner, and esbuild to bundle a module for a child
+  // process (state-dir's umask case); neither reaches the Host bundle.
+  expect(
+    support && (specifier === 'vitest' || specifier === 'esbuild'),
+    `${file}: ${specifier}`,
+  ).toBe(true)
 }
 
 describe('Host import boundary', () => {
