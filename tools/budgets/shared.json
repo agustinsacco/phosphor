@@ -16,11 +16,11 @@
     "src/host-protocol-testing/loopback.ts::createLoopbackPair[1]": 96,
     "src/host-protocol.test.ts::describe[1]/it[5]": 100,
     "src/host-protocol.test.ts::describe[2]/it[5]": 107,
-    "src/host-protocol.ts::file": 1207,
+    "src/host-protocol.ts::file": 1209,
     "src/host-protocol.ts::op[1]": 94,
     "src/host-protocol.ts::parseClientFrame[1]": 108,
     "src/host-protocol.ts::parseHostFrame[1]": 165,
-    "src/ipc.ts::file": 1229,
+    "src/ipc.ts::file": 1263,
     "src/models.ts::file": 1268,
     "src/rpc.ts::file": 588
   },

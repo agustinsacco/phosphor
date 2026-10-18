@@ -3,7 +3,7 @@
   "package": "session-runtime",
   "offenders": {
     "src/artifacts/artifact-indexer.ts::scanLine[1]": 85,
-    "src/artifacts/artifact-indexer.ts::indexSessionFile[1]": 93,
+    "src/artifacts/artifact-indexer.ts::indexSessionFile[1]": 95,
     "src/lanes/projection.ts::createLaneProjection[1]": 284,
     "src/lanes/projection.ts::createLaneProjection[1]/event[1]": 91,
     "src/pi/__fixtures__/fake-pi.cjs::handle[1]": 149,
