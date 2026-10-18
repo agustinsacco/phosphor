@@ -9,7 +9,7 @@ vi.mock('./handle', () => ({
   handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
     handlers.set(channel, handler),
 }))
-vi.mock('./hosts-handlers', () => ({
+vi.mock('../hosts/runtime', () => ({
   remoteRoutineMachines: () => [
     {
       id: 'host:11111111-1111-4111-8111-111111111111',

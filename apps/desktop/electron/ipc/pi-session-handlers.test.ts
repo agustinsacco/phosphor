@@ -43,7 +43,7 @@ vi.mock('electron', () => ({
 vi.mock('../account', () => ({
   accountSnapshot: () => ({ account: { status: state.signedIn ? 'signed-in' : 'signed-out' } }),
 }))
-vi.mock('./hosts-handlers', () => ({ remoteLanes: () => state.remote }))
+vi.mock('../hosts/runtime', () => ({ remoteLanes: () => state.remote }))
 vi.mock('./handle', () => ({
   handle: (name: string, cb: (...args: unknown[]) => unknown) => state.handlers.set(name, cb),
 }))

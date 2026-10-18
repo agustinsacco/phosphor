@@ -1,5 +1,5 @@
 import { handle } from './handle'
-import { remoteLanes } from './hosts-handlers'
+import { remoteLanes } from '../hosts/runtime'
 import { isRemoteHandle } from '../hosts/remote-lanes'
 import { desktopSessions } from '../pi/session-runtime'
 import { cachedPiHealth } from '../pi/health'
