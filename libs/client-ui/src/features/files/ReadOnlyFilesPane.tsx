@@ -6,6 +6,13 @@ import { useRemoteFileSelection } from './remoteFileSelection'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { Button } from '@/components/form'
 
+/**
+ * The Host serves reads only for the focused lane, and focus follows activation,
+ * which lands after the session entry a pane mounts on. Reading earlier fails.
+ */
+const useActive = (sessionId: string): boolean =>
+  useSessionsStore((s) => s.activeSessionId === sessionId)
+
 /** The phone reads the same lane resources without mounting an editor or write controls. */
 export function ReadOnlyFilesPane({
   sessionId,
@@ -15,9 +22,8 @@ export function ReadOnlyFilesPane({
   changes?: boolean
 }): React.JSX.Element {
   const entry = useSessionsStore((s) => s.live[sessionId])
-  const target = entry?.target
   const host = useRemoteLanesStore((s) =>
-    target?.kind === 'remote' ? s.hosts[target.hostId] : undefined,
+    entry?.target?.kind === 'remote' ? s.hosts[entry.target.hostId] : undefined,
   )
   const selection = useRemoteFileSelection((s) => s.bySession[sessionId])
   const [selected, setSelected] = useState(selection?.path ?? '')
@@ -32,6 +38,7 @@ export function ReadOnlyFilesPane({
   const [refresh, setRefresh] = useState(0)
   const workspace = entry?.workspacePath
   const ready = host?.state === 'ready' && host.capabilities.includes('workspaces.read')
+  const canRead = useActive(sessionId) && ready
   const epoch = host?.cursor?.epoch
   const token = host?.connectionToken
   useEffect(() => {
@@ -43,7 +50,7 @@ export function ReadOnlyFilesPane({
     setFiles([])
     setStatus({})
     setLoading(!!ready)
-    if (ready && workspace)
+    if (canRead && workspace)
       void Promise.all([
         window.phosphor.invoke('fs:listFiles', workspace),
         changes ? window.phosphor.invoke('git:statusMap', workspace) : Promise.resolve({}),
@@ -65,14 +72,14 @@ export function ReadOnlyFilesPane({
     return () => {
       current = false
     }
-  }, [workspace, ready, epoch, token, changes, refresh])
+  }, [workspace, ready, canRead, epoch, token, changes, refresh])
   useEffect(() => {
     let current = true
     setContent('')
     setBefore(null)
     setNotice('')
     setReading(!!selected && !!ready)
-    if (ready && workspace && selected)
+    if (canRead && workspace && selected)
       void Promise.all([
         changes && status[selected]?.includes('D')
           ? Promise.resolve({ content: '', binary: false, tooLarge: false })
@@ -105,7 +112,7 @@ export function ReadOnlyFilesPane({
     return () => {
       current = false
     }
-  }, [workspace, selected, ready, changes, status, epoch, token, refresh])
+  }, [workspace, selected, ready, canRead, changes, status, epoch, token, refresh])
   if (!ready)
     return (
       <p role="status" className="p-4">
