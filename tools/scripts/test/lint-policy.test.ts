@@ -25,7 +25,8 @@ async function severity(file: string, rule: string) {
   return config?.rules?.[rule]?.[0] ?? 0
 }
 
-describe('eslint policy', () => {
+// The first typed lint of each TS project builds its program: over 5 s on CI.
+describe('eslint policy', { timeout: 60_000 }, () => {
   it('preserves the existing renderer prompt error and Host boundary errors', async () => {
     expect(await messages('window.prompt("name")', rendererCaller, 'no-restricted-syntax')).toEqual(
       [expect.objectContaining({ severity: 2 })],
@@ -81,21 +82,16 @@ describe('eslint policy', () => {
     'apps/web/src/main.tsx',
     'apps/web/src/service-worker.ts',
     'apps/web/vite.config.ts',
-  ])(
-    'rejects unhandled promises in %s without missing-project failures',
-    async (file) => {
-      const code = `declare function accepts(callback: () => void): void;
+  ])('rejects unhandled promises in %s without missing-project failures', async (file) => {
+    const code = `declare function accepts(callback: () => void): void;
       Promise.resolve('unhandled');
       accepts(async () => {});`
-      for (const rule of ['no-floating-promises', 'no-misused-promises']) {
-        expect(await messages(code, file, `@typescript-eslint/${rule}`)).toEqual([
-          expect.objectContaining({ severity: 2 }),
-        ])
-      }
-    },
-    // The first file of each TS project builds that project's program: over 5 s on CI.
-    60_000,
-  )
+    for (const rule of ['no-floating-promises', 'no-misused-promises']) {
+      expect(await messages(code, file, `@typescript-eslint/${rule}`)).toEqual([
+        expect.objectContaining({ severity: 2 }),
+      ])
+    }
+  })
 
   it.each([
     'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
