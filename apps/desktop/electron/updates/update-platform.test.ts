@@ -133,17 +133,21 @@ describe('computeUpdatePath', () => {
     expect(await computeUpdatePath()).toBe('manual')
   })
 
-  it('refuses a bundle whose parent directory is read-only', async () => {
-    setHost('darwin', 'arm64')
-    const parent = mkdtempSync(join(root, 'readonly-'))
-    installBundle(parent)
-    chmodSync(parent, 0o555)
-    try {
-      expect(await computeUpdatePath()).toBe('manual')
-    } finally {
-      chmodSync(parent, 0o755)
-    }
-  })
+  // root ignores directory modes, so access(W_OK) cannot fail there.
+  it.skipIf(process.getuid?.() === 0)(
+    'refuses a bundle whose parent directory is read-only',
+    async () => {
+      setHost('darwin', 'arm64')
+      const parent = mkdtempSync(join(root, 'readonly-'))
+      installBundle(parent)
+      chmodSync(parent, 0o555)
+      try {
+        expect(await computeUpdatePath()).toBe('manual')
+      } finally {
+        chmodSync(parent, 0o755)
+      }
+    },
+  )
 })
 
 describe('macBundlePath', () => {

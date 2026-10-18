@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { prepareSessionPolicy } from '@phosphor/session-runtime/pi/session-policy'
 import { sessionFixture } from '@phosphor/session-runtime/pi/__fixtures__/session-runtime'
 import { prepareDesktopSessionLaunch } from './session-launch'
-import type { PiInvoker } from './invoker'
+import type { ResolvedPiInvoker } from './invoker'
 
 const h = vi.hoisted(() => ({
   app: {
@@ -11,7 +11,7 @@ const h = vi.hoisted(() => ({
     getAppPath: () => '/repo/apps/desktop',
     getPath: () => '/data',
   },
-  resolve: vi.fn<(profile: string) => Promise<PiInvoker>>(),
+  resolve: vi.fn<(profile: string) => Promise<ResolvedPiInvoker>>(),
   provider: vi.fn(() => ({ PI_CLAUDE_CLI_CONTEXT: 'pi' })),
   artifacts: vi.fn(() => ({ PHOSPHOR_ARTIFACT_STORE: '/artifacts' })),
 }))

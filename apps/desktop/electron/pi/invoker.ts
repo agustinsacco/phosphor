@@ -5,7 +5,7 @@ import { piStubPath } from './stub'
 /** Stub environments intentionally differ between sessions, titles and shell-aware jobs. */
 export type PiInvocationProfile = 'minimal-stub' | 'inherited-stub' | 'piProcessEnv-stub'
 
-export interface PiInvoker {
+export interface ResolvedPiInvoker {
   binaryPath: string
   prefixArgs: string[]
   env: Record<string, string>
@@ -16,7 +16,7 @@ export interface PiInvoker {
 export class PiUnavailableError extends Error {}
 
 /** Only discovery is cached; each invocation gets its own current environment. */
-export async function resolvePiInvoker(profile: PiInvocationProfile): Promise<PiInvoker> {
+export async function resolvePiInvoker(profile: PiInvocationProfile): Promise<ResolvedPiInvoker> {
   const stub = piStubPath()
   if (stub) {
     const env =
