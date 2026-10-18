@@ -237,3 +237,4 @@ User rules: PRs NOT stacked; each PR merged to main (squash, repo only allows sq
 - Deploy Site re-dispatched (b30d66d6 lost the exact-SHA race).
 - DM-09 owns += routines-handlers.test.ts (mock path). Host 0.2.10 released; Deploy Site dacb3c0e success.
 - DM-08 owns += ipc/hosts-handlers.test.ts (mock path). DM-23 coded, gate pass.
+- Wrap-up: #535 wave 6 merged (ddf726d9; DM-18 held). Handoff doc PR #536. Kit + WIP branches pushed to origin.

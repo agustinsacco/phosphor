@@ -319,11 +319,11 @@
         "status": "hold-coordination",
         "hold": "mobile-PWA lane overlap"
       },
-      "status": "integrated",
+      "status": "merged",
       "wave": 6,
       "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-16",
       "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
-      "pr": "w6",
+      "pr": 535,
       "integratedAt": "2026-10-18T17:54:59.443Z"
     },
     "DM-15": {
@@ -332,7 +332,8 @@
         "status": "hold-coordination",
         "hold": "mobile-PWA lane overlap"
       },
-      "wave": 6
+      "wave": 6,
+      "branch": "remediation-wip/DM-15"
     },
     "DM-16": {
       "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
@@ -340,7 +341,8 @@
         "status": "hold-coordination",
         "hold": "mobile-PWA lane overlap"
       },
-      "wave": 6
+      "wave": 6,
+      "branch": "remediation-wip/DM-15"
     },
     "DM-17": {
       "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
@@ -361,7 +363,8 @@
       "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-18",
       "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
       "pr": "w6",
-      "integratedAt": "2026-10-18T17:49:40.428Z"
+      "integratedAt": "2026-10-18T17:49:40.428Z",
+      "branch": "remediation-wip/DM-18"
     },
     "DM-19": {
       "note": "released after PWA merge; replanned c08625cc",
@@ -684,11 +687,11 @@
         "integratedAt": "2026-10-18T08:30:03.600Z",
         "note": "approved r1; reverted from tooling PR (PWA rewrites ci-selection/nx-projects expectations); reland after PWA"
       },
-      "status": "integrated",
+      "status": "merged",
       "wave": 6,
       "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-TL-08",
       "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
-      "pr": "w6",
+      "pr": 535,
       "integratedAt": "2026-10-18T17:54:59.661Z"
     },
     "TL-09": {
@@ -925,11 +928,11 @@
         "status": "hold-coordination",
         "note": "PWA branch edits owned files (2026-10-18)"
       },
-      "status": "integrated",
+      "status": "merged",
       "wave": 6,
       "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-libs-worktree-segment",
       "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
-      "pr": "w6",
+      "pr": 535,
       "integratedAt": "2026-10-18T17:54:59.301Z"
     },
     "LR-01": {
@@ -979,11 +982,11 @@
         "status": "hold-coordination",
         "note": "PWA branch edits owned files (2026-10-18)"
       },
-      "status": "integrated",
+      "status": "merged",
       "wave": 6,
       "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-libs-print-mode",
       "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
-      "pr": "w6",
+      "pr": 535,
       "integratedAt": "2026-10-18T17:54:59.372Z"
     },
     "LR-04": {
@@ -1194,12 +1197,14 @@
     "DM-08": {
       "colocated": true,
       "wave": 6,
-      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "branch": "remediation-wip/DM-08"
     },
     "DM-09": {
       "colocated": true,
       "wave": 6,
-      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "branch": "remediation-wip/DM-08"
     },
     "DM-10": {
       "colocated": true,
@@ -1252,11 +1257,11 @@
         "status": "hold-coordination",
         "note": "PWA branch edits owned files (2026-10-18)"
       },
-      "status": "integrated",
+      "status": "merged",
       "wave": 6,
       "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-23",
       "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
-      "pr": "w6",
+      "pr": 535,
       "integratedAt": "2026-10-18T17:54:59.516Z"
     },
     "DM-24": {
@@ -2318,32 +2323,34 @@
       }
     },
     "RL-01b": {
-      "status": "integrated",
+      "status": "merged",
       "wave": 6,
       "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-RL-01b",
       "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
-      "pr": "w6",
+      "pr": 535,
       "integratedAt": "2026-10-18T17:54:59.723Z"
     },
     "TL-04": {
       "wave": 6,
-      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "branch": "remediation-wip/TL-04"
     },
     "TL-06": {
       "wave": 6,
       "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
     },
     "DM-26a": {
-      "status": "integrated",
+      "status": "merged",
       "wave": 6,
       "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-26a",
       "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
-      "pr": "w6",
+      "pr": 535,
       "integratedAt": "2026-10-18T17:54:59.587Z"
     },
     "DM-26b": {
       "wave": 6,
-      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "branch": "remediation-wip/DM-26b"
     }
   }
 }
