@@ -14,6 +14,7 @@ import {
 } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
+import { errnoIs } from '../fs-safety'
 
 export const HOST_PATH_BLOCK = `
 # >>> Phosphor Host PATH >>>
@@ -26,10 +27,11 @@ esac
 const MAX_RC_BYTES = 1024 * 1024
 const NOFOLLOW = constants.O_NOFOLLOW | constants.O_NONBLOCK
 const marker = '# >>> Phosphor Host PATH >>>'
-const codeOf = (error: unknown) =>
-  error instanceof Error && 'code' in error ? error.code : undefined
+/** Matches only an Error: a thrown non-Error carrying the same code is never tolerated. */
+const failedWith = (error: unknown, ...codes: string[]) =>
+  error instanceof Error && errnoIs(error, ...codes)
 const unsafe = (error: unknown) =>
-  ['ENOENT', 'ELOOP', 'EACCES', 'EPERM', 'ENXIO', 'EISDIR'].includes(String(codeOf(error)))
+  failedWith(error, 'ENOENT', 'ELOOP', 'EACCES', 'EPERM', 'ENXIO', 'EISDIR')
 
 /** A concurrent growth cannot turn a bounded file check into an unbounded read. */
 function readBounded(fd: number): Buffer | null {
@@ -55,13 +57,13 @@ function openAppend(path: string): number {
   try {
     return openSync(path, flags)
   } catch (error) {
-    if (codeOf(error) !== 'ENOENT') throw error
+    if (!failedWith(error, 'ENOENT')) throw error
   }
   try {
     return openSync(path, flags | constants.O_CREAT | constants.O_EXCL, 0o644)
   } catch (error) {
     // A file appeared after the first open. Admit it through the same safe open once.
-    if (codeOf(error) !== 'EEXIST') throw error
+    if (!failedWith(error, 'EEXIST')) throw error
     return openSync(path, flags)
   }
 }
@@ -118,7 +120,7 @@ function unlinkStaging(path: string): void {
   try {
     unlinkSync(path)
   } catch (error) {
-    if (codeOf(error) !== 'ENOENT') throw error
+    if (!failedWith(error, 'ENOENT')) throw error
   }
 }
 
