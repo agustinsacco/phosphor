@@ -38,7 +38,8 @@ export function newSpecifier(file, target, original) {
   if (!alias && !relative.startsWith('.')) relative = `./${relative}`
   // A dotted basename (a.test) is not an explicit source extension (a.test.ts).
   if (/\.[cm]?js$/.test(bare)) relative = relative.replace(/\.[cm]?tsx?$/, posix.extname(bare))
-  else if (!bare.endsWith(posix.extname(target))) relative = relative.replace(/\.[cm]?[jt]sx?$/, '')
+  else if (!bare.endsWith(posix.extname(target)))
+    relative = relative.slice(0, -posix.extname(target).length)
   if (relative.endsWith('/index') && !bare.endsWith('/index')) relative = relative.slice(0, -6)
   return relative + suffix
 }

@@ -69,12 +69,13 @@ describe('relocation plan regressions', () => {
     )
   })
 
-  it('does not add a TypeScript extension to a dotted extensionless specifier', () => {
+  it.each(['ts', 'json'])('does not add .%s to a dotted extensionless specifier', (extension) => {
     const file = 'tools/scripts/test/consumer.ts'
-    const content = "import '../../../apps/host/src/a.test'"
-    const plan = planFor({ [test]: '', [file]: content })
+    const target = `apps/host/src/__fixtures__/a.test.${extension}`
+    const content = "import '../../../apps/host/src/__fixtures__/a.test'"
+    const plan = planFor({ [test]: '', [target]: '', [file]: content })
     expect(rewritten(content, plan.importerEdits[0]!.edits)).toBe(
-      "import '../../../apps/host/test/a.test'",
+      "import '../../../apps/host/test/__fixtures__/a.test'",
     )
   })
 
