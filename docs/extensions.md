@@ -364,6 +364,13 @@ version; an unknown id toasts. `remarkArtifactLinks` also promotes the
 inline-code and bare forms models actually write (`` `artifact://x` ``) into
 links, keeping the `<code>` look.
 
+**`artifact://<sessionId>/<slug>` is a reference the user can paste.** The
+panel's Copy reference button writes it ([ui-shell.md](ui-shell.md)), and
+`artifact_read`'s prompt guideline tells the model to read a pasted one before
+answering about it. `resolve` treats a ref to its own session as local and any
+other as a read-only read from the store. In chat, both link helpers accept the
+form and open its slug in the current session's pane.
+
 `session_start` rebuilds the full artifact record, content included, because
 an edit has to apply to the live text in a resumed session. `session_tree`
 and `session_compact` rebuild it too, so tree navigation lands on that

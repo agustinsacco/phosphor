@@ -2,7 +2,7 @@ import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { useArtifactsStore, type Artifact } from '@/stores/artifacts'
+import { LOCAL_ARTIFACT_PREFIX, useArtifactsStore, type Artifact } from '@/stores/artifacts'
 import { openFileInWorkspace } from '@/stores/layout'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { PageShell } from '@/components/PageShell'
@@ -15,7 +15,9 @@ import { ChartBlock } from '@/components/markdown/ChartBlock'
 import { MonacoDiff } from '@/features/files/MonacoEditor'
 import { CopyButton } from '@/components/CopyButton'
 import { SandboxedHtml } from '@/components/SandboxedHtml'
-import { DownloadIcon, FileIcon, PdfExportIcon } from '@/components/icons'
+import { DownloadIcon, FileIcon, LinkIcon, PdfExportIcon } from '@/components/icons'
+import { useChatStore } from '@/stores/chat'
+import { artifactReference } from './artifactReference'
 import { FindBar } from '@/components/search/FindBar'
 import { useFind } from '@/components/search/useFind'
 import { useDomFind } from '@/components/search/useDomFind'
@@ -57,6 +59,7 @@ export const ArtifactsPane = memo(function ArtifactsPane({
   const artifacts = useArtifactsStore((s) => s.bySession[sessionId])
   const selectedId = useArtifactsStore((s) => s.selected[sessionId])
   const requestedVersion = useArtifactsStore((s) => s.selectedVersion[sessionId])
+  const piSessionId = useChatStore((s) => s.sessions[sessionId]?.meta?.sessionId)
 
   useEffect(() => {
     useArtifactsStore.getState().clearUnseen(sessionId)
@@ -89,6 +92,7 @@ export const ArtifactsPane = memo(function ArtifactsPane({
       artifact={selected}
       list={list}
       workspacePath={workspacePath}
+      piSessionId={piSessionId}
       onSelect={(id) => useArtifactsStore.getState().select(sessionId, id)}
       requestedVersion={selected.id === selectedId ? requestedVersion : undefined}
     />
@@ -109,6 +113,7 @@ export function ArtifactWorkspace({
   artifact,
   list,
   workspacePath,
+  piSessionId,
   onSelect,
   requestedVersion,
   page,
@@ -117,6 +122,8 @@ export function ArtifactWorkspace({
   artifact: Artifact
   list: Artifact[]
   workspacePath: string
+  /** pi's id for the session that owns the artifact; names it in a copied reference. */
+  piSessionId?: string
   onSelect: (id: string) => void
   /** Version explicitly navigated to (e.g. a chat card's "Open in panel"). */
   requestedVersion?: number
@@ -174,6 +181,28 @@ export function ArtifactWorkspace({
   const shown = artifact.versions[Math.min(versionIndex, artifact.versions.length - 1)] ?? latest
   const previous = artifact.versions[Math.min(versionIndex, artifact.versions.length - 1) - 1]
   const versioned = artifact.versions.length > 1
+
+  // The current version is named without a number, so a prompt reads whatever
+  // is newest; an older one being read is pinned.
+  // A promoted code block lives only in this pane, so pi has nothing to read.
+  const promoted = artifact.id.startsWith(LOCAL_ARTIFACT_PREFIX)
+  const reference = promoted
+    ? null
+    : artifactReference(
+        piSessionId,
+        artifact.id,
+        shown.version === latest.version ? undefined : shown.version,
+      )
+  const copyReference = (): void => {
+    if (!reference) return
+    void navigator.clipboard.writeText(reference).then(
+      () =>
+        useExtensionUiStore
+          .getState()
+          .pushToast(`Copied ${reference} — paste it into a prompt to point the agent at it`),
+      (error) => useExtensionUiStore.getState().pushToast(ipcErrorText(error), 'error'),
+    )
+  }
 
   const save = async (): Promise<void> => {
     const outputPath = await window.phosphor.invoke('app:saveDialog', {
@@ -280,7 +309,20 @@ export function ArtifactWorkspace({
               ))}
             </select>
           )}
-          <CopyButton text={shown.content} className="shrink-0" />
+          <CopyButton text={shown.content} title="Copy source" className="shrink-0" />
+          <ActionIcon
+            title={
+              reference
+                ? 'Copy reference for a prompt'
+                : promoted
+                  ? 'Copy reference (not for a code block copied here; the agent cannot read it)'
+                  : 'Copy reference (available once pi reports the session)'
+            }
+            disabled={!reference}
+            onClick={copyReference}
+          >
+            <LinkIcon />
+          </ActionIcon>
           <ActionIcon
             title={remote ? 'Save source to This Mac…' : 'Save source to file…'}
             onClick={() => void save()}

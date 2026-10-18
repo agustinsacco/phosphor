@@ -66,6 +66,12 @@ describe('remarkArtifactLinks', () => {
     expect(inline(tree)[0]!.url).toBe('artifact://beacon#v2')
   })
 
+  it('links a copied cross-session reference whole, not just its session id', () => {
+    const ref = 'artifact://0f3c9a2e-1b2c-4d5e-8f90-1234567890ab/field-guide#v3'
+    const tree = transform(paragraph({ type: 'text', value: `About ${ref}.` }))
+    expect(inline(tree)[1]!.url).toBe(ref)
+  })
+
   it('leaves a code span that merely mentions a URL alone', () => {
     const tree = transform(paragraph({ type: 'inlineCode', value: 'open artifact://beacon now' }))
     expect(inline(tree)).toEqual([{ type: 'inlineCode', value: 'open artifact://beacon now' }])

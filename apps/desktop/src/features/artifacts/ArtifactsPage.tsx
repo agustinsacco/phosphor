@@ -339,6 +339,7 @@ function StoredArtifactView({
       artifact={loaded.artifact}
       list={[loaded.artifact]}
       workspacePath={loaded.listing.cwd}
+      piSessionId={loaded.listing.sessionId}
       onSelect={() => undefined}
       page={{
         leading: (

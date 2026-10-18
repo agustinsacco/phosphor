@@ -261,6 +261,14 @@ prints the _preview_ to a PDF in Downloads. The PDF prints what the preview
 renders, so it returns to the Preview tab and waits for an async render first,
 and it toasts either way — a silent success reads as a dead button.
 
+Beside **Copy source**, a chain-link **Copy reference** puts
+`artifact://<piSessionId>/<slug>` on the clipboard (with `#vN` when an older
+version is selected), for pasting into a prompt. The agent reads it with
+`artifact_read` ([extensions.md](extensions.md#the-artifact-tools-and-what-each-one-costs)), so it works in the
+lane that made the artifact and in any other lane on the same machine. It is
+disabled until pi has reported the session's id, and for a code block promoted
+into the pane, which pi never saw.
+
 **Find** has one bar and one set of toggles, and each surface points it at its
 own text:
 
