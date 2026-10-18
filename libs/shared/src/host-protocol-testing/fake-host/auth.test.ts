@@ -14,6 +14,16 @@ import {
 } from '../../host-protocol'
 import { createFakeHost, type FakeHostOptions } from '../fake-host'
 import { createLoopbackPair } from '../loopback'
+import {
+  admitIdentity,
+  authenticate,
+  authorized,
+  ready,
+  reconnectControllers,
+  scheduleExpiry,
+  verifiedGrant,
+} from './auth'
+import { createFakeHostState, type Connection, type FakeHostState, type Lane } from './state'
 
 const ISSUER = 'https://control.test'
 const HOST_ID = '00000000-0000-4000-8000-0000000000a1'
@@ -352,5 +362,251 @@ describe('renewal through createFakeHost', () => {
     )
     expect(control).toEqual(['control:f1:false', 'summary:2', 'control:f1:true', 'summary:4'])
     expect(back.types()).toEqual(['ready', 'auth-renewed'])
+  })
+})
+
+describe('auth module', () => {
+  function state(extra: Partial<FakeHostOptions> = {}) {
+    let epochs = 0
+    const verified: string[] = [],
+      signed: string[] = []
+    const s = createFakeHostState({
+      expectations: { iss: ISSUER, hostId: HOST_ID, owner: OWNER, epoch: 1 },
+      verify: (bytes, signature, kid) => {
+        verified.push(`${kid}:${signature[0]}`)
+        return signature.every((b) => b === 7)
+      },
+      sign: (bytes) => {
+        signed.push(new TextDecoder().decode(bytes))
+        return new Uint8Array(64).fill(9)
+      },
+      id: () => LANE,
+      epoch: () => `epoch-${++epochs}`,
+      ...extra,
+    })
+    return { s, verified, signed }
+  }
+  function connection(s: FakeHostState, client: GrantClient | null = null) {
+    const frames: HostFrame[] = [],
+      closes: string[] = []
+    let open = true
+    const c: Connection = {
+      socket: {
+        send: (text) => void frames.push(JSON.parse(text)),
+        close: (code, reason) => {
+          open = false
+          closes.push(`${code} ${reason}`)
+        },
+        onMessage: () => undefined,
+        onClose: () => undefined,
+        isOpen: () => open,
+        bufferedBytes: () => 0,
+      },
+      grant: client ? payload({ client }) : null,
+      subscriptions: new Map(),
+      wanted: new Set(),
+      delivered: new Set(),
+      pending: 0,
+      calls: 0,
+      stale: new Set(),
+      authTimer: setTimeout(() => closes.push('auth timeout'), 1000),
+    }
+    s.connections.add(c)
+    return { c, frames, closes }
+  }
+  const authFrame = (
+    token: string,
+    challenge?: string,
+  ): Extract<ClientFrame, { type: 'auth' }> => ({
+    type: 'auth',
+    grant: token,
+    ...(challenge === undefined ? {} : { challenge }),
+  })
+
+  it('counts a capability only when both the grant and the Host announce it', () => {
+    const { s } = state({ capabilities: ['sessions.read'] })
+    const anonymous = connection(s),
+      viewer = connection(s, FIRST)
+    expect(authorized(s, anonymous.c, 'sessions.read')).toBe(false)
+    expect(authorized(s, viewer.c, 'sessions.read')).toBe(true)
+    expect(authorized(s, viewer.c, 'sessions.control')).toBe(false)
+    viewer.c.grant = payload({ caps: ['sessions.control'] })
+    expect(authorized(s, viewer.c, 'sessions.read')).toBe(false)
+  })
+
+  it('maps signature and claim failures to their close codes and returns a valid grant', () => {
+    const { s, verified } = state()
+    const results = [
+      grant(),
+      grant({}, 8),
+      'garbled',
+      grant({ exp: SECONDS + 301 }),
+      grant({ epoch: 3 }),
+    ].map((token) => {
+      const v = connection(s)
+      return [verifiedGrant(s, v.c, token)?.client.id ?? null, v.closes.join(',')]
+    })
+    expect(results).toEqual([
+      [FIRST.id, ''],
+      [null, '4401 Invalid grant'],
+      [null, '4401 Invalid grant'],
+      [null, '4401 Grant refused'],
+      [null, '4403 Grant refused'],
+    ])
+    expect(verified).toEqual(['test-key:7', 'test-key:8', 'test-key:7', 'test-key:7'])
+    s.revokedClients.add(FIRST.id)
+    const revoked = connection(s)
+    expect(verifiedGrant(s, revoked.c, grant())).toBeNull()
+    expect(revoked.closes).toEqual(['4403 Grant refused'])
+  })
+
+  it('admits a renewal only with the same owner and client and no challenge', () => {
+    const { s } = state()
+    const outcomes = [
+      [payload(), undefined],
+      [payload({ sub: SESSION }), undefined],
+      [payload({ client: SECOND }), undefined],
+      [payload(), CHALLENGE],
+    ] as const
+    expect(
+      outcomes.map(([next, challenge]) => {
+        const v = connection(s, FIRST)
+        return `${admitIdentity(s, v.c, authFrame('t', challenge), next)} ${v.closes.join(',')}`
+      }),
+    ).toEqual([
+      'true ',
+      'false 4403 Identity changed',
+      'false 4403 Identity changed',
+      'false 4403 Identity changed',
+    ])
+  })
+
+  it('needs a non-empty first challenge and a free per-client slot among authenticated sockets', () => {
+    const { s } = state({ limits: { connectionsPerClient: 1 } })
+    const outcome = (challenge: string | undefined, client: GrantClient) => {
+      const v = connection(s)
+      return `${admitIdentity(s, v.c, authFrame('t', challenge), payload({ client }))} ${v.closes.join(',')}`
+    }
+    expect([outcome(undefined, FIRST), outcome('', FIRST), outcome(CHALLENGE, FIRST)]).toEqual([
+      'false 4401 Challenge required',
+      'false 4401 Challenge required',
+      'true ',
+    ])
+    connection(s, FIRST)
+    expect([outcome(CHALLENGE, FIRST), outcome(CHALLENGE, SECOND)]).toEqual([
+      'false 4429 Too many connections',
+      'true ',
+    ])
+  })
+
+  it('closes at exp plus the skew, immediately once past it, and replaces an earlier timer', async () => {
+    const { s } = state()
+    const v = connection(s)
+    clearTimeout(v.c.authTimer)
+    scheduleExpiry(v.c, payload({ exp: SECONDS + 1 }))
+    scheduleExpiry(v.c, payload({ exp: SECONDS + 2 }))
+    await flush(61_999)
+    expect(v.closes).toEqual([])
+    await flush(1)
+    expect(v.closes).toEqual(['4401 Grant expired'])
+    const late = connection(s)
+    scheduleExpiry(late.c, payload({ exp: SECONDS - 100 }))
+    await flush(0)
+    expect(late.closes).toEqual(['4401 Grant expired'])
+  })
+
+  it('sends ready with the proof over the current epoch and consumes one epoch per socket', () => {
+    const { s, signed } = state()
+    const v = connection(s)
+    ready(s, v.c, payload(), CHALLENGE)
+    s.epoch = 'restarted'
+    ready(s, v.c, payload(), CHALLENGE)
+    expect(v.frames.map((f) => (f.type === 'ready' ? f.connectionId : f.type))).toEqual([
+      'epoch-2',
+      'epoch-3',
+    ])
+    expect(signed).toEqual([
+      helloProofMessage(HOST_ID, 'epoch-1', CHALLENGE),
+      helloProofMessage(HOST_ID, 'restarted', CHALLENGE),
+    ])
+  })
+
+  it('reconnects only that client’s disconnected controllers, publishing control then summary', () => {
+    const { s } = state()
+    const lane = (laneId: string, clientId: string, connected: boolean, fence: number) => {
+      const l: Lane = {
+        summary: {
+          laneId,
+          repositoryId: REPOSITORY.id,
+          cwd: '/test',
+          title: null,
+          branch: null,
+          worktree: false,
+          model: null,
+          activity: 'idle',
+          createdAt: 'then',
+          updatedAt: 'then',
+          attention: 0,
+          read: 0,
+          control: { fence, controller: { clientId, label: 'x', connected } },
+        },
+        thinkingLevel: 'off',
+        sessionId: 'session',
+        seq: 0,
+        events: [],
+        replayBytes: 0,
+        messages: [],
+        pending: [],
+        dialogs: [],
+        ui: new Map(),
+      }
+      s.lanes.set(laneId, l)
+      return l
+    }
+    const away = lane('away', FIRST.id, false, 7),
+      present = lane('present', FIRST.id, true, 2),
+      other = lane('other', SECOND.id, false, 3)
+    reconnectControllers(s, payload())
+    expect(away.summary.control).toEqual({
+      fence: 7,
+      controller: { clientId: FIRST.id, label: 'x', connected: true },
+    })
+    expect(away.events.map((e) => e.event.kind)).toEqual(['control', 'summary'])
+    expect([
+      present.events.length,
+      other.events.length,
+      other.summary.control.controller?.connected,
+    ]).toEqual([0, 0, false])
+  })
+
+  it('renews without a new ready, clearing read subscriptions when read authority is gone', () => {
+    const { s, signed } = state()
+    const v = connection(s, FIRST)
+    v.c.subscriptions.set('all', { type: 'subscribe', id: 'all', topic: 'lanes' })
+    v.c.stale.add('all')
+    authenticate(s, v.c, authFrame(grant({ caps: ['sessions.read'] })))
+    expect([v.c.subscriptions.size, v.c.stale.size]).toEqual([1, 1])
+    authenticate(s, v.c, authFrame(grant({ caps: ['sessions.control'] })))
+    expect([v.c.subscriptions.size, v.c.stale.size, signed.length]).toEqual([0, 0, 0])
+    expect(v.frames.map((f) => f.type)).toEqual(['auth-renewed', 'auth-renewed'])
+    expect(v.c.grant?.caps).toEqual(['sessions.control'])
+  })
+
+  it('clears the auth deadline on a first auth and leaves a refused socket ungranted', async () => {
+    const { s } = state()
+    const v = connection(s),
+      refused = connection(s)
+    authenticate(s, v.c, authFrame(grant(), CHALLENGE))
+    authenticate(s, refused.c, authFrame(grant(), undefined))
+    await flush(1000)
+    expect([v.closes, v.frames.map((f) => f.type), v.c.grant?.client]).toEqual([
+      [],
+      ['ready'],
+      FIRST,
+    ])
+    expect([refused.closes, refused.c.grant]).toEqual([
+      ['4401 Challenge required', 'auth timeout'],
+      null,
+    ])
   })
 })

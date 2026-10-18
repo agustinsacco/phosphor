@@ -1,18 +1,9 @@
-import { CONTROL_LIMITS, isUuid } from '../control-api'
-import {
-  checkGrantClaims,
-  splitGrant,
-  grantUtf8,
-  encodeBase64url,
-  GRANT_LIMITS,
-  type GrantPayload,
-} from '../host-grant'
+import { isUuid } from '../control-api'
+import { GRANT_LIMITS } from '../host-grant'
 import {
   HOST_LIMITS,
-  HOST_PROTOCOL_VERSION,
   HOST_CALL_METHODS,
   parseClientFrame,
-  helloProofMessage,
   utf8Length,
   type FrameSocket,
   type HostFrame,
@@ -20,8 +11,8 @@ import {
   type LaneEvent,
   type AttentionEvent,
 } from '../host-protocol'
-import type { HostCapability } from '../remote-host'
 import type { ExtensionUIRequest } from '../rpc'
+import { authenticate, authorized } from './fake-host/auth'
 import { command } from './fake-host/commands'
 import { send as sendFrame } from './fake-host/delivery'
 import { prune, rejected } from './fake-host/receipts'
@@ -38,7 +29,7 @@ export type { FakeHostOptions } from './fake-host/state'
 /** In-memory executable protocol model. It never starts pi, reads disk or opens a listener. */
 export function createFakeHost(options: FakeHostOptions) {
   const state = createFakeHostState(options)
-  const { limits, caps, repositories, connections, lanes, receipts } = state
+  const { limits, repositories, connections, lanes, receipts } = state
   const { revokedSessions, revokedClients, attention, timers } = state
   const send = (c: Connection, frame: HostFrame) => sendFrame(state, c, frame)
   const snap = (lane: Lane) => streams.snapshot(state, lane)
@@ -47,107 +38,9 @@ export function createFakeHost(options: FakeHostOptions) {
   const notify = (lane: Lane, kind: AttentionEvent['kind']) =>
     streams.notify(state, sendFrame, lane, kind)
   const turn = (lane: Lane) => streams.turn(state, sendFrame, lane)
-  function authorized(c: Connection, cap: HostCapability) {
-    return c.grant?.caps.includes(cap) && caps.includes(cap)
-  }
   function handle(c: Connection, f: ClientFrame) {
     if (f.type === 'auth') {
-      let grant: GrantPayload | null = null
-      if (options.verifyGrant) grant = options.verifyGrant(f.grant)
-      else {
-        const p = splitGrant(f.grant)
-        if (p.ok && options.verify(p.value.payloadBytes, p.value.signature, p.value.payload.kid))
-          grant = p.value.payload
-      }
-      if (!grant) {
-        c.socket.close(4401, 'Invalid grant')
-        return
-      }
-      const failure = checkGrantClaims(
-        grant,
-        { ...options.expectations, revokedSessions, revokedClients },
-        Date.now() / 1000,
-        CONTROL_LIMITS.signatureSkewSec,
-      )
-      if (failure) {
-        c.socket.close(
-          failure === 'expired' || failure === 'not-yet-valid' || failure === 'lifetime'
-            ? 4401
-            : 4403,
-          'Grant refused',
-        )
-        return
-      }
-      if (c.grant) {
-        if (
-          c.grant.sub !== grant.sub ||
-          c.grant.client.id !== grant.client.id ||
-          f.challenge !== undefined
-        ) {
-          c.socket.close(4403, 'Identity changed')
-          return
-        }
-      } else {
-        if (!f.challenge) {
-          c.socket.close(4401, 'Challenge required')
-          return
-        }
-        if (
-          [...connections].filter((x) => x.grant?.client.id === grant.client.id).length >=
-          limits.connectionsPerClient
-        ) {
-          c.socket.close(4429, 'Too many connections')
-          return
-        }
-      }
-      const renewal = c.grant !== null
-      c.grant = grant
-      clearTimeout(c.authTimer)
-      clearTimeout(c.expiryTimer)
-      c.expiryTimer = setTimeout(
-        () => c.socket.close(4401, 'Grant expired'),
-        Math.max(0, (grant.exp + CONTROL_LIMITS.signatureSkewSec) * 1000 - Date.now()),
-      )
-      if (renewal) {
-        if (!authorized(c, 'sessions.read')) {
-          c.subscriptions.clear()
-          c.stale.clear()
-        }
-        send(c, { type: 'auth-renewed', grantExpiresAt: new Date(grant.exp * 1000).toISOString() })
-      } else {
-        const challenge = f.challenge ?? ''
-        send(c, {
-          type: 'ready',
-          protocolVersion: HOST_PROTOCOL_VERSION,
-          hello: {
-            hostId: options.expectations.hostId,
-            hostVersion: '0.0.0',
-            protocolVersion: 1,
-            runtimeEpoch: state.epoch,
-            capabilities: [...caps],
-          },
-          proof: encodeBase64url(
-            options.sign(
-              grantUtf8(helloProofMessage(options.expectations.hostId, state.epoch, challenge)),
-            ),
-          ),
-          connectionId: options.epoch(),
-          grantExpiresAt: new Date(grant.exp * 1000).toISOString(),
-          client: grant.client,
-          capabilities: grant.caps.filter((cap) => caps.includes(cap)),
-        })
-        for (const l of lanes.values()) {
-          const controller = l.summary.control.controller
-          if (controller?.clientId === grant.client.id && !controller.connected) {
-            l.summary = {
-              ...l.summary,
-              control: { ...l.summary.control, controller: { ...controller, connected: true } },
-            }
-            publish(l, { kind: 'control', control: l.summary.control })
-            summary(l)
-          }
-        }
-      }
+      authenticate(state, c, f)
       return
     }
     if (!c.grant) {
@@ -163,7 +56,7 @@ export function createFakeHost(options: FakeHostOptions) {
         c.stale.delete(f.id)
         break
       case 'command':
-        command(state, c, f, authorized(c, 'sessions.control') === true)
+        command(state, c, f, authorized(state, c, 'sessions.control'))
         break
       case 'receipt-status': {
         prune(state)
@@ -181,7 +74,7 @@ export function createFakeHost(options: FakeHostOptions) {
           send(c, { type: 'subscribe-failed', id: f.id, code: 'bad-request' })
           break
         }
-        if (!authorized(c, 'sessions.read')) {
+        if (!authorized(state, c, 'sessions.read')) {
           send(c, { type: 'subscribe-failed', id: f.id, code: 'forbidden' })
           break
         }
@@ -247,7 +140,7 @@ export function createFakeHost(options: FakeHostOptions) {
       case 'call': {
         const error = (code: Extract<HostFrame, { type: 'result'; ok: false }>['error']['code']) =>
           send(c, { type: 'result', id: f.id, ok: false, error: { code, message: code } })
-        if (!authorized(c, 'sessions.read')) {
+        if (!authorized(state, c, 'sessions.read')) {
           error('forbidden')
           break
         }
@@ -296,7 +189,7 @@ export function createFakeHost(options: FakeHostOptions) {
         const timer = setTimeout(() => {
           timers.delete(timer)
           c.calls--
-          if (c.socket.isOpen() && authorized(c, 'sessions.read'))
+          if (c.socket.isOpen() && authorized(state, c, 'sessions.read'))
             send(c, { type: 'result', id: f.id, ok: true, data })
         }, 0)
         timers.add(timer)
