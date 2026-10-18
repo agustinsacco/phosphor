@@ -156,7 +156,7 @@ export async function runCli(
   if (command === undefined) return usage('no command given')
   const login = command === 'providers' && extra[0] === 'login'
   const name = login ? 'providers login' : command
-  const allowed = login ? ['config'] : COMMAND_OPTIONS[command]
+  const allowed = login ? ['config'] : new Map(Object.entries(COMMAND_OPTIONS)).get(command)
   if (!allowed) return usage(`unknown command "${command}"`)
   if (login && extra.length === 1) {
     return usage('providers login needs a provider: an id phosphor providers lists, or claude')
