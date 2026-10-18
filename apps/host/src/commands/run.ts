@@ -2,6 +2,9 @@ import { createRepositories } from '../features/repositories'
 import { createLaneDeletion, transcriptTrash } from '../lanes/delete'
 import { createProviderLogins } from '../providers/login'
 import { createHostClaudeAccounts } from '../providers/accounts'
+import { createAccountMoves } from '../settings/account-moves'
+import { createMachineSettings } from '../settings/service'
+import { createMachineTasks } from '../settings/tasks'
 import { realpathSync } from 'node:fs'
 import { createAttachments, type HostAttachments } from '../features/attachments'
 import { loadHostPty } from '../terminals/native'
@@ -100,6 +103,8 @@ async function runHostCommand(context: RunContext): Promise<number> {
   let routines: HostRoutines | undefined
   let routinesStop: Promise<void> | undefined
   let nameLane: ReturnType<typeof createLaneNamer> | undefined
+  let claudeAccounts: ReturnType<typeof createHostClaudeAccounts> | undefined
+  let activeLog: ReturnType<typeof createHostLog> | undefined
   let runtime: HostRuntime | undefined
   let runtimeDrain: ReturnType<HostRuntime['drain']> | undefined
   let live: ReturnType<typeof createLiveLanes> | undefined
@@ -205,7 +210,10 @@ async function runHostCommand(context: RunContext): Promise<number> {
       },
       exitCode: (_reason, clean) =>
         !clean ? 70 : later ? 128 + constants.signals[later] : (loop?.exitCode() ?? startupExit),
-      log: { write: () => {}, hide: () => 'The Host could not finish.' },
+      log: {
+        write: (...args) => activeLog?.write(...args),
+        hide: () => 'The Host could not finish.',
+      },
     })
     initialization = (async () => {
       initAbort.signal.throwIfAborted()
@@ -252,9 +260,10 @@ async function runHostCommand(context: RunContext): Promise<number> {
       if (inspection.machine) {
         const machine = inspection.machine
         const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
+        activeLog = log
         const trash = transcriptTrash(hostStateDirectory(context.env, context.home))
         await trash.sweep().catch(() => {})
-        const claudeAccounts = createHostClaudeAccounts({
+        claudeAccounts = createHostClaudeAccounts({
           directory: stateDirectory,
           home: context.home,
           env: machine.env,
@@ -345,15 +354,44 @@ async function runHostCommand(context: RunContext): Promise<number> {
             activeTopic.repositoriesChanged()
           },
         })
+        const providerLogins = terminals
+          ? createProviderLogins(context, terminals, undefined, claudeAccounts)
+          : undefined
+        const settings = createMachineSettings({
+          context: featureContext,
+          configPath: config.path,
+          env: machine.env,
+          store,
+          runtime: activeRuntime,
+          accounts: claudeAccounts,
+          pi: machine.pi,
+          authenticating: () => providerLogins?.active() ?? false,
+          sessionFor: live.sessionFor,
+        })
         commands = createLaneCommands({
+          moveClaudeAccount: createAccountMoves({
+            accounts: claudeAccounts,
+            runtime,
+            store,
+            binding,
+          }),
           repositories,
+          machineTasks: terminals
+            ? createMachineTasks({
+                terminals,
+                settings,
+                home: context.home,
+                env: machine.env,
+                pi: machine.pi,
+              })
+            : undefined,
           deleteLane: createLaneDeletion({
             store,
             stop: binding.deleteStop,
             remove: runtime.remove,
             forget: live.forget,
           }),
-          providerLogins: terminals ? createProviderLogins(context, terminals) : undefined,
+          providerLogins,
           attachments,
           terminals,
           writes: createWrites(featureContext),
@@ -370,13 +408,17 @@ async function runHostCommand(context: RunContext): Promise<number> {
           log: log.write,
         })
         const features = [
+          settings.feature,
           repositories.feature,
           ...(terminals ? [terminals.feature] : []),
           routines.feature,
           createFilesFeature(featureContext),
           createGitFeature(featureContext),
           // Machine reads inspect the config this Host actually runs with, not the default path.
-          createSkillsFeature(featureContext, { configPath: config.path }),
+          createSkillsFeature(featureContext, {
+            configPath: config.path,
+            claudeAuthentication: claudeAccounts.authenticationReady,
+          }),
           createArtifactsFeature({ ...featureContext, store }),
         ]
         const calls = createLaneCalls({
@@ -465,7 +507,12 @@ async function runHostCommand(context: RunContext): Promise<number> {
               config.config,
               context.env,
               context.platform,
-              context.heartbeat?.readinessPorts ?? readinessPorts,
+              {
+                ...(context.heartbeat?.readinessPorts ?? readinessPorts),
+                ...(claudeAccounts
+                  ? { claudeAuthentication: claudeAccounts.authenticationReady }
+                  : {}),
+              },
               (found) => {
                 endpoint = found.endpoint
                 if (routeState !== found.state) {

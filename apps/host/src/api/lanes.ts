@@ -31,6 +31,7 @@ export function createLaneAdapter(
   function handler(connection: ReadyConnection): AuthenticatedHandler {
     const { socket, connectionId, client } = connection
     let caps = connection.caps
+    let authorizationEpoch = 0
     let closed = false
     let inFlight = 0
     const pending = new Set<string>()
@@ -102,7 +103,11 @@ export function createLaneAdapter(
       }
     }
     function renew(next: readonly HostCapability[]) {
+      const lostConfiguration =
+        caps.includes('machine.configure') && !next.includes('machine.configure')
+      if (lostConfiguration) authorizationEpoch++
       caps = next
+      if (lostConfiguration) service.terminals?.authorizationChanged()
       if (!caps.includes('terminal') || !caps.includes('sessions.control'))
         service.terminals?.presence(client.id, true, true)
       if (!caps.includes('terminal')) {
@@ -159,7 +164,8 @@ export function createLaneAdapter(
           const accepted =
             caps.includes('terminal') &&
             caps.includes('sessions.control') &&
-            (service.terminals?.input(client.id, frame) ?? false)
+            (service.terminals?.input(client.id, frame, caps.includes('machine.configure')) ??
+              false)
           send({ type: 'terminal.ack', terminalId: frame.terminalId, seq: frame.seq, accepted })
         } else if (frame.type === 'subscribe' && frame.topic === 'terminal') {
           if (!caps.includes('terminal'))
@@ -170,6 +176,7 @@ export function createLaneAdapter(
               if (caps.includes('terminal')) send(f)
             },
             caps.includes('sessions.control') ? client.id : undefined,
+            () => !closed && caps.includes('machine.configure'),
           )
           if (unsubscribe) {
             if (closed) unsubscribe()
@@ -215,11 +222,17 @@ export function createLaneAdapter(
           options.log?.('api.command', { ...traceFields, op: frame.op.type })
           pending.add(frame.requestId)
           interest(frame.requestId, 'command')
+          const admittedEpoch = authorizationEpoch
           const sender = {
             id: client.id,
             label: client.label,
             caps,
-            currentCaps: () => (closed ? [] : caps),
+            currentCaps: () =>
+              closed
+                ? []
+                : authorizationEpoch !== admittedEpoch
+                  ? caps.filter((cap) => cap !== 'machine.configure')
+                  : caps,
             connectionId,
           }
           void (async () => {
@@ -241,11 +254,16 @@ export function createLaneAdapter(
             })
           if (inFlight >= pendingCommandsPerConnection) return stop()
           inFlight++
+          const admittedEpoch = authorizationEpoch
+          const authorized = () =>
+            !closed &&
+            socket.isOpen() &&
+            (capability !== 'machine.configure' || admittedEpoch === authorizationEpoch) &&
+            (capability === null || caps.includes(capability))
           void (async () => {
             try {
-              const outcome = await service.calls.call(frame.method, frame.params)
-              if (closed || !socket.isOpen() || (capability !== null && !caps.includes(capability)))
-                return
+              const outcome = await service.calls.call(frame.method, frame.params, authorized)
+              if (!authorized()) return
               const result: HostFrame = { type: 'result', id: frame.id, ...outcome }
               if (Buffer.byteLength(JSON.stringify(result)) > limits.outboundFrameBytes)
                 send({
@@ -256,7 +274,7 @@ export function createLaneAdapter(
                 })
               else send(result)
             } catch {
-              if (!closed && socket.isOpen() && (capability === null || caps.includes(capability)))
+              if (authorized())
                 send({
                   type: 'result',
                   id: frame.id,

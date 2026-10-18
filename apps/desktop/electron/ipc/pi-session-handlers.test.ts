@@ -65,6 +65,9 @@ vi.mock('../pi/health', async (original) => ({
 }))
 vi.mock('../pi/stub', () => ({ piStubPath: () => undefined }))
 vi.mock('../pi/shell-env', () => ({ piProcessEnv: vi.fn().mockResolvedValue({ PATH: '/bin' }) }))
+vi.mock('@phosphor/session-runtime/pi/resume-provider', () => ({
+  resumeProvider: vi.fn(async () => undefined),
+}))
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: state.listPackages }))
 vi.mock('../pi/compaction-reset', () => ({ ensureCompactionReset: state.ensureCompactionReset }))
 vi.mock('../pi/print-mode', () => ({ runPrintMode: state.runPrintMode }))

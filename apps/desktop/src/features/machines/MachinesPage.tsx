@@ -15,6 +15,8 @@ import { HealthBadge } from './HealthBadge'
 import { LocalMachineDetail, useThisComputer } from './LocalMachine'
 import { HostGuide, HostSetup } from './MachineControls'
 import { MachineDetail } from './MachineDetail'
+import { MachineSettings } from './MachineSettings'
+import { confirmSettingsNavigation } from './machineSettingsDrafts'
 import { MachineList } from './MachineList'
 import { machineHeadline } from './machineReachability'
 import { LOCAL_MACHINE } from './machinePresentation'
@@ -66,7 +68,8 @@ export function MachinesPage(): React.JSX.Element {
   const machine = state.machines.find((entry) => entry.id === selected)
   const local = selected === LOCAL_MACHINE
   const now = state.nowMs || Date.now()
-  const back = (): void => {
+  const back = async (): Promise<void> => {
+    if (selected && !(await confirmSettingsNavigation(selected))) return
     state.show({ kind: 'list' })
     setError(null)
   }
@@ -216,9 +219,52 @@ export function MachinesPage(): React.JSX.Element {
               <LocalMachineDetail computer={computer} />
             ) : machine && signedIn ? (
               <MachineDetail
+                key={machine.id}
                 machine={machine}
                 now={now}
                 offset={state.clockOffsetMs}
+                navigation={
+                  <nav aria-label="Machine views" className="border-border flex gap-5 border-b">
+                    <TooltipButton
+                      tooltip="Machine readiness and diagnostics"
+                      aria-current={
+                        state.view.kind === 'machine' && !state.view.settings ? 'page' : undefined
+                      }
+                      className={`pb-2 text-base ${state.view.kind === 'machine' && !state.view.settings ? 'border-accent border-b-2' : 'text-text-secondary'}`}
+                      onClick={() =>
+                        void (async () => {
+                          if (await confirmSettingsNavigation(machine.id))
+                            state.show({ kind: 'machine', id: machine.id })
+                        })()
+                      }
+                    >
+                      Overview
+                    </TooltipButton>
+                    <TooltipButton
+                      tooltip={`Configure ${machine.label}`}
+                      aria-label="Machine settings"
+                      aria-current={
+                        state.view.kind === 'machine' && state.view.settings ? 'page' : undefined
+                      }
+                      className={`pb-2 text-base ${state.view.kind === 'machine' && state.view.settings ? 'border-accent border-b-2' : 'text-text-secondary'}`}
+                      onClick={() => {
+                        if (state.view.kind === 'machine' && state.view.settings) return
+                        state.show({ kind: 'machine', id: machine.id, settings: 'providers' })
+                      }}
+                    >
+                      Settings
+                    </TooltipButton>
+                  </nav>
+                }
+                settings={
+                  state.view.kind === 'machine' && state.view.settings ? (
+                    <MachineSettings
+                      key={machine.id}
+                      machine={machine}
+                      section={state.view.settings}
+                    />
+                  ) : undefined
+                }
                 onRemove={() => {
                   setError(null)
                   setRemoving(machine)

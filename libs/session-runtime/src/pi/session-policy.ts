@@ -3,6 +3,7 @@ import { CONTEXT_FILES_ENV, contextFilesEnvValue } from '@shared/context-files'
 import type { MachineContext } from './machine-prompt'
 import { composeDirectives } from './directives'
 import { assertClaudeContextProvider, usesClaudeCliProvider } from './provider-detect'
+import { resumeProvider } from './resume-provider'
 import type { PiSpawnOptions } from './rpc-client'
 import type { prepareSessionLaunch } from './session-launch'
 
@@ -52,10 +53,18 @@ export async function prepareSessionPolicy(
       ? { charter: { branch: git.branch } }
       : {}),
   })
-  // Conservative prediction here; command admission also checks the resolved model.
+  // A resumed transcript restores its own model, even after machine defaults change.
+  // Explicit CLI model/provider options still take precedence, as they do in pi.
+  const restored =
+    !stub && options.sessionPath && !options.provider && !options.model
+      ? await resumeProvider(options.sessionPath)
+      : undefined
   const claudeProvider = stub
     ? false
-    : usesClaudeCliProvider(options, await runtime.defaultProvider(options.workspacePath))
+    : usesClaudeCliProvider(
+        options,
+        restored ?? (await runtime.defaultProvider(options.workspacePath)),
+      )
   if (claudeProvider) assertClaudeContextProvider(await runtime.packages(options.workspacePath))
   // Credential selection is fixed for the process lifetime, including resumed sessions.
   const account = claudeProvider

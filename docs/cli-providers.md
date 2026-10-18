@@ -214,6 +214,29 @@ A Host refuses a Claude spawn on invalid account metadata rather than silently
 billing the default credential. Concurrent round-robin starts serialize cursor
 selection within their execution machine.
 
+The Host's accounts are managed in **Machines → Host → Settings → Providers**.
+Its selected account also feeds readiness and `doctor`; inspection never advances
+the routing cursor. Claude CLI default sign-in and a private selected account are
+distinct. Reauthentication runs in a fresh credential slot so running processes
+retain their original environment. The same email and organization adopts the
+new slot without changing account id or transcript bindings; a different
+organization gets a separate, distinguishable account. The initial default
+account records its organization too, rather than following a later login's
+global organization setting.
+
+Resumes derive the provider from the selected transcript branch, including the
+last assistant's model, before selecting credentials. Today's global defaults
+cannot redirect an older Claude lane to the CLI default. Inspection is read-only
+and bounded to 64 MiB/200,000 entries; an unreadable, oversized or cyclic session
+fails closed rather than guessing its billing provider. Project defaults are
+considered only when pi trusts the folder. Account moves explicitly stop and
+resume a saved Claude lane under its current fence, rechecking authorization
+before binding and spawn. They send no automatic prompt, can interrupt work and
+incur transcript re-read cost, and may leave a lane stopped after a partial
+failure. Cooldowns guide future starts, not automatic mid-turn switching; when
+all readings are held, the shared selector treats those cached readings as
+advisory rather than refusing every start.
+
 Settings → **Accounts** (`tabs/AccountsTab.tsx`) lists the providers pi can
 sign into: `openai-codex`, `anthropic`, `github-copilot`, `kimi-for-coding` as
 subscriptions, then `xai`, `openrouter`, `radius` as per-token balances. Each

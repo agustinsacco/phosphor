@@ -199,7 +199,12 @@ const respond = (cmd, data) =>
   out({ id: cmd.id, type: 'response', command: cmd.type, success: true, data })
 const fail = (cmd, error) =>
   out({ id: cmd.id, type: 'response', command: cmd.type, success: false, error })
-const text = (value) => ({ role: 'assistant', content: [{ type: 'text', text: value }] })
+const text = (value) => ({
+  role: 'assistant',
+  provider: state().model.provider,
+  model: state().model.id,
+  content: [{ type: 'text', text: value }],
+})
 
 const header = () =>
   JSON.stringify({
@@ -210,11 +215,29 @@ const header = () =>
     cwd: process.cwd(),
   })
 
+function persistModel() {
+  const model = state().model
+  const entryId = randomUUID()
+  appendFileSync(
+    sessionFile,
+    JSON.stringify({
+      type: 'model_change',
+      id: entryId,
+      parentId: lastEntryId,
+      timestamp: new Date().toISOString(),
+      provider: model.provider,
+      modelId: model.id,
+    }) + '\n',
+  )
+  lastEntryId = entryId
+}
+
 /** Native JSONL entries form one parent-linked chain, including tools and names. */
 function persist(message) {
   if (!existsSync(sessionFile)) {
     mkdirSync(dirname(sessionFile), { recursive: true })
     appendFileSync(sessionFile, header() + '\n')
+    persistModel()
     if (flag('-n')) {
       const entryId = randomUUID()
       appendFileSync(
@@ -453,11 +476,17 @@ function prompt(message, images = []) {
     /recall/i.test(message) && !process.env.FAKE_PI_FORGET
       ? messages.flatMap((m) => JSON.stringify(m.content).match(/PHX-[A-Za-z0-9]+/g) ?? [])
       : /PHX-[A-Za-z0-9]+/.exec(message)
-  const reply = /PHX-hostinputs/.test(message)
-    ? attachmentReply(message, images)
-    : /links/i.test(message)
-      ? `[${laneMarker()} guide](nested/guide.md#L2) [absolute](${join(process.cwd(), 'remote.txt')}) [outside](/etc/passwd)`
-      : (process.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
+  const credentialFile =
+    process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR &&
+    join(process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR, 'fixture-auth.json')
+  const reply =
+    message === 'CLAUDE_BILLING_AFFINITY'
+      ? `HOST_A_ONLY billing ${credentialFile && existsSync(credentialFile) ? JSON.parse(readFileSync(credentialFile, 'utf8')).email : 'no isolated credential'}`
+      : /PHX-hostinputs/.test(message)
+        ? attachmentReply(message, images)
+        : /links/i.test(message)
+          ? `[${laneMarker()} guide](nested/guide.md#L2) [absolute](${join(process.cwd(), 'remote.txt')}) [outside](/etc/passwd)`
+          : (process.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
   delta(reply)
   if (process.env.FAKE_PI_TURN === 'fail' || /fail-turn|auth-error/.test(message)) {
     const error = /auth-error/.test(message)
@@ -472,15 +501,24 @@ function prompt(message, images = []) {
 }
 
 /** What get_state reports. */
-let selectedModel
-let selectedThinking
-let selectedName = existsSync(sessionFile)
+const savedEntries = existsSync(sessionFile)
   ? readFileSync(sessionFile, 'utf8')
       .split('\n')
       .filter(Boolean)
       .map((line) => JSON.parse(line))
-      .findLast((entry) => entry.type === 'session_info')?.name
+  : []
+const savedModel = savedEntries.findLast((entry) => entry.type === 'model_change')
+let selectedModel = savedModel
+  ? {
+      ...models.find(
+        (model) => model.provider === savedModel.provider && model.id === savedModel.modelId,
+      ),
+      provider: savedModel.provider,
+      id: savedModel.modelId,
+    }
   : undefined
+let selectedThinking
+let selectedName = savedEntries.findLast((entry) => entry.type === 'session_info')?.name
 function state() {
   return {
     model: selectedModel ?? {
@@ -630,6 +668,7 @@ function handle(cmd) {
       selectedModel = models.find(
         (model) => model.provider === cmd.provider && model.id === cmd.modelId,
       ) ?? { provider: cmd.provider, id: cmd.modelId, contextWindow: 200000 }
+      if (existsSync(sessionFile)) persistModel()
       return respond(cmd, selectedModel)
     case 'set_thinking_level':
       selectedThinking = cmd.level
@@ -639,6 +678,7 @@ function handle(cmd) {
       if (!existsSync(sessionFile)) {
         mkdirSync(dirname(sessionFile), { recursive: true })
         appendFileSync(sessionFile, header() + '\n')
+        persistModel()
       }
       const entryId = randomUUID()
       appendFileSync(

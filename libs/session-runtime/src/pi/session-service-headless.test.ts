@@ -10,7 +10,10 @@ it('executes the complete session service in a plain Node subprocess', async () 
   const dir = await mkdtemp(join(tmpdir(), 'phosphor-headless-'))
   try {
     const session = join(dir, 'session.jsonl')
-    await writeFile(session, JSON.stringify({ type: 'session', cwd: dir }) + '\n')
+    await writeFile(
+      session,
+      JSON.stringify({ type: 'session', version: 3, id: 'fixture-session', cwd: dir }) + '\n',
+    )
     const library = resolve(import.meta.dirname, '../..')
     const bundle = await build({
       absWorkingDir: library,

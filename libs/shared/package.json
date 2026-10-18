@@ -120,6 +120,14 @@
       "types": "./src/ipc.ts",
       "default": "./src/ipc.ts"
     },
+    "./machine-settings-result": {
+      "types": "./src/machine-settings-result.ts",
+      "default": "./src/machine-settings-result.ts"
+    },
+    "./machine-settings": {
+      "types": "./src/machine-settings.ts",
+      "default": "./src/machine-settings.ts"
+    },
     "./mcp": {
       "types": "./src/mcp.ts",
       "default": "./src/mcp.ts"

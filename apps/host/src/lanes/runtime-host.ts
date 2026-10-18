@@ -155,7 +155,7 @@ export function createRuntimeLanes(options: {
         await stop(sessionId)
       }
     },
-    async stopLane(laneId: string) {
+    async stopLane(laneId: string, authorized: () => boolean = () => true) {
       const sessionId = live.sessionFor(laneId)
       if (sessionId !== null) {
         const state = await learnFile(laneId, sessionId)
@@ -171,6 +171,7 @@ export function createRuntimeLanes(options: {
           throw Object.assign(new Error('Send a first message before stopping this lane.'), {
             code: 'first-prompt-required',
           })
+        if (!authorized()) throw new Error('Lane control changed.')
         await stop(sessionId)
       }
     },

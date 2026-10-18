@@ -3,6 +3,48 @@ import type { remoteHostFixture } from './remote-host'
 
 export type RemoteFixture = Awaited<ReturnType<typeof remoteHostFixture>>
 
+export async function openMachineSettings(h: RemoteFixture, section = 'Providers') {
+  if (!(await h.page.getByTestId('machines-page').isVisible()))
+    await h.page.getByRole('button', { name: 'Machines', exact: true }).click()
+  await expect(h.page.getByTestId('machines-page')).toBeVisible()
+  await expect
+    .poll(
+      async () =>
+        (await h.page.getByTestId('machine-detail').count()) +
+        (await h.page.getByTestId('enrolled-machine-row').count()),
+    )
+    .toBeGreaterThan(0)
+  if (await h.page.getByTestId('enrolled-machine-row').count())
+    await h.page.getByTestId('enrolled-machine-row').click()
+  await h.page.getByRole('button', { name: 'Machine settings', exact: true }).click()
+  const settings = h.page.getByTestId('machine-settings')
+  await expect
+    .poll(
+      async () =>
+        (await h.page.evaluate(() => window.phosphor.invoke('hosts:snapshot')))[h.hostId]?.state,
+    )
+    .toBe('ready')
+  const snapshot = await h.page.evaluate(() => window.phosphor.invoke('hosts:snapshot'))
+  if (!snapshot[h.hostId]?.capabilities.includes('machine.configure')) {
+    await settings.getByRole('button', { name: 'Enable configuration access', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Enable for bee1', exact: true }).click()
+  }
+  await settings
+    .getByRole('navigation', { name: 'Machine settings', exact: true })
+    .getByRole('button', { name: 'Providers', exact: true })
+    .click()
+  await expect(settings.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible({
+    timeout: 30_000,
+  })
+  if (section !== 'Providers')
+    await settings
+      .getByRole('navigation', { name: 'Machine settings', exact: true })
+      .getByRole('button', { name: section, exact: true })
+      .click()
+  await expect(settings.getByRole('heading', { name: section, exact: true })).toBeVisible()
+  return settings
+}
+
 export async function openRemote(h: RemoteFixture, title = 'Remote test lane') {
   const switcher = h.page.getByRole('button', { name: 'Machine filter', exact: true })
   await switcher.click()

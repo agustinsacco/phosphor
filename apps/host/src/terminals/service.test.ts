@@ -67,7 +67,10 @@ function setup(native?: HostPtyModule) {
     native: native ?? { spawn },
     context: {
       store: {
-        getLane: (id) => lanes.get(id) ?? null,
+        getLane: (id) => {
+          if (!id) throw new Error('Invalid Host state input.')
+          return lanes.get(id) ?? null
+        },
         listRepositories: () => [{ id: 'a'.repeat(16), name: 'repo', path: root }],
       },
       env: {},
@@ -109,6 +112,47 @@ async function create(f: ReturnType<typeof setup>, laneId: string) {
   return result.terminalId
 }
 describe('Host terminals', () => {
+  it('keeps configuration-program output and input behind configuration authority, even for the same client', async () => {
+    const f = setup()
+    let id = ''
+    let configured = true
+    const work = f.service.loginRunner(
+      controller,
+      (value) => {
+        id = value
+      },
+      true,
+    )('/trusted/pi', [], { cwd: root, env: {} })
+    const sub = {
+      type: 'subscribe' as const,
+      topic: 'terminal' as const,
+      id: 'private',
+      terminalId: id,
+    }
+    const forbidden: TerminalFrame[] = []
+    expect(f.service.subscribe(sub, (frame) => forbidden.push(frame), controller)).toBeNull()
+    expect(forbidden).toEqual([])
+    const frames: TerminalFrame[] = []
+    const drop = f.service.subscribe(
+      sub,
+      (frame) => frames.push(frame),
+      controller,
+      () => configured,
+    )
+    expect(drop).not.toBeNull()
+    f.data('PRIVATE-CALLBACK')
+    expect(JSON.stringify(frames)).toContain('PRIVATE-CALLBACK')
+    const input = { type: 'terminal.input' as const, terminalId: id, seq: 1, data: 'private code' }
+    expect(f.service.input(controller, input)).toBe(false)
+    expect(f.service.input(controller, input, true)).toBe(true)
+    configured = false
+    frames.length = 0
+    f.data('SECRET-AFTER-REVOCATION')
+    expect(frames).toEqual([])
+    f.service.machineOp(controller, { type: 'terminal.kill', terminalId: id })
+    await work
+    expect(f.pty.kill).toHaveBeenCalledOnce()
+  })
   it('uses only Host shell/environment/cwd and isolates lane mutations', async () => {
     const f = setup()
     const a = lane()
@@ -342,7 +386,7 @@ describe('Host terminal exit codes', () => {
     const frames = watch(live, watched.terminalId, owner)
     live.exitWith(2)
     expect(exits(frames)).toEqual([2])
-    expect(await watched.run).toEqual({ code: null })
+    expect(await watched.run).toEqual({ code: 2 })
     const early = setup()
     const unwatched = login(early, owner)
     early.exitWith(2)
@@ -360,5 +404,40 @@ describe('Host terminal exit codes', () => {
     expect(exits(frames)).toEqual([-1])
     expect(frames.every((frame) => parseTerminalFrame(frame) !== null)).toBe(true)
   })
+})
+it('stops only configuration programs when their admitted authorization is lost', async () => {
+  const f = setup()
+  const owner = randomUUID()
+  let authorized = true
+  let id = ''
+  const run = f.service.loginRunner(
+    owner,
+    (value) => {
+      id = value
+    },
+    true,
+    false,
+    () => authorized,
+  )('/host/program', [], { cwd: root, env: {} })
+  let legacyId = ''
+  void f.service.loginRunner(owner, (value) => {
+    legacyId = value
+  })('/bin/sh', [], { cwd: root, env: {} })
+  authorized = false
+  f.service.authorizationChanged()
+  expect(await run).toEqual({ code: null })
+  expect(f.pty.kill).toHaveBeenCalledTimes(1)
+  authorized = true
+  expect(
+    f.service.input(owner, { type: 'terminal.input', terminalId: id, seq: 1, data: 'late' }, true),
+  ).toBe(false)
+  expect(
+    f.service.input(owner, {
+      type: 'terminal.input',
+      terminalId: legacyId,
+      seq: 1,
+      data: 'still authorized',
+    }),
+  ).toBe(true)
 })
 afterAll(() => rmSync(root, { recursive: true, force: true }))

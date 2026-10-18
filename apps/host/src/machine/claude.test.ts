@@ -66,6 +66,17 @@ describe('the Claude lane', () => {
       available: false,
       reason: 'claude is not logged in: phosphor providers login claude',
     })
+    const selected = await checkClaudeLane([provider('0.10.0')], {
+      ...env,
+      env: { ...env.env, CLAUDE_SECURESTORAGE_CONFIG_DIR: '/host/private-account' },
+    })
+    expect(selected).toMatchObject({
+      available: false,
+      reason: expect.stringContaining('Settings → Providers'),
+    })
+    expect(selected).not.toMatchObject({
+      reason: expect.stringContaining('phosphor providers login'),
+    })
     const bare = { env: { PATH: '/usr/bin:/bin' }, secrets: [] }
     expect(await checkClaudeLane([provider('0.10.0')], bare)).toEqual({
       available: false,

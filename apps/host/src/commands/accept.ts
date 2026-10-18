@@ -16,6 +16,8 @@ import { createHostLog, hostLogDirectory } from '../machine/log'
 import { DRAIN, isGone, type DrainResult, type DrainTimings } from '../session/lifecycle'
 import { parseSessionRequest, type HostSessionRequest } from '../session/request'
 import { createHostRuntime, type HostRuntime } from '../session/runtime'
+import { createHostClaudeAccounts } from '../providers/accounts'
+import { hostStateDirectory } from '../lanes/state-dir'
 import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
 import type { Drainable } from '../shutdown'
 import { HOST_SOURCE_SHA, HOST_VERSION } from '../version'
@@ -173,7 +175,12 @@ export async function runAccept(context: AcceptContext): Promise<AcceptOutcome> 
   // holds a passed XDG_STATE_HOME or HOME, whose value counts as a secret.
   const progress = (line: string) => context.progress(log.hide(line))
   progress(`log: ${log.path() ?? 'unavailable'}`)
-  const runtime = createHostRuntime({ ...machine, log }, { timings: drainTimings })
+  const claudeAccounts = createHostClaudeAccounts({
+    directory: hostStateDirectory(context.env, context.home),
+    home: context.home,
+    env: machine.env,
+  })
+  const runtime = createHostRuntime({ ...machine, log }, { timings: drainTimings, claudeAccounts })
   const detach = context.attach?.({ drain: runtime.drain, log }) ?? (() => {})
   log.write('host', 'accept', { config: report.config.path, lane: context.lane })
 
@@ -307,8 +314,9 @@ async function runLane(
       progress(`${lane}: ${name} FAILED: ${detail}`)
       throw new StepFailed(detail)
     }
-    result.steps.push({ name, ok: true, ms: Date.now() - started })
-    progress(`${lane}: ${name} ok (${Date.now() - started} ms)`)
+    const ms = Date.now() - started
+    result.steps.push({ name, ok: true, ms })
+    progress(`${lane}: ${name} ok (${ms} ms)`)
   }
   /** Send a command; pi must answer by `by`, which defaults to answerMs from now. */
   const call = <K extends RpcCommandType>(

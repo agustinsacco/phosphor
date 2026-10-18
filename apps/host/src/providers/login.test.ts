@@ -7,6 +7,7 @@ import { createTerminals } from '../terminals/service'
 import type { TerminalFrame } from '@phosphor/shared/host-protocol-terminals'
 import { PROVIDER_LOGIN_LIMITS } from '@phosphor/shared/host-protocol-providers'
 import { createProviderLogins } from './login'
+import { DEFAULT_CLAUDE_ACCOUNT_PREFS } from '@phosphor/shared/models'
 import { createLaneAdapter } from '../api/lanes'
 import { createLaneStreams, createLanesTopic } from '../lanes/stream'
 import { createLoopbackPair } from '@phosphor/shared/host-protocol-testing'
@@ -38,7 +39,11 @@ const fakeLogin: typeof runProviderLogin = async (ctx) => {
   })
   return { exitCode: 0, problem: 'test' }
 }
-function setup(login: typeof runProviderLogin = fakeLogin, ctx = context) {
+function setup(
+  login: typeof runProviderLogin = fakeLogin,
+  ctx = context,
+  accounts?: Parameters<typeof createProviderLogins>[3],
+) {
   const data: ((text: string) => void)[] = []
   const exits: (() => void)[] = []
   const ptys: {
@@ -79,12 +84,88 @@ function setup(login: typeof runProviderLogin = fakeLogin, ctx = context) {
     save,
   })
   cleanups.push(terminals.close)
-  const service = createProviderLogins(ctx, terminals, login)
+  const service = createProviderLogins(ctx, terminals, login, accounts)
   const owner = randomUUID()
   const start = (provider = 'xai', authorized = () => true) =>
     service.execute({ type: 'provider.login', provider }, owner, authorized)
   return { service, terminals, spawn, data, exits, ptys, log, save, start, owner }
 }
+it('reauthenticates in a fresh Host credential slot, never overwriting a running account’s credential', async () => {
+  const target = {
+    id: randomUUID(),
+    env: { CLAUDE_SECURESTORAGE_CONFIG_DIR: '/host/private/new-account' },
+  }
+  const account = { id: 'default', label: 'Original', credentialDir: null, addedAt: 0 }
+  let finishWrite = () => {}
+  const written = new Promise<void>((resolve) => {
+    finishWrite = resolve
+  })
+  const accounts = {
+    loadAccounts: vi.fn(async () => ({ ...DEFAULT_CLAUDE_ACCOUNT_PREFS, accounts: [account] })),
+    beginAddAccount: vi.fn(async () => target),
+    finishAddAccount: vi.fn(async () => {
+      await written
+      return account
+    }),
+    withAuthorization: async <T>(_allowed: () => boolean, run: () => Promise<T>) => run(),
+  }
+  const f = setup(
+    async (ctx) => {
+      expect(ctx.credentialEnv).toEqual(target.env)
+      return fakeLogin(ctx)
+    },
+    context,
+    accounts,
+  )
+  const result = await f.service.execute(
+    { type: 'provider.login', provider: 'claude', accountId: 'default' },
+    f.owner,
+    () => true,
+  )
+  expect(
+    f.terminals.subscribe(
+      { type: 'subscribe', topic: 'terminal', id: 'no-config', terminalId: result.terminalId },
+      vi.fn(),
+      f.owner,
+    ),
+  ).toBeNull()
+  expect(account.credentialDir).toBeNull()
+  const frames: TerminalFrame[] = []
+  f.terminals.subscribe(
+    { type: 'subscribe', topic: 'terminal', id: 'verified', terminalId: result.terminalId },
+    (frame) => frames.push(frame),
+    f.owner,
+    () => true,
+  )
+  f.exits[0]?.()
+  await vi.waitFor(() => expect(accounts.finishAddAccount).toHaveBeenCalledWith(target.id))
+  expect(frames.some((frame) => frame.type === 'terminal.exit')).toBe(false)
+  finishWrite()
+  await vi.waitFor(() =>
+    expect(frames.some((frame) => frame.type === 'terminal.exit' && frame.exitCode === 0)).toBe(
+      true,
+    ),
+  )
+  expect(f.service.active()).toBe(false)
+})
+
+it('bounds configuration sign-in programs to fifteen minutes', async () => {
+  vi.useFakeTimers()
+  const f = setup()
+  try {
+    await f.service.execute(
+      { type: 'provider.login', provider: 'openai-codex', configure: true },
+      f.owner,
+      () => true,
+    )
+    await vi.advanceTimersByTimeAsync(15 * 60_000 + 1)
+    expect(f.ptys[0]?.kill).toHaveBeenCalledOnce()
+    expect(f.service.active()).toBe(false)
+  } finally {
+    f.terminals.close()
+    vi.useRealTimers()
+  }
+})
 it('uses the CLI allowlist and fixed program options, and deletes its empty cwd after exit', async () => {
   const machine = fakeMachine()
   cleanups.push(machine.cleanup)

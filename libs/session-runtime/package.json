@@ -20,6 +20,10 @@
       "types": "./src/claude/usage.ts",
       "default": "./src/claude/usage.ts"
     },
+    "./pi/mcp-config": {
+      "types": "./src/pi/mcp-config.ts",
+      "default": "./src/pi/mcp-config.ts"
+    },
     "./pi/print-mode": {
       "types": "./src/pi/print-mode.ts",
       "default": "./src/pi/print-mode.ts"
@@ -103,6 +107,10 @@
     "./pi/provider-detect": {
       "types": "./src/pi/provider-detect.ts",
       "default": "./src/pi/provider-detect.ts"
+    },
+    "./pi/resume-provider": {
+      "types": "./src/pi/resume-provider.ts",
+      "default": "./src/pi/resume-provider.ts"
     },
     "./pi/rpc-client": {
       "types": "./src/pi/rpc-client.ts",

@@ -1,4 +1,5 @@
 import { hostname, type as osType } from 'node:os'
+import { AsyncLocalStorage } from 'node:async_hooks'
 import type { MachineContext } from '@phosphor/shared/machine-prompt'
 import { existsSync, realpathSync } from 'node:fs'
 import { lstat, realpath, unlink } from 'node:fs/promises'
@@ -19,7 +20,7 @@ import { gitInfo } from '@phosphor/session-runtime/git/git-info'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { createContextBudgetRuntime } from '@phosphor/session-runtime/pi/context-budget'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
-import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
+import { piAgentDir, piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { claudeProviderSpawnEnv } from '@phosphor/session-runtime/pi/provider-detect'
 import { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import { createSessionDeletion } from '@phosphor/session-runtime/pi/session-deletion'
@@ -102,6 +103,8 @@ export function createHostRuntime(
   } = {},
 ) {
   const { log } = machine
+  const agentDir = piAgentDir(machine.env)
+  const authorization = new AsyncLocalStorage<() => boolean>()
   const roots = [...machine.roots]
   const machineContext: Extract<MachineContext, { kind: 'host' }> = {
     kind: 'host',
@@ -170,8 +173,8 @@ export function createHostRuntime(
         agentDirectives: DEFAULT_AGENT_DIRECTIVES,
         agentDirectivesByProject: {},
       }),
-      defaultProvider: async (cwd) => (await readAgentSettings(cwd)).defaultProvider,
-      packages: listPackages,
+      defaultProvider: async (cwd) => (await readAgentSettings(cwd, agentDir)).defaultProvider,
+      packages: (cwd) => listPackages(cwd, agentDir),
       account: async (selection) => {
         const account = await options.claudeAccounts?.accountForSpawn(selection)
         return account ? { id: account.id, env: claudeAccountEnv(account) } : null
@@ -207,6 +210,7 @@ export function createHostRuntime(
     registry,
     paths,
     spawn: (spawnOptions, delivery = ignore, execution) => {
+      if (authorization.getStore()?.() === false) throw new Error('Lane control changed.')
       started.add(delivery)
       // A push arrives inside pi's output handler: a delivery that throws must not take the Host down.
       const sink = (sessionId: string) => (push: SessionPush) => {
@@ -228,7 +232,7 @@ export function createHostRuntime(
       return spawn(spawnOptions, sink, execution)
     },
     isStub: () => false,
-    packages: listPackages,
+    packages: (cwd) => listPackages(cwd, agentDir),
     readBudget: () => machine.contextBudget,
     withBudgetCompaction: budget.withBudgetCompaction,
     forgetAccount: () => {},
@@ -324,6 +328,8 @@ export function createHostRuntime(
   }
 
   return {
+    withAuthorization: <T>(allowed: () => boolean, run: () => Promise<T>) =>
+      authorization.run(allowed, run),
     replaceRoots(next: readonly string[]) {
       roots.splice(0, roots.length, ...next)
       machineContext.repositories = next.map((repository) => basename(repository))

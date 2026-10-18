@@ -15,7 +15,7 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 | Chat and lanes  | Fork, clone, rewind/tree editing, shell shortcuts, queued-message removal, local rules/MCP and Swarm controls, lane HTML export |
 | Files           | Content search, rich previews/quick look, external imports and open-in-app                                                      |
 | Skills          | Install, upload, export, discovery and mutation                                                                                 |
-| Settings        | Remote extension/package management, MCP configuration and machine preference editing                                           |
+| Settings        | Raw configuration editors, project/non-npm package mutation, and cross-machine settings or authentication copying/sync          |
 | Artifacts       | Revision-aware writes from an artifact into a remote workspace                                                                  |
 | Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                            |
 | Clients         | Browser/PWA lane client, mobile delivery and Web Push                                                                           |

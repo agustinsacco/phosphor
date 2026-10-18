@@ -158,6 +158,7 @@ export function createClaudeAccounts(ports: ClaudeAccountPorts) {
       email: status.auth.email,
       plan: status.auth.plan,
       organization: status.auth.organization,
+      orgId: status.auth.orgId,
       credentialDir: null,
       addedAt: Date.now(),
     }
@@ -297,20 +298,32 @@ export function createClaudeAccounts(ports: ClaudeAccountPorts) {
     ).catch(() => null)
     if (status?.auth.loggedIn !== true) return null
 
-    // "Add account" that lands on an email already in the list is a
-    // re-authentication, not a second plan: two rows for one subscription would
+    // The same email AND organization is a re-authentication, not a
+    // second plan. A different organization is a different billing identity.
+    // Two rows for one subscription would
     // make round-robin spread load across nothing and double-count its quota.
     // The row keeps its id and place and takes the NEW credential directory,
     // because that is where the CLI just wrote the working token.
     const duplicate =
       !existing && status.auth.email
-        ? prefs.accounts.find((a) => a.email === status.auth.email)
+        ? prefs.accounts.find(
+            (a) =>
+              a.email?.toLowerCase() === status.auth.email?.toLowerCase() &&
+              a.orgId === status.auth.orgId,
+          )
         : undefined
     const target = existing ?? duplicate
+    const emailCollision =
+      !target &&
+      status.auth.email &&
+      prefs.accounts.some((a) => a.email?.toLowerCase() === status.auth.email?.toLowerCase())
+    const newLabel = emailCollision
+      ? `${status.auth.email!.slice(0, 160)} · ${(status.auth.organization || 'Organization').slice(0, 64)} · ${id.slice(0, 8)}`
+      : (status.auth.email ?? 'Claude account')
 
     const account: ClaudeAccount = {
       id: target?.id ?? id,
-      label: target?.label ?? status.auth.email ?? 'Claude account',
+      label: target?.label ?? newLabel,
       ...(status.auth.email ? { email: status.auth.email } : {}),
       ...(status.auth.plan ? { plan: status.auth.plan } : {}),
       ...(status.auth.organization ? { organization: status.auth.organization } : {}),

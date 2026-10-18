@@ -3,6 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { SettingsModal } from './SettingsModal'
+import type { HostConnectionView } from '@shared/ipc'
 import { useSettingsUiStore } from './settingsUiStore'
 import { useLayoutStore } from '@/stores/layout'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -48,7 +49,7 @@ const invoke = vi.fn(defaultInvoke)
 beforeEach(() => {
   invoke.mockClear()
   invoke.mockImplementation(defaultInvoke)
-  useRemoteLanesStore.setState({ filter: 'local' })
+  useRemoteLanesStore.setState({ filter: 'local', hosts: {} })
   useSessionsStore.setState({ activeSessionId: null, live: {} })
   useMachinesStore.setState({ machines: [], view: { kind: 'list' } })
   useLayoutStore.setState({ page: null })
@@ -153,6 +154,32 @@ it.each([
     expect(useMachinesStore.getState().view).toEqual({ kind: 'machine', id: 'test-host' })
   },
 )
+
+it('links supporting Hosts directly to their settings without mounting local controls', async () => {
+  useRemoteLanesStore.setState({
+    filter: 'test-host',
+    hosts: {
+      'test-host': {
+        state: 'ready',
+        capabilities: [],
+        configurationSupported: true,
+      } as unknown as HostConnectionView,
+    },
+  })
+  useSettingsUiStore.setState({ tab: 'accounts' })
+  await act(async () => root.render(<SettingsModal />))
+  const button = [...document.querySelectorAll('button')].find((button) =>
+    button.textContent?.includes('Open this machine settings'),
+  )
+  expect(button).toBeTruthy()
+  await act(async () => button?.click())
+  expect(useMachinesStore.getState().view).toEqual({
+    kind: 'machine',
+    id: 'test-host',
+    settings: 'providers',
+  })
+  expect(invoke.mock.calls.filter(([channel]) => channel !== 'feedback:state')).toEqual([])
+})
 
 it('blocks machine settings for an active remote lane even with This Mac selected', async () => {
   const { sessionId, workspacePath, target, laneId } = mockRemoteInfo

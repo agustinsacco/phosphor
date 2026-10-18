@@ -46,15 +46,71 @@ Workspaces, Optimization, Voice and Advanced (including Maintenance).
 
 With a remote lane, a Host filter, or a machine detail active, these panels
 show a fixed unavailable explanation instead of mounting local controls. They
-neither load nor change This Mac's machine settings, and do not attempt
-unsupported Host configuration calls. Accounts points to **Machines →
-\<machine\> → Readiness** with a button that opens that machine. Remote package
-tabs show this explanation without consulting This Mac's installed packages.
+neither load nor change This Mac's machine settings. The link opens **Machines →
+\<machine\> → Settings → Providers** on a supporting Host, or Readiness on an older
+Host. Remote package tabs show this explanation without consulting This Mac's
+installed packages.
 Appearance, Writing, Keybindings and About remain client-wide.
 
 A remote lane's context meter uses the Host-reported effective window, preferring
 the live context extension value over the stats poll. It labels the budget with
 the machine name. This Mac's Context budget preference never caps that meter.
+
+## Host machine settings
+
+**Machines → a Host → Settings** is separate from the This Mac modal. The target
+banner names the execution machine. Nothing copies settings or credentials between
+machines, falls back to This Mac, or queues writes while disconnected. Overview
+continues to own reachability, reconnect, readiness, traffic logging and removal.
+
+Configuration requires an explicit **Enable configuration access** action and a
+signed `machine.configure` grant. Normal lane control does not imply this grant.
+Older Hosts show an upgrade explanation instead of unsupported controls. Offline
+and failed reads are unavailable states, not empty settings.
+
+| Section             | Owner and behavior                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Providers           | Host provider status, supported private CLI sign-in, separate Claude provider/CLI installation, isolated Claude accounts, routing, usage and associated lanes |
+| Connectors          | pi's global or registered-folder MCP configuration, curated/custom connectors, enablement, private authentication and explicitly reviewed status checks       |
+| Agent defaults      | pi model/thinking defaults; separate Host context-budget and automatic-naming policy                                                                          |
+| Folders             | Existing Host browse/register/unregister controls and an explicit pi trust review, subject to the Host's repository-change policy                             |
+| Skills & extensions | Host package inventory and reviewed machine-scoped npm install/update/remove; the machine-filtered Skills page remains read-only                              |
+| Advanced            | Read-only Host paths, platform and environment-name diagnostics, never environment values or a remote raw-JSON editor                                         |
+
+Claude uses the same account routing, cooldowns and transcript bindings as
+Desktop. Credentials stay in the Host's Claude credential store. Reauthentication
+uses a fresh credential slot; the same email and organization adopts it, while a
+different billing identity becomes a separate account. A lane move is explicitly
+reviewed, requires its current control fence, stops and resumes a saved transcript,
+and sends no prompt automatically. It can interrupt work and make the next turn
+re-read the conversation at token cost. Failure may leave the lane stopped.
+
+Supported authentication runs in an owner-private Host terminal. Follow the CLI's
+instructions; loopback-only browser flows may need the browser on the Host.
+Configuration sign-in streams remain open through authoritative verification,
+including account registration. A terminal exit alone is not proof of success.
+Package/CLI installs, stdio connectors, connector checks that may start servers,
+and folder trust all require explicit review. Trust is never silently approved.
+
+Global MCP may hold secrets. Folder MCP cannot contain environment values,
+headers or OAuth client secrets; put these in a machine connector and override
+its enablement in the folder. Inherited connectors are not silently replaced or
+removed. A check runs `pi mcp list --json`; its reviewed status/tool counts expire
+after 60 seconds and are invalidated by configuration or authentication changes.
+Signing in never automatically executes a connector check.
+
+Edits carry a revision and preserve unrelated settings. Agent drafts are
+non-secret and keyed by Host/folder. Disconnection retains them without sending
+anything; a changed server revision blocks saving until they are discarded.
+Tab, scope, back and refresh controls confirm discarding edits. Saving one form
+rebases its acknowledged fields without discarding other dirty fields. Host
+policy and pi defaults are separate commits, not an atomic multi-file save.
+
+New lanes read pi defaults and resources; existing lanes are not silently
+restarted. Folder editors keep saved values visible before trust, clearly marked
+inactive; the runtime applies folder configuration only after pi trusts it. Host policy
+changes require an explicit Host service restart. Source URLs and non-allowlisted
+package sources are hidden and read-only, not offered as guessed mutations.
 
 ## Search
 

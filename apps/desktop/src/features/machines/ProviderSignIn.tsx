@@ -14,9 +14,11 @@ const ORDER = { ready: 0, not_ready: 1, unknown: 2 } as const
 export function ProviderSignIn({
   hostId,
   refresh = 0,
+  onConfigure,
 }: {
   hostId: string
   refresh?: number
+  onConfigure?: () => void
 }): React.JSX.Element {
   const live = useRef(true)
   const currentHost = useRef(hostId)
@@ -132,7 +134,8 @@ export function ProviderSignIn({
                         ? 'Not signed in'
                         : 'Not reported'}
                   </StatusPill>
-                  {p.status === 'not_ready' &&
+                  {!onConfigure &&
+                    p.status === 'not_ready' &&
                     (allowed ? (
                       <Button
                         size="xs"
@@ -150,6 +153,11 @@ export function ProviderSignIn({
               )
             })}
         </ul>
+      )}
+      {onConfigure && (
+        <Button size="sm" onClick={onConfigure}>
+          Provider settings
+        </Button>
       )}
       {error && (
         <p role="alert" className="text-danger text-base">

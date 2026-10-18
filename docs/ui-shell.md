@@ -496,7 +496,7 @@ skeleton until their own read settles. A failed count reads Unavailable, never
 zero. Offline and account errors are explicit and offer retry.
 
 A Host's detail is a header (label with Rename, the status pill, Reconnect and
-Check again) over cards in two columns: Readiness and On this machine on the
+Check again), then **Overview / Settings** navigation. Overview has cards in two columns: Readiness and On this machine on the
 left, Providers and Details on the right. Readiness opens with a Connection row
 from the shared reachability rule, then pi, Claude Code and Tailscale. A passing
 row says what is true ("Signed in and ready"); a failing row opens to its
@@ -514,12 +514,18 @@ on Linux. The Claude Code row names the missing part (provider missing or
 outdated, Claude Code missing, signed out); older Hosts keep the single status.
 
 Providers lists the connected Host's providers, signed-in first. Not signed in
-is neutral, not a warning, because most people use one or two. With `terminal`
-and `sessions.control`, Sign in opens a private terminal modal on that Host.
-For pi, type `/login PROVIDER`, follow its steps, then `/quit`; Claude prints
-its own login steps. Closing the modal stops the login. Exiting refreshes
-`machine.providers`. Viewers and Hosts without those capabilities keep the
-`phosphor providers login PROVIDER` hint. Credentials stay on the Host.
+is neutral, not a warning, because most people use one or two. Supporting Hosts
+link to **Settings → Providers**, rather than duplicating authentication controls.
+Settings has its own target banner, explicit configuration-access request and
+Providers, Connectors, Agent defaults, Folders, Skills & extensions and Advanced
+sections. [The settings contract](settings.md#host-machine-settings) owns their
+review, authority, drafts and timing. Advanced is read-only; there is no shared
+local/remote raw editor or automatic service restart.
+
+Older Hosts retain Sign in when granted `terminal` and `sessions.control`. It opens
+a private terminal on that Host: `/login PROVIDER`, follow pi's steps, then `/quit`,
+or Claude's own login steps. Closing cancels it and exit refreshes status. Viewers
+without those capabilities keep the CLI hint. Credentials stay on the Host.
 
 Details lists hostname, platform, Host version, enrollment date, the published
 address, and a copyable fingerprint and machine id. On this machine lists lanes

@@ -20,7 +20,7 @@ afterEach(() => {
 const drain = async () => {
   for (let i = 0; i < 40; i++) await Promise.resolve()
 }
-async function setup() {
+async function setup(configuration = false) {
   const hostId = randomUUID(),
     clientId = randomUUID(),
     terminalId = randomUUID()
@@ -42,10 +42,11 @@ async function setup() {
     read: 0,
     control: { fence: 7, controller: { clientId, label: 'Test', connected: true } },
   }
-  let caps: ('terminal' | 'sessions.read' | 'sessions.control')[] = [
+  let caps: ('terminal' | 'sessions.read' | 'sessions.control' | 'machine.configure')[] = [
     'terminal',
     'sessions.read',
     'sessions.control',
+    ...(configuration ? ['machine.configure' as const] : []),
   ]
   let epoch = '1111111111111111',
     inputSeq = 0,
@@ -221,7 +222,7 @@ async function setup() {
     empty: () => {
       empty = true
     },
-    loseCapability: (cap: 'terminal' | 'sessions.control' = 'terminal') => {
+    loseCapability: (cap: 'terminal' | 'sessions.control' | 'machine.configure' = 'terminal') => {
       caps = caps.filter((c) => c !== cap)
     },
     delayReceipt: () => {
@@ -257,6 +258,22 @@ async function setup() {
   }
 }
 
+it('drops private settings terminals after configuration permission is revoked', async () => {
+  const t = await setup(true)
+  const { ptyId } = await t.bridge.signIn(1, t.hostId, 'claude', {
+    addAccount: true,
+    configure: true,
+  })
+  await t.attach(ptyId)
+  t.loseCapability('machine.configure')
+  await t.reconnect()
+  t.bridge.reconcile()
+  await drain()
+  expect(t.emit).toHaveBeenCalledWith(1, `pty:exit:${ptyId}`, -1)
+  await expect(t.route('pty:write', ptyId, 'PRIVATE-CALLBACK')).rejects.toThrow('Not available')
+  expect(JSON.stringify(t.log.mock.calls)).not.toContain('PRIVATE-CALLBACK')
+  t.connection.close()
+})
 it('creates with fence and opaque identity, attaches reset scrollback and splits UTF-8 input with acknowledged seq', async () => {
   const t = await setup(),
     id = await t.create()

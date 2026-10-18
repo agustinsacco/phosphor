@@ -5,6 +5,7 @@ import {
 } from '@phosphor/shared/host-protocol-repositories'
 import { parseProviderLoginOp } from '@phosphor/shared/host-protocol-providers'
 import type { ProviderLogins } from '../providers/login'
+import type { MachineTasks } from '../settings/tasks'
 import { parseAttachmentOp } from '@phosphor/shared/host-protocol-attachments'
 import type { HostAttachments } from '../features/attachments'
 import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
@@ -46,6 +47,11 @@ export interface LaneCommandClient {
   caps: readonly HostCapability[]
 }
 export interface LaneCommandPorts {
+  moveClaudeAccount?: (
+    laneId: string,
+    accountId: string,
+    authorized: () => boolean,
+  ) => Promise<void>
   repositories?: {
     execute(
       op: RepositoryOp,
@@ -57,6 +63,7 @@ export interface LaneCommandPorts {
     allowed: () => boolean,
   ) => Promise<{ ok: true; data: { branchKept: boolean } } | { ok: false; code: RejectCode }>
   providerLogins?: ProviderLogins
+  machineTasks?: MachineTasks
   attachments?: HostAttachments
   terminals?: HostTerminals
   store: HostStore
@@ -186,12 +193,18 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   }
   /** Every capability an op needs, at admission and again when a queued op starts. */
   function capabilityFor(op: LaneCommandFrame['op']): readonly HostCapability[] {
+    if (op.type === 'claude.account') return ['machine.configure', 'sessions.control']
     if (op.type === 'lane.delete' || parseRepositoryOp(op))
       return ['workspaces.write', 'sessions.control']
     if (parseAttachmentOp(op)) return ['workspaces.write', 'sessions.control']
     const routine = parseRoutineOp(op)
     if (routine)
       return routineRequiresControl(routine) ? ['routines', 'sessions.control'] : ['routines']
+    if (
+      op.type === 'machine.task' ||
+      (op.type === 'provider.login' && (op.configure || op.accountId || op.addAccount))
+    )
+      return ['machine.configure', 'terminal', 'sessions.control']
     if (parseProviderLoginOp(op) || parseTerminalOp(op)) return ['terminal', 'sessions.control']
     const write = op.type.startsWith('files.') ? ports.writes?.capabilityFor(op.type) : null
     return write ? [write, 'sessions.control'] : ['sessions.control']
@@ -298,7 +311,10 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     const { requestId, laneId, op } = frame
     const managementAllowed = () =>
       capabilityFor(op).every((cap) => (client.currentCaps?.() ?? client.caps).includes(cap))
-    if ((op.type === 'lane.delete' || parseRepositoryOp(op)) && !managementAllowed())
+    if (
+      (op.type === 'claude.account' || op.type === 'lane.delete' || parseRepositoryOp(op)) &&
+      !managementAllowed()
+    )
       return rejected(job, 'forbidden', true)
     const repositoryOp = parseRepositoryOp(op)
     if (repositoryOp) {
@@ -322,7 +338,13 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     const terminalOp = parseTerminalOp(op)
     const terminalAllowed = () => {
       const caps = client.currentCaps?.() ?? client.caps
-      return caps.includes('terminal') && caps.includes('sessions.control')
+      return (
+        caps.includes('terminal') &&
+        caps.includes('sessions.control') &&
+        ((op.type !== 'machine.task' &&
+          !(op.type === 'provider.login' && (op.configure || op.accountId || op.addAccount))) ||
+          caps.includes('machine.configure'))
+      )
     }
     if (terminalOp && !terminalAllowed()) return rejected(job, 'forbidden', true)
     if (op.type.startsWith('files.')) {
@@ -358,18 +380,30 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       })
       return { completion, detached: false }
     }
-    if (op.type === 'provider.login' || (terminalOp && laneId === undefined)) {
+    if (
+      op.type === 'provider.login' ||
+      op.type === 'machine.task' ||
+      (terminalOp && laneId === undefined)
+    ) {
       if (!terminalAllowed()) return rejected(job, 'forbidden', true)
       if (frame.fence !== undefined || laneId !== undefined)
         return rejected(job, 'bad-request', true)
       const completion = dispatch(job, queue, async () => {
         if (!terminalAllowed()) throw new TerminalForbidden('forbidden')
+        if (op.type === 'machine.task') {
+          if (!ports.machineTasks) throw new Error('unavailable')
+          return ports.machineTasks.execute(op, client.id, terminalAllowed)
+        }
         if (op.type === 'provider.login') {
           if (!ports.providerLogins) throw new Error('unavailable')
           return ports.providerLogins.execute(op, client.id, terminalAllowed)
         }
         if (!ports.terminals || !terminalOp) throw new Error('unavailable')
-        return ports.terminals.machineOp(client.id, terminalOp)
+        return ports.terminals.machineOp(
+          client.id,
+          terminalOp,
+          (client.currentCaps?.() ?? client.caps).includes('machine.configure'),
+        )
       }).then((result) => {
         if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
         terminal(job, { requestId, status: 'done', data: result.value }, true)
@@ -633,6 +667,38 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
           if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
           if (!result.value.ok) return rejected(job, result.value.code, true)
           terminal(job, { requestId, status: 'done', data: result.value.data }, true)
+        })
+        return { completion, detached: false }
+      }
+      case 'claude.account': {
+        const move = ports.moveClaudeAccount
+        if (!move) return rejected(job, 'unsupported', true)
+        const allowed = () =>
+          managementAllowed() &&
+          store.getLane(laneId)?.control.controller?.clientId === client.id &&
+          store.getLane(laneId)?.control.fence === admittedFence
+        const completion = dispatch(job, queue, () =>
+          move(laneId, op.accountId, allowed).then(
+            () => true,
+            () => false,
+          ),
+        ).then((result) => {
+          if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
+          terminal(
+            job,
+            result.value
+              ? { requestId, status: 'done', fence: admittedFence }
+              : {
+                  requestId,
+                  status: 'failed',
+                  error: {
+                    code: 'internal',
+                    message:
+                      'Account change not completed. Check the lane before retrying; it may be stopped.',
+                  },
+                },
+            true,
+          )
         })
         return { completion, detached: false }
       }

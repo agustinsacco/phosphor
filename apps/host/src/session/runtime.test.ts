@@ -146,6 +146,24 @@ const spawns = (log: HostLog) =>
     })
 
 describe('the Host runtime', { timeout: 20_000 }, () => {
+  it('rechecks scoped configuration authority after asynchronous admission and before spawning', async () => {
+    const { runtime } = boot()
+    let authorized = true
+    await expect(
+      runtime.withAuthorization(
+        () => authorized,
+        async () => {
+          const started = runtime.start({ repository: repo })
+          authorized = false
+          return started
+        },
+      ),
+    ).rejects.toThrow('control changed')
+    expect(runtime.list()).toEqual([])
+    // Scoped refusal cannot poison an unrelated later start.
+    const session = await runtime.start({ repository: repo })
+    expect(session.sessionId).toBeTruthy()
+  })
   it('passes its own machine block to pi, refuses caller injection and never logs the block', async () => {
     const capture = join(dir, 'argv.json')
     const { runtime, log } = boot({ env: { FAKE_PI_ARGV_FILE: capture } })

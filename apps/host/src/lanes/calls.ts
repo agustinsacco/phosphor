@@ -68,9 +68,9 @@ export function createLaneCalls(options: {
       if (method === 'host.repositories' || queries.has(method)) return 'sessions.read'
       return features.get(method)?.capability ?? null
     },
-    async call(method: string, params: unknown): Promise<CallOutcome> {
+    async call(method: string, params: unknown, authorized?: () => boolean): Promise<CallOutcome> {
       const feature = features.get(method)
-      if (feature) return feature.call(method, params)
+      if (feature) return feature.call(method, params, authorized)
       const command = queries.get(method)
       if (method !== 'host.repositories' && !command) return failure('unsupported')
       if (!record(params)) return failure('bad-request')

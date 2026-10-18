@@ -17,6 +17,8 @@ import { EXIT, exitCodeFor, fail, info, pass, warn, type Check } from '../checks
 import { loadHostConfig } from '../config/load'
 import { resolveHostId, type ConfigError } from '../config/schema'
 import { checkClaudeLane, type ClaudeLane } from '../machine/claude'
+import { readHostClaudeEnvironment } from '../providers/accounts'
+import { hostStateDirectory } from '../lanes/state-dir'
 import { buildPiEnvironment, redact, type PiEnvironment } from '../machine/environment'
 import { checkGit, checkHostNode, resolvePi, type PiLaunch } from '../machine/executables'
 import {
@@ -196,13 +198,22 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
   let claudeLane: ClaudeLane | null = null
   if (native.available) {
     try {
-      const lane = await checkClaudeLane(await listPackages(), environment, { timeoutMs })
+      const accountEnv = readHostClaudeEnvironment({
+        directory: hostStateDirectory(context.env, context.home),
+        home: context.home,
+        env: environment.env,
+      })
+      const lane = await checkClaudeLane(
+        await listPackages(undefined, piAgentDir(environment.env, context.home)),
+        { ...environment, env: { ...environment.env, ...accountEnv } },
+        { timeoutMs },
+      )
       claudeLane = lane
       claude = lane.available
         ? { available: true, detail: `${lane.claude} ${lane.version}, logged in` }
         : unavailable(lane.reason)
     } catch (error) {
-      claude = unavailable(`pi's packages could not be read: ${errorText(error)}`)
+      claude = unavailable(`Claude readiness could not be verified: ${errorText(error)}`)
     }
   }
 

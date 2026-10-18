@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readAgentSettings } from './agent-settings'
@@ -44,6 +44,30 @@ describe('readAgentSettings', () => {
     },
   )
 
+  it('ignores untrusted provider overrides instead of billing the CLI default credential', async () => {
+    const workspace = join(dir, 'workspace')
+    await mkdir(join(workspace, '.pi'), { recursive: true })
+    await writeFile(settingsPath(), JSON.stringify({ defaultProvider: 'pi-claude-cli' }))
+    await writeFile(
+      join(workspace, '.pi', 'settings.json'),
+      JSON.stringify({ defaultProvider: 'native' }),
+    )
+    expect((await readAgentSettings(workspace)).defaultProvider).toBe('pi-claude-cli')
+    await writeFile(join(dir, 'trust.json'), JSON.stringify({ [await realpath(workspace)]: true }))
+    expect((await readAgentSettings(workspace)).defaultProvider).toBe('native')
+  })
+
+  it('uses the execution machine agent directory, not the ambient process directory', async () => {
+    const host = join(dir, 'host-agent')
+    await mkdir(host)
+    await writeFile(settingsPath(), JSON.stringify({ defaultProvider: 'native' }))
+    await writeFile(
+      join(host, 'settings.json'),
+      JSON.stringify({ defaultProvider: 'pi-claude-cli' }),
+    )
+    expect((await readAgentSettings(undefined, host)).defaultProvider).toBe('pi-claude-cli')
+  })
+
   it('merges project overrides one level deep, matching pi semantics', async () => {
     const workspace = await mkdtemp(join(tmpdir(), 'phosphor-ws-'))
     try {
@@ -59,6 +83,10 @@ describe('readAgentSettings', () => {
       await writeFile(
         join(workspace, '.pi', 'settings.json'),
         JSON.stringify({ compaction: { reserveTokens: 8192 } }),
+      )
+      await writeFile(
+        join(dir, 'trust.json'),
+        JSON.stringify({ [await realpath(workspace)]: true }),
       )
       // pi's documented example: the project override keeps compaction.enabled.
       await expect(readAgentSettings(workspace)).resolves.toEqual({

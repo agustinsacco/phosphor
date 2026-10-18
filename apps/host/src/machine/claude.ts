@@ -83,7 +83,9 @@ export async function checkClaudeLane(
   if (!auth.loggedIn) {
     return {
       available: false,
-      reason: 'claude is not logged in: phosphor providers login claude',
+      reason: environment.env.CLAUDE_SECURESTORAGE_CONFIG_DIR
+        ? 'selected Claude account is not logged in: open Machines → this Host → Settings → Providers'
+        : 'claude is not logged in: phosphor providers login claude',
     }
   }
   return { available: true, claude, version }

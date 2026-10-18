@@ -21,7 +21,7 @@ it('uses owner-only receipts, suppresses duplicate logins, and rechecks both que
   const log = vi.fn()
   const commands = createLaneCommands({
     store,
-    providerLogins: { execute },
+    providerLogins: { execute, active: () => false },
     sessions: { start: vi.fn(), attach: vi.fn(), stop: vi.fn() },
     runtime: { command: vi.fn(), extensionUiResponse: vi.fn() },
     resumeLane: vi.fn(),

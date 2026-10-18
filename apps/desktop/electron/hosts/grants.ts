@@ -18,9 +18,10 @@ export function createGrants(ports: {
   const configurationHosts = new Set<string>()
   return {
     /** Explicitly requested from this machine's Settings page; forgotten on sign-out. */
-    configure(hostId: string) {
-      if (!ports.present(hostId)) throw new Error('grant-refused')
-      configurationHosts.add(hostId)
+    configure(hostId: string, enabled = true) {
+      if (enabled && !ports.present(hostId)) throw new Error('grant-refused')
+      if (enabled) configurationHosts.add(hostId)
+      else configurationHosts.delete(hostId)
       this.clear(hostId)
     },
     clear(hostId?: string) {

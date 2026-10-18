@@ -47,6 +47,24 @@ from the shared directive stack. Host identity, repository summaries and service
 warnings do not depend on the selected provider; [Host machine awareness](host.md#machine-awareness)
 owns their content.
 
+### Machine-local credentials
+
+Desktop and Host use `libs/session-runtime/src/claude/` for account selection,
+scoped credentials, organization identity, usage cooldowns and transcript billing
+affinity. Only Claude's credential environment differs; this does not add a
+second prompt, tool owner or conversation store. Machine Settings makes Host
+configuration explicit and never synchronizes credentials from Desktop.
+
+Provider prediction for resume follows the selected transcript branch rather
+than today's defaults. Untrusted project defaults cannot bypass credential
+selection. Guards include `pi/resume-provider.test.ts`, `pi/agent-settings.test.ts`,
+`claude/accounts.test.ts` under `libs/session-runtime/src/`, Host account-move
+and authorization tests, and `apps/desktop/e2e/machine-settings.spec.ts`. The e2e
+uses real Host processes/private PTYs with deterministic pi/Claude fixtures; it
+checks the subprocess's credential identity before and after an explicit move,
+unchanged saved history, no automatic prompt, and secret isolation. It does not
+perform a real subscription login or spend real model tokens.
+
 ### Per-lane Swarm authorization
 
 Both providers receive the same short request-local `phosphor_swarm` section from

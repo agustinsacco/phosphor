@@ -6,6 +6,7 @@ import {
   type DeleteLaneOp,
 } from './host-protocol-repositories'
 import { parseProviderLoginOp, type ProviderLoginOp } from './host-protocol-providers'
+import { parseMachineTask, isMachineAccountId, type MachineTaskOp } from './machine-settings'
 import { parseAttachmentOp, type AttachmentOp } from './host-protocol-attachments'
 import {
   parseTerminalOp,
@@ -243,6 +244,7 @@ export type LaneOp =
   | RepositoryOp
   | DeleteLaneOp
   | ProviderLoginOp
+  | MachineTaskOp
   | TerminalOp
   | RoutineOp
   | FileWriteOp
@@ -263,6 +265,7 @@ export type LaneOp =
       readonly model?: string
       readonly thinkingLevel?: string
     }
+  | { readonly type: 'claude.account'; readonly accountId: string }
   | { readonly type: 'lane.resume' }
   | { readonly type: 'lane.stop' }
   | { readonly type: 'lane.markRead'; readonly upTo: number }
@@ -611,6 +614,12 @@ function op(v: unknown): LaneOp | null {
   if (typeof v.type === 'string' && v.type.startsWith('host.repositories.'))
     return parseRepositoryOp(v)
   if (v.type === 'provider.login') return parseProviderLoginOp(v)
+  if (v.type === 'machine.task') return parseMachineTask(v)
+  if (v.type === 'claude.account')
+    return Object.keys(v).every((key) => ['type', 'accountId'].includes(key)) &&
+      isMachineAccountId(v.accountId)
+      ? { type: 'claude.account', accountId: v.accountId }
+      : null
   if (typeof v.type === 'string' && v.type.startsWith('terminal.')) return parseTerminalOp(v)
   if (typeof v.type === 'string' && v.type.startsWith('routine.')) return parseRoutineOp(v)
   switch (v.type) {
@@ -700,6 +709,7 @@ const laneOps = [
   ...LANE_PI_OPS,
   'extension_ui_response',
   'provider.login',
+  'machine.task',
   'terminal.create',
   'terminal.resize',
   'terminal.kill',
@@ -708,6 +718,7 @@ const laneOps = [
   'host.repositories.createFolder',
   'lane.delete',
   'lane.create',
+  'claude.account',
   'lane.resume',
   'lane.stop',
   'lane.markRead',
@@ -772,8 +783,11 @@ export function parseClientFrame(s: string): ClientFrameParse {
         !operation ||
         ((operation.type.startsWith('routine.') ||
           operation.type === 'provider.login' ||
+          operation.type === 'machine.task' ||
           operation.type.startsWith('host.repositories.')) &&
           (v.laneId !== undefined || v.fence !== undefined)) ||
+        (operation.type === 'claude.account' &&
+          (v.laneId === undefined || v.fence === undefined)) ||
         (v.laneId !== undefined && !isUuid(v.laneId)) ||
         (v.fence !== undefined && !integer(v.fence, 1)) ||
         (v.trace !== undefined && !isControlTrace(v.trace))

@@ -13,6 +13,7 @@ import { loadHostConfig, CONFIG_MAX_BYTES } from '../config/load'
 import { validateRepositoryIdentity, type RepositoryIdentity, type HostStore } from '../lanes/store'
 import { inside, FileFailure, failure } from './files'
 import type { HostFeature } from './feature'
+import { withSettingsFileLock } from '../settings/files'
 
 export async function homeDirectory(
   home: string,
@@ -46,31 +47,33 @@ export function createRepositories(options: {
     allowed: () => boolean,
     identity?: RepositoryIdentity,
   ) {
-    const loaded = await config()
-    const target = await realpath(loaded.path)
-    const parent = await realpath(dirname(target))
-    const bytes = JSON.stringify({ ...loaded.config, repositories }, null, 2) + '\n'
-    if (Buffer.byteLength(bytes) > CONFIG_MAX_BYTES) throw new FileFailure('too-large')
-    const temp = join(parent, `.config-${randomUUID()}.tmp`)
-    try {
-      const handle = await open(temp, 'wx', 0o600)
+    return withSettingsFileLock(options.configPath, async () => {
+      const loaded = await config()
+      const target = await realpath(loaded.path)
+      const parent = await realpath(dirname(target))
+      const bytes = JSON.stringify({ ...loaded.config, repositories }, null, 2) + '\n'
+      if (Buffer.byteLength(bytes) > CONFIG_MAX_BYTES) throw new FileFailure('too-large')
+      const temp = join(parent, `.config-${randomUUID()}.tmp`)
       try {
-        await handle.writeFile(bytes)
-        await handle.sync()
+        const handle = await open(temp, 'wx', 0o600)
+        try {
+          await handle.writeFile(bytes)
+          await handle.sync()
+        } finally {
+          await handle.close()
+        }
+        if (!allowed() || (await realpath(dirname(target))) !== parent)
+          throw new FileFailure('forbidden')
+        // No asynchronous seam between identity validation, commit and publication.
+        if (identity) validateRepositoryIdentity(identity)
+        renameSync(temp, target)
+        const summaries = options.store.syncRepositories(repositories, undefined, identity)
+        options.changed(summaries.map((r) => r.path))
+        return summaries
       } finally {
-        await handle.close()
+        await unlink(temp).catch(() => {})
       }
-      if (!allowed() || (await realpath(dirname(target))) !== parent)
-        throw new FileFailure('forbidden')
-      // No asynchronous seam between identity validation, commit and publication.
-      if (identity) validateRepositoryIdentity(identity)
-      renameSync(temp, target)
-      const summaries = options.store.syncRepositories(repositories, undefined, identity)
-      options.changed(summaries.map((r) => r.path))
-      return summaries
-    } finally {
-      await unlink(temp).catch(() => {})
-    }
+    })
   }
   const feature: HostFeature = {
     capability: 'workspaces.write',

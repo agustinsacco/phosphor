@@ -18,6 +18,8 @@ export const PI_LOGIN_ARGS = ['--no-session', '--no-approve', '--no-extensions']
 
 export interface LoginContext extends DoctorContext {
   provider: string
+  /** Trusted Host account routing only. Never accepted from an API caller. */
+  credentialEnv?: Record<string, string>
   /** Drain the program on the terminal on a signal, until the returned function detaches it. */
   attach?: (target: Drainable) => () => void
   /** Steps and outcomes, for the person at the terminal: stderr. */
@@ -53,7 +55,8 @@ export async function runProviderLogin(context: LoginContext): Promise<LoginOutc
     const ids = [...report.providers.map((candidate) => candidate.id), CLAUDE_LOGIN].join(', ')
     return { exitCode: EXIT.usage, problem: `unknown provider "${provider}": one of ${ids}` }
   }
-  const { env } = pi.environment
+  const env = { ...pi.environment.env, ...context.credentialEnv }
+  const credentialEnvironment = { ...pi.environment, env }
   // The login draws a screen: it needs the terminal's type, which sessions never get.
   const terminalEnv = context.env.TERM ? { ...env, TERM: context.env.TERM } : env
   let file: string
@@ -68,7 +71,7 @@ export async function runProviderLogin(context: LoginContext): Promise<LoginOutc
     }
     file = claude
     args = ['auth', 'login']
-    const status = await claudeLoggedIn(claude, pi.environment, {
+    const status = await claudeLoggedIn(claude, credentialEnvironment, {
       timeoutMs: context.probeTimeoutMs,
     })
     before = 'loggedIn' in status && status.loggedIn
@@ -121,7 +124,9 @@ export async function runProviderLogin(context: LoginContext): Promise<LoginOutc
   let signedIn: boolean
   let state: string
   if (isClaude) {
-    const auth = await claudeLoggedIn(file, pi.environment, { timeoutMs: context.probeTimeoutMs })
+    const auth = await claudeLoggedIn(file, credentialEnvironment, {
+      timeoutMs: context.probeTimeoutMs,
+    })
     signedIn = 'loggedIn' in auth && auth.loggedIn
     state =
       'unreadable' in auth

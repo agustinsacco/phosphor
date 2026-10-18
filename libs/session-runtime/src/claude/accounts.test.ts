@@ -58,6 +58,31 @@ it('seeds the existing credential, isolates additional credentials and deduplica
     CLAUDE_CODE_ORGANIZATION_UUID: 'second@example.test-org',
   })
 })
+it('keeps the same email in different organizations as separate billing identities', async () => {
+  const d = domain()
+  d.signIn('person@example.test')
+  await d.service.loadAccounts()
+  expect(d.prefs().accounts[0]?.orgId).toBe('person@example.test-org')
+  const path = join(d.root, 'saved.jsonl')
+  writeFileSync(path, '')
+  await d.service.bindSession(path, 'default')
+  const second = await d.service.beginAddAccount()
+  d.status.mockResolvedValue({
+    binary: { found: true },
+    auth: { ok: true, loggedIn: true, email: 'person@example.test', orgId: 'different-org' },
+  })
+  await d.service.finishAddAccount(second.id)
+  expect(d.prefs().accounts).toHaveLength(2)
+  expect(d.prefs().accounts[1]?.label).toContain(second.id.slice(0, 8))
+  await d.service.setRouting('specific', second.id)
+  expect(claudeAccountEnv(await d.service.accountForSpawn({ sessionPath: path }))).toMatchObject({
+    CLAUDE_CODE_ORGANIZATION_UUID: 'person@example.test-org',
+  })
+  expect(claudeAccountEnv(await d.service.accountForSpawn({}))).toMatchObject({
+    CLAUDE_CODE_ORGANIZATION_UUID: 'different-org',
+  })
+})
+
 it('never records a failed login, and never shares account state between machines', async () => {
   const a = domain(),
     b = domain()

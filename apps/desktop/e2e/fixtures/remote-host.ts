@@ -11,7 +11,7 @@ import { watch } from 'node:fs'
 import { Transform } from 'node:stream'
 import { encodeGrant } from '../../../../libs/shared/src/host-grant'
 import type { RoutineInput } from '../../../../libs/shared/src/routines-types'
-import { HOST_CAPABILITIES } from '../../../../libs/shared/src/remote-host'
+import { LEGACY_HOST_CAPABILITIES } from '../../../../libs/shared/src/remote-host'
 import {
   parseHostFrame,
   parseClientFrame,
@@ -22,8 +22,10 @@ import {
 import { MACHINE } from '../../src/features/machines/__fixtures__/control'
 import { accountControlFixture } from './account-control'
 import { scratchDir } from './scratch'
+import { withHostNative } from './host-native.mjs'
 
 let hostBuilt = false
+let hostHasNative = false
 
 /** Real dev Host CLI, disposable owner identity, SQLite store and pi process. */
 /**
@@ -33,15 +35,22 @@ let hostBuilt = false
 export const REMOTE_TEST_TIMEOUT = process.env.CI ? 120_000 : 25_000
 
 export async function remoteHostFixture(
-  options: { allowRepositoryChanges?: boolean; claude?: boolean } = {},
+  options: { allowRepositoryChanges?: boolean; claude?: boolean; native?: boolean } = {},
 ) {
   const project = resolve(import.meta.dirname, '../../../..')
-  if (!hostBuilt)
-    execFileSync(process.execPath, [join(project, 'apps/host/scripts/build.mjs')], {
-      cwd: project,
-      stdio: 'pipe',
-    })
-  hostBuilt = true
+  if (!hostBuilt || !!options.native !== hostHasNative) {
+    const build = (native?: string) =>
+      execFileSync(
+        process.execPath,
+        [join(project, 'apps/host/scripts/build.mjs'), ...(native ? ['--native', native] : [])],
+        { cwd: project, stdio: 'pipe' },
+      )
+    if (options.native) {
+      await withHostNative(build)
+      hostHasNative = true
+    } else build()
+    hostBuilt = true
+  }
   const root = await scratchDir('phosphor-remote-')
   let h: Awaited<ReturnType<typeof accountControlFixture>> | undefined
   let child: ReturnType<typeof spawn> | undefined
@@ -155,6 +164,20 @@ export async function remoteHostFixture(
       if (!h) return
       const info = test.info()
       await info.attach('host.log', { body: hostOutput, contentType: 'text/plain' })
+      await info.attach('claude-fixture.log', {
+        body: (await readFile(join(root, 'claude-fixture.log'), 'utf8').catch(() => '')).slice(
+          -131072,
+        ),
+        contentType: 'text/plain',
+      })
+      await info.attach('host-runtime.log', {
+        body: (
+          await readFile(join(root, 'state/phosphor-host/logs/phosphor.log'), 'utf8').catch(
+            () => '',
+          )
+        ).slice(-131072),
+        contentType: 'text/plain',
+      })
       const desktopLog = await readFile(join(h.userData, 'logs', 'phosphor.log'), 'utf8').catch(
         () => '',
       )
@@ -191,7 +214,7 @@ export async function remoteHostFixture(
     const port = proxyAddress.port
     const endpoint = `https://127.0.0.1:${port}`
     const publicKey = hostKey.publicKey.export({ format: 'jwk' }).x
-    const mint = (clientId: string, label: string) => {
+    const mint = (clientId: string, label: string, configure = false) => {
       const iat = Math.floor(Date.now() / 1000)
       return encodeGrant(
         {
@@ -203,7 +226,8 @@ export async function remoteHostFixture(
           hostId,
           epoch: 1,
           client: { id: clientId, label },
-          caps: [...HOST_CAPABILITIES],
+          caps: [...LEGACY_HOST_CAPABILITIES],
+          ...(configure ? { configure: true } : {}),
           iat,
           exp: iat + 300,
           jti: randomBytes(8).toString('hex'),
@@ -251,7 +275,7 @@ export async function remoteHostFixture(
           typeof body.clientId === 'string'
         )
           return json({
-            grant: mint(body.clientId, 'Desktop'),
+            grant: mint(body.clientId, 'Desktop', 'configure' in body && body.configure === true),
             expiresAt: new Date(Date.now() + 300000).toISOString(),
             host: { id: hostId, endpoint, publicKey },
           })
@@ -274,8 +298,34 @@ export async function remoteHostFixture(
     if (options.claude)
       await writeFile(
         join(root, 'bin', 'claude'),
-        `#!/bin/sh
-case "$1" in --version) echo 2.1.283 ;; auth) echo '{"loggedIn":true}' ;; esac
+        `#!/usr/bin/env node
+const fs = require('node:fs'), path = require('node:path');
+const defaultAuth = ${JSON.stringify(join(root, 'default-claude-auth.json'))};
+const scope = process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR;
+const file = scope ? path.join(scope, 'fixture-auth.json') : defaultAuth;
+const args = process.argv.slice(2);
+const observe = extra => fs.appendFileSync(${JSON.stringify(join(root, 'claude-fixture.log'))}, JSON.stringify({ args: args.slice(0,2), scoped: !!scope, ...extra }) + '\\n');
+observe({ phase: 'invoked' });
+if (args[0] === '--version') { console.log('2.1.301'); process.exit(0); }
+if (args[0] !== 'auth') process.exit(1);
+if (args[1] === 'login') {
+  console.log('HOST_A_ONLY Claude account email:');
+  let input = '';
+  process.stdin.on('data', chunk => {
+    input += chunk.toString();
+    if (!input.includes('\\n')) return;
+    const email = input.trim();
+    if (!email.includes('@')) process.exit(1);
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(file, JSON.stringify({ loggedIn: true, email, subscriptionType: 'max', accessToken: 'HOST_ONLY_PRIVATE_CLAUDE_TOKEN' }), { mode: 0o600 });
+    observe({ phase: 'login-saved', email });
+    console.log('HOST_A_ONLY Login successful.'); process.exit(0);
+  });
+} else if (args[1] === 'logout') { if (scope) fs.rmSync(file, { force: true }); else fs.writeFileSync(file, '{"loggedIn":false}', { mode: 0o600 }); process.exit(0); }
+else if (args[1] === 'status') {
+  if (!scope && !fs.existsSync(file)) console.log(JSON.stringify({ loggedIn: true, email: 'first@host.example', subscriptionType: 'max' }));
+  else console.log(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '{"loggedIn":false}');
+} else process.exit(1);
 `,
         { mode: 0o700 },
       )
@@ -579,6 +629,9 @@ case "$1" in --version) echo 2.1.283 ;; auth) echo '{"loggedIn":true}' ;; esac
         return desktop.page
       },
       root,
+      hostId,
+      agent,
+      config,
       repo,
       nonGit,
       addable,

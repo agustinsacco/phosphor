@@ -296,6 +296,7 @@ describe('run lane composition', () => {
             'sessions.read',
             'sessions.control',
             'workspaces.write',
+            'machine.configure',
             'routines',
             'workspaces.read',
             'skills.read',

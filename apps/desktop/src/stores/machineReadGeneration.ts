@@ -7,7 +7,9 @@ function identity(host: HostConnectionView | undefined): string {
     host?.connectionToken,
     host?.cursor?.epoch,
     host?.capabilities
-      .filter((cap) => ['skills.read', 'routines', 'artifacts.read'].includes(cap))
+      .filter((cap) =>
+        ['skills.read', 'routines', 'artifacts.read', 'machine.configure'].includes(cap),
+      )
       .sort(),
   ])
 }

@@ -80,7 +80,10 @@ export function mixedRemoteHosts(): HostsSnapshot {
     'artifacts.read',
     'workspaces.read',
     'workspaces.write',
+    'machine.configure',
+    'terminal',
   )
+  base.configurationSupported = true
   for (const lane of base.lanes)
     lane.control.controller = { self: true, label: 'This Desktop', connected: true }
   const ids = [

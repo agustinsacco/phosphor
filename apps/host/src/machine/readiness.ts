@@ -40,6 +40,7 @@ export async function checkReadiness(
   platform: NodeJS.Platform,
   ports: typeof readinessPorts & {
     listPackages?: typeof listPackages
+    claudeAuthentication?: () => Promise<boolean | null>
   } = readinessPorts,
   onTailscale?: (found: TailscaleInspection) => void,
 ): Promise<Readiness> {
@@ -71,9 +72,14 @@ export async function checkReadiness(
   onTailscale?.(tailscale)
   return {
     pi,
-    claude: claudeReadiness(
-      claude && providerReady ? await ports.probe(claude, ['auth', 'status'], options) : null,
-    ),
+    claude:
+      claude && providerReady && ports.claudeAuthentication
+        ? await ports
+            .claudeAuthentication()
+            .then((ready) => (ready === null ? 'unknown' : ready ? 'ok' : 'signed-out'))
+        : claudeReadiness(
+            claude && providerReady ? await ports.probe(claude, ['auth', 'status'], options) : null,
+          ),
     tailscale: tailscale.readiness,
   }
 }

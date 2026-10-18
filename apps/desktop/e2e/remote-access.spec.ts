@@ -1,6 +1,13 @@
 import { test, expect } from '@playwright/test'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
-import { openRemote, takeControl, files, file, captures } from './fixtures/remote-ui'
+import {
+  openRemote,
+  takeControl,
+  files,
+  file,
+  captures,
+  openMachineSettings,
+} from './fixtures/remote-ui'
 
 test('Background attention and sign-out preserve machine boundaries', async () => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
@@ -95,11 +102,12 @@ test('Provider login and error remedies target bee1, Settings is This Mac', asyn
     await expect(h.page.locator('main')).toContainText('bee1')
     await expect(h.page.locator('main')).toContainText('Readiness')
     await expect(h.page.locator('.xterm')).toHaveCount(0)
-    const provider = h.page.locator('[data-provider="openai-codex"]')
+    const machineSettings = await openMachineSettings(h)
+    const provider = machineSettings.locator('[data-provider="openai-codex"]')
     await expect(provider.locator('[data-tone]')).toHaveText('Not signed in')
-    if (await provider.getByRole('button', { name: 'Sign in', exact: true }).count()) {
+    if (await provider.getByRole('button', { name: 'Sign in', exact: true }).isEnabled()) {
       await provider.getByRole('button', { name: 'Sign in', exact: true }).click()
-      const login = h.page.getByRole('dialog', { name: 'Provider sign-in', exact: true })
+      const login = h.page.getByRole('dialog', { name: 'Provider sign-in on bee1', exact: true })
       await expect(login).toContainText('Type /login openai-codex')
       await expect(login.locator('.xterm')).toContainText('HOST_A_ONLY provider login')
       const input = login.locator('.xterm-helper-textarea')
@@ -109,10 +117,12 @@ test('Provider login and error remedies target bee1, Settings is This Mac', asyn
       await expect(login.locator('.xterm')).toContainText('HOST_A_ONLY signed in')
       await input.pressSequentially('/quit')
       await input.press('Enter')
+      await expect(login).toContainText('Program exited')
+      await login.getByRole('button', { name: 'Done', exact: true }).click()
       await expect(login).toBeHidden()
-      await expect(provider.locator('[data-tone]')).toHaveText('Signed in')
+      await expect(provider.locator('[data-tone]')).toHaveText('Ready')
     } else {
-      await expect(provider).toContainText('phosphor providers login openai-codex')
+      await expect(machineSettings).toContainText('Native Host terminal support is unavailable')
       info.annotations.push({
         type: 'gap',
         description:
@@ -131,7 +141,7 @@ test('Provider login and error remedies target bee1, Settings is This Mac', asyn
     }
     await settings.getByRole('button', { name: 'Accounts', exact: true }).click()
     await expect(
-      settings.getByRole('button', { name: 'Open bee1 readiness', exact: true }),
+      settings.getByRole('button', { name: 'Open bee1 settings', exact: true }),
     ).toBeVisible()
     await captures(h, info, 'remote-settings-scope')
     expect(errors).toEqual([])

@@ -1,4 +1,5 @@
-import { parseProviderLoginOp } from '@shared/host-protocol-providers'
+import { parseProviderLoginOp, type ProviderLoginOp } from '@shared/host-protocol-providers'
+import { parseMachineTask, type MachineTaskOp } from '@shared/machine-settings'
 import { randomUUID } from 'node:crypto'
 import {
   parseTerminalCreated,
@@ -14,6 +15,7 @@ import { REMOTE_UNAVAILABLE } from './lane-ops'
 type Connection = ReturnType<typeof createHostConnection>
 export interface TerminalLane {
   machine?: boolean
+  configuration?: boolean
   hostId: string
   laneId: string
   connection: Connection
@@ -67,7 +69,8 @@ export function createRemoteTerminals(ports: {
       e.lane.current() &&
       c.incarnation().runtimeEpoch === e.epoch &&
       c.snapshot().state === 'ready' &&
-      c.snapshot().capabilities.includes('terminal')
+      c.snapshot().capabilities.includes('terminal') &&
+      (!e.lane.configuration || c.snapshot().capabilities.includes('machine.configure'))
     )
   }
   function control(lane: TerminalLane) {
@@ -262,18 +265,41 @@ export function createRemoteTerminals(ports: {
       current: () => ports.connection?.(hostId) === c,
     }
   }
-  async function signIn(windowId: number, hostId: string, provider: string) {
+  async function signIn(
+    windowId: number,
+    hostId: string,
+    provider: string,
+    account?: Pick<ProviderLoginOp, 'accountId' | 'addAccount' | 'configure'>,
+  ) {
+    return machineProgram(
+      windowId,
+      hostId,
+      parseProviderLoginOp({ type: 'provider.login', provider, ...account }),
+    )
+  }
+  async function task(windowId: number, hostId: string, op: MachineTaskOp) {
+    return machineProgram(windowId, hostId, parseMachineTask(op))
+  }
+  async function machineProgram(
+    windowId: number,
+    hostId: string,
+    op: ProviderLoginOp | MachineTaskOp | null,
+  ) {
     const lane = machine(hostId)
     const c = lane.connection
     const incarnation = c.incarnation()
-    const op = parseProviderLoginOp({ type: 'provider.login', provider })
+    const needsConfiguration =
+      op?.type === 'machine.task' ||
+      (op?.type === 'provider.login' && (op.configure || op.accountId || op.addAccount))
     if (
       !op ||
+      (needsConfiguration && !c.snapshot().capabilities.includes('machine.configure')) ||
       !control(lane) ||
       !c.snapshot().capabilities.includes('terminal') ||
       entries.size + admissions.size >= TERMINAL_LIMITS.perHost * 32
     )
       throw new Error(REMOTE_UNAVAILABLE)
+    lane.configuration = !!needsConfiguration
     const admission = { windowId, cancelled: false }
     admissions.add(admission)
     let result
@@ -285,6 +311,7 @@ export function createRemoteTerminals(ports: {
     const created = result.status === 'done' ? parseTerminalCreated(result.data) : null
     if (!created) throw new Error('Sign-in not confirmed. Refresh before trying again.')
     const unavailable =
+      (needsConfiguration && !c.snapshot().capabilities.includes('machine.configure')) ||
       !lane.current() ||
       c.snapshot().state !== 'ready' ||
       !control(lane) ||
@@ -464,6 +491,16 @@ export function createRemoteTerminals(ports: {
   }
   function reconcile() {
     for (const [id, e] of entries) {
+      if (
+        e.lane.configuration &&
+        !e.lane.connection.snapshot().capabilities.includes('machine.configure')
+      ) {
+        dropPending(e)
+        e.watch?.close()
+        entries.delete(id)
+        ports.emit(e.windowId, `pty:exit:${id}`, -1)
+        continue
+      }
       if (e.killing) {
         void flushKill(e)
         continue
@@ -487,6 +524,7 @@ export function createRemoteTerminals(ports: {
   }
   return {
     signIn,
+    task,
     reconcile,
     clear(windowId?: number) {
       for (const a of admissions)

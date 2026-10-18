@@ -130,6 +130,12 @@ async function stageBuild(stage) {
   if (values.native) {
     validateNative(resolve(values.native), values.target ?? `${process.platform}-${process.arch}`)
     cpSync(resolve(values.native), join(stage, 'native/node-pty'), { recursive: true })
+    // The native JS is CommonJS. A dev checkout (or custom install prefix)
+    // may have a parent package.json with type=module; never inherit it.
+    writeFileSync(
+      join(stage, 'native/node-pty/package.json'),
+      '{"private":true,"type":"commonjs"}\n',
+    )
   }
 
   // Every session loads these from <bundle folder>/pi-ext, with Desktop's filter.

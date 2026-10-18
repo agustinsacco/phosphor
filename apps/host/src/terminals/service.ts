@@ -24,7 +24,15 @@ export class TerminalForbidden extends Error {}
 const FORCED_EXIT_CODE = -1
 
 type Entry = TerminalSummary & {
-  login?: { owner: string; disconnectedAt?: number; finish: (result: TerminalRun) => void }
+  login?: {
+    owner: string
+    configuration?: boolean
+    deferExit?: boolean
+    authorized?: () => boolean
+    nativeExitCode?: number
+    disconnectedAt?: number
+    finish: (result: TerminalRun) => void
+  }
   pty?: HostPty
   /** The code kill() reported, which a login's tombstone repeats. */
   exitCode?: number
@@ -85,14 +93,15 @@ export function createTerminals(options: {
   }
   function kill(entry: Entry, exitCode = FORCED_EXIT_CODE) {
     const pty = entry.pty
+    const wasRunning = entry.status === 'running'
     entry.pty = undefined
     entry.status = 'exited'
-    entry.login?.finish({ code: null })
+    entry.login?.finish({ code: exitCode === FORCED_EXIT_CODE ? null : exitCode })
     if (entry.login) {
       entry.chunks = []
       entry.outputBytes = 0
     }
-    if (pty) {
+    if (pty || wasRunning) {
       entry.exitCode = exitCode
       emit(entry, {
         type: 'terminal.exit',
@@ -262,13 +271,19 @@ export function createTerminals(options: {
     }
     return null
   }
-  function input(clientId: string, raw: TerminalInput): boolean {
+  function input(clientId: string, raw: TerminalInput, configuration = false): boolean {
     if (closed) return false
     const frame = parseTerminalInput(raw)
     if (!frame) return false
     const entry = entries.get(frame.terminalId)
-    if (!entry || (!entry.login && !alive(entry.laneId)) || !entry.pty) return false
-    const lane = options.context.store.getLane(entry.laneId)
+    if (
+      !entry ||
+      (entry.login?.configuration && !configuration) ||
+      (!entry.login && !alive(entry.laneId)) ||
+      !entry.pty
+    )
+      return false
+    const lane = entry.login ? null : options.context.store.getLane(entry.laneId)
     if (
       (entry.login
         ? entry.login.owner !== clientId
@@ -297,13 +312,22 @@ export function createTerminals(options: {
     frame: TerminalSubscribe,
     send: (frame: TerminalFrame) => void,
     clientId?: string,
+    configuration: () => boolean = () => false,
   ): (() => void) | null {
     if (closed) return null
     reap()
     const entry = entries.get(frame.terminalId)
-    if (!entry || (entry.login && entry.login.owner !== clientId)) return null
+    if (
+      !entry ||
+      (entry.login?.configuration && !configuration()) ||
+      (entry.login && entry.login.owner !== clientId)
+    )
+      return null
     if (entry.login && entry.status === 'running') entry.login.disconnectedAt = undefined
-    const deliver = (f: TerminalFrame) => send({ ...f, ...('id' in f ? { id: frame.id } : {}) })
+    const deliver = (f: TerminalFrame) => {
+      if (!entry.login?.configuration || configuration())
+        send({ ...f, ...('id' in f ? { id: frame.id } : {}) })
+    }
     entry.listeners.add(deliver)
     const after = frame.after
     if (
@@ -379,7 +403,17 @@ export function createTerminals(options: {
       entry.listeners.clear()
     }
   }
+  function authorizationChanged() {
+    for (const [id, entry] of entries) {
+      if (entry.login?.configuration && entry.login.authorized && !entry.login.authorized()) {
+        kill(entry)
+        entry.listeners.clear()
+        entries.delete(id)
+      }
+    }
+  }
   function presence(owner: string, connected: boolean, revoked = false) {
+    authorizationChanged()
     for (const [id, entry] of entries) {
       if (entry.login?.owner !== owner) continue
       if (revoked) {
@@ -390,10 +424,15 @@ export function createTerminals(options: {
         entry.login.disconnectedAt = connected ? undefined : now()
     }
   }
-  function machineOp(owner: string, op: TerminalOp) {
+  function machineOp(owner: string, op: TerminalOp, configuration = false) {
     if (closed || op.type === 'terminal.create') throw new TerminalForbidden('forbidden')
     const entry = entries.get(op.terminalId)
-    if (!entry?.login || entry.login.owner !== owner) throw new TerminalForbidden('forbidden')
+    if (
+      !entry?.login ||
+      entry.login.owner !== owner ||
+      (entry.login.configuration && !configuration && op.type !== 'terminal.kill')
+    )
+      throw new TerminalForbidden('forbidden')
     if (op.type === 'terminal.resize') entry.pty?.resize(op.cols, op.rows)
     else {
       kill(entry)
@@ -402,8 +441,31 @@ export function createTerminals(options: {
     }
     return null
   }
+  function finishLogin(entry: Entry, exitCode: number) {
+    const watched = entry.listeners.size > 0
+    kill(entry, exitCode)
+    if (entry.login) entry.login.disconnectedAt = now()
+    if (watched) entries.delete(entry.terminalId)
+    entry.listeners.clear()
+  }
+  /** Internal only: keep the private stream open until authoritative auth/metadata verification ends. */
+  function completeLogin(owner: string, id: string, exitCode: number) {
+    const entry = entries.get(id)
+    if (
+      entry?.login?.owner === owner &&
+      entry.login.deferExit &&
+      entry.login.nativeExitCode !== undefined
+    )
+      finishLogin(entry, exitCode)
+  }
   /** Only the Host's CLI login runner supplies these process options. Never wire input. */
-  function loginRunner(owner: string, started: (id: string) => void): typeof runInTerminal {
+  function loginRunner(
+    owner: string,
+    started: (id: string) => void,
+    configuration = false,
+    deferExit = false,
+    authorized?: () => boolean,
+  ): typeof runInTerminal {
     return (file, args, settings) =>
       new Promise<TerminalRun>((resolve) => {
         if (closed || entries.size >= L.perHost)
@@ -419,7 +481,7 @@ export function createTerminals(options: {
           chunks: [],
           outputBytes: 0,
           listeners: new Set(),
-          login: { owner, finish: resolve },
+          login: { owner, configuration, deferExit, authorized, finish: resolve },
         }
         entries.set(entry.terminalId, entry)
         try {
@@ -432,13 +494,13 @@ export function createTerminals(options: {
           })
           entry.pty.onData((data) => output(entry, data))
           entry.pty.onExit(({ exitCode }) => {
-            const watched = entry.listeners.size > 0
-            kill(entry, exitCode)
-            // An exit can beat Desktop's first subscribe. Retain only a bounded,
-            // content-free tombstone so its reset reports completion, not a hung modal.
-            if (entry.login) entry.login.disconnectedAt = now()
-            if (watched) entries.delete(entry.terminalId)
-            entry.listeners.clear()
+            if (entry.login?.deferExit) {
+              entry.pty = undefined
+              entry.login.nativeExitCode = exitCode
+              entry.login.finish({ code: exitCode })
+            } else finishLogin(entry, exitCode)
+            // A completed stream may beat Desktop's subscribe; its bounded,
+            // content-free tombstone still reports completion, not a hung modal.
           })
           started(entry.terminalId)
         } catch {
@@ -448,6 +510,17 @@ export function createTerminals(options: {
         }
       })
   }
-  return { execute, input, subscribe, feature, close, loginRunner, machineOp, presence }
+  return {
+    execute,
+    input,
+    subscribe,
+    feature,
+    close,
+    loginRunner,
+    completeLogin,
+    machineOp,
+    presence,
+    authorizationChanged,
+  }
 }
 export type HostTerminals = ReturnType<typeof createTerminals>
