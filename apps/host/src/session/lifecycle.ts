@@ -3,6 +3,7 @@ import type { PiEvent } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import type { SessionRegistry } from '@phosphor/session-runtime/pi/session-registry'
+import { errnoIs } from '../fs-safety'
 
 export type HostState = 'booting' | 'validating' | 'ready' | 'draining' | 'stopped' | 'failed'
 
@@ -128,7 +129,7 @@ export function isGone(pgid: number): boolean {
     process.kill(-pgid, 0)
     return false
   } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'ESRCH'
+    return errnoIs(error, 'ESRCH')
   }
 }
 

@@ -5,6 +5,7 @@ import type { ThinkingLevel } from '@phosphor/shared/rpc'
 import { ALL_THINKING_LEVELS } from '@phosphor/shared/thinking'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import { pointer, type ConfigError } from '../config/schema'
+import { errnoIs } from '../fs-safety'
 import { confineToRoots } from '../machine/repositories'
 
 /**
@@ -167,7 +168,7 @@ async function sessionProblem(path: string, workspace: string): Promise<string |
   try {
     info = await lstat(real)
   } catch (error) {
-    const missing = (error as NodeJS.ErrnoException).code === 'ENOENT'
+    const missing = errnoIs(error, 'ENOENT')
     return missing ? 'does not exist' : 'cannot be read'
   }
   if (info.isSymbolicLink()) return 'must not be a symlink'
