@@ -195,3 +195,130 @@ it('prints help and fails closed on incomplete CLI input', () => {
   expect(result.status).toBe(1)
   expect(result.stderr).toMatch(/required/i)
 })
+
+// Review regressions: snapshot isolation, cleanup failures and command evidence.
+import * as childProcess from 'node:child_process'
+import { existsSync, symlinkSync } from 'node:fs'
+import { vi } from 'vitest'
+
+it('imports and measures each ref’s own workspace package, not the installed checkout', () => {
+  const { directory, put, git, commit } = fixture()
+  const workspace = 'tools/scripts/workspace'
+  const workspaceSource = `${workspace}/index.js`
+  const relocatedTest = 'tools/scripts/workspace.test.ts'
+  put('package.json', JSON.stringify({ type: 'module', workspaces: [workspace] }))
+  put(
+    'package-lock.json',
+    JSON.stringify({
+      lockfileVersion: 3,
+      packages: {
+        'node_modules/@fixture/workspace': { resolved: workspace, link: true },
+      },
+    }),
+  )
+  put(
+    `${workspace}/package.json`,
+    JSON.stringify({ name: '@fixture/workspace', type: 'module', exports: './index.js' }),
+  )
+  put(workspaceSource, 'export function value() { return 1 }')
+  put(
+    test,
+    `import {it,expect} from 'vitest'; import {value} from '@fixture/workspace';
+     import {readFileSync} from 'node:fs';
+     const expected = JSON.parse(readFileSync(new URL('../../expected.json', import.meta.url), 'utf8'));
+     it('snapshot value',()=>expect(value()).toBe(expected))`,
+  )
+  put('expected.json', '1')
+  const before = commit()
+  put(workspaceSource, 'export function value(extra = false) { if (extra) return 3; return 2 }')
+  put('expected.json', '2')
+  git('mv', test, relocatedTest)
+  const after = commit()
+  // A dependency installation with the same workspace link as npm creates.
+  mkdirSync(join(directory, 'node_modules/@fixture'), { recursive: true })
+  symlinkSync(
+    join(directory, workspace),
+    join(directory, 'node_modules/@fixture/workspace'),
+    'junction',
+  )
+  symlinkSync(join(root, 'node_modules/vitest'), join(directory, 'node_modules/vitest'), 'junction')
+  symlinkSync(
+    join(root, 'node_modules/@vitest'),
+    join(directory, 'node_modules/@vitest'),
+    'junction',
+  )
+  const result = runUnitCoverage({
+    unit: { owns: [workspaceSource], new_tests: [{ test }] },
+    before,
+    after,
+    tests: [test],
+    map: { version: 1, moves: [{ from: test, to: relocatedTest }] },
+    root: directory,
+  })
+  expect(result.pass).toBe(false)
+  expect(result.before.covered).toBe(result.before.total)
+  expect(result.after.covered).toBeGreaterThan(0)
+  expect(result.after.covered).toBeLessThan(result.after.total)
+  expect(result.commands.before).toEqual([
+    process.execPath,
+    join(directory, 'node_modules/vitest/vitest.mjs'),
+    'run',
+    '--maxWorkers=2',
+    '--coverage.enabled',
+    '--coverage.provider=v8',
+    '--coverage.reporter=json',
+    expect.stringMatching(/^--coverage.reportsDirectory=.*\/old-report$/),
+    `--coverage.include=${workspaceSource}`,
+    test,
+  ])
+  expect(result.commands.after).toEqual([
+    ...result.commands.before.slice(0, 7),
+    expect.stringMatching(/^--coverage.reportsDirectory=.*\/new-report$/),
+    `--coverage.include=${workspaceSource}`,
+    relocatedTest,
+  ])
+  expect(git('worktree', 'list', '--porcelain').match(/^worktree /gm)).toHaveLength(1)
+}, 60_000)
+
+it.each([true, false])(
+  'attempts all cleanup steps and preserves the first error (earlier operation failed: %s)',
+  async (operationFailed) => {
+    const { directory, git, unit, before, after } = fixture()
+    const removed: string[] = []
+    let pruned = false
+    const firstCleanupError = new Error('first removal failed')
+    const execute = vi.fn(childProcess.execFileSync).mockImplementation((file, args, options) => {
+      if (file === 'git' && args?.[0] === 'worktree') {
+        if (args[1] === 'remove') {
+          removed.push(String(args[3]))
+          throw removed.length === 1 ? firstCleanupError : new Error('second removal failed')
+        }
+        if (args[1] === 'prune') pruned = true
+      }
+      return execFileSync(file, args, options)
+    })
+    vi.resetModules()
+    vi.doMock('node:child_process', () => ({ ...childProcess, execFileSync: execute }))
+    const { runUnitCoverage: isolatedRun } = await import('../unit-coverage.mjs')
+    try {
+      expect(() =>
+        isolatedRun({
+          unit: operationFailed ? { ...unit, owns: ['docs/**'] } : unit,
+          before,
+          after,
+          tests: [test],
+          root: directory,
+          dependencies: root,
+        }),
+      ).toThrow(operationFailed ? /empty owned executable source scope/i : firstCleanupError)
+      expect(removed).toHaveLength(2)
+      expect(removed.every((snapshot) => !existsSync(resolve(snapshot, '..')))).toBe(true)
+      expect(pruned).toBe(true)
+    } finally {
+      vi.doUnmock('node:child_process')
+      vi.resetModules()
+    }
+    expect(git('worktree', 'list', '--porcelain').match(/^worktree /gm)).toHaveLength(1)
+  },
+  60_000,
+)
