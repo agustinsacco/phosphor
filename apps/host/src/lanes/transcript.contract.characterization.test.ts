@@ -220,3 +220,58 @@ describe('stopped transcript contract', () => {
     expect(log).not.toHaveBeenCalled()
   })
 })
+
+describe('stopped transcript failure ordering', () => {
+  it.each([
+    ['type', 'type'],
+    ['outside', 'outside'],
+    ['fstat', 'open'],
+    ['read', 'open'],
+    ['parse', 'parse'],
+    ['limit', 'limit'],
+  ])('logs and invalidates %s before a throwing close', async (failure, reason) => {
+    const path = file()
+    snapshot(read('lane'))
+    const actual = await vi.importActual<typeof fs>('node:fs')
+    const events: string[] = []
+    log.mockImplementation(() => {
+      events.push('log')
+    })
+    const fstat = vi.spyOn(fs, 'fstatSync').mockImplementation((fd) => {
+      if (failure === 'fstat') throw new Error('fstat failed')
+      const stat = actual.fstatSync(fd)
+      if (failure === 'type') stat.isFile = () => false
+      if (failure === 'limit') stat.size = fileBytes + 1
+      if (failure === 'read') stat.mtimeMs++
+      return stat
+    })
+    const realpath = vi
+      .spyOn(fs, 'realpathSync')
+      .mockImplementation((name) =>
+        failure === 'outside' && name === path ? directory : actual.realpathSync(name),
+      )
+    const readSpy = vi.spyOn(fs, 'readSync')
+    if (failure === 'read')
+      readSpy.mockImplementation(() => {
+        throw new Error('read failed')
+      })
+    if (failure === 'parse') fs.writeFileSync(path, 'invalid')
+    const close = vi.spyOn(fs, 'closeSync').mockImplementation((fd) => {
+      events.push('close')
+      actual.closeSync(fd)
+      throw new Error('close failed')
+    })
+    expect(() => read('lane')).toThrow('close failed')
+    expect(events).toEqual(['log', 'close'])
+    logged(reason)
+    fstat.mockRestore()
+    realpath.mockRestore()
+    close.mockRestore()
+    readSpy.mockRestore()
+    if (failure === 'parse')
+      fs.writeFileSync(path, transcript([{ role: 'user', content: 'hello' }]))
+    const afterFailure = vi.spyOn(fs, 'readSync').mockClear()
+    expect(snapshot(read('lane')).messages).toEqual([{ role: 'user', content: 'hello' }])
+    expect(afterFailure).toHaveBeenCalled()
+  })
+})
