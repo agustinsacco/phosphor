@@ -1,58 +1,31 @@
-import {
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  rmdirSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs'
+import { lstatSync, mkdirSync, readFileSync, rmdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { errnoIs } from '../fs-safety'
+import {
+  type DeadPid,
+  installLockPaths,
+  refuseInstallLock,
+  removeRetiredLock,
+  renameToRetired,
+  retireInstallLock,
+  sweepRetiredLocks,
+} from './lock-retirement'
 
+/** Compatibility facade for update and uninstall: only an Error carrying `code` matches. */
 export const hasCode = (error: unknown, code: string): boolean =>
-  error instanceof Error && 'code' in error && error.code === code
+  error instanceof Error && errnoIs(error, code)
 export function deadPid(pid: number): boolean {
   try {
     process.kill(pid, 0)
     return false
   } catch (error) {
-    return hasCode(error, 'ESRCH')
+    return error instanceof Error && errnoIs(error, 'ESRCH')
   }
 }
-export function acquireInstallLock(lib: string, dead = deadPid): () => void {
-  const lock = join(lib, '.install-lock')
-  const retired = join(lib, `.install-lock.retired.${process.pid}`)
-  const refuse = (): never => {
-    throw new Error(`Install lock: ${lock}. Remove it only if no install or update is running.`)
-  }
-  const remove = (path: string) => {
-    try {
-      unlinkSync(join(path, 'pid'))
-    } catch (error) {
-      if (!hasCode(error, 'ENOENT')) throw error
-    }
-    try {
-      if (lstatSync(join(path, 'recovery')).isSymbolicLink()) refuse()
-      rmdirSync(join(path, 'recovery'))
-    } catch (error) {
-      if (!hasCode(error, 'ENOENT')) throw error
-    }
-    rmdirSync(path)
-  }
-  const rename = () => {
-    try {
-      lstatSync(retired)
-      refuse()
-    } catch (error) {
-      if (!hasCode(error, 'ENOENT')) throw error
-    }
-    renameSync(lock, retired)
-  }
-  const retire = () => {
-    rename()
-    remove(retired)
-  }
+export function acquireInstallLock(lib: string, dead: DeadPid = deadPid): () => void {
+  const paths = installLockPaths(lib)
+  const { lock } = paths
+  const refuse = (): never => refuseInstallLock(paths)
   const owner = () => {
     const file = join(lock, 'pid')
     const info = lstatSync(file)
@@ -61,20 +34,11 @@ export function acquireInstallLock(lib: string, dead = deadPid): () => void {
     if (!/^[1-9][0-9]{0,9}\n$/.test(text)) refuse()
     return Number(text.trim())
   }
-  let swept = 0
-  for (const name of readdirSync(lib)) {
-    const match = /^\.install-lock\.retired\.([1-9][0-9]{0,9})$/.exec(name)
-    if (!match?.[1]) continue
-    const path = join(lib, name)
-    const info = lstatSync(path)
-    if (!info.isDirectory() || info.isSymbolicLink()) continue
-    if (++swept > 16) break
-    if (dead(Number(match[1]))) remove(path)
-  }
+  sweepRetiredLocks(paths, dead)
   try {
     mkdirSync(lock)
   } catch (error) {
-    if (!hasCode(error, 'EEXIST')) throw error
+    if (!(error instanceof Error && errnoIs(error, 'EEXIST'))) throw error
     let gate = false
     try {
       const info = lstatSync(lock)
@@ -84,9 +48,9 @@ export function acquireInstallLock(lib: string, dead = deadPid): () => void {
       mkdirSync(join(lock, 'recovery'))
       gate = true
       if (owner() !== pid || !dead(pid)) refuse()
-      rename()
+      renameToRetired(paths)
       gate = false
-      remove(retired)
+      removeRetiredLock(paths)
       mkdirSync(lock)
     } catch {
       if (gate) rmdirSync(join(lock, 'recovery'))
@@ -96,8 +60,8 @@ export function acquireInstallLock(lib: string, dead = deadPid): () => void {
   try {
     writeFileSync(join(lock, 'pid'), `${process.pid}\n`, { flag: 'wx', mode: 0o600 })
   } catch (error) {
-    retire()
+    retireInstallLock(paths)
     throw error
   }
-  return retire
+  return () => retireInstallLock(paths)
 }
