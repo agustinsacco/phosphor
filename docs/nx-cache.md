@@ -20,8 +20,14 @@ files it consumes. That is what makes affected mean something per app:
   unit runner for `test`. Its build declares `apps/host/dist`. Only `tooling` depends on it, so a Host-only change selects
   `host` and `tooling` and never the Desktop release.
 - `control`: shared contract sources, root install for typecheck/build and the
-  unit runner for tests. Its build declares `apps/control/dist`. Only tooling
-  depends on it. A control-only edit selects control and tooling.
+  unit runner for tests. Its build declares `apps/control/dist`. It also has an
+  explicit **test-only** dependency on `desktop`: `apps/control/src/routes/stack.test.ts`
+  intentionally imports Desktop's GoTrue and loopback sign-in flow. This is a
+  conservative project-wide edge, not a production cross-app import or an auth
+  abstraction. Desktop does not depend on Control or Web, so the graph stays
+  acyclic and no library depends on an app. Web depends on Control; a Desktop
+  auth edit therefore selects Desktop, Control, Web and tooling. A Control-only
+  edit selects Control, Web, site (its deploy inputs consume Control) and tooling.
 - `site`: `apps/site` only, since its image is built from that directory alone.
   Its build adds `deploy`, which must equal `deploy-site.yml`'s path filter
   (tested). Screenshots are captured by hand from Desktop and committed, so a
@@ -84,6 +90,12 @@ older runs.
 Forks, merge groups, unsupported events, checkout mismatches, shallow/missing
 history and API/Nx/parse failures fall back to all projects. Rollback removes the
 shadow step/helper, leaving full uncached checks and release/deployment unchanged.
+
+The Control → Desktop test edge participates in the per-file shadow matrix,
+including explicit cases for `gotrue.ts` and `loopback.ts`. It conservatively
+selects Control and its Web consumer for any Desktop edit without changing
+production boundaries, enabling caching or starting the isolated stack test.
+Site has no Desktop input, so a Desktop-only edit does not select site.
 
 The full validator always runs an unsigned Desktop build, including with
 `SKIP_E2E=1`. Normal E2E retains its own build, deliberately duplicating it rather
