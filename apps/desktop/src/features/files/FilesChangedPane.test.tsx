@@ -81,3 +81,34 @@ it('allows a clean buffer to revert after confirmation', async () => {
   )
   expect(invoke).toHaveBeenCalledWith('git:restoreFileTo', '/repo', 'baseline', 'nested/a.ts')
 })
+
+it('characterizes reverse-patch revert without a saved baseline', async () => {
+  const { usePromptStore } = await import('@/stores/prompt')
+  const unsubscribe = usePromptStore.subscribe((state) => {
+    for (const request of state.requests) usePromptStore.getState().dismiss(request, 'revert')
+  })
+  useSessionsStore.setState({ baselines: {} })
+  useChatStore.setState((state) => ({
+    sessions: {
+      session: {
+        ...state.sessions.session!,
+        tools: {
+          edit: {
+            ...state.sessions.session!.tools.edit!,
+            output: { content: [], details: { patch: '@@ -1 +1 @@\n-old\n+disk' } },
+          },
+        },
+      },
+    },
+  }))
+  try {
+    await act(async () => root.render(<FilesChangedPane workspacePath="/repo" />))
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Revert nested/a.ts"]')!.click(),
+    )
+    expect(invoke.mock.calls.map(([channel]) => channel)).toEqual(['fs:readFile', 'fs:writeFile'])
+    expect(invoke).toHaveBeenLastCalledWith('fs:writeFile', '/repo/nested/a.ts', 'old')
+  } finally {
+    unsubscribe()
+  }
+})

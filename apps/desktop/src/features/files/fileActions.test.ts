@@ -81,3 +81,59 @@ it('retargets dirty descendants without losing buffers, and closes them after tr
   expect(releaseFileModel).toHaveBeenCalledWith('/repo/src/a.ts')
   expect(releaseFileModel).toHaveBeenCalledWith('/repo/lib/a.ts')
 })
+
+it('characterizes trash warning and success-only tab reconciliation', async () => {
+  const { usePromptStore } = await import('@/stores/prompt')
+  const messages: string[] = []
+  const unsubscribe = usePromptStore.subscribe((state) => {
+    for (const request of state.requests) {
+      messages.push(`${request.title} ${request.message ?? ''}`)
+      usePromptStore.getState().dismiss(request, 'trash')
+    }
+  })
+  const invoke = vi.fn().mockRejectedValue(new Error('Trash unavailable'))
+  vi.stubGlobal('window', {
+    confirm: (message: string) => {
+      messages.push(message)
+      return true
+    },
+    phosphor: { invoke },
+  })
+  useFilesStore.setState({
+    byWorkspace: {
+      '/repo': {
+        openFiles: [
+          {
+            path: '/repo/docs/draft.md',
+            relativePath: 'docs/draft.md',
+            language: 'markdown',
+            content: 'draft',
+            savedContent: '',
+            dirty: true,
+            mtimeMs: 1,
+            size: 0,
+          },
+        ],
+        activePath: '/repo/docs/draft.md',
+        gitStatus: {},
+      },
+    },
+  })
+  const reconcile = vi.spyOn(useFilesStore.getState(), 'reconcilePath').mockImplementation(() => {})
+  const refresh = vi.spyOn(useFilesStore.getState(), 'refreshDir').mockResolvedValue()
+  const entry = { name: 'docs', path: '/repo/docs', relativePath: 'docs', isDirectory: true }
+  try {
+    await expect(trashEntry('/repo', entry)).rejects.toThrow('Trash unavailable')
+    expect(reconcile).not.toHaveBeenCalled()
+    expect(refresh).not.toHaveBeenCalled()
+    invoke.mockResolvedValue(undefined)
+    await trashEntry('/repo', entry)
+    expect(messages).toHaveLength(2)
+    expect(messages.every((message) => message.includes('Unsaved edits will be lost.'))).toBe(true)
+    expect(invoke).toHaveBeenLastCalledWith('fs:trash', '/repo/docs')
+    expect(reconcile).toHaveBeenCalledExactlyOnceWith('/repo', '/repo/docs')
+    expect(refresh).toHaveBeenCalledExactlyOnceWith('/repo', '/repo')
+  } finally {
+    unsubscribe()
+  }
+})
