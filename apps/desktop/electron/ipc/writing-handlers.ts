@@ -1,9 +1,9 @@
-import { app, session } from 'electron'
-import { join } from 'node:path'
 import { EDIT_COMMANDS, type EditCommand } from '@shared/writing'
 import { handle } from './handle'
 import { getWritingPrefs, setWritingPrefs } from '../store'
-import { createPromptCorpus, type PromptCorpus } from '../writing/prompt-corpus'
+import { applySpellcheck, promptCorpus } from '../writing/runtime'
+
+export { applySpellcheck } from '../writing/runtime'
 
 /**
  * Settings → Writing: the spellchecker switch, the edit commands behind the
@@ -11,19 +11,6 @@ import { createPromptCorpus, type PromptCorpus } from '../writing/prompt-corpus'
  * suggestions themselves never come through here; the preload reads them
  * synchronously from `webFrame`.
  */
-
-let corpus: PromptCorpus | null = null
-
-/** Lazy for the same reason as store.ts: userData may still be redirected for E2E. */
-function promptCorpus(): PromptCorpus {
-  corpus ??= createPromptCorpus(() => join(app.getPath('userData'), 'writing', 'prompts.jsonl'))
-  return corpus
-}
-
-/** The app's windows share the default session, so this switches all of them. */
-export function applySpellcheck(enabled: boolean): void {
-  session.defaultSession.setSpellCheckerEnabled(enabled)
-}
 
 /** One word as the spellchecker sees it: letters, no spaces, nothing paste-sized. */
 function isDictionaryWord(word: unknown): word is string {
