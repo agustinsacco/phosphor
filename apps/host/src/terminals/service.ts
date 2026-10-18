@@ -5,7 +5,6 @@ import { userInfo } from 'node:os'
 import { isAbsolute } from 'node:path'
 import {
   TERMINAL_LIMITS as L,
-  parseTerminalList,
   parseTerminalListParams,
   parseTerminalOp,
   parseTerminalInput,
@@ -13,42 +12,22 @@ import {
   type TerminalInput,
   type TerminalSubscribe,
   type TerminalFrame,
-  type TerminalSummary,
 } from '@phosphor/shared/host-protocol-terminals'
-import type { HostFeature, FeatureContext } from '../features/feature'
+import type { HostFeature } from '../features/feature'
 import { laneRoot } from '../features/files'
-import type { HostPty, HostPtyModule } from './native'
+import {
+  createTerminalState,
+  FORCED_EXIT_CODE,
+  type Entry,
+  type TerminalOptions,
+} from './service-state'
+import { emit, output } from './output'
+import { subscribe as subscribeTerminal } from './subscriptions'
 
 export class TerminalForbidden extends Error {}
-/** A stop the Host forces has no observed code. The numeric wire reports it as -1, never a clean 0. */
-const FORCED_EXIT_CODE = -1
-
-type Entry = TerminalSummary & {
-  login?: { owner: string; disconnectedAt?: number; finish: (result: TerminalRun) => void }
-  pty?: HostPty
-  /** The code kill() reported, which a login's tombstone repeats. */
-  exitCode?: number
-  seq: number
-  inputSeq: number
-  window: number
-  bytes: number
-  chunks: { seq: number; data: string; bytes: number }[]
-  outputBytes: number
-  listeners: Set<(frame: TerminalFrame) => void>
-}
-export function createTerminals(options: {
-  native: HostPtyModule
-  context: FeatureContext
-  env: Record<string, string>
-  epoch: string
-  now?: () => number
-  shell?: () => string
-  load(): unknown
-  save(rows: TerminalSummary[]): void
-}) {
-  let closed = false
-  const entries = new Map<string, Entry>()
-  const now = options.now ?? Date.now
+export function createTerminals(options: TerminalOptions) {
+  const state = createTerminalState(options)
+  const { entries, now } = state
   function persist() {
     options.save(
       [...entries.values()]
@@ -60,20 +39,6 @@ export function createTerminals(options: {
         })),
     )
   }
-  const restored = parseTerminalList(options.load())
-  if (!restored) throw new Error('Invalid terminal state')
-  for (const row of restored)
-    entries.set(row.terminalId, {
-      ...row,
-      status: row.status === 'running' ? 'interrupted' : row.status,
-      seq: 0,
-      inputSeq: 0,
-      window: 0,
-      bytes: 0,
-      chunks: [],
-      outputBytes: 0,
-      listeners: new Set(),
-    })
   persist()
   function alive(laneId: string) {
     const lane = options.context.store.getLane(laneId)
@@ -126,68 +91,27 @@ export function createTerminals(options: {
     if (changed) persist()
   }
   // Deleted lanes lose their PTYs even when no client remains connected.
-  const timer = setInterval(() => {
+  state.timer = setInterval(() => {
     try {
       reap()
     } catch {
       close()
     }
   }, 1000)
-  timer.unref()
-  function emit(entry: Entry, frame: TerminalFrame) {
-    for (const listener of [...entry.listeners]) {
-      try {
-        listener(frame)
-      } catch {
-        entry.listeners.delete(listener)
-      }
-    }
-  }
-  function output(entry: Entry, data: string) {
-    if (entry.login && (closed || entry.status !== 'running')) return
-    // Split on Unicode codepoints, not UTF-16 halves or UTF-8 continuation bytes.
-    let text = ''
-    let bytes = 0
-    function flush() {
-      if (!text) return
-      entry.chunks.push({ seq: ++entry.seq, data: text, bytes })
-      entry.outputBytes += bytes
-      while (entry.outputBytes > L.scrollbackBytes || entry.chunks.length > 2048) {
-        const first = entry.chunks.shift()
-        if (first) entry.outputBytes -= first.bytes
-      }
-      emit(entry, {
-        type: 'terminal.output',
-        id: 'live',
-        terminalId: entry.terminalId,
-        epoch: options.epoch,
-        seq: entry.seq,
-        data: text,
-      })
-      text = ''
-      bytes = 0
-    }
-    for (const char of data) {
-      const size = Buffer.byteLength(char)
-      if (bytes + size > L.chunkBytes) flush()
-      text += char
-      bytes += size
-    }
-    flush()
-  }
+  state.timer.unref()
   async function execute(
     laneId: string,
     input: TerminalOp,
     authorized: () => boolean = () => true,
   ): Promise<unknown> {
     if (!authorized()) throw new TerminalForbidden('forbidden')
-    if (closed) throw new Error('unavailable')
+    if (state.closed) throw new Error('unavailable')
     const op = parseTerminalOp(input)
     if (!op) throw new Error('bad-request')
     reap()
     const cwd = await laneRoot(options.context, laneId)
     if (!authorized()) throw new TerminalForbidden('forbidden')
-    if (closed) throw new Error('unavailable')
+    if (state.closed) throw new Error('unavailable')
     if (op.type === 'terminal.create') {
       // laneRoot awaits I/O: recheck limits after it, before any spawn.
       reap()
@@ -222,7 +146,7 @@ export function createTerminals(options: {
           name: 'xterm-256color',
           env: { ...options.env, TERM: 'xterm-256color' },
         })
-        entry.pty.onData((data) => output(entry, data))
+        entry.pty.onData((data) => output(state, entry, data))
         entry.pty.onExit(({ exitCode }) => {
           if (entry.status !== 'running') return
           entry.pty = undefined
@@ -263,7 +187,7 @@ export function createTerminals(options: {
     return null
   }
   function input(clientId: string, raw: TerminalInput): boolean {
-    if (closed) return false
+    if (state.closed) return false
     const frame = parseTerminalInput(raw)
     if (!frame) return false
     const entry = entries.get(frame.terminalId)
@@ -297,62 +221,14 @@ export function createTerminals(options: {
     frame: TerminalSubscribe,
     send: (frame: TerminalFrame) => void,
     clientId?: string,
-  ): (() => void) | null {
-    if (closed) return null
-    reap()
-    const entry = entries.get(frame.terminalId)
-    if (!entry || (entry.login && entry.login.owner !== clientId)) return null
-    if (entry.login && entry.status === 'running') entry.login.disconnectedAt = undefined
-    const deliver = (f: TerminalFrame) => send({ ...f, ...('id' in f ? { id: frame.id } : {}) })
-    entry.listeners.add(deliver)
-    const after = frame.after
-    if (
-      after &&
-      after.epoch === options.epoch &&
-      after.seq <= entry.seq &&
-      after.seq >= (entry.chunks[0]?.seq ?? entry.seq + 1) - 1 &&
-      entry.status === 'running'
-    ) {
-      for (const chunk of entry.chunks)
-        if (chunk.seq > after.seq)
-          deliver({
-            type: 'terminal.output',
-            id: frame.id,
-            terminalId: entry.terminalId,
-            epoch: options.epoch,
-            seq: chunk.seq,
-            data: chunk.data,
-          })
-    } else
-      deliver({
-        type: 'terminal.reset',
-        id: frame.id,
-        terminalId: entry.terminalId,
-        epoch: options.epoch,
-        seq: entry.seq,
-        data: entry.chunks.map((c) => c.data).join(''),
-        inputSeq: entry.inputSeq,
-        status: entry.status,
-      })
-    if (entry.login && entry.status !== 'running') {
-      deliver({
-        type: 'terminal.exit',
-        id: frame.id,
-        terminalId: entry.terminalId,
-        epoch: options.epoch,
-        seq: ++entry.seq,
-        exitCode: entry.exitCode ?? FORCED_EXIT_CODE,
-      })
-      entries.delete(entry.terminalId)
-      entry.listeners.clear()
-    }
-    return () => entry.listeners.delete(deliver)
+  ) {
+    return subscribeTerminal(state, reap, frame, send, clientId)
   }
   const feature: HostFeature = {
     capability: 'terminal',
     methods: ['terminal.list'],
     async call(method, params) {
-      if (closed)
+      if (state.closed)
         return { ok: false, error: { code: 'internal', message: 'Terminals unavailable.' } }
       const parsed = parseTerminalListParams(params)
       if (method !== 'terminal.list' || !parsed)
@@ -372,8 +248,8 @@ export function createTerminals(options: {
     },
   }
   function close() {
-    closed = true
-    clearInterval(timer)
+    state.closed = true
+    clearInterval(state.timer)
     for (const entry of entries.values()) {
       kill(entry)
       entry.listeners.clear()
@@ -391,7 +267,7 @@ export function createTerminals(options: {
     }
   }
   function machineOp(owner: string, op: TerminalOp) {
-    if (closed || op.type === 'terminal.create') throw new TerminalForbidden('forbidden')
+    if (state.closed || op.type === 'terminal.create') throw new TerminalForbidden('forbidden')
     const entry = entries.get(op.terminalId)
     if (!entry?.login || entry.login.owner !== owner) throw new TerminalForbidden('forbidden')
     if (op.type === 'terminal.resize') entry.pty?.resize(op.cols, op.rows)
@@ -406,7 +282,7 @@ export function createTerminals(options: {
   function loginRunner(owner: string, started: (id: string) => void): typeof runInTerminal {
     return (file, args, settings) =>
       new Promise<TerminalRun>((resolve) => {
-        if (closed || entries.size >= L.perHost)
+        if (state.closed || entries.size >= L.perHost)
           return resolve({ code: null, error: 'unavailable' })
         const entry: Entry = {
           terminalId: randomUUID(),
@@ -430,7 +306,7 @@ export function createTerminals(options: {
             rows: 24,
             name: 'xterm-256color',
           })
-          entry.pty.onData((data) => output(entry, data))
+          entry.pty.onData((data) => output(state, entry, data))
           entry.pty.onExit(({ exitCode }) => {
             const watched = entry.listeners.size > 0
             kill(entry, exitCode)
