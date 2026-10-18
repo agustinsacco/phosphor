@@ -1,25 +1,18 @@
 /**
- * Opt-in global gate. Copy this file to ~/.pi/agent/extensions/permission-gate.ts.
- * Not loaded by Phosphor. This is a confirmation heuristic, not a shell sandbox.
- *
- * It judges what the shell would RUN, not the text of the script. A heredoc
- * written to a file, a quoted argument, a comment or `os.kill` inside Python
- * never prompts; `$(…)`, backticks, `bash -c`, `eval`, `trap`, `ssh`,
- * `find -exec`, `xargs` and heredocs fed to a shell are judged like any other
- * command. A script the lexer cannot follow falls back to matching the raw
- * text, so a parser gap costs a prompt, never a pass.
- *
- * Nothing is refused outright: every finding is a question for the user.
- * AWS authorization belongs to this machine's credentials and IAM policy, and
- * no command (scratch cleanup included) exempts the rest of a shell script.
- * A linked-worktree session may recursively delete literal descendants of its
- * lane, or of a pi-scratch job, without asking. Root/outside paths and
- * unresolved shell targets ask.
- *
- * A lane listed by its worktree root in `~/.pi/agent/permission-gate.json`
- * (`{ "unguardedDeleteLanes": ["/abs/worktree"] }`) is never asked about
- * `rm -r`, wherever it points. Every other finding still asks there. The file
- * is re-read on every command, so removing an entry restores the question.
+ * Opt-in global gate: copy this ONE file to ~/.pi/agent/extensions/permission-gate.ts.
+ * Its file-only size baseline preserves that install contract; functions stay bounded.
+ * Not loaded by Phosphor; a confirmation heuristic, not a shell sandbox.
+ * Judges what the shell RUNS: file heredocs, quoted args, comments and Python's
+ * `os.kill` never prompt. `$(…)`, backticks, `bash -c`, `eval`, `trap`, `ssh`,
+ * `find -exec`, `xargs` and shell-fed heredocs are judged like other commands.
+ * Unfollowable scripts fall back to raw text: a parser gap costs a prompt, never a pass.
+ * Every finding asks the user, never refuses outright. AWS authorization belongs
+ * to machine credentials and IAM; no command, even scratch cleanup, exempts the rest.
+ * Linked-worktree sessions may recursively delete literal descendants of their lane
+ * or a pi-scratch job unasked. Root/outside paths and unresolved shell targets ask.
+ * A worktree root in ~/.pi/agent/permission-gate.json, for example
+ * { "unguardedDeleteLanes": ["/abs/worktree"] }, exempts `rm -r` wherever it points,
+ * but no other finding. Re-read on every command: removing an entry restores asking.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -189,225 +182,231 @@ const RAW_PATTERNS: Array<[string, RegExp]> = [
   ['service', /\bservice\s+\S+\s+(start|stop|restart)/i],
 ]
 
+class LexerState implements Parsed, Word {
+  commands: Word[][] = []
+  scripts: string[] = []
+  words: Word[] = []
+  line: Word[][] = []
+  stdin: string[] = []
+  heredocs: Array<{ delimiter: string; strip: boolean; expand: boolean }> = []
+  text = ''
+  dynamic = false
+  inWord = false
+  target: 'word' | 'redirect' | 'herestring' = 'word'
+  parens = 0
+  constructor(
+    public src: string,
+    public cursor: number,
+    public depth: number,
+  ) {}
+}
+
+type Lexed = Parsed & { end: number }
+
+function merge<T extends Parsed>(s: LexerState, inner: T): T {
+  s.commands.push(...inner.commands)
+  s.scripts.push(...inner.scripts)
+  return inner
+}
+
+// `at` is the index of an opening paren; returns the index past its close.
+function substitute(s: LexerState, at: number): number {
+  const { src, depth } = s
+  if (src[at + 1] !== '(') return merge(s, lex(src, at + 1, true, depth + 1)).end
+  // Arithmetic: not a command, but a `$(…)` inside it still runs.
+  let open = 0
+  for (let j = at; j < src.length; j++) {
+    if (src[j] === '(') open++
+    else if (src[j] === ')' && --open === 0) {
+      merge(s, bodyExpansions(src.slice(at + 2, j - 1), depth + 1))
+      return j + 1
+    }
+  }
+  throw new ParseError()
+}
+
+function backtick(s: LexerState, at: number): number {
+  let j = at + 1
+  while (j < s.src.length && s.src[j] !== '`') j += s.src[j] === '\\' ? 2 : 1
+  if (j >= s.src.length) throw new ParseError()
+  s.scripts.push(s.src.slice(at + 1, j).replace(/\\([`$\\])/g, '$1'))
+  return j + 1
+}
+
+function append(s: LexerState, text: string, dynamic = false): void {
+  s.text += text
+  s.inWord = true
+  s.dynamic ||= dynamic
+}
+
+function expansion(s: LexerState, at: number): number {
+  const end = s.src[at] === '`' ? backtick(s, at) : substitute(s, at + 1)
+  append(s, s.src.slice(at, end), true)
+  return end
+}
+
+function endWord(s: LexerState): void {
+  if (s.inWord && s.target === 'herestring') s.stdin.push(s.text)
+  else if (s.inWord && s.target === 'word') s.words.push({ text: s.text, dynamic: s.dynamic })
+  if (s.inWord) s.target = 'word'
+  s.text = ''
+  s.dynamic = s.inWord = false
+}
+
+function endCommand(s: LexerState): void {
+  endWord(s)
+  if (s.words.length > 0) {
+    s.commands.push(s.words)
+    s.line.push(s.words)
+  }
+  s.words = []
+}
+
+function endLine(s: LexerState, from: number): number {
+  endCommand(s)
+  let j = from
+  for (const doc of s.heredocs) {
+    let body = ''
+    while (j < s.src.length) {
+      const nl = s.src.indexOf('\n', j)
+      const row = s.src.slice(j, nl < 0 ? s.src.length : nl)
+      j = nl < 0 ? s.src.length : nl + 1
+      if ((doc.strip ? row.replace(/^\t+/, '') : row) === doc.delimiter) break
+      body += `${row}\n`
+    }
+    if (doc.expand) merge(s, bodyExpansions(body, s.depth + 1))
+    s.stdin.push(body)
+  }
+  if (s.line.some(readsScriptFromStdin)) s.scripts.push(...s.stdin)
+  s.heredocs = []
+  s.line = []
+  s.stdin = []
+  return j
+}
+
+function readHeredoc(s: LexerState, from: number): number {
+  const { src } = s
+  const strip = src[from] === '-'
+  let j = from + (strip ? 1 : 0)
+  while (src[j] === ' ' || src[j] === '\t') j++
+  let delimiter = ''
+  let expand = true
+  while (j < src.length && !' \t\n;&|<>()'.includes(src[j]!)) {
+    const ch = src[j++]!
+    if (ch === "'" || ch === '"' || ch === '\\') {
+      const escaped = ch === '\\'
+      const close = escaped ? j : src.indexOf(ch, j)
+      if (close < 0) throw new ParseError()
+      delimiter += src.slice(j, close + (escaped ? 1 : 0))
+      expand = false
+      j = close + 1
+    } else delimiter += ch
+  }
+  if (!delimiter) throw new ParseError()
+  s.heredocs.push({ delimiter, strip, expand })
+  return j
+}
+
+function readQuoted(s: LexerState, from: number, quote: string): number {
+  const { src } = s
+  s.inWord = true
+  if (quote === "'") {
+    const close = src.indexOf(quote, from)
+    if (close < 0) throw new ParseError()
+    s.text += src.slice(from, close)
+    return close + 1
+  }
+  let j = from
+  while (j < src.length) {
+    const ch = src[j]!
+    const after = src[j + 1] ?? ''
+    if (ch === '"') return j + 1
+    if (ch === '\\') {
+      if (after !== '\n') s.text += '$`"\\'.includes(after) ? after : ch + after
+      j += 2
+    } else if (ch === '`' || (ch === '$' && after === '(')) {
+      j = expansion(s, j)
+    } else {
+      append(s, ch, ch === '$' && /[\w{@*#?$!-]/.test(after))
+      j++
+    }
+  }
+  throw new ParseError()
+}
+
+function readRedirect(s: LexerState): void {
+  const { src } = s
+  // `2>` names a file descriptor, not an argument.
+  if (s.inWord && /^\d+$/.test(s.text)) {
+    s.text = ''
+    s.inWord = false
+  }
+  endWord(s)
+  if (src.startsWith('<<<', s.cursor)) {
+    s.target = 'herestring'
+    s.cursor += 3
+  } else if (src.startsWith('<<', s.cursor)) {
+    s.cursor = readHeredoc(s, s.cursor + 2)
+  } else {
+    s.cursor++
+    while (s.cursor < src.length && '<>&|'.includes(src[s.cursor]!)) s.cursor++
+    s.target = 'redirect'
+  }
+}
+
+function step(s: LexerState, nested: boolean): boolean {
+  const { src, cursor: i } = s
+  const c = src[i]!
+  const next = src[i + 1] ?? ''
+  s.cursor++
+  if (c === '\\') {
+    if (next !== '\n') append(s, next)
+    s.cursor++
+  } else if (c === "'" || c === '"') {
+    s.cursor = readQuoted(s, i + 1, c)
+  } else if (c === '`' || ((c === '$' || c === '<' || c === '>') && next === '(')) {
+    s.cursor = expansion(s, i)
+  } else if (c === '#' && !s.inWord) {
+    while (s.cursor < src.length && src[s.cursor] !== '\n') s.cursor++
+  } else if (c === ' ' || c === '\t') {
+    endWord(s)
+  } else if (c === '\n') {
+    s.cursor = endLine(s, i + 1)
+  } else if (c === '<' || c === '>') {
+    s.cursor = i
+    readRedirect(s)
+  } else if (c === '&' && next === '>') {
+    endWord(s)
+    s.cursor += src[i + 2] === '>' ? 2 : 1
+    s.target = 'redirect'
+  } else if ('();&|'.includes(c)) {
+    if (c === ')' && s.parens === 0 && nested) {
+      if (s.heredocs.length > 0) throw new ParseError()
+      endLine(s, s.cursor)
+      return true
+    }
+    endCommand(s)
+    s.parens = Math.max(0, s.parens + (c === '(' ? 1 : c === ')' ? -1 : 0))
+  } else {
+    append(s, c, c === '$' && /[\w{@*#?$!-]/.test(next))
+  }
+  return false
+}
+
 /**
  * Split shell source into simple commands, following bash's quoting,
  * heredoc and substitution rules closely enough to know what runs. Inside
  * `$(…)` it calls itself and returns at the closing paren.
  */
-function lex(src: string, start: number, nested: boolean, depth: number): Parsed & { end: number } {
+export function lex(src: string, start: number, nested: boolean, depth: number): Lexed {
   if (depth > MAX_DEPTH) throw new ParseError()
-  const commands: Word[][] = []
-  const scripts: string[] = []
-  let words: Word[] = []
-  let line: Word[][] = []
-  let stdin: string[] = []
-  let heredocs: Array<{ delimiter: string; strip: boolean; expand: boolean }> = []
-  let text = ''
-  let dynamic = false
-  let inWord = false
-  let target: 'word' | 'redirect' | 'herestring' = 'word'
-  let parens = 0
-  let i = start
-
-  const merge = (inner: Parsed): void => {
-    commands.push(...inner.commands)
-    scripts.push(...inner.scripts)
-  }
-  // `at` is the index of an opening paren; returns the index past its close.
-  const substitute = (at: number): number => {
-    if (src[at + 1] === '(') {
-      // Arithmetic: not a command, but a `$(…)` inside it still runs.
-      let open = 0
-      for (let j = at; j < src.length; j++) {
-        if (src[j] === '(') open++
-        else if (src[j] === ')' && --open === 0) {
-          merge(bodyExpansions(src.slice(at + 2, j - 1), depth + 1))
-          return j + 1
-        }
-      }
-      throw new ParseError()
-    }
-    const inner = lex(src, at + 1, true, depth + 1)
-    merge(inner)
-    return inner.end
-  }
-  const backtick = (at: number): number => {
-    let j = at + 1
-    while (j < src.length && src[j] !== '`') j += src[j] === '\\' ? 2 : 1
-    if (j >= src.length) throw new ParseError()
-    scripts.push(src.slice(at + 1, j).replace(/\\([`$\\])/g, '$1'))
-    return j + 1
-  }
-  const expansion = (at: number): number => {
-    const end = src[at] === '`' ? backtick(at) : substitute(at + 1)
-    text += src.slice(at, end)
-    dynamic = inWord = true
-    return end
-  }
-  const endWord = (): void => {
-    if (inWord && target === 'herestring') stdin.push(text)
-    else if (inWord && target === 'word') words.push({ text, dynamic })
-    if (inWord) target = 'word'
-    text = ''
-    dynamic = inWord = false
-  }
-  const endCommand = (): void => {
-    endWord()
-    if (words.length > 0) {
-      commands.push(words)
-      line.push(words)
-    }
-    words = []
-  }
-  const endLine = (from: number): number => {
-    endCommand()
-    let j = from
-    for (const doc of heredocs) {
-      let body = ''
-      while (j < src.length) {
-        const nl = src.indexOf('\n', j)
-        const row = src.slice(j, nl < 0 ? src.length : nl)
-        j = nl < 0 ? src.length : nl + 1
-        if ((doc.strip ? row.replace(/^\t+/, '') : row) === doc.delimiter) break
-        body += `${row}\n`
-      }
-      if (doc.expand) merge(bodyExpansions(body, depth + 1))
-      stdin.push(body)
-    }
-    if (line.some(readsScriptFromStdin)) scripts.push(...stdin)
-    heredocs = []
-    line = []
-    stdin = []
-    return j
-  }
-  const heredoc = (from: number): number => {
-    let j = from
-    const strip = src[j] === '-'
-    if (strip) j++
-    while (src[j] === ' ' || src[j] === '\t') j++
-    let delimiter = ''
-    let expand = true
-    while (j < src.length && !' \t\n;&|<>()'.includes(src[j]!)) {
-      const ch = src[j]!
-      if (ch === "'" || ch === '"') {
-        const close = src.indexOf(ch, j + 1)
-        if (close < 0) throw new ParseError()
-        delimiter += src.slice(j + 1, close)
-        expand = false
-        j = close + 1
-      } else if (ch === '\\') {
-        delimiter += src[j + 1] ?? ''
-        expand = false
-        j += 2
-      } else {
-        delimiter += ch
-        j++
-      }
-    }
-    if (!delimiter) throw new ParseError()
-    heredocs.push({ delimiter, strip, expand })
-    return j
-  }
-  const doubleQuoted = (from: number): number => {
-    let j = from
-    inWord = true
-    while (j < src.length) {
-      const ch = src[j]!
-      const after = src[j + 1] ?? ''
-      if (ch === '"') return j + 1
-      if (ch === '\\') {
-        if (after !== '\n') text += '$`"\\'.includes(after) ? after : ch + after
-        j += 2
-      } else if (ch === '`' || (ch === '$' && after === '(')) {
-        j = expansion(j)
-      } else {
-        if (ch === '$' && /[\w{@*#?$!-]/.test(after)) dynamic = true
-        text += ch
-        j++
-      }
-    }
-    throw new ParseError()
-  }
-
-  while (i < src.length) {
-    const c = src[i]!
-    const next = src[i + 1] ?? ''
-    if (c === '\\') {
-      if (next !== '\n') {
-        text += next
-        inWord = true
-      }
-      i += 2
-    } else if (c === "'") {
-      const close = src.indexOf("'", i + 1)
-      if (close < 0) throw new ParseError()
-      text += src.slice(i + 1, close)
-      inWord = true
-      i = close + 1
-    } else if (c === '"') {
-      i = doubleQuoted(i + 1)
-    } else if (c === '`' || (c === '$' && next === '(')) {
-      i = expansion(i)
-    } else if (c === '$') {
-      if (/[\w{@*#?$!-]/.test(next)) dynamic = true
-      text += c
-      inWord = true
-      i++
-    } else if (c === '#' && !inWord) {
-      while (i < src.length && src[i] !== '\n') i++
-    } else if (c === ' ' || c === '\t') {
-      endWord()
-      i++
-    } else if (c === '\n') {
-      i = endLine(i + 1)
-    } else if ((c === '<' || c === '>') && next === '(') {
-      i = expansion(i)
-    } else if (c === '<' || c === '>') {
-      // `2>` names a file descriptor, not an argument.
-      if (inWord && /^\d+$/.test(text)) {
-        text = ''
-        inWord = false
-      }
-      endWord()
-      if (src.startsWith('<<<', i)) {
-        target = 'herestring'
-        i += 3
-      } else if (src.startsWith('<<', i)) {
-        i = heredoc(i + 2)
-      } else {
-        i++
-        while (i < src.length && '<>&|'.includes(src[i]!)) i++
-        target = 'redirect'
-      }
-    } else if (c === '&' && next === '>') {
-      endWord()
-      i += src[i + 2] === '>' ? 3 : 2
-      target = 'redirect'
-    } else if (c === '(') {
-      parens++
-      endCommand()
-      i++
-    } else if (c === ')') {
-      i++
-      if (parens === 0 && nested) {
-        if (heredocs.length > 0) throw new ParseError()
-        endLine(i)
-        return { end: i, commands, scripts }
-      }
-      endCommand()
-      parens = Math.max(0, parens - 1)
-    } else if (c === ';' || c === '&' || c === '|') {
-      endCommand()
-      i++
-    } else {
-      text += c
-      inWord = true
-      i++
-    }
+  const s = new LexerState(src, start, depth)
+  while (s.cursor < src.length) {
+    if (step(s, nested)) return { end: s.cursor, commands: s.commands, scripts: s.scripts }
   }
   if (nested) throw new ParseError()
-  endLine(i)
-  return { end: i, commands, scripts }
+  endLine(s, s.cursor)
+  return { end: s.cursor, commands: s.commands, scripts: s.scripts }
 }
 
 /** `$(…)` and backticks in an unquoted heredoc body run when the heredoc is read. */
