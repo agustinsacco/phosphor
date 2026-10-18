@@ -1,18 +1,38 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { realpathSync, statSync } from 'node:fs'
 import { basename, relative, isAbsolute } from 'node:path'
-import type { DatabaseSync, SQLOutputValue } from 'node:sqlite'
+import type { DatabaseSync } from 'node:sqlite'
 import {
   HOST_LIMITS,
   type LaneControl,
-  type LaneController,
-  type LaneSummary,
   type Receipt,
   type RepositorySummary,
 } from '@phosphor/shared/host-protocol'
-import { loadSqlite } from './sqlite'
-import { SCHEMA, SCHEMA_VERSION } from './schema'
-import { prepareStateDirectory, prepareStateFile, StateFailure } from './state-dir'
+import { SCHEMA } from './schema'
+import { errnoIs } from '../fs-safety'
+import { openStoreDatabase } from './store/open'
+import {
+  laneFromRow,
+  repositoryFromRow,
+  summaryQuery,
+  str,
+  num,
+  timestamp,
+  type Row,
+} from './store/rows'
+import {
+  LaneCapacityReached,
+  type RepositoryIdentity,
+  type StoredLane,
+  type LanePatch,
+  type LaneInput,
+  type Controller,
+  type Admission,
+  type RequestStart,
+  type StoreLimits,
+  type StorePorts,
+} from './store/types'
+export * from './store/types'
 import {
   absolutePath,
   canonicalJson,
@@ -24,11 +44,6 @@ import {
   uuid,
 } from './validation'
 export { opHash } from './validation'
-
-export type RepositoryIdentity = {
-  home: string
-  expected: { path: string; dev: number; ino: number }
-}
 
 /** Only newly added folders are home-confined; owner-configured roots remain unrestricted. */
 export function validateRepositoryIdentity(identity: RepositoryIdentity): void {
@@ -44,99 +59,12 @@ export function validateRepositoryIdentity(identity: RepositoryIdentity): void {
 export const REMOVED_LANE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const RECEIPT_EXPIRED = 'finished_at < ?'
 
-export class LaneCapacityReached extends Error {
-  constructor() {
-    super('Host lane capacity reached.')
-  }
-}
-
-export interface StoredLane extends LaneSummary {
-  readonly sessionFile: string | null
-  readonly removedAt: string | null
-}
-export interface LanePatch {
-  title?: string | null
-  branch?: string | null
-  provider?: string | null
-  model?: string | null
-  updatedAt?: string
-}
-export interface LaneInput extends LanePatch {
-  repositoryId: string
-  cwd: string
-  sessionFile: string | null
-  worktree?: boolean
-}
-export type Controller = Pick<LaneController, 'clientId' | 'label'>
-export type Admission =
-  | { admitted: true; control: LaneControl }
-  | { admitted: false; code: 'stale-fence' | 'not-controller'; control: LaneControl }
-export type RequestStart =
-  { kind: 'new' } | { kind: 'existing'; receipt: Receipt } | { kind: 'conflict' } | { kind: 'busy' }
-export type StoreLimits = {
-  [Key in 'receiptsKept' | 'lanesPerHost' | 'repositoriesPerHost']: number
-}
-export interface StorePorts {
-  onLaneRemoved?: (laneId: string) => void
-  now?: () => number
-  receiptTtlMs?: number
-  isConnected?: (clientId: string) => boolean
-  limits?: Partial<StoreLimits>
-  logCorruptReceipt?: (count: number) => void
-  logCorruptLane?: (count: number) => void
-}
-type Row = Record<string, SQLOutputValue>
-function str(row: Row, key: string): string {
-  const value = row[key]
-  check(typeof value === 'string')
-  return value
-}
-function nullable(row: Row, key: string): string | null {
-  const value = row[key]
-  check(value === null || typeof value === 'string')
-  return value
-}
-function num(row: Row, key: string): number {
-  const raw = row[key]
-  check(typeof raw === 'number' || typeof raw === 'bigint')
-  const value = Number(raw)
-  integer(value)
-  return value
-}
-const iso = (value: number) => new Date(value).toISOString()
-function timestamp(value: string): number {
-  const parsed = Date.parse(value)
-  integer(parsed)
-  check(iso(parsed) === value)
-  return parsed
-}
-
-export async function openStore(
+export function openStore(
   directory: string,
   uid: number | undefined,
   ports: StorePorts = {},
 ): Promise<HostStore> {
-  let db: DatabaseSync | undefined
-  try {
-    prepareStateDirectory(directory, uid)
-    const path = prepareStateFile(directory, uid)
-    const sqlite = await loadSqlite()
-    db = new sqlite.DatabaseSync(path)
-    db.exec('PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;')
-    const version = db.prepare('PRAGMA user_version').get()?.user_version
-    if (typeof version !== 'number' || version > SCHEMA_VERSION)
-      throw new StateFailure(directory, 78, 'this state was written by a newer Host')
-    const store = new HostStore(db, ports)
-    if (version === 0) store.migrate()
-    db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;')
-    store.markInterrupted()
-    store.pruneReceipts((ports.now ?? Date.now)())
-    return store
-  } catch (error) {
-    db?.close()
-    if (error instanceof StateFailure) throw error
-    throw new StateFailure(directory, 70, 'Could not open state.sqlite.')
-  }
+  return openStoreDatabase(directory, uid, ports, (db, options) => new HostStore(db, options))
 }
 
 /** SQLite is the ordering point. Every mutation obtains its write lock before reading. */
@@ -193,112 +121,16 @@ export class HostStore {
     integer(now)
     return now
   }
-  private control(row: Row): LaneControl {
-    const clientId = nullable(row, 'controller_client_id')
-    return {
-      fence: num(row, 'fence'),
-      controller:
-        clientId === null
-          ? null
-          : {
-              clientId,
-              label: str(row, 'controller_label'),
-              connected: this.isConnected(clientId),
-            },
-    }
-  }
-  private summaryQuery(sql: string) {
-    const query = this.db.prepare(sql)
-    // SQLite can hold integers beyond JS's safe range. Read them losslessly
-    // so validation can skip that row instead of the driver failing the read.
-    query.setReadBigInts(true)
-    return query
-  }
-  private logCorruptRow(): null {
-    try {
-      this.logCorruptLane(1)
-    } catch {
-      // A logger failure cannot expose corrupt state or fail a read.
-    }
-    return null
-  }
   private laneFromRow(row: Row): StoredLane | null {
-    try {
-      const laneId = str(row, 'lane_id')
-      uuid(laneId)
-      check(laneId[14] === '4')
-      const repositoryId = str(row, 'repository_id')
-      check(/^[0-9a-f]{16}$/.test(repositoryId))
-      const cwd = str(row, 'cwd')
-      absolutePath(cwd)
-      const sessionFile = nullable(row, 'session_file')
-      if (sessionFile !== null) absolutePath(sessionFile)
-      const title = nullable(row, 'title')
-      const branch = nullable(row, 'branch')
-      const provider = nullable(row, 'provider')
-      const model = nullable(row, 'model')
-      text(title, HOST_LIMITS.labelChars, true)
-      text(branch, 256)
-      text(provider, 64)
-      text(model, 128)
-      check((provider === null) === (model === null))
-      const worktree = num(row, 'worktree')
-      check(worktree === 0 || worktree === 1)
-      const created = num(row, 'created_at')
-      const updated = num(row, 'updated_at')
-      check(updated >= created)
-      const attention = num(row, 'attention')
-      const read = num(row, 'read')
-      check(read <= attention)
-      integer(num(row, 'fence'), 1)
-      const clientId = nullable(row, 'controller_client_id')
-      const label = nullable(row, 'controller_label')
-      check((clientId === null) === (label === null))
-      if (clientId !== null) uuid(clientId)
-      text(label, HOST_LIMITS.labelChars)
-      return {
-        laneId,
-        repositoryId,
-        cwd,
-        sessionFile,
-        title,
-        branch,
-        worktree: worktree === 1,
-        model: provider === null || model === null ? null : { provider, id: model },
-        activity: 'stopped',
-        createdAt: iso(created),
-        updatedAt: iso(updated),
-        attention,
-        read,
-        control: this.control(row),
-        removedAt: row.removed_at === null ? null : iso(num(row, 'removed_at')),
-      }
-    } catch {
-      return this.logCorruptRow()
-    }
-  }
-  private repositoryFromRow(row: Row): RepositorySummary | null {
-    try {
-      const id = str(row, 'id')
-      check(/^[0-9a-f]{16}$/.test(id))
-      const path = str(row, 'path')
-      absolutePath(path)
-      const name = str(row, 'name')
-      text(name, 4096)
-      const active = num(row, 'active')
-      check(active === 0 || active === 1)
-      iso(num(row, 'added_at'))
-      return { id, name, path }
-    } catch {
-      return this.logCorruptRow()
-    }
+    return laneFromRow(row, { isConnected: this.isConnected, logCorruptLane: this.logCorruptLane })
   }
   listRepositories(): RepositorySummary[] {
-    return this.summaryQuery(
+    return summaryQuery(
+      this.db,
       'SELECT * FROM repositories WHERE active=1 ORDER BY added_at,id LIMIT ?',
     )
       .all(this.limits.repositoriesPerHost)
-      .flatMap((row) => this.repositoryFromRow(row) ?? [])
+      .flatMap((row) => repositoryFromRow(row, this.logCorruptLane) ?? [])
   }
   syncRepositories(
     paths: readonly string[],
@@ -321,12 +153,7 @@ export class HostStore {
         const id = createHash('sha256').update(real).digest('hex').slice(0, 16)
         repositories.set(id, { id, path: real, name: basename(real) })
       } catch (error) {
-        if (!(
-          error instanceof Error &&
-          'code' in error &&
-          (error.code === 'ENOENT' || error.code === 'ENOTDIR' || error.code === 'EACCES')
-        ))
-          throw error
+        if (!(error instanceof Error && errnoIs(error, 'ENOENT', 'ENOTDIR', 'EACCES'))) throw error
         unavailable++
       }
     }
@@ -345,7 +172,8 @@ export class HostStore {
     return result
   }
   listLanes(): StoredLane[] {
-    return this.summaryQuery(
+    return summaryQuery(
+      this.db,
       'SELECT * FROM lanes WHERE removed_at IS NULL ORDER BY created_at,lane_id LIMIT ?',
     )
       .all(this.limits.lanesPerHost)
@@ -353,7 +181,7 @@ export class HostStore {
   }
   getLane(id: string): StoredLane | null {
     uuid(id)
-    const row = this.summaryQuery('SELECT * FROM lanes WHERE lane_id=?').get(id)
+    const row = summaryQuery(this.db, 'SELECT * FROM lanes WHERE lane_id=?').get(id)
     return row ? this.laneFromRow(row) : null
   }
   private requireLane(id: string): StoredLane {
@@ -385,7 +213,7 @@ export class HostStore {
       const existing =
         sessionFile === null
           ? undefined
-          : this.summaryQuery('SELECT * FROM lanes WHERE session_file=?').get(sessionFile)
+          : summaryQuery(this.db, 'SELECT * FROM lanes WHERE session_file=?').get(sessionFile)
       if (existing) {
         check(str(existing, 'repository_id') === repositoryId && str(existing, 'cwd') === cwd)
         const lane = this.laneFromRow(existing)
@@ -698,7 +526,7 @@ export class HostStore {
   /** A bounded read for reconciliation, without exposing the database handle. */
   sessionLane(file: string): StoredLane | null {
     absolutePath(file)
-    const row = this.summaryQuery('SELECT * FROM lanes WHERE session_file=?').get(file)
+    const row = summaryQuery(this.db, 'SELECT * FROM lanes WHERE session_file=?').get(file)
     return row ? this.laneFromRow(row) : null
   }
 }
