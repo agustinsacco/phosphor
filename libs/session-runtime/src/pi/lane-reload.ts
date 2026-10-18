@@ -113,7 +113,10 @@ async function reloadIfChanged(
   return result
 }
 
-/** Call only while idle, before a prompt starts a turn. Never holds up the prompt on failure. */
+/**
+ * Call only while the lane is idle, right before a prompt that starts a
+ * turn. Never throws: the prompt goes ahead whatever happens here.
+ */
 async function beforePrompt(
   state: ReloadState,
   sessionId: string,
