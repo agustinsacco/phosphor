@@ -19,7 +19,7 @@ import {
 import { handleSetup } from './cli-setup'
 import { refuseUsage, USAGE } from './cli-usage'
 
-export { CLI_PARSE_CONFIG, scannedCommand, supervisedRun } from './cli-args'
+export { CLI_PARSE_CONFIG, supervisedRun } from './cli-args'
 export type { CliContext, CliIo } from './cli-handlers'
 export { USAGE } from './cli-usage'
 

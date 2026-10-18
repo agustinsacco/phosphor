@@ -262,10 +262,6 @@ export function scanArgv(argv: readonly string[]): {
   return { command, supervisors }
 }
 
-export function scannedCommand(argv: readonly string[]): string | undefined {
-  return scanArgv(argv).command
-}
-
 /** `run` whose every --supervisor is launchd: a usage error is then a permanent service exit. */
 export function supervisedRun(argv: readonly string[]): boolean {
   const { command, supervisors } = scanArgv(argv)
