@@ -164,3 +164,29 @@ it('holds a worker slot until cancelAndWait cleanup completes', async () => {
   expect(h.repo.run(active.id).status).toBe('cancelled')
   expect(h.repo.run(queued.id).status).toBe('running')
 })
+
+it('pauses admission without consuming queued work while the injected lifecycle is closing', () => {
+  let closing = true
+  const lifecycle: RoutineLifecycle = {
+    get closing() {
+      return closing
+    },
+    assertCanStart: vi.fn(() => {
+      if (lifecycle.closing) throw new Error('Host is shutting down.')
+    }),
+  }
+  const execute = vi.fn(pending)
+  const h = harness(execute, undefined, lifecycle)
+  const definition = h.add()
+  const run = h.repo.manual(definition.id, 'queued', Date.parse('2026-09-21T08:00Z'))
+  h.scheduler.tick()
+  expect(execute).not.toHaveBeenCalled()
+  expect(h.repo.run(run.id).status).toBe('queued')
+  expect(() => h.scheduler.runNow(definition.id, 'new')).toThrow('shutting down')
+  expect(lifecycle.assertCanStart).toHaveBeenCalledTimes(1)
+  expect(h.repo.pending().map((r) => r.id)).toEqual([run.id])
+  closing = false
+  h.scheduler.tick()
+  expect(execute).toHaveBeenCalledTimes(1)
+  expect(execute.mock.calls[0]![0].id).toBe(run.id)
+})
