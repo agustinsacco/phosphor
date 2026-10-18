@@ -43,8 +43,10 @@
 'use strict'
 const { spawn } = require('node:child_process')
 const { randomUUID } = require('node:crypto')
-const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs')
-const { dirname, join } = require('node:path')
+const { existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs')
+const { join } = require('node:path')
+const persistence = require('./fake-pi/persistence.cjs')
+const tools = require('./fake-pi/tools.cjs')
 
 const args = process.argv.slice(2)
 if (process.env.FAKE_PI_ARGV_FILE)
@@ -142,20 +144,14 @@ const folder = join(
     .replace(/^[/\\]/, '')
     .replace(/[/\\:]/g, '-')}--`,
 )
-const stamp = () => new Date().toISOString().replace(/[:.]/g, '-')
-let sessionFile = flag('--session') ?? join(folder, `${stamp()}_${randomUUID()}.jsonl`)
-let id = randomUUID()
+const session = persistence.createSession({
+  sessionFile: flag('--session'),
+  folder,
+  cwd: process.cwd(),
+  launchName: flag('-n'),
+})
 /** The session's messages: those of a resumed file, then every turn saved. */
-const messages = existsSync(sessionFile)
-  ? readFileSync(sessionFile, 'utf8')
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => JSON.parse(line))
-      .flatMap((entry) => (entry.type === 'message' ? [entry.message] : []))
-  : []
-let lastEntryId = existsSync(sessionFile)
-  ? (JSON.parse(readFileSync(sessionFile, 'utf8').trim().split('\n').at(-1)).id ?? null)
-  : null
+const { messages } = session
 const extensions = args.flatMap((arg, at) => (arg === '-e' ? [args[at + 1]] : []))
 const breakdown = extensions.some((path) => path.endsWith('/context-breakdown.ts'))
 
@@ -201,59 +197,11 @@ const fail = (cmd, error) =>
   out({ id: cmd.id, type: 'response', command: cmd.type, success: false, error })
 const text = (value) => ({ role: 'assistant', content: [{ type: 'text', text: value }] })
 
-const header = () =>
-  JSON.stringify({
-    type: 'session',
-    version: 3,
-    id,
-    timestamp: new Date().toISOString(),
-    cwd: process.cwd(),
-  })
-
-/** Native JSONL entries form one parent-linked chain, including tools and names. */
-function persist(message) {
-  if (!existsSync(sessionFile)) {
-    mkdirSync(dirname(sessionFile), { recursive: true })
-    appendFileSync(sessionFile, header() + '\n')
-    if (flag('-n')) {
-      const entryId = randomUUID()
-      appendFileSync(
-        sessionFile,
-        JSON.stringify({
-          type: 'session_info',
-          id: entryId,
-          parentId: lastEntryId,
-          name: flag('-n'),
-        }) + '\n',
-      )
-      lastEntryId = entryId
-    }
-  }
-  {
-    const entryId = randomUUID()
-    appendFileSync(
-      sessionFile,
-      JSON.stringify({ type: 'message', id: entryId, parentId: lastEntryId, message }) + '\n',
-    )
-    lastEntryId = entryId
-    messages.push(message)
-  }
-}
-
-function save(reply) {
-  persist(reply)
-}
-
-/** pi's clone: a new file with this one's entries, which pi then writes instead. */
-function clone() {
-  const entries = existsSync(sessionFile)
-    ? readFileSync(sessionFile, 'utf8').split('\n').filter(Boolean).slice(1)
-    : []
-  id = randomUUID()
-  sessionFile = join(dirname(sessionFile), `${stamp()}_${id}.jsonl`)
-  mkdirSync(dirname(sessionFile), { recursive: true })
-  writeFileSync(sessionFile, [header(), ...entries].map((line) => line + '\n').join(''))
-}
+const persist = (message) => persistence.persist(session, message)
+const save = persist
+const clone = () => persistence.clone(session)
+const toolPorts = { cwd: process.cwd(), out, persist, text }
+const toolState = tools.createToolState(messages)
 
 /** Run `then` once `file` exists, after writing `file`.held to say it waits. */
 function holdUntil(file, then) {
@@ -281,13 +229,6 @@ function publishQueue() {
     followUp: queued.filter((item) => item.mode !== 'steer').map((item) => item.message),
   })
 }
-let artifactVersion = messages.reduce(
-  (version, message) =>
-    message.role === 'toolResult' && message.details?.id === 'host-card'
-      ? Math.max(version, message.details.version ?? 0)
-      : version,
-  0,
-)
 function delta(value) {
   out({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: value } })
 }
@@ -301,126 +242,15 @@ function finish(_user, reply, stopReason, errorMessage) {
   publishQueue()
   if (next) setTimeout(() => prompt(next.message), 10)
 }
-function laneMarker() {
-  try {
-    if (readFileSync(join(process.cwd(), 'remote.txt'), 'utf8').includes('HOST_B_ONLY'))
-      return 'HOST_B_ONLY'
-  } catch {}
-  return 'HOST_A_ONLY'
-}
-function artifact() {
-  const version = ++artifactVersion
-  const name = version === 1 ? 'artifact_create' : 'artifact_update'
-  const callId = randomUUID()
-  const args = {
-    id: 'host-card',
-    title: `${laneMarker()} card`,
-    type: 'html',
-    content: `<h1>${laneMarker()} version ${version}</h1>`,
-  }
-  const call = {
-    role: 'assistant',
-    content: [{ type: 'toolCall', id: callId, name, arguments: args }],
-    stopReason: 'toolUse',
-  }
-  out({ type: 'message_end', message: call })
-  persist(call)
-  out({ type: 'tool_execution_start', toolCallId: callId, toolName: name, args })
-  const result = {
-    content: [{ type: 'text', text: `${laneMarker()} artifact saved` }],
-    details: { ...args, version },
-  }
-  out({ type: 'tool_execution_end', toolCallId: callId, toolName: name, isError: false, result })
-  const message = {
-    role: 'toolResult',
-    toolCallId: callId,
-    toolName: name,
-    ...result,
-    isError: false,
-  }
-  out({ type: 'message_start', message })
-  out({ type: 'message_end', message })
-  persist(message)
-  out({ type: 'message_start', message: text('') })
-}
-function linkTool() {
-  const toolCallId = randomUUID()
-  const path = join(process.cwd(), 'nested', 'guide.md')
-  const args = { path, offset: 2 }
-  const call = {
-    role: 'assistant',
-    content: [{ type: 'toolCall', id: toolCallId, name: 'read', arguments: args }],
-    stopReason: 'toolUse',
-  }
-  out({ type: 'message_end', message: call })
-  persist(call)
-  out({ type: 'tool_execution_start', toolCallId, toolName: 'read', args })
-  const result = { content: [{ type: 'text', text: `${laneMarker()} guide line two` }] }
-  out({ type: 'tool_execution_end', toolCallId, toolName: 'read', isError: false, result })
-  const message = { role: 'toolResult', toolCallId, toolName: 'read', ...result, isError: false }
-  out({ type: 'message_start', message })
-  out({ type: 'message_end', message })
-  persist(message)
-  out({ type: 'message_start', message: text('') })
-}
-function receiptTools() {
-  const path = join(process.cwd(), 'remote.txt')
-  writeFileSync(path, 'HOST_A_ONLY receipt edit\n')
-  for (const [name, args, result] of [
-    [
-      'edit',
-      { path, oldText: 'HOST_A_ONLY', newText: 'HOST_A_ONLY receipt edit' },
-      {
-        content: [{ type: 'text', text: 'Edited file' }],
-        details: { diff: '-1 HOST_A_ONLY\n+1 HOST_A_ONLY receipt edit' },
-      },
-    ],
-    [
-      'bash',
-      { command: 'npm test' },
-      { content: [{ type: 'text', text: '1 test passed' }], details: { exitCode: 0 } },
-    ],
-  ]) {
-    const toolCallId = randomUUID()
-    const call = {
-      role: 'assistant',
-      content: [{ type: 'toolCall', id: toolCallId, name, arguments: args }],
-      stopReason: 'toolUse',
-    }
-    out({ type: 'message_end', message: call })
-    persist(call)
-    out({ type: 'tool_execution_start', toolCallId, toolName: name, args })
-    out({ type: 'tool_execution_end', toolCallId, toolName: name, isError: false, result })
-    const message = { role: 'toolResult', toolCallId, toolName: name, ...result, isError: false }
-    out({ type: 'message_start', message })
-    out({ type: 'message_end', message })
-    persist(message)
-    out({ type: 'message_start', message: text('') })
-  }
-}
-function attachmentReply(message, images) {
-  const paths = /<attached-files>\n([\s\S]*?)\n<\/attached-files>/.exec(message)?.[1]
-  const documents = (paths ? paths.split('\n') : []).map((path) =>
-    readFileSync(path, 'utf8').trim(),
-  )
-  const decoded = images.filter((image) => {
-    const bytes = Buffer.from(image.data, 'base64')
-    return (
-      image.mimeType === 'image/png' &&
-      bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))
-    )
-  })
-  return `Attachments: ${documents.join('; ')} | ${decoded.length} image/png`
-}
 function prompt(message, images = []) {
   persist({ role: 'user', content: message })
   out({ type: 'agent_start' })
   out({ type: 'message_start', message: { role: 'user', content: message } })
   out({ type: 'message_end', message: { role: 'user', content: message } })
   out({ type: 'message_start', message: text('') })
-  if (/artifact/i.test(message)) artifact()
-  if (/links/i.test(message)) linkTool()
-  if (/receipt-test/.test(message)) receiptTools()
+  if (/artifact/i.test(message)) tools.artifact(toolState, toolPorts)
+  if (/links/i.test(message)) tools.linkTool(toolPorts)
+  if (/receipt-test/.test(message)) tools.receiptTools(toolPorts)
   if (/stream|count|slow/i.test(message) || process.env.FAKE_PI_STALL) {
     if (process.env.FAKE_PI_STALL) writeFileSync(process.env.FAKE_PI_STALL, String(process.pid))
     const releaseFile = /^slow-until (.+)$/.exec(message)?.[1]
@@ -454,16 +284,16 @@ function prompt(message, images = []) {
       ? messages.flatMap((m) => JSON.stringify(m.content).match(/PHX-[A-Za-z0-9]+/g) ?? [])
       : /PHX-[A-Za-z0-9]+/.exec(message)
   const reply = /PHX-hostinputs/.test(message)
-    ? attachmentReply(message, images)
+    ? tools.attachmentReply(message, images)
     : /links/i.test(message)
-      ? `[${laneMarker()} guide](nested/guide.md#L2) [absolute](${join(process.cwd(), 'remote.txt')}) [outside](/etc/passwd)`
+      ? `[${tools.laneMarker(toolPorts.cwd)} guide](nested/guide.md#L2) [absolute](${join(process.cwd(), 'remote.txt')}) [outside](/etc/passwd)`
       : (process.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
   delta(reply)
   if (process.env.FAKE_PI_TURN === 'fail' || /fail-turn|auth-error/.test(message)) {
     const error = /auth-error/.test(message)
       ? '401 unauthorized: login expired'
       : /fail-turn/.test(message)
-        ? `${laneMarker()} provider error`
+        ? `${tools.laneMarker(toolPorts.cwd)} provider error`
         : `401: invalid x-api-key ${process.env.ANTHROPIC_API_KEY}`
     return setTimeout(() => finish(message, '', 'error', error), 10)
   }
@@ -474,13 +304,6 @@ function prompt(message, images = []) {
 /** What get_state reports. */
 let selectedModel
 let selectedThinking
-let selectedName = existsSync(sessionFile)
-  ? readFileSync(sessionFile, 'utf8')
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => JSON.parse(line))
-      .findLast((entry) => entry.type === 'session_info')?.name
-  : undefined
 function state() {
   return {
     model: selectedModel ?? {
@@ -495,9 +318,9 @@ function state() {
     isCompacting: false,
     steeringMode: 'all',
     followUpMode: 'one-at-a-time',
-    sessionFile,
-    sessionId: id,
-    sessionName: selectedName ?? flag('-n'),
+    sessionFile: session.sessionFile,
+    sessionId: session.id,
+    sessionName: session.selectedName ?? flag('-n'),
     autoCompactionEnabled: true,
     messageCount: messages.length,
     pendingMessageCount: queued.length,
@@ -635,22 +458,7 @@ function handle(cmd) {
       selectedThinking = cmd.level
       return respond(cmd)
     case 'set_session_name':
-      selectedName = cmd.name
-      if (!existsSync(sessionFile)) {
-        mkdirSync(dirname(sessionFile), { recursive: true })
-        appendFileSync(sessionFile, header() + '\n')
-      }
-      const entryId = randomUUID()
-      appendFileSync(
-        sessionFile,
-        JSON.stringify({
-          type: 'session_info',
-          id: entryId,
-          parentId: lastEntryId,
-          name: cmd.name,
-        }) + '\n',
-      )
-      lastEntryId = entryId
+      persistence.setName(session, cmd.name)
       return respond(cmd)
     case 'compact':
       out({ type: 'compaction_start', reason: 'manual' })
@@ -669,8 +477,8 @@ function handle(cmd) {
       return respond(cmd, { models })
     case 'get_session_stats':
       return respond(cmd, {
-        sessionId: id,
-        sessionFile,
+        sessionId: session.id,
+        sessionFile: session.sessionFile,
         userMessages: messages.filter((m) => m.role === 'user').length,
         assistantMessages: messages.filter((m) => m.role === 'assistant').length,
         toolCalls: 0,

@@ -1,4 +1,4 @@
-import { chmodSync, copyFileSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, cpSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 /** The RPC fake: sessions, turns and transcripts, as pi 0.87.1 runs them. */
@@ -70,7 +70,13 @@ export function writePiInstall(dir: string, options: PiInstallOptions) {
     }),
   )
   writeFileSync(cli, fakeCliSource(options.version))
-  if (options.rpc) copyFileSync(FAKE_PI, cli)
+  if (options.rpc) {
+    copyFileSync(FAKE_PI, cli)
+    cpSync(join(dirname(FAKE_PI), 'fake-pi'), join(dirname(cli), 'fake-pi'), {
+      recursive: true,
+      filter: (source) => !source.endsWith('.test.ts'),
+    })
+  }
   chmodSync(cli, 0o755)
   const bin = join(dir, 'bin')
   mkdirSync(bin)
