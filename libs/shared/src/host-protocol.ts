@@ -1,23 +1,3 @@
-export type { LaneReceipt } from './lane-receipt'
-import {
-  parseRepositoryOp,
-  parseDeleteLaneOp,
-  type RepositoryOp,
-  type DeleteLaneOp,
-} from './host-protocol-repositories'
-import { parseProviderLoginOp, type ProviderLoginOp } from './host-protocol-providers'
-import { parseAttachmentOp, type AttachmentOp } from './host-protocol-attachments'
-import {
-  parseTerminalOp,
-  parseTerminalInput,
-  parseTerminalSubscribe,
-  parseTerminalFrame,
-  type TerminalOp,
-  type TerminalInput,
-  type TerminalSubscribe,
-  type TerminalFrame,
-} from './host-protocol-terminals'
-import { parseFileWriteOp, type FileWriteOp } from './host-protocol-writes'
 /**
  * Host protocol v1: the only language Desktop (and later the PWA) speaks to a
  * Host, over one WebSocket per client per Host, reached through Tailscale.
@@ -29,541 +9,105 @@ import { parseFileWriteOp, type FileWriteOp } from './host-protocol-writes'
  * state at the same point (requirement R7).
  *
  * Pure module: no Node or DOM imports. Living contract: docs/remote-access.md
- * ("Host protocol").
+ * ("Host protocol"). This is the public entry; the declarations and parsers
+ * live in ./host-protocol/.
  */
-import { isUuid, isControlTrace, isIsoTime, normalizeLabel, type Parsed } from './control-api'
-import { parseRoutineOp, ROUTINE_OPS, type RoutineOp } from './host-protocol-routines'
+export type { LaneReceipt } from './lane-receipt'
+export {
+  HOST_API_PORT,
+  HOST_API_ROUTES,
+  HOST_CLOSE,
+  HOST_LIMITS,
+  HOST_PROTOCOL_VERSION,
+  helloProofMessage,
+  type HostCloseCode,
+} from './host-protocol/constants'
+export type {
+  AttentionEvent,
+  AttentionKind,
+  LaneActivity,
+  LaneControl,
+  LaneController,
+  LaneEvent,
+  LanePiPush,
+  LaneSnapshot,
+  LaneSummary,
+  RepositorySummary,
+  StreamCursor,
+} from './host-protocol/lanes'
+export {
+  CAPABILITY_FOR,
+  HOST_CALL_METHODS,
+  LANE_PI_OPS,
+  UNFENCED_OPS,
+  type CallError,
+  type CallErrorCode,
+  type FailureCode,
+  type HostCallMethod,
+  type LaneOp,
+  type LaneOpType,
+  type LanePiOp,
+  type LanePiOpType,
+  type Receipt,
+  type RejectCode,
+} from './host-protocol/operations'
+export type { ClientFrame, ClientFrameParse, FrameSocket, HostFrame } from './host-protocol/frames'
+export { isLaneBranchName, utf8Length } from './host-protocol/primitives'
+
+import { isUuid, isControlTrace, isIsoTime, type Parsed } from './control-api'
+import { parseAttachmentOp } from './host-protocol-attachments'
+import { parseProviderLoginOp } from './host-protocol-providers'
+import { parseDeleteLaneOp, parseRepositoryOp } from './host-protocol-repositories'
+import { parseRoutineOp, ROUTINE_OPS } from './host-protocol-routines'
+import {
+  parseTerminalFrame,
+  parseTerminalInput,
+  parseTerminalOp,
+  parseTerminalSubscribe,
+} from './host-protocol-terminals'
+import { parseFileWriteOp } from './host-protocol-writes'
 import { GRANT_LIMITS } from './host-grant'
-import { HOST_CAPABILITIES, validateHostHello } from './remote-host'
-import type { SessionPush } from './models'
-import { HOST_PROTOCOL_VERSION, type HostCapability, type HostHello } from './remote-host'
+import { HOST_CAPABILITIES, HOST_PROTOCOL_VERSION, validateHostHello } from './remote-host'
+import type { HostCapability } from './remote-host'
 import type {
   AgentMessage,
   ExtensionUIRequest,
   ExtensionUIResponse,
   ImageContent,
   PiEvent,
-  RpcCommand,
   RpcSessionState,
 } from './rpc'
+import { HOST_CLOSE, HOST_LIMITS, type HostCloseCode } from './host-protocol/constants'
+import type {
+  LaneControl,
+  LaneEvent,
+  LaneSnapshot,
+  LaneSummary,
+  RepositorySummary,
+} from './host-protocol/lanes'
+import {
+  LANE_PI_OPS,
+  type CallErrorCode,
+  type LaneOp,
+  type Receipt,
+  type RejectCode,
+} from './host-protocol/operations'
+import type { ClientFrame, ClientFrameParse, HostFrame } from './host-protocol/frames'
+import {
+  cursor,
+  frameId,
+  hex,
+  integer,
+  isLaneBranchName,
+  label,
+  member,
+  readJson,
+  record,
+  text,
+  utf8Length,
+} from './host-protocol/primitives'
 
-export { HOST_PROTOCOL_VERSION }
-
-/** Loopback port the Host API listens on; `tailscale serve` exposes the same HTTPS port. */
-export const HOST_API_PORT = 47615
-
-export const HOST_API_ROUTES = {
-  /** GET, unauthenticated: hello plus a proof over the caller's challenge. */
-  hello: '/v1/hello',
-  /** GET, WebSocket upgrade. Everything else is a frame on this socket. */
-  stream: '/v1/stream',
-} as const
-
-/** Upper bounds. A brief may lower these, never raise them. */
-export const HOST_LIMITS = {
-  /** Client to Host, UTF-8 bytes. Prompts with images need the room. */
-  inboundFrameBytes: 8 * 1024 * 1024,
-  /** Host to client, UTF-8 bytes. Oversize subscriptions fail with too-large. */
-  outboundFrameBytes: 16 * 1024 * 1024,
-  /** The first frame must be `auth` within this. */
-  authTimeoutMs: 10_000,
-  /** A grant lives at most this long (`exp - iat`). */
-  grantTtlSec: 300,
-  /** Clients renew this long before `grantExpiresAt`. */
-  renewBeforeSec: 60,
-  pingIntervalMs: 20_000,
-  /** No frame from the client for this long closes the socket. */
-  idleCloseMs: 60_000,
-  subscriptionsPerConnection: 64,
-  connectionsPerClient: 4,
-  /** Commands admitted but not yet answered, per connection. */
-  pendingCommandsPerConnection: 32,
-  /** The architecture's unknown-receipts amendment: no pi answer means uncertainty. */
-  commandAnswerMs: 30_000,
-  /** Per lane: events kept for replay, by count and by bytes. */
-  replayEvents: 2000,
-  replayBytes: 8 * 1024 * 1024,
-  /** Per connection: queued outbound bytes before a lane is reset to a snapshot. */
-  sendQueueBytes: 32 * 1024 * 1024,
-  /** Events in a snapshot's `pending` (the turn in flight). */
-  pendingEvents: 4000,
-  uiStatusKeys: 64,
-  uiWidgetKeys: 32,
-  receiptsKept: 10_000,
-  receiptTtlMs: 24 * 60 * 60 * 1000,
-  /** A receipt's stored `data`, UTF-8 bytes of its JSON. Larger data is dropped, not truncated. */
-  receiptDataBytes: 256 * 1024,
-  lanesPerHost: 1000,
-  repositoriesPerHost: 64,
-  /** Attention events kept per Host for replay to a returning client. */
-  attentionReplay: 200,
-  /** Labels a client chooses: lane titles, client labels. */
-  labelChars: 80,
-  /** Free-text error messages forwarded to clients. */
-  messageChars: 2000,
-  /** Frame ids, subscription ids and call ids. */
-  idChars: 64,
-} as const
-
-/** WebSocket close codes. 1001 is the standard "going away" (Host stopping). */
-export const HOST_CLOSE = {
-  goingAway: 1001,
-  badFrame: 4400,
-  unauthenticated: 4401,
-  forbidden: 4403,
-  unsupportedProtocol: 4409,
-  tooMany: 4429,
-} as const
-export type HostCloseCode = (typeof HOST_CLOSE)[keyof typeof HOST_CLOSE]
-
-/**
- * What the Host signs to prove it is the enrolled machine. The client sends a
- * fresh 32-byte challenge (64 lowercase hex) and verifies the signature with
- * the Host public key the grant broker returned with its grant.
- */
-export function helloProofMessage(hostId: string, runtimeEpoch: string, challenge: string): string {
-  return `phosphor-host-hello/v1\n${hostId}\n${runtimeEpoch}\n${challenge}`
-}
-
-// ---------- lanes ----------
-
-/** Last event held, or seq 0 when none. A different `epoch` means take a snapshot. */
-export interface StreamCursor {
-  readonly epoch: string
-  readonly seq: number
-}
-
-export interface RepositorySummary {
-  /** 16 hex: the first 64 bits of SHA-256 over the folder's realpath. */
-  readonly id: string
-  readonly name: string
-  /** Absolute on the Host. Display and scoping only, never an identity. */
-  readonly path: string
-}
-
-export interface LaneController {
-  readonly clientId: string
-  readonly label: string
-  /** False while the controller's socket is gone; it stays controller. */
-  readonly connected: boolean
-}
-
-export interface LaneControl {
-  /** Persisted; strictly increases on every controller change; never resets. */
-  readonly fence: number
-  readonly controller: LaneController | null
-}
-
-/**
- * - `stopped`: no pi process; the lane can be resumed.
- * - `idle`: live, waiting for a prompt.
- * - `working`: a turn, compaction or retry is running.
- * - `needs-input`: an extension dialog is open.
- * - `failed`: pi exited unexpectedly.
- */
-export type LaneActivity = 'stopped' | 'idle' | 'working' | 'needs-input' | 'failed'
-
-export interface LaneSummary {
-  readonly laneId: string
-  readonly repositoryId: string
-  /** Absolute on the Host (a worktree lane's own folder). Never an identity. */
-  readonly cwd: string
-  readonly title: string | null
-  readonly branch: string | null
-  readonly worktree: boolean
-  readonly model: { readonly provider: string; readonly id: string } | null
-  readonly activity: LaneActivity
-  readonly createdAt: string
-  readonly updatedAt: string
-  /** Persisted counter of attention-worthy outcomes. Unread while `attention > read`. */
-  readonly attention: number
-  readonly read: number
-  readonly control: LaneControl
-}
-
-/** One consistent view of a lane at `(epoch, seq)`; events continue from `seq + 1`. */
-export interface LaneSnapshot {
-  readonly cursor: StreamCursor
-  readonly summary: LaneSummary
-  /** pi's `get_state` while live; null when stopped or failed. */
-  readonly state: RpcSessionState | null
-  /** pi's settled messages, as `get_messages` returns them. */
-  readonly messages: readonly AgentMessage[]
-  /** Raw pi events after the last settled message: the turn in flight. */
-  readonly pending: readonly PiEvent[]
-  /** Extension dialogs still open. Only the controller's answer is admitted. */
-  readonly dialogs: readonly ExtensionUIRequest[]
-  /** Latest fire-and-forget UI state: the last setStatus per statusKey, the last setWidget per widgetKey, the last setTitle. Never notify or set_editor_text, which are moments, not state. */
-  readonly ui: readonly ExtensionUIRequest[]
-}
-
-/** `stderr` never crosses the wire: it can hold paths and environment. */
-export type LanePiPush = Exclude<SessionPush, { kind: 'stderr' | 'resync' }>
-
-export type LaneEvent =
-  | { readonly kind: 'pi'; readonly push: LanePiPush }
-  | { readonly kind: 'control'; readonly control: LaneControl }
-  | { readonly kind: 'summary'; readonly summary: LaneSummary }
-  | { readonly kind: 'dialog-resolved'; readonly dialogId: string }
-
-export type AttentionKind =
-  'finished' | 'needs-input' | 'failed' | 'routine-finished' | 'routine-paused'
-
-export interface AttentionEvent {
-  /** `${laneId}:${attention}`: the same outcome has the same id on every surface. */
-  readonly id: string
-  readonly laneId: string
-  readonly kind: AttentionKind
-  /** The lane's attention counter after this outcome. */
-  readonly attention: number
-  readonly at: string
-  readonly title: string | null
-}
-
-// ---------- commands and receipts ----------
-
-/** pi operations a remote client may ask for. Everything else is refused. */
-export const LANE_PI_OPS = [
-  'prompt',
-  'steer',
-  'follow_up',
-  'abort',
-  'abort_retry',
-  'set_model',
-  'set_thinking_level',
-  'compact',
-  'set_session_name',
-] as const
-export type LanePiOpType = (typeof LANE_PI_OPS)[number]
-/** pi's own command shapes, without pi's correlation id (the Host assigns it). */
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
-export type LanePiOp = DistributiveOmit<Extract<RpcCommand, { type: LanePiOpType }>, 'id'>
-
-export type LaneOp =
-  | RepositoryOp
-  | DeleteLaneOp
-  | ProviderLoginOp
-  | TerminalOp
-  | RoutineOp
-  | FileWriteOp
-  | AttachmentOp
-  | LanePiOp
-  | { readonly type: 'extension_ui_response'; readonly response: ExtensionUIResponse }
-  | {
-      readonly type: 'lane.create'
-      readonly repositoryId: string
-      /** null: run in the repository itself. A branch: a new worktree lane on it. */
-      readonly worktree: {
-        readonly branch: string
-        /** New-only ref creation; older Hosts ignore this additive field. */
-        readonly fresh?: true
-      } | null
-      readonly name?: string
-      readonly provider?: string
-      readonly model?: string
-      readonly thinkingLevel?: string
-    }
-  | { readonly type: 'lane.resume' }
-  | { readonly type: 'lane.stop' }
-  | { readonly type: 'lane.markRead'; readonly upTo: number }
-  | { readonly type: 'control.take' }
-  | { readonly type: 'control.release' }
-
-export type LaneOpType = LaneOp['type']
-
-/** Ops admitted without a matching fence. Every other lane op needs one. */
-export const UNFENCED_OPS: readonly LaneOpType[] = [
-  'lane.create',
-  'lane.markRead',
-  'control.take',
-  'host.repositories.add',
-  'host.repositories.remove',
-  'host.repositories.createFolder',
-]
-
-export type RejectCode =
-  | 'bad-request'
-  | 'unsupported'
-  | 'forbidden'
-  | 'unknown-lane'
-  | 'lane-stopped'
-  | 'not-controller'
-  | 'stale-fence'
-  /** The request id was already used for another op or by another client. */
-  | 'conflict'
-  | 'busy'
-  | 'branch-exists'
-  | 'last-repository'
-  | 'too-many-requests'
-
-export type FailureCode = 'pi-error' | 'timeout' | 'internal'
-
-export type Receipt =
-  | { readonly requestId: string; readonly status: 'pending' }
-  | {
-      readonly requestId: string
-      readonly status: 'done'
-      /** pi's response data, or the op's own result. Dropped when over the size limit. */
-      readonly data?: unknown
-      /** The lane's fence after the op, when the op changed or checked it. */
-      readonly fence?: number
-      /** Set by `lane.create`. */
-      readonly laneId?: string
-    }
-  | {
-      readonly requestId: string
-      readonly status: 'failed'
-      readonly error: { readonly code: FailureCode; readonly message: string }
-    }
-  | {
-      readonly requestId: string
-      readonly status: 'rejected'
-      readonly code: RejectCode
-      /** For `not-controller` and `stale-fence`: who controls the lane now. */
-      readonly control?: LaneControl
-    }
-  /** The Host cannot say whether the op took effect, after a restart or no pi answer. */
-  | { readonly requestId: string; readonly status: 'unknown' }
-
-// ---------- queries ----------
-
-/** Read-only, idempotent, no receipt. M3 features add namespaced methods in their own modules. */
-export const HOST_CALL_METHODS = [
-  'host.repositories',
-  'lane.state',
-  'lane.messages',
-  'lane.receipt',
-  'lane.stats',
-  'lane.models',
-  'lane.commands',
-] as const
-export type HostCallMethod = (typeof HOST_CALL_METHODS)[number]
-
-export type CallErrorCode =
-  | 'bad-request'
-  | 'unsupported'
-  | 'forbidden'
-  | 'unknown-lane'
-  | 'lane-stopped'
-  | 'too-large'
-  | 'internal'
-
-export interface CallError {
-  readonly code: CallErrorCode
-  readonly message: string
-}
-
-/** What each capability admits. Effective capabilities = the grant's ∩ the Host's. */
-export const CAPABILITY_FOR = {
-  subscribeLanes: 'sessions.read',
-  subscribeLane: 'sessions.read',
-  call: 'sessions.read',
-  command: 'sessions.control',
-} as const satisfies Record<string, HostCapability>
-
-// ---------- frames ----------
-
-export type ClientFrame =
-  | TerminalInput
-  | TerminalSubscribe
-  /** First frame (with `challenge`), and later to renew (without). */
-  | {
-      readonly type: 'auth'
-      readonly grant: string
-      readonly challenge?: string
-      readonly trace?: string
-    }
-  | {
-      readonly type: 'subscribe'
-      readonly id: string
-      readonly topic: 'lanes'
-      /** Replays attention events after this cursor when the epoch matches. */
-      readonly after?: StreamCursor
-      readonly trace?: string
-    }
-  | {
-      readonly type: 'subscribe'
-      readonly id: string
-      readonly topic: 'lane'
-      readonly laneId: string
-      readonly after?: StreamCursor
-      readonly trace?: string
-    }
-  | { readonly type: 'unsubscribe'; readonly id: string }
-  | {
-      readonly type: 'command'
-      readonly requestId: string
-      readonly laneId?: string
-      readonly fence?: number
-      readonly op: LaneOp
-      readonly trace?: string
-    }
-  | { readonly type: 'receipt-status'; readonly requestId: string }
-  | {
-      readonly type: 'call'
-      readonly id: string
-      readonly method: string
-      readonly params?: unknown
-      readonly trace?: string
-    }
-  | { readonly type: 'ping'; readonly at: number }
-
-export type HostFrame =
-  | TerminalFrame
-  | {
-      readonly type: 'ready'
-      readonly protocolVersion: typeof HOST_PROTOCOL_VERSION
-      readonly hello: HostHello
-      /** base64url Ed25519 over `helloProofMessage(hostId, runtimeEpoch, challenge)`. */
-      readonly proof: string
-      readonly connectionId: string
-      readonly grantExpiresAt: string
-      readonly client: { readonly id: string; readonly label: string }
-      /** Effective capabilities for this connection. */
-      readonly capabilities: readonly HostCapability[]
-    }
-  | { readonly type: 'auth-renewed'; readonly grantExpiresAt: string }
-  | {
-      readonly type: 'lanes'
-      readonly id: string
-      readonly cursor: StreamCursor
-      readonly repositories: readonly RepositorySummary[]
-      readonly lanes: readonly LaneSummary[]
-    }
-  | {
-      readonly type: 'lanes-delta'
-      readonly id: string
-      readonly cursor: StreamCursor
-      readonly upsert: readonly LaneSummary[]
-      readonly remove: readonly string[]
-    }
-  | { readonly type: 'routines-changed'; readonly id: string; readonly cursor: StreamCursor }
-  | {
-      readonly type: 'attention'
-      readonly id: string
-      readonly cursor: StreamCursor
-      readonly event: AttentionEvent
-    }
-  | {
-      readonly type: 'snapshot'
-      readonly id: string
-      readonly laneId: string
-      /** True when it replaces state the client already had. */
-      readonly reset: boolean
-      readonly snapshot: LaneSnapshot
-    }
-  | {
-      readonly type: 'event'
-      readonly id: string
-      readonly laneId: string
-      readonly cursor: StreamCursor
-      readonly event: LaneEvent
-    }
-  | {
-      readonly type: 'subscribe-failed'
-      readonly id: string
-      readonly code: 'unknown-lane' | 'too-many' | 'forbidden' | 'bad-request' | 'too-large'
-    }
-  | { readonly type: 'receipt'; readonly receipt: Receipt }
-  | { readonly type: 'result'; readonly id: string; readonly ok: true; readonly data: unknown }
-  | { readonly type: 'result'; readonly id: string; readonly ok: false; readonly error: CallError }
-  /** Sent just before the Host closes the socket with a 44xx code. */
-  | { readonly type: 'error'; readonly code: HostCloseCode; readonly message: string }
-  | { readonly type: 'pong'; readonly at: number }
-
-// ---------- parsers (wave 0 kit) ----------
-// parseClientFrame / parseHostFrame and their helpers go below this line.
-
-export interface FrameSocket {
-  send(text: string): void
-  close(code: number, reason: string): void
-  onMessage(cb: (text: string) => void): void
-  onClose(cb: (code: number, reason: string) => void): void
-  isOpen(): boolean
-  bufferedBytes(): number
-}
-
-export type ClientFrameParse =
-  | { ok: true; frame: ClientFrame }
-  | {
-      ok: false
-      reason: string
-      reply?:
-        | { kind: 'receipt'; requestId: string; code: 'unsupported' | 'bad-request' }
-        | { kind: 'result'; id: string; code: 'bad-request' }
-    }
-
-/** Counts UTF-8 bytes, including replacement characters for unpaired surrogates. */
-export function utf8Length(text: string): number {
-  let bytes = 0
-  for (let i = 0; i < text.length; i++) {
-    const c = text.charCodeAt(i)
-    if (c < 0x80) bytes++
-    else if (c < 0x800) bytes += 2
-    else if (
-      c >= 0xd800 &&
-      c <= 0xdbff &&
-      text.charCodeAt(i + 1) >= 0xdc00 &&
-      text.charCodeAt(i + 1) <= 0xdfff
-    ) {
-      bytes += 4
-      i++
-    } else bytes += 3
-  }
-  return bytes
-}
-
-function record(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
-function text(v: unknown, max: number, min = 1): v is string {
-  return typeof v === 'string' && v.length >= min && v.length <= max
-}
-function member<T extends string>(v: unknown, choices: readonly T[]): v is T {
-  return typeof v === 'string' && choices.some((c) => c === v)
-}
-function integer(v: unknown, min = 0): v is number {
-  return typeof v === 'number' && Number.isSafeInteger(v) && v >= min
-}
-function hex(v: unknown): v is string {
-  return typeof v === 'string' && /^[0-9a-f]{16}$/.test(v)
-}
-function frameId(v: unknown): v is string {
-  return typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v)
-}
-function label(v: unknown): v is string {
-  return typeof v === 'string' && normalizeLabel(v) === v
-}
-function cursor(v: unknown, min = 0): StreamCursor | null {
-  return record(v) && hex(v.epoch) && integer(v.seq, min) ? { epoch: v.epoch, seq: v.seq } : null
-}
-function readJson(s: string, limit: number): Parsed<Record<string, unknown>> {
-  if (utf8Length(s) > limit) return { ok: false, reason: 'frame-size' }
-  try {
-    const v: unknown = JSON.parse(s)
-    return record(v) ? { ok: true, value: v } : { ok: false, reason: 'object' }
-  } catch {
-    return { ok: false, reason: 'json' }
-  }
-}
-
-/** Wire guard for a git branch. Non-ASCII is refused; git checks it again on the Host. */
-export function isLaneBranchName(v: unknown): v is string {
-  return (
-    text(v, 200) &&
-    /^[!-~]+$/.test(v) &&
-    !/[~^:?*[\\]/.test(v) &&
-    !v.includes('..') &&
-    !v.includes('@{') &&
-    v !== '@' &&
-    !v.startsWith('-') &&
-    !v.startsWith('/') &&
-    !v.endsWith('/') &&
-    !v.includes('//') &&
-    !v.endsWith('.') &&
-    v.split('/').every((s) => !s.startsWith('.') && !s.endsWith('.lock'))
-  )
-}
+// ---------- parsers ----------
 
 const thinking = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 function imageData(v: unknown): v is string {
