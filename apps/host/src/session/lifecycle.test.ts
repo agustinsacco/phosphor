@@ -160,6 +160,7 @@ describe('the Host lifecycle', () => {
     const started = Date.now()
     const result = await drain({ ...FAST, deadlineMs: 100 })('SIGTERM')
     expect(result).toMatchObject({ state: 'failed', forced: 'deadline' })
+    expect(result).toMatchObject({ reason: 'SIGTERM', sessions: 1, remaining: [], errors: [] })
     expect(groups.killAll).toHaveBeenCalledOnce()
     expect(Date.now() - started).toBeLessThan(1000)
   })
@@ -172,6 +173,7 @@ describe('the Host lifecycle', () => {
     const second = run('SIGINT')
     expect(second).toBe(first)
     expect(await first).toMatchObject({ state: 'stopped', reason: 'SIGTERM', forced: 'hurried' })
+    expect(groups.remaining).toHaveBeenCalledOnce()
     expect(groups.killAll).toHaveBeenCalledOnce()
     expect(Date.now() - started).toBeLessThan(1000)
     expect(run('again')).toBe(first)
@@ -274,9 +276,11 @@ describe('process groups', () => {
     client.emit('exit', { code: 0, signal: null, expected: false })
     expect(await groups.remaining(100)).toEqual([pgid])
     expect(isGone(pgid)).toBe(false)
+    expect(groups.live()).toEqual([pgid])
     groups.killAll()
     expect(await until(() => groups.live().length === 0)).toBe(true)
     expect(isGone(pgid)).toBe(true)
+    expect(groups.live()).toEqual([])
   })
 
   it('never tracks a number that, as a group, would name more than one', () => {
