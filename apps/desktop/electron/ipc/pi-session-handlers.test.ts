@@ -61,7 +61,7 @@ vi.mock('node:fs/promises', async (original) => ({
 }))
 vi.mock('../pi/health', async (original) => ({
   ...(await original<typeof HealthModule>()),
-  checkPiHealth: vi.fn().mockResolvedValue({ ok: true, binaryPath: '/bin/pi' }),
+  cachedPiHealth: vi.fn().mockResolvedValue({ ok: true, binaryPath: '/bin/pi' }),
 }))
 vi.mock('../pi/stub', () => ({ piStubPath: () => undefined }))
 vi.mock('../pi/shell-env', () => ({ piProcessEnv: vi.fn().mockResolvedValue({ PATH: '/bin' }) }))
