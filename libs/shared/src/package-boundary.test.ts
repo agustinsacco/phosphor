@@ -135,3 +135,39 @@ describe('shared source package boundary', () => {
     }
   })
 })
+
+describe('shared boundary characterization', () => {
+  it('bundles the public testing entry separately with only vitest external', async () => {
+    for (const platform of ['browser', 'node'] as const) {
+      const result = await build({
+        entryPoints: [resolve(library, manifest.exports['./host-protocol-testing'].default)],
+        bundle: true,
+        platform,
+        format: 'esm',
+        write: false,
+        metafile: true,
+        external: ['vitest'],
+      })
+      expect(
+        Object.keys(result.metafile.inputs).some((file) => file.endsWith('fake-host.ts')),
+      ).toBe(true)
+      expect(Object.values(result.metafile.outputs).flatMap((output) => output.imports)).toEqual([
+        { path: 'vitest', kind: 'import-statement', external: true },
+      ])
+    }
+  })
+
+  it('rejects Node, Electron and vitest in portable bundles', async () => {
+    for (const target of ['node:fs', 'electron', 'vitest']) {
+      await expect(
+        build({
+          stdin: { contents: `import ${JSON.stringify(target)}`, resolveDir: library },
+          bundle: true,
+          write: false,
+          logLevel: 'silent',
+          plugins: [portableShared],
+        }),
+      ).rejects.toThrow(`Shared source cannot import ${target}`)
+    }
+  })
+})
