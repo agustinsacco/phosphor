@@ -32,7 +32,6 @@
     "src/commands/update.ts::runUpdate[1]/installLifetime[1]": 161,
     "src/config/schema.ts::validateHostConfig[1]": 121,
     "src/control/heartbeat.ts::createHeartbeat[1]": 157,
-    "src/control/identity.ts::createIdentityStore[1]": 175,
     "src/control/lock.ts::acquireIdentityLock[1]": 123,
     "src/control/trace.test.ts::it[1]": 99,
     "src/features/attachments.test.ts::%3Canonymous%3E[2]": 120,
