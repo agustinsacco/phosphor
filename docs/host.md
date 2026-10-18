@@ -609,6 +609,13 @@ runtime promises have not settled. A late settlement frees its slot.
 If recording a terminal receipt fails, it is still delivered, but receipt status
 stays `pending` until a Host restart marks it `unknown`.
 
+Every operation needs the capabilities `capabilityFor` names, read from the
+connection's current grant at submission and read again when the queued operation
+starts. An operation that lost one while queued, including on a closed
+connection, which has none, is recorded `forbidden` before any lane check or side
+effect. Repository, deletion, provider-login and terminal work check again after
+their awaits.
+
 [Protocol control and receipt rules](remote-protocol.md#frames-and-streams) own
 controller fences, takeover/release, client-scoped results and uncertain outcomes.
 The Host persists the fence before publishing control. If publication fails, the

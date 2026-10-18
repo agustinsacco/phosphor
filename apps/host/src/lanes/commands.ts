@@ -296,9 +296,13 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   function execute(job: Job, queue: LaneQueue): Execution | void {
     const { frame, client } = job
     const { requestId, laneId, op } = frame
-    const managementAllowed = () =>
-      capabilityFor(op).every((cap) => (client.currentCaps?.() ?? client.caps).includes(cap))
-    if ((op.type === 'lane.delete' || parseRepositoryOp(op)) && !managementAllowed())
+    // A grant can be renewed, or its connection closed, while the op was queued.
+    const holds = (caps: readonly HostCapability[]) =>
+      capabilityFor(op).every((cap) => caps.includes(cap))
+    const allowed = () => holds(client.currentCaps?.() ?? client.caps)
+    const caps = client.currentCaps?.() ?? client.caps
+    if (!holds(caps)) return rejected(job, 'forbidden', true)
+    if (op.type.startsWith('files.') && !ports.writes?.capabilityFor(op.type))
       return rejected(job, 'forbidden', true)
     const repositoryOp = parseRepositoryOp(op)
     if (repositoryOp) {
@@ -306,7 +310,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         return rejected(job, 'bad-request', true)
       const repositories = ports.repositories
       const completion = dispatch(job, queue, () =>
-        repositories.execute(repositoryOp, managementAllowed),
+        repositories.execute(repositoryOp, allowed),
       ).then((result) => {
         if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
         if (!result.value.ok) return rejected(job, result.value.code, true)
@@ -314,23 +318,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       })
       return { completion, detached: false }
     }
-    if (parseAttachmentOp(op)) {
-      const caps = client.currentCaps?.() ?? client.caps
-      if (!caps.includes('workspaces.write') || !caps.includes('sessions.control'))
-        return rejected(job, 'forbidden', true)
-    }
     const terminalOp = parseTerminalOp(op)
-    const terminalAllowed = () => {
-      const caps = client.currentCaps?.() ?? client.caps
-      return caps.includes('terminal') && caps.includes('sessions.control')
-    }
-    if (terminalOp && !terminalAllowed()) return rejected(job, 'forbidden', true)
-    if (op.type.startsWith('files.')) {
-      const caps = client.currentCaps?.() ?? client.caps
-      const capability = ports.writes?.capabilityFor(op.type)
-      if (!caps.includes('sessions.control') || !capability || !caps.includes(capability))
-        return rejected(job, 'forbidden', true)
-    }
     if (queue.controlUnpublished && laneId !== undefined) {
       const control = store.getLane(laneId)?.control
       if (!control) {
@@ -341,12 +329,6 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     }
     const routine = parseRoutineOp(op)
     if (routine) {
-      const caps = client.currentCaps?.() ?? client.caps
-      if (
-        !caps.includes('routines') ||
-        (routineRequiresControl(routine) && !caps.includes('sessions.control'))
-      )
-        return rejected(job, 'forbidden', true)
       if (!ports.routines) return rejected(job, 'unsupported', true)
       if (laneId !== undefined || frame.fence !== undefined)
         return rejected(job, 'bad-request', true)
@@ -359,14 +341,13 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       return { completion, detached: false }
     }
     if (op.type === 'provider.login' || (terminalOp && laneId === undefined)) {
-      if (!terminalAllowed()) return rejected(job, 'forbidden', true)
       if (frame.fence !== undefined || laneId !== undefined)
         return rejected(job, 'bad-request', true)
       const completion = dispatch(job, queue, async () => {
-        if (!terminalAllowed()) throw new TerminalForbidden('forbidden')
+        if (!allowed()) throw new TerminalForbidden('forbidden')
         if (op.type === 'provider.login') {
           if (!ports.providerLogins) throw new Error('unavailable')
-          return ports.providerLogins.execute(op, client.id, terminalAllowed)
+          return ports.providerLogins.execute(op, client.id, allowed)
         }
         if (!ports.terminals || !terminalOp) throw new Error('unavailable')
         return ports.terminals.machineOp(client.id, terminalOp)
@@ -508,7 +489,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       if (!terminals) return rejected(job, 'unsupported', true)
       const completion = dispatch(job, queue, async () => {
         try {
-          return { data: await terminals.execute(laneId, terminalOp, terminalAllowed) }
+          return { data: await terminals.execute(laneId, terminalOp, allowed) }
         } catch (error) {
           if (error instanceof TerminalForbidden) return { forbidden: true }
           throw error
@@ -625,11 +606,11 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       case 'lane.delete': {
         if (!ports.deleteLane) return rejected(job, 'unsupported', true)
         const deleteLane = ports.deleteLane
-        const allowed = () =>
-          managementAllowed() &&
+        const deletable = () =>
+          allowed() &&
           store.getLane(laneId)?.control.controller?.clientId === client.id &&
           store.getLane(laneId)?.control.fence === admittedFence
-        const completion = dispatch(job, queue, () => deleteLane(op, allowed)).then((result) => {
+        const completion = dispatch(job, queue, () => deleteLane(op, deletable)).then((result) => {
           if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
           if (!result.value.ok) return rejected(job, result.value.code, true)
           terminal(job, { requestId, status: 'done', data: result.value.data }, true)
