@@ -71,7 +71,7 @@
     "src/lanes/projection-host.ts::createHostLaneProjection[1]": 135,
     "src/lanes/reconcile.ts::reconcile[1]": 157,
     "src/lanes/runtime-host.test.ts::file": 1177,
-    "src/lanes/runtime-host.test.ts::describe[1]/it[5]": 191,
+    "src/lanes/runtime-host.integration.test.ts::describe[1]/it[1]": 191,
     "src/lanes/runtime-host.ts::createRuntimeLanes[1]": 369,
     "src/lanes/runtime-host.ts::createRuntimeLanes[1]/command[1]": 215,
     "src/lanes/store.test.ts::file": 864,
