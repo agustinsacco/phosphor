@@ -183,6 +183,16 @@ describe('command result service', () => {
     expect(await piCommands()).toEqual({ commands: [], error: 'upgrade pi' })
   })
 
+  it('reads unhealthy pi once per command call and reports that reading', async () => {
+    const { piCommands } = await import('./catalogue')
+    state.health.mockReset()
+    state.health
+      .mockResolvedValueOnce({ ok: false, message: 'first reading' })
+      .mockResolvedValue({ ok: false, message: 'second reading' })
+    expect(await piCommands()).toEqual({ commands: [], error: 'first reading' })
+    expect(state.health).toHaveBeenCalledTimes(1)
+  })
+
   it('retries failed command probes without caching their errors', async () => {
     const { piCommands } = await import('./catalogue')
     state.request.mockRejectedValueOnce(new Error('probe failed'))

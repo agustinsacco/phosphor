@@ -16,7 +16,7 @@
  * page both need this answer; each used to spawn its own pi for it. The cache
  * is keyed by folder — project prompts and `<ws>/.pi/skills` differ per
  * folder — and cleared by `invalidateCommandCaches` from every mutation that
- * changes the answer (`electron/ipc/pi-config-handlers.ts`).
+ * changes the answer (`apps/desktop/electron/pi/catalogue.ts`).
  */
 import { PiRpcClient } from './desktop-rpc-client'
 import { createTtlCache, type TtlCache } from './ttl-cache'

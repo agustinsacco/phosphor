@@ -6,7 +6,7 @@ import {
   type CatalogueResult,
 } from './model-catalogue'
 import { cachedPiHealth } from './health'
-import { PiUnavailableError, resolvePiInvoker } from './invoker'
+import { resolvePiInvoker } from './invoker'
 import { invalidateCommandCaches, probeCommandsCached, type CommandProbeOptions } from './commands'
 import { createTtlCache } from './ttl-cache'
 import { piStubPath } from './stub'
@@ -66,19 +66,19 @@ export function invalidateCatalogueModels(): void {
 async function commandProbeOptions(
   workspacePath: string | undefined,
 ): Promise<CommandProbeOptions> {
-  try {
-    const invoker = await resolvePiInvoker('minimal-stub')
-    return {
-      ...(workspacePath ? { workspacePath } : {}),
-      binaryPath: invoker.binaryPath,
-      ...(invoker.prefixArgs.length ? { prefixArgs: invoker.prefixArgs } : {}),
-      env: invoker.env,
-    }
-  } catch (error) {
-    if (!(error instanceof PiUnavailableError)) throw error
-    // The shared resolver has a different default; preserve this surface's message.
+  if (!piStubPath()) {
+    // One discovery per call: an unhealthy result is not cached, so asking the
+    // resolver first and health again for the message would probe twice and
+    // could report a different answer. A healthy result is cached for the resolver.
     const health = await cachedPiHealth()
-    throw new Error(health.message ?? 'pi is not installed', { cause: error })
+    if (!health.ok || !health.binaryPath) throw new Error(health.message ?? 'pi is not installed')
+  }
+  const invoker = await resolvePiInvoker('minimal-stub')
+  return {
+    ...(workspacePath ? { workspacePath } : {}),
+    binaryPath: invoker.binaryPath,
+    ...(invoker.prefixArgs.length ? { prefixArgs: invoker.prefixArgs } : {}),
+    env: invoker.env,
   }
 }
 
