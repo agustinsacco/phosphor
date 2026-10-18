@@ -9,6 +9,8 @@ const exported = (library: string) =>
 const LIBRARIES: Record<string, string[]> = {
   '@phosphor/shared': exported('libs/shared'),
   '@phosphor/session-runtime': exported('libs/session-runtime'),
+  // This subpath is a pure wire-literal module.
+  '@phosphor/pi-extensions': ['./status-keys'],
 }
 const SPECIFIER = /(?:\bfrom\s+|\bimport\s*\(\s*)'([^']+)'/g
 

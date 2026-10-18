@@ -2,12 +2,16 @@ import { realpath, stat } from 'node:fs/promises'
 import { isAbsolute, sep } from 'node:path'
 import { errorText } from '@phosphor/shared/errors'
 import { fail, info, pass, warn, type Check } from '../checks'
+import { errnoIs, isInside } from '../fs-safety'
 import { probe, type ProbeEnvironment } from './probe'
 
-/** Is `candidate` the root itself or inside it? Both must be real paths. */
+/**
+ * Is `candidate` the root itself or inside it? Both must be real paths.
+ * The legacy candidate-first order of `isInside`, which compares paths as
+ * written, trailing separators included.
+ */
 export function isInsideRoot(candidate: string, root: string): boolean {
-  if (root === sep) return candidate.startsWith(sep)
-  return candidate === root || candidate.startsWith(root + sep)
+  return isInside(root, candidate)
 }
 
 /**
@@ -52,7 +56,7 @@ export async function checkRepositories(
         continue
       }
     } catch (error) {
-      const missing = (error as NodeJS.ErrnoException).code === 'ENOENT'
+      const missing = errnoIs(error, 'ENOENT')
       checks.push(fail('repository', `${path} ${missing ? 'does not exist' : errorText(error)}`))
       continue
     }

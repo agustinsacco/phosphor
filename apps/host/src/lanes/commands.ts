@@ -1,844 +1,109 @@
-import {
-  parseRepositoryOp,
-  type RepositoryOp,
-  type DeleteLaneOp,
-} from '@phosphor/shared/host-protocol-repositories'
-import { parseProviderLoginOp } from '@phosphor/shared/host-protocol-providers'
-import type { ProviderLogins } from '../providers/login'
 import { parseAttachmentOp } from '@phosphor/shared/host-protocol-attachments'
-import type { HostAttachments } from '../features/attachments'
+import { parseProviderLoginOp } from '@phosphor/shared/host-protocol-providers'
+import { parseRepositoryOp } from '@phosphor/shared/host-protocol-repositories'
+import { parseRoutineOp, routineRequiresControl } from '@phosphor/shared/host-protocol-routines'
 import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
-import { TerminalForbidden, type HostTerminals } from '../terminals/service'
-import { parseFileWriteOp, type FileWriteOp } from '@phosphor/shared/host-protocol-writes'
-import type { WriteOutcome } from '../features/writes'
-import {
-  HOST_LIMITS,
-  UNFENCED_OPS,
-  type ClientFrame,
-  type LaneEvent,
-  type LaneSummary,
-  type Receipt,
-  type RejectCode,
-} from '@phosphor/shared/host-protocol'
 import type { HostCapability } from '@phosphor/shared/remote-host'
+import { admitLane, republishControl } from './commands/admission'
+import { executeCreate } from './commands/create'
+import { executeLaneFeature } from './commands/features'
+import { executeLane } from './commands/lane'
+import { executeMachineTerminal, executeRepository, executeRoutine } from './commands/machine'
+import { close, status, submit } from './commands/queue'
+import { rejected } from './commands/receipts'
+import { executeRpc } from './commands/rpc'
 import {
-  parseRoutineOp,
-  routineRequiresControl,
-  type RoutineOp,
-} from '@phosphor/shared/host-protocol-routines'
-import type { RpcCommand } from '@phosphor/shared/rpc'
-import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
-import { commandRefusal, type HostRuntime } from '../session/runtime'
-import { normalizeLabel } from '@phosphor/shared/control-api'
-import { LaneCapacityReached, opHash, type HostStore, type StoredLane } from './store'
-import { createLane, type LaneSessions } from './create'
-import { LaneFolderError } from './worktree'
-import { canonicalJson, JsonTooLarge } from './validation'
+  createCommandState,
+  type CommandRouter,
+  type CommandState,
+  type Execution,
+  type Job,
+  type LaneCommandClient,
+  type LaneCommandFrame,
+  type LaneCommandPorts,
+  type LaneQueue,
+} from './commands/state'
 
-export const LANE_QUEUE_LIMIT = 32
-export const COMMAND_CLOSE_GRACE_MS = 2000
-export type LaneCommandFrame = Extract<ClientFrame, { type: 'command' }>
-export interface LaneCommandClient {
-  id: string
-  label: string
-  currentCaps?: () => readonly HostCapability[]
-  connectionId?: string
-  caps: readonly HostCapability[]
-}
-export interface LaneCommandPorts {
-  repositories?: {
-    execute(
-      op: RepositoryOp,
-      allowed: () => boolean,
-    ): Promise<{ ok: true; data?: unknown } | { ok: false; code: RejectCode }>
-  }
-  deleteLane?: (
-    op: DeleteLaneOp,
-    allowed: () => boolean,
-  ) => Promise<{ ok: true; data: { branchKept: boolean } } | { ok: false; code: RejectCode }>
-  providerLogins?: ProviderLogins
-  attachments?: HostAttachments
-  terminals?: HostTerminals
-  store: HostStore
-  writes?: {
-    capabilityFor(type: string): HostCapability | null
-    execute(laneId: string, op: FileWriteOp): Promise<WriteOutcome>
-  }
-  sessions: LaneSessions
-  runtime: Pick<HostRuntime, 'command' | 'extensionUiResponse'>
-  /** Wiring owns projection delivery and the live-session mapping. */
-  resumeLane(lane: StoredLane): Promise<void>
-  stopLane(laneId: string): Promise<void>
-  sessionFor(laneId: string): string | null
-  openDialogs(laneId: string): readonly string[]
-  /** Read after the store write: persisted control, counters and timestamps from
-   * the store; live activity, title and model from the projection. */
-  summaryFor(laneId: string): LaneSummary | null
-  publish(laneId: string, event: LaneEvent): void
-  /** The adapter fans out to interested connections of this client only. */
-  deliver(clientId: string, receipt: Receipt, connectionId?: string): void
-  now(): number
-  log: RuntimeLog
-  routines?: {
-    execute(op: RoutineOp, requestId: string, caps: readonly HostCapability[]): Promise<unknown>
-  }
-  refusal?: (command: RpcCommand) => string | null
-}
-type Terminal = Exclude<Receipt, { status: 'pending' }>
-type Job = {
-  client: LaneCommandClient
-  frame: LaneCommandFrame
-  started: number
-  resolve(): void
+export {
+  COMMAND_CLOSE_GRACE_MS,
+  LANE_QUEUE_LIMIT,
+  type LaneCommandClient,
+  type LaneCommandFrame,
+  type LaneCommandPorts,
+} from './commands/state'
+export { receiptMessage } from './commands/receipts'
+
+/** Every capability an op needs, at admission and again when a queued op starts. */
+function capabilityFor(
+  ports: Pick<LaneCommandPorts, 'writes'>,
+  op: LaneCommandFrame['op'],
+): readonly HostCapability[] {
+  if (op.type === 'lane.delete' || parseRepositoryOp(op))
+    return ['workspaces.write', 'sessions.control']
+  if (parseAttachmentOp(op)) return ['workspaces.write', 'sessions.control']
+  const routine = parseRoutineOp(op)
+  if (routine)
+    return routineRequiresControl(routine) ? ['routines', 'sessions.control'] : ['routines']
+  if (parseProviderLoginOp(op) || parseTerminalOp(op)) return ['terminal', 'sessions.control']
+  const write = op.type.startsWith('files.') ? ports.writes?.capabilityFor(op.type) : null
+  return write ? [write, 'sessions.control'] : ['sessions.control']
 }
 
-type LaneQueue = {
-  jobs: Job[]
-  outstanding: number
-  holds: number
-  draining: boolean
-  controlUnpublished: boolean
+/**
+ * Route one queued job. The capability gate comes first, read from the client's
+ * current grant; then machine families, owed control, creation and lane admission.
+ */
+function execute(
+  state: CommandState,
+  ports: LaneCommandPorts,
+  job: Job,
+  queue: LaneQueue,
+): Execution | void {
+  const { client, frame } = job
+  const { op } = frame
+  // A grant can be renewed, or its connection closed, while the op was queued.
+  const holds = (caps: readonly HostCapability[]) =>
+    capabilityFor(ports, op).every((cap) => caps.includes(cap))
+  const allowed = () => holds(client.currentCaps?.() ?? client.caps)
+  const caps = client.currentCaps?.() ?? client.caps
+  if (!holds(caps)) return rejected(state, ports, job, 'forbidden', true)
+  if (op.type.startsWith('files.') && !ports.writes?.capabilityFor(op.type))
+    return rejected(state, ports, job, 'forbidden', true)
+  const repository = executeRepository(state, ports, job, queue, allowed)
+  if (repository.handled) return repository.execution
+  const owed = republishControl(state, ports, job, queue)
+  if (owed.handled) return owed.execution
+  const routine = executeRoutine(state, ports, job, queue, caps)
+  if (routine.handled) return routine.execution
+  const machineTerminal = executeMachineTerminal(state, ports, job, queue, allowed)
+  if (machineTerminal.handled) return machineTerminal.execution
+  if (op.type === 'lane.create')
+    return executeCreate(state, ports, job, queue, {
+      op,
+      execute: (next, nextQueue) => execute(state, ports, next, nextQueue),
+    })
+  const admitted = admitLane(state, ports, job, queue)
+  if (!admitted) return
+  const feature = executeLaneFeature(state, ports, job, queue, admitted, allowed)
+  if (feature.handled) return feature.execution
+  const rpc = executeRpc(state, ports, job, queue, admitted)
+  if (rpc.handled) return rpc.execution
+  return executeLane(state, ports, job, queue, admitted, allowed)
 }
-type Answer<T> = { answered: true; value: T } | { answered: false; reason: string }
-type Execution = { completion: Promise<void>; detached: boolean }
-type OperationIdentity = { laneId: string; requestId: string; opType: string }
 
 /** Parsed frames and authenticated grant clients enter here, never raw pi RPC. */
 export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimit?: number } = {}) {
-  const { store, runtime } = ports
-  const limit = options.queueLimit ?? LANE_QUEUE_LIMIT
-  if (!Number.isInteger(limit) || limit < 1 || limit > LANE_QUEUE_LIMIT)
-    throw new Error('invalid lane queue limit')
-  const queues = new Map<string, LaneQueue>()
-  let closing = false
-  let closed = false
-  let closePromise: Promise<void> | undefined
-  const work = new Set<Promise<unknown>>()
-  function track(promise: Promise<unknown>) {
-    work.add(promise)
-    void promise.finally(() => work.delete(promise)).catch(() => {})
-  }
-  const refusal = ports.refusal ?? commandRefusal
-  // Delivery and logging must not strand the next recorded request.
-  function log(message: string, data: unknown): void {
-    try {
-      ports.log('host', message, data)
-    } catch {
-      // Logging is not in the command ordering path.
-    }
-  }
-  function deliver(clientId: string, receipt: Receipt, connectionId?: string): void {
-    try {
-      ports.deliver(clientId, receipt, connectionId)
-    } catch {
-      // A reconnect can ask the store for the request's status.
-    }
-  }
-  function elapsed(started: number): number | undefined {
-    try {
-      return Math.max(0, ports.now() - started)
-    } catch {
-      return undefined
-    }
-  }
-  function terminal(job: Job, receipt: Terminal, recorded: boolean, reason?: string): void {
-    if (closed) return
-    let result: Terminal = { requestId: job.frame.requestId, status: 'unknown' }
-    try {
-      result = durableReceipt(receipt)
-    } catch {
-      // Invalid runtime data cannot become a receipt.
-    }
-    if (recorded) {
-      try {
-        store.finishRequest(job.frame.requestId, result)
-      } catch {
-        log('lane.receipt_unrecorded', {
-          laneId: job.frame.laneId,
-          requestId: job.frame.requestId,
-        })
-      }
-    }
-    // Count pruning can immediately evict a same-millisecond finish. Never reread here.
-    deliver(job.client.id, result, recorded ? undefined : job.client.connectionId)
-    receipt = result
-    log('lane.command', {
-      laneId: job.frame.laneId,
-      requestId: job.frame.requestId,
-      op: job.frame.op.type,
-      status: receipt.status,
-      code:
-        receipt.status === 'rejected'
-          ? receipt.code
-          : receipt.status === 'failed'
-            ? receipt.error.code
-            : undefined,
-      fence:
-        receipt.status === 'done'
-          ? receipt.fence
-          : receipt.status === 'rejected'
-            ? receipt.control?.fence
-            : undefined,
-      ms: elapsed(job.started),
-      trace: job.frame.trace,
-      reason,
-    })
-  }
-  /** Every capability an op needs, at admission and again when a queued op starts. */
-  function capabilityFor(op: LaneCommandFrame['op']): readonly HostCapability[] {
-    if (op.type === 'lane.delete' || parseRepositoryOp(op))
-      return ['workspaces.write', 'sessions.control']
-    if (parseAttachmentOp(op)) return ['workspaces.write', 'sessions.control']
-    const routine = parseRoutineOp(op)
-    if (routine)
-      return routineRequiresControl(routine) ? ['routines', 'sessions.control'] : ['routines']
-    if (parseProviderLoginOp(op) || parseTerminalOp(op)) return ['terminal', 'sessions.control']
-    const write = op.type.startsWith('files.') ? ports.writes?.capabilityFor(op.type) : null
-    return write ? [write, 'sessions.control'] : ['sessions.control']
-  }
-  function rejected(job: Job, code: RejectCode, recorded: boolean): void {
-    terminal(job, { requestId: job.frame.requestId, status: 'rejected', code }, recorded)
-  }
-  function cleanup(key: string, queue: LaneQueue): void {
-    if (closed) return
-    if (
-      !queue.draining &&
-      !queue.jobs.length &&
-      !queue.outstanding &&
-      !queue.holds &&
-      !queue.controlUnpublished
-    )
-      queues.delete(key)
-  }
-  function queueFor(key: string): LaneQueue {
-    let queue = queues.get(key)
-    if (!queue) {
-      queue = { jobs: [], outstanding: 0, holds: 0, draining: false, controlUnpublished: false }
-      queues.set(key, queue)
-    }
-    return queue
-  }
-  function publish(laneId: string, event: LaneEvent, queue: LaneQueue): boolean {
-    if (closed) return false
-    try {
-      ports.publish(laneId, event)
-      if (event.kind === 'control') queue.controlUnpublished = false
-      return true
-    } catch {
-      if (event.kind === 'control') queue.controlUnpublished = true
-      log('lane.publish_failed', { laneId, kind: event.kind })
-      return false
-    }
-  }
-  function controlFailure(job: Job): void {
-    terminal(
-      job,
-      {
-        requestId: job.frame.requestId,
-        status: 'failed',
-        error: { code: 'internal', message: "the lane's control change could not be published" },
-      },
-      true,
-    )
-  }
-  /** After a deadline, only the operation identity and slot survive, not the job or payload. */
-  function answer<T>(
-    identity: OperationIdentity,
-    queue: LaneQueue,
-    promise: Promise<T>,
-  ): Promise<Answer<T>> {
-    track(promise)
-    queue.outstanding++
-    return new Promise((resolve) => {
-      let reply: ((answer: Answer<T>) => void) | undefined = resolve
-      const timer = setTimeout(() => {
-        reply?.({ answered: false, reason: 'deadline' })
-        reply = undefined
-      }, HOST_LIMITS.commandAnswerMs)
-      timer.unref()
-      const complete = (value: Answer<T>) => {
-        queue.outstanding--
-        clearTimeout(timer)
-        if (reply) {
-          reply(value)
-          reply = undefined
-        } else {
-          log('lane.command_late', {
-            laneId: identity.laneId,
-            requestId: identity.requestId,
-            op: identity.opType,
-          })
-        }
-        cleanup(identity.laneId, queue)
-      }
-      promise
-        .then(
-          (value) => complete({ answered: true, value }),
-          () => complete({ answered: false, reason: 'transport' }),
-        )
-        .catch(() => {})
-    })
-  }
-  // Invoke outside answer's settle closures so an unresolved runtime cannot retain run or job.
-  function dispatch<T>(job: Job, queue: LaneQueue, run: () => Promise<T> | T): Promise<Answer<T>> {
-    let promise: Promise<T>
-    try {
-      promise = Promise.resolve(run())
-    } catch {
-      promise = Promise.reject(new Error('transport'))
-    }
-    return answer(
-      { laneId: job.frame.laneId ?? '', requestId: job.frame.requestId, opType: job.frame.op.type },
-      queue,
-      promise,
-    )
-  }
-  function execute(job: Job, queue: LaneQueue): Execution | void {
-    const { frame, client } = job
-    const { requestId, laneId, op } = frame
-    const managementAllowed = () =>
-      capabilityFor(op).every((cap) => (client.currentCaps?.() ?? client.caps).includes(cap))
-    if ((op.type === 'lane.delete' || parseRepositoryOp(op)) && !managementAllowed())
-      return rejected(job, 'forbidden', true)
-    const repositoryOp = parseRepositoryOp(op)
-    if (repositoryOp) {
-      if (!ports.repositories || laneId !== undefined || frame.fence !== undefined)
-        return rejected(job, 'bad-request', true)
-      const repositories = ports.repositories
-      const completion = dispatch(job, queue, () =>
-        repositories.execute(repositoryOp, managementAllowed),
-      ).then((result) => {
-        if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
-        if (!result.value.ok) return rejected(job, result.value.code, true)
-        terminal(job, { requestId, status: 'done', data: result.value.data }, true)
-      })
-      return { completion, detached: false }
-    }
-    if (parseAttachmentOp(op)) {
-      const caps = client.currentCaps?.() ?? client.caps
-      if (!caps.includes('workspaces.write') || !caps.includes('sessions.control'))
-        return rejected(job, 'forbidden', true)
-    }
-    const terminalOp = parseTerminalOp(op)
-    const terminalAllowed = () => {
-      const caps = client.currentCaps?.() ?? client.caps
-      return caps.includes('terminal') && caps.includes('sessions.control')
-    }
-    if (terminalOp && !terminalAllowed()) return rejected(job, 'forbidden', true)
-    if (op.type.startsWith('files.')) {
-      const caps = client.currentCaps?.() ?? client.caps
-      const capability = ports.writes?.capabilityFor(op.type)
-      if (!caps.includes('sessions.control') || !capability || !caps.includes(capability))
-        return rejected(job, 'forbidden', true)
-    }
-    if (queue.controlUnpublished && laneId !== undefined) {
-      const control = store.getLane(laneId)?.control
-      if (!control) {
-        queue.controlUnpublished = false
-        return rejected(job, 'unknown-lane', true)
-      }
-      if (!publish(laneId, { kind: 'control', control }, queue)) return controlFailure(job)
-    }
-    const routine = parseRoutineOp(op)
-    if (routine) {
-      const caps = client.currentCaps?.() ?? client.caps
-      if (
-        !caps.includes('routines') ||
-        (routineRequiresControl(routine) && !caps.includes('sessions.control'))
-      )
-        return rejected(job, 'forbidden', true)
-      if (!ports.routines) return rejected(job, 'unsupported', true)
-      if (laneId !== undefined || frame.fence !== undefined)
-        return rejected(job, 'bad-request', true)
-      const completion = dispatch(job, queue, () =>
-        ports.routines?.execute(routine, requestId, caps),
-      ).then((result) => {
-        if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
-        terminal(job, { requestId, status: 'done', data: result.value }, true)
-      })
-      return { completion, detached: false }
-    }
-    if (op.type === 'provider.login' || (terminalOp && laneId === undefined)) {
-      if (!terminalAllowed()) return rejected(job, 'forbidden', true)
-      if (frame.fence !== undefined || laneId !== undefined)
-        return rejected(job, 'bad-request', true)
-      const completion = dispatch(job, queue, async () => {
-        if (!terminalAllowed()) throw new TerminalForbidden('forbidden')
-        if (op.type === 'provider.login') {
-          if (!ports.providerLogins) throw new Error('unavailable')
-          return ports.providerLogins.execute(op, client.id, terminalAllowed)
-        }
-        if (!ports.terminals || !terminalOp) throw new Error('unavailable')
-        return ports.terminals.machineOp(client.id, terminalOp)
-      }).then((result) => {
-        if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
-        terminal(job, { requestId, status: 'done', data: result.value }, true)
-      })
-      return { completion, detached: false }
-    }
-    if (op.type === 'lane.create') {
-      const repository = store.listRepositories().find((entry) => entry.id === op.repositoryId)
-      if (
-        laneId !== undefined ||
-        !repository ||
-        (op.provider !== undefined && op.provider.length > 64) ||
-        (op.model !== undefined && op.model.length > 128) ||
-        (op.name !== undefined &&
-          (op.name.length > HOST_LIMITS.labelChars || normalizeLabel(op.name) !== op.name))
-      )
-        return rejected(job, 'bad-request', true)
-      if (store.listLanes().length >= store.limits.lanesPerHost)
-        return rejected(job, 'too-many-requests', true)
-      let held: { laneId: string; queue: LaneQueue } | undefined
-      const work = (async () => {
-        try {
-          let created: StoredLane
-          try {
-            created = await createLane(
-              { ...ports, closed: () => closed },
-              {
-                root: repository.path,
-                op,
-                controller: { clientId: client.id, label: client.label },
-                onStored: (laneId) => {
-                  const laneQueue = queueFor(laneId)
-                  laneQueue.holds++
-                  held = { laneId, queue: laneQueue }
-                },
-              },
-            )
-          } catch (error) {
-            if (error instanceof LaneCapacityReached) return { capacity: true }
-            if (error instanceof LaneFolderError && error.code === 'branch-exists')
-              return { branchExists: true }
-            const code =
-              typeof error === 'object' && error !== null && 'code' in error
-                ? error.code
-                : undefined
-            if (typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code))
-              log('lane.command_error', { requestId, op: op.type, code })
-            return {
-              error: {
-                code: 'internal' as const,
-                message:
-                  error instanceof LaneFolderError ? error.message : 'the lane could not start',
-              },
-            }
-          }
-          if (closed) return {}
-          if (!held) throw new Error('missing lane queue')
-          publish(created.laneId, { kind: 'control', control: created.control }, held.queue)
-          const summary = ports.summaryFor(created.laneId)
-          if (summary) publish(created.laneId, { kind: 'summary', summary }, held.queue)
-          return { lane: created }
-        } finally {
-          if (held) {
-            held.queue.holds--
-            if (!held.queue.draining) void drain(held.laneId, held.queue).catch(() => {})
-          }
-        }
-      })()
-      const receiptPath = dispatch(job, queue, () => work).then((result) => {
-        if (!result.answered)
-          return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
-        if (result.value.capacity) return rejected(job, 'too-many-requests', true)
-        if (result.value.branchExists) return rejected(job, 'branch-exists', true)
-        if (result.value.error)
-          return terminal(job, { requestId, status: 'failed', error: result.value.error }, true)
-        const created = result.value.lane
-        if (!created) throw new Error('missing lane')
-        terminal(job, { requestId, status: 'done', laneId: created.laneId, fence: 1 }, true)
-      })
-      const completion = Promise.all([
-        receiptPath,
-        work.then(
-          () => {},
-          () => {},
-        ),
-      ]).then(() => {})
-      return { completion, detached: false }
-    }
-    const lane = laneId === undefined ? null : store.getLane(laneId)
-    if (!lane || lane.removedAt !== null || laneId === undefined)
-      return rejected(job, 'unknown-lane', true)
-    const sessionId = ports.sessionFor(laneId)
-    const piCommand = toPiCommand(op, requestId)
-    if ((piCommand || op.type === 'extension_ui_response') && sessionId === null)
-      return rejected(job, 'lane-stopped', true)
-    if (piCommand && refusal(piCommand) !== null) return rejected(job, 'unsupported', true)
-    if (op.type === 'extension_ui_response' && !ports.openDialogs(laneId).includes(op.response.id))
-      return rejected(job, 'bad-request', true)
-    // Release never acquires an empty lane just to release it again.
-    if (op.type === 'control.release' && lane.control.controller === null)
-      return terminal(
-        job,
-        { requestId, status: 'rejected', code: 'not-controller', control: lane.control },
-        true,
-      )
-    if (
-      op.type === 'lane.delete' &&
-      (op.laneId !== laneId || lane.control.controller?.clientId !== client.id)
-    )
-      return rejected(job, 'not-controller', true)
-    let admittedFence: number | undefined
-    if (!UNFENCED_OPS.includes(op.type)) {
-      if (frame.fence === undefined) return rejected(job, 'bad-request', true)
-      const admission = store.admit(
-        laneId,
-        { clientId: client.id, label: client.label },
-        frame.fence,
-      )
-      if (!admission.admitted) {
-        return terminal(
-          job,
-          { requestId, status: 'rejected', code: admission.code, control: admission.control },
-          true,
-        )
-      }
-      if (admission.control.fence !== lane.control.fence) ports.attachments?.abort(laneId)
-      admittedFence = admission.control.fence
-      if (
-        admission.control.fence !== lane.control.fence &&
-        !publish(laneId, { kind: 'control', control: admission.control }, queue)
-      )
-        return controlFailure(job)
-    }
-    if (terminalOp) {
-      const terminals = ports.terminals
-      if (!terminals) return rejected(job, 'unsupported', true)
-      const completion = dispatch(job, queue, async () => {
-        try {
-          return { data: await terminals.execute(laneId, terminalOp, terminalAllowed) }
-        } catch (error) {
-          if (error instanceof TerminalForbidden) return { forbidden: true }
-          throw error
-        }
-      }).then((result) => {
-        if (result.answered && result.value.forbidden) return rejected(job, 'forbidden', true)
-        terminal(
-          job,
-          result.answered
-            ? { requestId, status: 'done', data: result.value.data, fence: admittedFence }
-            : { requestId, status: 'unknown' },
-          true,
-        )
-      })
-      return { completion, detached: false }
-    }
-    const attachment = parseAttachmentOp(op)
-    if (attachment) {
-      const attachments = ports.attachments
-      if (!attachments || admittedFence === undefined) return rejected(job, 'unsupported', true)
-      const fence = admittedFence
-      const completion = dispatch(job, queue, () =>
-        attachments.execute({ laneId, clientId: client.id, fence }, attachment),
-      ).then((result) => {
-        if (!result.answered)
-          return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
-        terminal(
-          job,
-          result.value.ok
-            ? { requestId, status: 'done', data: result.value.data, fence }
-            : { requestId, status: 'rejected', code: result.value.code },
-          true,
-        )
-      })
-      return { completion, detached: false }
-    }
-    if (op.type.startsWith('files.')) {
-      const write = parseFileWriteOp(op)
-      if (!write || !ports.writes) return rejected(job, 'unsupported', true)
-      const writes = ports.writes
-      const completion = dispatch(job, queue, () => writes.execute(laneId, write)).then(
-        (result) => {
-          if (!result.answered)
-            return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
-          terminal(
-            job,
-            result.value.ok
-              ? { requestId, status: 'done', data: result.value.data, fence: admittedFence }
-              : { requestId, status: 'rejected', code: result.value.code },
-            true,
-          )
-        },
-      )
-      return { completion, detached: false }
-    }
-    if (piCommand && sessionId !== null) {
-      const completion = dispatch(job, queue, () => runtime.command(sessionId, piCommand)).then(
-        (result) => {
-          if (!result.answered)
-            return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
-          const response = result.value
-          terminal(
-            job,
-            response.success
-              ? { requestId, status: 'done', data: response.data, fence: admittedFence }
-              : {
-                  requestId,
-                  status: 'failed',
-                  error: { code: 'pi-error', message: receiptMessage(response.error) },
-                },
-            true,
-          )
-        },
-      )
-      return { completion, detached: true }
-    }
-    switch (op.type) {
-      case 'extension_ui_response': {
-        if (sessionId === null) return rejected(job, 'lane-stopped', true)
-        const completion = dispatch(job, queue, () =>
-          runtime.extensionUiResponse(sessionId, op.response),
-        ).then((result) => {
-          if (!result.answered)
-            return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
-          publish(laneId, { kind: 'dialog-resolved', dialogId: op.response.id }, queue)
-          terminal(job, { requestId, status: 'done', fence: admittedFence }, true)
-        })
-        return { completion, detached: true }
-      }
-      case 'control.take': {
-        ports.attachments?.abort(laneId)
-        const control = store.takeControl(laneId, { clientId: client.id, label: client.label })
-        publish(laneId, { kind: 'control', control }, queue)
-        return terminal(job, { requestId, status: 'done', fence: control.fence }, true)
-      }
-      case 'control.release': {
-        const released = store.releaseControl(laneId, client.id)
-        if (!released.released)
-          return terminal(
-            job,
-            { requestId, status: 'rejected', code: 'not-controller', control: released.control },
-            true,
-          )
-        ports.attachments?.abort(laneId)
-        publish(laneId, { kind: 'control', control: released.control }, queue)
-        return terminal(job, { requestId, status: 'done', fence: released.control.fence }, true)
-      }
-      case 'lane.markRead': {
-        store.markRead(laneId, op.upTo)
-        const summary = ports.summaryFor(laneId)
-        if (summary) publish(laneId, { kind: 'summary', summary }, queue)
-        break
-      }
-      case 'lane.delete': {
-        if (!ports.deleteLane) return rejected(job, 'unsupported', true)
-        const deleteLane = ports.deleteLane
-        const allowed = () =>
-          managementAllowed() &&
-          store.getLane(laneId)?.control.controller?.clientId === client.id &&
-          store.getLane(laneId)?.control.fence === admittedFence
-        const completion = dispatch(job, queue, () => deleteLane(op, allowed)).then((result) => {
-          if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
-          if (!result.value.ok) return rejected(job, result.value.code, true)
-          terminal(job, { requestId, status: 'done', data: result.value.data }, true)
-        })
-        return { completion, detached: false }
-      }
-      case 'lane.resume':
-      case 'lane.stop': {
-        const resume = op.type === 'lane.resume'
-        if (resume ? sessionId !== null : sessionId === null) break
-        const completion = dispatch(job, queue, () =>
-          lifecycle(laneId, requestId, op.type, lane),
-        ).then((result) => {
-          if (!result.answered)
-            return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
-          terminal(
-            job,
-            result.value
-              ? { requestId, status: 'failed', error: result.value }
-              : { requestId, status: 'done', fence: admittedFence },
-            true,
-          )
-        })
-        return { completion, detached: false }
-      }
-      default:
-        return rejected(job, 'unsupported', true)
-    }
-    terminal(
-      job,
-      {
-        requestId,
-        status: 'done',
-        ...(admittedFence === undefined ? {} : { fence: admittedFence }),
-      },
-      true,
-    )
-  }
-  async function lifecycle(
-    laneId: string,
-    requestId: string,
-    opType: 'lane.resume' | 'lane.stop',
-    lane: StoredLane,
-  ) {
-    const resume = opType === 'lane.resume'
-    try {
-      if (resume) await ports.resumeLane(lane)
-      else await ports.stopLane(laneId)
-      return null
-    } catch (error) {
-      const code =
-        typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
-      if (typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code))
-        log('lane.command_error', { laneId, requestId, op: opType, code })
-      return {
-        code: 'internal',
-        message:
-          !resume && code === 'first-prompt-required'
-            ? 'Send a first message before stopping this lane.'
-            : resume
-              ? 'the lane could not start'
-              : 'the lane could not stop',
-      } as const
-    }
-  }
-  async function drain(key: string, queue: LaneQueue): Promise<void> {
-    queue.draining = true
-    while (!closing && queue.jobs.length && !queue.holds) {
-      const job = queue.jobs[0]
-      if (!job) break
-      let execution: Execution | void = undefined
-      try {
-        execution = execute(job, queue)
-      } catch {
-        terminal(job, { requestId: job.frame.requestId, status: 'unknown' }, true, 'host')
-      } finally {
-        queue.jobs.shift()
-        if (!execution) job.resolve()
-      }
-      if (execution) {
-        const completion = execution.completion
-          .catch(() => {
-            terminal(job, { requestId: job.frame.requestId, status: 'unknown' }, true, 'host')
-          })
-          .finally(job.resolve)
-          .catch(() => {})
-        track(completion)
-        if (!execution.detached) await completion
-      }
-    }
-    queue.draining = false
-    cleanup(key, queue)
+  const state = createCommandState(options.queueLimit)
+  const router: CommandRouter = {
+    capabilityFor: (op) => capabilityFor(ports, op),
+    execute: (job, queue) => execute(state, ports, job, queue),
   }
   return {
-    capabilityFor,
-    submit(client: LaneCommandClient, frame: LaneCommandFrame): Promise<void> {
-      if (closing) return Promise.resolve()
-      const jobBase = { client, frame, started: ports.now() }
-      const immediate = { ...jobBase, resolve: () => {} }
-      const caps = client.currentCaps?.() ?? client.caps
-      if (!capabilityFor(frame.op).every((cap) => caps.includes(cap))) {
-        rejected(immediate, 'forbidden', false)
-        return Promise.resolve()
-      }
-      const key = frame.laneId ?? ''
-      let queue = queues.get(key)
-      if (
-        (queue?.jobs.length ?? 0) + (queue?.outstanding ?? 0) >= limit &&
-        store.getReceipt(frame.requestId, client.id) === null
-      ) {
-        rejected(immediate, 'busy', false)
-        return Promise.resolve()
-      }
-      const begin = store.beginRequest(
-        frame.requestId,
-        client.id,
-        opHash(frame.op),
-        frame.laneId ?? null,
-      )
-      if (begin.kind === 'existing') {
-        deliver(client.id, begin.receipt, client.connectionId)
-        return Promise.resolve()
-      }
-      if (begin.kind !== 'new') {
-        rejected(immediate, begin.kind, false)
-        return Promise.resolve()
-      }
-      queue ??= queueFor(key)
-      const completion = new Promise<void>((resolve) => queue.jobs.push({ ...jobBase, resolve }))
-      if (!queue.draining && !queue.holds) void drain(key, queue).catch(() => {})
-      return completion
-    },
-    status(clientId: string, requestId: string, connectionId?: string): void {
-      if (closing) return
-      deliver(
-        clientId,
-        store.getReceipt(requestId, clientId) ?? { requestId, status: 'unknown' },
-        connectionId,
-      )
-    },
-    close(): Promise<void> {
-      if (closePromise) return closePromise
-      closing = true
-      for (const queue of queues.values()) {
-        for (const job of queue.jobs.splice(0)) job.resolve()
-      }
-      closePromise = (async () => {
-        let timer: ReturnType<typeof setTimeout> | undefined
-        try {
-          await Promise.race([
-            Promise.allSettled([...work]),
-            new Promise<void>((resolve) => {
-              timer = setTimeout(resolve, COMMAND_CLOSE_GRACE_MS)
-              timer.unref()
-            }),
-          ])
-        } finally {
-          closed = true
-          clearTimeout(timer)
-          queues.clear()
-        }
-      })()
-      return closePromise
-    },
-  }
-}
-
-function durableReceipt(receipt: Terminal): Terminal {
-  if (receipt.status !== 'done' || receipt.data === undefined) return receipt
-  try {
-    canonicalJson(receipt.data, HOST_LIMITS.receiptDataBytes)
-    return receipt
-  } catch (error) {
-    if (!(error instanceof JsonTooLarge)) throw error
-    const { data: _data, ...withoutData } = receipt
-    return withoutData
-  }
-}
-
-/** Match the store's text predicate and the wire's non-empty message rule. */
-export function receiptMessage(raw: unknown): string {
-  const fallback = 'pi reported an error'
-  if (typeof raw !== 'string') return fallback
-  let normalized = ''
-  for (const char of raw) {
-    const code = char.charCodeAt(0)
-    normalized += code < 32 || code === 127 || code === 0x2028 || code === 0x2029 ? ' ' : char
-  }
-  let message = ''
-  for (const char of normalized.trim()) {
-    if (message.length + char.length > HOST_LIMITS.messageChars) break
-    message += char
-  }
-  return message || fallback
-}
-
-function toPiCommand(op: LaneCommandFrame['op'], id: string): RpcCommand | null {
-  switch (op.type) {
-    case 'prompt':
-    case 'steer':
-    case 'follow_up':
-    case 'abort':
-    case 'abort_retry':
-    case 'set_model':
-    case 'set_thinking_level':
-    case 'compact':
-    case 'set_session_name':
-      return { ...op, id }
-    default:
-      return null
+    capabilityFor: router.capabilityFor,
+    submit: (client: LaneCommandClient, frame: LaneCommandFrame): Promise<void> =>
+      submit(state, ports, router, client, frame),
+    status: (clientId: string, requestId: string, connectionId?: string): void =>
+      status(state, ports, clientId, requestId, connectionId),
+    close: (): Promise<void> => close(state),
   }
 }

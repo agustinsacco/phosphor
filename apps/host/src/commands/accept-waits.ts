@@ -1,3 +1,4 @@
+import { CONTEXT_BREAKDOWN_STATUS_KEY } from '@phosphor/pi-extensions/status-keys'
 import type { SessionPush } from '@phosphor/shared/models'
 import type { RpcCommand, RpcCommandType, RpcResponseDataMap } from '@phosphor/shared/rpc'
 import type { HostRuntime } from '../session/runtime'
@@ -31,7 +32,7 @@ const left = (by: Deadline) => Math.max(0, by.at - Date.now())
 export const isBreakdownStatus = (push: SessionPush) =>
   push.kind === 'extension-ui' &&
   push.request.method === 'setStatus' &&
-  push.request.statusKey === 'phosphor-context-breakdown'
+  push.request.statusKey === CONTEXT_BREAKDOWN_STATUS_KEY
 
 export const isTextDelta = (push: SessionPush) =>
   push.kind === 'event' &&
