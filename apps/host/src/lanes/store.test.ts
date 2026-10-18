@@ -18,6 +18,7 @@ import { loadSqlite } from './sqlite'
 import { hostStateDirectory, prepareStateDirectory, prepareStateFile } from './state-dir'
 import { openStore, opHash, HostStore, REMOVED_LANE_TTL_MS } from './store'
 
+// HA-02 inventory baseline: 85 existing cases passed before the receipt-suite split.
 let root: string
 let directory: string
 let store: HostStore
