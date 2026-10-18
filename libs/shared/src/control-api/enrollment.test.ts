@@ -10,6 +10,8 @@ import {
   parseEnrollmentPollResponse,
   type Parsed,
 } from '../control-api'
+import * as facade from '../control-api'
+import * as enrollment from './enrollment'
 
 const ID = '0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00'
 const KEY = 'A'.repeat(43)
@@ -208,5 +210,63 @@ describe('enrollment parsers through the control-api entry', () => {
       ok: false,
       reason: 'body must be an object',
     })
+  })
+})
+
+describe('enrollment module', () => {
+  it('is what the control-api entry exports', () => {
+    for (const name of Object.keys(enrollment))
+      expect(facade[name as keyof typeof facade], name).toBe(
+        enrollment[name as keyof typeof enrollment],
+      )
+    expect(Object.keys(enrollment).sort()).toEqual([
+      'parseEnrollmentApproveRequest',
+      'parseEnrollmentApproveResponse',
+      'parseEnrollmentCreateRequest',
+      'parseEnrollmentCreateResponse',
+      'parseEnrollmentLookupRequest',
+      'parseEnrollmentLookupResponse',
+      'parseEnrollmentPollRequest',
+      'parseEnrollmentPollResponse',
+    ])
+  })
+
+  it('normalizes labels a person typed but requires canonical labels in replies', () => {
+    const machine = {
+      id: ID,
+      label: 'bee1',
+      hostname: 'bee1',
+      platform: 'linux',
+      arch: 'x64',
+      hostVersion: null,
+      keyFingerprint: FINGERPRINT,
+      enrolledAt: TIME,
+      lastSeenAt: null,
+      state: null,
+      readiness: null,
+      lanes: null,
+      endpoint: null,
+    }
+    expect(enrollment.parseEnrollmentApproveResponse({ machine })).toStrictEqual({
+      ok: true,
+      value: { machine },
+    })
+    for (const label of [' bee1', 'bee1 '])
+      expect(
+        enrollment.parseEnrollmentApproveRequest({ userCode: 'BCDFGHJK', label }),
+      ).toStrictEqual({ ok: true, value: { userCode: 'BCDFGHJK', label: 'bee1' } })
+    for (const label of [' bee1', 'bee1 ', 'bee\u202e1']) {
+      expect(
+        enrollment.parseEnrollmentApproveResponse({ machine: { ...machine, label } }),
+      ).toStrictEqual({ ok: false, reason: 'machine: label' })
+      expect(
+        enrollment.parseEnrollmentPollResponse({
+          status: 'approved',
+          hostId: ID,
+          label,
+          owner: { login: null },
+        }),
+      ).toStrictEqual({ ok: false, reason: 'label' })
+    }
   })
 })

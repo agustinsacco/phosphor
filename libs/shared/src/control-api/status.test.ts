@@ -6,6 +6,9 @@ import {
   parseControlError,
   parseHealthResponse,
 } from '../control-api'
+import { expectTypeOf } from 'vitest'
+import * as facade from '../control-api'
+import * as status from './status'
 
 const SEEN = '2026-10-12T10:05:00.000Z'
 const seenMs = Date.parse(SEEN)
@@ -85,5 +88,26 @@ describe('health, errors and status through the control-api entry', () => {
     expect(machineStatus({ lastSeenAt: null, state: null }, seenMs)).toBe('never-seen')
     expect(machineStatus({ lastSeenAt: SEEN, state: 'stopping' }, seenMs)).toBe('down')
     expect(machineStatus({ lastSeenAt: SEEN, state: null }, seenMs)).toBe('down')
+  })
+})
+
+describe('status module', () => {
+  it('is what the control-api entry exports', () => {
+    for (const name of Object.keys(status))
+      expect(facade[name as keyof typeof facade], name).toBe(status[name as keyof typeof status])
+    expect(Object.keys(status).sort()).toEqual([
+      'isControlErrorCode',
+      'machineStatus',
+      'parseControlError',
+      'parseHealthResponse',
+    ])
+    expectTypeOf<status.MachineStatus>().toEqualTypeOf<facade.MachineStatus>()
+    expectTypeOf<status.MachineStatus>().toEqualTypeOf<'up' | 'down' | 'never-seen'>()
+  })
+
+  it('judges from the last beat and state only, and an unreadable beat as down', () => {
+    const view = { lastSeenAt: SEEN, state: 'running' as const, label: 'ignored', lanes: null }
+    expect(status.machineStatus(view, seenMs + 90_000)).toBe('up')
+    expect(status.machineStatus({ ...view, lastSeenAt: 'yesterday' }, seenMs)).toBe('down')
   })
 })

@@ -7,6 +7,8 @@ import {
   parseHeartbeatResponse,
   parseHostRevocations,
 } from '../control-api'
+import * as facade from '../control-api'
+import * as grants from './grants'
 
 const ID = '0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00'
 const NOT_OBJECTS = [null, undefined, [], 'body', 7]
@@ -116,5 +118,37 @@ describe('client and grant parsers through the control-api entry', () => {
       const reply = { accepted: true, nextInSec: 30, revoked: at(101).revoked }
       expect(parseHeartbeatResponse(reply)).toStrictEqual({ ok: false, reason: 'revoked' })
     }
+  })
+})
+
+describe('grants module', () => {
+  it('is what the control-api entry exports, apart from the revocation-list parser', () => {
+    const shared = Object.keys(grants).filter((name) => name !== 'parseRevoked')
+    for (const name of shared)
+      expect(facade[name as keyof typeof facade], name).toBe(grants[name as keyof typeof grants])
+    expect(shared.sort()).toEqual([
+      'parseClientRegisterRequest',
+      'parseClientRegisterResponse',
+      'parseGrantIssueRequest',
+      'parseGrantIssueResponse',
+      'parseHostRevocations',
+    ])
+    expect('parseRevoked' in facade).toBe(false)
+  })
+
+  it('copies revocation lists in order, keeps duplicates and refuses anything else', () => {
+    const sessions = [ID, ID]
+    const parsed = grants.parseRevoked({ sessions, clients: [ID], extra: [ID] })
+    expect(parsed).toStrictEqual({ sessions: [ID, ID], clients: [ID] })
+    expect(parsed?.sessions).not.toBe(sessions)
+    expect(grants.parseRevoked({ sessions: [], clients: Array(100).fill(ID) })).not.toBeNull()
+    for (const value of [
+      ...NOT_OBJECTS,
+      {},
+      { sessions: [], clients: Array(101).fill(ID) },
+      { sessions: [ID.toUpperCase()], clients: [] },
+      { sessions: 'x', clients: [] },
+    ])
+      expect(grants.parseRevoked(value)).toBeNull()
   })
 })

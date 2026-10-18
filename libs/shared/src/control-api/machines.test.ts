@@ -9,6 +9,9 @@ import {
   parseMeResponse,
   type Parsed,
 } from '../control-api'
+import * as facade from '../control-api'
+import { parseRevoked } from './grants'
+import * as machines from './machines'
 
 const ID = '0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00'
 const TIME = '2026-10-12T10:00:00.000Z'
@@ -200,5 +203,44 @@ describe('machine parsers through the control-api entry', () => {
     })
     for (const value of [...NOT_OBJECTS, {}, { ...base, accepted: 'true' }])
       expect(parseHeartbeatResponse(value)).toStrictEqual({ ok: false, reason: 'accepted' })
+  })
+})
+
+describe('machines module', () => {
+  it('is what the control-api entry exports', () => {
+    for (const name of Object.keys(machines))
+      expect(facade[name as keyof typeof facade], name).toBe(
+        machines[name as keyof typeof machines],
+      )
+    expect(Object.keys(machines).sort()).toEqual([
+      'parseHeartbeatRequest',
+      'parseHeartbeatResponse',
+      'parseHostSelfResponse',
+      'parseMachineRenameRequest',
+      'parseMachineView',
+      'parseMachinesResponse',
+      'parseMeResponse',
+    ])
+  })
+
+  it('accepts exactly the heartbeat revocations the grants module accepts', () => {
+    for (const revoked of [
+      { sessions: [], clients: [] },
+      { sessions: [ID, ID], clients: [ID] },
+      { sessions: Array(100).fill(ID), clients: [] },
+      { sessions: Array(101).fill(ID), clients: [] },
+      { sessions: [], clients: ['x'] },
+      { sessions: [] },
+      [],
+      null,
+    ]) {
+      const parsed = machines.parseHeartbeatResponse({ accepted: true, nextInSec: 30, revoked })
+      const expected = parseRevoked(revoked)
+      expect(parsed).toStrictEqual(
+        expected === null
+          ? { ok: false, reason: 'revoked' }
+          : { ok: true, value: { accepted: true, nextInSec: 30, revoked: expected } },
+      )
+    }
   })
 })
