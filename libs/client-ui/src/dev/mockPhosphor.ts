@@ -6,8 +6,7 @@ import {
   mockRemoteInfo,
 } from './mockRemoteLanes'
 import type { MachineView } from '@shared/control-api'
-import type { MachineSettingsPatch, MachineSettingsSection } from '@shared/machine-settings'
-import { mockSettingsRead, mockSettingsPatch, mockSettingsCheck } from './mockMachineSettings'
+import { mockMachineSettingsInvoke } from './mockMachineSettings'
 /**
  * Dev-only mock of the preload API so the renderer can run in a plain
  * browser (vite dev server without Electron). Replays the captured real
@@ -1475,36 +1474,15 @@ export function installMockPhosphor(): void {
         case 'hosts:reconnect':
           return undefined as never
         case 'hosts:settingsAccess':
-          return undefined as never
         case 'hosts:settingsRead':
-          return mockSettingsRead(
-            String(args[0]),
-            args[1] as MachineSettingsSection,
-            args[2] as string | undefined,
-          )
         case 'hosts:settingsPatch':
-          return mockSettingsPatch(String(args[0]), args[1] as MachineSettingsPatch)
         case 'hosts:settingsCheck':
-          return mockSettingsCheck(String(args[0]), args[1] as string | undefined)
         case 'hosts:machineTask':
-          throw new Error(
-            'Private setup terminals require a real connected Host. Demo mode does not execute code.',
-          )
         case 'hosts:claudeAccount':
-          throw new Error('Demo mode does not restart real Host lanes.')
         case 'hosts:models':
-          return [
-            {
-              id: 'claude-sonnet-4-5',
-              name: 'Claude Sonnet 4.5',
-              provider: 'anthropic',
-              reasoning: true,
-            },
-          ]
         case 'hosts:claude':
-          return null
         case 'hosts:providers':
-          return [{ id: 'anthropic', name: 'Anthropic', status: 'ready' }]
+          return mockMachineSettingsInvoke(channel, args) as never
         case 'hosts:repositoryFiles':
           return ['README.md', 'src/index.ts']
         case 'hosts:repositoryFile':

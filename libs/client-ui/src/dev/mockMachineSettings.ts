@@ -19,88 +19,7 @@ export function mockSettingsRead(
   const key = `${section}/${repositoryId ?? ''}`
   let value = host.values.get(key)
   if (!value) {
-    const tag = hostId[0] === '0' ? 'demo' : `bee${hostId[0]}`
-    const samples: Omit<MachineSettings, 'section' | 'revision' | 'repositoryId'> = {
-      providers: {
-        providers: [
-          ['anthropic', 'Claude Pro/Max'],
-          ['openai-codex', 'ChatGPT'],
-          ['github-copilot', 'GitHub Copilot'],
-          ['kimi-for-coding', 'Kimi'],
-          ['openrouter', 'OpenRouter'],
-          ['radius', 'Radius'],
-          ['xai', 'xAI'],
-        ].map(([id, name]) => ({
-          id: id!,
-          name: name!,
-          status: id === 'anthropic' ? 'ready' : 'not_ready',
-        })),
-        claude: { provider: 'ok', cli: 'ok', auth: 'ok' },
-        authenticating: false,
-        mode: 'ordered',
-        accounts: [
-          {
-            id: 'default',
-            label: `dev@${tag}.example`,
-            email: `dev@${tag}.example`,
-            plan: 'max',
-            loggedIn: true,
-            cooldownUntil: null,
-            usage: null,
-            lanes: [],
-          },
-          {
-            id: 'd8736746-ea12-452b-a492-411a74fba4f8',
-            label: `work@${tag}.example`,
-            plan: 'team',
-            loggedIn: true,
-            cooldownUntil: Date.now() + 3600_000,
-            usage: null,
-            lanes: [],
-          },
-        ],
-      },
-      connectors: {
-        trusted: repositoryId ? true : null,
-        legacy: false,
-        malformed: false,
-        servers: [
-          {
-            name: 'github',
-            scope: 'global',
-            transport: 'https',
-            enabled: true,
-            exposure: 'codemode',
-          },
-        ],
-      },
-      agent: {
-        defaultProvider: 'anthropic',
-        defaultModel: 'claude-sonnet-4-5',
-        defaultThinkingLevel: 'medium',
-        contextBudget: '200k',
-        autoNameLanes: true,
-      },
-      resources: {
-        packages: [
-          {
-            spec: 'npm:@saccolabs/pi-claude-cli',
-            name: '@saccolabs/pi-claude-cli',
-            version: '0.10.0',
-            installed: true,
-            scope: 'global',
-          },
-        ],
-      },
-      advanced: {
-        platform: 'linux',
-        hostVersion: '1.0.0-demo',
-        configPath: `/home/${tag}/.config/phosphor/host.json`,
-        piAgentDir: `/home/${tag}/.pi/agent`,
-        path: [`/home/${tag}/.local/bin`, '/usr/bin', '/bin'],
-        environment: [{ name: 'EXAMPLE_API_KEY', available: false, passed: false }],
-      },
-    }
+    const samples = mockSettingsSamples(hostId, repositoryId)
     value = {
       section,
       revision: '',
@@ -163,4 +82,131 @@ export function mockSettingsCheck(hostId: string, repositoryId?: string): Machin
   }
   states.get(hostId)!.values.set(`connectors/${repositoryId ?? ''}`, value)
   return value
+}
+
+function mockSettingsSamples(hostId: string, repositoryId?: string) {
+  const tag = hostId[0] === '0' ? 'demo' : `bee${hostId[0]}`
+  const samples: Omit<MachineSettings, 'section' | 'revision' | 'repositoryId'> = {
+    providers: mockProviderSamples(tag),
+    connectors: {
+      trusted: repositoryId ? true : null,
+      legacy: false,
+      malformed: false,
+      servers: [
+        {
+          name: 'github',
+          scope: 'global',
+          transport: 'https',
+          enabled: true,
+          exposure: 'codemode',
+        },
+      ],
+    },
+    agent: {
+      defaultProvider: 'anthropic',
+      defaultModel: 'claude-sonnet-4-5',
+      defaultThinkingLevel: 'medium',
+      contextBudget: '200k',
+      autoNameLanes: true,
+    },
+    resources: {
+      packages: [
+        {
+          spec: 'npm:@saccolabs/pi-claude-cli',
+          name: '@saccolabs/pi-claude-cli',
+          version: '0.10.0',
+          installed: true,
+          scope: 'global',
+        },
+      ],
+    },
+    advanced: {
+      platform: 'linux',
+      hostVersion: '1.0.0-demo',
+      configPath: `/home/${tag}/.config/phosphor/host.json`,
+      piAgentDir: `/home/${tag}/.pi/agent`,
+      path: [`/home/${tag}/.local/bin`, '/usr/bin', '/bin'],
+      environment: [{ name: 'EXAMPLE_API_KEY', available: false, passed: false }],
+    },
+  }
+  return samples
+}
+function mockProviderSamples(tag: string): NonNullable<MachineSettings['providers']> {
+  return {
+    providers: [
+      ['anthropic', 'Claude Pro/Max'],
+      ['openai-codex', 'ChatGPT'],
+      ['github-copilot', 'GitHub Copilot'],
+      ['kimi-for-coding', 'Kimi'],
+      ['openrouter', 'OpenRouter'],
+      ['radius', 'Radius'],
+      ['xai', 'xAI'],
+    ].map(([id, name]) => ({
+      id: id!,
+      name: name!,
+      status: id === 'anthropic' ? 'ready' : 'not_ready',
+    })),
+    claude: { provider: 'ok', cli: 'ok', auth: 'ok' },
+    authenticating: false,
+    mode: 'ordered',
+    accounts: [
+      {
+        id: 'default',
+        label: `dev@${tag}.example`,
+        email: `dev@${tag}.example`,
+        plan: 'max',
+        loggedIn: true,
+        cooldownUntil: null,
+        usage: null,
+        lanes: [],
+      },
+      {
+        id: 'd8736746-ea12-452b-a492-411a74fba4f8',
+        label: `work@${tag}.example`,
+        plan: 'team',
+        loggedIn: true,
+        cooldownUntil: Date.now() + 3600_000,
+        usage: null,
+        lanes: [],
+      },
+    ],
+  }
+}
+
+export function mockMachineSettingsInvoke(channel: string, args: unknown[]): unknown {
+  switch (channel) {
+    case 'hosts:settingsAccess':
+      return undefined
+    case 'hosts:settingsRead':
+      return mockSettingsRead(
+        String(args[0]),
+        args[1] as MachineSettingsSection,
+        args[2] as string | undefined,
+      )
+    case 'hosts:settingsPatch':
+      return mockSettingsPatch(String(args[0]), args[1] as MachineSettingsPatch)
+    case 'hosts:settingsCheck':
+      return mockSettingsCheck(String(args[0]), args[1] as string | undefined)
+    case 'hosts:machineTask':
+      throw new Error(
+        'Private setup terminals require a real connected Host. Demo mode does not execute code.',
+      )
+    case 'hosts:claudeAccount':
+      throw new Error('Demo mode does not restart real Host lanes.')
+    case 'hosts:models':
+      return [
+        {
+          id: 'claude-sonnet-4-5',
+          name: 'Claude Sonnet 4.5',
+          provider: 'anthropic',
+          reasoning: true,
+        },
+      ]
+    case 'hosts:claude':
+      return null
+    case 'hosts:providers':
+      return [{ id: 'anthropic', name: 'Anthropic', status: 'ready' }]
+    default:
+      throw new Error('Unknown machine settings mock channel.')
+  }
 }

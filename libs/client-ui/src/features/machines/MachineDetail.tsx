@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
-import { machineStatus, type MachineView } from '@shared/control-api'
-import { Button } from '@/components/form'
 import { CopyButton } from '@/components/CopyButton'
+import { Button } from '@/components/form'
 import { TooltipSummary } from '@/components/Tooltip'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { machineStatus, type MachineView } from '@shared/control-api'
+import { useEffect, useRef, useState } from 'react'
 import { useClaudeReadiness } from './ClaudeReadiness'
 import { CopyCommand } from './MachineControls'
 import { MachineLabel } from './MachineLabel'
-import { machineHeadline } from './machineReachability'
 import {
   HOST_RUN,
   HOST_SERVICE_INSTALL,
@@ -18,6 +17,7 @@ import {
   readinessFreshness,
   relativeTime,
 } from './machinePresentation'
+import { machineHeadline } from './machineReachability'
 import { Card, CheckRow, Fact, Facts, Spinner, StatusPill, type CheckItem } from './MachineUi'
 import { OnThisMachine } from './OnThisMachine'
 import { ProviderSignIn } from './ProviderSignIn'
@@ -254,33 +254,7 @@ export function MachineDetail({
                   }
                 />
               </Card>
-              <Card title="Details">
-                <Facts>
-                  <Fact label="Hostname">{machine.hostname}</Fact>
-                  <Fact label="Platform">
-                    {platformName(machine.platform)} {machine.arch}
-                  </Fact>
-                  <Fact label="Host version">{version ?? 'Not reported'}</Fact>
-                  <Fact label="Enrolled">{new Date(machine.enrolledAt).toLocaleDateString()}</Fact>
-                  <Fact label="Address">{machine.endpoint ?? 'Not published'}</Fact>
-                  <Fact label="Fingerprint">
-                    <span className="flex items-center gap-1">
-                      <code className="truncate font-mono text-sm">{machine.keyFingerprint}</code>
-                      <CopyButton
-                        size="icon"
-                        text={machine.keyFingerprint}
-                        title="Copy fingerprint"
-                      />
-                    </span>
-                  </Fact>
-                  <Fact label="Machine id">
-                    <span className="flex items-center gap-1">
-                      <code className="truncate font-mono text-sm">{machine.id}</code>
-                      <CopyButton size="icon" text={machine.id} title="Copy machine id" />
-                    </span>
-                  </Fact>
-                </Facts>
-              </Card>
+              <MachineDetailFacts machine={machine} version={version} />
             </div>
           </div>
 
@@ -313,5 +287,39 @@ function Troubleshooting(): React.JSX.Element {
       <p>To watch it run in the foreground:</p>
       <CopyCommand command={HOST_RUN} />
     </details>
+  )
+}
+
+function MachineDetailFacts({
+  machine,
+  version,
+}: {
+  machine: MachineView
+  version: string | null | undefined
+}): React.JSX.Element {
+  return (
+    <Card title="Details">
+      <Facts>
+        <Fact label="Hostname">{machine.hostname}</Fact>
+        <Fact label="Platform">
+          {platformName(machine.platform)} {machine.arch}
+        </Fact>
+        <Fact label="Host version">{version ?? 'Not reported'}</Fact>
+        <Fact label="Enrolled">{new Date(machine.enrolledAt).toLocaleDateString()}</Fact>
+        <Fact label="Address">{machine.endpoint ?? 'Not published'}</Fact>
+        <Fact label="Fingerprint">
+          <span className="flex items-center gap-1">
+            <code className="truncate font-mono text-sm">{machine.keyFingerprint}</code>
+            <CopyButton size="icon" text={machine.keyFingerprint} title="Copy fingerprint" />
+          </span>
+        </Fact>
+        <Fact label="Machine id">
+          <span className="flex items-center gap-1">
+            <code className="truncate font-mono text-sm">{machine.id}</code>
+            <CopyButton size="icon" text={machine.id} title="Copy machine id" />
+          </span>
+        </Fact>
+      </Facts>
+    </Card>
   )
 }

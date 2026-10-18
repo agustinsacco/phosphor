@@ -1,66 +1,33 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { errorText } from '@shared/errors'
 import type {
   MachineSettings,
   MachineSettingsChange,
   MachineSettingsSection,
 } from '@shared/machine-settings'
-import { errorText } from '@shared/errors'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { machineReadGeneration } from '@/stores/machineReadGeneration'
-import { usePlatform } from '@/platform/Platform'
+import { useHostSettingsSnapshot, type HostSettingsSnapshot } from './useHostSettingsSnapshot'
 
 export function useHostSettings(
   hostId: string,
   section: MachineSettingsSection,
   repositoryId?: string,
 ) {
-  const supported = usePlatform().machineSettings
-  const connection = useRemoteLanesStore((s) => s.hosts[hostId])
-  const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
-  const key = `${hostId}/${generation}/${section}/${repositoryId ?? ''}/${supported}`
-  const current = useRef(key)
-  current.current = key
-  const [result, setResult] = useState<{ key: string; data: MachineSettings } | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const allowed =
-    supported &&
-    connection?.state === 'ready' &&
-    connection.configurationSupported === true &&
-    connection.capabilities.includes('machine.configure')
-  const mounted = useRef(true)
-  const attempt = useRef(0)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-      attempt.current++
-    }
-  }, [])
-  const refresh = useCallback(async () => {
-    if (!mounted.current || current.current !== key || !allowed) return
-    const id = ++attempt.current
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await window.phosphor.invoke('hosts:settingsRead', hostId, section, repositoryId)
-      if (mounted.current && current.current === key && attempt.current === id)
-        setResult({ key, data })
-    } catch (e) {
-      if (mounted.current && current.current === key && attempt.current === id)
-        setError(errorText(e))
-    } finally {
-      if (mounted.current && current.current === key && attempt.current === id) setLoading(false)
-    }
-  }, [allowed, hostId, section, repositoryId, key])
-  useEffect(() => {
-    setError(null)
-    setResult(null)
-    setLoading(false)
-    setSaving(false)
-    void refresh()
-  }, [refresh])
+  const snapshot = useHostSettingsSnapshot(hostId, section, repositoryId)
+  const {
+    supported,
+    connection,
+    key,
+    current,
+    result,
+    setResult,
+    error,
+    setError,
+    loading,
+    saving,
+    setSaving,
+    allowed,
+    mounted,
+    refresh,
+  } = snapshot
   async function change(change: MachineSettingsChange): Promise<MachineSettings | null> {
     if (!mounted.current || current.current !== key || !allowed || saving || result?.key !== key)
       return null
@@ -81,30 +48,6 @@ export function useHostSettings(
       return null
     } finally {
       if (mounted.current && current.current === key) setSaving(false)
-    }
-  }
-  async function check(): Promise<void> {
-    if (
-      !mounted.current ||
-      current.current !== key ||
-      !allowed ||
-      section !== 'connectors' ||
-      loading ||
-      saving
-    )
-      return
-    const id = ++attempt.current
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await window.phosphor.invoke('hosts:settingsCheck', hostId, repositoryId)
-      if (mounted.current && current.current === key && attempt.current === id)
-        setResult({ key, data })
-    } catch (error) {
-      if (mounted.current && current.current === key && attempt.current === id)
-        setError(errorText(error))
-    } finally {
-      if (mounted.current && current.current === key && attempt.current === id) setLoading(false)
     }
   }
   async function moveAccount(laneId: string, accountId: string): Promise<void> {
@@ -132,8 +75,50 @@ export function useHostSettings(
     connection,
     refresh,
     change,
-    check,
+    check: () => checkHostSettings(snapshot, hostId, section, repositoryId),
     moveAccount,
   }
 }
 export type HostSettingsState = ReturnType<typeof useHostSettings>
+
+async function checkHostSettings(
+  snapshot: HostSettingsSnapshot,
+  hostId: string,
+  section: MachineSettingsSection,
+  repositoryId?: string,
+): Promise<void> {
+  const {
+    mounted,
+    current,
+    key,
+    allowed,
+    loading,
+    saving,
+    attempt,
+    setLoading,
+    setError,
+    setResult,
+  } = snapshot
+  if (
+    !mounted.current ||
+    current.current !== key ||
+    !allowed ||
+    section !== 'connectors' ||
+    loading ||
+    saving
+  )
+    return
+  const id = ++attempt.current
+  setLoading(true)
+  setError(null)
+  try {
+    const data = await window.phosphor.invoke('hosts:settingsCheck', hostId, repositoryId)
+    if (mounted.current && current.current === key && attempt.current === id)
+      setResult({ key, data })
+  } catch (error) {
+    if (mounted.current && current.current === key && attempt.current === id)
+      setError(errorText(error))
+  } finally {
+    if (mounted.current && current.current === key && attempt.current === id) setLoading(false)
+  }
+}
