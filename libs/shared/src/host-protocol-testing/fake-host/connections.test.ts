@@ -4,6 +4,9 @@ import type { ClientFrame, HostFrame } from '../../host-protocol'
 import type { HostCapability } from '../../remote-host'
 import { createFakeHost, type FakeHostOptions } from '../fake-host'
 import { createLoopbackPair } from '../loopback'
+import type { FrameSocket } from '../../host-protocol'
+import { attach, disconnect, dispatch, receive, receiptStatus } from './connections'
+import { createFakeHostState, type FakeHostState, type Limits } from './state'
 
 const ISSUER = 'https://control.test'
 const HOST_ID = '00000000-0000-4000-8000-0000000000a1'
@@ -379,5 +382,183 @@ describe('driver through createFakeHost', () => {
     h.host.stop()
     await flush(1000)
     expect([v.brief(), v.closes, vi.getTimerCount()]).toEqual([[], ['1001 Host stopping'], 0])
+  })
+})
+
+describe('connections module', () => {
+  function state(limits: Partial<Limits> = {}) {
+    return createFakeHostState({
+      expectations: { iss: ISSUER, hostId: HOST_ID, owner: OWNER, epoch: 1 },
+      verify: () => false,
+      sign: () => new Uint8Array(64),
+      id: () => LANE,
+      epoch: () => 'epoch',
+      repositories: [REPOSITORY],
+      limits,
+    })
+  }
+  /** A socket whose message and close callbacks the test drives by hand. */
+  function socket() {
+    const wire = {
+      open: true,
+      frames: [] as HostFrame[],
+      closes: [] as string[],
+      message: (_text: string) => undefined as void,
+      close: () => undefined as void,
+    }
+    const s: FrameSocket = {
+      send: (text) => void wire.frames.push(JSON.parse(text)),
+      close: (code, reason) => {
+        wire.open = false
+        wire.closes.push(`${code} ${reason}`)
+      },
+      onMessage: (cb) => void (wire.message = cb),
+      onClose: (cb) => void (wire.close = () => cb(1000, 'closed')),
+      isOpen: () => wire.open,
+      bufferedBytes: () => 0,
+    }
+    return { s, wire }
+  }
+  function attached(st: FakeHostState, client: GrantClient | null = FIRST) {
+    const { s, wire } = socket()
+    attach(st, s)
+    const c = [...st.connections].at(-1)
+    if (!c) throw new Error('Not attached')
+    if (client) {
+      const iat = Math.floor(Date.now() / 1000)
+      c.grant = {
+        v: 1,
+        iss: ISSUER,
+        kid: 'key',
+        sub: OWNER,
+        sid: 'session',
+        hostId: HOST_ID,
+        epoch: 1,
+        client,
+        caps: READ_CONTROL,
+        iat,
+        exp: iat + 300,
+        jti: '0123456789abcdef',
+      }
+      clearTimeout(c.authTimer)
+    }
+    return { c, wire }
+  }
+
+  it('refuses a socket while stopping or at the flood cap, and arms the auth deadline', async () => {
+    const st = state({ connectionsPerClient: 1, lanesPerHost: 1, authTimeoutMs: 20 })
+    const first = attached(st, null)
+    const crowded = socket()
+    attach(st, crowded.s)
+    st.stopped = true
+    const stopping = socket()
+    attach(st, stopping.s)
+    expect([st.connections.size, crowded.wire.closes, stopping.wire.closes]).toEqual([
+      1,
+      ['4429 Too many connections'],
+      ['1001 Host stopping'],
+    ])
+    await flush(19)
+    expect(first.wire.closes).toEqual([])
+    await flush(1)
+    expect(first.wire.closes).toEqual(['4401 Auth timeout'])
+  })
+
+  it('re-arms idle on every message and checks size before parsing', async () => {
+    const st = state({ idleCloseMs: 30, inboundFrameBytes: 64 })
+    const v = attached(st)
+    receive(st, v.c, JSON.stringify({ type: 'ping', at: 1 }))
+    await flush(20)
+    v.wire.message(JSON.stringify({ type: 'ping', at: 2 }))
+    await flush(29)
+    expect(v.wire.closes).toEqual([])
+    await flush(1)
+    expect(v.wire.closes).toEqual(['4401 Idle'])
+    const big = attached(st)
+    receive(st, big.c, `{"type":"ping","at":1,"pad":"${'x'.repeat(64)}"}`)
+    expect([big.wire.frames, big.wire.closes]).toEqual([[], ['4400 Frame too large']])
+  })
+
+  it('answers refused frames by reply kind once granted, and requires auth before that', () => {
+    const st = state()
+    const anonymous = attached(st, null)
+    receive(
+      st,
+      anonymous.c,
+      JSON.stringify({ type: 'command', requestId: LANE, op: { type: 'bash' } }),
+    )
+    const v = attached(st)
+    receive(st, v.c, JSON.stringify({ type: 'command', requestId: LANE, op: { type: 'bash' } }))
+    receive(st, v.c, JSON.stringify({ type: 'call', id: 'bad', method: 5 }))
+    receive(st, v.c, '{')
+    expect(anonymous.wire.closes).toEqual(['4401 Auth required'])
+    expect([v.wire.frames.map(brief), v.wire.closes]).toEqual([
+      ['receipt rejected unsupported', 'result bad bad-request'],
+      ['4400 Bad frame'],
+    ])
+  })
+
+  it('dispatches by frame type after auth and ignores frames it does not model', () => {
+    const st = state()
+    const anonymous = attached(st, null)
+    dispatch(st, anonymous.c, { type: 'ping', at: 1 })
+    const v = attached(st)
+    dispatch(st, v.c, { type: 'ping', at: 2 })
+    dispatch(st, v.c, { type: 'terminal.input', terminalId: LANE, seq: 1, data: 'ls' })
+    dispatch(st, v.c, { type: 'subscribe', id: 'all', topic: 'lanes' })
+    dispatch(st, v.c, { type: 'unsubscribe', id: 'all' })
+    dispatch(st, v.c, { type: 'call', id: 'repositories', method: 'host.repositories' })
+    expect([anonymous.wire.closes, v.wire.frames.map(brief), v.c.subscriptions.size]).toEqual([
+      ['4401 Auth required'],
+      ['pong', 'lanes all h:0', 'result repositories ok'],
+      0,
+    ])
+  })
+
+  it('looks up only the asking client’s receipts, registering interest while pending', () => {
+    const st = state()
+    const v = attached(st),
+      other = attached(st, SECOND)
+    st.receipts.set('p', {
+      clientId: FIRST.id,
+      hash: '',
+      receipt: { requestId: 'p', status: 'pending' },
+    })
+    receiptStatus(st, v.c, 'p')
+    receiptStatus(st, v.c, 'missing')
+    receiptStatus(st, other.c, 'p')
+    expect([v.wire.frames.map(brief), other.wire.frames.map(brief)]).toEqual([
+      ['receipt pending', 'receipt unknown'],
+      ['receipt unknown'],
+    ])
+    expect([[...v.c.wanted], other.c.wanted.size]).toEqual([['p'], 0])
+  })
+
+  it('clears socket timers and marks a controller away after its last socket only', async () => {
+    const st = state({ idleCloseMs: 30 })
+    const a = attached(st),
+      b = attached(st)
+    for (const v of [a, b]) receive(st, v.c, JSON.stringify({ type: 'ping', at: 1 }))
+    receive(
+      st,
+      a.c,
+      JSON.stringify({
+        type: 'command',
+        requestId: LANE,
+        op: { type: 'lane.create', repositoryId: REPOSITORY.id, worktree: null },
+      }),
+    )
+    const lane = st.lanes.get(LANE)
+    a.wire.close()
+    expect([st.connections.size, lane?.summary.control.controller?.connected]).toEqual([1, true])
+    b.wire.close()
+    expect([st.connections.size, lane?.summary.control]).toEqual([
+      0,
+      { fence: 1, controller: { clientId: FIRST.id, label: 'First', connected: false } },
+    ])
+    expect(lane?.events.map((e) => e.event.kind)).toEqual(['control', 'summary'])
+    const anonymous = attached(st, null)
+    disconnect(st, anonymous.c)
+    expect([lane?.events.length, vi.getTimerCount()]).toEqual([2, 0])
   })
 })
