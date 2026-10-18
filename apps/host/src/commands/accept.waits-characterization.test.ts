@@ -224,4 +224,10 @@ describe('accept waits characterization', { timeout: 30_000 }, () => {
     expect(log).toContain('[host] drained')
     expect(JSON.stringify(evidence) + progress.join('\n') + log).not.toContain(SECRET)
   })
+  it('exits 1 and keeps the transcript after an ordinary failed turn', async () => {
+    machine.writeConfig({ ...machine.config, environment: { pass: ['FAKE_PI_TURN'] } })
+    const { outcome } = await accept({ env: { ...machine.hostEnv, FAKE_PI_TURN: 'fail' } })
+    expect(outcome.exitCode).toBe(1)
+    expect(transcripts()).not.toEqual([])
+  })
 })

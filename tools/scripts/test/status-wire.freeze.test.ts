@@ -275,7 +275,7 @@ const auditedTexts = new Map(
     'libs/session-runtime/src/pi/lane-reload.ts',
     'libs/session-runtime/src/pi/session-startup.ts',
     'libs/shared/src/claude-limits.ts',
-    'apps/host/src/commands/accept.ts',
+    'apps/host/src/commands/accept-waits.ts',
   ].map((path) => [path, readFileSync(resolve(root, path), 'utf8')]),
 )
 
@@ -452,7 +452,7 @@ describe('status wire audit regressions', () => {
     ]) {
       expect(audit.consumers.get(path), path).toContain(RATE_LIMIT_STATUS_KEY)
     }
-    expect(audit.consumers.get('apps/host/src/commands/accept.ts')).toContain(
+    expect(audit.consumers.get('apps/host/src/commands/accept-waits.ts')).toContain(
       CONTEXT_BREAKDOWN_STATUS_KEY,
     )
   })
