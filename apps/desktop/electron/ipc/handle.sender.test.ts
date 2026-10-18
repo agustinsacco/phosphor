@@ -145,3 +145,99 @@ it('characterize: an unpackaged run admits its configured dev server page', asyn
   expect(await registered('fs:listFiles', vi.fn())(event, 'host:machine/repository')).toBe('routed')
   expect(routed).toHaveBeenCalledWith(7, 'fs:listFiles', ['host:machine/repository'])
 })
+
+/** The fixed text every refused sender gets; it names no frame, URL or window. */
+const REFUSED = 'Refused: this call did not come from the Phosphor window.'
+
+/** Untrusted senders while the bundle is the renderer document. */
+const PACKAGED_REFUSALS: [string, () => unknown][] = [
+  [
+    'no window owns the contents',
+    () => {
+      const event = windowEvent(11, INDEX_URL)
+      electron.owners.delete(event.sender)
+      return event
+    },
+  ],
+  [
+    'destroyed window',
+    () => {
+      const event = windowEvent(12, INDEX_URL)
+      const window = electron.owners.get(event.sender)
+      if (window) window.isDestroyed = () => true
+      return event
+    },
+  ],
+  [
+    'destroyed contents',
+    () => {
+      const event = windowEvent(13, INDEX_URL)
+      event.sender.isDestroyed = () => true
+      return event
+    },
+  ],
+  [
+    'contents hosted in a window that are not its own',
+    () => {
+      const event = windowEvent(14, INDEX_URL)
+      const window = windowEvent(15, INDEX_URL).sender
+      electron.owners.set(event.sender, { webContents: window, isDestroyed: () => false })
+      return event
+    },
+  ],
+  [
+    'subframe showing the index',
+    () => ({ ...windowEvent(16, INDEX_URL), senderFrame: { url: INDEX_URL } }),
+  ],
+  ['frame already gone', () => ({ ...windowEvent(17, INDEX_URL), senderFrame: null })],
+  ['sibling file in the bundle', () => windowEvent(18, new URL('other.html', INDEX_URL).href)],
+  ['file outside the bundle', () => windowEvent(19, pathToFileURL('/tmp/index.html').href)],
+  ['opaque-origin page', () => windowEvent(20, 'about:blank')],
+  ['web page', () => windowEvent(21, 'https://example.com/index.html')],
+  ['missing event', () => undefined],
+  ['frameless event', () => ({})],
+]
+
+/** Untrusted senders while an unpackaged run follows the dev server. */
+const DEV_REFUSALS: [string, () => unknown][] = [
+  ['dev server on another port', () => windowEvent(31, 'http://localhost:5174/')],
+  ['dev server on another host', () => windowEvent(32, 'http://127.0.0.1:5173/')],
+  ['bundle index in a dev run', () => windowEvent(33, INDEX_URL)],
+  [
+    'subframe on the dev origin',
+    () => ({ ...windowEvent(34, `${DEV_URL}/`), senderFrame: { url: `${DEV_URL}/` } }),
+  ],
+]
+
+/** Asserts neither route runs: a router that would answer, then one that declines to local. */
+async function expectRefusedBeforeRouting(name: string, makeEvent: () => unknown) {
+  const routed = vi.fn(() => ({ result: Promise.resolve('routed') }))
+  setRemoteReadRouter(routed)
+  const remoteLocal = vi.fn(() => 'local')
+  const remote = await outcome(() =>
+    registered('fs:listFiles', remoteLocal)(makeEvent(), 'host:m/r'),
+  )
+  expect(remote instanceof Error ? remote.message : remote, name).toBe(REFUSED)
+  expect(routed, name).not.toHaveBeenCalled()
+  expect(remoteLocal, name).not.toHaveBeenCalled()
+  const declined = vi.fn(() => null)
+  setRemoteReadRouter(declined)
+  const local = vi.fn(() => 'local')
+  const write = await outcome(() =>
+    registered('fs:writeFile', local)(makeEvent(), '/local/a.ts', 'x', null),
+  )
+  expect(write instanceof Error ? write.message : write, name).toBe(REFUSED)
+  expect(declined, name).not.toHaveBeenCalled()
+  expect(local, name).not.toHaveBeenCalled()
+}
+
+it('regression: an untrusted packaged sender reaches neither the router nor a local handler', async () => {
+  for (const [name, makeEvent] of PACKAGED_REFUSALS)
+    await expectRefusedBeforeRouting(name, makeEvent)
+})
+
+it('regression: an unpackaged run refuses every page but its configured dev server', async () => {
+  electron.app.isPackaged = false
+  vi.stubEnv('ELECTRON_RENDERER_URL', DEV_URL)
+  for (const [name, makeEvent] of DEV_REFUSALS) await expectRefusedBeforeRouting(name, makeEvent)
+})
