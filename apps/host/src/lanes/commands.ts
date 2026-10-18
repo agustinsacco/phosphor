@@ -4,20 +4,13 @@ import { parseAttachmentOp } from '@phosphor/shared/host-protocol-attachments'
 import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
 import { TerminalForbidden } from '../terminals/service'
 import { parseFileWriteOp } from '@phosphor/shared/host-protocol-writes'
-import {
-  HOST_LIMITS,
-  UNFENCED_OPS,
-  type LaneEvent,
-  type RejectCode,
-} from '@phosphor/shared/host-protocol'
+import { UNFENCED_OPS, type LaneEvent, type RejectCode } from '@phosphor/shared/host-protocol'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import { parseRoutineOp, routineRequiresControl } from '@phosphor/shared/host-protocol-routines'
 import type { RpcCommand } from '@phosphor/shared/rpc'
 import { commandRefusal } from '../session/runtime'
-import { normalizeLabel } from '@phosphor/shared/control-api'
-import { LaneCapacityReached, type StoredLane } from './store'
-import { createLane } from './create'
-import { LaneFolderError } from './worktree'
+import type { StoredLane } from './store'
+import { executeCreate } from './commands/create'
 import { executeMachineTerminal, executeRepository, executeRoutine } from './commands/machine'
 import * as queueing from './commands/queue'
 import * as receipts from './commands/receipts'
@@ -57,8 +50,6 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     queueing.publish(state, ports, laneId, event, queue)
   const dispatch = <T>(job: Job, queue: LaneQueue, run: () => Promise<T> | T) =>
     queueing.dispatch(state, ports, job, queue, run)
-  const queueFor = (key: string) => queueing.queueFor(state, key)
-  const drain = (key: string, queue: LaneQueue) => queueing.drain(state, ports, execute, key, queue)
   /** Every capability an op needs, at admission and again when a queued op starts. */
   function capabilityFor(op: LaneCommandFrame['op']): readonly HostCapability[] {
     if (op.type === 'lane.delete' || parseRepositoryOp(op))
@@ -97,88 +88,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     if (routine.handled) return routine.execution
     const machineTerminal = executeMachineTerminal(state, ports, job, queue, allowed)
     if (machineTerminal.handled) return machineTerminal.execution
-    if (op.type === 'lane.create') {
-      const repository = store.listRepositories().find((entry) => entry.id === op.repositoryId)
-      if (
-        laneId !== undefined ||
-        !repository ||
-        (op.provider !== undefined && op.provider.length > 64) ||
-        (op.model !== undefined && op.model.length > 128) ||
-        (op.name !== undefined &&
-          (op.name.length > HOST_LIMITS.labelChars || normalizeLabel(op.name) !== op.name))
-      )
-        return rejected(job, 'bad-request', true)
-      if (store.listLanes().length >= store.limits.lanesPerHost)
-        return rejected(job, 'too-many-requests', true)
-      let held: { laneId: string; queue: LaneQueue } | undefined
-      const work = (async () => {
-        try {
-          let created: StoredLane
-          try {
-            created = await createLane(
-              { ...ports, closed: () => state.closed },
-              {
-                root: repository.path,
-                op,
-                controller: { clientId: client.id, label: client.label },
-                onStored: (laneId) => {
-                  const laneQueue = queueFor(laneId)
-                  laneQueue.holds++
-                  held = { laneId, queue: laneQueue }
-                },
-              },
-            )
-          } catch (error) {
-            if (error instanceof LaneCapacityReached) return { capacity: true }
-            if (error instanceof LaneFolderError && error.code === 'branch-exists')
-              return { branchExists: true }
-            const code =
-              typeof error === 'object' && error !== null && 'code' in error
-                ? error.code
-                : undefined
-            if (typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code))
-              log('lane.command_error', { requestId, op: op.type, code })
-            return {
-              error: {
-                code: 'internal' as const,
-                message:
-                  error instanceof LaneFolderError ? error.message : 'the lane could not start',
-              },
-            }
-          }
-          if (state.closed) return {}
-          if (!held) throw new Error('missing lane queue')
-          publish(created.laneId, { kind: 'control', control: created.control }, held.queue)
-          const summary = ports.summaryFor(created.laneId)
-          if (summary) publish(created.laneId, { kind: 'summary', summary }, held.queue)
-          return { lane: created }
-        } finally {
-          if (held) {
-            held.queue.holds--
-            if (!held.queue.draining) void drain(held.laneId, held.queue).catch(() => {})
-          }
-        }
-      })()
-      const receiptPath = dispatch(job, queue, () => work).then((result) => {
-        if (!result.answered)
-          return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
-        if (result.value.capacity) return rejected(job, 'too-many-requests', true)
-        if (result.value.branchExists) return rejected(job, 'branch-exists', true)
-        if (result.value.error)
-          return terminal(job, { requestId, status: 'failed', error: result.value.error }, true)
-        const created = result.value.lane
-        if (!created) throw new Error('missing lane')
-        terminal(job, { requestId, status: 'done', laneId: created.laneId, fence: 1 }, true)
-      })
-      const completion = Promise.all([
-        receiptPath,
-        work.then(
-          () => {},
-          () => {},
-        ),
-      ]).then(() => {})
-      return { completion, detached: false }
-    }
+    if (op.type === 'lane.create') return executeCreate(state, ports, job, queue, { op, execute })
     const lane = laneId === undefined ? null : store.getLane(laneId)
     if (!lane || lane.removedAt !== null || laneId === undefined)
       return rejected(job, 'unknown-lane', true)
