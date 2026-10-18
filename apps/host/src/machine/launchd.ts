@@ -13,6 +13,7 @@ import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { mkdir, open, rename, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { IdentityFailure } from '../control/identity'
+import { errnoCode, errnoIs } from '../fs-safety'
 import { hostLogDirectory } from './log'
 export {
   writeServiceUnit as writeLaunchAgent,
@@ -84,8 +85,7 @@ export function permanentServiceReason(code: number): string | undefined {
 export function serviceExitPath(env: NodeJS.ProcessEnv, home: string): string {
   return join(dirname(hostLogDirectory(env, home)), 'service-exit.json')
 }
-const missing = (error: unknown) =>
-  error instanceof Error && 'code' in error && error.code === 'ENOENT'
+const missing = (error: unknown) => error instanceof Error && errnoIs(error, 'ENOENT')
 /** Read only a bounded suffix, even when a file has a single enormous line. */
 export async function readLogTail(
   path: string,
@@ -141,12 +141,8 @@ export interface LaunchdRunPorts {
   log?: RuntimeLog
 }
 function errorCode(error: unknown): string {
-  return error instanceof Error &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    /^[A-Z0-9_]{1,40}$/.test(error.code)
-    ? error.code
-    : 'UNKNOWN'
+  const code = error instanceof Error ? errnoCode(error) : undefined
+  return code !== undefined && /^[A-Z0-9_]{1,40}$/.test(code) ? code : 'UNKNOWN'
 }
 /** Called only with the run lock held. No async work can interleave with fd 2 compaction. */
 export function prepareLaunchdRun(

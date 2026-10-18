@@ -46,7 +46,8 @@ const { randomUUID } = require('node:crypto')
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs')
 const { join } = require('node:path')
 const persistence = require('./fake-pi/persistence.cjs')
-const tools = require('./fake-pi/tools.cjs')
+const { createTurns } = require('./fake-pi/turns.cjs')
+const { createDispatcher } = require('./fake-pi/commands.cjs')
 
 const args = process.argv.slice(2)
 if (process.env.FAKE_PI_ARGV_FILE)
@@ -198,123 +199,19 @@ const fail = (cmd, error) =>
 const text = (value) => ({ role: 'assistant', content: [{ type: 'text', text: value }] })
 
 const persist = (message) => persistence.persist(session, message)
-const save = persist
-const clone = () => persistence.clone(session)
-const toolPorts = { cwd: process.cwd(), out, persist, text }
-const toolState = tools.createToolState(messages)
+const turns = createTurns(session, { cwd: process.cwd(), out, persist, text })
 
-/** Run `then` once `file` exists, after writing `file`.held to say it waits. */
-function holdUntil(file, then) {
-  writeFileSync(`${file}.held`, '')
-  const timer = setInterval(() => {
-    if (!existsSync(file)) return
-    clearInterval(timer)
-    then()
-  }, 10)
-}
-
-// The file whose existence lets the next get_state be answered, if one is held.
-let heldState = null
-// Each dialog asked and not yet answered: what to do with its answer.
-const dialogs = new Map()
-// How get_state answers once a move has made it lose its file: 'fails' or 'hides'.
-let lostState = null
-
-let streaming = null
-const queued = []
-function publishQueue() {
-  out({
-    type: 'queue_update',
-    steering: queued.filter((item) => item.mode === 'steer').map((item) => item.message),
-    followUp: queued.filter((item) => item.mode !== 'steer').map((item) => item.message),
-  })
-}
-function delta(value) {
-  out({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: value } })
-}
-function finish(_user, reply, stopReason, errorMessage) {
-  const message = { ...text(reply), stopReason, ...(errorMessage && { errorMessage }) }
-  out({ type: 'message_end', message })
-  save(message)
-  out({ type: 'agent_end', messages: [message] })
-  out({ type: 'agent_settled', aborted: stopReason === 'aborted' })
-  const next = queued.shift()
-  publishQueue()
-  if (next) setTimeout(() => prompt(next.message), 10)
-}
-function prompt(message, images = []) {
-  persist({ role: 'user', content: message })
-  out({ type: 'agent_start' })
-  out({ type: 'message_start', message: { role: 'user', content: message } })
-  out({ type: 'message_end', message: { role: 'user', content: message } })
-  out({ type: 'message_start', message: text('') })
-  if (/artifact/i.test(message)) tools.artifact(toolState, toolPorts)
-  if (/links/i.test(message)) tools.linkTool(toolPorts)
-  if (/receipt-test/.test(message)) tools.receiptTools(toolPorts)
-  if (/stream|count|slow/i.test(message) || process.env.FAKE_PI_STALL) {
-    if (process.env.FAKE_PI_STALL) writeFileSync(process.env.FAKE_PI_STALL, String(process.pid))
-    const releaseFile = /^slow-until (.+)$/.exec(message)?.[1]
-    // Safety bound only: callers release or cancel the turn. It must outlast a slow
-    // runner's UI action, or the turn ends before the test can act on it.
-    const deadline = Date.now() + 60000
-    let count = 0
-    streaming = { user: message, reply: '' }
-    streaming.timer = setInterval(() => {
-      const piece = `${++count} `
-      streaming.reply += piece
-      delta(piece)
-      const released = releaseFile && existsSync(releaseFile)
-      const expired = releaseFile && Date.now() >= deadline
-      if (released || expired || (!releaseFile && /slow/i.test(message) && count === 12)) {
-        const completed = streaming
-        clearInterval(completed.timer)
-        streaming = null
-        finish(
-          completed.user,
-          completed.reply,
-          expired ? 'error' : 'stop',
-          expired ? 'Fixture slow turn was not released within 10 seconds' : undefined,
-        )
-      }
-    }, 20)
-    return
-  }
-  const tokens =
-    /recall/i.test(message) && !process.env.FAKE_PI_FORGET
-      ? messages.flatMap((m) => JSON.stringify(m.content).match(/PHX-[A-Za-z0-9]+/g) ?? [])
-      : /PHX-[A-Za-z0-9]+/.exec(message)
-  const reply = /PHX-hostinputs/.test(message)
-    ? tools.attachmentReply(message, images)
-    : /links/i.test(message)
-      ? `[${tools.laneMarker(toolPorts.cwd)} guide](nested/guide.md#L2) [absolute](${join(process.cwd(), 'remote.txt')}) [outside](/etc/passwd)`
-      : (process.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
-  delta(reply)
-  if (process.env.FAKE_PI_TURN === 'fail' || /fail-turn|auth-error/.test(message)) {
-    const error = /auth-error/.test(message)
-      ? '401 unauthorized: login expired'
-      : /fail-turn/.test(message)
-        ? `${tools.laneMarker(toolPorts.cwd)} provider error`
-        : `401: invalid x-api-key ${process.env.ANTHROPIC_API_KEY}`
-    return setTimeout(() => finish(message, '', 'error', error), 10)
-  }
-  if (process.env.FAKE_PI_TURN === 'exit') return setTimeout(() => process.exit(3), 50)
-  setTimeout(() => finish(message, reply, 'stop'), 10)
-}
-
-/** What get_state reports. */
-let selectedModel
-let selectedThinking
-function state() {
+function initialState() {
   return {
-    model: selectedModel ?? {
+    model: {
       ...models.find((model) => model.provider === (flag('--provider') ?? 'fake')),
       // Like pi, it takes --provider only together with --model.
       provider: process.env.PI_FAKE_PROVIDER ?? (flag('--model') && flag('--provider')) ?? 'fake',
       id: process.env.PI_FAKE_MODEL ?? flag('--model') ?? 'fake-model',
       contextWindow: flag('--provider') === 'anthropic' ? 100000 : 200000,
     },
-    thinkingLevel: selectedThinking ?? flag('--thinking') ?? 'off',
-    isStreaming: streaming !== null,
+    thinkingLevel: flag('--thinking') ?? 'off',
+    isStreaming: turns.state.streaming !== null,
     isCompacting: false,
     steeringMode: 'all',
     followUpMode: 'one-at-a-time',
@@ -323,182 +220,21 @@ function state() {
     sessionName: session.selectedName ?? flag('-n'),
     autoCompactionEnabled: true,
     messageCount: messages.length,
-    pendingMessageCount: queued.length,
+    pendingMessageCount: turns.state.queued.length,
   }
 }
 
-function handle(cmd) {
-  if (cmd.type === process.env.PI_FAKE_SILENT) return
-  switch (cmd.type) {
-    case 'get_state': {
-      const answer = () => {
-        if (lostState === 'fails') return fail(cmd, 'cannot read the session')
-        return respond(cmd, {
-          ...state(),
-          ...(lostState === 'hides' && { sessionFile: undefined }),
-        })
-      }
-      if (heldState === null) return answer()
-      const release = heldState
-      heldState = null
-      return holdUntil(release, answer)
-    }
-    case 'prompt': {
-      const space = cmd.message.indexOf(' ')
-      const name = space === -1 ? cmd.message : cmd.message.slice(0, space)
-      const arg = cmd.message.slice(space + 1)
-      switch (name) {
-        case '/fake-clone':
-          clone()
-          return respond(cmd)
-        case '/fake-clone-fails':
-          clone()
-          return fail(cmd, 'the extension failed')
-        case '/fake-clone-hold-reply':
-          clone()
-          return holdUntil(arg, () => respond(cmd))
-        case '/fake-clone-hold-state':
-          clone()
-          heldState = arg
-          return respond(cmd)
-        case '/fake-clone-lose-state':
-        case '/fake-clone-hide-file':
-          clone()
-          lostState = name === '/fake-clone-lose-state' ? 'fails' : 'hides'
-          return respond(cmd)
-        case '/fake-find-file':
-          lostState = null
-          return respond(cmd)
-        case '/fake-ask': {
-          const dialog = randomUUID()
-          dialogs.set(dialog, (answer) => {
-            console.error(`FAKE_PI_DIALOG ${JSON.stringify(answer)}`)
-            respond(cmd)
-          })
-          return out({
-            type: 'extension_ui_request',
-            id: dialog,
-            method: 'confirm',
-            title: 'Allow?',
-            message: 'The fake asks',
-          })
-        }
-      }
-      respond(cmd)
-      if (cmd.message === '/host-only') {
-        out({
-          type: 'extension_ui_request',
-          id: randomUUID(),
-          method: 'notify',
-          message: 'HOST_A_ONLY command handled',
-          notifyType: 'info',
-        })
-        return
-      }
-      if (cmd.message.startsWith('/phosphor-context-budget ')) return
-      if (streaming) {
-        queued.push({ message: cmd.message, mode: cmd.streamingBehavior ?? 'followUp' })
-        publishQueue()
-        return
-      }
-      // The context-budget extension's command: no model turn.
-      if (!cmd.message.startsWith('/phosphor-context-budget '))
-        prompt(cmd.message, cmd.images ?? [])
-      return
-    }
-    case 'steer':
-    case 'follow_up':
-      queued.push({ message: cmd.message, mode: cmd.type === 'steer' ? 'steer' : 'followUp' })
-      publishQueue()
-      return respond(cmd)
-    case 'abort': {
-      respond(cmd)
-      if (!streaming) return
-      const { user, reply, timer } = streaming
-      clearInterval(timer)
-      streaming = null
-      return finish(user, reply, 'aborted')
-    }
-    case 'extension_ui_response': {
-      const answered = dialogs.get(cmd.id)
-      dialogs.delete(cmd.id)
-      const { type: _, id: __, ...answer } = cmd
-      return answered?.(answer)
-    }
-    case 'get_commands':
-      return respond(cmd, {
-        commands: [
-          ...(breakdown && process.env.FAKE_PI_HIDE !== 'budget'
-            ? [
-                { name: 'phosphor-context-budget', source: 'extension' },
-                { name: 'host-only', description: 'HOST_A_ONLY command', source: 'extension' },
-              ]
-            : []),
-          ...(existsSync(join(agentDir, 'skills', 'host-only', 'SKILL.md'))
-            ? [
-                {
-                  name: 'skill:host-only',
-                  description: 'HOST_A_ONLY fixture',
-                  source: 'skill',
-                  sourceInfo: {
-                    path: join(agentDir, 'skills', 'host-only', 'SKILL.md'),
-                    scope: 'user',
-                  },
-                },
-              ]
-            : []),
-        ],
-      })
-    case 'set_model':
-      selectedModel = models.find(
-        (model) => model.provider === cmd.provider && model.id === cmd.modelId,
-      ) ?? { provider: cmd.provider, id: cmd.modelId, contextWindow: 200000 }
-      return respond(cmd, selectedModel)
-    case 'set_thinking_level':
-      selectedThinking = cmd.level
-      return respond(cmd)
-    case 'set_session_name':
-      persistence.setName(session, cmd.name)
-      return respond(cmd)
-    case 'compact':
-      out({ type: 'compaction_start', reason: 'manual' })
-      respond(cmd, { summary: 'HOST_A_ONLY compacted', firstKeptEntryId: '', tokensBefore: 0 })
-      return out({
-        type: 'compaction_end',
-        reason: 'manual',
-        aborted: false,
-        result: { summary: 'HOST_A_ONLY compacted', firstKeptEntryId: '', tokensBefore: 0 },
-      })
-    case 'get_available_thinking_levels':
-      return respond(cmd, {
-        levels: state().model.reasoning ? ['off', 'low', 'medium', 'high'] : ['off'],
-      })
-    case 'get_available_models':
-      return respond(cmd, { models })
-    case 'get_session_stats':
-      return respond(cmd, {
-        sessionId: session.id,
-        sessionFile: session.sessionFile,
-        userMessages: messages.filter((m) => m.role === 'user').length,
-        assistantMessages: messages.filter((m) => m.role === 'assistant').length,
-        toolCalls: 0,
-        toolResults: 0,
-        totalMessages: messages.length,
-        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        cost: 0,
-      })
-    case 'get_messages':
-      return respond(cmd, { messages })
-    case 'get_last_assistant_text': {
-      const last = messages.findLast((m) => m.role === 'assistant')
-      return respond(cmd, { text: last ? last.content.map((block) => block.text).join('') : null })
-    }
-    case 'set_auto_retry':
-      return respond(cmd, { enabled: cmd.enabled })
-    default:
-      fail(cmd, 'unsupported in fake')
-  }
-}
+const handle = createDispatcher({
+  session,
+  turns,
+  out,
+  respond,
+  fail,
+  models,
+  initialState,
+  agentDir,
+  breakdown,
+})
 
 let buffer = ''
 process.stdin.setEncoding('utf8')

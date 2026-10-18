@@ -1,34 +1,40 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { realpathSync, statSync } from 'node:fs'
 import { basename, relative, isAbsolute } from 'node:path'
-import type { DatabaseSync, SQLOutputValue } from 'node:sqlite'
+import type { DatabaseSync } from 'node:sqlite'
 import {
   HOST_LIMITS,
   type LaneControl,
-  type LaneController,
-  type LaneSummary,
   type Receipt,
   type RepositorySummary,
 } from '@phosphor/shared/host-protocol'
-import { loadSqlite } from './sqlite'
-import { SCHEMA, SCHEMA_VERSION } from './schema'
-import { prepareStateDirectory, prepareStateFile, StateFailure } from './state-dir'
+import { SCHEMA } from './schema'
+import { errnoIs } from '../fs-safety'
+import { openStoreDatabase } from './store/open'
 import {
-  absolutePath,
-  canonicalJson,
-  check,
-  integer,
-  JsonTooLarge,
-  storedReceipt,
-  text,
-  uuid,
-} from './validation'
+  laneFromRow,
+  repositoryFromRow,
+  summaryQuery,
+  str,
+  timestamp,
+  type Row,
+} from './store/rows'
+import {
+  LaneCapacityReached,
+  type RepositoryIdentity,
+  type StoredLane,
+  type LanePatch,
+  type LaneInput,
+  type Controller,
+  type Admission,
+  type RequestStart,
+  type StoreLimits,
+  type StorePorts,
+} from './store/types'
+import * as receipts from './store/receipts'
+export * from './store/types'
+import { absolutePath, check, integer, text, uuid } from './validation'
 export { opHash } from './validation'
-
-export type RepositoryIdentity = {
-  home: string
-  expected: { path: string; dev: number; ino: number }
-}
 
 /** Only newly added folders are home-confined; owner-configured roots remain unrestricted. */
 export function validateRepositoryIdentity(identity: RepositoryIdentity): void {
@@ -42,101 +48,13 @@ export function validateRepositoryIdentity(identity: RepositoryIdentity): void {
 }
 
 export const REMOVED_LANE_TTL_MS = 30 * 24 * 60 * 60 * 1000
-const RECEIPT_EXPIRED = 'finished_at < ?'
 
-export class LaneCapacityReached extends Error {
-  constructor() {
-    super('Host lane capacity reached.')
-  }
-}
-
-export interface StoredLane extends LaneSummary {
-  readonly sessionFile: string | null
-  readonly removedAt: string | null
-}
-export interface LanePatch {
-  title?: string | null
-  branch?: string | null
-  provider?: string | null
-  model?: string | null
-  updatedAt?: string
-}
-export interface LaneInput extends LanePatch {
-  repositoryId: string
-  cwd: string
-  sessionFile: string | null
-  worktree?: boolean
-}
-export type Controller = Pick<LaneController, 'clientId' | 'label'>
-export type Admission =
-  | { admitted: true; control: LaneControl }
-  | { admitted: false; code: 'stale-fence' | 'not-controller'; control: LaneControl }
-export type RequestStart =
-  { kind: 'new' } | { kind: 'existing'; receipt: Receipt } | { kind: 'conflict' } | { kind: 'busy' }
-export type StoreLimits = {
-  [Key in 'receiptsKept' | 'lanesPerHost' | 'repositoriesPerHost']: number
-}
-export interface StorePorts {
-  onLaneRemoved?: (laneId: string) => void
-  now?: () => number
-  receiptTtlMs?: number
-  isConnected?: (clientId: string) => boolean
-  limits?: Partial<StoreLimits>
-  logCorruptReceipt?: (count: number) => void
-  logCorruptLane?: (count: number) => void
-}
-type Row = Record<string, SQLOutputValue>
-function str(row: Row, key: string): string {
-  const value = row[key]
-  check(typeof value === 'string')
-  return value
-}
-function nullable(row: Row, key: string): string | null {
-  const value = row[key]
-  check(value === null || typeof value === 'string')
-  return value
-}
-function num(row: Row, key: string): number {
-  const raw = row[key]
-  check(typeof raw === 'number' || typeof raw === 'bigint')
-  const value = Number(raw)
-  integer(value)
-  return value
-}
-const iso = (value: number) => new Date(value).toISOString()
-function timestamp(value: string): number {
-  const parsed = Date.parse(value)
-  integer(parsed)
-  check(iso(parsed) === value)
-  return parsed
-}
-
-export async function openStore(
+export function openStore(
   directory: string,
   uid: number | undefined,
   ports: StorePorts = {},
 ): Promise<HostStore> {
-  let db: DatabaseSync | undefined
-  try {
-    prepareStateDirectory(directory, uid)
-    const path = prepareStateFile(directory, uid)
-    const sqlite = await loadSqlite()
-    db = new sqlite.DatabaseSync(path)
-    db.exec('PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;')
-    const version = db.prepare('PRAGMA user_version').get()?.user_version
-    if (typeof version !== 'number' || version > SCHEMA_VERSION)
-      throw new StateFailure(directory, 78, 'this state was written by a newer Host')
-    const store = new HostStore(db, ports)
-    if (version === 0) store.migrate()
-    db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;')
-    store.markInterrupted()
-    store.pruneReceipts((ports.now ?? Date.now)())
-    return store
-  } catch (error) {
-    db?.close()
-    if (error instanceof StateFailure) throw error
-    throw new StateFailure(directory, 70, 'Could not open state.sqlite.')
-  }
+  return openStoreDatabase(directory, uid, ports, (db, options) => new HostStore(db, options))
 }
 
 /** SQLite is the ordering point. Every mutation obtains its write lock before reading. */
@@ -193,112 +111,16 @@ export class HostStore {
     integer(now)
     return now
   }
-  private control(row: Row): LaneControl {
-    const clientId = nullable(row, 'controller_client_id')
-    return {
-      fence: num(row, 'fence'),
-      controller:
-        clientId === null
-          ? null
-          : {
-              clientId,
-              label: str(row, 'controller_label'),
-              connected: this.isConnected(clientId),
-            },
-    }
-  }
-  private summaryQuery(sql: string) {
-    const query = this.db.prepare(sql)
-    // SQLite can hold integers beyond JS's safe range. Read them losslessly
-    // so validation can skip that row instead of the driver failing the read.
-    query.setReadBigInts(true)
-    return query
-  }
-  private logCorruptRow(): null {
-    try {
-      this.logCorruptLane(1)
-    } catch {
-      // A logger failure cannot expose corrupt state or fail a read.
-    }
-    return null
-  }
   private laneFromRow(row: Row): StoredLane | null {
-    try {
-      const laneId = str(row, 'lane_id')
-      uuid(laneId)
-      check(laneId[14] === '4')
-      const repositoryId = str(row, 'repository_id')
-      check(/^[0-9a-f]{16}$/.test(repositoryId))
-      const cwd = str(row, 'cwd')
-      absolutePath(cwd)
-      const sessionFile = nullable(row, 'session_file')
-      if (sessionFile !== null) absolutePath(sessionFile)
-      const title = nullable(row, 'title')
-      const branch = nullable(row, 'branch')
-      const provider = nullable(row, 'provider')
-      const model = nullable(row, 'model')
-      text(title, HOST_LIMITS.labelChars, true)
-      text(branch, 256)
-      text(provider, 64)
-      text(model, 128)
-      check((provider === null) === (model === null))
-      const worktree = num(row, 'worktree')
-      check(worktree === 0 || worktree === 1)
-      const created = num(row, 'created_at')
-      const updated = num(row, 'updated_at')
-      check(updated >= created)
-      const attention = num(row, 'attention')
-      const read = num(row, 'read')
-      check(read <= attention)
-      integer(num(row, 'fence'), 1)
-      const clientId = nullable(row, 'controller_client_id')
-      const label = nullable(row, 'controller_label')
-      check((clientId === null) === (label === null))
-      if (clientId !== null) uuid(clientId)
-      text(label, HOST_LIMITS.labelChars)
-      return {
-        laneId,
-        repositoryId,
-        cwd,
-        sessionFile,
-        title,
-        branch,
-        worktree: worktree === 1,
-        model: provider === null || model === null ? null : { provider, id: model },
-        activity: 'stopped',
-        createdAt: iso(created),
-        updatedAt: iso(updated),
-        attention,
-        read,
-        control: this.control(row),
-        removedAt: row.removed_at === null ? null : iso(num(row, 'removed_at')),
-      }
-    } catch {
-      return this.logCorruptRow()
-    }
-  }
-  private repositoryFromRow(row: Row): RepositorySummary | null {
-    try {
-      const id = str(row, 'id')
-      check(/^[0-9a-f]{16}$/.test(id))
-      const path = str(row, 'path')
-      absolutePath(path)
-      const name = str(row, 'name')
-      text(name, 4096)
-      const active = num(row, 'active')
-      check(active === 0 || active === 1)
-      iso(num(row, 'added_at'))
-      return { id, name, path }
-    } catch {
-      return this.logCorruptRow()
-    }
+    return laneFromRow(row, { isConnected: this.isConnected, logCorruptLane: this.logCorruptLane })
   }
   listRepositories(): RepositorySummary[] {
-    return this.summaryQuery(
+    return summaryQuery(
+      this.db,
       'SELECT * FROM repositories WHERE active=1 ORDER BY added_at,id LIMIT ?',
     )
       .all(this.limits.repositoriesPerHost)
-      .flatMap((row) => this.repositoryFromRow(row) ?? [])
+      .flatMap((row) => repositoryFromRow(row, this.logCorruptLane) ?? [])
   }
   syncRepositories(
     paths: readonly string[],
@@ -321,12 +143,7 @@ export class HostStore {
         const id = createHash('sha256').update(real).digest('hex').slice(0, 16)
         repositories.set(id, { id, path: real, name: basename(real) })
       } catch (error) {
-        if (!(
-          error instanceof Error &&
-          'code' in error &&
-          (error.code === 'ENOENT' || error.code === 'ENOTDIR' || error.code === 'EACCES')
-        ))
-          throw error
+        if (!(error instanceof Error && errnoIs(error, 'ENOENT', 'ENOTDIR', 'EACCES'))) throw error
         unavailable++
       }
     }
@@ -345,7 +162,8 @@ export class HostStore {
     return result
   }
   listLanes(): StoredLane[] {
-    return this.summaryQuery(
+    return summaryQuery(
+      this.db,
       'SELECT * FROM lanes WHERE removed_at IS NULL ORDER BY created_at,lane_id LIMIT ?',
     )
       .all(this.limits.lanesPerHost)
@@ -353,7 +171,7 @@ export class HostStore {
   }
   getLane(id: string): StoredLane | null {
     uuid(id)
-    const row = this.summaryQuery('SELECT * FROM lanes WHERE lane_id=?').get(id)
+    const row = summaryQuery(this.db, 'SELECT * FROM lanes WHERE lane_id=?').get(id)
     return row ? this.laneFromRow(row) : null
   }
   private requireLane(id: string): StoredLane {
@@ -385,7 +203,7 @@ export class HostStore {
       const existing =
         sessionFile === null
           ? undefined
-          : this.summaryQuery('SELECT * FROM lanes WHERE session_file=?').get(sessionFile)
+          : summaryQuery(this.db, 'SELECT * FROM lanes WHERE session_file=?').get(sessionFile)
       if (existing) {
         check(str(existing, 'repository_id') === repositoryId && str(existing, 'cwd') === cwd)
         const lane = this.laneFromRow(existing)
@@ -540,72 +358,19 @@ export class HostStore {
       return this.requireLane(id).read
     })
   }
-  private decodeReceipt(row: Row): Receipt | null {
-    try {
-      if (row.status === 'started')
-        return storedReceipt({ requestId: str(row, 'request_id'), status: 'pending' })
-      let value: unknown = JSON.parse(str(row, 'receipt_json'))
-      if (
-        typeof value === 'object' &&
-        value !== null &&
-        'status' in value &&
-        value.status === 'rejected' &&
-        'control' in value
-      ) {
-        const control = value.control
-        if (
-          typeof control === 'object' &&
-          control !== null &&
-          'controller' in control &&
-          control.controller !== null
-        ) {
-          const controller = control.controller
-          check(
-            typeof controller === 'object' &&
-              'clientId' in controller &&
-              typeof controller.clientId === 'string' &&
-              !('connected' in controller),
-          )
-          value = {
-            ...value,
-            control: {
-              ...control,
-              controller: {
-                ...controller,
-                connected: this.isConnected(controller.clientId),
-              },
-            },
-          }
-        }
-      }
-      const receipt = storedReceipt(value)
-      check(receipt.requestId === str(row, 'request_id') && receipt.status === str(row, 'status'))
-      return receipt
-    } catch {
-      try {
-        this.logCorruptReceipt(1)
-      } catch {
-        // A logger failure cannot turn corrupt state into a caller-visible error.
-      }
-      return null
+  private receiptContext(): receipts.ReceiptStoreContext {
+    return {
+      db: this.db,
+      transaction: (fn) => this.transaction(fn),
+      clock: () => this.clock(),
+      limits: this.limits,
+      ttl: this.receiptTtlMs,
+      isConnected: this.isConnected,
+      logCorruptReceipt: this.logCorruptReceipt,
     }
   }
   getReceipt(requestId: string, clientId: string): Receipt | null {
-    uuid(requestId)
-    uuid(clientId)
-    const row = this.db
-      .prepare(
-        `SELECT * FROM receipts WHERE request_id=? AND client_id=? AND (finished_at IS NULL OR NOT (${RECEIPT_EXPIRED}))`,
-      )
-      .get(requestId, clientId, this.clock() - this.receiptTtlMs)
-    return row ? this.decodeReceipt(row) : null
-  }
-  private serializeReceipt(receipt: Receipt): string {
-    if (receipt.status === 'rejected' && receipt.control?.controller) {
-      const { connected: _connected, ...controller } = receipt.control.controller
-      return canonicalJson({ ...receipt, control: { ...receipt.control, controller } })
-    }
-    return canonicalJson(receipt)
+    return receipts.getReceipt(this.receiptContext(), requestId, clientId)
   }
   beginRequest(
     requestId: string,
@@ -613,92 +378,21 @@ export class HostStore {
     hash: string,
     laneId: string | null,
   ): RequestStart {
-    uuid(requestId)
-    uuid(clientId)
-    check(/^[0-9a-f]{64}$/.test(hash))
-    if (laneId !== null) uuid(laneId)
-    return this.transaction(() => {
-      const now = this.clock()
-      this.prune(now)
-      const row = this.db.prepare('SELECT * FROM receipts WHERE request_id=?').get(requestId)
-      if (row) {
-        const receipt = this.decodeReceipt(row)
-        if (row.client_id !== clientId || row.op_hash !== hash || row.lane_id !== laneId)
-          return { kind: 'conflict' }
-        return {
-          kind: 'existing',
-          receipt: receipt ?? { requestId, status: 'unknown' },
-        }
-      }
-      if (
-        Number(
-          this.db.prepare("SELECT count(*) AS count FROM receipts WHERE status='started'").get()
-            ?.count,
-        ) >= this.limits.receiptsKept
-      )
-        return { kind: 'busy' }
-      this.db
-        .prepare("INSERT INTO receipts VALUES (?,?,?,?,'started',NULL,?,NULL)")
-        .run(requestId, clientId, hash, laneId, now)
-      return { kind: 'new' }
-    })
+    return receipts.beginRequest(this.receiptContext(), requestId, clientId, hash, laneId)
   }
   finishRequest(requestId: string, receipt: Receipt): void {
-    uuid(requestId)
-    let value = storedReceipt(receipt)
-    check(value.requestId === requestId && value.status !== 'pending')
-    if (value.status === 'done' && value.data !== undefined) {
-      try {
-        canonicalJson(value.data, HOST_LIMITS.receiptDataBytes)
-      } catch (error) {
-        if (!(error instanceof JsonTooLarge)) throw error
-        const { data: _data, ...withoutData } = value
-        value = withoutData
-      }
-    }
-    const json = this.serializeReceipt(value)
-    check(Buffer.byteLength(json) <= HOST_LIMITS.receiptDataBytes + 8192)
-    this.transaction(() => {
-      const row = this.db.prepare('SELECT * FROM receipts WHERE request_id=?').get(requestId)
-      check(row !== undefined)
-      if (row.status !== 'started') {
-        check(row.receipt_json === json)
-        return
-      }
-      this.db
-        .prepare('UPDATE receipts SET status=?,receipt_json=?,finished_at=? WHERE request_id=?')
-        .run(value.status, json, Math.max(this.clock(), num(row, 'started_at')), requestId)
-      this.pruneFinishedCount()
-    })
+    receipts.finishRequest(this.receiptContext(), requestId, receipt)
   }
   markInterrupted(): void {
-    this.transaction(() => {
-      this.db
-        .prepare(
-          `UPDATE receipts SET status='unknown',receipt_json=json_object('requestId',request_id,'status','unknown'),finished_at=max(?,started_at) WHERE status='started'`,
-        )
-        .run(this.clock())
-    })
-  }
-  private pruneFinishedCount(): void {
-    this.db
-      .prepare(
-        `DELETE FROM receipts WHERE request_id IN (SELECT request_id FROM receipts WHERE finished_at IS NOT NULL ORDER BY finished_at DESC,request_id DESC LIMIT -1 OFFSET ?)`,
-      )
-      .run(this.limits.receiptsKept)
-  }
-  private prune(now: number): void {
-    this.db.prepare(`DELETE FROM receipts WHERE ${RECEIPT_EXPIRED}`).run(now - this.receiptTtlMs)
-    this.pruneFinishedCount()
+    receipts.markInterrupted(this.receiptContext())
   }
   pruneReceipts(now: number): void {
-    integer(now)
-    this.transaction(() => this.prune(now))
+    receipts.pruneReceipts(this.receiptContext(), now)
   }
   /** A bounded read for reconciliation, without exposing the database handle. */
   sessionLane(file: string): StoredLane | null {
     absolutePath(file)
-    const row = this.summaryQuery('SELECT * FROM lanes WHERE session_file=?').get(file)
+    const row = summaryQuery(this.db, 'SELECT * FROM lanes WHERE session_file=?').get(file)
     return row ? this.laneFromRow(row) : null
   }
 }
