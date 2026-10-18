@@ -2,9 +2,6 @@
   "version": 1,
   "package": "shared",
   "offenders": {
-    "src/host-protocol-testing/conformance.ts::file": 1129,
-    "src/host-protocol-testing/conformance.ts::defineHostConformance[1]": 1058,
-    "src/host-protocol-testing/conformance.ts::defineHostConformance[1]/describe[1]": 1050,
     "src/host-protocol-testing/fake-host.test.ts::it[2]": 90,
     "src/host-protocol.test.ts::describe[1]/it[5]": 100,
     "src/host-protocol.test.ts::describe[2]/it[5]": 107,
