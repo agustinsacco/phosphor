@@ -1,16 +1,8 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
-import { basename, join } from 'node:path'
-import {
-  listSandboxFolders,
-  openSandboxFolder,
-  planSandboxRename,
-  resolveSandboxFolder,
-  sandboxCwds,
-} from '../sandbox'
-import { isWithinFolder, rebaseWithinFolder } from '@shared/paths'
-import { access, readdir, rename } from 'node:fs/promises'
-import { claudeProjectDirForCwd, sessionDirForCwd } from '../pi/pi-paths'
-import { repointSessionCwd } from '../pi/session-cwd'
+import { basename } from 'node:path'
+import { listSandboxFolders, openSandboxFolder } from '../sandbox'
+import { deleteSandbox, renameSandbox, sandboxBase } from '../sandbox-service'
+import { pathExists } from '../sandbox-transcripts'
 import { registry } from '../registry'
 import { syncContextBudget, withBudgetCompaction } from '../pi/context-budget'
 import { piStubPath } from '../pi/stub'
@@ -51,7 +43,6 @@ import {
   setDraft,
   clearDraft,
   setDrafts,
-  repointStoredPaths,
   realPathOrNull,
 } from '../store'
 
@@ -75,77 +66,6 @@ async function pickFolder(event: Electron.IpcMainInvokeEvent): Promise<string | 
   })
   if (result.canceled) return null
   return result.filePaths[0] ?? null
-}
-
-/** True when the path is reachable — used to validate persisted locations. */
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path)
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
- * Where sandboxes live. userData, not homedir: E2E redirects userData
- * (PHOSPHOR_TEST_USER_DATA), so stub-driven runs never touch the real one.
- *
- * Resolved, so every sandbox path Phosphor hands out is the one pi will derive
- * its session directory from. A userData directory reached through a symlink
- * otherwise yields a second spelling of each sandbox, and the sidebar shows
- * one folder as two groups listing the same lanes.
- */
-function sandboxBase(): string {
-  const base = join(app.getPath('userData'), 'sandboxes')
-  return realPathOrNull(base) ?? base
-}
-
-/** Trash a path if it is there — a missing one is not an error here. */
-async function trashIfPresent(path: string): Promise<void> {
-  if (!(await pathExists(path))) return
-  await shell.trashItem(path)
-}
-
-/**
- * Move a transcript directory alongside its sandbox.
- *
- * A sandbox with no chats yet simply has no such directory, so a missing
- * source is normal. An occupied destination is left alone rather than merged:
- * it means history already exists under the new name (a sandbox that once had
- * it was deleted or renamed away), and `rename` onto a non-empty directory
- * fails anyway. The old transcripts stay where they are — orphaned, but not
- * destroyed.
- */
-async function moveIfPresent(from: string, to: string): Promise<void> {
-  if (!(await pathExists(from))) return
-  if (await pathExists(to)) return
-  await rename(from, to)
-}
-
-/**
- * Point every transcript in `dir` at the cwd the folder now has.
- *
- * Moving the directory is not enough: pi stores the cwd INSIDE each session
- * file and refuses to resume one whose stored cwd is gone, exiting 1 before
- * the RPC loop starts (`electron/pi/session-cwd.ts`). Without this a renamed
- * sandbox kept all its chats in the sidebar and none of them would open.
- *
- * Best-effort per file, like the moves above — one unreadable transcript is
- * not a reason to fail a rename that has already happened on disk.
- */
-async function repointTranscripts(dir: string, from: string, to: string): Promise<void> {
-  let names: string[]
-  try {
-    names = await readdir(dir)
-  } catch {
-    return // No chats in this cwd; the common case, not an error.
-  }
-  await Promise.allSettled(
-    names
-      .filter((name) => name.endsWith('.jsonl'))
-      .map((name) => repointSessionCwd(join(dir, name), from, to)),
-  )
 }
 
 /** App preferences, native dialogs, and runtime info. */
@@ -350,109 +270,8 @@ export function registerAppHandlers(): void {
 
   handle('app:listSandboxes', () => listSandboxFolders(sandboxBase()))
 
-  /**
-   * Renaming a sandbox moves its folder, so it moves the sandbox's IDENTITY:
-   * a workspace is its path here, and pi names a transcript directory after
-   * the mangled cwd. Three things therefore have to move together, or the
-   * rename reads as data loss — the folder, pi's transcripts, and the CLI's.
-   *
-   * "Its" transcripts means the whole subtree, not just the sandbox root. A
-   * sandbox that is a git repo has lanes, each its own cwd with its own pair
-   * of transcript directories (`sandboxCwds`). Moving only the root's pair
-   * left every lane chat pointing at a path that no longer existed, and they
-   * vanished from the sidebar along with their pins, markers and badges.
-   *
-   * Refused while a session is live ANYWHERE inside the folder, for the same
-   * subtree reason: a lane session's cwd is under the sandbox, so an exact
-   * path compare passed it and renamed the folder out from under a running
-   * pi. The renderer closes those chats in order before asking
-   * (`promptRenameSandbox`); this stays the guard, since the string comes
-   * from the renderer either way.
-   */
-  handle('app:renameSandbox', async (_event, path: string, name: string) => {
-    const plan = planSandboxRename(sandboxBase(), path, name)
-    if (!plan.ok) return { ok: false as const, reason: plan.reason }
-    // Same folder: a no-op submit, or a rename to the name it already has.
-    if (plan.from === plan.to) return { ok: true as const, path: plan.to }
-    if (registry.list().some((session) => isWithinFolder(session.workspacePath, plan.from))) {
-      return { ok: false as const, reason: 'in-use' as const }
-    }
-
-    // Resolved on either side of the move, and that order matters: every
-    // mangling runs on the REAL path, so a source cwd only resolves while the
-    // folder is still at `from`, and a destination only once it is at `to`.
-    const cwds = sandboxCwds(plan.from)
-    const before = cwds.flatMap((cwd) => [sessionDirForCwd(cwd), claudeProjectDirForCwd(cwd)])
-    try {
-      await rename(plan.from, plan.to)
-    } catch {
-      return { ok: false as const, reason: 'failed' as const }
-    }
-    const movedCwds = cwds.map((cwd) => rebaseWithinFolder(cwd, plan.from, plan.to))
-    const after = movedCwds.flatMap((cwd) => [sessionDirForCwd(cwd), claudeProjectDirForCwd(cwd)])
-
-    // Best-effort, and after the folder: transcripts left behind cost history,
-    // which is worse than the folder not moving but not worth failing over —
-    // the folder has already moved and there is nothing to roll back to.
-    await Promise.allSettled(before.map((from, index) => moveIfPresent(from, after[index]!)))
-
-    // The cwd each moved transcript stores is still the old one, and pi will
-    // not resume a session whose stored cwd is gone. Runs on pi's directories
-    // only — the CLI's ledger records a cwd too, but it never refuses a resume
-    // over one, and its transcripts are the CLI's file format, not pi's.
-    await Promise.all(
-      cwds.map((cwd, index) =>
-        repointTranscripts(sessionDirForCwd(movedCwds[index]!), cwd, movedCwds[index]!),
-      ),
-    )
-
-    repointStoredPaths([
-      { from: plan.from, to: plan.to },
-      ...before.map((from, index) => ({ from, to: after[index]! })),
-    ])
-    return { ok: true as const, path: plan.to }
-  })
-
-  /**
-   * A sandbox's transcripts go with it. They are scratch chats about a folder
-   * that no longer exists, and leaving them behind would hand the next
-   * `sandbox-N` — numbers are reused once the folder above them is gone — a
-   * sidebar full of somebody else's history.
-   *
-   * Everything goes to the Trash rather than being unlinked, the same as
-   * deleting a session (electron/pi/session-deleter.ts): the user may have
-   * written real work into a folder they only meant as scratch.
-   *
-   * Subtree-wide on both counts, like the rename above: a live lane session
-   * blocks the delete (an exact compare let one through, and this one trashes
-   * the folder under the running pi), and a lane's transcripts go with it
-   * rather than being left behind under a name nothing will ever scan again.
-   */
-  handle('app:deleteSandbox', async (_event, path: string) => {
-    const target = resolveSandboxFolder(sandboxBase(), path)
-    if (!target) return { ok: false as const, reason: 'not-a-sandbox' as const }
-    if (registry.list().some((session) => isWithinFolder(session.workspacePath, target))) {
-      return { ok: false as const, reason: 'in-use' as const }
-    }
-
-    // Resolved before the folder goes: every path mangles the REAL cwd, which
-    // is unknowable once the folder is in the Trash.
-    const transcripts = sandboxCwds(target).flatMap((cwd) => [
-      sessionDirForCwd(cwd),
-      claudeProjectDirForCwd(cwd),
-    ])
-    try {
-      await shell.trashItem(target)
-    } catch {
-      return { ok: false as const, reason: 'failed' as const }
-    }
-    // Best-effort, and after the folder: a transcript left behind is a worse
-    // outcome than the folder surviving, but not one worth failing over.
-    await Promise.allSettled(transcripts.map(trashIfPresent))
-
-    setRecentWorkspaces(getPrefs().recentWorkspaces.filter((w) => w.path !== target))
-    return { ok: true as const }
-  })
+  handle('app:renameSandbox', (_event, path, name) => renameSandbox(path, name))
+  handle('app:deleteSandbox', (_event, path) => deleteSandbox(path))
 
   handle('app:saveDialog', async (event, options) => {
     const window = BrowserWindow.fromWebContents(event.sender)
