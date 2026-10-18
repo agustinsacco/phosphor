@@ -3,6 +3,7 @@ import type { CreateSessionOptions, LiveSessionInfo, SessionPush } from '@shared
 import { RATE_LIMIT_STATUS_KEY, accountExhaustedUntil } from '@shared/claude-limits'
 import type { RuntimeLog } from '../file-log'
 import { syncContextBudget } from './context-budget'
+import { verifyStartupAccount } from './session-account'
 import { healMissingSessionCwd } from './session-cwd'
 import { bindSessionEvents, type SessionEventRuntime } from './session-events'
 import type { prepareSessionLaunch } from './session-launch'
@@ -120,7 +121,10 @@ async function spawnSession(
   if (execution.signal?.aborted) stopOnAbort()
   try {
     bindStartupEvents(runtime, session, sink, accountId)
-    if (!launch.stub) await syncContextBudget(session.client, runtime.budget.read())
+    if (!launch.stub) {
+      await verifyStartupAccount(session.client, runtime.policy.strictAccountSelection, accountId)
+      await syncContextBudget(session.client, runtime.budget.read())
+    }
     return completeStartup(runtime, session, options, execution, accountId, laneConfig)
   } catch (error) {
     await runtime.registry.dispose(session.sessionId)

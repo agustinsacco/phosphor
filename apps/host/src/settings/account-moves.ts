@@ -10,7 +10,7 @@ import type { createRuntimeLanes } from '../lanes/runtime-host'
 export function createAccountMoves(options: {
   accounts: Pick<
     HostClaudeAccounts,
-    'withAuthorization' | 'loadAccounts' | 'status' | 'bindSession'
+    'withAuthorization' | 'withAccount' | 'loadAccounts' | 'status' | 'bindSession'
   >
   runtime: Pick<HostRuntime, 'withAuthorization'>
   store: Pick<HostStore, 'getLane'>
@@ -18,34 +18,36 @@ export function createAccountMoves(options: {
 }) {
   return (laneId: string, accountId: string, authorized: () => boolean): Promise<void> =>
     options.accounts.withAuthorization(authorized, () =>
-      options.runtime.withAuthorization(authorized, async () => {
-        if (!authorized()) throw new Error('forbidden')
-        const account = (await options.accounts.loadAccounts()).accounts.find(
-          (account) => account.id === accountId,
-        )
-        if (!account) throw new Error('unknown-account')
-        const status = await options.accounts.status(undefined, claudeAccountEnv(account))
-        if (!status.auth.ok || !status.auth.loggedIn) throw new Error('account-not-ready')
-        let lane = options.store.getLane(laneId)
-        if (!lane || lane.removedAt !== null || lane.model?.provider !== 'pi-claude-cli')
-          throw new Error('unsupported')
-        if (!lane.sessionFile || !(await lstat(lane.sessionFile)).isFile())
-          throw new Error('first-prompt-required')
-        if (!authorized()) throw new Error('forbidden')
-        await options.binding.stopLane(laneId, authorized)
-        lane = options.store.getLane(laneId)
-        if (
-          !authorized() ||
-          !lane ||
-          lane.removedAt !== null ||
-          lane.model?.provider !== 'pi-claude-cli' ||
-          !lane.sessionFile ||
-          !(await lstat(lane.sessionFile)).isFile()
-        )
-          throw new Error('unavailable')
-        await options.accounts.bindSession(lane.sessionFile, accountId)
-        if (!authorized()) throw new Error('forbidden')
-        await options.binding.resumeLane(lane)
-      }),
+      options.runtime.withAuthorization(authorized, () =>
+        options.accounts.withAccount(accountId, async () => {
+          if (!authorized()) throw new Error('forbidden')
+          const account = (await options.accounts.loadAccounts()).accounts.find(
+            (account) => account.id === accountId,
+          )
+          if (!account) throw new Error('unknown-account')
+          const status = await options.accounts.status(undefined, claudeAccountEnv(account))
+          if (!status.auth.ok || !status.auth.loggedIn) throw new Error('account-not-ready')
+          let lane = options.store.getLane(laneId)
+          if (!lane || lane.removedAt !== null || lane.model?.provider !== 'pi-claude-cli')
+            throw new Error('unsupported')
+          if (!lane.sessionFile || !(await lstat(lane.sessionFile)).isFile())
+            throw new Error('first-prompt-required')
+          if (!authorized()) throw new Error('forbidden')
+          await options.binding.stopLane(laneId, authorized)
+          lane = options.store.getLane(laneId)
+          if (
+            !authorized() ||
+            !lane ||
+            lane.removedAt !== null ||
+            lane.model?.provider !== 'pi-claude-cli' ||
+            !lane.sessionFile ||
+            !(await lstat(lane.sessionFile)).isFile()
+          )
+            throw new Error('unavailable')
+          await options.accounts.bindSession(lane.sessionFile, accountId)
+          if (!authorized()) throw new Error('forbidden')
+          await options.binding.resumeLane(lane)
+        }),
+      ),
     )
 }

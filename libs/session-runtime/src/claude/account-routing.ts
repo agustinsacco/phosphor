@@ -24,7 +24,7 @@ async function bindSession(
   accountId: string,
 ): Promise<void> {
   const prefs = await state.loadAccounts()
-  if (!prefs.accounts.some((a) => a.id === accountId)) return
+  if (!prefs.accounts.some((a) => a.id === accountId)) throw new Error('Unknown Claude account')
   state.save({ ...prefs, bindings: { ...prefs.bindings, [sessionPath]: accountId } })
 }
 

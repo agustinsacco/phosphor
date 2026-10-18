@@ -30,6 +30,7 @@ async function fixture() {
   const steps: string[] = []
   const accounts = {
     withAuthorization: async <T>(_allowed: () => boolean, run: () => Promise<T>) => run(),
+    withAccount: async <T>(_id: string, run: () => Promise<T>) => run(),
     loadAccounts: vi
       .fn<HostClaudeAccounts['loadAccounts']>()
       .mockResolvedValue({ ...DEFAULT_CLAUDE_ACCOUNT_PREFS, accounts: [account] }),

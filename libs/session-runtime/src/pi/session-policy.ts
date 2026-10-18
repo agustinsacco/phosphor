@@ -2,8 +2,7 @@ import type { AppPrefs, CreateSessionOptions, GitInfo, PiPackageEntry } from '@s
 import { CONTEXT_FILES_ENV, contextFilesEnvValue } from '@shared/context-files'
 import type { MachineContext } from './machine-prompt'
 import { composeDirectives } from './directives'
-import { assertClaudeContextProvider, usesClaudeCliProvider } from './provider-detect'
-import { resumeProvider } from './resume-provider'
+import { prepareProviderAccount } from './session-provider'
 import type { PiSpawnOptions } from './rpc-client'
 import type { prepareSessionLaunch } from './session-launch'
 
@@ -53,31 +52,7 @@ export async function prepareSessionPolicy(
       ? { charter: { branch: git.branch } }
       : {}),
   })
-  // A resumed transcript restores its own model, even after machine defaults change.
-  // Explicit CLI model/provider options still take precedence, as they do in pi.
-  const restored =
-    !stub && options.sessionPath && !options.provider && !options.model
-      ? await resumeProvider(options.sessionPath).catch((error: unknown) => {
-          if (runtime.strictAccountSelection) throw error
-          return undefined
-        })
-      : undefined
-  const claudeProvider = stub
-    ? false
-    : usesClaudeCliProvider(
-        options,
-        restored ?? (await runtime.defaultProvider(options.workspacePath)),
-      )
-  if (claudeProvider) assertClaudeContextProvider(await runtime.packages(options.workspacePath))
-  // Credential selection is fixed for the process lifetime, including resumed sessions.
-  const account = claudeProvider
-    ? await runtime
-        .account(options.sessionPath ? { sessionPath: options.sessionPath } : {})
-        .catch((error: unknown) => {
-          if (runtime.strictAccountSelection) throw error
-          return null
-        })
-    : null
+  const account = await prepareProviderAccount(options, stub, runtime)
   if (account) Object.assign(env, account.env)
   if (!stub) Object.assign(env, runtime.compressionEnvironment())
   // The lane's starting state for the bundled context-files filter, from an
