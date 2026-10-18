@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { posix } from 'node:path'
 import ts from 'typescript'
 import { loadProjectRoots, owningProject, repoPath } from '../select-unit-tests.mjs'
 import { validateRelocationMap } from '../test-inventory.mjs'
 import { assertContained, findCollisions, relocationTarget, SHIPPING_FIXTURE } from './map.mjs'
+import { compareCodeUnits, newSpecifier, pathReports, resolveImport } from './references.mjs'
+import { budgetRenames } from './budgets.mjs'
 
 /**
  * @typedef {{from:string, to:string, kind:string, hash:string}} Move
@@ -12,6 +13,7 @@ import { assertContained, findCollisions, relocationTarget, SHIPPING_FIXTURE } f
  * @typedef {{file:string, to:string, hash:string, edits:Replacement[]}} ImporterEdit
  * @typedef {{file:string, line:number, reason:string, text:string}} Report
  * @typedef {{version:1, moves:Move[], importerEdits:ImporterEdit[], reports:Report[],
+ *   budgetRenames:Record<string,Record<string,string>>,
  *   collisions:{from:string, to:string, existing:string}[], totals:Record<string,number>}} Plan
  */
 const code = /\.[cm]?[jt]sx?$/
@@ -20,39 +22,23 @@ const publicSupport = (file) => file.startsWith('libs/shared/src/host-protocol-t
 const e2e = (file) => /(?:^|\/)e2e\//.test(file)
 const reportOnlyConsumer = (file) =>
   e2e(file) || file.startsWith('apps/site/') || file.startsWith('supabase/')
-const aliases = [
-  ['@phosphor/session-runtime/', 'libs/session-runtime/src/'],
-  ['@phosphor/pi-extensions/', 'libs/pi-extensions/pi-ext/'],
-  ['@phosphor/shared/', 'libs/shared/src/'],
-  ['@shared/', 'libs/shared/src/'],
-  ['@/', 'apps/desktop/src/'],
-]
 const hash = (content) => createHash('sha256').update(content).digest('hex')
 const read = (root, file) => readFileSync(`${root}/${file}`)
-
-function resolveImport(file, specifier, files) {
-  const bare = specifier.split(/[?#]/)[0]
-  const alias = aliases.find(([prefix]) => bare.startsWith(prefix))
-  const path = alias
-    ? alias[1] + bare.slice(alias[0].length)
-    : bare.startsWith('.')
-      ? posix.normalize(posix.join(posix.dirname(file), bare))
-      : undefined
-  if (!path) return undefined
-  const base = path.replace(/\.[cm]?jsx?$/, '')
-  return [
-    path,
-    ...['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs', '.json'].flatMap((extension) => [
-      base + extension,
-      `${path}/index${extension}`,
-    ]),
-  ].find((candidate) => files.has(candidate))
-}
 
 function importArgument(node, source) {
   if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return node.moduleSpecifier
   if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) return node.argument.literal
   if (ts.isExternalModuleReference(node)) return node.expression
+  if (
+    ts.isCallExpression(node) &&
+    /^(?:vi|vitest)\.(?:mock|doMock|unmock|doUnmock|importActual|importMock)$/.test(
+      node.expression.getText(source),
+    )
+  ) {
+    const argument = node.arguments[0]
+    // vi.mock(import('./module')) is covered by its inner import expression.
+    return argument && ts.isStringLiteralLike(argument) ? argument : undefined
+  }
   if (
     ts.isCallExpression(node) &&
     (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
@@ -141,20 +127,6 @@ function makeMoves(root, files, tests, records, contents) {
   })
 }
 
-function newSpecifier(file, target, original) {
-  const suffix = original.match(/[?#].*$/)?.[0] ?? ''
-  const bare = original.slice(0, original.length - suffix.length)
-  const alias = aliases.find(([prefix, root]) => bare.startsWith(prefix) && target.startsWith(root))
-  let relative = alias
-    ? alias[0] + target.slice(alias[1].length)
-    : posix.relative(posix.dirname(file), target)
-  if (!alias && !relative.startsWith('.')) relative = `./${relative}`
-  if (!posix.extname(bare)) relative = relative.replace(/\.[cm]?[jt]sx?$/, '')
-  else if (/\.[cm]?js$/.test(bare)) relative = relative.replace(/\.[cm]?tsx?$/, posix.extname(bare))
-  if (relative.endsWith('/index') && !bare.endsWith('/index')) relative = relative.slice(0, -6)
-  return relative + suffix
-}
-
 function importerEdits(records, moves, reports, contents) {
   const destinations = new Map(moves.map(({ from, to }) => [from, to]))
   const result = []
@@ -174,6 +146,8 @@ function importerEdits(records, moves, reports, contents) {
         continue
       }
       if (to === file && target === entry.target) continue
+      const replacement = newSpecifier(to, target, entry.specifier)
+      if (replacement === entry.specifier) continue
       if (
         reportOnlyConsumer(file) ||
         (file === 'apps/desktop/src/dev/mockPhosphor.ts' && entry.target === SHIPPING_FIXTURE)
@@ -181,67 +155,19 @@ function importerEdits(records, moves, reports, contents) {
         reports.push({ file, line: entry.line, reason: 'external-consumer', text: entry.specifier })
         continue
       }
-      const replacement = newSpecifier(to, target, entry.specifier)
-      if (replacement !== entry.specifier)
-        edits.push({
-          start: entry.start,
-          end: entry.end,
-          from: entry.raw,
-          to: replacement
-            .replaceAll('\\', '\\\\')
-            .replaceAll(entry.quote, `\\${entry.quote}`)
-            .replaceAll('${', '\\${'),
-        })
+      edits.push({
+        start: entry.start,
+        end: entry.end,
+        from: entry.raw,
+        to: replacement
+          .replaceAll('\\', '\\\\')
+          .replaceAll(entry.quote, `\\${entry.quote}`)
+          .replaceAll('${', '\\${'),
+      })
     }
     if (edits.length) result.push({ file, to, hash: hash(contents.get(file)), edits })
   }
   return result
-}
-
-function pathReports(files, contents, records, moves) {
-  const reports = []
-  const moved = new Set(moves.map(({ from }) => from))
-  const tracked = new Set(files)
-  const affectedPath = (file, text) => {
-    const resolved = resolveImport(file, text, tracked)
-    if (resolved && (moved.has(file) || moved.has(resolved))) return true
-    const bare = text.split(/[?#]/)[0]
-    if (!bare) return false
-    const candidates = [bare, posix.normalize(posix.join(posix.dirname(file), bare))]
-    return candidates.some((path) =>
-      [...moved].some((from) => from === path || from.startsWith(`${path}/`)),
-    )
-  }
-  for (const file of files) {
-    // Documentation is not executable path input. Other tracked config/scripts are inspected.
-    if (/\.(?:md|jsonl|svg|png|webp|lock)$/.test(file)) continue
-    const record = records.get(file)
-    if (record) {
-      const positions = new Set(record.imports.map(({ start }) => start))
-      for (const entry of record.strings) {
-        if (positions.has(entry.start)) continue
-        if (
-          entry.text.includes('__fixtures__') ||
-          /(?:!.*|adhoc-sign-mac)\.test\.ts/.test(entry.text) ||
-          affectedPath(file, entry.text) ||
-          [...moved].some((from) => entry.text.includes(from))
-        )
-          reports.push({ file, line: entry.line, reason: 'string-path', text: entry.text })
-      }
-      if (moved.has(file))
-        for (const entry of record.math) reports.push({ file, ...entry, reason: 'path-math' })
-    } else {
-      contents
-        .get(file)
-        .toString('utf8')
-        .split('\n')
-        .forEach((text, index) => {
-          if ([...moved].some((from) => text.includes(from)) || /!.*\.test\.ts/.test(text))
-            reports.push({ file, line: index + 1, reason: 'config-path', text: text.trim() })
-        })
-    }
-  }
-  return reports
 }
 
 /**
@@ -278,8 +204,10 @@ export function buildPlan({
     moves,
     importerEdits: edits,
     reports: reports.sort(
-      (a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.reason.localeCompare(b.reason),
+      (a, b) =>
+        compareCodeUnits(a.file, b.file) || a.line - b.line || compareCodeUnits(a.reason, b.reason),
     ),
+    budgetRenames: budgetRenames(contents, moves),
     collisions,
     totals: {},
   }

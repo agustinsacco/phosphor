@@ -125,6 +125,16 @@ describe('relocation plan regressions', () => {
     expect(plan.reports).toEqual([])
   })
 
+  it('omits unchanged relative references inside a relocated subtree and slash markers', () => {
+    const plan = planFor({
+      [test]:
+        "const data = './__fixtures__/data.json'\nconst directory = '__fixtures__'\nconst marker = '/__fixtures__/'",
+      'apps/host/src/__fixtures__/data.json': '{}',
+      'apps/host/src/__fixtures__/generator.mjs': "const cwd = '.'\nconst data = './data.json'",
+    })
+    expect(plan.reports).toEqual([])
+  })
+
   it('sorts report filenames by code units, not the machine locale', () => {
     const contents = Object.fromEntries(
       ['Z', 'a', '_'].map((name) => [`docs/${name}.json`, JSON.stringify({ test })]),

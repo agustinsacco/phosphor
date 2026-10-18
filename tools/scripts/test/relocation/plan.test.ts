@@ -208,8 +208,8 @@ describe('relocation planner', () => {
       'apps/host/src/a.ts': '',
     })
     const plan = repo.plan([test])
-    expect(plan.importerEdits[0]!.edits).toHaveLength(1)
-    expect(plan.reports.map(({ text }) => text)).toEqual(['./a', 'apps/host/src'])
+    expect(plan.importerEdits[0]!.edits).toHaveLength(2)
+    expect(plan.reports.map(({ text }) => text)).toEqual([])
   })
 
   it('keeps raw escaped edit preimages and handles type imports', () => {
