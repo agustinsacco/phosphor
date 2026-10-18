@@ -80,18 +80,15 @@ const commands = {
 }
 // These edges include non-import resources and test-only consumers, not just
 // production imports. No library depends on Desktop, and targets never recurse.
-// The Host depends on the libraries and copies pi-ext/, exactly as Desktop does,
-// and nothing depends on it except the whole-workspace checks.
-// Nothing depends on `tooling` (the whole-workspace checks) and the site depends
-// on nothing: its image is built from apps/site alone, and its screenshots are
-// captured by hand and committed. Otherwise every change affects every app and
-// per-app releases/deploys are impossible.
+// Control's stack test consumes Desktop sign-in; Web consumes Control and Host.
+// Nothing depends on `tooling` (the whole-workspace checks). The site declares
+// consumed sources as deploy inputs instead of implicit project dependencies.
 const dependencies = {
   'client-ui': ['shared', 'pi-extensions'],
   web: ['client-ui', 'host-client', 'shared', 'host', 'control'],
   desktop: ['runtime', 'shared', 'host-client', 'pi-extensions', 'client-ui'],
   host: ['runtime', 'shared', 'pi-extensions'],
-  control: ['shared'],
+  control: ['shared', 'desktop'],
   runtime: ['shared', 'host-client', 'pi-extensions'],
   'host-client': ['shared'],
   shared: [],
@@ -215,6 +212,31 @@ describe('explicit Nx project contract', () => {
       const edges = graph.dependencies[name].map((edge: { target: string }) => edge.target)
       assertEdges(name as keyof typeof dependencies, edges)
     }
+  })
+
+  it('keeps the Control sign-in test edge explicit without library-to-app edges or cycles', () => {
+    expect(readJson('apps/control/project.json').implicitDependencies).toContain('desktop')
+    expect(graph.dependencies.control).toContainEqual({
+      source: 'control',
+      target: 'desktop',
+      type: 'implicit',
+    })
+    const active = new Set<string>()
+    const visited = new Set<string>()
+    const visit = (name: string) => {
+      expect(active.has(name), `Cycle through ${name}`).toBe(false)
+      if (visited.has(name)) return
+      active.add(name)
+      for (const { target } of graph.dependencies[name] as { target: string }[]) {
+        if (graph.nodes[name].data.root.startsWith('libs/')) {
+          expect(graph.nodes[target].data.root).not.toMatch(/^apps\//)
+        }
+        visit(target)
+      }
+      active.delete(name)
+      visited.add(name)
+    }
+    for (const name of Object.keys(graph.nodes)) visit(name)
   })
 
   it('retains manifest-derived static and explicit implicit runtime dependencies', () => {

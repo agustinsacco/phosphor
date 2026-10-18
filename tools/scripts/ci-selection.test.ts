@@ -180,14 +180,14 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
         },
       ),
     )
-  // No library depends on an app, so a Desktop or Host change selects only
-  // itself and the whole-workspace checks. A library change selects everything
-  // above it, both apps included.
-  const desktop = ['desktop', 'tooling']
+  // Control's stack test consumes Desktop auth; Web consumes Control and Host.
+  // Library changes also select their transitive app consumers.
+  const desktop = ['desktop', 'control', 'web', 'tooling']
   const host = ['host', 'web', 'tooling']
-  const runtime = ['desktop', 'host', 'runtime', 'web', 'tooling']
+  const runtime = ['desktop', 'control', 'host', 'runtime', 'web', 'tooling']
   const extensions = [
     'desktop',
+    'control',
     'host',
     'pi-extensions',
     'runtime',
@@ -218,7 +218,12 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
     ['tools/scripts/site-web-smoke.mjs', ['site', 'tooling']],
     ['.github/workflows/deploy-site.yml', ['site', 'tooling']],
     ['apps/desktop/src/main.tsx', desktop],
-    ['libs/client-ui/src/compact.ts', ['client-ui', 'desktop', 'web', 'site', 'tooling']],
+    ['apps/desktop/electron/account/gotrue.ts', desktop],
+    ['apps/desktop/electron/account/loopback.ts', desktop],
+    [
+      'libs/client-ui/src/compact.ts',
+      ['client-ui', 'desktop', 'control', 'web', 'site', 'tooling'],
+    ],
     ['apps/web/src/main.tsx', ['web', 'site', 'tooling']],
     ['apps/desktop/package-lock.json', desktop],
     ['tools/scripts/fix-node-pty.mjs', desktop],
@@ -231,7 +236,7 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
     ['libs/session-runtime/src/pi/session-service.ts', runtime],
     [
       'libs/host-client/src/connection.ts',
-      ['desktop', 'host', 'host-client', 'runtime', 'web', 'site', 'tooling'],
+      ['desktop', 'control', 'host', 'host-client', 'runtime', 'web', 'site', 'tooling'],
     ],
     ['libs/shared/src/ipc.ts', [...libraries, 'site']],
     ['supabase/config.toml', ['schema', 'tooling']],
