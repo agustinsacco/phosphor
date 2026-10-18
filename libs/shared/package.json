@@ -188,6 +188,10 @@
       "types": "./src/workspace-search.ts",
       "default": "./src/workspace-search.ts"
     },
+    "./worktree-segment": {
+      "types": "./src/worktree-segment.ts",
+      "default": "./src/worktree-segment.ts"
+    },
     "./writing": {
       "types": "./src/writing.ts",
       "default": "./src/writing.ts"
