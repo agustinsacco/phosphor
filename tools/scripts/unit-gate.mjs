@@ -5,8 +5,8 @@
  * evidencePath. Keep that JSON evidence outside the checkout before squashing.
  * Manifest accepted entries are owner-supplied dependency acceptance, not self-approval.
  * Expand depends_on groups (foundation, reloc, fixes:D1) into unit ids in the manifest.
- * Coverage before-ref is characterizationSha, or the last regression commit when
- * characterization is absent (tests present, fix absent), otherwise baseSha.
+ * Coverage before-ref: characterizationSha, else the last regression commit, else baseSha;
+ * coverage tests must pass at both refs (omit red regressions). Empty side: no comparison.
  * Relocation requires explicit owner approval and ONE exact-content move commit.
  */
 import { spawnSync } from 'node:child_process'
@@ -186,10 +186,10 @@ function coverageEvidence(options, relocation, regressions) {
       .map((file) => relocation?.moves.find((move) => move.to === file)?.from ?? file)
       .sort(),
   )
-  if (scopes.every((sources) => !sources.length)) {
-    if (coverage !== undefined)
-      throw new Error('Coverage must be absent: no owned executable source')
-    return 'no owned executable source'
+  if (!scopes[0]?.length || !scopes[1]?.length) {
+    if (coverage !== undefined) throw new Error('Coverage must be absent: a side has no source')
+    if (scopes[1]?.length) return 'owned source created by the unit: no coverage baseline'
+    return scopes[0]?.length ? 'owned source removed by the unit' : 'no owned executable source'
   }
   if (!coverage || coverage.beforeSha !== before || coverage.afterSha !== options.finalSha)
     throw new Error('Missing/stale coverage reports with immutable refs')

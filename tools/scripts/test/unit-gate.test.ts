@@ -440,6 +440,21 @@ describe('unit-gate review regressions', () => {
     expect(runUnitGate(f.options).failures.join()).toMatch(/coverage must be absent/i)
   }, 30000)
 
+  it('records a unit that creates all of its owned source without a coverage baseline', () => {
+    const f = fixture('tooling', false)
+    f.options.unit.owns = ['created.ts', 'entry.test.ts']
+    f.options.manifest.units[0]!.owns = [...f.options.unit.owns]
+    f.finish(
+      { 'created.ts': 'export const created = 1\n', 'entry.test.ts': test },
+      'feat(FD-X): add created module',
+    )
+    delete f.options.coverage
+    expect(runUnitGate(f.options).failures).toEqual([])
+    expect(JSON.parse(readFileSync(f.options.evidencePath, 'utf8')).coverageNote).toBe(
+      'owned source created by the unit: no coverage baseline',
+    )
+  }, 30000)
+
   it.each(['--config=entry.test.ts', 'nested/-option/entry.test.ts'])(
     'rejects option-like test path segments in %s',
     (file) => {
