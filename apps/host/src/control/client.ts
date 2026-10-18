@@ -1,12 +1,9 @@
 import { randomBytes, type KeyObject } from 'node:crypto'
 import {
-  CONTROL_ERROR_STATUS,
-  CONTROL_TRACE_HEADERS,
   isControlTrace,
   CONTROL_ROUTES,
   isPublicKey,
   isUuid,
-  parseControlError,
   parseEnrollmentCreateRequest,
   parseEnrollmentCreateResponse,
   parseEnrollmentPollRequest,
@@ -15,238 +12,102 @@ import {
   parseHeartbeatRequest,
   parseHeartbeatResponse,
   type HeartbeatRequest,
-  type ControlErrorCode,
   type EnrollmentCreateRequest,
-  type Parsed,
 } from '@phosphor/shared/control-api'
-import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
-import { signRequest, type SigningIdentity } from './signer'
-import { HOST_VERSION } from '../version'
 import { isControlUrl } from './url'
+import { executeRequest, type ClientPorts, type ClientState } from './client-request'
+import { ControlFailure } from './client-response'
 
-export class ControlFailure extends Error {
-  constructor(readonly code: ControlErrorCode | 'offline') {
-    // Do not echo server messages, transport errors or response bytes.
-    super(
-      code === 'offline'
-        ? 'The control plane could not be reached.'
-        : `Control request failed (${code}).`,
-    )
-  }
-}
-
-export interface ClientPorts {
-  fetch?: typeof fetch
-  now?: () => number
-  random?: (size: number) => Uint8Array
-  signal?: AbortSignal
-  trace?: string
-  log?: RuntimeLog
-}
+export { ControlFailure } from './client-response'
+export type { ClientPorts } from './client-request'
 
 export function createControlClient(url: string, ports: ClientPorts = {}) {
   const trace = isControlTrace(ports.trace) ? ports.trace : randomBytes(8).toString('hex')
   if (!isControlUrl(url)) throw new ControlFailure('bad-request')
-  async function request<T>(
-    method: 'GET' | 'POST',
-    path: string,
-    identity: SigningIdentity,
-    key: KeyObject,
-    body: string,
-    parse: (value: unknown) => Parsed<T>,
-    empty = false,
-    signal = ports.signal,
-    seq?: number,
-  ): Promise<T> {
-    const start = (ports.now ?? Date.now)()
-    let status = 0
-    let requestId: string | null = null
-    let code: string | null = null
-    const controller = new AbortController()
-    const abort = () => controller.abort()
-    const timer = setTimeout(abort, 10_000)
-    signal?.addEventListener('abort', abort, { once: true })
-    if (signal?.aborted) abort()
-    try {
-      const response = await (ports.fetch ?? fetch)(`${url}${path}`, {
-        method,
-        redirect: 'error',
-        signal: controller.signal,
-        headers: {
-          'content-type': 'application/json',
-          [CONTROL_TRACE_HEADERS.client]: `host/${HOST_VERSION}`,
-          [CONTROL_TRACE_HEADERS.trace]: trace,
-          ...signRequest({
-            method,
-            path,
-            identity,
-            body,
-            key,
-            now: ports.now ?? Date.now,
-            random: ports.random ?? randomBytes,
-          }),
-        },
-        ...(method === 'POST' ? { body } : {}),
-      })
-      status = response.status
-      const id = response.headers.get('x-request-id')
-      requestId = id && /^[0-9a-f]{32}$/.test(id) ? id : null
-      // Unknown and removed Hosts are indistinguishable, even with a broken error body.
-      if (response.status === 410) {
-        await response.body?.cancel().catch(() => {})
-        throw new ControlFailure('gone')
-      }
-      if (empty && response.status === 204) {
-        const length = response.headers.get('content-length')
-        if ((length !== null && length !== '0') || response.headers.has('transfer-encoding')) {
-          throw new ControlFailure('internal')
-        }
-        if (response.body === null) return parseEmpty(parse)
-      }
-      const invalidError = () =>
-        new ControlFailure(
-          !response.ok && response.status === 429
-            ? 'too-many-requests'
-            : !response.ok && response.status >= 500
-              ? 'unavailable'
-              : 'internal',
-        )
-      if (!response.body) throw invalidError()
-      const reader = response.body.getReader()
-      const bytes = Buffer.alloc(64 * 1024)
-      let size = 0
-      try {
-        for (;;) {
-          const chunk = await reader.read()
-          if (chunk.done) break
-          size += chunk.value.byteLength
-          if (size > 64 * 1024) throw new ControlFailure('payload-too-large')
-          bytes.set(chunk.value, size - chunk.value.byteLength)
-        }
-      } finally {
-        await reader.cancel().catch(() => {})
-      }
-      if (empty && response.status === 204 && size === 0) return parseEmpty(parse)
-      if (!(response.headers.get('content-type') ?? '').match(/^application\/json(?:;|$)/i)) {
-        throw invalidError()
-      }
-      let value: unknown
-      try {
-        value = JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        )
-      } catch {
-        throw invalidError()
-      }
-      if (!response.ok) {
-        const parsed = parseControlError(value)
-        if (!parsed || CONTROL_ERROR_STATUS[parsed.error.code] !== response.status) {
-          throw invalidError()
-        }
-        throw new ControlFailure(parsed.error.code)
-      }
-      if (empty || response.status !== 200) throw new ControlFailure('internal')
-      const parsed = parse(value)
-      if (!parsed.ok) throw new ControlFailure('internal')
-      return parsed.value
-    } catch (error) {
-      code =
-        error instanceof ControlFailure
-          ? error.code
-          : error instanceof TypeError
-            ? 'TypeError'
-            : error instanceof DOMException &&
-                (error.name === 'AbortError' || error.name === 'TimeoutError')
-              ? error.name
-              : 'Error'
-      if (error instanceof ControlFailure) throw error
-      throw new ControlFailure('offline')
-    } finally {
-      ports.log?.('control', 'call', {
-        method,
-        route: path,
-        status,
-        ms: Math.max(0, (ports.now ?? Date.now)() - start),
-        requestId,
-        trace,
-        code,
-        ...(seq === undefined ? {} : { seq }),
-      })
-      clearTimeout(timer)
-      signal?.removeEventListener('abort', abort)
-    }
-  }
+  const state: ClientState = { url, trace, ports }
   return {
-    async enroll(body: EnrollmentCreateRequest, key: KeyObject) {
-      const parsed = parseEnrollmentCreateRequest(body)
-      if (!parsed.ok) throw new ControlFailure('bad-request')
-      return request(
-        'POST',
-        CONTROL_ROUTES.enrollments,
-        { publicKey: body.publicKey },
-        key,
-        JSON.stringify(parsed.value),
-        parseEnrollmentCreateResponse,
-      )
-    },
-    async poll(enrollmentId: string, publicKey: string, key: KeyObject) {
-      const parsed = parseEnrollmentPollRequest({ enrollmentId })
-      if (!parsed.ok || !isPublicKey(publicKey)) throw new ControlFailure('bad-request')
-      return request(
-        'POST',
-        CONTROL_ROUTES.enrollmentPoll,
-        { publicKey },
-        key,
-        JSON.stringify(parsed.value),
-        parseEnrollmentPollResponse,
-      )
-    },
-    async self(hostId: string, key: KeyObject) {
-      if (!isUuid(hostId)) throw new ControlFailure('bad-request')
-      const self = await request(
-        'GET',
-        CONTROL_ROUTES.hostSelf,
-        { hostId },
-        key,
-        '',
-        parseHostSelfResponse,
-      )
-      if (self.hostId !== hostId) throw new ControlFailure('internal')
-      return self
-    },
-    heartbeat(hostId: string, key: KeyObject, body: HeartbeatRequest, signal?: AbortSignal) {
-      const parsed = parseHeartbeatRequest(body)
-      if (!isUuid(hostId) || !parsed.ok) throw new ControlFailure('bad-request')
-      return request(
-        'POST',
-        CONTROL_ROUTES.hostHeartbeat,
-        { hostId },
-        key,
-        JSON.stringify(parsed.value),
-        parseHeartbeatResponse,
-        false,
-        signal,
-        parsed.value.seq,
-      )
-    },
-    revoke(hostId: string, key: KeyObject) {
-      if (!isUuid(hostId)) throw new ControlFailure('bad-request')
-      return request(
-        'POST',
-        CONTROL_ROUTES.hostRevoke,
-        { hostId },
-        key,
-        '{}',
-        () => ({ ok: true, value: undefined }),
-        true,
-      )
-    },
+    enroll: (body: EnrollmentCreateRequest, key: KeyObject) => enroll(state, body, key),
+    poll: (enrollmentId: string, publicKey: string, key: KeyObject) =>
+      poll(state, enrollmentId, publicKey, key),
+    self: (hostId: string, key: KeyObject) => self(state, hostId, key),
+    heartbeat: (hostId: string, key: KeyObject, body: HeartbeatRequest, signal?: AbortSignal) =>
+      heartbeat(state, hostId, key, body, signal),
+    revoke: (hostId: string, key: KeyObject) => revoke(state, hostId, key),
   }
 }
 
-function parseEmpty<T>(parse: (value: unknown) => Parsed<T>): T {
-  const parsed = parse(undefined)
-  if (!parsed.ok) throw new ControlFailure('internal')
-  return parsed.value
+async function enroll(state: ClientState, body: EnrollmentCreateRequest, key: KeyObject) {
+  const parsed = parseEnrollmentCreateRequest(body)
+  if (!parsed.ok) throw new ControlFailure('bad-request')
+  return executeRequest(state, {
+    method: 'POST',
+    path: CONTROL_ROUTES.enrollments,
+    identity: { publicKey: body.publicKey },
+    key,
+    body: JSON.stringify(parsed.value),
+    parse: parseEnrollmentCreateResponse,
+  })
 }
+
+async function poll(state: ClientState, enrollmentId: string, publicKey: string, key: KeyObject) {
+  const parsed = parseEnrollmentPollRequest({ enrollmentId })
+  if (!parsed.ok || !isPublicKey(publicKey)) throw new ControlFailure('bad-request')
+  return executeRequest(state, {
+    method: 'POST',
+    path: CONTROL_ROUTES.enrollmentPoll,
+    identity: { publicKey },
+    key,
+    body: JSON.stringify(parsed.value),
+    parse: parseEnrollmentPollResponse,
+  })
+}
+
+async function self(state: ClientState, hostId: string, key: KeyObject) {
+  if (!isUuid(hostId)) throw new ControlFailure('bad-request')
+  const result = await executeRequest(state, {
+    method: 'GET',
+    path: CONTROL_ROUTES.hostSelf,
+    identity: { hostId },
+    key,
+    body: '',
+    parse: parseHostSelfResponse,
+  })
+  if (result.hostId !== hostId) throw new ControlFailure('internal')
+  return result
+}
+
+function heartbeat(
+  state: ClientState,
+  hostId: string,
+  key: KeyObject,
+  body: HeartbeatRequest,
+  signal?: AbortSignal,
+) {
+  const parsed = parseHeartbeatRequest(body)
+  if (!isUuid(hostId) || !parsed.ok) throw new ControlFailure('bad-request')
+  return executeRequest(state, {
+    method: 'POST',
+    path: CONTROL_ROUTES.hostHeartbeat,
+    identity: { hostId },
+    key,
+    body: JSON.stringify(parsed.value),
+    parse: parseHeartbeatResponse,
+    signal,
+    seq: parsed.value.seq,
+  })
+}
+
+function revoke(state: ClientState, hostId: string, key: KeyObject) {
+  if (!isUuid(hostId)) throw new ControlFailure('bad-request')
+  return executeRequest(state, {
+    method: 'POST',
+    path: CONTROL_ROUTES.hostRevoke,
+    identity: { hostId },
+    key,
+    body: '{}',
+    parse: () => ({ ok: true, value: undefined }),
+    empty: true,
+  })
+}
+
 export type ControlClient = ReturnType<typeof createControlClient>

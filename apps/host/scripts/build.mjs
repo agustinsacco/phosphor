@@ -8,25 +8,17 @@
 // when the bundle reaches Electron, a native Desktop module or another app,
 // imports anything but a Node builtin, or lacks one of the six extensions.
 // It replaces DIR only when DIR is empty or an earlier build (output.mjs).
-import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
-import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { isBuiltin } from 'node:module'
+// The stages: build-bundle.mjs, build-resources.mjs, then build-info.mjs.
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { build } from 'esbuild'
-import { validateNative } from '../../../tools/host-release/build-native.mjs'
-import { buildInto, INFO } from './output.mjs'
+import { bundleHost } from './build-bundle.mjs'
+import { gitIn, writeBuildInfo } from './build-info.mjs'
+import { stageResources } from './build-resources.mjs'
+import { buildInto } from './output.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
-const NODE_TARGET = 'node22'
-const OUTFILE = 'phosphor.mjs'
-/** Modules and folders the Host must never carry. */
-const FORBIDDEN = [
-  /(^|\/)node_modules\/(electron|electron-store|electron-updater|node-pty)\//,
-  /^apps\/(desktop|site)\//,
-]
+const git = gitIn(ROOT)
 
 const { values } = parseArgs({
   options: {
@@ -63,147 +55,8 @@ console.log(
 
 /** Build into `stage`, which holds nothing yet. Any failure throws. */
 async function stageBuild(stage) {
-  let boundary = null
-  const result = await build({
-    absWorkingDir: ROOT,
-    entryPoints: ['apps/host/src/main.ts'],
-    outfile: join(stage, OUTFILE),
-    bundle: true,
-    platform: 'node',
-    format: 'esm',
-    target: NODE_TARGET,
-    sourcemap: releaseVersion === undefined ? 'linked' : false,
-    metafile: true,
-    logLevel: 'warning',
-    // Library source still uses the @shared/* alias internally.
-    tsconfigRaw: { compilerOptions: { paths: { '@shared/*': ['./libs/shared/src/*'] } } },
-    banner: {
-      js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
-    },
-    define: {
-      ...(stamped ? { __PHOSPHOR_HOST_SOURCE_SHA__: JSON.stringify(stamped) } : {}),
-      ...(releaseVersion
-        ? { __PHOSPHOR_HOST_RELEASE_VERSION__: JSON.stringify(releaseVersion) }
-        : {}),
-    },
-    plugins: [
-      {
-        name: 'ws-plain-js',
-        setup(b) {
-          b.onResolve({ filter: /^(bufferutil|utf-8-validate)$/ }, (args) => ({
-            path: args.path,
-            namespace: 'ws-optional',
-          }))
-          b.onLoad({ filter: /.*/, namespace: 'ws-optional' }, () => ({
-            contents: 'throw new Error("Optional native helper disabled")',
-          }))
-        },
-      },
-      {
-        name: 'host-boundary',
-        setup(b) {
-          b.onResolve(
-            { filter: /^(electron|electron-store|electron-updater|node-pty)(\/|$)/ },
-            (args) => {
-              boundary ??= `the Host reached ${args.path} from ${args.importer}`
-              return { errors: [{ text: boundary }] }
-            },
-          )
-        },
-      },
-    ],
-  }).catch((error) => {
-    throw boundary ? new Error(boundary) : error
-  })
-
-  const inputs = Object.keys(result.metafile.inputs)
-  const reached = inputs.filter((input) => FORBIDDEN.some((pattern) => pattern.test(input)))
-  if (reached.length > 0) throw new Error(`the Host bundled ${reached.join(', ')}`)
-  const imports = Object.values(result.metafile.outputs).flatMap((output) =>
-    output.imports.map((entry) => entry.path),
-  )
-  const foreign = [...new Set(imports.filter((path) => !isBuiltin(path)))]
-  if (foreign.length > 0) {
-    throw new Error(`the bundle imports ${foreign.join(', ')}, which are not Node builtins`)
-  }
-
-  if (values.native) {
-    validateNative(resolve(values.native), values.target ?? `${process.platform}-${process.arch}`)
-    cpSync(resolve(values.native), join(stage, 'native/node-pty'), { recursive: true })
-  }
-
-  // Every session loads these from <bundle folder>/pi-ext, with Desktop's filter.
-  cpSync(join(ROOT, 'libs/pi-extensions/pi-ext'), join(stage, 'pi-ext'), {
-    recursive: true,
-    filter: (source) =>
-      statSync(source).isDirectory() || (source.endsWith('.ts') && !source.endsWith('.test.ts')),
-  })
-  cpSync(join(ROOT, 'libs/pi-extensions/skills'), join(stage, 'skills'), { recursive: true })
-  const missing = (await bundledExtensionFiles()).filter(
-    (file) => !existsSync(join(stage, 'pi-ext', file)),
-  )
-  if (missing.length > 0) throw new Error(`pi-ext lacks ${missing.join(', ')}`)
-
-  const files = readdirSync(stage, { recursive: true, encoding: 'utf8' })
-    .filter((file) => statSync(join(stage, file)).isFile())
-    .sort()
-    .map((file) => {
-      const bytes = readFileSync(join(stage, file))
-      return {
-        path: file,
-        bytes: bytes.length,
-        sha256: createHash('sha256').update(bytes).digest('hex'),
-      }
-    })
-  const info = {
-    schema: 1,
-    name: 'phosphor',
-    version: releaseVersion ?? `0.0.0-dev.${stamped?.slice(0, 7) ?? 'source'}`,
-    sourceSha: stamped,
-    sourceDirty: stamped
-      ? git(
-          'status',
-          '--porcelain',
-          ...(releaseVersion === undefined ? [] : ['--untracked-files=no']),
-        ) !== ''
-      : null,
-    nodeTarget: NODE_TARGET,
-    entry: OUTFILE,
-    files,
-  }
-  writeFileSync(join(stage, INFO), `${JSON.stringify(info, null, 2)}\n`)
+  const inputs = await bundleHost(stage, { root: ROOT, stamped, releaseVersion })
+  await stageResources(stage, { root: ROOT, native: values.native, target: values.target })
+  const info = writeBuildInfo(stage, { stamped, releaseVersion, git })
   return { info, inputs: inputs.length }
-}
-
-/** The six extensions, read from the library itself rather than restated here. */
-async function bundledExtensionFiles() {
-  const listing = await build({
-    absWorkingDir: ROOT,
-    stdin: {
-      contents:
-        "export { BUNDLED_EXTENSION_FILES } from '@phosphor/session-runtime/bundled-extensions'",
-      resolveDir: ROOT,
-      loader: 'ts',
-    },
-    bundle: true,
-    write: false,
-    format: 'esm',
-    platform: 'node',
-    logLevel: 'warning',
-  })
-  const source = listing.outputFiles[0].text
-  const module = await import(`data:text/javascript,${encodeURIComponent(source)}`)
-  return [...module.BUNDLED_EXTENSION_FILES]
-}
-
-function git(...args) {
-  try {
-    return execFileSync('git', args, {
-      cwd: ROOT,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim()
-  } catch {
-    return null
-  }
 }
