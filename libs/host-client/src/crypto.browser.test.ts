@@ -1,6 +1,23 @@
 import { build } from 'esbuild'
 import { chromium, webkit } from 'playwright'
 import { expect, it } from 'vitest'
+import { encodeBase64url } from '@phosphor/shared/host-grant'
+import { helloProofMessage } from '@phosphor/shared/host-protocol'
+
+/** A real Ed25519 key pair, a second public key and a proof, signed in Node. */
+async function signedFixture() {
+  const { subtle } = globalThis.crypto
+  const pair = (await subtle.generateKey('Ed25519', true, ['sign', 'verify'])) as CryptoKeyPair
+  const wrong = (await subtle.generateKey('Ed25519', true, ['sign', 'verify'])) as CryptoKeyPair
+  const message = new TextEncoder().encode(helloProofMessage('host', 'epoch', 'challenge'))
+  return {
+    key: (await subtle.exportKey('jwk', pair.publicKey)).x!,
+    wrongKey: (await subtle.exportKey('jwk', wrong.publicKey)).x!,
+    signature: encodeBase64url(
+      new Uint8Array(await subtle.sign('Ed25519', pair.privateKey, message)),
+    ),
+  }
+}
 
 it.each([
   ['Chromium', chromium],
@@ -12,8 +29,7 @@ it.each([
       stdin: {
         contents: `
       export { browserCrypto } from '@phosphor/host-client/crypto';
-      export { helloProofMessage } from '@phosphor/shared/host-protocol';
-      export { encodeBase64url } from '@phosphor/shared/host-grant';`,
+      export { helloProofMessage } from '@phosphor/shared/host-protocol';`,
         resolveDir: process.cwd(),
       },
       bundle: true,
@@ -30,7 +46,11 @@ it.each([
       )
       await page.goto('https://fixture.invalid')
       await page.addScriptTag({ content: bundle.outputFiles[0]!.text })
-      const result = await page.evaluate(async () => {
+      // Keys and the signature come from Node, so the browser runs only the
+      // code under test: WebKit's own generateKey/sign intermittently threw
+      // OperationError on CI before verify was ever reached.
+      const fixture = await signedFixture()
+      const result = await page.evaluate(async ({ key, wrongKey, signature }) => {
         const s = (
           globalThis as unknown as {
             subject: {
@@ -38,25 +58,11 @@ it.each([
                 verify(key: string, message: Uint8Array, proof: string): Promise<boolean>
               }
               helloProofMessage(host: string, epoch: string, challenge: string): string
-              encodeBase64url(bytes: Uint8Array): string
             }
           }
         ).subject
-        const pair = (await crypto.subtle.generateKey('Ed25519', true, [
-          'sign',
-          'verify',
-        ])) as CryptoKeyPair
-        const wrong = (await crypto.subtle.generateKey('Ed25519', true, [
-          'sign',
-          'verify',
-        ])) as CryptoKeyPair
-        const key = (await crypto.subtle.exportKey('jwk', pair.publicKey)).x!
-        const wrongKey = (await crypto.subtle.exportKey('jwk', wrong.publicKey)).x!
         const message = (host = 'host', epoch = 'epoch', challenge = 'challenge') =>
           new TextEncoder().encode(s.helloProofMessage(host, epoch, challenge))
-        const signature = s.encodeBase64url(
-          new Uint8Array(await crypto.subtle.sign('Ed25519', pair.privateKey, message())),
-        )
         return Promise.all([
           s.browserCrypto.verify(key, message(), signature),
           s.browserCrypto.verify(wrongKey, message(), signature),
@@ -65,7 +71,7 @@ it.each([
           s.browserCrypto.verify(key, message('host', 'epoch', 'old'), signature),
           s.browserCrypto.verify(key, message(), 'malformed'),
         ])
-      })
+      }, fixture)
       expect(result).toEqual([true, false, false, false, false, false])
     } finally {
       await browser.close()
