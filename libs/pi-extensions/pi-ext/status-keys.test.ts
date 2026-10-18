@@ -97,3 +97,36 @@ describe('status-keys existing wire inventory', () => {
     ).toBeNull()
   })
 })
+
+describe('status-keys published vocabulary', () => {
+  it('exports exactly the frozen inventory through the package subpath', async () => {
+    const vocabulary = await import('@phosphor/pi-extensions/status-keys')
+    expect({ ...vocabulary }).toEqual(goldenInventory)
+    expect(
+      source('libs/pi-extensions/pi-ext/status-keys.ts').trim().split('\n').length,
+    ).toBeLessThanOrEqual(100)
+  })
+
+  it('bundles the package subpath for browsers without dependencies or external imports', async () => {
+    const { build } = await import('esbuild')
+    const result = await build({
+      stdin: {
+        contents: 'export * from "@phosphor/pi-extensions/status-keys"',
+        resolveDir: root,
+        sourcefile: 'status-keys-browser-entry.ts',
+      },
+      bundle: true,
+      platform: 'browser',
+      format: 'esm',
+      write: false,
+      metafile: true,
+    })
+    const inputs = Object.entries(result.metafile.inputs).filter(
+      ([path]) => path !== 'status-keys-browser-entry.ts',
+    )
+    expect(inputs.map(([path]) => path)).toEqual(['libs/pi-extensions/pi-ext/status-keys.ts'])
+    expect(inputs[0]?.[1].imports).toEqual([])
+    expect(Object.values(result.metafile.outputs).flatMap((output) => output.imports)).toEqual([])
+    expect(result.outputFiles).toHaveLength(1)
+  })
+})
