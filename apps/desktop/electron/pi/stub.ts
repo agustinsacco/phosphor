@@ -19,3 +19,9 @@ export function piStubPath(): string | undefined {
   if (app.isPackaged) return undefined
   return process.env.PHOSPHOR_PI_STUB || undefined
 }
+
+/** E2E-only Claude binary override; never execute env-provided binaries in packaged apps. */
+export function claudeBinOverride(): string | undefined {
+  if (app.isPackaged) return undefined
+  return process.env.PHOSPHOR_CLAUDE_BIN || undefined
+}

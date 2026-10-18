@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
 import { refusesMachineResourceArgs } from './machine-resource-args'
+import { admitSender } from './sender-policy'
 import type { IpcInvokeChannel, IpcInvokeMap } from '@shared/ipc'
 
 type Handler<C extends IpcInvokeChannel> = (
@@ -24,9 +25,10 @@ export function rejectRemoteArguments(channel: IpcInvokeChannel, args: readonly 
   if (refusesMachineResourceArgs(channel, args)) throw new Error(REMOTE_UNAVAILABLE)
 }
 
-/** Register one typed IPC invoke handler. */
+/** Register one typed IPC invoke handler. The sender is admitted before either route. */
 export function handle<C extends IpcInvokeChannel>(channel: C, handler: Handler<C>): void {
   ipcMain.handle(channel, (event, ...args: IpcInvokeMap[C]['args']) => {
+    admitSender(event)
     const remote = remoteRead?.(event.sender.id, channel, args)
     if (remote) return remote.result
     rejectRemoteArguments(channel, args)

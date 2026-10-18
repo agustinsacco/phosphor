@@ -21,6 +21,7 @@ vi.mock('electron', () => ({
       state.handlers.set(channel, handler),
   },
 }))
+vi.mock('./sender-policy', () => ({ admitSender: () => undefined }))
 
 vi.mock('../store', () => ({
   getWritingPrefs: () => state.prefs,

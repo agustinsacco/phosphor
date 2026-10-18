@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { BrowserWindow } from 'electron'
 import type { ClaudeLoginState } from '@shared/models'
 import { handle } from './handle'
 import {
@@ -23,21 +23,12 @@ import {
   setRouting,
 } from '../claude/accounts'
 import { spawnAccountFor, spawnAccountSessions } from '../pi/session-accounts'
+import { claudeBinOverride } from '../pi/stub'
 
 function broadcast(state: ClaudeLoginState): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send('claude:loginState', state)
   }
-}
-
-/**
- * E2E-only claude override, same gating as `packages-handlers`: an env-var
- * binary may only stand in for the real one in unpackaged builds, or it is
- * env-var-triggered code execution in a shipped app.
- */
-function claudeBinOverride(): string | undefined {
-  if (app.isPackaged) return undefined
-  return process.env.PHOSPHOR_CLAUDE_BIN || undefined
 }
 
 /**

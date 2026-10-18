@@ -1,6 +1,6 @@
 import { sessionEventChannel } from '@shared/ipc'
 import type { SessionPush } from '@shared/models'
-import { trimForRenderer } from '../ipc/event-trim'
+import { trimForRenderer } from './event-trim'
 import { broadcast } from '../broadcast'
 
 export function desktopSessionSink(
