@@ -90,7 +90,7 @@ describe('eslint staged warning policy', () => {
   })
 
   it.each(['window.confirm("sure?")', 'window["confirm"]("sure?")'])(
-    'warns about native confirmation: %s',
+    'rejects native confirmation: %s',
     async (code) => {
       expect(await messages(code, rendererCaller, 'no-restricted-properties')).toEqual([
         expect.objectContaining({ severity: 2 }),
@@ -131,7 +131,7 @@ describe('eslint staged warning policy', () => {
     ).toBe(1)
   })
 
-  it('keeps test mocks of window.confirm out of the warning inventory', async () => {
+  it('exempts test mocks of window.confirm', async () => {
     for (const file of [
       'apps/desktop/src/features/files/FilesChangedPane.test.tsx',
       'apps/desktop/test/renderer/helpers/fakePhosphor.ts',

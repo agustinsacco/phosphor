@@ -86,7 +86,6 @@ export async function trashEntry(workspacePath: string, entry: DirEntry): Promis
     // A clean entry may gain an unsaved buffer while the choice is queued.
     if (!dirty && hasDirtyDescendants(workspacePath, path) && (await confirm(true)) !== 'trash')
       return
-    if (entry.path !== path) return
     await window.phosphor.invoke('fs:trash', path)
     const store = useFilesStore.getState()
     store.reconcilePath(workspacePath, path)

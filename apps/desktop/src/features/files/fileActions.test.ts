@@ -274,16 +274,3 @@ it('uses at most two choices when newly dirty trash is affirmed', async () => {
   expect(invoke).toHaveBeenCalledExactlyOnceWith('fs:trash', entry.path)
   expect(reconcile).toHaveBeenCalledExactlyOnceWith('/repo', entry.path)
 })
-
-it('does not trash a changed entry path after the choice', async () => {
-  const { usePromptStore } = await import('@/stores/prompt')
-  const invoke = vi.fn().mockResolvedValue(undefined)
-  vi.stubGlobal('window', { phosphor: { invoke } })
-  useFilesStore.setState({ byWorkspace: {} })
-  const entry = { name: 'docs', path: '/repo/docs', relativePath: 'docs', isDirectory: true }
-  const pending = trashEntry('/repo', entry)
-  entry.path = '/repo/renamed'
-  usePromptStore.getState().dismiss(usePromptStore.getState().requests[0]!, 'trash')
-  await pending
-  expect(invoke).not.toHaveBeenCalled()
-})

@@ -6,6 +6,7 @@ import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useFilesStore } from '@/stores/files'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { usePromptStore } from '@/stores/prompt'
 import { FilesChangedPane } from './FilesChangedPane'
 
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
@@ -18,7 +19,6 @@ beforeEach(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   invoke.mockReset().mockResolvedValue({ content: 'disk', size: 4, mtimeMs: 1 })
   Object.assign(window, { phosphor: { invoke } })
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   vi.spyOn(useExtensionUiStore.getState(), 'pushToast')
   useFilesStore.setState({ byWorkspace: {} })
   useSessionsStore.setState({ activeSessionId: 'session', baselines: { session: 'baseline' } })
@@ -65,7 +65,8 @@ it.each([
     container.querySelector<HTMLButtonElement>('[aria-label="Revert nested/a.ts"]')!.click(),
   )
   expect(invoke).not.toHaveBeenCalled()
-  expect(window.confirm).not.toHaveBeenCalled()
+  // Refused before any choice is queued.
+  expect(usePromptStore.getState().requests).toEqual([])
   expect(useExtensionUiStore.getState().pushToast).toHaveBeenCalledWith(
     expect.stringContaining('unsaved editor buffer'),
     'error',
