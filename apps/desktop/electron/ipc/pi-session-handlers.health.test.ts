@@ -118,3 +118,46 @@ it('keeps stub titles on the inherited environment without provider overlays', a
   expect(h.version).not.toHaveBeenCalled()
   expect(h.environment).not.toHaveBeenCalled()
 })
+
+it('shares a single health probe across health IPC, session launches and titles', async () => {
+  await call('pi:health')
+  await session()
+  await title()
+  expect(h.version).toHaveBeenCalledTimes(1)
+})
+
+it('uses the newly discovered executable for health IPC after invalidation', async () => {
+  await call('pi:health')
+  h.binary = '/replacement/pi'
+  ;(await import('../pi/health')).invalidatePiHealth()
+  expect(await call('pi:health')).toMatchObject({ binaryPath: '/replacement/pi' })
+})
+
+it('uses the newly discovered executable for sessions after invalidation', async () => {
+  await session()
+  h.binary = '/replacement/pi'
+  ;(await import('../pi/health')).invalidatePiHealth()
+  expect(await session()).toMatchObject({ binaryPath: '/replacement/pi' })
+})
+
+it('uses the newly discovered executable for titles after invalidation', async () => {
+  await title()
+  h.binary = '/replacement/pi'
+  ;(await import('../pi/health')).invalidatePiHealth()
+  await title()
+  expect(h.print).toHaveBeenLastCalledWith('/replacement/pi', expect.any(Array), expect.any(Object))
+})
+
+it('expires the shared healthy result after the health TTL', async () => {
+  const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+  try {
+    await call('pi:health')
+    h.binary = '/replacement/pi'
+    now.mockReturnValue(1_000 + 5 * 60_000)
+    expect(await session()).toMatchObject({ binaryPath: '/replacement/pi' })
+    expect(await call('pi:health')).toMatchObject({ binaryPath: '/replacement/pi' })
+    expect(h.version).toHaveBeenCalledTimes(2)
+  } finally {
+    now.mockRestore()
+  }
+})
