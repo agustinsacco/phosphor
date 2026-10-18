@@ -51,6 +51,27 @@ describe('guardedRead', () => {
     })
     expect(recheck).toHaveBeenCalledOnce()
   })
+  it('keeps reading after a partial read until the file ends', async () => {
+    const reads: number[] = []
+    await interceptOpen(async (handle) => {
+      const read = handle.read.bind(handle) as (
+        ...args: unknown[]
+      ) => Promise<fs.FileReadResult<Buffer>>
+      vi.spyOn(handle, 'read').mockImplementation((async (
+        buffer: Buffer,
+        offset: number,
+        length: number,
+        position: number,
+      ) => {
+        const result = await read(buffer, offset, Math.min(length, 2), position)
+        reads.push(result.bytesRead)
+        return result
+      }) as typeof handle.read)
+    })
+    const result = await guardedRead(root, 'file', vi.fn(), ports)
+    expect(result).toMatchObject({ ok: true, data: { content: 'hello', size: 5 } })
+    expect(reads).toEqual([2, 2, 1, 0])
+  })
   it.each(['dev', 'ino', 'type'] as const)(
     'closes after rejecting descriptor %s',
     async (field) => {
