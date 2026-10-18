@@ -4,7 +4,9 @@
  * Unit owns globs select tracked JS/TS sources, never just imported files. The optional
  * relocation manifest is FD-05's {version:1,moves:[{from,to,kind?}]} format.
  * Tests and declarations are excluded; generated sources are NOT silently excluded.
- * Both detached snapshots use this installation, Node executable, OS and command.
+ * Both detached snapshots use this installation, Node executable, OS and command,
+ * except npm workspace packages (lockfile link:true / root workspaces), which each
+ * snapshot links to its own copy so a ref never runs another ref's workspace code.
  * Coverage is additional evidence, not proof of unchanged semantics.
  */
 import { execFileSync } from 'node:child_process'
