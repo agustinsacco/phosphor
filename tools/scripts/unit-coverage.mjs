@@ -8,7 +8,16 @@
  * Coverage is additional evidence, not proof of unchanged semantics.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, matchesGlob, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -158,18 +167,66 @@ export function compareCoverage(before, after) {
   }
 }
 
+function workspaceLinks(snapshot, manifests) {
+  const links = new Map()
+  const lock = join(snapshot, 'package-lock.json')
+  if (existsSync(lock)) {
+    for (const [path, entry] of Object.entries(readJson(lock).packages ?? {}))
+      if (entry.link) {
+        const name = path.split('node_modules/').at(-1)
+        links.set(repoPath(name), join(snapshot, repoPath(entry.resolved)))
+      }
+  }
+  // Also support repositories without a lockfile and globbed workspace declarations.
+  const declared = readJson(join(snapshot, 'package.json')).workspaces ?? []
+  const patterns = Array.isArray(declared) ? declared : declared.packages
+  for (const manifest of manifests) {
+    const directory = dirname(manifest)
+    if (patterns.some((pattern) => matchesGlob(directory, pattern))) {
+      const { name } = readJson(join(snapshot, manifest))
+      links.set(repoPath(name), join(snapshot, directory))
+    }
+  }
+  for (const [name, path] of links)
+    if (!existsSync(join(path, 'package.json'))) throw new Error(`Missing workspace: ${name}`)
+  return links
+}
+
 function linkDependencies(snapshot, dependencies) {
-  const directories = new Set([
-    '',
-    ...tracked(snapshot)
-      .filter((file) => file.endsWith('/package.json'))
-      .map(dirname),
-  ])
+  const manifests = tracked(snapshot).filter((file) => file.endsWith('/package.json'))
+  const workspaces = workspaceLinks(snapshot, manifests)
+  const directories = new Set(['', ...manifests.map(dirname)])
   for (const directory of directories) {
     const installed = join(dependencies, directory, 'node_modules')
     const target = join(snapshot, directory, 'node_modules')
-    if (existsSync(installed) && !existsSync(target)) symlinkSync(installed, target, 'junction')
+    if (!existsSync(installed)) continue
+    mkdirSync(target, { recursive: true })
+    const entries = readdirSync(installed).flatMap((name) =>
+      name.startsWith('@')
+        ? readdirSync(join(installed, name)).map((entry) => `${name}/${entry}`)
+        : [name],
+    )
+    for (const name of new Set([...entries, ...workspaces.keys()])) {
+      const destination = join(target, name)
+      mkdirSync(dirname(destination), { recursive: true })
+      symlinkSync(workspaces.get(name) ?? join(installed, name), destination, 'junction')
+    }
   }
+}
+
+function cleanupSnapshots(root, snapshots, temporary, errors) {
+  const attempt = (operation) => {
+    try {
+      operation()
+    } catch (error) {
+      errors.push(error)
+    }
+  }
+  for (const snapshot of snapshots.toReversed())
+    attempt(() => git(root, 'worktree', 'remove', '--force', snapshot))
+  attempt(() => rmSync(temporary, { recursive: true, force: true }))
+  attempt(() => git(root, 'worktree', 'prune'))
+  if (errors.length) throw errors[0]
 }
 
 function capture(snapshot, files, tests, dependencies, reportDirectory) {
@@ -191,7 +248,14 @@ function capture(snapshot, files, tests, dependencies, reportDirectory) {
     stdio: 'pipe',
     maxBuffer: 64 * 1024 * 1024,
   })
-  return aggregateCoverage(readJson(join(reportDirectory, 'coverage-final.json')), files, snapshot)
+  return {
+    coverage: aggregateCoverage(
+      readJson(join(reportDirectory, 'coverage-final.json')),
+      files,
+      snapshot,
+    ),
+    command: [process.execPath, ...args],
+  }
 }
 
 /**
@@ -209,6 +273,7 @@ export function runUnitCoverage(options) {
   const dependencies = resolve(options.dependencies ?? root)
   const temporary = realpathSync(mkdtempSync(join(tmpdir(), 'phosphor-unit-coverage-')))
   const snapshots = []
+  const errors = []
   try {
     for (const [name, ref] of [
       ['before', before],
@@ -238,22 +303,17 @@ export function runUnitCoverage(options) {
       dependencies,
       join(temporary, 'new-report'),
     )
-    for (const entry of final.files) entry.file = canonical(entry.file, moves)
+    for (const entry of final.coverage.files) entry.file = canonical(entry.file, moves)
     return {
-      ...compareCoverage(baseline, final),
+      ...compareCoverage(baseline.coverage, final.coverage),
       runtime: { os: process.platform, node: process.version, executable: process.execPath },
-      command: [
-        'vitest',
-        'run',
-        '--maxWorkers=2',
-        '--coverage.enabled',
-        '--coverage.provider=v8',
-        ...tests,
-      ],
+      commands: { before: baseline.command, after: final.command },
     }
+  } catch (error) {
+    errors.push(error)
+    throw error
   } finally {
-    for (const snapshot of snapshots.reverse()) git(root, 'worktree', 'remove', '--force', snapshot)
-    rmSync(temporary, { recursive: true, force: true })
+    cleanupSnapshots(root, snapshots, temporary, errors)
   }
 }
 

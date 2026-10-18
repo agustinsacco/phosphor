@@ -201,21 +201,28 @@ import * as childProcess from 'node:child_process'
 import { existsSync, symlinkSync } from 'node:fs'
 import { vi } from 'vitest'
 
-it('imports and measures each ref’s own workspace package, not the installed checkout', () => {
+function workspaceFixture(declaration: string) {
   const { directory, put, git, commit } = fixture()
   const workspace = 'tools/scripts/workspace'
   const workspaceSource = `${workspace}/index.js`
   const relocatedTest = 'tools/scripts/workspace.test.ts'
-  put('package.json', JSON.stringify({ type: 'module', workspaces: [workspace] }))
   put(
-    'package-lock.json',
+    'package.json',
     JSON.stringify({
-      lockfileVersion: 3,
-      packages: {
-        'node_modules/@fixture/workspace': { resolved: workspace, link: true },
-      },
+      type: 'module',
+      ...(declaration === 'manifest' ? { workspaces: ['tools/scripts/*'] } : {}),
     }),
   )
+  if (declaration === 'lockfile')
+    put(
+      'package-lock.json',
+      JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          'node_modules/@fixture/workspace': { resolved: workspace, link: true },
+        },
+      }),
+    )
   put(
     `${workspace}/package.json`,
     JSON.stringify({ name: '@fixture/workspace', type: 'module', exports: './index.js' }),
@@ -224,9 +231,9 @@ it('imports and measures each ref’s own workspace package, not the installed c
   put(
     test,
     `import {it,expect} from 'vitest'; import {value} from '@fixture/workspace';
-     import {readFileSync} from 'node:fs';
-     const expected = JSON.parse(readFileSync(new URL('../../expected.json', import.meta.url), 'utf8'));
-     it('snapshot value',()=>expect(value()).toBe(expected))`,
+   import {readFileSync} from 'node:fs';
+   const expected = JSON.parse(readFileSync(new URL('../../expected.json', import.meta.url), 'utf8'));
+   it('snapshot value',()=>expect(value()).toBe(expected))`,
   )
   put('expected.json', '1')
   const before = commit()
@@ -247,38 +254,48 @@ it('imports and measures each ref’s own workspace package, not the installed c
     join(directory, 'node_modules/@vitest'),
     'junction',
   )
-  const result = runUnitCoverage({
-    unit: { owns: [workspaceSource], new_tests: [{ test }] },
-    before,
-    after,
-    tests: [test],
-    map: { version: 1, moves: [{ from: test, to: relocatedTest }] },
-    root: directory,
-  })
-  expect(result.pass).toBe(false)
-  expect(result.before.covered).toBe(result.before.total)
-  expect(result.after.covered).toBeGreaterThan(0)
-  expect(result.after.covered).toBeLessThan(result.after.total)
-  expect(result.commands.before).toEqual([
-    process.execPath,
-    join(directory, 'node_modules/vitest/vitest.mjs'),
-    'run',
-    '--maxWorkers=2',
-    '--coverage.enabled',
-    '--coverage.provider=v8',
-    '--coverage.reporter=json',
-    expect.stringMatching(/^--coverage.reportsDirectory=.*\/old-report$/),
-    `--coverage.include=${workspaceSource}`,
-    test,
-  ])
-  expect(result.commands.after).toEqual([
-    ...result.commands.before.slice(0, 7),
-    expect.stringMatching(/^--coverage.reportsDirectory=.*\/new-report$/),
-    `--coverage.include=${workspaceSource}`,
-    relocatedTest,
-  ])
-  expect(git('worktree', 'list', '--porcelain').match(/^worktree /gm)).toHaveLength(1)
-}, 60_000)
+  return { directory, git, before, after, workspaceSource, relocatedTest }
+}
+
+it.each(['lockfile', 'manifest'])(
+  'imports and measures each ref’s own workspace package using its %s',
+  (declaration) => {
+    const { directory, git, before, after, workspaceSource, relocatedTest } =
+      workspaceFixture(declaration)
+    const result = runUnitCoverage({
+      unit: { owns: [workspaceSource], new_tests: [{ test }] },
+      before,
+      after,
+      tests: [test],
+      map: { version: 1, moves: [{ from: test, to: relocatedTest }] },
+      root: directory,
+    })
+    expect(result.pass).toBe(false)
+    expect(result.before.covered).toBe(result.before.total)
+    expect(result.after.covered).toBeGreaterThan(0)
+    expect(result.after.covered).toBeLessThan(result.after.total)
+    expect(result.commands.before).toEqual([
+      process.execPath,
+      join(directory, 'node_modules/vitest/vitest.mjs'),
+      'run',
+      '--maxWorkers=2',
+      '--coverage.enabled',
+      '--coverage.provider=v8',
+      '--coverage.reporter=json',
+      expect.stringMatching(/^--coverage.reportsDirectory=.*\/old-report$/),
+      `--coverage.include=${workspaceSource}`,
+      test,
+    ])
+    expect(result.commands.after).toEqual([
+      ...result.commands.before.slice(0, 7),
+      expect.stringMatching(/^--coverage.reportsDirectory=.*\/new-report$/),
+      `--coverage.include=${workspaceSource}`,
+      relocatedTest,
+    ])
+    expect(git('worktree', 'list', '--porcelain').match(/^worktree /gm)).toHaveLength(1)
+  },
+  60_000,
+)
 
 it.each([true, false])(
   'attempts all cleanup steps and preserves the first error (earlier operation failed: %s)',
