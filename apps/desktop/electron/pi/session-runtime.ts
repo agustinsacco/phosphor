@@ -27,7 +27,7 @@ const laneReload = createLaneReload({
   log,
   // A reload can change the lane's commands (MCP prompts are commands).
   onApplied: () => {
-    void import('../ipc/pi-config-handlers').then((m) => m.invalidatePiCommands())
+    void import('./catalogue').then((m) => m.invalidatePiCommands())
   },
 })
 
