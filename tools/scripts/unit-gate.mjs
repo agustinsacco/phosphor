@@ -4,6 +4,9 @@
  * exact multi-unit manifest, FD-07 aggregate coverage with its refs, and an unused
  * evidencePath. Keep that JSON evidence outside the checkout before squashing.
  * Manifest accepted entries are owner-supplied dependency acceptance, not self-approval.
+ * Expand depends_on groups (foundation, reloc, fixes:D1) into unit ids in the manifest.
+ * Coverage before-ref is characterizationSha, or the last regression commit when
+ * characterization is absent (tests present, fix absent), otherwise baseSha.
  * Relocation requires explicit owner approval and ONE exact-content move commit.
  */
 import { spawnSync } from 'node:child_process'
@@ -49,6 +52,21 @@ const rootConfig = (file) =>
 const trackedAt = (root, sha) =>
   gitText(root, 'ls-tree', '-r', '--name-only', '-z', sha).split('\0').filter(Boolean)
 const regression = (commit, id) => commit.subject.startsWith(`test(${id}): regression `)
+const behavior = (unit) => ['fix', 'security', 'perf'].includes(unit.kind)
+const testOnly = (options, commit, before) =>
+  commit.files.every(
+    (file) =>
+      testFile(file) ||
+      (file.split('/').includes('__fixtures__') &&
+        !blobAt(options.root, before, file) &&
+        !!blobAt(options.root, commit.sha, file)),
+  )
+function testPath(file) {
+  repoPath(file)
+  if (file.split('/').some((part) => part.startsWith('-')))
+    throw new Error(`Option-like test path: ${file}`)
+  return file
+}
 
 function ownership(options, commits) {
   const { manifest, unit, root, baseSha } = options
@@ -124,7 +142,8 @@ function relocationFor(options, commits) {
 }
 
 function characterize(options, commits) {
-  const files = options.unit.characterize_first?.map((entry) => repoPath(entry.test)) ?? []
+  const { root, baseSha } = options
+  const files = options.unit.characterize_first?.map((entry) => testPath(entry.test)) ?? []
   if (!files.length) {
     if (options.characterizationSha) throw new Error('Unspecified characterization SHA')
     if (!['fix', 'security', 'perf', 'tooling', 'docs'].includes(options.unit.kind))
@@ -135,26 +154,20 @@ function characterize(options, commits) {
   const first = commits[0]
   if (
     first.sha !== options.characterizationSha ||
-    !first.subject.startsWith(`test(${options.unit.id}): characterize `)
+    !(
+      first.subject.startsWith(`test(${options.unit.id}): characterize `) ||
+      (behavior(options.unit) && regression(first, options.unit.id))
+    )
   )
     throw new Error('Characterization must be the first commit')
-  if (first.files.some((file) => !testFile(file)))
+  if (!testOnly(options, first, options.baseSha))
     throw new Error('Characterization commit must be test-only')
   if (files.some((file) => !first.files.includes(file)))
     throw new Error('Missing specified characterization tests')
   for (const file of first.files) {
     if (!blobAt(options.root, first.sha, file))
       throw new Error('Characterization must add tests, not delete them')
-    const stat = gitText(
-      options.root,
-      'diff',
-      '--numstat',
-      '-z',
-      options.baseSha,
-      first.sha,
-      '--',
-      file,
-    )
+    const stat = gitText(root, 'diff', '--numstat', '-z', baseSha, first.sha, '--', file)
     const [added, removed] = stat.split('\t')
     if (!(Number(added) > 0) || Number(removed) !== 0)
       throw new Error('Characterization must only add tests to unchanged implementation')
@@ -162,23 +175,27 @@ function characterize(options, commits) {
   return first.files
 }
 
-function coverageEvidence(options, relocation) {
+function coverageEvidence(options, relocation, regressions) {
   if (options.unit.kind === 'docs') return
   const coverage = options.coverage
-  const before = options.characterizationSha ?? options.baseSha
-  if (!coverage || coverage.beforeSha !== before || coverage.afterSha !== options.finalSha)
-    throw new Error('Missing/stale coverage reports with immutable refs')
+  const before = options.characterizationSha ?? regressions.at(-1)?.sha ?? options.baseSha
   const patterns = patternsFor(options.unit)
-  for (const [sha, aggregate] of [
-    [before, coverage.report.before],
-    [options.finalSha, coverage.report.after],
-  ]) {
-    const sources = trackedAt(options.root, sha)
+  const scopes = [before, options.finalSha].map((sha) =>
+    trackedAt(options.root, sha)
       .filter((file) => sourceFile(file) && patterns.some((pattern) => matchesGlob(file, pattern)))
       .map((file) => relocation?.moves.find((move) => move.to === file)?.from ?? file)
-      .sort()
+      .sort(),
+  )
+  if (scopes.every((sources) => !sources.length)) {
+    if (coverage !== undefined)
+      throw new Error('Coverage must be absent: no owned executable source')
+    return 'no owned executable source'
+  }
+  if (!coverage || coverage.beforeSha !== before || coverage.afterSha !== options.finalSha)
+    throw new Error('Missing/stale coverage reports with immutable refs')
+  for (const [index, aggregate] of [coverage.report.before, coverage.report.after].entries()) {
     if (
-      JSON.stringify(sources) !==
+      JSON.stringify(scopes[index]) !==
       JSON.stringify(aggregate?.files?.map((entry) => entry.file).sort())
     )
       throw new Error('Coverage reports must include the exact owned source scope')
@@ -189,6 +206,7 @@ function coverageEvidence(options, relocation) {
 
 /** Real test execution; an import failure is never assertion-red evidence. */
 function runTests(options, sha, files, label) {
+  files.forEach(testPath)
   return withSnapshot(options.root, sha, (snapshot) => {
     for (const file of files)
       if (!existsSync(join(snapshot, file))) throw new Error(`Missing ${label} test: ${file}`)
@@ -236,15 +254,24 @@ function runTests(options, sha, files, label) {
 
 function regressionCommits(options, commits) {
   const regressions = commits.filter((commit) => regression(commit, options.unit.id))
-  if (['fix', 'security', 'perf'].includes(options.unit.kind) && !regressions.length)
+  if (behavior(options.unit) && !regressions.length)
     throw new Error('Behavior unit requires assertion-red regression commit')
   if (regressions.length) {
     const first = commits.indexOf(regressions[0])
-    if (commits.slice(0, first + 1).some((commit) => commit.files.some((file) => !testFile(file))))
+    if (
+      commits
+        .slice(0, first + 1)
+        .some(
+          (commit, index) => !testOnly(options, commit, commits[index - 1]?.sha ?? options.baseSha),
+        )
+    )
       throw new Error('Source changed before or in first regression commit')
   }
   for (const commit of regressions)
-    if (!commit.files.length || commit.files.some((file) => !testFile(file)))
+    if (
+      !commit.files.some(testFile) ||
+      !testOnly(options, commit, commits[commits.indexOf(commit) - 1]?.sha ?? options.baseSha)
+    )
       throw new Error('Every regression commit must be test-only')
   return regressions
 }
@@ -270,13 +297,10 @@ function commitMetadata(options, history) {
 
 function verifyTests(options, evidence, context) {
   const { selection, characterized, regressions, history, relocation } = context
-  if (characterized.length) {
-    const run = runTests(options, options.characterizationSha, characterized, 'characterization')
-    evidence.runs.push(run)
-    if (run.status !== 0 || run.failed || run.suiteErrors || !run.passed)
-      throw new Error('Characterization tests must pass on unchanged implementation')
-  }
-  for (const commit of regressions) {
+  const testCommits = evidence.commits.filter(
+    (commit) => commit.sha === options.characterizationSha || regressions.includes(commit),
+  )
+  for (const commit of testCommits) {
     evidence.frozen.push(
       ...frozenBlobs(
         options.root,
@@ -286,17 +310,21 @@ function verifyTests(options, evidence, context) {
         relocation,
       ),
     )
-    const run = runTests(options, commit.sha, commit.files, 'regression')
+    const label = regression(commit, options.unit.id) ? 'regression' : 'characterization'
+    const run = runTests(options, commit.sha, commit.files.filter(testFile), label)
     evidence.runs.push(run)
-    if (run.status === 0 || !run.failed || run.suiteErrors)
+    if (label === 'characterization') {
+      if (run.status !== 0 || run.failed || run.suiteErrors || !run.passed)
+        throw new Error('Characterization tests must pass on unchanged implementation')
+    } else if (run.status === 0 || !run.failed || run.suiteErrors)
       throw new Error(`Every regression must fail by assertion at its own commit: ${commit.sha}`)
   }
   const full = evidence.commits.some((commit) => commit.files.some(rootConfig))
   const required = [
     ...new Set([
       ...selection.tests,
-      ...characterized,
-      ...regressions.flatMap((commit) => commit.files),
+      ...characterized.filter(testFile),
+      ...regressions.flatMap((commit) => commit.files.filter(testFile)),
     ]),
   ]
   const finalFiles = required.map(
@@ -315,7 +343,7 @@ export function runUnitGate(options) {
   if (!options.evidencePath || existsSync(options.evidencePath))
     throw new Error('Unused evidencePath required (file exists or path missing)')
   /** @type {{version:number,pass:boolean,baseSha:string,finalSha:string,unit:Unit,
-   * characterizationSha?:string,manifest:Manifest,coverage?:GateOptions['coverage'],
+   * characterizationSha?:string,manifest:Manifest,coverage?:GateOptions['coverage'],coverageNote?:string,
    * relocation?:GateOptions['relocation'],commits:Commit[],frozen:{original:string,file:string,blob:string}[],
    * runs:Run[],failures:string[],runtime:{os:string,node:string}} */
   const evidence = {
@@ -336,6 +364,7 @@ export function runUnitGate(options) {
   }
   try {
     const selection = validateUnitSpec(options.unit)
+    selection.tests.forEach(testPath)
     if (!/^[A-Za-z0-9-]+$/.test(options.unit.id)) throw new Error('Invalid unit id')
     const history = commitHistory(options.root, options.baseSha, options.finalSha)
     if (!history.length) throw new Error('Unit has no commits')
@@ -343,16 +372,8 @@ export function runUnitGate(options) {
     ownership(options, evidence.commits)
     const relocation = relocationFor(options, evidence.commits)
     const characterized = characterize(options, evidence.commits)
-    if (characterized.length)
-      evidence.frozen = frozenBlobs(
-        options.root,
-        options.characterizationSha,
-        history.slice(1),
-        characterized,
-        relocation,
-      )
-    coverageEvidence(options, relocation)
     const regressions = regressionCommits(options, evidence.commits)
+    evidence.coverageNote = coverageEvidence(options, relocation, regressions)
     verifyTests(options, evidence, { selection, characterized, regressions, history, relocation })
     evidence.pass = true
   } catch (error) {
