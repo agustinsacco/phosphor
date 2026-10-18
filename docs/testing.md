@@ -157,9 +157,9 @@ node tools/scripts/size-budget.mjs check --strict
 
 `tools/budgets/*.json` covers eight packages. Production files have a 400-line
 budget, functions 80 lines, test files 800 lines. Suite registration callbacks
-are not ordinary functions; exemptions remain narrow, including reviewed linear
-e2e callbacks and declaration/generated-file entries with exact file/rule,
-rationale and owner. Existing offenders are one-way ceilings: new or grown
+are not ordinary functions. Exemptions are limited to declaration and
+generated-file entries with an exact file/rule, rationale and owner; long e2e
+callbacks are baselined offenders, not exemptions. Existing offenders are one-way ceilings: new or grown
 spans fail, shrinking/removal is allowed, and checks never rewrite baselines.
 Renames need explicit mappings. `--strict` also fails remaining baseline debt;
 it is not CI's default while that debt exists.

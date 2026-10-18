@@ -89,16 +89,20 @@ describe('foundation CI wiring', () => {
       'expect(auditCoverage(repo)).toEqual([])',
     )
     expect(job('checks')).not.toMatch(/run: .*typecheck(?::host|:control|-coverage\.mjs)/)
+    expect(read('docs/host.md')).not.toContain('standalone `npm run typecheck:host`')
   })
 
   it('still rejects one-line growth above a reconciled baseline ceiling', () => {
-    const file = 'electron/hosts/connection.ts'
-    const key = `${file}::file`
     const desktop = JSON.parse(read('tools/budgets/desktop.json')) as {
       offenders: Record<string, number>
     }
-    const ceiling = desktop.offenders[key]
-    if (!ceiling) throw new Error(`Missing reconciled ceiling: ${key}`)
+    // Any production whole-file offender (400-line rule); a paid-down entry may be pruned.
+    const [key, ceiling] =
+      Object.entries(desktop.offenders).find(
+        ([entry]) => /^electron\/.*\.ts::file$/.test(entry) && !entry.includes('.test.'),
+      ) ?? []
+    if (!key || !ceiling) throw new Error('desktop.json has no production whole-file offender')
+    const file = key.slice(0, -'::file'.length)
     const budget = {
       version: 1,
       package: 'desktop',
