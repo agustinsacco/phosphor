@@ -1,25 +1,18 @@
 import { hostname, type as osType } from 'node:os'
 import type { MachineContext } from '@phosphor/shared/machine-prompt'
 import { realpathSync } from 'node:fs'
-import { lstat, realpath, unlink } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { basename } from 'node:path'
 import {
   DEFAULT_AGENT_DIRECTIVES,
   type LiveSessionInfo,
   type SessionPush,
 } from '@phosphor/shared/models'
 import { errorText } from '@phosphor/shared/errors'
-import type {
-  ExtensionUIRequest,
-  ExtensionUIResponse,
-  RpcCommand,
-  RpcCommandType,
-} from '@phosphor/shared/rpc'
+import type { ExtensionUIRequest, ExtensionUIResponse, RpcCommand } from '@phosphor/shared/rpc'
 import { gitInfo } from '@phosphor/session-runtime/git/git-info'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { createContextBudgetRuntime } from '@phosphor/session-runtime/pi/context-budget'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
-import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { claudeProviderSpawnEnv } from '@phosphor/session-runtime/pi/provider-detect'
 import { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import { createSessionDeletion } from '@phosphor/session-runtime/pi/session-deletion'
@@ -43,6 +36,10 @@ import {
 import type { SessionServiceRuntime } from '@phosphor/session-runtime/pi/session-service'
 import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
 import { parseSessionRequest } from './request'
+import { commandRefusal, mayRunExtensionCommand } from './command-policy'
+import { unlinkTranscript } from './transcript-removal'
+export { commandRefusal } from './command-policy'
+export { unlinkTranscript } from './transcript-removal'
 
 /** What a validated Host knows about its machine. 05-D assembles it from doctor's checks. */
 export interface HostMachine {
@@ -360,115 +357,7 @@ export function createHostRuntime(
 
 export type HostRuntime = ReturnType<typeof createHostRuntime>
 
-/** What the Host does with a command: pass it (null), refuse it (why), or decide from it. */
-type CommandRule<K extends RpcCommandType> =
-  null | string | ((command: Extract<RpcCommand, { type: K }>) => string | null)
-
-const MOVES_FILE = 'moves pi to another session file: start or resume one with a request instead'
-
 const MOVING =
   'a session is running a command that may move it to another file: try again once it ends'
 
 const LOST = 'may have moved to another file, and pi could not say which: stop that session first'
-
-/** pi tries a prompt as an extension command only when it starts with "/". */
-function mayRunExtensionCommand(command: RpcCommand): boolean {
-  return (
-    command.type === 'prompt' &&
-    (typeof command.message !== 'string' || command.message.startsWith('/'))
-  )
-}
-
-/**
- * Every pi command, so one added to the protocol does not compile until it
- * is placed here. A session file reaches pi only through the request parser,
- * so the Host always knows which file each pi writes: that is what refuses a
- * second start of a file and the deletion of a running one. A command that
- * moves pi to another file would leave the Host believing the old one.
- */
-const COMMANDS: { [K in RpcCommandType]: CommandRule<K> } = {
-  prompt: null,
-  steer: null,
-  follow_up: null,
-  abort: null,
-  clear_queue: null,
-  get_state: null,
-  get_messages: null,
-  set_model: null,
-  cycle_model: null,
-  get_available_models: null,
-  set_thinking_level: null,
-  cycle_thinking_level: null,
-  get_available_thinking_levels: null,
-  set_steering_mode: null,
-  set_follow_up_mode: null,
-  compact: null,
-  set_auto_compaction: null,
-  set_auto_retry: null,
-  abort_retry: null,
-  bash: null,
-  abort_bash: null,
-  get_session_stats: null,
-  get_fork_messages: null,
-  get_entries: null,
-  get_tree: null,
-  get_last_assistant_text: null,
-  set_session_name: null,
-  get_commands: null,
-  new_session: MOVES_FILE,
-  switch_session: MOVES_FILE,
-  fork: MOVES_FILE,
-  clone: MOVES_FILE,
-  // An export goes where pi puts it.
-  export_html: (command) =>
-    command.outputPath === undefined ? null : 'takes no output path on a Host',
-}
-
-/** Why a command is refused, or null. A type that is not one of pi's is refused too. */
-export function commandRefusal(command: RpcCommand): string | null {
-  const type: unknown = (command as { type?: unknown }).type
-  if (typeof type !== 'string' || !Object.hasOwn(COMMANDS, type)) return 'not a pi command'
-  const rule = COMMANDS[type as RpcCommandType] as CommandRule<RpcCommandType>
-  const reason = typeof rule === 'function' ? rule(command) : rule
-  return reason === null ? null : `${type} ${reason}`
-}
-
-/**
- * Unlink a transcript only when it is one of pi's: a regular `.jsonl`, not a
- * link, directly in a folder of pi's session root. The parser confined the
- * file a request names; this also holds for a file pi reported for a
- * session. A file whose folder is gone is gone too. Without a session root,
- * nothing is one of pi's files.
- */
-export async function unlinkTranscript(
-  path: string,
-  remove: (path: string) => Promise<void> = unlink,
-): Promise<void> {
-  const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT'
-  let folder: string
-  try {
-    folder = await realpath(dirname(path))
-  } catch (error) {
-    if (missing(error)) return
-    throw error
-  }
-  const root = await realpath(piSessionsRoot()).catch(() => null)
-  if (root === null || dirname(folder) !== root) {
-    throw new Error(`refusing to delete ${path}: not a pi session`)
-  }
-  const file = join(folder, basename(path))
-  let info
-  try {
-    info = await lstat(file)
-  } catch (error) {
-    if (missing(error)) return
-    throw error
-  }
-  // lstat describes a link itself, and a link is not a regular file.
-  if (!/.\.jsonl$/.test(basename(file)) || !info.isFile()) {
-    throw new Error(`refusing to delete ${path}: not a pi session file`)
-  }
-  await remove(file).catch((error: unknown) => {
-    if (!missing(error)) throw error
-  })
-}
