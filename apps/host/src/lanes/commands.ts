@@ -18,6 +18,7 @@ import { normalizeLabel } from '@phosphor/shared/control-api'
 import { LaneCapacityReached, type StoredLane } from './store'
 import { createLane } from './create'
 import { LaneFolderError } from './worktree'
+import { executeMachineTerminal, executeRepository, executeRoutine } from './commands/machine'
 import * as queueing from './commands/queue'
 import * as receipts from './commands/receipts'
 import {
@@ -81,20 +82,8 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     if (!holds(caps)) return rejected(job, 'forbidden', true)
     if (op.type.startsWith('files.') && !ports.writes?.capabilityFor(op.type))
       return rejected(job, 'forbidden', true)
-    const repositoryOp = parseRepositoryOp(op)
-    if (repositoryOp) {
-      if (!ports.repositories || laneId !== undefined || frame.fence !== undefined)
-        return rejected(job, 'bad-request', true)
-      const repositories = ports.repositories
-      const completion = dispatch(job, queue, () =>
-        repositories.execute(repositoryOp, allowed),
-      ).then((result) => {
-        if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
-        if (!result.value.ok) return rejected(job, result.value.code, true)
-        terminal(job, { requestId, status: 'done', data: result.value.data }, true)
-      })
-      return { completion, detached: false }
-    }
+    const repository = executeRepository(state, ports, job, queue, allowed)
+    if (repository.handled) return repository.execution
     const terminalOp = parseTerminalOp(op)
     if (queue.controlUnpublished && laneId !== undefined) {
       const control = store.getLane(laneId)?.control
@@ -104,36 +93,10 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       }
       if (!publish(laneId, { kind: 'control', control }, queue)) return controlFailure(job)
     }
-    const routine = parseRoutineOp(op)
-    if (routine) {
-      if (!ports.routines) return rejected(job, 'unsupported', true)
-      if (laneId !== undefined || frame.fence !== undefined)
-        return rejected(job, 'bad-request', true)
-      const completion = dispatch(job, queue, () =>
-        ports.routines?.execute(routine, requestId, caps),
-      ).then((result) => {
-        if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
-        terminal(job, { requestId, status: 'done', data: result.value }, true)
-      })
-      return { completion, detached: false }
-    }
-    if (op.type === 'provider.login' || (terminalOp && laneId === undefined)) {
-      if (frame.fence !== undefined || laneId !== undefined)
-        return rejected(job, 'bad-request', true)
-      const completion = dispatch(job, queue, async () => {
-        if (!allowed()) throw new TerminalForbidden('forbidden')
-        if (op.type === 'provider.login') {
-          if (!ports.providerLogins) throw new Error('unavailable')
-          return ports.providerLogins.execute(op, client.id, allowed)
-        }
-        if (!ports.terminals || !terminalOp) throw new Error('unavailable')
-        return ports.terminals.machineOp(client.id, terminalOp)
-      }).then((result) => {
-        if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
-        terminal(job, { requestId, status: 'done', data: result.value }, true)
-      })
-      return { completion, detached: false }
-    }
+    const routine = executeRoutine(state, ports, job, queue, caps)
+    if (routine.handled) return routine.execution
+    const machineTerminal = executeMachineTerminal(state, ports, job, queue, allowed)
+    if (machineTerminal.handled) return machineTerminal.execution
     if (op.type === 'lane.create') {
       const repository = store.listRepositories().find((entry) => entry.id === op.repositoryId)
       if (
