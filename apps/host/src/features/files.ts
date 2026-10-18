@@ -6,6 +6,7 @@ import type { CallErrorCode } from '@phosphor/shared/host-protocol'
 import type { FeatureContext, FeatureOutcome, HostFeature } from './feature'
 import { errnoIs, isInside } from '../fs-safety'
 import { queryFiles } from './files/query'
+import { validateList } from './files/validate-list'
 
 export class FileFailure extends Error {
   constructor(readonly code: CallErrorCode) {
@@ -96,7 +97,7 @@ export async function listedPaths(root: string, path = '.'): Promise<string[]> {
   ])
   const files = [...new Set(out.split('\0').filter(Boolean))]
   if (files.length > FILE_LIMITS.entries) throw new FileFailure('too-large')
-  for (const file of files) await checkedPath(root, file, true)
+  await validateList(files, (file) => checkedPath(root, file, true))
   return files
 }
 /** Non-git configured folders still have a bounded file browser. */
