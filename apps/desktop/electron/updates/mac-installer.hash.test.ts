@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
 import type * as ChildProcessModule from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import type * as FsModule from 'node:fs'
+import type * as FsPromisesModule from 'node:fs/promises'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -20,6 +22,38 @@ vi.mock('node:child_process', async (importOriginal) => ({
   ...(await importOriginal<typeof ChildProcessModule>()),
   spawn: vi.fn(),
 }))
+
+/** How the code under test reads the archive, for the streaming regression. */
+const archiveIo = vi.hoisted(() => ({
+  denyWholeRead: false,
+  wholeReads: 0,
+  streamChunkBytes: [] as (number | undefined)[],
+  isArchive: (path: unknown): boolean => String(path).endsWith('phosphor.zip'),
+}))
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromisesModule>()
+  const readFile = (...args: Parameters<typeof actual.readFile>) => {
+    if (archiveIo.isArchive(args[0])) {
+      archiveIo.wholeReads += 1
+      if (archiveIo.denyWholeRead) return Promise.reject(new Error('whole-archive read denied'))
+    }
+    return actual.readFile(...args)
+  }
+  return { ...actual, readFile }
+})
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsModule>()
+  const createReadStream = (...args: Parameters<typeof actual.createReadStream>) => {
+    const [path, options] = args
+    if (archiveIo.isArchive(path)) {
+      archiveIo.streamChunkBytes.push(
+        typeof options === 'object' ? options?.highWaterMark : undefined,
+      )
+    }
+    return actual.createReadStream(...args)
+  }
+  return { ...actual, createReadStream }
+})
 
 const VERSION = '9.9.9'
 const ZIP_URL = `https://github.com/agustinsacco/Phosphor/releases/download/v${VERSION}/phosphor-${VERSION}-arm64-mac.zip`
@@ -137,5 +171,32 @@ describe('stageMacUpdate archive hash', () => {
 
     await expect(stage(emptySha512)).resolves.toMatchObject({ version: VERSION })
     expect(extractedSha512).toBe(emptySha512)
+  })
+})
+
+describe('stageMacUpdate archive hash memory (regression r1-F19)', () => {
+  beforeEach(() => {
+    archiveIo.denyWholeRead = false
+    archiveIo.wholeReads = 0
+    archiveIo.streamChunkBytes = []
+  })
+
+  it('verifies the archive without reading it whole into memory', async () => {
+    archiveIo.denyWholeRead = true
+
+    await expect(stage(sha512(ARCHIVE))).resolves.toMatchObject({ version: VERSION })
+
+    expect(archiveIo.wholeReads).toBe(0)
+    expect(extractedSha512).toBe(sha512(ARCHIVE))
+  })
+
+  it('hashes the archive from one read stream in chunks smaller than the archive', async () => {
+    await stage(sha512(ARCHIVE))
+
+    expect(archiveIo.streamChunkBytes).toHaveLength(1)
+    // An unset highWaterMark means Node's fs stream default, 64 KiB.
+    const chunkBytes = archiveIo.streamChunkBytes[0] ?? 64 * 1024
+    expect(chunkBytes).toBeLessThanOrEqual(1024 * 1024)
+    expect(chunkBytes).toBeLessThan(ARCHIVE.length)
   })
 })
