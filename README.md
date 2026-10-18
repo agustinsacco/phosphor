@@ -304,8 +304,8 @@ Six facts that explain the rest:
 1. **The main process owns all side effects.** The renderer runs sandboxed
    (`contextIsolation`, no Node) and is pure UI over typed IPC. Disk, network
    or a subprocess means `apps/desktop/electron/`, not `apps/desktop/src/`.
-2. **IPC is a typed contract.** A new channel is an entry in `libs/shared/src/ipc.ts`'s
-   `IpcInvokeMap`, a handler in the matching `apps/desktop/electron/ipc/<prefix>-handlers.ts`,
+2. **IPC is a typed contract.** A new channel is an entry in its prefix's map under
+   `libs/shared/src/ipc/` (combined into `IpcInvokeMap` by `libs/shared/src/ipc.ts`), a handler in the matching `apps/desktop/electron/ipc/<prefix>-handlers.ts`,
    and a case in `libs/client-ui/src/dev/mockPhosphor.ts`.
 3. **Stores (`libs/client-ui/src/stores/`) are projections of main-process state**, not a
    second source of truth. The chat store keeps a session's live title, tokens
