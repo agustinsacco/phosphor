@@ -4,6 +4,8 @@ import { helloProofMessage } from '../../../host-protocol'
 import type { ConformanceOptions, HostConformanceHarness } from '../../conformance'
 import { createFakeHost } from '../../fake-host'
 import { createLoopbackPair } from '../../loopback'
+import { createConformanceContext, createConformanceKit, type ConformanceKit } from '../context'
+import type { HostConformanceFactory } from '../types'
 
 // Test-only conformance harness over the public fake Host. Signing is injected and
 // deterministic: keyed HMAC-SHA-512 stands in for the control plane's and the Host's
@@ -72,4 +74,23 @@ export function createConformanceHarness(limits: Partial<ConformanceOptions>) {
       ready.hello.hostId === claims.hostId &&
       ready.proof === signHelloProof(ready.hello.hostId, ready.hello.runtimeEpoch, challenge),
   } satisfies HostConformanceHarness
+}
+
+/** Runs one scenario body outside registration, under the suite's clock, limits and teardown. */
+export async function runScenario(
+  factory: HostConformanceFactory,
+  run: (kit: ConformanceKit) => Promise<void>,
+) {
+  const context = createConformanceContext(factory, ['sessions.read', 'sessions.control'])
+  await context.setUp({
+    task: { name: 'direct scenario run' },
+    skip: (note) => {
+      throw new Error('Unexpected skip: ' + note)
+    },
+  })
+  try {
+    await run(createConformanceKit(context))
+  } finally {
+    await context.tearDown()
+  }
 }
