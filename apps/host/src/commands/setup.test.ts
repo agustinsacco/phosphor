@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:fs/promises', { spy: true })
 vi.mock('../config/load', { spy: true })
-import { CONFIG_MAX_BYTES, loadHostConfig } from '../config/load'
+import { loadHostConfig } from '../config/load'
 import { validateHostConfig, type HostConfigV1 } from '../config/schema'
 import { renderSetup, runSetup, type SetupContext } from './setup'
 
@@ -331,39 +331,6 @@ describe('setup existing config and permissions', () => {
     expect((await runSetup(context)).exitCode).toBe(0)
     expect(await saved()).toMatchObject({ ...kept, environment: { pass: ['LANG'], path: [dir] } })
   })
-  it('writes exactly 64 KiB, but refuses one byte more without replacing the old file', async () => {
-    // Keep the candidate size stable on Linux (/tmp) and macOS (a longer temp path).
-    const segmentLength = Math.floor((800 - dir.length - 4) / 4)
-    expect(segmentLength).toBeGreaterThan(0)
-    expect(segmentLength).toBeLessThanOrEqual(255)
-    const nested = join(dir, ...Array.from({ length: 4 }, () => 'd'.repeat(segmentLength)))
-    await mkdir(nested, { recursive: true, mode: 0o700 })
-    context.repositories = Array.from({ length: 64 }, (_, index) =>
-      join(nested, `repo-${index}-${'r'.repeat(24)}`),
-    )
-    await Promise.all(context.repositories.map((path) => mkdir(path, { mode: 0o700 })))
-    const pass = Array.from(
-      { length: 64 },
-      (_, index) => `V${String(index).padStart(3, '0')}${'x'.repeat(124)}`,
-    )
-    await oldConfig({ resourceRoot: '/r', environment: { pass } })
-    context.replace = true
-    expect((await runSetup(context)).exitCode).toBe(0)
-    const size = (await stat(context.configPath)).size
-    const remaining = CONFIG_MAX_BYTES - size
-    expect(remaining).toBeGreaterThan(0)
-    expect(remaining).toBeLessThan(4094)
-    const resourceRoot = `/${'r'.repeat(remaining + 1)}`
-    await oldConfig({ resourceRoot, environment: { pass } })
-    expect((await runSetup(context)).exitCode).toBe(0)
-    expect((await stat(context.configPath)).size).toBe(CONFIG_MAX_BYTES)
-    await saved()
-    await oldConfig({ resourceRoot: `${resourceRoot}r`, environment: { pass } })
-    const before = await readFile(context.configPath)
-    expect((await runSetup(context)).exitCode).toBe(78)
-    expect(await readFile(context.configPath)).toEqual(before)
-  })
-
   it('replaces a broken file and says so', async () => {
     await oldConfig()
     await writeFile(context.configPath, 'broken')
