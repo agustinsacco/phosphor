@@ -3,19 +3,6 @@ import { repositoryReads } from '../hosts/repository-reads'
 import { machineReads } from '../hosts/machine-reads'
 import { uploadAttachments } from '../hosts/attachments'
 import { routeRemoteWrite } from '../hosts/write-features'
-import type { SessionPush } from '@shared/models'
-import { app, BrowserWindow, Notification } from 'electron'
-import { hostname } from 'node:os'
-import { accountUserId, onAccountChange } from '../account'
-import { broadcast } from '../broadcast'
-import { log } from '../debug-log'
-import { getRemoteClients, setRemoteClients } from '../store'
-import { createClientIds } from '../hosts/client-id'
-import { createGrants } from '../hosts/grants'
-import { createHostConnection } from '../hosts/connection'
-import { createHostManager } from '../hosts/manager'
-import { e2eHostEndpoint, openHostSocket } from '../hosts/socket'
-import { controlClient, onMachinesChanged } from './control-handlers'
 import { handle, setRemoteReadRouter } from './handle'
 import {
   createArtifactHost,
@@ -27,62 +14,14 @@ import {
 import { artifactLibrary } from '../artifacts/artifact-sync'
 import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
 import { routeRemoteRead } from '../hosts/read-features'
-import { createRemoteLanes, type RemoteLanes } from '../hosts/remote-lanes'
-import { createRemoteTerminals } from '../hosts/terminals'
-import { createRemoteRoutines } from '../hosts/routines'
-import { createHostAttention, readHostReceipt } from '../hosts/attention'
 import { trafficLog } from '../hosts/traffic-log'
-import { tappedLog } from '../hosts/traffic-tap'
-
-let routines: ReturnType<typeof createRemoteRoutines> | undefined
-export const remoteRoutineMachines = () => routines?.machines() ?? []
-let remote: RemoteLanes | undefined
-export function remoteLanes(): RemoteLanes {
-  if (!remote) throw new Error('Remote lanes are not ready.')
-  return remote
-}
+import { createHostRuntime, installLifetime, clearHostRuntime, remoteLanes } from '../hosts/runtime'
+export { remoteLanes, remoteRoutineMachines } from '../hosts/runtime'
 
 export function registerHostsHandlers(): void {
-  const testEndpoint = e2eHostEndpoint(process.env, app.isPackaged)
-  const control = controlClient()
-  const clients = createClientIds({
-    user: accountUserId,
-    read: getRemoteClients,
-    write: setRemoteClients,
-    hostname,
-    control,
-  })
-  const grants = createGrants({ control, clients, present: (id) => manager.present(id) })
-  const manager = createHostManager({
-    testEndpoint,
-    user: accountUserId,
-    clientId: clients.current,
-    resetReplacementBudget: clients.resetReplacementBudget,
-    accountChanged: (cb) => onAccountChange(cb),
-    machinesChanged: onMachinesChanged,
-    machines: () => control.machines(),
-    clearGrants: (id) => grants.clear(id),
-    changed: () => {
-      remote?.reconcile()
-      terminals?.reconcile()
-      broadcast('hosts:changed', undefined)
-    },
-    connection: (hostId, endpoint) =>
-      createHostConnection({
-        hostId,
-        endpoint,
-        testEndpoint,
-        socket: (url) => openHostSocket(url, tappedLog, testEndpoint),
-        grant: () => grants.grantFor(hostId),
-        clearGrant: () => grants.clear(hostId),
-        changed: () => manager.changed(),
-        disabled: () => manager.disabled(),
-        onRoutinesChanged: () => broadcast('routines:changed', { machine: `host:${hostId}` }),
-        onAttention: (event) => attention.receive(hostId, event),
-        log: tappedLog,
-        traffic: (direction, frame, bytes) => trafficLog.frame(hostId, direction, frame, bytes),
-      }),
-  })
+  const runtime = createHostRuntime()
+  const { manager, terminals, routines } = runtime
+  const window = installLifetime(runtime, clearHostRuntime)
   const management = repositoryManagement(manager.connection)
   handle('hosts:listFolders', (_event, hostId, path, hidden) =>
     management.folders(hostId, path, hidden),
@@ -107,12 +46,6 @@ export function registerHostsHandlers(): void {
   handle('hosts:claude', (_event, hostId) => catalogues.claude(hostId))
   handle('hosts:providers', (_event, hostId) => catalogues.providers(hostId))
   handle('hosts:skills', (_event, hostId) => catalogues.skills(hostId))
-  remote = createRemoteLanes({
-    connection: manager.connection,
-    present: manager.present,
-    label: manager.label,
-    changed: manager.changed,
-  })
   function artifactHosts(): ArtifactHost[] {
     return Object.entries(manager.snapshot()).flatMap(([hostId, view]) => {
       const c = manager.connection(hostId)
@@ -122,25 +55,6 @@ export function registerHostsHandlers(): void {
       ]
     })
   }
-  const terminals = createRemoteTerminals({
-    connection: manager.connection,
-    inputDropped: () => log('hosts', 'terminal_input_dropped'),
-    lane: (windowId, sessionId, workspace) =>
-      remoteLanes().terminalLane(windowId, sessionId, workspace),
-    clientId: clients.current,
-    emit: (windowId, channel, value) => {
-      const sender = BrowserWindow.getAllWindows().find(
-        (w) => w.webContents.id === windowId,
-      )?.webContents
-      if (sender && !sender.isDestroyed()) sender.send(channel, value)
-    },
-  })
-  routines = createRemoteRoutines({
-    connection: manager.connection,
-    hosts: () => Object.keys(manager.snapshot()),
-    view: (host) => manager.snapshot()[host],
-    label: manager.label,
-  })
   setRemoteReadRouter((windowId, channel, args) => {
     const terminal = terminals.route(windowId, channel, args)
     if (terminal) return terminal
@@ -178,64 +92,6 @@ export function registerHostsHandlers(): void {
       routeRemoteWrite(channel, args, (key) => remoteLanes().readLane(windowId, key)) ??
       routeRemoteRead(channel, args, (key) => remoteLanes().readLane(windowId, key))
     )
-  })
-  const attention = createHostAttention({
-    receipt: (hostId, laneId) => readHostReceipt(manager.connection, hostId, laneId),
-    label: manager.label,
-    focused: (hostId, laneId) =>
-      BrowserWindow.getAllWindows().some(
-        (win) => win.isFocused() && remoteLanes().focused(hostId, laneId, win.webContents.id),
-      ),
-    publish: (event) => broadcast('hosts:attention', event),
-    notify: (title, body, click) => {
-      if (!Notification.isSupported()) return
-      const notification = new Notification({ title, body })
-      notification.once('click', click)
-      notification.show()
-    },
-    open: (hostId, laneId) => {
-      const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
-      if (win) {
-        win.show()
-        win.focus()
-        win.webContents.send('hosts:openLaneRequested', { hostId, laneId })
-      }
-    },
-  })
-  let user = accountUserId()
-  const off = onAccountChange(() => {
-    const next = accountUserId()
-    if (next !== user) {
-      terminals?.clear()
-      routines?.clear()
-      remote?.clear()
-      attention.clear()
-      user = next
-    }
-  })
-  const windows = new Set<number>()
-  function window(event: Electron.IpcMainInvokeEvent) {
-    const sender = event.sender
-    if (!windows.has(sender.id)) {
-      windows.add(sender.id)
-      sender.once('destroyed', () => {
-        terminals?.clear(sender.id)
-        remote?.closeWindow(sender.id)
-        windows.delete(sender.id)
-      })
-    }
-    return {
-      id: sender.id,
-      send: (channel: string, push: SessionPush) => sender.send(channel, push),
-      destroyed: () => sender.isDestroyed(),
-    }
-  }
-  app.once('will-quit', () => {
-    off()
-    terminals?.clear()
-    remote?.clear()
-    routines = undefined
-    manager.stop()
   })
   handle('hosts:openLane', (event, hostId, laneId) =>
     remoteLanes().open(window(event), hostId, laneId),

@@ -21,7 +21,7 @@ vi.mock('../hosts/socket', () => ({
   openHostSocket: vi.fn(),
   e2eHostEndpoint: () => undefined,
 }))
-vi.mock('./control-handlers', () => ({ controlClient: () => ({}), onMachinesChanged: vi.fn() }))
+vi.mock('../control/runtime', () => ({ controlClient: () => ({}), onMachinesChanged: vi.fn() }))
 vi.mock('./handle', () => ({ handle: mocks.handle, setRemoteReadRouter: mocks.router }))
 vi.mock('../hosts/artifacts', () => ({
   createArtifactHost: vi.fn(),
