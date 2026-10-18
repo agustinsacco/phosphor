@@ -7,8 +7,7 @@
     "pi-ext/context-breakdown.ts::contextBreakdownExtension[1]": 141,
     "pi-ext/context-breakdown.ts::contextBreakdownExtension[1]/publish[1]": 85,
     "pi-ext/headroom.ts::createHeadroomHandler[1]": 104,
-    "pi-ext/optional/permission-gate.ts::file": 723,
-    "pi-ext/optional/permission-gate.ts::lex[1]": 215
+    "pi-ext/optional/permission-gate.ts::file": 722
   },
   "exemptions": [],
   "renames": {}

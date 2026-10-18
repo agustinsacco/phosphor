@@ -6,13 +6,8 @@
     "src/host-protocol-testing/conformance.ts::defineHostConformance[1]": 1058,
     "src/host-protocol-testing/conformance.ts::defineHostConformance[1]/describe[1]": 1050,
     "src/host-protocol-testing/fake-host.test.ts::it[2]": 90,
-    "src/host-protocol-testing/fake-host.ts::file": 1004,
-    "src/host-protocol-testing/fake-host.ts::createFakeHost[1]": 902,
-    "src/host-protocol-testing/fake-host.ts::createFakeHost[1]/command[1]": 182,
-    "src/host-protocol-testing/fake-host.ts::createFakeHost[1]/handle[1]": 254,
     "src/host-protocol.test.ts::describe[1]/it[5]": 100,
-    "src/host-protocol.test.ts::describe[2]/it[5]": 107,
-    "src/ipc.ts::file": 1263
+    "src/host-protocol.test.ts::describe[2]/it[5]": 107
   },
   "exemptions": [],
   "renames": {}
