@@ -30,7 +30,7 @@ export interface HostConfigV1 {
   }
   /** Holds `pi-ext/`. Defaults to the Host bundle's own directory. */
   resourceRoot?: string
-  /** Directories sessions may run in: 1 to 64, never `/`. */
+  /** Directories sessions may run in: up to 64, never `/`. */
   repositories: string[]
   /** Desktop's grammar. '' or absent is the 200k default. */
   allowRepositoryChanges?: boolean

@@ -116,7 +116,7 @@ describe('artifact read', () => {
   it('refuses symlink blobs even when the target contains valid content', async () => {
     await fs.rename(path, join(root, 'target'))
     await fs.symlink(join(root, 'target'), path)
-    await expect(readArtifact(root, ports, params)).rejects.toBeInstanceOf(Error)
+    await expect(readArtifact(root, ports, params)).rejects.toMatchObject({ code: 'ELOOP' })
   })
 
   it('rejects indexed content above the cap before opening', async () => {
@@ -167,7 +167,7 @@ describe('artifact read', () => {
     await expect(readArtifact(root, ports, params)).rejects.toMatchObject({ code: 'internal' })
   })
 
-  it.each(['directory', 'oversized'])('closes and rejects a %s descriptor', async (kind) => {
+  it.each(['directory', 'oversized'])('rejects a %s descriptor as too large', async (kind) => {
     await fs.rm(path)
     if (kind === 'directory') await fs.mkdir(path)
     else await fs.writeFile(path, 'x'.repeat(ARTIFACT_LIMITS.contentBytes + 1))
