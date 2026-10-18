@@ -10,13 +10,12 @@
 // It replaces DIR only when DIR is empty or an earlier build (output.mjs).
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { build } from 'esbuild'
-import { validateNative } from '../../../tools/host-release/build-native.mjs'
 import { bundleHost, NODE_TARGET, OUTFILE } from './build-bundle.mjs'
+import { stageResources } from './build-resources.mjs'
 import { buildInto, INFO } from './output.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -57,23 +56,7 @@ console.log(
 /** Build into `stage`, which holds nothing yet. Any failure throws. */
 async function stageBuild(stage) {
   const inputs = await bundleHost(stage, { root: ROOT, stamped, releaseVersion })
-
-  if (values.native) {
-    validateNative(resolve(values.native), values.target ?? `${process.platform}-${process.arch}`)
-    cpSync(resolve(values.native), join(stage, 'native/node-pty'), { recursive: true })
-  }
-
-  // Every session loads these from <bundle folder>/pi-ext, with Desktop's filter.
-  cpSync(join(ROOT, 'libs/pi-extensions/pi-ext'), join(stage, 'pi-ext'), {
-    recursive: true,
-    filter: (source) =>
-      statSync(source).isDirectory() || (source.endsWith('.ts') && !source.endsWith('.test.ts')),
-  })
-  cpSync(join(ROOT, 'libs/pi-extensions/skills'), join(stage, 'skills'), { recursive: true })
-  const missing = (await bundledExtensionFiles()).filter(
-    (file) => !existsSync(join(stage, 'pi-ext', file)),
-  )
-  if (missing.length > 0) throw new Error(`pi-ext lacks ${missing.join(', ')}`)
+  await stageResources(stage, { root: ROOT, native: values.native, target: values.target })
 
   const files = readdirSync(stage, { recursive: true, encoding: 'utf8' })
     .filter((file) => statSync(join(stage, file)).isFile())
@@ -104,27 +87,6 @@ async function stageBuild(stage) {
   }
   writeFileSync(join(stage, INFO), `${JSON.stringify(info, null, 2)}\n`)
   return { info, inputs: inputs.length }
-}
-
-/** The six extensions, read from the library itself rather than restated here. */
-async function bundledExtensionFiles() {
-  const listing = await build({
-    absWorkingDir: ROOT,
-    stdin: {
-      contents:
-        "export { BUNDLED_EXTENSION_FILES } from '@phosphor/session-runtime/bundled-extensions'",
-      resolveDir: ROOT,
-      loader: 'ts',
-    },
-    bundle: true,
-    write: false,
-    format: 'esm',
-    platform: 'node',
-    logLevel: 'warning',
-  })
-  const source = listing.outputFiles[0].text
-  const module = await import(`data:text/javascript,${encodeURIComponent(source)}`)
-  return [...module.BUNDLED_EXTENSION_FILES]
 }
 
 function git(...args) {
