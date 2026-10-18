@@ -135,5 +135,6 @@ it('allows only the Host build modules imported by its TypeScript script tests',
     'apps/host/scripts/output.mjs',
     'tools/host-release/build-native.mjs',
     'tools/host-release/common.mjs',
+    'tools/host-release/native-stage.mjs',
   ])
 })

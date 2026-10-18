@@ -13,9 +13,8 @@ import {
 } from 'node:fs'
 import { homedir, tmpdir, userInfo } from 'node:os'
 import { pathToFileURL } from 'node:url'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { createServer } from 'node:http'
-import { createHash } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { HOST_RELEASE_BASE_URL } from '../../apps/host/src/update/download'
@@ -25,162 +24,34 @@ import { controlMachine } from '../../apps/host/src/control/__fixtures__/machine
 import { freshKey } from '../../apps/host/src/control/signer'
 import { fakeMachine } from '../../apps/host/src/__fixtures__/machine'
 import { HOST_PROTOCOL_VERSION } from '../../libs/shared/src/remote-host'
-const dir = realpathSync(mkdtempSync(join(tmpdir(), 'host-bundles-test-')))
-const root = resolve(import.meta.dirname, '../..')
-const target = `${process.platform}-${process.arch}`
-const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
-const node = (source: string, env: NodeJS.ProcessEnv = {}) =>
-  execFileSync(process.execPath, ['--input-type=module', '-e', source], {
-    cwd: root,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, HOST_RELEASE_VERSION: '1.2.3', ...env },
-  })
-const script = join(dir, 'install.sh')
-const cache = join(dir, 'cache')
-const out = join(dir, 'out')
-let bundle: Buffer
-let publicKey: string
-let privateKey: string
+import {
+  type BundleFixture,
+  type ReleaseMetadata,
+  buildFixtureBundle,
+  disposeBundleFixture,
+  hash,
+  hook,
+  install,
+  installPrepared,
+  launcher,
+  node,
+  rerun,
+  root,
+  setupBundleFixture,
+  target,
+} from './__fixtures__/bundle-fixture'
+let fixture: BundleFixture
 beforeAll(() => {
-  for (const name of ['key', 'other'])
-    execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', join(dir, name)])
-  publicKey = readFileSync(join(dir, 'key.pub'), 'utf8').trim()
-  privateKey = readFileSync(join(dir, 'key'), 'utf8')
-  node(
-    `import {generateInstaller} from './tools/host-release/installer.mjs'; generateInstaller(${JSON.stringify(script)}, ${JSON.stringify([{ id: 'test', publicKey }])})`,
-  )
-  const stage = join(dir, 'node-stage')
-  const prefix = `node-v24.14.1-${target}`
-  mkdirSync(join(stage, prefix, 'bin'), { recursive: true })
-  cpSync(process.execPath, join(stage, prefix, 'bin/node'))
-  writeFileSync(join(stage, prefix, 'LICENSE'), 'Test runtime license\n')
-  mkdirSync(cache)
-  const cached = join(cache, `${prefix}.tar.gz`)
-  node(
-    `import {archive} from './tools/host-release/archive.mjs'; import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(cached)},archive(${JSON.stringify(stage)}))`,
-  )
-  const pin = { version: '24.14.1', archives: { [target]: hash(readFileSync(cached)) } }
-  const build = (folder: string) =>
-    node(
-      `import {buildBundle} from './tools/host-release/build-bundle.mjs'; await buildBundle(${JSON.stringify(target)},${JSON.stringify(folder)},${JSON.stringify(cache)},${JSON.stringify(pin)})`,
-    )
-  build(out)
-  build(join(dir, 'second'))
-  const file = `phosphor-host-1.2.3-${target}.tar.gz`
-  bundle = readFileSync(join(out, file))
-  expect(readFileSync(join(dir, 'second', file)).equals(bundle)).toBe(true)
+  fixture = setupBundleFixture()
+  expect(buildFixtureBundle(fixture, join(fixture.dir, 'second')).equals(fixture.bundle)).toBe(true)
 }, 60000)
-afterAll(() => rmSync(dir, { recursive: true, force: true }))
-function metadata() {
-  return {
-    schema: 1,
-    version: '1.2.3',
-    protocols: [1],
-    node: '24.14.1',
-    sourceCommit: 'a'.repeat(40),
-    artifacts: [
-      {
-        target,
-        file: `phosphor-host-1.2.3-${target}.tar.gz`,
-        bytes: bundle.length,
-        sha256: hash(bundle),
-      },
-    ],
-  }
-}
-function install(
-  change: (manifest: ReturnType<typeof metadata>) => void = () => {},
-  namespace = 'phosphor-host-release',
-  key = 'key',
-  flip = false,
-  requested = '1.2.3',
-  prepare?: (home: string, release: string) => NodeJS.ProcessEnv,
-  algorithm = 'sha512',
-  flags: string[] = [],
-  rawManifest: (json: string) => string = (json) => json,
-) {
-  const release = mkdtempSync(join(dir, 'release-'))
-  const home = mkdtempSync(join(dir, 'home-'))
-  const temp = join(home, 'temp')
-  mkdirSync(temp)
-  const m = metadata()
-  change(m)
-  const file = join(
-    release,
-    requested ? 'phosphor-host-1.2.3.manifest.json' : 'phosphor-host.manifest.json',
-  )
-  const bytes = Buffer.from(rawManifest(JSON.stringify(m, null, 2) + '\n'))
-  writeFileSync(file, bytes)
-  execFileSync(
-    'ssh-keygen',
-    ['-Y', 'sign', '-f', join(dir, key), '-n', namespace, '-O', `hashalg=${algorithm}`, file],
-    { stdio: 'pipe' },
-  )
-  if (flip) writeFileSync(file, Buffer.from(bytes.toString().replace('1.2.3', '1.2.4')))
-  writeFileSync(join(release, `phosphor-host-1.2.3-${target}.tar.gz`), bundle)
-  const old = join(home, '.local/lib/phosphor-host')
-  mkdirSync(join(old, 'versions/old'), { recursive: true })
-  writeFileSync(join(old, 'versions/old/marker'), 'unchanged')
-  execFileSync('ln', ['-s', 'versions/old', join(old, 'current')])
-  mkdirSync(join(home, '.local/bin'))
-  execFileSync('ln', ['-s', join(old, 'current/bin/phosphor'), join(home, '.local/bin/phosphor')])
-  const extraEnv = prepare?.(home, release) ?? {}
-  const result = spawnSync('sh', [script, ...(requested ? [requested] : []), ...flags], {
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      HOME: home,
-      TMPDIR: temp,
-      PHOSPHOR_HOST_RELEASE_URL: `file://${release}`,
-      ...extraEnv,
-    },
-  })
-  expect(result.stdout + result.stderr).not.toContain(privateKey.trim())
-  expect(readdirSync(temp)).toEqual([])
-  expect(readFileSync(join(old, 'versions/old/marker'), 'utf8')).toBe('unchanged')
-  expect(existsSync(join(old, '.install-lock'))).toBe(extraEnv.KEEP_LOCK === '1')
-  return { result, home, old }
-}
-function installPrepared(
-  prepare: (home: string, release: string) => NodeJS.ProcessEnv,
-  flags: string[] = [],
-) {
-  return install(undefined, undefined, undefined, undefined, undefined, prepare, undefined, flags)
-}
-function launcher(home: string) {
-  return join(home, '.local/bin/phosphor')
-}
-function hook(home: string, command: string, body: string) {
-  const commands = join(home, 'commands')
-  mkdirSync(commands, { recursive: true })
-  const real = execFileSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8' }).trim()
-  writeFileSync(
-    join(commands, command),
-    `#!/bin/sh\nreal='${real}'\n${body}\nexec "$real" "$@"\n`,
-    {
-      mode: 0o755,
-    },
-  )
-  return `${commands}:${process.env.PATH}`
-}
-function rerun(home: string, release: string) {
-  return spawnSync('sh', [script, '1.2.3'], {
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      HOME: home,
-      TMPDIR: join(home, 'temp'),
-      PHOSPHOR_HOST_RELEASE_URL: `file://${release}`,
-    },
-  })
-}
+afterAll(() => disposeBundleFixture(fixture))
 const withoutPublicReleaseUrl = (text: string) => text.replaceAll(HOST_RELEASE_BASE_URL, '')
 
 describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it('builds byte-identical bundles and installs without system Node, including latest alias', () => {
     for (const requested of ['1.2.3', '']) {
-      const { result, home } = install(undefined, undefined, undefined, undefined, requested)
+      const { result, home } = install(fixture, { requested })
       expect(result.status, result.stderr).toBe(0)
       const version = execFileSync(join(home, '.local/bin/phosphor'), ['version'], {
         encoding: 'utf8',
@@ -196,7 +67,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
     expect(helper).toBeLessThan(template.lastIndexOf('\ncleanup\n'))
   })
   it.each([false, true])('names a usable setup command when local bin is on PATH: %s', (onPath) => {
-    const { result } = installPrepared((home) => ({
+    const { result } = installPrepared(fixture, (home) => ({
       PATH: onPath ? `${home}/.local/bin:${process.env.PATH}` : '/usr/bin:/bin',
     }))
     expect(result.status, result.stderr).toBe(0)
@@ -210,7 +81,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
     (shell) => {
       const { result, home, release } = (() => {
         let source = ''
-        const installed = installPrepared((home, release) => {
+        const installed = installPrepared(fixture, (home, release) => {
           source = release
           writeFileSync(join(home, `.${shell}rc`), '# user content\n')
           return { SHELL: `/bin/${shell}`, PATH: '/usr/bin:/bin' }
@@ -221,7 +92,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
       const file = join(home, `.${shell}rc`)
       expect(result.stdout).toContain(`Added Phosphor Host PATH to ${file}`)
       expect(readFileSync(file, 'utf8')).toContain('# user content\n')
-      const again = spawnSync('sh', [script, '1.2.3'], {
+      const again = spawnSync('sh', [fixture.script, '1.2.3'], {
         encoding: 'utf8',
         env: {
           ...process.env,
@@ -255,7 +126,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it.each(['opt-out', 'symlink', 'directory', 'oversized', 'on-path', 'other-shell'])(
     'leaves rc unchanged for %s and prints the same-shell export when needed',
     (scenario) => {
-      const { result, home } = installPrepared((home) => {
+      const { result, home } = installPrepared(fixture, (home) => {
         const rc = join(home, '.zshrc')
         if (scenario === 'symlink') {
           writeFileSync(join(home, 'target'), 'keep')
@@ -308,7 +179,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
         },
         freshKey(),
       )
-      const { home, result } = install()
+      const { home, result } = install(fixture)
       expect(result.status, result.stderr).toBe(0)
       for (const command of ['doctor', 'run']) {
         const child = await new Promise<{ status: number | null; stdout: string; stderr: string }>(
@@ -381,12 +252,12 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
       const address = server.address()
       if (!address || typeof address === 'string') throw new Error('fixture address')
       let release = ''
-      const prepared = installPrepared((_home, source) => {
+      const prepared = installPrepared(fixture, (_home, source) => {
         release = source
         return {}
       })
       expect(prepared.result.status, prepared.result.stderr).toBe(0)
-      const home = mkdtempSync(join(dir, 'terminal-home-'))
+      const home = mkdtempSync(join(fixture.dir, 'terminal-home-'))
       const config = join(home, '.config/phosphor-host')
       mkdirSync(config, { recursive: true, mode: 0o700 })
       writeFileSync(
@@ -446,7 +317,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
                 SHELL: '/bin/sh',
                 USER: 'tester',
                 PATH: `${machine.bin}:/usr/bin:/bin`,
-                INSTALLER: script,
+                INSTALLER: fixture.script,
                 PHOSPHOR_HOST_RELEASE_URL: `file://${release}`,
                 PI_CODING_AGENT_DIR: machine.agentDir,
               },
@@ -481,7 +352,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it('keeps release bundles independent of TMPDIR and untracked machine files', () => {
     const probe = `phosphor-untracked-probe-${process.pid}.txt`
     expect(spawnSync('git', ['check-ignore', '-q', probe], { cwd: root }).status).toBe(1)
-    const commands = join(dir, 'build-commands')
+    const commands = join(fixture.dir, 'build-commands')
     mkdirSync(commands)
     const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim()
     // Ignore this working patch, but preserve real git handling of the one probe.
@@ -496,11 +367,11 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       { mode: 0o755 },
     )
     const build = (name: string, shim: boolean) => {
-      const temp = join(dir, `${name}-temp`)
+      const temp = join(fixture.dir, `${name}-temp`)
       mkdirSync(temp)
-      const output = join(dir, name)
+      const output = join(fixture.dir, name)
       node(
-        `import {buildBundle} from './tools/host-release/build-bundle.mjs'; await buildBundle(${JSON.stringify(target)},${JSON.stringify(output)},${JSON.stringify(cache)},${JSON.stringify({ version: '24.14.1', archives: { [target]: hash(readFileSync(join(cache, `node-v24.14.1-${target}.tar.gz`))) } })})`,
+        `import {buildBundle} from './tools/host-release/build-bundle.mjs'; await buildBundle(${JSON.stringify(target)},${JSON.stringify(output)},${JSON.stringify(fixture.cache)},${JSON.stringify({ version: '24.14.1', archives: { [target]: hash(readFileSync(join(fixture.cache, `node-v24.14.1-${target}.tar.gz`))) } })})`,
         {
           TMPDIR: temp,
           ...(shim ? { PATH: `${commands}:${process.env.PATH}` } : {}),
@@ -515,7 +386,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
     } finally {
       rmSync(join(root, probe), { force: true })
     }
-    expect(build('real-other-temp', false).equals(bundle)).toBe(true)
+    expect(build('real-other-temp', false).equals(fixture.bundle)).toBe(true)
   })
   it('carries no machine paths, source maps or sourceMappingURL in release text', () => {
     const user = userInfo().username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -523,9 +394,14 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
     const buildTemps = [tmpdir(), realpathSync(tmpdir())].flatMap((temp) =>
       ['phosphor-bundle-', 'phosphor-sign-'].map((prefix) => join(temp, prefix)),
     )
-    const unpacked = join(dir, 'scan')
+    const unpacked = join(fixture.dir, 'scan')
     mkdirSync(unpacked)
-    execFileSync('tar', ['-xzf', join(out, `phosphor-host-1.2.3-${target}.tar.gz`), '-C', unpacked])
+    execFileSync('tar', [
+      '-xzf',
+      join(fixture.out, `phosphor-host-1.2.3-${target}.tar.gz`),
+      '-C',
+      unpacked,
+    ])
     expect(readFileSync(join(unpacked, 'lib/phosphor.mjs'), 'utf8')).toContain(
       HOST_RELEASE_BASE_URL,
     )
@@ -535,7 +411,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       const text = readFileSync(join(unpacked, file)).toString('utf8')
       if (text.includes('\0')) continue // Node is the only binary in the bundle.
       // `/tmp` alone is also prose; forbid the build's own temp folders instead.
-      for (const forbidden of [root, dir, homedir(), ...buildTemps, 'sourceMappingURL'])
+      for (const forbidden of [root, fixture.dir, homedir(), ...buildTemps, 'sourceMappingURL'])
         expect(text, `${file} contains ${forbidden}`).not.toContain(forbidden)
       // A user name is also a word (CI's is `runner`); forbid it only as a path segment.
       expect(
@@ -556,7 +432,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
     }
   })
   it('recognizes both CLI entry points through paths containing spaces and percent signs', () => {
-    const path = join(dir, 'entry % space')
+    const path = join(fixture.dir, 'entry % space')
     mkdirSync(path)
     execFileSync('ln', [
       '-s',
@@ -608,7 +484,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
   })
   it('is idempotent for the selected version and restores a missing launcher', () => {
     for (const missing of [false, true]) {
-      const { result, home, old } = installPrepared((home) => {
+      const { result, home, old } = installPrepared(fixture, (home) => {
         const root = join(home, '.local/lib/phosphor-host')
         mkdirSync(join(root, 'versions/1.2.3'))
         writeFileSync(join(root, 'versions/1.2.3/VERSION'), '1.2.3\n')
@@ -628,7 +504,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
   })
   it('never merges existing version folders or replaces a nonsymlink current', () => {
     for (const kind of ['unselected', 'bad-version', 'current-directory', 'current-file']) {
-      const { result, old } = installPrepared((home) => {
+      const { result, old } = installPrepared(fixture, (home) => {
         const root = join(home, '.local/lib/phosphor-host')
         mkdirSync(join(root, 'versions/1.2.3'))
         writeFileSync(join(root, 'versions/1.2.3/VERSION'), 'wrong')
@@ -657,12 +533,12 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
         else execFileSync('ln', ['-s', '/nonexistent/foreign', launcher(home)])
         return {}
       }
-      const refused = installPrepared(prepare)
+      const refused = installPrepared(fixture, prepare)
       expect(refused.result.status).not.toBe(0)
       expect(refused.result.stderr).toContain('--replace-launcher')
       expect(refused.result.stderr).toContain(launcher(refused.home))
       expect(readdirSync(join(refused.old, 'versions'))).toEqual(['old'])
-      const replaced = installPrepared(prepare, ['--replace-launcher'])
+      const replaced = installPrepared(fixture, prepare, ['--replace-launcher'])
       expect(replaced.result.status, replaced.result.stderr).toBe(0)
       expect(replaced.result.stdout).toContain('phosphor setup')
       const backup = `${launcher(replaced.home)}.before-release`
@@ -679,6 +555,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
   it('refuses a launcher directory and existing backup even with the replacement flag', () => {
     for (const kind of ['directory', 'backup-file', 'backup-symlink']) {
       const { result, home, old } = installPrepared(
+        fixture,
         (home) => {
           rmSync(launcher(home))
           if (kind === 'directory') mkdirSync(launcher(home))
@@ -698,7 +575,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
   })
   it('recovers a dead install lock and refuses a live owner or malformed lock', () => {
     for (const owner of ['2147483647', String(process.pid), 'invalid', '0', '']) {
-      const { result, old } = installPrepared((home) => {
+      const { result, old } = installPrepared(fixture, (home) => {
         const lock = join(home, '.local/lib/phosphor-host/.install-lock')
         mkdirSync(lock)
         writeFileSync(join(lock, 'pid'), `${owner}\n`)
@@ -721,6 +598,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
     ] as const) {
       for (const phase of ['acquire', 'gate', 'retire', 'publish']) {
         const { result, old, home } = installPrepared(
+          fixture,
           (home) => {
             const root = join(home, '.local/lib/phosphor-host')
             if (phase === 'gate' || phase === 'retire') {
@@ -764,6 +642,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       ['TERM', 143],
     ] as const) {
       const { result, old, home } = installPrepared(
+        fixture,
         (home) => {
           rmSync(launcher(home))
           writeFileSync(launcher(home), 'source launcher')
@@ -789,6 +668,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
   })
   it('honors TERM during cleanup of a failed publication and preserves the old install', () => {
     const { result, old, home } = installPrepared(
+      fixture,
       (home) => {
         rmSync(launcher(home))
         writeFileSync(launcher(home), 'source launcher')
@@ -825,6 +705,7 @@ esac`,
       ['current', 'INT', 130],
     ] as const) {
       const { result, home, old } = installPrepared(
+        fixture,
         (home) => {
           rmSync(launcher(home))
           writeFileSync(launcher(home), 'source launcher')
@@ -856,7 +737,7 @@ esac`,
     }
   })
   it('trusts the filesystem when a signal interrupts launcher removal during rollback', () => {
-    const { result, old, home } = installPrepared((home) => {
+    const { result, old, home } = installPrepared(fixture, (home) => {
       rmSync(launcher(home))
       hook(home, 'mv', `case "$*" in *"/current "*) exit 1 ;; esac`)
       return {
@@ -877,7 +758,7 @@ esac`,
     expect(result.stdout).toBe('')
   })
   it('never deletes the selected version when a selection read fails during cleanup', () => {
-    const { result, old } = installPrepared((home) => {
+    const { result, old } = installPrepared(fixture, (home) => {
       hook(
         home,
         'mv',
@@ -901,7 +782,7 @@ esac`,
   it('protects lock mkdir and retirement from a signal sent to both parent and child', () => {
     for (const phase of ['acquire', 'retire']) {
       let release = ''
-      const { result, old, home } = installPrepared((home, folder) => {
+      const { result, old, home } = installPrepared(fixture, (home, folder) => {
         release = folder
         if (phase === 'retire') {
           const lock = join(home, '.local/lib/phosphor-host/.install-lock')
@@ -923,13 +804,13 @@ esac`,
       expect(execFileSync('readlink', [join(old, 'current')], { encoding: 'utf8' }).trim()).toBe(
         'versions/old',
       )
-      const next = rerun(home, release)
+      const next = rerun(fixture, home, release)
       expect(next.status, next.stderr).toBe(0)
       expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
     }
   })
   it('protects publication mv from a signal sent to both parent and child', () => {
-    const { result, old, home } = installPrepared((home) => ({
+    const { result, old, home } = installPrepared(fixture, (home) => ({
       PATH: hook(
         home,
         'mv',
@@ -947,6 +828,7 @@ esac`,
   it('retains complete bundles and the backup if restoration or roll-forward fails', () => {
     for (const failure of ['launcher', 'current', 'forward']) {
       const { result, old, home } = installPrepared(
+        fixture,
         (home) => {
           rmSync(launcher(home))
           writeFileSync(launcher(home), 'source launcher')
@@ -988,7 +870,7 @@ esac`,
       ['TERM', 143],
     ] as const) {
       let release = ''
-      const { result, home, old } = installPrepared((home, folder) => {
+      const { result, home, old } = installPrepared(fixture, (home, folder) => {
         release = folder
         const lock = join(home, '.local/lib/phosphor-host/.install-lock')
         mkdirSync(lock)
@@ -1005,12 +887,12 @@ esac`,
       expect(result.status, result.stderr).toBe(code)
       expect(readdirSync(join(old, '.install-lock'))).toEqual(['pid'])
       expect(readdirSync(old).sort()).toEqual(['.install-lock', 'current', 'versions'])
-      expect(rerun(home, release).status).toBe(0)
+      expect(rerun(fixture, home, release).status).toBe(0)
       expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
     }
   })
   it('sweeps only dead exact non-symlink retired folders, at most sixteen per acquisition', () => {
-    const { result, old, home } = installPrepared((home) => {
+    const { result, old, home } = installPrepared(fixture, (home) => {
       const root = join(home, '.local/lib/phosphor-host')
       for (let i = 0; i < 17; i++) {
         const retired = join(root, `.install-lock.retired.${2147483600 + i}`)
@@ -1053,7 +935,7 @@ esac`,
       '21474836470',
     ]
     const contents = Buffer.from('retired pid contents\n\0unchanged')
-    const { result, old } = installPrepared((home) => {
+    const { result, old } = installPrepared(fixture, (home) => {
       const root = join(home, '.local/lib/phosphor-host')
       for (const suffix of [...names, '2147483647']) {
         const retired = join(root, `.install-lock.retired.${suffix}`)
@@ -1074,7 +956,7 @@ esac`,
   it('does not strand a lock when two reclaimers read the same dead pid before retirement', () => {
     let release = ''
     const wait = `await_file() { i=0; while [ ! -e "$1" ]; do i=$((i+1)); [ "$i" -le 1000 ] || exit 91; sleep 0.01; done; }`
-    const { result, home, old } = installPrepared((home, folder) => {
+    const { result, home, old } = installPrepared(fixture, (home, folder) => {
       release = folder
       const lock = join(home, '.local/lib/phosphor-host/.install-lock')
       mkdirSync(lock)
@@ -1091,7 +973,7 @@ case "$*" in *"/.install-lock/recovery")
     [ "$code" != 0 ] || await_file "$HOME/a-rmdir"
     exit "$code"
   fi
-  (RACER=B sh '${script}' 1.2.3 > "$HOME/b-output" 2> "$HOME/b-error"; echo "$?" > "$HOME/b-status") &
+  (RACER=B sh '${fixture.script}' 1.2.3 > "$HOME/b-output" 2> "$HOME/b-error"; echo "$?" > "$HOME/b-status") &
   await_file "$HOME/b-ready"
 ;; esac`,
       )
@@ -1120,32 +1002,32 @@ esac`,
     expect(readFileSync(join(home, 'b-status'), 'utf8').trim()).toBe('1')
     expect(readFileSync(join(home, 'b-error'), 'utf8')).toContain('Install lock:')
     expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
-    const third = rerun(home, release)
+    const third = rerun(fixture, home, release)
     expect(third.status, third.stderr).toBe(0)
     expect(third.stdout).toContain('already installed')
   })
   it('emits the contract protocols and signs a complete three-target manifest', () => {
-    const output = join(dir, 'manifest-output')
+    const output = join(fixture.dir, 'manifest-output')
     mkdirSync(output)
     for (const target of ['linux-x64', 'linux-arm64', 'darwin-arm64'])
       writeFileSync(join(output, `phosphor-host-1.2.3-${target}.tar.gz`), 'test artifact')
     node(
       `import {makeManifest} from './tools/host-release/manifest.mjs'; makeManifest(${JSON.stringify(output)})`,
-      { HOST_RELEASE_SIGNING_KEY: privateKey },
+      { HOST_RELEASE_SIGNING_KEY: fixture.privateKey },
     )
     const path = join(output, 'phosphor-host-1.2.3.manifest.json')
     const manifest = verifyReleaseManifest(
       readFileSync(path),
       readFileSync(`${path}.sig`, 'utf8'),
-      [{ id: 'test', publicKey }],
+      [{ id: 'test', publicKey: fixture.publicKey }],
     )
     expect(manifest.protocols).toEqual([HOST_PROTOCOL_VERSION])
     expect(manifest.artifacts).toHaveLength(3)
     for (const name of readdirSync(output))
-      expect(readFileSync(join(output, name)).includes(Buffer.from(privateKey))).toBe(false)
+      expect(readFileSync(join(output, name)).includes(Buffer.from(fixture.privateKey))).toBe(false)
   })
   it('keeps the checked-in installer generated from the pinned key source', () => {
-    const generated = join(dir, 'generated-install.sh')
+    const generated = join(fixture.dir, 'generated-install.sh')
     node(
       `import {generateInstaller} from './tools/host-release/installer.mjs'; generateInstaller(${JSON.stringify(generated)})`,
     )
@@ -1156,30 +1038,36 @@ esac`,
   it('refuses wrong Node archive hash before extraction or build', () => {
     expect(() =>
       node(
-        `import {nodeArchive} from './tools/host-release/build-bundle.mjs'; await nodeArchive(${JSON.stringify(target)},${JSON.stringify(cache)})`,
+        `import {nodeArchive} from './tools/host-release/build-bundle.mjs'; await nodeArchive(${JSON.stringify(target)},${JSON.stringify(fixture.cache)})`,
       ),
     ).toThrow(/Node archive hash mismatch/)
   })
   it('refuses changed manifest, wrong namespace, other key, artifact hash and size without changing existing install', () => {
     const cases = [
-      () => install(undefined, undefined, undefined, true),
-      () => install(undefined, 'wrong'),
-      () => install(undefined, undefined, 'other'),
-      () => install(undefined, undefined, undefined, undefined, undefined, undefined, 'sha256'),
+      () => install(fixture, { flip: true }),
+      () => install(fixture, { namespace: 'wrong' }),
+      () => install(fixture, { key: 'other' }),
+      () => install(fixture, { algorithm: 'sha256' }),
       () =>
-        install((m) => {
-          const a = m.artifacts[0]
-          if (a) a.sha256 = '0'.repeat(64)
+        install(fixture, {
+          change: (m) => {
+            const a = m.artifacts[0]
+            if (a) a.sha256 = '0'.repeat(64)
+          },
         }),
       () =>
-        install((m) => {
-          const a = m.artifacts[0]
-          if (a) a.bytes--
+        install(fixture, {
+          change: (m) => {
+            const a = m.artifacts[0]
+            if (a) a.bytes--
+          },
         }),
       () =>
-        install((m) => {
-          const a = m.artifacts[0]
-          if (a) a.bytes++
+        install(fixture, {
+          change: (m) => {
+            const a = m.artifacts[0]
+            if (a) a.bytes++
+          },
         }),
     ]
     for (const run of cases) {
@@ -1194,46 +1082,50 @@ esac`,
   })
   it('refuses unsafe signed versions and artifact paths', () => {
     for (const version of ['../1.2.3', '1/2/3', '1.2.3\n', '01.2.3', '1.2.4']) {
-      const { result } = install((m) => {
-        m.version = version
+      const { result } = install(fixture, {
+        change: (m) => {
+          m.version = version
+        },
       })
       expect(result.status).not.toBe(0)
     }
-    const { result } = install((m) => {
-      const a = m.artifacts[0]
-      if (a) a.file = '../escape'
+    const { result } = install(fixture, {
+      change: (m) => {
+        const a = m.artifacts[0]
+        if (a) a.file = '../escape'
+      },
     })
     expect(result.status).not.toBe(0)
   })
   it('rejects signed malformed shapes, duplicate targets, unknown fields and limits', () => {
     const changes = [
-      (m: ReturnType<typeof metadata>) => {
+      (m: ReleaseMetadata) => {
         Reflect.set(m, 'schema', '1')
       },
-      (m: ReturnType<typeof metadata>) => {
+      (m: ReleaseMetadata) => {
         Reflect.set(m, 'extra', true)
       },
-      (m: ReturnType<typeof metadata>) => {
+      (m: ReleaseMetadata) => {
         Reflect.set(m, 'protocols', ['1'])
       },
-      (m: ReturnType<typeof metadata>) => {
+      (m: ReleaseMetadata) => {
         m.protocols = []
       },
-      (m: ReturnType<typeof metadata>) => {
+      (m: ReleaseMetadata) => {
         m.protocols = [1, 1]
       },
-      (m: ReturnType<typeof metadata>) => {
+      (m: ReleaseMetadata) => {
         m.protocols = [65536]
       },
-      (m: ReturnType<typeof metadata>) => {
+      (m: ReleaseMetadata) => {
         m.artifacts.push(...m.artifacts)
       },
-      (m: ReturnType<typeof metadata>) => {
+      (m: ReleaseMetadata) => {
         const a = m.artifacts[0]
         if (a) a.bytes = 268435457
       },
     ]
-    for (const change of changes) expect(install(change).result.status).not.toBe(0)
+    for (const change of changes) expect(install(fixture, { change }).result.status).not.toBe(0)
   })
   it('rejects signed JSON with quoted array delimiters', () => {
     for (const change of [
@@ -1241,24 +1133,17 @@ esac`,
       (json: string) => json.replace('}\n  ]', '}\n  "]"'),
       (json: string) => json.replace('1,\n    2', '1 ","\n    2'),
     ]) {
-      const { result } = install(
-        (m) => {
+      const { result } = install(fixture, {
+        change: (m) => {
           m.protocols = [1, 2]
         },
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        [],
-        change,
-      )
+        rawManifest: change,
+      })
       expect(result.status).not.toBe(0)
     }
   })
   it('refuses signed archive traversal and symlinks before extracting anything', () => {
-    const original = bundle
+    const original = fixture.bundle
     try {
       for (const kind of ['traversal', 'symlink']) {
         const tar = gunzipSync(original)
@@ -1279,14 +1164,9 @@ esac`,
           148,
           'ascii',
         )
-        bundle = gzipSync(tar)
-        const { result, old, home } = install(
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          (home) => {
+        fixture.bundle = gzipSync(tar)
+        const { result, old, home } = install(fixture, {
+          prepare: (home) => {
             const commands = join(home, 'commands')
             mkdirSync(commands)
             const realTar = execFileSync('sh', ['-c', 'command -v tar'], {
@@ -1299,41 +1179,31 @@ esac`,
             )
             return { PATH: `${commands}:${process.env.PATH}` }
           },
-        )
+        })
         expect(result.status).not.toBe(0)
         expect(existsSync(join(home, 'extracted'))).toBe(false)
         expect(readdirSync(join(old, 'versions'))).toEqual(['old'])
       }
     } finally {
-      bundle = original
+      fixture.bundle = original
     }
   })
   it('refuses directory symlinks outside its allowed install tree', () => {
-    const { result, home } = install(
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      (home) => {
+    const { result, home } = install(fixture, {
+      prepare: (home) => {
         const outside = join(home, 'outside')
         mkdirSync(outside)
         rmSync(join(home, '.local/bin'), { recursive: true })
         execFileSync('ln', ['-s', outside, join(home, '.local/bin')])
         return {}
       },
-    )
+    })
     expect(result.status).not.toBe(0)
     expect(readdirSync(join(home, 'outside'))).toEqual([])
   })
   it('rolls back the launcher and version when current publication fails', () => {
-    const { result, home, old } = install(
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      (home) => {
+    const { result, home, old } = install(fixture, {
+      prepare: (home) => {
         const commands = join(home, 'commands')
         mkdirSync(commands)
         const realMv = execFileSync('sh', ['-c', 'command -v mv'], { encoding: 'utf8' }).trim()
@@ -1344,7 +1214,7 @@ esac`,
         )
         return { PATH: `${commands}:${process.env.PATH}` }
       },
-    )
+    })
     expect(result.status).not.toBe(0)
     expect(readdirSync(join(old, 'versions'))).toEqual(['old'])
     expect(
@@ -1358,6 +1228,7 @@ esac`,
   it('restores a foreign launcher or missing launcher when current publication fails', () => {
     for (const foreign of [true, false]) {
       const { result, home, old } = installPrepared(
+        fixture,
         (home) => {
           rmSync(launcher(home))
           if (foreign) writeFileSync(launcher(home), 'source launcher')
@@ -1387,7 +1258,7 @@ esac`,
       ['INT', 130],
       ['TERM', 143],
     ] as const) {
-      const { result, old } = installPrepared((home) => {
+      const { result, old } = installPrepared(fixture, (home) => {
         const commands = join(home, 'commands')
         mkdirSync(commands)
         const realMktemp = execFileSync('sh', ['-c', 'command -v mktemp'], {
@@ -1405,14 +1276,14 @@ esac`,
     }
   })
   it('cleans up its environment-only signing key on success and failure', () => {
-    const temp = join(dir, 'sign-tmp')
+    const temp = join(fixture.dir, 'sign-tmp')
     mkdirSync(temp)
-    const env = { HOST_RELEASE_SIGNING_KEY: privateKey, TMPDIR: temp }
+    const env = { HOST_RELEASE_SIGNING_KEY: fixture.privateKey, TMPDIR: temp }
     const output = node(
       `import {signManifest} from './tools/host-release/manifest.mjs'; signManifest(Buffer.from('test'))`,
       env,
     )
-    expect(output).not.toContain(privateKey.trim())
+    expect(output).not.toContain(fixture.privateKey.trim())
     expect(readdirSync(temp)).toEqual([])
     expect(() =>
       node(
@@ -1424,28 +1295,31 @@ esac`,
   })
   it('signs with a key whose secret store dropped the final newline or used CRLF', () => {
     const sign = `import {signManifest} from './tools/host-release/manifest.mjs'; process.stdout.write(signManifest(Buffer.from('test')).toString('utf8'))`
-    for (const key of [privateKey.trimEnd(), privateKey.trimEnd().replace(/\n/g, '\r\n')]) {
+    for (const key of [
+      fixture.privateKey.trimEnd(),
+      fixture.privateKey.trimEnd().replace(/\n/g, '\r\n'),
+    ]) {
       expect(node(sign, { HOST_RELEASE_SIGNING_KEY: key })).toContain('BEGIN SSH SIGNATURE')
     }
   })
   it.runIf(process.env.PHOSPHOR_HOST_RELEASE_NETWORK === '1')(
     'checks the official pinned archive on this platform',
     async () => {
-      const real = join(dir, 'official')
+      const real = join(fixture.dir, 'official')
       node(
         `import {buildBundle} from './tools/host-release/build-bundle.mjs'; await buildBundle(${JSON.stringify(target)},${JSON.stringify(real)})`,
       )
-      const second = join(dir, 'official-second')
+      const second = join(fixture.dir, 'official-second')
       node(
         `import {buildBundle} from './tools/host-release/build-bundle.mjs'; await buildBundle(${JSON.stringify(target)},${JSON.stringify(second)},${JSON.stringify(join(real, '.node-cache'))})`,
       )
       const file = `phosphor-host-1.2.3-${target}.tar.gz`
       const official = readFileSync(join(real, file))
       expect(readFileSync(join(second, file)).equals(official)).toBe(true)
-      const fake = bundle
+      const fake = fixture.bundle
       try {
-        bundle = official
-        const { result, home } = install()
+        fixture.bundle = official
+        const { result, home } = install(fixture)
         expect(result.status, result.stderr).toBe(0)
         expect(
           execFileSync(join(home, '.local/bin/phosphor'), ['version'], {
@@ -1454,7 +1328,7 @@ esac`,
           }),
         ).toContain('1.2.3')
       } finally {
-        bundle = fake
+        fixture.bundle = fake
       }
     },
     180000,
