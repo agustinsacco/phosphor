@@ -18,7 +18,7 @@ optional for historical records. The 0.84.0 streaming-shape change is in that
 file's header. See [One context budget](cli-providers.md#one-context-budget) for
 the session-local window cap.
 
-When re-verifying against a new pi, diff `libs/shared/src/rpc.ts` against pi's command switch and `dist/modes/json-event.d.ts` (the stdout shape), not just against `rpc-types.d.ts` (the internal shape):
+When re-verifying against a new pi, diff `libs/shared/src/rpc/*.ts` (behind the `rpc.ts` facade) against pi's command switch and `dist/modes/json-event.d.ts` (the stdout shape), not just against `rpc-types.d.ts` (the internal shape):
 
 ```
 $(npm root -g)/@earendil-works/pi-coding-agent/docs/rpc.md            ← the protocol, read fully

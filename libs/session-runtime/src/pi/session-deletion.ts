@@ -10,9 +10,11 @@ export interface SessionDeletionRuntime {
   deleteTranscript: (path: string) => Promise<void>
   deleteDraft: (path: string) => Promise<void>
   /**
-   * Throw to refuse, before any session stops or any file goes. It runs
-   * inside the path lock, after any resume already under way, so nothing can
-   * start between this check and the deletion. Desktop sets none.
+   * Throw to refuse. It runs inside each path's lock, after any resume already
+   * under way, so nothing can start between this check and that path's
+   * deletion. A refusal on a path learned while an earlier one was being
+   * deleted comes after that earlier path's sessions stopped and its file went.
+   * Desktop sets none.
    */
   assertDeletable?: (sessionId: string) => void
 }

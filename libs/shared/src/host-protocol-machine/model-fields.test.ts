@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ALL_THINKING_LEVELS } from '../thinking'
 import { parseModelCost, parseModelThinkingLevelMap } from './model-fields'
 
 const levels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
@@ -94,4 +95,9 @@ describe('parseModelCost', () => {
     if (!result.ok) throw new Error('expected valid cost')
     expect(result.value).not.toBe(value)
   })
+})
+
+it('pins the thinking-level keys the wire accepts', () => {
+  // The parser follows ALL_THINKING_LEVELS; widening it widens Host protocol v1.
+  expect(ALL_THINKING_LEVELS).toEqual(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
 })
