@@ -1,0 +1,210 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { typecheckProjects } from '../typecheck-coverage.mjs'
+import { evaluateBudget } from '../size-budget.mjs'
+import { measureSource } from '../size-spans.mjs'
+
+const root = resolve(import.meta.dirname, '../../..')
+const read = (path: string) => readFileSync(resolve(root, path), 'utf8')
+const workflow = read('.github/workflows/ci.yml')
+const testing = read('docs/testing.md')
+const pkg = JSON.parse(read('package.json')) as { scripts: Record<string, string> }
+
+// Scope assertions to a job, not matching a command in another job or a comment.
+function job(name: string): string {
+  const section = workflow.match(
+    new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  [\\w-]+:|$(?![\\s\\S]))`, 'm'),
+  )
+  if (!section?.[1]) throw new Error(`Missing CI job: ${name}`)
+  return section[1]
+}
+
+const checkCommands = [
+  'npm ci',
+  'npm ci --prefix apps/site',
+  'npm run typecheck',
+  'node tools/scripts/size-budget.mjs check',
+  'npm run lint',
+  'npx prettier --check .',
+  'npm test',
+  'npm run build',
+  'npm run build:host',
+  'npm run build:control',
+]
+
+const documentedCommands = [
+  'npm ci',
+  'npm ci --prefix apps/site',
+  'npm run typecheck',
+  'npm run lint',
+  'npx prettier --check .',
+  'npm test -- --maxWorkers=2',
+  'node tools/scripts/size-budget.mjs check',
+  'node tools/scripts/typecheck-coverage.mjs',
+  'npx vitest run tools/scripts/test/foundation-wiring.test.ts',
+  'npx vitest run tools/scripts/validate.test.ts',
+  'npm run test:e2e',
+  'SKIP_E2E=1 npm run validate',
+  'node tools/scripts/test-inventory.mjs collect --out /tmp/inventory-before.json',
+  'node tools/scripts/test-inventory.mjs run --out /tmp/execution.json tools/scripts/validate.test.ts',
+  'node tools/scripts/test-inventory.mjs compare --before /tmp/inventory-before.json --after /tmp/inventory-after.json --map /tmp/moves.json',
+  'node tools/scripts/unit-coverage.mjs --unit /tmp/unit.json --before "$BEFORE_SHA" --after "$FINAL_SHA" tools/scripts/validate.test.ts',
+  'node tools/scripts/unit-gate.mjs --input /tmp/gate.json',
+  'node tools/scripts/size-budget.mjs check --strict',
+]
+
+function documentedShellLines(): string[] {
+  return [...testing.matchAll(/```bash\n([\s\S]*?)\n```/g)].flatMap((block) =>
+    block[1]!.split('\n').filter(Boolean),
+  )
+}
+
+describe('foundation CI wiring', () => {
+  it('installs both domains before checks and runs each mandatory command exactly once', () => {
+    const checks = job('checks')
+    const commands = [...checks.matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1])
+    expect(commands).toEqual(checkCommands)
+    expect(checks).not.toMatch(/^\s*(?:if|continue-on-error):/m)
+    expect(checks).not.toMatch(/--passWithNoTests|--if-present|\|\|\s*(?:true|:)|--exclude/)
+    expect(workflow).not.toContain('tools/scripts/unit-gate.mjs')
+  })
+
+  it('uses the comprehensive runner including its all-file audit, Host, Control and site', () => {
+    expect(pkg.scripts.typecheck).toBe('node tools/scripts/typecheck.mjs')
+    expect(typecheckProjects).toEqual(
+      expect.arrayContaining([
+        'apps/host/tsconfig.json',
+        'apps/control/tsconfig.json',
+        'apps/site/tsconfig.json',
+        'tsconfig.tools.json',
+      ]),
+    )
+    const runner = read('tools/scripts/typecheck.mjs')
+    expect(runner).toContain('const missing = auditCoverage(root)')
+    expect(runner).toContain('if (missing.length)')
+    expect(runner).toContain('for (const project of typecheckProjects)')
+    // The audit also has an actual-repository unit test. No extra CI audit step.
+    expect(read('tools/scripts/test/typecheck-coverage.test.ts')).toContain(
+      'expect(auditCoverage(repo)).toEqual([])',
+    )
+    expect(job('checks')).not.toMatch(/run: .*typecheck(?::host|:control|-coverage\.mjs)/)
+  })
+
+  it('still rejects one-line growth above a reconciled baseline ceiling', () => {
+    const file = 'electron/hosts/connection.ts'
+    const key = `${file}::file`
+    const desktop = JSON.parse(read('tools/budgets/desktop.json')) as {
+      offenders: Record<string, number>
+    }
+    const ceiling = desktop.offenders[key]
+    if (!ceiling) throw new Error(`Missing reconciled ceiling: ${key}`)
+    const budget = {
+      version: 1,
+      package: 'desktop',
+      offenders: { [key]: ceiling },
+      exemptions: [],
+      renames: {},
+    }
+    const spans = (lines: number) => measureSource(file, '// fixture line\n'.repeat(lines))
+    expect(evaluateBudget(spans(ceiling), budget).errors).toEqual([])
+    expect(evaluateBudget(spans(ceiling + 1), budget).errors).toEqual([
+      `Grown offender ${key} (file400): ${ceiling + 1} lines, baseline ${ceiling}`,
+    ])
+  })
+
+  it('keeps affected selection shadow-only without gating any check', () => {
+    const checks = job('checks')
+    expect(checks).toContain('Shadow affected report (never skips checks)')
+    expect(checks).toContain('shadowSelection(context, github)')
+    expect(checks).not.toMatch(/needs:|steps\.[\w-]+\.outputs/)
+  })
+
+  it('aggregates every required job and rejects all non-success results', () => {
+    const jobs = [...workflow.split('\njobs:\n')[1]!.matchAll(/^ {2}([\w-]+):$/gm)].map(
+      (match) => match[1],
+    )
+    expect(jobs).toEqual(['checks', 'control-schema', 'site', 'e2e', 'result'])
+    const result = job('result')
+    expect(result).toContain('name: CI result')
+    expect(result).toContain('if: always()')
+    expect(result).toContain('needs: [checks, control-schema, site, e2e]')
+    expect(result).toContain("RESULTS: ${{ join(needs.*.result, ' ') }}")
+    expect(result).toContain('for r in $RESULTS; do [ "$r" = success ] ||')
+    expect(result).toContain('exit 1;')
+  })
+})
+
+describe('living testing contract', () => {
+  it.each(documentedCommands)('keeps the runnable command: %s', (command) => {
+    expect(documentedShellLines()).toContain(command)
+    const script = command.match(/npm run ([\w:-]+)/)?.[1]
+    if (script) expect(pkg.scripts[script]).toBeTruthy()
+    for (const path of command.match(/tools\/scripts\/[\w/.-]+\.(?:mjs|ts)/g) ?? []) {
+      expect(existsSync(resolve(root, path)), path).toBe(true)
+    }
+  })
+
+  it('documents actual CLI flags rather than a second invented gate interface', () => {
+    const inventory = read('tools/scripts/test-inventory.mjs')
+    for (const flag of ['--out', '--before', '--after', '--map', '--allow-platform-mismatch']) {
+      expect(inventory).toContain(flag)
+      expect(testing).toContain(flag)
+    }
+    const coverage = read('tools/scripts/unit-coverage.mjs')
+    for (const flag of ['--unit', '--before', '--after', '--map']) {
+      expect(coverage).toContain(flag)
+      expect(testing).toContain(flag)
+    }
+    expect(read('tools/scripts/unit-gate.mjs')).toContain('--input gate.json')
+    expect(read('tools/scripts/size-budget.mjs')).toContain('check [--strict]')
+    expect(testing).toContain('owner-expanded exact multi-unit `manifest`')
+    expect(testing).toContain('Do not run this tool against untrusted PR data in CI.')
+    expect(testing).not.toContain('—')
+  })
+
+  it('keeps layout, typed helper, frozen suites, budgets and warning staging discoverable', () => {
+    expect(testing).toContain('temporary until RL-03')
+    expect(testing).toContain('test(<ID>): characterize <behaviour>')
+    expect(testing).toContain('test(<ID>): regression <defect>')
+    for (const path of [
+      'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
+      'libs/shared/test/ipc.freeze.test.ts',
+      'apps/desktop/test/main/preload.freeze.test.ts',
+      'libs/shared/test/host-protocol.freeze.test.ts',
+      'libs/shared/test/control-api.freeze.test.ts',
+      'tools/scripts/test/status-wire.freeze.test.ts',
+    ]) {
+      expect(testing).toContain(path)
+      expect(existsSync(resolve(root, path)), path).toBe(true)
+    }
+    for (const phrase of [
+      '400-line',
+      'functions 80 lines',
+      'test files 800 lines',
+      'one-way ceilings',
+      'no-floating-promises',
+      'no-misused-promises',
+      'zero-warning CI budget',
+    ])
+      expect(testing).toContain(phrase)
+  })
+
+  it('links the contract from agent commands/conventions, development and the system index', () => {
+    const claude = read('CLAUDE.md')
+    const commands = claude.split('## Commands')[1]!.split('## Architecture')[0]!
+    const conventions = claude.split('## Conventions')[1]!.split('## Running')[0]!
+    expect(commands).toContain('(docs/testing.md)')
+    expect(conventions).toContain('(docs/testing.md#layout-and-helpers)')
+    const development = read('README.md').split('## Development')[1]!.split('### Nx')[0]!
+    expect(development).toContain('(docs/testing.md)')
+    expect(development).toContain('npm ci --prefix apps/site')
+    expect(read('docs/README.md').split('## The system')[1]!.split('## The surfaces')[0]).toContain(
+      '[testing.md](testing.md)',
+    )
+    for (const text of [commands, development]) {
+      expect(text).not.toMatch(/main \+ renderer|tsc for main/)
+      expect(text).toContain('Host, Control, tooling')
+    }
+  })
+})
