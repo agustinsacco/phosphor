@@ -1,4 +1,12 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -7,13 +15,16 @@ import {
   CLAUDE_CLI_PACKAGE,
   checkClaudeCliUpdate,
   checkPackageUpdates,
+  detectBinaries,
   parseClaudeAuthStatus,
+  resolveBinary,
   runClaudeUpdate,
 } from './packages'
 import type { JobSender } from './packages'
 import type * as Packages from './packages'
 import type * as PrintMode from './print-mode'
 import { claudeOneShotEnv, claudeProviderSpawnEnv } from './provider-detect'
+import { resetShellPathCache } from './shell-env'
 
 // Real print mode unless a test says otherwise, so the proof's delegation is
 // observable without spending a real provider turn.
@@ -533,4 +544,163 @@ describe('package job ownership', () => {
       expect(await waitFor(() => !isAlive(pids.self) && !isAlive(pids.child))).toBe(true)
     },
   )
+})
+
+/**
+ * `resolveBinary` against a real `/bin/sh`: a fake login shell that reports
+ * `loginDir` as its PATH, and a process PATH of `processDir` alone, so
+ * nothing installed on the host can answer. Windows has no `where` here, so
+ * a fake one on the process PATH answers from `<root>/where/<name>`.
+ */
+const lookupMachine = { root: '', loginDir: '', processDir: '', loginShell: '' }
+const ORIGINAL_PLATFORM = process.platform
+const ORIGINAL_LOOKUP_ENV = { PATH: process.env.PATH, SHELL: process.env.SHELL }
+
+function writeExecutable(path: string, text: string): string {
+  writeFileSync(path, text)
+  chmodSync(path, 0o755)
+  return path
+}
+
+/** What the fake login shell prints as its PATH; '' leaves it unknown. */
+function reportLoginPath(path: string): void {
+  const ran = join(lookupMachine.root, 'login-shell-ran')
+  writeExecutable(lookupMachine.loginShell, `#!/bin/sh\n: > '${ran}'\nprintf %s '${path}'\n`)
+  resetShellPathCache()
+}
+
+function setUpLookupMachine(): void {
+  const root = mkdtempSync(join(tmpdir(), 'phosphor-resolve-binary-'))
+  Object.assign(lookupMachine, {
+    root,
+    loginDir: join(root, 'login'),
+    processDir: join(root, 'process'),
+    loginShell: join(root, 'login-shell'),
+  })
+  mkdirSync(lookupMachine.loginDir)
+  mkdirSync(lookupMachine.processDir)
+  mkdirSync(join(root, 'where'))
+  writeExecutable(
+    join(lookupMachine.processDir, 'where'),
+    `#!/bin/sh\nanswer='${root}/where/'"$1"\n[ -f "$answer" ] && exec /bin/cat "$answer"\nexit 1\n`,
+  )
+  process.env.PATH = lookupMachine.processDir
+  process.env.SHELL = lookupMachine.loginShell
+  reportLoginPath(lookupMachine.loginDir)
+}
+
+function tearDownLookupMachine(): void {
+  Object.defineProperty(process, 'platform', { value: ORIGINAL_PLATFORM, configurable: true })
+  for (const [name, value] of Object.entries(ORIGINAL_LOOKUP_ENV)) {
+    if (value === undefined) delete process.env[name]
+    else process.env[name] = value
+  }
+  resetShellPathCache()
+  rmSync(lookupMachine.root, { recursive: true, force: true })
+}
+
+/** An executable named `name` in `dir`, as `command -v` would print it. */
+function installBinary(dir: string, name: string): string {
+  return writeExecutable(join(dir, name), '#!/bin/sh\n')
+}
+
+// Real `/bin/sh`, and a `where` that is an sh script: POSIX hosts only.
+describe.skipIf(process.platform === 'win32')('resolveBinary', () => {
+  beforeEach(setUpLookupMachine)
+  afterEach(tearDownLookupMachine)
+
+  it('takes a binary from the login-shell PATH first', async () => {
+    const login = installBinary(lookupMachine.loginDir, 'claude')
+    installBinary(lookupMachine.processDir, 'claude')
+
+    expect(await resolveBinary('claude')).toBe(login)
+  })
+
+  it('falls back to the process PATH', async () => {
+    const fallback = installBinary(lookupMachine.processDir, 'claude')
+
+    expect(await resolveBinary('claude')).toBe(fallback)
+  })
+
+  it('asks only the process PATH when the login-shell PATH is unknown', async () => {
+    reportLoginPath('')
+    installBinary(lookupMachine.loginDir, 'claude')
+    const fallback = installBinary(lookupMachine.processDir, 'claude')
+
+    expect(await resolveBinary('claude')).toBe(fallback)
+  })
+
+  it('answers null when neither PATH has the binary', async () => {
+    expect(await resolveBinary('claude')).toBeNull()
+  })
+
+  it('resolves the constant names its callers ask for', async () => {
+    for (const name of ['claude', 'npm', 'uv', 'pipx', 'headroom']) {
+      const path = installBinary(lookupMachine.loginDir, name)
+      expect(await resolveBinary(name)).toBe(path)
+    }
+    expect(await detectBinaries()).toEqual({ claude: true })
+    rmSync(join(lookupMachine.loginDir, 'claude'))
+    expect(await detectBinaries()).toEqual({ claude: false })
+  })
+
+  it('on Windows, takes the `where` match a spawn can use, not a node launch', async () => {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    const npmDir = 'C:\\Users\\dev\\AppData\\Roaming\\npm'
+    const where = (name: string, lines: string[]): void =>
+      writeFileSync(join(lookupMachine.root, 'where', name), `${lines.join('\r\n')}\r\n`)
+    rmSync(join(lookupMachine.root, 'login-shell-ran'), { force: true })
+
+    // npm's three shims, sh script first: the .cmd itself, not node.exe + entry.
+    where('claude', [`${npmDir}\\claude`, `${npmDir}\\claude.cmd`, `${npmDir}\\claude.ps1`])
+    expect(await resolveBinary('claude')).toBe(`${npmDir}\\claude.cmd`)
+    where('uv', [`${npmDir}\\uv.cmd`, 'C:\\Tools\\uv.exe'])
+    expect(await resolveBinary('uv')).toBe('C:\\Tools\\uv.exe')
+    // `where` exits 1 for a name it cannot find.
+    expect(await resolveBinary('pipx')).toBeNull()
+    // No login shell on Windows.
+    expect(existsSync(join(lookupMachine.root, 'login-shell-ran'))).toBe(false)
+  })
+})
+
+/**
+ * The name is data for the shell, never source: every caller passes a
+ * constant today, so this is hardening, but `resolveBinary` is exported and
+ * a name with shell syntax in it must not run, expand or split.
+ */
+describe.skipIf(process.platform === 'win32')('resolveBinary keeps the name as data', () => {
+  beforeEach(setUpLookupMachine)
+  afterEach(tearDownLookupMachine)
+
+  const marker = (): string => join(lookupMachine.root, 'ran')
+
+  it("does not run a command after a name's `;`", async () => {
+    expect(await resolveBinary(`nope; : > '${marker()}'`)).toBeNull()
+    expect(existsSync(marker())).toBe(false)
+  })
+
+  it('does not let a name choose the answer', async () => {
+    expect(await resolveBinary('nope; echo /evil/claude')).toBeNull()
+  })
+
+  it('does not expand $( ) or backticks in a name', async () => {
+    expect(await resolveBinary(`$(: > '${marker()}')`)).toBeNull()
+    expect(await resolveBinary(`\`: > '${marker()}'\``)).toBeNull()
+    expect(existsSync(marker())).toBe(false)
+  })
+
+  it('does not strip quotes or split on spaces', async () => {
+    installBinary(lookupMachine.loginDir, 'claude')
+
+    expect(await resolveBinary("'claude'")).toBeNull()
+    expect(await resolveBinary('"claude"')).toBeNull()
+    expect(await resolveBinary('nope claude')).toBeNull()
+  })
+
+  it('finds a file whose name holds shell syntax, as named', async () => {
+    for (const name of ['my tool', 'a;b', '$(x)', "it's"]) {
+      const path = installBinary(lookupMachine.loginDir, name)
+      expect(await resolveBinary(name)).toBe(path)
+    }
+  })
 })

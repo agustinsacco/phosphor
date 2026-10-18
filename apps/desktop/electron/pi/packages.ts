@@ -7,8 +7,9 @@ import type { ClaudeAuthStatus, ClaudeStatus, PiPackageEntry } from '@shared/mod
 import { listPackages, npmNameFromSpec } from '@phosphor/session-runtime/pi/packages'
 import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
 import { claudeOneShotEnv, claudeProviderSpawnEnv } from './provider-detect'
-import { getLoginShellPath, piProcessEnv } from './shell-env'
+import { piProcessEnv } from './shell-env'
 import { cachedPiHealth } from './health'
+import { lookupPosixBinary, windowsWhereOutput } from './binary-lookup'
 import { pickWhereMatch, resolveWindowsLaunch } from './win-launch'
 import { killProcessTree, OWN_GROUP, runPrintMode } from './print-mode'
 
@@ -236,34 +237,13 @@ export function disposePackageJobs(): Promise<void> {
 
 /** Resolve a binary on the login-shell PATH (GUI launches lack it). */
 export async function resolveBinary(name: string): Promise<string | null> {
-  if (process.platform === 'win32') {
-    try {
-      const { stdout } = await execFileAsync('where', [name], { timeout: 15_000 })
-      // Not the first line: for an npm-installed CLI that is the POSIX sh
-      // shim, which nothing on Windows can run. A `.exe` is spawnable; a
-      // `.cmd` is returned as found and fails at spawn (EINVAL) — pi itself
-      // never comes through here (see resolvePiInvoker), and the callers that
-      // do (claude, npm, uv, pipx, headroom) mostly ship real executables.
-      return pickWhereMatch(stdout)
-    } catch {
-      return null
-    }
-  }
-  const shellPath = await getLoginShellPath()
-  for (const env of [shellPath ? { ...process.env, PATH: shellPath } : null, { ...process.env }]) {
-    if (!env) continue
-    try {
-      const { stdout } = await execFileAsync('/bin/sh', ['-c', `command -v ${name}`], {
-        timeout: 15_000,
-        env,
-      })
-      const found = stdout.trim().split('\n').pop()?.trim()
-      if (found) return found
-    } catch {
-      // try the next env
-    }
-  }
-  return null
+  // Not the first `where` line on Windows: for an npm-installed CLI that is
+  // the POSIX sh shim, which nothing on Windows can run. A `.exe` is
+  // spawnable; a `.cmd` is returned as found and fails at spawn (EINVAL) — pi
+  // itself never comes through here (see resolvePiInvoker), and the callers
+  // that do (claude, npm, uv, pipx, headroom) mostly ship real executables.
+  if (process.platform === 'win32') return pickWhereMatch(await windowsWhereOutput(name))
+  return lookupPosixBinary(name)
 }
 
 /** Report a spawn-precondition failure through the job channels. */
@@ -365,11 +345,7 @@ async function resolveLaunch(name: string): Promise<{ file: string; prefixArgs: 
     const file = await resolveBinary(name)
     return file ? { file, prefixArgs: [] } : null
   }
-  const where = async (bin: string): Promise<string> => {
-    const { stdout } = await execFileAsync('where', [bin], { timeout: 15_000 })
-    return stdout
-  }
-  const result = await resolveWindowsLaunch(await where(name).catch(() => ''), {
+  const result = await resolveWindowsLaunch(await windowsWhereOutput(name), {
     readShim: (path) => {
       try {
         return readFileSync(path, 'utf8')
@@ -377,7 +353,7 @@ async function resolveLaunch(name: string): Promise<{ file: string; prefixArgs: 
         return null
       }
     },
-    whereNode: () => where('node'),
+    whereNode: () => windowsWhereOutput('node'),
   })
   return result.ok ? result.launch : null
 }
