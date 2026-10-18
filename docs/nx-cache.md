@@ -20,12 +20,8 @@ files it consumes. That is what makes affected mean something per app:
   unit runner for `test`. Its build declares `apps/host/dist`. Only `tooling` depends on it, so a Host-only change selects
   `host` and `tooling` and never the Desktop release.
 - `control`: shared contract sources, root install for typecheck/build and the
-  unit runner for tests. Its build declares `apps/control/dist`. It explicitly
-  depends on `desktop` because `apps/control/src/routes/stack.test.ts` intentionally
-  imports Desktop's GoTrue and loopback sign-in flow. This test-only conservative
-  edge selects Control for any Desktop change (and changes to Desktop's
-  dependencies), not just auth edits; it adds no production cross-app import.
-  Only tooling depends on Control. A control-only edit selects control and tooling.
+  unit runner for tests. Its build declares `apps/control/dist`. Only tooling
+  depends on it. A control-only edit selects control and tooling.
 - `site`: `apps/site` only, since its image is built from that directory alone.
   Its build adds `deploy`, which must equal `deploy-site.yml`'s path filter
   (tested). Screenshots are captured by hand from Desktop and committed, so a
@@ -73,9 +69,6 @@ session/pi/browser homes or DB data are cache outputs.
 ## Shadow CI selection
 
 The checks job fetches full history and logs actual HEAD, base and OSS Nx projects.
-The per-file matrix verifies that Desktop's `account/gotrue.ts` and
-`account/loopback.ts` select `control`, `desktop` and `tooling` through the
-intentional stack-test edge. The graph stays acyclic and targets stay uncached.
 No report controls skipping: the checks, schema and site jobs and every OS
 shard remain mandatory behind the single required `CI result` job, and workflow edits select only `tooling`.
 So any future skipping must run everything when `tooling` is affected. Equal

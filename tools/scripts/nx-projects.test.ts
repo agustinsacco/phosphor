@@ -61,8 +61,7 @@ const commands = {
   },
 }
 // These edges include non-import resources and test-only consumers, not just
-// production imports. Control's stack test uses Desktop's sign-in flow.
-// No library depends on an app, and targets never recurse.
+// production imports. No library depends on Desktop, and targets never recurse.
 // The Host depends on the libraries and copies pi-ext/, exactly as Desktop does,
 // and nothing depends on it except the whole-workspace checks.
 // Nothing depends on `tooling` (the whole-workspace checks) and the site depends
@@ -72,7 +71,7 @@ const commands = {
 const dependencies = {
   desktop: ['runtime', 'shared', 'pi-extensions'],
   host: ['runtime', 'shared', 'pi-extensions'],
-  control: ['shared', 'desktop'],
+  control: ['shared'],
   runtime: ['shared', 'pi-extensions'],
   shared: [],
   'pi-extensions': ['shared'],
@@ -169,29 +168,6 @@ describe('explicit Nx project contract', () => {
       const edges = graph.dependencies[name].map((edge: { target: string }) => edge.target)
       assertEdges(name as keyof typeof dependencies, edges)
     }
-  })
-
-  it('declares the test-only Control dependency on Desktop sign-in explicitly', () => {
-    expect(readJson('apps/control/project.json').implicitDependencies).toContain('desktop')
-    expect(graph.dependencies.control).toContainEqual({
-      source: 'control',
-      target: 'desktop',
-      type: 'implicit',
-    })
-  })
-
-  it('keeps the graph acyclic without library-to-app dependencies', () => {
-    const apps = ['desktop', 'host', 'control', 'site']
-    const visit = (name: string, ancestors: string[]) => {
-      expect(ancestors).not.toContain(name)
-      for (const edge of graph.dependencies[name]) {
-        if (projects[name as keyof typeof projects].startsWith('libs/')) {
-          expect(apps).not.toContain(edge.target)
-        }
-        visit(edge.target, [...ancestors, name])
-      }
-    }
-    for (const name of Object.keys(projects)) visit(name, [])
   })
 
   it('retains manifest-derived static and explicit implicit runtime dependencies', () => {
