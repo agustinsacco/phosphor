@@ -34,14 +34,17 @@ export function piSessionsRoot(env: NodeJS.ProcessEnv = process.env, home = home
  * XDG_CONFIG_HOME/pi, then ~/.pi — note the default is ~/.pi, NOT
  * ~/.pi/agent.
  */
-export function webSearchConfigPath(): string {
-  if (process.env.PI_CODING_AGENT_DIR) {
-    return join(process.env.PI_CODING_AGENT_DIR, 'web-search.json')
+export function webSearchConfigPath(
+  env: NodeJS.ProcessEnv = process.env,
+  home = homedir(),
+): string {
+  if (env.PI_CODING_AGENT_DIR) {
+    return join(env.PI_CODING_AGENT_DIR, 'web-search.json')
   }
-  if (process.env.XDG_CONFIG_HOME) {
-    return join(process.env.XDG_CONFIG_HOME, 'pi', 'web-search.json')
+  if (env.XDG_CONFIG_HOME) {
+    return join(env.XDG_CONFIG_HOME, 'pi', 'web-search.json')
   }
-  return join(homedir(), '.pi', 'web-search.json')
+  return join(home, '.pi', 'web-search.json')
 }
 
 /**
@@ -65,8 +68,7 @@ export function sessionDirNameForCwd(cwd: string): string {
  * /private/var. pi resolves it itself; the CLI gets it for free because
  * `process.cwd()` in a spawned child is already resolved. Mangling an
  * unresolved path yields a directory name that simply does not exist.
- */
-/**
+ *
  * Memoized, because `realCwd` is on the path of every session scan and every
  * session-dir watch — a blocking syscall on the main thread, repeated for the
  * same handful of workspaces for the life of the process.
@@ -105,21 +107,25 @@ export function sessionDirForCwd(cwd: string, sessionsRoot: string = piSessionsR
  * part of pi's. `CLAUDE_CONFIG_DIR` is the CLI's own documented override and
  * relocates the whole directory, `projects/` included.
  */
-export function claudeConfigDir(): string {
-  return process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+export function claudeConfigDir(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
+  return env.CLAUDE_CONFIG_DIR ?? join(home, '.claude')
 }
 
 // The cwd mangling itself is shared with the renderer's debug block.
 export { claudeProjectDirName } from '@shared/claude-paths'
 
 /** Root holding one subdirectory of CLI transcripts per project cwd. */
-export function claudeProjectsRoot(): string {
-  return join(claudeConfigDir(), 'projects')
+export function claudeProjectsRoot(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
+  return join(claudeConfigDir(env, home), 'projects')
 }
 
 /** The CLI's directory of transcripts for one workspace. */
-export function claudeProjectDirForCwd(cwd: string): string {
-  return join(claudeProjectsRoot(), claudeProjectDirName(realCwd(cwd)))
+export function claudeProjectDirForCwd(
+  cwd: string,
+  env: NodeJS.ProcessEnv = process.env,
+  home = homedir(),
+): string {
+  return join(claudeProjectsRoot(env, home), claudeProjectDirName(realCwd(cwd)))
 }
 
 /**
@@ -130,6 +136,11 @@ export function claudeProjectDirForCwd(cwd: string): string {
  * This is a derived path, not a discovered one: the caller must treat a
  * missing file as normal.
  */
-export function claudeSessionFileForCwd(cwd: string, sessionId: string): string {
-  return join(claudeProjectDirForCwd(cwd), `${sessionId}.jsonl`)
+export function claudeSessionFileForCwd(
+  cwd: string,
+  sessionId: string,
+  env: NodeJS.ProcessEnv = process.env,
+  home = homedir(),
+): string {
+  return join(claudeProjectDirForCwd(cwd, env, home), `${sessionId}.jsonl`)
 }
