@@ -94,3 +94,63 @@ it('opens a pre-index v1 database without losing occurrence identities or owned 
   })
   expect(state.repo.background()).toBe(true)
 })
+
+const pendingSql =
+  "SELECT data FROM runs WHERE json_extract(data, '$.status') IN ('queued','running') ORDER BY created_at, rowid"
+function expectActivePlan(state: ReturnType<typeof fixture>) {
+  const db = state.inspect()
+  try {
+    const plan = db.prepare(`EXPLAIN QUERY PLAN ${pendingSql}`).all()
+    expect(plan.map((row) => row.detail)).toEqual(['SCAN runs USING INDEX runs_active'])
+    expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(1)
+  } finally {
+    db.close()
+  }
+}
+
+it('uses the partial active index without a temporary sort on a fresh database', () => {
+  expectActivePlan(fixture())
+})
+
+it('adds the active index to pre-index v1 databases and reopens idempotently', () => {
+  const state = fixture()
+  const run = state.repo.manual(add(state.repo, 'Existing active').id, 'existing', now)
+  state.repo.close()
+  const db = state.inspect()
+  db.exec('DROP INDEX IF EXISTS runs_active')
+  db.close()
+  for (let i = 0; i < 2; i++) {
+    state.repo = new RoutineRepository(state.path)
+    expectActivePlan(state)
+    expect(state.repo.pending()).toEqual([run])
+    if (i === 0) state.repo.close()
+  }
+})
+
+it('maintains indexed membership across queued, running and terminal transitions', () => {
+  const state = fixture()
+  const run = state.repo.manual(add(state.repo, 'Transitions').id, 'run', now)
+  const indexedIds = () => {
+    const db = state.inspect()
+    try {
+      return db
+        .prepare(
+          "SELECT id FROM runs INDEXED BY runs_active WHERE json_extract(data, '$.status') IN ('queued','running') ORDER BY created_at, rowid",
+        )
+        .all()
+        .map((row) => row.id)
+    } finally {
+      db.close()
+    }
+  }
+  expect(indexedIds()).toEqual([run.id])
+  expect(state.repo.claim(run.id, now)?.status).toBe('running')
+  expect(indexedIds()).toEqual([run.id])
+  state.repo.finish(run.id, 'finished', 'Preserved', now + 1)
+  expect(indexedIds()).toEqual([])
+  state.repo.patchRun(run.id, { status: 'queued', endedAt: null })
+  expect(indexedIds()).toEqual([run.id])
+  state.repo.patchRun(run.id, { status: 'skipped', endedAt: now + 2 })
+  expect(indexedIds()).toEqual([])
+  expect(state.repo.history()).toHaveLength(1)
+})
