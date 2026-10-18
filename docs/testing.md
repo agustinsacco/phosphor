@@ -166,7 +166,7 @@ it is not CI's default while that debt exists.
 
 ESLint stages React hooks warnings in renderer code/tests, typed
 `no-floating-promises` and `no-misused-promises` warnings in main/preload and
-libraries, and renderer native-confirm/raw-`piCommand` warnings. Typed linting
+libraries, and renderer raw-`piCommand` warnings. Native-confirm is an error in renderer source. Typed linting
 uses owning projects, not a default-project fallback. The RPC wrapper and test
 doubles have narrow exemptions. Warnings are an inventory for owners, not a
 zero-warning CI budget; existing prompt and Host boundary errors remain errors.

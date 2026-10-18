@@ -111,11 +111,11 @@ export default tseslint.config(
   },
   {
     files: rendererFiles,
-    // Tests mock window.confirm on purpose; keep the inventory to production uses.
+    // Tests mock window.confirm on purpose; enforce app choices in production.
     ignores: ['apps/desktop/src/**/*.test.{ts,tsx}', 'apps/desktop/test/renderer/**'],
     rules: {
       'no-restricted-properties': [
-        'warn',
+        'error',
         {
           object: 'window',
           property: 'confirm',
