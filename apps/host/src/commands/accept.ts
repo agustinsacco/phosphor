@@ -212,8 +212,7 @@ async function runLanes(
       progress(`claude: unavailable: ${claudeLane.reason}`)
       continue
     }
-    const settleMs = options.settleMs
-    results.push(await runLane(runtime, lane, context, { ...options, settleMs }))
+    results.push(await runLane(runtime, lane, context, options))
   }
   return results
 }
