@@ -2,7 +2,6 @@
   "version": 1,
   "package": "tooling",
   "offenders": {
-    "tools/host-release/bundles.test.ts::file": 1336,
     "tools/host-release/bundles.runtime.test.ts::describe[1]/it[2]": 129,
     "tools/scripts/ci-selection.mjs::shadowSelection[1]": 86,
     "tools/scripts/site-deploy-policy.test.ts::describe[2]/%3Canonymous%3E[1]": 109,
