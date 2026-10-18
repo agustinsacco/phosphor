@@ -1,0 +1,2349 @@
+{
+  "units": {
+    "FD-01": {
+      "pr": "foundation",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 1,
+      "review": "r1 pass (prose: no blocking; minors: rmSync ordering in test cleanup, CLAUDE.md convention -> reloc)",
+      "integratedAt": "2026-10-17T22:01:09.805Z"
+    },
+    "FX-03": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 1,
+      "review": "r1 blocked (smoke.spec.ts:5977 one-click delete). Integrator fixed in 37e1c867; e2e old=fail new=pass verified locally; gate r2 pass",
+      "extraE2E": "smoke.spec.ts (verified)",
+      "integratedAt": "2026-10-17T21:57:21.314Z"
+    },
+    "FX-06": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 1,
+      "review": "r1 pass (prose: OK with notes; 1 minor redundant isDev guard)",
+      "extraE2E": "startup.spec.ts",
+      "integratedAt": "2026-10-17T21:57:21.670Z"
+    },
+    "FX-04": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 1,
+      "review": "r1 pass, 2 minor (rate-isolation test floods full 10k; hardcoded capacity)",
+      "extraGate": "npm run test:control-stack (pending)",
+      "integratedAt": "2026-10-17T21:57:21.498Z"
+    },
+    "FX-01": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 1,
+      "review": "r1 pass, 0 findings",
+      "extraE2E": "remote-files/lanes/pages: 23 passed locally (integrator, unit head)",
+      "integratedAt": "2026-10-17T21:57:21.096Z"
+    },
+    "FX-09": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 1,
+      "review": "r1 pass, minors only",
+      "integratedAt": "2026-10-17T21:57:21.905Z"
+    },
+    "FX-14": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 2,
+      "coder": "opus",
+      "batch": 2,
+      "extraE2E": "remote-lifecycle.spec.ts (pending)",
+      "review": "r2 pass, 1 minor (pre-existing 3 s release wait can still time out; documented)",
+      "integratedAt": "2026-10-17T22:45:29.767Z"
+    },
+    "FX-21": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 1,
+      "review": "r1 pass, 2 minor (docs/host.md:640 overflow close not listed)",
+      "extraE2E": "remote-access.spec.ts (pending)",
+      "integratedAt": "2026-10-17T21:57:22.279Z"
+    },
+    "FX-07": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 1,
+      "review": "r1 pass, minors only",
+      "integratedAt": "2026-10-17T21:57:21.742Z"
+    },
+    "FX-11": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 1,
+      "review": "r1 pass, minors only",
+      "integratedAt": "2026-10-17T21:57:22.023Z"
+    },
+    "FX-12": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 1,
+      "review": "r1 pass, minors only",
+      "integratedAt": "2026-10-17T21:57:22.075Z"
+    },
+    "FX-02": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 1,
+      "review": "r1 pass, minors only",
+      "integratedAt": "2026-10-17T21:57:21.189Z"
+    },
+    "FX-05": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 1,
+      "review": "r1 pass, minors only",
+      "integratedAt": "2026-10-17T21:57:21.588Z"
+    },
+    "FX-08": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 1,
+      "review": "r1 pass, minors only",
+      "integratedAt": "2026-10-17T21:57:21.812Z"
+    },
+    "FX-10": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 1,
+      "review": "r1 pass, minors only",
+      "integratedAt": "2026-10-17T21:57:21.969Z"
+    },
+    "FX-13": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 1,
+      "integratedAt": "2026-10-17T21:57:22.126Z"
+    },
+    "FX-15": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 1,
+      "integratedAt": "2026-10-17T21:57:22.177Z"
+    },
+    "FX-18": {
+      "pr": "fixes",
+      "base": "7b2f320960684adb4541a3e41af2e5c898cece3f",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 1,
+      "review": "r1 pass, minors only",
+      "integratedAt": "2026-10-17T21:57:22.226Z"
+    },
+    "FX-17": {
+      "pr": "fixes",
+      "base": "6f8b8e984af87b02a613bbd1774cbed3937508db",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 2,
+      "review": "r1 pass, 1 minor (host.test.ts:69 title says 120 s)",
+      "integratedAt": "2026-10-17T22:45:29.843Z"
+    },
+    "FX-19": {
+      "pr": "fixes",
+      "base": "6f8b8e984af87b02a613bbd1774cbed3937508db",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 2,
+      "review": "r1 pass, 3 minor",
+      "integratedAt": "2026-10-17T22:45:29.925Z"
+    },
+    "FD-02": {
+      "pr": "foundation",
+      "base": "e8ef0a8a5fe1e1149bfd44149a5594ce89c35a75",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 2,
+      "review": "r1 pass, 3 minor",
+      "integratedAt": "2026-10-17T22:45:43.005Z"
+    },
+    "FD-03": {
+      "pr": "foundation",
+      "base": "e8ef0a8a5fe1e1149bfd44149a5594ce89c35a75",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 2,
+      "review": "r1 pass, 3 minor",
+      "integratedAt": "2026-10-17T22:45:43.056Z"
+    },
+    "FD-05": {
+      "pr": "foundation",
+      "base": "e8ef0a8a5fe1e1149bfd44149a5594ce89c35a75",
+      "status": "merged",
+      "round": 2,
+      "coder": "sol",
+      "batch": 3,
+      "review": "r2 pass, 0 findings",
+      "integratedAt": "2026-10-17T22:59:06.776Z"
+    },
+    "FD-06": {
+      "pr": "foundation",
+      "base": "e8ef0a8a5fe1e1149bfd44149a5594ce89c35a75",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 2,
+      "review": "r1 pass, 6 minor",
+      "integratedAt": "2026-10-17T22:45:43.116Z"
+    },
+    "FD-11": {
+      "pr": "foundation",
+      "base": "e8ef0a8a5fe1e1149bfd44149a5594ce89c35a75",
+      "status": "merged",
+      "round": 2,
+      "coder": "sol",
+      "batch": 3,
+      "review": "r2 pass, 2 minor (asyncWidget.kind case; producer assertion isolation)",
+      "integratedAt": "2026-10-17T23:17:35.132Z"
+    },
+    "FD-04": {
+      "pr": "foundation",
+      "base": "8af89a6fdf362a004e9ed5c5759aec3fb7f1f351",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 3,
+      "review": "r2 pass, 2 minor fixed by integrator 582828fa",
+      "integratedAt": "2026-10-17T23:29:00.953Z"
+    },
+    "FD-09": {
+      "pr": "foundation",
+      "base": "8af89a6fdf362a004e9ed5c5759aec3fb7f1f351",
+      "status": "merged",
+      "round": 1,
+      "coder": "sol",
+      "batch": 3,
+      "review": "r1 pass, 2 minor",
+      "integratedAt": "2026-10-17T22:55:21.096Z"
+    },
+    "FD-10": {
+      "pr": "foundation",
+      "base": "8af89a6fdf362a004e9ed5c5759aec3fb7f1f351",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 3,
+      "review": "r1 pass, 1 minor (empty variant groups)",
+      "integratedAt": "2026-10-17T23:17:35.058Z"
+    },
+    "FX-20": {
+      "pr": "fixes2",
+      "base": "b92db0bb8262528b5cb20f049a436d5626aad293",
+      "status": "merged",
+      "round": 1,
+      "coder": "opus",
+      "batch": 3,
+      "review": "r1 pass, 1 minor (command -v -- hardening)",
+      "integratedAt": "2026-10-17T23:48:12.969Z"
+    },
+    "FD-12": {
+      "status": "merged",
+      "pr": "foundation",
+      "integratedAt": "2026-10-17T23:29:00.989Z",
+      "review": "r1 pass, 2 minor (restore-order guard; export FakePhosphor type) -> follow-up"
+    },
+    "FX-22": {
+      "status": "merged",
+      "review": "integrator-authored e2e test fix",
+      "pr": "fixes-2"
+    },
+    "FD-07": {
+      "status": "merged",
+      "batch": 5,
+      "base": "5f563a0f",
+      "review": "r2 pass, 1 minor (docs)",
+      "pr": "foundation",
+      "integratedAt": "2026-10-18T01:12:24.100Z"
+    },
+    "LR-16": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      },
+      "status": "integrated",
+      "wave": 6,
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-16",
+      "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
+      "pr": "w6",
+      "integratedAt": "2026-10-18T17:54:59.443Z"
+    },
+    "DM-15": {
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      },
+      "wave": 6
+    },
+    "DM-16": {
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      },
+      "wave": 6
+    },
+    "DM-17": {
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      },
+      "wave": 6
+    },
+    "DM-18": {
+      "note": "held at wrap-up: __fixtures__ helpers import host-protocol-testing; boundary.test.ts treats them as production. Rename helpers or have them not import the kit.",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      },
+      "status": "approved",
+      "wave": 6,
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-18",
+      "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
+      "pr": "w6",
+      "integratedAt": "2026-10-18T17:49:40.428Z"
+    },
+    "DM-19": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DM-20": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-FF": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-FF-PREFS": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-FF-STORES": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-FACT6": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-LEFTOVERS": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-S1": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-S2": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-S3": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-S4": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-S5": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-S6": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-S7": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-F1": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-F2": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-F3": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-REMOTE": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-EXTUI": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-ARTIFACT": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-DRAFT": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-WORKSPACE": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-TERMINAL": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-CHAT": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-WORKTREE": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-ROUTINE": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-APPSTART": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-APPSHELL": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-SHORTCUT": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "DKA-BOUNDARY": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "HB-10": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "CT-02": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "CT-03": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "CT-04": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "CT-05": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "CT-06": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "CT-07": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "CT-08": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "CT-09": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "SB-02": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "hold": "mobile-PWA lane overlap"
+      }
+    },
+    "FD-13": {
+      "status": "merged",
+      "review": "r1 pass, 3 minor (fixed by integrator)",
+      "pr": "foundation",
+      "integratedAt": "2026-10-18T02:07:19.729Z"
+    },
+    "FD-08": {
+      "status": "merged",
+      "review": "r2 blocked 1 (one-sided scope) -> integrator fix 224aab95; 3 minor, 1 doc fixed; follow-up: 30 specs lack characterize_first for repo gate",
+      "pr": "foundation",
+      "integratedAt": "2026-10-18T02:39:50.136Z"
+    },
+    "FD-14": {
+      "status": "merged",
+      "review": "r1 blocked 1 (stale host.md) + 2 minor -> integrator fix 2f0b042a",
+      "pr": "foundation",
+      "integratedAt": "2026-10-18T03:05:13.773Z"
+    },
+    "RL-01": {
+      "status": "merged",
+      "review": "r2 pass, 3 minor fixed by integrator"
+    },
+    "TL-07": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "note": "PWA branch edits owned files (2026-10-18)"
+      }
+    },
+    "TL-08": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-TL-08",
+        "wave": "2",
+        "pr": "tooling",
+        "integratedAt": "2026-10-18T08:30:03.600Z",
+        "note": "approved r1; reverted from tooling PR (PWA rewrites ci-selection/nx-projects expectations); reland after PWA"
+      },
+      "status": "integrated",
+      "wave": 6,
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-TL-08",
+      "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
+      "pr": "w6",
+      "integratedAt": "2026-10-18T17:54:59.661Z"
+    },
+    "TL-09": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "note": "PWA branch edits owned files (2026-10-18)"
+      }
+    },
+    "TL-11": {
+      "colocated": true
+    },
+    "TL-12": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-TL-12",
+      "wave": "2",
+      "pr": "tooling",
+      "integratedAt": "2026-10-18T08:30:03.660Z"
+    },
+    "TL-13": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-TL-13",
+      "wave": "2",
+      "pr": "tooling",
+      "integratedAt": "2026-10-18T08:30:03.722Z"
+    },
+    "TL-14": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "reason": "PWA edits tools/scripts/ci-selection.mjs"
+      }
+    },
+    "TL-15": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-TL-15",
+      "wave": "2",
+      "pr": "tooling",
+      "integratedAt": "2026-10-18T08:30:03.786Z"
+    },
+    "TL-16": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-TL-16",
+      "wave": "2",
+      "pr": "tooling",
+      "integratedAt": "2026-10-18T08:30:03.852Z"
+    },
+    "TL-17": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-TL-17",
+      "wave": "2",
+      "pr": "tooling",
+      "integratedAt": "2026-10-18T08:30:03.922Z"
+    },
+    "TL-18": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-TL-18",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "tooling2",
+      "integratedAt": "2026-10-18T11:42:54.797Z"
+    },
+    "LS-01": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-01",
+      "pr": "libs",
+      "integratedAt": "2026-10-18T05:23:08.008Z"
+    },
+    "LS-02": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-02",
+      "wave": "2"
+    },
+    "LS-03": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-02",
+      "wave": "2"
+    },
+    "LS-04": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-04",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "libs3",
+      "integratedAt": "2026-10-18T11:42:53.658Z"
+    },
+    "LS-05": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-05",
+      "wave": "2"
+    },
+    "LS-06": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-06",
+      "wave": "2",
+      "pr": "libs2"
+    },
+    "LS-07": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-06",
+      "wave": "2",
+      "pr": "libs2"
+    },
+    "LS-08": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-06",
+      "wave": "2",
+      "pr": "libs2"
+    },
+    "LS-09": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-09",
+      "wave": "2",
+      "pr": "libs2",
+      "integratedAt": "2026-10-18T08:30:22.355Z"
+    },
+    "LS-10": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-09",
+      "wave": "2",
+      "pr": "libs2",
+      "integratedAt": "2026-10-18T08:30:22.378Z"
+    },
+    "LS-11": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-11",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "libs3",
+      "integratedAt": "2026-10-18T11:42:53.784Z"
+    },
+    "LS-12": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-11",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "libs3",
+      "integratedAt": "2026-10-18T11:42:53.805Z"
+    },
+    "LS-13": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-11",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "libs3",
+      "integratedAt": "2026-10-18T11:42:53.827Z"
+    },
+    "LS-14": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-11",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "libs3",
+      "integratedAt": "2026-10-18T11:42:53.846Z"
+    },
+    "LS-15": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-15",
+      "wave": "5a",
+      "base": "0c4bf1700102344a1c721e872aff1322e391acbe",
+      "pr": "libs4",
+      "integratedAt": "2026-10-18T14:40:10.698Z"
+    },
+    "LS-16": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-16",
+      "wave": "2",
+      "pr": "libs2",
+      "integratedAt": "2026-10-18T08:30:22.441Z"
+    },
+    "LS-17": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-17",
+      "wave": "2",
+      "pr": "libs2",
+      "integratedAt": "2026-10-18T08:30:22.504Z"
+    },
+    "LS-18": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-18",
+      "wave": "2",
+      "pr": "libs2",
+      "integratedAt": "2026-10-18T08:30:22.570Z"
+    },
+    "LS-19": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LS-19",
+      "head": "0beee5785b4aed1900fe0ef74571194b5b788c0c",
+      "review": "r1 pass 0 minor",
+      "pr": "libs",
+      "integratedAt": "2026-10-18T05:23:08.106Z"
+    },
+    "libs:tailscale-status": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-libs-tailscale-status",
+      "wave": "2",
+      "pr": "libs2",
+      "integratedAt": "2026-10-18T08:30:22.638Z"
+    },
+    "libs:worktree-segment": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "note": "PWA branch edits owned files (2026-10-18)"
+      },
+      "status": "integrated",
+      "wave": 6,
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-libs-worktree-segment",
+      "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
+      "pr": "w6",
+      "integratedAt": "2026-10-18T17:54:59.301Z"
+    },
+    "LR-01": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-01",
+      "pr": "libs",
+      "integratedAt": "2026-10-18T05:23:08.216Z"
+    },
+    "LR-02": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-02",
+      "pr": "libs",
+      "integratedAt": "2026-10-18T05:23:08.316Z"
+    },
+    "LR-03": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-03",
+      "pr": "libs",
+      "integratedAt": "2026-10-18T05:23:08.417Z"
+    },
+    "libs:runtime-tests-home": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-libs-runtime-tests-home",
+      "wave": "2",
+      "pr": "libs2",
+      "integratedAt": "2026-10-18T08:30:22.704Z"
+    },
+    "libs:title-policy": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-libs-title-policy",
+      "pr": "libs",
+      "integratedAt": "2026-10-18T05:23:08.937Z"
+    },
+    "libs:print-mode": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "note": "PWA branch edits owned files (2026-10-18)"
+      },
+      "status": "integrated",
+      "wave": 6,
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-libs-print-mode",
+      "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
+      "pr": "w6",
+      "integratedAt": "2026-10-18T17:54:59.372Z"
+    },
+    "LR-04": {
+      "colocated": true
+    },
+    "libs:git-worktrees": {
+      "colocated": true
+    },
+    "libs:sqlite-loader": {
+      "colocated": true
+    },
+    "LR-05": {
+      "colocated": true
+    },
+    "libs:routine-executor": {
+      "colocated": true
+    },
+    "libs:status-keys": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-libs-status-keys",
+      "pr": "libs",
+      "integratedAt": "2026-10-18T05:23:58.706Z"
+    },
+    "libs:pi-api-types": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-libs-pi-api-types",
+      "wave": "2",
+      "pr": "libs2",
+      "integratedAt": "2026-10-18T08:30:22.773Z"
+    },
+    "LR-06": {
+      "colocated": true
+    },
+    "LR-07": {
+      "colocated": true
+    },
+    "LR-08": {
+      "colocated": true
+    },
+    "LR-09": {
+      "colocated": true
+    },
+    "LR-10": {
+      "colocated": true
+    },
+    "LR-11": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-11",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "libs3",
+      "integratedAt": "2026-10-18T11:42:53.912Z"
+    },
+    "LR-12": {
+      "colocated": true
+    },
+    "LR-13": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-13",
+      "pr": "libs",
+      "integratedAt": "2026-10-18T05:23:08.516Z"
+    },
+    "LR-14": {
+      "colocated": true
+    },
+    "LR-15": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-15",
+      "wave": "2",
+      "pr": "libs2",
+      "integratedAt": "2026-10-18T08:30:22.842Z"
+    },
+    "LR-17": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-17",
+      "pr": "libs",
+      "integratedAt": "2026-10-18T05:23:08.626Z"
+    },
+    "LR-18": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-18",
+      "pr": "libs",
+      "integratedAt": "2026-10-18T05:23:08.740Z"
+    },
+    "LR-19": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-19",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "libs3",
+      "integratedAt": "2026-10-18T11:42:53.977Z"
+    },
+    "LR-20": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-20",
+      "pr": "libs",
+      "integratedAt": "2026-10-18T05:23:08.837Z"
+    },
+    "LR-21": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-21",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "libs3",
+      "integratedAt": "2026-10-18T11:42:54.064Z"
+    },
+    "LR-22": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-21",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "libs3",
+      "integratedAt": "2026-10-18T11:42:54.084Z"
+    },
+    "LR-23": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-23",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "libs3",
+      "integratedAt": "2026-10-18T11:42:54.146Z"
+    },
+    "LR-24": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-LR-24",
+      "wave": "2",
+      "pr": "libs2",
+      "integratedAt": "2026-10-18T08:30:22.910Z"
+    },
+    "DM-01": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-01",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:30.247Z"
+    },
+    "DM-02": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-02",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:30.324Z"
+    },
+    "DM-03": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-03",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "dm2",
+      "integratedAt": "2026-10-18T10:09:58.653Z"
+    },
+    "DM-04": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-04",
+      "wave": "5",
+      "base": "f829bc97235150faf318035694edf1d89984bcdd",
+      "pr": "dm5",
+      "integratedAt": "2026-10-18T15:40:20.680Z"
+    },
+    "DM-05": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-05",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "dm4",
+      "integratedAt": "2026-10-18T13:24:06.201Z"
+    },
+    "DM-06": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-06",
+      "wave": "5",
+      "base": "f829bc97235150faf318035694edf1d89984bcdd",
+      "pr": "dm5",
+      "integratedAt": "2026-10-18T15:40:20.801Z"
+    },
+    "DM-07": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-07",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:30.404Z"
+    },
+    "DM-08": {
+      "colocated": true,
+      "wave": 6,
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+    },
+    "DM-09": {
+      "colocated": true,
+      "wave": 6,
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+    },
+    "DM-10": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-10",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "dm3",
+      "integratedAt": "2026-10-18T11:42:54.501Z"
+    },
+    "DM-11": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-10",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "dm3",
+      "integratedAt": "2026-10-18T11:42:54.523Z"
+    },
+    "DM-12": {
+      "colocated": true
+    },
+    "DM-13": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-13",
+      "wave": "2",
+      "review": "r1 blocked (stale main-boot mocks) -> integrator fix 2ec4dffe, gate r2 pass",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:30.504Z"
+    },
+    "DM-14": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-14",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:30.583Z"
+    },
+    "DM-21": {
+      "colocated": true
+    },
+    "DM-22": {
+      "colocated": true
+    },
+    "DM-23": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "note": "PWA branch edits owned files (2026-10-18)"
+      },
+      "status": "integrated",
+      "wave": 6,
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-23",
+      "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
+      "pr": "w6",
+      "integratedAt": "2026-10-18T17:54:59.516Z"
+    },
+    "DM-24": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-24",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:30.667Z"
+    },
+    "DM-25": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-25",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:30.751Z"
+    },
+    "DM-26": {
+      "status": "superseded",
+      "note": "split into DM-26a/DM-26b (post-PWA replan)"
+    },
+    "DM-27": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-27",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:30.832Z"
+    },
+    "DM-28": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-28",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:30.923Z"
+    },
+    "DM-29": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-29",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:31.027Z"
+    },
+    "DM-30": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-30",
+      "wave": "2",
+      "note": "coder resumed e7fa9d69 done (bc59ac99), gate pass; review 85fff03d dispatched manually",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:31.106Z"
+    },
+    "DM-31": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-31",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:31.207Z"
+    },
+    "DM-32": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-32",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:31.298Z"
+    },
+    "DM-33": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-33",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:31.392Z"
+    },
+    "DM-34": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-34",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "dm4",
+      "integratedAt": "2026-10-18T13:24:06.274Z"
+    },
+    "DM-35": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-35",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:31.478Z"
+    },
+    "DM-36": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-36",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:31.582Z"
+    },
+    "DM-37": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-37",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:31.763Z"
+    },
+    "DM-38": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-37",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:31.797Z"
+    },
+    "DM-39": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-04",
+      "wave": "5",
+      "base": "f829bc97235150faf318035694edf1d89984bcdd",
+      "pr": "dm5",
+      "integratedAt": "2026-10-18T15:40:20.709Z"
+    },
+    "DM-40": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-40",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:31.919Z"
+    },
+    "DM-41": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-41",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:32.056Z"
+    },
+    "DM-42": {
+      "colocated": true
+    },
+    "DM-43": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-43",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:32.172Z"
+    },
+    "DM-44": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-43",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:32.198Z"
+    },
+    "DM-45": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-45",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "dm2",
+      "integratedAt": "2026-10-18T10:09:58.716Z"
+    },
+    "DM-46": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-46",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:32.280Z"
+    },
+    "DM-47": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-47",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:32.358Z"
+    },
+    "DM-48": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-48",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:32.465Z"
+    },
+    "DM-49": {
+      "colocated": true,
+      "wave": 6,
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+    },
+    "DM-50": {
+      "colocated": true
+    },
+    "DM-51": {
+      "colocated": true
+    },
+    "DM-52": {
+      "colocated": true
+    },
+    "DM-53": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-53",
+      "wave": "3b",
+      "base": "b6fbc2f64ec2eae641181d360a3c4a38c90d362e",
+      "pr": "dm3",
+      "integratedAt": "2026-10-18T11:42:54.587Z"
+    },
+    "DM-54": {
+      "colocated": true
+    },
+    "DM-55": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-55",
+      "wave": "2",
+      "pr": "desktop-main",
+      "integratedAt": "2026-10-18T08:07:32.535Z"
+    },
+    "DM-56": {
+      "colocated": true,
+      "wave": 6,
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+    },
+    "DM-57": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-57",
+      "wave": "5",
+      "base": "f829bc97235150faf318035694edf1d89984bcdd",
+      "pr": "dm5",
+      "integratedAt": "2026-10-18T15:40:20.895Z"
+    },
+    "DM-58": {
+      "colocated": true
+    },
+    "DM-59": {
+      "colocated": true
+    },
+    "DM-60": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-60",
+      "wave": "5",
+      "base": "f829bc97235150faf318035694edf1d89984bcdd",
+      "pr": "dm5",
+      "integratedAt": "2026-10-18T15:40:21.001Z"
+    },
+    "DM-61": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-61",
+      "wave": "5",
+      "base": "f829bc97235150faf318035694edf1d89984bcdd",
+      "pr": "dm5",
+      "integratedAt": "2026-10-18T15:40:21.101Z"
+    },
+    "DE-01": {
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "note": "PWA branch edits owned files (2026-10-18)"
+      },
+      "wave": 6
+    },
+    "DE-02": {
+      "colocated": true
+    },
+    "DE-03": {
+      "colocated": true
+    },
+    "DE-04": {
+      "colocated": true
+    },
+    "DE-05": {
+      "colocated": true
+    },
+    "DE-06": {
+      "colocated": true
+    },
+    "DE-07": {
+      "colocated": true
+    },
+    "DE-08": {
+      "colocated": true
+    },
+    "DE-09": {
+      "colocated": true
+    },
+    "DE-10": {
+      "colocated": true
+    },
+    "DE-11": {
+      "colocated": true
+    },
+    "DE-12": {
+      "colocated": true
+    },
+    "DE-13": {
+      "colocated": true
+    },
+    "DE-14": {
+      "colocated": true
+    },
+    "DE-15": {
+      "colocated": true
+    },
+    "DE-16": {
+      "colocated": true
+    },
+    "DE-17": {
+      "colocated": true
+    },
+    "DE-18": {
+      "colocated": true
+    },
+    "DE-19": {
+      "colocated": true
+    },
+    "DE-20": {
+      "colocated": true
+    },
+    "DE-21": {
+      "colocated": true
+    },
+    "DE-22": {
+      "colocated": true
+    },
+    "DE-23": {
+      "colocated": true
+    },
+    "DE-24": {
+      "colocated": true
+    },
+    "DE-25": {
+      "colocated": true
+    },
+    "DE-26": {
+      "colocated": true
+    },
+    "HA-01": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-01",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:27.931Z"
+    },
+    "HA-02": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-02",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:27.999Z"
+    },
+    "HA-03": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-03",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:28.073Z"
+    },
+    "HA-04": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-04",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:28.139Z"
+    },
+    "HA-05": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-05",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:28.203Z"
+    },
+    "HA-06": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-06",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:28.266Z"
+    },
+    "HA-07": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-07",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "host2",
+      "integratedAt": "2026-10-18T10:09:58.023Z"
+    },
+    "HA-08": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-07",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "host2",
+      "integratedAt": "2026-10-18T10:09:58.044Z"
+    },
+    "HA-09": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-07",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "host2",
+      "integratedAt": "2026-10-18T10:09:58.064Z"
+    },
+    "HA-10": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-07",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "host2",
+      "integratedAt": "2026-10-18T10:09:58.084Z"
+    },
+    "HA-11": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-07",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "host2",
+      "integratedAt": "2026-10-18T10:09:58.105Z"
+    },
+    "HA-12": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-12",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:04.731Z"
+    },
+    "HA-13": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-12",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:04.765Z"
+    },
+    "HA-14": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-14",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:04.873Z"
+    },
+    "HA-15": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-14",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:04.897Z"
+    },
+    "HA-16": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-16",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.009Z"
+    },
+    "HA-17": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-16",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.044Z"
+    },
+    "HA-18": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-16",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.067Z"
+    },
+    "HA-19": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-19",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "host2",
+      "integratedAt": "2026-10-18T10:09:58.170Z"
+    },
+    "HA-20": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-20",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:28.341Z"
+    },
+    "HA-21": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-21",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:28.409Z"
+    },
+    "HA-22": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-22",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:28.479Z"
+    },
+    "HA-23": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-23",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:28.674Z"
+    },
+    "HA-24": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-24",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.150Z"
+    },
+    "HA-25": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-25",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.223Z"
+    },
+    "HA-26": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-26",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:28.786Z"
+    },
+    "HA-27": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-27",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:28.909Z"
+    },
+    "HA-28": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-27",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:28.957Z"
+    },
+    "HA-29": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-29",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.314Z"
+    },
+    "HA-30": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-30",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.419Z"
+    },
+    "HA-31": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-30",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.443Z"
+    },
+    "HA-32": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-32",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:29.071Z"
+    },
+    "HA-33": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-33",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:29.162Z"
+    },
+    "HA-34": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-34",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:29.254Z"
+    },
+    "HA-35": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-35",
+      "pr": "host2",
+      "integratedAt": "2026-10-18T10:40:11.774Z"
+    },
+    "HA-36": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-36",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.531Z"
+    },
+    "HA-37": {
+      "colocated": true
+    },
+    "HA-38": {
+      "colocated": true
+    },
+    "HA-39": {
+      "colocated": true
+    },
+    "HA-40": {
+      "colocated": true
+    },
+    "HA-41": {
+      "colocated": true
+    },
+    "HA-42": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-42",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.618Z"
+    },
+    "HA-43": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HA-43",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:29.347Z"
+    },
+    "HB-FS": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-FS",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "host2",
+      "integratedAt": "2026-10-18T10:09:58.241Z"
+    },
+    "HB-02": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-02",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.695Z"
+    },
+    "HB-03": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-03",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:41:22.221Z"
+    },
+    "HB-04": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-04",
+      "wave": "5",
+      "base": "f829bc97235150faf318035694edf1d89984bcdd",
+      "pr": "host4",
+      "integratedAt": "2026-10-18T15:55:33.937Z"
+    },
+    "HB-05": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-05",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:27:04.165Z"
+    },
+    "HB-06": {
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "holdReason": "PWA-first: Host API admission / Control main+image seam"
+      },
+      "wave": 6
+    },
+    "HB-07": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-07",
+      "evidence": "integrator: run* suites 10x --maxWorkers=4, 10/10 pass (65 tests)",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:29.437Z"
+    },
+    "HB-08": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-08",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:29.514Z"
+    },
+    "HB-09": {
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "holdReason": "PWA-first: Host API admission / Control main+image seam"
+      },
+      "wave": 6
+    },
+    "HB-11": {
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "holdReason": "PWA-first: Host API admission / Control main+image seam"
+      },
+      "wave": 6
+    },
+    "HB-12": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-12",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:29.646Z"
+    },
+    "HB-13": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-13",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:29.744Z"
+    },
+    "HB-14": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-14",
+      "wave": "5",
+      "base": "f829bc97235150faf318035694edf1d89984bcdd",
+      "pr": "host4",
+      "integratedAt": "2026-10-18T15:55:34.015Z"
+    },
+    "HB-15": {
+      "colocated": true
+    },
+    "HB-16": {
+      "colocated": true
+    },
+    "HB-17": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-17",
+      "wave": "5",
+      "base": "f829bc97235150faf318035694edf1d89984bcdd",
+      "pr": "host4",
+      "integratedAt": "2026-10-18T15:55:34.129Z"
+    },
+    "HB-18": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-17",
+      "wave": "5",
+      "base": "f829bc97235150faf318035694edf1d89984bcdd",
+      "pr": "host4",
+      "integratedAt": "2026-10-18T15:55:34.151Z"
+    },
+    "HB-19": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-19",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.772Z"
+    },
+    "HB-20": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-20",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:29.931Z"
+    },
+    "HB-21": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-20",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:29.962Z"
+    },
+    "HB-22": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-22",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "host2",
+      "integratedAt": "2026-10-18T10:09:58.305Z"
+    },
+    "HB-23": {
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+        "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-23",
+        "pr": "host",
+        "integratedAt": "2026-10-18T06:04:30.056Z",
+        "note": "approved r1; reverted from #517 (PWA edits validateHostConfig); reland after PWA from task/HB-23"
+      },
+      "wave": 6
+    },
+    "HB-24": {
+      "colocated": true
+    },
+    "HB-25": {
+      "colocated": true
+    },
+    "HB-26": {
+      "colocated": true,
+      "wave": 6,
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+    },
+    "HB-27": {
+      "colocated": true,
+      "wave": 6,
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+    },
+    "HB-28": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-28",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:30.164Z"
+    },
+    "HB-29": {
+      "colocated": true
+    },
+    "HB-30": {
+      "colocated": true
+    },
+    "HB-31": {
+      "colocated": true
+    },
+    "HB-TS-STRICT": {
+      "colocated": true
+    },
+    "HB-32": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-32",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:04:30.296Z"
+    },
+    "HB-33": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-33",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "host2",
+      "integratedAt": "2026-10-18T10:09:58.370Z"
+    },
+    "HB-34": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-34",
+      "wave": "4",
+      "base": "8bddc87c14443e6ff688b796b854fd306b023cb7",
+      "pr": "host3",
+      "integratedAt": "2026-10-18T13:24:05.861Z"
+    },
+    "HB-35": {
+      "colocated": true,
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-35",
+      "review": "r1 blocked (library-types allowlist) -> integrator fix 9d284e93",
+      "pr": "host",
+      "integratedAt": "2026-10-18T06:06:36.274Z"
+    },
+    "HB-36": {
+      "colocated": true
+    },
+    "HB-37": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-17",
+      "wave": "5",
+      "base": "f829bc97235150faf318035694edf1d89984bcdd",
+      "pr": "host4",
+      "integratedAt": "2026-10-18T15:55:34.175Z"
+    },
+    "HB-38": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-HB-38",
+      "wave": "3a",
+      "base": "abce8cd30eb87d9d0a7b4364ee35d60b8574e9f1",
+      "pr": "host2",
+      "integratedAt": "2026-10-18T10:09:58.436Z"
+    },
+    "CT-01": {
+      "colocated": true,
+      "status": "merged",
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-CT-01",
+      "wave": "2",
+      "pr": "control",
+      "integratedAt": "2026-10-18T08:30:04.145Z"
+    },
+    "CT-10": {
+      "colocated": true
+    },
+    "CT-11": {
+      "colocated": true
+    },
+    "CT-12": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "holdReason": "PWA-first: Host API admission / Control main+image seam"
+      }
+    },
+    "CT-13": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "holdReason": "PWA-first: Host API admission / Control main+image seam"
+      }
+    },
+    "CT-14": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "holdReason": "PWA-first: Host API admission / Control main+image seam"
+      }
+    },
+    "SB-01": {
+      "colocated": true
+    },
+    "SB-03": {
+      "colocated": true
+    },
+    "CT-15": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "holdReason": "PWA-first: Host API admission / Control main+image seam"
+      }
+    },
+    "ST-01": {
+      "colocated": true
+    },
+    "ST-02": {
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md",
+      "prev": {
+        "colocated": true,
+        "status": "hold-coordination",
+        "note": "PWA branch edits owned files (2026-10-18)"
+      },
+      "wave": 6
+    },
+    "ST-03": {
+      "colocated": true
+    },
+    "ST-04": {
+      "colocated": true
+    },
+    "ST-05": {
+      "colocated": true
+    },
+    "ST-06": {
+      "colocated": true
+    },
+    "CL-05": {
+      "colocated": true
+    },
+    "FX-16": {
+      "status": "merged",
+      "base": "1d388d8265f01a2c1cb611013aee0ce770e7413d",
+      "review": "r1 blocked (e2e native dialog) + 3 minor -> integrator fix"
+    },
+    "RL-02": {
+      "note": "released after PWA merge; replanned c08625cc",
+      "prev": {
+        "status": "hold-coordination",
+        "note": "PWA branch edits owned files (2026-10-18)"
+      }
+    },
+    "RL-01b": {
+      "status": "integrated",
+      "wave": 6,
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-RL-01b",
+      "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
+      "pr": "w6",
+      "integratedAt": "2026-10-18T17:54:59.723Z"
+    },
+    "TL-04": {
+      "wave": 6,
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+    },
+    "TL-06": {
+      "wave": 6,
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+    },
+    "DM-26a": {
+      "status": "integrated",
+      "wave": 6,
+      "wt": "/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715/wt/t-DM-26a",
+      "base": "488d5afe3a4b79db9e7e8eddd24bca7510a90fa8",
+      "pr": "w6",
+      "integratedAt": "2026-10-18T17:54:59.587Z"
+    },
+    "DM-26b": {
+      "wave": 6,
+      "note": "wave 6 stopped at wrap-up; see docs/remediation.md"
+    }
+  }
+}

@@ -1,0 +1,3577 @@
+[
+ {
+  "key": "fixes::apps/desktop/src/features/files/FilesChangedPane.tsx",
+  "pr": "fixes",
+  "units": [
+   "FX-16"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "reloc::tools/scripts/relocation/map.mjs",
+  "pr": "reloc",
+  "units": [
+   "RL-01b"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "reloc::tools/scripts/relocate-tests.mjs",
+  "pr": "reloc",
+  "units": [
+   "RL-01",
+   "RL-02"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "reloc::tools/relocation-manifest.json",
+  "pr": "reloc",
+  "units": [
+   "RL-03"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "tooling::.github/workflows/ci.yml",
+  "pr": "tooling",
+  "units": [
+   "TL-01",
+   "TL-02",
+   "TL-03"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "tooling::package.json",
+  "pr": "tooling",
+  "units": [
+   "TL-04",
+   "TL-06"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "tooling::tools/scripts/source-aliases.mjs",
+  "pr": "tooling",
+  "units": [
+   "TL-05"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "tooling::tools/scripts/install.sh",
+  "pr": "tooling",
+  "units": [
+   "TL-07"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "tooling::apps/control/project.json",
+  "pr": "tooling",
+  "units": [
+   "TL-08"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "tooling::tools/scripts/validate.sh",
+  "pr": "tooling",
+  "units": [
+   "TL-09"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "tooling::tools/scripts/smoke-packaged-win.ps1",
+  "pr": "tooling",
+  "units": [
+   "TL-10"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "tooling::TL-11",
+  "pr": "tooling",
+  "units": [
+   "TL-11"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "tooling::tools/scripts/capture-readme-shots.mjs",
+  "pr": "tooling",
+  "units": [
+   "TL-12"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "tooling::tools/scripts/capture-live-shots.mjs",
+  "pr": "tooling",
+  "units": [
+   "TL-13"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "tooling::tools/scripts/ci-selection.mjs",
+  "pr": "tooling",
+  "units": [
+   "TL-14"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "tooling::tools/scripts/remote-probe.mjs",
+  "pr": "tooling",
+  "units": [
+   "TL-15"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "tooling::tools/host-release/build-native.mjs",
+  "pr": "tooling",
+  "units": [
+   "TL-16"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "tooling::TL-17",
+  "pr": "tooling",
+  "units": [
+   "TL-17"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "tooling::TL-18",
+  "pr": "tooling",
+  "units": [
+   "TL-18"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "cleanup::tsconfig.base.json",
+  "pr": "cleanup",
+  "units": [
+   "CL-01"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "cleanup::vitest.config.ts",
+  "pr": "cleanup",
+  "units": [
+   "CL-02"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "cleanup::eslint.config.js",
+  "pr": "cleanup",
+  "units": [
+   "CL-03"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "cleanup::tools/scripts/size-budget.mjs",
+  "pr": "cleanup",
+  "units": [
+   "CL-04"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::LS-01",
+  "pr": "libs",
+  "units": [
+   "LS-01"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/shared/src/models.ts",
+  "pr": "libs",
+  "units": [
+   "LS-02",
+   "LS-03"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/shared/src/ipc.ts",
+  "pr": "libs",
+  "units": [
+   "LS-04"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/shared/src/rpc.ts",
+  "pr": "libs",
+  "units": [
+   "LS-05"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/shared/src/host-protocol.ts",
+  "pr": "libs",
+  "units": [
+   "LS-06",
+   "LS-07",
+   "LS-08"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "libs::libs/shared/src/control-api.ts",
+  "pr": "libs",
+  "units": [
+   "LS-09",
+   "LS-10"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "libs::libs/shared/src/host-protocol-testing/fake-host.ts",
+  "pr": "libs",
+  "units": [
+   "LS-11",
+   "LS-12",
+   "LS-13",
+   "LS-14"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "libs::libs/shared/src/host-protocol-testing/conformance.ts",
+  "pr": "libs",
+  "units": [
+   "LS-15"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "libs::libs/shared/src/host-protocol-testing/loopback.ts",
+  "pr": "libs",
+  "units": [
+   "LS-16"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/shared/src/command-approval.ts",
+  "pr": "libs",
+  "units": [
+   "LS-17"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/shared/src/host-protocol-machine.ts",
+  "pr": "libs",
+  "units": [
+   "LS-18"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::LS-19",
+  "pr": "libs",
+  "units": [
+   "LS-19"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/shared/src/tailscale-status.ts",
+  "pr": "libs",
+  "units": [
+   "libs:tailscale-status"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/shared/src/worktree-segment.ts",
+  "pr": "libs",
+  "units": [
+   "libs:worktree-segment"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::apps/desktop/electron/artifacts/artifact-indexer.ts",
+  "pr": "libs",
+  "units": [
+   "LR-01"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::LR-02",
+  "pr": "libs",
+  "units": [
+   "LR-02"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::LR-03",
+  "pr": "libs",
+  "units": [
+   "LR-03"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::apps/desktop/electron/pi/directives.ts",
+  "pr": "libs",
+  "units": [
+   "libs:runtime-tests-home"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/pi/title-policy.ts",
+  "pr": "libs",
+  "units": [
+   "libs:title-policy"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/pi/print-mode.ts",
+  "pr": "libs",
+  "units": [
+   "libs:print-mode"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/git/worktree-refs.ts",
+  "pr": "libs",
+  "units": [
+   "LR-04"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/git/worktrees.ts",
+  "pr": "libs",
+  "units": [
+   "libs:git-worktrees"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/sqlite-loader.ts",
+  "pr": "libs",
+  "units": [
+   "libs:sqlite-loader"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/routines/execution-observer.ts",
+  "pr": "libs",
+  "units": [
+   "LR-05"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/routines/executor.ts",
+  "pr": "libs",
+  "units": [
+   "libs:routine-executor"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/pi-extensions/pi-ext/status-keys.ts",
+  "pr": "libs",
+  "units": [
+   "libs:status-keys"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/pi-extensions/pi-ext/pi-api.ts",
+  "pr": "libs",
+  "units": [
+   "libs:pi-api-types"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/pi-extensions/pi-ext/context-breakdown.ts",
+  "pr": "libs",
+  "units": [
+   "LR-06",
+   "LR-12"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/pi-extensions/pi-ext/artifacts.ts",
+  "pr": "libs",
+  "units": [
+   "LR-07",
+   "LR-09",
+   "LR-10"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "libs::libs/pi-extensions/pi-ext/context-budget.ts",
+  "pr": "libs",
+  "units": [
+   "LR-08"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/pi-extensions/pi-ext/optional/permission-gate.ts",
+  "pr": "libs",
+  "units": [
+   "LR-11"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/pi-extensions/pi-ext/message-ledger.ts",
+  "pr": "libs",
+  "units": [
+   "LR-13"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/pi-extensions/pi-ext/headroom.ts",
+  "pr": "libs",
+  "units": [
+   "LR-14"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/artifacts/artifact-indexer.ts",
+  "pr": "libs",
+  "units": [
+   "LR-15"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/lanes/projection.ts",
+  "pr": "libs",
+  "units": [
+   "LR-16"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/pi/context-budget.ts",
+  "pr": "libs",
+  "units": [
+   "LR-17"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/pi/lane-reload.ts",
+  "pr": "libs",
+  "units": [
+   "LR-18"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/pi/session-service.ts",
+  "pr": "libs",
+  "units": [
+   "LR-19"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::LR-20",
+  "pr": "libs",
+  "units": [
+   "LR-20"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/routines/repository.ts",
+  "pr": "libs",
+  "units": [
+   "LR-21",
+   "LR-22"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/pi/pi-paths.ts",
+  "pr": "libs",
+  "units": [
+   "LR-23"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "libs::libs/session-runtime/src/pi/session-deletion.ts",
+  "pr": "libs",
+  "units": [
+   "LR-24"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/handle.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-01"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/pi/stub.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-02"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/pi/invoker.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-03"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/pi/packages.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-04",
+   "DM-39"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/pi-config-handlers.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-05"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/pi-session-handlers.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-06"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/control-handlers.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-07"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/hosts-handlers.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-08",
+   "DM-09"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/app-handlers.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-10",
+   "DM-11"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/routines-handlers.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-12"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/maintenance-handlers.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-13"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/event-trim.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-14"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/hosts/connection.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-15",
+   "DM-16",
+   "DM-17"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-main::DM-18",
+  "pr": "desktop-main",
+  "units": [
+   "DM-18"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/hosts/remote-lanes.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-19",
+   "DM-20"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/hosts/terminals.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-21",
+   "DM-22"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/hosts/routines.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-23"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/hosts/manager.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-24"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/hosts/attention.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-25"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::libs/host-client/src/read-features.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-26a"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/hosts/repository-management.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-26b"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/account/account.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-27"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/account/vault.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-28"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/account/loopback.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-29"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/control/client.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-30"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/control/realtime.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-31"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/headroom/proxy.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-32"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/voice/service.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-33"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/pi/login-flow.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-34"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/pi/claude-login.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-35"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/pi/mcp-migration.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-36"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/pi/skills.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-37",
+   "DM-38"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/claude/accounts.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-40"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/store.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-41"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/main.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-42",
+   "DM-59"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/updates/mac-installer.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-43",
+   "DM-44"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/updates/updater.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-45"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/maintenance/sweep.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-46"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/optimization/advisor.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-47"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/writing/prompt-corpus.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-48"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/pi/session-naming.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-49"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/pi/print-mode.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-50"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/fs/git-worktrees.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-51"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/routines/runner.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-52"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/hosts/tailscale-status.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-53"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/prefs/workspaces.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-54"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::DM-55",
+  "pr": "desktop-main",
+  "units": [
+   "DM-55"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/broadcast.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-56"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/pi-auth-handlers.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-57"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/pty/pty-manager.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-58"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/skills-handlers.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-60"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-main::apps/desktop/electron/ipc/mcp-handlers.ts",
+  "pr": "desktop-main",
+  "units": [
+   "DM-61"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/WorkingIndicator.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-01"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/errorRemedies.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-02",
+   "DCA-28"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/useCanControlSession.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-03"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/MessageItem.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-04",
+   "DCA-17"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/tools/toolDetails.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-05"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/banners.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-06"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::DCA-07",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-07"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/reducer.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-08",
+   "DCA-09",
+   "DCA-10"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/items/transcriptRows.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-11",
+   "DCA-12",
+   "DCA-13"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/items/ActivityGroup.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-14",
+   "DCA-15",
+   "DCA-16"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/MessageList.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-18",
+   "DCA-19"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/tools/toolSummaries.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-20"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/transcriptFind.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-21"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/useTranscriptFind.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-22"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/currentWork.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-23"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/BackgroundWorkIndicator.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-24"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/tools/SubagentDetail.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-25"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/items/SubagentNotice.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-26"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/markdownText.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCA-27"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/SubagentActions.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-01"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/subagents/subagentSteer.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-02"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/rewind.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-03"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/Composer.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-04",
+   "DCB-05",
+   "DCB-06",
+   "DCB-07"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/composer/ComposerField.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-08"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/composer/ComposerInput.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-09"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/composer/useAttachments.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-10"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/composer/useSlashMenu.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-11"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/composer/ContextMeter.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-12",
+   "DCB-13",
+   "DCB-14"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/composer/ModelMenu.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-15",
+   "DCB-16"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/composer/ModelPicker.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-17"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/composer/ContextSourcesMenu.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-18"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/imageEditor/ImageEditor.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-19",
+   "DCB-20",
+   "DCB-21"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/imageEditor/EditorToolbar.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-22"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/subagents/subagentRuns.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-23",
+   "DCB-24"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/subagents/subagentHistory.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-25"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/subagents/SubagentPanel.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-26",
+   "DCB-27"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/subagents/subagentSelection.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-28"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/subagents/SubagentPreview.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-29"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/subagents/SubagentActions.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-30",
+   "DCB-31"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/subagents/SubagentJournal.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-32"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/subagents/subagentInspect.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-33",
+   "DCB-34"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/composer/headroomStatus.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-35"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/SessionMenu.tsx",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-36"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-chat::apps/desktop/src/features/chat/subagents/subagentCommands.ts",
+  "pr": "desktop-chat",
+  "units": [
+   "DCB-37"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/lib/fireAndForget.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-FF"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/settings.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-FF-PREFS"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/workspaces.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-FF-STORES",
+   "DKA-WORKSPACE"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/keyedSlice.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-FACT6"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/sessions.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-LEFTOVERS",
+   "DKA-S1",
+   "DKA-S2",
+   "DKA-S3",
+   "DKA-S4",
+   "DKA-S5",
+   "DKA-S6",
+   "DKA-S7"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/lib/path.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-PATH"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/lib/laneNotice.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-MARKER"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/lib/extensionCommands.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-EXTCMD"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/files.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-F1",
+   "DKA-F2",
+   "DKA-F3"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/remoteLanes.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-REMOTE"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/extensionUi.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-EXTUI"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/artifacts.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-ARTIFACT"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/drafts.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-DRAFT"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/terminal.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-TERMINAL"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/chat.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-CHAT"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/worktrees.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-WORKTREE"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/stores/routines.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-ROUTINE"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/lib/modelSearch.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-MODEL"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/lib/writing/predictor.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-PREDICT"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/lib/monaco.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-MONACO"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/app/App.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-APPSTART",
+   "DKA-APPSHELL"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/app/useGlobalShortcuts.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-SHORTCUT"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/main.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-BOUNDARY"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/dev/mockPhosphor.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-MOCK-APP",
+   "DKA-MOCK-PI",
+   "DKA-MOCK-AUTH",
+   "DKA-MOCK-HOST",
+   "DKA-MOCK-FS",
+   "DKA-MOCK-GIT",
+   "DKA-MOCK-CONFIG",
+   "DKA-MOCK-MISC",
+   "DKA-MOCK-CLOSE"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/dev/mockRoutines.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKA-MOCK-ROUTINE"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::DKB-01",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-01"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/Sidebar.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-02",
+   "DKB-03",
+   "DKB-04",
+   "DKB-05",
+   "DKB-06",
+   "DKB-07"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/useSidebarModel.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-08"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/MarkerPickerModal.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-09"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/useSessionRowModel.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-10"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/groupSessions.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-11"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/treeLayout.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-12"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/TreeViewModal.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-13",
+   "DKB-14",
+   "DKB-32"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/startChat.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-15"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/BulkDeleteModal.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-16"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/RemoteLaneRow.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-17"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/RemoteLanes.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-18"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/MachineSwitcher.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-19"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/SessionList.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-20"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/components/Modal.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-21"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/components/Tooltip.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-22"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/components/search/domFind.ts",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-23"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/components/search/FindBar.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-24"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/components/markdown/MermaidViewer.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-25"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/components/PopupMenu.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-26"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/components/ChoiceMenu.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-27"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/components/ContextMenu.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-28"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/components/markdown/CodeBlock.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-29"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/components/markdown/MarkdownLink.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-30"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/components/icons.tsx",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-31"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/components/useAsyncAction.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-01"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/components/useIpcQuery.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-02"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/components/useLocalHealth.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-03"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::DFA-04",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-04"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::libs/shared/src/settings-tabs.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-05"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/SettingsModal.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-06"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/AboutTab.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-07"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/AgentTab.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-08",
+   "DFA-13"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/updates/updatesStore.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-09"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/ClaudeProviderTab.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-10",
+   "DFA-11"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/AccountsTab.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-12"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/DirectivesSection.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-14"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/ContextBudgetSection.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-15"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/MaintenanceSection.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-16"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/WorkspacesTab.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-17"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/ExtensionsTab.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-18"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/OptimizationTab.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-19",
+   "DFA-20"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/AppearanceTab.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-21"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/settings/tabs/ConnectorsTab.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-22",
+   "DFA-23"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/connectors/useMcpConnectors.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-24"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/connectors/MigrationCard.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-25"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/connectors/ServerEditor.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-26"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/connectors/catalog.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-27"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/skills/SkillsPage.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-28",
+   "DFA-29",
+   "DFA-30"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/skills/NewSkillModal.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-31"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/skills/useSkillDetail.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-32"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/lib/format.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-33"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/extension-ui/ExtensionUiHosts.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-34",
+   "DFA-35",
+   "DFA-36"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/extension-ui/CommandApprovalSheet.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-37"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/extension-ui/LaneReceiptCard.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-38"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/account/AccountFooter.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-39"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::DFA-40",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-40"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/feedback/FeedbackModal.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-41"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::DFA-42",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-42"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/palette/CommandPalette.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-43"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/voice/useDictation.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFA-45"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/routines/RoutinesPage.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-01",
+   "DFB-02"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/routines/useRoutineHistory.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-03"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/routines/RoutineEditor.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-04",
+   "DFB-05"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/routines/RoutineDetail.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-06"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/machines/MachinesPage.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-07",
+   "DFB-08",
+   "DFB-09"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/machines/AddMachineDialog.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-10"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/machines/HostFolderBrowser.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-11"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/machines/onboarding/BeforeYouStart.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-12"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/home/WorkspaceHome.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-13",
+   "DFB-14",
+   "DFB-15"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/home/HomeModelPicker.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-16"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/home/LaneBoard.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-17"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/files/WorkspaceSearch.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-18"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/files/useSearchResultsNav.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-19"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/files/useExplorer.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-20"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/files/FileExplorer.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-21"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/files/RemoteFilesPane.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-22",
+   "DFB-23"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/files/RemoteFileTree.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-24"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/files/FileViewer.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-25",
+   "DFB-42"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/files/FilesChangedPane.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-26"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/files/EditorPane.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-27"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/files/MonacoEditor.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-28"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/files/FuzzyFinder.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-29"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/artifacts/ArtifactsPane.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-30",
+   "DFB-31"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/artifacts/ArtifactsPage.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-32"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/worktrees/BranchPicker.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-33"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/worktrees/BranchControl.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-34"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/worktrees/MergeWorktreeModal.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-35",
+   "DFB-36"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::DFB-37",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-37"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/workspaces/WorkspaceChip.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-38"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/terminal/TerminalView.tsx",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-39",
+   "DFB-40"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-features::apps/desktop/src/features/routines/useRoutinePage.ts",
+  "pr": "desktop-features",
+  "units": [
+   "DFB-41"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::DE-01",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-01"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/fixtures/desktop.ts",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-02"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/smoke.spec.ts",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-03",
+   "DE-17",
+   "DE-18",
+   "DE-19"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/fixtures/account-control.ts",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-04"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/fixtures/session-dir.cjs",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-05"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/playwright.config.ts",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-06"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/fixtures/remote-host.ts",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-07",
+   "DE-08",
+   "DE-09",
+   "DE-10"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/fixtures/pi-stub.cjs",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-11",
+   "DE-12",
+   "DE-13",
+   "DE-14",
+   "DE-16"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/fixtures/pi-stub/prompt.cjs",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-15"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/transcript.spec.ts",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-20"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/settings.spec.ts",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-21"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/session-tree.spec.ts",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-22"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/worktree-finish.spec.ts",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-23"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/skills-transfer.spec.ts",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-24"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::apps/desktop/e2e/claude-routing.spec.ts",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-25"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-e2e::DE-26",
+  "pr": "desktop-e2e",
+  "units": [
+   "DE-26"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::HA-01",
+  "pr": "host",
+  "units": [
+   "HA-01"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::HA-02",
+  "pr": "host",
+  "units": [
+   "HA-02"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::HA-03",
+  "pr": "host",
+  "units": [
+   "HA-03"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::HA-04",
+  "pr": "host",
+  "units": [
+   "HA-04"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::HA-05",
+  "pr": "host",
+  "units": [
+   "HA-05"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::HA-06",
+  "pr": "host",
+  "units": [
+   "HA-06"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/commands.ts",
+  "pr": "host",
+  "units": [
+   "HA-07",
+   "HA-08",
+   "HA-09",
+   "HA-10",
+   "HA-11"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "host::apps/host/src/lanes/store.ts",
+  "pr": "host",
+  "units": [
+   "HA-12",
+   "HA-13"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/session/runtime.ts",
+  "pr": "host",
+  "units": [
+   "HA-14",
+   "HA-15"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/runtime-host.ts",
+  "pr": "host",
+  "units": [
+   "HA-16",
+   "HA-17",
+   "HA-18"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/live.ts",
+  "pr": "host",
+  "units": [
+   "HA-19"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/stream.ts",
+  "pr": "host",
+  "units": [
+   "HA-20"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/subscriptions.ts",
+  "pr": "host",
+  "units": [
+   "HA-21"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/projection-host.ts",
+  "pr": "host",
+  "units": [
+   "HA-22"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/calls.ts",
+  "pr": "host",
+  "units": [
+   "HA-23"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/transcript.ts",
+  "pr": "host",
+  "units": [
+   "HA-24"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/reconcile.ts",
+  "pr": "host",
+  "units": [
+   "HA-25"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/validation.ts",
+  "pr": "host",
+  "units": [
+   "HA-26"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/terminals/service.ts",
+  "pr": "host",
+  "units": [
+   "HA-27",
+   "HA-28"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/features/attachments.ts",
+  "pr": "host",
+  "units": [
+   "HA-29"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/features/files.ts",
+  "pr": "host",
+  "units": [
+   "HA-30",
+   "HA-31"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/features/writes.ts",
+  "pr": "host",
+  "units": [
+   "HA-32"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/features/repositories.ts",
+  "pr": "host",
+  "units": [
+   "HA-33"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/features/artifacts.ts",
+  "pr": "host",
+  "units": [
+   "HA-34"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/features/git.ts",
+  "pr": "host",
+  "units": [
+   "HA-35"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/routines/service.ts",
+  "pr": "host",
+  "units": [
+   "HA-36"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/routines/runner.ts",
+  "pr": "host",
+  "units": [
+   "HA-37"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/worktree.ts",
+  "pr": "host",
+  "units": [
+   "HA-38"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/title-policy.ts",
+  "pr": "host",
+  "units": [
+   "HA-39"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/naming.ts",
+  "pr": "host",
+  "units": [
+   "HA-40"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/sqlite.ts",
+  "pr": "host",
+  "units": [
+   "HA-41"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/lanes/state-dir.ts",
+  "pr": "host",
+  "units": [
+   "HA-42"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/shutdown.ts",
+  "pr": "host",
+  "units": [
+   "HA-43"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/fs-safety.ts",
+  "pr": "host",
+  "units": [
+   "HB-FS"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "host::apps/host/src/machine/launchd.ts",
+  "pr": "host",
+  "units": [
+   "HB-02"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "host::apps/host/src/control/identity.ts",
+  "pr": "host",
+  "units": [
+   "HB-03"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "host::apps/host/src/control/lock.ts",
+  "pr": "host",
+  "units": [
+   "HB-04"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/update/lock.ts",
+  "pr": "host",
+  "units": [
+   "HB-05"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "host::HB-06",
+  "pr": "host",
+  "units": [
+   "HB-06"
+  ],
+  "review": "sol",
+  "coder": "opus"
+ },
+ {
+  "key": "host::HB-07",
+  "pr": "host",
+  "units": [
+   "HB-07"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::HB-08",
+  "pr": "host",
+  "units": [
+   "HB-08"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/api/connection.ts",
+  "pr": "host",
+  "units": [
+   "HB-09"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "host::apps/host/src/api/server.ts",
+  "pr": "host",
+  "units": [
+   "HB-10"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "host::apps/host/src/api/lanes.ts",
+  "pr": "host",
+  "units": [
+   "HB-11"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::HB-12",
+  "pr": "host",
+  "units": [
+   "HB-12"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "host::apps/host/src/control/client.ts",
+  "pr": "host",
+  "units": [
+   "HB-13"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/control/heartbeat.ts",
+  "pr": "host",
+  "units": [
+   "HB-14"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/commands/run.ts",
+  "pr": "host",
+  "units": [
+   "HB-15",
+   "HB-16"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/cli.ts",
+  "pr": "host",
+  "units": [
+   "HB-17",
+   "HB-18",
+   "HB-37"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "host::apps/host/src/commands/doctor.ts",
+  "pr": "host",
+  "units": [
+   "HB-19"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/commands/accept.ts",
+  "pr": "host",
+  "units": [
+   "HB-20",
+   "HB-21"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/commands/accept-waits.ts",
+  "pr": "host",
+  "units": [
+   "HB-22"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/config/schema.ts",
+  "pr": "host",
+  "units": [
+   "HB-23"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/commands/setup.ts",
+  "pr": "host",
+  "units": [
+   "HB-24"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/commands/guided-setup.ts",
+  "pr": "host",
+  "units": [
+   "HB-25"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/commands/service.ts",
+  "pr": "host",
+  "units": [
+   "HB-26"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "host::apps/host/src/commands/login.ts",
+  "pr": "host",
+  "units": [
+   "HB-27"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/commands/provider-login.ts",
+  "pr": "host",
+  "units": [
+   "HB-28"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/src/commands/update.ts",
+  "pr": "host",
+  "units": [
+   "HB-29"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "host::apps/host/src/commands/uninstall.ts",
+  "pr": "host",
+  "units": [
+   "HB-30"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "host::apps/host/src/machine/tailscale.ts",
+  "pr": "host",
+  "units": [
+   "HB-31",
+   "HB-TS-STRICT"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "host::HB-32",
+  "pr": "host",
+  "units": [
+   "HB-32"
+  ],
+  "review": "sol",
+  "coder": "opus"
+ },
+ {
+  "key": "host::HB-33",
+  "pr": "host",
+  "units": [
+   "HB-33"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::HB-34",
+  "pr": "host",
+  "units": [
+   "HB-34"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "host::apps/host/scripts/build.mjs",
+  "pr": "host",
+  "units": [
+   "HB-35"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "host::HB-36",
+  "pr": "host",
+  "units": [
+   "HB-36"
+  ],
+  "review": "sol",
+  "coder": "opus"
+ },
+ {
+  "key": "host::HB-38",
+  "pr": "host",
+  "units": [
+   "HB-38"
+  ],
+  "review": "sol",
+  "coder": "opus"
+ },
+ {
+  "key": "control::CT-01",
+  "pr": "control",
+  "units": [
+   "CT-01"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "control::apps/control/src/app.ts",
+  "pr": "control",
+  "units": [
+   "CT-02",
+   "CT-07"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "control::apps/control/src/auth/host.ts",
+  "pr": "control",
+  "units": [
+   "CT-03"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "control::apps/control/src/auth/user.ts",
+  "pr": "control",
+  "units": [
+   "CT-04"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "control::apps/control/src/routes/enrollments.ts",
+  "pr": "control",
+  "units": [
+   "CT-05"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "control::apps/control/src/routes/grants.ts",
+  "pr": "control",
+  "units": [
+   "CT-06"
+  ],
+  "review": "opus-high",
+  "coder": "opus"
+ },
+ {
+  "key": "control::apps/control/src/static.ts",
+  "pr": "control",
+  "units": [
+   "CT-08",
+   "CT-09"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "control::apps/control/scripts/build.mjs",
+  "pr": "control",
+  "units": [
+   "CT-10",
+   "CT-12"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "control::CT-11",
+  "pr": "control",
+  "units": [
+   "CT-11"
+  ],
+  "review": "opus-high",
+  "coder": "sol"
+ },
+ {
+  "key": "control::apps/control/Dockerfile",
+  "pr": "control",
+  "units": [
+   "CT-13"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "control::CT-14",
+  "pr": "control",
+  "units": [
+   "CT-14"
+  ],
+  "review": "sol",
+  "coder": "opus"
+ },
+ {
+  "key": "control::supabase/migrations/20261014120000_control_function_defaults.sql",
+  "pr": "control",
+  "units": [
+   "SB-01"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "control::supabase/migrations/20261014121000_control_account_status.sql",
+  "pr": "control",
+  "units": [
+   "SB-02"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "control::supabase/migrations/20261014122000_control_retention.sql",
+  "pr": "control",
+  "units": [
+   "SB-03"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "control::apps/control/src/maintenance.ts",
+  "pr": "control",
+  "units": [
+   "CT-15"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "site::apps/site/src/assets/shots/accounts.webp",
+  "pr": "site",
+  "units": [
+   "ST-01"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "site::apps/site/src/styles/global.css",
+  "pr": "site",
+  "units": [
+   "ST-02"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "site::apps/site/src/pages/index.astro",
+  "pr": "site",
+  "units": [
+   "ST-03"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "site::apps/site/src/pages/404.astro",
+  "pr": "site",
+  "units": [
+   "ST-04"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "site::apps/site/scripts/social.mjs",
+  "pr": "site",
+  "units": [
+   "ST-05"
+  ],
+  "review": "opus-xhigh",
+  "coder": "opus"
+ },
+ {
+  "key": "site::apps/site/src/lib/faq.ts",
+  "pr": "site",
+  "units": [
+   "ST-06"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ },
+ {
+  "key": "desktop-core::apps/desktop/src/features/sessions/** (dispatch-time list: files with a detached promise and no rejection handler)",
+  "pr": "desktop-core",
+  "units": [
+   "DKB-FF"
+  ],
+  "review": "opus-xhigh",
+  "coder": "sol"
+ },
+ {
+  "key": "cleanup::libs/session-runtime/src/pi/machine-prompt.ts",
+  "pr": "cleanup",
+  "units": [
+   "CL-05"
+  ],
+  "review": "sol",
+  "coder": "sol"
+ }
+]

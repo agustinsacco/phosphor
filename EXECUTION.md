@@ -1,0 +1,239 @@
+# Remediation execution tracker
+
+Approved 2026-10-17 by user: "ok lets start". Owner decisions A1–A14 = defaults (see artifact phosphor-refactor-plan §8).
+User rules: PRs NOT stacked; each PR merged to main (squash, repo only allows squash), released, CI green. Test, re-test, revalidate.
+
+## Facts verified at start
+- origin/main = 7b2f3209. main unprotected (no required checks) -> integrator enforces green CI before merge.
+- Merge: squash only (rebase/merge-commit disabled). deleteBranchOnMerge = true.
+- CI (ci.yml): checks (typecheck, typecheck:host, typecheck:control, lint, prettier --check ., test, build x3), control-schema (supabase), site, e2e matrix (ubuntu+mac shards).
+- Release: Continuous Release (workflow_run after green CI on main), Host Release, Deploy Site (paths). Verify all green after each merge.
+- Machine: 12 cpu / 24 GB. typecheck 10 s. Pool <= 5 coders.
+- worker agent: bash/edit/write. reviewer agent: read-only (no bash) -> gets a review packet file.
+
+## Layout
+- Scratch S=/Users/agustinsacco/.pi/agent/scratch/job-6fb76f10c18f468f8e05e46c677cc715
+- Plan: $S/plans/program.json (535 units; regenerate with tools/aggregate.cjs)
+- PR worktrees: $S/wt/pr-<key> on branch agustin/remediation-<key>
+- Unit worktrees: $S/wt/u-<ID> on branch unit/<ID>, based on PR branch head at dispatch
+- Tools: $S/tools/{mkwt.sh,unit-gate.cjs,read-verdict.cjs}; protocol $S/exec/PROTOCOL-*.md
+- Reviews: $S/exec/reviews/<ID>.r<N>.md ; packets $S/exec/packets ; gate logs $S/exec/logs
+
+## PR status
+| PR | branch | state | PR# | merged sha | CI main | release |
+|---|---|---|---|---|---|---|
+| foundation | agustin/remediation-foundation | starting | | | | |
+| fixes | agustin/remediation-fixes | starting | | | | |
+
+## Notes
+- Plan said rebase-merge; repo allows squash only. Using squash, one PR per key, merged to main (not stacked). Each unit stays a separate commit on the PR branch for review; the squash message lists the units.
+- Baseline batch gate on untouched main (7b2f3209): typecheck/lint/prettier pass; full vitest 1 failure = known load flake setup.test.ts "writes exactly 64 KiB" (5 s timeout, passes alone). host-b plans the root-cause fix. Integrator must re-run a failing test alone before attributing it to a unit.
+- extra_gates e2e: integrator runs these at PR level (coders told not to run e2e).
+- Batch 1 workflow: 4d77b85c-e872-4a5f-b7ea-20ffba1fe963 (FD-01 + 17 fixes units, pool 5). Remaining fixes after it: FX-16 (after foundation), FX-17 (after FX-04), FX-19 (after FX-06, FX-03), FX-20 (after FX-19).
+
+## Unit log (id: state, notes)
+- FX-03: coder asked about extra_gates e2e -> told integrator owns it.
+- FX-06: coder done, gate pass (958f47cb regression red by assertion, 471be60e fix). main.ts 416->418 (pre-existing oversize, warning). e2e startup.spec.ts for integrator. -> review.
+- FD-01: coder done, gate pass (f620d8c1, e38c1e1f, 409ab791). -> review.
+- FX-01: watchdog flagged "failing" bash calls; these are the intended red regression runs (1646a31e regression commit). No action.
+- Reviewer outputs lost the fenced json (output file saved without fences); read-verdict now also accepts "VERDICT:/BLOCKING:" trailer lines; protocol updated. FX-06, FD-01 judged pass by reading the prose.
+- FX-03: review blocked on smoke.spec.ts one-click delete. Integrator commit 37e1c867 confirms Move to Trash; old e2e fails on new app, new passes; gate r2 pass -> approved. owns += smoke.spec.ts.
+- FX-09: approved option B (fork never refuses live source, but runs in lock) + (i) owns += session-writer.ts so fork drops a torn trailing line.
+- FX-14: worker quiet 4 min on a bash `ls` (opus xhigh thinking); left alone.
+- FX-04, FX-01, FX-21: review r1 pass. Extra gates pending: control-stack, remote-files/lanes/pages e2e, remote-access e2e. FX-09 allowed to run its e2e (new spec), with red/green proof.
+- FX-01 extra e2e (remote-files/lanes/pages) run by integrator on unit head: 23 passed. FX-14: approved (b) hardening the signal drain in run.ts too. FX-11 coder done -> review.
+- r1 pass (minors only): FX-02 05 07 08 09 10 11 12 18. Pending: FX-13 FX-14 FX-15.
+- Batch 1 complete (18/18 approved). Integrated into pr-fixes (head 6f8b8e98): 16 units; batch gate typecheck/lint/prettier pass, vitest 1 fail = hydrationScale timing test under load 11-12 (passes 3/3 alone; no chat reducer change). pr-foundation (head e8ef0a8a) FD-01: gate pass except known setup.test.ts load flake.
+- FX-14 r1 review minor -> treated as real defect (signal path exits 0 on failed teardown, contradicts docs). Round 2 dispatched. Follow-up (not in scope): HostPty onExit lacks signal field (native.ts) -> externally killed shell reports 0.
+- Gate now checks every regression commit (round-2 regressions red at their own commit).
+- Batch 2: FX-14 r2, FX-17, FX-19 (base pr-fixes), FD-02 FD-03 FD-05 FD-06 FD-11 (base pr-foundation).
+- Batch 2 workflow: 00e11eb2-a6b8-495f-85c9-970986c7654d. Fixed mkwt.sh relative-path bug (had created 7 worktrees inside the lane checkout; removed, lane clean).
+- pr-fixes (head 6f8b8e98) extra gates by integrator: e2e startup+remote-access 16/16 pass; test:control-db PASS; auth-stack 3/3; control-stack 1/1 (FX-04 extra gate satisfied).
+- FD-03: approved allowJs in apps/host/tsconfig.json (include stays .ts, noEmit), with a test that the only JS in the Host program is scripts/output.mjs; no checkJs.
+- FD-03: allowJs exposed TS2322 in output.test.ts mocks; approved JSDoc-only port typedef in apps/host/scripts/output.mjs (owns +output.mjs; output.test.ts left to HA-27).
+- FD-02: watchdog 'failures' were diagnostic typecheck runs (TS7016 adhoc-sign-mac.mjs under new tests project). Steered with FD-03 precedent (allowJs in tsconfig.tests.json only + exact-JS-list test; JSDoc-only if needed; escalate extra owns in one batch).
+- FD-02: approved allowJs in tsconfig.e2e.json + option A (type-only fixes to 5 e2e files + ws-receiver.d.ts; owns updated). INTEGRATION RISK: fixes PR e2e code (FX-09 spec, FX-03 smoke edit) is not checked by the new e2e tsconfig; whichever of fixes/foundation lands second must pass `tsc -p apps/desktop/tsconfig.e2e.json` after rebase.
+- FX-17 coder done -> review.
+- FX-17 r1 pass (1 minor). FX-14 r2 coder done (regression red [0] vs [70]; 3 s release limit pre-existing, documented) -> review r2. Extra e2e remote-lifecycle.spec.ts pending.
+- Load avg 17-30 during batch 2 (5 coders + full vitest runs) -> run.test.ts ENOENT/timeouts seen under load, pass on rerun. Use pool 4 for next batches; integrator full-suite runs only when no coder runs a full suite.
+- FD-03 watchdog: legit full vitest run (--maxWorkers=2), slow under load. Left alone.
+- FD-05 schema contract (approved): relocation manifest {version:1, moves:[{from,to,kind?}]} at tools/relocation-manifest.json (RL-01 MUST emit this); selector consumes plan unit-spec JSON (characterize_first/new_tests/existing_tests + owns, optional importChanges); project roots read from project.json on disk, pinned by test. -> When dispatching RL-01/FD-07/FD-08, add an integrator note pointing at FD-05's validators.
+- FD-05: approved tools/host-release supplemental root; run inventory records skipped/todo identities + platform; compare refuses cross-platform by default. RL-03 parity must use run-kind inventories on the same OS.
+- FD-05: approved warn+skip unowned non-code paths; root config files expand to whole suite; docs-only -> explicit no-tests status.
+- FX-14 r2 pass -> approved (pending remote-lifecycle e2e at integration).
+- FX-19: watchdog flag = normal TDD iteration (char + regression committed; implementation in progress, 3/38 failing). Left alone.
+- ROUTING CHANGE (user, 2026-10-17): use sol more. Remaining units: sol codes by default (436/510); opus codes only security units, host-grant/supabase-schema/release contracts, and sharp-edge files (sessions store, session-writer, mac-installer, pi-ext guards, protocols, preload, ipc/handle, vault, identity) = 74. Opus still reviews every unit. In-flight units unchanged. Backup plans/program.json.bak-routing2.
+- FD-03 r1 pass (3 minor) -> approved.
+- USER APPROVED (2026-10-17 "yes lets get going"): pool 7 (coders cap vitest --maxWorkers=2), merge fixes with ready units now (FX-16/FX-20 -> fixes-2 PR), group short same-file chains into one coder task, sol reviews medium/low decompose units (opus reviews security/sharp-edge/high-risk-contract units).
+- Batch 3 workflow 63f593ac (FD-05 r2, FD-11 r2, FD-04, FD-09, FD-10, FX-20). pr-fixes head b92db0bb has 19 units.
+- FD-04: owns += tools/scripts/{validate,nx-projects}.test.ts (actual paths); verify corrected. No relocation outside reloc.
+- fixes PR #506 opened (head b92db0bb, 19 units: FX-01..15, 17, 18, 19, 21). FX-16 + FX-20 -> fixes-2 PR later. Waiting on CI; merge only when every job green, then verify Continuous Release / Host Release / Deploy Site.
+- FD-04: owns += 6 tools tests (type-only fixes; node-pty createRequire must resolve same app-local package).
+- FD-09 r1 pass -> integrated into pr-foundation. PR #506 CI running (run 39076855482).
+- FD-05 r2 pass -> integrated into pr-foundation. #506: control-schema + site pass; checks + e2e pending.
+- FX-20, FD-11 r2 coders done -> review. FD-04 watchdog = full vitest --maxWorkers=2 run, left alone.
+- Batch 3 done. FD-10 r1 pass, FD-11 r2 pass -> pr-foundation head 1f37e60b (FD-01,02,03,05,06,09,10,11). FX-20 r1 pass -> held for fixes-2. FD-04 r1 blocked (unstaged deletions in coverage audit) -> r2, owns += docs/host.md.
+- FD-04 makes `npm run typecheck`/`npm test` need apps/site install: CI fails until FD-14 (ci.yml). mkwt.sh now clones apps/site/node_modules; lane checkout got `npm ci --prefix apps/site` (ignored path).
+- #506 e2e ubuntu 1/6 failed: remote-chat.spec.ts:24 strict-mode (chip + composer both show PHX-followed). Same failure on main 7b2f3209 run 38971763413 (passed on retry) => pre-existing race. Reran failed jobs. Fix test in fixes-2 (FX-22: scope to queue-chips, wait composer empty).
+- main moved: df817b39 (#505) adds an IPC channel (ipc.ts, ipc-scope.ts) -> FD-09 freeze list must be updated when foundation rebases.
+- Follow-ups (minor, accepted): FX-20 `command -v --`; FD-10 non-empty variant groups; FD-11 asyncWidget.kind case + producer isolation.
+- remote-chat.spec.ts on pr-fixes locally: 12/12 (repeat-each=4, retries=0).
+- FD-04 r2: approved one scoped eslint-disable-next-line (triple-slash-reference, with reason) for node-pty ambient types in setup-terminal.test.ts.
+- FD-04 r2 pass (+integrator 582828fa: win32 shell only for .cmd; node-pty comment truthful), FD-12 r1 pass -> pr-foundation 48a34e7f (10/14). FD-12 minors (restore-order guard, export FakePhosphor type) -> fold into first adopter unit.
+- unit-gate: step 5b full vitest (--maxWorkers=2) when a unit touches root config; known flakes -> warnings. Also clones apps/site/node_modules. Integrator commit 62d56829 on pr-foundation: type fixes for FD-05/FD-11 tests under FD-04 typecheck + package-boundary expectation.
+- #506 merged (squash 63ae8a22) after 12/12 green. Main also has #505, #507 from other lanes. Verifying CI on main + Continuous Release / Release Host / Deploy Site.
+- foundation rebased on main 63ae8a22 -> 5f563a0f (freeze baselines admit hosts:createFolder/reconnect/traffic + host.repositories.createFolder). Full gate green; e2e tsconfig 0 errors. Pushed (no PR until 14/14).
+- fixes-2 = FX-20 + FX-22 (integrator e2e race fix) on main; gate green; PR opened. FX-16 -> fixes-3 after foundation.
+- Batch 5: FD-07 (workflow 8dd39776).
+- Release Host is workflow_dispatch only: dispatch host v0.2.6 after main CI green on 63ae8a22.
+- 2026-10-17 PAUSE (user): main CI red on 63ae8a22 (lane-receipts.spec.ts:35 got 'finished', want 'failed', both attempts, ubuntu 1/6). No dispatch, #508 held. Root-cause, fix in own PR, merge, then rebase everything.
+- Root cause main red: lane-receipts.spec.ts read last attention from ANY lane; second lane's 'finished' raced in. Pre-existing (seen locally on b3cbc7bc). Main rerun green. Fix PR opened (branch agustin/fix-lane-receipts-race). Then: rebase #508, foundation, FD-07 r2.
+- #509 merged a061b115 (main CI green). #506 released v0.1.484 (Continuous Release success). Dispatched Deploy Site + Host Release 0.2.6 on a061b115. fixes-2 (#508) + foundation rebased on a061b115, full gates green, pushed. FD-07 r2 redispatched (first dispatch had a padded SHA; stopped cleanly before any work).
+- #508 merged 11691e66 (12/12). Releases on a061b115: Continuous v0.1.485? (published 00:53), Host v0.2.6, Deploy Site all green.
+- foundation rebased on 11691e66 -> 364b1a30; gate green except known setup.test.ts 64KiB load flake (passes alone); e2e tsconfig 0 errors; pushed.
+- FD-07 r2 pass -> pr-foundation (+ header doc fix). Head e973fe63, 11/14. Batch 6: FD-08, FD-13.
+- 2026-10-17 USER: speed-ups 1+2 approved. (1) one coder task per primary source file per PR (tools/group-tasks.cjs -> exec/tasks.json); units keep their own commits/IDs. (2) review tiers: pure moves (decompose/dedupe/dead-code/docs/tests/lint) without contract or sharp-edge file -> sol (low/med) or opus:high (high); fix/security/perf/contract/sharp-edge -> opus:xhigh. Applies from batch after FD-08/FD-13. Reports: shorter.
+- PWA lane coordination: 45 overlap units set hold-coordination; proposal at COORDINATION-PWA.md. Foundation + reloc continue.
+- FD-13 r1 pass -> foundation (+integrator minors). FD-08 review hit session limit; re-running review only. Copied @vitest/coverage-v8 + FD-13 plugin deps into pr-foundation, u-FD-08 and lane node_modules (CI uses npm ci).
+- foundation 3135023b (12/14) full gate green, e2e tsc 0, pushed. Waiting FD-08 review (39fe99b8), then FD-14.
+- FD-08 r1 blocked (2): red characterize_first on fix units; empty-scope coverage throws. r2 dispatched (workflow 0a166ca3) with 4 minors.
+- 2026-10-17 USER (overnight): keep working until fully done. Merge only on full green CI; stop-and-fix if main goes red; PWA-overlap units stay held.
+- FD-08 -> foundation f808061b (13/14). Dispatching FD-14.
+- FD-14: size ratchet fails on base (51 spans grew on main via #505-#508 before enforcement). Approved one-time baseline reconciliation commit (mechanical, raise/add only, listed in body) + test that growth still fails; owns += tools/budgets/*.json. NOTE for PR/user: once CI enforces the ratchet, any lane growing an over-budget span fails CI (affects PWA lane).
+- task-gate.cjs (multi-unit task gate, uses unit-gate --head) self-tested on FD-13+FD-08: pass.
+- FD-14 r1 blocked (stale host.md) -> integrator fix; foundation 14/14 rebased on #510 + baseline reconcile (5 spans, tools/reconcile-budgets.mjs). PR opened.
+- #511 CI: checks failed on lint-policy typed-lint first-file timeout (5s). Fixed with 60s timeout; pushed.
+- #511 foundation merged (12/12). RL-01 r1 blocked (vi.mock paths) -> r2.
+- main 1d388d82 green: CI, Deploy Site, Desktop v0.1.488 (no Host runtime change). FX-16 dispatched (c59996ff) on main for fixes-3. RL-01 r2 running (ce0d525b).
+- PWA owner decision (COORDINATION-PWA.md): relocation (RL-02/03) DEFERRED until after PWA deploy. Acknowledged.
+  241 non-held, non-renderer, non-root units remapped to colocated test paths (tools/remap-colocated.cjs; backup/ has pre-remap copies).
+  Extra holds: CT-12..15, HB-06, HB-09, HB-11 (Host API admission / Control main seam). Renderer (desktop-chat/core/features) waits for the PWA renderer move.
+  Protocols updated (test location, multi-unit tasks). tools/ready-tasks.cjs lists dispatchable tasks.
+- Wave 1a dispatched (4b97ac49): 11 libs + HA-01..06, concurrency 5. Wave 1b (20 host decompose/tests) next.
+- RL-01 r2 pass (3 minor fixed, 148e4af3). PR opened (reloc-planner).
+- FX-16 integrator fix; PR fixes-3 opened. Approved: LS-01, LS-19, LR-01/02/03/13/17/18/20, HA-01..05 (minors on LR-02/03/17/18 to read).
+- #512 RL-01 merged (85683767). #513 fixes-3 (FX-16) open. LR-18 minor fixed (a8e47f19). Wave 1b dispatched (d346c973, 20 host tasks, conc 4). Pending: HA-06, libs:title-policy, libs:status-keys from 0fac4263.
+- #513 FX-16 merged. fixes PR group complete.
+- unit-gate TMP path sanitized (':' broke PATH -> exit 127). libs:title-policy, libs:status-keys gates now pass; reviews dispatched.
+- Wave 1a done: 16/17 approved + 2 libs: units in review (1f808d0f). Wave 1b approved so far: HA-20..23, HA-26. Minors queued: prune stale host.json/session-runtime.json baselines (HA-21, HA-22, LR-17) in integration.
+- libs PR opened (11 units + ratchet-down + inventory test fix). Wave 1b approved: HA-20..23,26,27,28,32,33,34,35,43. HA-34 minors (ELOOP code, close spy) to fix at host integration.
+- HB-07 approved (2 minor; integrator load evidence 10/10). HB-08 evidence supplied (before 3754ms -> after 79/61ms, 2x host-suite load green). HB-23: approved helper move to schema-fields.ts with re-export.
+- #515 libs: macOS e2e lane-receipts failed 2x (receipt settles before gitByCwd loads). Rerun requested; root-cause test fix #516 (+ known-issues R10).
+- HB-20+21 r1 blocked (freeze suite audited old accept.ts) -> integrator commit inserted in HB-20 block + settleMs minor; task-gate r2 pass.
+- Approved: HB-12 (3 minor follow-ups), HB-13, HB-23 (fix '1 to 64' comment at integration), HB-28, HB-32. Pending: HB-35.
+- #515 libs merged after 12/12 (rerun).
+- HB-35 r1 blocked (library-types allowlist) -> integrator fix. host PR opened (27 units, 31 baselines removed). Gate green + build:host.
+- HB-23 pulled from #517 (PWA overlap on schema.ts). #516 second fix: wait on window title (gitByCwd) not branch chip.
+- TL-08 spec remapped to colocated tests (worker request). TL-12/13/15/16/17 specs: dropped /test/ segment (new tests beside subject); TL-17 fixture -> __fixtures__/. Steered TL-12/TL-13.
+- #516 merged (lane-receipts waits on window title).
+- #517 host merged; DM-07 typing-only characterize amend approved.
+- TL-12 verify path fixed; offscreen smoke owned by integrator. DM-01 option A (fail-closed) approved, owns += 3 ipc test files.
+- Host Release 0.2.7 dispatched from main e44dd009.
+- Wave 2 approvals so far: TL-08, TL-13, DM-02, DM-07, DM-14 (r1 pass). #517 merged e44dd009.
+- PROTOCOL-CODER: standing decisions (extra_gates -> integrator; typing-only characterize amends pre-approved; colocated path remap).
+- Host Release 0.2.7 published (host-v0.2.7). TL-12, TL-15 approved.
+- Integration minors to fix (wave 2):
+  - TL-15: characterization backpressure test assumes 'ready' frame arrives with the 101 (latent flake): attach message listener before 'open'. Fix before PR.
+  - TL-12: add unit assertion that startSession stores state.homeComposer.
+  - DM-02: stub PHOSPHOR_PI_STUB and PHOSPHOR_CLAUDE_BIN to distinct values in gates test; drop stray blank import line.
+  - TL-13: stale tooling baselines -> tighten-budgets at integration.
+  - Integrator-owned extra_gates: TL-12 offscreen screenshot smoke, DM-13 startup.spec, DM-24 remote-switching.spec, DM-01 full e2e.
+- DM-13 r1 blocked (dev-renderer-url/package-quit mocked old IPC modules; 6 tests fail) -> integrator fix 2ec4dffe (owns += 2 tests), gate r2 pass. Approved: DM-01, DM-24, DM-25, TL-16, DM-27.
+- LS-02: owns += libs/shared/test/host-protocol.freeze.test.ts (retarget SessionPush mutation to models/sessions.ts).
+- More minors: DM-27 stale createAccount baseline (tighten), e2e account-control comment -> account-state.ts; DM-01 tie sender-policy bundle path to main.ts loadFile (test); DM-24 two weak assertions; DM-13 package-quit stale mocks fixed in 2ec4dffe.
+- DM-29 approved (minors: real-timer 100ms deadline in loopback characterization; verbose let/return). DM-30 coder crashed on WebSocket error; resumed (e7fa9d69). The wave runner recorded it as a crash, so I must run the review myself once the gate passes.
+- Approved: LS-02+LS-03, LS-05, DM-28. DM-30 gate pass -> manual review 85fff03d.
+- Doc/baseline minors: LS-02 README tree + docs/architecture.md AppPrefs link -> models/; LS-05 stale shared.json rpc.ts::file 588 (tighten) + docs/pi-integration.md:21 -> rpc/*.ts.
+- LS-10 characterize_first remapped to its own control-api/{enrollment,machines,grants,status}.test.ts (worker default approved). DM-31 approved (minor: stale createRealtime baseline -> tighten).
+- LS-06 option B approved: owns += libs/shared/test/host-protocol.freeze.test.ts (rewrite map retargets to host-protocol/{frames,operations}.ts). NOTE: LS-02 also edits the same rewrite map (models.ts key) -> expect adjacent-line conflict at libs integration; keep both.
+- DM-30 approved (manual review 85fff03d).
+  - DM-30 minor: client-state.test 'no token in cached state' only checks log half (strengthen); transport.ts redundant fetch fallback.
+- Approved: DM-32, TL-17, DM-35, DM-33, DM-36, LS-16 (all B0).
+  - Minors: DM-36 docs/mcp.md:333 + code map -> mcp-translation.ts (fix at integration, doc drift); DM-36 smoke.spec extra gate (integrator); TL-17 fixture test matches vitest message text + 2nd fixture in 60s (consider); DM-32 shadowed `process` local (rename); stale baselines DM-35/LS-16 (tighten).
+- LS-06 alert = worker trimming new characterization test under 800-line test budget (883->845); left alone.
+- Approved: DM-40, LS-17, DM-41, DM-37+DM-38 (all B0).
+  - Minors: DM-41 store.ts duplicate ./prefs/workspaces import + blank line (fix); DM-41 startup.spec extra gate (integrator); DM-37/38 stale skills.ts baselines (tighten); DM-40 partial port injection (accept, behaviour identical).
+- DM-46 alert = pre-existing renderer lint warning output during its gate; left alone.
+- Approved: LS-18, DM-46, DM-47, libs:tailscale-status (all B0).
+  - Minors: LS-18 wire parser now follows ALL_THINKING_LEVELS -> add a test pinning the accepted wire set at integration; LS-18 duplicated record/text helpers (accept); DM-46 stale sweep baseline (tighten); tailscale redundant record() call (accept).
+- DM-55 alert = pre-existing renderer lint/typecheck output; left alone.
+- Approved: DM-48, LS-09+LS-10 (B0). Minors: DM-48 restore `torn` comment reason in corpus-storage.ts; LS-10 merge split vitest import (style).
+- libs:pi-api-types: owns += bundled-extensions.test.ts + extension-resources.test.ts (helper allowlist gets pi-api.ts, as status-keys.ts did).
+- DM-55 extra gate (integrator): watcher suite 15/15 under 10-core busy-loop load at cdb4086c; evidence sent to reviewer.
+- Approved: DM-43+44, DM-55, libs:runtime-tests-home. Minors: mac-installer.ts::file 472 stale (tighten); docs/provider-symmetry.md:29 directives.test.ts path (fix). Wave 2b complete.
+- desktop-main PR assembled (wt/pr-desktop-main): 26 units clean; minors c058dbf3; 20 baselines removed 93dd7c57; cross-unit fix 34fff363 (DM-07/13/writing-runtime suites mock sender-policy after DM-01). Gate green.
+- Approved: LR-15, libs:pi-api-types, CT-01 (B0). Minors: LR-15 doc new exported helpers; pi-api-types comment on imported set.
+- desktop-main PR opened (26 units).
+- libs2 + tooling + control PRs assembled. TL-08 pulled (PWA overlap). libs2 gate green.
+- #518 desktop-main merged. #519 control opened.
+- #520 libs2, tooling PR opened. capture-readme-shots broken on main pre-existing (Artifacts pane title) -> follow-up.
+- #520 libs2 merged (7fb43cf4), #521 tooling merged (b6fbc2f6). Wave 3a running (4cc7f8c7): HA-19, DM-45 approved (minors: stale createLiveLanes baseline -> tighten; DM-45 chmod test assumes non-root).
+- DM-03: owns += session-launch.test.ts, pi-session-handlers.test.ts (mock migration).
+- Follow-up: capture-readme-shots.mjs times out on getByTitle('Artifacts pane') on main (pre-existing).
+- HB-22: owns += apps/host/src/boundary.test.ts; Host boundary allowlists only '@phosphor/pi-extensions/status-keys'.
+- FOLLOW-UP (new unit): ttl-cache invalidate() does not detach an in-flight load; pending pi health probe survives invalidation (found by DM-03).
+- Deploy Site dispatched for b6fbc2f6 (auto run for 7fb43cf4 superseded): success. HB-FS, HB-33 approved (HB-33 minors: vacuous sync 'split' check; fake-pi.cjs ceiling -> tighten).
+- Wave 3a: HB-22, HB-38 approved (0 minors). DM-03 approved, minors at integration: update smoke-packaged-win.ps1:7 comment ("per fresh probe" -> per pi:health call); PiInvoker name clash with packages.ts private type -> accepted, follow-up.
+- HA-07..11 coder (4616a48e) at HA-11 commit, running its gate.
+- #522 host2 (HA-07..11, HA-19, HB-FS, HB-22, HB-33, HB-38) and dm2 PR opened; both local gate+build+e2e 167/167.
+- HA-35 (approved wave 1, missed from #517) added to #522. State fix: LS-02/03/05 merged; TL-08 back to hold.
+- #523 dm2 merged (977db765), #522 host2 merged (8bddc87c). Host 0.2.8 release due after main CI green.
+- LS-11: owns += fake-host/__fixtures__/harness.ts (shared characterization harness, option A).
+- LR-11: decision: no budget edit; existing 723 baseline is the file-only allowance; stop "blocked: budget" if it cannot fit.
+- TL-18: owns += bundles.{setup,runtime,locks,security}.test.ts + tools/budgets/tooling.json (re-key only, same 129); verify remapped to tools/host-release. LR-11: no budget edit (723 allowance).
+- DM-53: spec path corrected to libs/shared/src/tailscale-status.ts. #522/#523 merged; main 8bddc87c CI green.
+- Host Release 0.2.8 dispatched (run 39122441630, 8bddc87c).
+- Wave 3b approved: LS-04, LR-19, LR-11, LR-23, LR-21/22. Integration minors: LS-04 docs say channels live in ipc.ts IpcInvokeMap (CLAUDE.md:60, README:307, routines/worktrees/voice docs; check PWA overlap); LR-11 drop misleading `implements Word`; LR-21/22 test should assert pending()'s real SQL + check "Runtime quit or restarted" wording; tighten stale baselines. LR-23 minors accepted.
+- LR-21/22 'Runtime quit or restarted' wording is pre-existing (not in diff): accepted. LS-04 doc fixes: CLAUDE.md/README/routines/worktrees are PWA files -> edit only if trial merge stays clean.
+- Wave 3b all approved. PRs assembled on 8bddc87c: libs3 (LS-04, LS-11..14, LR-11, LR-19, LR-21/22, LR-23), dm3 (DM-10/11, DM-53), tooling2 (TL-18).
+- FOLLOW-UPs: fake-host unit tests duplicate host()/addLane()/grant()/harness builders across ~8 test files -> extract to fake-host/__fixtures__ (coder missed the approved option-A reply); LS-04 README/routines/worktrees doc paths after PWA; DM-10 app-handlers imports pathExists from sandbox-transcripts (accepted).
+- PRs opened: #524 libs3; dm3, tooling2 (all local gate green; libs3/dm3 e2e 167/167).
+- Wave 4 dispatched (3f8121f8): DM-05, DM-34, HA-12/13, HA-14/15, HA-16..18, HA-24, HA-25, HA-29, HA-30/31, HA-36, HA-42, HB-02, HB-03, HB-05, HB-19, HB-34 @ 8bddc87c.
+- #524 libs3, #525 dm3, #526 tooling2 merged. DM-34 approved (minors: restore dropped login-driver comments, TERMINAL_COLS const).
+- DM-05: approved double cachedPiHealth read (catalogue preflight + command message reread); invoker.ts untouched.
+- Wave 4 approved: HA-12/13, HA-25 (0 minors), HA-14/15 (errnoIs null-throw edge, PATH! assertion: check at integration), DM-05 (minors: failing pi:commands double health probe since unhealthy isn't cached -> check; stale owner comments in commands.ts and src/stores/modelCatalogue.ts (renderer: PWA-held, leave); restore catalogue sharp-edge comments).
+- HA-24: decision: failure callback before closeSync, keep log/invalidation order.
+- Deploy Site re-dispatched for 0c4bf170 (run 39128902249); auto run for 88dc0018 superseded.
+- HA-29 approved (0 minors). Deploy Site for 0c4bf170 dispatched: success.
+- DM-05 integration fix (must do): in pi/commands.ts, outside stub mode call cachedPiHealth() once before resolvePiInvoker and throw health.message ?? 'pi is not installed' when not ok (unhealthy results aren't cached, so the reread doubles discovery and can disagree). Restore catalogue sharp-edge comments; fix commands.ts owner comment (leave src/stores/modelCatalogue.ts: PWA-held).
+- HA-16..18, HA-24 approved. Integration minors: docs/host.md:1139 + known-issues HL1/HL2 code locations -> runtime-host/{lifecycle,model-switch}.ts (both PWA-touched docs: only if trial merge clean, else COORDINATION note); HA-17 async guard on unbound set_model accepted (unreachable); HA-24: run its 6 failure-ordering cases on base myself + remote-lifecycle e2e via full e2e.
+- HA-42: owns += lanes/state-dir.test.ts (harness-only: esbuild bundle for umask subprocess).
+- HA-24: verified 38549dd4 (test-only on base) passes 16/16 incl. 6 failure-ordering cases.
+- Wave 4: HA-42, HA-36, HB-02, HA-30/31, HB-19 approved. HB-34 r1 'blocked' only on library-types allowlist (fake-pi/{commands,turns}.cjs) -> integrator fix, same as HB-33; treated approved.
+- Wave 4 complete. #527 host3 (19 units) and dm4 PR opened; both local gate+build+e2e 167/167.
+- LS-15 dispatched alone (08b3d41a) @ 0c4bf170.
+- LS-15: owns += conformance/__fixtures__/harness.ts (option A).
+- #527 host3 merged (20041958), #528 dm4 merged (f829bc97). Host 0.2.9 due after main CI green.
+- Host Release 0.2.9 run 39136512880: success
+- Wave 5 prepared @ f829bc97: DM-04/39, DM-06, DM-57, DM-60, DM-61, HB-04, HB-14, HB-17/18/37.
+- Wave 5 dispatched (7f4fc514). LS-15 approved (minors: stale conformance ceilings -> tighten; exact vitest message matching in oracle tests -> accepted).
+- DM-57: keep fresh checkPiHealth/piArgs/piProcessEnv in auth-actions.ts (interactive auth needs a fresh probe); invoker untouched.
+- DM-04: owns += pi/invoker.ts, invoker.test.ts (optional explicit stub override; existing callers/tests unchanged). DM-06: owns += ipc/pi-session-handlers.test.ts (mock path only).
+- DM-39: owns += pi/binary-lookup.ts(+test): resolveBinary moved unchanged, re-exported from packages.ts (no packages<->claude-status cycle).
+- DM-61: invoker edit refused (DM-04 owns that API change); keep fresh checkPiHealth binary-present admission in mcp-actions.ts. FOLLOW-UP: adopt shared invoker in mcp-actions/auth-actions after DM-04 merges.
+- PWA lane MERGED to main: #514 778cc283. Held units can be re-planned after main CI is green.
+- MAIN RED at 778cc283 (PWA merge): reconcile.test.ts lane-cap case timed out (7.1s>5s, CI load). Fix PR agustin/fix-reconcile-timeout. Merges paused until green.
+- HB-17: prototype-name CLI quirk (falls to doctor / unhandled TypeError) -> separate regression+fix(HB-17) commits, own-property lookup, exit 64.
+- #530 reconcile timeout fix merged (c7717308). Wave 5 approved: DM-60, DM-57, DM-06, DM-61, HB-04, HB-14; DM-04/39 r1 blocked only on packages-handlers.gates.test.ts stale ./pi-config-handlers mock -> integrator fix.
+- PWA merge added workspaces (client-ui, host-client, apps/web): golden install at wt/nm-main (npm ci @ c7717308); mkwt.sh clones from it; tools/refresh-nm.sh refreshes a worktree. libs4 rebased on c7717308, gate green, force-pushed.
+- MAIN RED again at c7717308: PWA tests (WebKit in-page keygen OperationError; size-budget-integration 5.7s). Fix PR agustin/fix-main-pwa-flakes.
+- FOLLOW-UP (PWA code, not ours): apps/web e2e "real Host files and artifact isolation across two lanes" [webkit] flaked on #531 (run 39141502938): second lane's ReadOnlyFilesPane showed "Could not read files." and never retried (effect deps lack focus/retry). 8/8 local repeats pass. Suspects: hosts:setFocusedLane race vs fs:listFiles, or transient Host read error. Pane has no auto-retry.
+- #531 merged c08625cc (WebKit crypto + size-budget deflake). Wave 5 all approved. dm5 (6 units) + host4 (HB-04/14/17/18/37) assembled, gated; rebased on c08625cc.
+- MAIN RED at c08625cc: web e2e two-lanes (ReadOnlyFilesPane reads before focus). Fix PR agustin/fix-web-files-focus-race. Merges paused.
+- Post-PWA replan applied (290 units: 240 remap, 50 rewrite; splits RL-01b, DM-26a/b; DM-26 superseded). 63 held units released. Backups plans/program.pre-replan.json, exec/state.pre-replan.json. desktop-features-a dep expanded to DFA-* ids.
+- Decision: relocation (RL-03) runs LAST; dropped 'reloc' dep from 111 refactor units (specs now colocated). tasks.json: DM-26 -> DM-26a/DM-26b, RL-01b task added.
+- #534 merged (web files focus race). Waiting main CI before merging #529/#532/#533.
+- Wave 6 prepared (22 tasks, base 488d5afe). Old task/TL-08, task/HB-23 local branches replaced (fresh re-implementation per replan).
+- Wave 6 dispatched: workflow 317d4684 (22 tasks, conc 5, base 488d5afe). wave-runner now takes args.base/extra defaults and derives wt.
+- BUG: replan apply used precomputed indices; RL-01b splice shifted them, so 55 units got their neighbour's patch (e.g. TL-06 had TL-07's owns). Rebuilt from pre-replan by id -> program.json + exec/units fixed. Corrupt copy: plans/program.corrupt.json.
+- Wave 6: corrupt-spec fallout handled. TL-06/TL-08/LR-16 workers steered to the fixed specs. libs:worktree-segment (approved) was gated with the corrupt verify, so rerun the fixed verify at integration. Units not yet started read the fixed specs. #529/#532/#533 are green and ready to merge now that main 488d5afe is green.
+- Merged #529 libs4 (b30d66d6), #532 dm5, #533 host4. Host 0.2.10 release pending main CI green (HB-17 behaviour change + CLI refactors are Host runtime).
+- main dacb3c0e green. Host Release 0.2.10 dispatched.
+- Wave 6 r1 approved: RL-01b, libs:worktree-segment, libs:print-mode, LR-16, TL-08. Integration TODO:
+  - LR-16: drop stale host-client.json ceilings (createLaneProjection 284, event 91) via tighten; run extra gates (conformance, remote-lanes e2e, test:e2e:web, remoteSnapshot.test).
+  - TL-08: docs/nx-cache.md host bullet -> host selects host,web,tooling; clarify line 95.
+  - print-mode: killProcessTree({pid:undefined}) test needs an assertion.
+  - worktree-segment: rerun fixed verify (store.test.ts, path.test.ts).
+- Deploy Site re-dispatched (b30d66d6 lost the exact-SHA race).
+- DM-09 owns += routines-handlers.test.ts (mock path). Host 0.2.10 released; Deploy Site dacb3c0e success.
+- DM-08 owns += ipc/hosts-handlers.test.ts (mock path). DM-23 coded, gate pass.
