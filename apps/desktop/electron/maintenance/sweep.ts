@@ -13,6 +13,7 @@ import {
 import { sessionDirForCwd } from '../pi/pi-paths'
 import { log } from '../debug-log'
 import { selectReclaimable, totalBytes, type WorktreeFacts } from './policy'
+import { initializeReport, reclaimCandidates } from './reclaim'
 
 const execFileAsync = promisify(execFile)
 
@@ -115,20 +116,8 @@ export async function sweep({
   act,
   now = Date.now(),
 }: SweepOptions): Promise<MaintenanceReport> {
-  const errors: string[] = []
-  const report: MaintenanceReport = {
-    ranAt: now,
-    workspacePath: repoPath,
-    worktreeCount: 0,
-    candidates: [],
-    held: [],
-    prunedRegistrations: [],
-    reclaimed: [],
-    reclaimableBytes: 0,
-    reclaimedBytes: 0,
-    liveSessionCount,
-    errors,
-  }
+  const report = initializeReport(repoPath, now, liveSessionCount)
+  const { errors } = report
 
   // A recent workspace can be a plain folder, e.g. a "No folder" sandbox.
   // It has no lanes, and every git command below would fail with "not a git
@@ -170,25 +159,7 @@ export async function sweep({
 
   if (!act) return report
 
-  for (const candidate of candidates) {
-    try {
-      const result = await removeWorktree(repoPath, candidate.path, { deleteBranch: true })
-      if (!result.removed) {
-        // Raced with an edit between the scan and now. Leave it.
-        errors.push(`${candidate.path}: became dirty (${result.dirtyCount})`)
-        continue
-      }
-      report.reclaimed.push({
-        path: candidate.path,
-        branch: candidate.branch,
-        bytes: candidate.bytes,
-      })
-      if (result.branchError) errors.push(`${candidate.branch}: ${result.branchError}`)
-    } catch (error) {
-      errors.push(`${candidate.path}: ${String(error)}`)
-    }
-  }
-  report.reclaimedBytes = totalBytes(report.reclaimed)
+  await reclaimCandidates(report, removeWorktree)
 
   log('maintenance', 'sweep complete', {
     repoPath,
