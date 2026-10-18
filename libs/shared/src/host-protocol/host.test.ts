@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseHostFrame, type HostFrame } from '../host-protocol'
+import * as facade from '../host-protocol'
+import { parseHostFrame as parseHostLeaf } from './host'
 
 const LANE = '00000000-0000-4000-8000-000000000001'
 const REQUEST = '00000000-0000-4000-8000-000000000003'
@@ -159,5 +161,23 @@ describe('parseHostFrame dispatch through the public entry', () => {
       })
     for (const code of [1000, 4402, 4400.5, '4400', -4400])
       expect(host({ type: 'error', code, message: 'm' }), String(code)).toStrictEqual(REFUSED)
+  })
+})
+
+describe('host.ts parseHostFrame', () => {
+  it('is the parser the public entry exports', () => {
+    expect(facade.parseHostFrame).toBe(parseHostLeaf)
+  })
+
+  it('dispatches every frame type and refuses with one exact envelope', () => {
+    for (const { type, frame } of rows) {
+      expect(parseHostLeaf(JSON.stringify(frame)), type).toStrictEqual({ ok: true, value: frame })
+      const [first] = Object.keys(frame).filter((key) => key !== 'type')
+      const missing = Object.fromEntries(Object.entries(frame).filter(([key]) => key !== first))
+      expect(parseHostLeaf(JSON.stringify(missing)), `${type} without ${first}`).toStrictEqual(
+        REFUSED,
+      )
+    }
+    expect(parseHostLeaf('[')).toStrictEqual({ ok: false, reason: 'json' })
   })
 })

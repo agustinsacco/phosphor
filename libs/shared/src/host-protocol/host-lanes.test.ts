@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { parseHostFrame } from '../host-protocol'
+import {
+  boundedList,
+  parseAttentionFrame,
+  parseLaneControl,
+  parseLaneSummary,
+  parseLanesDeltaFrame,
+  parseLanesFrame,
+  parseRoutinesChangedFrame,
+} from './host-lanes'
 
 const LANE = '00000000-0000-4000-8000-000000000001'
 const CLIENT = '00000000-0000-4000-8000-000000000005'
@@ -138,5 +147,72 @@ describe('lane list frames through the public entry', () => {
         host({ ...frame, event: { ...event, ...patch } }),
         JSON.stringify(patch),
       ).toStrictEqual(REFUSED)
+  })
+})
+
+describe('host-lanes.ts', () => {
+  const CURSOR = { epoch: EPOCH, seq: 1 }
+
+  it('projects control with or without a controller', () => {
+    expect(parseLaneControl({ fence: 2, controller: null, x: 1 })).toStrictEqual({
+      fence: 2,
+      controller: null,
+    })
+    expect(
+      parseLaneControl({ ...CONTROL, controller: { ...CONTROL.controller, x: 1 } }),
+    ).toStrictEqual(CONTROL)
+    for (const v of [null, { fence: 1, controller: undefined }, { fence: 0, controller: null }])
+      expect(parseLaneControl(v)).toBeNull()
+  })
+
+  it('projects a summary and holds read at or below attention', () => {
+    expect(parseLaneSummary({ ...SUMMARY, x: 1 })).toStrictEqual(SUMMARY)
+    expect(parseLaneSummary({ ...SUMMARY, attention: 3, read: 3 })).toStrictEqual({
+      ...SUMMARY,
+      attention: 3,
+      read: 3,
+    })
+    expect(parseLaneSummary({ ...SUMMARY, attention: 3, read: 4 })).toBeNull()
+    expect(parseLaneSummary({ ...SUMMARY, control: null })).toBeNull()
+  })
+
+  it('bounds a list and refuses it whole on one bad item', () => {
+    const even = (x: unknown) => (typeof x === 'number' && x % 2 === 0 ? x : null)
+    expect(boundedList([0, 2], 2, even)).toStrictEqual([0, 2])
+    expect(boundedList([0, 2, 4], 2, even)).toBeNull()
+    expect(boundedList([0, 1], 2, even)).toBeNull()
+    expect(boundedList({ length: 0 }, 2, even)).toBeNull()
+  })
+
+  it('builds each lanes-topic frame from a record', () => {
+    const lanes = {
+      type: 'lanes',
+      id: 'l',
+      cursor: { epoch: EPOCH, seq: 0 },
+      repositories: [],
+      lanes: [SUMMARY],
+    }
+    expect(parseLanesFrame(lanes)).toStrictEqual(lanes)
+    const delta = { type: 'lanes-delta', id: 'l', cursor: CURSOR, upsert: [], remove: [LANE] }
+    expect(parseLanesDeltaFrame(delta)).toStrictEqual(delta)
+    expect(parseLanesDeltaFrame({ ...delta, remove: [`${LANE}x`] })).toBeNull()
+    const routines = { type: 'routines-changed', id: 'r', cursor: CURSOR }
+    expect(parseRoutinesChangedFrame(routines)).toStrictEqual(routines)
+    expect(parseRoutinesChangedFrame({ ...routines, x: undefined })).toBeNull()
+  })
+
+  it('names an attention event by its lane and counter', () => {
+    const event = {
+      id: `${LANE}:12`,
+      laneId: LANE,
+      kind: 'finished',
+      attention: 12,
+      at: TIME,
+      title: 'T',
+    }
+    const frame = { type: 'attention', id: 'a', cursor: CURSOR, event }
+    expect(parseAttentionFrame(frame)).toStrictEqual(frame)
+    expect(parseAttentionFrame({ ...frame, event: { ...event, attention: 13 } })).toBeNull()
+    expect(parseAttentionFrame({ ...frame, cursor: { epoch: EPOCH, seq: 0 } })).toBeNull()
   })
 })

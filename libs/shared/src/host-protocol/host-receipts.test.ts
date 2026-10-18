@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { HOST_LIMITS, parseHostFrame } from '../host-protocol'
+import { parseReceipt, parseResultFrame } from './host-receipts'
 
 const REQUEST = '00000000-0000-4000-8000-000000000003'
 const LANE = '00000000-0000-4000-8000-000000000001'
@@ -112,5 +113,68 @@ describe('receipts and call results through the public entry', () => {
       host({ type: 'result', id: 'c', ok: false, error: { code: 'timeout', message: 'm' } }),
     ).toStrictEqual(REFUSED)
     expect(host({ type: 'result', id: 'c', ok: false, data: 1 })).toStrictEqual(REFUSED)
+  })
+})
+
+describe('host-receipts.ts', () => {
+  it('parses every receipt status from a record', () => {
+    for (const status of ['pending', 'unknown'])
+      expect(parseReceipt({ requestId: REQUEST, status })).toStrictEqual({
+        requestId: REQUEST,
+        status,
+      })
+    const done = { requestId: REQUEST, status: 'done', data: { a: 1 }, fence: 1, laneId: LANE }
+    expect(parseReceipt(done)).toStrictEqual(done)
+    for (const code of REJECT_CODES)
+      expect(parseReceipt({ requestId: REQUEST, status: 'rejected', code })).toStrictEqual({
+        requestId: REQUEST,
+        status: 'rejected',
+        code,
+      })
+    expect(
+      parseReceipt({
+        requestId: REQUEST,
+        status: 'failed',
+        error: { code: 'internal', message: 'm' },
+      }),
+    ).toStrictEqual({
+      requestId: REQUEST,
+      status: 'failed',
+      error: { code: 'internal', message: 'm' },
+    })
+  })
+
+  it('returns null rather than throwing for data it cannot serialize', () => {
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+    let nested: unknown = 0
+    for (let i = 0; i < 100_000; i++) nested = [nested]
+    for (const data of [cyclic, nested, 1n])
+      expect(parseReceipt({ requestId: REQUEST, status: 'done', data })).toBeNull()
+    const exact = 'x'.repeat(HOST_LIMITS.receiptDataBytes - 2)
+    expect(parseReceipt({ requestId: REQUEST, status: 'done', data: exact })).toStrictEqual({
+      requestId: REQUEST,
+      status: 'done',
+      data: exact,
+    })
+    expect(parseReceipt({ requestId: REQUEST, status: 'done', data: exact + 'x' })).toBeNull()
+  })
+
+  it('parses ok results without looking at their data, and error results by code', () => {
+    const ok = { type: 'result', id: 'c', ok: true, data: undefined }
+    expect(parseResultFrame(ok)).toStrictEqual(ok)
+    expect(parseResultFrame({ type: 'result', id: 'c', ok: true })).toBeNull()
+    for (const code of CALL_ERRORS) {
+      const error = { type: 'result', id: 'c', ok: false, error: { code, message: 'm' } }
+      expect(parseResultFrame(error)).toStrictEqual(error)
+    }
+    expect(
+      parseResultFrame({
+        type: 'result',
+        id: 'c',
+        ok: false,
+        error: { code: 'busy', message: 'm' },
+      }),
+    ).toBeNull()
   })
 })

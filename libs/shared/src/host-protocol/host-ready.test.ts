@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseHostFrame } from '../host-protocol'
+import { parseReadyFrame } from './host-ready'
 
 const HOST = '00000000-0000-4000-8000-000000000006'
 const CLIENT = '00000000-0000-4000-8000-000000000005'
@@ -87,5 +88,31 @@ describe('ready frames through the public entry', () => {
       ok: true,
       value: READY,
     })
+  })
+})
+
+describe('host-ready.ts parseReadyFrame', () => {
+  it('projects a ready record, rebuilding the hello from its validated fields', () => {
+    expect(parseReadyFrame({ ...READY, x: 1, hello: { ...HELLO, x: 1 } })).toStrictEqual(READY)
+    expect(parseReadyFrame({ ...READY, protocolVersion: 1.0 })).toStrictEqual(READY)
+  })
+
+  it('checks the hello against its own host id and the proof shape', () => {
+    expect(parseReadyFrame({ ...READY, hello: { ...HELLO, hostId: 'host-1' } })).toBeNull()
+    expect(parseReadyFrame({ ...READY, proof: 'w'.repeat(86) })).toStrictEqual({
+      ...READY,
+      proof: 'w'.repeat(86),
+    })
+    expect(parseReadyFrame({ ...READY, proof: 'w'.repeat(85) + 'x' })).toBeNull()
+  })
+
+  it('keeps connection capabilities a subset of the hello, as sent', () => {
+    const hello = { ...HELLO, capabilities: ['terminal'] }
+    expect(parseReadyFrame({ ...READY, hello, capabilities: ['terminal'] })).toStrictEqual({
+      ...READY,
+      hello,
+      capabilities: ['terminal'],
+    })
+    expect(parseReadyFrame({ ...READY, hello, capabilities: ['routines'] })).toBeNull()
   })
 })

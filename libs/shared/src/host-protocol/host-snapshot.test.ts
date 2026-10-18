@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { parseHostFrame } from '../host-protocol'
+import {
+  parseEventFrame,
+  parseLaneEvent,
+  parseLaneSnapshot,
+  parseSnapshotFrame,
+} from './host-snapshot'
 
 const LANE = '00000000-0000-4000-8000-000000000001'
 const OTHER = '00000000-0000-4000-8000-000000000002'
@@ -117,5 +123,53 @@ describe('lane snapshots and events through the public entry', () => {
       { kind: 'extension-ui', request: { type: 'extension_ui_request', id: 'd' } },
     ])
       expect(event({ kind: 'pi', push }), JSON.stringify(push)).toStrictEqual(REFUSED)
+  })
+})
+
+describe('host-snapshot.ts', () => {
+  const SNAPSHOT = { ...STATE, ...LISTS }
+
+  it('keeps future pi payloads whole and projects the rest', () => {
+    const future = { ...SNAPSHOT, state: { v2: true }, messages: [{ role: 'x', y: [1] }], x: 1 }
+    expect(parseLaneSnapshot(future)).toStrictEqual({
+      ...SNAPSHOT,
+      state: { v2: true },
+      messages: [{ role: 'x', y: [1] }],
+    })
+    expect(
+      parseLaneSnapshot({ ...SNAPSHOT, ui: [request('setTitle'), request('setTitle', 't2')] }),
+    ).toBeNull()
+    expect(parseLaneSnapshot({ ...SNAPSHOT, ui: [request('setWidget')] })).toStrictEqual({
+      ...SNAPSHOT,
+      ui: [request('setWidget')],
+    })
+  })
+
+  it('parses lane events and drops anything pi pushes that is not forwarded', () => {
+    expect(parseLaneEvent({ kind: 'dialog-resolved', dialogId: 'd', x: 1 })).toStrictEqual({
+      kind: 'dialog-resolved',
+      dialogId: 'd',
+    })
+    expect(parseLaneEvent({ kind: 'pi', push: { kind: 'stderr', text: 'x' } })).toBeNull()
+    expect(parseLaneEvent({ kind: 'pi', push: null })).toBeNull()
+    expect(parseLaneEvent({ kind: 'summary', summary: SUMMARY })).toStrictEqual({
+      kind: 'summary',
+      summary: SUMMARY,
+    })
+  })
+
+  it('ties snapshot and summary event frames to the frame lane', () => {
+    const snap = { type: 'snapshot', id: 's', laneId: LANE, reset: true, snapshot: SNAPSHOT }
+    expect(parseSnapshotFrame(snap)).toStrictEqual(snap)
+    expect(parseSnapshotFrame({ ...snap, laneId: OTHER })).toBeNull()
+    const summary = {
+      type: 'event',
+      id: 's',
+      laneId: LANE,
+      cursor: { epoch: EPOCH, seq: 1 },
+      event: { kind: 'summary', summary: SUMMARY },
+    }
+    expect(parseEventFrame(summary)).toStrictEqual(summary)
+    expect(parseEventFrame({ ...summary, laneId: OTHER })).toBeNull()
   })
 })
