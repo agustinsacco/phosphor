@@ -1,16 +1,20 @@
+import {
+  deadline,
+  within,
+  TimedOut,
+  watcher,
+  isBreakdownStatus,
+  isTextDelta,
+  send,
+  type Deadline,
+} from './accept-waits'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { existsSync, readFileSync } from 'node:fs'
 import { errorText } from '@phosphor/shared/errors'
-import type { SessionPush } from '@phosphor/shared/models'
 import { ALL_THINKING_LEVELS } from '@phosphor/shared/thinking'
-import type {
-  AgentMessage,
-  RpcCommand,
-  RpcCommandType,
-  RpcResponseDataMap,
-} from '@phosphor/shared/rpc'
+import type { AgentMessage, RpcCommand, RpcCommandType } from '@phosphor/shared/rpc'
 import { EXIT } from '../checks'
 import { createHostLog, hostLogDirectory } from '../machine/log'
 import { DRAIN, isGone, type DrainResult, type DrainTimings } from '../session/lifecycle'
@@ -115,9 +119,6 @@ class StepFailed extends Error {}
 
 /** The Host's own cleanup left a process group or a file behind, or did not end. */
 class CleanupFailed extends Error {}
-
-/** A wait passed its deadline. */
-class TimedOut extends Error {}
 
 /**
  * Real acceptance (spec section 18): per lane, start a session in the
@@ -489,21 +490,6 @@ async function runLane(
   return result
 }
 
-async function send<K extends RpcCommandType>(
-  runtime: HostRuntime,
-  sessionId: string,
-  command: Extract<RpcCommand, { type: K }>,
-  by: Deadline,
-): Promise<RpcResponseDataMap[K]> {
-  const response = await within(
-    runtime.command(sessionId, command),
-    by,
-    `answer to ${command.type}`,
-  )
-  if (!response.success) throw new Error(`${command.type} failed: ${response.error}`)
-  return response.data as RpcResponseDataMap[K]
-}
-
 /**
  * The model id a --model names. pi also takes `provider/id`, and a
  * `:level` thinking suffix; anything else must be pi's id exactly.
@@ -514,85 +500,6 @@ function modelId(model: string, provider: string | undefined): string {
   const colon = bare.lastIndexOf(':')
   const suffix = bare.slice(colon + 1) as (typeof ALL_THINKING_LEVELS)[number]
   return colon > 0 && ALL_THINKING_LEVELS.includes(suffix) ? bare.slice(0, colon) : bare
-}
-
-/** A moment a wait must end by, and the span it was given, for its message. */
-interface Deadline {
-  at: number
-  ms: number
-}
-const deadline = (ms: number): Deadline => ({ at: Date.now() + ms, ms })
-const left = (by: Deadline) => Math.max(0, by.at - Date.now())
-
-const isBreakdownStatus = (push: SessionPush) =>
-  push.kind === 'extension-ui' &&
-  push.request.method === 'setStatus' &&
-  push.request.statusKey === 'phosphor-context-breakdown'
-
-const isTextDelta = (push: SessionPush) =>
-  push.kind === 'event' &&
-  push.event.type === 'message_update' &&
-  push.event.assistantMessageEvent.type === 'text_delta'
-
-/** A session's pushes, and waits on them that fail when pi exits. */
-function watcher() {
-  const pushes: SessionPush[] = []
-  const waiting = new Set<() => void>()
-  const events = <T extends string>(type: T) =>
-    pushes.flatMap((push) =>
-      push.kind === 'event' && push.event.type === type
-        ? [push.event as Extract<typeof push.event, { type: T }>]
-        : [],
-    )
-  return {
-    deliver(push: SessionPush): void {
-      pushes.push(push)
-      for (const check of waiting) check()
-    },
-    events,
-    count: (type: string) => events(type).length,
-    mark: () => pushes.length,
-    since: (mark: number) => pushes.slice(mark),
-    /** The first truthy value of `find`, checked on every push until `by`. */
-    until<T>(find: () => T | undefined, by: Deadline, what: string): Promise<T> {
-      const exits = pushes.filter((push) => push.kind === 'exit').length
-      return new Promise<T>((resolve, reject) => {
-        const done = (settle: () => void) => {
-          clearTimeout(timer)
-          waiting.delete(check)
-          settle()
-        }
-        const check = () => {
-          const found = find()
-          if (found) return done(() => resolve(found))
-          const exit = pushes.filter((push) => push.kind === 'exit')[exits]
-          if (exit?.kind === 'exit') {
-            const how = exit.signal ?? `code ${exit.code}`
-            done(() => reject(new Error(`pi exited (${how}) while waiting for ${what}`)))
-          }
-        }
-        const timer = setTimeout(
-          () => done(() => reject(new Error(`no ${what} within ${by.ms} ms`))),
-          left(by),
-        )
-        waiting.add(check)
-        check()
-      })
-    },
-  }
-}
-
-/** The promise's value, unless `by` comes first. */
-async function within<T>(promise: Promise<T>, by: Deadline, what: string): Promise<T> {
-  let timer: NodeJS.Timeout | undefined
-  const late = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new TimedOut(`no ${what} within ${by.ms} ms`)), left(by))
-  })
-  try {
-    return await Promise.race([promise, late])
-  } finally {
-    clearTimeout(timer)
-  }
 }
 
 const MARK = { pass: 'pass', fail: 'FAIL', unavailable: 'n/a ' } as const
