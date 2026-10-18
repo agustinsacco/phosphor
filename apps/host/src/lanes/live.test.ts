@@ -116,6 +116,7 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0).reverse()) cleanup()
   vi.useRealTimers()
 })
+// Characterize publication ordering, attention, metadata and attachment through the public binding.
 describe('live lane binding', () => {
   it("classifies only this run's provider error as failed without changing the legacy attention wire shape", async () => {
     const s = await setup()
