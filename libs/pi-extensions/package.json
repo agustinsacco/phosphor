@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./status-keys": {
+      "types": "./pi-ext/status-keys.ts",
+      "default": "./pi-ext/status-keys.ts"
+    },
     "./subagent-snapshot": {
       "types": "./pi-ext/subagent-snapshot.ts",
       "default": "./pi-ext/subagent-snapshot.ts"
