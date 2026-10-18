@@ -27,94 +27,26 @@
  * The first account is seeded with `credentialDir: null`, i.e. the CLI's own
  * default entry. Nothing migrates, and your terminal `claude` keeps sharing it.
  */
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { app } from 'electron'
 import type {
   ClaudeAccount,
   ClaudeAccountPrefs,
-  ClaudeAccountView,
-  ClaudeAccountsResult,
   ClaudeRoutingMode,
   ClaudeSessionAccount,
 } from '@shared/models'
-import { getClaudeAccountPrefs, setClaudeAccountPrefs } from '../store'
+import { getClaudeAccountPrefs } from '../store'
 import { claudeStatus } from '../pi/packages'
 import { logoutClaude } from '../pi/claude-login'
-import { cachedUsageSnapshot, clearUsageCache, fetchUsageSnapshot } from './usage'
-import {
-  claudeAccountEnv,
-  cooldownFromUsage,
-  isCoolingDown,
-  orgIdToBackfill,
-  pruneCooldowns,
-  reconcileAuthIdentity,
-  selectAccount,
-  usageProbeEnv,
-} from './routing'
+import { clearUsageCache } from './usage'
+import { accountsRoot, save } from './account-storage'
+import { createAccountUsage } from './account-usage'
+import { claudeAccountEnv, isCoolingDown, selectAccount } from './routing'
 
 export { claudeAccountEnv }
-
-/** Where per-account credential directories live. Stable across launches. */
-function accountsRoot(): string {
-  return join(app.getPath('userData'), 'claude-accounts')
-}
-
-/** The private CLI config dir an account's `/usage` probe runs under. */
-function usageConfigDir(accountId: string): string {
-  return join(accountsRoot(), 'usage', accountId)
-}
-
-/** Env for one account's `/usage` probe; see `usageProbeEnv`. */
-export function accountUsageEnv(account: ClaudeAccount): Record<string, string> {
-  const dir = usageConfigDir(account.id)
-  mkdirSync(dir, { recursive: true })
-  return usageProbeEnv(account, dir)
-}
-
-/**
- * Record the org id an account's own probe learned, when it has none.
- *
- * The seeded default account never recorded one, so its sessions sent
- * whichever org last signed in (`~/.claude.json` is shared). The probe dir's
- * `oauthAccount` comes from that account's own token, so it is the right one.
- */
-function backfillOrgIds(prefs: ClaudeAccountPrefs): ClaudeAccountPrefs {
-  let changed = false
-  const accounts = prefs.accounts.map((account) => {
-    let identity: { emailAddress?: unknown; organizationUuid?: unknown } | undefined
-    try {
-      const raw = readFileSync(join(usageConfigDir(account.id), '.claude.json'), 'utf8')
-      identity = (JSON.parse(raw) as { oauthAccount?: typeof identity }).oauthAccount
-    } catch {
-      return account
-    }
-    const orgId = orgIdToBackfill(account, identity)
-    if (!orgId) return account
-    changed = true
-    return { ...account, orgId }
-  })
-  return changed ? { ...prefs, accounts } : prefs
-}
-
-/** Prefs with expired cooldowns and dead session bindings dropped. */
-function tidy(prefs: ClaudeAccountPrefs, nowMs: number): ClaudeAccountPrefs {
-  const ids = new Set(prefs.accounts.map((a) => a.id))
-  return {
-    ...prefs,
-    cooldowns: pruneCooldowns(prefs.cooldowns, ids, nowMs),
-    bindings: Object.fromEntries(
-      Object.entries(prefs.bindings).filter(([path, id]) => ids.has(id) && existsSync(path)),
-    ),
-  }
-}
-
-function save(prefs: ClaudeAccountPrefs): ClaudeAccountPrefs {
-  const tidied = tidy(prefs, Date.now())
-  setClaudeAccountPrefs(tidied)
-  return tidied
-}
+export { accountUsageEnv } from './account-usage'
+export const { refreshCooldowns, accountViews } = createAccountUsage({ loadAccounts, save })
 
 /**
  * Accounts as stored, seeding the existing login as account one on first read.
@@ -177,56 +109,6 @@ export async function bindSession(sessionPath: string, accountId: string): Promi
   const prefs = await loadAccounts()
   if (!prefs.accounts.some((a) => a.id === accountId)) return
   save({ ...prefs, bindings: { ...prefs.bindings, [sessionPath]: accountId } })
-}
-
-/**
- * Re-read every account's usage and turn "5-hour window at 100%" into a
- * cooldown. Fire-and-forget: one `claude -p /usage` per account, zero quota,
- * ~2s each, all in parallel, and a failure just leaves the old cooldown.
- */
-export async function refreshCooldowns(claudeOverride?: string): Promise<void> {
-  const prefs = await loadAccounts(claudeOverride)
-  const now = Date.now()
-  const results = await Promise.all(
-    prefs.accounts.map(async (account) => {
-      const result = await fetchUsageSnapshot({
-        cacheKey: account.id,
-        extraEnv: accountUsageEnv(account),
-        ...(claudeOverride ? { claudeOverride } : {}),
-      }).catch(() => null)
-      if (!result?.ok) return null
-      return { id: account.id, until: cooldownFromUsage(result.snapshot.windows, now) }
-    }),
-  )
-  const latest = backfillOrgIds(getClaudeAccountPrefs())
-  const cooldowns = { ...latest.cooldowns }
-  for (const entry of results) {
-    if (!entry) continue
-    if (entry.until === null) delete cooldowns[entry.id]
-    else cooldowns[entry.id] = entry.until
-  }
-  save({ ...latest, cooldowns })
-}
-
-/** Accounts plus their live auth state and whatever usage main already has. */
-export async function accountViews(claudeOverride?: string): Promise<ClaudeAccountsResult> {
-  const prefs = await loadAccounts(claudeOverride)
-  const now = Date.now()
-  const views: ClaudeAccountView[] = await Promise.all(
-    prefs.accounts.map(async (account) => {
-      const status = await claudeStatus(claudeOverride, claudeAccountEnv(account)).catch(() => null)
-      const cooldown = prefs.cooldowns[account.id]
-      return {
-        account,
-        auth: status?.auth
-          ? reconcileAuthIdentity(account, status.auth)
-          : { ok: false, error: 'status check failed' },
-        usage: cachedUsageSnapshot(account.id, now),
-        cooldownUntil: cooldown !== undefined && cooldown > now ? cooldown : null,
-      }
-    }),
-  )
-  return { prefs, views }
 }
 
 /**
