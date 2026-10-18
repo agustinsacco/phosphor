@@ -94,3 +94,12 @@ it('freezes hosts channel tuples and results through ipc.ts', () => {
     Pick<IpcInvokeMap, keyof BaselineHostsInvokeMap>
   >().toEqualTypeOf<BaselineHostsInvokeMap>()
 })
+
+import type { HostsInvokeMap } from './hosts'
+
+it('keeps hosts leaf exact and confined to its prefix', () => {
+  expectTypeOf<HostsInvokeMap>().toEqualTypeOf<BaselineHostsInvokeMap>()
+  expectTypeOf<keyof HostsInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `hosts:${string}`>
+  >()
+})

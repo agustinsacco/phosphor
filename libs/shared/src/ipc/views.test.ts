@@ -143,3 +143,24 @@ it('freezes public view fields, redaction and optionality', () => {
   expectTypeOf<RemoteLaneCreate>().toEqualTypeOf<BaselineRemoteLaneCreate>()
   expectTypeOf<HostAttention>().toEqualTypeOf<BaselineHostAttention>()
 })
+
+import type * as Views from './views'
+it('exposes the same bounded views from the leaf', () => {
+  expectTypeOf<Views.HostConnectionView>().toEqualTypeOf<BaselineHostConnectionView>()
+  expectTypeOf<Views.HostLaneView>().toEqualTypeOf<BaselineHostLaneView>()
+  expectTypeOf<Views.TrafficPage>().toEqualTypeOf<BaselineTrafficPage>()
+  expectTypeOf<Views.SessionTree>().toEqualTypeOf<BaselineSessionTree>()
+  expectTypeOf<Views.RemoteLaneCreate>().toEqualTypeOf<BaselineRemoteLaneCreate>()
+  expectTypeOf<Views.HostAttention>().toEqualTypeOf<BaselineHostAttention>()
+})
+it('redacts controller identity and keeps remote state fields optional', () => {
+  type Controller = NonNullable<Views.HostLaneView['control']['controller']>
+  expectTypeOf<keyof Controller>().toEqualTypeOf<'label' | 'connected' | 'self'>()
+  expectTypeOf<'clientId'>().not.toExtend<keyof Controller>()
+  expectTypeOf<Views.HostConnectionView['cursor']>().toEqualTypeOf<StreamCursor | undefined>()
+  expectTypeOf<Views.HostConnectionView['hostVersion']>().toEqualTypeOf<string | undefined>()
+  expectTypeOf<Views.HostAttention['receipt']>().toEqualTypeOf<LaneReceipt | undefined>()
+  expectTypeOf<Views.RemoteLaneCreate['worktree']>().toEqualTypeOf<
+    { branch: string; fresh?: true } | undefined
+  >()
+})

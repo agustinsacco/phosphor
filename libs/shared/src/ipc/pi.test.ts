@@ -174,3 +174,10 @@ export interface BaselinePiInvokeMap {
 it('freezes pi channel tuples and results through ipc.ts', () => {
   expectTypeOf<Pick<IpcInvokeMap, keyof BaselinePiInvokeMap>>().toEqualTypeOf<BaselinePiInvokeMap>()
 })
+
+import type { PiInvokeMap } from './pi'
+
+it('keeps pi leaf exact and confined to its prefix', () => {
+  expectTypeOf<PiInvokeMap>().toEqualTypeOf<BaselinePiInvokeMap>()
+  expectTypeOf<keyof PiInvokeMap>().toEqualTypeOf<Extract<keyof IpcInvokeMap, `pi:${string}`>>()
+})

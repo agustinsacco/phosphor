@@ -257,3 +257,27 @@ it('freezes sessions, git, gh, fs channel tuples and results through ipc.ts', ()
   expectTypeOf<Pick<IpcInvokeMap, keyof BaselineGhInvokeMap>>().toEqualTypeOf<BaselineGhInvokeMap>()
   expectTypeOf<Pick<IpcInvokeMap, keyof BaselineFsInvokeMap>>().toEqualTypeOf<BaselineFsInvokeMap>()
 })
+
+import type { SessionsInvokeMap, GitInvokeMap, GhInvokeMap, FsInvokeMap } from './workspace'
+
+it('keeps sessions leaf exact and confined to its prefix', () => {
+  expectTypeOf<SessionsInvokeMap>().toEqualTypeOf<BaselineSessionsInvokeMap>()
+  expectTypeOf<keyof SessionsInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `sessions:${string}`>
+  >()
+})
+
+it('keeps git leaf exact and confined to its prefix', () => {
+  expectTypeOf<GitInvokeMap>().toEqualTypeOf<BaselineGitInvokeMap>()
+  expectTypeOf<keyof GitInvokeMap>().toEqualTypeOf<Extract<keyof IpcInvokeMap, `git:${string}`>>()
+})
+
+it('keeps gh leaf exact and confined to its prefix', () => {
+  expectTypeOf<GhInvokeMap>().toEqualTypeOf<BaselineGhInvokeMap>()
+  expectTypeOf<keyof GhInvokeMap>().toEqualTypeOf<Extract<keyof IpcInvokeMap, `gh:${string}`>>()
+})
+
+it('keeps fs leaf exact and confined to its prefix', () => {
+  expectTypeOf<FsInvokeMap>().toEqualTypeOf<BaselineFsInvokeMap>()
+  expectTypeOf<keyof FsInvokeMap>().toEqualTypeOf<Extract<keyof IpcInvokeMap, `fs:${string}`>>()
+})

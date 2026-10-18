@@ -168,3 +168,26 @@ it('freezes claude, account, control channel tuples and results through ipc.ts',
     Pick<IpcInvokeMap, keyof BaselineControlInvokeMap>
   >().toEqualTypeOf<BaselineControlInvokeMap>()
 })
+
+import type { ClaudeInvokeMap, AccountInvokeMap, ControlInvokeMap } from './auth'
+
+it('keeps claude leaf exact and confined to its prefix', () => {
+  expectTypeOf<ClaudeInvokeMap>().toEqualTypeOf<BaselineClaudeInvokeMap>()
+  expectTypeOf<keyof ClaudeInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `claude:${string}`>
+  >()
+})
+
+it('keeps account leaf exact and confined to its prefix', () => {
+  expectTypeOf<AccountInvokeMap>().toEqualTypeOf<BaselineAccountInvokeMap>()
+  expectTypeOf<keyof AccountInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `account:${string}`>
+  >()
+})
+
+it('keeps control leaf exact and confined to its prefix', () => {
+  expectTypeOf<ControlInvokeMap>().toEqualTypeOf<BaselineControlInvokeMap>()
+  expectTypeOf<keyof ControlInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `control:${string}`>
+  >()
+})

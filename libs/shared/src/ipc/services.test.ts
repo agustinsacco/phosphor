@@ -239,3 +239,134 @@ it('freezes routines, maintenance, headroom, optimization, voice, pty, updates, 
     Pick<IpcInvokeMap, keyof BaselineWritingInvokeMap>
   >().toEqualTypeOf<BaselineWritingInvokeMap>()
 })
+
+import type {
+  RoutinesInvokeMap,
+  MaintenanceInvokeMap,
+  HeadroomInvokeMap,
+  OptimizationInvokeMap,
+  VoiceInvokeMap,
+  PtyInvokeMap,
+  UpdatesInvokeMap,
+  FeedbackInvokeMap,
+  ClipboardInvokeMap,
+  WritingInvokeMap,
+} from './services'
+
+it('keeps routines leaf exact and confined to its prefix', () => {
+  expectTypeOf<RoutinesInvokeMap>().toEqualTypeOf<BaselineRoutinesInvokeMap>()
+  expectTypeOf<keyof RoutinesInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `routines:${string}`>
+  >()
+})
+
+it('keeps maintenance leaf exact and confined to its prefix', () => {
+  expectTypeOf<MaintenanceInvokeMap>().toEqualTypeOf<BaselineMaintenanceInvokeMap>()
+  expectTypeOf<keyof MaintenanceInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `maintenance:${string}`>
+  >()
+})
+
+it('keeps headroom leaf exact and confined to its prefix', () => {
+  expectTypeOf<HeadroomInvokeMap>().toEqualTypeOf<BaselineHeadroomInvokeMap>()
+  expectTypeOf<keyof HeadroomInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `headroom:${string}`>
+  >()
+})
+
+it('keeps optimization leaf exact and confined to its prefix', () => {
+  expectTypeOf<OptimizationInvokeMap>().toEqualTypeOf<BaselineOptimizationInvokeMap>()
+  expectTypeOf<keyof OptimizationInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `optimization:${string}`>
+  >()
+})
+
+it('keeps voice leaf exact and confined to its prefix', () => {
+  expectTypeOf<VoiceInvokeMap>().toEqualTypeOf<BaselineVoiceInvokeMap>()
+  expectTypeOf<keyof VoiceInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `voice:${string}`>
+  >()
+})
+
+it('keeps pty leaf exact and confined to its prefix', () => {
+  expectTypeOf<PtyInvokeMap>().toEqualTypeOf<BaselinePtyInvokeMap>()
+  expectTypeOf<keyof PtyInvokeMap>().toEqualTypeOf<Extract<keyof IpcInvokeMap, `pty:${string}`>>()
+})
+
+it('keeps updates leaf exact and confined to its prefix', () => {
+  expectTypeOf<UpdatesInvokeMap>().toEqualTypeOf<BaselineUpdatesInvokeMap>()
+  expectTypeOf<keyof UpdatesInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `updates:${string}`>
+  >()
+})
+
+it('keeps feedback leaf exact and confined to its prefix', () => {
+  expectTypeOf<FeedbackInvokeMap>().toEqualTypeOf<BaselineFeedbackInvokeMap>()
+  expectTypeOf<keyof FeedbackInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `feedback:${string}`>
+  >()
+})
+
+it('keeps clipboard leaf exact and confined to its prefix', () => {
+  expectTypeOf<ClipboardInvokeMap>().toEqualTypeOf<BaselineClipboardInvokeMap>()
+  expectTypeOf<keyof ClipboardInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `clipboard:${string}`>
+  >()
+})
+
+it('keeps writing leaf exact and confined to its prefix', () => {
+  expectTypeOf<WritingInvokeMap>().toEqualTypeOf<BaselineWritingInvokeMap>()
+  expectTypeOf<keyof WritingInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `writing:${string}`>
+  >()
+})
+
+import type { HostsInvokeMap } from './hosts'
+import type { AppInvokeMap } from './app'
+import type { PiInvokeMap } from './pi'
+import type { ClaudeInvokeMap, AccountInvokeMap, ControlInvokeMap } from './auth'
+import type {
+  SkillsInvokeMap,
+  PackagesInvokeMap,
+  McpInvokeMap,
+  ArtifactsInvokeMap,
+} from './resources'
+import type { SessionsInvokeMap, GitInvokeMap, GhInvokeMap, FsInvokeMap } from './workspace'
+
+// A duplicate is rejected even when its argument and result types agree.
+type MapKeys = [
+  keyof HostsInvokeMap,
+  keyof AppInvokeMap,
+  keyof PiInvokeMap,
+  keyof ClaudeInvokeMap,
+  keyof AccountInvokeMap,
+  keyof ControlInvokeMap,
+  keyof SkillsInvokeMap,
+  keyof PackagesInvokeMap,
+  keyof McpInvokeMap,
+  keyof ArtifactsInvokeMap,
+  keyof SessionsInvokeMap,
+  keyof GitInvokeMap,
+  keyof GhInvokeMap,
+  keyof FsInvokeMap,
+  keyof RoutinesInvokeMap,
+  keyof MaintenanceInvokeMap,
+  keyof HeadroomInvokeMap,
+  keyof OptimizationInvokeMap,
+  keyof VoiceInvokeMap,
+  keyof PtyInvokeMap,
+  keyof UpdatesInvokeMap,
+  keyof FeedbackInvokeMap,
+  keyof ClipboardInvokeMap,
+  keyof WritingInvokeMap,
+]
+type OverlappingKeys<Keys extends readonly PropertyKey[]> = Keys extends readonly [
+  infer First extends PropertyKey,
+  ...infer Rest extends PropertyKey[],
+]
+  ? Extract<First, Rest[number]> | OverlappingKeys<Rest>
+  : never
+it('composes disjoint prefix maps with no missing channels', () => {
+  expectTypeOf<OverlappingKeys<MapKeys>>().toEqualTypeOf<never>()
+  expectTypeOf<MapKeys[number]>().toEqualTypeOf<keyof IpcInvokeMap>()
+})

@@ -258,3 +258,36 @@ it('freezes skills, packages, mcp, artifacts channel tuples and results through 
     Pick<IpcInvokeMap, keyof BaselineArtifactsInvokeMap>
   >().toEqualTypeOf<BaselineArtifactsInvokeMap>()
 })
+
+import type {
+  SkillsInvokeMap,
+  PackagesInvokeMap,
+  McpInvokeMap,
+  ArtifactsInvokeMap,
+} from './resources'
+
+it('keeps skills leaf exact and confined to its prefix', () => {
+  expectTypeOf<SkillsInvokeMap>().toEqualTypeOf<BaselineSkillsInvokeMap>()
+  expectTypeOf<keyof SkillsInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `skills:${string}`>
+  >()
+})
+
+it('keeps packages leaf exact and confined to its prefix', () => {
+  expectTypeOf<PackagesInvokeMap>().toEqualTypeOf<BaselinePackagesInvokeMap>()
+  expectTypeOf<keyof PackagesInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `packages:${string}`>
+  >()
+})
+
+it('keeps mcp leaf exact and confined to its prefix', () => {
+  expectTypeOf<McpInvokeMap>().toEqualTypeOf<BaselineMcpInvokeMap>()
+  expectTypeOf<keyof McpInvokeMap>().toEqualTypeOf<Extract<keyof IpcInvokeMap, `mcp:${string}`>>()
+})
+
+it('keeps artifacts leaf exact and confined to its prefix', () => {
+  expectTypeOf<ArtifactsInvokeMap>().toEqualTypeOf<BaselineArtifactsInvokeMap>()
+  expectTypeOf<keyof ArtifactsInvokeMap>().toEqualTypeOf<
+    Extract<keyof IpcInvokeMap, `artifacts:${string}`>
+  >()
+})

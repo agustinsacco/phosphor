@@ -131,3 +131,15 @@ function inferApiCalls(api: PhosphorApi): void {
 it('typechecks inferred invoke and piCommand results without a runtime bridge', () => {
   expectTypeOf(inferApiCalls).parameter(0).toEqualTypeOf<Window['phosphor']>()
 })
+
+import type {
+  PhosphorApi as LeafPhosphorApi,
+  PhosphorPlatform as LeafPhosphorPlatform,
+} from './api'
+it('preserves API leaf identity and every subscription unsubscribe signature', () => {
+  expectTypeOf<LeafPhosphorApi>().toEqualTypeOf<BaselinePhosphorApi>()
+  expectTypeOf<LeafPhosphorPlatform>().toEqualTypeOf<BaselinePhosphorPlatform>()
+  type Subscriptions = Extract<keyof LeafPhosphorApi, `on${string}`>
+  type Unsubscribes = { [K in Subscriptions]: ReturnType<LeafPhosphorApi[K]> }[Subscriptions]
+  expectTypeOf<Unsubscribes>().toEqualTypeOf<() => void>()
+})

@@ -177,3 +177,10 @@ it('freezes app channel tuples and results through ipc.ts', () => {
     Pick<IpcInvokeMap, keyof BaselineAppInvokeMap>
   >().toEqualTypeOf<BaselineAppInvokeMap>()
 })
+
+import type { AppInvokeMap } from './app'
+
+it('keeps app leaf exact and confined to its prefix', () => {
+  expectTypeOf<AppInvokeMap>().toEqualTypeOf<BaselineAppInvokeMap>()
+  expectTypeOf<keyof AppInvokeMap>().toEqualTypeOf<Extract<keyof IpcInvokeMap, `app:${string}`>>()
+})
