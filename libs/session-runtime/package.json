@@ -76,6 +76,10 @@
       "types": "./src/pi/pi-paths.ts",
       "default": "./src/pi/pi-paths.ts"
     },
+    "./pi/print-mode": {
+      "types": "./src/pi/print-mode.ts",
+      "default": "./src/pi/print-mode.ts"
+    },
     "./pi/provider-auth": {
       "types": "./src/pi/provider-auth.ts",
       "default": "./src/pi/provider-auth.ts"
