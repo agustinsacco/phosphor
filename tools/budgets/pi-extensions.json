@@ -2,8 +2,8 @@
   "version": 1,
   "package": "pi-extensions",
   "offenders": {
-    "pi-ext/artifacts.ts::file": 891,
-    "pi-ext/artifacts.ts::artifactsExtension[1]": 487,
+    "pi-ext/artifacts.ts::file": 896,
+    "pi-ext/artifacts.ts::artifactsExtension[1]": 492,
     "pi-ext/context-breakdown.ts::contextBreakdownExtension[1]": 141,
     "pi-ext/context-breakdown.ts::contextBreakdownExtension[1]/publish[1]": 85,
     "pi-ext/headroom.ts::createHeadroomHandler[1]": 104,
