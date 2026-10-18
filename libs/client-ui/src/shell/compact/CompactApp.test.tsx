@@ -13,6 +13,7 @@ import type * as Screens from '@/navigation/screens'
 import { CompactApp } from './CompactApp'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useDraftsStore } from '@/stores/drafts'
 
 vi.mock('@/navigation/screens', async (importOriginal) => {
   const original = await importOriginal<typeof Screens>()
@@ -163,7 +164,7 @@ it('boots only remote subscriptions, follows history, and returns to sign-in on 
   expect(useRemoteLanesStore.getState().hosts).toEqual({})
 })
 
-function signedIn(login = 'fixture'): AccountView {
+function signedIn(login: string | null = 'fixture'): AccountView {
   return {
     account: { status: 'signed-in', user: { login, name: null, email: null }, remembered: false },
   }
@@ -230,6 +231,39 @@ it('cancels and settles all pending prompts before a replacement owner can act o
   await act(async () => usePromptStore.getState().dismiss(retired, 'late submission'))
   expect(window.phosphor.piCommand).not.toHaveBeenCalled()
 })
+it.each(['fixture', null])(
+  'clears owner state across batched identical profiles: %s',
+  async (login) => {
+    account = signedIn(login)
+    await act(async () => root.render(<CompactApp />))
+    let pending!: Promise<string | undefined>
+    await act(async () => {
+      pending = renameSession('retired-session', 'retired name')
+      useDraftsStore.setState({
+        drafts: { retired: { text: 'private old draft', attachments: [] } },
+        revisions: { retired: 1 },
+      })
+    })
+    const retired = usePromptStore.getState().requests[0]!
+    // A normal same-owner refresh must not discard an unsent draft or prompt.
+    await publishAccount(signedIn(login))
+    expect(usePromptStore.getState().requests).toHaveLength(1)
+    expect(useDraftsStore.getState().get('retired').text).toBe('private old draft')
+    await act(async () => {
+      // The real adapter emits these synchronously when client/CSRF identity changes.
+      for (const view of [{ account: { status: 'signed-out' } } as AccountView, signedIn(login)]) {
+        account = view
+        for (const listener of [...accountListeners]) listener(view)
+      }
+    })
+    expect(usePromptStore.getState().requests).toEqual([])
+    await expect(pending).resolves.toBeUndefined()
+    expect(useDraftsStore.getState().drafts).toEqual({})
+    expect(container.querySelector('[data-testid="compact-shell"]')).not.toBeNull()
+    await act(async () => usePromptStore.getState().dismiss(retired, 'late submission'))
+    expect(window.phosphor.piCommand).not.toHaveBeenCalled()
+  },
+)
 it.each([
   'Signed out here. Remote cleanup is pending; existing Host grants may remain valid briefly.',
   'Disconnected here. Cookie sign-out and remote revocation were not confirmed. Retry sign out.',

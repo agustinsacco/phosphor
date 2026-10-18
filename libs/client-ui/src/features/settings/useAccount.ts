@@ -8,7 +8,12 @@ import { ipcErrorText } from '@shared/errors'
  * action's own reply is not applied, since it can be older than a push from
  * another window. A push that lands before the first read wins over it too.
  */
-export function useAccount(): { view: AccountView | null; error: string | null } {
+export function useAccount(): {
+  view: AccountView | null
+  error: string | null
+  generation: number
+} {
+  const [generation, setGeneration] = useState(0)
   const [view, setView] = useState<AccountView | null>(null)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
@@ -16,6 +21,9 @@ export function useAccount(): { view: AccountView | null; error: string | null }
     let live = true
     const off = window.phosphor.onAccountChanged((next) => {
       pushed = true
+      // Preserve invalidation even when React batches a replacement sign-in with
+      // the same public profile. Display fields are not an authority identity.
+      if (next.account.status !== 'signed-in') setGeneration((value) => value + 1)
       setView(next)
       setError(null)
     })
@@ -32,5 +40,5 @@ export function useAccount(): { view: AccountView | null; error: string | null }
       off()
     }
   }, [])
-  return { view, error }
+  return { view, error, generation }
 }

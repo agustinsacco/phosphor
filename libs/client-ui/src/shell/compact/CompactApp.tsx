@@ -42,7 +42,7 @@ export function CompactApp(): React.JSX.Element {
           <AuthenticatedCompact
             key={
               account.view?.account.status === 'signed-in'
-                ? JSON.stringify(account.view.account.user)
+                ? JSON.stringify([account.generation, account.view.account.user])
                 : ''
             }
           />
