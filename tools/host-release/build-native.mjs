@@ -1,22 +1,12 @@
 import { execFileSync } from 'node:child_process'
-import {
-  chmodSync,
-  cpSync,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
+import { existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import process from 'node:process'
 import { isEntryPoint, root, pin } from './common.mjs'
+import { prepareNativeSource, stageNativeResources } from './native-stage.mjs'
 
 export const PTY_VERSION = '1.1.0'
 export function validateNative(folder, target) {
@@ -75,49 +65,9 @@ export function buildNative(out, node) {
     throw new Error('Wrong node-pty version')
   const temp = mkdtempSync(join(tmpdir(), 'host-native-'))
   try {
-    const packageRoot = join(temp, 'node-pty')
-    cpSync(source, packageRoot, { recursive: true })
-    // Never use Desktop's Electron-rebuilt addon. Only node-pty's shipped prebuild or a clean rebuild.
-    rmSync(join(packageRoot, 'build'), { recursive: true, force: true })
-    const prebuild = join(packageRoot, 'prebuilds', target)
-    if (!existsSync(join(prebuild, 'pty.node'))) {
-      const addon = dirname(
-        createRequire(join(source, 'package.json')).resolve('node-addon-api/package.json'),
-      )
-      mkdirSync(join(temp, 'node_modules'), { recursive: true })
-      cpSync(addon, join(temp, 'node_modules/node-addon-api'), { recursive: true })
-      execFileSync(
-        'npm',
-        [
-          'exec',
-          '--yes',
-          '--package=node-gyp@11.4.2',
-          '--',
-          'node-gyp',
-          'rebuild',
-          `--target=${pin.version}`,
-        ],
-        { cwd: packageRoot, stdio: 'pipe' },
-      )
-    }
-    mkdirSync(join(out, 'build/Release'), { recursive: true })
-    mkdirSync(join(out, 'lib'), { recursive: true })
-    for (const name of readdirSync(join(packageRoot, 'lib')))
-      if (name.endsWith('.js') && !name.endsWith('.test.js'))
-        cpSync(join(packageRoot, 'lib', name), join(out, 'lib', name))
-    const binary = existsSync(join(packageRoot, 'build/Release/pty.node'))
-      ? join(packageRoot, 'build/Release')
-      : prebuild
-    cpSync(join(binary, 'pty.node'), join(out, 'build/Release/pty.node'))
-    if (existsSync(join(binary, 'spawn-helper'))) {
-      cpSync(join(binary, 'spawn-helper'), join(out, 'build/Release/spawn-helper'))
-      chmodSync(join(out, 'build/Release/spawn-helper'), 0o755)
-    }
-    cpSync(join(packageRoot, 'LICENSE'), join(out, 'LICENSE'))
-    writeFileSync(
-      join(out, 'TARGET.json'),
-      JSON.stringify({ target, node: pin.version, version: PTY_VERSION }) + '\n',
-    )
+    const nodeVersion = pin.version
+    const { packageRoot, binary } = prepareNativeSource({ source, temp, target, nodeVersion })
+    stageNativeResources({ packageRoot, binary, out, target, nodeVersion, ptyVersion: PTY_VERSION })
     validateNative(out, target)
     execFileSync(
       node,
