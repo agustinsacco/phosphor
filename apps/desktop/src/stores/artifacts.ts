@@ -15,6 +15,12 @@ interface ArtifactVersion {
   createdAt: number
 }
 
+/**
+ * Ids of artifacts made in the renderer (a code block promoted to the pane).
+ * pi never saw them, so nothing outside this pane can name or read them.
+ */
+export const LOCAL_ARTIFACT_PREFIX = 'local-'
+
 export interface Artifact {
   id: string
   title: string
@@ -234,7 +240,7 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
   },
 
   addLocal: (sessionId, artifact) => {
-    const id = `local-${artifact.title
+    const id = `${LOCAL_ARTIFACT_PREFIX}${artifact.title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')

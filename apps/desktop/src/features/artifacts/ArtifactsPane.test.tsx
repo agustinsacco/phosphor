@@ -6,6 +6,7 @@ import { ArtifactsPane } from './ArtifactsPane'
 import { RemoteArtifactsPane } from './RemoteArtifactsPane'
 import { useSessionsStore } from '@/stores/sessions'
 import { useArtifactsStore } from '@/stores/artifacts'
+import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 vi.hoisted(() => {
@@ -107,5 +108,56 @@ it('remote artifact workspace write is disabled, while downloads are explicitly 
     act(() => root.unmount())
     container.remove()
     vi.unstubAllGlobals()
+  }
+})
+
+it('copies a reference the agent can read, once pi has named the session', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('phosphor', { invoke: vi.fn().mockResolvedValue(null) })
+  const writeText = vi.fn().mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+  const piSession = '0f3c9a2e-1b2c-4d5e-8f90-1234567890ab'
+  useArtifactsStore.setState({ bySession: {}, selected: {}, selectedVersion: {} })
+  useArtifactsStore.getState().ingest('lane', 'artifact_create', {
+    id: 'field-guide',
+    title: 'Field guide',
+    type: 'markdown',
+    content: 'Guide',
+    version: 1,
+  })
+  useChatStore.getState().ensure('lane')
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  const button = (): HTMLButtonElement | null =>
+    container.querySelector<HTMLButtonElement>('button[aria-label^="Copy reference"]')
+  try {
+    await act(async () => root.render(<ArtifactsPane sessionId="lane" workspacePath="/repo" />))
+    expect(button()?.disabled).toBe(true)
+    await act(async () =>
+      useChatStore.getState().setMeta('lane', { sessionId: piSession } as never),
+    )
+    expect(button()?.disabled).toBe(false)
+    await act(async () => button()?.click())
+    expect(writeText).toHaveBeenCalledWith(`artifact://${piSession}/field-guide`)
+
+    // A code block promoted into the pane is not pi's, so it has no reference.
+    await act(async () =>
+      useArtifactsStore
+        .getState()
+        .addLocal('lane', { title: 'Snippet', type: 'code', content: 'x' }),
+    )
+    await act(async () => {
+      const local = Object.keys(useArtifactsStore.getState().bySession.lane!).find((id) =>
+        id.startsWith('local-'),
+      )!
+      useArtifactsStore.getState().select('lane', local)
+    })
+    expect(button()?.disabled).toBe(true)
+  } finally {
+    act(() => root.unmount())
+    container.remove()
+    vi.unstubAllGlobals()
+    useChatStore.getState().remove('lane')
   }
 })

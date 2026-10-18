@@ -74,6 +74,10 @@ function artifactTarget(rest: string): LinkTarget {
   // slugifying it into the id would name an artifact that does not exist.
   const hash = body.indexOf('#')
   if (hash !== -1) body = body.slice(0, hash)
+  // `<sessionId>/<slug>`, the form "Copy reference" writes: the slug names it
+  // in this session's pane; another session's is not there and says so.
+  const slash = body.lastIndexOf('/')
+  if (slash !== -1) body = body.slice(slash + 1)
 
   const id = body
     .toLowerCase()

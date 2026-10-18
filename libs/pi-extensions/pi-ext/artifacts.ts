@@ -730,6 +730,11 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       'be matched exactly. This is the one artifact tool whose output enters the context ' +
       'window, so read only what you need: offset/limit return a range of lines.',
     promptSnippet: 'Read an artifact’s content back into context',
+    promptGuidelines: [
+      'A user message may name an artifact as artifact://<sessionId>/<slug> (optionally #vN), ' +
+        'copied from the artifact panel. Pass it to artifact_read as the id before answering ' +
+        'about that artifact.',
+    ],
     parameters: Type.Object({
       id: Type.String({ description: 'Id of the artifact, or a <sessionId>/<slug> ref' }),
       version: Type.Optional(

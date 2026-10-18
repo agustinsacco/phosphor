@@ -105,6 +105,12 @@ describe('classifyLink', () => {
     })
   })
 
+  it('opens the slug of a copied <sessionId>/<slug> reference', () => {
+    expect(
+      classifyLink('artifact://0f3c9a2e-1b2c-4d5e-8f90-1234567890ab/phosphor-beacon#v2'),
+    ).toEqual({ kind: 'artifact', id: 'phosphor-beacon', version: 2 })
+  })
+
   it('has nothing to open for an artifact link with no id', () => {
     expect(classifyLink('artifact://')).toEqual({ kind: 'none' })
   })

@@ -34,9 +34,12 @@ interface MdNode {
 
 /**
  * Ids are the slug `pi-ext/artifacts.ts` writes (`[a-z0-9-]`, no leading or
- * trailing hyphen), plus the optional version suffix `classifyLink` accepts.
+ * trailing hyphen), plus the optional version suffix `classifyLink` accepts,
+ * and an optional `<sessionId>/` prefix (a copied reference). Without the
+ * prefix in the pattern, a reference would link its session id as the artifact.
  */
-const ARTIFACT_URL = /artifact:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:[#@]v?\d+)?/gi
+const ARTIFACT_URL =
+  /artifact:\/\/(?:[a-z0-9-]{8,}\/)?[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:[#@]v?\d+)?/gi
 
 export function remarkArtifactLinks(): (tree: unknown) => void {
   return (tree) => linkify(tree as MdNode)
