@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { runPrintMode } from '@phosphor/session-runtime/pi/print-mode'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { parseMachineSettings } from '@phosphor/shared/machine-settings-result'
+import { DEFAULT_CLAUDE_ACCOUNT_PREFS } from '@phosphor/shared/models'
 import type {
   MachineSettingsChange,
   MachineSettingsSection,
@@ -71,7 +72,7 @@ async function fixture() {
       allowed,
     )
   }
-  return { home, agentDir, repo, configPath, config, settings, read, patch, repository }
+  return { home, agentDir, repo, configPath, config, settings, read, patch, repository, accounts }
 }
 describe('machine-owned settings service', () => {
   it('shows saved but inactive folder defaults without pretending the folder is trusted', async () => {
@@ -320,6 +321,97 @@ describe('machine-owned settings service', () => {
       expect((await f.read('connectors')).connectors?.checkedAt).toBeUndefined()
     },
   )
+  it('retains metadata authorization across asynchronous provider mutations', async () => {
+    const f = await fixture()
+    const path = join(f.home, 'state/claude-accounts/accounts.json')
+    const prefs = {
+      ...DEFAULT_CLAUDE_ACCOUNT_PREFS,
+      accounts: [{ id: 'default', label: 'Host account', credentialDir: null, addedAt: 1 }],
+    }
+    await writeFile(path, JSON.stringify(prefs), { mode: 0o600 })
+    const before = await f.read('providers')
+    expect(before.providers?.accounts[0]).toMatchObject({ id: 'default', label: 'Host account' })
+    expect(JSON.stringify(before)).not.toContain('credentialDir')
+    let allowed = true
+    const setRouting = f.accounts.setRouting
+    vi.spyOn(f.accounts, 'setRouting').mockImplementation(async (mode, pinnedId) => {
+      await Promise.resolve()
+      allowed = false
+      await setRouting(mode, pinnedId)
+    })
+    const result = await f.patch(
+      'providers',
+      { type: 'claude.routing', mode: 'ordered' },
+      before.revision,
+      undefined,
+      () => allowed,
+    )
+    expect(result.ok).toBe(false)
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(prefs)
+  })
+  it('serializes section calls, bounds the queue, and rechecks queued authority', async () => {
+    const f = await fixture()
+    let release!: () => void
+    let started!: () => void
+    const checking = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    vi.mocked(runPrintMode).mockImplementation(async () => {
+      started()
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      return { stdout: JSON.stringify({ servers: [] }) }
+    })
+    const first = f.settings.feature.call(
+      'machine.settings.check',
+      { section: 'connectors' },
+      () => true,
+    )
+    await checking
+    let allowed = true
+    const queued = Array.from({ length: 7 }, () =>
+      f.settings.feature.call('machine.settings.read', { section: 'agent' }, () => allowed),
+    )
+    const full = await f.settings.feature.call(
+      'machine.settings.read',
+      { section: 'agent' },
+      () => true,
+    )
+    expect(full).toEqual({
+      ok: false,
+      error: { code: 'internal', message: 'Settings are busy. Try again.' },
+    })
+    allowed = false
+    release()
+    expect((await first).ok).toBe(true)
+    for (const result of await Promise.all(queued))
+      expect(result).toEqual({
+        ok: false,
+        error: { code: 'forbidden', message: 'Configuration access was revoked.' },
+      })
+    expect((await f.read('agent')).section).toBe('agent')
+  })
+  it('expires shared connector status after sixty seconds without running another check', async () => {
+    const f = await fixture()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000)
+    vi.mocked(runPrintMode).mockResolvedValue({ stdout: JSON.stringify({ servers: [] }) })
+    try {
+      const result = await f.settings.feature.call(
+        'machine.settings.check',
+        { section: 'connectors' },
+        () => true,
+      )
+      expect(result.ok).toBe(true)
+      now.mockReturnValue(60_999)
+      expect((await f.read('connectors')).connectors?.checkedAt).toBe(1000)
+      now.mockReturnValue(61_000)
+      expect((await f.read('connectors')).connectors?.checkedAt).toBeUndefined()
+      expect(runPrintMode).toHaveBeenCalledOnce()
+    } finally {
+      now.mockRestore()
+    }
+  })
   it('returns names and availability only for environment diagnostics', async () => {
     const f = await fixture()
     const data = await f.read('advanced')

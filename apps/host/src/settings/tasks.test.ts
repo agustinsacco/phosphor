@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { existsSync } from 'node:fs'
+import { dirname } from 'node:path'
 import type { HostTerminals } from '../terminals/service'
 import { which } from '../machine/executables'
 import { runPrintMode } from '@phosphor/session-runtime/pi/print-mode'
@@ -156,6 +158,25 @@ describe('fixed-purpose private machine programs', () => {
       terminalId: 'private-pty',
     })
     f.finish()
+  })
+  it('keeps the official installer private until the PTY completes and releases task state', async () => {
+    const f = fixture()
+    vi.mocked(which).mockImplementation(async (name) => `/trusted/${name}`)
+    vi.mocked(runPrintMode).mockResolvedValue({ stdout: '' })
+    await f.tasks.execute({ type: 'machine.task', task: 'claude.installCli' }, 'client', () => true)
+    const download = vi.mocked(runPrintMode).mock.calls[0]!
+    const script = download[1]!.at(-1)!
+    expect(download[0]).toBe('/trusted/curl')
+    expect(f.runner).toHaveBeenCalledWith('/trusted/bash', [script], {
+      cwd: '/host/home',
+      env: { HOME: '/host/home', PATH: '/trusted/bin', TERM: 'xterm-256color' },
+    })
+    expect(existsSync(dirname(script))).toBe(true)
+    expect(f.tasks.active()).toBe(true)
+    f.finish()
+    await vi.waitFor(() => expect(f.tasks.active()).toBe(false))
+    expect(existsSync(dirname(script))).toBe(false)
+    expect(f.settings.invalidateConnectors).toHaveBeenCalledOnce()
   })
   it('never executes a failed official installer download', async () => {
     const f = fixture()
