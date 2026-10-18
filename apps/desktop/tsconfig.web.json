@@ -9,6 +9,8 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
+    "../../libs/client-ui/src/**/*.ts",
+    "../../libs/client-ui/src/**/*.tsx",
     "test/renderer/**/*.ts",
     "test/renderer/**/*.tsx",
     "vite.config.ts",

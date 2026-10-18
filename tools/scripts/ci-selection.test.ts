@@ -184,27 +184,55 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
   // itself and the whole-workspace checks. A library change selects everything
   // above it, both apps included.
   const desktop = ['desktop', 'tooling']
-  const host = ['host', 'tooling']
-  const runtime = ['desktop', 'host', 'runtime', 'tooling']
-  const extensions = ['desktop', 'host', 'pi-extensions', 'runtime', 'tooling']
-  const libraries = ['control', 'desktop', 'host', 'pi-extensions', 'runtime', 'shared', 'tooling']
+  const host = ['host', 'web', 'tooling']
+  const runtime = ['desktop', 'host', 'runtime', 'web', 'tooling']
+  const extensions = [
+    'desktop',
+    'host',
+    'pi-extensions',
+    'runtime',
+    'client-ui',
+    'web',
+    'site',
+    'tooling',
+  ]
+  const libraries = [
+    'client-ui',
+    'web',
+    'control',
+    'desktop',
+    'host',
+    'host-client',
+    'pi-extensions',
+    'runtime',
+    'shared',
+    'tooling',
+  ]
   // Site and Desktop never select each other; docs and CI select only the
   // whole-workspace checks. Root install/config keep Nx's select-everything rule.
   it.each([
     ['apps/site/src/pages/index.astro', ['site', 'tooling']],
     ['apps/site/package-lock.json', ['site', 'tooling']],
-    ['.infra/phosphor-site/deployment.yaml', ['site', 'tooling']],
+    ['.infra/phosphor-site/base/deployment.yaml', ['site', 'tooling']],
+    ['tools/scripts/site-web-config.mjs', ['site', 'tooling']],
+    ['tools/scripts/site-web-smoke.mjs', ['site', 'tooling']],
     ['.github/workflows/deploy-site.yml', ['site', 'tooling']],
     ['apps/desktop/src/main.tsx', desktop],
+    ['libs/client-ui/src/compact.ts', ['client-ui', 'desktop', 'web', 'site', 'tooling']],
+    ['apps/web/src/main.tsx', ['web', 'site', 'tooling']],
     ['apps/desktop/package-lock.json', desktop],
     ['tools/scripts/fix-node-pty.mjs', desktop],
     ['tools/scripts/install.sh', desktop],
     ['.github/workflows/release-continuous.yml', desktop],
     ['apps/host/src/main.ts', host],
-    ['apps/control/src/main.ts', ['control', 'site', 'tooling']],
+    ['apps/control/src/main.ts', ['control', 'web', 'site', 'tooling']],
     ['apps/host/project.json', host],
     ['libs/pi-extensions/pi-ext/headroom.ts', extensions],
     ['libs/session-runtime/src/pi/session-service.ts', runtime],
+    [
+      'libs/host-client/src/connection.ts',
+      ['desktop', 'host', 'host-client', 'runtime', 'web', 'site', 'tooling'],
+    ],
     ['libs/shared/src/ipc.ts', [...libraries, 'site']],
     ['supabase/config.toml', ['schema', 'tooling']],
     ['tools/scripts/validate.sh', ['tooling']],

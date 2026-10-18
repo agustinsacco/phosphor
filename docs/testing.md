@@ -18,14 +18,15 @@ npm test -- --maxWorkers=2
 node tools/scripts/size-budget.mjs check
 ```
 
-Root `npm ci` also installs Desktop and Control through postinstall. The site is
+Root `npm ci` also installs Desktop, Control and Web through postinstall. The site is
 an independent dependency domain, not a root workspace. Both the comprehensive
 typecheck and the whole-repository typecheck-coverage unit test require its local
 TypeScript and Astro tools. A missing install fails, rather than falling back to
 an ancestor's tools or skipping a domain.
 
 `npm run typecheck` runs the all-file coverage audit, then Desktop main/preload,
-renderer, unit tests and e2e types, shared, session-runtime, pi-extensions, Host,
+renderer, shared client-ui, browser-safe host-client and its Node test project,
+Web source, worker, unit tests and browser e2e types, shared, session-runtime, pi-extensions, Host,
 Control, tooling and the site's Astro check. The project list lives in
 `tools/scripts/typecheck-coverage.mjs`. The standalone audit is useful when
 checking membership without compiling:
@@ -51,14 +52,14 @@ SKIP_E2E=1 npm run validate
 
 Use `--maxWorkers=2` for broad Vitest runs. Re-run a timeout alone before calling
 it a regression. `npm run validate` runs typecheck, lint, formatting, unit tests,
-Desktop/Host/Control builds and e2e, with a PASS/FAIL summary and log file.
+Desktop/Host/Control/Web builds and Desktop/browser e2e, with a PASS/FAIL summary and log file.
 `SKIP_E2E=1` skips only e2e, never builds. E2E exercises the Electron app against
 the pi stub; packaging builds are not part of unit validation.
 
 ## Layout and helpers
 
 Tests currently live beside their subjects as `*.test.ts` or `*.test.tsx` across
-Desktop, Host and libraries. This is temporary until RL-03 moves them to `test/`
+Desktop, Host, Web and libraries (including the extracted UI in `libs/client-ui/src`). This is temporary until RL-03 moves them to `test/`
 folders. Foundation tools and freeze suites already use `tools/scripts/test/`,
 `apps/desktop/test/` and `libs/shared/test/`; the legacy
 `tools/scripts/__tests__/` directory also remains. Do not mechanically relocate
@@ -72,7 +73,7 @@ Renderer tests use the typed helper
 `events` and `dispose()`. Handlers are channel-specific and unconfigured invokes
 reject. `installFakePhosphor(fake)` returns a restore function; restore and
 `dispose()` in `afterEach`, restoring nested installations in reverse order.
-The helper changes no globals until explicitly installed. Event emitters model
+The helper stays test-only outside the shipping browser graph and changes no globals until explicitly installed. Event emitters model
 keyed subscriptions and unsubscribe behaviour without Electron.
 
 ## Characterization and freeze rules
@@ -148,6 +149,19 @@ then exclusively creates JSON evidence. Retain it before squashing; inventory
 comparison is separate evidence in the per-unit pipeline.
 Do not run this tool against untrusted PR data in CI.
 
+## Dry-run relocation planner
+
+`node tools/scripts/relocate-tests.mjs --plan` only emits a hashed JSON plan;
+`--apply` and `--verify` are refused. Existing colocated tests are not moved.
+The mapping table in `tools/scripts/relocation/map.mjs` covers Desktop, Host,
+Control, Web, shared UI, host-client and the other libraries. `@/` resolves to
+`libs/client-ui/src`, not Desktop's native bootstrap. The shipping replay fixture
+is planned for `libs/client-ui/src/dev/fixtures`, with its shipping consumer
+reported for review rather than silently rewritten. Existing `test/` trees,
+e2e, site and Supabase paths retain their boundaries. Run inventory and inspect
+collisions, importer edits, budget renames and report-only paths before any
+separately approved relocation.
+
 ## Size budgets and lint staging
 
 ```bash
@@ -155,13 +169,16 @@ node tools/scripts/size-budget.mjs check
 node tools/scripts/size-budget.mjs check --strict
 ```
 
-`tools/budgets/*.json` covers eight packages. Production files have a 400-line
+`tools/budgets/*.json` covers eleven packages. Production files have a 400-line
 budget, functions 80 lines, test files 800 lines. Suite registration callbacks
 are not ordinary functions. Exemptions are limited to declaration and
 generated-file entries with an exact file/rule, rationale and owner; long e2e
 callbacks are baselined offenders, not exemptions. Existing offenders are one-way ceilings: new or grown
 spans fail, shrinking/removal is allowed, and checks never rewrite baselines.
-Renames need explicit mappings. `--strict` also fails remaining baseline debt;
+Renames need explicit mappings. The UI extraction transfers Desktop renderer
+ceilings and its icon-declaration exemption to `client-ui`; `web` and
+`host-client` have separate budgets. Integration allowances for existing PWA
+debt are measured from commit `9dfff24b`, never from new integration code. `--strict` also fails remaining baseline debt;
 it is not CI's default while that debt exists.
 
 ESLint stages React hooks warnings in renderer code/tests, typed
@@ -176,13 +193,13 @@ Do not suppress rules or weaken types to pass a unit.
 
 The `checks` job installs root and site dependencies before typecheck or unit
 tests, runs comprehensive typecheck once (including the all-file audit), lint,
-formatting, unit tests, size ratchet and Desktop/Host/Control builds. The audit's
+formatting, unit tests, size ratchet and Desktop/Host/Control/Web builds. The audit's
 own tests also run in `npm test`; there is no redundant standalone audit step.
 The affected-project report is shadow-only and cannot skip checks. Inventory
 artifacts, coverage comparisons and unit-gate evidence belong to the trusted
 per-unit pipeline, not CI's untrusted PR input.
 
 The final `CI result` job always aggregates every required job: `checks`,
-`control-schema`, `site` and `e2e`. Every result must be `success`, including all
+`control-schema`, `site`, `e2e` and `web-e2e`. Every result must be `success`, including all
 e2e matrix legs. `tools/scripts/test/foundation-wiring.test.ts` guards these
 steps and the documented commands against accidental removal.

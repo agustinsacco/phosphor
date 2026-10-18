@@ -1,3 +1,5 @@
+import { browserAuth, isWebHost } from './web/auth'
+import { WEB_AUTH_ROUTES } from '@phosphor/shared/web-auth'
 import { Hono } from 'hono'
 import { CONTROL_LIMITS, CONTROL_ROUTES, type ControlErrorBody } from '@phosphor/shared/control-api'
 import { TraceEvents, type EventLog } from './events'
@@ -44,7 +46,11 @@ const routeMethods: Record<string, readonly string[]> = {
   [CONTROL_ROUTES.enrollmentLookup]: ['POST'],
   [CONTROL_ROUTES.enrollmentApprove]: ['POST'],
   [CONTROL_ROUTES.machines]: ['GET'],
-  [CONTROL_ROUTES.clients]: ['POST'],
+  [CONTROL_ROUTES.clients]: ['GET', 'POST'],
+  [WEB_AUTH_ROUTES.start]: ['GET'],
+  [WEB_AUTH_ROUTES.callback]: ['GET'],
+  [WEB_AUTH_ROUTES.session]: ['GET'],
+  [WEB_AUTH_ROUTES.signout]: ['POST'],
   [CONTROL_ROUTES.grants]: ['POST'],
   [CONTROL_ROUTES.grantKeys]: ['GET'],
   [CONTROL_ROUTES.hostSelf]: ['GET'],
@@ -60,7 +66,12 @@ export function createApp(deps: AppDeps) {
     const target = rawTarget(c.req.raw, c.env)
     if (unsafeRawTarget(target)) {
       if (target.startsWith('/api/')) throw new ControlFailure('bad-request')
-      return serveStatic(c.req.raw, deps.config.siteDir, true)
+      return serveStatic(
+        c.req.raw,
+        isWebHost(c, deps) ? deps.config.web!.dir : deps.config.siteDir,
+        true,
+        isWebHost(c, deps),
+      )
     }
     await next()
   })
@@ -108,6 +119,11 @@ export function createApp(deps: AppDeps) {
   app.get('/healthz', (c) => c.json({ ok: true }))
   app.get(CONTROL_ROUTES.health, (c) => c.json(health(deps.config.configured, deps.version)))
   const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
+  const browser = browserAuth(deps, auth)
+  if (browser) {
+    app.use('/api/*', browser.adapter)
+    browser.routes(app)
+  }
   const hostAuth = hostAuthentication(deps)
   app.get(CONTROL_ROUTES.me, me(auth, deps.supabase))
   enrollments(app, deps, auth, hostAuth, events)
@@ -116,7 +132,12 @@ export function createApp(deps: AppDeps) {
   grants(app, deps, auth, events)
   app.all('/*', (c) => {
     if (c.req.path.startsWith('/api/')) throw new ControlFailure('not-found')
-    return serveStatic(c.req.raw, deps.config.siteDir)
+    return serveStatic(
+      c.req.raw,
+      isWebHost(c, deps) ? deps.config.web!.dir : deps.config.siteDir,
+      false,
+      isWebHost(c, deps),
+    )
   })
   return app
 }

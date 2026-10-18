@@ -246,8 +246,9 @@ requests and finish in-flight work; shutdown is forced within ten seconds.
 file excludes unrelated apps, build output, dependencies and secret-shaped files.
 The Astro builder installs DejaVu fonts, runs its own `npm ci`, check and build.
 The Control builder installs its own dependencies and bundles `server.mjs`.
-The Node 22 Alpine runtime contains only that bundle and `/app/site`, runs as
-uid/gid 1000 and needs no writable volumes. `bash tools/scripts/site-image.sh`
+The Web builder installs the explicit shared UI/library closure independently
+and builds the compact app with `PHOSPHOR_BUILD_SHA`. The Node 22 Alpine runtime
+contains that bundle, `/app/site` and `/app/web`, runs as uid/gid 1000 and needs no writable volumes. `bash tools/scripts/site-image.sh`
 builds and checks the image read-only with all capabilities dropped, then runs
 the site browser suite and removes its container. CI uses the same script.
 
@@ -274,9 +275,52 @@ The Cloudflare Transform Rule must overwrite `x-phosphor-edge` with the same
 edge secret. No source-range filtering is used because servicelb SNAT hides
 LAN and tailnet peers as well as the tunnel connector.
 
+Browser rollout is separately default-off. The repository variable
+`PHOSPHOR_WEB_ENABLED` accepts only literal `true`/`false`; unset/empty means
+`false`. It is validated in the guard before publishing/deploying, then the same
+output drives the public Docker build argument and runtime overlay. Only the
+Astro build receives `PUBLIC_PHOSPHOR_WEB_ENABLED`, to show **Open the app** at
+`https://phosphor-app.saccolabs.com/`. No secret enters a build argument or the
+browser bundle. The existing three-key `phosphor-control` Secret is unchanged.
+
+The default `.infra/phosphor-site` kustomization selects `base/`: the same native
+Deployment and Service, with **none** of `CONTROL_WEB_ORIGIN`, `WEB_DIR`, or
+`CONTROL_WEB_SESSION_KEYS` present (not even empty values). When enabled, the
+workflow selects `.infra/phosphor-site/web`, which adds exactly:
+
+- `CONTROL_WEB_ORIGIN=https://phosphor-app.saccolabs.com`
+- `WEB_DIR=/app/web`
+- `CONTROL_WEB_SESSION_KEYS` from `phosphor-web` Secret key `session-keys`.
+
+The separate `web/secret.yaml` template uses repository secret
+`CONTROL_WEB_SESSION_KEYS`. Before publishing, and again before rollout, enabled
+runs require one to eight unique `kid=base64url32bytes` entries, comma-separated,
+at most 4096 characters; ids contain 1–64 letters, digits, underscores or hyphens.
+Canonical encoding is checked without logging values. The Web Secret is rendered
+under `RUNNER_TEMP` with mode 0600, applied separately with all kubectl diagnostics
+suppressed, then removed on success/failure. Kubeconfig is private and removed
+at job cleanup too. Disabled runs neither validate nor apply browser credentials.
+Returning the flag to false rebuilds the link-free site and reapplies the base,
+removing all Web env references without deleting the live Web Secret. Every
+rollout still restarts pods for key rotation and pins the image digest.
+
+Enabling is an operator action only after the
+[external Web prerequisites](web-client.md#gated-production-rollout): reviewed
+additive migration, OAuth allowlist, DNS/Host-preserving tunnel to port 5015,
+edge rules for both origins without app-static `frame-ancestors`, browser-capable
+Host and physical Pixel/Tailscale checks. These gates are not verified by this
+repository wiring; the workflow applies no migration and starts no OAuth flow.
+
 After rollout the workflow requires a Service address, then checks the public
 site title, `/healthz` and `/api/v1/health` with `configured: true`. It retries
-for at most two minutes and fails if any check stays unavailable.
+for at most two minutes and fails if any check stays unavailable. Enabled runs
+then perform a bounded HTTPS-only anonymous app smoke: root, manifest and worker
+must carry no-store and X-Frame-Options DENY, with no inherited frame-ancestors;
+`/api/auth/session` must deny unsigned access (401, no-store). Marketing `/` and
+`/guides/` must remain site pages with the app link. No redirect following, TLS
+bypass, production HTTP fallback, cookie persistence or OAuth initiation is used.
+Failure reports no upstream headers or bodies. This is not authenticated or
+physical-device acceptance.
 
 ## Control-directory schema
 
@@ -337,3 +381,139 @@ with the migration ledger. Never replay an existing schema under a second
 migration version or target another product's database. Local test success does
 not prove deployment. Only the disposable `phosphor-control-test` stack belongs
 to automated local validation.
+
+## Browser authentication (isolated app origin)
+
+Browser auth is opt-in. `CONTROL_WEB_ORIGIN`, `WEB_DIR` and
+`CONTROL_WEB_SESSION_KEYS` must all be set together; partial/invalid configuration
+fails startup without printing values. The web origin is an exact bare HTTPS
+origin with a **different hostname** from `CONTROL_PUBLIC_ORIGIN`, even if ports
+differ. Production uses `https://phosphor-app.saccolabs.com`. Only explicitly
+configured literal loopback HTTP (`127.0.0.1` or `[::1]`, not `localhost`) permits
+development cookies. `WEB_DIR` is a separate trusted immutable app build root.
+No browser assets, OAuth provider settings, deployment secrets or app UI are
+provisioned by these routes.
+
+`CONTROL_WEB_SESSION_KEYS` contains one to eight comma-separated `kid=key`
+entries: unique 1–64-character letters/digits/underscore/hyphen ids and canonical
+base64url 32-byte AES keys, at most 4096 characters total. They are deployment
+secrets, never implicitly generated. First key encrypts; all keys decrypt.
+Append a new key before promoting it to first, and retain previous keys for the
+24-hour maximum browser session lifetime after their last use for encryption.
+Cookies are AES-256-GCM sealed with random nonces and origin/purpose-bound
+additional authenticated data. There is no session/refresh-token database or
+process-memory session dependency. Supabase credentials exist only server-side
+and in the sealed HttpOnly cookie, never in JS, localStorage, service workers,
+JSON responses or logs. GitHub provider tokens are discarded.
+
+Production cookies are `__Host-phosphor-session` and
+`__Host-phosphor-transaction`: Secure, HttpOnly, SameSite=Lax, Path=/, no Domain.
+Explicit loopback HTTP fixtures instead use `phosphor-dev-session` and
+`phosphor-dev-transaction`, without Secure. Session cookies expire absolutely
+24 hours after sign-in; transaction cookies expire in ten minutes. Invalid and
+expired cookies are cleared with a sanitized 401 response. Unavailable services
+do not clear an otherwise valid session.
+
+Only requests whose Host matches the configured app host receive browser routes
+or the app static root. Forwarded-Host is ignored; redirects always derive from
+the configured origin, never a request header. Other hosts retain the site's
+static handling and bearer-only API. App APIs reject any Authorization header
+rather than ambiguously choosing between bearer and cookie. On the native/site
+API, cookies are ignored and existing bearer authentication remains unchanged.
+All private/auth responses are no-store. There are no CORS allowances.
+
+### Browser interface
+
+The shared subpath `@phosphor/shared/web-auth` owns route names, CSRF header and
+safe browser response types. Requests use same-origin cookies; mutations send
+`Content-Type: application/json`, exact app `Origin` and
+`x-phosphor-csrf: <csrfToken>`. DELETE still has no body. Missing/mismatched Origin
+or CSRF returns 403, including sibling-site origins. GETs with an explicitly
+wrong Origin are refused too.
+
+- `GET /api/auth/start?returnTo=/machines` navigates to Supabase's GitHub PKCE
+  authorize route (`code_challenge_method=s256`). `returnTo` defaults to `/` and
+  accepts only bounded local slash-separated alphanumeric/underscore/hyphen
+  paths, not queries, fragments, dot segments or API paths. Initiate from the
+  app itself; a cross-site/sibling-site Fetch Metadata initiation is refused.
+  A signed-in cookie returns 409 rather than registering another client.
+- `GET /api/auth/callback?state=…&code=…` exchanges the bounded code using the
+  encrypted transaction's verifier. State is embedded in the configured
+  `redirect_to` callback query, not assumed to be arbitrary OAuth state echoed
+  by Supabase. The callback must match the exact transaction and refuses unknown
+  or duplicate query parameters. Supabase must allowlist this app callback URL
+  including its state query. The production Supabase redirect configuration and
+  real GitHub flow require separate deployment validation.
+  A successful verified account registers exactly one `kind=web` client,
+  seals it into the session, and redirects to the stored local path with 303.
+- `GET /api/auth/session` returns
+  `{user: {id, login}, clientId, csrfToken}` or 401 when unsigned/expired/revoked.
+  It never returns access, refresh or GitHub tokens. Clients should treat 503
+  as a retryable service failure, not signed-out state.
+- `POST /api/auth/signout` with JSON `{}` and the session's CSRF header clears
+  the cookie, revokes this bound web client, and calls Supabase logout with
+  `scope=local`. It returns
+  `{signedOut: true, remoteCleanup: "complete" | "pending"}`. Complete means both
+  remote operations confirmed success (an already-revoked client is success).
+  Pending means local sign-out happened but remote cleanup is not confirmed;
+  no unbounded retry job is queued. It does not sign out other devices or stop
+  lanes. Existing Host grants may remain usable for their bounded lifetime;
+  offline Hosts do not receive immediate revocation.
+- `GET /api/v1/clients` uses the ordinary owner/account guard and returns
+  `{clients: [{id, label, kind, revokedAt}]}`, at most 100 rows, active first.
+  It also works for native bearer callers. `DELETE /api/v1/clients/:id` retains
+  its owner-only behavior and can revoke another device.
+- Browser requests cannot POST client registration or substitute a different
+  `clientId` in `POST /api/v1/grants`. Use the id from `/api/auth/session` with
+  the existing `{hostId, clientId}` grant API. Grant sid is extracted from the
+  exact account token that passed the common verification boundary.
+
+Every admitted cookie API request checks `control_web_client_status` against the
+bound owner and web client before and after any refresh. Revoked/disabled clients
+are refused, and missing/unavailable authoritative status fails closed. The
+additive `20261014120000_control_web_clients.sql` migration supplies this status
+RPC and the bounded owner-only listing RPC. Both are fixed-search-path security
+invokers, executable only by service_role. Neither stores credentials. The
+existing grant RPC additionally locks/checks the actual client at issuance.
+A revoked cookie never automatically re-registers; a fresh interactive sign-in
+is required to create another device identity.
+
+Refresh begins within 60 seconds of access-token expiry, coalesced by refresh
+credential hash for at most 60 seconds and 1000 entries per process. Both owner
+and Auth session id must remain unchanged; the refreshed access token is also
+verified via Auth. Upstream requests refuse redirects, use five-second deadlines
+and 64 KB response caps. Replay records retain consumed callback transactions
+until their expiry (10,000 cap, refuse at capacity); Supabase's one-use code
+exchange remains the cross-process replay boundary. Start is limited to ten per
+IP bucket per ten minutes. Logout tombstones (10,000 bounded entries) supplement
+but never replace durable client revocation. They and refresh/replay coordination
+are process-local: single-replica operation is required, and restart/rollout does
+not preserve them. A late refreshed cookie cannot bypass successful durable
+client revocation, including in another process. If both cleanup services fail,
+local clearing/tombstones do not promise durable remote revocation after restart.
+
+### App static policy
+
+The site's marketing `/` and `/guides/`, guide redirect, caching and confinement
+remain unchanged. The app root has its own policy and no-store responses. Its
+SPA fallback requires GET/HEAD, `Accept: text/html` and a simple navigation path;
+it never handles API paths, missing file assets, or assets/fonts/icons/_astro directories.
+Both roots retain realpath/symlink confinement and hidden-file refusal.
+App CSP allows bundled same-origin scripts (no inline scripts), same-origin
+styles/fonts/images/manifest/workers, inline styles and data images. Network
+sources are only self, `https://*.ts.net:*` and `wss://*.ts.net:*`; explicit ports
+include the default Host 47615 and configured ports. This is defense in depth,
+not Host authorization: the browser transport must use only the server-returned
+enrolled endpoint and verify its enrolled Host key before accepting data.
+Production HTTP/WS and arbitrary network domains are not permitted. Frames are
+restricted to `blob:` sources only, never HTTP or same-origin API pages. The app
+itself refuses both same-origin and cross-origin embedding with `X-Frame-Options:
+DENY`. App static responses deliberately omit CSP `frame-ancestors`: WebKit
+inherits that directive into Blob documents, incorrectly blocking these opaque
+previews when it is `none`. API responses retain their separate restrictive CSP.
+Do not reintroduce an inherited ancestor policy at the edge. A web
+preview must use an opaque sandbox with neither `allow-scripts` nor
+`allow-same-origin`, plus a document CSP preceding untrusted markup that refuses
+scripts, connections, external styles/fonts and all non-data images. The parent
+policy alone does not make arbitrary HTML safe. No artifact HTML is served by an
+authorized preview route in Control; lane content stays on the direct Host path.

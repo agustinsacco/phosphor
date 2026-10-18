@@ -85,7 +85,7 @@ scope (name, version, spec, resource counts, `filtered` badge, remove), then
 add-by-spec with a scope selector and "Update all". A link to
 [pi.dev/packages](https://pi.dev/packages) for the ecosystem.
 
-**Curated catalogue** (`apps/desktop/src/features/settings/catalogue.ts`): four specs we
+**Curated catalogue** (`libs/client-ui/src/features/settings/catalogue.ts`): four specs we
 have read the source of: the Claude Code provider, web access, subagents,
 computer use. MCP needs no package: pi's built-in support covers it
 ([mcp.md](mcp.md)). An entry may declare `requiresBinary: 'claude'`,
@@ -124,7 +124,7 @@ extension wrote, with the whole command inside it**. Rendered generically, a
 60-line heredoc becomes a dialog _title_.
 
 `libs/shared/src/command-approval.ts` claims those dialogs and
-`apps/desktop/src/features/extension-ui/CommandApprovalSheet.tsx` renders them
+`libs/client-ui/src/features/extension-ui/CommandApprovalSheet.tsx` renders them
 as a review surface. Two pure steps:
 
 - **`parseCommandApproval`** recognises the shape (a heading naming a
@@ -152,7 +152,7 @@ Rules the sheet keeps:
 - **The panel is height-capped and scrolls.** Over 14 lines it opens folded to
   the flagged lines.
 
-`apps/desktop/src/dev/mockPhosphor.ts` raises one in the browser harness when a prompt
+`libs/client-ui/src/dev/mockPhosphor.ts` raises one in the browser harness when a prompt
 starts with `danger`.
 
 ### Optional permission gate and scratch cleanup
@@ -262,7 +262,7 @@ patchWebSearchConfig` (`pi-config-handlers.ts`).
 - UI: `tabs/ExtensionsTab.tsx`, `tabs/ClaudeProviderTab.tsx`,
   `tabs/WebAccessTab.tsx`, `tabs/ComputerUseTab.tsx`, `CatalogueCards.tsx`,
   `catalogue.ts`, `usePackageJob.ts`, `JobOutput.tsx`, `app/PiMissingScreen.tsx`,
-  `app/GettingStartedScreen.tsx`. Mock cases in `apps/desktop/src/dev/mockPhosphor.ts`.
+  `app/GettingStartedScreen.tsx`. Mock cases in `libs/client-ui/src/dev/mockPhosphor.ts`.
 
 ## Bundled extensions (Phosphor's own)
 
@@ -490,7 +490,7 @@ nothing of `.kpis`, `table.data` or `.ledger`, `marked` and `mermaid` from a CDN
 the bottom. Two document builders is one too many. The types the renderer draws
 — markdown, mermaid, chart, code — have no main-process renderer at all, so the
 pane serialises its rendered preview instead
-(`apps/desktop/src/features/artifacts/previewHtml.ts`: canvases become `data:` images,
+(`libs/client-ui/src/features/artifacts/previewHtml.ts`: canvases become `data:` images,
 buttons are dropped) and hands that over as the markup to stage.
 
 **It prints US Letter pages, and places the breaks rather than avoiding them.**

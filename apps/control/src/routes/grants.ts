@@ -1,3 +1,5 @@
+import { parseWebClientsResponse } from '@phosphor/shared/web-auth'
+import { effectiveAuthorization } from '../web/effective-token'
 import type { Hono } from 'hono'
 import {
   CONTROL_ROUTES,
@@ -35,7 +37,17 @@ export function grants(
   events: TraceEvents,
 ) {
   const guard = userGuard(auth, deps.supabase)
+  app.get(CONTROL_ROUTES.clients, guard, async (c) => {
+    return c.json(
+      parsed(
+        parseWebClientsResponse(
+          await deps.supabase.rpc('control_web_clients_list', { p_user: c.get('user').userId }),
+        ),
+      ),
+    )
+  })
   app.post(CONTROL_ROUTES.clients, guard, async (c) => {
+    if (c.get('webClientId')) throw new ControlFailure('forbidden')
     const input = parsed(parseClientRegisterRequest(body(c)), 'bad-request')
     const userId = c.get('user').userId
     if (!deps.limits.consume('client-register:' + userId, 10, 3_600_000))
@@ -71,7 +83,9 @@ export function grants(
     const keys = deps.config.grantKeys
     if (!keys) throw new ControlFailure('unavailable')
     const input = parsed(parseGrantIssueRequest(body(c)), 'bad-request')
-    const sid = sessionId(c.req.header('authorization'))
+    if (c.get('webClientId') && input.clientId !== c.get('webClientId'))
+      throw new ControlFailure('forbidden')
+    const sid = sessionId(effectiveAuthorization(c))
     const userId = c.get('user').userId
     if (!deps.limits.consume('grant-issue:' + userId, 120, 60_000))
       throw new ControlFailure('too-many-requests')

@@ -16,6 +16,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { encodeGrant, type GrantPayload } from '@phosphor/shared/host-grant'
 import { HOST_LIMITS, helloProofMessage, parseHostFrame } from '@phosphor/shared/host-protocol'
 import { createAuthority } from './authority'
+import { resolveWebOrigin } from './browser-origin'
+import { DEFAULT_CONTROL_URL } from '@phosphor/shared/control-api'
 import { API_LIMITS, startApi } from './server'
 import { createLaneStreams, createLanesTopic } from '../lanes/stream'
 import type { LaneService } from '../lanes/service'
@@ -81,7 +83,11 @@ function http(path: string, options: RequestInit = {}): Promise<Response> {
           resolve(
             new Response(Buffer.concat(chunks), {
               status: res.statusCode,
-              headers: { 'cache-control': res.headers['cache-control'] ?? '' },
+              headers: {
+                'cache-control': res.headers['cache-control'] ?? '',
+                'access-control-allow-origin': res.headers['access-control-allow-origin'] ?? '',
+                vary: res.headers.vary ?? '',
+              },
             }),
           ),
         )
@@ -97,7 +103,7 @@ function stopApi() {
 function start(
   limits?: Parameters<typeof startApi>[0]['limits'],
   connectionLimits?: Parameters<typeof startApi>[0]['connectionLimits'],
-  laneOptions: Pick<Parameters<typeof startApi>[0], 'runtimeEpoch' | 'lanes'> = {},
+  laneOptions: Pick<Parameters<typeof startApi>[0], 'runtimeEpoch' | 'lanes' | 'webOrigin'> = {},
 ) {
   api = startApi({
     authority,
@@ -129,8 +135,8 @@ async function connect(path = '/v1/stream', headers?: Record<string, string>) {
   await once(ws, 'open')
   return ws
 }
-async function auth(overrides: Partial<GrantPayload> = {}) {
-  const ws = await connect()
+async function auth(overrides: Partial<GrantPayload> = {}, headers?: Record<string, string>) {
+  const ws = await connect('/v1/stream', headers)
   const answer = once(ws, 'message')
   ws.send(JSON.stringify({ type: 'auth', grant: mint(overrides), challenge }))
   const [bytes] = await answer
@@ -478,7 +484,7 @@ it('builds a self-contained CLI and completes an authenticated WebSocket round t
         pi: { executable: '/missing/pi' },
         repositories: [join(root, 'repo')],
         control: { url: origin },
-        api: { port },
+        api: { port, webOrigin: browserOrigin },
       }),
       { mode: 0o600 },
     )
@@ -515,7 +521,7 @@ it('builds a self-contained CLI and completes an authenticated WebSocket round t
       const response = await fetch(`http://127.0.0.1:${port}/v1/hello?challenge=${challenge}`)
       expect(response.status).toBe(200)
     })
-    const { ws, frame } = await auth({ iss: origin })
+    const { ws, frame } = await auth({ iss: origin }, { origin: browserOrigin })
     expect(frame.type).toBe('ready')
     const pong = once(ws, 'message')
     ws.send(JSON.stringify({ type: 'ping', at: 12 }))
@@ -873,4 +879,135 @@ it('hello logs only a valid trace header, never reflects malformed trace data', 
     JSON.stringify({ event: 'api.hello' }),
     JSON.stringify({ event: 'api.hello' }),
   ])
+})
+
+const browserOrigin = 'https://phosphor-app.saccolabs.com'
+it('admits the exact browser origin with CORS and authenticated challenge proof', async () => {
+  start(undefined, undefined, { webOrigin: browserOrigin })
+  await listen()
+  const response = await http(`/v1/hello?challenge=${challenge}`, {
+    headers: { origin: browserOrigin },
+  })
+  expect(response.status).toBe(200)
+  expect(response.headers.get('access-control-allow-origin')).toBe(browserOrigin)
+  expect(response.headers.get('vary')).toBe('Origin')
+  expect(response.headers.get('cache-control')).toBe('no-store')
+  const native = await http(`/v1/hello?challenge=${challenge}`)
+  expect(native.status).toBe(200)
+  expect(native.headers.get('access-control-allow-origin')).toBe('')
+  const ws = await connect('/v1/stream', { origin: browserOrigin })
+  const answer = once(ws, 'message')
+  ws.send(JSON.stringify({ type: 'auth', grant: mint(), challenge }))
+  const parsed = parseHostFrame(String((await answer)[0]))
+  if (!parsed.ok || parsed.value.type !== 'ready') throw new Error('Missing ready')
+  const frame = parsed.value
+  expect(
+    verify(
+      null,
+      Buffer.from(helloProofMessage(claims.hostId, frame.hello.runtimeEpoch, challenge)),
+      host.publicKey,
+      Buffer.from(frame.proof, 'base64url'),
+    ),
+  ).toBe(true)
+  const pong = once(ws, 'message')
+  ws.send(JSON.stringify({ type: 'ping', at: 42 }))
+  expect(String((await pong)[0])).toBe(JSON.stringify({ type: 'pong', at: 42 }))
+  expect((await auth()).frame.type).toBe('ready')
+  expect(logs.join('\n')).not.toContain(browserOrigin)
+  expect(logs.join('\n')).not.toContain(frame.proof)
+})
+
+it('defaults browser admission only for canonical production control and honours disable', async () => {
+  expect(resolveWebOrigin(DEFAULT_CONTROL_URL)).toBe(browserOrigin)
+  for (const origin of [
+    claims.iss,
+    `${DEFAULT_CONTROL_URL}/`,
+    `${DEFAULT_CONTROL_URL}.evil`,
+    'https://other.example',
+  ])
+    expect(resolveWebOrigin(origin)).toBeNull()
+  expect(resolveWebOrigin(DEFAULT_CONTROL_URL, null)).toBeNull()
+  expect(resolveWebOrigin(claims.iss, browserOrigin)).toBe(browserOrigin)
+  claims = { ...claims, iss: DEFAULT_CONTROL_URL }
+  start(undefined, undefined, { webOrigin: null })
+  await listen()
+  expect(
+    (await http(`/v1/hello?challenge=${challenge}`, { headers: { origin: browserOrigin } })).status,
+  ).toBe(403)
+  expect((await auth()).frame.type).toBe('ready')
+})
+
+it('refuses mismatched and duplicate browser origins independently on HTTP and upgrades', async () => {
+  start(undefined, undefined, { webOrigin: browserOrigin })
+  await listen()
+  const origins = [
+    'https://evil.example',
+    '*',
+    'null',
+    `${browserOrigin}.evil`,
+    'https://sub.phosphor-app.saccolabs.com',
+    `${browserOrigin}:443`,
+    `${browserOrigin}:8443`,
+    `${browserOrigin}/`,
+    `${browserOrigin} ${browserOrigin}`,
+    `${browserOrigin}, ${browserOrigin}`,
+    `${browserOrigin}\r\nOrigin: ${browserOrigin}`,
+  ]
+  for (const upgrade of [false, true]) {
+    for (const origin of origins) {
+      const peer = await rawPeer()
+      try {
+        const response = once(peer, 'data')
+        peer.write(
+          `GET ${upgrade ? '/v1/stream' : `/v1/hello?challenge=${challenge}`} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nOrigin: ${origin}\r\n${upgrade ? `Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ${randomBytes(16).toString('base64')}\r\n` : 'Connection: close\r\n'}\r\n`,
+        )
+        const text = String((await response)[0])
+        expect(text).toContain('HTTP/1.1 403')
+        expect(text).not.toContain('access-control-allow-origin')
+      } finally {
+        peer.destroy()
+      }
+    }
+  }
+  for (const method of ['POST', 'OPTIONS'])
+    expect((await http('/v1/hello', { method, headers: { origin: browserOrigin } })).status).toBe(
+      405,
+    )
+  expect(
+    (await http('/v1/hello', { headers: { origin: browserOrigin, host: 'evil.example' } })).status,
+  ).toBe(421)
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/v1/stream`, {
+    headers: { origin: browserOrigin, host: 'evil.example' },
+  })
+  sockets.push(ws)
+  ws.on('error', () => {})
+  const [, response] = await once(ws, 'unexpected-response')
+  expect(response.statusCode).toBe(421)
+  response.resume()
+  ws.terminate()
+  expect(logs.join('\n')).not.toContain(browserOrigin)
+  expect(logs.join('\n')).not.toContain('evil.example')
+})
+
+it('does not let browser admission replace invalid or expired grant validation', async () => {
+  start(undefined, undefined, { webOrigin: browserOrigin })
+  await listen()
+  for (const origin of [undefined, browserOrigin]) {
+    for (const grant of ['invalid-grant', mint({ iat: claims.iat - 600, exp: claims.iat - 300 })]) {
+      const ws = await connect('/v1/stream', origin ? { origin } : undefined)
+      const closed = once(ws, 'close')
+      ws.send(JSON.stringify({ type: 'auth', grant, challenge }))
+      expect((await closed)[0]).toBe(4401)
+    }
+  }
+})
+
+it('admits the default production browser origin without an explicit override', async () => {
+  claims = { ...claims, iss: DEFAULT_CONTROL_URL }
+  start()
+  await listen()
+  expect(
+    (await http(`/v1/hello?challenge=${challenge}`, { headers: { origin: browserOrigin } })).status,
+  ).toBe(200)
+  expect((await auth({}, { origin: browserOrigin })).frame.type).toBe('ready')
 })

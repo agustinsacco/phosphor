@@ -5,7 +5,7 @@
   "sourceRoot": "libs/session-runtime/src",
   "projectType": "library",
   "tags": ["scope:runtime"],
-  "implicitDependencies": ["shared", "pi-extensions"],
+  "implicitDependencies": ["shared", "host-client", "pi-extensions"],
   "targets": {
     "test": {
       "executor": "nx:run-commands",

@@ -61,10 +61,10 @@ you want to watch.
    `libs/shared/src/ipc.ts`) + a handler in
    `apps/desktop/electron/ipc/<prefix>-handlers.ts` (the module matching the channel prefix;
    23 modules, listed in [README.md](README.md#repo-layout)) + a case in
-   `apps/desktop/src/dev/mockPhosphor.ts` if the browser harness should exercise it.
+   `libs/client-ui/src/dev/mockPhosphor.ts` if the browser harness should exercise it.
    `apps/desktop/electron/ipc.ts` is only the composition root; the session registry lives
    in `apps/desktop/electron/registry.ts` so handlers never import their composition root.
-3. **RPC to pi goes through `apps/desktop/src/lib/rpc.ts`** (`piCall` / `piCallOk`), which
+3. **RPC to pi goes through `libs/client-ui/src/lib/rpc.ts`** (`piCall` / `piCallOk`), which
    unwraps the `{success, data?, error?}` envelope and surfaces failures on
    the session's chat. Calling `window.phosphor.piCommand` directly means you own
    the error branch — half the original call sites forgot, so don't.
@@ -100,7 +100,7 @@ you want to watch.
    paths or private keys ([remote-access.md](docs/remote-access.md)). The Host builds
    pi's environment from its own config and never takes environment, executable
    or extension paths from a caller.
-6. **Stores (`apps/desktop/src/stores/`, zustand) are projections of main-process state.**
+6. **Stores (`libs/client-ui/src/stores/`, zustand) are projections of main-process state.**
    `files.ts` and `terminal.ts` are keyed `byWorkspace[path]`; their
    `workspaceFiles()` / `workspaceTerminals()` selectors return a shared
    frozen empty value — never mutate it, never inline a fresh `{}` in a
@@ -150,7 +150,7 @@ you want to watch.
   app (fixed once; don't regress it).
 - **`bootstrapSession` learns a session's file path asynchronously** (from
   `get_state`), so last-session persistence happens in two places in
-  `apps/desktop/src/stores/sessions.ts` — read the comments there before "simplifying".
+  `libs/client-ui/src/stores/sessions.ts` — read the comments there before "simplifying".
 - Session-dir watchers are per-workspace chokidar handles tied to sidebar
   group visibility (expanded ⇒ watched, collapsed ⇒ unwatched, all closed on
   quit). Don't add unbounded watch paths.
@@ -280,13 +280,13 @@ you want to watch.
   Follow [Testing](docs/testing.md#layout-and-helpers) for the typed `fakePhosphor`
   helper and [characterization/freeze rules](docs/testing.md#characterization-and-freeze-rules).
   DOM suites opt in per file with `// @vitest-environment jsdom`. Prefer pure
-  logic extracted into `apps/desktop/src/lib/` or plain modules over component tests.
-- Modals use `ModalOverlay` from `apps/desktop/src/components/Modal.tsx` — portalling,
+  logic extracted into `libs/client-ui/src/lib/` or plain modules over component tests.
+- Modals use `ModalOverlay` from `libs/client-ui/src/components/Modal.tsx` — portalling,
   backdrop dismissal, and depth-aware Escape (innermost wins). Don't add
   window-level Escape listeners in modal content.
 - **Never call `window.prompt`** (or rely on it existing): Electron overrides
   it to throw. Ask for text with `promptText` / show fallback text with
-  `presentText` from `apps/desktop/src/stores/prompt.ts` (rendered by `PromptHost`).
+  `presentText` from `libs/client-ui/src/stores/prompt.ts` (rendered by `PromptHost`).
   ESLint (`no-restricted-syntax`) enforces this in `apps/desktop/src/`.
 - Model-authored HTML renders **only** inside a sandboxed iframe, served over
   `phosphor-artifact://` with its own `default-src 'none'` policy
@@ -302,10 +302,10 @@ you want to watch.
   two rules as artifacts. A new scheme goes into the single
   `protocol.registerSchemesAsPrivileged` call in `apps/desktop/electron/main.ts`: Electron
   honours only one call, so a second one silently drops the first.
-- Renderer path aliases: `@/` → `apps/desktop/src/`, `@phosphor/shared/` → `libs/shared/src/`.
+- Renderer path aliases: `@/` → `libs/client-ui/src/`, `@phosphor/shared/` → `libs/shared/src/`.
   `@shared/` remains a compatibility alias to that same source until installation closure.
 - Browser-only dev (vite without Electron) auto-installs
-  `apps/desktop/src/dev/mockPhosphor.ts` when `window.phosphor` is undefined — new IPC channels
+  `libs/client-ui/src/dev/mockPhosphor.ts` when `window.phosphor` is undefined — new IPC channels
   used by screens the harness renders need a mock case.
 - **Do not write a dated write-up for what you shipped.** That convention
   existed until 2026-09-09 and produced 161 files of history that nobody could

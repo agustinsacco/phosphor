@@ -13,7 +13,15 @@
       "{workspaceRoot}/.infra/phosphor-site/**/*",
       "{workspaceRoot}/.github/workflows/deploy-site.yml",
       "{workspaceRoot}/tools/scripts/site-deploy-policy.mjs",
-      "{workspaceRoot}/tools/scripts/should-skip-release.sh"
+      "{workspaceRoot}/tools/scripts/site-web-*.mjs",
+      "{workspaceRoot}/tools/scripts/should-skip-release.sh",
+      "{workspaceRoot}/apps/web/**/*",
+      "{workspaceRoot}/libs/client-ui/**/*",
+      "{workspaceRoot}/libs/pi-extensions/**/*",
+      "{workspaceRoot}/libs/host-client/**/*",
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/package-lock.json",
+      "{workspaceRoot}/tsconfig.base.json"
     ]
   },
   "targets": {

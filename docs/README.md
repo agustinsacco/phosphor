@@ -41,6 +41,8 @@ a lane's end-to-end flow and trust boundaries. Local Desktop works without
 sign-in; remote lanes connect directly to an enrolled Host over private Tailscale,
 not through control.
 
+The [Web client](web-client.md) contract covers the compact PWA, shared renderer, browser adapter, offline cache and deployment prerequisites.
+
 ## The surfaces
 
 | File                         | Covers                                                                |

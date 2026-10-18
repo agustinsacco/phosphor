@@ -1,12 +1,9 @@
-import type { AttachmentOp } from '@shared/host-protocol-attachments'
-import { parseFileWriteOp, parseWriteResult, type FileWriteOp } from '@shared/host-protocol-writes'
+import { parseFileWriteOp, parseWriteResult } from '@shared/host-protocol-writes'
 import type { IpcInvokeChannel } from '@shared/ipc'
-import type { ReadLane } from './read-features'
+import type { WriteLane } from '@phosphor/host-client/ports'
+export type { WriteLane } from '@phosphor/host-client/ports'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
 
-export interface WriteLane extends ReadLane {
-  write(op: FileWriteOp | AttachmentOp): Promise<unknown>
-}
 export const WRITE_CHANNELS = new Set<IpcInvokeChannel>([
   'fs:writeFile',
   'fs:createFile',

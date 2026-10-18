@@ -149,13 +149,13 @@ describe('select-unit-tests explicit unit selection', () => {
 
   it('uses real Vitest file-only collection without resolving the Monaco import graph', () => {
     const available = listTestFiles(root)
-    const explicit = available.find((file) => file.startsWith('apps/desktop/'))!
+    const explicit = available.find((file) => file.startsWith('libs/client-ui/'))!
     expect(explicit).toBeDefined()
     const selection = selectUnitTests(
       {
         owns: [
-          'apps/desktop/src/features/files/MonacoEditor.tsx',
-          'apps/desktop/src/lib/monaco.ts',
+          'libs/client-ui/src/features/files/MonacoEditor.tsx',
+          'libs/client-ui/src/lib/monaco.ts',
         ],
         existing_tests: [explicit],
       },
@@ -164,7 +164,7 @@ describe('select-unit-tests explicit unit selection', () => {
     )
     expect(selection.files).toContain(explicit)
     expect(selection.files.length).toBeGreaterThan(100)
-    expect(selection.projects).toEqual(['desktop'])
+    expect(selection.projects).toEqual(['client-ui'])
   }, 30_000)
 
   it('CLI fails closed when a unit manifest is missing', () => {

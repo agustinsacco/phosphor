@@ -1,3 +1,4 @@
+import { webConfig } from './web/config'
 import { resolve } from 'node:path'
 import { parseGrantKeys, parseGrantOrigin } from './grants/keys'
 
@@ -39,6 +40,7 @@ export function parseConfig(env: NodeJS.ProcessEnv) {
     throw new Error('Invalid Supabase key configuration')
   }
   return Object.freeze({
+    web: webConfig(env, parseGrantOrigin(env.CONTROL_PUBLIC_ORIGIN)),
     port: Number(port),
     siteDir: resolve(env.SITE_DIR ?? '/app/site'),
     supabaseUrl: parsed.origin,

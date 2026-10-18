@@ -14,20 +14,20 @@ The hot path is pi → main → renderer. These were measured with benchmarks
 against real session files; the numbers are from that audit and the code paths
 are unchanged.
 
-| #   | Issue                                                                                                       | Where                                                                                  |
-| --- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| S2  | The whole `tools` record is cloned on every tool-args/output delta (288 µs/event at 1600 tools)             | `apps/desktop/src/features/chat/reducer.ts`, `toolIdentity.ts` `withExecutionIdentity` |
-| S3  | `buildTranscriptRows` rebuilds the entire transcript per token, defeating `memo` on every visible row       | `apps/desktop/src/features/chat/MessageList.tsx` — `useMemo(..., [items])`             |
-| S4  | `summarizeTool` re-`JSON.parse`s the accumulated args on every delta — O(n²), 665 ms for one 488 KB `write` | `apps/desktop/src/features/chat/tools/toolSummaries.ts` — `tryParseArgs`               |
-| S6  | `message_end` fold is O(items + tools), and pi emits one message per tool call ⇒ O(n²) per session          | `apps/desktop/src/features/chat/toolIdentity.ts`, `messageContent.ts`                  |
-| S7  | `FilesChangedPane` re-derives every touched file (re-parsing every patch) on every tool delta               | `apps/desktop/src/features/files/FilesChangedPane.tsx` — depends on `tools` (S2)       |
-| S8  | Artifact `versions[]` grows unbounded with full content per version, duplicated on the tool payload         | `apps/desktop/src/stores/artifacts.ts`                                                 |
-| S9  | `ArtifactsPane` runs `clearUnseen` (a `set`) on every render — no dep array                                 | `apps/desktop/src/features/artifacts/ArtifactsPane.tsx`                                |
+| #   | Issue                                                                                                       | Where                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| S2  | The whole `tools` record is cloned on every tool-args/output delta (288 µs/event at 1600 tools)             | `libs/client-ui/src/features/chat/reducer.ts`, `toolIdentity.ts` `withExecutionIdentity` |
+| S3  | `buildTranscriptRows` rebuilds the entire transcript per token, defeating `memo` on every visible row       | `libs/client-ui/src/features/chat/MessageList.tsx` — `useMemo(..., [items])`             |
+| S4  | `summarizeTool` re-`JSON.parse`s the accumulated args on every delta — O(n²), 665 ms for one 488 KB `write` | `libs/client-ui/src/features/chat/tools/toolSummaries.ts` — `tryParseArgs`               |
+| S6  | `message_end` fold is O(items + tools), and pi emits one message per tool call ⇒ O(n²) per session          | `libs/client-ui/src/features/chat/toolIdentity.ts`, `messageContent.ts`                  |
+| S7  | `FilesChangedPane` re-derives every touched file (re-parsing every patch) on every tool delta               | `libs/client-ui/src/features/files/FilesChangedPane.tsx` — depends on `tools` (S2)       |
+| S8  | Artifact `versions[]` grows unbounded with full content per version, duplicated on the tool payload         | `libs/client-ui/src/stores/artifacts.ts`                                                 |
+| S9  | `ArtifactsPane` runs `clearUnseen` (a `set`) on every render — no dep array                                 | `libs/client-ui/src/features/artifacts/ArtifactsPane.tsx`                                |
 
 Two more that are worth reading in full because their history is misleading:
 
 - **S10 — `releaseWorkspace` is never called.** It is the documented fix for
-  editor/Monaco retention, it exists in `apps/desktop/src/stores/files.ts`, and its only
+  editor/Monaco retention, it exists in `libs/client-ui/src/stores/files.ts`, and its only
   callers anywhere are its own tests. `disposeSession` does not call it.
 - **S11 — live pi subprocesses are unbounded.** ~172 MB RSS for one _idle_ pi
   tree, and nothing reclaims them. This was genuinely fixed once by an
@@ -45,14 +45,14 @@ Two more that are worth reading in full because their history is misleading:
   collapse (`.activity-group-body`) during a stream therefore overrides the
   follow for several consecutive frames (measured: 11 frames at 120 Hz with the
   view held ~1000 px above the tail, then one jump).
-  `apps/desktop/src/features/chat/MessageList.tsx` — `useVirtualizer`'s default
+  `libs/client-ui/src/features/chat/MessageList.tsx` — `useVirtualizer`'s default
   `scrollToFn`. A custom `scrollToFn` that drops adjustments while pinned and
   applies them relative to the live `scrollTop` while unpinned is the likely
   fix; it is not in yet because it changes read-back behaviour that only the
   e2e transcript suite covers.
 
 **S13 — the captured reducer/e2e fixture uses the pre-0.84.0 wire shape.**
-`apps/desktop/src/features/chat/__fixtures__/real-session-events.jsonl` carries `message`
+`libs/client-ui/src/features/chat/__fixtures__/real-session-events.jsonl` carries `message`
 and `assistantMessageEvent.partial` on all 193 `message_update` records and no
 top-level `usage`; `partial` alone is 42.8% of its bytes. `apps/desktop/e2e/fixtures/pi-stub.cjs`
 still emits that older shape on some paths, while other stub paths emit lean
@@ -111,16 +111,16 @@ line rather than their `cd` preamble. pi's own MCP tools (`codemode`,
 `tool_search`) have rows of their own; M1 to M3 concern older transcripts
 (the adapter's gateway, Claude Code marker sessions).
 
-| #   | Issue                                                                                                                                                                                                                                                                                              | Where                                                                       |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| M1  | A pi-mcp-adapter `mcp` gateway call in an older transcript renders as `Used mcp`, whichever of its nine modes ran                                                                                                                                                                                  | `apps/desktop/src/features/chat/tools/toolSummaries.ts` — `default:` branch |
-| M2  | Raw `mcp__server__tool` names leak into the label                                                                                                                                                                                                                                                  | same file, claude-cli default branch                                        |
-| M3  | `ToolSearch` rows show the machine query (`select:…`, `mcp__custom-tools__…`) instead of the intent                                                                                                                                                                                                | same file                                                                   |
-| M4  | A failed tool hides its arguments two clicks deep — `isError` never seeds the expanded state                                                                                                                                                                                                       | `apps/desktop/src/features/chat/tools/toolDetails.tsx`                      |
-| M6  | `/subagents-stop` without an ID still opens a TUI-only picker and does nothing in RPC. Use **Subagents → select a root → Stop run**, or pass an exact ID to the slash command.                                                                                                                     | pi-subagents `slash-commands.js`                                            |
-| M7  | After an automatic compaction inside a long parent turn, background agents read **status unavailable** until the turn ends: pi-subagents withdraws its snapshot on `session_before_compact` and resumes only on `agent_start`/`agent_settled`. Fix proposed upstream: nicobailon/pi-subagents#2891 | pi-subagents 0.77 `extension/index.js` `suspendWidgetsForCompaction`        |
+| #   | Issue                                                                                                                                                                                                                                                                                              | Where                                                                         |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| M1  | A pi-mcp-adapter `mcp` gateway call in an older transcript renders as `Used mcp`, whichever of its nine modes ran                                                                                                                                                                                  | `libs/client-ui/src/features/chat/tools/toolSummaries.ts` — `default:` branch |
+| M2  | Raw `mcp__server__tool` names leak into the label                                                                                                                                                                                                                                                  | same file, claude-cli default branch                                          |
+| M3  | `ToolSearch` rows show the machine query (`select:…`, `mcp__custom-tools__…`) instead of the intent                                                                                                                                                                                                | same file                                                                     |
+| M4  | A failed tool hides its arguments two clicks deep — `isError` never seeds the expanded state                                                                                                                                                                                                       | `libs/client-ui/src/features/chat/tools/toolDetails.tsx`                      |
+| M6  | `/subagents-stop` without an ID still opens a TUI-only picker and does nothing in RPC. Use **Subagents → select a root → Stop run**, or pass an exact ID to the slash command.                                                                                                                     | pi-subagents `slash-commands.js`                                              |
+| M7  | After an automatic compaction inside a long parent turn, background agents read **status unavailable** until the turn ends: pi-subagents withdraws its snapshot on `session_before_compact` and resumes only on `agent_start`/`agent_settled`. Fix proposed upstream: nicobailon/pi-subagents#2891 | pi-subagents 0.77 `extension/index.js` `suspendWidgetsForCompaction`          |
 
-**M2 is pinned by a test.** `apps/desktop/src/features/chat/items/claudeCliRendering.test.ts`
+**M2 is pinned by a test.** `libs/client-ui/src/features/chat/items/claudeCliRendering.test.ts`
 asserts the raw `mcp__linear__save_issue` string reaches the label. Changing
 the behaviour means changing that assertion — decide the intent first rather
 than treating the test as an accident.
@@ -129,27 +129,27 @@ than treating the test as an accident.
 
 Found in a 2026-09-05 workbench review; all still reproduce.
 
-| #   | Issue                                                                                                                              | Where                                                                    |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| R1  | A conflicting PR still classifies as ready/merge, and a PR with no CI reads "checks green"                                         | `apps/desktop/src/features/home/laneState.ts`                            |
-| R2  | The lane board's "Merge" is a local `--no-ff` merge, not a PR merge, and nothing in the label says so                              | `apps/desktop/src/features/home/LaneBoard.tsx`, `MergeWorktreeModal.tsx` |
-| R3  | The Changes inventory is tool-call-only: every write is marked created, and counts accumulate rather than reflect                  | `apps/desktop/src/features/files/collectTouchedFiles.ts`                 |
-| R5  | A failed worktree creation starts in the original checkout with a warning, but no retry or cancel                                  | `apps/desktop/src/features/sessions/startChat.ts`                        |
-| R6  | A dirty lane with no PR classifies as idle; "Needs a push" also absorbs "changes requested" and "N checks failing"                 | `apps/desktop/src/features/home/laneState.ts`                            |
-| R7  | The model picked on Home is written to the drafts store and never passed into `createSession`                                      | `WorkspaceHome.tsx` → `startChat.ts`                                     |
-| R8  | Cmd+K lists only the first eight sessions from the current cwd                                                                     | `apps/desktop/src/features/palette/CommandPalette.tsx`                   |
-| R9  | Home stats cover one cwd while the Ledger beside them is project-wide                                                              | `WorkspaceHome.tsx`                                                      |
-| R10 | A This Mac lane that settles before its git info loads gets a receipt naming the worktree folder as the repository, with no branch | `apps/desktop/src/features/sessions/laneNotices.ts` `noticeLaneSettled`  |
+| #   | Issue                                                                                                                              | Where                                                                      |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| R1  | A conflicting PR still classifies as ready/merge, and a PR with no CI reads "checks green"                                         | `libs/client-ui/src/features/home/laneState.ts`                            |
+| R2  | The lane board's "Merge" is a local `--no-ff` merge, not a PR merge, and nothing in the label says so                              | `libs/client-ui/src/features/home/LaneBoard.tsx`, `MergeWorktreeModal.tsx` |
+| R3  | The Changes inventory is tool-call-only: every write is marked created, and counts accumulate rather than reflect                  | `libs/client-ui/src/features/files/collectTouchedFiles.ts`                 |
+| R5  | A failed worktree creation starts in the original checkout with a warning, but no retry or cancel                                  | `libs/client-ui/src/features/sessions/startChat.ts`                        |
+| R6  | A dirty lane with no PR classifies as idle; "Needs a push" also absorbs "changes requested" and "N checks failing"                 | `libs/client-ui/src/features/home/laneState.ts`                            |
+| R7  | The model picked on Home is written to the drafts store and never passed into `createSession`                                      | `WorkspaceHome.tsx` → `startChat.ts`                                       |
+| R8  | Cmd+K lists only the first eight sessions from the current cwd                                                                     | `libs/client-ui/src/features/palette/CommandPalette.tsx`                   |
+| R9  | Home stats cover one cwd while the Ledger beside them is project-wide                                                              | `WorkspaceHome.tsx`                                                        |
+| R10 | A This Mac lane that settles before its git info loads gets a receipt naming the worktree folder as the repository, with no branch | `libs/client-ui/src/features/sessions/laneNotices.ts` `noticeLaneSettled`  |
 
-**R11 — modals are not dialogs.** `apps/desktop/src/components/Modal.tsx` has no
+**R11 — modals are not dialogs.** `libs/client-ui/src/components/Modal.tsx` has no
 `role="dialog"`, no `aria-modal`, no focus trap and no focus restoration.
 Settings supplies its own dialog attributes and accessible close label, but the
-shared overlay supplies no focus management. `apps/desktop/src/lib/shortcutContext.ts`
+shared overlay supplies no focus management. `libs/client-ui/src/lib/shortcutContext.ts`
 says outright that its data marker exists "without pretending to add a focus
 trap". The Changes pane was fixed; this was not.
 
 **R12 — tertiary ink fails contrast**: 2.74:1 on light and 3.77:1 on dark,
-against a 4.5:1 bar for normal text (`apps/desktop/src/styles/index.css`). Individual copy
+against a 4.5:1 bar for normal text (`libs/client-ui/src/styles/index.css`). Individual copy
 has been migrated to secondary ink, but the tokens themselves are unchanged.
 
 **R13 — deleting a never-reopened session from a sandbox renamed by an older
@@ -177,15 +177,15 @@ means picking one path identity for a session file and using it on both sides.
 
 ## Code health
 
-| #   | Issue                                                                                                          | Where                                                                     |
-| --- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| H1  | `errorText` (`libs/shared/src/errors.ts`) is not enforced; hand-rolled `err instanceof Error ? …` sites remain | across `apps/desktop/src/features/settings/`, `apps/desktop/electron/pi/` |
-| H3  | One raw `piCommand` site carries no exemption comment, so nobody can tell if it is deliberate (CLAUDE.md #3)   | `apps/desktop/src/features/chat/composer/queueActions.ts`                 |
-| H4  | `useAsyncAction` is not adopted by `MessageItem`, `ForkPickerModal`, `TreeViewModal`                           | those three files                                                         |
-| H5  | Several public helpers have only one production consumer                                                       | `apps/desktop/electron/pi/agent-settings.ts`, `libs/shared/src/mcp.ts`    |
-| H6  | Three separate banner implementations that a single `Notice` primitive would replace                           | `RetryStrip.tsx`, `banners.tsx`, `composer/RateLimitBanner.tsx`           |
-| H7  | Two hover-action implementations in one file                                                                   | `apps/desktop/src/features/chat/MessageItem.tsx`                          |
-| H8  | Per-component cost rows are still missing from the usage popover                                               | `apps/desktop/src/features/chat/composer/` — `ContextMeter`               |
+| #   | Issue                                                                                                          | Where                                                                       |
+| --- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| H1  | `errorText` (`libs/shared/src/errors.ts`) is not enforced; hand-rolled `err instanceof Error ? …` sites remain | across `libs/client-ui/src/features/settings/`, `apps/desktop/electron/pi/` |
+| H3  | One raw `piCommand` site carries no exemption comment, so nobody can tell if it is deliberate (CLAUDE.md #3)   | `libs/client-ui/src/features/chat/composer/queueActions.ts`                 |
+| H4  | `useAsyncAction` is not adopted by `MessageItem`, `ForkPickerModal`, `TreeViewModal`                           | those three files                                                           |
+| H5  | Several public helpers have only one production consumer                                                       | `apps/desktop/electron/pi/agent-settings.ts`, `libs/shared/src/mcp.ts`      |
+| H6  | Three separate banner implementations that a single `Notice` primitive would replace                           | `RetryStrip.tsx`, `banners.tsx`, `composer/RateLimitBanner.tsx`             |
+| H7  | Two hover-action implementations in one file                                                                   | `libs/client-ui/src/features/chat/MessageItem.tsx`                          |
+| H8  | Per-component cost rows are still missing from the usage popover                                               | `libs/client-ui/src/features/chat/composer/` — `ContextMeter`               |
 
 H1 would hold better as an ESLint rule than as another conversion pass.
 

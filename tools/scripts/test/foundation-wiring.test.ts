@@ -25,6 +25,8 @@ const checkCommands = [
   'npm ci --prefix apps/site',
   'npm run typecheck',
   'node tools/scripts/size-budget.mjs check',
+  'npm run web:build',
+  'npx playwright install --with-deps chromium webkit',
   'npm run lint',
   'npx prettier --check .',
   'npm test',
@@ -78,6 +80,13 @@ describe('foundation CI wiring', () => {
         'apps/control/tsconfig.json',
         'apps/site/tsconfig.json',
         'tsconfig.tools.json',
+        'libs/client-ui/tsconfig.json',
+        'libs/host-client/tsconfig.json',
+        'libs/host-client/tsconfig.tests.json',
+        'apps/web/tsconfig.json',
+        'apps/web/tsconfig.tests.json',
+        'apps/web/tsconfig.worker.json',
+        'apps/web/e2e/tsconfig.json',
       ]),
     )
     const runner = read('tools/scripts/typecheck.mjs')
@@ -128,11 +137,11 @@ describe('foundation CI wiring', () => {
     const jobs = [...workflow.split('\njobs:\n')[1]!.matchAll(/^ {2}([\w-]+):$/gm)].map(
       (match) => match[1],
     )
-    expect(jobs).toEqual(['checks', 'control-schema', 'site', 'e2e', 'result'])
+    expect(jobs).toEqual(['checks', 'web-e2e', 'control-schema', 'site', 'e2e', 'result'])
     const result = job('result')
     expect(result).toContain('name: CI result')
     expect(result).toContain('if: always()')
-    expect(result).toContain('needs: [checks, control-schema, site, e2e]')
+    expect(result).toContain('needs: [checks, control-schema, site, e2e, web-e2e]')
     expect(result).toContain("RESULTS: ${{ join(needs.*.result, ' ') }}")
     expect(result).toContain('for r in $RESULTS; do [ "$r" = success ] ||')
     expect(result).toContain('exit 1;')

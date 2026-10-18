@@ -1,0 +1,51 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "web",
+  "root": "apps/web",
+  "sourceRoot": "apps/web/src",
+  "projectType": "application",
+  "tags": ["scope:client"],
+  "implicitDependencies": ["client-ui", "host-client", "shared", "host", "control"],
+  "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^default", "rootInstall"],
+      "options": {
+        "command": "tsc --noEmit -p apps/web/tsconfig.json && tsc --noEmit -p apps/web/tsconfig.worker.json && tsc --noEmit -p apps/web/e2e/tsconfig.json",
+        "cwd": "."
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^default", "rootUnitRunner"],
+      "options": {
+        "command": "vitest run apps/web",
+        "cwd": ".",
+        "env": {
+          "VITEST_MAX_WORKERS": "2"
+        }
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^default", "rootInstall"],
+      "options": {
+        "command": "npm run web:build",
+        "cwd": "."
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "test:e2e": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^default", "rootInstall"],
+      "options": {
+        "command": "npm run test:e2e:web",
+        "cwd": "."
+      }
+    }
+  }
+}

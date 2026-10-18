@@ -44,7 +44,7 @@ describe('relocation plan regressions', () => {
   it('does not report unchanged alias mocks, including in excluded consumers', () => {
     const plan = planFor({
       [test]: "vi.mock('@/lib/a')",
-      'apps/desktop/src/lib/a.ts': '',
+      'libs/client-ui/src/lib/a.ts': '',
       'apps/desktop/e2e/a.ts': "vi.mock('@/lib/a')",
     })
     expect(plan.importerEdits).toEqual([])

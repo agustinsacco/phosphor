@@ -10,7 +10,10 @@ import {
   type ServerResponse,
 } from 'node:http'
 import { join, resolve } from 'node:path'
-import { MACHINE, LOOKUP } from '../../src/features/machines/__fixtures__/control'
+import {
+  MACHINE,
+  LOOKUP,
+} from '../../../../libs/client-ui/src/features/machines/__fixtures__/control'
 import type { MachineView } from '../../../../libs/shared/src/control-api'
 import { scratchDir } from './scratch'
 import { configureTestTeardown } from './shutdown'

@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phosphor-site
+  namespace: phosphor
+spec:
+  template:
+    spec:
+      containers:
+        - name: phosphor-site
+          env:
+            - name: CONTROL_WEB_ORIGIN
+              value: https://phosphor-app.saccolabs.com
+            - name: WEB_DIR
+              value: /app/web
+            - name: CONTROL_WEB_SESSION_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: phosphor-web
+                  key: session-keys

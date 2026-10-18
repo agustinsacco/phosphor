@@ -417,6 +417,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           hostVersion: HOST_VERSION,
           key,
           port: config.config.api?.port,
+          webOrigin: config.config.api?.webOrigin,
           fetch: context.fetch,
           log: (event: string, fields: Record<string, unknown>) =>
             context.log?.('host', event, fields),

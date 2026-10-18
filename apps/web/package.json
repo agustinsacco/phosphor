@@ -1,0 +1,24 @@
+{
+  "name": "@phosphor/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worker.json"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "vite": "^7.3.6",
+    "@vitejs/plugin-react": "^5.2.0",
+    "@tailwindcss/vite": "^4.3.3"
+  },
+  "nx": {
+    "includedScripts": []
+  }
+}

@@ -1,3 +1,4 @@
+import { effectiveAuthorization } from '../web/effective-token'
 import { createHash } from 'node:crypto'
 import { isUuid, parseMeResponse, type MeResponse } from '@phosphor/shared/control-api'
 import type { MiddlewareHandler } from 'hono'
@@ -74,7 +75,7 @@ export function userGuard(
   supabase: Supabase,
 ): MiddlewareHandler<Env> {
   return async (c, next) => {
-    const user = await auth(c.req.header('authorization'), c.get('ip'))
+    const user = await auth(effectiveAuthorization(c), c.get('ip'))
     c.set('user', user)
     c.set('actor', `user:${user.userId}`)
     if (!(await account(supabase, user)).enabled) throw new ControlFailure('forbidden')

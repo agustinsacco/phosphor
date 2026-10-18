@@ -14,7 +14,7 @@ insert into test_context select 'call-' || n.nspname || '.' || p.proname, to_jso
   where n.nspname = 'control_private' or (n.nspname = 'public' and p.proname like 'control\_%');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where (n.nspname = 'control_private' or (n.nspname = 'public' and p.proname like 'control\_%'))
-  and not p.prosecdef and p.proconfig = array['search_path=""']), 17::bigint,
+  and not p.prosecdef and p.proconfig = array['search_path=""']), 19::bigint,
   'all RPCs except revocations and both helpers are invokers with empty search_path');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where (n.nspname = 'control_private' or (n.nspname = 'public' and p.proname like 'control\_%'))

@@ -36,6 +36,10 @@ describe('relocation mapping table', () => {
     ['tools/scripts/__tests__/a.test.ts', 'tools/scripts/test/a.test.ts'],
     ['tools/host-release/a.test.ts', 'tools/host-release/test/a.test.ts'],
     ['apps/host/src/has spaces/a.test.ts', 'apps/host/test/has spaces/a.test.ts'],
+    ['libs/client-ui/src/chat/a.test.tsx', 'libs/client-ui/test/chat/a.test.tsx'],
+    ['libs/host-client/src/client.test.ts', 'libs/host-client/test/client.test.ts'],
+    ['apps/web/src/platform/a.test.ts', 'apps/web/test/platform/a.test.ts'],
+    ['apps/web/build-policy.test.ts', 'apps/web/test/build-policy.test.ts'],
     [SHIPPING_FIXTURE, SHIPPING_DESTINATION],
   ])('maps %s to %s', (from, to) => expect(relocationTarget(from)).toBe(to))
 
@@ -43,6 +47,9 @@ describe('relocation mapping table', () => {
     'apps/desktop/e2e/smoke.spec.ts',
     'apps/site/src/a.test.ts',
     'supabase/tests/a.test.ts',
+    'libs/client-ui/test/chat/a.test.tsx',
+    'libs/host-client/test/client.test.ts',
+    'apps/web/test/platform/a.test.ts',
     'apps/desktop/test/main/a.test.ts',
     'apps/host/test/a.test.ts',
     'apps/control/test/a.test.ts',

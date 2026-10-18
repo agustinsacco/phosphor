@@ -153,7 +153,7 @@ describe('size-budget per-package ratchet', () => {
     }
   })
 
-  it('checks all eight package domains, tracked and untracked source, and never rewrites baselines', () => {
+  it('checks all eleven package domains, tracked and untracked source, and never rewrites baselines', () => {
     const root = repository()
     for (const prefix of Object.values(PACKAGES)) {
       put(root, `${prefix || '.'}/large.ts`, source(401))
@@ -162,7 +162,7 @@ describe('size-budget per-package ratchet', () => {
     put(root, 'ignored/huge.json', source(1000))
     const before = readFileSync(join(root, 'tools/budgets/host.json'), 'utf8')
     const result = checkRepository(root)
-    expect(result.errors).toHaveLength(8)
+    expect(result.errors).toHaveLength(11)
     for (const name of Object.keys(PACKAGES)) expect(result.errors.join('\n')).toContain(`${name}:`)
     expect(readFileSync(join(root, 'tools/budgets/host.json'), 'utf8')).toBe(before)
   })

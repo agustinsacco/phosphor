@@ -12,7 +12,7 @@ apps/desktop/build/*.icns
 apps/desktop/build/*.ico
 apps/desktop/build/*.png
 specs/screenshots/
-apps/desktop/src/features/chat/__fixtures__/
+libs/client-ui/src/features/chat/__fixtures__/
 **/package-lock.json
 apps/site/.astro/
 apps/site/dist/

@@ -18,10 +18,17 @@ const legacyPaths = [
   'libs/pi-extensions/pi-ext/nested/guard.test.ts',
   'apps/desktop/src/nested/store.test.ts',
   'apps/desktop/src/nested/view.test.tsx',
+  'libs/client-ui/src/nested/store.test.ts',
+  'libs/client-ui/src/nested/view.test.tsx',
+  'libs/host-client/src/nested/client.test.ts',
+  'apps/web/build.test.ts',
+  'apps/web/src/nested/platform.test.ts',
+  'apps/web/src/nested/view.test.tsx',
   'tools/scripts/nested/release.test.ts',
   'tools/host-release/nested/release.test.ts',
 ]
 const ignoredPaths = [
+  'apps/web/e2e/session.test.ts',
   'apps/desktop/e2e/session.test.ts',
   'apps/desktop/e2e/fixtures/session.test.ts',
   'apps/site/src/page.test.ts',
@@ -85,6 +92,9 @@ describe('vitest.config.ts legacy unit-test layout', () => {
 describe('vitest.config.ts relocated unit-test layout', () => {
   it('collects both layouts exactly once, including overlapping tooling globs', async () => {
     const newPaths = [
+      'libs/client-ui/test/view.test.tsx',
+      'libs/host-client/test/client.test.ts',
+      'apps/web/test/platform.test.ts',
       'apps/desktop/test/session.test.ts',
       'apps/desktop/test/nested/session.test.ts',
       'apps/desktop/test/view.test.tsx',

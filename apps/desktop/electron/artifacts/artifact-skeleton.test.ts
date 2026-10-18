@@ -89,7 +89,10 @@ describe('the injected stylesheet', () => {
   })
 
   it('mirrors the app neutrals and accent without depending on parent CSS', () => {
-    const appCss = readFileSync(new URL('../../src/styles/index.css', import.meta.url), 'utf8')
+    const appCss = readFileSync(
+      new URL('../../../../libs/client-ui/src/styles/index.css', import.meta.url),
+      'utf8',
+    )
     const pairs = {
       bg: 'bg',
       panel: 'bg-secondary',

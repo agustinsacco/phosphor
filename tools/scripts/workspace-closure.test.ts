@@ -17,14 +17,20 @@ import { describe, expect, it } from 'vitest'
 
 const root = resolve(import.meta.dirname, '../..')
 const json = (path: string) => JSON.parse(readFileSync(path, 'utf8'))
-const libraries = ['libs/shared', 'libs/session-runtime', 'libs/pi-extensions']
+const nodeLibraries = [
+  'libs/shared',
+  'libs/session-runtime',
+  'libs/host-client',
+  'libs/pi-extensions',
+]
+const libraries = [...nodeLibraries, 'libs/client-ui']
 
 describe('workspace installation closure', () => {
   it('shares only source libraries, never the native Desktop or independently locked site', () => {
     const manifest = json(join(root, 'package.json'))
     expect(manifest.workspaces).toEqual(libraries)
     expect(manifest.scripts.postinstall).toBe(
-      'npm ci --prefix apps/desktop && npm ci --prefix apps/control',
+      'npm ci --prefix apps/desktop && npm ci --prefix apps/control && npm ci --prefix apps/web',
     )
     const lock = json(join(root, 'package-lock.json'))
     const require = createRequire(join(root, 'package.json'))
@@ -36,12 +42,15 @@ describe('workspace installation closure', () => {
         link: true,
       })
       expect(realpathSync(link)).toBe(join(root, library))
-      const [subpath, entry] = Object.entries(source.exports)[0] as [string, { default: string }]
+      const [subpath, entry] = Object.entries(source.exports)[0] as [
+        string,
+        string | { default: string },
+      ]
       expect(require.resolve(`${source.name}/${subpath.slice(2)}`)).toBe(
-        join(root, library, entry.default),
+        join(root, library, typeof entry === 'string' ? entry : entry.default),
       )
     }
-    for (const app of ['apps/desktop', 'apps/control', 'apps/site']) {
+    for (const app of ['apps/desktop', 'apps/control', 'apps/site', 'apps/web']) {
       expect(lock.packages[app]).toBeUndefined()
       expect(existsSync(join(root, app, 'package-lock.json'))).toBe(true)
     }
@@ -69,7 +78,9 @@ describe('workspace installation closure', () => {
   })
 
   it('bundles real workspace subpath exports rather than shipping TypeScript links', async () => {
-    const imports = libraries.flatMap((library) => {
+    // UI exports contain Vite assets and workers, not Node entrypoints. The web
+    // production build validates their actual browser graph via build-policy.ts.
+    const imports = nodeLibraries.flatMap((library) => {
       const manifest = json(join(root, library, 'package.json'))
       return Object.keys(manifest.exports).map((subpath) => `${manifest.name}/${subpath.slice(2)}`)
     })

@@ -29,6 +29,7 @@ step unit      npm test
 step build     npm run build
 step host-build npm run build:host
 step control-build npm run build:control
+step web-build npm run web:build
 # Requires `npm run db:start`; CI runs this suite in its own isolated job.
 if [[ "${CONTROL_DB:-}" == "1" ]]; then
   step control-db npm run test:control-db
@@ -36,6 +37,7 @@ if [[ "${CONTROL_DB:-}" == "1" ]]; then
 fi
 if [[ "${SKIP_E2E:-}" != "1" ]]; then
   step e2e npm run test:e2e -- --reporter=dot
+  step web-e2e npm run test:e2e:web -- --reporter=dot
 fi
 
 echo >&2

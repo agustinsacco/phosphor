@@ -39,7 +39,7 @@ The composer is one small field with several ways in.
   when one shows). Cmd/Ctrl+Shift+8 and +7 toggle bullet and
   numbered, Cmd/Ctrl+B and +I wrap, Cmd/Ctrl+Shift+C fences. **Enter always
   sends**; continuation is deliberately not on it, or a one-line prompt starting
-  with `- ` would stop sending. Logic in `apps/desktop/src/lib/composerText.ts`; keymap in
+  with `- ` would stop sending. Logic in `libs/client-ui/src/lib/composerText.ts`; keymap in
   `composer/ComposerField.tsx`, shared by both composers.
 - **Formatting is keyboard-only**: bold, italic, inline code (Cmd/Ctrl+E), code
   block, lists and links (Cmd/Ctrl+Shift+K). No toolbar. Edits go through
@@ -105,7 +105,7 @@ The composer is one small field with several ways in.
   editable; a draft restored after a restart comes back flattened. Images
   already in the transcript are not editable: copy one and paste it.
 - **Drafts persist.** Text, attachments and the model the draft was composed
-  against live in `apps/desktop/src/stores/drafts.ts`, keyed per session or per home
+  against live in `libs/client-ui/src/stores/drafts.ts`, keyed per session or per home
   workspace, and survive switching and quitting. Image bytes go to
   `userData/drafts/`, never into prefs.
 - The model chip has an explicit loading state; an empty list before the
@@ -122,7 +122,7 @@ The composer is one small field with several ways in.
   - **Filtering happens once**, in `useSlashMenu`; `CommandMenu` renders the
     array it is given. The highlighted row and the row Enter picks are the same
     element by construction.
-  - **Search** (`commandScore` in `apps/desktop/src/lib/fuzzy.ts`) ranks exact name, then
+  - **Search** (`commandScore` in `libs/client-ui/src/lib/fuzzy.ts`) ranks exact name, then
     name prefix, then a whole segment (`/debug` → `skill:debug`), then a
     segment prefix (`/deb` → `skill:debug`), then a subsequence, then a
     substring of the description (`/status` → "Show MCP server status"). `:` is a word
@@ -800,7 +800,7 @@ arrival lands Claude turns in slabs.
 
 So the visible text is a paced slice of the store's exact text: `useSmoothedText`
 (leaf-local, per prose block) drains the backlog at a rate proportional to its
-size, aiming to empty it in about one upstream gap. `apps/desktop/src/lib/textReveal.ts`
+size, aiming to empty it in about one upstream gap. `libs/client-ui/src/lib/textReveal.ts`
 holds the pure math. Rules:
 
 - **The store is never touched.** Pacing lives in the one streaming block;
@@ -841,7 +841,7 @@ row: `Checking…`, then the windows, or the one-line reason there are none. A
 section that disappears on failure is indistinguishable from a fetch that
 never happened.
 
-**Not every provider reports usage while it streams.** `apps/desktop/src/lib/liveStats.ts`
+**Not every provider reports usage while it streams.** `libs/client-ui/src/lib/liveStats.ts`
 takes the context estimate from the newest true reading: the streaming message
 when its deltas have reported anything, else the last message to have
 **ended** since the last poll. The OpenAI Responses API (`openai-codex`) fills

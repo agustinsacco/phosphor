@@ -2,7 +2,10 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { CONTROL_ROUTES, DEFAULT_CONTROL_URL, CONTROL_ERROR_STATUS } from '@shared/control-api'
 import { controlUrl, createControlClient } from './client'
-import { MACHINE, LOOKUP } from '../../src/features/machines/__fixtures__/control'
+import {
+  MACHINE,
+  LOOKUP,
+} from '../../../../libs/client-ui/src/features/machines/__fixtures__/control'
 
 const me = { account: { login: 'octo' }, enabled: true, maxHosts: 20 }
 const machines = { machines: [], serverTime: new Date().toISOString() }

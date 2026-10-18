@@ -6,6 +6,9 @@ import { LIMITS, measureSource } from './size-spans.mjs'
 
 export const PACKAGES = Object.freeze({
   desktop: 'apps/desktop',
+  web: 'apps/web',
+  'client-ui': 'libs/client-ui',
+  'host-client': 'libs/host-client',
   host: 'apps/host',
   control: 'apps/control',
   site: 'apps/site',
@@ -184,7 +187,7 @@ function main(args) {
       0,
     )
     console.log(
-      `Size budgets: ${result.errors.length ? 'FAIL' : 'PASS'} (${debt} baseline offenders; 8 packages)`,
+      `Size budgets: ${result.errors.length ? 'FAIL' : 'PASS'} (${debt} baseline offenders; ${Object.keys(PACKAGES).length} packages)`,
     )
     return result.errors.length ? 1 : 0
   } catch (error) {

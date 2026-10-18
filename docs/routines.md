@@ -313,13 +313,13 @@ refetch the routines queries.
   and session admission. Routine startup and interactive IPC use the same
   provider-guarded service; routine startup and execution remain owned by their execution machine.
 - `apps/desktop/electron/ipc/routines-handlers.ts`, `libs/shared/src/ipc.ts`, `apps/desktop/electron/preload.ts`:
-  typed operations and snapshot invalidations. `apps/desktop/src/dev/mockRoutines.ts` is a
+  typed operations and snapshot invalidations. `libs/client-ui/src/dev/mockRoutines.ts` is a
   clearly labelled browser simulation with no model execution.
-- `useRoutineLaneIndex` (`apps/desktop/src/stores/routines.ts`) keeps the lane index fresh
+- `useRoutineLaneIndex` (`libs/client-ui/src/stores/routines.ts`) keeps the lane index fresh
   for the sidebar, which needs it before Routines has ever been opened. The
   sidebar passes it to `groupSessionsByProject`'s `isHidden` predicate, the
   same one that moves pinned sessions out of their project group.
-- `apps/desktop/src/features/routines/`, `apps/desktop/src/stores/routines.ts`: editor, overview, history,
+- `libs/client-ui/src/features/routines/`, `libs/client-ui/src/stores/routines.ts`: editor, overview, history,
   and projection of main state. No renderer-owned scheduling.
   `ActivityAccordion.tsx` renders the run list for both scopes; the grouping
   and filtering rules are pure functions in `runGroups.ts` so they can be
