@@ -134,7 +134,7 @@ export function RewoundBanner({ sessionId }: { sessionId: string }): React.JSX.E
     }
     return { ...found, livePhosphorId: liveByName.get(latest) }
   }, [diskPath, rewound, disk, live])
-  // A live version's title leads its file by a whole turn (CLAUDE.md).
+  // A live version's title leads its file by a whole turn (docs/pi-integration.md).
   const liveName = useChatStore((s) =>
     successor?.livePhosphorId ? s.sessions[successor.livePhosphorId]?.meta?.sessionName : undefined,
   )

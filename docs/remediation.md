@@ -98,6 +98,14 @@ It merges only at 12/12 CI, squash, with `--match-head-commit`.
 
 ## Next steps, in order
 
+0. **Re-check the plan against main first.** The remaining specs were audited
+   against main at `488d5afe`. Feature work since then (PWA, Host machines)
+   moves files they name. Before resuming, rerun the read-only audit the
+   re-plan used: one auditor per group compares each unit's `owns`, paths and
+   acceptance commands with current main, and answers remap, rewrite or drop.
+   Apply the answers to `plans/program.json` by unit id, never by array index.
+   A WIP branch whose files the feature work rewrote is cheaper to redo from
+   its spec than to rebase.
 1. **Finish the WIP branches**, all based on `488d5afe`. Rebase each, rerun
    its unit gates, have it reviewed, then integrate:
    - `remediation-wip/DM-08`: DM-08 and DM-09. Both are coded and their gates pass.

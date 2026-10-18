@@ -117,7 +117,7 @@ function tick(attempt: LoginAttempt): void {
   verify(attempt)
   // A step that never arrives is a real failure, not a hang. Skipped once the
   // browser has the URL, because that step waits on a human. The screen it
-  // stopped on is the whole diagnosis (see the debug log section of CLAUDE.md).
+  // stopped on is the whole diagnosis (see the debug section of AGENTS.md).
   if (!attempt.lastAuth && Date.now() - attempt.stepStartedAt > STEP_TIMEOUT_MS) {
     log('login', 'sign-in stopped at an unknown screen', {
       providerId: attempt.providerId,

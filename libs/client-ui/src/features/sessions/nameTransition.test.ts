@@ -4,7 +4,7 @@ import { isNaming, isNamingInWorkspace, useNamingStore } from '@/stores/naming'
 /**
  * The hooks in nameTransition.ts are thin wrappers over these (the repo has no
  * react testing library and prefers extracted logic to component tests — see
- * CLAUDE.md), so this covers the parts with decisions in them: the store
+ * AGENTS.md), so this covers the parts with decisions in them: the store
  * reducer and the two predicates the sidebar and branch chip read.
  */
 
