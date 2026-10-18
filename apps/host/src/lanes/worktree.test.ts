@@ -87,7 +87,6 @@ it('creates without a remote, accepts an existing free branch, and writes exclud
   ).toHaveLength(1)
   expect(await run(['status', '--porcelain'])).toBe('')
 })
-// Real Git worktree creation/removal and serial ref probes need headroom under concurrent suites.
 it('falls back through master, current branch, and HEAD when the remote default is absent', async () => {
   await run(['branch', '-m', 'master'])
   const master = await run(['rev-parse', 'master'])
