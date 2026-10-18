@@ -1,12 +1,13 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { getLoginShellPath } from './shell-env'
+import { pickWhereMatch } from './win-launch'
 
 const execFileAsync = promisify(execFile)
 
 /**
  * Where a binary is, as the shell or `where` reports it. Shared by
- * `resolveBinary` (packages.ts) and the pi health probe (health.ts); what to
+ * `resolveBinary` and the pi health probe (health.ts); what to
  * spawn on Windows is each caller's policy, so only `where`'s raw output is
  * shared, never a pick from it.
  */
@@ -58,4 +59,15 @@ export async function windowsWhereOutput(name: string): Promise<string> {
   } catch {
     return ''
   }
+}
+
+/** Resolve a binary on the login-shell PATH (GUI launches lack it). */
+export async function resolveBinary(name: string): Promise<string | null> {
+  // Not the first `where` line on Windows: for an npm-installed CLI that is
+  // the POSIX sh shim, which nothing on Windows can run. A `.exe` is
+  // spawnable; a `.cmd` is returned as found and fails at spawn (EINVAL) — pi
+  // itself never comes through here (see resolvePiInvoker), and the callers
+  // that do (claude, npm, uv, pipx, headroom) mostly ship real executables.
+  if (process.platform === 'win32') return pickWhereMatch(await windowsWhereOutput(name))
+  return lookupPosixBinary(name)
 }

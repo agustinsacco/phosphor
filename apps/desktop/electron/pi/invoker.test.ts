@@ -118,3 +118,33 @@ it('does not retain caller overlays or stale credentials between real invocation
     SHELL_SECRET: 'rotated',
   })
 })
+
+it('uses the configured stub when the override key is omitted', async () => {
+  vi.stubEnv('PHOSPHOR_PI_STUB', '/configured.cjs')
+  expect(await resolvePiInvoker('minimal-stub', {})).toMatchObject({
+    prefixArgs: ['/configured.cjs'],
+    stub: true,
+  })
+})
+
+it('uses an explicit stub path instead of the configured stub', async () => {
+  vi.stubEnv('PHOSPHOR_PI_STUB', '/configured.cjs')
+  expect(await resolvePiInvoker('inherited-stub', { stubPath: '/explicit.cjs' })).toEqual({
+    binaryPath: process.execPath,
+    prefixArgs: ['/explicit.cjs'],
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    stub: true,
+  })
+  expect(h.health).not.toHaveBeenCalled()
+})
+
+it.each([null, undefined])('explicit none (%s) bypasses the configured stub', async (stubPath) => {
+  vi.stubEnv('PHOSPHOR_PI_STUB', '/configured.cjs')
+  expect(await resolvePiInvoker('inherited-stub', { stubPath })).toMatchObject({
+    binaryPath: '/bin/pi',
+    prefixArgs: [],
+    stub: false,
+    env: { PATH: '/shell/bin', SHELL_SECRET: 'current' },
+  })
+  expect(h.health).toHaveBeenCalledOnce()
+})

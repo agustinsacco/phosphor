@@ -21,7 +21,7 @@ vi.mock('./handle', () => ({
   handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
     state.handlers.set(channel, handler),
 }))
-vi.mock('./pi-config-handlers', () => ({
+vi.mock('../pi/catalogue', () => ({
   invalidateCatalogueModels: state.invalidateCatalogueModels,
   invalidatePiCommands: state.invalidatePiCommands,
 }))

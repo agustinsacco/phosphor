@@ -1,6 +1,4 @@
 import { handle } from './handle'
-import { homedir } from 'node:os'
-import type { ConnectorAuthState } from '@shared/models'
 import {
   readMcpConfigs,
   readMcpFile,
@@ -13,42 +11,11 @@ import { planMcpMigration, runMcpMigration } from '../pi/mcp-migration'
 import {
   cancelMcpLogin,
   listMcpServers,
-  loginMcpServer,
+  authorizeMcpServer,
   logoutMcpServer,
-  type PiCli,
-} from '../pi/mcp-cli'
-import { checkPiHealth } from '../pi/health'
-import { piProcessEnv } from '../pi/shell-env'
-import { piStubPath } from '../pi/stub'
+} from '../pi/mcp-actions'
 import { broadcast } from '../broadcast'
-import { invalidatePiCommands } from './pi-config-handlers'
-
-/**
- * How to run `pi mcp …` here. A connector reached from the home screen has no
- * workspace; home is the safest cwd then — it resolves the global mcp.json
- * and no project file.
- */
-async function piCli(workspacePath: string | undefined): Promise<PiCli | null> {
-  const cwd = workspacePath ?? homedir()
-  const stub = piStubPath()
-  if (stub) {
-    return {
-      binaryPath: process.execPath,
-      prefixArgs: [stub],
-      cwd,
-      // Inherit the rest: the stub finds its agent dir through PI_CODING_AGENT_DIR.
-      env: { ...(process.env as Record<string, string>), ELECTRON_RUN_AS_NODE: '1' },
-    }
-  }
-  const health = await checkPiHealth()
-  if (!health.binaryPath) return null
-  return {
-    binaryPath: health.binaryPath,
-    ...(health.prefixArgs ? { prefixArgs: health.prefixArgs } : {}),
-    cwd,
-    env: await piProcessEnv(),
-  }
-}
+import { invalidatePiCommands } from '../pi/catalogue'
 
 /** pi's built-in MCP: its two mcp.json files and its `pi mcp` commands (Settings → Connectors). */
 export function registerMcpHandlers(): void {
@@ -75,31 +42,19 @@ export function registerMcpHandlers(): void {
     writeMcpFile(scope, workspacePath, content),
   )
 
-  handle('mcp:list', async (_event, workspacePath) => {
-    const cli = await piCli(workspacePath)
-    if (!cli) return { ok: false as const, message: 'pi is not available.' }
-    return listMcpServers(cli)
-  })
+  handle('mcp:list', (_event, workspacePath) => listMcpServers(workspacePath))
 
-  handle('mcp:authorize', async (_event, serverName, workspacePath) => {
-    const emit = (state: ConnectorAuthState): void =>
-      broadcast('mcp:authState', { serverName, state })
-    const cli = await piCli(workspacePath)
-    if (!cli) {
-      emit({ phase: 'failed', message: 'pi is not available.' })
-      return
-    }
-    // Resolves once the flow has started; the rest arrives on mcp:authState.
-    void loginMcpServer(cli, serverName, emit)
-  })
+  handle('mcp:authorize', (_event, serverName, workspacePath) =>
+    authorizeMcpServer(serverName, workspacePath, (state) =>
+      broadcast('mcp:authState', { serverName, state }),
+    ),
+  )
 
   handle('mcp:cancelAuth', (_event, serverName) => cancelMcpLogin(serverName))
 
-  handle('mcp:logout', async (_event, serverName, workspacePath) => {
-    const cli = await piCli(workspacePath)
-    if (!cli) return { ok: false, message: 'pi is not available.' }
-    return logoutMcpServer(cli, serverName)
-  })
+  handle('mcp:logout', (_event, serverName, workspacePath) =>
+    logoutMcpServer(serverName, workspacePath),
+  )
 
   handle('mcp:migrationPlan', (_event, workspacePath) => planMcpMigration(workspacePath))
 
