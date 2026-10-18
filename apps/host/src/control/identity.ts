@@ -167,7 +167,7 @@ async function removeIdentity(
   await cleanHostKeys(directory)
 }
 
-/** host.json commits the pair. An interrupted save never replaces the old key. */
+/** The Host identity store over `directory`: load, save and key cleanup. */
 export function createIdentityStore(
   directory: string,
   uid: number | undefined,
