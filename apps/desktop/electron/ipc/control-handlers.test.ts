@@ -12,6 +12,7 @@ vi.mock('electron', () => ({
       state.handlers.set(channel, handler),
   },
 }))
+vi.mock('./sender-policy', () => ({ admitSender: () => undefined }))
 vi.mock('../account', () => ({
   accountAccessToken: async () => state.token,
   accountControlGeneration: () => 0,
