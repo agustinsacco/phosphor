@@ -16,7 +16,7 @@ import { scratchDir } from './scratch'
 import { configureTestTeardown } from './shutdown'
 
 // Native quit awaits pi dispose() in libs/session-runtime/src/pi/rpc-client.ts (3 s)
-// and QUIT_WAIT_MS in apps/desktop/electron/account/account.ts (10 s), plus IPC/exit margin.
+// and QUIT_WAIT_MS in apps/desktop/electron/account/account-state.ts (10 s), plus IPC/exit margin.
 const DESKTOP_CLOSE_TIMEOUT_MS = 3_000 + 10_000 + 2_000
 
 /** Disposable loopback-only Auth and directory. No keychain or hosted service. */

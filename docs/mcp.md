@@ -330,7 +330,7 @@ both while pi's MCP is turned off. So once global config has moved, a project
 that still has `.pi/mcp-adapter.json` moves only its own servers, and the
 shared files are not merged into the global file a second time.
 
-**Translation** (`translateEntry` in `apps/desktop/electron/pi/mcp-migration.ts`)
+**Translation** (`translateEntry` in `apps/desktop/electron/pi/mcp-translation.ts`)
 keeps what pi understands and says what it drops. Some examples: a bearer token
 becomes an `Authorization` header (`bearerTokenEnv` becomes
 `Bearer ${VAR}`); a `caFile` is dropped with a hint to use `NODE_EXTRA_CA_CERTS`;
@@ -366,7 +366,8 @@ prompts) and its `mcp` / `mcpScript` tools go with the package.
 - Types: `libs/shared/src/mcp.ts`.
 - Main: `apps/desktop/electron/pi/mcp-config.ts` (the two files, resolution,
   trust; injectable dirs for hermetic tests), `mcp-migration.ts` (the adapter
-  migration), `mcp-cli.ts` (`pi mcp list / login / logout`).
+  migration: `mcp-translation.ts` holds the per-entry rules and
+  `mcp-migration-plan.ts` the plan), `mcp-cli.ts` (`pi mcp list / login / logout`).
 - IPC: `mcp:readConfigs / upsertServer / removeServer / setEnabled`,
   `mcp:readFile / writeFile`, `mcp:list`, `mcp:authorize / cancelAuth / logout`,
   `mcp:migrationPlan / migrate` and the `mcp:authState` broadcast

@@ -1,6 +1,6 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterAll, afterEach, expect, it, vi } from 'vitest'
 
@@ -188,4 +188,18 @@ it('a missing app path refuses every call', () => {
   expect(admits(windowEvent(pathToFileURL(join(missing, 'out/renderer/index.html')).href))).toBe(
     false,
   )
+})
+
+it('trusts the same bundle main.ts loads: package main + loadFile path = out/renderer/index.html', async () => {
+  // A build-layout change that moves either side would refuse every IPC call; fail here first.
+  const { rendererDocument } = await import('./sender-policy')
+  const desktop = resolve(import.meta.dirname, '../..')
+  const main = (JSON.parse(readFileSync(join(desktop, 'package.json'), 'utf8')) as { main: string })
+    .main
+  const source = readFileSync(join(desktop, 'electron/main.ts'), 'utf8')
+  const loaded = /loadFile\(join\(import\.meta\.dirname, '([^']+)'\)\)/.exec(source)?.[1]
+  expect(loaded).toBeDefined()
+  const bundle = join(realpathSync(desktop), 'out', 'renderer', 'index.html')
+  expect(join(realpathSync(desktop), dirname(main), loaded!)).toBe(bundle)
+  expect(rendererDocument({}, true, desktop)).toEqual({ kind: 'bundle', path: bundle })
 })

@@ -55,14 +55,14 @@ export interface HeadroomSupervisor {
 /** Factory so tests can inject every side effect. */
 export function createHeadroomSupervisor(deps: SupervisorDeps): HeadroomSupervisor {
   const detect = createProxyDetection(deps)
-  const process = new HeadroomProxyProcess(deps, detect)
-  const state = process.state
+  const proxy = new HeadroomProxyProcess(deps, detect)
+  const state = proxy.state
   let inFlight: Promise<void> | null = null
 
   async function ensureOnce(): Promise<void> {
     if (!deps.isEnabled()) return
-    if (await process.probe()) return // healthy — adopted or ours, either way done
-    await process.startOwned()
+    if (await proxy.probe()) return // healthy — adopted or ours, either way done
+    await proxy.startOwned()
   }
 
   async function ensure(): Promise<void> {
@@ -73,7 +73,7 @@ export function createHeadroomSupervisor(deps: SupervisorDeps): HeadroomSupervis
     return inFlight
   }
 
-  const status = (): Promise<HeadroomStatus> => supervisorStatus(deps, process, detect)
+  const status = (): Promise<HeadroomStatus> => supervisorStatus(deps, proxy, detect)
 
   return {
     status,
@@ -84,7 +84,7 @@ export function createHeadroomSupervisor(deps: SupervisorDeps): HeadroomSupervis
         state.crashes = 0 // a human decision resets the crash budget
         await ensure()
       } else {
-        process.killOwned() // adopted proxies are left alone — we did not start them
+        proxy.killOwned() // adopted proxies are left alone — we did not start them
       }
       return status()
     },
@@ -94,7 +94,7 @@ export function createHeadroomSupervisor(deps: SupervisorDeps): HeadroomSupervis
       return status()
     },
     async stop(): Promise<HeadroomStatus> {
-      process.killOwned()
+      proxy.killOwned()
       return status()
     },
     sessionEnv(): Record<string, string> {
@@ -103,19 +103,19 @@ export function createHeadroomSupervisor(deps: SupervisorDeps): HeadroomSupervis
       // Stale-belief risk is bounded by the extension failing open: a dead
       // URL costs one 1.5 s health probe in-session, then it disables itself.
       void ensure().catch(() => undefined)
-      return state.running ? { PHOSPHOR_HEADROOM_URL: process.url } : {}
+      return state.running ? { PHOSPHOR_HEADROOM_URL: proxy.url } : {}
     },
   }
 }
 
 async function supervisorStatus(
   deps: SupervisorDeps,
-  process: HeadroomProxyProcess,
+  proxy: HeadroomProxyProcess,
   detect: ReturnType<typeof createProxyDetection>,
 ): Promise<HeadroomStatus> {
   const found = await detect()
-  await process.probe()
-  const { child, running, lastError } = process.state
+  await proxy.probe()
+  const { child, running, lastError } = proxy.state
   return {
     enabled: deps.isEnabled(),
     installed: found.binaryPath !== null,
@@ -123,7 +123,7 @@ async function supervisorStatus(
     ...(found.binaryPath ? { binaryPath: found.binaryPath } : {}),
     proxy: {
       running,
-      url: process.url,
+      url: proxy.url,
       owned: child !== null && child.exitCode === null,
     },
     ...(lastError && !running ? { error: lastError } : {}),

@@ -11,7 +11,6 @@ import {
   runPiInstall,
 } from '../pi/packages'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
-
 import { claudeBinOverride, piStubPath } from '../pi/stub'
 
 /** pi package listing + mutations via pi's own CLI (streamed jobs). */

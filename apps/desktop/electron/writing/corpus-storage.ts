@@ -5,7 +5,10 @@ export interface CorpusState {
   prompts: string[] | null
   /** Lines in the file, which can run ahead of `prompts` until a rewrite. */
   fileLines: number
-  /** A torn final line must be isolated before the next append. */
+  /**
+   * The file ends mid-line (a crash during an append). The next append starts
+   * a new line first, or it would be glued onto the torn one and lost with it.
+   */
   torn: boolean
   chain: Promise<unknown>
 }

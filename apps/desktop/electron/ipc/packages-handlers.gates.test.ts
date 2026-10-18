@@ -63,7 +63,9 @@ describe('packages handler executable gates', () => {
   ])('forwards gated binaries for $packaged / $env', async ({ packaged, env, expected }) => {
     state.app.isPackaged = packaged
     vi.stubEnv('PHOSPHOR_PI_STUB', env)
-    vi.stubEnv('PHOSPHOR_CLAUDE_BIN', env)
+    // Distinct values, so a handler that reads the wrong gate fails here.
+    vi.stubEnv('PHOSPHOR_CLAUDE_BIN', env && `${env}-claude`)
+    const claude = expected && `${expected}-claude`
     await invoke('packages:run', 'install', 'npm:test', 'project', '/workspace')
     expect(state.runPackageAction).toHaveBeenCalledWith(
       state.sender,
@@ -77,11 +79,11 @@ describe('packages handler executable gates', () => {
     await invoke('packages:testClaudeProvider')
     expect(state.runClaudeProviderTest).toHaveBeenCalledWith(state.sender, expected)
     await invoke('packages:detect')
-    expect(state.detectBinaries).toHaveBeenCalledWith(expected)
+    expect(state.detectBinaries).toHaveBeenCalledWith(claude)
     await invoke('packages:claudeStatus')
-    expect(state.claudeStatus).toHaveBeenCalledWith(expected)
+    expect(state.claudeStatus).toHaveBeenCalledWith(claude)
     await invoke('packages:updateClaudeCli')
-    expect(state.runClaudeUpdate).toHaveBeenCalledWith(state.sender, expected)
+    expect(state.runClaudeUpdate).toHaveBeenCalledWith(state.sender, claude)
   })
 
   it('reads environment and packaging at invocation, not registration', async () => {

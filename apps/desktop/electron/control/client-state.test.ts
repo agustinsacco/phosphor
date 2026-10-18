@@ -49,7 +49,8 @@ describe('createControlState', () => {
     expect(
       h.fetchImpl.mock.calls.map(([, init]) => new Headers(init?.headers).get('authorization')),
     ).toEqual(Array(4).fill('Bearer first-token'))
-    expect(JSON.stringify([h.state, h.log.mock.calls])).not.toContain('first-token')
+    // ClientState keeps only a sha256 digest of the token (private); the log is the observable leak.
+    expect(JSON.stringify(h.log.mock.calls)).not.toContain('first-token')
   })
 
   it('keys cached account admission by both token digest and generation', async () => {
