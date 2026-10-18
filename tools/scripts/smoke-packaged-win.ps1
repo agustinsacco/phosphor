@@ -4,7 +4,7 @@
 # on every platform, but only a real Windows process can show that the
 # packaged app starts, `where pi` finds npm's shim, the shim is read through to
 # node.exe + cli.js, and `pi --version` answers. The main process writes one
-# `[pi] health {...}` line to its debug log per fresh probe
+# `[pi] health {...}` line to its debug log per pi:health call
 # (electron/ipc/pi-session-handlers.ts); this script waits for it and asserts
 # `"ok":true`. A main-process throw would land in the same log as
 # `uncaughtException`, so that fails the smoke too.

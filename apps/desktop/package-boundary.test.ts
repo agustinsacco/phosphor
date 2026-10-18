@@ -64,7 +64,7 @@ describe('Desktop application and native install boundary', () => {
       expect(manifest.devDependencies[dependency]).toBeDefined()
     }
     expect(facade.scripts.postinstall).toBe(
-      'npm ci --prefix apps/desktop && npm ci --prefix apps/control',
+      'npm ci --prefix apps/desktop && npm ci --prefix apps/control && npm ci --prefix apps/web',
     )
     expect(manifest.scripts.postinstall).toBe(
       'install-electron && electron-builder install-app-deps && node ../../tools/scripts/fix-node-pty.mjs',
@@ -138,7 +138,6 @@ describe('Desktop application and native install boundary', () => {
       'dev:web',
       'build',
       'preview',
-      'typecheck',
       'pack',
       'dist',
       'dist:mac',
@@ -149,10 +148,13 @@ describe('Desktop application and native install boundary', () => {
       expect(facade.scripts[command]).toBe(`npm run ${command} --prefix apps/desktop --`)
       expect(manifest.scripts[command]).toBeDefined()
     }
+    // Root typecheck covers every project (FD-04); Desktop keeps its own script.
+    expect(facade.scripts.typecheck).toBe('node tools/scripts/typecheck.mjs')
+    expect(manifest.scripts.typecheck).toBeDefined()
     for (const file of ['electron.vite.config.ts', 'vite.config.ts']) {
       const config = readFileSync(join(app, file), 'utf8')
-      expect(config).toContain("dedupe: ['luxon', 'cron-parser']")
-      expect(config).toContain("'@': resolve(import.meta.dirname, 'src')")
+      expect(config).toContain("dedupe: ['react', 'react-dom', 'zustand', 'luxon', 'cron-parser']")
+      expect(config).toContain("'@': resolve(import.meta.dirname, '../../libs/client-ui/src')")
       expect(config).toContain(
         "'@phosphor/shared': resolve(import.meta.dirname, '../../libs/shared/src')",
       )

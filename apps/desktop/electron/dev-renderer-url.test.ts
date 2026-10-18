@@ -58,7 +58,7 @@ vi.mock('./routines/background', () => ({
 vi.mock('./ipc', () => ({ registerIpcHandlers: vi.fn() }))
 vi.mock('./artifacts/artifact-sync', () => ({ startArtifactSync: vi.fn() }))
 vi.mock('./feedback/feedback-service', () => ({ recordAppLaunch: vi.fn() }))
-vi.mock('./ipc/maintenance-handlers', () => ({ maintenanceScheduler: { start: vi.fn() } }))
+vi.mock('./maintenance/runtime', () => ({ maintenanceScheduler: { start: vi.fn() } }))
 vi.mock('./registry', () => ({ registry: {} }))
 vi.mock('./pty/pty-manager', () => ({ ptyManager: {} }))
 vi.mock('./pi/mcp-cli', () => ({ disposeMcpLogins: vi.fn() }))
@@ -81,7 +81,7 @@ vi.mock('./store', () => ({
   getPrefs: () => ({ theme: 'dark', fonts: { uiScale: 1 } }),
   getWritingPrefs: () => ({ spellcheck: true }),
 }))
-vi.mock('./ipc/writing-handlers', () => ({ applySpellcheck: vi.fn() }))
+vi.mock('./writing/runtime', () => ({ applySpellcheck: vi.fn() }))
 vi.mock('./debug-log', () => ({ initDebugLog: vi.fn(), log: vi.fn() }))
 vi.mock('./artifacts/artifact-protocol', () => ({
   artifactScheme: {},

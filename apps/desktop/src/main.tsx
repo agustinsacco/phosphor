@@ -1,27 +1,27 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { App } from './app/App'
-import { TooltipProvider } from './components/Tooltip'
-import { LoadingScreen } from './app/LoadingScreen'
-import { useSettingsStore } from './stores/settings'
-import { hostPlatform } from './lib/shortcuts'
-import { loadBundledFonts } from './lib/fonts'
-import './styles/index.css'
+import { App } from '@phosphor/client-ui/desktop'
+import { TooltipProvider } from '@/components/Tooltip'
+import { LoadingScreen } from '@/app/LoadingScreen'
+import { useSettingsStore } from '@/stores/settings'
+import { hostPlatform } from '@/lib/shortcuts'
+import { loadBundledFonts } from '@/lib/fonts'
+import '@/styles/index.css'
 
 async function bootstrap(): Promise<void> {
   // Plain-browser dev (vite server without Electron): install the mock API.
   if (import.meta.env.DEV && typeof window.phosphor === 'undefined') {
-    const { installMockPhosphor } = await import('./dev/mockPhosphor')
+    const { installMockPhosphor } = await import('@/dev/mockPhosphor')
     installMockPhosphor()
     document.documentElement.classList.add('dark')
     // Debug access to stores from the browser console.
-    void import('./stores/chat').then((m) => {
+    void import('@/stores/chat').then((m) => {
       ;(window as unknown as Record<string, unknown>).__chatStore = m.useChatStore
     })
-    void import('./stores/sessions').then((m) => {
+    void import('@/stores/sessions').then((m) => {
       ;(window as unknown as Record<string, unknown>).__sessionsStore = m.useSessionsStore
     })
-    void import('./stores/extensionUi').then((m) => {
+    void import('@/stores/extensionUi').then((m) => {
       ;(window as unknown as Record<string, unknown>).__extUiStore = m.useExtensionUiStore
     })
   }

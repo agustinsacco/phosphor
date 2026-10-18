@@ -1,16 +1,12 @@
-import { createHash } from 'node:crypto'
-import { constants } from 'node:fs'
-import { lstat, open, opendir, realpath, stat } from 'node:fs/promises'
-import { join, relative, isAbsolute, sep } from 'node:path'
+import { opendir, realpath, stat } from 'node:fs/promises'
+import { join, relative, resolve, sep } from 'node:path'
 import { git } from '@phosphor/session-runtime/git/git-exec'
-import {
-  FILE_LIMITS,
-  isFilePath,
-  parseFileParams,
-  type FileRead,
-} from '@phosphor/shared/host-protocol-files'
+import { FILE_LIMITS, isFilePath, type FileRead } from '@phosphor/shared/host-protocol-files'
 import type { CallErrorCode } from '@phosphor/shared/host-protocol'
 import type { FeatureContext, FeatureOutcome, HostFeature } from './feature'
+import { errnoIs, isInside } from '../fs-safety'
+import { queryFiles } from './files/query'
+import { validateList } from './files/validate-list'
 
 export class FileFailure extends Error {
   constructor(readonly code: CallErrorCode) {
@@ -18,8 +14,7 @@ export class FileFailure extends Error {
   }
 }
 export function inside(root: string, path: string): boolean {
-  const r = relative(root, path)
-  return r === '' || (!isAbsolute(r) && r !== '..' && !r.startsWith(`..${sep}`))
+  return isInside(resolve(root), resolve(path))
 }
 export async function laneRoot(context: FeatureContext, laneId: string): Promise<string> {
   const lane = context.store.getLane(laneId)
@@ -56,7 +51,7 @@ export async function checkedPath(root: string, path: string, missing = false): 
         )
           throw new FileFailure('bad-request')
       } catch (error) {
-        if (missing && error instanceof Error && 'code' in error && error.code === 'ENOENT') break
+        if (missing && error instanceof Error && errnoIs(error, 'ENOENT')) break
         throw error
       }
     }
@@ -102,7 +97,7 @@ export async function listedPaths(root: string, path = '.'): Promise<string[]> {
   ])
   const files = [...new Set(out.split('\0').filter(Boolean))]
   if (files.length > FILE_LIMITS.entries) throw new FileFailure('too-large')
-  for (const file of files) await checkedPath(root, file, true)
+  await validateList(files, (file) => checkedPath(root, file, true))
   return files
 }
 /** Non-git configured folders still have a bounded file browser. */
@@ -150,97 +145,17 @@ export function failure(error: unknown): FeatureOutcome {
   return { ok: false, error: { code, message } }
 }
 export function createFilesFeature(context: FeatureContext): HostFeature {
+  const ports = {
+    laneRoot,
+    filePaths,
+    checkedPath,
+    readResult,
+    failure,
+    error: (code: CallErrorCode) => new FileFailure(code),
+  }
   return {
     capability: 'workspaces.read',
     methods: ['files.list', 'files.read'],
-    async call(method, params) {
-      const p = parseFileParams(method, params)
-      if (!p || !['files.list', 'files.read'].includes(method))
-        return failure(new FileFailure('bad-request'))
-      try {
-        const repository =
-          p.repositoryId === undefined
-            ? null
-            : context.store.listRepositories().find((r) => r.id === p.repositoryId)
-        if (p.repositoryId !== undefined && !repository) throw new FileFailure('bad-request')
-        const root = repository
-          ? await realpath(repository.path)
-          : p.laneId
-            ? await laneRoot(context, p.laneId)
-            : null
-        if (
-          !root ||
-          root.split(sep).some((s) => s.toLowerCase() === '.git') ||
-          !(await stat(root)).isDirectory()
-        )
-          throw new FileFailure('bad-request')
-        const recheck = () => {
-          if (
-            repository &&
-            !context.store
-              .listRepositories()
-              .some((r) => r.id === repository.id && r.path === repository.path)
-          )
-            throw new FileFailure('bad-request')
-          if (p.laneId && context.store.getLane(p.laneId)?.removedAt !== null)
-            throw new FileFailure('unknown-lane')
-        }
-        if (method === 'files.list') {
-          const files = await filePaths(root)
-          recheck()
-          return { ok: true, data: { files } }
-        }
-        if (!p.path) throw new FileFailure('bad-request')
-        const full = await checkedPath(root, p.path, true)
-        const before = await lstat(full)
-        if (!before.isFile()) throw new FileFailure('bad-request')
-        const handle = await open(
-          full,
-          constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-        )
-        try {
-          const after = await handle.stat()
-          if (!after.isFile() || before.dev !== after.dev || before.ino !== after.ino)
-            throw new FileFailure('bad-request')
-          await checkedPath(root, p.path)
-          const current = await lstat(full)
-          if (current.dev !== after.dev || current.ino !== after.ino)
-            throw new FileFailure('bad-request')
-          const bytes = Buffer.alloc(Math.min(after.size + 1, FILE_LIMITS.textBytes + 1))
-          let count = 0
-          while (count < bytes.length) {
-            const r = await handle.read(bytes, count, bytes.length - count, count)
-            if (!r.bytesRead) break
-            count += r.bytesRead
-          }
-          recheck()
-          return {
-            ok: true,
-            data: {
-              ...readResult(bytes.subarray(0, count), Math.max(after.size, count)),
-              revision: createHash('sha256').update(bytes.subarray(0, count)).digest('hex'),
-            },
-          }
-        } finally {
-          await handle.close()
-        }
-      } catch (error) {
-        if (
-          method === 'files.read' &&
-          typeof error === 'object' &&
-          error !== null &&
-          'code' in error &&
-          error.code === 'ENOENT'
-        )
-          return { ok: true, data: { binary: false, size: 0, content: '', revision: null } }
-        const result = failure(error)
-        context.log('feature-query', {
-          scope: p.laneId ? 'lane' : 'repository',
-          method,
-          reason: result.ok ? 'ok' : result.error.code,
-        })
-        return result
-      }
-    },
+    call: (method, params) => queryFiles(context, method, params, ports),
   }
 }

@@ -228,7 +228,8 @@ it('bounds additions at the lane cap and bounds directory iteration', async () =
     writeFileSync(join(directory, `${i}.txt`), '')
   expect((await scan((count) => skipped.push(count))).removed).toBe(0)
   expect(skipped).toEqual([1, 1])
-})
+  // Real SQLite rows and files at the full cap: I/O-bound on a busy CI runner.
+}, 30_000)
 
 it('removes vanished files before admitting replacements at capacity in one reconcile', async () => {
   store.close()

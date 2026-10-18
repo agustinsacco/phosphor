@@ -17,6 +17,7 @@ import { createKeyset } from './keyset'
 import { createConnection, hostProof, type ApiLog, type ConnectionPorts } from './connection'
 import type { LaneService } from '../lanes/service'
 import { createLaneAdapter } from './lanes'
+import { admitsBrowserOrigin, resolveWebOrigin } from './browser-origin'
 
 export const API_LIMITS = {
   connections: 64,
@@ -32,7 +33,11 @@ export const API_LIMITS = {
 }
 
 /** Do not reflect header values, including Tailscale identity headers. */
-export function requestStatus(request: IncomingMessage, port: number) {
+export function requestStatus(
+  request: IncomingMessage,
+  port: number,
+  webOrigin: string | null = null,
+) {
   const host = request.headers.host
   if (
     !host ||
@@ -44,7 +49,7 @@ export function requestStatus(request: IncomingMessage, port: number) {
   )
     return 421
   if (host.includes(':') && Number(host.slice(host.lastIndexOf(':') + 1)) > 65535) return 421
-  if (request.headers.origin !== undefined) return 403
+  if (!admitsBrowserOrigin(request, webOrigin)) return 403
   if (request.method !== 'GET') return 405
   return 0
 }
@@ -52,6 +57,7 @@ export function requestStatus(request: IncomingMessage, port: number) {
 export function startApi(options: {
   authority: Authority
   origin: string
+  webOrigin?: string | null
   hostId: string
   hostVersion: string
   runtimeEpoch?: string
@@ -64,6 +70,7 @@ export function startApi(options: {
   connectionLimits?: ConnectionPorts['limits']
   limits?: Partial<Record<keyof typeof API_LIMITS, number>>
 }) {
+  const webOrigin = resolveWebOrigin(options.origin, options.webOrigin)
   const limits = { ...API_LIMITS, ...options.limits }
   for (const name of [
     'connections',
@@ -132,7 +139,7 @@ export function startApi(options: {
       connectionsCheckingInterval: limits.connectionsCheckingInterval,
     },
     (request, response) => {
-      const status = requestStatus(request, port)
+      const status = requestStatus(request, port, webOrigin)
       if (status) {
         response.writeHead(status).end()
         return
@@ -169,7 +176,14 @@ export function startApi(options: {
       const trace = request.headers[CONTROL_TRACE_HEADERS.trace]
       options.log?.('api.hello', isControlTrace(trace) ? { trace } : {})
       response
-        .writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+        .writeHead(200, {
+          'content-type': 'application/json',
+          'cache-control': 'no-store',
+          vary: 'Origin',
+          ...(request.headers.origin && webOrigin
+            ? { 'access-control-allow-origin': webOrigin }
+            : {}),
+        })
         .end(JSON.stringify({ hello, proof: hostProof(hello, challenge, options.key) }))
     },
   )
@@ -191,7 +205,7 @@ export function startApi(options: {
   wss.on('error', () => {})
   server.on('upgrade', (request, transport, head) => {
     const status =
-      requestStatus(request, port) || (request.url !== HOST_API_ROUTES.stream ? 404 : 0)
+      requestStatus(request, port, webOrigin) || (request.url !== HOST_API_ROUTES.stream ? 404 : 0)
     if (status || stopped || !options.authority.snapshot()) {
       reject(transport, status || 503)
       return

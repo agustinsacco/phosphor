@@ -13,6 +13,10 @@ import {
 } from '@phosphor/shared/routines'
 
 /** Single main-process writer. Each occurrence and cursor advance commits together. */
+/** Active runs, oldest first; the runs_active index must serve it. */
+export const PENDING_RUNS_SQL =
+  "SELECT data FROM runs WHERE json_extract(data, '$.status') IN ('queued','running') ORDER BY created_at, rowid"
+
 export class RoutineRepository {
   private readonly db: DatabaseSync
 
@@ -22,7 +26,7 @@ export class RoutineRepository {
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;')
     const version = this.db.prepare('PRAGMA user_version').get()!.user_version
     if (version !== 0 && version !== 1)
-      throw new Error('Routines database is newer than this app. Upgrade Phosphor.')
+      throw new Error('Routines database is newer than this runtime. Upgrade the runtime.')
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS routines (id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS runs (
@@ -30,6 +34,8 @@ export class RoutineRepository {
         created_at INTEGER NOT NULL, data TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS runs_history ON runs(routine_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS runs_active ON runs(created_at)
+        WHERE json_extract(data, '$.status') IN ('queued','running');
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       PRAGMA user_version=1;
     `)
@@ -127,9 +133,7 @@ export class RoutineRepository {
 
   pending(): RoutineRun[] {
     return this.db
-      .prepare(
-        "SELECT data FROM runs WHERE json_extract(data, '$.status') IN ('queued','running') ORDER BY created_at, rowid",
-      )
+      .prepare(PENDING_RUNS_SQL)
       .all()
       .map((r) => JSON.parse(r.data as string) as RoutineRun)
   }
@@ -377,7 +381,7 @@ export class RoutineRepository {
       this.finish(
         run.id,
         'interrupted',
-        'Phosphor stopped during execution; external actions may have completed. Verify the previous worker has stopped and inspect its output before saving to resume. No automatic replay.',
+        'Runtime stopped during execution; external actions may have completed. Verify the previous worker has stopped and inspect its output before saving to resume. No automatic replay.',
         now,
       )
     }

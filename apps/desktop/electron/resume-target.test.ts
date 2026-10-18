@@ -12,20 +12,11 @@ import { access } from 'node:fs/promises'
  * degrade to the workspace, and a deleted workspace must degrade to the
  * picker — never route into a screen that cannot load.
  *
- * Mirrors the `app:resumeTarget` handler in electron/ipc/app-handlers.ts.
- * Kept as a pure
- * function here because the handler itself is bound to ipcMain.
+ * Runs the real resolver (app/resume-target.ts, which `app:resumeTarget`
+ * calls) against real files, so the probe below is the only stand-in.
  */
-type RecentWorkspace = { path: string; lastOpenedAt: number }
-type Prefs = {
-  lastSessionPath?: string
-  lastWorkspacePath?: string
-  recentWorkspaces?: RecentWorkspace[]
-}
-type Target =
-  | { kind: 'session'; sessionPath: string; workspacePath: string }
-  | { kind: 'workspace'; workspacePath: string }
-  | { kind: 'none' }
+import type { AppPrefs } from '@shared/models'
+import { resolveResumeTarget as resolve } from './app/resume-target'
 
 async function pathExists(path: string): Promise<boolean> {
   try {
@@ -36,27 +27,17 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-async function resolveResumeTarget(prefs: Prefs): Promise<Target> {
-  const { lastSessionPath, lastWorkspacePath, recentWorkspaces = [] } = prefs
-  if (lastSessionPath && lastWorkspacePath) {
-    const [sessionOk, workspaceOk] = await Promise.all([
-      pathExists(lastSessionPath),
-      pathExists(lastWorkspacePath),
-    ])
-    if (sessionOk && workspaceOk) {
-      return { kind: 'session', sessionPath: lastSessionPath, workspacePath: lastWorkspacePath }
-    }
-  }
-  if (lastWorkspacePath && (await pathExists(lastWorkspacePath))) {
-    return { kind: 'workspace', workspacePath: lastWorkspacePath }
-  }
-  for (const ws of [...recentWorkspaces].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)) {
-    if (await pathExists(ws.path)) {
-      return { kind: 'workspace', workspacePath: ws.path }
-    }
-  }
-  return { kind: 'none' }
-}
+/** The resolver reads only `path` and `lastOpenedAt` of a recent workspace. */
+const resolveResumeTarget = ({
+  recentWorkspaces = [],
+  ...prefs
+}: Partial<Pick<AppPrefs, 'lastSessionPath' | 'lastWorkspacePath'>> & {
+  recentWorkspaces?: { path: string; lastOpenedAt: number }[]
+}) =>
+  resolve(
+    { ...prefs, recentWorkspaces: recentWorkspaces.map((ws) => ({ ...ws, name: ws.path })) },
+    pathExists,
+  )
 
 describe('resume target resolution', () => {
   let workspace: string

@@ -27,7 +27,7 @@ without leaving the session, and so a shell always sits in the right checkout.
   stay SIGINT. These bindings cancel the browser's default clipboard action so
   each shortcut pastes only once, through xterm's bracketed-paste handling.
   Right-click opens Copy / Paste / Select all rather than pasting blind
-  (`apps/desktop/src/features/terminal/clipboardKeys.ts`).
+  (`libs/client-ui/src/features/terminal/clipboardKeys.ts`).
 - **Scrollback** is 10,000 lines. Main also keeps an output tail capped at
   262,144 UTF-16 code units per PTY and replays it on reattach, so closing and
   reopening the pane shows the live shell's recent output instead of a blank.
@@ -39,7 +39,7 @@ without leaving the session, and so a shell always sits in the right checkout.
   another, and never auto-spawns a second one. Its cwd is that session's own
   directory, which for a worktree lane is the **worktree**. A shell in the repo
   root while its lane edits a worktree would run every command against the
-  wrong tree (`apps/desktop/src/stores/terminal.ts`).
+  wrong tree (`libs/client-ui/src/stores/terminal.ts`).
 - **A shell that cannot start is a UI state**, not a hang: the pane shows the
   spawn error with a retry (`apps/desktop/electron/pty/spawn-helper.ts` handles node-pty's
   `spawn-helper` trap).

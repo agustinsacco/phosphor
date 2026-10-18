@@ -3,7 +3,7 @@
 > **This file is the authority on Phosphor's visual identity.** The design
 > system was named "Phosphor" first (2026-08-07); on 2026-09-08 the app took
 > the design system's name. Where any other
-> spec disagrees, this one wins. `apps/desktop/src/styles/index.css` carries these values;
+> spec disagrees, this one wins. `libs/client-ui/src/styles/index.css` carries these values;
 > the five satellite copies below mirror them by hand.
 
 Dark is warm all the way down: graphite neutrals under an amber **phosphor**
@@ -38,7 +38,7 @@ Not obvious from reading the code. Each has been violated at least once.
    head are the mark. Two identities died by putting the concept in the faint
    layer, where it composites to 1.18:1 and is simply not there at 32px.
 8. **The logo's geometry lives in `BEACON`**
-   (`apps/desktop/src/components/PhosphorMark.tsx`), not in CSS and not in the SVG — a CSS
+   (`libs/client-ui/src/components/PhosphorMark.tsx`), not in CSS and not in the SVG — a CSS
    `stroke-width` beats a presentation attribute and silently wins.
    `PhosphorMark.test.ts` fails when `apps/desktop/build/icon.svg` drifts from it.
 9. **The logo's bloom must stay a `radialGradient`.** Stacked translucent
@@ -46,7 +46,7 @@ Not obvious from reading the code. Each has been violated at least once.
 
 ## Color
 
-Tokens are the `--px-*` custom properties in `apps/desktop/src/styles/index.css`, mapped to
+Tokens are the `--px-*` custom properties in `libs/client-ui/src/styles/index.css`, mapped to
 Tailwind via `@theme inline`.
 
 Six surfaces need theme values outside the app stylesheet, so each carries a
@@ -54,15 +54,15 @@ mirrored copy that must be updated in the same commit:
 
 | Surface        | Themed copy in                                                            |
 | -------------- | ------------------------------------------------------------------------- |
-| xterm          | `apps/desktop/src/features/terminal/xtermTheme.ts`                        |
-| Monaco         | `apps/desktop/src/lib/monaco.ts`                                          |
-| Mermaid        | `apps/desktop/src/components/markdown/MermaidBlock.tsx`                   |
-| Chart.js       | `apps/desktop/src/components/markdown/ChartBlock.tsx`                     |
+| xterm          | `libs/client-ui/src/features/terminal/xtermTheme.ts`                      |
+| Monaco         | `libs/client-ui/src/lib/monaco.ts`                                        |
+| Mermaid        | `libs/client-ui/src/components/markdown/MermaidBlock.tsx`                 |
+| Chart.js       | `libs/client-ui/src/components/markdown/ChartBlock.tsx`                   |
 | Window chrome  | `apps/desktop/electron/window-chrome.ts`, `apps/desktop/electron/main.ts` |
 | HTML artifacts | `apps/desktop/electron/artifacts/artifact-skeleton.ts`                    |
 
 **Syntax highlighting is deliberately off-palette.** Shiki runs the stock
-`vitesse-light` / `vitesse-dark` pair (`apps/desktop/src/components/markdown/highlighter.ts`)
+`vitesse-light` / `vitesse-dark` pair (`libs/client-ui/src/components/markdown/highlighter.ts`)
 and holds no `--px-*` values, so it is not a themed copy. Code-block token
 colors are not expected to match the brand ramp.
 
@@ -160,7 +160,7 @@ Cool neutral greys. The accent is the only warm element on the page.
   green" are the two states the sidebar is scanned to tell apart, so rendering
   both in `--px-success` hides the one meaning _this lane is done_. Violet was
   the only hue unspoken for. A sixth semantic color needs that kind of reason.
-- **`bg-danger` + `text-white` is a standing exception** (`apps/desktop/src/components/form.tsx`),
+- **`bg-danger` + `text-white` is a standing exception** (`libs/client-ui/src/components/form.tsx`),
   3.1:1 in dark and below AA. Accepted because danger buttons are short, bold,
   and never the only signal. Don't copy it; don't "fix" it without changing
   `--px-danger` itself.
@@ -183,8 +183,8 @@ drag looked like nothing had been selected.
 **UI:** Inter / system sans. Body 14px/1.55.
 
 Inter and JetBrains Mono (variable normal/italic faces) are bundled locally;
-[pinned sources and checksums](../apps/desktop/src/assets/fonts/README.md). Settings → About
-includes both licenses. `apps/desktop/src/lib/fonts.ts` loads and registers settled faces before
+[pinned sources and checksums](../libs/client-ui/src/assets/fonts/README.md). Settings → About
+includes both licenses. `libs/client-ui/src/lib/fonts.ts` loads and registers settled faces before
 the app shell mounts, so Monaco/xterm never cache metrics before a later bundled-font
 swap. The startup screen remains visible while fonts settle.
 Startup waits at most 1.5 seconds: failed/late faces stay on system fallbacks for
@@ -271,7 +271,7 @@ for the shared implementation and dismissal contract.
 
 ### Loading identity — Phosphor Beacon
 
-`apps/desktop/src/components/PhosphorLoader.tsx` is the shared **indeterminate activity**
+`libs/client-ui/src/components/PhosphorLoader.tsx` is the shared **indeterminate activity**
 mark for app startup, starting/working lanes, and agent activity in chat. It
 replaces the eight-ray PiSpark everywhere; generic file/network button spinners
 remain generic. As of 2026-09-09 it is **also the logo** — same glyph, orbit
@@ -333,14 +333,14 @@ surface renders the same glyph and none of them owns a second copy:
 
 | Surface         | File                                                              | State           |
 | --------------- | ----------------------------------------------------------------- | --------------- |
-| Geometry        | `BEACON` in `apps/desktop/src/components/PhosphorMark.tsx`        | source of truth |
+| Geometry        | `BEACON` in `libs/client-ui/src/components/PhosphorMark.tsx`      | source of truth |
 | App icon        | `apps/desktop/build/icon.svg` — `BEACON` × `ICON_SCALE` (28)      | at rest         |
 | In-app identity | `<PhosphorMark>` / `<PhosphorLockup>`                             | at rest         |
 | In-app activity | `<PhosphorLoader>`                                                | orbit turning   |
 | Website + tab   | `apps/site/public/favicon.svg` — generated                        | at rest         |
 | Social preview  | `apps/site/public/og.png` — composites that favicon at build time | at rest         |
 
-`apps/desktop/src/components/PhosphorMark.test.ts` reads `apps/desktop/build/icon.svg` back and fails if
+`libs/client-ui/src/components/PhosphorMark.test.ts` reads `apps/desktop/build/icon.svg` back and fails if
 it drifts from `BEACON`; it also asserts the favicon is byte-identical to the
 icon and that `apps/site/src/layouts/Page.astro` points an `<img>` at it rather than
 inlining an `<svg>` of its own. It exists because the mark before this one

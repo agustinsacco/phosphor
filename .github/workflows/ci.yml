@@ -33,6 +33,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Both the comprehensive typecheck and its coverage audit unit test need
+      # the site's independent TypeScript/Astro installation.
+      - name: Install site dependencies
+        run: npm ci --prefix apps/site
+
       - name: Shadow affected report (never skips checks)
         uses: actions/github-script@v7
         with:
@@ -42,17 +47,21 @@ jobs:
               console.log(JSON.stringify(await shadowSelection(context, github)))
             } catch {
               console.log(JSON.stringify({ mode: 'full', reason: 'shadow adapter failed', base: null, head: context.sha,
-                projects: ['control', 'desktop', 'host', 'pi-extensions', 'runtime', 'schema', 'shared', 'site', 'tooling'] }))
+                projects: ['client-ui', 'web', 'control', 'desktop', 'host', 'host-client', 'pi-extensions', 'runtime', 'schema', 'shared', 'site', 'tooling'] }))
             }
 
+      # Includes the all-file coverage audit, Host, Control and the site check.
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Typecheck (host)
-        run: npm run typecheck:host
+      - name: Size ratchet
+        run: node tools/scripts/size-budget.mjs check
 
-      - name: Typecheck (control)
-        run: npm run typecheck:control
+      - name: Build (web)
+        run: npm run web:build
+
+      - name: Install browser crypto test engines
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Lint
         run: npm run lint
@@ -71,6 +80,29 @@ jobs:
 
       - name: Build (control)
         run: npm run build:control
+
+  web-e2e:
+    name: Web · Chromium and WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEB_E2E_EVIDENCE: /tmp/phosphor-web-e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run typecheck:web-e2e
+      - run: npm run test:e2e:web
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-browser-results
+          path: /tmp/phosphor-web-e2e/results/
+          retention-days: 7
 
   control-schema:
     name: Control schema · local Supabase · RLS
@@ -214,7 +246,7 @@ jobs:
   result:
     name: CI result
     if: always()
-    needs: [checks, control-schema, site, e2e]
+    needs: [checks, control-schema, site, e2e, web-e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Every required job succeeded

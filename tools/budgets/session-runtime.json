@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "package": "session-runtime",
+  "offenders": {
+    "src/lanes/projection.ts::createLaneProjection[1]": 284,
+    "src/lanes/projection.ts::createLaneProjection[1]/event[1]": 91,
+    "src/pi/session-context.test.ts::it[1]": 92
+  },
+  "exemptions": [],
+  "renames": {}
+}

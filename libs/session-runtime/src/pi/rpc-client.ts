@@ -218,7 +218,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
       !command.type.startsWith('get_') &&
       !['abort', 'abort_bash', 'abort_retry', 'clear_queue'].includes(command.type)
     )
-      return Promise.reject(new Error('Phosphor is shutting down. New work cannot start.'))
+      return Promise.reject(new Error('Runtime is shutting down. New work cannot start.'))
     const id = `px-${this.nextRequestId++}`
     const payload = { ...command, id }
 

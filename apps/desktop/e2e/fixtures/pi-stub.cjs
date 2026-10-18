@@ -2005,7 +2005,7 @@ function runSubagentTurn() {
 
 /** Replay recorded 0.76.1 workflow notices without a model or live child. */
 function runWorkflowEvidenceTurn() {
-  const fixture = require('../../src/features/chat/__fixtures__/subagent-workflow.json')
+  const fixture = require('../../../../libs/client-ui/src/features/chat/__fixtures__/subagent-workflow.json')
   let parentId = sessionEntries().at(-1)?.id ?? null
   fixture.messages.forEach((message, i) => {
     const entry = { ...message, type: 'custom_message', id: `workflow-evidence-${i}`, parentId }
@@ -2020,7 +2020,8 @@ function runWorkflowEvidenceTurn() {
 const layoutStartedAt = Date.now() - 250_000
 function publishWorkflowFleet(settled = false, updated = false) {
   const snapshot = structuredClone(
-    require('../../src/features/chat/__fixtures__/subagent-workflow.json').snapshot,
+    require('../../../../libs/client-ui/src/features/chat/__fixtures__/subagent-workflow.json')
+      .snapshot,
   )
   if (process.env.PHOSPHOR_E2E_SUBAGENT_LAYOUT) {
     const child = snapshot.runs[0].children[1]

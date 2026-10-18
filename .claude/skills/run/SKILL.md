@@ -14,7 +14,7 @@ npm run dev:web
 ```
 
 Open the printed localhost URL in a browser. `apps/desktop/src/main.tsx` detects the
-missing `window.phosphor` and installs `apps/desktop/src/dev/mockPhosphor.ts`: canned sessions,
+missing `window.phosphor` and installs `libs/client-ui/src/dev/mockPhosphor.ts`: canned sessions,
 a scripted streaming reply, mock file tree/terminal. Good for layout, chat
 rendering, sidebar, theming. Useless for anything touching real IPC, pi, git,
 or PTYs. If your change added an IPC channel that a rendered screen calls,

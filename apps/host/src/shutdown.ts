@@ -1,6 +1,5 @@
-import { constants } from 'node:os'
-import { errorText } from '@phosphor/shared/errors'
-import { EXIT } from './checks'
+import { createShutdownState } from './shutdown-state'
+import { fatalShutdown, finishShutdown, signalShutdown } from './shutdown-handlers'
 import type { HostLog } from './machine/log'
 
 export const SHUTDOWN_SIGNALS = ['SIGHUP', 'SIGINT', 'SIGTERM'] as const
@@ -71,89 +70,19 @@ export interface ShutdownIo {
  */
 export function createShutdown(io: ShutdownIo, options: { fatalDrainMs?: number } = {}) {
   const fatalDrainMs = options.fatalDrainMs ?? FATAL_DRAIN_MS
-  let current: Drainable | null = null
-  // A Host this shutdown began to drain. Detaching it does not end that
-  // drain, so a later signal or error must still reach it, to force it.
-  let draining: Drainable | null = null
-  const target = () => current ?? draining
-  // An exit was asked for, with this code; it happens once every flush ends.
-  let exited = false
-  let exitCode: number = EXIT.internal
-  let flushing = 0
-  let ended = false
-  // Set by a fatal error, so that any exit not yet made is 70.
-  let fatal = false
-  const settle = () => {
-    if (--flushing > 0 || ended) return
-    ended = true
-    io.exit(fatal ? EXIT.internal : exitCode)
-  }
-  const flush = () => {
-    flushing++
-    if (io.flush) io.flush(settle)
-    else settle()
-  }
-  const exit = (code: number) => {
-    if (exited) return
-    exited = true
-    exitCode = code
-    flush()
-  }
-  async function drained(target: Drainable, reason: string): Promise<boolean> {
-    draining = target
-    try {
-      return (await target.drain(reason)).state === 'stopped'
-    } catch (error) {
-      target.log.write('host', 'drain failed', { error: errorText(error) })
-      return false
-    }
-  }
+  const state = createShutdownState()
   return {
     /** Drain `target` on a signal or a fatal error until the returned function detaches it. */
     attach(target: Drainable): () => void {
-      current = target
+      state.current = target
       return () => {
-        if (current === target) current = null
+        if (state.current === target) state.current = null
       }
     },
-    async signal(name: ShutdownSignal): Promise<void> {
-      io.stopProbes()
-      const code = 128 + constants.signals[name]
-      const host = target()
-      if (!host) return exit(code)
-      host.log.write('host', 'signal', { signal: name })
-      const second = draining !== null
-      const clean = await drained(host, name)
-      exit(!second && host.exitCode ? host.exitCode(name, clean) : clean ? code : EXIT.internal)
-    },
+    signal: (name: ShutdownSignal) => signalShutdown(state, io, name),
     /** The command ended with `code`: exit, unless a signal's or a fatal error's drain will. */
-    finish(code: number): void {
-      if (draining) return
-      exit(code)
-    },
-    async fatal(error: unknown): Promise<void> {
-      fatal = true
-      io.stopProbes()
-      const host = target()
-      const text = errorText(error)
-      if (!host) {
-        io.stderr(`phosphor: internal error: ${text}\n`)
-        // An exit already flushing waits for this message too, and exits 70.
-        if (exited) return flush()
-        return exit(EXIT.internal)
-      }
-      host.log.write('host', 'fatal error', { error: text })
-      io.stderr(`phosphor: internal error: ${host.log.hide(text)}\n`)
-      // An exit already flushing waits for this message too.
-      if (exited) flush()
-      const hurry = setTimeout(() => void host.drain('fatal error, hurried'), fatalDrainMs)
-      try {
-        await drained(host, 'fatal error')
-      } finally {
-        clearTimeout(hurry)
-      }
-      exit(EXIT.internal)
-    },
+    finish: (code: number) => finishShutdown(state, io, code),
+    fatal: (error: unknown) => fatalShutdown(state, io, error, fatalDrainMs),
   }
 }
 

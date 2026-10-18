@@ -15,7 +15,7 @@ your main checkout.
   named second.** Sending the first message derives a branch and folder from a
   slug of the message, starts pi there at once, and _then_ asks the naming
   model for a title. When the title lands it renames the session and the
-  branch to match (`apps/desktop/src/features/sessions/startChat.ts`). One name in three
+  branch to match (`libs/client-ui/src/features/sessions/startChat.ts`). One name in three
   places, a few seconds in, and the send button never waits for a model.
 
   The worktree **folder** keeps its slug when the branch is renamed: it is a
@@ -77,7 +77,7 @@ your main checkout.
 ## Surfaces
 
 There is **one** branch control visible at a time. It lives in the window's
-top bar (`apps/desktop/src/app/TopBar.tsx`) on session screens, and directly above the
+top bar (`libs/client-ui/src/app/TopBar.tsx`) on session screens, and directly above the
 composer on the home screen beside the folder chip and the "new branch"
 checkbox. The top bar renders neither when no session is active, so the two are
 never on screen together. Same components, same state; one surface owns them
@@ -130,10 +130,10 @@ are not queued behind the display-query concurrency limit.
 
 ## Code map
 
-- `apps/desktop/src/features/sessions/startChat.ts` — the home composer's send path:
+- `libs/client-ui/src/features/sessions/startChat.ts` — the home composer's send path:
   bounded fetch, branch/folder derivation, worktree creation, workspace
   switch, session spawn; then, off the critical path, naming and the rename.
-- `apps/desktop/src/lib/branchName.ts` — pure title → `{folder, branch}` derivation. Its
+- `libs/client-ui/src/lib/branchName.ts` — pure title → `{folder, branch}` derivation. Its
   charset is narrower than git's ref rules on purpose, so no result needs
   re-validating.
 - `apps/desktop/electron/fs/git-worktrees.ts` — worktree lifecycle (execFile, no shell).
@@ -144,12 +144,12 @@ are not queued behind the display-query concurrency limit.
 - IPC: `git:listWorktrees / listBranches / addWorktree / removeWorktree /
 pruneWorktrees / commitAll / mergeBranch / fetch / pull / updateFromMain /
 checkoutBranch` (`libs/shared/src/ipc.ts`, `apps/desktop/electron/ipc/git-handlers.ts`).
-- `apps/desktop/src/stores/worktrees.ts` — per-repo cache of worktrees and branches, plus
+- `libs/client-ui/src/stores/worktrees.ts` — per-repo cache of worktrees and branches, plus
   the global `preferWorktree` checkbox state.
-- UI: `apps/desktop/src/features/worktrees/BranchControl.tsx`, `BranchPicker.tsx`,
+- UI: `libs/client-ui/src/features/worktrees/BranchControl.tsx`, `BranchPicker.tsx`,
   `RemoveWorktreeModal.tsx`, `MergeWorktreeModal.tsx`, `PrRow.tsx`; the sidebar
-  group menu in `apps/desktop/src/features/sessions/Sidebar.tsx`.
-- `apps/desktop/src/features/sessions/useWorktreeDiscovery.ts` — lists the worktrees under
+  group menu in `libs/client-ui/src/features/sessions/Sidebar.tsx`.
+- `libs/client-ui/src/features/sessions/useWorktreeDiscovery.ts` — lists the worktrees under
   every known repo workspace so their sessions fold into the repo's sidebar
   group; the sidebar's first paint waits for the listing to settle.
 - Worktree detection for any cwd: `GitInfo.isWorktree/mainRepoPath` from

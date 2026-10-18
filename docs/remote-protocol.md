@@ -11,8 +11,8 @@ authentication; trusting a connection also requires the enrolled key proof.
 
 ## Frames and streams
 
-`libs/shared/src/host-protocol.ts` defines protocol v1, its allowlist, parsers
-and limits. The Host serves hello and grant authentication on `/v1/hello`
+`libs/shared/src/host-protocol.ts` is the entry for protocol v1; its allowlist,
+parsers and limits live in `libs/shared/src/host-protocol/`. The Host serves hello and grant authentication on `/v1/hello`
 and `/v1/stream`, on loopback port 47615 (configurable as `api.port`). It
 announces session capabilities only when supplied a lane service. Without it,
 the API remains authentication-only. The network adapter multiplexes authenticated

@@ -6,6 +6,14 @@ routing and machine selection. Individual panes keep their own UI contracts.
 
 ## Desktop Host connections
 
+The transport, proof barrier, lane projection and remote-lane delivery core live
+in `libs/host-client/src/`, shared browser-safe source rather than a second client
+implementation. `apps/desktop/electron/hosts/` retains compatibility facades and
+Desktop-owned account, window and Node-crypto adapters. The proof barrier releases
+no ready state or queued data until identity verification succeeds on the same
+still-open transport. Authentication error frames preserve close-code recovery;
+authentication timeouts and closing sockets cannot publish a late ready state.
+
 Main keeps one authenticated socket per up Host with a bare HTTPS `.ts.net`
 origin, up to 32 sockets. It follows account and machine-directory changes.
 Sign-out or account change closes sockets and clears remote memory. Down Hosts
@@ -59,7 +67,7 @@ sign-out, account change or Host removal. Down Hosts retain memory-only views.
 
 Main routes remote `pi:command`, `pi:extensionUiResponse` and
 `pi:disposeSession` without consulting the local pi registry. The allowlist is
-`electron/hosts/lane-ops.ts`. Receipts become pi responses; controller rejections
+`libs/host-client/src/lane-ops.ts`, re-exported by the Desktop facade. Receipts become pi responses; controller rejections
 name the machine and controller. Unknown outcomes tell the user to check the lane
 before retrying. Unanswered commands expire after 60 seconds as unknown, never
 as a fresh retry. Local pi routing is unchanged.

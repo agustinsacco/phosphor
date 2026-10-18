@@ -10,13 +10,16 @@ import {
   type ServerResponse,
 } from 'node:http'
 import { join, resolve } from 'node:path'
-import { MACHINE, LOOKUP } from '../../src/features/machines/__fixtures__/control'
+import {
+  MACHINE,
+  LOOKUP,
+} from '../../../../libs/client-ui/src/features/machines/__fixtures__/control'
 import type { MachineView } from '../../../../libs/shared/src/control-api'
 import { scratchDir } from './scratch'
 import { configureTestTeardown } from './shutdown'
 
 // Native quit awaits pi dispose() in libs/session-runtime/src/pi/rpc-client.ts (3 s)
-// and QUIT_WAIT_MS in apps/desktop/electron/account/account.ts (10 s), plus IPC/exit margin.
+// and QUIT_WAIT_MS in apps/desktop/electron/account/account-state.ts (10 s), plus IPC/exit margin.
 const DESKTOP_CLOSE_TIMEOUT_MS = 3_000 + 10_000 + 2_000
 
 /** Disposable loopback-only Auth and directory. No keychain or hosted service. */
@@ -238,7 +241,9 @@ export async function accountControlFixture(
         rows = []
       }
       const tree = (parent: number): number[] =>
-        rows.flatMap(([pid, ppid]) => (ppid === parent ? [...tree(pid), pid] : []))
+        rows.flatMap(([pid, ppid]) =>
+          ppid === parent && pid !== undefined ? [...tree(pid), pid] : [],
+        )
       const pids = child.pid ? [...tree(child.pid), child.pid] : []
       let timer: ReturnType<typeof setTimeout> | undefined
       const closeStarted = performance.now()

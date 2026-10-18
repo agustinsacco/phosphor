@@ -12,7 +12,9 @@ const json = (path: string) => JSON.parse(read(path))
 describe('independent apps/site package contract', () => {
   it('keeps root aliases explicit and installation separate from Desktop', () => {
     const scripts = json('package.json').scripts
-    expect(scripts.postinstall).toBe('npm ci --prefix apps/desktop && npm ci --prefix apps/control')
+    expect(scripts.postinstall).toBe(
+      'npm ci --prefix apps/desktop && npm ci --prefix apps/control && npm ci --prefix apps/web',
+    )
     expect(scripts['site:install']).toBe('npm ci --prefix apps/site')
     for (const command of ['dev', 'check', 'build']) {
       expect(scripts[`site:${command}`]).toBe(`npm run ${command} --prefix apps/site --`)
@@ -42,6 +44,10 @@ describe('independent apps/site package contract', () => {
     for (const path of [
       'apps/site/**',
       'apps/control/**',
+      'apps/web/**',
+      'libs/client-ui/**',
+      'libs/pi-extensions/**',
+      'libs/host-client/**',
       'libs/shared/src/**',
       'tools/scripts/site-image.sh',
     ])
@@ -52,10 +58,23 @@ describe('independent apps/site package contract', () => {
     const docker = read('apps/control/Dockerfile')
     expect(docker).toContain('RUN npm ci\n')
     expect(docker).toContain('RUN npm ci --prefix apps/control')
-    expect(docker).toContain('RUN npm run check && npm run build')
+    expect(docker).toContain('ARG PHOSPHOR_WEB_ENABLED=false')
+    expect(docker).toContain('PUBLIC_PHOSPHOR_WEB_ENABLED="$PHOSPHOR_WEB_ENABLED" npm run build')
+    expect(docker).not.toContain('ARG CONTROL_WEB_SESSION_KEYS')
     expect(docker).toContain('RUN apk add --no-cache font-dejavu')
     expect(docker).toContain('COPY --from=site /app/dist ./site')
     expect(docker).toContain('COPY --from=control /app/apps/control/dist/server.mjs ./server.mjs')
+    expect(docker).toContain('COPY --from=web /app/apps/web/dist ./web')
+    expect(docker).toContain('RUN npm ci --ignore-scripts')
+    expect(docker).toContain('RUN npm ci --prefix apps/web --ignore-scripts')
+    expect(deploy).toContain('PHOSPHOR_BUILD_SHA=${{ needs.guard.outputs.sha }}')
+    expect(deploy).toContain('PHOSPHOR_WEB_ENABLED=${{ needs.guard.outputs.web_enabled }}')
+    for (const helper of ['lane-reload', 'swarm', 'subagent-snapshot']) {
+      expect(docker).toContain(`libs/pi-extensions/pi-ext/${helper}.ts`)
+      expect(read('apps/control/Dockerfile.dockerignore')).toContain(
+        `!libs/pi-extensions/pi-ext/${helper}.ts`,
+      )
+    }
     expect(docker).toContain('USER 1000:1000')
     expect(docker).toContain('EXPOSE 5015')
     expect(docker).toContain('ENV NODE_ENV=production')
@@ -98,29 +117,60 @@ describe('independent apps/site package contract', () => {
     )
     // Applied on its own with suppressed output, never through the kustomization.
     expect(read('.infra/phosphor-site/kustomization.yaml')).not.toContain('secret.yaml')
-    const pod = read('.infra/phosphor-site/deployment.yaml')
+    const pod = read('.infra/phosphor-site/base/deployment.yaml')
     for (const key of ['supabase-secret-key', 'edge-secret', 'grant-keys'])
       expect(pod).toContain(`key: ${key}`)
     expect(pod).not.toMatch(/optional:\s*true/)
     // Both probes ask the process, not the site files.
     expect(pod.match(/path: \/healthz\n/g)).toHaveLength(2)
     expect(pod).not.toMatch(/path: \/\n/)
-    expect(read('.infra/phosphor-site/service.yaml')).not.toContain('loadBalancerSourceRanges')
+    expect(read('.infra/phosphor-site/base/service.yaml')).not.toContain('loadBalancerSourceRanges')
     expect(deploy).toContain(
       "envsubst '${SUPABASE_SECRET_KEY} ${CONTROL_EDGE_SECRET} ${CONTROL_GRANT_KEYS}'",
     )
     expect(deploy).toContain('^[A-Za-z0-9_-]{32,512}$')
     expect(deploy).toContain('umask 077')
     expect(deploy).toContain("grep -Fq '${'")
-    expect(deploy).toContain(`trap 'rm -f "$secret" "$manifest"' EXIT`)
+    expect(deploy).toContain(`trap 'rm -f "$secret" "$web_secret" "$manifest"' EXIT`)
     expect(deploy).toContain('if ! kubectl apply -f "$secret" >/dev/null 2>&1; then')
     expect(pod).toContain('phosphor.saccolabs.com/deploy-run: local')
     expect(deploy).toContain('image: ${IMAGE_NAME}@${IMAGE_DIGEST}')
     expect(deploy).toContain(
-      'if: always()\n        run: rm -f "$RUNNER_TEMP/phosphor-control-secret.yaml" "$RUNNER_TEMP/phosphor-site.yaml"',
+      'if: always()\n        run: rm -f "$RUNNER_TEMP/phosphor-control-secret.yaml" "$RUNNER_TEMP/phosphor-web-secret.yaml" "$RUNNER_TEMP/phosphor-site.yaml"',
     )
     expect(deploy).toContain('timeout 120s')
     expect(deploy).toContain('.configured == true')
+  })
+
+  it('keeps browser activation coupled to one validated default-off flag', () => {
+    const deploy = read('.github/workflows/deploy-site.yml')
+    const base = read('.infra/phosphor-site/base/deployment.yaml')
+    const web = read('.infra/phosphor-site/web/deployment.yaml')
+    for (const name of ['CONTROL_WEB_ORIGIN', 'WEB_DIR', 'CONTROL_WEB_SESSION_KEYS']) {
+      expect(base).not.toContain(name)
+      expect(web).toContain(`name: ${name}`)
+    }
+    expect(web).toContain('value: https://phosphor-app.saccolabs.com')
+    expect(web).toContain('value: /app/web')
+    expect(web).toContain('name: phosphor-web')
+    expect(web).not.toContain('optional:')
+    expect(read('.infra/phosphor-site/web/kustomization.yaml')).not.toContain('secret.yaml')
+    expect(read('.infra/phosphor-site/web/secret.yaml')).toContain(
+      "session-keys: '${CONTROL_WEB_SESSION_KEYS}'",
+    )
+    expect(deploy).toContain('PHOSPHOR_WEB_ENABLED: ${{ vars.PHOSPHOR_WEB_ENABLED }}')
+    expect(deploy).toContain('PHOSPHOR_WEB_ENABLED: ${{ needs.guard.outputs.web_enabled }}')
+    expect(deploy.indexOf('Validate browser keys before publishing')).toBeLessThan(
+      deploy.indexOf('- name: Build and push'),
+    )
+    expect(deploy).toContain('if ! kubectl apply -f "$web_secret" >/dev/null 2>&1; then')
+    expect(deploy).not.toContain('kubectl delete')
+    expect(deploy).toContain("if: needs.guard.outputs.web_enabled == 'true'")
+    const page = read('apps/site/src/layouts/Page.astro')
+    expect(page).toContain("import.meta.env.PUBLIC_PHOSPHOR_WEB_ENABLED === 'true'")
+    expect(page).toContain('https://phosphor-app.saccolabs.com/')
+    expect(page).toContain('Open the app')
+    expect(page).not.toContain('/api/auth/start')
   })
 
   it('keeps icon generation and runnable documentation anchored to the relocated site', () => {
@@ -162,7 +212,10 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
       const args = process.argv.slice(2)
       fs.appendFileSync(process.env.RUNNER_TEMP + '/calls', args[0] + '\\n')
       if (args[0] === 'get') process.exit(1)
-      if (args[0] === 'kustomize') process.stdout.write(fs.readFileSync(process.env.RUNNER_TEMP + '/template'))
+      if (args[0] === 'kustomize') {
+        fs.writeFileSync(process.env.RUNNER_TEMP + '/overlay', args[1])
+        process.stdout.write(fs.readFileSync(process.env.RUNNER_TEMP + '/template'))
+      }
       if (args[0] === 'apply' && args[2] !== '-') {
         const manifest = fs.readFileSync(args[2], 'utf8')
         const secrets = [
@@ -180,7 +233,16 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
             process.stderr.write(manifest + encoded)
             process.exit(1)
           }
+        } else if (args[2].endsWith('/phosphor-web-secret.yaml')) {
+          const value = process.env.CONTROL_WEB_SESSION_KEYS
+          if (!manifest.includes(value) || (fs.statSync(args[2]).mode & 0o777) !== 0o600) process.exit(1)
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/web-applied', 'yes')
+          if (process.env.WEB_APPLY_FAIL) {
+            process.stderr.write(manifest + Buffer.from(value).toString('base64'))
+            process.exit(1)
+          }
         } else {
+          if (fs.existsSync(process.env.RUNNER_TEMP + '/phosphor-web-secret.yaml')) process.exit(1)
           if (secrets.some((value) => manifest.includes(value))) process.exit(1)
           // The rendered Secret is gone before anything else is applied.
           if (fs.existsSync(process.env.RUNNER_TEMP + '/phosphor-control-secret.yaml')) process.exit(1)
@@ -193,12 +255,15 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
     binary(
       'envsubst',
       `
-      if (process.argv[2] !== '$' + '{SUPABASE_SECRET_KEY} $' + '{CONTROL_EDGE_SECRET} $' + '{CONTROL_GRANT_KEYS}') process.exit(1)
+      if (![
+        '$' + '{SUPABASE_SECRET_KEY} $' + '{CONTROL_EDGE_SECRET} $' + '{CONTROL_GRANT_KEYS}',
+        '$' + '{CONTROL_WEB_SESSION_KEYS}',
+      ].includes(process.argv[2])) process.exit(1)
       if (process.argv.length !== 3) process.exit(1)
       let input = ''
       process.stdin.on('data', chunk => input += chunk)
       process.stdin.on('end', () => {
-        for (const name of ['SUPABASE_SECRET_KEY', 'CONTROL_EDGE_SECRET', 'CONTROL_GRANT_KEYS'])
+        for (const name of ['SUPABASE_SECRET_KEY', 'CONTROL_EDGE_SECRET', 'CONTROL_GRANT_KEYS', 'CONTROL_WEB_SESSION_KEYS'])
           input = input.split('$' + '{' + name + '}').join(process.env[name])
         process.stdout.write(input + (process.env.LEAVE_PLACEHOLDER ? '$' + '{LEFT}' : ''))
       })
@@ -233,8 +298,12 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
       applyFail = '',
       leave = '',
       grants = grantKeys(),
+      webFlag = 'false',
+      webKeys = '',
+      webApplyFail = '',
     ) => {
-      for (const name of ['calls', 'mode', 'applied']) rmSync(join(work, name), { force: true })
+      for (const name of ['calls', 'mode', 'applied', 'overlay', 'web-applied'])
+        rmSync(join(work, name), { force: true })
       writeFileSync(join(work, 'template'), template + suffix)
       const result = spawnSync('bash', ['-c', shell], {
         encoding: 'utf8',
@@ -246,6 +315,9 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
           SUPABASE_SECRET_KEY: supabase,
           CONTROL_EDGE_SECRET: edge,
           CONTROL_GRANT_KEYS: grants,
+          PHOSPHOR_WEB_ENABLED: webFlag,
+          CONTROL_WEB_SESSION_KEYS: webKeys,
+          WEB_APPLY_FAIL: webApplyFail,
           IMAGE_NAME: 'test',
           IMAGE_DIGEST: 'sha256:' + 'a'.repeat(64),
           GITHUB_RUN_ID: '4242',
@@ -255,10 +327,11 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
         },
       })
       const output = result.stdout + result.stderr
-      for (const value of [supabase, edge, grants]) {
+      for (const value of [supabase, edge, grants, webKeys].filter(Boolean)) {
         expect(output.includes(value)).toBe(false)
         expect(output.includes(Buffer.from(value).toString('base64'))).toBe(false)
       }
+      expect(existsSync(join(work, 'phosphor-web-secret.yaml'))).toBe(false)
       expect(existsSync(join(work, 'phosphor-site.yaml'))).toBe(false)
       expect(existsSync(join(work, 'phosphor-control-secret.yaml'))).toBe(false)
       return result.status
@@ -284,6 +357,23 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
       expect(run(secret(32), invalid)).toBe(1)
       expect(existsSync(join(work, 'calls'))).toBe(false)
     }
+    // Disabled never applies browser credentials, even if a secret exists.
+    expect(run(secret(32), secret(32), '', '', '', grantKeys(), 'false', grantKeys())).toBe(0)
+    expect(readFileSync(join(work, 'overlay'), 'utf8')).toBe('.infra/phosphor-site')
+    expect(existsSync(join(work, 'web-applied'))).toBe(false)
+    expect(run(secret(32), secret(32), '', '', '', grantKeys(), 'true', grantKeys(8))).toBe(0)
+    expect(readFileSync(join(work, 'overlay'), 'utf8')).toBe('.infra/phosphor-site/web')
+    expect(existsSync(join(work, 'web-applied'))).toBe(true)
+    for (const [flag, keys] of [
+      ['true', ''],
+      ['true', 'bad-key'],
+      ['TRUE', grantKeys()],
+    ]) {
+      expect(run(secret(32), secret(32), '', '', '', grantKeys(), flag, keys)).toBe(1)
+      expect(existsSync(join(work, 'calls'))).toBe(false)
+    }
+    expect(run(secret(32), secret(32), '', '', '', grantKeys(), 'true', grantKeys(), '1')).toBe(1)
+    expect(existsSync(join(work, 'applied'))).toBe(false)
     // Grant keys: shape-checked here, strictly parsed by the server at startup.
     expect(run(secret(32), secret(32), '', '', '', grantKeys(8))).toBe(0)
     for (const invalid of [
@@ -325,4 +415,4 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
   } finally {
     rmSync(work, { recursive: true, force: true })
   }
-})
+}, 15_000)

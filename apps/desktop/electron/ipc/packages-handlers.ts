@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import { handle } from './handle'
 import { invalidateCatalogueModels, invalidatePiCommands } from './pi-config-handlers'
 import {
@@ -12,22 +11,7 @@ import {
   runPiInstall,
 } from '../pi/packages'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
-
-/**
- * Same e2e hook and gating as pi-session-handlers: an env-var-provided
- * script may only replace pi in unpackaged builds — honoring it in a
- * shipped app would be env-var-triggered code execution.
- */
-function piStubPath(): string | undefined {
-  if (app.isPackaged) return undefined
-  return process.env.PHOSPHOR_PI_STUB || undefined
-}
-
-/** E2E-only claude override, so a developer's real install can't shadow it. */
-function claudeBinOverride(): string | undefined {
-  if (app.isPackaged) return undefined
-  return process.env.PHOSPHOR_CLAUDE_BIN || undefined
-}
+import { claudeBinOverride, piStubPath } from '../pi/stub'
 
 /** pi package listing + mutations via pi's own CLI (streamed jobs). */
 export function registerPackagesHandlers(): void {

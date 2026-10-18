@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./web-auth": {
+      "types": "./src/web-auth.ts",
+      "default": "./src/web-auth.ts"
+    },
     "./machine-prompt": {
       "types": "./src/machine-prompt.ts",
       "default": "./src/machine-prompt.ts"
@@ -227,6 +231,10 @@
     "./host-protocol-writes": {
       "types": "./src/host-protocol-writes.ts",
       "default": "./src/host-protocol-writes.ts"
+    },
+    "./ipc-web": {
+      "types": "./src/ipc-web.ts",
+      "default": "./src/ipc-web.ts"
     }
   },
   "dependencies": {

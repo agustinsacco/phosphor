@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "package": "host-client",
+  "offenders": {
+    "src/connection.ts::file": 571,
+    "src/connection.ts::createHostConnection[1]": 544,
+    "src/connection.ts::createHostConnection[1]/receive[1]": 160,
+    "src/handshake.ts::createHandshake[1]": 88,
+    "src/projection.ts::createLaneProjection[1]": 284,
+    "src/projection.ts::createLaneProjection[1]/event[1]": 91,
+    "src/read-features.ts::readFeature[1]": 102,
+    "src/remote-lanes.ts::file": 574,
+    "src/remote-lanes.ts::createRemoteLanes[1]": 516,
+    "src/remote-lanes.ts::createRemoteLanes[1]/command[1]": 94,
+    "src/requests.ts::createRequests[1]": 130,
+    "src/routines.test.ts::setup[1]": 82,
+    "src/routines.test.ts::it[8]": 81,
+    "src/routines.ts::createRemoteRoutines[1]": 276
+  },
+  "exemptions": [],
+  "renames": {}
+}

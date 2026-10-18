@@ -64,7 +64,7 @@ export class RoutineScheduler {
 
   runNow(id: string, requestId: string): RoutineRun {
     this.lifecycle.assertCanStart()
-    if (this.stopping || this.error) throw new Error(this.error ?? 'Phosphor is shutting down.')
+    if (this.stopping || this.error) throw new Error(this.error ?? 'Runtime is shutting down.')
     const run = this.repository.manual(id, requestId, this.now())
     this.tick()
     return this.repository.run(run.id)
@@ -177,7 +177,7 @@ export class RoutineScheduler {
       execution.stop = {
         status: 'interrupted',
         reason:
-          'Phosphor quit or restarted during this run. Inspect any partial output before resuming; nothing was replayed.',
+          'Runtime quit or restarted during this run. Inspect any partial output before resuming; nothing was replayed.',
       }
       execution.controller.abort()
     }
@@ -185,7 +185,7 @@ export class RoutineScheduler {
   }
 
   private failClosed(error: unknown): void {
-    this.error = `Routine scheduling stopped: ${String(error)}. Restart Phosphor after resolving the problem.`
+    this.error = `Routine scheduling stopped: ${String(error)}. Restart the runtime after resolving the problem.`
     for (const execution of this.executions.values()) {
       execution.stop = { status: 'interrupted', reason: this.error }
       execution.controller.abort()

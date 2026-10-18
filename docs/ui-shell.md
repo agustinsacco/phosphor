@@ -35,7 +35,7 @@ the app document, not to artifact iframe contents.
 
 ### Top bar
 
-One **full-width bar** (`apps/desktop/src/app/TopBar.tsx`) above the sidebar, chat and
+One **full-width bar** (`libs/client-ui/src/app/TopBar.tsx`) above the sidebar, chat and
 pane columns: sidebar toggle, workspace chip, branch control
 ([worktrees.md](worktrees.md)), session title, the pane switches (terminal,
 files, changes, artifacts, subagents) and the session kebab. The terminal switch carries a
@@ -224,7 +224,7 @@ The main area is the chat plus **one float pane**, split by a drag handle and
 persisted per session (selection, side, split size, fullscreen; localStorage,
 pruned on dispose). The float region hosts exactly one pane at a time
 (`RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | 'subagents' | null`,
-`apps/desktop/src/stores/layout.ts`), opened from the top bar's switches, the command
+`libs/client-ui/src/stores/layout.ts`), opened from the top bar's switches, the command
 palette or the shortcuts above.
 
 1. **Chat pane** — always present ([chat.md](chat.md)).

@@ -1,5 +1,6 @@
 import { isAbsolute, normalize } from 'node:path'
 import { isValidContextBudgetValue } from '@phosphor/shared/context-budget'
+import { isWebOrigin } from '../api/browser-origin'
 import { isControlUrl } from '../control/url'
 import { passRefusal } from '../machine/environment'
 
@@ -37,7 +38,7 @@ export interface HostConfigV1 {
   accounts?: null
   /** Bare control-plane origin. Defaults to DEFAULT_CONTROL_URL. */
   control?: { url: string }
-  api?: { port: number }
+  api?: { port: number; webOrigin?: string | null }
 }
 
 export interface ConfigError {
@@ -205,7 +206,13 @@ export function validateHostConfig(value: unknown): ConfigValidation {
   if (value.api !== undefined) {
     if (!isRecord(value.api)) fail('/api', 'must be an object with port')
     else {
-      onlyKeys(value.api, ['port'], ['api'])
+      onlyKeys(value.api, ['port', 'webOrigin'], ['api'])
+      if (
+        value.api.webOrigin !== undefined &&
+        value.api.webOrigin !== null &&
+        !isWebOrigin(value.api.webOrigin)
+      )
+        fail('/api/webOrigin', 'must be null or an exact bare https origin, or http on loopback')
       if (
         typeof value.api.port !== 'number' ||
         !Number.isInteger(value.api.port) ||

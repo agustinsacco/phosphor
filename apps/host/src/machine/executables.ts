@@ -6,6 +6,7 @@ import { MIN_PI_VERSION } from '@phosphor/shared/models'
 import { compareVersions, extractVersion } from '@phosphor/session-runtime/pi/versions'
 import { EXIT, fail, pass, type Check } from '../checks'
 import type { HostConfigV1 } from '../config/schema'
+import { errnoIs } from '../fs-safety'
 import { probe, probeFailure, type ProbeEnvironment } from './probe'
 
 /** The Host's own floor, and pi.node's when pi's package declares none. */
@@ -135,9 +136,8 @@ async function notExecutable(path: string): Promise<string | null> {
     await access(path, constants.X_OK)
     return null
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
-    if (code === 'ENOENT') return 'does not exist'
-    return code === 'EACCES' ? 'is not executable' : errorText(error)
+    if (errnoIs(error, 'ENOENT')) return 'does not exist'
+    return errnoIs(error, 'EACCES') ? 'is not executable' : errorText(error)
   }
 }
 
@@ -200,7 +200,7 @@ async function realExecutable(path: string): Promise<{ real: string } | { proble
     const problem = await notExecutable(real)
     return problem ? { problem: `${path} ${problem}` } : { real }
   } catch (error) {
-    const missing = (error as NodeJS.ErrnoException).code === 'ENOENT'
+    const missing = errnoIs(error, 'ENOENT')
     return { problem: `${path} ${missing ? 'does not exist' : errorText(error)}` }
   }
 }
@@ -238,7 +238,7 @@ export async function resolvePi(
     piPath = await realpath(pi.executable)
     if (!(await stat(piPath)).isFile()) return done(fail('pi', `${pi.executable} is not a file`))
   } catch (error) {
-    const missing = (error as NodeJS.ErrnoException).code === 'ENOENT'
+    const missing = errnoIs(error, 'ENOENT')
     return done(fail('pi', `${pi.executable} ${missing ? 'does not exist' : errorText(error)}`))
   }
   const script = await isNodeScript(piPath)

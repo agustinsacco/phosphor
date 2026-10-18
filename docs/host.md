@@ -208,7 +208,7 @@ Failed checks exit 69 or 78 and write nothing. An unchanged existing valid confi
 validated and published atomically before enrollment and service setup.
 An invalid one is left untouched
 with safe errors and exit 78. `--replace` rewrites it, keeping `hostId`,
-`contextBudget`, `environment.pass`, `accounts`, `control`, `api.port` and `resourceRoot`
+`contextBudget`, `environment.pass`, `accounts`, `control`, `api.port`, `api.webOrigin` and `resourceRoot`
 when the old config loads and validates. User-added PATH folders are also kept. Other settings are detected again;
 `autoNameLanes` and `allowRepositoryChanges` return to their default `true`.
 A broken old file is replaced with a note. A symlink is replaced, never written through.
@@ -438,6 +438,7 @@ variable directly names the config file.
 | `version`                | Required, exactly `1`.                                                                                                                                                              |
 | `autoNameLanes`          | Optional boolean, default `true`. Enables Host-generated lane names.                                                                                                                |
 | `allowRepositoryChanges` | Optional boolean, default `true`. Allows home-relative folder browsing and repository registration/removal.                                                                         |
+| `api.webOrigin`          | Optional exact browser origin or `null` to disable. Defaults to `https://phosphor-app.saccolabs.com` only with the canonical production control origin; otherwise disabled.         |
 | `api.port`               | Optional integer from 1024 to 65535, default 47615. Loopback and Tailscale Serve port.                                                                                              |
 | `hostId`                 | Optional. Defaults to the short hostname, made to fit the HostHello identifier pattern.                                                                                             |
 | `pi.executable`          | What `command -v pi` prints.                                                                                                                                                        |
@@ -609,6 +610,13 @@ runtime promises have not settled. A late settlement frees its slot.
 If recording a terminal receipt fails, it is still delivered, but receipt status
 stays `pending` until a Host restart marks it `unknown`.
 
+Every operation needs the capabilities `capabilityFor` names, read from the
+connection's current grant at submission and read again when the queued operation
+starts. An operation that lost one while queued, including on a closed
+connection, which has none, is recorded `forbidden` before any lane check or side
+effect. Repository, deletion, provider-login and terminal work check again after
+their awaits.
+
 [Protocol control and receipt rules](remote-protocol.md#frames-and-streams) own
 controller fences, takeover/release, client-scoped results and uncertain outcomes.
 The Host persists the fence before publishing control. If publication fails, the
@@ -682,7 +690,37 @@ tailnet. The Host does not listen directly on a Tailscale address or use Funnel.
 Ed25519 proof over the Host id, runtime epoch and challenge. It is unauthenticated,
 uncached and limited to ten requests per second. `/v1/stream` upgrades to a
 WebSocket. Only GET is accepted. Host headers must name localhost or 127.0.0.1
-with the configured port, or a `.ts.net` name. Any Origin header is refused.
+with the configured port, or a `.ts.net` name. Requests without Origin retain
+native-client admission. Browser requests must carry exactly one Origin matching
+`api.webOrigin`; the WebSocket upgrade checks this independently of HTTP CORS.
+
+### Browser admission
+
+With `control.url` absent or exactly `https://phosphor.saccolabs.com`, the default
+browser origin is `https://phosphor-app.saccolabs.com`. Other control origins
+have no browser admission unless explicitly configured. For example,
+`"api": { "port": 47615, "webOrigin": "http://localhost:5173" }` admits that
+local development app; `"api": { "port": 47615, "webOrigin": null }` disables
+browser admission even for production. If `api` is present, `port` remains required.
+
+The configured value must already equal its URL-serialized bare origin: HTTPS,
+or HTTP on literal `localhost`, `127.0.0.1` or `[::1]` only. No credentials,
+path (even `/`), query, fragment, whitespace, wildcard, list, `"null"`, default-port
+alias (such as `:443`), zero-padded port or alternate hostname spelling is accepted.
+Request matching is exact, not suffix-based; duplicate Origin fields are refused.
+Referer, forwarded headers, Tailscale identity headers and Sec-Fetch-Site do not
+authorize a caller.
+
+Successful allowed-browser hello responses include `Access-Control-Allow-Origin`
+for that single origin, `Vary: Origin` and `Cache-Control: no-store`; native hello
+responses have no allow-origin header. Fetch hello with `credentials: "omit"` and
+no custom headers. No credentialed CORS or OPTIONS preflight is supported (only
+GET). Browser grants travel in the first WebSocket auth frame, never a URL or
+subprotocol. Origin admission does not replace grant validation, enrolled Host
+challenge proof, renewals, capability checks, owner epoch or revocation fences.
+The listener, socket limits and deadlines are unchanged. TLS stays at Tailscale
+Serve, not at the loopback listener. This requires an updated Host release;
+older Hosts continue to deny browser requests.
 
 The first text frame must be `auth {grant, challenge}` within ten seconds.
 [Grant verification](remote-protocol.md#host-grants) and
@@ -1185,7 +1223,7 @@ process, not an already-running pi. Callers still cannot supply
 store. It mints one epoch for the streams and API. The API adapter owns receipt
 delivery and controller presence; composition supplies deferred ports for them.
 
-`lanes/runtime-host.ts` buffers startup pushes until creation knows the lane id,
+`lanes/runtime-host/lifecycle.ts` buffers startup pushes until creation knows the lane id,
 at most 256 pushes and 1 MiB per start. Overflow discards the whole buffer and
 logs only the lane id. Attachment replays the buffer and waits for the first full
 refresh, which resets viewers. Failed creation discards the buffer. Stopping a
@@ -1453,10 +1491,11 @@ The Nx project `host` has `typecheck` (`tsc --noEmit -p apps/host/tsconfig.json`
 `test` (`vitest run apps/host`) and `build` (`node apps/host/scripts/build.mjs`,
 output `apps/host/dist`), all uncached. It depends on the runtime,
 shared and pi-extensions libraries, and only `tooling` depends on it, so a
-Host-only change selects `host` and `tooling` and never releases Desktop. Root
-`npm run typecheck:host` and `npm run build:host` run in the validator and in
-CI's checks job; the unit tests, the bundle's included, run with every other
-suite in `npm test`.
+Host-only change selects `host` and `tooling` and never releases Desktop.
+The validator's `npm run typecheck` includes the Host project; it also runs
+`npm run build:host`. CI's checks job runs the comprehensive `npm run typecheck`,
+which includes the Host project, and `npm run build:host`; the unit tests, the bundle's included, run with every
+other suite in `npm test`.
 
 ## Machine features
 

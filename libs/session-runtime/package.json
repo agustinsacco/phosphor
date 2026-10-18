@@ -160,6 +160,10 @@
       "types": "./src/pi/session-startup.ts",
       "default": "./src/pi/session-startup.ts"
     },
+    "./pi/title-policy": {
+      "types": "./src/pi/title-policy.ts",
+      "default": "./src/pi/title-policy.ts"
+    },
     "./pi/versions": {
       "types": "./src/pi/versions.ts",
       "default": "./src/pi/versions.ts"
@@ -218,6 +222,7 @@
   },
   "dependencies": {
     "@phosphor/shared": "0.0.0",
-    "@phosphor/pi-extensions": "0.0.0"
+    "@phosphor/pi-extensions": "0.0.0",
+    "@phosphor/host-client": "0.0.0"
   }
 }

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, open, rename, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { IdentityFailure } from '../control/identity'
+import { errnoIs } from '../fs-safety'
 import { probe } from './probe'
 
 export const HOST_UNIT = 'phosphor-host.service'
@@ -42,13 +43,13 @@ export async function writeServiceUnit(path: string, text: string) {
     await rename(temp, path)
   } finally {
     await unlink(temp).catch((error: unknown) => {
-      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+      if (!(error instanceof Error && errnoIs(error, 'ENOENT'))) throw error
     })
   }
 }
 export async function removeServiceUnit(path: string) {
   await unlink(path).catch((error: unknown) => {
-    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+    if (!(error instanceof Error && errnoIs(error, 'ENOENT'))) throw error
   })
 }
 export interface ServiceResult {

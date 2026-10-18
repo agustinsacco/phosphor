@@ -1,8 +1,4 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { BrowserWindow, app, shell } from 'electron'
-// Type-only: erased at compile time, so the runtime import below stays lazy.
-import type * as ElectronUpdater from 'electron-updater'
 import { log } from '../debug-log'
 import { shutdownApproval } from '../shutdown-approval'
 import {
@@ -13,8 +9,13 @@ import {
   type UpdateState,
 } from './update-state'
 import {
-  bundlePathFromExe,
-  canSwapBundle,
+  computeUpdatePath,
+  macBundlePath,
+  manifestName,
+  type UpdatePathKind,
+} from './update-platform'
+import { checkWithUpdater, importUpdater, wireUpdaterEvents } from './updater-backend'
+import {
   discardStagedUpdate,
   parseMacManifest,
   pickMacZip,
@@ -48,6 +49,10 @@ import {
  *    package manager owns, or a macOS bundle we cannot write to. Detection
  *    still runs; the UI offers a link rather than promising a restart that
  *    would silently do nothing.
+ *
+ * `update-platform.ts` decides the path and `updater-backend.ts` drives
+ * electron-updater; this module owns the state, the macOS staging and the
+ * install.
  */
 
 const REPO = 'agustinsacco/Phosphor'
@@ -83,86 +88,15 @@ export function currentUpdateState(): UpdateState {
   return state
 }
 
-type UpdatePathKind = 'updater' | 'mac-self' | 'manual'
-
 /** Cached: the answer cannot change while the process runs, and it stats the disk. */
 let updatePathKind: UpdatePathKind | null = null
 
-/**
- * Which mechanism this install can use.
- *
- * CI stamps `phosphorSigned` into the packaged package.json only when the signing
- * secrets were present (and always for Linux, where AppImage self-updates
- * without signing). Reading a build-time flag beats probing at runtime: the
- * answer is known before the first check, so the UI never promises a restart
- * it cannot deliver.
- */
+/** Which mechanism this install can use, decided once per process. */
 async function resolveUpdatePath(): Promise<UpdatePathKind> {
   if (updatePathKind) return updatePathKind
   updatePathKind = await computeUpdatePath()
   log('updates', 'path resolved', { path: updatePathKind, platform: process.platform })
   return updatePathKind
-}
-
-async function computeUpdatePath(): Promise<UpdatePathKind> {
-  // deb/rpm installs are owned by the package manager; electron-updater cannot
-  // replace those files, and APPIMAGE is set only when running as an AppImage.
-  if (process.platform === 'linux') {
-    return process.env.APPIMAGE && readPackagedFlag() ? 'updater' : 'manual'
-  }
-  if (readPackagedFlag()) return 'updater'
-  if (process.platform !== 'darwin') return 'manual'
-
-  // Unsigned macOS. Self-install is possible only where the bundle is a real
-  // installed .app we are allowed to replace.
-  const bundle = macBundlePath()
-  if (!bundle) return 'manual'
-  return (await canSwapBundle(bundle)) ? 'mac-self' : 'manual'
-}
-
-function macBundlePath(): string | null {
-  return bundlePathFromExe(app.getPath('exe'))
-}
-
-function readPackagedFlag(): boolean | null {
-  try {
-    // `getAppPath()` is the asar root in a packaged app, which is where
-    // electron-builder writes the package.json its extraMetadata patched.
-    const raw = readFileSync(join(app.getAppPath(), 'package.json'), 'utf8')
-    const pkg = JSON.parse(raw) as { phosphorSigned?: boolean | string }
-    // CLI-injected metadata arrives as the STRING "true", not a boolean.
-    return pkg.phosphorSigned === true || pkg.phosphorSigned === 'true'
-  } catch {
-    return null
-  }
-}
-
-/**
- * `electron-updater` is CommonJS and the packaged main bundle is ESM
- * (`"type": "module"`), so its exports arrive under `.default`. Destructuring
- * `autoUpdater` off the namespace yields **undefined** — Node's lexer lists the
- * name but the value is a lazy getter that only exists on the CJS exports
- * object. The result was `TypeError: Cannot set properties of undefined
- * (setting 'autoDownload')` on the very first check in a packaged build, i.e.
- * self-updating never worked outside dev, where this file is short-circuited.
- */
-async function importUpdater(): Promise<typeof ElectronUpdater> {
-  const mod = (await import('electron-updater')) as unknown as {
-    default?: typeof ElectronUpdater
-  } & typeof ElectronUpdater
-  return mod.default ?? mod
-}
-
-/**
- * electron-builder names the manifest per platform AND per non-primary arch:
- * an arm64 Linux build publishes `latest-linux-arm64.yml` alongside the x64
- * `latest-linux.yml`. Polling the x64 file on arm64 happened to work only
- * because every arch of a release carries the same version number.
- */
-function manifestName(): string {
-  if (process.platform === 'darwin') return 'latest-mac.yml'
-  if (process.platform === 'win32') return 'latest.yml'
-  return process.arch === 'arm64' ? 'latest-linux-arm64.yml' : 'latest-linux.yml'
 }
 
 /** A static asset on the release, not the API: no auth, no rate limit. */
@@ -261,42 +195,6 @@ async function checkMacSelf(): Promise<void> {
   }
 }
 
-async function checkWithUpdater(): Promise<void> {
-  apply({ type: 'check-started' })
-  try {
-    const { autoUpdater } = await importUpdater()
-    await autoUpdater.checkForUpdates()
-  } catch (error) {
-    console.warn('[Phosphor] update check failed:', error)
-    apply({ type: 'error' })
-  }
-}
-
-async function wireUpdaterEvents(): Promise<void> {
-  const { autoUpdater } = await importUpdater()
-
-  // Downloading is automatic; INSTALLING never is. Nothing in this module
-  // calls quitAndInstall on a timer — only an explicit user click does.
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = false
-  autoUpdater.logger = null
-
-  autoUpdater.on('update-available', (info: { version: string }) => {
-    apply({ type: 'update-available', version: info.version })
-  })
-  autoUpdater.on('update-not-available', () => apply({ type: 'update-not-available' }))
-  autoUpdater.on('download-progress', (progress: { percent: number }) => {
-    apply({ type: 'download-progress', percent: progress.percent })
-  })
-  autoUpdater.on('update-downloaded', (info: { version: string }) => {
-    apply({ type: 'update-downloaded', version: info.version })
-  })
-  autoUpdater.on('error', (error: Error) => {
-    console.warn('[Phosphor] updater error:', error.message)
-    apply({ type: 'error' })
-  })
-}
-
 /** Check now, on whichever path this install supports. */
 export async function checkForUpdates(): Promise<void> {
   if (!app.isPackaged) return
@@ -307,7 +205,7 @@ export async function checkForUpdates(): Promise<void> {
   try {
     switch (await resolveUpdatePath()) {
       case 'updater':
-        await checkWithUpdater()
+        await checkWithUpdater(apply)
         break
       case 'mac-self':
         await checkMacSelf()
@@ -337,7 +235,7 @@ export function startUpdateChecks(): void {
   // degrade this module promises everywhere else.
   void (async () => {
     await sweepMacOrphans()
-    if ((await resolveUpdatePath()) === 'updater') await wireUpdaterEvents()
+    if ((await resolveUpdatePath()) === 'updater') await wireUpdaterEvents(apply)
     await checkForUpdates()
   })().catch((error: unknown) => {
     console.warn('[Phosphor] update init failed:', error)

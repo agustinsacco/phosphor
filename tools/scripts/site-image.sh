@@ -13,10 +13,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-docker build -f apps/control/Dockerfile -t "$name" .
+docker build -f apps/control/Dockerfile \
+  --build-arg PHOSPHOR_WEB_ENABLED="${PHOSPHOR_WEB_ENABLED:-false}" -t "$name" .
 built=true
 container=$(docker create --name "$name" --read-only --cap-drop ALL \
   --security-opt no-new-privileges --user 1000:1000 \
+  -e CONTROL_WEB_ORIGIN=https://phosphor-app.example -e WEB_DIR=/app/web \
+  -e CONTROL_WEB_SESSION_KEYS=fixture=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA \
   -p 127.0.0.1::5015 "$name")
 docker start "$container" >/dev/null
 port=$(docker port "$container" 5015/tcp)
@@ -50,6 +53,11 @@ request / 200
 header x-content-type-options nosniff
 header referrer-policy strict-origin-when-cross-origin
 grep '<title>' "$work/body" >/dev/null
+if [ "${PHOSPHOR_WEB_ENABLED:-false}" = true ]; then
+  grep -F 'href="https://phosphor-app.saccolabs.com/"' "$work/body" >/dev/null
+else
+  ! grep -F 'href="https://phosphor-app.saccolabs.com/"' "$work/body" >/dev/null
+fi
 request /api/v1/health 200
 api_headers
 jq -e '.ok == true and .configured == false' "$work/body" >/dev/null
@@ -70,6 +78,30 @@ if grep -Eiq '^access-control-allow-origin:|^content-type: application/json' "$w
 fi
 request /guides/claude-code 301
 header location /guides/accounts/
+
+# Synthetic session key only. The API stays unconfigured and cannot authenticate.
+# Prove the shipped Web files and site remain isolated on the same listener.
+web_host='Host: phosphor-app.example'
+request / 200 -H "$web_host"
+header cache-control no-store
+header x-frame-options DENY
+header referrer-policy no-referrer
+grep 'id="root"' "$work/body" >/dev/null
+grep -F "frame-src blob:" "$work/clean-headers" >/dev/null
+if grep -F 'frame-ancestors' "$work/clean-headers"; then
+  echo 'App CSP would prevent WebKit Blob previews' >&2
+  exit 1
+fi
+request /manifest.webmanifest 200 -H "$web_host"
+header content-type 'application/manifest\+json'
+jq -e '.start_url == "/" and .display == "standalone"' "$work/body" >/dev/null
+request /sw.js 200 -H "$web_host"
+header cache-control no-store
+header content-type 'application/javascript(;.*)?'
+request /sw.js 404
+request /server.mjs 404 -H "$web_host"
+request /api/auth/session 503 -H "$web_host"
+api_headers
 
 SITE_TEST_URL="$url" npm test --prefix apps/site
 echo 'Combined image API and site browser checks passed'

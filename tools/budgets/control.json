@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "package": "control",
+  "offenders": {
+    "src/routes/enrollments.ts::enrollments[1]": 159,
+    "src/routes/grants.test.ts::it[1]": 99,
+    "src/routes/grants.ts::grants[1]": 115,
+    "src/routes/stack.test.ts::%3Canonymous%3E[1]/it[1]": 277,
+    "src/static.ts::serveStatic[1]": 141,
+    "src/app.ts::createApp[1]": 84,
+    "src/web/auth.test.ts::fixture[1]": 94,
+    "src/web/auth.ts::browserAuth[1]": 150,
+    "src/web/auth.ts::browserAuth[1]/routes[1]": 100
+  },
+  "exemptions": [],
+  "renames": {}
+}

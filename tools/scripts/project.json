@@ -9,10 +9,13 @@
     "host",
     "control",
     "runtime",
+    "host-client",
     "shared",
     "pi-extensions",
     "site",
-    "schema"
+    "schema",
+    "client-ui",
+    "web"
   ],
   "targets": {
     "typecheck": {
@@ -20,7 +23,7 @@
       "cache": false,
       "inputs": ["workspace"],
       "options": {
-        "command": "tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p apps/desktop/tsconfig.web.json && tsc --noEmit -p apps/host/tsconfig.json && tsc --noEmit -p apps/control/tsconfig.json",
+        "command": "node tools/scripts/typecheck.mjs",
         "cwd": "."
       },
       "outputs": []

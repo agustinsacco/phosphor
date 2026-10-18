@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./status-keys": {
+      "types": "./pi-ext/status-keys.ts",
+      "default": "./pi-ext/status-keys.ts"
+    },
     "./subagent-snapshot": {
       "types": "./pi-ext/subagent-snapshot.ts",
       "default": "./pi-ext/subagent-snapshot.ts"
@@ -55,6 +59,10 @@
     "./worktree-paths": {
       "types": "./pi-ext/worktree-paths.ts",
       "default": "./pi-ext/worktree-paths.ts"
+    },
+    "./pi-api": {
+      "types": "./pi-ext/pi-api.ts",
+      "default": "./pi-ext/pi-api.ts"
     }
   },
   "dependencies": {

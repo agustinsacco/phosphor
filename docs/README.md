@@ -27,6 +27,7 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 | [desktop-build.md](desktop-build.md)           | Desktop paths, native install ownership and packaging                   |
 | [installations.md](installations.md)           | Dependency domains, scoped source closure and bundling                  |
 | [nx-cache.md](nx-cache.md)                     | Local check cache inputs, exclusions and task resource bounds           |
+| [testing.md](testing.md)                       | Test layout, frozen interfaces, coverage evidence and CI guardrails     |
 | [pi-integration.md](pi-integration.md)         | pi's RPC protocol and session format                                    |
 | [host.md](host.md)                             | Host CLI, machine identity, environment, checks and acceptance sessions |
 | [remote-access.md](remote-access.md)           | Remote entry point, end-to-end flow and trust boundaries                |
@@ -39,6 +40,8 @@ Start with **[Remote access](remote-access.md)** for the three parts, setup,
 a lane's end-to-end flow and trust boundaries. Local Desktop works without
 sign-in; remote lanes connect directly to an enrolled Host over private Tailscale,
 not through control.
+
+The [Web client](web-client.md) contract covers the compact PWA, shared renderer, browser adapter, offline cache and deployment prerequisites.
 
 ## The surfaces
 

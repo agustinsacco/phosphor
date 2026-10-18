@@ -1,14 +1,29 @@
 import {
   HOST_LIMITS,
-  parseHostFrame,
-  type AttentionEvent,
-  type HostFrame,
-  type LaneEvent,
   type LaneSummary,
   type RepositorySummary,
-  type StreamCursor,
 } from '@phosphor/shared/host-protocol'
 import type { SnapshotResult } from './projection-host'
+import {
+  createLaneStreamState,
+  forgetLane,
+  laneCursor,
+  listenLane,
+  publishLane,
+  replayLane,
+  resetLane,
+} from './stream/lane'
+import {
+  createLanesTopicState,
+  listenTopic,
+  publishAttention,
+  publishDelta,
+  replayAttention,
+  repositoriesChanged,
+  routinesChanged,
+  topicCursor,
+  topicSnapshot,
+} from './stream/topic'
 
 export type StreamLimits = {
   [
@@ -44,67 +59,7 @@ export function streamLimits(input: Partial<StreamLimits> = {}): StreamLimits {
   return limits
 }
 
-type LaneFrame = Omit<Extract<HostFrame, { type: 'event' }>, 'id'>
-type TopicFrame =
-  | Omit<Extract<HostFrame, { type: 'routines-changed' }>, 'id'>
-  | Omit<Extract<HostFrame, { type: 'lanes-delta' }>, 'id'>
-  | Omit<Extract<HostFrame, { type: 'attention' }>, 'id'>
-type Listener<T> = (frame: T | null) => void
 export type StreamLog = (message: string, data: { laneId: string } | { topic: 'lanes' }) => void
-function notify<T>(listeners: Set<Listener<T>>, frame: T | null) {
-  // New subscribers start at the current cursor, never with this in-flight frame.
-  for (const listener of [...listeners]) {
-    if (!listeners.has(listener)) continue
-    try {
-      listener(frame)
-    } catch {
-      /* A viewer never stops another viewer or pi. */
-    }
-  }
-}
-
-function dispatch<T>(listeners: Set<Listener<T>>, limit: number, overflow: () => void) {
-  const queue: (T | null)[] = []
-  let dispatching = false
-  let pending = false
-  const deliver = (frame: T | null) => {
-    if (pending) return
-    queue.push(frame)
-    if (queue.length > limit) deferReset()
-    if (dispatching || pending) return
-    dispatching = true
-    let drained = 0
-    try {
-      while (queue.length && !pending) {
-        if (++drained > limit) {
-          deferReset()
-          break
-        }
-        const next = queue.shift()
-        if (next !== undefined) notify(listeners, next)
-      }
-    } finally {
-      dispatching = false
-    }
-  }
-  function deferReset() {
-    queue.length = 0
-    pending = true
-    overflow()
-    setImmediate(() => {
-      pending = false
-      deliver(null)
-    })
-  }
-  return deliver
-}
-function overflow(log: StreamLog | undefined, data: Parameters<StreamLog>[1]) {
-  try {
-    log?.('lane.stream_reentrant_overflow', data)
-  } catch {
-    /* Safe metadata only. */
-  }
-}
 
 export function createLaneStreams(options: {
   epoch: string
@@ -113,86 +68,19 @@ export function createLaneStreams(options: {
   log?: StreamLog
 }) {
   if (!/^[0-9a-f]{16}$/.test(options.epoch)) throw new Error('invalid stream epoch')
-  const limits = streamLimits(options.limits)
-  const lanes = new Map<
-    string,
-    {
-      seq: number
-      bytes: number
-      replay: { frame: LaneFrame; bytes: number }[]
-      listeners: Set<Listener<LaneFrame>>
-      deliver(frame: LaneFrame | null): void
-    }
-  >()
-  function lane(id: string) {
-    let value = lanes.get(id)
-    if (!value) {
-      if (lanes.size >= limits.lanesPerHost) throw new Error('stream lane capacity reached')
-      const listeners = new Set<Listener<LaneFrame>>()
-      value = {
-        seq: 0,
-        bytes: 0,
-        replay: [],
-        listeners,
-        deliver: dispatch(listeners, limits.replayEvents, () =>
-          overflow(options.log, { laneId: id }),
-        ),
-      }
-      lanes.set(id, value)
-    }
-    return value
-  }
-  const cursor = (laneId: string): StreamCursor => ({
+  const state = createLaneStreamState({
     epoch: options.epoch,
-    seq: lanes.get(laneId)?.seq ?? 0,
+    limits: streamLimits(options.limits),
+    log: options.log,
   })
   return {
-    cursor,
+    cursor: laneCursor.bind(null, state),
     snapshot: options.snapshot,
-    publish(laneId: string, event: LaneEvent): StreamCursor {
-      const value = lane(laneId)
-      if (value.seq === Number.MAX_SAFE_INTEGER) throw new Error('stream sequence exhausted')
-      const frame: LaneFrame = {
-        type: 'event',
-        laneId,
-        cursor: { epoch: options.epoch, seq: ++value.seq },
-        event,
-      }
-      const bytes = Buffer.byteLength(JSON.stringify(frame))
-      value.replay.push({ frame, bytes })
-      value.bytes += bytes
-      while (value.replay.length > limits.replayEvents || value.bytes > limits.replayBytes) {
-        const old = value.replay.shift()
-        if (old) value.bytes -= old.bytes
-      }
-      value.deliver(frame)
-      return frame.cursor
-    },
-    replay(laneId: string, after: StreamCursor): readonly LaneFrame[] | null {
-      const value = lanes.get(laneId)
-      const current = cursor(laneId)
-      const first = value?.replay[0]?.frame.cursor.seq ?? current.seq + 1
-      if (after.epoch !== options.epoch || after.seq > current.seq || after.seq < first - 1)
-        return null
-      return (
-        value?.replay.filter((entry) => entry.frame.cursor.seq > after.seq).map((e) => e.frame) ??
-        []
-      )
-    },
-    listen(laneId: string, listener: Listener<LaneFrame>): () => void {
-      const value = lane(laneId)
-      value.listeners.add(listener)
-      return () => value.listeners.delete(listener)
-    },
-    reset(laneId: string) {
-      const value = lanes.get(laneId)
-      if (value) value.deliver(null)
-    },
-    forget(laneId: string) {
-      const value = lanes.get(laneId)
-      lanes.delete(laneId)
-      if (value) value.deliver(null)
-    },
+    publish: publishLane.bind(null, state),
+    replay: replayLane.bind(null, state),
+    listen: listenLane.bind(null, state),
+    reset: resetLane.bind(null, state),
+    forget: forgetLane.bind(null, state),
   }
 }
 export type LaneStreams = ReturnType<typeof createLaneStreams>
@@ -205,78 +93,16 @@ export function createLanesTopic(options: {
   log?: StreamLog
 }) {
   if (!/^[0-9a-f]{16}$/.test(options.epoch)) throw new Error('invalid stream epoch')
-  const limits = streamLimits(options.limits)
-  let seq = 0
-  const listeners = new Set<Listener<TopicFrame>>()
-  const deliver = dispatch(listeners, limits.replayEvents, () =>
-    overflow(options.log, { topic: 'lanes' }),
-  )
-  const attention: Extract<TopicFrame, { type: 'attention' }>[] = []
-  const cursor = (): StreamCursor => ({ epoch: options.epoch, seq })
-  function next(): StreamCursor {
-    if (seq === Number.MAX_SAFE_INTEGER) throw new Error('stream sequence exhausted')
-    seq++
-    return cursor()
-  }
-  function valid(frame: TopicFrame): boolean {
-    try {
-      if (parseHostFrame(JSON.stringify({ ...frame, id: 'check' })).ok) return true
-    } catch {
-      /* Fail closed. */
-    }
-    const ids =
-      frame.type === 'attention'
-        ? [frame.event.laneId]
-        : frame.type === 'lanes-delta'
-          ? frame.upsert.map((s) => s.laneId)
-          : []
-    for (const id of ids) {
-      try {
-        options.invalid?.(id)
-      } catch {
-        /* Logging cannot stop pi. */
-      }
-    }
-    return false
-  }
+  const state = createLanesTopicState({ ...options, limits: streamLimits(options.limits) })
   return {
-    cursor,
-    snapshot: () => ({ type: 'lanes' as const, cursor: cursor(), ...options.list() }),
-    repositoriesChanged() {
-      deliver(null)
-    },
-    routinesChanged() {
-      deliver({ type: 'routines-changed', cursor: next() })
-    },
-    delta(upsert: readonly LaneSummary[], remove: readonly string[] = []) {
-      if (
-        !valid({
-          type: 'lanes-delta',
-          cursor: { epoch: options.epoch, seq: seq + 1 },
-          upsert,
-          remove,
-        })
-      )
-        return
-      deliver({ type: 'lanes-delta', cursor: next(), upsert, remove })
-    },
-    attention(event: AttentionEvent) {
-      if (!valid({ type: 'attention', cursor: { epoch: options.epoch, seq: seq + 1 }, event }))
-        return
-      const frame = { type: 'attention' as const, cursor: next(), event }
-      attention.push(frame)
-      if (attention.length > limits.attentionReplay) attention.shift()
-      deliver(frame)
-    },
-    replay(after?: StreamCursor): readonly Extract<TopicFrame, { type: 'attention' }>[] {
-      return after?.epoch === options.epoch
-        ? attention.filter((frame) => frame.cursor.seq > after.seq)
-        : []
-    },
-    listen(listener: Listener<TopicFrame>): () => void {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
+    cursor: topicCursor.bind(null, state),
+    snapshot: topicSnapshot.bind(null, state),
+    repositoriesChanged: repositoriesChanged.bind(null, state),
+    routinesChanged: routinesChanged.bind(null, state),
+    delta: publishDelta.bind(null, state),
+    attention: publishAttention.bind(null, state),
+    replay: replayAttention.bind(null, state),
+    listen: listenTopic.bind(null, state),
   }
 }
 export type LanesTopic = ReturnType<typeof createLanesTopic>

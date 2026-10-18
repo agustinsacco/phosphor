@@ -1,20 +1,16 @@
-import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs'
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { gzipSync } from 'node:zlib'
 import type { UpdateContext } from '../../commands/update'
 import type { HostReleaseManifest } from '@phosphor/shared/host-release'
+import {
+  createReleaseMirror,
+  installCurrent,
+  installVersion,
+  publishRelease,
+} from './release-files'
 
 export interface Entry {
   name: string
@@ -61,24 +57,11 @@ export function bundle(version = '1.2.3'): Buffer {
 export function fixture() {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'host-update-')))
   const lib = join(home, '.local/lib/phosphor-host')
-  const assets = join(home, 'assets')
-  mkdirSync(assets)
-  const key = join(home, 'throwaway')
-  execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key])
-  const keys = [{ id: 'test', publicKey: readFileSync(key + '.pub', 'utf8').trim() }]
+  const mirror = createReleaseMirror(home)
+  const { assets, keys } = mirror
   const messages: string[] = []
-  const install = (version: string) => {
-    const folder = join(lib, 'versions', version)
-    for (const name of ['VERSION', 'bin/phosphor', 'node/bin/node', 'lib/phosphor.mjs']) {
-      mkdirSync(join(folder, name, '..'), { recursive: true })
-      writeFileSync(join(folder, name), name === 'VERSION' ? version + '\n' : 'test')
-    }
-    return folder
-  }
-  const old = install('1.0.0')
-  symlinkSync('versions/1.0.0', join(lib, 'current'))
-  mkdirSync(join(home, '.local/bin'), { recursive: true })
-  symlinkSync(join(lib, 'current/bin/phosphor'), join(home, '.local/bin/phosphor'))
+  const install = (version: string) => installVersion(lib, version)
+  const old = installCurrent(home, lib)
   const context: UpdateContext = {
     home,
     nodeVersion: process.versions.node,
@@ -98,36 +81,7 @@ export function fixture() {
     bytes = bundle(version),
     change: (m: HostReleaseManifest) => void = () => {},
     request?: string,
-  ) => {
-    const file = `phosphor-host-${version}-linux-x64.tar.gz`
-    const manifest: HostReleaseManifest = {
-      schema: 1,
-      version,
-      protocols: [1],
-      node: '24.14.1',
-      sourceCommit: 'a'.repeat(40),
-      artifacts: [
-        {
-          target: 'linux-x64',
-          file,
-          bytes: bytes.length,
-          sha256: createHash('sha256').update(bytes).digest('hex'),
-        },
-      ],
-    }
-    change(manifest)
-    const path = join(
-      assets,
-      request ? `phosphor-host-${request}.manifest.json` : 'phosphor-host.manifest.json',
-    )
-    writeFileSync(path, JSON.stringify(manifest) + '\n')
-    rmSync(path + '.sig', { force: true })
-    execFileSync('ssh-keygen', ['-Y', 'sign', '-f', key, '-n', 'phosphor-host-release', path], {
-      stdio: 'pipe',
-    })
-    writeFileSync(join(assets, file), bytes)
-    return path
-  }
+  ) => publishRelease(mirror, version, bytes, change, request)
   return {
     home,
     lib,

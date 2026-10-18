@@ -1,4 +1,5 @@
-import type { ThinkingLevel, ThinkingLevelMap } from './rpc'
+import type { ThinkingLevelMap } from './rpc'
+import { parseModelCost, parseModelThinkingLevelMap } from './host-protocol-machine/model-fields'
 
 /** Read-only machine methods. No executable, environment or filesystem root comes from a client. */
 export const MACHINE_LIMITS = { models: 1000, skills: 500, textBytes: 2 * 1024 * 1024 } as const
@@ -100,50 +101,12 @@ export function parseMachineModels(v: unknown): MachineModel[] | null {
         !m.input.every((x) => x === 'text' || x === 'image'))
     )
       return null
-    let thinkingLevelMap: ThinkingLevelMap | null | undefined
-    if (m.thinkingLevelMap !== undefined) {
-      if (m.thinkingLevelMap === null) thinkingLevelMap = null
-      else {
-        const map = m.thinkingLevelMap
-        const levels: readonly ThinkingLevel[] = [
-          'off',
-          'minimal',
-          'low',
-          'medium',
-          'high',
-          'xhigh',
-          'max',
-        ]
-        if (
-          !machineRecord(map) ||
-          Object.keys(map).some((key) => !levels.some((level) => level === key))
-        )
-          return null
-        thinkingLevelMap = {}
-        for (const level of levels) {
-          const value = map[level]
-          if (value === undefined) continue
-          if (value !== null && !text(value, 100)) return null
-          thinkingLevelMap[level] = value
-        }
-      }
-    }
-    let cost: MachineModel['cost']
-    if (m.cost !== undefined) {
-      const c = m.cost
-      if (
-        !machineRecord(c) ||
-        ![c.input, c.output, c.cacheRead, c.cacheWrite].every(
-          (x) => typeof x === 'number' && Number.isFinite(x) && x >= 0,
-        ) ||
-        typeof c.input !== 'number' ||
-        typeof c.output !== 'number' ||
-        typeof c.cacheRead !== 'number' ||
-        typeof c.cacheWrite !== 'number'
-      )
-        return null
-      cost = { input: c.input, output: c.output, cacheRead: c.cacheRead, cacheWrite: c.cacheWrite }
-    }
+    const thinkingLevelMapResult = parseModelThinkingLevelMap(m.thinkingLevelMap)
+    if (!thinkingLevelMapResult.ok) return null
+    const costResult = parseModelCost(m.cost)
+    if (!costResult.ok) return null
+    const thinkingLevelMap = thinkingLevelMapResult.value
+    const cost = costResult.value
     models.push({
       id: m.id,
       name: m.name,

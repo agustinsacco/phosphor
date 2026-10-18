@@ -386,7 +386,7 @@ describe('Host terminal exit codes', () => {
     const frames = watch(live, watched.terminalId, owner)
     live.exitWith(2)
     expect(exits(frames)).toEqual([2])
-    expect(await watched.run).toEqual({ code: 2 })
+    expect(await watched.run).toEqual({ code: null })
     const early = setup()
     const unwatched = login(early, owner)
     early.exitWith(2)

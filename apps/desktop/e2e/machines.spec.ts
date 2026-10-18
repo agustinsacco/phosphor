@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { accountControlFixture } from './fixtures/account-control'
 import { captures } from './fixtures/remote-ui'
 import { REMOTE_TEST_TIMEOUT } from './fixtures/remote-host'
-import { MACHINE } from '../src/features/machines/__fixtures__/control'
+import { MACHINE } from '../../../libs/client-ui/src/features/machines/__fixtures__/control'
 
 test('Machines is always available, shows only this computer while signed out, and Settings owns feedback', async () => {
   const h = await accountControlFixture()

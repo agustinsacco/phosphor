@@ -1,5 +1,68 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
+import reactHooks from 'eslint-plugin-react-hooks'
+
+const rendererFiles = [
+  'apps/desktop/src/**/*.{ts,tsx}',
+  'apps/desktop/test/renderer/**/*.{ts,tsx}',
+  'libs/client-ui/src/**/*.{ts,tsx}',
+  'apps/web/src/**/*.{ts,tsx}',
+]
+
+// no-restricted-syntax must stay an error for prompt; this separate rule stages
+// the nested RPC escape hatch as a warning, including computed literal access.
+const phosphor = {
+  rules: {
+    'no-raw-pi-command': {
+      meta: {
+        type: 'problem',
+        schema: [],
+        messages: { rawRpc: 'Use piCall()/piCallOk() from @/lib/rpc to handle RPC failures.' },
+      },
+      create(context) {
+        // `(window as X).phosphor!.piCommand` is the same access: see through TS wrappers.
+        function unwrap(node) {
+          while (
+            node.type === 'TSAsExpression' ||
+            node.type === 'TSNonNullExpression' ||
+            node.type === 'TSSatisfiesExpression'
+          )
+            node = node.expression
+          return node
+        }
+        function keyIs(property, name) {
+          if (property.type === 'Literal') return property.value === name
+          return (
+            property.type === 'TemplateLiteral' &&
+            property.expressions.length === 0 &&
+            property.quasis[0]?.value.cooked === name
+          )
+        }
+        function memberNamed(node, name) {
+          node = unwrap(node)
+          return (
+            node.type === 'MemberExpression' &&
+            (node.computed
+              ? keyIs(node.property, name)
+              : node.property.type === 'Identifier' && node.property.name === name)
+          )
+        }
+        return {
+          MemberExpression(node) {
+            if (
+              memberNamed(node, 'piCommand') &&
+              memberNamed(node.object, 'phosphor') &&
+              unwrap(unwrap(node.object).object).type === 'Identifier' &&
+              unwrap(unwrap(node.object).object).name === 'window'
+            ) {
+              context.report({ node, messageId: 'rawRpc' })
+            }
+          },
+        }
+      },
+    },
+  },
+}
 
 export default tseslint.config(
   {
@@ -15,6 +78,7 @@ export default tseslint.config(
       'apps/site/dist/**',
       'apps/host/dist/**',
       'apps/control/dist/**',
+      'apps/web/dist/**',
       'apps/site/shots-raw/**',
       'apps/site/test-results/**',
       'apps/site/playwright-report/**',
@@ -33,8 +97,12 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/desktop/src/**/*.{ts,tsx}'],
+    files: rendererFiles,
+    plugins: { 'react-hooks': reactHooks },
     rules: {
+      // Warnings are an inventory for app owners, not a cleanup or a CI budget.
+      'react-hooks/rules-of-hooks': 'warn',
+      'react-hooks/exhaustive-deps': 'warn',
       // Electron overrides window.prompt to throw "prompt() is not supported."
       // — every renderer prompt must go through promptText (stores/prompt.ts).
       'no-restricted-syntax': [
@@ -45,6 +113,58 @@ export default tseslint.config(
             'window.prompt throws in Electron. Use promptText()/presentText() from @/stores/prompt.',
         },
       ],
+    },
+  },
+  {
+    files: rendererFiles,
+    // Tests mock window.confirm on purpose; enforce app choices in production.
+    ignores: ['**/*.test.{ts,tsx}', 'apps/desktop/test/renderer/**'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'window',
+          property: 'confirm',
+          message: 'Use an in-app confirmation dialog instead of window.confirm.',
+        },
+      ],
+    },
+  },
+  {
+    files: rendererFiles,
+    ignores: [
+      // The wrapper owns envelope handling; tests deliberately mock the raw API.
+      'libs/client-ui/src/lib/rpc.ts',
+      '**/*.test.{ts,tsx}',
+      'apps/desktop/test/renderer/**',
+    ],
+    plugins: { phosphor },
+    rules: { 'phosphor/no-raw-pi-command': 'warn' },
+  },
+  {
+    // Main/preload and libraries have owning TS projects. Keep renderer, Host,
+    // e2e and tooling syntax-only; never allow a fallback untyped/default project.
+    files: ['apps/desktop/electron/**/*.ts', 'apps/desktop/test/main/**/*.ts', 'libs/**/*.ts'],
+    ignores: ['libs/client-ui/**', 'libs/host-client/**'],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'warn',
+      '@typescript-eslint/no-misused-promises': 'warn',
+    },
+  },
+  {
+    files: ['libs/host-client/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: './libs/host-client/tsconfig.tests.json',
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'warn',
+      '@typescript-eslint/no-misused-promises': 'warn',
     },
   },
   {

@@ -1,6 +1,7 @@
 import { expect, it, vi, type Mock } from 'vitest'
 const main = vi.hoisted(() => ({ handle: vi.fn() }))
 vi.mock('electron', () => ({ ipcMain: main }))
+vi.mock('./sender-policy', () => ({ admitSender: () => undefined }))
 import type { IpcInvokeChannel } from '@shared/ipc'
 import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
 import { handle, rejectRemoteArguments, setRemoteReadRouter } from './handle'

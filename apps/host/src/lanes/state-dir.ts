@@ -9,6 +9,7 @@ import {
   openSync,
 } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
+import { errnoIs, isOwnerPrivate } from '../fs-safety'
 
 export class StateFailure extends Error {
   constructor(
@@ -32,13 +33,13 @@ export function prepareStateDirectory(directory: string, uid: number | undefined
       lstatSync(path)
       return
     } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+      if (!(error instanceof Error && errnoIs(error, 'ENOENT'))) throw error
     }
     create(dirname(path))
     try {
       mkdirSync(path, { mode: 0o700 })
     } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'EEXIST') return
+      if (error instanceof Error && errnoIs(error, 'EEXIST')) return
       throw error
     }
     // umask may remove owner permissions too. Restore before making a child.
@@ -47,12 +48,7 @@ export function prepareStateDirectory(directory: string, uid: number | undefined
   try {
     create(directory)
   } catch (error) {
-    if (!(
-      error instanceof Error &&
-      'code' in error &&
-      (error.code === 'EEXIST' || error.code === 'ENOTDIR' || error.code === 'ELOOP')
-    ))
-      throw error
+    if (!(error instanceof Error && errnoIs(error, 'EEXIST', 'ENOTDIR', 'ELOOP'))) throw error
     throw new StateFailure(
       directory,
       78,
@@ -60,13 +56,7 @@ export function prepareStateDirectory(directory: string, uid: number | undefined
     )
   }
   const info = lstatSync(directory)
-  if (
-    !info.isDirectory() ||
-    info.isSymbolicLink() ||
-    uid === undefined ||
-    info.uid !== uid ||
-    info.mode & 0o077
-  )
+  if (!info.isDirectory() || info.isSymbolicLink() || !isOwnerPrivate(info, uid))
     throw new StateFailure(
       directory,
       78,
@@ -87,9 +77,9 @@ export function prepareStateFile(directory: string, uid: number | undefined): st
     )
     created = true
   } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+    if (!(error instanceof Error && errnoIs(error, 'EEXIST'))) throw error
     const info = lstatSync(path)
-    if (!info.isFile() || info.isSymbolicLink() || info.uid !== uid || info.mode & 0o077)
+    if (!info.isFile() || info.isSymbolicLink() || !isOwnerPrivate(info, uid))
       throw new StateFailure(
         directory,
         78,
@@ -100,7 +90,7 @@ export function prepareStateFile(directory: string, uid: number | undefined): st
   try {
     if (created) fchmodSync(file, 0o600)
     const info = fstatSync(file)
-    if (!info.isFile() || info.uid !== uid || info.mode & 0o077)
+    if (!info.isFile() || !isOwnerPrivate(info, uid))
       throw new StateFailure(
         directory,
         78,
@@ -113,14 +103,14 @@ export function prepareStateFile(directory: string, uid: number | undefined): st
   for (const suffix of ['-wal', '-shm']) {
     try {
       const info = lstatSync(path + suffix)
-      if (!info.isFile() || info.isSymbolicLink() || info.uid !== uid || info.mode & 0o077)
+      if (!info.isFile() || info.isSymbolicLink() || !isOwnerPrivate(info, uid))
         throw new StateFailure(
           directory,
           78,
           'Unsafe SQLite sidecar. Use owned regular files, no symlinks, chmod 600.',
         )
     } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+      if (!(error instanceof Error && errnoIs(error, 'ENOENT'))) throw error
     }
   }
   return path

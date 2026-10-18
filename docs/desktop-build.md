@@ -11,7 +11,7 @@ Desktop directory; packaged `app.getAppPath()` is the application asar.
 ## Installation domains
 
 `npm ci` at the root installs shared tooling, then its postinstall invokes
-`npm ci --prefix apps/desktop`. Desktop has its own manifest, lockfile and real
+`npm ci --prefix apps/desktop`, then the independently locked Control and Web installs. Desktop has its own manifest, lockfile and real
 `node_modules` directory. Its postinstall bootstraps Electron serially with the local `install-electron`
 command, then runs `electron-builder install-app-deps`
 and the app-anchored spawn-helper repair. `npm run rebuild --prefix apps/desktop`
@@ -19,14 +19,14 @@ explicitly rebuilds node-pty for Electron and repeats that repair.
 Root has no node-pty, Electron or Electron rebuild lifecycle of its own.
 Failures in the nested app install propagate to the root install.
 
-The root lock includes only the three private source-library workspaces.
+The root lock includes the five private source-library workspaces.
 Nonnative JavaScript dependencies remain in the root installation for portable
-library tests as well as in Desktop. Desktop and the site keep independent
+library tests as well as in Desktop. Desktop, Control, Web and the site keep independent
 installations and lockfiles; this is bounded library consolidation, not one
 application install domain. The supported scoped source-production recipe must
 suppress root install scripts, as specified in [installations.md](installations.md).
 Renderer
-and browser builds deduplicate the source libraries' luxon/cron-parser imports
+and browser builds deduplicate React/React DOM/zustand and the source libraries' luxon/cron-parser imports
 onto the application's copies. Private source libraries are bundled, not
 runtime workspace links.
 

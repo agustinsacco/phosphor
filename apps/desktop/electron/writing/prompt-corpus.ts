@@ -1,6 +1,5 @@
-import { appendFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import { isLearnablePrompt, MAX_LEARNED_PROMPTS } from '@shared/writing'
+import { appendPrompt, clearCorpus, loadCorpus, type CorpusState } from './corpus-storage'
 
 /**
  * The prompts autocomplete learns from: one JSON line per sent prompt, in
@@ -27,81 +26,28 @@ export function createPromptCorpus(
   filePath: () => string,
   limit = MAX_LEARNED_PROMPTS,
 ): PromptCorpus {
-  let prompts: string[] | null = null
-  /** Lines in the file, which can run ahead of `prompts` until a rewrite. */
-  let fileLines = 0
-  /**
-   * The file ends mid-line (a crash during an append). The next append starts
-   * a new line first, or it would be glued onto the torn one and lost with it.
-   */
-  let torn = false
-  let chain: Promise<unknown> = Promise.resolve()
+  const state: CorpusState = {
+    prompts: null,
+    fileLines: 0,
+    torn: false,
+    chain: Promise.resolve(),
+  }
 
   const serial = <T>(task: () => Promise<T>): Promise<T> => {
-    const next = chain.then(task, task)
-    chain = next.catch(() => undefined)
+    const next = state.chain.then(task, task)
+    state.chain = next.catch(() => undefined)
     return next
   }
 
-  const load = async (): Promise<string[]> => {
-    if (prompts) return prompts
-    let raw = ''
-    try {
-      raw = await readFile(filePath(), 'utf8')
-    } catch {
-      // No file yet: nothing learned.
-    }
-    torn = raw !== '' && !raw.endsWith('\n')
-    const lines = raw.split('\n').filter((line) => line.trim() !== '')
-    fileLines = lines.length
-    prompts = lines.flatMap((line) => {
-      try {
-        const entry: unknown = JSON.parse(line)
-        const text = (entry as { t?: unknown }).t
-        return typeof text === 'string' && text ? [text] : []
-      } catch {
-        // A torn last line from a crash mid-append; skip it.
-        return []
-      }
-    })
-    prompts = prompts.slice(-limit)
-    return prompts
-  }
-
-  const line = (text: string): string => JSON.stringify({ t: text, at: Date.now() }) + '\n'
-
   return {
-    list: () => serial(async () => [...(await load())]),
+    list: () => serial(async () => [...(await loadCorpus(state, filePath, limit))]),
 
     record: (text) =>
       serial(async () => {
         if (typeof text !== 'string' || !isLearnablePrompt(text)) return
-        const list = await load()
-        const prompt = text.trim()
-        list.push(prompt)
-        if (list.length > limit) list.splice(0, list.length - limit)
-        const path = filePath()
-        await mkdir(dirname(path), { recursive: true })
-        if (fileLines + 1 > limit * 2) {
-          const temp = `${path}.tmp`
-          await writeFile(temp, list.map(line).join(''), { mode: 0o600 })
-          await rename(temp, path)
-          fileLines = list.length
-          torn = false
-        } else {
-          // Prompts can be private; the file is the user's alone.
-          await appendFile(path, (torn ? '\n' : '') + line(prompt), { mode: 0o600 })
-          fileLines += 1
-          torn = false
-        }
+        await appendPrompt(state, filePath, limit, text)
       }),
 
-    clear: () =>
-      serial(async () => {
-        prompts = []
-        fileLines = 0
-        torn = false
-        await rm(filePath(), { force: true })
-      }),
+    clear: () => serial(() => clearCorpus(state, filePath)),
   }
 }

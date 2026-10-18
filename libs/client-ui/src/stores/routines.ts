@@ -1,0 +1,199 @@
+import { useEffect } from 'react'
+import { create } from 'zustand'
+import {
+  newRoutine,
+  type RoutineInput,
+  type Routine,
+  type RoutineMachine,
+  type RoutineLaneIndex,
+  type RoutinesSnapshot,
+} from '@shared/routines'
+import { useLayoutStore } from './layout'
+
+/** Shared frozen default: a selector must never return a fresh object. */
+const NO_LANES: RoutineLaneIndex = Object.freeze({})
+
+/** Local new-routine draft slot. Drafts are memory-only; `new` stays the local key. */
+export const NEW_ROUTINE = 'new'
+
+export function newRoutineDraftKey(machine: string): string {
+  return machine.startsWith('host:') ? `${NEW_ROUTINE}/${machine}` : NEW_ROUTINE
+}
+
+/** Unsaved editor work, plus the revision it was started from. */
+export interface EditorDraft {
+  input: RoutineInput
+  revision: number | null
+  machineId: string
+  repositoryId: string
+}
+
+interface RoutinesState {
+  machines: RoutineMachine[]
+  remote: Record<string, { routines: Routine[]; unavailable: boolean }>
+  snapshot: RoutinesSnapshot | null
+  /** Lanes the routines still own; the sidebar hides exactly these paths. */
+  laneIndex: RoutineLaneIndex
+  error: string | null
+  draft: RoutineInput | null
+  /**
+   * What the editor held when it closed, keyed by routine id or a per-machine new-routine key.
+   * Closing the editor, by Escape or Cancel or leaving the page, must not
+   * discard a half-written routine. Memory only: it does not survive a
+   * restart, and instructions never touch disk until they are saved.
+   */
+  editorDrafts: Record<string, EditorDraft>
+  refresh: () => Promise<void>
+  refreshMachine: (machine: string) => Promise<void>
+  refreshConnections: () => Promise<void>
+  refreshLaneIndex: () => Promise<void>
+}
+let sequence = 0
+let laneSequence = 0
+let remoteSequence = 0
+let connectionSequence = 0
+const machineRequests = new Map<string, number>()
+export const useRoutinesStore = create<RoutinesState>((set, get) => ({
+  machines: [],
+  remote: {},
+  snapshot: null,
+  laneIndex: NO_LANES,
+  error: null,
+  draft: null,
+  editorDrafts: {},
+  refresh: async () => {
+    const request = ++sequence
+    try {
+      const snapshot = await window.phosphor.invoke('routines:list')
+      if (request !== sequence) return
+      const machines = snapshot.machines ?? []
+      // An available machine keeps its last-known routines until its own read settles.
+      // Emptying them here made an open remote routine vanish and remount on every refresh.
+      const previous = get().remote
+      set({
+        snapshot,
+        error: snapshot.error,
+        machines,
+        remote: Object.fromEntries(
+          machines.map((m) => [
+            m.id,
+            m.available
+              ? { routines: previous[m.id]?.routines ?? [], unavailable: false }
+              : { routines: [], unavailable: true },
+          ]),
+        ),
+      })
+      // Local data is published first. Each machine settles independently.
+      machineRequests.clear()
+      for (const machine of machines) if (machine.available) void get().refreshMachine(machine.id)
+    } catch (error) {
+      if (request === sequence) set({ error: String(error) })
+    }
+  },
+  refreshConnections: async () => {
+    const request = ++connectionSequence
+    try {
+      const snapshot = await window.phosphor.invoke('routines:list')
+      if (
+        request === connectionSequence &&
+        JSON.stringify(snapshot.machines ?? []) !== JSON.stringify(get().machines)
+      )
+        await get().refresh()
+    } catch {
+      /* Directory refreshes do not replace the local page with an error. */
+    }
+  },
+  refreshMachine: async (machine) => {
+    if (!get().machines.some((m) => m.id === machine && m.available)) return
+    const epoch = sequence
+    const request = ++remoteSequence
+    machineRequests.set(machine, request)
+    const current = () => epoch === sequence && machineRequests.get(machine) === request
+    try {
+      const result = await window.phosphor.invoke('routines:list', machine)
+      if (current())
+        set((state) => ({
+          remote: { ...state.remote, [machine]: { routines: result.routines, unavailable: false } },
+        }))
+    } catch {
+      if (current())
+        set((state) => ({
+          remote: { ...state.remote, [machine]: { routines: [], unavailable: true } },
+        }))
+    }
+  },
+  refreshLaneIndex: async () => {
+    const request = ++laneSequence
+    try {
+      const laneIndex = await window.phosphor.invoke('routines:laneIndex')
+      if (request === laneSequence) set({ laneIndex })
+    } catch {
+      // A failed lookup must not start revealing lanes mid-session: keep the
+      // index we already have rather than falling back to an empty one.
+    }
+  },
+}))
+
+/**
+ * Keep the lane index current outside the Routines page.
+ *
+ * The sidebar needs it on every paint, including before Routines has ever
+ * been opened, so it cannot wait for that page's own refresh. Main broadcasts
+ * `routines:changed` on each run transition, which is when a lane appears.
+ */
+export function useRoutineLaneIndex(): RoutineLaneIndex {
+  const laneIndex = useRoutinesStore((s) => s.laneIndex)
+  useEffect(() => {
+    const refresh = (): void => void useRoutinesStore.getState().refreshLaneIndex()
+    const off = window.phosphor.onRoutinesChanged(refresh)
+    refresh()
+    return off
+  }, [])
+  return laneIndex
+}
+
+/** Remember (or with `null`, forget) the editor's unsaved work for `key`. */
+export function keepEditorDraft(key: string, draft: EditorDraft | null): void {
+  useRoutinesStore.setState((s) => {
+    const { [key]: _dropped, ...rest } = s.editorDrafts
+    return { editorDrafts: draft ? { ...rest, [key]: draft } : rest }
+  })
+}
+
+/**
+ * The draft to reopen for `key`, if it is still valid. An edit started from
+ * an older revision is dropped: saving it would be refused as stale anyway.
+ */
+export function editorDraft(key: string, revision: number | null): EditorDraft | null {
+  const draft = useRoutinesStore.getState().editorDrafts[key]
+  if (!draft) return null
+  if (draft.revision === revision) return draft
+  keepEditorDraft(key, null)
+  return null
+}
+
+/** Reviewable draft only: never schedules or copies an active conversation. */
+export function makeRoutine(workspacePath: string, name: string, instructions: string): void {
+  useRoutinesStore.setState({
+    draft: { ...newRoutine(workspacePath), name: name.slice(0, 100), instructions },
+  })
+  useLayoutStore.getState().setPage('routines')
+}
+
+/** Retire in-flight projection reads before a browser owner is replaced. */
+export function clearRoutineMemory(): void {
+  sequence++
+  laneSequence++
+  connectionSequence++
+  remoteSequence++
+  machineRequests.clear()
+  useRoutinesStore.setState({
+    machines: [],
+    remote: {},
+    snapshot: null,
+    laneIndex: NO_LANES,
+    error: null,
+    draft: null,
+    editorDrafts: {},
+  })
+}

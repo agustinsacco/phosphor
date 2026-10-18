@@ -57,7 +57,10 @@ export async function prepareSessionPolicy(
   // Explicit CLI model/provider options still take precedence, as they do in pi.
   const restored =
     !stub && options.sessionPath && !options.provider && !options.model
-      ? await resumeProvider(options.sessionPath)
+      ? await resumeProvider(options.sessionPath).catch((error: unknown) => {
+          if (runtime.strictAccountSelection) throw error
+          return undefined
+        })
       : undefined
   const claudeProvider = stub
     ? false

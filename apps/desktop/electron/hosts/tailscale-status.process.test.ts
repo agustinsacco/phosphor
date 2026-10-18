@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import type { Readable } from 'node:stream'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -37,6 +38,19 @@ async function within<T>(promise: Promise<T>, ms: number, what: string): Promise
   }
 }
 
+function stderrMessage(stderr: Readable, message: string): Promise<void> {
+  return new Promise((resolve) => {
+    let output = ''
+    const onData = (chunk: Buffer) => {
+      output += String(chunk)
+      if (!output.includes(message)) return
+      stderr.off('data', onData)
+      resolve()
+    }
+    stderr.on('data', onData)
+  })
+}
+
 it('settles at exactly the deadline and cancels the runner once, even if it never reports', async () => {
   vi.useFakeTimers()
   const cancel = vi.fn()
@@ -58,7 +72,7 @@ it('kills a real SIGTERM-resistant executable with SIGKILL', async () => {
   // The fixture announces readiness only after its SIGTERM handler is installed.
   await writeFile(
     file,
-    `#!${process.execPath}\nprocess.on('SIGTERM', () => {}); process.stderr.write('ready\\n'); setInterval(() => {}, 1000)\n`,
+    `#!${process.execPath}\nprocess.on('SIGTERM', () => process.stderr.write('sigterm-handled\\n')); process.stderr.write('ready\\n'); setInterval(() => {}, 1000)\n`,
     { mode: 0o755 },
   )
   // Start the child with no deadline of its own, and finish every precondition before the
@@ -76,20 +90,14 @@ it('kills a real SIGTERM-resistant executable with SIGKILL', async () => {
     await within(exited, 5_000, 'fixture exit during cleanup')
   })
   await within(
-    Promise.race([
-      spawnFailed,
-      new Promise<void>((resolve) =>
-        child.stderr.on('data', (chunk: Buffer) => {
-          if (String(chunk).includes('ready')) resolve()
-        }),
-      ),
-    ]),
+    Promise.race([spawnFailed, stderrMessage(child.stderr, 'ready\n')]),
     20_000,
     'fixture readiness',
   )
   // Prove the fixture really ignores SIGTERM, so only SIGKILL can end it.
+  const handled = stderrMessage(child.stderr, 'sigterm-handled\n')
   child.kill('SIGTERM')
-  await new Promise((resolve) => setTimeout(resolve, 200))
+  await within(Promise.race([spawnFailed, handled]), 5_000, 'fixture SIGTERM acknowledgement')
   expect(child.exitCode).toBeNull()
   expect(child.signalCode).toBeNull()
   const result = await readTailscaleStatus((done) => {

@@ -290,7 +290,7 @@ change this file has not caught will not compile.
 
 ```mermaid
 flowchart LR
-  R["Renderer · apps/desktop/src/<br/>React, sandboxed, no Node"]
+  R["Renderer · libs/client-ui/src/<br/>React, sandboxed, no Node"]
   M["Main · apps/desktop/electron/<br/>registry, pi client, fs, pty, updates"]
   P["pi --mode rpc<br/>one subprocess per session"]
   S[("~/.pi — sessions, models, MCP")]
@@ -306,8 +306,8 @@ Six facts that explain the rest:
    or a subprocess means `apps/desktop/electron/`, not `apps/desktop/src/`.
 2. **IPC is a typed contract.** A new channel is an entry in `libs/shared/src/ipc.ts`'s
    `IpcInvokeMap`, a handler in the matching `apps/desktop/electron/ipc/<prefix>-handlers.ts`,
-   and a case in `apps/desktop/src/dev/mockPhosphor.ts`.
-3. **Stores (`apps/desktop/src/stores/`) are projections of main-process state**, not a
+   and a case in `libs/client-ui/src/dev/mockPhosphor.ts`.
+3. **Stores (`libs/client-ui/src/stores/`) are projections of main-process state**, not a
    second source of truth. The chat store keeps a session's live title, tokens
    and context meter honest while a turn runs.
 4. **Sessions are files.** pi writes a session's JSONL when a turn _ends_. The
@@ -328,28 +328,32 @@ Six facts that explain the rest:
 Requires Node 22+ (pi itself needs ≥ 22.19) and `pi` on PATH for `npm run dev`.
 
 ```bash
-npm install
+npm ci
+npm ci --prefix apps/site
 npm run dev
 ```
 
-| Script               | Purpose                                                        |
-| -------------------- | -------------------------------------------------------------- |
-| `npm run dev`        | Electron + Vite dev server with HMR                            |
-| `npm run dev:web`    | Renderer alone, in a browser, against the mock preload API     |
-| `npm run build`      | Bundle main, preload and renderer to `apps/desktop/out/`       |
-| `npm run typecheck`  | TypeScript project checks (main + renderer)                    |
-| `npm run lint`       | ESLint                                                         |
-| `npm run format`     | Prettier                                                       |
-| `npm test`           | Vitest unit tests                                              |
-| `npm run test:e2e`   | Playwright-Electron smoke tests against the deterministic `pi` |
-| `npm run validate`   | All of the above, quiet — one PASS/FAIL line per step + a log  |
-| `npm run pack`       | Package for the current platform without packing (quick check) |
-| `npm run dist`       | Package for the current platform via electron-builder          |
-| `npm run shots`      | Deterministic screenshots against the e2e pi stub (see below)  |
-| `npm run shots:live` | Re-shoot this README against a real pi instance (see below)    |
+| Script               | Purpose                                                                   |
+| -------------------- | ------------------------------------------------------------------------- |
+| `npm run dev`        | Electron + Vite dev server with HMR                                       |
+| `npm run dev:web`    | Renderer alone, in a browser, against the mock preload API                |
+| `npm run build`      | Bundle main, preload and renderer to `apps/desktop/out/`                  |
+| `npm run typecheck`  | All-file audit; Desktop/tests, libraries, Host, Control, tooling and site |
+| `npm run lint`       | ESLint                                                                    |
+| `npm run format`     | Prettier                                                                  |
+| `npm test`           | Vitest unit tests                                                         |
+| `npm run test:e2e`   | Playwright-Electron smoke tests against the deterministic `pi`            |
+| `npm run validate`   | Check, test and build, quiet; one PASS/FAIL line per step + a log         |
+| `npm run pack`       | Package for the current platform without packing (quick check)            |
+| `npm run dist`       | Package for the current platform via electron-builder                     |
+| `npm run shots`      | Deterministic screenshots against the e2e pi stub (see below)             |
+| `npm run shots:live` | Re-shoot this README against a real pi instance (see below)               |
 
-Tests live beside their subject as `*.test.ts`, in `apps/desktop/electron/`, `apps/host/src/`,
-`libs/shared/src/` and `libs/pi-extensions/pi-ext/` included.
+[Testing](docs/testing.md) is the contract for dependency installation, check
+commands, typed test helpers, frozen interfaces, coverage evidence, size budgets
+and staged lint warnings. Tests currently live beside their subjects as
+`*.test.ts`; this is temporary until RL-03 moves them to `test/` folders.
+Foundation and freeze suites already use the new layout.
 
 ### Nx task orchestration
 
@@ -405,8 +409,8 @@ depends on an app, so a Desktop-only change selects only `desktop` and
 acyclic. `tools/scripts/nx-projects.test.ts` checks the effective graph and targets,
 including missing-edge/target fixtures. App-relative `out/`, packaging metadata and resource destinations are unchanged.
 Root npm aliases delegate to Desktop; the app owns its Electron postinstall.
-The root npm workspaces contain only `libs/shared`, `libs/session-runtime` and
-`libs/pi-extensions`. Desktop, Control and the site retain independent locks and real
+The root npm workspaces contain `libs/shared`, `libs/session-runtime`, `libs/host-client`,
+`libs/pi-extensions` and `libs/client-ui`. Desktop, Control, Web and the site retain independent locks and real
 installation directories. The [installation contract](docs/installations.md)
 defines the supported scoped source-production recipe, script suppression,
 source bundling and native ABI separation. This is not universal single-lock
@@ -519,15 +523,22 @@ libs/session-runtime/src/  Electron-free source modules, not a separate service
   file-log.ts        injected file logging
   git/               the one git runner, repository/worktree info and its cache
   bundled-extensions.ts  bundled extension paths
+libs/host-client/src/  browser-safe Host transport, asynchronous identity-proof gate,
+                     lane projection and remote-lane delivery; Desktop supplies
+                     Node crypto through compatibility facades
 supabase/            isolated control-directory migrations and local RLS tests
 libs/shared/src/     types and pure logic shared by main + renderer
   ipc.ts             the typed IpcInvokeMap contract
   rpc.ts             hand-mirrored copy of pi's RPC protocol + drift guards
-  models.ts          model catalogue and shared app types
+  models.ts          model catalogue and shared app types (facade over models/)
   control-api.ts     control wire shapes, parsers, limits and Host signing string
   remote-host.ts     Host hello validation and host-qualified resource keys
-apps/desktop/src/                 renderer (React) — pure UI over typed IPC
-  app/               shell: App, TopBar, workspace picker, global shortcuts
+apps/desktop/src/    Desktop HTML and native renderer bootstrap
+apps/web/            browser bootstrap, cookie adapter, manifest, service worker
+libs/client-ui/src/  shared React UI over PhosphorApi; Desktop and compact entries
+  app/               expanded shell: App, TopBar, workspace picker, shortcuts
+  shell/compact/     remote-only phone shell, account lifecycle and navigation
+  navigation/        typed locations, screen registry and history adapter
   features/          one folder per surface (20): chat, sessions, files,
                      terminal, artifacts, settings, home, worktrees,
                      workspaces, palette, updates, connectors, extension-ui,

@@ -8,10 +8,13 @@ import { beforeAll, describe, expect, it } from 'vitest'
 const root = resolve(import.meta.dirname, '../..')
 const readJson = (path: string) => JSON.parse(readFileSync(join(root, path), 'utf8'))
 const projects = {
+  'client-ui': 'libs/client-ui',
+  web: 'apps/web',
   desktop: 'apps/desktop',
   host: 'apps/host',
   control: 'apps/control',
   runtime: 'libs/session-runtime',
+  'host-client': 'libs/host-client',
   shared: 'libs/shared',
   'pi-extensions': 'libs/pi-extensions',
   site: 'apps/site',
@@ -19,6 +22,17 @@ const projects = {
   tooling: 'tools/scripts',
 }
 const commands = {
+  'client-ui': {
+    typecheck: 'tsc --noEmit -p libs/client-ui/tsconfig.json',
+    test: 'vitest run libs/client-ui',
+  },
+  web: {
+    typecheck:
+      'tsc --noEmit -p apps/web/tsconfig.json && tsc --noEmit -p apps/web/tsconfig.worker.json && tsc --noEmit -p apps/web/e2e/tsconfig.json',
+    test: 'vitest run apps/web',
+    build: 'npm run web:build',
+    'test:e2e': 'npm run test:e2e:web',
+  },
   desktop: { build: 'npm run build', 'test:e2e': 'npm run test:e2e' },
   host: {
     typecheck: 'tsc --noEmit -p apps/host/tsconfig.json',
@@ -31,6 +45,10 @@ const commands = {
     build: 'node apps/control/scripts/build.mjs',
   },
   runtime: { test: 'vitest run libs/session-runtime' },
+  'host-client': {
+    typecheck: 'tsc --noEmit -p libs/host-client/tsconfig.json',
+    test: 'vitest run libs/host-client',
+  },
   shared: { test: 'vitest run libs/shared' },
   'pi-extensions': { test: 'vitest run libs/pi-extensions' },
   site: {
@@ -52,8 +70,7 @@ const commands = {
     test: 'npx --yes supabase@2.119.0 test db',
   },
   tooling: {
-    typecheck:
-      'tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p apps/desktop/tsconfig.web.json && tsc --noEmit -p apps/host/tsconfig.json && tsc --noEmit -p apps/control/tsconfig.json',
+    typecheck: 'node tools/scripts/typecheck.mjs',
     lint: 'eslint .',
     test: 'vitest run',
     validate: './tools/scripts/validate.sh',
@@ -70,19 +87,44 @@ const commands = {
 // captured by hand and committed. Otherwise every change affects every app and
 // per-app releases/deploys are impossible.
 const dependencies = {
-  desktop: ['runtime', 'shared', 'pi-extensions'],
+  'client-ui': ['shared', 'pi-extensions'],
+  web: ['client-ui', 'host-client', 'shared', 'host', 'control'],
+  desktop: ['runtime', 'shared', 'host-client', 'pi-extensions', 'client-ui'],
   host: ['runtime', 'shared', 'pi-extensions'],
   control: ['shared'],
-  runtime: ['shared', 'pi-extensions'],
+  runtime: ['shared', 'host-client', 'pi-extensions'],
+  'host-client': ['shared'],
   shared: [],
   'pi-extensions': ['shared'],
   site: [],
   schema: [],
-  tooling: ['desktop', 'host', 'control', 'runtime', 'shared', 'pi-extensions', 'site', 'schema'],
+  tooling: [
+    'desktop',
+    'host',
+    'control',
+    'runtime',
+    'host-client',
+    'shared',
+    'pi-extensions',
+    'site',
+    'schema',
+    'client-ui',
+    'web',
+  ],
 }
 // Workspace-wide checks read everything. Everything else reads its own root,
 // its dependencies, and the specific root files it actually consumes.
 const inputs: Record<string, Record<string, string[]>> = {
+  'client-ui': {
+    typecheck: ['default', '^default', 'rootInstall'],
+    test: ['default', '^default', 'rootUnitRunner'],
+  },
+  web: {
+    typecheck: ['default', '^default', 'rootInstall'],
+    test: ['default', '^default', 'rootUnitRunner'],
+    build: ['default', '^default', 'rootInstall'],
+    'test:e2e': ['default', '^default', 'rootInstall'],
+  },
   desktop: {
     build: ['default', '^default', 'rootInstall', 'release'],
     'test:e2e': ['default', '^default', 'rootInstall', 'release', 'e2eHarness'],
@@ -98,6 +140,10 @@ const inputs: Record<string, Record<string, string[]>> = {
     build: ['default', '^default', 'rootInstall'],
   },
   runtime: { '*': ['default', '^default', 'rootUnitRunner'] },
+  'host-client': {
+    typecheck: ['default', '^default', 'rootInstall'],
+    test: ['default', '^default', 'rootUnitRunner'],
+  },
   shared: { '*': ['default', '^default', 'rootUnitRunner'] },
   'pi-extensions': { '*': ['default', '^default', 'rootUnitRunner'] },
   site: { build: ['default', 'deploy'], '*': ['default'] },
@@ -162,7 +208,7 @@ describe('explicit Nx project contract', () => {
     expect(parsed).toEqual({ project: { name: 'runtime' } })
     expect(toml.parse(toml.stringify(parsed))).toEqual(parsed)
   })
-  it('retains exactly nine current-path projects and all import/resource/test edges', () => {
+  it('retains every current-path project and all import/resource/test edges', () => {
     expect(Object.keys(graph.nodes).sort()).toEqual(Object.keys(projects).sort())
     for (const [name, path] of Object.entries(projects)) {
       expect(graph.nodes[name].data.root).toBe(path)
@@ -193,11 +239,12 @@ describe('explicit Nx project contract', () => {
       const project = graph.nodes[name].data
       assertTargets(name as keyof typeof commands, project.targets)
       for (const [target, command] of Object.entries(expected)) {
+        const projectInputs = inputs[name as keyof typeof inputs]
+        if (!projectInputs) throw new Error(`Missing inputs for ${name}`)
         expect(project.targets[target]).toMatchObject({
           executor: 'nx:run-commands',
           cache: false,
-          inputs:
-            inputs[name as keyof typeof inputs][target] ?? inputs[name as keyof typeof inputs]['*'],
+          inputs: projectInputs[target] ?? projectInputs['*'],
           options: {
             command,
             cwd: name === 'site' ? 'apps/site' : name === 'desktop' ? 'apps/desktop' : '.',
@@ -254,7 +301,7 @@ describe('explicit Nx project contract', () => {
       expect(target).not.toMatch(/npm run nx:|\bnx (run|run-many|affected)\b/)
     }
     expect(pkg.scripts.postinstall).toBe(
-      'npm ci --prefix apps/desktop && npm ci --prefix apps/control',
+      'npm ci --prefix apps/desktop && npm ci --prefix apps/control && npm ci --prefix apps/web',
     )
   })
 
@@ -315,14 +362,16 @@ describe('explicit Nx project contract', () => {
       'apps/host/src',
       'apps/control/src',
       'libs/session-runtime/src',
+      'libs/host-client/src',
       'libs/shared/src',
       'libs/pi-extensions/pi-ext',
-      'apps/desktop/src',
+      'libs/client-ui/src',
+      'apps/web/src',
       'tools/scripts',
     ]) {
       expect(vitest).toContain(`'${path}/**/*.test.ts'`)
     }
-    expect(vitest).toContain("'apps/desktop/src/**/*.test.tsx'")
+    expect(vitest).toContain("'libs/client-ui/src/**/*.test.tsx'")
     expect(readJson('tools/scripts/project.json').targets.test.options.command).toBe(
       readJson('package.json').scripts.test,
     )

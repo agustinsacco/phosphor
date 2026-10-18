@@ -123,7 +123,7 @@ describe('lane calls', () => {
           : 'skills.read',
       )
       expect(await c.call(method, { laneId: lane.laneId })).toEqual({ ok: true, data: 'feature' })
-      expect(call).toHaveBeenLastCalledWith(method, { laneId: lane.laneId }, undefined)
+      expect(call).toHaveBeenLastCalledWith(method, { laneId: lane.laneId })
     }
     for (const method of [
       'host.repositories',

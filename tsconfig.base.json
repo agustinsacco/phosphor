@@ -15,10 +15,11 @@
     "useDefineForClassFields": true,
     "noEmit": true,
     "paths": {
+      "@phosphor/host-client/*": ["./libs/host-client/src/*"],
       "@phosphor/session-runtime/*": ["./libs/session-runtime/src/*"],
       "@phosphor/shared/*": ["./libs/shared/src/*"],
       "@shared/*": ["./libs/shared/src/*"],
-      "@/*": ["./apps/desktop/src/*"]
+      "@/*": ["./libs/client-ui/src/*"]
     }
   }
 }

@@ -4,8 +4,9 @@ import { expect, it, vi } from 'vitest'
 const workflow = (name: string) =>
   readFileSync(new URL(`../../.github/workflows/${name}.yml`, import.meta.url), 'utf8')
 const cleanup = workflow('cleanup-pr-caches')
-const script = cleanup
-  .split('          script: |\n')[1]
+const scriptBlock = cleanup.split('          script: |\n')[1]
+if (scriptBlock === undefined) throw new Error('Missing cache cleanup script block')
+const script = scriptBlock
   .split('\n')
   .map((line) => line.slice(12))
   .join('\n')

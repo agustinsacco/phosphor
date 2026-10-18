@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "package": "web",
+  "offenders": {
+    "e2e/browser.spec.ts::test[3]": 148,
+    "e2e/fixture.ts::browserFixture[1]": 488,
+    "src/platform/control.ts::createBrowserControl[1]": 276,
+    "src/platform/control.ts::createBrowserControl[1]/json[1]": 83,
+    "src/platform/drafts.ts::createBrowserDrafts[1]": 130,
+    "src/platform/handlers.ts::createBrowserHandlers[1]": 108,
+    "src/platform/hosts.ts::createBrowserHosts[1]": 224,
+    "src/platform/index.ts::createBrowserApi[1]": 220,
+    "src/platform/remote.test.ts::setup[1]": 138,
+    "src/platform/resources.ts::createBrowserResources[1]": 103
+  },
+  "exemptions": [],
+  "renames": {}
+}

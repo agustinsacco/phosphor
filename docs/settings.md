@@ -1,7 +1,7 @@
 # 09 — Settings
 
 A **modal**, not a second window (`ModalOverlay` in
-`apps/desktop/src/features/settings/SettingsModal.tsx`), so it inherits the theme, the UI
+`libs/client-ui/src/features/settings/SettingsModal.tsx`), so it inherits the theme, the UI
 scale and the app's lifecycle. Cmd/Ctrl+, opens it; Cmd/Ctrl+/ opens it on
 Keybindings.
 

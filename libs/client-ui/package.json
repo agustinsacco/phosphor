@@ -1,0 +1,20 @@
+{
+  "name": "@phosphor/client-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./desktop": "./src/desktop.ts",
+    "./compact": "./src/compact.ts",
+    "./navigation": "./src/navigation/index.ts",
+    "./platform": "./src/platform/Platform.tsx",
+    "./styles/index.css": "./src/styles/index.css"
+  },
+  "nx": {
+    "includedScripts": []
+  },
+  "dependencies": {
+    "@phosphor/shared": "0.0.0",
+    "@phosphor/pi-extensions": "0.0.0"
+  }
+}

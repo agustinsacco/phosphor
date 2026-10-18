@@ -85,8 +85,8 @@ export function createProviderLogins(
             return runner(file, args, settings)
           },
         })
-        verified = outcome.exitCode === 0
-        if (accountId && verified) verified = !!(await accounts?.finishAddAccount(accountId))
+        verified =
+          outcome.exitCode === 0 && (!accountId || !!(await accounts?.finishAddAccount(accountId)))
       }
       void (accounts ? accounts.withAuthorization(authorized, perform) : perform())
         .then(
