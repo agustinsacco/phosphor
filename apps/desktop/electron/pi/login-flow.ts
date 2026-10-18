@@ -114,6 +114,9 @@ const TUI_LABELS: Record<LoginProviderId, string> = {
   xai: 'xAI',
 }
 
+/** Width of the hidden terminal. See the note where the pty is created. */
+const TERMINAL_COLS = 1000
+
 const running = new Map<LoginProviderId, LoginFlowHandle>()
 
 /** Is a login already in flight for this provider? */
@@ -156,7 +159,7 @@ export async function startLogin(
   // mid-token with no marker. Anthropic's authorize URL is ~330 characters
   // (it carries a redirect_uri, scopes and a PKCE challenge), and 160 columns
   // split it across three lines. Wider than any URL is the fix.
-  const { ptyId } = ptyManager.create(signInCwd(), 1000, 40, undefined, {
+  const { ptyId } = ptyManager.create(signInCwd(), TERMINAL_COLS, 40, undefined, {
     file: health.binaryPath,
     args: piArgs(health, SIGN_IN_ARGS),
     env: await piProcessEnv(),

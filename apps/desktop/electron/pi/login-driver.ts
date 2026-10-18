@@ -115,6 +115,9 @@ function tick(attempt: LoginAttempt): void {
   const step = classifyScreen(screen)
   advanceStep(attempt, screen, step)
   verify(attempt)
+  // A step that never arrives is a real failure, not a hang. Skipped once the
+  // browser has the URL, because that step waits on a human. The screen it
+  // stopped on is the whole diagnosis (see the debug log section of CLAUDE.md).
   if (!attempt.lastAuth && Date.now() - attempt.stepStartedAt > STEP_TIMEOUT_MS) {
     log('login', 'sign-in stopped at an unknown screen', {
       providerId: attempt.providerId,
@@ -167,12 +170,16 @@ function advanceStep(
   } else if (step === 'login-method' && !attempt.sentLoginMethod) {
     attempt.sentLoginMethod = true
     attempt.stepStartedAt = Date.now()
-    // Browser login is preselected, using the user's real browser session.
+    // OpenAI Codex asks browser-vs-device-code. "Browser login" is both the
+    // preselected default and the better fit, since Phosphor opens the user's
+    // real browser, where they are already signed in.
     ptyManager.write(attempt.ptyId, CR)
   } else if (step === 'host-question' && !attempt.answeredHost) {
     attempt.answeredHost = true
     attempt.stepStartedAt = Date.now()
-    // Blank means github.com; Enterprise hosts need the manual escape hatch.
+    // Copilot asks for a GitHub Enterprise host, and blank means github.com.
+    // An Enterprise host cannot be guessed, so that case takes the login-terminal
+    // escape hatch, and the provider's caveat in provider-auth.ts says so.
     ptyManager.write(attempt.ptyId, CR)
   } else if (step === 'awaiting-auth') {
     const auth = parseAuthPrompt(screen)
@@ -193,6 +200,9 @@ function advanceStep(
 }
 
 function verify(attempt: LoginAttempt): void {
+  // Completion is asked of pi, not read off the screen. The TUI announces
+  // success in prose that could change wording at any release, whereas
+  // `auth check` is the same fact the rest of Phosphor already trusts.
   // Each check spawns pi: serialize and throttle well below the screen poll rate.
   if (
     !attempt.lastAuth ||
