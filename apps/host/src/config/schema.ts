@@ -1,16 +1,7 @@
+import { isAbsolute, normalize } from 'node:path'
 import { isValidContextBudgetValue } from '@phosphor/shared/context-budget'
-import {
-  isRecord,
-  onlyKeys,
-  validateApi,
-  validateControl,
-  validateEnvironment,
-  validatePath,
-  validatePi,
-  validateRepositories,
-} from './schema-fields'
-
-export { isPinnedPath, pointer } from './schema-fields'
+import { isControlUrl } from '../control/url'
+import { passRefusal } from '../machine/environment'
 
 /**
  * Host config, version 1. It pins what runs on this machine, so validation
@@ -30,7 +21,7 @@ export interface HostConfigV1 {
   }
   /** Holds `pi-ext/`. Defaults to the Host bundle's own directory. */
   resourceRoot?: string
-  /** Directories sessions may run in: up to 64, never `/`. */
+  /** Directories sessions may run in: 1 to 64, never `/`. */
   repositories: string[]
   /** Desktop's grammar. '' or absent is the 200k default. */
   allowRepositoryChanges?: boolean
@@ -60,20 +51,45 @@ export type ConfigValidation =
 
 /** The HostHello identifier pattern, so a configured id is always presentable. */
 export const HOST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
-const ROOT_KEYS = [
-  'version',
-  'hostId',
-  'pi',
-  'resourceRoot',
-  'repositories',
-  'contextBudget',
-  'autoNameLanes',
-  'allowRepositoryChanges',
-  'environment',
-  'accounts',
-  'control',
-  'api',
-]
+const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/
+const LIMITS = { repositories: 64, pass: 64, path: 32 }
+const KEYS = {
+  root: [
+    'version',
+    'hostId',
+    'pi',
+    'resourceRoot',
+    'repositories',
+    'contextBudget',
+    'autoNameLanes',
+    'allowRepositoryChanges',
+    'environment',
+    'accounts',
+    'control',
+    'api',
+  ],
+  pi: ['node', 'executable'],
+  environment: ['pass', 'path'],
+}
+
+export const pointer = (...segments: (string | number)[]): string =>
+  segments.map((part) => `/${String(part).replaceAll('~', '~0').replaceAll('/', '~1')}`).join('')
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** Absolute and already normalized. `~` is never expanded. */
+export function isPinnedPath(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length <= 4096 &&
+    !value.includes('\0') &&
+    isAbsolute(value) &&
+    normalize(value) === value &&
+    (value === '/' || !value.endsWith('/'))
+  )
+}
 
 /** The configured hostId, else the short hostname made presentable. */
 export function resolveHostId(config: Pick<HostConfigV1, 'hostId'>, hostname: string): string {
@@ -90,50 +106,118 @@ export function validateHostConfig(value: unknown): ConfigValidation {
   if (!isRecord(value))
     return { ok: false, errors: [{ pointer: '', message: 'must be an object' }] }
   const errors: ConfigError[] = []
-  onlyKeys(value, ROOT_KEYS, [], errors)
-  if (value.version !== 1) errors.push({ pointer: '/version', message: 'must be 1' })
+  const fail = (at: string, message: string) => errors.push({ pointer: at, message })
+  const onlyKeys = (record: Record<string, unknown>, keys: string[], at: string[]) => {
+    for (const key of Object.keys(record)) {
+      if (!keys.includes(key)) fail(pointer(...at, key), 'unknown key')
+    }
+  }
+  const path = (candidate: unknown, at: string) => {
+    if (!isPinnedPath(candidate)) fail(at, 'must be an absolute, normalized path')
+  }
+  const list = (candidate: unknown, max: number, at: string, noun: string): unknown[] | null => {
+    if (Array.isArray(candidate) && candidate.length <= max) return candidate
+    fail(at, `must be a list of up to ${max} ${noun}`)
+    return null
+  }
+
+  onlyKeys(value, KEYS.root, [])
+  if (value.version !== 1) fail('/version', 'must be 1')
   if (value.hostId !== undefined) {
     if (typeof value.hostId !== 'string' || !HOST_ID_PATTERN.test(value.hostId)) {
-      errors.push({
-        pointer: '/hostId',
-        message: 'must be 1 to 128 letters, digits, ".", "_", ":" or "-", starting alphanumeric',
-      })
+      fail(
+        '/hostId',
+        'must be 1 to 128 letters, digits, ".", "_", ":" or "-", starting alphanumeric',
+      )
     }
   }
 
-  validatePi(value.pi, errors)
-  if (value.resourceRoot !== undefined) validatePath(value.resourceRoot, '/resourceRoot', errors)
-  validateRepositories(value.repositories, errors)
+  if (!isRecord(value.pi)) fail('/pi', 'must be an object with "executable"')
+  else {
+    onlyKeys(value.pi, KEYS.pi, ['pi'])
+    path(value.pi.executable, '/pi/executable')
+    if (value.pi.node !== undefined) path(value.pi.node, '/pi/node')
+  }
+  if (value.resourceRoot !== undefined) path(value.resourceRoot, '/resourceRoot')
+
+  const repositories = list(value.repositories, LIMITS.repositories, '/repositories', 'folders')
+  repositories?.forEach((repository, index) => {
+    if (repository === '/') fail(pointer('repositories', index), 'must not be /')
+    else path(repository, pointer('repositories', index))
+  })
 
   if (value.autoNameLanes !== undefined && typeof value.autoNameLanes !== 'boolean')
-    errors.push({ pointer: '/autoNameLanes', message: 'must be a boolean' })
+    fail('/autoNameLanes', 'must be a boolean')
   if (
     value.allowRepositoryChanges !== undefined &&
     typeof value.allowRepositoryChanges !== 'boolean'
   )
-    errors.push({ pointer: '/allowRepositoryChanges', message: 'must be a boolean' })
+    fail('/allowRepositoryChanges', 'must be a boolean')
   const budget = value.contextBudget
   if (budget !== undefined) {
     if (
       typeof budget !== 'string' ||
       (budget.trim() !== '' && !isValidContextBudgetValue(budget))
     ) {
-      errors.push({
-        pointer: '/contextBudget',
-        message: 'must be "" (the 200k default), "auto", "off" or a size such as "400k"',
-      })
+      fail(
+        '/contextBudget',
+        'must be "" (the 200k default), "auto", "off" or a size such as "400k"',
+      )
     }
   }
 
-  validateEnvironment(value.environment, errors)
-  validateControl(value.control, errors)
-  validateApi(value.api, errors)
+  const environment = value.environment
+  if (environment !== undefined && !isRecord(environment)) fail('/environment', 'must be an object')
+  else if (environment !== undefined) {
+    onlyKeys(environment, KEYS.environment, ['environment'])
+    const pass =
+      environment.pass === undefined
+        ? []
+        : list(environment.pass, LIMITS.pass, '/environment/pass', 'variable names')
+    pass?.forEach((name, index) => {
+      const at = pointer('environment', 'pass', index)
+      if (typeof name !== 'string' || !NAME_PATTERN.test(name)) fail(at, 'must be a variable name')
+      else {
+        const refusal = passRefusal(name)
+        if (refusal) fail(at, refusal)
+      }
+    })
+    const dirs =
+      environment.path === undefined
+        ? []
+        : list(environment.path, LIMITS.path, '/environment/path', 'folders')
+    dirs?.forEach((dir, index) => {
+      const at = pointer('environment', 'path', index)
+      if (typeof dir === 'string' && dir.includes(':')) fail(at, 'must not contain ":"')
+      else path(dir, at)
+    })
+  }
+
+  if (value.control !== undefined) {
+    if (!isRecord(value.control)) fail('/control', 'must be an object with url')
+    else {
+      onlyKeys(value.control, ['url'], ['control'])
+      if (!isControlUrl(value.control.url))
+        fail('/control/url', 'must be a bare https origin, or http on loopback')
+    }
+  }
+
+  if (value.api !== undefined) {
+    if (!isRecord(value.api)) fail('/api', 'must be an object with port')
+    else {
+      onlyKeys(value.api, ['port'], ['api'])
+      if (
+        typeof value.api.port !== 'number' ||
+        !Number.isInteger(value.api.port) ||
+        value.api.port < 1024 ||
+        value.api.port > 65535
+      )
+        fail('/api/port', 'must be an integer from 1024 to 65535')
+    }
+  }
 
   if (value.accounts !== undefined && value.accounts !== null) {
-    errors.push({
-      pointer: '/accounts',
-      message: 'must be null: accounts are not available on a Host yet',
-    })
+    fail('/accounts', 'must be null: accounts are not available on a Host yet')
   }
   return errors.length > 0
     ? { ok: false, errors }

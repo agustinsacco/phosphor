@@ -34,6 +34,7 @@
     "src/commands/uninstall.ts::runUninstall[1]/installLifetime[1]": 93,
     "src/commands/update.ts::runUpdate[1]": 166,
     "src/commands/update.ts::runUpdate[1]/installLifetime[1]": 161,
+    "src/config/schema.ts::validateHostConfig[1]": 121,
     "src/control/heartbeat.ts::createHeartbeat[1]": 157,
     "src/control/identity.ts::createIdentityStore[1]": 175,
     "src/control/lock.ts::acquireIdentityLock[1]": 123,
