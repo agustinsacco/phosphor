@@ -12,6 +12,8 @@ const directories: string[] = []
 const projects = [
   { name: 'desktop', roots: ['apps/desktop'] },
   { name: 'client-ui', roots: ['libs/client-ui'] },
+  { name: 'host-client', roots: ['libs/host-client'] },
+  { name: 'web', roots: ['apps/web'] },
   { name: 'host', roots: ['apps/host'] },
   { name: 'shared', roots: ['libs/shared'] },
   { name: 'tooling', roots: ['tools/scripts', 'tools/host-release'] },
@@ -65,6 +67,7 @@ describe('relocation planner', () => {
       [test]: "import raw from './__fixtures__/real-session-events.jsonl?raw'",
     })
     const plan = repo.plan([test])
+    expect(plan.totals).toEqual({ 'client-ui': 2 })
     expect(plan.moves).toContainEqual({
       from: SHIPPING_FIXTURE,
       to: SHIPPING_DESTINATION,
@@ -78,6 +81,56 @@ describe('relocation planner', () => {
     expect(plan.reports).toContainEqual(
       expect.objectContaining({ file: mock, reason: 'external-consumer' }),
     )
+  })
+
+  it.each([
+    ['host-client', 'libs/host-client', '@phosphor/host-client/'],
+    ['web', 'apps/web', './'],
+  ])('attributes %s moves and rewrites moved importers and targets', (project, root, prefix) => {
+    const test = `${root}/src/a.test.ts`
+    const fixture = `${root}/src/__fixtures__/a.json`
+    const existing = `${root}/test/existing.test.ts`
+    const content = `import './a'\nimport raw from '${prefix}__fixtures__/a.json?raw'`
+    const repo = repository({
+      [test]: content,
+      [fixture]: '{}',
+      [existing]: "import '../src/a.test'",
+      [`${root}/src/a.ts`]: 'export const a = 1',
+    })
+    const plan = repo.plan([test, existing])
+    expect(plan.totals).toEqual({ [project]: 2 })
+    expect(plan.moves).toEqual([
+      {
+        from: fixture,
+        to: `${root}/test/__fixtures__/a.json`,
+        kind: 'test-support',
+        hash: digest('{}'),
+      },
+      { from: test, to: `${root}/test/a.test.ts`, kind: 'test', hash: digest(content) },
+    ])
+    expect(plan.importerEdits.map(({ file, to, edits }) => ({ file, to, edits }))).toEqual([
+      {
+        file: test,
+        to: `${root}/test/a.test.ts`,
+        edits: [
+          expect.objectContaining({ from: './a', to: '../src/a' }),
+          ...(project === 'host-client'
+            ? [
+                expect.objectContaining({
+                  from: '@phosphor/host-client/__fixtures__/a.json?raw',
+                  to: './__fixtures__/a.json?raw',
+                }),
+              ]
+            : []),
+        ],
+      },
+      {
+        file: existing,
+        to: existing,
+        edits: [expect.objectContaining({ from: '../src/a.test', to: './a.test' })],
+      },
+    ])
+    expect(plan.reports).toEqual([])
   })
 
   it('classifies mixed fixture directories per file and follows helper dependencies', () => {
