@@ -11,10 +11,16 @@ it.each(['web', 'client-ui', 'host-client'] as const)(
   (name) => {
     const budget = JSON.parse(readFileSync(resolve(root, `tools/budgets/${name}.json`), 'utf8'))
     expect(Object.keys(budget.offenders).length).toBeGreaterThan(0)
+    // One measurement per file: re-measuring for every offender key took >5 s on CI.
+    const measured = new Map<string, ReturnType<typeof measureSource>>()
     for (const [key, ceiling] of Object.entries(budget.offenders) as [string, number][]) {
       const file = key.split('::')[0]!
-      const content = readFileSync(resolve(root, PACKAGES[name], file), 'utf8')
-      const span = measureSource(file, content).find((entry) => entry.key === key)
+      if (!measured.has(file))
+        measured.set(
+          file,
+          measureSource(file, readFileSync(resolve(root, PACKAGES[name], file), 'utf8')),
+        )
+      const span = measured.get(file)!.find((entry) => entry.key === key)
       // Removed functions may retain their old ceilings, but never gain new credit.
       if (!span) continue
       const isolated = { ...budget, offenders: { [key]: ceiling }, exemptions: [], renames: {} }
