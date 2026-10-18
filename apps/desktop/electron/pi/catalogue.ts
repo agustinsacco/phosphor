@@ -13,11 +13,28 @@ import { piStubPath } from './stub'
 import { broadcast } from '../broadcast'
 import type { RpcSlashCommand } from '@shared/rpc'
 
-/** A pi answer stays believed for five minutes; degraded config answers for twenty seconds. */
+/** How long pi's own answer stays believed without re-spawning pi. */
 const CATALOGUE_TTL_MS = 5 * 60_000
+
+/**
+ * How long a models.json fallback is reused before pi is tried again.
+ *
+ * Short on purpose. The fallback is not the catalogue — it is what we show
+ * when pi could not be asked — so remembering it for five minutes turns one
+ * slow boot into five minutes of a wrong model list. Not zero either: a user
+ * with no pi at all must not respawn a process on every picker open.
+ */
 const CATALOGUE_FALLBACK_TTL_MS = 20_000
 
-/** Across pickers, dedupe loads but never remember an empty, retryable catalogue. */
+/**
+ * The model catalogue, cached across pickers. An empty result is not cached:
+ * pi missing AND models.json empty is exactly the state a user fixes and retries.
+ *
+ * Honors PHOSPHOR_PI_STUB like every other pi spawn. It once did not, and
+ * opening a model picker under e2e shelled out to the real binary, which booted
+ * pi against the sandboxed agent dir and ran a network install mid-suite that
+ * pruned a fixture package another test had written.
+ */
 const catalogueCache = createTtlCache(
   async (): Promise<CatalogueResult> => {
     const stub = piStubPath()
