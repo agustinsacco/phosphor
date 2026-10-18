@@ -17,8 +17,8 @@ files it consumes. That is what makes affected mean something per app:
   `install.sh`, the release guard scripts, `release-continuous.yml`). E2E adds
   its harness (`e2eHarness`). It does not depend on `tooling`.
 - `host`: libraries, plus the root install for `typecheck` and `build` and the
-  unit runner for `test`. Its build declares `apps/host/dist`. Only `tooling` depends on it, so a Host-only change selects
-  `host` and `tooling` and never the Desktop release.
+  unit runner for `test`. Its build declares `apps/host/dist`. `web` and `tooling` depend on it, so a
+  Host-only change selects `host`, `web` and `tooling` and never the Desktop release.
 - `control`: shared contract sources, root install for typecheck/build and the
   unit runner for tests. Its build declares `apps/control/dist`. It also has an
   explicit **test-only** dependency on `desktop`: `apps/control/src/routes/stack.test.ts`
@@ -93,8 +93,8 @@ shadow step/helper, leaving full uncached checks and release/deployment unchange
 
 The Control → Desktop test edge participates in the per-file shadow matrix,
 including explicit cases for `gotrue.ts` and `loopback.ts`. It conservatively
-selects Control and its Web consumer for any Desktop edit without changing
-production boundaries, enabling caching or starting the isolated stack test.
+selects Control and its Web consumer for any Desktop edit. The edge changes no
+production boundary, does not enable caching and does not start the isolated stack test.
 Site has no Desktop input, so a Desktop-only edit does not select site.
 
 The full validator always runs an unsigned Desktop build, including with

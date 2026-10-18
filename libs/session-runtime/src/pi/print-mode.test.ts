@@ -169,5 +169,5 @@ it('does not run Windows taskkill for a stale or missing pid', async () => {
   cleanup(child)
   expect(vi.mocked(execFile).mock.calls).toHaveLength(calls)
   expect(child.kill).not.toHaveBeenCalled()
-  killProcessTree({ pid: undefined } as ChildProcess)
+  expect(() => killProcessTree({ pid: undefined } as ChildProcess)).not.toThrow()
 })
