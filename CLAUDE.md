@@ -7,7 +7,8 @@ protocol is hand-mirrored in `libs/shared/src/rpc.ts`.
 
 **Two maps before you start.** [README.md](README.md#repo-layout) has the repo
 tree — the single copy, since three copies drifted.
-[docs/README.md](docs/README.md) is the documentation index. Everything in
+[docs/README.md](docs/README.md) is the documentation index. An engineering
+remediation is in progress; [docs/remediation.md](docs/remediation.md) has its status and next steps. Everything in
 `docs/` is present tense: how Phosphor behaves **now**, one living contract per
 surface. Two exceptions: [docs/known-issues.md](docs/known-issues.md) holds defects
 that reproduce today; [docs/future-features.md](docs/future-features.md) holds

@@ -9,6 +9,9 @@ defects; [future-features.md](future-features.md) holds decided or explored
 directions that are not built. A feature moves into its surface's living doc
 and leaves the future file in the same diff that builds it.
 
+[remediation.md](remediation.md) tracks the engineering remediation in progress:
+what has landed, what is left and how to continue it.
+
 For installation and task-oriented tutorials, start with the
 [Phosphor guides](https://phosphor.saccolabs.com/guides/): first task, daily work,
 [multi-agent work and Swarm](https://phosphor.saccolabs.com/guides/swarm/),
