@@ -1,3 +1,5 @@
+// CT-01 frozen inventory: 61 generated cases across 10 route/method pairs.
+// Full names are recorded in the characterization commit; all cases passed on base.
 import { describe, expect, it, vi } from 'vitest'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import {
