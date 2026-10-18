@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import chokidar, { type FSWatcher } from 'chokidar'
 
 /**
  * The regression this file exists for: a watcher pointed at a session
@@ -31,8 +32,39 @@ vi.mock('electron', () => ({
 
 let root: string
 let workspace: string
+let watcher: FSWatcher | undefined
+
+function waitForReady(watcher: FSWatcher): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cleanup = (): void => {
+      clearTimeout(timer)
+      watcher.off('ready', onReady)
+      watcher.off('error', onError)
+    }
+    const onReady = (): void => {
+      cleanup()
+      resolve()
+    }
+    const onError = (error: unknown): void => {
+      cleanup()
+      reject(error)
+    }
+    const timer = setTimeout(() => {
+      cleanup()
+      reject(new Error('Session watcher did not become ready within 2000ms'))
+    }, 2000)
+    watcher.once('ready', onReady)
+    watcher.once('error', onError)
+  })
+}
 
 beforeEach(async () => {
+  watcher = undefined
+  const watch = chokidar.watch
+  vi.spyOn(chokidar, 'watch').mockImplementation((...args) => {
+    watcher = watch(...args)
+    return watcher
+  })
   sent.length = 0
   root = await mkdtemp(join(tmpdir(), 'phosphor-watch-'))
   // pi-paths reads this at call time, so pointing it at a temp dir keeps the
@@ -43,9 +75,14 @@ beforeEach(async () => {
 
 afterEach(async () => {
   const { unwatchAll } = await import('./session-watcher')
-  await unwatchAll()
-  delete process.env.PI_CODING_AGENT_SESSION_DIR
-  await rm(root, { recursive: true, force: true })
+  try {
+    await unwatchAll()
+    if (watcher) expect(watcher.getWatched()).toEqual({})
+  } finally {
+    vi.restoreAllMocks()
+    delete process.env.PI_CODING_AGENT_SESSION_DIR
+    await rm(root, { recursive: true, force: true })
+  }
 })
 
 describe('watchWorkspaceSessions', () => {
@@ -66,9 +103,11 @@ describe('watchWorkspaceSessions', () => {
     const dir = sessionDirForCwd(workspace)
 
     watchWorkspaceSessions(workspace)
-    // Let chokidar finish its initial scan before the file lands, so this
-    // exercises the 'add' path rather than the ignored initial listing.
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    // Wait for the real initial scan so the first file exercises 'add',
+    // not the ignored initial listing.
+    expect(chokidar.watch).toHaveBeenCalledOnce()
+    if (!watcher) throw new Error('Expected a real session watcher')
+    await waitForReady(watcher)
 
     await writeFile(join(dir, '20260822_abc.jsonl'), '{"type":"session_start"}\n')
 
