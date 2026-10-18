@@ -1,3 +1,4 @@
+// HA-01 baseline inventory: 91 discovered command cases; all pass before partitioning.
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
