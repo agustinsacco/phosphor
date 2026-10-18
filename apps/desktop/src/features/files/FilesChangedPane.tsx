@@ -10,8 +10,7 @@ import { MonacoDiff } from './MonacoEditor'
 import { languageForPath } from '@/lib/monaco'
 import { basename } from '@/lib/path'
 import { errorText } from '@shared/errors'
-import { useFilesStore, workspaceFiles } from '@/stores/files'
-import { runFileAction } from './fileActions'
+import { revertFile, runFileAction } from './fileActions'
 
 export const FilesChangedPane = memo(function FilesChangedPane({
   workspacePath,
@@ -107,6 +106,37 @@ export const FilesChangedPane = memo(function FilesChangedPane({
   )
 })
 
+function useFileRevert(
+  workspacePath: string,
+  file: TouchedFile,
+  baselineRef: string | null,
+): { reverting: boolean; revert: () => Promise<void> } {
+  const [reverting, setReverting] = useState(false)
+  const pending = useRef(false)
+  const context = useRef({ valid: false })
+  useEffect(() => {
+    const current = { valid: true }
+    context.current = current
+    return () => {
+      current.valid = false
+    }
+  }, [workspacePath, file.relativePath, baselineRef])
+
+  const revert = async (): Promise<void> => {
+    if (pending.current) return
+    pending.current = true
+    setReverting(true)
+    const requestedContext = context.current
+    try {
+      await revertFile(workspacePath, file, baselineRef, () => requestedContext.valid)
+    } finally {
+      pending.current = false
+      setReverting(false)
+    }
+  }
+  return { reverting, revert }
+}
+
 function FileRow({
   file,
   workspacePath,
@@ -123,48 +153,7 @@ function FileRow({
   const name = basename(file.relativePath)
   const dir = file.relativePath.slice(0, file.relativePath.length - name.length)
 
-  const revert = async (event: React.MouseEvent): Promise<void> => {
-    event.stopPropagation()
-    // Explorer paths use native separators; agent paths and file links may
-    // use forward slashes. Compare the same representation before reverting.
-    const absolute = `${workspacePath.replace(/[/\\]+$/, '')}/${file.relativePath}`.replace(
-      /\\/g,
-      '/',
-    )
-    if (
-      workspaceFiles(useFilesStore.getState(), workspacePath).openFiles.some(
-        (f) => f.path.replace(/\\/g, '/') === absolute && f.dirty,
-      )
-    )
-      throw new Error('Save or discard the unsaved editor buffer before reverting this file.')
-    if (
-      !window.confirm(
-        `Revert ${file.relativePath} to its state at session start? Current on-disk edits will be discarded.`,
-      )
-    )
-      return
-    if (baselineRef) {
-      await window.phosphor.invoke(
-        'git:restoreFileTo',
-        workspacePath,
-        baselineRef,
-        file.relativePath,
-      )
-    } else if (file.created) {
-      throw new Error('Cannot safely revert a write without a saved baseline.')
-    } else if (file.patches.length > 0) {
-      const current = await window.phosphor.invoke(
-        'fs:readFile',
-        `${workspacePath}/${file.relativePath}`,
-      )
-      const original = reconstructOriginal(current.content, file.patches)
-      await window.phosphor.invoke(
-        'fs:writeFile',
-        `${workspacePath}/${file.relativePath}`,
-        original,
-      )
-    }
-  }
+  const { reverting, revert } = useFileRevert(workspacePath, file, baselineRef)
 
   return (
     <div className="hover:bg-bg-secondary/70 group flex w-full items-center gap-2 px-3 transition-colors">
@@ -194,8 +183,11 @@ function FileRow({
         </span>
       </TooltipButton>
       <TooltipButton
-        onClick={(e) => runFileAction(revert(e))}
-        disabled={!baselineRef && file.created}
+        onClick={(e) => {
+          e.stopPropagation()
+          runFileAction(revert())
+        }}
+        disabled={reverting || (!baselineRef && file.created)}
         aria-label={`Revert ${file.relativePath}`}
         title={
           !baselineRef && file.created

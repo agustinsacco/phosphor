@@ -93,7 +93,7 @@ describe('eslint staged warning policy', () => {
     'warns about native confirmation: %s',
     async (code) => {
       expect(await messages(code, rendererCaller, 'no-restricted-properties')).toEqual([
-        expect.objectContaining({ severity: 1 }),
+        expect.objectContaining({ severity: 2 }),
       ])
       expect(await severity('apps/desktop/electron/preload.ts', 'no-restricted-properties')).toBe(0)
     },

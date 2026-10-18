@@ -79,6 +79,7 @@ it('allows a clean buffer to revert after confirmation', async () => {
   await act(async () =>
     container.querySelector<HTMLButtonElement>('[aria-label="Revert nested/a.ts"]')!.click(),
   )
+  await dismissRevert('revert')
   expect(invoke).toHaveBeenCalledWith('git:restoreFileTo', '/repo', 'baseline', 'nested/a.ts')
 })
 
@@ -223,4 +224,43 @@ it('only reverts once on rapid clicks and remains disabled through mutation', as
     await dismissRevert(undefined)
     await act(async () => finish?.())
   }
+})
+
+it('unlocks revert after IPC rejection and surfaces the error', async () => {
+  const button = await renderRevert()
+  invoke.mockRejectedValue(new Error('Restore unavailable'))
+  await act(async () => button.click())
+  await dismissRevert('revert')
+  expect(button.disabled).toBe(false)
+  expect(useExtensionUiStore.getState().pushToast).toHaveBeenCalledWith(
+    'Error: Restore unavailable',
+    'error',
+  )
+  invoke.mockResolvedValue(undefined)
+  await act(async () => button.click())
+  await dismissRevert('revert')
+  expect(invoke).toHaveBeenCalledTimes(2)
+  expect(button.disabled).toBe(false)
+})
+
+it('does not revert a changed file path while the choice is queued', async () => {
+  const button = await renderRevert()
+  await act(async () => button.click())
+  await act(async () =>
+    useChatStore.setState((state) => ({
+      sessions: {
+        session: {
+          ...state.sessions.session!,
+          tools: {
+            edit: {
+              ...state.sessions.session!.tools.edit!,
+              args: { path: 'different.ts' },
+            },
+          },
+        },
+      },
+    })),
+  )
+  await dismissRevert('revert')
+  expect(invoke).not.toHaveBeenCalled()
 })

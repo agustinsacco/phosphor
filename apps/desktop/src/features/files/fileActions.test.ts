@@ -14,18 +14,23 @@ afterEach(async () => {
 
 it('only closes trashed tabs after confirmation and successful IPC', async () => {
   const entry = { name: 'docs', path: '/repo/docs', relativePath: 'docs', isDirectory: true }
-  const confirm = vi.fn(() => false)
+  const { usePromptStore } = await import('@/stores/prompt')
   const invoke = vi.fn().mockRejectedValue(new Error('Permission denied'))
-  vi.stubGlobal('window', { confirm, phosphor: { invoke } })
+  vi.stubGlobal('window', { phosphor: { invoke } })
   const reconcile = vi.spyOn(useFilesStore.getState(), 'reconcilePath').mockImplementation(() => {})
   vi.spyOn(useFilesStore.getState(), 'refreshDir').mockResolvedValue()
-  await trashEntry('/repo', entry)
+  const cancelled = trashEntry('/repo', entry)
+  usePromptStore.getState().dismiss(usePromptStore.getState().requests[0]!, undefined)
+  await cancelled
   expect(invoke).not.toHaveBeenCalled()
-  confirm.mockReturnValue(true)
-  await expect(trashEntry('/repo', entry)).rejects.toThrow('Permission denied')
+  const failed = trashEntry('/repo', entry)
+  usePromptStore.getState().dismiss(usePromptStore.getState().requests[0]!, 'trash')
+  await expect(failed).rejects.toThrow('Permission denied')
   expect(reconcile).not.toHaveBeenCalled()
   invoke.mockResolvedValue(undefined)
-  await trashEntry('/repo', entry)
+  const successful = trashEntry('/repo', entry)
+  usePromptStore.getState().dismiss(usePromptStore.getState().requests[0]!, 'trash')
+  await successful
   expect(invoke).toHaveBeenCalledWith('fs:trash', entry.path)
   expect(reconcile).toHaveBeenCalledWith('/repo', entry.path)
 })
@@ -244,4 +249,41 @@ it('asks again with the unsaved warning when a descendant becomes dirty while qu
       usePromptStore.getState().dismiss(request, undefined)
     await pending
   }
+})
+
+it('uses at most two choices when newly dirty trash is affirmed', async () => {
+  const { usePromptStore } = await import('@/stores/prompt')
+  const invoke = vi.fn().mockResolvedValue({ content: 'disk', size: 4, mtimeMs: 1 })
+  vi.stubGlobal('window', { phosphor: { invoke } })
+  useFilesStore.setState({ byWorkspace: {} })
+  await useFilesStore.getState().openFile('/repo', '/repo/docs/draft.md')
+  const reconcile = vi.spyOn(useFilesStore.getState(), 'reconcilePath').mockImplementation(() => {})
+  vi.spyOn(useFilesStore.getState(), 'refreshDir').mockResolvedValue()
+  invoke.mockClear()
+  const entry = { name: 'docs', path: '/repo/docs', relativePath: 'docs', isDirectory: true }
+  const pending = trashEntry('/repo', entry)
+  useFilesStore.getState().updateBuffer('/repo', '/repo/docs/draft.md', 'draft')
+  usePromptStore.getState().dismiss(usePromptStore.getState().requests[0]!, 'trash')
+  await Promise.resolve()
+  expect(invoke).not.toHaveBeenCalled()
+  const warning = usePromptStore.getState().requests[0]!
+  expect(warning.message).toBe('Unsaved edits will be lost.')
+  usePromptStore.getState().dismiss(warning, 'trash')
+  await pending
+  expect(usePromptStore.getState().requests).toEqual([])
+  expect(invoke).toHaveBeenCalledExactlyOnceWith('fs:trash', entry.path)
+  expect(reconcile).toHaveBeenCalledExactlyOnceWith('/repo', entry.path)
+})
+
+it('does not trash a changed entry path after the choice', async () => {
+  const { usePromptStore } = await import('@/stores/prompt')
+  const invoke = vi.fn().mockResolvedValue(undefined)
+  vi.stubGlobal('window', { phosphor: { invoke } })
+  useFilesStore.setState({ byWorkspace: {} })
+  const entry = { name: 'docs', path: '/repo/docs', relativePath: 'docs', isDirectory: true }
+  const pending = trashEntry('/repo', entry)
+  entry.path = '/repo/renamed'
+  usePromptStore.getState().dismiss(usePromptStore.getState().requests[0]!, 'trash')
+  await pending
+  expect(invoke).not.toHaveBeenCalled()
 })
