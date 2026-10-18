@@ -22,7 +22,7 @@ export class RoutineRepository {
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;')
     const version = this.db.prepare('PRAGMA user_version').get()!.user_version
     if (version !== 0 && version !== 1)
-      throw new Error('Routines database is newer than this app. Upgrade Phosphor.')
+      throw new Error('Routines database is newer than this runtime. Upgrade the runtime.')
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS routines (id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS runs (
@@ -379,7 +379,7 @@ export class RoutineRepository {
       this.finish(
         run.id,
         'interrupted',
-        'Phosphor stopped during execution; external actions may have completed. Verify the previous worker has stopped and inspect its output before saving to resume. No automatic replay.',
+        'Runtime stopped during execution; external actions may have completed. Verify the previous worker has stopped and inspect its output before saving to resume. No automatic replay.',
         now,
       )
     }
