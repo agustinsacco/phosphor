@@ -56,3 +56,97 @@ describe('listedPaths security and ordering contract', () => {
     expect(fs.realpath).not.toHaveBeenCalled()
   })
 })
+
+async function delayedValidation(files: string[], serial = false) {
+  let active = 0,
+    peak = 0,
+    calls = 0,
+    ticks = 0,
+    done = false
+  const pending: (() => void)[] = []
+  vi.spyOn(fs, 'realpath').mockImplementation(async (path) => {
+    if (typeof path !== 'string') throw new Error('Expected a string path')
+    active++
+    peak = Math.max(peak, active)
+    calls++
+    await new Promise<void>((resolve) => pending.push(resolve))
+    active--
+    return path
+  })
+  vi.mocked(git).mockResolvedValue(files.join('\0'))
+  const run = serial
+    ? (async () => {
+        const { checkedPath } = await import('./files')
+        for (const file of files) await checkedPath(root, file, true)
+        return files
+      })()
+    : listedPaths(root)
+  void run.then(
+    () => {
+      done = true
+    },
+    () => {
+      done = true
+    },
+  )
+  while (!done) {
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    if (pending.length) {
+      ticks++
+      for (const resolve of pending.splice(0)) resolve()
+    }
+  }
+  return { files: await run, peak, calls, ticks }
+}
+
+describe('listedPaths bounded concurrency regression', () => {
+  it('validates eight files concurrently with lower deterministic latency but unchanged syscall count', async () => {
+    const files = Array.from({ length: 32 }, (_, i) => `dir/file-${i}`)
+    const batched = await delayedValidation(files)
+    const serial = await delayedValidation(files, true)
+    expect(batched.files).toEqual(files)
+    expect(batched.peak).toBe(8)
+    expect(serial.peak).toBe(1)
+    expect(batched.calls).toBe(files.length * 2)
+    expect(batched.calls).toBe(serial.calls)
+    expect(batched.ticks).toBe(8)
+    expect(serial.ticks).toBe(64)
+  })
+  it.each(['parent', 'leaf'] as const)(
+    'refuses a %s swapped during per-component validation',
+    async (swap) => {
+      await fs.mkdir(join(root, 'dir'))
+      await fs.mkdir(join(root, '.git'))
+      await fs.writeFile(join(root, '.git/config'), 'secret')
+      await fs.writeFile(join(root, 'dir/file'), 'text')
+      const outside = `${root}-outside`
+      await fs.mkdir(outside)
+      await fs.writeFile(join(outside, 'file'), 'secret')
+      const { realpath } = await vi.importActual<typeof fs>('node:fs/promises')
+      vi.spyOn(fs, 'realpath').mockImplementation(async (path) => {
+        if (path === join(root, 'dir/file')) {
+          if (swap === 'parent') {
+            await fs.rename(join(root, 'dir'), join(root, 'old'))
+            await fs.symlink(outside, join(root, 'dir'))
+          } else {
+            await fs.unlink(join(root, 'dir/file'))
+            await fs.symlink(join(root, '.git/config'), join(root, 'dir/file'))
+          }
+        }
+        return realpath(path)
+      })
+      vi.mocked(git).mockResolvedValue('dir/file\0')
+      try {
+        await expect(listedPaths(root)).rejects.toThrow('bad-request')
+      } finally {
+        await fs.rm(outside, { recursive: true, force: true })
+      }
+    },
+  )
+})
+
+afterEach(async () => {
+  vi.mocked(fs.realpath).mockImplementation(
+    (await vi.importActual<typeof fs>('node:fs/promises')).realpath,
+  )
+})
