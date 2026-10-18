@@ -24,7 +24,7 @@ describe('eslint staged warning policy', () => {
       [expect.objectContaining({ severity: 2 })],
     )
     expect(
-      await messages('import "electron"', 'apps/host/src/index.ts', 'no-restricted-imports'),
+      await messages('import "electron"', 'apps/host/src/main.ts', 'no-restricted-imports'),
     ).toEqual([expect.objectContaining({ severity: 2 })])
   })
 
@@ -43,7 +43,7 @@ describe('eslint staged warning policy', () => {
       expect(await messages(code, rendererCaller, rule)).toEqual([
         expect.objectContaining({ severity: 1 }),
       ])
-      expect(await severity('apps/host/src/index.ts', rule)).toBe(0)
+      expect(await severity('apps/host/src/main.ts', rule)).toBe(0)
       expect(await severity('apps/desktop/electron/preload.ts', rule)).toBe(0)
     }
   })
@@ -72,8 +72,8 @@ describe('eslint staged warning policy', () => {
   it.each([
     rendererCaller,
     'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
-    'apps/host/src/index.ts',
-    'apps/control/src/index.ts',
+    'apps/host/src/main.ts',
+    'apps/control/src/main.ts',
     'tools/scripts/test/lint-policy.test.ts',
     'apps/desktop/e2e/smoke.spec.ts',
   ])('does not enable typed linting outside main/libraries: %s', async (file) => {
@@ -100,6 +100,9 @@ describe('eslint staged warning policy', () => {
     'window["phosphor"].piCommand("id", {})',
     'window["phosphor"]["piCommand"]("id", {})',
     'window?.phosphor?.piCommand("id", {})',
+    '(window as Window).phosphor.piCommand("id", {})',
+    'window.phosphor!.piCommand("id", {})',
+    'window[`phosphor`][`piCommand`]("id", {})',
   ])('warns about raw RPC escape hatches: %s', async (code) => {
     expect(await messages(code, rendererCaller, 'phosphor/no-raw-pi-command')).toEqual([
       expect.objectContaining({ severity: 1 }),
@@ -121,5 +124,13 @@ describe('eslint staged warning policy', () => {
     expect(
       await severity('apps/desktop/src/dev/mockPhosphor.ts', 'phosphor/no-raw-pi-command'),
     ).toBe(1)
+  })
+
+  it('keeps test mocks of window.confirm out of the warning inventory', async () => {
+    for (const file of [
+      'apps/desktop/src/features/files/FilesChangedPane.test.tsx',
+      'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
+    ])
+      expect(await severity(file, 'no-restricted-properties')).toBe(0)
   })
 })

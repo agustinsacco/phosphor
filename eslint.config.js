@@ -15,11 +15,30 @@ const phosphor = {
         messages: { rawRpc: 'Use piCall()/piCallOk() from @/lib/rpc to handle RPC failures.' },
       },
       create(context) {
+        // `(window as X).phosphor!.piCommand` is the same access: see through TS wrappers.
+        function unwrap(node) {
+          while (
+            node.type === 'TSAsExpression' ||
+            node.type === 'TSNonNullExpression' ||
+            node.type === 'TSSatisfiesExpression'
+          )
+            node = node.expression
+          return node
+        }
+        function keyIs(property, name) {
+          if (property.type === 'Literal') return property.value === name
+          return (
+            property.type === 'TemplateLiteral' &&
+            property.expressions.length === 0 &&
+            property.quasis[0]?.value.cooked === name
+          )
+        }
         function memberNamed(node, name) {
+          node = unwrap(node)
           return (
             node.type === 'MemberExpression' &&
             (node.computed
-              ? node.property.type === 'Literal' && node.property.value === name
+              ? keyIs(node.property, name)
               : node.property.type === 'Identifier' && node.property.name === name)
           )
         }
@@ -28,8 +47,8 @@ const phosphor = {
             if (
               memberNamed(node, 'piCommand') &&
               memberNamed(node.object, 'phosphor') &&
-              node.object.object.type === 'Identifier' &&
-              node.object.object.name === 'window'
+              unwrap(unwrap(node.object).object).type === 'Identifier' &&
+              unwrap(unwrap(node.object).object).name === 'window'
             ) {
               context.report({ node, messageId: 'rawRpc' })
             }
@@ -92,6 +111,8 @@ export default tseslint.config(
   },
   {
     files: rendererFiles,
+    // Tests mock window.confirm on purpose; keep the inventory to production uses.
+    ignores: ['apps/desktop/src/**/*.test.{ts,tsx}', 'apps/desktop/test/renderer/**'],
     rules: {
       'no-restricted-properties': [
         'warn',
