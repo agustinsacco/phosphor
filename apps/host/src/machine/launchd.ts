@@ -15,10 +15,6 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { IdentityFailure } from '../control/identity'
 import { errnoCode, errnoIs } from '../fs-safety'
 import { hostLogDirectory } from './log'
-export {
-  writeServiceUnit as writeLaunchAgent,
-  removeServiceUnit as removeLaunchAgent,
-} from './systemd'
 
 export const HOST_AGENT = 'com.saccolabs.phosphor-host'
 function xml(value: string): string {

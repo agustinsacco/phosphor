@@ -1,5 +1,5 @@
 import { handle } from './handle'
-import { invalidateCatalogueModels, invalidatePiCommands } from './pi-config-handlers'
+import { invalidateCatalogueModels, invalidatePiCommands } from '../pi/catalogue'
 import {
   checkClaudeCliUpdate,
   checkPackageUpdates,

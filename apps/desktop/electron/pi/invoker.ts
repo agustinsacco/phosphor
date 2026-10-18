@@ -16,8 +16,12 @@ export interface ResolvedPiInvoker {
 export class PiUnavailableError extends Error {}
 
 /** Only discovery is cached; each invocation gets its own current environment. */
-export async function resolvePiInvoker(profile: PiInvocationProfile): Promise<ResolvedPiInvoker> {
-  const stub = piStubPath()
+export async function resolvePiInvoker(
+  profile: PiInvocationProfile,
+  options?: { stubPath?: string | null },
+): Promise<ResolvedPiInvoker> {
+  // An explicit override also lets callers disable the environment stub.
+  const stub = options && 'stubPath' in options ? options.stubPath : piStubPath()
   if (stub) {
     const env =
       profile === 'minimal-stub'

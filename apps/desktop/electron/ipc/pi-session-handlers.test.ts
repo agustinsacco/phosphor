@@ -71,7 +71,7 @@ vi.mock('@phosphor/session-runtime/pi/resume-provider', () => ({
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: state.listPackages }))
 vi.mock('../pi/compaction-reset', () => ({ ensureCompactionReset: state.ensureCompactionReset }))
 vi.mock('../pi/print-mode', () => ({ runPrintMode: state.runPrintMode }))
-vi.mock('./pi-config-handlers', () => ({ catalogueModels: vi.fn().mockResolvedValue([]) }))
+vi.mock('../pi/catalogue', () => ({ catalogueModels: vi.fn().mockResolvedValue([]) }))
 vi.mock('@phosphor/session-runtime/pi/agent-settings', () => ({
   readAgentSettings: vi.fn().mockResolvedValue({ defaultProvider: 'openai-codex' }),
 }))

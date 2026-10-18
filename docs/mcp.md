@@ -367,7 +367,8 @@ prompts) and its `mcp` / `mcpScript` tools go with the package.
 - Main: `apps/desktop/electron/pi/mcp-config.ts` (the two files, resolution,
   trust; injectable dirs for hermetic tests), `mcp-migration.ts` (the adapter
   migration: `mcp-translation.ts` holds the per-entry rules and
-  `mcp-migration-plan.ts` the plan), `mcp-cli.ts` (`pi mcp list / login / logout`).
+  `mcp-migration-plan.ts` the plan), `mcp-cli.ts` (`pi mcp list / login / logout`), `mcp-actions.ts`
+  (working directory, environment and admission for those commands).
 - IPC: `mcp:readConfigs / upsertServer / removeServer / setEnabled`,
   `mcp:readFile / writeFile`, `mcp:list`, `mcp:authorize / cancelAuth / logout`,
   `mcp:migrationPlan / migrate` and the `mcp:authState` broadcast

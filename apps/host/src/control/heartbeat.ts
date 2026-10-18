@@ -2,16 +2,18 @@ import { randomUUID } from 'node:crypto'
 import { open, rename, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  CONTROL_LIMITS,
   isUuid,
-  parseHeartbeatRequest,
-  parseHeartbeatResponse,
   type HeartbeatRequest,
   type HeartbeatResponse,
   type Readiness,
 } from '@phosphor/shared/control-api'
-import { ControlFailure } from './client'
+import { errnoIs } from '../fs-safety'
+import { runHeartbeat } from './heartbeat-loop'
+import { drainHeartbeat } from './heartbeat-publication'
 import { checkIdentityDirectory, IdentityFailure, readIdentityFile } from './identity'
+
+export { untilAborted } from './heartbeat-loop'
+export { PUBLICATION_WAIT_MS, REMOVED } from './heartbeat-publication'
 
 export interface SequenceStore {
   read(): Promise<number>
@@ -30,7 +32,7 @@ export function createSequenceStore(
       try {
         text = await readIdentityFile(directory, uid, 'heartbeat.json')
       } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return 0
+        if (error instanceof Error && errnoIs(error, 'ENOENT')) return 0
         throw new IdentityFailure('Could not read heartbeat sequence storage.')
       }
       let value: unknown
@@ -70,7 +72,7 @@ export function createSequenceStore(
         await rename(temp, join(directory, 'heartbeat.json'))
       } finally {
         await unlink(temp).catch((error: unknown) => {
-          if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT'))
+          if (!(error instanceof Error && errnoIs(error, 'ENOENT')))
             throw new IdentityFailure('Could not save heartbeat sequence storage.')
         })
       }
@@ -92,192 +94,49 @@ export interface HeartbeatPorts {
   onAccepted?(reply: HeartbeatResponse): void
   onRemoved?(): void
 }
-const UNKNOWN: Readiness = { pi: 'unknown', claude: 'unknown', tailscale: 'unknown' }
-export const REMOVED =
-  'This machine was removed from your Phosphor account. Run phosphor setup to add it again.'
-
-/**
- * `work`, or `fallback` once `signal` aborts. The abort listener is removed as
- * soon as either happens: the loop runs for the life of the service, so a race
- * against one long-lived promise would keep a reaction per beat (review r1).
- */
-export function untilAborted<T>(work: Promise<T>, signal: AbortSignal, fallback: T): Promise<T> {
-  if (signal.aborted) {
-    work.catch(() => {})
-    return Promise.resolve(fallback)
-  }
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => resolve(fallback)
-    signal.addEventListener('abort', abort, { once: true })
-    work.then(
-      (value) => {
-        signal.removeEventListener('abort', abort)
-        resolve(value)
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', abort)
-        reject(error)
-      },
-    )
-  })
+/** State shared by the serialized publisher, drain and foreground loop. */
+export interface HeartbeatState {
+  ports: HeartbeatPorts
+  running: AbortController
+  forced: Promise<void>
+  force(): void
+  ending: boolean
+  drain: Promise<{ state: 'stopped' }> | undefined
+  publication: Promise<void>
+  last: number
+  readiness: Readiness
+  refreshed: number
+  started: number
+  logState: string
+  staleLogged: boolean
+  backoff: number
 }
 
-export const PUBLICATION_WAIT_MS = 1000
 /** One serialized sender. Shutdown cancels the running request before publishing its final seq. */
 export function createHeartbeat(ports: HeartbeatPorts) {
-  const running = new AbortController()
   let force: () => void = () => {}
   const forced = new Promise<void>((resolve) => {
     force = resolve
   })
-  let ending = false
-  let drain: Promise<{ state: 'stopped' }> | undefined
-  let last = 0
-  let readiness = UNKNOWN
-  let refreshed = -Infinity
-  const started = ports.now()
-  let state = ''
-  let staleLogged = false
-  const log = (next: string) => {
-    if (state !== next) {
-      state = next
-      ports.log(next)
-    }
-  }
-  // Serialize sequence publication even if a cancelled transport takes time to settle.
-  let publication = Promise.resolve()
-  const body = (state: HeartbeatRequest['state']) => {
-    const next = publication.then(async () => {
-      last = Math.max(last, await ports.seq.read())
-      const seq = Math.max(last + 1, ports.now())
-      const parsed = parseHeartbeatRequest({
-        seq,
-        state,
-        hostVersion: ports.hostVersion,
-        uptimeSec: Math.max(0, Math.floor((ports.now() - started) / 1000)),
-        readiness,
-        lanes: { running: 0, waiting: 0 },
-        endpoint: ports.endpoint?.() ?? null,
-      })
-      if (!parsed.ok) throw new IdentityFailure('Invalid heartbeat metadata.')
-      await ports.seq.write(seq)
-      last = seq
-      return parsed.value
-    })
-    publication = next.then(
-      () => {},
-      () => {},
-    )
-    return next
-  }
-  const stop = async () => {
-    if (drain) {
-      force()
-      return { state: 'stopped' as const }
-    }
-    ending = true
-    running.abort()
-    drain = (async () => {
-      const deadline = new AbortController()
-      try {
-        await Promise.race([
-          body('stopping')
-            .then((value) => ports.client(value, deadline.signal))
-            .catch(() => {}),
-          ports.wait(5000, deadline.signal).catch(() => {}),
-          forced,
-        ])
-      } finally {
-        deadline.abort()
-        // The run lock is released after the drain. A sequence write already
-        // running lands first, so the next run reads it; a stuck disk waits 1 s.
-        // A second signal skips the wait: run's 3 s release wait must still cover
-        // the API's 2 s close grace.
-        let timer: ReturnType<typeof setTimeout> | undefined
-        await Promise.race([
-          publication,
-          forced,
-          new Promise<void>((resolve) => {
-            timer = setTimeout(resolve, PUBLICATION_WAIT_MS)
-            timer.unref()
-          }),
-        ])
-        clearTimeout(timer)
-        log('stopped')
-      }
-      return { state: 'stopped' as const }
-    })()
-    return drain
+  const state: HeartbeatState = {
+    ports,
+    running: new AbortController(),
+    forced,
+    force,
+    ending: false,
+    drain: undefined,
+    publication: Promise.resolve(),
+    last: 0,
+    readiness: { pi: 'unknown', claude: 'unknown', tailscale: 'unknown' },
+    refreshed: -Infinity,
+    started: ports.now(),
+    logState: '',
+    staleLogged: false,
+    backoff: 5000,
   }
   return {
-    drain: stop,
+    drain: () => drainHeartbeat(state),
     exitCode: () => 0,
-    async run(): Promise<number> {
-      const abort = () => {
-        void stop()
-      }
-      ports.signal?.addEventListener('abort', abort, { once: true })
-      if (ports.signal?.aborted) void stop()
-      let backoff = 5000
-      try {
-        while (!ending) {
-          let delay: number
-          try {
-            if (ports.now() - refreshed >= 60_000) {
-              readiness = await untilAborted(ports.readiness(), running.signal, readiness)
-              refreshed = ports.now()
-            }
-            if (ending) break
-            const request = await body('running')
-            if (ending) break
-            const answer = await untilAborted(
-              ports.client(request, running.signal),
-              running.signal,
-              null,
-            )
-            if (ending || answer === null) break
-            const parsed = parseHeartbeatResponse(answer)
-            if (!parsed.ok) throw new ControlFailure('internal')
-            const jitter = ports.random()
-            if (!Number.isFinite(jitter) || jitter < 0 || jitter > 1)
-              throw new IdentityFailure('Invalid heartbeat jitter.')
-            delay = parsed.value.nextInSec * 1000 + jitter * 3000
-            backoff = 5000
-            ports.onAccepted?.(parsed.value)
-            log('connected')
-          } catch (error) {
-            if (ending) break
-            if (!(error instanceof ControlFailure)) throw error
-            if (error.code === 'gone') {
-              ports.onRemoved?.()
-              log(REMOVED)
-              return 77
-            }
-            if (error.code === 'conflict') {
-              if (!staleLogged) {
-                ports.log('Heartbeat sequence was stale; retrying.')
-                staleLogged = true
-              }
-              delay = CONTROL_LIMITS.heartbeatMinSec * 1000
-            } else if (error.code === 'too-many-requests') {
-              delay = CONTROL_LIMITS.heartbeatMinSec * 1000
-            } else {
-              delay = backoff
-              backoff = Math.min(backoff * 2, 300_000)
-            }
-            log(`retrying in ${delay / 1000}s`)
-          }
-          await untilAborted(
-            ports.wait(delay, running.signal).catch(() => {}),
-            running.signal,
-            undefined,
-          )
-        }
-        await drain
-        return 0
-      } finally {
-        ports.signal?.removeEventListener('abort', abort)
-      }
-    },
+    run: () => runHeartbeat(state),
   }
 }

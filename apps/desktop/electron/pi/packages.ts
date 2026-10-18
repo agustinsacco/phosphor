@@ -1,28 +1,29 @@
-import { execFile, spawn } from 'node:child_process'
-import { promisify } from 'node:util'
 import { readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { randomUUID } from 'node:crypto'
-import type { ClaudeStatus, PiPackageEntry } from '@shared/models'
-import { parseClaudeAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
-export { parseClaudeAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
+import type { PiPackageEntry } from '@shared/models'
 import { listPackages, npmNameFromSpec } from '@phosphor/session-runtime/pi/packages'
 import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
 import { claudeOneShotEnv, claudeProviderSpawnEnv } from './provider-detect'
 import { piProcessEnv } from './shell-env'
-import { cachedPiHealth } from './health'
-import { lookupPosixBinary, windowsWhereOutput } from './binary-lookup'
-import { pickWhereMatch, resolveWindowsLaunch } from './win-launch'
-import { killProcessTree, OWN_GROUP, runPrintMode } from './print-mode'
+import { PiUnavailableError, resolvePiInvoker } from './invoker'
+import { resolveBinary, windowsWhereOutput } from './binary-lookup'
+import { resolveWindowsLaunch } from './win-launch'
+import { failedJob, startJob, startPrintModeJob, type JobSender } from './package-jobs'
 
-const execFileAsync = promisify(execFile)
+export { failedJob, startJob, disposePackageJobs, type JobSender } from './package-jobs'
+export { claudeStatus } from './claude-status'
+export { parseClaudeAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
+export { resolveBinary } from './binary-lookup'
+
+/** One tiny print-mode turn: the bound a session title run gets. */
+const PROVIDER_PROOF_TIMEOUT_MS = 30_000
 
 /**
  * pi package jobs and binaries. What settings declare, and where each
  * package is installed, is read by `@phosphor/session-runtime/pi/packages`.
  *
  * Mutations go through pi's own CLI (`pi install` / `pi remove` /
- * `pi update`), spawned by the job runner below — pi owns pinning, git-ref
+ * `pi update`), spawned by the package job runner — pi owns pinning, git-ref
  * reconciliation and `npmCommand` wrappers, so Phosphor never re-implements
  * install semantics.
  */
@@ -50,247 +51,6 @@ export async function packageSkillDirs(
   return found
 }
 
-// ---------- job runner ----------
-
-/** Sender surface the runner needs (subset of Electron.WebContents). */
-export interface JobSender {
-  isDestroyed(): boolean
-  send(channel: string, ...args: unknown[]): void
-}
-
-/** Generous: a slow install takes minutes. A job still running is hung. */
-const PACKAGE_JOB_TIMEOUT_MS = 15 * 60_000
-/** One tiny print-mode turn: the bound a session title run gets. */
-const PROVIDER_PROOF_TIMEOUT_MS = 30_000
-/** How long quit waits for stopped jobs to report before going on. */
-const DISPOSE_SETTLE_MS = 3_000
-/** What a stopped job reports: a killed child always reported `code ?? 1`. */
-const STOPPED_EXIT_CODE = 1
-const SHUTTING_DOWN = 'Phosphor is shutting down. New work cannot start.'
-
-/** A running job as disposal sees it: stop it, then wait for its exit. */
-const activeJobs = new Map<string, { cancel: (reason: string) => void; settled: Promise<void> }>()
-/** Set by disposePackageJobs; from then on every new job is refused. */
-let disposal: Promise<void> | null = null
-
-/**
- * Register a job. `output` streams on `packages:output:<jobId>`; `finish`
- * runs `onExit`, then reports on `packages:exit:<jobId>` — once, whichever of
- * exit, error, deadline and `cancel` comes first. Nothing streams after it,
- * and a closed window simply stops receiving.
- */
-function trackJob(
-  sender: JobSender,
-  stop: (reason: string) => void,
-  onExit?: (code: number) => void,
-): {
-  jobId: string
-  output: (text: string) => void
-  finish: (code: number) => void
-  cancel: (reason: string) => void
-} {
-  const jobId = randomUUID()
-  const emit = (channel: string, payload: unknown): void => {
-    if (!sender.isDestroyed()) sender.send(channel, payload)
-  }
-  let finished = false
-  let settle = (): void => {}
-  const settled = new Promise<void>((resolve) => {
-    settle = resolve
-  })
-  const cancel = (reason: string): void => {
-    if (!finished) stop(reason)
-  }
-  activeJobs.set(jobId, { cancel, settled })
-  return {
-    jobId,
-    cancel,
-    output: (text) => {
-      if (!finished) emit(`packages:output:${jobId}`, text)
-    },
-    finish: (code) => {
-      if (finished) return
-      finished = true
-      activeJobs.delete(jobId)
-      try {
-        onExit?.(code)
-      } finally {
-        emit(`packages:exit:${jobId}`, code)
-        settle()
-      }
-    },
-  }
-}
-
-/**
- * Spawn a command and stream its output to the renderer on
- * `packages:output:<jobId>` / `packages:exit:<jobId>`. The job leads its own
- * process tree, so its deadline and quit stop whatever it started too.
- */
-export function startJob(
-  sender: JobSender,
-  command: string,
-  args: string[],
-  options: {
-    cwd?: string
-    env: Record<string, string>
-    /**
-     * Runs in main when the job ends, before the renderer hears the exit —
-     * so a cache the job made stale is already dropped by the time the UI
-     * re-asks. Fires once, for a spawn failure (code 127) and a stop too.
-     */
-    onExit?: (code: number) => void
-  },
-): { jobId: string } {
-  if (disposal) return failedJob(sender, SHUTTING_DOWN)
-  const child = spawn(command, args, {
-    cwd: options.cwd,
-    env: options.env,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: OWN_GROUP,
-  })
-  const job = trackJob(
-    sender,
-    (reason) => {
-      job.output(`${reason}\n`)
-      killProcessTree(child)
-      finish(STOPPED_EXIT_CODE)
-    },
-    options.onExit,
-  )
-  const deadline = setTimeout(
-    () => job.cancel('Stopped: still running after 15 minutes.'),
-    PACKAGE_JOB_TIMEOUT_MS,
-  )
-  const finish = (code: number): void => {
-    clearTimeout(deadline)
-    job.finish(code)
-  }
-
-  child.stdout?.on('data', (chunk: Buffer) => job.output(chunk.toString()))
-  child.stderr?.on('data', (chunk: Buffer) => job.output(chunk.toString()))
-  child.on('error', (error) => {
-    job.output(`${error.message}\n`)
-    finish(127)
-  })
-  child.on('close', (code) => finish(code ?? 1))
-
-  return { jobId: job.jobId }
-}
-
-/**
- * A print-mode run as a streamed job: stdout streams, a failure ends with
- * print mode's reason, and the exit is 0 for a clean answer, else 1. Starts
- * a tick late, like failedJob, because a spawn failure settles at once.
- */
-function startPrintModeJob(
-  sender: JobSender,
-  command: string,
-  args: string[],
-  options: { cwd: string; env: Record<string, string>; timeoutMs: number },
-): { jobId: string } {
-  if (disposal) return failedJob(sender, SHUTTING_DOWN)
-  const controller = new AbortController()
-  const job = trackJob(sender, (reason) => {
-    job.output(`${reason}\n`)
-    controller.abort()
-  })
-  setTimeout(() => {
-    void runPrintMode(command, args, {
-      ...options,
-      signal: controller.signal,
-      onStdout: job.output,
-    }).then(({ error }) => {
-      if (error) job.output(`${error}\n`)
-      job.finish(error ? 1 : 0)
-    })
-  }, 0)
-  return { jobId: job.jobId }
-}
-
-/**
- * Stop every package job and refuse new ones; approved quit calls this so no
- * job's process tree outlives Phosphor. Idempotent. Resolves once every
- * stopped job has reported, or after DISPOSE_SETTLE_MS.
- */
-export function disposePackageJobs(): Promise<void> {
-  if (disposal) return disposal
-  const stopping = [...activeJobs.values()]
-  disposal = new Promise<void>((resolve) => {
-    const bound = setTimeout(resolve, DISPOSE_SETTLE_MS)
-    void Promise.all(stopping.map((job) => job.settled)).then(() => {
-      clearTimeout(bound)
-      resolve()
-    })
-  })
-  for (const job of stopping) {
-    try {
-      job.cancel('Stopped: Phosphor is quitting.')
-    } catch (error) {
-      // A throwing onExit must not leave the other jobs running. It still
-      // surfaces, as it would from a job's own exit.
-      queueMicrotask(() => {
-        throw error
-      })
-    }
-  }
-  return disposal
-}
-
-/** Resolve a binary on the login-shell PATH (GUI launches lack it). */
-export async function resolveBinary(name: string): Promise<string | null> {
-  // Not the first `where` line on Windows: for an npm-installed CLI that is
-  // the POSIX sh shim, which nothing on Windows can run. A `.exe` is
-  // spawnable; a `.cmd` is returned as found and fails at spawn (EINVAL) — pi
-  // itself never comes through here (see resolvePiInvoker), and the callers
-  // that do (claude, npm, uv, pipx, headroom) mostly ship real executables.
-  if (process.platform === 'win32') return pickWhereMatch(await windowsWhereOutput(name))
-  return lookupPosixBinary(name)
-}
-
-/** Report a spawn-precondition failure through the job channels. */
-export function failedJob(sender: JobSender, message: string): { jobId: string } {
-  const jobId = randomUUID()
-  // Delay so the renderer can subscribe with the returned jobId first.
-  setTimeout(() => {
-    if (sender.isDestroyed()) return
-    sender.send(`packages:output:${jobId}`, `${message}\n`)
-    sender.send(`packages:exit:${jobId}`, 127)
-  }, 0)
-  return { jobId }
-}
-
-/**
- * How to invoke pi for package jobs. The e2e stub is a Node script, so it
- * runs through Electron-as-Node exactly like the session spawner does
- * (pi-session-handlers computes and passes the override; this module stays
- * Electron-free for unit tests).
- */
-export interface PiInvoker {
-  command: string
-  prefixArgs: string[]
-  env: Record<string, string>
-}
-
-async function resolvePiInvoker(stubPath?: string): Promise<PiInvoker | null> {
-  if (stubPath) {
-    return {
-      command: process.execPath,
-      prefixArgs: [stubPath],
-      env: { ...(process.env as Record<string, string>), ELECTRON_RUN_AS_NODE: '1' },
-    }
-  }
-  // Through the health probe, not `resolveBinary('pi')`: on Windows the thing
-  // to spawn is node.exe plus pi's entry script (PiHealth.prefixArgs).
-  const health = await cachedPiHealth()
-  if (!health.ok || !health.binaryPath) return null
-  return {
-    command: health.binaryPath,
-    prefixArgs: health.prefixArgs ?? [],
-    env: await piProcessEnv(),
-  }
-}
-
 /** `pi install|remove|update` through pi's own package manager. */
 export async function runPackageAction(
   sender: JobSender,
@@ -302,7 +62,10 @@ export async function runPackageAction(
   /** See `startJob`'s `onExit`. */
   onExit?: (code: number) => void,
 ): Promise<{ jobId: string }> {
-  const invoker = await resolvePiInvoker(stubPath)
+  const invoker = await resolvePiInvoker('inherited-stub', { stubPath }).catch((error: unknown) => {
+    if (error instanceof PiUnavailableError) return null
+    throw error
+  })
   if (!invoker) return failedJob(sender, 'pi binary not found on PATH')
   if (scope === 'project' && !workspacePath) {
     return failedJob(sender, 'project scope requires a workspace')
@@ -313,7 +76,7 @@ export async function runPackageAction(
   if (spec) args.push(spec)
   if (scope === 'project') args.push('-l')
 
-  return startJob(sender, invoker.command, args, {
+  return startJob(sender, invoker.binaryPath, args, {
     cwd: scope === 'project' ? workspacePath : undefined,
     env: invoker.env,
     ...(onExit ? { onExit } : {}),
@@ -442,52 +205,6 @@ export async function runClaudeUpdate(
   return startJob(sender, path, ['update'], { env: await piProcessEnv() })
 }
 
-// ---------- Claude Code provider support (per-extension tab) ----------
-
-/**
- * Parse `claude auth status` output (JSON on Claude Code 2.x). Tolerates
- * leading noise before the JSON object and non-JSON output from older CLIs.
- */
-/** Extract a version like "2.1.219" from mixed CLI output. */
-function versionFrom(output: string): string | undefined {
-  return /(\d+\.\d+\.\d+(?:-[\w.]+)?)/.exec(output)?.[1]
-}
-
-/**
- * Claude Code CLI health for the provider tab: binary presence + version and
- * local auth state. `claude auth status` reads local credentials only (no
- * network round-trip), so probing on tab mount is fine.
- */
-export async function claudeStatus(
-  claudeOverride?: string,
-  /** Credential-scoping env for one account; see electron/claude/accounts.ts. */
-  extraEnv?: Record<string, string>,
-): Promise<ClaudeStatus> {
-  const path = claudeOverride ?? (await resolveBinary('claude'))
-  if (!path) return { binary: { found: false }, auth: { ok: false, error: 'claude not found' } }
-
-  const env = { ...(await piProcessEnv()), ...extraEnv }
-  let version: string | undefined
-  try {
-    const { stdout } = await execFileAsync(path, ['--version'], { timeout: 10_000, env })
-    version = versionFrom(stdout)
-  } catch {
-    // Version is cosmetic; auth state below is the load-bearing part.
-  }
-
-  try {
-    const { stdout } = await execFileAsync(path, ['auth', 'status'], { timeout: 10_000, env })
-    return { binary: { found: true, path, version }, auth: parseClaudeAuthStatus(stdout) }
-  } catch (error) {
-    const failure = error as { stdout?: string; message: string }
-    // Non-zero exit still prints the status JSON when logged out.
-    const auth = failure.stdout
-      ? parseClaudeAuthStatus(failure.stdout)
-      : { ok: false, error: failure.message }
-    return { binary: { found: true, path, version }, auth }
-  }
-}
-
 /**
  * One-click provider proof: a single print-mode turn through the
  * pi-claude-cli provider, streamed like any package job. Runs from the OS
@@ -499,11 +216,14 @@ export async function runClaudeProviderTest(
   sender: JobSender,
   stubPath?: string,
 ): Promise<{ jobId: string }> {
-  const invoker = await resolvePiInvoker(stubPath)
+  const invoker = await resolvePiInvoker('inherited-stub', { stubPath }).catch((error: unknown) => {
+    if (error instanceof PiUnavailableError) return null
+    throw error
+  })
   if (!invoker) return failedJob(sender, 'pi binary not found on PATH')
   return startPrintModeJob(
     sender,
-    invoker.command,
+    invoker.binaryPath,
     [
       ...invoker.prefixArgs,
       '-p',

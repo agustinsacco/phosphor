@@ -2,9 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { CodexUsageResult, PlanUsageWindow } from '@shared/models'
 import { credentialFingerprint } from '@phosphor/session-runtime/pi/auth-identity'
-import { checkPiHealth } from './health'
-import { piProcessEnv } from './shell-env'
-import { piStubPath } from './stub'
+import { resolvePiInvoker } from './invoker'
 
 const execFileAsync = promisify(execFile)
 const USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage'
@@ -55,15 +53,11 @@ export function parseCodexUsage(value: unknown, now = Date.now()): CodexUsageRes
 /** pi owns storage and OAuth refresh. Secrets are captured only in main memory;
  * never log subprocess errors (they may contain stdout), tokens or response bodies. */
 async function readAuth(): Promise<string> {
-  const stub = piStubPath()
-  const health = stub
-    ? { ok: true, binaryPath: process.execPath, prefixArgs: [stub] }
-    : await checkPiHealth()
-  if (!health.ok || !health.binaryPath) throw new Error('pi unavailable')
+  const invoker = await resolvePiInvoker('piProcessEnv-stub')
   const { stdout } = await execFileAsync(
-    health.binaryPath,
+    invoker.binaryPath,
     [
-      ...(health.prefixArgs ?? []),
+      ...invoker.prefixArgs,
       'auth',
       'check',
       '--provider',
@@ -72,7 +66,7 @@ async function readAuth(): Promise<string> {
       '--credentials',
     ],
     {
-      env: await piProcessEnv(stub ? { ELECTRON_RUN_AS_NODE: '1' } : undefined),
+      env: invoker.env,
       timeout: 15_000,
       maxBuffer: 64 * 1024,
       encoding: 'utf8',
