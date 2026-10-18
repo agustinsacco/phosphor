@@ -44,8 +44,6 @@
     "src/features/attachments.ts::createAttachments[1]/execute[1]": 100,
     "src/features/files.ts::createFilesFeature[1]": 95,
     "src/features/files.ts::createFilesFeature[1]/call[1]": 89,
-    "src/features/git.ts::createGitFeature[1]": 116,
-    "src/features/git.ts::createGitFeature[1]/call[1]": 110,
     "src/lanes/reconcile.ts::reconcile[1]": 157,
     "src/lanes/runtime-host.integration.test.ts::describe[1]/it[1]": 191,
     "src/lanes/runtime-host.ts::createRuntimeLanes[1]": 369,
