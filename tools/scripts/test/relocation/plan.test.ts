@@ -199,7 +199,7 @@ describe('relocation planner', () => {
     expect(() => repo.plan([])).toThrow('Empty Vitest inventory')
   })
 
-  it('reports mock specifiers and source-directory strings instead of silently losing them', () => {
+  it('rewrites mock specifiers and skips unchanged source-directory strings', () => {
     const test = 'apps/host/src/a.test.ts'
     const repo = repository({
       [test]: ["import './a'", "vi.mock('./a', () => ({}))", "const source = 'apps/host/src'"].join(

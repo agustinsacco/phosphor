@@ -67,7 +67,8 @@ describe('relocation plan regressions', () => {
         to: '../../../electron/pi/health',
       }),
     )
-  })
+    // Real repository: git ls-files, a Vitest list child process and a whole-repo plan.
+  }, 60_000)
 
   it.each(['ts', 'json'])('does not add .%s to a dotted extensionless specifier', (extension) => {
     const file = 'tools/scripts/test/consumer.ts'
