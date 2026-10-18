@@ -1,323 +1,11 @@
 /** App-level domain types shared between main and renderer. */
-import type { HostTarget } from './remote-host'
-import { type ExtensionUIRequest, type PiEvent } from './rpc'
 import { DEFAULT_FEEDBACK_PREFS, type FeedbackPrefs } from './feedback'
 import { DEFAULT_CONTEXT_FILE_PREFS, type ContextFilePrefs } from './context-files'
 import { DEFAULT_VOICE_PREFS, type VoicePrefs } from './voice'
 import { DEFAULT_WRITING_PREFS, type WritingPrefs } from './writing'
 
-export interface PiHealth {
-  ok: boolean
-  /**
-   * What to spawn to run pi, when found. On macOS/Linux this is pi itself. On
-   * Windows npm installs pi as a `.cmd` shim that Node refuses to spawn, so
-   * this is `node.exe` and `prefixArgs` carries pi's entry script — every
-   * spawn must put `prefixArgs` before pi's own arguments
-   * (`electron/pi/win-launch.ts`).
-   */
-  binaryPath?: string
-  /** Arguments that go before pi's own. Empty except on Windows. */
-  prefixArgs?: string[]
-  /** Reported `pi --version`, when runnable. */
-  version?: string
-  /** Minimum version Phosphor supports. */
-  minVersion: string
-  reason?: 'not-found' | 'version-check-failed' | 'too-old'
-  message?: string
-}
-
-/**
- * Where pi is installed, for display. `binaryPath` is `node.exe` on Windows,
- * which answers "what runs" but not "where is pi"; the entry script does.
- */
-export function piInstallLocation(health: PiHealth): string | undefined {
-  return health.prefixArgs?.[0] ?? health.binaryPath
-}
-
-export interface WorkspaceInfo {
-  /** Absolute folder path. Doubles as the workspace id. */
-  path: string
-  name: string
-  lastOpenedAt: number
-}
-
-/**
- * A `<userData>/sandboxes/<name>` folder — the "No folder" scratch space.
- * A sandbox is an ordinary workspace once opened; this is the extra state
- * Settings needs to say whether one is still worth keeping.
- */
-export interface SandboxInfo {
-  path: string
-  /** The folder's basename: a minted `adjective-noun`, or whatever the user renamed it to. */
-  name: string
-  /** Entries the model wrote, dotfiles excluded. 0 means untouched. */
-  itemCount: number
-  /** Folder mtime — when something was last added to or removed from it. */
-  lastUsedAt: number
-}
-
-/** Options for creating/attaching a live pi session (subprocess). */
-export interface CreateSessionOptions {
-  workspacePath: string
-  /** Resume an existing session file. */
-  sessionPath?: string
-  /** Fork from an existing session file/id. */
-  forkFrom?: string
-  /** Display name for new sessions. */
-  name?: string
-  model?: string
-  provider?: string
-  thinkingLevel?: string
-}
-
-/** A live session handle as reported by main. */
-export interface LiveSessionInfo {
-  /** phosphor-side id used for IPC channels (not pi's session id). */
-  sessionId: string
-  workspacePath: string
-  pid?: number
-  /** Known even when the transcript is missing or the process has crashed. */
-  diskPath?: string
-  /** Absent means this machine. A remote handle names its Host and lane (29). */
-  target?: HostTarget
-  laneId?: string
-}
-
-/** Pushed on the per-session event channel. */
-export type SessionPush =
-  | { kind: 'resync' }
-  | { kind: 'event'; event: PiEvent }
-  | { kind: 'extension-ui'; request: ExtensionUIRequest }
-  | { kind: 'stderr'; text: string }
-  | { kind: 'exit'; code: number | null; signal: string | null; expected: boolean }
-
-/** Parsed metadata for one on-disk session file (sidebar row + stats). */
-export interface SessionMeta {
-  path: string
-  sessionId: string
-  cwd: string
-  createdAt: string
-  parentSession?: string
-  /** Id of the first entry after the header, shared by forks that copy history. */
-  firstEntryId?: string
-  name?: string
-  firstUserText?: string
-  userMessages: number
-  assistantMessages: number
-  toolCalls: number
-  totalTokens: number
-  inputTokens: number
-  outputTokens: number
-  cacheReadTokens: number
-  cacheWriteTokens: number
-  cost: number
-  /**
-   * Tokens the bundled headroom extension removed from tool results before
-   * the model saw them, summed from the `details.headroom` receipts it writes
-   * into the session file. Zero for sessions that never compressed anything.
-   */
-  headroomSavedTokens: number
-  entryCount: number
-  branchCount: number
-  mtimeMs: number
-  lastActivityAt: string
-}
-
-/**
- * Latest attempt to scan a workspace's session directory.
- *
- * Absent = never attempted. `ok` = the newest `sessions:list` resolved
- * (possibly to zero sessions); `error` = the newest attempt threw, so the
- * sidebar must not claim the folder is empty.
- */
-export type SessionScanStatus = 'ok' | 'error'
-
-export interface WorkspaceSessionStats {
-  sessionCount: number
-  messages: number
-  tokens: number
-  cost: number
-  /** Tokens saved by headroom compression across the workspace's sessions. */
-  savedTokens: number
-  activeDays: number
-  /** ISO day (YYYY-MM-DD) → activity count. */
-  activityByDay: Record<string, number>
-}
-
-export interface GitInfo {
-  isRepo: boolean
-  branch?: string
-  ahead?: number
-  behind?: number
-  dirtyCount?: number
-  /** True when the cwd is a linked git worktree (git-dir ≠ common-dir). */
-  isWorktree?: boolean
-  /** The main repository's working directory, when this is a worktree. */
-  mainRepoPath?: string
-}
-
-/** One entry from `git worktree list`, enriched with dirty state. */
-export interface WorktreeInfo {
-  /** Path as git recorded it at `worktree add` time. */
-  path: string
-  /** `realpathSync.native`-resolved path — matches session cwds. */
-  realPath: string
-  branch: string | null
-  head: string
-  isMain: boolean
-  locked: boolean
-  prunable: boolean
-  /** `git status --porcelain` line count; −1 when the dir is missing. */
-  dirtyCount: number
-}
-
-export interface BranchInfo {
-  name: string
-  isCurrent: boolean
-  /** Worktree that has this branch checked out, if any. */
-  worktreePath?: string
-  lastCommitSubject?: string
-  lastCommitAt?: number
-  /** Upstream ref (`origin/main`), absent when the branch never had one. */
-  upstream?: string
-  /** Commits this branch has that its upstream does not. */
-  ahead?: number
-  /** Commits the upstream has that this branch does not — "out of date". */
-  behind?: number
-  /**
-   * Commits the repo's default branch has that this one does not. Absent when
-   * git is too old for `%(ahead-behind:)` (< 2.41), which the UI treats the
-   * same as "unknown", never as zero.
-   */
-  behindDefault?: number
-}
-
-export type AddWorktreeBranch =
-  | {
-      kind: 'new'
-      base: string
-      /**
-       * Branch to create, when it must differ from the worktree folder name.
-       * Auto-created session branches carry a configurable prefix (`phosphor/…`)
-       * that cannot appear in the folder name — the folder's basename is what
-       * names the sidebar group, and a `/` in it would nest the checkout.
-       * Absent means "same as the folder name", the hand-created case.
-       */
-      branch?: string
-      /**
-       * Skip `git`'s automatic upstream setup. Set when `base` is a
-       * remote-tracking ref: without it the new branch would take `origin/main`
-       * as its upstream, so its ahead/behind counts would be measured against
-       * trunk and a stray `git push` would aim at main.
-       */
-      noTrack?: boolean
-    }
-  | { kind: 'existing'; branch: string }
-
-/**
- * Where a new session branch should start from: the freshest trunk this repo
- * can offer without touching the main tree's checkout.
- */
-export interface StartPoint {
-  /** Ref to branch from — `origin/main` when fetched, else local `main`. */
-  base: string
-  /** Trunk's local branch name (`main`, `master`, …). */
-  defaultBranch: string
-  /** True when `base` is a remote-tracking ref (implies `noTrack` on create). */
-  fromRemote: boolean
-}
-
-/** `git fetch --prune`, which is allowed to be a no-op or to fail quietly. */
-export type FetchResult =
-  | { fetched: true; at: number }
-  /** Skipped: a fetch for this repo already ran inside the throttle window. */
-  | { fetched: false; reason: 'throttled'; at: number }
-  /** Offline, no remote, or no credentials — all ordinary, never an error. */
-  | { fetched: false; reason: 'failed'; message: string }
-
-/** Fast-forward-only pull. Never writes a merge commit, never conflicts. */
-export type PullResult =
-  | { pulled: true; upstream: string; commits: number }
-  | { pulled: false; reason: 'up-to-date'; upstream: string }
-  | { pulled: false; reason: 'no-upstream' }
-  | { pulled: false; reason: 'diverged'; upstream: string; ahead: number; behind: number }
-  | { pulled: false; reason: 'dirty'; dirtyCount: number }
-
-/** Merging trunk into a worktree branch. Conflicts abort, never linger. */
-export type UpdateFromMainResult =
-  | { updated: true; commits: number; sha: string }
-  | { updated: false; reason: 'up-to-date' }
-  | { updated: false; reason: 'dirty'; dirtyCount: number }
-  | { updated: false; reason: 'conflict'; conflicts: string[] }
-
-/** Checking a branch out in a working tree, guarded on dirty/held. */
-export type CheckoutResult =
-  | { checkedOut: true; branch: string }
-  | { checkedOut: false; reason: 'dirty'; dirtyCount: number }
-  | { checkedOut: false; reason: 'held'; worktreePath: string }
-
-/** Summary of a PR's status checks, from `gh` statusCheckRollup. */
-export interface GhChecks {
-  passed: number
-  failed: number
-  pending: number
-  total: number
-}
-
-/**
- * A pull request for the current branch, as reported by the `gh` CLI.
- * Absent (null) whenever gh is missing, unauthenticated, or the repo has no
- * GitHub remote — all normal states, never surfaced as errors.
- */
-export interface GhRepoPullRequests {
-  byBranch: Record<string, GhPullRequest>
-  /** False when the bounded listing may have omitted older branches. */
-  complete: boolean
-}
-
-export interface GhPullRequest {
-  number: number
-  title: string
-  state: 'OPEN' | 'DRAFT' | 'CLOSED' | 'MERGED'
-  url: string
-  mergeable?: string
-  mergeStateStatus?: string
-  /** null when check details could not be fetched; undefined when there are no checks. */
-  checks?: GhChecks | null
-  /**
-   * Review verdict. Distinct from `checks`: a PR can be fully green and still
-   * blocked on a human, which is a different action for the reader than a red
-   * build, so the sidebar chip renders the two differently.
-   */
-  reviewDecision?: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED'
-}
-
-export interface DirEntry {
-  name: string
-  path: string
-  relativePath: string
-  isDirectory: boolean
-}
-
-export interface FileContent {
-  revision?: string | null
-  path: string
-  content: string
-  size: number
-  mtimeMs: number
-  tooLarge?: boolean
-  binary?: boolean
-}
-
-/**
- * `launchable`: the OS would RUN it (script, installer, executable bit), so
- * it is refused — see electron/fs/open-file.ts.
- */
-export type OpenInDefaultAppResult =
-  | { ok: true }
-  | { ok: false; reason: 'launchable' }
-  | { ok: false; reason: 'not-a-file' }
-  | { ok: false; reason: 'failed'; message: string }
+import type { WorkspaceInfo } from './models/sessions'
+import { DEFAULT_CLAUDE_ACCOUNT_PREFS, type ClaudeAccountPrefs } from './models/providers'
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 
@@ -336,6 +24,7 @@ export interface FontPrefs {
  * main process that actually applies the zoom cannot drift apart.
  */
 export const UI_SCALE_MIN = 0.7
+
 export const UI_SCALE_MAX = 2
 
 export function clampUiScale(factor: number): number {
@@ -760,14 +449,6 @@ export const MAX_RECENT_MODELS = 8
 
 export const DEFAULT_MODEL_PICKS: ModelPicks = { starred: [], recent: [], groupMode: 'family' }
 
-export const DEFAULT_CLAUDE_ACCOUNT_PREFS: ClaudeAccountPrefs = {
-  accounts: [],
-  mode: 'specific',
-  cursor: 0,
-  cooldowns: {},
-  bindings: {},
-}
-
 /**
  * Headroom tool-result compression. One flag on purpose: enabling it means
  * "manage the local proxy and compress eligible tool results in new
@@ -857,412 +538,71 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   drafts: {},
 }
 
-/** Minimum pi version Phosphor is verified against. */
-export const MIN_PI_VERSION = '1.2.0'
-
-/**
- * The first `@saccolabs/pi-claude-cli` release a Claude session starts on.
- * 0.9.0 runs on pi's context alone; 0.10.0 sends pi's thinking level as pi
- * would (below it `off` still thinks and a level change restarts the CLI).
- * Main refuses anything older (`electron/pi/provider-detect.ts`) and
- * Settings → Claude Code flags it.
- */
-export const MIN_CLAUDE_CONTEXT_VERSION = '0.10.0'
-
-/**
- * Health of one pi config file. `malformed` distinguishes "present but
- * unparseable" from "absent", which matters before writing: merging a patch
- * onto a failed read would silently discard the user's configuration.
- */
-export interface ConfigFileHealth {
-  exists: boolean
-  malformed: boolean
-  error?: string
-}
-
-/** Health of the global and per-project pi config files. */
-export interface AgentSettingsHealth {
-  global: ConfigFileHealth
-  project: ConfigFileHealth | null
-}
-
-/** Runtime and version info for the About tab. */
-export interface AboutInfo {
-  appVersion: string
-  electron: string
-  chrome: string
-  node: string
-  platform: string
-  arch: string
-}
-
-/** Native save-dialog options. */
-export interface SaveDialogOptions {
-  title?: string
-  defaultPath?: string
-  filters?: { name: string; extensions: string[] }[]
-}
-
-/** Local (non-package) resources discovered in pi's agent directory. */
-export interface PiResources {
-  skills: string[]
-  extensions: string[]
-  prompts: string[]
-  themes: string[]
-}
-
-// ---------- pi packages ----------
-
-/** Resources a pi package provides, by kind (file/dir names for display). */
-export interface PiPackageResources {
-  extensions: string[]
-  skills: string[]
-  prompts: string[]
-  themes: string[]
-}
-
-/** One entry of a settings.json `packages` array, enriched from disk. */
-export interface PiPackageEntry {
-  /** The spec as written in settings (string form of the object form's `source`). */
-  spec: string
-  scope: 'global' | 'project'
-  kind: 'npm' | 'git' | 'path'
-  /** True when the settings entry is the object form with resource filters. */
-  filtered: boolean
-  /** Display name: npm package name, git repo, or path basename. */
-  name: string
-  version?: string
-  description?: string
-  /** Whether the resolved install directory exists on disk. */
-  installed: boolean
-  installPath?: string
-  resources: PiPackageResources
-}
-
-export type PackageJobAction = 'install' | 'remove' | 'update'
-
-/** Local `claude auth status` result (no network round-trip). */
-export interface ClaudeAuthStatus {
-  ok: boolean
-  loggedIn?: boolean
-  method?: string
-  email?: string
-  /** `subscriptionType`, e.g. `pro` / `max` / `team`. Which plan pays. */
-  plan?: string
-  /** `orgName` — present for team/enterprise logins, the giveaway for a wrong account. */
-  organization?: string
-  /** `orgId`. Pinned back onto a session as `CLAUDE_CODE_ORGANIZATION_UUID`. */
-  orgId?: string
-  error?: string
-}
-
-/** Claude Code CLI health for the provider tab. */
-export interface ClaudeStatus {
-  binary: { found: boolean; path?: string; version?: string }
-  auth: ClaudeAuthStatus
-}
-
-/** Account-reported usage, shared by Claude's CLI panel and ChatGPT's API.
- * Percent consumed, not remaining; never estimated from session token counts. */
-export interface PlanUsageWindow {
-  /** Provider label, e.g. "Current session" or "Weekly". */
-  label: string
-  /** Derived from Claude's label or Codex's window duration. */
-  kind: 'five_hour' | 'weekly' | 'weekly_model' | 'other'
-  /** Percentage of the window consumed. */
-  percentUsed: number
-  /** When the window resets, Unix ms; null when the reset didn't parse. */
-  resetsAt: number | null
-}
-
-export type ClaudeUsageWindow = PlanUsageWindow
-
-/** Sanitized ChatGPT subscription usage. No credentials or upstream body cross IPC. */
-export type CodexUsageResult =
-  | {
-      ok: true
-      snapshot: {
-        fetchedAt: number
-        windows: PlanUsageWindow[]
-        credits: { limit: number; remaining: number; resetsAt: number | null } | null
-      }
-    }
-  | { ok: false; error: 'auth-unavailable' | 'request-failed' | 'rate-limited' | 'no-usage' }
-
-/** Result of one `claude -p /usage` run. */
-export interface ClaudeUsageSnapshot {
-  fetchedAt: number
-  /** True when the CLI served its cache ("Showing last-known usage"). */
-  stale: boolean
-  windows: ClaudeUsageWindow[]
-  /** The "What's contributing to your limits usage?" block, verbatim, when present. */
-  contributing: string | null
-}
-
-// ---------- Claude Code accounts ----------
-
-/**
- * One Claude Code login Phosphor can route a session to.
- *
- * Multiple accounts are possible because the CLI derives its keychain service
- * name from a config directory: `CLAUDE_SECURESTORAGE_CONFIG_DIR` appends a
- * hash of that directory to `Claude Code-credentials`, giving each account its
- * own credential while `~/.claude` (projects, settings, skills, plugins) stays
- * shared. Verified against Claude Code 2.1.260.
- */
-export interface ClaudeAccount {
-  /** Stable id; also the folder name under the accounts directory. */
-  id: string
-  /** What the UI shows. Defaults to the email the CLI reported at sign-in. */
-  label: string
-  email?: string
-  /** `subscriptionType` at sign-in, e.g. `pro` / `max` / `team`. */
-  plan?: string
-  organization?: string
-  /**
-   * `orgId` at sign-in, passed back as `CLAUDE_CODE_ORGANIZATION_UUID`.
-   *
-   * `~/.claude.json`'s `oauthAccount` block is keyed by `CLAUDE_CONFIG_DIR`,
-   * NOT by the securestorage dir, so all accounts share it and the last one to
-   * sign in wins its org id. The CLI reads this env var ahead of that block,
-   * which is what keeps a session's org matched to its token.
-   */
-  orgId?: string
-  /**
-   * Credential directory, or null for the CLI's own default keychain entry —
-   * the one your terminal `claude` uses. The first account is seeded as null
-   * so nothing has to migrate.
-   */
-  credentialDir: string | null
-  addedAt: number
-}
-
-/** How a new session picks which account bills it. */
-export type ClaudeRoutingMode = 'specific' | 'ordered' | 'round-robin'
-
-/** Accounts, their order, and the routing rule over them. */
-export interface ClaudeAccountPrefs {
-  /** Ordered — `ordered` mode walks this top to bottom. */
-  accounts: ClaudeAccount[]
-  mode: ClaudeRoutingMode
-  /** Which account `specific` mode uses. Falls back to the first. */
-  pinnedId?: string
-  /** Next index `round-robin` hands out. */
-  cursor: number
-  /**
-   * Account id → epoch ms its 5-hour window resets, for accounts observed at
-   * 100%. `ordered` and `round-robin` skip an account until then.
-   */
-  cooldowns: Record<string, number>
-  /** Session file path → account id, so a resumed session keeps its billing. */
-  bindings: Record<string, string>
-}
-
-/** An account plus the live facts the settings tab needs to render it. */
-export interface ClaudeAccountView {
-  account: ClaudeAccount
-  auth: ClaudeAuthStatus
-  /** Cached usage, when main has a fresh enough snapshot. Never fetched inline. */
-  usage: ClaudeUsageSnapshot | null
-  /** Cooldown expiry from `ClaudeAccountPrefs.cooldowns`, when active. */
-  cooldownUntil: number | null
-}
-
-/**
- * Which Claude login a live session bills, for the surfaces that must say so.
- *
- * A lane's account is decided once, at spawn, and nothing downstream carried
- * it: the context popover asked the CLI for "the" plan usage with no account
- * env at all, so on a multi-account install it could show a different account's
- * windows than the lane was actually spending. `claude:sessionAccount` is the
- * answer to "whose quota is this lane eating".
- */
-export interface ClaudeSessionAccount {
-  id: string
-  label: string
-  email?: string
-  plan?: string
-  /** How many accounts are configured, so the UI can stay quiet when it is 1. */
-  total: number
-  mode: ClaudeRoutingMode
-  /** When this account is held back from new sessions, if it is. */
-  cooldownUntil: number | null
-  /**
-   * An account new sessions would go to instead, when this one is held.
-   *
-   * Carries the id as well as the label because the surfaces that name it now
-   * also offer to move the lane there, and a move needs an id.
-   */
-  alternative: { id: string; label: string } | null
-}
-
-/**
- * Which live lanes are spending which Claude account: account id → Phosphor
- * session ids, as parked at spawn (`electron/pi/session-accounts.ts`).
- *
- * Only ids cross the wire. Titles, folders and session files are the
- * renderer's to resolve — it already holds all three — and an account with no
- * live lane is simply absent from the map.
- */
-export type ClaudeAccountSessions = Record<string, string[]>
-
-/** `claude:accounts` channel result. */
-export interface ClaudeAccountsResult {
-  prefs: ClaudeAccountPrefs
-  views: ClaudeAccountView[]
-}
-
-/** Why a `claude -p /usage` run produced no windows. */
-export type ClaudeUsageError = 'claude-not-found' | 'run-failed' | 'no-usage'
-
-/** `claude:usageSnapshot` channel result. */
-export type ClaudeUsageSnapshotResult =
-  { ok: true; snapshot: ClaudeUsageSnapshot } | { ok: false; error: ClaudeUsageError }
-
-/**
- * Where an in-app `claude auth login` has got to.
- *
- * Deliberately not `LoginFlowState`: this is a different flow with a different
- * shape. pi's OAuth providers hand off to a browser and finish by themselves,
- * while the Claude CLI's handshake redirects to a page that shows a code the
- * user must paste back — so `awaiting-code` is a state the UI must collect
- * input in, not just wait in. See `electron/pi/claude-login.ts`.
- */
-export type ClaudeLoginState =
-  | { phase: 'starting' }
-  | {
-      phase: 'awaiting-code'
-      /** Authorization page. The CLI already opened it; this is the fallback link. */
-      url: string
-      /** The previous code was rejected and this URL is its replacement. */
-      invalidCode?: boolean
-    }
-  /** Code submitted; waiting on the CLI to write credentials. */
-  | { phase: 'finishing' }
-  | { phase: 'signed-in'; email?: string }
-  | { phase: 'cancelled' }
-  | { phase: 'error'; message: string }
-
-// ---------- subscription accounts ----------
-
-/**
- * A provider pi can sign into with a consumer subscription rather than an
- * API key. The list is Phosphor's, not pi's: pi exposes no way to enumerate its
- * OAuth providers over RPC or the CLI, so these are curated from pi's
- * providers doc and each id is verified against `pi auth check`.
- */
-/**
- * Providers pi offers under "Sign in with an account", as of pi 0.84.1.
- *
- * Read off pi's own login screen rather than guessed: pi exposes no way to
- * enumerate these (no CLI, no RPC, and the provider registry is not a package
- * export), so this list is maintained by hand and WILL drift as pi adds
- * providers. `pi auth check --provider <id>` answers `provider_not_found` for
- * an id pi does not know, which surfaces as "unknown" rather than a crash.
- */
-export type LoginProviderId =
-  | 'anthropic'
-  | 'openai-codex'
-  | 'github-copilot'
-  | 'kimi-for-coding'
-  | 'openrouter'
-  | 'radius'
-  | 'xai'
-
-/** Where a sign-in has got to. Drives the whole Accounts UI. */
-/**
- * Progress of an MCP connector sign-in (`pi mcp login`, run by
- * `electron/pi/mcp-cli.ts`).
- *
- * Deliberately not `LoginFlowState`: its only interactive step is a browser
- * round-trip that pi itself opens and waits on.
- */
-export type ConnectorAuthState =
-  | { phase: 'starting' }
-  /** pi printed the authorization URL and opened the browser itself. */
-  | { phase: 'awaiting-browser'; authorizationUrl: string }
-  | { phase: 'connected' }
-  | { phase: 'failed'; message: string }
-
-/** One `mcp:authState` push. */
-export interface ConnectorAuthPush {
-  serverName: string
-  state: ConnectorAuthState
-}
-
-export type LoginFlowState =
-  | { providerId: LoginProviderId; phase: 'starting' }
-  /** pi produced a device-code URL; the user finishes in their browser. */
-  | {
-      providerId: LoginProviderId
-      phase: 'awaiting-browser'
-      url: string
-      /** Device code to type on the provider's page. */
-      userCode?: string
-    }
-  | { providerId: LoginProviderId; phase: 'signed-in' }
-  | { providerId: LoginProviderId; phase: 'cancelled' }
-  | { providerId: LoginProviderId; phase: 'error'; message: string }
-
-export interface SubscriptionProvider {
-  /** pi's provider id — the key in `auth.json` and `pi auth check --provider`. */
-  id: LoginProviderId
-  name: string
-  /** What the user must already be paying for. */
-  requires: string
-  /**
-   * What signing in actually spends. The distinction matters enough to sort
-   * the list by: a plan you already pay for is free to use here, while a
-   * balance is charged per token even though the sign-in looks identical.
-   */
-  billing: 'subscription' | 'balance'
-  /** Anything the user should know before signing in. Rendered verbatim. */
-  caveat?: string
-}
-
-/**
- * One provider's readiness, straight from `pi auth check --json`.
- *
- * `status` is pi's own word. `unknown` is Phosphor's: it means the check could
- * not be run at all (pi missing, spawn failed, unparseable output), which is
- * deliberately distinct from pi answering "not_ready".
- */
-export interface SubscriptionProviderStatus extends SubscriptionProvider {
-  status: 'ready' | 'not_ready' | 'unknown'
-  /**
-   * Which account the credential belongs to — an email, when the provider's
-   * token says so (`libs/session-runtime/src/pi/auth-identity.ts`). Absent for an opaque
-   * credential, which is most of them, so the UI must read fine without it.
-   * Never the credential itself.
-   */
-  account?: string
-  /** pi's machine-readable reason, e.g. `credentials_not_configured`. */
-  reason?: string
-  /** Present only when the check itself failed. */
-  error?: string
-}
-
-// ---------- updater ----------
-
-/**
- * Update lifecycle as the renderer sees it. Mirrors
- * `electron/updates/update-state.ts`, which owns the reducer.
- */
-export type UpdatePhase =
-  | 'idle'
-  | 'checking'
-  | 'downloading'
-  /** Verifying and expanding the download (macOS self-install only). */
-  | 'installing'
-  | 'downloaded'
-  /** Detected, but this install must be updated by hand (unsigned mac, deb). */
-  | 'manual-download'
-  /** No update mechanism (dev / unpackaged). */
-  | 'unsupported'
-
-export interface UpdateState {
-  phase: UpdatePhase
-  version?: string
-  progressPercent?: number
-  releaseUrl?: string
-}
+export {
+  type PiHealth,
+  piInstallLocation,
+  type WorkspaceInfo,
+  type SandboxInfo,
+  type CreateSessionOptions,
+  type LiveSessionInfo,
+  type SessionPush,
+  type SessionMeta,
+  type SessionScanStatus,
+  type WorkspaceSessionStats,
+  MIN_PI_VERSION,
+  MIN_CLAUDE_CONTEXT_VERSION,
+} from './models/sessions'
+export {
+  type GitInfo,
+  type WorktreeInfo,
+  type BranchInfo,
+  type AddWorktreeBranch,
+  type StartPoint,
+  type FetchResult,
+  type PullResult,
+  type UpdateFromMainResult,
+  type CheckoutResult,
+  type GhChecks,
+  type GhRepoPullRequests,
+  type GhPullRequest,
+} from './models/git'
+export { type DirEntry, type FileContent, type OpenInDefaultAppResult } from './models/files'
+export {
+  type ConfigFileHealth,
+  type AgentSettingsHealth,
+  type AboutInfo,
+  type SaveDialogOptions,
+  type PiResources,
+  type PiPackageResources,
+  type PiPackageEntry,
+  type PackageJobAction,
+  type UpdatePhase,
+  type UpdateState,
+} from './models/platform'
+export {
+  DEFAULT_CLAUDE_ACCOUNT_PREFS,
+  type ClaudeAuthStatus,
+  type ClaudeStatus,
+  type PlanUsageWindow,
+  type ClaudeUsageWindow,
+  type CodexUsageResult,
+  type ClaudeUsageSnapshot,
+  type ClaudeAccount,
+  type ClaudeRoutingMode,
+  type ClaudeAccountPrefs,
+  type ClaudeAccountView,
+  type ClaudeSessionAccount,
+  type ClaudeAccountSessions,
+  type ClaudeAccountsResult,
+  type ClaudeUsageError,
+  type ClaudeUsageSnapshotResult,
+} from './models/providers'
+export {
+  type ClaudeLoginState,
+  type LoginProviderId,
+  type ConnectorAuthState,
+  type ConnectorAuthPush,
+  type LoginFlowState,
+  type SubscriptionProvider,
+  type SubscriptionProviderStatus,
+} from './models/auth'

@@ -289,7 +289,7 @@ describe('compile-time exhaustiveness', () => {
             (next, name) => addUnionMember(next, name, drift),
             source,
           ),
-        [resolve(sharedSource, 'models.ts')]: (source) =>
+        [resolve(sharedSource, 'models/sessions.ts')]: (source) =>
           addUnionMember(source, 'SessionPush', "{ kind: 'freeze-drift' }"),
       })
       // One error per exhaustive map, each naming the member it lacks.
