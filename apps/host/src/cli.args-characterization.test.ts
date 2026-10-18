@@ -444,3 +444,17 @@ describe('runCli supervised usage errors', () => {
     expect(actions.calls).toEqual([])
   })
 })
+
+describe('runCli prototype names', () => {
+  it.each([
+    [['constructor'], 'constructor'],
+    [['toString'], 'toString'],
+    [['__proto__'], '__proto__'],
+    [['constructor', '--json'], 'constructor'],
+    [['hasOwnProperty', '--config', '/x'], 'hasOwnProperty'],
+  ])('refuses %j as an unknown command and never rejects', async (argv, name) => {
+    const result = await cli(argv).catch((error: unknown) => ({ rejected: String(error) }))
+    expect(result).toEqual(refusal(`unknown command "${name}"`))
+    expect(actions.calls).toEqual([])
+  })
+})
