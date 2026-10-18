@@ -24,10 +24,6 @@
       "types": "./src/pi/mcp-config.ts",
       "default": "./src/pi/mcp-config.ts"
     },
-    "./pi/print-mode": {
-      "types": "./src/pi/print-mode.ts",
-      "default": "./src/pi/print-mode.ts"
-    },
     "./pi/machine-prompt": {
       "types": "./src/pi/machine-prompt.ts",
       "default": "./src/pi/machine-prompt.ts"
@@ -99,6 +95,10 @@
     "./pi/pi-paths": {
       "types": "./src/pi/pi-paths.ts",
       "default": "./src/pi/pi-paths.ts"
+    },
+    "./pi/print-mode": {
+      "types": "./src/pi/print-mode.ts",
+      "default": "./src/pi/print-mode.ts"
     },
     "./pi/provider-auth": {
       "types": "./src/pi/provider-auth.ts",

@@ -1,49 +1,18 @@
-/**
- * One-shot `pi -p` runs (print mode), spawned so that pi can actually finish.
- *
- * **`pi -p` waits for stdin to reach EOF.** That is the whole reason this
- * module exists. It was previously run through `execFile`, which hands the
- * child an open stdin pipe and never closes it, so pi sat idle until the call
- * timed out — silently, with empty stdout and empty stderr. Session
- * auto-naming is the only caller, so no Phosphor session was ever auto-named and
- * every auto-created branch kept the slug of its first message. Measured on
- * the machine that reported it: identical argv, `execFile` timed out at 30s,
- * `spawn` with `stdio[0] = 'ignore'` answered in 8.8s.
- *
- * Nothing here may go back to `execFile`/`exec`. Both leave stdin open.
- *
- * The e2e stub cannot catch a regression: it prints and exits without ever
- * reading stdin, so it is happy either way. `print-mode.test.ts`
- * uses a fixture that blocks on stdin the way real pi does.
- */
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
 
-/** POSIX only: the child leads its own process group, so the group can die. */
+/** POSIX children lead a group so providers and extensions are cleaned up too. */
 export const OWN_GROUP = process.platform !== 'win32'
+const DEFAULT_TIMEOUT_MS = 30_000
+const MAX_OUTPUT_BYTES = 1024 * 1024
 
-/** How long a Windows `taskkill` may take before the child alone is killed. */
-const TASKKILL_TIMEOUT_MS = 5_000
-
-/**
- * Kill a child and everything it started. The child alone is not enough: a
- * provider or extension can spawn its own children (the Claude CLI, MCP
- * servers), and killing only pi leaves them orphaned. ESRCH (already gone) is
- * fine.
- *
- * POSIX: the child must have been spawned `detached: OWN_GROUP`, so it leads
- * its own group and the group can be killed even after the child itself has
- * exited — which is why print mode calls this after a clean exit too.
- * Windows has no groups: `taskkill /T /F` walks the tree, bounded, falling
- * back to the child alone. It is skipped once the child has exited, because
- * Windows reuses pids and a tree walk from a stale one could kill a stranger.
- */
+/** Windows must not walk a stale pid after exit; taskkill itself is bounded. */
 export function killProcessTree(child: ChildProcess): void {
   if (!child.pid) return
   if (OWN_GROUP) {
     try {
       process.kill(-child.pid, 'SIGKILL')
     } catch {
-      // Already exited.
+      // Already gone.
     }
     return
   }
@@ -51,115 +20,144 @@ export function killProcessTree(child: ChildProcess): void {
   execFile(
     'taskkill',
     ['/pid', String(child.pid), '/T', '/F'],
-    { timeout: TASKKILL_TIMEOUT_MS, windowsHide: true },
+    { timeout: 5_000, windowsHide: true },
     (error) => {
-      if (error && child.exitCode === null) child.kill('SIGKILL')
+      if (error && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
     },
   )
 }
 
-/** Stop waiting on a print-mode run. Generous: it is off any critical path. */
-const DEFAULT_TIMEOUT_MS = 30_000
-
-/** Cap captured stdout; a title is a line, anything larger is a malfunction. */
-const MAX_OUTPUT_BYTES = 1024 * 1024
+export type PrintModeFailure = 'spawn' | 'exit' | 'timeout' | 'aborted' | 'overflow'
 
 export interface PrintModeResult {
-  /**
-   * Collected stdout. Empty when the run failed BEFORE printing — but a
-   * timeout keeps whatever arrived, so `stdout` and `error` can both be set.
-   * A caller that treats any error as "no answer" is still correct; one that
-   * can use a partial answer should read `stdout` first.
-   */
+  /** Desktop keeps partial output on timeout/abort, but drops it on failed exit. */
   stdout: string
-  /** Why it failed, or undefined on a clean exit 0. */
   error?: string
+  reason?: PrintModeFailure
 }
 
 export interface PrintModeOptions {
   cwd: string
+  /** Supplied by the caller; this transport never assembles or inherits an env. */
   env: NodeJS.ProcessEnv
   timeoutMs?: number
-  /**
-   * Stops the run like a timeout does, with error `aborted`: the tree is
-   * killed and stdout so far is kept. Already aborted means nothing spawns.
-   */
   signal?: AbortSignal
-  /** Each stdout chunk as it arrives, uncapped, until the run settles. */
+  /** Uncapped streaming, until completion, even when capture has reached its cap. */
   onStdout?: (chunk: string) => void
+  /** Desktop defaults to bounded diagnostic capture; Host uses ignore. */
+  stderr?: 'capture' | 'ignore'
+  maxOutputBytes?: number
+  /** Host uses fail with 4096 bytes; Desktop retains its soft chunk-boundary cap. */
+  overflow?: 'truncate' | 'fail'
+}
+
+interface PrintRun {
+  child: ChildProcess
+  options: PrintModeOptions
+  resolve(result: PrintModeResult): void
+  stdout: string
+  stderr: string
+  settled: boolean
+  timer?: ReturnType<typeof setTimeout>
+  abort(): void
+}
+
+function finish(run: PrintRun, result: PrintModeResult): void {
+  if (run.settled) return
+  run.settled = true
+  clearTimeout(run.timer)
+  run.options.signal?.removeEventListener('abort', run.abort)
+  killProcessTree(run.child)
+  run.resolve(result)
+}
+
+function captureStdout(run: PrintRun, chunk: Buffer): void {
+  if (run.settled) return
+  const limit = run.options.maxOutputBytes ?? MAX_OUTPUT_BYTES
+  const text = chunk.toString()
+  if (run.options.overflow === 'fail') {
+    // Count bytes, not UTF-16 characters, including split UTF-8 replacements.
+    const size = Buffer.byteLength(run.stdout) + chunk.length
+    if (size > limit) {
+      finish(run, { stdout: '', error: `stdout exceeded ${limit} bytes`, reason: 'overflow' })
+      return
+    }
+    run.stdout += text
+  } else if (run.stdout.length < limit) {
+    // Preserve Desktop's historical soft cap: the last chunk can cross it.
+    run.stdout += text
+  }
+  run.options.onStdout?.(text)
+}
+
+function observe(run: PrintRun): void {
+  const timeoutMs = run.options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  run.timer = setTimeout(() => {
+    finish(run, {
+      stdout: run.stdout,
+      error: `timed out after ${timeoutMs}ms`,
+      reason: 'timeout',
+    })
+  }, timeoutMs)
+  run.child.stdout?.on('data', (chunk: Buffer) => captureStdout(run, chunk))
+  run.child.stderr?.on('data', (chunk: Buffer) => {
+    if (!run.settled && run.stderr.length < MAX_OUTPUT_BYTES) run.stderr += chunk.toString()
+  })
+  run.child.on('error', (error) => {
+    finish(run, { stdout: '', error: error.message, reason: 'spawn' })
+  })
+  // exit may precede the last stdout data; only close guarantees drainage.
+  run.child.on('close', (code) => {
+    finish(
+      run,
+      code === 0
+        ? { stdout: run.stdout }
+        : {
+            stdout: '',
+            error: `exited ${code}${run.stderr ? `: ${run.stderr.trim()}` : ''}`,
+            reason: 'exit',
+          },
+    )
+  })
+  run.options.signal?.addEventListener('abort', run.abort, { once: true })
+  if (run.options.signal?.aborted) run.abort()
 }
 
 /**
- * Run a command that speaks pi's print mode and collect its stdout.
- *
- * Never rejects: every caller of this treats a failure as "no answer", and a
- * thrown error in a fire-and-forget naming pass is just an unhandled rejection.
- * Settles once, whichever of exit, spawn error, timeout or abort comes first.
+ * Spawn, never exec/execFile: pi -p waits for stdin EOF. Ignore stdin so a
+ * provider can answer. Never rejects; completion always cleans up the tree.
+ * Title sanitizing, provider env and timeout/overflow result policies stay in callers.
  */
 export async function runPrintMode(
   binaryPath: string,
   args: string[],
   options: PrintModeOptions,
 ): Promise<PrintModeResult> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const { signal } = options
-  if (signal?.aborted) return { stdout: '', error: 'aborted' }
-  return new Promise<PrintModeResult>((resolve) => {
-    let child
+  if (options.signal?.aborted) return { stdout: '', error: 'aborted', reason: 'aborted' }
+  return new Promise((resolve) => {
+    let child: ChildProcess
     try {
       child = spawn(binaryPath, args, {
         cwd: options.cwd,
         env: options.env,
-        // stdin ignored, not piped — see the module comment. This single
-        // element is the fix.
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['ignore', 'pipe', options.stderr === 'ignore' ? 'ignore' : 'pipe'],
         detached: OWN_GROUP,
       })
     } catch (error) {
-      resolve({ stdout: '', error: `spawn failed: ${String(error)}` })
+      resolve({ stdout: '', error: `spawn failed: ${String(error)}`, reason: 'spawn' })
       return
     }
-
-    let stdout = ''
-    let stderr = ''
-    let settled = false
-    const finish = (result: PrintModeResult): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      signal?.removeEventListener('abort', onAbort)
-      killProcessTree(child)
-      resolve(result)
+    const run: PrintRun = {
+      child,
+      options,
+      resolve,
+      stdout: '',
+      stderr: '',
+      settled: false,
+      abort() {
+        finish(run, { stdout: run.stdout, error: 'aborted', reason: 'aborted' })
+      },
     }
-    const onAbort = (): void => finish({ stdout, error: 'aborted' })
-    signal?.addEventListener('abort', onAbort, { once: true })
-
-    // Answering and exiting are two different events, and a print-mode run
-    // can do the first without the second: pi-claude-cli >= 0.7.0 parks its
-    // CLI child after `result`, which holds pi's event loop open long past
-    // the answer. Discarding the stdout we already have would throw away a
-    // complete title because the process was slow to die. The kill still
-    // happens; only the verdict changes.
-    const timer = setTimeout(() => {
-      finish({ stdout, error: `timed out after ${timeoutMs}ms` })
-    }, timeoutMs)
-
-    child.stdout?.on('data', (chunk: Buffer) => {
-      const text = chunk.toString()
-      if (stdout.length < MAX_OUTPUT_BYTES) stdout += text
-      if (!settled) options.onStdout?.(text)
-    })
-    // Kept only to explain a failure. pi is quiet here on success.
-    child.stderr?.on('data', (chunk: Buffer) => {
-      if (stderr.length < MAX_OUTPUT_BYTES) stderr += chunk.toString()
-    })
-    child.on('error', (error) => finish({ stdout: '', error: error.message }))
-    child.on('close', (code) => {
-      if (code === 0) {
-        finish({ stdout })
-        return
-      }
-      finish({ stdout: '', error: `exited ${code}${stderr ? `: ${stderr.trim()}` : ''}` })
-    })
+    observe(run)
   })
 }
