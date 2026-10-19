@@ -17,6 +17,7 @@ import { useSkillsStore } from '@/stores/skills'
 import { promptChoice } from '@/stores/prompt'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { PageShell } from '@/components/PageShell'
+import { PageBody } from '@/components/PageBody'
 import { PaneTitle } from '@/components/PaneShell'
 import { ModalOverlay } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
@@ -75,7 +76,7 @@ export const SkillsPage = memo(function SkillsPage({
         machine !== 'local' &&
         hosts[machine]?.state === 'ready' &&
         hosts[machine]?.capabilities.includes('skills.read') ? (
-          <details className="px-3 py-2">
+          <details className="py-2 text-sm">
             <TooltipSummary>Models and providers on this machine</TooltipSummary>
             {catalogue.error && <p role="alert">{catalogue.error}</p>}
             {catalogue.providers.map((p) => (
@@ -156,9 +157,7 @@ const SkillsInventory = memo(function SkillsInventory({
         </div>
       }
     >
-      {/* Centered column: a page spans the whole main region, and list rows
-          stretched across an ultrawide window stop reading as rows. */}
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col">
+      <PageBody layout="fill">
         {catalogue}
         {remote && !available ? (
           <p className="p-4">{REMOTE_UNAVAILABLE}</p>
@@ -171,7 +170,7 @@ const SkillsInventory = memo(function SkillsInventory({
           />
         ) : (
           <>
-            <div className="flex items-center gap-2 px-3 pb-2">
+            <div className="flex flex-wrap items-center gap-2 pb-2">
               {!remote && (
                 <Segmented
                   value={tab}
@@ -187,10 +186,10 @@ const SkillsInventory = memo(function SkillsInventory({
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search skills"
-                className="min-w-0 flex-1"
+                className="min-w-0 flex-1 basis-40"
               />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+            <div className="min-h-0 flex-1 overflow-y-auto">
               {remote || tab === 'yours' ? (
                 <>
                   {!remote && <BundledSkillNotice workspacePath={workspacePath} />}
@@ -208,7 +207,7 @@ const SkillsInventory = memo(function SkillsInventory({
             </div>
           </>
         )}
-      </div>
+      </PageBody>
       {!remote && creating && (
         <NewSkillModal
           workspacePath={workspacePath}
@@ -506,7 +505,7 @@ function SkillDetail({
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-3 pb-3">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 pb-1">
         <TooltipButton
           onClick={onBack}
@@ -715,12 +714,12 @@ function DiscoverList({
   )
   return (
     <div className="space-y-4">
-      <header className="border-border border-b py-5">
+      <header className="border-border border-b py-3">
         <p className="text-text-secondary font-mono text-xs tracking-wider uppercase">
           Capability workbench
         </p>
-        <h1 className="mt-2 text-3xl font-semibold">What should your agent do better?</h1>
-        <p className="text-text-secondary mt-2 max-w-xl text-lg">
+        <h2 className="mt-2 text-lg font-semibold">What should your agent do better?</h2>
+        <p className="text-text-secondary mt-2 max-w-xl text-sm">
           Start with a job, not a collection. Choose a focused skill, inspect its evidence, and keep
           only what helps your work.
         </p>

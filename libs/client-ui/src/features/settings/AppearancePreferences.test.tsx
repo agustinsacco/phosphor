@@ -102,3 +102,34 @@ it('browser appearance offers the shared font preferences without Desktop-only c
   expect(container.textContent).not.toContain('Editor font size')
   expect(container.textContent).not.toContain('Terminal font size')
 })
+
+it('wide browser preferences stay browser-safe and use the same font persistence as Desktop', async () => {
+  const invoke = vi.spyOn(fake.api, 'invoke')
+  try {
+    await act(async () =>
+      root.render(
+        <PlatformProvider value={{ ...COMPACT_PLATFORM, formFactor: 'expanded' }}>
+          <CompactSettings />
+        </PlatformProvider>,
+      ),
+    )
+    expect(invoke).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain('UI scale')
+    expect(container.textContent).not.toContain('Terminal font size')
+    const select = container.querySelector<HTMLSelectElement>('[aria-label="Mono font"]')!
+    await act(async () => {
+      select.value = 'monospace'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(invoke).toHaveBeenCalledWith(
+      'app:setFontPrefs',
+      expect.objectContaining({ monoFont: 'monospace' }),
+    )
+    await act(async () => root.render(<AppearanceTab />))
+    expect(container.querySelector<HTMLSelectElement>('[aria-label="Mono font"]')?.value).toBe(
+      'monospace',
+    )
+  } finally {
+    invoke.mockRestore()
+  }
+})
