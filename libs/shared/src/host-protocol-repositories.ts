@@ -13,7 +13,7 @@ export type DeleteLaneOp = {
 }
 /** Fixed refusals main passes to the renderer, which shows only these verbatim. */
 export const FOLDER_EXISTS = 'A folder with that name already exists.'
-export const HOST_TOO_OLD = 'Update the Host on this machine first.'
+export const HOST_TOO_OLD = 'Update the Host on this machine first: run phosphor update there.'
 export interface FolderList {
   path: string
   truncated: boolean
