@@ -1,4 +1,5 @@
 import { TooltipButton } from '@/components/Tooltip'
+import { closeSoftKeyboard } from '@/lib/softKeyboard'
 import { PlusIcon } from './icons'
 
 /**
@@ -50,7 +51,11 @@ export function SubmitIconButton({
 }): React.JSX.Element {
   return (
     <TooltipButton
-      onClick={onClick}
+      onClick={() => {
+        // iOS keeps the keyboard up over a tapped button; the reply needs the screen.
+        closeSoftKeyboard(document.activeElement as HTMLElement | null)
+        onClick()
+      }}
       disabled={disabled || busy}
       aria-label={label}
       tooltip={{ label, shortcut: ['Enter'] }}

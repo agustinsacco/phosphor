@@ -13,6 +13,7 @@ import {
 import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
 import { recordTextareaEdit } from '@/lib/textareaUndo'
 import { hostPlatform } from '@/lib/shortcuts'
+import { enterAddsLine } from '@/lib/softKeyboard'
 import { fitGhost, ghostVisibility } from '@/lib/writing/fitGhost'
 import { useWritingStore } from '@/stores/writing'
 import { FORMATTING_ACTIONS, type FormattingAction } from './formattingActions'
@@ -25,10 +26,8 @@ import { FORMATTING_ACTIONS, type FormattingAction } from './formattingActions'
  * recall — stays with the caller, which reports back through `onKeyDown`
  * whether it consumed the event.
  *
- * **Enter always sends.** List continuation is on ⇧Enter, the key that already
- * meant "another line". Binding it to Enter would mean a one-line prompt that
- * happens to start with "- " no longer sends, which is a much worse trade than
- * the one it buys.
+ * **Enter sends on a hardware keyboard,** even on a "- " line. ⇧Enter, and Return
+ * on a phone's soft keyboard (`enterAddsLine`), add a line and continue a list.
  *
  * **Autocomplete** (Settings → Writing) draws its suggestion as ghost text in
  * a mirror layer laid over the textarea, so the textarea stays the only thing
@@ -241,8 +240,8 @@ export function ComposerField({
     const el = event.currentTarget
     const mod = event.metaKey || event.ctrlKey
 
-    // ⇧Enter continues the list instead of dropping a bare newline.
-    if (event.key === 'Enter' && event.shiftKey && !mod && !event.altKey) {
+    // ⇧Enter (Return on a phone) continues the list instead of dropping a bare newline.
+    if (event.key === 'Enter' && enterAddsLine(event) && !mod && !event.altKey) {
       if (
         el.selectionStart === el.selectionEnd &&
         format.apply(continueList(el.value, el.selectionStart))
@@ -284,7 +283,7 @@ export function ComposerField({
       }
     }
 
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && !enterAddsLine(event)) {
       event.preventDefault()
       onSubmit(event)
       return

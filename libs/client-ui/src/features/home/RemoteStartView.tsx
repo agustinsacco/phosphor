@@ -32,10 +32,13 @@ interface Props {
   machinePicker?: ReactNode
 }
 
-/** Remount ephemeral file reads, warnings and pickers when the Host connection changes. */
+/**
+ * A new Host or draft gets a fresh composer. A new connection to the same Host
+ * does not: a flaky link reconnects every few seconds, and remounting the field
+ * each time dropped focus (and the phone's keyboard) and lost image picks.
+ */
 export function RemoteStartView(props: Props): React.JSX.Element {
-  const generation = useRemoteLanesStore(() => machineReadGeneration(props.hostId))
-  return <RemoteStartComposer key={`${props.hostId}:${props.draftKey}:${generation}`} {...props} />
+  return <RemoteStartComposer key={`${props.hostId}:${props.draftKey}`} {...props} />
 }
 
 function RemoteStartComposer({
@@ -46,6 +49,15 @@ function RemoteStartComposer({
 }: Props): React.JSX.Element {
   const field = useRef<HTMLTextAreaElement>(null)
   const c = useRemoteStart(hostId, draftKey)
+  // The model picker reads per-connection catalogues, so it alone restarts with one.
+  const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
+  const status =
+    c.warning ??
+    (!c.ready
+      ? 'Connect this machine with session control before creating a lane.'
+      : !c.repositoryId
+        ? 'Choose or add a repository on this machine.'
+        : null)
   return (
     <section className="remote-start" aria-label="New lane">
       <h2 className="remote-start-title">New lane</h2>
@@ -63,7 +75,7 @@ function RemoteStartComposer({
         onWarning={c.setWarning}
         slash={NO_SLASH}
         swarm={{ enabled: false, onChange: () => undefined }}
-        modelPicker={<RemoteModelPicker selection={c.selection} />}
+        modelPicker={<RemoteModelPicker key={generation} selection={c.selection} />}
         actions={
           <SubmitIconButton
             busy={c.busy}
@@ -74,23 +86,15 @@ function RemoteStartComposer({
         }
       />
       <RemoteStartTargets hostId={hostId} controller={c} machinePicker={machinePicker} />
-      <p className="remote-start-note" role="status">
-        {c.selection.explanation}
-      </p>
-      {!c.ready && (
-        <p role="status">Connect this machine with session control before creating a lane.</p>
-      )}
-      {!c.repositoryId && c.ready && (
-        <p role="status">Choose or add a repository on this machine.</p>
-      )}
-      {c.warning && (
-        <p role="alert" className="text-warning">
-          {c.warning}
+      {/* One line at most: the model dialog explains the model choice. */}
+      {status && (
+        <p
+          role={c.warning ? 'alert' : 'status'}
+          className={c.warning ? 'text-warning text-xs' : 'remote-start-status'}
+        >
+          {status}
         </p>
       )}
-      <p className="remote-start-note">
-        Starting a lane explicitly takes control. Reading an existing lane does not.
-      </p>
     </section>
   )
 }
