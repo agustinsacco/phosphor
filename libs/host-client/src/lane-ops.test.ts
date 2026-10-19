@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { LaneOp } from '@phosphor/shared/host-protocol'
 import type { CommandResult } from './connection'
-import { sendToLane } from './lane-ops'
+import { receiptResponse, sendToLane } from './lane-ops'
 
 const LANE = 'f83d7d13-9111-43bf-847b-87b9db21e7d8'
 const stopped: CommandResult = { requestId: 'r1', status: 'rejected', code: 'lane-stopped' }
@@ -58,5 +58,15 @@ describe('sendToLane', () => {
     const send = host(other)
     expect(await sendToLane({ send }, { type: 'prompt', message: 'hi' }, LANE, 2)).toBe(other)
     expect(send).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('receiptResponse', () => {
+  // "bee1: lane-stopped" left the user retrying a composer that could never send.
+  it('tells the user to resume a stopped lane', () => {
+    expect(receiptResponse('steer', stopped, 'bee1')).toMatchObject({
+      success: false,
+      error: 'bee1: this lane is stopped. Press Resume at the top of the lane, then send again.',
+    })
   })
 })
