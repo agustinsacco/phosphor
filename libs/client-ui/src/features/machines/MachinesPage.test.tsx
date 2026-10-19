@@ -84,6 +84,29 @@ const check = (name: string): HTMLElement | null =>
 const headerPill = (): Element | null =>
   container.querySelector('[data-testid=machine-detail] header [data-tone]')
 
+it('keeps enrollment actions on the list and maintenance in the selected machine menu', async () => {
+  useMachinesStore.setState({ view: { kind: 'machine', id: MACHINE.id } })
+  await render()
+  expect(
+    [...container.querySelectorAll('button')].some(
+      (button) => button.textContent === 'Add a machine',
+    ),
+  ).toBe(false)
+  expect(container.querySelector('[aria-label="Debug log"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Machine actions"]')).not.toBeNull()
+  expect(
+    [...container.querySelectorAll('button')].some(
+      (button) => button.textContent === 'Check again',
+    ),
+  ).toBe(false)
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Machine actions"]')?.click(),
+  )
+  expect(
+    [...document.querySelectorAll('button')].some((button) => button.textContent === 'Check again'),
+  ).toBe(true)
+})
+
 it('lists this computer first and only enrolled machines, then opens stable detail', async () => {
   await render()
   expect(document.querySelector('[data-testid=local-machine-row]')).not.toBeNull()
