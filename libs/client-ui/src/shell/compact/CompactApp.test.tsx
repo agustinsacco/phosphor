@@ -158,6 +158,58 @@ it('keeps feature views behind the shared startup until font metrics settle', as
   }
 })
 
+it('captures install offers with the mobile drawer closed and retains completion across drawer remounts', async () => {
+  vi.stubGlobal('innerWidth', 412)
+  account = signedIn()
+  await act(async () => root.render(<CompactApp />))
+  const prompt = vi.fn(async () => undefined)
+  const event = new Event('beforeinstallprompt', { cancelable: true })
+  Object.assign(event, { prompt, userChoice: Promise.resolve({ outcome: 'accepted' }) })
+  await act(async () => {
+    window.dispatchEvent(event)
+  })
+  expect(event.defaultPrevented).toBe(true)
+  const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Open navigation"]')!
+  await act(async () => trigger.click())
+  await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+  await act(async () => trigger.click())
+  const install = [...document.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Install Phosphor',
+  )!
+  await act(async () => install.click())
+  expect(prompt).toHaveBeenCalledOnce()
+  await act(async () => {
+    window.dispatchEvent(new Event('appinstalled'))
+  })
+  await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+  await act(async () => trigger.click())
+  expect(
+    [...document.querySelectorAll('button')].some(
+      (button) => button.textContent === 'Install Phosphor',
+    ),
+  ).toBe(false)
+})
+
+it('preserves the browser installation offer across sign-in without retaining account authority', async () => {
+  vi.stubGlobal('innerWidth', 412)
+  await act(async () => root.render(<CompactApp />))
+  const prompt = vi.fn(async () => undefined)
+  const event = new Event('beforeinstallprompt', { cancelable: true })
+  Object.assign(event, { prompt, userChoice: Promise.resolve({ outcome: 'dismissed' }) })
+  await act(async () => {
+    window.dispatchEvent(event)
+  })
+  await publishAccount(signedIn())
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Open navigation"]')?.click(),
+  )
+  const install = [...document.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Install Phosphor',
+  )!
+  await act(async () => install.click())
+  expect(prompt).toHaveBeenCalledOnce()
+})
+
 it('uses a keyboard-contained drawer on phones and restores trigger focus on Escape', async () => {
   vi.stubGlobal('innerWidth', 412)
   account = signedIn()
