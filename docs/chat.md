@@ -957,6 +957,9 @@ look the same. It renders only when the key is present.
 
 **Plan usage** renders one dial per window (arc, percent, window name, a
 compact countdown). **Refresh** re-runs `claude -p /usage` past main's cache.
+The CLI's reset stamp is parsed in both forms it has printed (`Aug 30 at 2:49pm`,
+and `Oct 19, 6:29am` from Claude Code 2.1.283); an unparsed stamp drops only
+the countdown.
 
 It reads the lane's OWN account (`claude:sessionAccount` →
 `claude:usageSnapshot <id>`) and names it once more than one Claude login is

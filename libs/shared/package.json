@@ -192,6 +192,10 @@
       "types": "./src/host-protocol-files.ts",
       "default": "./src/host-protocol-files.ts"
     },
+    "./claude-usage": {
+      "types": "./src/claude-usage.ts",
+      "default": "./src/claude-usage.ts"
+    },
     "./host-protocol-machine": {
       "types": "./src/host-protocol-machine.ts",
       "default": "./src/host-protocol-machine.ts"
