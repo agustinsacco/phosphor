@@ -133,7 +133,10 @@ test('Install action has manual fallback and only reports completion on appinsta
   const help = page.getByRole('dialog', { name: 'Install Phosphor', exact: true })
   await expect(help).toContainText('An automatic prompt is not guaranteed')
   await help.getByRole('button', { name: 'Close', exact: true }).click()
-  // Capture on sign-in, then retain the offer while the mobile drawer is absent and remounted.
+  await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
+  // Browser prompt events belong to one document, not the preceding OAuth redirect.
+  // Capture while the drawer is absent, then preserve it across drawer/SPA navigation.
   await page.evaluate(() => {
     const event = new Event('beforeinstallprompt', { cancelable: true })
     Object.assign(event, {
@@ -142,8 +145,6 @@ test('Install action has manual fallback and only reports completion on appinsta
     })
     window.dispatchEvent(event)
   })
-  await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
   await page.getByRole('button', { name: 'Close navigation', exact: true }).click()
   await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
