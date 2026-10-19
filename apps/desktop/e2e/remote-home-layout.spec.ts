@@ -17,7 +17,10 @@ test('remote home contains a long lane list and keeps creation reachable in a sh
     )
     const home = h.page.locator('.remote-workspace-page')
     await expect(home).toBeVisible()
-    await expect(h.page.getByRole('button', { name: 'Model', exact: true })).toBeVisible()
+    await expect(h.page.getByRole('button', { name: 'Model', exact: true })).toContainText(
+      'HOST_B_ONLY',
+    )
+    await expect(home.getByRole('button', { name: /^Synthetic overflow lane/ })).toHaveCount(12)
     const bounds = await home.evaluate((element) => ({
       top: element.getBoundingClientRect().top,
       bottom: element.getBoundingClientRect().bottom,
