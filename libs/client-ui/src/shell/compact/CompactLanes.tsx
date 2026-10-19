@@ -1,6 +1,6 @@
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore, connectionLabel } from '@/stores/remoteLanes'
-import { RemoteLaneRow } from '@/features/home/RemoteLaneRow'
+import { RemoteLaneGroups } from '@/features/sessions/RemoteLaneGroups'
 import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
 import '@/features/home/remoteStart.css'
@@ -65,15 +65,18 @@ export function CompactLanes({
                 ) : lanes.length === 0 ? (
                   <p>{inbox ? 'No unread attention on this machine.' : 'No lanes yet.'}</p>
                 ) : (
-                  lanes.map((lane) => {
-                    const open = (): void =>
+                  <RemoteLaneGroups
+                    hostId={machine.id}
+                    repositories={host.repositories}
+                    lanes={lanes}
+                    onOpen={(laneId) =>
                       navigate({
                         to: 'lane',
-                        lane: { hostId: machine.id, laneId: lane.laneId },
+                        lane: { hostId: machine.id, laneId },
                         pane: 'chat',
                       })
-                    return <RemoteLaneRow key={lane.laneId} lane={lane} onOpen={open} />
-                  })
+                    }
+                  />
                 )}
               </section>
             )

@@ -6,7 +6,7 @@ import {
   REMOTE_NOT_READY,
   REMOTE_UNAVAILABLE,
 } from '@/stores/remoteLanes'
-import { RemoteLaneRow } from './RemoteLaneRow'
+import { RemoteLaneGroups } from '@/features/sessions/RemoteLaneGroups'
 import './remoteStart.css'
 
 /** A Host has a lane snapshot, not This Mac's project ledger or spend statistics. */
@@ -32,13 +32,14 @@ export function HostHome({ hostId }: { hostId: string }): React.JSX.Element {
         <>
           <p className="text-text-secondary mt-1 text-sm">Your lanes on {label}</p>
           <div className="remote-lane-list">
-            {host?.lanes.map((lane) => (
-              <RemoteLaneRow
-                key={lane.laneId}
-                lane={lane}
-                onOpen={() => void openRemoteLane(hostId, lane.laneId)}
+            {host && (
+              <RemoteLaneGroups
+                hostId={hostId}
+                repositories={host.repositories}
+                lanes={host.lanes}
+                onOpen={(laneId) => void openRemoteLane(hostId, laneId)}
               />
-            ))}
+            )}
           </div>
           {host?.lanes.length === 0 && (
             <p className="text-text-secondary mt-4">No lanes yet. Describe a task below.</p>
