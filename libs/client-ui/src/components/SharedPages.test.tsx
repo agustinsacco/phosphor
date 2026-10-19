@@ -176,3 +176,19 @@ it.each([
     expect(container.querySelector('h1')?.textContent).toBe('Machines')
   },
 )
+
+it('browser Machines never describes this browser as a computer with local lanes when signed out', async () => {
+  const signedOut = createFakePhosphor({
+    'account:get': () => ({ account: { status: 'signed-out' } }),
+  })
+  const restoreSignedOut = installFakePhosphor(signedOut)
+  try {
+    await render(COMPACT_PLATFORM, <MachinesPage />)
+    expect(container.textContent).not.toContain('This computer.')
+    expect(container.textContent).not.toContain('Your local lanes stay on this computer.')
+    expect(container.textContent).toContain('Sign in to see your Hosts.')
+  } finally {
+    restoreSignedOut()
+    signedOut.dispose()
+  }
+})
