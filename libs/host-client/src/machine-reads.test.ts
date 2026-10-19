@@ -148,3 +148,37 @@ it.each(['capability', 'connection', 'incarnation', 'state'] as const)(
     expect(await reads.claude('host')).toBeNull()
   },
 )
+
+it('reads the lane plan usage, forwards a refresh, and falls back for old Hosts', async () => {
+  const data = {
+    ok: true,
+    snapshot: {
+      fetchedAt: 1,
+      stale: false,
+      windows: [
+        { label: 'Current week (all models)', kind: 'weekly', percentUsed: 7, resetsAt: 2 },
+      ],
+    },
+  }
+  const lane = '00000000-0000-4000-8000-000000000098'
+  call.mockResolvedValueOnce({ type: 'result', id: 'usage', ok: true, data })
+  expect(await reads.claudeUsage('host', lane, true)).toEqual({
+    ok: true,
+    snapshot: { ...data.snapshot, contributing: null },
+  })
+  expect(call).toHaveBeenCalledWith('machine.claudeUsage', { laneId: lane, force: true })
+  call.mockResolvedValueOnce({
+    type: 'result',
+    id: 'usage',
+    ok: false,
+    error: { code: 'unsupported', message: 'Unknown method' },
+  })
+  expect(await reads.claudeUsage('host')).toBeNull()
+  expect(call).toHaveBeenLastCalledWith('machine.claudeUsage', {})
+  // A lane id the protocol would refuse never reaches the Host.
+  call.mockClear()
+  expect(await reads.claudeUsage('host', '../lane')).toBeNull()
+  expect(call).not.toHaveBeenCalled()
+  view.capabilities = []
+  expect(await reads.claudeUsage('host')).toBeNull()
+})

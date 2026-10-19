@@ -55,6 +55,7 @@ export function createBrowserHandlers(ports: {
     'control:removeMachine': (id) => directoryMutation(control.remove(id)),
     'hosts:models': resources.machines.models,
     'hosts:claude': resources.machines.claude,
+    'hosts:claudeUsage': resources.machines.claudeUsage,
     'hosts:providers': resources.machines.providers,
     'hosts:skills': resources.machines.skills,
     'hosts:repositoryFiles': resources.repositories.list,

@@ -9,7 +9,7 @@ import type {
   MachineTaskOp,
 } from '../machine-settings'
 import type { ProviderLoginOp } from '../host-protocol-providers'
-import type { LiveSessionInfo } from '../models'
+import type { ClaudeUsageSnapshotResult, LiveSessionInfo } from '../models'
 import type { HostsSnapshot, TrafficPage, RemoteLaneCreate } from './views'
 
 export interface HostsInvokeMap {
@@ -20,6 +20,11 @@ export interface HostsInvokeMap {
     args: [hostId: string]
     /** null: unavailable, or a Host older than machine.claude. */
     result: MachineClaude | null
+  }
+  'hosts:claudeUsage': {
+    args: [hostId: string, laneId?: string, force?: boolean]
+    /** The lane's Claude account's plan usage on the Host. null: unavailable or an older Host. */
+    result: ClaudeUsageSnapshotResult | null
   }
   'hosts:providers': { args: [hostId: string]; result: MachineProvider[] }
   'hosts:repositoryFiles': { args: [hostId: string, repositoryId: string]; result: string[] }

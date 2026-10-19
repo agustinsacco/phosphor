@@ -1796,3 +1796,19 @@ capability as `machine.providers`. It returns exactly three enum fields:
 `auth` (`ok`, `signed-out`, `unknown`). These independent checks contain no account
 or command output. No new capability is advertised. Older Hosts refuse the method;
 clients can fall back to their existing provider summary.
+
+`machine.claudeUsage {laneId?, force?}`, under the same capability, reads plan usage
+for the Claude account a lane bills: the account its live session runs on, else
+the one its session file is bound to, else the primary account (pinned, else
+first, else the CLI's default login). It runs that account's
+`claude -p /usage --output-format json --no-session-persistence` through the
+shared per-account cache (`providers/lane-usage.ts`): no model call and no quota.
+The Host parses the reply itself, so reset stamps use its own timezone, and
+answers `{ok: true, snapshot: {fetchedAt, stale, windows}}` (at most 16 windows
+of label, kind, percent used and reset time) or
+`{ok: false, error: claude-not-found|run-failed|no-usage}`. The CLI's free-text
+"contributing" block never leaves the Host. A success is reused for 60 seconds;
+`force` bypasses that unless the account was read in the last 10 seconds.
+Failures are not cached. An unknown or removed lane is `unknown-lane`. Unlike the
+other machine reads it does not wait in the pi probe queue, since it runs the
+Claude CLI and concurrent callers share one run per account.

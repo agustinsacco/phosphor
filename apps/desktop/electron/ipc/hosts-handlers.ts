@@ -106,6 +106,9 @@ export function registerHostsHandlers(): void {
   const catalogues = machineReads(manager.connection)
   handle('hosts:models', (_event, hostId) => catalogues.models(hostId))
   handle('hosts:claude', (_event, hostId) => catalogues.claude(hostId))
+  handle('hosts:claudeUsage', (_event, hostId, laneId, force) =>
+    catalogues.claudeUsage(hostId, laneId, force),
+  )
   handle('hosts:providers', (_event, hostId) => catalogues.providers(hostId))
   handle('hosts:skills', (_event, hostId) => catalogues.skills(hostId))
   remote = createRemoteLanes({

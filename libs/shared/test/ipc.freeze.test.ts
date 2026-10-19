@@ -123,6 +123,7 @@ const expectedEntries = [
   ['hosts:addRepository', 'app'],
   ['hosts:claude', 'machine'],
   ['hosts:claudeAccount', 'app'],
+  ['hosts:claudeUsage', 'machine'],
   ['hosts:createFolder', 'app'],
   ['hosts:createLane', 'app'],
   ['hosts:deleteLane', 'app'],

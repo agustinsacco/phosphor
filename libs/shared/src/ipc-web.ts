@@ -14,6 +14,7 @@ export const IPC_WEB = {
   'hosts:tailscaleStatus': native,
   'hosts:models': remote,
   'hosts:claude': remote,
+  'hosts:claudeUsage': remote,
   'hosts:providers': remote,
   'hosts:repositoryFiles': remote,
   'hosts:repositoryFile': remote,

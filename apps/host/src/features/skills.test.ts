@@ -374,4 +374,46 @@ it('serves machine.claude under the existing read capability with strict empty p
     data: { provider: 'missing', cli: 'missing', auth: 'unknown' },
   })
   expect(await feature.call('machine.claude', { extra: true })).toEqual(error('bad-request'))
+  expect(feature.methods).toContain('machine.claudeUsage')
+  expect(await feature.call('machine.claudeUsage', { force: 1 })).toEqual(error('bad-request'))
+})
+
+it('serves machine.claudeUsage for live lanes only, outside the pi probe queue', async () => {
+  expect(await feature.call('machine.claudeUsage', {})).toEqual(error('unsupported'))
+  const reads: unknown[][] = []
+  const usage = createSkillsFeature(
+    {
+      home: root,
+      env: {},
+      log: () => {},
+      store: { getLane: (id) => (id === laneId ? lane() : null), listRepositories: () => [] },
+    },
+    {
+      // A stalled pi probe must not hold plan usage behind it.
+      inspect: () => new Promise<never>(() => {}),
+      claudeUsage: async (...args) => {
+        reads.push(args)
+        return { ok: false, error: 'no-usage' }
+      },
+    },
+  )
+  void usage.call('machine.models', {})
+  expect(await usage.call('machine.claudeUsage', { laneId, force: true })).toEqual({
+    ok: true,
+    data: { ok: false, error: 'no-usage' },
+  })
+  expect(await usage.call('machine.claudeUsage', {})).toEqual({
+    ok: true,
+    data: { ok: false, error: 'no-usage' },
+  })
+  expect(reads).toEqual([
+    [laneId, true],
+    [undefined, false],
+  ])
+  expect(await usage.call('machine.claudeUsage', { laneId: randomUUID() })).toEqual(
+    error('unknown-lane'),
+  )
+  removed = true
+  expect(await usage.call('machine.claudeUsage', { laneId })).toEqual(error('unknown-lane'))
+  expect(reads).toHaveLength(2)
 })

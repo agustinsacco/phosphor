@@ -59,7 +59,9 @@ const CONTRIBUTING_HEADING = /^What['\u2019]s contributing to your limits usage\
  * (`resetLabel` in `composer/rateLimit.ts`).
  */
 export function parseResetStamp(text: string, nowMs: number = Date.now()): number | null {
-  const match = /^([A-Z][a-z]{2}) (\d{1,2}) at (\d{1,2})(?::(\d{2}))?(am|pm)$/.exec(text.trim())
+  const match = /^([A-Z][a-z]{2}) (\d{1,2})(?: at|,) (\d{1,2})(?::(\d{2}))?(am|pm)$/.exec(
+    text.trim(),
+  )
   if (!match) return null
   const monthName = match[1]
   const dayText = match[2]

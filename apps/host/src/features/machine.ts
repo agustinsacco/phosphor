@@ -12,6 +12,7 @@ import type { CallErrorCode } from '@phosphor/shared/host-protocol'
 import { inspectHost } from '../commands/doctor'
 import { defaultConfigPath } from '../config/load'
 import type { HostInspection } from '../commands/doctor'
+import type { ClaudeUsageSnapshotResult } from '@phosphor/shared/models'
 import type { FeatureContext, FeatureOutcome } from './feature'
 
 export class FeatureFailure extends Error {
@@ -40,6 +41,8 @@ export interface MachinePorts {
   inspect?: () => Promise<HostInspection>
   configPath?: string
   claudeAuthentication?: () => Promise<boolean | null>
+  /** Plan usage of the account a lane bills (`providers/lane-usage.ts`). */
+  claudeUsage?: (laneId: string | undefined, force: boolean) => Promise<ClaudeUsageSnapshotResult>
 }
 /** Inspection reads files that can stall; callers queue behind it, so it must settle. */
 export const INSPECTION_DEADLINE_MS = 20_000
@@ -133,7 +136,15 @@ export async function machineCall(
   method: string,
   context: FeatureContext,
   ports: MachinePorts,
+  params: { laneId?: string; force?: boolean } = {},
 ): Promise<FeatureOutcome> {
+  if (method === 'machine.claudeUsage') {
+    if (!ports.claudeUsage) throw new FeatureFailure('unsupported')
+    const lane = params.laneId ? context.store.getLane(params.laneId) : null
+    if (params.laneId && (!lane || lane.removedAt !== null))
+      throw new FeatureFailure('unknown-lane')
+    return { ok: true, data: await ports.claudeUsage(params.laneId, params.force === true) }
+  }
   const inspection = await featureInspection(context, ports)
   if (!inspection.pi) throw new FeatureFailure('internal')
   if (method === 'machine.claude') {

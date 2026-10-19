@@ -824,6 +824,7 @@ because they are not equally trustworthy.
 | Context composition     | `phosphor-context-breakdown` status key (bundled extension)    | every session                     |
 | Optimization · Headroom | `phosphor-headroom` status key (bundled extension)             | sessions that compressed a result |
 | Plan usage              | `claude:usageSnapshot` IPC — `claude -p /usage`, live percents | Claude Code provider sessions     |
+| Plan usage (remote)     | `hosts:claudeUsage` IPC → Host `machine.claudeUsage`           | Claude Code lanes on a Host       |
 | Plan limits             | `claude-rate-limit` status key (provider ≥0.4.5)               | Claude Code provider sessions     |
 | ChatGPT plan usage      | `pi:codexUsage` IPC → ChatGPT `/backend-api/wham/usage`        | `openai-codex` sessions           |
 
@@ -957,6 +958,9 @@ look the same. It renders only when the key is present.
 
 **Plan usage** renders one dial per window (arc, percent, window name, a
 compact countdown). **Refresh** re-runs `claude -p /usage` past main's cache.
+The CLI's reset stamp is parsed in both forms it has printed (`Aug 30 at 2:49pm`,
+and `Oct 19, 6:29am` from Claude Code 2.1.283); an unparsed stamp drops only
+the countdown.
 
 It reads the lane's OWN account (`claude:sessionAccount` →
 `claude:usageSnapshot <id>`) and names it once more than one Claude login is
@@ -967,6 +971,13 @@ moves this lane to the one picked, held accounts included and marked. The move
 is a respawn, not a switch: a running lane's credential was fixed at spawn, so
 the lane is disposed and resumed from its session file against the new
 account, and the next turn re-reads the whole thread.
+
+**A remote lane reads the Host's plan, not this computer's.** It spends an
+account on the Host, so its section is titled `Plan usage · Claude on <machine>`
+and comes from that Host's own `claude -p /usage` for the account the lane bills
+(`hosts:claudeUsage` → [`machine.claudeUsage`](host.md#claude-machine-diagnostics)).
+Accounts are switched in the Host's machine settings, not here. A Host older
+than the call says so in the section and offers Refresh, rather than hiding it.
 
 This is the one figure on the popover that comes from the account rather than
 from a token count, which makes it the one to trust when they disagree.
