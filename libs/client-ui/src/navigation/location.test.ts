@@ -3,6 +3,10 @@ import { decodeLocation, encodeLocation, type Location } from './location'
 import { SCREENS } from './screens'
 
 describe('Location codec', () => {
+  it('opens the shared task-first start view at the app root', () => {
+    expect(decodeLocation('/')).toEqual({ to: 'new' })
+    expect(decodeLocation('/lanes')).toEqual({ to: 'lanes' })
+  })
   it.each<Location>([
     { to: 'lanes' },
     { to: 'lanes', machine: 'host-one' },
