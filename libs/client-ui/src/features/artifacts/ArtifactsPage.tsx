@@ -16,6 +16,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { PageShell } from '@/components/PageShell'
+import { PageBody } from '@/components/PageBody'
 import { PaneTitle } from '@/components/PaneShell'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { projectName } from '@/lib/path'
@@ -130,19 +131,17 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
     <PageShell
       title={<PaneTitle label="Artifacts" meta={rows.length ? `${rows.length}` : undefined} />}
       actions={
-        <div className="flex gap-2">
-          <MachinePicker
-            includeAll
-            value={machine === 'all' ? '' : machine}
-            capability="artifacts.read"
-            onChange={(artifactsMachine) =>
-              useMachinePagesStore.setState({ artifactsMachine: artifactsMachine || 'all' })
-            }
-          />
-        </div>
+        <MachinePicker
+          includeAll
+          value={machine === 'all' ? '' : machine}
+          capability="artifacts.read"
+          onChange={(artifactsMachine) =>
+            useMachinePagesStore.setState({ artifactsMachine: artifactsMachine || 'all' })
+          }
+        />
       }
     >
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col">
+      <PageBody layout="fill">
         {listingError && (
           <p role="alert" className="p-3">
             Could not read the artifact library. Some Hosts may be unavailable.{' '}
@@ -169,7 +168,7 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
             </div>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="text-text-tertiary pb-2 text-sm">
               Everything your sessions have produced. Opening one jumps to its session.
             </div>
@@ -178,7 +177,7 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
             ))}
           </div>
         )}
-      </div>
+      </PageBody>
     </PageShell>
   )
 })

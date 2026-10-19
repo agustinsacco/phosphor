@@ -190,6 +190,14 @@ swap. The startup screen remains visible while fonts settle.
 Startup waits at most 1.5 seconds: failed/late faces stay on system fallbacks for
 that launch. No CDN, font installation requirement, or preference reset.
 
+**Responsive density:** feature pages share `PageShell`/`PageBody`, including their
+heading, width (56rem maximum), gutters and scroll containment. Remote creation
+uses one `RemoteWorkspacePage`/`RemoteStartView` in both clients, capped at 48rem.
+Browser navigation is a drawer below 900px and a 208px sidebar above it. Phone
+hit targets are at least 44px; text-entry fields are 16px to avoid iOS focus zoom,
+while labels and secondary copy keep the shared compact scale. Larger hit areas
+do not imply larger type everywhere. Width never enables native capabilities.
+
 **Scale:** nine steps in `@theme`. Every step pins its line-height to `inherit`
 rather than carrying Tailwind's default; set leading explicitly with `leading-*`
 where a block needs its own.

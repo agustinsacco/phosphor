@@ -1,0 +1,15 @@
+@container (max-width: 32rem) {
+  .routines-page [data-testid='routine-row'] {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.375rem 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .routines-page [data-testid='routine-row'] > span:nth-child(n + 3) {
+    grid-column: 2;
+    min-width: 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+}

@@ -16,6 +16,14 @@ export type Location =
   | { to: 'page'; page: Page; machine?: string }
   | { to: 'unavailable' }
 
+export function locationMachine(location: Location): string | undefined {
+  return location.to === 'lane' && 'hostId' in location.lane
+    ? location.lane.hostId
+    : 'machine' in location
+      ? location.machine
+      : undefined
+}
+
 function id(value: string | undefined): string | undefined {
   if (!value) return undefined
   try {
@@ -28,7 +36,8 @@ function id(value: string | undefined): string | undefined {
 
 /** URLs contain opaque Host/lane IDs only, never workspace or session-file paths. */
 export function decodeLocation(pathname: string): Location {
-  if (pathname === '/' || pathname === '/lanes') return { to: 'lanes' }
+  if (pathname === '/') return { to: 'new' }
+  if (pathname === '/lanes') return { to: 'lanes' }
   const parts = pathname.split('/').slice(1)
   if (parts[0] === 'lanes' && parts.length >= 3 && parts.length <= 4) {
     const hostId = id(parts[1])

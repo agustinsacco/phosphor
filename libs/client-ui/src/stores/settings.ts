@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { applyTheme as applyToDom, resolveTheme as resolve } from '@/lib/theme'
 import { DEFAULT_FONT_PREFS, type FontPrefs, type ThemePreference } from '@shared/models'
 import { useLanePrefsStore } from './lanePrefs'
 import { useContextBudgetStore } from './contextBudgetPref'
@@ -31,16 +32,6 @@ function applyFontsToDom(fonts: FontPrefs): void {
   root.style.setProperty('--px-chat-font-size', `${fonts.chatFontSize}px`)
   root.style.setProperty('--px-editor-font-size', `${fonts.editorFontSize}px`)
   root.style.setProperty('--px-terminal-font-size', `${fonts.terminalFontSize}px`)
-}
-
-function resolve(theme: ThemePreference): 'light' | 'dark' {
-  if (theme !== 'system') return theme
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
-function applyToDom(resolved: 'light' | 'dark'): void {
-  document.documentElement.classList.toggle('dark', resolved === 'dark')
-  document.documentElement.style.colorScheme = resolved
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => {

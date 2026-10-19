@@ -113,10 +113,15 @@ describe('SETTINGS_INDEX against the tab sources', () => {
   const dir = resolve(import.meta.dirname, 'tabs')
   const files = readdirSync(dir).filter((f) => f.endsWith('.tsx') && !f.includes('.test.'))
   const sources = new Map(
-    files.map((f) => [
-      f.replace('.tsx', ''),
-      readFileSync(resolve(dir, f), 'utf8').replaceAll('&apos;', "'"),
-    ]),
+    files.map((f) => {
+      const source = readFileSync(resolve(dir, f), 'utf8').replaceAll('&apos;', "'")
+      // Appearance renders these exact shared rows in Desktop and the browser.
+      const shared =
+        f === 'AppearanceTab.tsx' && source.includes('<AppearancePreferences />')
+          ? readFileSync(resolve(dir, '../AppearancePreferences.tsx'), 'utf8')
+          : ''
+      return [f.replace('.tsx', ''), source + shared]
+    }),
   )
   const tabLabels = new Set([...TABS, ...EXTENSION_TABS].map((t) => t.label))
   const literals = (source: string): string[] =>

@@ -1,8 +1,9 @@
 import { createPortal } from 'react-dom'
+import { useAnchoredMenu } from './useAnchoredMenu'
 import { usePlatform } from '@/platform/Platform'
 import { useEscapeKey } from './Modal'
 import { TooltipButton } from '@/components/Tooltip'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
 /**
  * Anchored popup list used by the command menu, @-mentions and pickers.
@@ -20,6 +21,7 @@ export function PopupMenu({
   className,
   triggerRef,
   fitViewport = false,
+  escapeContainer = false,
   role,
   id,
   ariaLabel,
@@ -31,6 +33,8 @@ export function PopupMenu({
   className?: string
   triggerRef?: React.RefObject<HTMLElement | null>
   fitViewport?: boolean
+  /** Portal an anchored menu out of a scrolling feature container. */
+  escapeContainer?: boolean
   /**
    * `listbox` for a typeahead list whose rows are `MenuRow role="option"`.
    * Pair with `ariaActiveDescendant` so a screen reader follows the ↑/↓
@@ -45,7 +49,14 @@ export function PopupMenu({
 }): React.JSX.Element {
   const compact = usePlatform().formFactor === 'compact'
   const ref = useRef<HTMLDivElement>(null)
-  const [computedStyle, setComputedStyle] = useState<React.CSSProperties>({})
+  const computedStyle = fitViewport ? { maxWidth: 'calc(100vw - 2rem)' } : undefined
+  const anchored = !compact && escapeContainer && fitViewport && !!triggerRef
+  const anchorStyle = useAnchoredMenu(
+    triggerRef,
+    ref,
+    anchored,
+    !!className?.includes('bottom-full'),
+  )
 
   useEscapeKey(onClose)
 
@@ -60,16 +71,6 @@ export function PopupMenu({
       else trigger.setAttribute('data-tooltip-open', previous)
     }
   }, [triggerRef])
-
-  useEffect(() => {
-    if (!fitViewport || !ref.current) {
-      setComputedStyle({})
-      return
-    }
-    // Apply a viewport-safe max-width so the popup never overflows past the
-    // viewport right edge regardless of left/right alignment.
-    setComputedStyle({ maxWidth: 'calc(100vw - 2rem)' })
-  }, [fitViewport])
 
   useEffect(() => {
     const handler = (event: MouseEvent): void => {
@@ -89,7 +90,7 @@ export function PopupMenu({
   const menu = (
     <div
       ref={ref}
-      style={computedStyle}
+      style={{ ...computedStyle, ...anchorStyle }}
       // Marks the subtree as no-drag (see .titlebar-drag in styles/index.css):
       // a menu opened from inside a window-drag region must stay clickable,
       // including its non-button rows (labels, separators).
@@ -105,7 +106,7 @@ export function PopupMenu({
       {children}
     </div>
   )
-  return compact ? createPortal(menu, document.body) : menu
+  return compact || anchored ? createPortal(menu, document.body) : menu
 }
 
 export function MenuRow({

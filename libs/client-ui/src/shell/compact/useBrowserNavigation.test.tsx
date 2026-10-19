@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { useMachinesStore } from '@/stores/machines'
+import { MACHINE } from '@/features/machines/__fixtures__/control'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -56,6 +57,45 @@ it('projects legacy lane activation to a single deep link and clears browser foc
   expect(useSessionsStore.getState().activeSessionId).toBeNull()
   expect(invoke.mock.calls.every((call) => !String(call[0]).startsWith('app:'))).toBe(true)
 })
+it.each([1, 2])(
+  'pins only an unambiguous ready creation target without adding history: %i Hosts',
+  async (count) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    vi.stubGlobal('phosphor', { invoke: vi.fn(async () => undefined) })
+    const machines = [MACHINE, { ...MACHINE, id: 'other-host' }].slice(0, count)
+    useMachinesStore.setState({ machines, remoteEnabled: true, loading: false, error: null })
+    useRemoteLanesStore.setState({
+      filter: 'all',
+      hosts: Object.fromEntries(
+        machines.map((machine) => [
+          machine.id,
+          {
+            state: 'ready',
+            connectionToken: 'test',
+            capabilities: ['sessions.control'],
+            repositories: [],
+            lanes: [],
+          },
+        ]),
+      ),
+    })
+    useLayoutStore.setState({ page: null })
+    window.history.replaceState(null, '', '/new')
+    const push = vi.spyOn(window.history, 'pushState')
+    const replace = vi.spyOn(window.history, 'replaceState')
+    const root = createRoot(document.createElement('div'))
+    roots.push(root)
+    await act(async () => root.render(<Harness />))
+    expect(window.location.pathname).toBe(count === 1 ? `/new/${MACHINE.id}` : '/new')
+    expect(push).not.toHaveBeenCalled()
+    expect(replace).toHaveBeenCalledTimes(count === 1 ? 1 : 0)
+    if (count === 1) {
+      await act(async () => useMachinesStore.setState({ machines: [] }))
+      expect(window.location.pathname).toBe(`/new/${MACHINE.id}`)
+    }
+  },
+)
+
 it('waits for machine scope before mounting a page and puts feature machine changes in the URL', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   useMachinesStore.setState({ remoteEnabled: true })

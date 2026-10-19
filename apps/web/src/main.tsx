@@ -3,17 +3,34 @@ import { createBrowserApi } from './platform'
 import '@phosphor/client-ui/styles/index.css'
 
 let dispose = () => {}
-async function boot() {
+let showStartup: ((error?: string) => void) | undefined
+async function boot(): Promise<void> {
   const bridge = createBrowserApi()
   dispose = () => bridge.dispose()
   window.phosphor = bridge.api
-  // The real adapter exists before any shared store or component is evaluated.
+  // The adapter exists before shared UI is evaluated. Apply the stored theme
+  // before waiting on the network, then use the same startup view as Desktop.
+  const { LoadingScreen, TooltipProvider, applyTheme, resolveTheme } =
+    await import('@phosphor/client-ui/bootstrap')
+  const prefs = await bridge.api.invoke('app:getPrefs')
+  applyTheme(resolveTheme(prefs.theme))
+  const root = createRoot(document.getElementById('root')!)
+  showStartup = (error) =>
+    root.render(
+      <TooltipProvider>
+        <LoadingScreen
+          message="Checking your session…"
+          error={error}
+          onRetry={() => location.reload()}
+        />
+      </TooltipProvider>,
+    )
+  showStartup()
   await bridge.start()
   const { CompactApp } = await import('@phosphor/client-ui/compact')
-  createRoot(document.getElementById('root')!).render(<CompactApp />)
+  root.render(<CompactApp />)
   if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-    // Do not force an update/reload over a draft. Waiting updates activate after
-    // the old pages close; APIs and Host data are never cached by the worker.
+    // Never force a reload over a draft or cache API/Host data.
     void navigator.serviceWorker.register('/sw.js', { type: 'module', scope: '/' }).catch(() => {})
   }
 }
@@ -23,14 +40,24 @@ void boot().catch(() => {
   } catch {
     /* Local cleanup must not hide the recovery action. */
   }
-  // Never render raw network/provider errors or token-bearing request details.
+  const message = 'Phosphor could not start. Check your connection and try again.'
+  if (showStartup) {
+    showStartup(message)
+    return
+  }
+  // The shared chunk itself may be unavailable offline. Keep an asset-free,
+  // sanitized retry on the first-paint surface; never show raw provider errors.
   const root = document.getElementById('root')!
-  root.replaceChildren()
-  const message = document.createElement('p')
-  message.setAttribute('role', 'alert')
-  message.textContent = 'Phosphor could not start. Check your connection and try again.'
+  const content = document.createElement('main')
+  content.className = 'startup-screen startup-content'
+  const status = document.createElement('p')
+  status.setAttribute('role', 'alert')
+  status.className = 'startup-message'
+  status.textContent = message
   const retry = document.createElement('button')
+  retry.className = 'startup-action'
   retry.textContent = 'Try again'
   retry.addEventListener('click', () => location.reload())
-  root.append(message, retry)
+  content.append(status, retry)
+  root.replaceChildren(content)
 })

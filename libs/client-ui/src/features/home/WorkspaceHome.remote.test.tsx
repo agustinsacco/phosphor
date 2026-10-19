@@ -256,7 +256,7 @@ it('renders This Mac -> Host -> This Mac dashboards without leaking lanes, ledge
   expect(el.textContent).not.toContain('Project stats')
   expect(invoke.mock.calls.some(([c]) => c === 'sessions:stats')).toBe(false)
   await act(async () =>
-    [...el.querySelectorAll('button')].find((b) => b.textContent === 'Remote demo lane')!.click(),
+    el.querySelector<HTMLButtonElement>('[aria-label="Remote demo lane"]')!.click(),
   )
   expect(invoke).toHaveBeenCalledWith('hosts:openLane', MOCK_HOST_ID, mockRemoteInfo.laneId)
   await act(async () => useRemoteLanesStore.getState().setFilter('local'))

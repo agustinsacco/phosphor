@@ -3,6 +3,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MachineFilesPane } from './MachineFilesPane'
+import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('./MonacoEditor', () => ({
@@ -60,6 +61,32 @@ it('shows refusal for a down machine and never calls local files', async () => {
   expect(container.querySelector('select')).toBeNull()
   expect(invoke).not.toHaveBeenCalled()
 })
+it('never enables the native editor just because the browser is wide', async () => {
+  const native = vi.spyOn(await import('./MonacoEditor'), 'MonacoEditor')
+  try {
+    await act(async () =>
+      root.render(
+        <PlatformProvider value={WIDE_BROWSER_PLATFORM}>
+          <MachineFilesPane hostId="host" />
+        </PlatformProvider>,
+      ),
+    )
+    const select = container.querySelector('select')!
+    await act(async () => {
+      select.value = repositoryId
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    await act(async () => container.querySelector('button')?.click())
+    expect(container.textContent).toContain('Remote preview')
+    expect(native).not.toHaveBeenCalled()
+    expect(invoke.mock.calls.every(([channel]) => channel.startsWith('hosts:repository'))).toBe(
+      true,
+    )
+  } finally {
+    native.mockRestore()
+  }
+})
+
 it('clears selection and preview on machine A -> B -> A switches', async () => {
   const a = useRemoteLanesStore.getState().hosts.host
   if (!a) throw new Error('fixture')

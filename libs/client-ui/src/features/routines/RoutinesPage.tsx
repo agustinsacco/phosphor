@@ -15,6 +15,7 @@ import {
   type RoutineRun,
 } from '@shared/routines'
 import { PageShell } from '@/components/PageShell'
+import { PageBody } from '@/components/PageBody'
 import { PaneTitle } from '@/components/PaneShell'
 import { Button, TextInput } from '@/components/form'
 import { ModalOverlay } from '@/components/Modal'
@@ -31,6 +32,8 @@ import { useSessionsStore } from '@/stores/sessions'
 import { ActivityAccordion } from './ActivityAccordion'
 import { RoutineDetail, routineTone, scheduleLabel } from './RoutineDetail'
 import { RoutineEditor } from './RoutineEditor'
+import { RoutinePageActions } from './RoutinePageActions'
+import './RoutinesPage.css'
 
 /** What the editor opens with, and what its Reset button returns to. */
 interface EditorState {
@@ -262,22 +265,14 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
         />
       }
       actions={
-        <>
-          <Button size="sm" onClick={() => setImporting(true)}>
-            Import
-          </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            title={unsaved ? 'Pick up the routine you were writing' : undefined}
-            onClick={() => create()}
-          >
-            {unsaved ? 'Resume draft' : 'New routine'}
-          </Button>
-        </>
+        <RoutinePageActions
+          unsaved={unsaved}
+          onImport={() => setImporting(true)}
+          onCreate={() => create()}
+        />
       }
     >
-      <div className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto px-5 pb-8">
+      <PageBody className="routines-page">
         {(error || loadError) && (
           <div role="alert" className="border-danger text-danger mb-4 rounded-lg border p-3">
             <p>{error || loadError}</p>
@@ -555,7 +550,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
             </footer>
           </>
         )}
-      </div>
+      </PageBody>
       {editor && !unavailable && (
         <RoutineEditor
           key={editor.key}

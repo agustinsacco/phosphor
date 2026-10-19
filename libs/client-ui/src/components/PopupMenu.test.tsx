@@ -57,7 +57,32 @@ function clickLikeAUser(element: HTMLElement): void {
   })
 }
 
+function ClippedMenu(): React.JSX.Element {
+  const trigger = useRef<HTMLButtonElement>(null)
+  return (
+    <div data-testid="scrolling-parent" style={{ overflow: 'auto', height: 40 }}>
+      <button ref={trigger}>Choose repository</button>
+      <PopupMenu
+        triggerRef={trigger}
+        fitViewport
+        escapeContainer
+        onClose={() => undefined}
+        className="bottom-full"
+      >
+        <span data-testid="anchored-menu">Repository options</span>
+      </PopupMenu>
+    </div>
+  )
+}
+
 describe('PopupMenu', () => {
+  it('portals viewport-fit anchored menus out of clipping feature containers', async () => {
+    await act(async () => render(<ClippedMenu />))
+    const menu = q('anchored-menu')!.closest('[data-popup-menu]')!
+    expect(q('scrolling-parent')!.contains(menu)).toBe(false)
+    expect(menu.parentElement).toBe(document.body)
+    expect((menu as HTMLElement).style.position).toBe('fixed')
+  })
   it('closes when the trigger is clicked a second time', () => {
     // The regression: mousedown closed the menu and the trigger's own click
     // immediately re-opened it, so it never appeared to close.

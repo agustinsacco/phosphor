@@ -184,7 +184,7 @@ it('uses the Mac thinking default, remembers per Host across remounts, and clamp
     expect(container.querySelector('[aria-label=Thinking]')?.textContent).toBe('high')
     act(() => container.querySelector<HTMLButtonElement>('[aria-label=Thinking]')!.click())
     act(() =>
-      [...container.querySelectorAll<HTMLButtonElement>('[role=option]')]
+      [...document.querySelectorAll<HTMLButtonElement>('[role=option]')]
         .find((b) => b.textContent === 'low')!
         .click(),
     )

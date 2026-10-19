@@ -5,7 +5,8 @@ import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinePagesStore } from '@/stores/machinePages'
-import type { Location } from '@/navigation/location'
+import { locationMachine, type Location } from '@/navigation/location'
+import { useDefaultNewMachine } from './useDefaultNewMachine'
 
 export function useBrowserNavigation() {
   const [history] = useState(() => createHistoryNavigation(window))
@@ -14,12 +15,8 @@ export function useBrowserNavigation() {
   const remoteEnabled = useMachinesStore((s) => s.remoteEnabled)
   const filter = useRemoteLanesStore((s) => s.filter)
   const page = useLayoutStore((s) => s.page)
-  const expectedFilter =
-    'machine' in location
-      ? (location.machine ?? 'all')
-      : location.to === 'lane' && 'hostId' in location.lane
-        ? location.lane.hostId
-        : 'all'
+  useDefaultNewMachine(history, location, remoteEnabled)
+  const expectedFilter = locationMachine(location) ?? 'all'
   const expectedPage = location.to === 'page' && location.page !== 'settings' ? location.page : null
   const pending = !remoteEnabled || filter !== expectedFilter || page !== expectedPage
   const navigate = useCallback(
@@ -30,12 +27,7 @@ export function useBrowserNavigation() {
   )
   useEffect(() => {
     if (!remoteEnabled) return
-    const machine =
-      'machine' in location
-        ? location.machine
-        : location.to === 'lane' && 'hostId' in location.lane
-          ? location.lane.hostId
-          : undefined
+    const machine = locationMachine(location)
     applying.current = true
     if (location.to !== 'lane') {
       // Native activate(null) persists app:setLastSession; browser home has no local resume target.

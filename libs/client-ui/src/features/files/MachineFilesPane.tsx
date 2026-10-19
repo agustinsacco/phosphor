@@ -1,9 +1,7 @@
 import { usePlatform } from '@/platform/Platform'
-import { CodeBlock } from '@/components/markdown/CodeBlock'
-import { Button } from '@/components/form'
+import { RepositoryFilePreview } from './RepositoryFilePreview'
 import { RemoteFileTree } from './RemoteFileTree'
-import { MonacoEditor, releaseFileModel } from './MonacoEditor'
-import { languageForPath } from '@/lib/monaco'
+import { releaseFileModel } from './MonacoEditor'
 import { useEffect, useState } from 'react'
 import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE, useRemoteLanesStore } from '@/stores/remoteLanes'
 
@@ -12,7 +10,9 @@ export function MachineFilesPane({ hostId }: { hostId: string }): React.JSX.Elem
   return <MachineFilesView key={hostId} hostId={hostId} />
 }
 function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
-  const compact = usePlatform().formFactor === 'compact'
+  const platform = usePlatform()
+  const compact = platform.formFactor === 'compact'
+  const nativeEditor = platform.fileEditing
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const [repositoryId, setRepositoryId] = useState('')
   const [files, setFiles] = useState<string[]>([])
@@ -79,9 +79,9 @@ function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
     }
   }, [hostId, repository?.id, ready, path])
   useEffect(() => {
-    if (!path || compact) return
+    if (!path || !nativeEditor) return
     return () => releaseFileModel(`host:${hostId}/repository:${repositoryId}/${path}`)
-  }, [hostId, repositoryId, path, compact])
+  }, [hostId, repositoryId, path, nativeEditor])
   if (!ready)
     return <p className="p-4">{host?.state !== 'ready' ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}</p>
   return (
@@ -115,29 +115,16 @@ function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
             </nav>
           )}
           <div aria-label="File preview" className="min-w-0 flex-1 overflow-hidden">
-            {compact && path ? (
-              <div className="h-full overflow-auto">
-                <Button onClick={() => setPath('')}>← Files</Button>
-                {reading ? (
-                  <p role="status">Reading file…</p>
-                ) : binary ? (
-                  <p>{preview}</p>
-                ) : (
-                  <CodeBlock code={preview} language="text" />
-                )}
-              </div>
-            ) : path && !binary ? (
-              <MonacoEditor
-                path={`host:${hostId}/repository:${repositoryId}/${path}`}
-                language={languageForPath(path)}
-                value={preview}
-                readOnly
-              />
-            ) : (
-              <p className="text-text-tertiary p-4">
-                {path ? preview : 'Select a file to preview'}
-              </p>
-            )}
+            <RepositoryFilePreview
+              compact={compact}
+              nativeEditor={nativeEditor}
+              path={path}
+              resourcePath={`host:${hostId}/repository:${repositoryId}/${path}`}
+              preview={preview}
+              reading={reading}
+              binary={binary}
+              onBack={() => setPath('')}
+            />
           </div>
         </div>
       )}

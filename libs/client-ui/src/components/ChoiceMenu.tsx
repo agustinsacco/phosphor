@@ -9,6 +9,12 @@ export interface MenuChoice {
   disabled?: boolean
 }
 
+const selectedIndex = (choices: MenuChoice[], value: string): number =>
+  Math.max(
+    0,
+    choices.findIndex((choice) => choice.value === value),
+  )
+
 /** A focus-owned single-choice menu over the shared anchored popup. */
 export function ChoiceMenu({
   value,
@@ -20,6 +26,7 @@ export function ChoiceMenu({
   placement = 'below',
   triggerClassName,
   bordered = false,
+  escapeContainer = false,
 }: {
   value: string
   choices: MenuChoice[]
@@ -30,6 +37,7 @@ export function ChoiceMenu({
   placement?: 'above' | 'below'
   triggerClassName?: string
   bordered?: boolean
+  escapeContainer?: boolean
 }): React.JSX.Element {
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
@@ -67,12 +75,7 @@ export function ChoiceMenu({
           event.preventDefault()
           if (!open) {
             setOpen(true)
-            setIndex(
-              Math.max(
-                0,
-                choices.findIndex((c) => c.value === value),
-              ),
-            )
+            setIndex(selectedIndex(choices, value))
             return
           }
           if (event.key === 'Home') setIndex(choices.findIndex((c) => !c.disabled))
@@ -100,12 +103,7 @@ export function ChoiceMenu({
           `text-text-secondary hover:text-text hover:bg-sidebar-hover flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-base transition-colors ${bordered ? 'border-border border' : ''}`
         }
         onClick={() => {
-          setIndex(
-            Math.max(
-              0,
-              choices.findIndex((c) => c.value === value),
-            ),
-          )
+          setIndex(selectedIndex(choices, value))
           setOpen(!open)
         }}
       >
@@ -127,6 +125,7 @@ export function ChoiceMenu({
           ariaActiveDescendant={`${id}-${index}`}
           className={`[&:focus-visible]:outline-accent outline-none focus-visible:ring-1 focus-visible:ring-accent absolute left-0 z-40 max-h-[70vh] w-72 overflow-y-auto py-1 ${placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
           fitViewport
+          escapeContainer={escapeContainer}
         >
           {header}
           {choices.map((choice, i) => (

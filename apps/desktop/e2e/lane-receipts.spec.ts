@@ -28,7 +28,7 @@ test('bee1 receipt stays machine scoped while This Mac is selected', async ({
     await expect(h.page.getByRole('tree', { name: 'Changed files', exact: true })).toBeVisible()
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
     await h.page.getByPlaceholder('Describe a task or ask a question').fill('PHX-receipt')
-    await h.page.getByRole('button', { name: 'Start session', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()
     await expect(h.page.getByRole('textbox', { name: 'Chat message', exact: true })).toBeVisible()
     await h.backgroundTurn('fail-turn')
     // Only this lane's attention: the PHX-receipt lane started above settles on

@@ -33,7 +33,7 @@ test('Create on bee1 with a usable default and name the first turn', async ({
     )
     await captures(h, info, 'host-home-composer')
     await h.page.getByPlaceholder('Describe a task or ask a question').fill('PHX-created')
-    await h.page.getByRole('button', { name: 'Start session', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()
     await expect(h.page.getByText('Controlled by you', { exact: true })).toBeVisible()
     await expect
       .poll(async () => {
@@ -99,9 +99,7 @@ test('Home composer sends only after controlled remote creation', async () => {
       await expect(h.page.getByRole('region', { name: 'Host home', exact: true })).toContainText(
         'Reconnecting',
       )
-      await expect(
-        h.page.getByRole('button', { name: 'Start session', exact: true }),
-      ).toBeDisabled()
+      await expect(h.page.getByRole('button', { name: 'Start lane', exact: true })).toBeDisabled()
       await draft.press('Enter')
       await expect(draft).toHaveValue('PHX-home')
       await expect(h.page.getByTestId('session-row')).toHaveCount(0)
@@ -115,7 +113,7 @@ test('Home composer sends only after controlled remote creation', async () => {
       'HOST_B_ONLY Reasoner',
     )
 
-    await h.page.getByRole('button', { name: 'Start session', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()
     await expect(h.page.locator('main').getByText('PHX-home', { exact: true })).toHaveCount(2)
     await expect(h.page.getByRole('textbox', { name: 'Chat message', exact: true })).toHaveValue('')
     await expect(h.page.getByTestId('session-row')).toHaveCount(0)
@@ -231,7 +229,7 @@ test('A manual Host name wins while first-prompt auto-naming is pending', async 
       'HOST_B_ONLY Reasoner',
     )
     await h.page.getByPlaceholder('Describe a task or ask a question').fill(h.slowName.prompt)
-    await h.page.getByRole('button', { name: 'Start session', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()
     await expect(h.page.getByText('Controlled by you', { exact: true })).toBeVisible()
     const row = remoteRow(h, 'PHX-delayedname')
     await expect(row).toBeVisible()

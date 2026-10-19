@@ -1,107 +1,49 @@
-import { usePlatform } from '@/platform/Platform'
-import { machineReadGeneration } from '@/stores/machineReadGeneration'
+import { useRef, useState } from 'react'
 import { useMachinesStore } from '@/stores/machines'
 import { Button } from '@/components/form'
-import { useEffect, useState } from 'react'
-import {
-  useRemoteModelPicks,
-  rememberRemoteModel,
-  rememberRemoteThinking,
-} from '@/stores/remoteModelPicks'
-import type { ThinkingLevel } from '@shared/rpc'
-import { ALL_THINKING_LEVELS, supportedThinkingLevels, clampThinkingLevel } from '@shared/thinking'
-import {
-  useMachineCataloguesStore,
-  machineCatalogueKey,
-  EMPTY_MACHINE_CATALOGUE,
-} from '@/stores/machineCatalogues'
-import {
-  useRemoteLanesStore,
-  REMOTE_NOT_READY,
-  REMOTE_UNAVAILABLE,
-  machineLabel,
-} from '@/stores/remoteLanes'
+import { TooltipButton } from '@/components/Tooltip'
+import { supportedThinkingLevels } from '@shared/thinking'
+import { machineLabel } from '@/stores/remoteLanes'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
-import { defaultRemoteModel, type ModelChoice } from './remoteModel'
+import { RemoteModelDialog } from './RemoteModelDialog'
+import type { useRemoteModel } from './useRemoteModel'
+import './remoteModel.css'
 
-export function useRemoteModel(hostId: string) {
-  const { localLanes } = usePlatform()
-  const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
-  const catalogue = useMachineCataloguesStore(
-    (s) => s.catalogues[machineCatalogueKey(hostId, generation)] ?? EMPTY_MACHINE_CATALOGUE,
-  )
-  const last = useRemoteModelPicks((s) => s.last[hostId])
-  const [desktop, setDesktop] = useState<ModelChoice>()
-  const rememberedThinking = useRemoteModelPicks((s) => s.thinking[hostId])
-  const [defaultThinking, setDefaultThinking] = useState<ThinkingLevel>('off')
-  const thinking = rememberedThinking ?? defaultThinking
-  const setThinking = (level: ThinkingLevel): void => rememberRemoteThinking(hostId, level)
-  useEffect(() => {
-    if (!hostId) return
-    void useMachineCataloguesStore.getState().load(hostId)
-    if (!localLanes) return
-    void window.phosphor
-      .invoke('pi:agentSettings')
-      .then((s) => {
-        const level = ALL_THINKING_LEVELS.find((level) => level === s.defaultThinkingLevel)
-        if (level) setDefaultThinking(level)
-        if (typeof s.defaultProvider === 'string' && typeof s.defaultModel === 'string')
-          setDesktop({ provider: s.defaultProvider, id: s.defaultModel })
-      })
-      .catch(() => undefined)
-  }, [hostId, generation, localLanes])
-  const models = host?.capabilities.includes('skills.read') ? catalogue.models : []
-  const providers = catalogue.providers
-  const usable = models.filter((m) =>
-    providers.some((p) => p.id === m.provider && p.status === 'ready'),
-  )
-  const model =
-    host?.state === 'ready' ? defaultRemoteModel(models, providers, last, desktop) : undefined
-  const missingModel = host?.state === 'ready' && catalogue.status === 'ready' && !model
-  const hint =
-    host?.state !== 'ready'
-      ? REMOTE_NOT_READY
-      : missingModel
-        ? `No signed-in model on ${machineLabel(hostId)}.`
-        : catalogue.status === 'loading'
-          ? 'Loading models…'
-          : REMOTE_UNAVAILABLE
-  return {
-    hostId,
-    missingModel,
-    hint,
-    model,
-    models: usable,
-    thinking: model ? clampThinkingLevel(model, thinking) : ('off' as const),
-    setThinking,
-    choose: (choice: ModelChoice) => rememberRemoteModel(hostId, choice),
-  }
-}
+export { useRemoteModel } from './useRemoteModel'
 
+/** One bounded model list on phones and Desktop; thinking keeps the shared choice primitive. */
 export function RemoteModelPicker({
   selection,
 }: {
   selection: ReturnType<typeof useRemoteModel>
 }): React.JSX.Element {
-  const { model, models, thinking, choose, setThinking } = selection
+  const { model, thinking, setThinking } = selection
   const levels = model ? supportedThinkingLevels(model) : []
+  const [open, setOpen] = useState(false)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const close = () => {
+    setOpen(false)
+    trigger.current?.focus()
+  }
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      <ChoiceMenu
-        label="Model"
-        value={model ? `${model.provider}/${model.id}` : ''}
-        choices={models.map((m) => ({
-          value: `${m.provider}/${m.id}`,
-          label: `${m.name} · ${m.provider}`,
-        }))}
-        onChange={(key) => {
-          const selected = models.find((m) => `${m.provider}/${m.id}` === key)
-          if (selected) choose(selected)
-        }}
+    <div className="remote-model-picker">
+      <TooltipButton
+        ref={trigger}
+        type="button"
+        aria-label="Model"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className="remote-model-trigger"
+        onClick={() => setOpen(true)}
+        title={model?.name ?? selection.hint}
       >
         {model?.name ?? selection.hint}
-      </ChoiceMenu>
+      </TooltipButton>
+      {selection.canRetry && (
+        <Button size="sm" onClick={() => void selection.retry()}>
+          Retry models
+        </Button>
+      )}
       {selection.missingModel && (
         <Button
           size="sm"
@@ -114,6 +56,7 @@ export function RemoteModelPicker({
       )}
       {levels.length > 1 && (
         <ChoiceMenu
+          escapeContainer
           label="Thinking"
           value={thinking}
           choices={levels.map((level) => ({
@@ -125,9 +68,10 @@ export function RemoteModelPicker({
             if (level) setThinking(level)
           }}
         >
-          {thinking === 'off' ? 'No thinking' : thinking}
+          <span className="truncate">{thinking === 'off' ? 'No thinking' : thinking}</span>
         </ChoiceMenu>
       )}
+      {open && <RemoteModelDialog selection={selection} onClose={close} />}
     </div>
   )
 }

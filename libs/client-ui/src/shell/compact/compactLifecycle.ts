@@ -1,4 +1,6 @@
 import { cancelAllPrompts } from '@/stores/prompt'
+import { clearRemoteStartMemory } from '@/features/home/remoteComposer'
+import { useWorktreesStore } from '@/stores/worktrees'
 import { clearDraftMemory } from '@/stores/drafts'
 import { clearRoutineMemory } from '@/stores/routines'
 import { forgetRemoteSession, useSessionsStore } from '@/stores/sessions'
@@ -15,6 +17,8 @@ export const waitForCompactCleanup = (): Promise<void> => cleanup
 export function clearCompactUi(): void {
   useSessionsStore.getState().claimNav()
   cancelAllPrompts()
+  clearRemoteStartMemory()
+  useWorktreesStore.setState({ preferWorktree: true })
   clearDraftMemory()
   clearRoutineMemory()
   useMachineCataloguesStore.setState({ catalogues: {} })

@@ -1,0 +1,26 @@
+.machines-page [data-testid='machine-detail'] > .grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 46rem) {
+  .machines-page [data-testid='machine-detail'] > .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 32rem) {
+  .machines-page [data-testid$='machine-row'] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .machines-page [data-testid$='machine-row'] > span:last-child {
+    width: auto;
+    justify-content: space-between;
+  }
+
+  .machines-page [data-testid$='machine-row'] > span:nth-child(2) {
+    display: none;
+  }
+}
