@@ -5,7 +5,7 @@ export interface ModelChoice {
   id: string
 }
 
-/** Catalogue order is the Host's recommendation when it has no explicit default metadata. */
+/** Preserve provider catalogue order as a fallback; it is not a configured Host default. */
 export function defaultRemoteModel(
   models: readonly MachineModel[],
   providers: readonly MachineProvider[],
@@ -24,4 +24,17 @@ export function defaultRemoteModel(
     if (match) return match
   }
   return undefined
+}
+
+/** Explain the existing precedence without claiming the Host exposes default-model metadata. */
+export function remoteModelExplanation(
+  model: ModelChoice,
+  last?: ModelChoice,
+  desktop?: ModelChoice,
+): string {
+  const matches = (choice?: ModelChoice) =>
+    choice?.provider === model.provider && choice.id === model.id
+  if (matches(last)) return 'Using your last selected model for this machine.'
+  if (matches(desktop)) return 'Using the Desktop default, available on this machine.'
+  return 'The Host does not expose a default model. Using the first available model; choose another if needed.'
 }

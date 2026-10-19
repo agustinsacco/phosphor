@@ -1,0 +1,46 @@
+.remote-start {
+  width: 100%;
+  min-width: 0;
+  max-width: 48rem;
+  margin-inline: auto;
+  padding: clamp(0.75rem, 2vw, 1.25rem);
+  box-sizing: border-box;
+  display: grid;
+  gap: 0.625rem;
+  font-size: 0.875rem;
+}
+
+.remote-start-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.remote-start-targets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+}
+
+.remote-start-targets > * {
+  max-width: 100%;
+}
+
+.remote-start-host {
+  color: var(--px-text-secondary);
+  overflow-wrap: anywhere;
+  padding-inline: 0.5rem;
+}
+
+.remote-start-note {
+  color: var(--px-text-tertiary);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .remote-start-targets > :nth-child(2) {
+    flex: 1 1 50%;
+  }
+}

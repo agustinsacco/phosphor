@@ -42,3 +42,11 @@ it('has no model when nothing is usable', () => {
     ),
   ).toBeUndefined()
 })
+
+it('discloses fallback order rather than claiming a configured Host default', async () => {
+  const { remoteModelExplanation } = await import('./remoteModel')
+  const model = models[1]!
+  expect(remoteModelExplanation(model)).toContain('Host does not expose a default model')
+  expect(remoteModelExplanation(model, model)).toContain('last selected')
+  expect(remoteModelExplanation(model, undefined, model)).toContain('Desktop default')
+})

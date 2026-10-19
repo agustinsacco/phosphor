@@ -162,3 +162,86 @@ it('does not clear a new owner draft when the retired submission receipt arrives
   await act(async () => complete())
   expect(useDraftsStore.getState().drafts[key]?.text).toBe('New owner task')
 })
+
+it('sends an attachment-only draft through the same remote attachment path', async () => {
+  useDraftsStore.getState().setText(key, '')
+  const attachments = [
+    { kind: 'file' as const, name: 'notes.txt', path: '', size: 4, data: 'dGVzdA==' },
+  ]
+  useDraftsStore.getState().setAttachments(key, attachments)
+  await render()
+  expect(el.textContent).toContain('notes.txt')
+  expect(startRemoteChat).not.toHaveBeenCalled()
+  await send()
+  expect(startRemoteChat).toHaveBeenCalledWith(
+    MOCK_HOST_ID,
+    expect.any(Object),
+    '',
+    attachments,
+    expect.any(Function),
+  )
+  await act(async () => complete())
+})
+
+it('does not release a replacement owner submission when an old receipt settles', async () => {
+  await render()
+  await send()
+  await render(<p>Signed out</p>)
+  useHomeSubmissionsStore.setState({ pending: {} })
+  clearDraftMemory()
+  useDraftsStore.getState().setText(key, 'New owner task')
+  useHomeSubmissionsStore.getState().begin(key)
+  await act(async () => complete())
+  expect(useHomeSubmissionsStore.getState().pending[key]).toBe(true)
+  expect(useDraftsStore.getState().drafts[key]?.text).toBe('New owner task')
+})
+
+it('does not show a previous Host failure or its draft in a new Host composer', async () => {
+  const other = 'other-host'
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host, [other]: structuredClone(host) } })
+  const catalogue =
+    useMachineCataloguesStore.getState().catalogues[machineCatalogueKey(MOCK_HOST_ID)]!
+  useMachineCataloguesStore.setState((s) => ({
+    catalogues: { ...s.catalogues, [machineCatalogueKey(other)]: catalogue },
+  }))
+  await render()
+  await send()
+  await render(<CompactNew hostId={other} />)
+  expect(el.querySelector('textarea')?.value).toBe('')
+  await act(async () => reject(new Error('late failure')))
+  expect(el.textContent).not.toContain('The Host could not confirm this.')
+  expect(useDraftsStore.getState().drafts[key]?.text).toBe('Task for this Host')
+})
+
+it('validates remembered repository IDs before using a removed repository', async () => {
+  const { rememberRemoteRepository } = await import('./remoteComposer')
+  rememberRemoteRepository(MOCK_HOST_ID, 'removed')
+  await render()
+  await send()
+  expect(startRemoteChat).toHaveBeenCalledWith(
+    MOCK_HOST_ID,
+    expect.objectContaining({ repositoryId: '0000000000000001' }),
+    expect.any(String),
+    [],
+    expect.any(Function),
+  )
+  await act(async () => complete())
+})
+
+it('exposes an owner cleanup for repository targets, model and thinking memory', async () => {
+  const { clearRemoteStartMemory, useRemoteComposer } = await import('./remoteComposer')
+  useRemoteComposer.setState({
+    target: { hostId: MOCK_HOST_ID, repositoryId: 'private' },
+    repositories: { [MOCK_HOST_ID]: 'private' },
+  })
+  useRemoteModelPicks.setState({
+    last: { [MOCK_HOST_ID]: { provider: 'p', id: 'private' } },
+    thinking: { [MOCK_HOST_ID]: 'high' },
+  })
+  clearRemoteStartMemory()
+  expect(useRemoteComposer.getState().target).toBeNull()
+  expect(useRemoteComposer.getState().repositories).toEqual({})
+  expect(useRemoteModelPicks.getState().last).toEqual({})
+  expect(useRemoteModelPicks.getState().thinking).toEqual({})
+})

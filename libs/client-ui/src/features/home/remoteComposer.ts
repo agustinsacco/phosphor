@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useRemoteModelPicks } from '@/stores/remoteModelPicks'
 import { useMachinesStore } from '@/stores/machines'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -50,3 +51,9 @@ useRemoteLanesStore.subscribe((state, previous) => {
   if (state.filter !== previous.filter && target?.hostId !== state.filter)
     useRemoteComposer.setState({ target: null })
 })
+
+/** Called by browser owner cleanup before another account can mount creation. */
+export function clearRemoteStartMemory(): void {
+  useRemoteComposer.setState({ target: null, repositories: {} })
+  useRemoteModelPicks.setState({ last: {}, thinking: {} })
+}

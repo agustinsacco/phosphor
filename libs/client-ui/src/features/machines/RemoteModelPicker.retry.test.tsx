@@ -67,3 +67,40 @@ it('lets the user retry a failed initial catalogue read without leaving the comp
   expect(el.textContent).toContain('Recovered model')
   expect(attempts).toBe(2)
 })
+
+it.each([COMPACT_PLATFORM, { ...COMPACT_PLATFORM, formFactor: 'expanded' as const }])(
+  'offers the same accessible bounded model dialog without native reads at $formFactor width',
+  async (platform) => {
+    attempts = 1
+    await act(async () =>
+      root.render(
+        <PlatformProvider value={platform}>
+          <Picker />
+        </PlatformProvider>,
+      ),
+    )
+    const trigger = el.querySelector<HTMLButtonElement>('[aria-label="Model"]')!
+    await act(async () => trigger.click())
+    const dialog = document.querySelector<HTMLElement>(
+      '[role="dialog"][aria-label="Choose model"]',
+    )!
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    expect(dialog.textContent).toContain('The Host does not expose a default model.')
+    const radio = dialog.querySelector<HTMLInputElement>('input[type=radio]')!
+    expect(radio.checked).toBe(true)
+    expect(document.activeElement).toBe(radio)
+    const done = [...dialog.querySelectorAll('button')].find((b) => b.textContent === 'Done')!
+    act(() => done.focus())
+    act(() => {
+      done.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }),
+      )
+    })
+    expect(document.activeElement).toBe(radio)
+    await act(async () =>
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+    )
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+  },
+)
