@@ -54,6 +54,9 @@ only, not OS push.
 `PageBody` supplies the shared width, gutters and scrolling for Machines,
 Artifacts, Skills, Routines and browser settings. `PageLinks`/`NavigationItem`
 supply the same global-page labels, order and row presentation in both sidebars.
+Only Desktop fills their `trailing` slot, with the Machines row's activity on
+machines outside the lane scope; the browser has no This computer and no lane
+scope control, so its rows carry none.
 Browser settings reuse Desktop's `AppearancePreferences` rows; the native-only
 settings sections remain separate.
 

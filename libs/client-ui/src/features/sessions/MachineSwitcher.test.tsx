@@ -8,7 +8,12 @@ import { useRemoteComposer, rememberRemoteRepository } from '@/features/home/rem
 import { requestReveal, remoteLaneGroupKey } from './laneReveal'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { MachineSwitcher, MachineLabelLine, otherMachineActivity } from './MachineSwitcher'
+import {
+  MachineSwitcher,
+  MachineLabelLine,
+  OtherMachinesActivity,
+  otherMachineActivity,
+} from './MachineSwitcher'
 import { RemoteLanes } from './RemoteLanes'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -137,12 +142,47 @@ it('excludes selected machine and All machines from other activity', () => {
   expect(otherMachineActivity(counts, 'host')).toEqual(counts.local)
   expect(otherMachineActivity(counts, 'local')).toEqual(counts.host)
   expect(otherMachineActivity(counts, 'all')).toEqual({ running: 0, new: 0, needsYou: 0 })
-  act(() => root.render(<MachineSwitcher />))
+  act(() =>
+    root.render(
+      <>
+        <MachineSwitcher />
+        <OtherMachinesActivity />
+      </>,
+    ),
+  )
+  const trigger = container.querySelector('[aria-label="Machine filter"]')!
+  expect(trigger.querySelector('[aria-label="Activity on other machines"]')).toBeNull()
   expect(
     container.querySelector('[aria-label="Activity on other machines"]')?.textContent,
   ).toContain('1 new')
   choose(MOCK_HOST_ID)
   expect(container.querySelector('[aria-label="Activity on other machines"]')).toBeNull()
+})
+it('labels the scope and spells out the selected machine state, not colour alone', () => {
+  act(() => root.render(<MachineSwitcher />))
+  expect(container.textContent).toContain('Lanes on')
+  const state = () => container.querySelector('[data-testid=machine-filter-state]')?.textContent
+  expect(state()).toBe('Idle')
+  choose(MOCK_HOST_ID)
+  expect(state()).toBe('1 new')
+  choose('All machines')
+  expect(state()).toBe('1 new')
+})
+it('puts elsewhere activity on the Machines nav row', async () => {
+  invoke.mockImplementation(async (channel) =>
+    channel === 'app:getPrefs' || channel === 'routines:laneIndex'
+      ? {}
+      : channel === 'git:listWorktrees'
+        ? []
+        : null,
+  )
+  await act(async () => root.render(<Sidebar workspacePath="" />))
+  const nav = [...container.querySelectorAll('nav button')].find((b) =>
+    b.textContent?.startsWith('Machines'),
+  )!
+  expect(nav.querySelector('[aria-label="Activity on other machines"]')?.textContent).toContain(
+    '1 new',
+  )
 })
 it('navigates by keyboard, Enter selects, Escape closes and returns focus, outside click dismisses', () => {
   act(() => root.render(<MachineSwitcher />))
@@ -241,7 +281,14 @@ it('labels each elsewhere signal and gives the cluster a readable breakdown, wit
     { ...lane, laneId: 'needs-you', activity: 'needs-input' },
   ]
   useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
-  act(() => root.render(<MachineSwitcher />))
+  act(() =>
+    root.render(
+      <>
+        <MachineSwitcher />
+        <OtherMachinesActivity />
+      </>,
+    ),
+  )
   const cluster = container.querySelector('[aria-label="Activity on other machines"]')!
   expect(cluster.getAttribute('data-tooltip')).toBe(
     'Other machines: 1 running · 2 new · 1 need you',
@@ -299,7 +346,15 @@ it('content-only chat updates do not rerender the switcher row, while count chan
 it('signed-out switcher mounts no chat activity subscriber', () => {
   useMachinesStore.setState({ remoteEnabled: false })
   vi.mocked(useChatStore).mockClear()
-  act(() => root.render(<MachineSwitcher />))
+  act(() =>
+    root.render(
+      <>
+        <MachineSwitcher />
+        <OtherMachinesActivity />
+      </>,
+    ),
+  )
+  expect(container.textContent).toBe('')
   expect(useChatStore).not.toHaveBeenCalled()
 })
 

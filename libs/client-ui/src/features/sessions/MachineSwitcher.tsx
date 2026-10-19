@@ -162,24 +162,97 @@ export function MachineSwitcher(): React.JSX.Element | null {
   return enabled ? <EnabledMachineSwitcher /> : null
 }
 
+/** Activity per machine, local included, keyed like the filter. */
+function useMachineActivity(): { ids: string[]; activity: Record<string, MachineActivity> } {
+  const machines = useMachinesStore((s) => s.machines)
+  const hosts = useRemoteLanesStore((s) => s.hosts)
+  const local = useLocalMachineActivity()
+  const ids = [...new Set([...machines.map((m) => m.id), ...Object.keys(hosts)])]
+  return {
+    ids,
+    activity: {
+      local,
+      ...Object.fromEntries(ids.map((id) => [id, remoteActivity(hosts[id])])),
+    },
+  }
+}
+
+/**
+ * What is happening on the machines the sidebar is NOT showing. It sits on the
+ * Machines nav row, not on the scope control: there it read as the selected
+ * machine's own counts. Visible text, not a hover-only hint, so it reads the
+ * same on a touch screen.
+ */
+export function OtherMachinesActivity(): React.JSX.Element | null {
+  const enabled = useMachinesStore((s) => s.remoteEnabled)
+  return enabled ? <EnabledOtherMachinesActivity /> : null
+}
+
+function EnabledOtherMachinesActivity(): React.JSX.Element | null {
+  const selected = useRemoteLanesStore((s) => s.filter)
+  const others = otherMachineActivity(useMachineActivity().activity, selected)
+  if (!others.running && !others.new && !others.needsYou) return null
+  return (
+    <span
+      aria-label="Activity on other machines"
+      data-tooltip={`Other machines: ${[others.running && `${others.running} running`, others.new && `${others.new} new`, others.needsYou && `${others.needsYou} need you`].filter(Boolean).join(' · ')}`}
+      className="ml-auto flex shrink-0 items-center gap-2 text-xs tabular-nums"
+    >
+      {!!others.running && (
+        <span
+          aria-label={`${others.running} running`}
+          className="text-accent flex items-center gap-1"
+        >
+          <PhosphorLoader size={12} decorative />
+          {others.running}
+        </span>
+      )}
+      {!!others.new && (
+        <span
+          aria-label={`${others.new} new`}
+          className="bg-accent-soft text-accent rounded px-1 py-px"
+        >
+          {others.new} new
+        </span>
+      )}
+      {!!others.needsYou && (
+        <span
+          className="text-warning flex items-center gap-1"
+          aria-label={`${others.needsYou} need you`}
+        >
+          <span className="bg-warning size-1.5 rounded-full" />
+          {others.needsYou}
+        </span>
+      )}
+    </span>
+  )
+}
+
+/**
+ * The sidebar's lane scope: which machine's lanes the list below shows. It is
+ * a picker, not a page link, so it must not look like the nav rows above it —
+ * a divider and a "Lanes on" caption, a bordered field, a status dot rather than
+ * the Machines icon, and the state spelled out (not colour alone).
+ */
 function EnabledMachineSwitcher(): React.JSX.Element {
   const machines = useMachinesStore((s) => s.machines)
   const now = useMachinesStore((s) => s.nowMs)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const selected = useRemoteLanesStore((s) => s.filter)
-  const local = useLocalMachineActivity()
-  const ids = [...new Set([...machines.map((m) => m.id), ...Object.keys(hosts)])]
-  const activity: Record<string, MachineActivity> = {
-    local,
-    ...Object.fromEntries(ids.map((id) => [id, remoteActivity(hosts[id])])),
-  }
-  const others = otherMachineActivity(activity, selected)
+  const { ids, activity } = useMachineActivity()
   const aggregate = otherMachineActivity(activity, '')
+  const detailFor = (id: string): string =>
+    id === 'local'
+      ? activityText(activity.local!)
+      : id === 'all'
+        ? activityText(aggregate)
+        : machineStateText(
+            hosts[id],
+            machines.find((m) => m.id === id),
+            now,
+          )
   const row = (id: string): React.ReactNode => {
-    const host = hosts[id]
-    const machine = machines.find((m) => m.id === id)
-    const state = id === 'local' ? 'ready' : host?.state
-    const detail = id === 'local' ? activityText(local) : machineStateText(host, machine, now)
+    const state = id === 'local' ? 'ready' : hosts[id]?.state
     return (
       <span className="flex items-start gap-2.5">
         <span className="text-text-tertiary pt-1">
@@ -192,17 +265,23 @@ function EnabledMachineSwitcher(): React.JSX.Element {
               {id === 'local' ? 'This Mac' : machineLabel(id)}
             </span>
           </span>
-          <span className="text-text-tertiary block truncate text-sm">{detail}</span>
+          <span className="text-text-tertiary block truncate text-sm">{detailFor(id)}</span>
         </span>
       </span>
     )
   }
   return (
-    <div className="h-10 shrink-0 px-2 pb-1 pt-1">
+    <div className="border-border mx-2 mb-1 mt-0.5 shrink-0 border-t pt-2.5">
+      <div
+        aria-hidden="true"
+        className="text-text-tertiary px-1 pb-1 text-xs font-medium uppercase tracking-wider"
+      >
+        Lanes on
+      </div>
       <ChoiceMenu
         value={selected}
         label="Machine filter"
-        triggerClassName="text-text group flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-left text-lg transition-colors hover:bg-sidebar-hover"
+        triggerClassName="border-border bg-surface hover:border-border-strong text-text flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-base transition-colors pointer-coarse:min-h-11"
         header={
           <div className="text-text-tertiary flex justify-between px-3 py-2 text-xs">
             <span className="font-semibold uppercase tracking-wider">Machines</span>
@@ -230,50 +309,27 @@ function EnabledMachineSwitcher(): React.JSX.Element {
           } else useRemoteLanesStore.getState().setFilter(id)
         }}
       >
-        <span className="text-text-secondary group-hover:text-text flex size-[22px] shrink-0 items-center justify-center">
-          <MachineGlyph local={selected === 'local'} />
-        </span>
-        <span className="min-w-0 flex-1 truncate">
+        {selected === 'all' ? (
+          <span
+            aria-hidden="true"
+            className="border-text-tertiary size-2 shrink-0 rounded-full border"
+          />
+        ) : (
+          <MachineDot state={selected === 'local' ? 'ready' : hosts[selected]?.state} />
+        )}
+        <span className="min-w-0 truncate font-medium">
           {selected === 'local'
             ? 'This Mac'
             : selected === 'all'
               ? 'All machines'
               : machineLabel(selected)}
         </span>
-        {!!(others.running || others.new || others.needsYou) && (
-          <span
-            aria-label="Activity on other machines"
-            data-tooltip={`Other machines: ${[others.running && `${others.running} running`, others.new && `${others.new} new`, others.needsYou && `${others.needsYou} need you`].filter(Boolean).join(' · ')}`}
-            className="flex shrink-0 items-center gap-2 text-xs tabular-nums"
-          >
-            {!!others.running && (
-              <span
-                aria-label={`${others.running} running`}
-                className="text-accent flex items-center gap-1"
-              >
-                <PhosphorLoader size={12} decorative />
-                {others.running}
-              </span>
-            )}
-            {!!others.new && (
-              <span
-                aria-label={`${others.new} new`}
-                className="bg-accent-soft text-accent rounded px-1 py-px"
-              >
-                {others.new} new
-              </span>
-            )}
-            {!!others.needsYou && (
-              <span
-                className="text-warning flex items-center gap-1"
-                aria-label={`${others.needsYou} need you`}
-              >
-                <span className="bg-warning size-1.5 rounded-full" />
-                {others.needsYou}
-              </span>
-            )}
-          </span>
-        )}
+        <span
+          data-testid="machine-filter-state"
+          className="text-text-tertiary ml-auto min-w-0 shrink-[3] truncate text-xs"
+        >
+          {detailFor(selected)}
+        </span>
       </ChoiceMenu>
     </div>
   )

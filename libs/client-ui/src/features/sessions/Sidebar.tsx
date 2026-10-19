@@ -1,6 +1,6 @@
 import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
-import { MachineSwitcher, MachineLabelLine } from './MachineSwitcher'
+import { MachineSwitcher, MachineLabelLine, OtherMachinesActivity } from './MachineSwitcher'
 import { RemoteLanes } from './RemoteLanes'
 import {
   useRemoteLanesStore,
@@ -860,6 +860,7 @@ export function Sidebar({
         />
         <PageLinks
           activePage={activePage}
+          trailing={{ machines: <OtherMachinesActivity /> }}
           onPage={(page) => {
             if (page === 'machines' && activePage !== 'machines')
               useMachinesStore.getState().show({ kind: 'list' })
