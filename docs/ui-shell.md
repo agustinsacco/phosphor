@@ -66,11 +66,16 @@ screen.
 
 ## Left sidebar (Claude Desktop style)
 
-Signed-in windows show a compact machine menu beneath the main navigation. Each
-window starts on **This Mac**, and selection stays in memory only, including
-while the sidebar is hidden. Signing out or removing the selected machine resets
-the selection to This Mac. Its right edge
-summarizes activity on other machines; All machines has no “elsewhere” activity.
+Signed-in windows show a lane scope control beneath the main navigation: a
+divider, a “Lanes on” caption and a bordered field with the selected machine's
+status dot, name and state in words (“Idle”, “2 running”, reachability). It is
+a picker, not a nav row, so it never uses the Machines page icon. Each window
+starts on **This Mac**, and selection stays in memory only, including while the
+sidebar is hidden. Signing out or removing the selected machine resets the
+selection to This Mac. Activity on the machines not shown sits on the
+**Machines** nav row as visible counts (running, new, needs you); All machines
+has no “elsewhere” activity. Nothing here is hover-only, and on a coarse pointer
+the field is at least 44px tall, so it holds up on touch screens.
 The menu supports arrow keys, Enter, Escape with focus return, and outside-click
 dismissal. Add machine opens Machines with the existing add dialog.
 

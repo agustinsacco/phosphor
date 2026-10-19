@@ -7,10 +7,13 @@ export function NavigationItem({
   icon,
   badge = false,
   active = false,
+  trailing,
   onClick,
 }: {
   label: string
   icon: React.ReactNode
+  /** Right-aligned status for the row's page, e.g. Machines' elsewhere activity. */
+  trailing?: React.ReactNode
   badge?: boolean
   active?: boolean
   onClick: () => void
@@ -34,6 +37,7 @@ export function NavigationItem({
         {icon}
       </span>
       <span className="min-w-0 truncate">{label}</span>
+      {trailing}
     </TooltipButton>
   )
 }
