@@ -13,6 +13,16 @@ export type BrowserHandlers = {
     ...args: IpcInvokeMap[C]['args']
   ) => IpcInvokeMap[C]['result'] | Promise<IpcInvokeMap[C]['result']>
 }
+/** Read-only machine catalogues: no lane is needed. */
+function machineHandlers(machines: ReturnType<typeof createBrowserResources>['machines']) {
+  return {
+    'hosts:models': machines.models,
+    'hosts:claude': machines.claude,
+    'hosts:claudeUsage': machines.claudeUsage,
+    'hosts:providers': machines.providers,
+    'hosts:skills': machines.skills,
+  } satisfies Partial<BrowserHandlers>
+}
 export function createBrowserHandlers(ports: {
   control: BrowserControl
   hosts: BrowserHosts
@@ -53,11 +63,7 @@ export function createBrowserHandlers(ports: {
     'control:approveEnrollment': (code, label) => directoryMutation(control.approve(code, label)),
     'control:renameMachine': (id, label) => directoryMutation(control.rename(id, label)),
     'control:removeMachine': (id) => directoryMutation(control.remove(id)),
-    'hosts:models': resources.machines.models,
-    'hosts:claude': resources.machines.claude,
-    'hosts:claudeUsage': resources.machines.claudeUsage,
-    'hosts:providers': resources.machines.providers,
-    'hosts:skills': resources.machines.skills,
+    ...machineHandlers(resources.machines),
     'hosts:repositoryFiles': resources.repositories.list,
     'hosts:repositoryFile': resources.repositories.read,
     'hosts:snapshot': hosts.snapshot,
