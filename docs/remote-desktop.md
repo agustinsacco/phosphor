@@ -70,7 +70,8 @@ Main routes remote `pi:command`, `pi:extensionUiResponse` and
 `libs/host-client/src/lane-ops.ts`, re-exported by the Desktop facade. Receipts become pi responses; controller rejections
 name the machine and controller. A `prompt` rejected `lane-stopped` sends
 `lane.resume` and, once that is done, the prompt again (`sendToLane`); a failed
-resume is the answer. Unknown outcomes tell the user to check the lane
+resume is the answer. Any other `lane-stopped` rejection tells the user to press
+Resume. Unknown outcomes tell the user to check the lane
 before retrying. Unanswered commands expire after 60 seconds as unknown, never
 as a fresh retry. Local pi routing is unchanged.
 

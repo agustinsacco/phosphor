@@ -3,6 +3,7 @@ import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import type { CommandResult } from './connection'
 
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
+const LANE_STOPPED = 'this lane is stopped. Press Resume at the top of the lane, then send again.'
 export const UNKNOWN_OUTCOME = 'The Host could not confirm this. Check the lane before retrying.'
 
 /** The entire remote pi allowlist. Never forward arbitrary RPC to a Host. */
@@ -72,7 +73,9 @@ export function receiptResponse(
         success: false,
         error: result.control?.controller
           ? `${machine}: controlled by ${result.control.controller.label}`
-          : `${machine}: ${result.code}`,
+          : result.code === 'lane-stopped'
+            ? `${machine}: ${LANE_STOPPED}`
+            : `${machine}: ${result.code}`,
       }
     case 'failed':
       return { ...base, success: false, error: result.error.message }
