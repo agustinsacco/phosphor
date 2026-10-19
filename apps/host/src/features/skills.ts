@@ -130,6 +130,7 @@ export function createSkillsFeature(
     'machine.models',
     'machine.providers',
     'machine.claude',
+    'machine.claudeUsage',
     'skills.list',
     'skills.read',
   ]
@@ -140,6 +141,9 @@ export function createSkillsFeature(
       if (!methods.includes(method)) return featureError(new FeatureFailure('unsupported'))
       const parsed = parseMachineParams(method, params)
       if (!parsed) return featureError(new FeatureFailure('bad-request'))
+      // Runs the Claude CLI, not pi, and shares one run per account (`createClaudeUsage`),
+      // so its up-to-20s probe must not hold the model picker behind it.
+      if (method === 'machine.claudeUsage') return run(method, parsed)
       if (waiting >= MAX_WAITING) return featureError(new FeatureFailure('internal'))
       waiting++
       const turn = tail.then(() => run(method, parsed))
@@ -156,7 +160,7 @@ export function createSkillsFeature(
     parsed: NonNullable<ReturnType<typeof parseMachineParams>>,
   ): Promise<Awaited<ReturnType<HostFeature['call']>>> {
     try {
-      if (method.startsWith('machine.')) return await machineCall(method, context, ports)
+      if (method.startsWith('machine.')) return await machineCall(method, context, ports, parsed)
       const skills = await resolveSkills(context, ports, parsed.laneId)
       if (method === 'skills.list')
         return { ok: true, data: { skills: skills.map((s) => s.skill) } }

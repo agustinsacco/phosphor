@@ -1481,6 +1481,7 @@ export function installMockPhosphor(): void {
         case 'hosts:claudeAccount':
         case 'hosts:models':
         case 'hosts:claude':
+        case 'hosts:claudeUsage':
         case 'hosts:providers':
           return mockMachineSettingsInvoke(channel, args) as never
         case 'hosts:repositoryFiles':

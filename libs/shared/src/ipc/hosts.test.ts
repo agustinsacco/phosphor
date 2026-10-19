@@ -4,7 +4,7 @@ import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
 import type { MachineClaude, MachineModel, MachineProvider } from '../host-protocol-machine'
 import type { SkillsListResult } from '../skills'
-import type { LiveSessionInfo } from '../models'
+import type { ClaudeUsageSnapshotResult, LiveSessionInfo } from '../models'
 import type {
   MachineSettings,
   MachineSettingsPatch,
@@ -22,6 +22,10 @@ export interface BaselineHostsInvokeMap {
     args: [hostId: string]
     /** null: unavailable, or a Host older than machine.claude. */
     result: MachineClaude | null
+  }
+  'hosts:claudeUsage': {
+    args: [hostId: string, laneId?: string, force?: boolean]
+    result: ClaudeUsageSnapshotResult | null
   }
 
   'hosts:providers': { args: [hostId: string]; result: MachineProvider[] }

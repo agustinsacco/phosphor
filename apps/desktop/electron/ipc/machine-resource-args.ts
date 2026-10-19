@@ -71,6 +71,7 @@ export const MACHINE_RESOURCE_ARGS: MachineResourcePolicies = {
   // Explicit Host ids are authenticated by their handlers; they are not local keys.
   'hosts:models': 'none',
   'hosts:claude': 'none',
+  'hosts:claudeUsage': 'none',
   'hosts:providers': 'none',
   'hosts:repositoryFiles': 'none',
   'hosts:repositoryFile': [{ arg: 2 }],

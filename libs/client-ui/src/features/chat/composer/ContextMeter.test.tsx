@@ -7,7 +7,7 @@ import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useContextBudgetStore } from '@/stores/contextBudgetPref'
-import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
+import { MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import type { SessionStats } from '@shared/rpc'
 
 beforeAll(() => {
@@ -44,6 +44,7 @@ const invoke = vi.fn(async (channel: string, ..._args: unknown[]) => {
   if (channel === 'claude:sessionAccount') return sessionAccount
   if (channel === 'claude:accounts') return accountsResult
   if (channel === 'claude:assignSession') return undefined
+  if (channel === 'hosts:claudeUsage') return usageResult
   if (channel === 'claude:usageSnapshot') {
     if (usageResult) return usageResult
     return {
@@ -489,7 +490,7 @@ describe('remote context budget', () => {
     })
   })
 
-  it('uses the Host effective window regardless of This Mac preferences and never fetches local plan usage', async () => {
+  it('uses the Host effective window regardless of This Mac preferences and reads the Host plan usage', async () => {
     useContextBudgetStore.setState({ contextBudget: '100k' })
     seed({ tokens: 150_000, contextWindow: 600_000, percent: 25 })
     render()
@@ -499,7 +500,52 @@ describe('remote context budget', () => {
     click('25%')
     await act(async () => {})
     expect(document.body.textContent).toContain('budget on remote machine')
+    // The lane spends the Host's Claude login: never this computer's.
+    expect(invoke.mock.calls.map(([channel]) => channel)).toEqual(['hosts:claudeUsage'])
+    expect(invoke).toHaveBeenCalledWith(
+      'hosts:claudeUsage',
+      MOCK_HOST_ID,
+      mockRemoteInfo.laneId,
+      false,
+    )
+    expect(document.body.textContent).toContain('Plan usage · Claude on remote machine')
+    expect(document.body.textContent).toContain('Plan usage is unavailable from remote machine')
+  })
+
+  it('shows the Host plan windows and refreshes past its cache', async () => {
+    usageResult = {
+      ok: true,
+      snapshot: {
+        fetchedAt: Date.now(),
+        stale: false,
+        contributing: null,
+        windows: [
+          { label: 'Current week (all models)', kind: 'weekly', percentUsed: 41, resetsAt: null },
+        ],
+      },
+    }
+    seed({ tokens: 150_000, contextWindow: 600_000, percent: 25 })
+    render()
+    click('25%')
+    await act(async () => {})
+    expect(document.body.textContent).toContain('41%')
+    click('Refresh')
+    await act(async () => {})
+    expect(invoke).toHaveBeenLastCalledWith(
+      'hosts:claudeUsage',
+      MOCK_HOST_ID,
+      mockRemoteInfo.laneId,
+      true,
+    )
+  })
+
+  it('reads no plan usage for a non-Claude Host lane', async () => {
+    seed({ tokens: 150_000, contextWindow: 600_000, percent: 25 }, 'openai')
+    render()
+    click('25%')
+    await act(async () => {})
     expect(invoke).not.toHaveBeenCalled()
+    expect(document.body.textContent).not.toContain('Plan usage')
   })
 
   it('prefers the live Host extension window over a stale stats poll', () => {

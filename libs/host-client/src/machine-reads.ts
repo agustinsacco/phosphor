@@ -1,6 +1,7 @@
 import {
   machineRecord,
   parseMachineClaude,
+  parseMachineClaudeUsage,
   parseMachineModels,
   parseMachineParams,
   parseMachineProviders,
@@ -10,13 +11,36 @@ import { REMOTE_UNAVAILABLE } from './lane-ops'
 import { readFeature, type ReadLane } from './read-features'
 import type { SkillsListResult } from '@phosphor/shared/skills'
 
+type Connection = (
+  hostId: string,
+) => Pick<ReturnType<typeof createHostConnection>, 'snapshot' | 'incarnation' | 'call'> | undefined
+
+/** A newer call an older Host refuses: any failure, or a changed connection, is null. */
+async function optional<T>(
+  connection: Connection,
+  hostId: string,
+  method: string,
+  params: Record<string, unknown>,
+  parse: (data: unknown) => T | null,
+): Promise<T | null> {
+  const c = connection(hostId)
+  if (!c) return null
+  const ready = () =>
+    c.snapshot().state === 'ready' && c.snapshot().capabilities.includes('skills.read')
+  if (!ready() || !parseMachineParams(method, params)) return null
+  const generation = c.incarnation().generation
+  try {
+    const reply = await c.call(method, params)
+    if (connection(hostId) !== c || c.incarnation().generation !== generation || !ready())
+      return null
+    return reply.ok ? parse(reply.data) : null
+  } catch {
+    return null
+  }
+}
+
 /** Catalogues are machine-scoped; no lane or Host path is needed. */
-export function machineReads(
-  connection: (
-    hostId: string,
-  ) =>
-    Pick<ReturnType<typeof createHostConnection>, 'snapshot' | 'incarnation' | 'call'> | undefined,
-) {
+export function machineReads(connection: Connection) {
   function lane(hostId: string): ReadLane {
     const c = connection(hostId)
     if (!c) throw new Error(REMOTE_UNAVAILABLE)
@@ -43,29 +67,17 @@ export function machineReads(
   }
   return {
     lane,
-    async claude(hostId: string) {
-      const c = connection(hostId)
-      if (
-        !c ||
-        c.snapshot().state !== 'ready' ||
-        !c.snapshot().capabilities.includes('skills.read')
-      )
-        return null
-      const generation = c.incarnation().generation
-      try {
-        const reply = await c.call('machine.claude', {})
-        if (
-          connection(hostId) !== c ||
-          c.incarnation().generation !== generation ||
-          c.snapshot().state !== 'ready' ||
-          !c.snapshot().capabilities.includes('skills.read')
-        )
-          return null
-        return reply.ok ? parseMachineClaude(reply.data) : null
-      } catch {
-        return null
-      }
-    },
+    claude: (hostId: string) =>
+      optional(connection, hostId, 'machine.claude', {}, parseMachineClaude),
+    /** Plan usage of the account this lane bills on the Host. null: unavailable or an older Host. */
+    claudeUsage: (hostId: string, laneId?: string, force?: boolean) =>
+      optional(
+        connection,
+        hostId,
+        'machine.claudeUsage',
+        { ...(laneId ? { laneId } : {}), ...(force ? { force: true } : {}) },
+        parseMachineClaudeUsage,
+      ),
     async models(hostId: string) {
       const data = await lane(hostId).call('skills.read', 'machine.models', {})
       const result = machineRecord(data) ? parseMachineModels(data.models) : null

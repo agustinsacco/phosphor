@@ -8,6 +8,7 @@ import type { HostTerminals } from '../terminals/service'
 import type { createRepositories } from '../features/repositories'
 import type { FeatureContext } from '../features/feature'
 import { createHostClaudeAccounts, type HostClaudeAccounts } from '../providers/accounts'
+import { createLaneUsage } from '../providers/lane-usage'
 import { createProviderLogins } from '../providers/login'
 import { createAccountMoves } from '../settings/account-moves'
 import { createMachineSettings } from '../settings/service'
@@ -59,6 +60,15 @@ function features(
     createSkillsFeature(context, {
       configPath: options.configPath,
       claudeAuthentication: options.accounts.authenticationReady,
+      claudeUsage: createLaneUsage({
+        accounts: options.accounts,
+        accountForLane: (laneId, prefs) => {
+          const sessionId = options.live.sessionFor(laneId)
+          if (sessionId) return options.runtime.accountForSession(sessionId)
+          const file = options.store.getLane(laneId)?.sessionFile
+          return file ? prefs.bindings[file] : undefined
+        },
+      }),
     }),
     createArtifactsFeature({ ...context, store: options.store }),
   ]

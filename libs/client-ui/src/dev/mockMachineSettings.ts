@@ -204,6 +204,29 @@ export function mockMachineSettingsInvoke(channel: string, args: unknown[]): unk
       ]
     case 'hosts:claude':
       return null
+    case 'hosts:claudeUsage':
+      return {
+        ok: true,
+        snapshot: {
+          fetchedAt: Date.now(),
+          stale: false,
+          contributing: null,
+          windows: [
+            {
+              label: 'Current session',
+              kind: 'five_hour',
+              percentUsed: 8,
+              resetsAt: Date.now() + 3.8 * 3600_000,
+            },
+            {
+              label: 'Current week (all models)',
+              kind: 'weekly',
+              percentUsed: 31,
+              resetsAt: Date.now() + 6.7 * 86400_000,
+            },
+          ],
+        },
+      }
     case 'hosts:providers':
       return [{ id: 'anthropic', name: 'Anthropic', status: 'ready' }]
     default:

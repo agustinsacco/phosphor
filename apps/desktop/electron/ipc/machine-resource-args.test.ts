@@ -56,7 +56,7 @@ describe('policy declaration', () => {
       .filter(([, scope]) => scope === 'machine')
       .map(([channel]) => channel)
     expect(Object.keys(MACHINE_RESOURCE_ARGS).sort()).toEqual(machine.sort())
-    expect(machine).toHaveLength(165)
+    expect(machine).toHaveLength(166)
     expect(
       Object.entries(MACHINE_RESOURCE_ARGS)
         .filter(([, policy]) => policy === 'routed-pi')

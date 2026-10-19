@@ -68,6 +68,7 @@ const baselineScope = {
   'hosts:tailscaleStatus': 'app',
   'hosts:models': 'machine',
   'hosts:claude': 'machine',
+  'hosts:claudeUsage': 'machine',
   'hosts:providers': 'machine',
   'hosts:repositoryFiles': 'machine',
   'hosts:repositoryFile': 'machine',

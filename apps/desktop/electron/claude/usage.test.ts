@@ -84,6 +84,12 @@ describe('parseResetStamp', () => {
     expect(parseResetStamp('Aug 30 at 4pm', nowAt(2026, 7, 30, 12))).not.toBeNull()
   })
 
+  it('parses the comma form of Claude Code 2.1.283', () => {
+    const at = parseResetStamp('Oct 25, 7:59pm', nowAt(2026, 9, 19, 2))
+    expect(at).toBe(new Date(2026, 9, 25, 19, 59, 0, 0).getTime())
+    expect(parseResetStamp('Oct 25, 8pm', nowAt(2026, 9, 19, 2))).not.toBeNull()
+  })
+
   it('rolls the year across December → January', () => {
     const at = parseResetStamp('Jan 2 at 9am', nowAt(2026, 11, 30, 12))
     expect(at).not.toBeNull()
