@@ -39,6 +39,20 @@ const key = async (value: string): Promise<void> => {
       ?.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true })),
   )
 }
+it('keeps the full long machine name readable to assistive technology and focusable for its hint', async () => {
+  const label = 'Long-machine-label-without-spaces-'.repeat(2)
+  await act(async () =>
+    root.render(<MachineLabel machine={{ ...MACHINE, label }} onSaved={saved} />),
+  )
+  const heading = container.querySelector('h1')!
+  expect(heading.textContent).toBe(label)
+  expect(heading.getAttribute('data-tooltip')).toBe(label)
+  expect(heading.tabIndex).toBe(0)
+  heading.focus()
+  expect(document.activeElement).toBe(heading)
+  expect(invoke).not.toHaveBeenCalled()
+})
+
 it('saves a normalized inline label on Enter and uses the parsed machine reply', async () => {
   invoke.mockResolvedValue({ ok: true, machine: { ...MACHINE, label: 'buildbox' } })
   await edit(' buildbox ')

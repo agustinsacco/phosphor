@@ -25,6 +25,11 @@
   min-width: 0;
 }
 .machine-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.25;
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.025em;

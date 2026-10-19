@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { normalizeLabel, type MachineView } from '@shared/control-api'
 import { Button, TextInput } from '@/components/form'
+import { tooltipProps } from '@/components/Tooltip'
 import { machinesAccountGeneration } from '@/stores/machines'
 import { controlMessage } from './controlMessages'
 
@@ -14,7 +15,6 @@ export function MachineLabel({
   onSaved: (machine: MachineView) => void
   heading?: 'h1' | 'h2'
 }): React.JSX.Element {
-  const Heading = heading
   const [editing, setEditing] = useState(false)
   const [label, setLabel] = useState(machine.label)
   const [busy, setBusy] = useState(false)
@@ -106,7 +106,7 @@ export function MachineLabel({
             }}
           />
         ) : (
-          <Heading className="machine-name">{machine.label}</Heading>
+          <MachineName name={machine.label} heading={heading} />
         )}
         {busy ? (
           <span role="status" className="text-text-secondary text-base">
@@ -165,5 +165,18 @@ function RenameControl({
         <path d="m13 6 5 5" />
       </svg>
     </Button>
+  )
+}
+
+function MachineName({ name, heading }: { name: string; heading: 'h1' | 'h2' }): React.JSX.Element {
+  const Heading = heading
+  return (
+    <Heading
+      className="machine-name"
+      {...tooltipProps(name)}
+      tabIndex={name.length > 24 ? 0 : undefined}
+    >
+      {name}
+    </Heading>
   )
 }
