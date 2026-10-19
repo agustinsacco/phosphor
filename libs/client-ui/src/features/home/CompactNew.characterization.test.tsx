@@ -110,6 +110,31 @@ it('submits the Host-scoped draft and guards another send until acceptance', asy
   expect(useDraftsStore.getState().drafts[key]).toBeUndefined()
   expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
 })
+it('keeps the same focused field while a flaky Host reconnects', async () => {
+  await render()
+  const field = el.querySelector('textarea')!
+  act(() => field.focus())
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  for (const [state, connectionToken] of [
+    ['reconnecting', 'attempt-1'],
+    ['connecting', 'attempt-2'],
+    ['ready', 'attempt-3'],
+  ] as const)
+    await act(async () =>
+      useRemoteLanesStore.setState({
+        hosts: { [MOCK_HOST_ID]: { ...host, state, connectionToken } },
+      }),
+    )
+  expect(el.querySelector('textarea')).toBe(field)
+  expect(document.activeElement).toBe(field)
+})
+it('keeps the space under the composer to its target row', async () => {
+  await render()
+  expect(el.textContent).toContain('Available model')
+  expect(el.textContent).not.toContain('takes control')
+  expect(el.textContent).not.toContain('Using the first available model')
+  expect(el.querySelectorAll('.remote-start-note')).toHaveLength(0)
+})
 it('keeps a newer draft when the old prompt receipt completes after unmount', async () => {
   await render()
   await send()
