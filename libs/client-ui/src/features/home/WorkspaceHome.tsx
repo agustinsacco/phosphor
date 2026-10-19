@@ -62,7 +62,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           )}
         </div>
       </div>
-      <div className="flex max-h-[75%] shrink-0 flex-col items-center overflow-y-auto px-4 pb-6 pt-4 sm:px-6">
+      <div className="flex shrink-0 flex-col items-center px-4 pb-6 pt-4 sm:px-6">
         <div className="relative w-full max-w-3xl">
           {composerMachine === 'local' ? (
             <LocalHomeComposer

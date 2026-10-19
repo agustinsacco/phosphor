@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useMachinesStore } from '@/stores/machines'
 import { Button } from '@/components/form'
+import { TooltipButton } from '@/components/Tooltip'
 import { supportedThinkingLevels } from '@shared/thinking'
 import { machineLabel } from '@/stores/remoteLanes'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
@@ -26,7 +27,7 @@ export function RemoteModelPicker({
   }
   return (
     <div className="remote-model-picker">
-      <button
+      <TooltipButton
         ref={trigger}
         type="button"
         aria-label="Model"
@@ -37,7 +38,7 @@ export function RemoteModelPicker({
         title={model?.name ?? selection.hint}
       >
         {model?.name ?? selection.hint}
-      </button>
+      </TooltipButton>
       {selection.canRetry && (
         <Button size="sm" onClick={() => void selection.retry()}>
           Retry models
@@ -55,6 +56,7 @@ export function RemoteModelPicker({
       )}
       {levels.length > 1 && (
         <ChoiceMenu
+          escapeContainer
           label="Thinking"
           value={thinking}
           choices={levels.map((level) => ({

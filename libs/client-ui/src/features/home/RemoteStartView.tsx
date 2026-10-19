@@ -109,12 +109,9 @@ function RemoteStartTargets({
   return (
     <>
       <div className="remote-start-targets">
-        {machinePicker ?? (
-          <span className="remote-start-host" title={machineLabel(hostId)}>
-            {machineLabel(hostId)}
-          </span>
-        )}
+        {machinePicker ?? <span className="remote-start-host">{machineLabel(hostId)}</span>}
         <ChoiceMenu
+          escapeContainer
           label="Repository"
           value={c.repositoryId}
           placement="above"
