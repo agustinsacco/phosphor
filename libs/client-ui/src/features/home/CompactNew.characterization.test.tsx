@@ -127,3 +127,38 @@ it('keeps the draft and releases the claim after an uncertain receipt', async ()
   expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
   expect(el.textContent).toContain('The Host could not confirm this.')
 })
+
+it('uses the remembered repository shared with the Desktop remote composer', async () => {
+  const { rememberRemoteRepository } = await import('./remoteComposer')
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  useRemoteLanesStore.setState({
+    hosts: {
+      [MOCK_HOST_ID]: {
+        ...host,
+        repositories: [...host.repositories, { id: 'second', name: 'Second', path: '/second' }],
+      },
+    },
+  })
+  rememberRemoteRepository(MOCK_HOST_ID, 'second')
+  await render()
+  await send()
+  expect(startRemoteChat).toHaveBeenCalledWith(
+    MOCK_HOST_ID,
+    expect.objectContaining({ repositoryId: 'second' }),
+    expect.any(String),
+    [],
+    expect.any(Function),
+  )
+  await act(async () => complete())
+})
+
+it('does not clear a new owner draft when the retired submission receipt arrives', async () => {
+  await render()
+  await send()
+  await render(<p>Signed out</p>)
+  useHomeSubmissionsStore.setState({ pending: {} })
+  clearDraftMemory()
+  useDraftsStore.getState().setText(key, 'New owner task')
+  await act(async () => complete())
+  expect(useDraftsStore.getState().drafts[key]?.text).toBe('New owner task')
+})
