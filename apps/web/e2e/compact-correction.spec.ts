@@ -45,12 +45,10 @@ async function assertMachineDetail(
     expect(await detail.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(
       true,
     )
-    const nameSize = await detail
-      .locator('.machine-name')
-      .evaluate((element) => ({
-        height: element.clientHeight,
-        line: parseFloat(getComputedStyle(element).lineHeight),
-      }))
+    const nameSize = await detail.locator('.machine-name').evaluate((element) => ({
+      height: element.clientHeight,
+      line: parseFloat(getComputedStyle(element).lineHeight),
+    }))
     expect(nameSize.height).toBeLessThanOrEqual(nameSize.line * 2 + 1)
     await page.screenshot({
       path: info.outputPath('detail-long-label-doubled-text.png'),
