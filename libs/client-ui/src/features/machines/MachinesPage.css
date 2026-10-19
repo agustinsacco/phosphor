@@ -55,11 +55,8 @@
 .machine-lane-preview {
   min-width: 0;
 }
-.machine-lane-preview .remote-lane-row {
-  padding: 8px 0;
-}
-.machine-lane-preview .remote-lane-row:last-of-type {
-  border-bottom: 0;
+.machine-lane-preview .lane-row {
+  padding-inline: 0;
 }
 .machine-view-lanes {
   margin-top: 6px;

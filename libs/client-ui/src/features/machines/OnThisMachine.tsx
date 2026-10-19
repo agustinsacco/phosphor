@@ -87,11 +87,13 @@ export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element
             {ready ? '' : ' · last known'}
           </p>
           {host.lanes.length > 0 && (
-            <fieldset className="machine-lane-preview" aria-label="Recent lanes" disabled={!ready}>
+            <fieldset className="machine-lane-preview" aria-label="Lane preview" disabled={!ready}>
               {host.lanes.slice(0, LANES_SHOWN).map((lane) => (
                 <RemoteLaneRow
                   key={lane.laneId}
                   lane={lane}
+                  hostId={hostId}
+                  disabled={!ready}
                   onOpen={() => {
                     if (ready) void openRemoteLane(hostId, lane.laneId)
                   }}
@@ -114,8 +116,13 @@ export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element
           {tiles.map(([key, label]) => {
             const count = counts[key] ?? (ready ? 'loading' : 'failed')
             return (
-              <MachineResourceTile key={key} label={label} count={count} disabled={!ready}
-                onOpen={() => openMachinePage(key, hostId)} />
+              <MachineResourceTile
+                key={key}
+                label={label}
+                count={count}
+                disabled={!ready}
+                onOpen={() => openMachinePage(key, hostId)}
+              />
             )
           })}
         </div>
@@ -124,32 +131,39 @@ export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element
   )
 }
 
-function MachineResourceTile({label, count, disabled, onOpen}: {
+function MachineResourceTile({
+  label,
+  count,
+  disabled,
+  onOpen,
+}: {
   label: string
   count: Count
   disabled: boolean
   onOpen: () => void
 }): React.JSX.Element {
-  return (              <TooltipButton
-                tooltip={`Open ${label} on this machine`}
-                disabled={disabled}
-                onClick={onOpen}
-                className="border-border hover:bg-bg-secondary rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50"
-              >
-                <span className="text-text-tertiary block font-mono text-xs uppercase tracking-wider">
-                  {label}
-                </span>
-                <span className="mt-1 block text-xl font-semibold tabular-nums">
-                  {count === 'loading' ? (
-                    <>
-                      <Skeleton className="mt-1.5 h-4 w-8" />
-                      <span className="sr-only">Loading</span>
-                    </>
-                  ) : count === 'failed' ? (
-                    <span className="text-text-tertiary text-base font-normal">Unavailable</span>
-                  ) : (
-                    count
-                  )}
-                </span>
-              </TooltipButton>)
+  return (
+    <TooltipButton
+      tooltip={`Open ${label} on this machine`}
+      disabled={disabled}
+      onClick={onOpen}
+      className="border-border hover:bg-bg-secondary rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50"
+    >
+      <span className="text-text-tertiary block font-mono text-xs uppercase tracking-wider">
+        {label}
+      </span>
+      <span className="mt-1 block text-xl font-semibold tabular-nums">
+        {count === 'loading' ? (
+          <>
+            <Skeleton className="mt-1.5 h-4 w-8" />
+            <span className="sr-only">Loading</span>
+          </>
+        ) : count === 'failed' ? (
+          <span className="text-text-tertiary text-base font-normal">Unavailable</span>
+        ) : (
+          count
+        )}
+      </span>
+    </TooltipButton>
+  )
 }

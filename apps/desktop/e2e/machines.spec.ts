@@ -188,7 +188,8 @@ test('bee2 has green readiness but no address, and Check again refreshes the rep
     await expect(detail).toContainText('sudo tailscale set --operator=$USER && phosphor setup')
     await captures(h, test.info(), 'bee2-no-address')
     h.state.machines = [{ ...machine, lastSeenAt: new Date(Date.now() - 120_000).toISOString() }]
-    await detail.getByRole('button', { name: 'Check again', exact: true }).click()
+    await detail.getByRole('button', { name: 'Machine actions', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Check again', exact: true }).click()
     await expect(detail).toContainText('Reported 2 min ago · checked just now')
   } finally {
     await h.close()

@@ -55,7 +55,12 @@ only, not OS push.
 Artifacts, Skills, Routines and browser settings. `PageLinks`/`NavigationItem`
 supply the same global-page labels, order and row presentation in both sidebars.
 Browser settings reuse Desktop's `AppearancePreferences` rows; the native-only
-settings sections remain separate.
+settings sections remain separate. Lanes and remote Home use Desktop's repository
+grouping/order and row title, elapsed time, worktree/branch and activity indicators.
+Unread attention is not labelled as a request for input, and a stopped process is
+not presented as a task result. Lanes whose repository is absent from the current
+Host folders remain in explicit unavailable-folder groups in both clients, rather
+than being silently hidden. Browser rows navigate only; native curation stays native.
 
 `RemoteWorkspacePage` and `RemoteStartView` compose the complete remote start
 experience in both clients. Their controller validates remembered repositories,
@@ -80,6 +85,22 @@ refused. The parent permits only `frame-src blob:` for these previews and blocks
 app embedding with `X-Frame-Options: DENY`. Its CSP omits `frame-ancestors` because
 WebKit inherits that restriction into otherwise valid Blob previews. Desktop's
 artifact/file protocols and scripted artifact behavior are unchanged.
+
+## Installation
+
+**Install Phosphor** is available on sign-in, in navigation and in browser settings.
+When the browser supplies a deferred install prompt, the action opens it once and
+shares the pending state across entrypoints. Accepting the prompt is not reported
+as completed installation; the browser's `appinstalled` event or a standalone
+window establishes that. No automatic prompt is guaranteed or forced.
+
+Otherwise the action shows instructions: Android Chrome's Install app/Add to Home
+screen, iPhone/iPad Safari's Share → Add to Home Screen (Open as Web App if offered),
+and desktop browser installation options. A standalone window hides the install
+action. On iPhone an installed app may need its own sign-in. Installation adds no
+native Desktop capability, background push, offline Host access or public tunnel.
+Physical Android/iPhone installation and OS behavior remain separate acceptance
+from synthetic install-event tests.
 
 ## Memory and offline behavior
 
