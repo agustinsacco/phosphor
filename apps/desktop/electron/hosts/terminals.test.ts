@@ -1,8 +1,7 @@
-import { generateKeyPairSync, randomUUID, sign } from 'node:crypto'
+import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createLoopbackPair } from '@shared/host-protocol-testing'
 import {
-  helloProofMessage,
   parseClientFrame,
   type ClientFrame,
   type HostFrame,
@@ -11,6 +10,7 @@ import {
 import type { TerminalFrame } from '@shared/host-protocol-terminals'
 import { createHostConnection } from './connection'
 import { createRemoteTerminals } from './terminals'
+import { terminalReady, terminalCommandReceipt } from './__fixtures__/terminal-frames'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => {
@@ -20,7 +20,7 @@ afterEach(() => {
 const drain = async () => {
   for (let i = 0; i < 40; i++) await Promise.resolve()
 }
-async function setup() {
+async function setup(configuration = false) {
   const hostId = randomUUID(),
     clientId = randomUUID(),
     terminalId = randomUUID()
@@ -42,10 +42,11 @@ async function setup() {
     read: 0,
     control: { fence: 7, controller: { clientId, label: 'Test', connected: true } },
   }
-  let caps: ('terminal' | 'sessions.read' | 'sessions.control')[] = [
+  let caps: ('terminal' | 'sessions.read' | 'sessions.control' | 'machine.configure')[] = [
     'terminal',
     'sessions.read',
     'sessions.control',
+    ...(configuration ? ['machine.configure' as const] : []),
   ]
   let epoch = '1111111111111111',
     inputSeq = 0,
@@ -90,26 +91,16 @@ async function setup() {
         const f = parsed.frame
         frames.push(f)
         if (f.type === 'auth')
-          send({
-            type: 'ready',
-            protocolVersion: 1,
-            hello: {
+          send(
+            terminalReady({
               hostId,
-              hostVersion: '1.0.0',
-              protocolVersion: 1,
-              runtimeEpoch: epoch,
+              epoch,
               capabilities: caps,
-            },
-            proof: sign(
-              null,
-              Buffer.from(helloProofMessage(hostId, epoch, f.challenge ?? '')),
-              keys.privateKey,
-            ).toString('base64url'),
-            connectionId: '2222222222222222',
-            grantExpiresAt: new Date(Date.now() + 300000).toISOString(),
-            client: { id: clientId, label: 'Test' },
-            capabilities: caps,
-          })
+              clientId,
+              challenge: f.challenge ?? '',
+              privateKey: keys.privateKey,
+            }),
+          )
         else if (f.type === 'subscribe' && f.topic === 'lanes')
           send({
             type: 'lanes',
@@ -122,18 +113,7 @@ async function setup() {
           subscription = f.id
           if (autoReset) reset()
         } else if (f.type === 'command' && autoReceipt)
-          send({
-            type: 'receipt',
-            receipt: {
-              requestId: f.requestId,
-              status: 'done',
-              laneId: lane.laneId,
-              data:
-                f.op.type === 'terminal.create' || f.op.type === 'provider.login'
-                  ? { terminalId }
-                  : undefined,
-            },
-          })
+          send(terminalCommandReceipt(f, lane.laneId, terminalId))
         else if (f.type === 'call')
           send({
             type: 'result',
@@ -221,7 +201,7 @@ async function setup() {
     empty: () => {
       empty = true
     },
-    loseCapability: (cap: 'terminal' | 'sessions.control' = 'terminal') => {
+    loseCapability: (cap: 'terminal' | 'sessions.control' | 'machine.configure' = 'terminal') => {
       caps = caps.filter((c) => c !== cap)
     },
     delayReceipt: () => {
@@ -257,6 +237,22 @@ async function setup() {
   }
 }
 
+it('drops private settings terminals after configuration permission is revoked', async () => {
+  const t = await setup(true)
+  const { ptyId } = await t.bridge.signIn(1, t.hostId, 'claude', {
+    addAccount: true,
+    configure: true,
+  })
+  await t.attach(ptyId)
+  t.loseCapability('machine.configure')
+  await t.reconnect()
+  t.bridge.reconcile()
+  await drain()
+  expect(t.emit).toHaveBeenCalledWith(1, `pty:exit:${ptyId}`, -1)
+  await expect(t.route('pty:write', ptyId, 'PRIVATE-CALLBACK')).rejects.toThrow('Not available')
+  expect(JSON.stringify(t.log.mock.calls)).not.toContain('PRIVATE-CALLBACK')
+  t.connection.close()
+})
 it('creates with fence and opaque identity, attaches reset scrollback and splits UTF-8 input with acknowledged seq', async () => {
   const t = await setup(),
     id = await t.create()

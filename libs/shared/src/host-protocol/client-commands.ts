@@ -10,6 +10,7 @@ function laneless(op: LaneOp): boolean {
   return (
     op.type.startsWith('routine.') ||
     op.type === 'provider.login' ||
+    op.type === 'machine.task' ||
     op.type.startsWith('host.repositories.')
   )
 }
@@ -21,6 +22,7 @@ export function parseCommandFrame(v: Record<string, unknown>): ClientFrameParse 
   if (
     !operation ||
     (laneless(operation) && (v.laneId !== undefined || v.fence !== undefined)) ||
+    (operation.type === 'claude.account' && (v.laneId === undefined || v.fence === undefined)) ||
     (v.laneId !== undefined && !isUuid(v.laneId)) ||
     (v.fence !== undefined && !integer(v.fence, 1)) ||
     (v.trace !== undefined && !isControlTrace(v.trace))

@@ -11,9 +11,10 @@ export function createLaneCalls(options: LaneQueryOptions & { features?: readonl
     capabilityFor(method: string): HostCapability | null {
       return laneQueryCapability(method) ?? features.get(method)?.capability ?? null
     },
-    async call(method: string, params: unknown): Promise<CallOutcome> {
+    async call(method: string, params: unknown, authorized?: () => boolean): Promise<CallOutcome> {
       const feature = features.get(method)
-      if (feature) return feature.call(method, params)
+      if (feature)
+        return authorized ? feature.call(method, params, authorized) : feature.call(method, params)
       return resolveLaneQuery(options, method, params)
     },
   }

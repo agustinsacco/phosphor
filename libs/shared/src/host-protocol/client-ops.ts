@@ -1,6 +1,7 @@
 /** Command ops: the lane and pi ops parsed here, and the families other modules own. */
 import { parseAttachmentOp } from '../host-protocol-attachments'
 import { parseProviderLoginOp } from '../host-protocol-providers'
+import { parseMachineTask, isMachineAccountId } from '../machine-settings'
 import { parseDeleteLaneOp, parseRepositoryOp } from '../host-protocol-repositories'
 import { parseRoutineOp, ROUTINE_OPS } from '../host-protocol-routines'
 import { parseTerminalOp } from '../host-protocol-terminals'
@@ -24,6 +25,8 @@ export const BAD_REQUEST_OP_TYPES = [
   ...LANE_PI_OPS,
   'extension_ui_response',
   'provider.login',
+  'machine.task',
+  'claude.account',
   'terminal.create',
   'terminal.resize',
   'terminal.kill',
@@ -121,6 +124,11 @@ function coreOp(v: OpFields): LaneOp | null {
       return integer(v.upTo) ? { type: v.type, upTo: v.upTo } : null
     case 'lane.create':
       return createOp(v)
+    case 'claude.account':
+      return Object.keys(v).every((key) => ['type', 'accountId'].includes(key)) &&
+        isMachineAccountId(v.accountId)
+        ? { type: 'claude.account', accountId: v.accountId }
+        : null
     default:
       return null
   }
@@ -131,6 +139,7 @@ function familyParser(type: unknown): ((v: OpFields) => LaneOp | null) | undefin
   if (type === 'lane.delete') return parseDeleteLaneOp
   if (typeof type === 'string' && type.startsWith('host.repositories.')) return parseRepositoryOp
   if (type === 'provider.login') return parseProviderLoginOp
+  if (type === 'machine.task') return parseMachineTask
   if (typeof type === 'string' && type.startsWith('terminal.')) return parseTerminalOp
   if (typeof type === 'string' && type.startsWith('routine.')) return parseRoutineOp
   return undefined

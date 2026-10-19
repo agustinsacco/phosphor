@@ -1,5 +1,5 @@
 'use strict'
-const { existsSync, writeFileSync } = require('node:fs')
+const { existsSync, readFileSync, writeFileSync } = require('node:fs')
 const { join } = require('node:path')
 const tools = require('./tools.cjs')
 
@@ -26,6 +26,14 @@ function finish(ctx, _user, reply, stopReason, errorMessage) {
   publishQueue(ctx)
   if (next) setTimeout(() => prompt(ctx, next.message), 10)
 }
+function billingIdentity(env) {
+  const file =
+    env.CLAUDE_SECURESTORAGE_CONFIG_DIR &&
+    join(env.CLAUDE_SECURESTORAGE_CONFIG_DIR, 'fixture-auth.json')
+  return file && existsSync(file)
+    ? JSON.parse(readFileSync(file, 'utf8')).email
+    : 'no isolated credential'
+}
 function prompt(ctx, message, images = []) {
   ctx.ports.persist({ role: 'user', content: message })
   ctx.ports.out({ type: 'agent_start' })
@@ -45,11 +53,14 @@ function prompt(ctx, message, images = []) {
           (m) => JSON.stringify(m.content).match(/PHX-[A-Za-z0-9]+/g) ?? [],
         )
       : /PHX-[A-Za-z0-9]+/.exec(message)
-  const reply = /PHX-hostinputs/.test(message)
-    ? tools.attachmentReply(message, images)
-    : /links/i.test(message)
-      ? `[${tools.laneMarker(ctx.ports.cwd)} guide](nested/guide.md#L2) [absolute](${join(ctx.ports.cwd, 'remote.txt')}) [outside](/etc/passwd)`
-      : (ctx.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
+  const reply =
+    message === 'CLAUDE_BILLING_AFFINITY'
+      ? `HOST_A_ONLY billing ${billingIdentity(ctx.env)}`
+      : /PHX-hostinputs/.test(message)
+        ? tools.attachmentReply(message, images)
+        : /links/i.test(message)
+          ? `[${tools.laneMarker(ctx.ports.cwd)} guide](nested/guide.md#L2) [absolute](${join(ctx.ports.cwd, 'remote.txt')}) [outside](/etc/passwd)`
+          : (ctx.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
   delta(ctx, reply)
   if (ctx.env.FAKE_PI_TURN === 'fail' || /fail-turn|auth-error/.test(message)) {
     const error = /auth-error/.test(message)

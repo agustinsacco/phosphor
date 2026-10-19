@@ -49,6 +49,8 @@ export interface GrantPayload {
   readonly epoch: number
   readonly client: GrantClient
   readonly caps: readonly HostCapability[]
+  /** Signed opt-in for machine configuration. Old Hosts ignore it and retain legacy caps. */
+  readonly configure?: true
   /** Unix seconds. */
   readonly iat: number
   readonly exp: number
@@ -170,6 +172,7 @@ export function parseGrantPayload(v: unknown): Parsed<GrantPayload> {
     if (capability === undefined || caps.includes(capability)) return fail('capabilities')
     caps.push(capability)
   }
+  if (v.configure !== undefined && v.configure !== true) return fail('configure')
   if (!count(v.iat) || !count(v.exp)) return fail('time')
   // toISOString is used by the wire adapter, so keep seconds in its representable range.
   if (v.iat > 253402300799 || v.exp > 253402300799) return fail('time')
@@ -186,6 +189,7 @@ export function parseGrantPayload(v: unknown): Parsed<GrantPayload> {
       epoch: v.epoch,
       client: { id: v.client.id, label: v.client.label },
       caps,
+      ...(v.configure === true ? { configure: true as const } : {}),
       iat: v.iat,
       exp: v.exp,
       jti: v.jti,

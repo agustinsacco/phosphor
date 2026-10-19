@@ -134,8 +134,11 @@ function toEntry(raw: RawPackageEntry, dirs: ScopeDirs): PiPackageEntry {
 }
 
 /** All packages declared in the global and (when given) project settings. */
-export async function listPackages(workspacePath?: string): Promise<PiPackageEntry[]> {
-  const scopes: ScopeDirs[] = [{ settingsDir: piAgentDir(), scope: 'global' }]
+export async function listPackages(
+  workspacePath?: string,
+  agentDir = piAgentDir(),
+): Promise<PiPackageEntry[]> {
+  const scopes: ScopeDirs[] = [{ settingsDir: agentDir, scope: 'global' }]
   if (workspacePath) scopes.push({ settingsDir: join(workspacePath, '.pi'), scope: 'project' })
 
   const perScope = await Promise.all(

@@ -1,6 +1,7 @@
 /** Commands and their receipts, read-only queries, and the capability each admits. */
 import type { AttachmentOp } from '../host-protocol-attachments'
 import type { ProviderLoginOp } from '../host-protocol-providers'
+import type { MachineTaskOp } from '../machine-settings'
 import type { DeleteLaneOp, RepositoryOp } from '../host-protocol-repositories'
 import type { RoutineOp } from '../host-protocol-routines'
 import type { TerminalOp } from '../host-protocol-terminals'
@@ -30,6 +31,7 @@ export type LaneOp =
   | RepositoryOp
   | DeleteLaneOp
   | ProviderLoginOp
+  | MachineTaskOp
   | TerminalOp
   | RoutineOp
   | FileWriteOp
@@ -50,6 +52,7 @@ export type LaneOp =
       readonly model?: string
       readonly thinkingLevel?: string
     }
+  | { readonly type: 'claude.account'; readonly accountId: string }
   | { readonly type: 'lane.resume' }
   | { readonly type: 'lane.stop' }
   | { readonly type: 'lane.markRead'; readonly upTo: number }

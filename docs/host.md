@@ -625,6 +625,59 @@ takeover or release still returns `done` for its durable change; another operati
 whose admission publication fails returns `failed internal` without dispatching.
 The [API](#api) dispatches authenticated commands through this pipeline.
 
+## Machine settings
+
+Desktop's **Machines → this Host → Settings** administers this execution machine.
+[Settings](settings.md#host-machine-settings) owns the UI; [the protocol](remote-protocol.md#machine-configuration-operations)
+owns its typed operations. Configuration requires a separately requested signed
+`machine.configure` grant, not merely lane control. Older clients and ordinary
+lane grants retain their existing capabilities.
+
+`apps/host/src/settings/` owns revision-checked reads, patches, connector checks,
+fixed-purpose setup programs and explicit Claude account moves. pi remains the
+owner of provider credentials, MCP, packages and model/thinking defaults. Host
+config owns context budget and automatic naming. Policy edits require an explicit
+service restart; no setting silently restarts lanes or the service. Global files
+use the Host's pi agent directory. Folder scope resolves a registered repository
+id, verifies its realpath identity, and applies only when pi trusts that folder.
+Registration itself is not trust or a filesystem sandbox.
+
+Settings commits read bounded owned regular files without following final
+symlinks, preserve unrelated fields, check the revision and current authorization,
+and rename an exclusive private temporary file atomically. Repository management
+shares their process-local lock. This is not a cross-process compare-and-swap.
+A lost response can mean the edit applied; clients must inspect rather than replay
+it automatically. Host policy and pi defaults are separate file commits.
+
+Claude accounts share Desktop's portable selection, quota cooldown and transcript
+binding implementation. Metadata is private at
+`<state>/claude-accounts/accounts.json` (at most sixteen accounts); credentials stay
+in Claude's own scoped store. Existing-account authentication uses a fresh slot,
+so it does not replace a running process's credential environment. Email plus
+organization identifies a subscription. A different organization remains a
+separate account, and resumes retain the saved billing affinity even after
+machine defaults change. Invalid account metadata or an unverifiable resumed
+provider fails closed, not onto the CLI default. Provider inspection and `doctor`
+read selection without advancing round-robin or creating metadata; `accept` uses
+the same account-aware runtime as the service.
+
+Reviewed setup programs have fixed purposes and Host-resolved executable paths,
+arguments and environment. They cover the official Claude installer/provider,
+allowlisted npm package operations, MCP authentication and pi's folder-trust
+review, never automatic `--approve`. Their owner-private PTYs require current
+configuration/terminal/control authority and are bounded to fifteen minutes.
+Configuration sign-in completion includes authoritative account verification;
+process exit or printed success is insufficient. Revocation/disconnect stops the
+admitted configuration PTY best-effort and cannot be undone by regranting access.
+Already-applied external CLI effects are not rolled back.
+
+Connector checks are separately reviewed because `pi mcp list --json` may start
+configured stdio code. Only reviewed state/tool counts are returned, cached for
+at most sixty seconds and invalidated by edits/authentication. Folder MCP cannot
+contain secret-bearing headers, environment values or OAuth client secrets.
+Credentials, raw source URLs and authentication callback URLs never enter control
+or metadata traffic logs. Advanced diagnostics expose names and paths, not values.
+
 ## API
 
 `phosphor run` listens on `127.0.0.1:47615` only, once an accepted heartbeat
@@ -982,8 +1035,11 @@ needs a terminal (stdin and stdout), and exits 64 without one; over SSH, use
   browser on your computer ends on a `localhost` address that does not load, you
   paste that address into pi. Then `/quit`. pi has no login command outside its
   screen, which is why the steps are typed.
-- **`claude`** runs `claude auth login` from pi's PATH: open the link, paste back
-  the code the page shows.
+- **`claude`** runs `claude auth login` from pi's PATH for the CLI default
+  credential: follow its link/code instructions. Private roster accounts are
+  reauthenticated through Desktop's Machine Settings, not by replacing the CLI
+  default. If one is selected, signing into the default does not change that
+  selection or make a different account ready.
 
 The program shares the terminal and the Host's process group, so it can read
 what you type; a signal to the Host (a closed SSH session) stops it, with SIGKILL

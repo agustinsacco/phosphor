@@ -5,6 +5,7 @@ import { parseRoutineOp, routineRequiresControl } from '@phosphor/shared/host-pr
 import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import { admitLane, republishControl } from './commands/admission'
+import { executeAccountMove } from './commands/accounts'
 import { executeCreate } from './commands/create'
 import { executeLaneFeature } from './commands/features'
 import { executeLane } from './commands/lane'
@@ -38,6 +39,12 @@ function capabilityFor(
   ports: Pick<LaneCommandPorts, 'writes'>,
   op: LaneCommandFrame['op'],
 ): readonly HostCapability[] {
+  if (op.type === 'claude.account') return ['machine.configure', 'sessions.control']
+  if (
+    op.type === 'machine.task' ||
+    (op.type === 'provider.login' && (op.configure || op.accountId || op.addAccount))
+  )
+    return ['machine.configure', 'terminal', 'sessions.control']
   if (op.type === 'lane.delete' || parseRepositoryOp(op))
     return ['workspaces.write', 'sessions.control']
   if (parseAttachmentOp(op)) return ['workspaces.write', 'sessions.control']
@@ -84,6 +91,8 @@ function execute(
     })
   const admitted = admitLane(state, ports, job, queue)
   if (!admitted) return
+  const account = executeAccountMove(state, ports, job, queue, admitted, allowed)
+  if (account.handled) return account.execution
   const feature = executeLaneFeature(state, ports, job, queue, admitted, allowed)
   if (feature.handled) return feature.execution
   const rpc = executeRpc(state, ports, job, queue, admitted)

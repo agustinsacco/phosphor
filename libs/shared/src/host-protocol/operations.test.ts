@@ -80,6 +80,8 @@ describe('host-protocol operation declarations', () => {
     >
     expectTypeOf<Core['type']>().toEqualTypeOf<
       | 'extension_ui_response'
+      | 'machine.task'
+      | 'claude.account'
       | 'lane.create'
       | 'lane.resume'
       | 'lane.stop'

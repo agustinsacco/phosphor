@@ -161,6 +161,32 @@ describe('lane adapter', () => {
     await flush()
     return c
   }
+  it('never revives an old asynchronous operation after capability loss and a later re-grant', async () => {
+    let authorized = () => false
+    let complete = () => {}
+    vi.mocked(h.service.calls.call).mockImplementation((_method, _params, allowed) => {
+      authorized = allowed ?? (() => false)
+      return new Promise<CallOutcome>((resolve) => {
+        complete = () => resolve({ ok: true, data: 'private' })
+      })
+    })
+    const configurationCaps = [...h.service.capabilities, 'machine.configure'] as const
+    h.service.capabilities = configurationCaps
+    h.service.calls.capabilityFor = () => 'machine.configure'
+    const c = await ready(h.claims.client, configurationCaps)
+    c.send({ type: 'call', id: 'pending', method: 'test.read', params: {} })
+    await flush()
+    expect(authorized()).toBe(true)
+    c.auth(['sessions.control'], false)
+    await flush()
+    expect(authorized()).toBe(false)
+    c.auth(configurationCaps, false)
+    await flush()
+    expect(authorized()).toBe(false)
+    complete()
+    await flush()
+    expect(c.frames.some((frame) => frame.type === 'result' && frame.id === 'pending')).toBe(false)
+  })
   it('allows receipt reads for viewers, refuses missing read permission and drops revoked pending data', async () => {
     h.service.calls.capabilityFor = () => 'sessions.read'
     const c = await ready(h.claims.client, ['sessions.read'])

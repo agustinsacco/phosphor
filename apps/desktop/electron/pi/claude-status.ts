@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { ClaudeAuthStatus, ClaudeStatus } from '@shared/models'
+import { parseClaudeAuthStatus as parseAccountAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
 import { piProcessEnv } from './shell-env'
 import { resolveBinary } from './binary-lookup'
 
@@ -65,12 +66,12 @@ export async function claudeStatus(
 
   try {
     const { stdout } = await execFileAsync(path, ['auth', 'status'], { timeout: 10_000, env })
-    return { binary: { found: true, path, version }, auth: parseClaudeAuthStatus(stdout) }
+    return { binary: { found: true, path, version }, auth: parseAccountAuthStatus(stdout) }
   } catch (error) {
     const failure = error as { stdout?: string; message: string }
     // Non-zero exit still prints the status JSON when logged out.
     const auth = failure.stdout
-      ? parseClaudeAuthStatus(failure.stdout)
+      ? parseAccountAuthStatus(failure.stdout)
       : { ok: false, error: failure.message }
     return { binary: { found: true, path, version }, auth }
   }

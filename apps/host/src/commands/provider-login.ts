@@ -16,6 +16,8 @@ export { CLAUDE_LOGIN, PI_LOGIN_ARGS } from './provider-login-plan'
 
 export interface LoginContext extends DoctorContext {
   provider: string
+  /** Trusted Host account routing only. Never accepted from an API caller. */
+  credentialEnv?: Record<string, string>
   /** Drain the program on the terminal on a signal, until the returned function detaches it. */
   attach?: (target: Drainable) => () => void
   /** Steps and outcomes, for the person at the terminal: stderr. */
@@ -44,14 +46,23 @@ export async function runProviderLogin(context: LoginContext): Promise<LoginOutc
     return { exitCode: report.exitCode, problem, doctor: report }
   }
   const { provider, progress } = context
-  const plan = await prepareProviderLogin(provider, report.providers, pi, {
-    host: report.config.hostId ?? 'this machine',
-    timeoutMs: context.probeTimeoutMs,
-  })
+  const environment = {
+    ...pi.environment,
+    env: { ...pi.environment.env, ...context.credentialEnv },
+  }
+  const plan = await prepareProviderLogin(
+    provider,
+    report.providers,
+    { ...pi, environment },
+    {
+      host: report.config.hostId ?? 'this machine',
+      timeoutMs: context.probeTimeoutMs,
+    },
+  )
   if ('problem' in plan) return plan
   for (const line of providerLoginInstructions(plan)) progress(line)
 
-  const { env } = pi.environment
+  const { env } = environment
   // The login draws a screen: it needs the terminal's type, which sessions never get.
   const terminalEnv = context.env.TERM ? { ...env, TERM: context.env.TERM } : env
   // An empty folder: no project settings, no context files, no trust question.
@@ -74,7 +85,7 @@ export async function runProviderLogin(context: LoginContext): Promise<LoginOutc
   const { signedIn, message } = await providerLoginStatus(
     plan,
     after,
-    pi.environment,
+    environment,
     context.probeTimeoutMs,
   )
   progress(message)

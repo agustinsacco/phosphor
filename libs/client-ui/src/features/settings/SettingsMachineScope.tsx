@@ -43,6 +43,9 @@ export function isMachineSettingsTab(tab: SettingsTab): boolean {
 export function SettingsMachineScope({ hostId }: { hostId: string | null }): React.JSX.Element {
   const label =
     useMachinesStore((s) => s.machines.find((m) => m.id === hostId)?.label) ?? 'this machine'
+  const supported = useRemoteLanesStore(
+    (s) => !!hostId && s.hosts[hostId]?.configurationSupported === true,
+  )
   return (
     <div className="border-border bg-bg-secondary text-text mb-5 rounded-lg border p-3 text-base">
       <p className="text-text font-medium">This Mac</p>
@@ -52,17 +55,24 @@ export function SettingsMachineScope({ hostId }: { hostId: string | null }): Rea
       {hostId && (
         <>
           <p className="text-text-secondary mt-2">
-            To sign in on {label}, use Machines → {label} → Readiness.
+            {supported ? 'To configure' : 'To sign in on'} {label}, use Machines → {label} →{' '}
+            {supported ? 'Settings' : 'Readiness'}.
           </p>
           <p className="text-text-secondary mt-1">Remote settings are not available here.</p>
           <Button
             className="mt-3"
             onClick={() => {
               useSettingsUiStore.getState().setOpen(false)
-              useMachinesStore.getState().show({ kind: 'machine', id: hostId })
+              useMachinesStore
+                .getState()
+                .show(
+                  supported
+                    ? { kind: 'machine', id: hostId, settings: 'providers' }
+                    : { kind: 'machine', id: hostId },
+                )
             }}
           >
-            Open {label} readiness
+            Open {label} {supported ? 'settings' : 'readiness'}
           </Button>
         </>
       )}

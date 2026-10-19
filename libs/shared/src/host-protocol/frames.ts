@@ -68,10 +68,16 @@ export type HostFrame =
       readonly connectionId: string
       readonly grantExpiresAt: string
       readonly client: { readonly id: string; readonly label: string }
+      /** Additive support marker; legacy grants keep their original capabilities. */
+      readonly settings?: boolean
       /** Effective capabilities for this connection. */
       readonly capabilities: readonly HostCapability[]
     }
-  | { readonly type: 'auth-renewed'; readonly grantExpiresAt: string }
+  | {
+      readonly type: 'auth-renewed'
+      readonly grantExpiresAt: string
+      readonly capabilities?: readonly HostCapability[]
+    }
   | {
       readonly type: 'lanes'
       readonly id: string

@@ -25,7 +25,23 @@ function createSession({ sessionFile, folder, cwd, launchName }) {
         .map((line) => JSON.parse(line))
         .findLast((entry) => entry.type === 'session_info')?.name
     : undefined
-  return { sessionFile, id, cwd, launchName, messages, lastEntryId, selectedName }
+  const saved = existsSync(sessionFile)
+    ? readFileSync(sessionFile, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map(JSON.parse)
+        .findLast((entry) => entry.type === 'model_change')
+    : undefined
+  return {
+    sessionFile,
+    id,
+    cwd,
+    launchName,
+    messages,
+    lastEntryId,
+    selectedName,
+    ...(saved && { model: { provider: saved.provider, id: saved.modelId } }),
+  }
 }
 
 function header(session) {
@@ -42,6 +58,7 @@ function ensureFile(session) {
   if (existsSync(session.sessionFile)) return false
   mkdirSync(dirname(session.sessionFile), { recursive: true })
   appendFileSync(session.sessionFile, header(session) + '\n')
+  if (session.model) appendModel(session)
   return true
 }
 
@@ -52,6 +69,19 @@ function appendEntry(session, type, data) {
     JSON.stringify({ type, id, parentId: session.lastEntryId, ...data }) + '\n',
   )
   session.lastEntryId = id
+}
+
+function appendModel(session) {
+  appendEntry(session, 'model_change', {
+    timestamp: new Date().toISOString(),
+    provider: session.model.provider,
+    modelId: session.model.id,
+  })
+}
+function setModel(session, model) {
+  if (!session.model) return
+  session.model = model
+  if (existsSync(session.sessionFile)) appendModel(session)
 }
 
 /** Native JSONL entries form one parent-linked chain, including tools and names. */
@@ -82,4 +112,4 @@ function clone(session) {
   )
 }
 
-module.exports = { createSession, persist, setName, clone }
+module.exports = { createSession, persist, setName, clone, setModel }

@@ -6,6 +6,7 @@ import {
   mockRemoteInfo,
 } from './mockRemoteLanes'
 import type { MachineView } from '@shared/control-api'
+import { mockMachineSettingsInvoke } from './mockMachineSettings'
 /**
  * Dev-only mock of the preload API so the renderer can run in a plain
  * browser (vite dev server without Electron). Replays the captured real
@@ -1472,19 +1473,16 @@ export function installMockPhosphor(): void {
           return mockTraffic(Number(args[0]) || 0)
         case 'hosts:reconnect':
           return undefined as never
+        case 'hosts:settingsAccess':
+        case 'hosts:settingsRead':
+        case 'hosts:settingsPatch':
+        case 'hosts:settingsCheck':
+        case 'hosts:machineTask':
+        case 'hosts:claudeAccount':
         case 'hosts:models':
-          return [
-            {
-              id: 'claude-sonnet-4-5',
-              name: 'Claude Sonnet 4.5',
-              provider: 'anthropic',
-              reasoning: true,
-            },
-          ]
         case 'hosts:claude':
-          return null
         case 'hosts:providers':
-          return [{ id: 'anthropic', name: 'Anthropic', status: 'ready' }]
+          return mockMachineSettingsInvoke(channel, args) as never
         case 'hosts:repositoryFiles':
           return ['README.md', 'src/index.ts']
         case 'hosts:repositoryFile':

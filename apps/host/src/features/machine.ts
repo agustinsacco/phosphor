@@ -39,6 +39,7 @@ export function featureError(error: unknown): FeatureOutcome {
 export interface MachinePorts {
   inspect?: () => Promise<HostInspection>
   configPath?: string
+  claudeAuthentication?: () => Promise<boolean | null>
 }
 /** Inspection reads files that can stall; callers queue behind it, so it must settle. */
 export const INSPECTION_DEADLINE_MS = 20_000
@@ -136,16 +137,33 @@ export async function machineCall(
   const inspection = await featureInspection(context, ports)
   if (!inspection.pi) throw new FeatureFailure('internal')
   if (method === 'machine.claude') {
-    return { ok: true, data: await inspectClaude(await listPackages(), inspection.pi.environment) }
+    const data = await inspectClaude(await listPackages(), inspection.pi.environment)
+    if (data.cli === 'ok' && ports.claudeAuthentication) {
+      const ready = await ports.claudeAuthentication()
+      data.auth = ready === null ? 'unknown' : ready ? 'ok' : 'signed-out'
+    }
+    return { ok: true, data }
   }
   if (method === 'machine.providers') {
     // Only names and readiness. Reasons can carry arbitrary provider output or credentials.
     const providers = parseMachineProviders(inspection.report.providers)
     if (!providers) throw new FeatureFailure('internal')
+    const claudeReady = ports.claudeAuthentication ? await ports.claudeAuthentication() : undefined
+    const configuredClaude = ports.claudeAuthentication
+      ? await inspectClaude(await listPackages(), inspection.pi.environment)
+      : undefined
     providers.push({
       id: 'pi-claude-cli',
       name: 'Claude CLI',
-      status: inspection.report.lanes.claude.available ? 'ready' : 'not_ready',
+      status: (
+        claudeReady === undefined
+          ? inspection.report.lanes.claude.available
+          : claudeReady === true &&
+            configuredClaude?.provider === 'ok' &&
+            configuredClaude.cli === 'ok'
+      )
+        ? 'ready'
+        : 'not_ready',
     })
     return { ok: true, data: { providers } }
   }

@@ -208,6 +208,17 @@ afterEach(() => {
   teardown.native = null
   vi.unstubAllEnvs()
 })
+const RUN_CAPABILITIES = [
+  'sessions.read',
+  'sessions.control',
+  'workspaces.write',
+  'machine.configure',
+  'routines',
+  'workspaces.read',
+  'skills.read',
+  'artifacts.read',
+] as const
+
 describe('run lane composition', () => {
   it.each([
     { available: false, second: false },
@@ -292,15 +303,7 @@ describe('run lane composition', () => {
           // A custom --config must reach the machine reads, not the default path.
           expect(hooks.skillsConfigPath).toBe(control.context.configPath)
           expect(hooks.lanes?.epoch).toBe(hooks.epoch)
-          expect(hooks.lanes?.capabilities).toEqual([
-            'sessions.read',
-            'sessions.control',
-            'workspaces.write',
-            'routines',
-            'workspaces.read',
-            'skills.read',
-            'artifacts.read',
-          ])
+          expect(hooks.lanes?.capabilities).toEqual(RUN_CAPABILITIES)
           for (const method of ['artifacts.list', 'artifacts.read'])
             expect(hooks.lanes?.calls.capabilityFor(method)).toBe('artifacts.read')
           for (const method of ['routines.list', 'routines.history'])

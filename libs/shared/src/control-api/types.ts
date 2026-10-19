@@ -145,6 +145,8 @@ export interface ClientRegisterResponse {
 export interface GrantIssueRequest {
   readonly hostId: string
   readonly clientId: string
+  /** Owner-authorized machine administration, independent of lane control. */
+  readonly configure?: true
 }
 export interface GrantIssueResponse {
   readonly grant: string

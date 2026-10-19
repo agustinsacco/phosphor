@@ -62,6 +62,10 @@ Enrollment associates a machine key with your account. It does not grant executi
 Desktop registers its own client identity and asks control for a five-minute grant.
 The Host authenticates that grant and proves its enrolled identity to Desktop.
 Effective capabilities are the intersection of the grant and the Host's features.
+[Machine Settings](settings.md#host-machine-settings) requires a separate explicit
+configuration-access request; lane control alone never grants `machine.configure`.
+Settings travel directly to the selected Host, with no local fallback, automatic
+cross-machine configuration/auth synchronization or offline mutation queue.
 
 ```mermaid
 sequenceDiagram

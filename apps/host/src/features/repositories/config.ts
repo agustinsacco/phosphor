@@ -9,6 +9,7 @@ import {
   type RepositoryIdentity,
 } from '../../lanes/store'
 import { FileFailure } from '../files'
+import { withSettingsFileLock } from '../../settings/files'
 
 export interface RepositoryConfigSource {
   configPath: string
@@ -26,7 +27,18 @@ export async function loadRepositoryConfig(options: RepositoryConfigSource) {
   return loaded
 }
 
-export async function publishRepositoryConfig(
+export function publishRepositoryConfig(
+  options: RepositoryConfigOptions,
+  repositories: string[],
+  allowed: () => boolean,
+  identity?: RepositoryIdentity,
+) {
+  return withSettingsFileLock(options.configPath, () =>
+    publishUnlocked(options, repositories, allowed, identity),
+  )
+}
+
+async function publishUnlocked(
   options: RepositoryConfigOptions,
   repositories: string[],
   allowed: () => boolean,

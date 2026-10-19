@@ -173,6 +173,37 @@ describe('connection boundary', () => {
     await vi.advanceTimersByTimeAsync(0)
     return c
   }
+  it('advertises settings without breaking old clients and requires the signed configuration opt-in', async () => {
+    const hello = { ...h.hello, capabilities: ['sessions.read', 'machine.configure'] as const }
+    const old = await auth({}, { hello: { ...hello, capabilities: [...hello.capabilities] } })
+    const ready = old.frames.find((frame) => frame.type === 'ready')
+    expect(ready).toMatchObject({
+      settings: true,
+      capabilities: ['sessions.read'],
+      hello: { capabilities: ['sessions.read'] },
+    })
+    const configured = await auth(
+      { configure: true },
+      { hello: { ...hello, capabilities: [...hello.capabilities] } },
+    )
+    expect(configured.frames.find((frame) => frame.type === 'ready')).toMatchObject({
+      capabilities: ['sessions.read', 'machine.configure'],
+    })
+  })
+  it('revokes configuration authority on renewal and reports the effective capabilities', async () => {
+    const renew = vi.fn()
+    const c = await auth(
+      { configure: true },
+      {
+        hello: { ...h.hello, capabilities: ['sessions.read', 'machine.configure'] },
+        handler: () => ({ handle() {}, renew, close() {} }),
+      },
+    )
+    c.socket.send(JSON.stringify({ type: 'auth', grant: h.mintGrant() }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(renew).toHaveBeenCalledWith(['sessions.read'])
+    expect(c.frames.at(-1)).toMatchObject({ type: 'auth-renewed', capabilities: ['sessions.read'] })
+  })
   it.each(['issuer', 'lifetime', 'expired', 'future', 'unknown key'] as const)(
     'rejects %s with code only',
     async (kind) => {

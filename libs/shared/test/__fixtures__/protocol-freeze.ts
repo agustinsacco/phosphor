@@ -354,6 +354,8 @@ export const LANE_OP_TYPES = {
   'host.repositories.remove': true,
   'host.repositories.createFolder': true,
   'provider.login': true,
+  'machine.task': true,
+  'claude.account': true,
   'terminal.create': true,
   'terminal.resize': true,
   'terminal.kill': true,

@@ -298,6 +298,7 @@ describe('public inventory', () => {
     expectTypeOf<GrantIssueRequest>().toEqualTypeOf<{
       readonly hostId: string
       readonly clientId: string
+      readonly configure?: true
     }>()
     expectTypeOf<GrantIssueResponse>().toEqualTypeOf<{
       readonly grant: string

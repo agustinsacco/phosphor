@@ -35,7 +35,10 @@ async function transcript() {
   const dir = await mkdtemp(join(tmpdir(), 'phosphor-service-'))
   cleanups.push(() => rm(dir, { recursive: true, force: true }))
   const path = join(dir, 'session.jsonl')
-  await writeFile(path, '{}\n')
+  await writeFile(
+    path,
+    JSON.stringify({ type: 'session', version: 3, id: 'fixture-session', cwd: dir }) + '\n',
+  )
   return { dir, path }
 }
 

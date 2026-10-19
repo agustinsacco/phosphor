@@ -23,14 +23,17 @@ export function alive(state: TerminalState, laneId: string) {
 }
 export function kill(state: TerminalState, entry: Entry, exitCode = FORCED_EXIT_CODE) {
   const pty = entry.pty
+  const wasRunning = entry.status === 'running'
   entry.pty = undefined
   entry.status = 'exited'
-  entry.login?.finish({ code: null })
+  entry.login?.finish({
+    code: entry.login.configuration && exitCode !== FORCED_EXIT_CODE ? exitCode : null,
+  })
   if (entry.login) {
     entry.chunks = []
     entry.outputBytes = 0
   }
-  if (pty) {
+  if (pty || wasRunning) {
     entry.exitCode = exitCode
     emit(entry, {
       type: 'terminal.exit',
@@ -71,7 +74,17 @@ export function close(state: TerminalState) {
     entry.listeners.clear()
   }
 }
+export function authorizationChanged(state: TerminalState) {
+  for (const [id, entry] of state.entries) {
+    if (entry.login?.configuration && entry.login.authorized && !entry.login.authorized()) {
+      kill(state, entry)
+      entry.listeners.clear()
+      state.entries.delete(id)
+    }
+  }
+}
 export function presence(state: TerminalState, owner: string, connected: boolean, revoked = false) {
+  authorizationChanged(state)
   for (const [id, entry] of state.entries) {
     if (entry.login?.owner !== owner) continue
     if (revoked) {

@@ -14,6 +14,7 @@ import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { HostAttachments } from '../../features/attachments'
 import type { WriteOutcome } from '../../features/writes'
 import type { ProviderLogins } from '../../providers/login'
+import type { MachineTasks } from '../../settings/tasks'
 import type { HostRuntime } from '../../session/runtime'
 import type { HostTerminals } from '../../terminals/service'
 import type { LaneSessions } from '../create'
@@ -30,6 +31,12 @@ export interface LaneCommandClient {
   caps: readonly HostCapability[]
 }
 export interface LaneCommandPorts {
+  moveClaudeAccount?: (
+    laneId: string,
+    accountId: string,
+    authorized: () => boolean,
+  ) => Promise<void>
+  machineTasks?: Pick<MachineTasks, 'execute'>
   repositories?: {
     execute(
       op: RepositoryOp,
@@ -40,7 +47,7 @@ export interface LaneCommandPorts {
     op: DeleteLaneOp,
     allowed: () => boolean,
   ) => Promise<{ ok: true; data: { branchKept: boolean } } | { ok: false; code: RejectCode }>
-  providerLogins?: ProviderLogins
+  providerLogins?: Pick<ProviderLogins, 'execute'>
   attachments?: HostAttachments
   terminals?: HostTerminals
   store: HostStore

@@ -4,6 +4,46 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./claude/auth-status": {
+      "types": "./src/claude/auth-status.ts",
+      "default": "./src/claude/auth-status.ts"
+    },
+    "./claude/account-lifecycle": {
+      "types": "./src/claude/account-lifecycle.ts",
+      "default": "./src/claude/account-lifecycle.ts"
+    },
+    "./claude/account-ports": {
+      "types": "./src/claude/account-ports.ts",
+      "default": "./src/claude/account-ports.ts"
+    },
+    "./claude/account-routing": {
+      "types": "./src/claude/account-routing.ts",
+      "default": "./src/claude/account-routing.ts"
+    },
+    "./claude/account-state": {
+      "types": "./src/claude/account-state.ts",
+      "default": "./src/claude/account-state.ts"
+    },
+    "./claude/account-usage": {
+      "types": "./src/claude/account-usage.ts",
+      "default": "./src/claude/account-usage.ts"
+    },
+    "./claude/accounts": {
+      "types": "./src/claude/accounts.ts",
+      "default": "./src/claude/accounts.ts"
+    },
+    "./claude/routing": {
+      "types": "./src/claude/routing.ts",
+      "default": "./src/claude/routing.ts"
+    },
+    "./claude/usage": {
+      "types": "./src/claude/usage.ts",
+      "default": "./src/claude/usage.ts"
+    },
+    "./pi/mcp-config": {
+      "types": "./src/pi/mcp-config.ts",
+      "default": "./src/pi/mcp-config.ts"
+    },
     "./pi/machine-prompt": {
       "types": "./src/pi/machine-prompt.ts",
       "default": "./src/pi/machine-prompt.ts"
@@ -88,6 +128,10 @@
       "types": "./src/pi/provider-detect.ts",
       "default": "./src/pi/provider-detect.ts"
     },
+    "./pi/resume-provider": {
+      "types": "./src/pi/resume-provider.ts",
+      "default": "./src/pi/resume-provider.ts"
+    },
     "./pi/rpc-client": {
       "types": "./src/pi/rpc-client.ts",
       "default": "./src/pi/rpc-client.ts"
@@ -119,6 +163,14 @@
     "./pi/session-path-lock": {
       "types": "./src/pi/session-path-lock.ts",
       "default": "./src/pi/session-path-lock.ts"
+    },
+    "./pi/session-account": {
+      "types": "./src/pi/session-account.ts",
+      "default": "./src/pi/session-account.ts"
+    },
+    "./pi/session-provider": {
+      "types": "./src/pi/session-provider.ts",
+      "default": "./src/pi/session-provider.ts"
     },
     "./pi/session-policy": {
       "types": "./src/pi/session-policy.ts",

@@ -1,5 +1,13 @@
-import { parseProviderLoginOp } from '@shared/host-protocol-providers'
-import { randomUUID } from 'node:crypto'
+import { createMachinePrograms } from './machine-programs'
+import {
+  createTerminalEntry,
+  type TerminalConnection as Connection,
+  type TerminalLane,
+  type RemoteTerminalEntry as Entry,
+  type TerminalAdmission,
+} from './terminal-state'
+
+export type { TerminalLane } from './terminal-state'
 import {
   parseTerminalCreated,
   parseTerminalList,
@@ -8,39 +16,7 @@ import {
   terminalBytes,
 } from '@shared/host-protocol-terminals'
 import type { IpcInvokeChannel } from '@shared/ipc'
-import type { createHostConnection } from './connection'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
-
-type Connection = ReturnType<typeof createHostConnection>
-export interface TerminalLane {
-  machine?: boolean
-  hostId: string
-  laneId: string
-  connection: Connection
-  current: () => boolean
-}
-type Entry = {
-  id: string
-  windowId: number
-  sessionId: string
-  workspace: string
-  lane: TerminalLane
-  terminalId: string
-  epoch: string
-  generation: number
-  inputSeq: number
-  cursor?: { epoch: string; seq: number }
-  synchronized: boolean
-  resetVersion: number
-  killing?: boolean
-  killBusy?: boolean
-  ended: boolean
-  busy: boolean
-  pending: { data: string; resolve: () => void; reject: (error: Error) => void }[]
-  pendingBytes: number
-  dropVersion: number
-  watch?: ReturnType<Connection['watchTerminal']>
-}
 
 /** Main owns identities and input sequencing. Input never enters the receipt replay queue. */
 export function createRemoteTerminals(ports: {
@@ -51,7 +27,7 @@ export function createRemoteTerminals(ports: {
   emit: (windowId: number, channel: string, value: string | number) => void
 }) {
   const entries = new Map<string, Entry>()
-  const admissions = new Set<{ windowId: number; cancelled: boolean }>()
+  const admissions = new Set<TerminalAdmission>()
   function dropPending(e: Entry) {
     if (!e.pending.length) return
     e.dropVersion++
@@ -67,7 +43,8 @@ export function createRemoteTerminals(ports: {
       e.lane.current() &&
       c.incarnation().runtimeEpoch === e.epoch &&
       c.snapshot().state === 'ready' &&
-      c.snapshot().capabilities.includes('terminal')
+      c.snapshot().capabilities.includes('terminal') &&
+      (!e.lane.configuration || c.snapshot().capabilities.includes('machine.configure'))
     )
   }
   function control(lane: TerminalLane) {
@@ -229,9 +206,7 @@ export function createRemoteTerminals(ports: {
         throw new Error(REMOTE_UNAVAILABLE)
       return { ptyId: existing.id }
     }
-    const id = `remote-pty-${randomUUID()}`
-    entries.set(id, {
-      id,
+    const entry = createTerminalEntry({
       windowId,
       sessionId,
       workspace,
@@ -239,85 +214,18 @@ export function createRemoteTerminals(ports: {
       terminalId,
       epoch: incarnation.runtimeEpoch,
       generation: incarnation.generation,
-      inputSeq: 0,
-      synchronized: false,
-      resetVersion: 0,
-      ended: false,
-      busy: false,
-      pending: [],
-      pendingBytes: 0,
-      dropVersion: 0,
     })
-    return { ptyId: id }
+    entries.set(entry.id, entry)
+    return { ptyId: entry.id }
   }
 
-  function machine(hostId: string): TerminalLane {
-    const c = ports.connection?.(hostId)
-    if (!c || c.snapshot().state !== 'ready') throw new Error(REMOTE_UNAVAILABLE)
-    return {
-      hostId,
-      laneId: '',
-      connection: c,
-      machine: true,
-      current: () => ports.connection?.(hostId) === c,
-    }
-  }
-  async function signIn(windowId: number, hostId: string, provider: string) {
-    const lane = machine(hostId)
-    const c = lane.connection
-    const incarnation = c.incarnation()
-    const op = parseProviderLoginOp({ type: 'provider.login', provider })
-    if (
-      !op ||
-      !control(lane) ||
-      !c.snapshot().capabilities.includes('terminal') ||
-      entries.size + admissions.size >= TERMINAL_LIMITS.perHost * 32
-    )
-      throw new Error(REMOTE_UNAVAILABLE)
-    const admission = { windowId, cancelled: false }
-    admissions.add(admission)
-    let result
-    try {
-      result = await c.send(op)
-    } finally {
-      admissions.delete(admission)
-    }
-    const created = result.status === 'done' ? parseTerminalCreated(result.data) : null
-    if (!created) throw new Error('Sign-in not confirmed. Refresh before trying again.')
-    const unavailable =
-      !lane.current() ||
-      c.snapshot().state !== 'ready' ||
-      !control(lane) ||
-      !c.snapshot().capabilities.includes('terminal') ||
-      c.incarnation().runtimeEpoch !== incarnation.runtimeEpoch ||
-      admission.cancelled
-    const id = `remote-pty-${randomUUID()}`
-    entries.set(id, {
-      id,
-      windowId,
-      sessionId: '',
-      workspace: '',
-      lane,
-      terminalId: created.terminalId,
-      epoch: incarnation.runtimeEpoch,
-      generation: incarnation.generation,
-      inputSeq: 0,
-      synchronized: false,
-      resetVersion: 0,
-      ended: false,
-      busy: false,
-      pending: [],
-      pendingBytes: 0,
-      dropVersion: 0,
-    })
-    if (unavailable) {
-      const e = entries.get(id)!
-      e.killing = true
-      await flushKill(e)
-      throw new Error(REMOTE_UNAVAILABLE)
-    }
-    return { ptyId: id }
-  }
+  const programs = createMachinePrograms({
+    connection: ports.connection,
+    control,
+    entries,
+    admissions,
+    flushKill,
+  })
   function attach(windowId: number, id: string): Promise<{ scrollback: string }> {
     const e = owned(windowId, id)
     e.watch?.close()
@@ -464,6 +372,16 @@ export function createRemoteTerminals(ports: {
   }
   function reconcile() {
     for (const [id, e] of entries) {
+      if (
+        e.lane.configuration &&
+        !e.lane.connection.snapshot().capabilities.includes('machine.configure')
+      ) {
+        dropPending(e)
+        e.watch?.close()
+        entries.delete(id)
+        ports.emit(e.windowId, `pty:exit:${id}`, -1)
+        continue
+      }
       if (e.killing) {
         void flushKill(e)
         continue
@@ -486,7 +404,8 @@ export function createRemoteTerminals(ports: {
     }
   }
   return {
-    signIn,
+    signIn: programs.signIn,
+    task: programs.task,
     reconcile,
     clear(windowId?: number) {
       for (const a of admissions)

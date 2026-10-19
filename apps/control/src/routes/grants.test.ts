@@ -6,7 +6,7 @@ import {
   parseHeartbeatResponse,
   isPublicKey,
 } from '@phosphor/shared/control-api'
-import { HOST_CAPABILITIES } from '@phosphor/shared/remote-host'
+import { LEGACY_HOST_CAPABILITIES } from '@phosphor/shared/remote-host'
 import { checkGrantClaims, parseGrantKeySet, splitGrant } from '@phosphor/shared/host-grant'
 import { createApp } from '../app'
 import { parseConfig } from '../config'
@@ -80,7 +80,7 @@ it('issues exactly the signed claims and publishes the matching public key, neve
     hostId: s.hostId,
     epoch: 2,
     client: { id: s.clientId, label: 'Desktop' },
-    caps: HOST_CAPABILITIES,
+    caps: LEGACY_HOST_CAPABILITIES,
     iat,
     exp: iat + 300,
     jti: expect.stringMatching(/^[0-9a-f]{16}$/),
@@ -315,4 +315,23 @@ it('delivers bounded revocations on heartbeat and keeps accepted beats on revoca
     }),
   )
   expect(JSON.stringify(vi.mocked(s.deps.log).mock.calls)).not.toContain(s.seed)
+})
+
+it('adds machine configuration only for an explicit owner-authorized request, without changing the legacy capability array', async () => {
+  const s = setup()
+  const res = await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId, configure: true })
+  expect(res.status).toBe(200)
+  const response = parseGrantIssueResponse(await res.json())
+  if (!response.ok) throw new Error('Invalid response')
+  const grant = splitGrant(response.value.grant)
+  if (!grant.ok) throw new Error('Invalid grant')
+  expect(grant.value.payload.configure).toBe(true)
+  expect(grant.value.payload.caps).toEqual(LEGACY_HOST_CAPABILITIES)
+  expect(grant.value.payload.caps).not.toContain('machine.configure')
+  const invalid = await s.call(R.grants, {
+    hostId: s.hostId,
+    clientId: s.clientId,
+    configure: 'true',
+  })
+  expect(invalid.status).toBe(400)
 })

@@ -2,6 +2,13 @@ import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
 import type { MachineClaude, MachineModel, MachineProvider } from '../host-protocol-machine'
 import type { SkillsListResult } from '../skills'
+import type {
+  MachineSettings,
+  MachineSettingsPatch,
+  MachineSettingsSection,
+  MachineTaskOp,
+} from '../machine-settings'
+import type { ProviderLoginOp } from '../host-protocol-providers'
 import type { LiveSessionInfo } from '../models'
 import type { HostsSnapshot, TrafficPage, RemoteLaneCreate } from './views'
 
@@ -21,7 +28,26 @@ export interface HostsInvokeMap {
     result: FileRead
   }
   'hosts:skills': { args: [hostId: string]; result: SkillsListResult }
-  'hosts:providerLogin': { args: [hostId: string, provider: string]; result: { ptyId: string } }
+  'hosts:providerLogin': {
+    args: [
+      hostId: string,
+      provider: string,
+      account?: Pick<ProviderLoginOp, 'accountId' | 'addAccount' | 'configure'>,
+    ]
+    result: { ptyId: string }
+  }
+  'hosts:settingsAccess': { args: [hostId: string]; result: void }
+  'hosts:settingsRead': {
+    args: [hostId: string, section: MachineSettingsSection, repositoryId?: string]
+    result: MachineSettings
+  }
+  'hosts:claudeAccount': { args: [hostId: string, laneId: string, accountId: string]; result: void }
+  'hosts:settingsCheck': { args: [hostId: string, repositoryId?: string]; result: MachineSettings }
+  'hosts:settingsPatch': {
+    args: [hostId: string, patch: MachineSettingsPatch]
+    result: MachineSettings
+  }
+  'hosts:machineTask': { args: [hostId: string, task: MachineTaskOp]; result: { ptyId: string } }
   'hosts:uploadAttachments': {
     args: [sessionId: string, files: { name: string; mime: string; data: string }[]]
     result: string[]

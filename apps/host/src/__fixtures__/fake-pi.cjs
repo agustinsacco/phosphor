@@ -196,18 +196,36 @@ const respond = (cmd, data) =>
   out({ id: cmd.id, type: 'response', command: cmd.type, success: true, data })
 const fail = (cmd, error) =>
   out({ id: cmd.id, type: 'response', command: cmd.type, success: false, error })
-const text = (value) => ({ role: 'assistant', content: [{ type: 'text', text: value }] })
+const text = (value) => ({
+  role: 'assistant',
+  ...(session.model && { provider: session.model.provider, model: session.model.id }),
+  content: [{ type: 'text', text: value }],
+})
 
+// Keep the legacy model-less fixture unchanged; explicit-model sessions model
+// pi's durable provider restoration so account-affinity tests exercise startup.
+if (flag('--model')) {
+  session.model = {
+    provider: process.env.PI_FAKE_PROVIDER ?? flag('--provider') ?? 'fake',
+    id: process.env.PI_FAKE_MODEL ?? flag('--model'),
+  }
+}
 const persist = (message) => persistence.persist(session, message)
 const turns = createTurns(session, { cwd: process.cwd(), out, persist, text })
 
 function initialState() {
   return {
     model: {
-      ...models.find((model) => model.provider === (flag('--provider') ?? 'fake')),
+      ...models.find(
+        (model) => model.provider === (session.model?.provider ?? flag('--provider') ?? 'fake'),
+      ),
       // Like pi, it takes --provider only together with --model.
-      provider: process.env.PI_FAKE_PROVIDER ?? (flag('--model') && flag('--provider')) ?? 'fake',
-      id: process.env.PI_FAKE_MODEL ?? flag('--model') ?? 'fake-model',
+      provider:
+        process.env.PI_FAKE_PROVIDER ??
+        session.model?.provider ??
+        (flag('--model') && flag('--provider')) ??
+        'fake',
+      id: process.env.PI_FAKE_MODEL ?? session.model?.id ?? flag('--model') ?? 'fake-model',
       contextWindow: flag('--provider') === 'anthropic' ? 100000 : 200000,
     },
     thinkingLevel: flag('--thinking') ?? 'off',

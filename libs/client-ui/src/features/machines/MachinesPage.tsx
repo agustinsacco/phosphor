@@ -16,6 +16,8 @@ import { HealthBadge } from './HealthBadge'
 import { LocalMachineDetail, useThisComputer } from './LocalMachine'
 import { HostGuide, HostSetup } from './MachineControls'
 import { MachineDetail } from './MachineDetail'
+import { MachineSettings } from './MachineSettings'
+import { confirmSettingsNavigation } from './machineSettingsDrafts'
 import { MachineList } from './MachineList'
 import { machineHeadline } from './machineReachability'
 import { LOCAL_MACHINE } from './machinePresentation'
@@ -68,9 +70,14 @@ export function MachinesPage(): React.JSX.Element {
   const machine = state.machines.find((entry) => entry.id === selected)
   const local = selected === LOCAL_MACHINE
   const now = state.nowMs || Date.now()
-  const back = (): void => {
-    state.show({ kind: 'list' })
-    setError(null)
+  const back = async (): Promise<void> => {
+    try {
+      if (selected && !(await confirmSettingsNavigation(selected))) return
+      state.show({ kind: 'list' })
+      setError(null)
+    } catch {
+      if (live.current) setError('Could not leave settings. Try again.')
+    }
   }
   async function remove(): Promise<void> {
     if (!removing || busy) return
@@ -89,7 +96,7 @@ export function MachinesPage(): React.JSX.Element {
       }
       if (result.ok || result.error.code === 'not-found') {
         setRemoving(null)
-        back()
+        await back()
         setNotice(result.ok ? 'Machine removed.' : 'That machine was already removed.')
         await state.refresh()
       } else setError(controlMessage(result.error.code))
@@ -126,7 +133,7 @@ export function MachinesPage(): React.JSX.Element {
               <TooltipButton
                 tooltip="Back to all machines"
                 className="text-text-secondary hover:text-text -mb-2 text-base"
-                onClick={back}
+                onClick={() => void back()}
               >
                 ← Machines
               </TooltipButton>
@@ -222,9 +229,53 @@ export function MachinesPage(): React.JSX.Element {
               <LocalMachineDetail computer={computer} />
             ) : machine && signedIn ? (
               <MachineDetail
+                key={machine.id}
                 machine={machine}
                 now={now}
                 offset={state.clockOffsetMs}
+                navigation={
+                  <nav aria-label="Machine views" className="border-border flex gap-5 border-b">
+                    <TooltipButton
+                      tooltip="Machine readiness and diagnostics"
+                      aria-current={
+                        state.view.kind === 'machine' && !state.view.settings ? 'page' : undefined
+                      }
+                      className={`pb-2 text-base ${state.view.kind === 'machine' && !state.view.settings ? 'border-accent border-b-2' : 'text-text-secondary'}`}
+                      onClick={() => {
+                        void confirmSettingsNavigation(machine.id)
+                          .then((allowed) => {
+                            if (allowed) state.show({ kind: 'machine', id: machine.id })
+                          })
+                          .catch(() => setError('Could not leave settings. Try again.'))
+                      }}
+                    >
+                      Overview
+                    </TooltipButton>
+                    <TooltipButton
+                      tooltip={`Configure ${machine.label}`}
+                      aria-label="Machine settings"
+                      aria-current={
+                        state.view.kind === 'machine' && state.view.settings ? 'page' : undefined
+                      }
+                      className={`pb-2 text-base ${state.view.kind === 'machine' && state.view.settings ? 'border-accent border-b-2' : 'text-text-secondary'}`}
+                      onClick={() => {
+                        if (state.view.kind === 'machine' && state.view.settings) return
+                        state.show({ kind: 'machine', id: machine.id, settings: 'providers' })
+                      }}
+                    >
+                      Settings
+                    </TooltipButton>
+                  </nav>
+                }
+                settings={
+                  state.view.kind === 'machine' && state.view.settings ? (
+                    <MachineSettings
+                      key={machine.id}
+                      machine={machine}
+                      section={state.view.settings}
+                    />
+                  ) : undefined
+                }
                 onRemove={() => {
                   setError(null)
                   setRemoving(machine)
@@ -239,7 +290,7 @@ export function MachinesPage(): React.JSX.Element {
                       : 'This machine is no longer in your account.'
                     : 'Sign in again to see this machine.'}
                 </span>
-                <Button onClick={back}>All machines</Button>
+                <Button onClick={() => void back()}>All machines</Button>
               </div>
             )}
           </div>

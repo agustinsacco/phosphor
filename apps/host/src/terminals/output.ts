@@ -11,7 +11,13 @@ export function emit(entry: Entry, frame: TerminalFrame) {
   }
 }
 export function output(state: TerminalState, entry: Entry, data: string) {
-  if (entry.login && (state.closed || entry.status !== 'running')) return
+  if (
+    entry.login &&
+    (state.closed ||
+      entry.status !== 'running' ||
+      (entry.login.configuration && entry.login.authorized?.() === false))
+  )
+    return
   // Split on Unicode codepoints, not UTF-16 halves or UTF-8 continuation bytes.
   let text = ''
   let bytes = 0

@@ -7,6 +7,8 @@ import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 import { info, pass, warn, type Check } from '../checks'
 import type { HostConfigV1 } from '../config/schema'
 import { checkClaudeLane, type ClaudeLane } from '../machine/claude'
+import { readHostClaudeEnvironment } from '../providers/accounts'
+import { hostStateDirectory } from '../lanes/state-dir'
 import type { PiEnvironment } from '../machine/environment'
 import { checkGit, resolvePi } from '../machine/executables'
 import { checkProviders, type ProviderState } from '../machine/providers'
@@ -68,9 +70,24 @@ export async function inspectClaude(
   let claudeLane: ClaudeLane | null = null
   if (native.available) {
     try {
-      const lane = await checkClaudeLane(await listPackages(), environment, {
-        timeoutMs: context.probeTimeoutMs,
-      })
+      let accountEnv: Record<string, string>
+      try {
+        accountEnv = readHostClaudeEnvironment({
+          directory: hostStateDirectory(context.env, context.home),
+          home: context.home,
+          env: environment.env,
+        })
+      } catch (error) {
+        return {
+          claude: unavailable(`Claude readiness could not be verified: ${errorText(error)}`),
+          claudeLane,
+        }
+      }
+      const lane = await checkClaudeLane(
+        await listPackages(undefined, piAgentDir(environment.env, context.home)),
+        { ...environment, env: { ...environment.env, ...accountEnv } },
+        { timeoutMs: context.probeTimeoutMs },
+      )
       claudeLane = lane
       claude = lane.available
         ? { available: true, detail: `${lane.claude} ${lane.version}, logged in` }

@@ -1,4 +1,5 @@
 import { realpathSync } from 'node:fs'
+import { claudeAccountEnv } from '@phosphor/session-runtime/claude/routing'
 import { DEFAULT_AGENT_DIRECTIVES, type SessionPush } from '@phosphor/shared/models'
 import { errorText } from '@phosphor/shared/errors'
 import type { ExtensionUIRequest } from '@phosphor/shared/rpc'
@@ -25,7 +26,7 @@ const NO_ROUTINES = {
 }
 
 export function wireRuntimeStartup(state: RuntimeState) {
-  const { machine, options, roots, machineContext, registry, budget } = state
+  const { machine, options, roots, machineContext, registry, budget, agentDir, accounts } = state
   return createSessionStartup({
     registry,
     log: machine.log.write,
@@ -48,9 +49,13 @@ export function wireRuntimeStartup(state: RuntimeState) {
         agentDirectives: DEFAULT_AGENT_DIRECTIVES,
         agentDirectivesByProject: {},
       }),
-      defaultProvider: async (cwd) => (await readAgentSettings(cwd)).defaultProvider,
-      packages: listPackages,
-      account: async () => null,
+      defaultProvider: async (cwd) => (await readAgentSettings(cwd, agentDir)).defaultProvider,
+      packages: (cwd) => listPackages(cwd, agentDir),
+      account: async (selection) => {
+        const account = await options.claudeAccounts?.accountForSpawn(selection)
+        return account ? { id: account.id, env: claudeAccountEnv(account) } : null
+      },
+      strictAccountSelection: true,
       compressionEnvironment: () => ({}),
       resetCompaction: async () => {},
     },
@@ -59,7 +64,7 @@ export function wireRuntimeStartup(state: RuntimeState) {
       read: () => machine.contextBudget,
       paused: (id) => options.routines?.owns(id) ?? false,
     },
-    accounts: { remember: () => {}, forget: () => {}, hold: async () => {} },
+    accounts,
     recordWorkspace: () => {},
   })
 }
@@ -108,12 +113,13 @@ export function wireRuntimeService(
     registry,
     paths,
     spawn: (spawnOptions, delivery = ignore, execution) => {
+      if (state.authorization.getStore()?.() === false) throw new Error('Lane control changed.')
       // A resumed session handed back without spawning must be refused by start.
       started.add(delivery)
       return spawn(spawnOptions, (id) => deliverySink(state, id, delivery), execution)
     },
     isStub: () => false,
-    packages: listPackages,
+    packages: (cwd) => listPackages(cwd, state.agentDir),
     readBudget: () => machine.contextBudget,
     withBudgetCompaction: budget.withBudgetCompaction,
     forgetAccount: () => {},

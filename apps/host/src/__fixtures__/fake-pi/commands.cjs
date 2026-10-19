@@ -138,6 +138,7 @@ function setModel(ctx, cmd) {
   ctx.selectedModel = ctx.models.find(
     (model) => model.provider === cmd.provider && model.id === cmd.modelId,
   ) ?? { provider: cmd.provider, id: cmd.modelId, contextWindow: 200000 }
+  persistence.setModel(ctx.session, ctx.selectedModel)
   return ctx.respond(cmd, ctx.selectedModel)
 }
 

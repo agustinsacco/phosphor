@@ -7,14 +7,23 @@ export function subscribe(
   frame: TerminalSubscribe,
   send: (frame: TerminalFrame) => void,
   clientId?: string,
+  configuration: () => boolean = () => false,
 ): (() => void) | null {
   const { entries, options } = state
   if (state.closed) return null
   reap()
   const entry = entries.get(frame.terminalId)
-  if (!entry || (entry.login && entry.login.owner !== clientId)) return null
+  if (
+    !entry ||
+    (entry.login?.configuration && (!configuration() || entry.login.authorized?.() === false)) ||
+    (entry.login && entry.login.owner !== clientId)
+  )
+    return null
   if (entry.login && entry.status === 'running') entry.login.disconnectedAt = undefined
-  const deliver = (f: TerminalFrame) => send({ ...f, ...('id' in f ? { id: frame.id } : {}) })
+  const deliver = (f: TerminalFrame) => {
+    if (!entry.login?.configuration || (configuration() && entry.login.authorized?.() !== false))
+      send({ ...f, ...('id' in f ? { id: frame.id } : {}) })
+  }
   entry.listeners.add(deliver)
   const after = frame.after
   if (

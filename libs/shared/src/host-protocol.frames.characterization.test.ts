@@ -486,6 +486,8 @@ const OPS = [
   [{ type: 'host.repositories.remove', repositoryId: REPO }, { repositoryId: 'x' }],
   [{ type: 'host.repositories.createFolder', path: 'src/new' }, { path: '' }],
   [{ type: 'provider.login', provider: 'anthropic' }, { provider: '-x' }],
+  [{ type: 'machine.task', task: 'claude.installProvider' }, { task: 'bad' }],
+  [{ type: 'claude.account', accountId: 'default' }, { accountId: 'bad' }],
   [{ type: 'terminal.create', cols: 2, rows: 1 }, { cols: 1 }],
   [{ type: 'terminal.resize', terminalId: TERM, cols: 1000, rows: 1000 }, { rows: 1001 }],
   [{ type: 'terminal.kill', terminalId: TERM }, { terminalId: 'bad' }],
@@ -509,11 +511,11 @@ const OPS = [
 const everyOpType: Record<Exclude<LaneOpType, (typeof OPS)[number][0]['type']>, never> = {}
 /** Families whose parsers allow exactly their own keys, so an unknown field refuses the op. */
 const EXACT_KEY_OPS =
-  /^(lane\.delete|host\.repositories\.|provider\.|terminal\.|routine\.|files\.|attachments\.)/
+  /^(lane\.delete|claude\.account|machine\.|host\.repositories\.|provider\.|terminal\.|routine\.|files\.|attachments\.)/
 /** Families absent from the receipt-code allowlist: an invalid one is unsupported, not bad-request. */
 const UNLISTED_OPS = /^(files|attachments)\./
 /** Families that never carry a lane id or fence. */
-const LANELESS_OPS = /^(host\.repositories|provider|routine)\./
+const LANELESS_OPS = /^(host\.repositories|provider|routine|machine)\./
 
 const rows = (table: Readonly<Record<string, Readonly<Record<string, Variant<object>>>>>) =>
   Object.entries(table).flatMap(([type, variants]) =>
@@ -573,7 +575,8 @@ describe('parseClientFrame operation families', () => {
     expect(new Set(opRows.map((row) => row.type)).size).toBe(opRows.length)
   })
   it.each(opRows)('accepts command op $type unchanged', ({ op }) => {
-    expect(command(op)).toStrictEqual(accepted(op))
+    const fields = op.type === 'claude.account' ? { laneId: LANE, fence: 7 } : {}
+    expect(command(op, fields)).toStrictEqual(accepted(op, fields))
   })
   it.each(opRows)(
     'command op $type: an unknown field refuses it: $exact',
@@ -588,7 +591,10 @@ describe('parseClientFrame operation families', () => {
     for (const fields of [{ laneId: LANE }, { fence: 7 }, { laneId: LANE, fence: 7 }]) {
       const refused = receiptReply('bad-request')
       expect(command(row.op, fields)).toStrictEqual(
-        row.laneless ? refused : accepted(row.op, fields),
+        row.laneless ||
+          (row.op.type === 'claude.account' && (!('laneId' in fields) || !('fence' in fields)))
+          ? refused
+          : accepted(row.op, fields),
       )
     }
   })

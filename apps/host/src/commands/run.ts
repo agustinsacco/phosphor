@@ -1,12 +1,17 @@
 import { createRepositories } from '../features/repositories'
 import { createLaneDeletion, transcriptTrash } from '../lanes/delete'
-import { createProviderLogins } from '../providers/login'
+import type { HostClaudeAccounts } from '../providers/accounts'
+import {
+  createRunAccounts,
+  createRunAdministration,
+  createRunControllerPresence,
+  runReadiness,
+} from './run-administration'
 import { realpathSync } from 'node:fs'
 import { createAttachments, type HostAttachments } from '../features/attachments'
 import { loadHostPty } from '../terminals/native'
 import { createTerminals, type HostTerminals } from '../terminals/service'
 import { terminalState } from '../terminals/state'
-import { createWrites } from '../features/writes'
 import { createAuthority } from '../api/authority'
 import { startApi } from '../api/server'
 import { randomBytes, randomInt } from 'node:crypto'
@@ -31,7 +36,7 @@ import {
 import { identityDirectory, IdentityFailure } from '../control/identity'
 import { acquireIdentityLock } from '../control/lock'
 import { loadHostConfig } from '../config/load'
-import { checkReadiness, readinessPorts } from '../machine/readiness'
+import type { readinessPorts } from '../machine/readiness'
 import { SHUTDOWN_SIGNALS, type Drainable, type ShutdownSignal } from '../shutdown'
 import {
   launchdExit,
@@ -56,12 +61,7 @@ import type { LaneService } from '../lanes/service'
 import type { Receipt } from '@phosphor/shared/host-protocol'
 import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
 import { join } from 'node:path'
-import { createFilesFeature } from '../features/files'
-import { createGitFeature } from '../features/git'
-import { createArtifactsFeature } from '../features/artifacts'
-import { createSkillsFeature } from '../features/skills'
 import { createHostRoutines, routineOwnership, type HostRoutines } from '../routines/service'
-import type { FeatureContext } from '../features/feature'
 
 /**
  * Shutdown exits as soon as the attached drain ends. A drain that ended before
@@ -99,6 +99,8 @@ async function runHostCommand(context: RunContext): Promise<number> {
   let routines: HostRoutines | undefined
   let routinesStop: Promise<void> | undefined
   let nameLane: ReturnType<typeof createLaneNamer> | undefined
+  let claudeAccounts: HostClaudeAccounts | undefined
+  let activeLog: ReturnType<typeof createHostLog> | undefined
   let runtime: HostRuntime | undefined
   let runtimeDrain: ReturnType<HostRuntime['drain']> | undefined
   let live: ReturnType<typeof createLiveLanes> | undefined
@@ -204,7 +206,10 @@ async function runHostCommand(context: RunContext): Promise<number> {
       },
       exitCode: (_reason, clean) =>
         !clean ? 70 : later ? 128 + constants.signals[later] : (loop?.exitCode() ?? startupExit),
-      log: { write: () => {}, hide: () => 'The Host could not finish.' },
+      log: {
+        write: (...args) => activeLog?.write(...args),
+        hide: () => 'The Host could not finish.',
+      },
     })
     initialization = (async () => {
       initAbort.signal.throwIfAborted()
@@ -251,11 +256,14 @@ async function runHostCommand(context: RunContext): Promise<number> {
       if (inspection.machine) {
         const machine = inspection.machine
         const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
+        activeLog = log
         const trash = transcriptTrash(hostStateDirectory(context.env, context.home))
         await trash.sweep().catch(() => {})
+        claudeAccounts = createRunAccounts(context, stateDirectory, machine.env)
         runtime = createHostRuntime(
           { ...machine, log },
           {
+            claudeAccounts,
             dialogs: 'forward',
             trashTranscript: trash.move,
             routines: routineOwnership(async (id) => {
@@ -317,12 +325,6 @@ async function runHostCommand(context: RunContext): Promise<number> {
             },
             ...terminalState(stateDirectory),
           })
-        const featureContext: FeatureContext = {
-          store,
-          env: context.env,
-          home: context.home,
-          log: (event, fields) => log.write('host', event, fields),
-        }
         const activeRuntime = runtime
         const repositories = createRepositories({
           home: context.home,
@@ -338,18 +340,35 @@ async function runHostCommand(context: RunContext): Promise<number> {
             activeTopic.repositoriesChanged()
           },
         })
-        commands = createLaneCommands({
+        const administration = createRunAdministration({
+          context,
+          configPath: config.path,
+          env: machine.env,
+          pi: machine.pi,
+          store,
+          runtime: activeRuntime,
+          accounts: claudeAccounts,
+          terminals,
+          binding,
+          live,
           repositories,
+          routines,
+          log: log.write,
+        })
+        commands = createLaneCommands({
+          moveClaudeAccount: administration.moveClaudeAccount,
+          repositories,
+          machineTasks: administration.machineTasks,
           deleteLane: createLaneDeletion({
             store,
             stop: binding.deleteStop,
             remove: runtime.remove,
             forget: live.forget,
           }),
-          providerLogins: terminals ? createProviderLogins(context, terminals) : undefined,
+          providerLogins: administration.providerLogins,
           attachments,
           terminals,
-          writes: createWrites(featureContext),
+          writes: administration.writes,
           store,
           ...binding,
           runtime: binding,
@@ -362,16 +381,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           now: context.now ?? Date.now,
           log: log.write,
         })
-        const features = [
-          repositories.feature,
-          ...(terminals ? [terminals.feature] : []),
-          routines.feature,
-          createFilesFeature(featureContext),
-          createGitFeature(featureContext),
-          // Machine reads inspect the config this Host actually runs with, not the default path.
-          createSkillsFeature(featureContext, { configPath: config.path }),
-          createArtifactsFeature({ ...featureContext, store }),
-        ]
+        const features = administration.features()
         const calls = createLaneCalls({
           features,
           store,
@@ -381,8 +391,6 @@ async function runHostCommand(context: RunContext): Promise<number> {
           now: context.now ?? Date.now,
           log: log.write,
         })
-        const activeLive = live
-        const activeStore = store
         lanes = {
           terminals,
           epoch,
@@ -398,11 +406,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           calls,
           streams: live.streams,
           lanesTopic: live.lanesTopic,
-          controllerPresence(clientId) {
-            for (const lane of activeStore.listLanes())
-              if (lane.control.controller?.clientId === clientId)
-                activeLive.publish(lane.laneId, { kind: 'control', control: lane.control })
-          },
+          controllerPresence: createRunControllerPresence(store, live),
         }
         routines.start()
       } else context.log?.('host', 'lanes.unavailable', { reason: 'machine-unusable' })
@@ -455,19 +459,13 @@ async function runHostCommand(context: RunContext): Promise<number> {
         readiness:
           context.heartbeat?.readiness ??
           (() =>
-            checkReadiness(
-              config.config,
-              context.env,
-              context.platform,
-              context.heartbeat?.readinessPorts ?? readinessPorts,
-              (found) => {
-                endpoint = found.endpoint
-                if (routeState !== found.state) {
-                  routeState = found.state
-                  context.log?.('host', 'tailscale.endpoint', { state: found.state })
-                }
-              },
-            )),
+            runReadiness(config.config, context, claudeAccounts, (found) => {
+              endpoint = found.endpoint
+              if (routeState !== found.state) {
+                routeState = found.state
+                context.log?.('host', 'tailscale.endpoint', { state: found.state })
+              }
+            })),
         seq: context.heartbeat?.seq ?? createSequenceStore(directory, context.uid, identity.hostId),
         hostVersion: HOST_VERSION,
         signal: context.signal,

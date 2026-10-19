@@ -55,6 +55,8 @@ export interface HostConnectionView {
     | 'unsupported'
     | 'signed-out'
   hostVersion?: string
+  /** Host supports settings before this client requests configuration authority. */
+  configurationSupported?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: HostLaneView[]

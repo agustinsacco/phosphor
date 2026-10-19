@@ -63,6 +63,7 @@ function root(extra: Record<string, string> = {}): string {
 function native(target = HOST_TARGET): string {
   const files = {
     'TARGET.json': JSON.stringify({ target, node: NODE_PIN, version: '1.1.0' }),
+    'package.json': '{"private":true,"type":"commonjs"}\n',
     'lib/index.js': 'module.exports = {}\n',
     'build/Release/pty.node': 'addon',
     'build/Release/spawn-helper': 'helper',

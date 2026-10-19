@@ -205,6 +205,15 @@ describe('portable session policy', () => {
     ).rejects.toThrow('repair failed')
   })
 
+  it('refuses a Host spawn instead of silently selecting the default credential on account failure', async () => {
+    const runtime = { ...ports(), strictAccountSelection: true }
+    runtime.account.mockRejectedValue(new Error('account metadata unavailable'))
+    await expect(
+      prepareSessionPolicy({ workspacePath: '/repo' }, {}, launch, runtime),
+    ).rejects.toThrow('account metadata unavailable')
+    expect(runtime.resetCompaction).not.toHaveBeenCalled()
+  })
+
   it('keeps stub discovery/provider/proxy/repair bypasses and global custom directives', async () => {
     const runtime = ports()
     const prepared = await prepareSessionPolicy(

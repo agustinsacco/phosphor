@@ -89,6 +89,9 @@ export function createRuntimeOperations(
 ) {
   const { roots, machineContext, life, registry, options, timings } = state
   return {
+    withAuthorization: <T>(allowed: () => boolean, run: () => Promise<T>) =>
+      state.authorization.run(allowed, run),
+    accountForSession: state.accounts.accountForSession,
     replaceRoots(next: readonly string[]) {
       roots.splice(0, roots.length, ...next)
       machineContext.repositories = next.map((repository) => basename(repository))

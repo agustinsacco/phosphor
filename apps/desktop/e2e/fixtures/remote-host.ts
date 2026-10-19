@@ -11,7 +11,7 @@ import { watch } from 'node:fs'
 import { Transform } from 'node:stream'
 import { encodeGrant } from '../../../../libs/shared/src/host-grant'
 import type { RoutineInput } from '../../../../libs/shared/src/routines-types'
-import { HOST_CAPABILITIES } from '../../../../libs/shared/src/remote-host'
+import { LEGACY_HOST_CAPABILITIES } from '../../../../libs/shared/src/remote-host'
 import {
   parseHostFrame,
   parseClientFrame,
@@ -22,8 +22,24 @@ import {
 import { MACHINE } from '../../../../libs/client-ui/src/features/machines/__fixtures__/control'
 import { accountControlFixture } from './account-control'
 import { scratchDir } from './scratch'
+import { withHostNative } from './host-native.mjs'
+import { createHostFixtureBuilder } from './remote-host-build'
+import { installFixtureClaude } from './remote-host-claude'
+import { attachHostDiagnostics } from './remote-host-logs'
 
-let hostBuilt = false
+const hostProject = resolve(import.meta.dirname, '../../../..')
+const buildHostFixture = createHostFixtureBuilder({
+  build: (native) => {
+    execFileSync(
+      process.execPath,
+      [join(hostProject, 'apps/host/scripts/build.mjs'), ...(native ? ['--native', native] : [])],
+      { cwd: hostProject, stdio: 'pipe' },
+    )
+  },
+  native: async (build) => {
+    await withHostNative(build)
+  },
+})
 
 /** Real dev Host CLI, disposable owner identity, SQLite store and pi process. */
 /**
@@ -33,15 +49,10 @@ let hostBuilt = false
 export const REMOTE_TEST_TIMEOUT = process.env.CI ? 120_000 : 25_000
 
 export async function remoteHostFixture(
-  options: { allowRepositoryChanges?: boolean; claude?: boolean } = {},
+  options: { allowRepositoryChanges?: boolean; claude?: boolean; native?: boolean } = {},
 ) {
-  const project = resolve(import.meta.dirname, '../../../..')
-  if (!hostBuilt)
-    execFileSync(process.execPath, [join(project, 'apps/host/scripts/build.mjs')], {
-      cwd: project,
-      stdio: 'pipe',
-    })
-  hostBuilt = true
+  const project = hostProject
+  await buildHostFixture(!!options.native)
   const root = await scratchDir('phosphor-remote-')
   let h: Awaited<ReturnType<typeof accountControlFixture>> | undefined
   let child: ReturnType<typeof spawn> | undefined
@@ -155,6 +166,7 @@ export async function remoteHostFixture(
       if (!h) return
       const info = test.info()
       await info.attach('host.log', { body: hostOutput, contentType: 'text/plain' })
+      await attachHostDiagnostics(info, root)
       const desktopLog = await readFile(join(h.userData, 'logs', 'phosphor.log'), 'utf8').catch(
         () => '',
       )
@@ -191,7 +203,7 @@ export async function remoteHostFixture(
     const port = proxyAddress.port
     const endpoint = `https://127.0.0.1:${port}`
     const publicKey = hostKey.publicKey.export({ format: 'jwk' }).x
-    const mint = (clientId: string, label: string) => {
+    const mint = (clientId: string, label: string, configure = false) => {
       const iat = Math.floor(Date.now() / 1000)
       return encodeGrant(
         {
@@ -203,7 +215,8 @@ export async function remoteHostFixture(
           hostId,
           epoch: 1,
           client: { id: clientId, label },
-          caps: [...HOST_CAPABILITIES],
+          caps: [...LEGACY_HOST_CAPABILITIES],
+          ...(configure ? { configure: true } : {}),
           iat,
           exp: iat + 300,
           jti: randomBytes(8).toString('hex'),
@@ -251,7 +264,7 @@ export async function remoteHostFixture(
           typeof body.clientId === 'string'
         )
           return json({
-            grant: mint(body.clientId, 'Desktop'),
+            grant: mint(body.clientId, 'Desktop', 'configure' in body && body.configure === true),
             expiresAt: new Date(Date.now() + 300000).toISOString(),
             host: { id: hostId, endpoint, publicKey },
           })
@@ -271,14 +284,7 @@ export async function remoteHostFixture(
       '#!/bin/sh\necho \'{"BackendState":"Stopped"}\'\n',
       { mode: 0o700 },
     )
-    if (options.claude)
-      await writeFile(
-        join(root, 'bin', 'claude'),
-        `#!/bin/sh
-case "$1" in --version) echo 2.1.283 ;; auth) echo '{"loggedIn":true}' ;; esac
-`,
-        { mode: 0o700 },
-      )
+    if (options.claude) await installFixtureClaude(root)
     execFileSync('git', ['init', '-q', repo])
     const nonGit = join(root, 'notes')
     const addable = join(root, 'addable')
@@ -579,6 +585,9 @@ case "$1" in --version) echo 2.1.283 ;; auth) echo '{"loggedIn":true}' ;; esac
         return desktop.page
       },
       root,
+      hostId,
+      agent,
+      config,
       repo,
       nonGit,
       addable,

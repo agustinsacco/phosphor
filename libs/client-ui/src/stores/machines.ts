@@ -1,11 +1,13 @@
 import { machineStatus, type MachineView, type MachineStatus } from '@shared/control-api'
 import type { AccountView } from '@shared/account'
+import type { MachineSettingsSection } from '@shared/machine-settings'
 import type { DesktopControlErrorCode } from '@shared/ipc'
 import { create } from 'zustand'
 import { useLayoutStore } from './layout'
 
 /** Selected detail survives account and live-directory updates. */
-export type MachinesView = { kind: 'list' } | { kind: 'machine'; id: string }
+export type MachinesView =
+  { kind: 'list' } | { kind: 'machine'; id: string; settings?: MachineSettingsSection | 'folders' }
 
 interface MachinesState {
   machines: readonly MachineView[]

@@ -188,6 +188,9 @@ ceilings and its icon-declaration exemption to `client-ui`; `web` and
 debt are measured from commit `9dfff24b`, never from new integration code. `--strict` also fails remaining baseline debt;
 it is not CI's default while that debt exists.
 
+`npm run lint` gives typed ESLint an 8 GiB heap for its owning-project graphs;
+Node's default 4 GiB heap can exhaust before the complete audit finishes.
+
 Typed `no-floating-promises` and `no-misused-promises` are errors in every file
 a TS project owns: Desktop main/preload, every library, Host, Control and the
 Web app. Renderer raw-`piCommand`, `rules-of-hooks`, native-confirm, prompt and

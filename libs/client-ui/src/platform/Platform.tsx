@@ -8,6 +8,7 @@ export interface Platform {
   terminal: boolean
   scriptedArtifacts: boolean
   nativeFiles: boolean
+  machineSettings: boolean
 }
 export const DESKTOP_PLATFORM: Platform = Object.freeze({
   formFactor: 'expanded',
@@ -16,6 +17,7 @@ export const DESKTOP_PLATFORM: Platform = Object.freeze({
   terminal: true,
   scriptedArtifacts: true,
   nativeFiles: true,
+  machineSettings: true,
 })
 export const COMPACT_PLATFORM: Platform = Object.freeze({
   formFactor: 'compact',
@@ -24,6 +26,7 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   terminal: false,
   scriptedArtifacts: false,
   nativeFiles: false,
+  machineSettings: false,
 })
 const PlatformContext = createContext(DESKTOP_PLATFORM)
 export const PlatformProvider = PlatformContext.Provider

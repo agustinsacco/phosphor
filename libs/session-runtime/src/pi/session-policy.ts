@@ -2,7 +2,7 @@ import type { AppPrefs, CreateSessionOptions, GitInfo, PiPackageEntry } from '@s
 import { CONTEXT_FILES_ENV, contextFilesEnvValue } from '@shared/context-files'
 import type { MachineContext } from './machine-prompt'
 import { composeDirectives } from './directives'
-import { assertClaudeContextProvider, usesClaudeCliProvider } from './provider-detect'
+import { prepareProviderAccount } from './session-provider'
 import type { PiSpawnOptions } from './rpc-client'
 import type { prepareSessionLaunch } from './session-launch'
 
@@ -24,6 +24,8 @@ export interface SessionPolicyRuntime {
     id: string
     env: Record<string, string>
   } | null>
+  /** Hosts must not silently bill the default credential when configured account metadata fails. */
+  strictAccountSelection?: boolean
   compressionEnvironment: () => Record<string, string>
   resetCompaction: () => Promise<void>
 }
@@ -50,17 +52,7 @@ export async function prepareSessionPolicy(
       ? { charter: { branch: git.branch } }
       : {}),
   })
-  // Conservative prediction here; command admission also checks the resolved model.
-  const claudeProvider = stub
-    ? false
-    : usesClaudeCliProvider(options, await runtime.defaultProvider(options.workspacePath))
-  if (claudeProvider) assertClaudeContextProvider(await runtime.packages(options.workspacePath))
-  // Credential selection is fixed for the process lifetime, including resumed sessions.
-  const account = claudeProvider
-    ? await runtime
-        .account(options.sessionPath ? { sessionPath: options.sessionPath } : {})
-        .catch(() => null)
-    : null
+  const account = await prepareProviderAccount(options, stub, runtime)
   if (account) Object.assign(env, account.env)
   if (!stub) Object.assign(env, runtime.compressionEnvironment())
   // The lane's starting state for the bundled context-files filter, from an

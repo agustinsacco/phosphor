@@ -11,7 +11,15 @@ import type { HostPty, HostPtyModule } from './native'
 export const FORCED_EXIT_CODE = -1
 
 export type Entry = TerminalSummary & {
-  login?: { owner: string; disconnectedAt?: number; finish: (result: TerminalRun) => void }
+  login?: {
+    owner: string
+    configuration?: boolean
+    deferExit?: boolean
+    authorized?: () => boolean
+    nativeExitCode?: number
+    disconnectedAt?: number
+    finish: (result: TerminalRun) => void
+  }
   pty?: HostPty
   /** The code kill() reported, which a login's tombstone repeats. */
   exitCode?: number

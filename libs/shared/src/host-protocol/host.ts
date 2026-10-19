@@ -9,7 +9,7 @@ import {
   parseLanesFrame,
   parseRoutinesChangedFrame,
 } from './host-lanes'
-import { parseReadyFrame } from './host-ready'
+import { capabilities, parseReadyFrame } from './host-ready'
 import { parseReceipt, parseResultFrame } from './host-receipts'
 import { parseEventFrame, parseSnapshotFrame } from './host-snapshot'
 import { frameId, integer, member, readJson, text } from './primitives'
@@ -33,7 +33,14 @@ function hostFrame(v: Record<string, unknown>): HostFrame | null {
     case 'ready':
       return parseReadyFrame(v)
     case 'auth-renewed':
-      return isIsoTime(v.grantExpiresAt) ? { type: v.type, grantExpiresAt: v.grantExpiresAt } : null
+      return isIsoTime(v.grantExpiresAt) &&
+        (v.capabilities === undefined || capabilities(v.capabilities))
+        ? {
+            type: v.type,
+            grantExpiresAt: v.grantExpiresAt,
+            ...(v.capabilities ? { capabilities: v.capabilities } : {}),
+          }
+        : null
     case 'lanes':
       return parseLanesFrame(v)
     case 'routines-changed':

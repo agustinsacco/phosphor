@@ -91,6 +91,7 @@ const NATIVE_FILES = [
   'native/node-pty/build/Release/pty.node',
   'native/node-pty/build/Release/spawn-helper',
   'native/node-pty/lib/index.js',
+  'native/node-pty/package.json',
 ]
 
 let scratch: string
@@ -237,6 +238,7 @@ function nativeFolder(target = HOST_TARGET, omit: string[] = []): string {
   const native = mkdtempSync(join(scratch, 'native-'))
   const files: Record<string, string> = {
     'TARGET.json': JSON.stringify({ target, node: NODE_PIN, version: '1.1.0' }),
+    'package.json': '{"private":true,"type":"commonjs"}\n',
     'lib/index.js': 'module.exports = {}\n',
     'build/Release/pty.node': 'addon',
     'build/Release/spawn-helper': 'helper',

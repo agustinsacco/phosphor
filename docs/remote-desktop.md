@@ -359,17 +359,38 @@ and are never persisted. In-lane panes still belong to their lane.
 Folder browse/add/remove is owned by [remote workspace context](ui-shell.md#remote-workspace-context)
 and [Host repository management](host.md#repository-management-and-lane-deletion).
 
-## Provider sign-in
+## Machine settings and provider sign-in
 
-Machines Readiness opens a private Host login terminal for a provider that is
-not signed in. The Host runs the CLI's fixed provider login path, not a program
-chosen by Desktop. The machine-scoped command uses owner-only receipts and needs
-`terminal` plus `sessions.control`, rechecked before execution. Only the creating
-client can watch or operate this terminal, including after reconnect. Input is
-sequenced and never replayed after uncertainty. Login content and credentials
-are not logged, persisted by Phosphor or sent to control. PTYs are limited to
-one per provider and two per Host; they end on exit, grant/capability loss,
-shutdown, or ten disconnected minutes. See [provider login](host.md#providers-login).
+**Machines → a Host → Settings** configures that execution machine, not This Mac.
+The separate Overview keeps reachability, readiness, reconnect and diagnostics.
+The [settings contract](settings.md#host-machine-settings) owns the sections,
+review steps, scope, drafts and application timing. Desktop asks separately for
+signed configuration access; old Hosts retain their Readiness sign-in route.
+No remote failure mounts a local editor, synchronizes auth or queues a write.
+
+`electron/hosts/settings.ts` validates the requested section/folder, projects only
+reviewed fields, and refuses late results from a disconnected or replaced
+connection. Configuration-capability changes invalidate renderer read generations.
+Drafts retain non-secret edits per Host/folder; stale revisions cannot be saved.
+Unconfirmed writes and account moves are not automatically retried.
+
+The Host runs supported fixed CLI sign-in paths in an owner-private terminal.
+Settings programs require `machine.configure`, `terminal` and `sessions.control`,
+rechecked before execution and throughout private terminal access. Input is
+sequenced and never replayed after uncertainty. Login content, callback URLs and
+credentials never enter the control plane or metadata traffic log. The UI follows
+the CLI's browser/code instructions, including any Host-local loopback requirement.
+
+Configuration auth exits reach Desktop only after authoritative verification and
+account registration, not merely the CLI's printed success. Status is re-read on
+completion. Configuration programs have a fifteen-minute bound and are stopped
+when their admitted connection or configuration authority is lost; regranting
+access does not revive them. Desktop drops their private handles and pending input
+on authority loss. Cleanup kill remains allowed.
+
+Legacy Readiness sign-in still needs `terminal` plus `sessions.control`, with one
+PTY per provider and two per Host. Its existing ten-disconnected-minute grace is
+preserved. See [provider login](host.md#providers-login).
 
 ## Remote lane surface isolation
 

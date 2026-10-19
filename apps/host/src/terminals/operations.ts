@@ -103,14 +103,25 @@ export async function execute(
   }
   return null
 }
-export function input(state: TerminalState, clientId: string, raw: TerminalInput): boolean {
+export function input(
+  state: TerminalState,
+  clientId: string,
+  raw: TerminalInput,
+  configuration = false,
+): boolean {
   const { entries, options, now } = state
   if (state.closed) return false
   const frame = parseTerminalInput(raw)
   if (!frame) return false
   const entry = entries.get(frame.terminalId)
-  if (!entry || (!entry.login && !alive(state, entry.laneId)) || !entry.pty) return false
-  const lane = options.context.store.getLane(entry.laneId)
+  if (
+    !entry ||
+    (entry.login?.configuration && (!configuration || entry.login.authorized?.() === false)) ||
+    (!entry.login && !alive(state, entry.laneId)) ||
+    !entry.pty
+  )
+    return false
+  const lane = entry.login ? null : options.context.store.getLane(entry.laneId)
   if (
     (entry.login
       ? entry.login.owner !== clientId

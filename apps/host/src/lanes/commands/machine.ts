@@ -9,7 +9,7 @@ import { handled, NOT_MATCHED, type Routed } from './routing'
 import type { CommandState, Job, LaneCommandPorts, LaneQueue } from './state'
 
 export type MachinePorts = ReceiptPorts &
-  Pick<LaneCommandPorts, 'repositories' | 'routines' | 'providerLogins'> & {
+  Pick<LaneCommandPorts, 'repositories' | 'routines' | 'providerLogins' | 'machineTasks'> & {
     terminals?: Pick<HostTerminals, 'machineOp'>
   }
 
@@ -78,7 +78,12 @@ export function executeMachineTerminal(
   const { client, frame } = job
   const { requestId, laneId, op } = frame
   const terminalOp = parseTerminalOp(op)
-  if (op.type !== 'provider.login' && !(terminalOp && laneId === undefined)) return NOT_MATCHED
+  if (
+    op.type !== 'provider.login' &&
+    op.type !== 'machine.task' &&
+    !(terminalOp && laneId === undefined)
+  )
+    return NOT_MATCHED
   if (frame.fence !== undefined || laneId !== undefined) {
     rejected(state, ports, job, 'bad-request', true)
     return handled()
@@ -86,12 +91,18 @@ export function executeMachineTerminal(
   const completion = dispatch(state, ports, job, queue, async () => {
     // Recheck at dispatch; a missing port or refusal answers unknown, not forbidden.
     if (!allowed()) throw new TerminalForbidden('forbidden')
+    if (op.type === 'machine.task') {
+      if (!ports.machineTasks) throw new Error('unavailable')
+      return ports.machineTasks.execute(op, client.id, allowed)
+    }
     if (op.type === 'provider.login') {
       if (!ports.providerLogins) throw new Error('unavailable')
       return ports.providerLogins.execute(op, client.id, allowed)
     }
     if (!ports.terminals || !terminalOp) throw new Error('unavailable')
-    return ports.terminals.machineOp(client.id, terminalOp)
+    return (client.currentCaps?.() ?? client.caps).includes('machine.configure')
+      ? ports.terminals.machineOp(client.id, terminalOp, true)
+      : ports.terminals.machineOp(client.id, terminalOp)
   }).then((result) => {
     if (!result.answered) return terminal(state, ports, job, { requestId, status: 'unknown' }, true)
     terminal(state, ports, job, { requestId, status: 'done', data: result.value }, true)

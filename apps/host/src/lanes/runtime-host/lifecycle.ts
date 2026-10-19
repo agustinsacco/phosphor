@@ -125,7 +125,11 @@ export async function deleteStop(
   }
 }
 
-export async function stopLane(context: RuntimeLaneState, laneId: string) {
+export async function stopLane(
+  context: RuntimeLaneState,
+  laneId: string,
+  authorized: () => boolean = () => true,
+) {
   const { live } = context.options
   const sessionId = live.sessionFor(laneId)
   if (sessionId !== null) {
@@ -142,6 +146,7 @@ export async function stopLane(context: RuntimeLaneState, laneId: string) {
       throw Object.assign(new Error('Send a first message before stopping this lane.'), {
         code: 'first-prompt-required',
       })
+    if (!authorized()) throw new Error('Lane control changed.')
     await stop(context, sessionId)
   }
 }

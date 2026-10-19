@@ -1,4 +1,8 @@
 import { hostname, type as osType } from 'node:os'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
+import type { HostClaudeAccounts } from '../providers/accounts'
+import { createRuntimeAccounts } from './runtime-accounts'
 import type { MachineContext } from '@phosphor/shared/machine-prompt'
 import type { SessionPush } from '@phosphor/shared/models'
 import { createContextBudgetRuntime } from '@phosphor/session-runtime/pi/context-budget'
@@ -45,6 +49,7 @@ export class RequestError extends Error {
 }
 
 export interface RuntimeOptions {
+  claudeAccounts?: HostClaudeAccounts
   trashTranscript?: (path: string) => Promise<void>
   life?: Lifecycle
   timings?: Partial<DrainTimings>
@@ -55,6 +60,9 @@ export interface RuntimeOptions {
 /** One process-local ownership domain, shared by every start, command and deletion. */
 export interface RuntimeState {
   machine: HostMachine
+  agentDir: string
+  authorization: AsyncLocalStorage<() => boolean>
+  accounts: ReturnType<typeof createRuntimeAccounts>
   options: RuntimeOptions
   roots: string[]
   machineContext: Extract<MachineContext, { kind: 'host' }>
@@ -86,16 +94,23 @@ export function createRuntimeState(machine: HostMachine, options: RuntimeOptions
   if (!path) throw new Error("pi's environment has no PATH")
   // gitInfo runs git from this process's PATH: make it pi's, so both find the same git.
   process.env.PATH = path
+  const authorization = new AsyncLocalStorage<() => boolean>()
   const registry = new SessionRegistry({
     createClient: (spawn) =>
       new PiRpcClient(
         { ...spawn, inheritEnv: false },
         { log: log.write, isClosing: life.isDraining },
       ),
-    assertCanStart: life.assertReady,
+    assertCanStart: () => {
+      life.assertReady()
+      if (authorization.getStore()?.() === false) throw new Error('Lane control changed.')
+    },
   })
   return {
     machine,
+    agentDir: piAgentDir(machine.env),
+    authorization,
+    accounts: createRuntimeAccounts(registry, options.claudeAccounts, log),
     options,
     roots,
     machineContext,

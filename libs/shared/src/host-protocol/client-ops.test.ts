@@ -163,6 +163,8 @@ describe('client-ops.ts', () => {
       ...LANE_PI_OPS,
       'extension_ui_response',
       'provider.login',
+      'machine.task',
+      'claude.account',
       'terminal.create',
       'terminal.resize',
       'terminal.kill',

@@ -10,7 +10,7 @@ import type { HostFrame } from './frames'
 import { hex, label, member, record, text } from './primitives'
 
 /** Known capabilities only, each once; stricter than validateHostHello, which drops unknowns. */
-function capabilities(v: unknown): v is HostCapability[] {
+export function capabilities(v: unknown): v is HostCapability[] {
   return (
     Array.isArray(v) &&
     v.length <= HOST_CAPABILITIES.length &&
@@ -46,6 +46,7 @@ export function parseReadyFrame(
     !isUuid(v.client.id) ||
     !label(v.client.label) ||
     !capabilities(v.capabilities) ||
+    (v.settings !== undefined && typeof v.settings !== 'boolean') ||
     !v.capabilities.every((c) => h.hello.capabilities.includes(c))
   )
     return null
@@ -58,5 +59,6 @@ export function parseReadyFrame(
     grantExpiresAt: v.grantExpiresAt,
     client: { id: v.client.id, label: v.client.label },
     capabilities: v.capabilities,
+    ...(v.settings !== undefined ? { settings: v.settings as boolean } : {}),
   }
 }

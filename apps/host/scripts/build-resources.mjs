@@ -1,7 +1,7 @@
 // What the Host carries beside its bundle: node-pty for the target when a
 // folder is given, pi's bundled extensions with Desktop's filter, and the
 // skills, copied whole. The build fails when pi-ext lacks one of the six.
-import { cpSync, existsSync, statSync } from 'node:fs'
+import { cpSync, existsSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { build } from 'esbuild'
 import { validateNative } from '../../../tools/host-release/build-native.mjs'
@@ -18,6 +18,8 @@ export function isExtensionSource(source) {
 export function stageNative(stage, native, target) {
   validateNative(resolve(native), target ?? `${process.platform}-${process.arch}`)
   cpSync(resolve(native), join(stage, 'native/node-pty'), { recursive: true })
+  // Never inherit an ESM parent's package boundary for node-pty's CommonJS JS.
+  writeFileSync(join(stage, 'native/node-pty/package.json'), '{"private":true,"type":"commonjs"}\n')
 }
 
 /**

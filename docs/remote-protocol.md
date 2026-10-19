@@ -36,8 +36,9 @@ state. stderr never crosses the wire.
 Text frames carry one JSON object. `auth` establishes or renews permission;
 `ready` proves the enrolled Host with a challenge signature. `subscribe` and
 `unsubscribe` manage lane summaries and individual lane streams. `call` and
-`result` are read-only. `command`, `receipt` and `receipt-status` handle
-mutations. The persisted control fence rises on takeover or release. Only the
+`result` carry feature RPC, including revision-checked machine configuration.
+`command`, `receipt` and `receipt-status` handle lane mutations and fixed-purpose
+machine programs. The persisted control fence rises on takeover or release. Only the
 controller can mutate a lane with its current fence. The first mutation of an
 unowned lane acquires control and raises the fence before pi events. Every
 viewer sees control changes at the same stream position. Disconnecting does
@@ -113,6 +114,49 @@ epoch, a lifetime of at most 300 seconds, clock skew and revoked sessions or
 clients. A renewal cannot change the owner or client identity. Effective
 capabilities are the intersection of grant and Host capabilities. Seeing an
 enrolled machine is never a grant to execute on it.
+
+Machine configuration is a separate, explicit grant request (`configure: true`).
+Control signs an optional `configure: true` claim rather than adding a new name
+to every grant's legacy `caps` array: older Hosts reject unknown capability names
+but safely ignore additive claims. A supporting Host intersects that signed
+opt-in with its own `machine.configure` feature. Without the opt-in, ready frames
+omit the new name from both capability arrays and advertise support through the
+additive `settings` boolean instead, preserving older Desktop parsers. Renewal
+reports effective capabilities in an optional `auth-renewed.capabilities` array;
+losing configuration authority removes it immediately. Desktop requests this
+privilege separately from normal lane access and forgets the request on sign-out.
+
+### Machine configuration operations
+
+`machine.settings.read`, `machine.settings.patch` and `machine.settings.check`
+require `machine.configure`. Their schemas and reviewed response projection live
+in `libs/shared/src/machine-settings*.ts`. Sections are providers, connectors,
+agent defaults, resources and advanced. Folder scope names an admitted 16-hex
+repository id, never a caller path. Patches name an allowlisted change and the
+current SHA-256 revision; they preserve unrelated settings. A lost reply is
+uncertain, not a reason to replay the mutation automatically.
+
+Configuration calls serialize through a bounded eight-entry service queue.
+File commits recheck the current revision and live authority immediately before
+an atomic rename. Losing configuration authority advances an admission epoch;
+regranting it cannot revive an old asynchronous write or spawn. These are
+process-local locks and checks, not a cross-process filesystem transaction.
+
+`machine.task` selects a reviewed fixed-purpose program, not arbitrary argv,
+executable paths or environment. It and settings-originated `provider.login`
+require configuration, terminal and session-control capabilities. The latter
+carries `configure: true`; legacy provider sign-in retains its existing grants.
+Claude account selection uses a known account id or `addAccount: true`.
+Configuration PTYs remain owner-private and check authority for input, output,
+subscription and resize. These configuration PTY programs are stopped on their
+admitted authorization loss or disconnect and are bounded to fifteen minutes. Killing a program is
+best-effort; already-applied effects are not rolled back.
+
+`claude.account` is a lane command, not an unfenced machine operation. It requires
+configuration plus session control, the controller's current fence, a verified
+Claude target and a saved Claude transcript. Stop, bind and resume recheck live
+authority. It never takes another client's control, sends an automatic prompt,
+or silently falls back to the former account after failure.
 
 The Host remembers each revoked session and client id for 15 minutes after the
 last heartbeat that named it, at most 1000 of each

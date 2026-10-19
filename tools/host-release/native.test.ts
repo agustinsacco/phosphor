@@ -58,7 +58,10 @@ it('keeps spawn-helper executable in deterministic archives and inventories nati
   expect(result.status, result.stderr).toBe(0)
   const listing = execFileSync('tar', ['-tvzf', join(dir, 'native.tar.gz')], { encoding: 'utf8' })
   expect(listing.split('\n').find((l) => l.includes('spawn-helper'))).toMatch(/^-rwxr-xr-x/)
-  const out = join(dir, 'bundle')
+  const parent = join(dir, 'esm-parent')
+  mkdirSync(parent)
+  writeFileSync(join(parent, 'package.json'), '{"type":"module"}')
+  const out = join(parent, 'bundle')
   const build = spawnSync(
     process.execPath,
     ['apps/host/scripts/build.mjs', '--out', out, '--native', native, '--target', target],
@@ -71,6 +74,18 @@ it('keeps spawn-helper executable in deterministic archives and inventories nati
     { encoding: 'utf8' },
   )
   expect(cli).toContain('phosphor')
+  const loaded = execFileSync(
+    join(dir, `node-v24.14.1-${target}/bin/node`),
+    [
+      '-e',
+      `const p = require(${JSON.stringify(join(out, 'native/node-pty/lib/index.js'))}); console.log(typeof p.spawn)`,
+    ],
+    { encoding: 'utf8' },
+  )
+  expect(loaded.trim()).toBe('function')
+  expect(JSON.parse(readFileSync(join(out, 'native/node-pty/package.json'), 'utf8')).type).toBe(
+    'commonjs',
+  )
   const info = JSON.parse(readFileSync(join(out, 'BUILD-INFO.json'), 'utf8'))
   expect(info.files).toEqual(
     expect.arrayContaining([

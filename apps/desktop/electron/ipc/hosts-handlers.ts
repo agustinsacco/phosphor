@@ -1,6 +1,7 @@
 import { repositoryManagement } from '../hosts/repository-management'
 import { repositoryReads } from '../hosts/repository-reads'
 import { machineReads } from '../hosts/machine-reads'
+import { registerHostSettingsHandlers } from './host-settings-handlers'
 import { uploadAttachments } from '../hosts/attachments'
 import { routeRemoteWrite } from '../hosts/write-features'
 import type { SessionPush } from '@shared/models'
@@ -262,9 +263,7 @@ export function registerHostsHandlers(): void {
     window(event)
     remoteLanes().setFocused(event.sender.id, target)
   })
-  handle('hosts:providerLogin', (event, hostId, provider) =>
-    terminals.signIn(event.sender.id, hostId, provider),
-  )
+  registerHostSettingsHandlers(manager, grants, terminals)
   handle('hosts:uploadAttachments', (event, sessionId, files) => {
     const lane = remoteLanes().readLane(event.sender.id, sessionId)
     if (!lane) throw new Error(REMOTE_UNAVAILABLE)

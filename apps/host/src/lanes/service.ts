@@ -14,7 +14,7 @@ export interface LaneService {
     status(clientId: string, requestId: string, connectionId?: string): void
   }
   calls: {
-    call(method: string, params: unknown): Promise<CallOutcome>
+    call(method: string, params: unknown, authorized?: () => boolean): Promise<CallOutcome>
     capabilityFor(method: string): HostCapability | null
   }
   streams: LaneStreams

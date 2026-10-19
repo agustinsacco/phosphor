@@ -1,21 +1,37 @@
 import type { GrantIssueResponse } from '@shared/control-api'
+import type { DesktopControlErrorCode } from '@shared/ipc'
 import { HOST_LIMITS } from '@shared/host-protocol'
 import type { createControlClient } from '../control/client'
 import type { createClientIds } from './client-id'
 
-export function createGrants(ports: {
+interface GrantPorts {
   control: Pick<ReturnType<typeof createControlClient>, 'grant'>
   clients: ReturnType<typeof createClientIds>
   present: (hostId: string) => boolean
   now?: () => number
-}) {
+}
+function grantFailure(code: DesktopControlErrorCode): Error {
+  return new Error(
+    code === 'not-found' ? 'grant-refused' : code === 'forbidden' ? 'account-disabled' : code,
+  )
+}
+
+export function createGrants(ports: GrantPorts) {
   const cache = new Map<string, GrantIssueResponse>()
   const flights = new Map<
     string,
     { promise: Promise<GrantIssueResponse>; token: { valid: boolean } }
   >()
   let generation = 0
+  const configurationHosts = new Set<string>()
   return {
+    /** Explicitly requested from this machine's Settings page; forgotten on sign-out. */
+    configure(hostId: string, enabled = true) {
+      if (enabled && !ports.present(hostId)) throw new Error('grant-refused')
+      if (enabled) configurationHosts.add(hostId)
+      else configurationHosts.delete(hostId)
+      this.clear(hostId)
+    },
     clear(hostId?: string) {
       if (!hostId) generation++
       if (hostId) {
@@ -27,6 +43,7 @@ export function createGrants(ports: {
         cache.clear()
         flights.clear()
         ports.clients.clear()
+        configurationHosts.clear()
       }
     },
     grantFor(hostId: string): Promise<GrantIssueResponse> {
@@ -43,7 +60,11 @@ export function createGrants(ports: {
       const epoch = generation
       const active = { valid: true }
       const promise = (async () => {
-        let result = await ports.control.grant(hostId, await ports.clients.get())
+        const issue = async () =>
+          configurationHosts.has(hostId)
+            ? ports.control.grant(hostId, await ports.clients.get(), true)
+            : ports.control.grant(hostId, await ports.clients.get())
+        let result = await issue()
         if (
           !result.ok &&
           result.error.code === 'not-found' &&
@@ -52,17 +73,10 @@ export function createGrants(ports: {
           ports.present(hostId) &&
           (await ports.clients.replace())
         )
-          result = await ports.control.grant(hostId, await ports.clients.get())
+          result = await issue()
         if (epoch !== generation || !active.valid || !ports.present(hostId))
           throw new Error('signed-out')
-        if (!result.ok)
-          throw new Error(
-            result.error.code === 'not-found'
-              ? 'grant-refused'
-              : result.error.code === 'forbidden'
-                ? 'account-disabled'
-                : result.error.code,
-          )
+        if (!result.ok) throw grantFailure(result.error.code)
         if (result.host.id !== hostId) throw new Error('grant-refused')
         cache.set(hostId, result)
         if (cache.size > 32) {

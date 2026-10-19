@@ -11,7 +11,8 @@ import { resolveWindowsLaunch } from './win-launch'
 import { failedJob, startJob, startPrintModeJob, type JobSender } from './package-jobs'
 
 export { failedJob, startJob, disposePackageJobs, type JobSender } from './package-jobs'
-export { claudeStatus, parseClaudeAuthStatus } from './claude-status'
+export { claudeStatus } from './claude-status'
+export { parseClaudeAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
 export { resolveBinary } from './binary-lookup'
 
 /** One tiny print-mode turn: the bound a session title run gets. */
