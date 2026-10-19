@@ -1,4 +1,6 @@
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
+import { RemoteLaneRow } from '@/features/home/RemoteLaneRow'
+import { useNavigation } from '@/navigation/Navigation'
 import { artifactOnMachine } from '@/features/artifacts/globalArtifacts'
 import { useEffect, useState } from 'react'
 import { useRemoteLanesStore, openRemoteLane, REMOTE_NOT_READY } from '@/stores/remoteLanes'
@@ -9,9 +11,10 @@ import { Skeleton } from './MachineUi'
 type Key = 'skills' | 'routines' | 'artifacts'
 /** A count is loading until its read settles; a failed read is Unavailable, never zero. */
 type Count = number | 'loading' | 'failed'
-const LANES_SHOWN = 8
+const LANES_SHOWN = 3
 
 export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element | null {
+  const { navigate } = useNavigation()
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
   const [counts, setCounts] = useState<Partial<Record<Key, Count>>>({})
@@ -84,24 +87,27 @@ export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element
             {ready ? '' : ' · last known'}
           </p>
           {host.lanes.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <fieldset className="machine-lane-preview" aria-label="Lane preview" disabled={!ready}>
               {host.lanes.slice(0, LANES_SHOWN).map((lane) => (
-                <TooltipButton
+                <RemoteLaneRow
                   key={lane.laneId}
-                  tooltip={ready ? `Open ${lane.title || 'Untitled lane'}` : REMOTE_NOT_READY}
+                  lane={lane}
+                  hostId={hostId}
                   disabled={!ready}
-                  onClick={() => void openRemoteLane(hostId, lane.laneId)}
-                  className="border-border hover:bg-bg-secondary max-w-56 truncate rounded-md border px-2 py-1 text-base transition-colors disabled:opacity-50"
-                >
-                  {lane.title || 'Untitled lane'}
-                </TooltipButton>
+                  onOpen={() => {
+                    if (ready) void openRemoteLane(hostId, lane.laneId)
+                  }}
+                />
               ))}
               {host.lanes.length > LANES_SHOWN && (
-                <span className="text-text-tertiary self-center text-sm">
-                  +{host.lanes.length - LANES_SHOWN} more
-                </span>
+                <TooltipButton
+                  className="machine-view-lanes"
+                  onClick={() => navigate({ to: 'lanes', machine: hostId })}
+                >
+                  View all {host.lanes.length} lanes →
+                </TooltipButton>
               )}
-            </div>
+            </fieldset>
           )}
         </div>
       )}
@@ -110,33 +116,54 @@ export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element
           {tiles.map(([key, label]) => {
             const count = counts[key] ?? (ready ? 'loading' : 'failed')
             return (
-              <TooltipButton
+              <MachineResourceTile
                 key={key}
-                tooltip={`Open ${label} on this machine`}
+                label={label}
+                count={count}
                 disabled={!ready}
-                onClick={() => openMachinePage(key, hostId)}
-                className="border-border hover:bg-bg-secondary rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50"
-              >
-                <span className="text-text-tertiary block font-mono text-xs uppercase tracking-wider">
-                  {label}
-                </span>
-                <span className="mt-1 block text-xl font-semibold tabular-nums">
-                  {count === 'loading' ? (
-                    <>
-                      <Skeleton className="mt-1.5 h-4 w-8" />
-                      <span className="sr-only">Loading</span>
-                    </>
-                  ) : count === 'failed' ? (
-                    <span className="text-text-tertiary text-base font-normal">Unavailable</span>
-                  ) : (
-                    count
-                  )}
-                </span>
-              </TooltipButton>
+                onOpen={() => openMachinePage(key, hostId)}
+              />
             )
           })}
         </div>
       )}
     </div>
+  )
+}
+
+function MachineResourceTile({
+  label,
+  count,
+  disabled,
+  onOpen,
+}: {
+  label: string
+  count: Count
+  disabled: boolean
+  onOpen: () => void
+}): React.JSX.Element {
+  return (
+    <TooltipButton
+      tooltip={`Open ${label} on this machine`}
+      disabled={disabled}
+      onClick={onOpen}
+      className="border-border hover:bg-bg-secondary rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50"
+    >
+      <span className="text-text-tertiary block font-mono text-xs uppercase tracking-wider">
+        {label}
+      </span>
+      <span className="mt-1 block text-xl font-semibold tabular-nums">
+        {count === 'loading' ? (
+          <>
+            <Skeleton className="mt-1.5 h-4 w-8" />
+            <span className="sr-only">Loading</span>
+          </>
+        ) : count === 'failed' ? (
+          <span className="text-text-tertiary text-base font-normal">Unavailable</span>
+        ) : (
+          count
+        )}
+      </span>
+    </TooltipButton>
   )
 }

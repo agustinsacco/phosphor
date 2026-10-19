@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { normalizeLabel, type MachineView } from '@shared/control-api'
 import { Button, TextInput } from '@/components/form'
+import { tooltipProps } from '@/components/Tooltip'
 import { machinesAccountGeneration } from '@/stores/machines'
 import { controlMessage } from './controlMessages'
 
@@ -8,9 +9,11 @@ import { controlMessage } from './controlMessages'
 export function MachineLabel({
   machine,
   onSaved,
+  heading = 'h1',
 }: {
   machine: MachineView
   onSaved: (machine: MachineView) => void
+  heading?: 'h1' | 'h2'
 }): React.JSX.Element {
   const [editing, setEditing] = useState(false)
   const [label, setLabel] = useState(machine.label)
@@ -77,8 +80,8 @@ export function MachineLabel({
     }
   }
   return (
-    <div>
-      <div className="flex items-center gap-3">
+    <div className="machine-label">
+      <div className="machine-label-row">
         {editing ? (
           <TextInput
             autoFocus
@@ -103,7 +106,7 @@ export function MachineLabel({
             }}
           />
         ) : (
-          <h1 className="text-3xl font-semibold">{machine.label}</h1>
+          <MachineName name={machine.label} heading={heading} />
         )}
         {busy ? (
           <span role="status" className="text-text-secondary text-base">
@@ -111,18 +114,15 @@ export function MachineLabel({
           </span>
         ) : (
           !editing && (
-            <Button
-              ref={trigger}
-              size="xs"
+            <RenameControl
+              buttonRef={trigger}
               onClick={() => {
                 active.current = true
                 setLabel(machine.label)
                 setError(null)
                 setEditing(true)
               }}
-            >
-              Rename
-            </Button>
+            />
           )
         )}
       </div>
@@ -132,5 +132,51 @@ export function MachineLabel({
         </p>
       )}
     </div>
+  )
+}
+
+function RenameControl({
+  buttonRef,
+  onClick,
+}: {
+  buttonRef: RefObject<HTMLButtonElement | null>
+  onClick: () => void
+}): React.JSX.Element {
+  return (
+    <Button
+      ref={buttonRef}
+      size="xs"
+      className="machine-rename-control"
+      aria-label="Rename"
+      onClick={onClick}
+    >
+      <span className="machine-rename-label">Rename</span>
+      <svg
+        className="machine-rename-glyph"
+        aria-hidden="true"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      >
+        <path d="m16 3 5 5-12 12-6 1 1-6L16 3Z" />
+        <path d="m13 6 5 5" />
+      </svg>
+    </Button>
+  )
+}
+
+function MachineName({ name, heading }: { name: string; heading: 'h1' | 'h2' }): React.JSX.Element {
+  const Heading = heading
+  return (
+    <Heading
+      className="machine-name"
+      {...tooltipProps(name)}
+      tabIndex={name.length > 24 ? 0 : undefined}
+    >
+      {name}
+    </Heading>
   )
 }

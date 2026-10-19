@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { AccountView } from '@shared/account'
 import { Button } from '@/components/form'
+import { InstallApp } from './InstallApp'
 
 /** Adapter-owned warnings survive a retry; only an account push can clear them. */
 export function CompactSignIn({
@@ -51,6 +52,7 @@ export function CompactSignIn({
           {signingOut ? 'Signing out…' : 'Retry sign out'}
         </Button>
       )}
+      <InstallApp />
       <p>On iPhone, sign in again from the Home Screen icon if you install the app.</p>
     </main>
   )

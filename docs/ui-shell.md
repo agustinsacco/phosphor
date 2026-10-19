@@ -495,8 +495,14 @@ provider lists, Claude detail and On this machine counts each show a spinner or
 skeleton until their own read settles. A failed count reads Unavailable, never
 zero. Offline and account errors are explicit and offer retry.
 
-A Host's detail is a header (label with Rename, the status pill, Reconnect and
-Check again), then **Overview / Settings** navigation. Overview has cards in two columns: Readiness and On this machine on the
+A Host's detail has one **Back to machines** breadcrumb, then a compact identity
+header (label with Rename, the status pill and a **Machine actions** menu containing
+Reconnect and Check again), followed by **Overview / Settings** navigation. Add a
+machine and debug actions belong to the list, not a selected Host. The same header
+and responsive container run in Desktop and the browser; the browser does not gain
+native settings by getting wider. Long machine names occupy at most two visual
+lines; the heading retains the full text and long names expose the app's focusable
+hint. Overview has cards in two columns: Readiness and On this machine on the
 left, Providers and Details on the right. Readiness opens with a Connection row
 from the shared reachability rule, then pi, Claude Code and Tailscale. A passing
 row says what is true ("Signed in and ready"); a failing row opens to its
@@ -527,10 +533,11 @@ a private terminal on that Host: `/login PROVIDER`, follow pi's steps, then `/qu
 or Claude's own login steps. Closing cancels it and exit refreshes status. Viewers
 without those capabilities keep the CLI hint. Credentials stay on the Host.
 
-Details lists hostname, platform, Host version, enrollment date, the published
-address, and a copyable fingerprint and machine id. On this machine lists lanes
-and capability-gated skills, routines and artifact counts, with links to
-machine-filtered pages. Down lanes stay labelled last known.
+The **Connection & identity** disclosure contains Details: hostname, platform,
+Host version, enrollment date, the published address, and a copyable fingerprint
+and machine id. On this machine previews at most three lanes using the shared
+sidebar row presentation, with a View all link when there are more, alongside
+capability-gated skills, routines and artifact counts linked to machine-filtered pages. Down lanes stay labelled last known.
 A never-connected Host shows "Waiting for X to finish setup" with
 `phosphor setup` (it resumes where it stopped) and a Troubleshooting disclosure
 with `phosphor service status`, `phosphor service install` and `phosphor run`.

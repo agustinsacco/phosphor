@@ -17,9 +17,12 @@ import { clearCompactUi, waitForCompactCleanup } from './compactLifecycle'
 import { useBrowserNavigation } from './useBrowserNavigation'
 import { useCompactViewport } from './useCompactViewport'
 import { BrowserShell } from './BrowserShell'
+import { useInstallApp } from './useInstallApp'
 
 /** Mount only after the real browser adapter has been installed and started. */
 export function CompactApp(): React.JSX.Element {
+  // Browser-owned installation outlives drawers, route changes and account transitions.
+  useInstallApp()
   const formFactor = useCompactViewport()
   const account = useAccount()
   const appearance = useClientAppearance()

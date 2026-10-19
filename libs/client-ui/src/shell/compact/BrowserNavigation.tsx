@@ -1,6 +1,7 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react'
 import { ModalOverlay } from '@/components/Modal'
 import { Button } from '@/components/form'
+import { InstallApp } from './InstallApp'
 import { CloseIcon } from '@/components/icons'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { NavigationItem } from '@/navigation/NavigationItem'
@@ -77,6 +78,9 @@ function NavigationBody({
           onClick={() => go({ to: 'page', page: 'settings', machine })}
         />
       </nav>
+      <div className="browser-install-nav">
+        <InstallApp />
+      </div>
       <p className="browser-navigation-note">Connected directly to your machines.</p>
     </>
   )

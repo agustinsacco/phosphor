@@ -71,7 +71,10 @@ it('falls back for an old Host and re-reads Claude and providers with Check agai
       return null
     })
     await act(async () =>
-      Array.from(container.querySelectorAll('button'))
+      container.querySelector<HTMLButtonElement>('[aria-label="Machine actions"]')?.click(),
+    )
+    await act(async () =>
+      Array.from(document.querySelectorAll('button'))
         .find((b) => b.textContent === 'Check again')
         ?.click(),
     )

@@ -1,6 +1,7 @@
+import type { HostConnectionView } from '@shared/ipc'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore, connectionLabel } from '@/stores/remoteLanes'
-import { RemoteLaneRow } from '@/features/home/RemoteLaneRow'
+import { RemoteLaneGroups } from '@/features/sessions/RemoteLaneGroups'
 import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
 import '@/features/home/remoteStart.css'
@@ -14,7 +15,6 @@ export function CompactLanes({
   machine?: string
   inbox?: boolean
 }): React.JSX.Element {
-  const { navigate } = useNavigation()
   const machines = useMachinesStore((s) => s.machines)
   const loading = useMachinesStore((s) => s.loading)
   const error = useMachinesStore((s) => s.error)
@@ -45,41 +45,65 @@ export function CompactLanes({
                 : 'No machines yet. Add a Host from Machines.'}
             </p>
           )}
-          {selected.map((machine) => {
-            const host = hosts[machine.id]
-            const readable = host?.state === 'ready' && host.capabilities.includes('sessions.read')
-            const lanes = readable
-              ? host.lanes.filter((lane) => !inbox || lane.attention > lane.read)
-              : []
-            return (
-              <section key={machine.id} className="space-y-3">
-                <h2 className="font-semibold">
-                  {machine.label} · {connectionLabel(host?.state)}
-                </h2>
-                {!readable ? (
-                  <p role="status">
-                    {host?.state === 'ready'
-                      ? 'Lane reading is unavailable on this Host.'
-                      : 'Machine not connected. Its lanes may need attention.'}
-                  </p>
-                ) : lanes.length === 0 ? (
-                  <p>{inbox ? 'No unread attention on this machine.' : 'No lanes yet.'}</p>
-                ) : (
-                  lanes.map((lane) => {
-                    const open = (): void =>
-                      navigate({
-                        to: 'lane',
-                        lane: { hostId: machine.id, laneId: lane.laneId },
-                        pane: 'chat',
-                      })
-                    return <RemoteLaneRow key={lane.laneId} lane={lane} onOpen={open} />
-                  })
-                )}
-              </section>
-            )
-          })}
+          {selected.map((machine) => (
+            <MachineLaneList
+              key={machine.id}
+              machine={machine}
+              host={hosts[machine.id]}
+              inbox={inbox}
+            />
+          ))}
         </section>
       </PageBody>
     </PageShell>
+  )
+}
+
+function MachineLaneList({
+  machine,
+  host,
+  inbox,
+}: {
+  machine: { id: string; label: string }
+  host?: HostConnectionView
+  inbox: boolean
+}): React.JSX.Element {
+  const { navigate } = useNavigation()
+  const readable = host?.state === 'ready' && host.capabilities.includes('sessions.read')
+  const lanes = readable ? host.lanes.filter((lane) => !inbox || lane.attention > lane.read) : []
+  return (
+    <section key={machine.id} className="space-y-3">
+      <h2 className="font-semibold">
+        {machine.label} · {connectionLabel(host?.state)}
+      </h2>
+      {!readable ? (
+        <p role="status">
+          {host?.state === 'ready'
+            ? 'Lane reading is unavailable on this Host.'
+            : 'Machine not connected. Its lanes may need attention.'}
+        </p>
+      ) : lanes.length === 0 ? (
+        <p>{inbox ? 'No unread attention on this machine.' : 'No lanes yet.'}</p>
+      ) : (
+        <RemoteLaneGroups
+          hostId={machine.id}
+          repositories={
+            inbox
+              ? host.repositories.filter((repository) =>
+                  lanes.some((lane) => lane.repositoryId === repository.id),
+                )
+              : host.repositories
+          }
+          lanes={lanes}
+          onOpen={(laneId) =>
+            navigate({
+              to: 'lane',
+              lane: { hostId: machine.id, laneId },
+              pane: 'chat',
+            })
+          }
+        />
+      )}
+    </section>
   )
 }

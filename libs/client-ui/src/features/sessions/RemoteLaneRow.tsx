@@ -16,23 +16,12 @@ import {
   REMOTE_UNAVAILABLE,
 } from '@/stores/remoteLanes'
 import { piCall, piCallOk } from '@/lib/rpc'
-import { sessionTitle } from '@/lib/sessionTitle'
-import { relativeTimeShort } from '@/lib/time'
 import { showContextMenu, showMenuBelow, type ContextMenuItem } from '@/components/ContextMenu'
 import { TextInput } from '@/components/form'
-import { LaneRow, SessionIndicator, SubtitleSegments } from './SidebarPrimitives'
+import { RemoteLanePresentation, useRemoteLaneTitle } from './RemoteLanePresentation'
+export { remoteLaneTitle } from './remoteLaneView'
 import { LaneMarker } from './LaneMarker'
 import { MarkerPickerModal } from './MarkerPickerModal'
-
-export function remoteLaneTitle(
-  name?: string | null,
-  summary?: string | null,
-  first?: string,
-): string {
-  return (
-    sessionTitle({ explicitName: name?.trim() || summary, firstUserText: first }) ?? 'Untitled lane'
-  )
-}
 
 export const TAKE_CONTROL_FIRST = 'Take control first.'
 export const ONLY_WHILE_RUNNING = 'Only while running.'
@@ -70,7 +59,6 @@ export function RemoteLaneRow({
       (e) => e.target?.kind === 'remote' && e.target.hostId === hostId && e.laneId === lane.laneId,
     ),
   )
-  const chat = useChatStore((s) => (entry ? s.sessions[entry.phosphorId] : undefined))
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const key = hostResourceKey({ kind: 'remote', hostId }, 'session', lane.laneId)
   const pinned = useSessionsStore((s) => s.pinned.includes(key))
@@ -81,12 +69,7 @@ export function RemoteLaneRow({
   const [busy, setBusy] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const first = chat?.items.find((item) => item.kind === 'user')
-  const title = remoteLaneTitle(
-    chat?.meta?.sessionName,
-    lane.title,
-    first?.kind === 'user' ? first.text : undefined,
-  )
+  const title = useRemoteLaneTitle(lane, hostId)
   const controlled =
     ready &&
     !!host?.capabilities.includes('sessions.control') &&
@@ -313,13 +296,13 @@ export function RemoteLaneRow({
           />
         </div>
       ) : (
-        <LaneRow
-          disabled={!ready}
-          tooltip={!ready ? REMOTE_NOT_READY : title}
-          aria-current={active ? 'page' : undefined}
-          data-testid="remote-session-row"
-          data-activity={ready && lane.activity === 'working' ? 'working' : undefined}
-          className={active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
+        <RemoteLanePresentation
+          lane={lane}
+          title={title}
+          ready={ready}
+          active={active}
+          pinned={pinned}
+          marker={<LaneMarker marker={marker ?? ''} onPick={() => setPicking(true)} />}
           onClick={() => {
             if (ready) void openRemoteLane(hostId, lane.laneId)
           }}
@@ -333,41 +316,7 @@ export function RemoteLaneRow({
               showMenuBelow(e.currentTarget, items)
             }
           }}
-        >
-          <SessionIndicator
-            state={
-              ready && lane.activity === 'working'
-                ? 'streaming'
-                : lane.attention > lane.read
-                  ? 'unseen'
-                  : ready && running
-                    ? 'live'
-                    : 'disk'
-            }
-          />
-          <LaneMarker marker={marker ?? ''} onPick={() => setPicking(true)} />
-          <span className="min-w-0 flex-1">
-            <span className="text-text block truncate text-lg font-medium leading-5">
-              {pinned ? '⌖ ' : ''}
-              {title}
-            </span>
-            <span className="text-text-secondary flex items-center gap-1 text-base leading-4">
-              <SubtitleSegments
-                segments={[
-                  { key: 'time', text: relativeTimeShort(Date.parse(lane.updatedAt)) },
-                  ...(lane.worktree ? [{ key: 'worktree' as const, text: 'wt' }] : []),
-                  ...(lane.branch
-                    ? [{ key: 'branch' as const, text: lane.branch, truncate: true }]
-                    : []),
-                ]}
-                activity={ready && lane.activity === 'working' ? 'working' : undefined}
-              />
-              {(lane.activity === 'failed' || lane.activity === 'needs-input') && (
-                <span className="text-warning shrink-0">needs you</span>
-              )}
-            </span>
-          </span>
-        </LaneRow>
+        />
       )}
       {picking && (
         <MarkerPickerModal

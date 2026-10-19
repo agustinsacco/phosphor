@@ -122,6 +122,12 @@ html[data-form-factor='compact'] {
   flex-direction: column;
   gap: 2px;
 }
+.browser-install-nav {
+  padding: 0 12px 12px;
+}
+.browser-install button {
+  max-width: 100%;
+}
 .browser-navigation-note {
   margin-top: auto;
   padding: 16px 8px;

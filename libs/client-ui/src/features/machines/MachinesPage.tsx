@@ -109,28 +109,34 @@ export function MachinesPage(): React.JSX.Element {
   }
   return (
     <PageShell
-      title={<PaneTitle label="Machines" />}
+      title={
+        selected ? (
+          <TooltipButton
+            aria-label="Back to machines"
+            className="machine-page-back"
+            onClick={() => void back()}
+          >
+            ← Machines
+          </TooltipButton>
+        ) : (
+          <PaneTitle label="Machines" />
+        )
+      }
       actions={
-        <MachinesPageActions
-          signedIn={signedIn}
-          onAdd={() => setAdding(true)}
-          logOpen={logOpen}
-          onToggleLog={() => setLogOpen((open) => !open)}
-          onOpenLog={() => setLogOpen(true)}
-        />
+        !selected && (
+          <MachinesPageActions
+            signedIn={signedIn}
+            onAdd={() => setAdding(true)}
+            logOpen={logOpen}
+            onToggleLog={() => setLogOpen((open) => !open)}
+            onOpenLog={() => setLogOpen(true)}
+          />
+        )
       }
     >
       <PageBody data-testid="machines-page" className="machines-page">
         <div className="space-y-4">
-          {selected ? (
-            <TooltipButton
-              tooltip="Back to all machines"
-              className="text-text-secondary hover:text-text -mb-2 text-base"
-              onClick={() => void back()}
-            >
-              ← Machines
-            </TooltipButton>
-          ) : (
+          {!selected && (
             <p className="text-text-secondary text-sm">
               {signedIn
                 ? !platform.localLanes && !state.machines.length

@@ -250,7 +250,14 @@ it('renders This Mac -> Host -> This Mac dashboards without leaking lanes, ledge
   expect(el.textContent).toContain('Connected')
   expect(el.textContent).toContain('Remote demo lane')
   expect(el.textContent).toContain('host-branch')
-  expect(el.textContent).toContain('idle')
+  expect(el.querySelector('[data-state="unseen"]')).not.toBeNull()
+  expect(el.querySelector('[data-segment="time"]')?.textContent).toBe(
+    new Date(0).toLocaleDateString(),
+  )
+  expect(el.querySelector('[data-segment="branch"]')?.textContent).toContain('⎇ host-branch')
+  expect(el.querySelector('[data-segment="worktree"]')).toBeNull()
+  expect(el.textContent).not.toContain('idle')
+  expect(el.textContent).not.toContain('Needs attention')
   expect(el.textContent).not.toContain('Mac-only lane')
   expect(el.querySelector('[data-testid=home-ledger]')).toBeNull()
   expect(el.textContent).not.toContain('Project stats')

@@ -1,3 +1,90 @@
+.machine-page-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-size: 12.5px;
+  color: var(--px-text-secondary);
+}
+.machine-detail-header {
+  margin-bottom: 4px;
+}
+.machine-detail-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.machine-label {
+  min-width: 0;
+  flex: 1;
+}
+.machine-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.machine-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.25;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.machine-rename-glyph {
+  display: none;
+}
+.machine-detail-metadata {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 6px;
+  color: var(--px-text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.machine-actions-trigger {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: var(--px-radius-sm);
+  color: var(--px-text-secondary);
+}
+.machine-actions-trigger:hover {
+  background: var(--px-bg-secondary);
+  color: var(--px-text);
+}
+.machine-lane-preview {
+  min-width: 0;
+}
+.machine-lane-preview .lane-row {
+  padding-inline: 0;
+}
+.machine-view-lanes {
+  margin-top: 6px;
+  color: var(--px-text-secondary);
+  font-size: 12px;
+  text-align: left;
+}
+.machine-lane-preview:disabled {
+  opacity: 0.55;
+}
+.machine-facts > summary {
+  color: var(--px-text-secondary);
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 8px 0;
+}
+.machine-facts[open] > summary {
+  margin-bottom: 8px;
+}
 .machines-page [data-testid='machine-detail'] > .grid {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -9,6 +96,43 @@
 }
 
 @container (max-width: 32rem) {
+  .machine-rename-label {
+    display: none;
+  }
+  .machine-rename-glyph {
+    display: block;
+  }
+  .machine-rename-control {
+    border-color: transparent;
+    background: transparent;
+    padding-inline: 6px;
+    min-width: 44px;
+  }
+  .machine-detail-history {
+    display: none;
+  }
+  .machine-detail-identity {
+    gap: 6px;
+  }
+  .machines-page [data-testid='machine-detail'] > .grid {
+    gap: 12px;
+  }
+  .machines-page [data-check] > div:first-child {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .machines-page [data-check] h4 {
+    min-width: 5.5rem;
+  }
+  .machines-page [data-check] > div:first-child > span:last-child {
+    max-width: 65%;
+    white-space: normal;
+    text-align: right;
+  }
+  .machines-page section > header {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
   .machines-page [data-testid$='machine-row'] {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.5rem;
