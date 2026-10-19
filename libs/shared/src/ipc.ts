@@ -192,6 +192,11 @@ export interface IpcInvokeMap {
     /** null: unavailable, or a Host older than machine.claude. */
     result: MachineClaude | null
   }
+  'hosts:claudeUsage': {
+    args: [hostId: string, force?: boolean]
+    /** The Host's own plan usage. null: unavailable, or a Host older than the call. */
+    result: ClaudeUsageSnapshotResult | null
+  }
   'hosts:providers': { args: [hostId: string]; result: MachineProvider[] }
   'hosts:repositoryFiles': { args: [hostId: string, repositoryId: string]; result: string[] }
   'hosts:repositoryFile': {

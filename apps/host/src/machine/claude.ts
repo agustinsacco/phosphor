@@ -1,4 +1,9 @@
-import { MIN_CLAUDE_CONTEXT_VERSION, type PiPackageEntry } from '@phosphor/shared/models'
+import {
+  MIN_CLAUDE_CONTEXT_VERSION,
+  type ClaudeUsageSnapshotResult,
+  type PiPackageEntry,
+} from '@phosphor/shared/models'
+import { parseUsageOutput } from '@phosphor/shared/claude-usage'
 import { claudeContextProviderShortfall } from '@phosphor/session-runtime/pi/provider-detect'
 import { extractVersion } from '@phosphor/session-runtime/pi/versions'
 import type { MachineClaude } from '@phosphor/shared/host-protocol-machine'
@@ -104,5 +109,46 @@ export async function inspectClaude(
     provider,
     cli: 'ok',
     auth: 'loggedIn' in auth ? (auth.loggedIn ? 'ok' : 'signed-out') : 'unknown',
+  }
+}
+
+/** Reuse window for one `/usage` answer; the upstream endpoint rate-limits. */
+const USAGE_TTL_MS = 60_000
+/** A client's refresh still cannot run the CLI more often than this. */
+const USAGE_FORCE_FLOOR_MS = 10_000
+
+export type ClaudeUsageRead = (
+  environment: ProbeEnvironment,
+  options?: { force?: boolean; nowMs?: number },
+) => Promise<ClaudeUsageSnapshotResult>
+
+/**
+ * The Host's own plan usage, from `claude -p /usage` under pi's environment:
+ * zero model calls and zero quota. Parsed here so reset stamps use this
+ * machine's timezone; the free-text "contributing" block is dropped, so only
+ * labels, percentages and reset times leave the Host. Failures are not cached.
+ */
+export function claudeUsageReader(run: typeof probe = probe): ClaudeUsageRead {
+  let cached: { at: number; result: ClaudeUsageSnapshotResult } | null = null
+  return async (environment, options = {}) => {
+    const now = options.nowMs ?? Date.now()
+    const age = cached ? now - cached.at : Infinity
+    if (cached && age < (options.force ? USAGE_FORCE_FLOOR_MS : USAGE_TTL_MS)) return cached.result
+    const claude = await which('claude', environment.env.PATH ?? '')
+    if (!claude) return { ok: false, error: 'claude-not-found' }
+    const out = await run(
+      claude,
+      ['-p', '/usage', '--output-format', 'json', '--no-session-persistence'],
+      { ...environment, timeoutMs: 20_000 },
+    )
+    if (out.code !== 0 || out.truncated) return { ok: false, error: 'run-failed' }
+    const snapshot = parseUsageOutput(out.stdout, now)
+    if (!snapshot) return { ok: false, error: 'no-usage' }
+    const result: ClaudeUsageSnapshotResult = {
+      ok: true,
+      snapshot: { ...snapshot, contributing: null },
+    }
+    cached = { at: now, result }
+    return result
   }
 }

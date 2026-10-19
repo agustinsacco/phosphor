@@ -1680,3 +1680,12 @@ capability as `machine.providers`. It returns exactly three enum fields:
 `auth` (`ok`, `signed-out`, `unknown`). These independent checks contain no account
 or command output. No new capability is advertised. Older Hosts refuse the method;
 clients can fall back to their existing provider summary.
+
+`machine.claudeUsage {force?: boolean}`, under the same capability, runs the Host's
+`claude -p /usage --output-format json --no-session-persistence` with pi's
+environment: no model call and no quota. The Host parses the reply itself, so
+reset stamps use its own timezone, and answers `{ok: true, snapshot: {fetchedAt,
+stale, windows}}` (at most 16 windows of label, kind, percent used and reset
+time) or `{ok: false, error: claude-not-found|run-failed|no-usage}`. The CLI's
+free-text "contributing" block never leaves the Host. A success is reused for
+60 seconds; `force` shortens that to 10. Failures are not cached.

@@ -1,5 +1,5 @@
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
-import { inspectClaude } from '../machine/claude'
+import { claudeUsageReader, inspectClaude, type ClaudeUsageRead } from '../machine/claude'
 import { spawn } from 'node:child_process'
 import { hostname } from 'node:os'
 import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
@@ -39,7 +39,9 @@ export function featureError(error: unknown): FeatureOutcome {
 export interface MachinePorts {
   inspect?: () => Promise<HostInspection>
   configPath?: string
+  claudeUsage?: ClaudeUsageRead
 }
+const hostClaudeUsage = claudeUsageReader()
 /** Inspection reads files that can stall; callers queue behind it, so it must settle. */
 export const INSPECTION_DEADLINE_MS = 20_000
 export function featureInspection(
@@ -132,9 +134,14 @@ export async function machineCall(
   method: string,
   context: FeatureContext,
   ports: MachinePorts,
+  params: { force?: boolean } = {},
 ): Promise<FeatureOutcome> {
   const inspection = await featureInspection(context, ports)
   if (!inspection.pi) throw new FeatureFailure('internal')
+  if (method === 'machine.claudeUsage') {
+    const read = ports.claudeUsage ?? hostClaudeUsage
+    return { ok: true, data: await read(inspection.pi.environment, { force: params.force }) }
+  }
   if (method === 'machine.claude') {
     return { ok: true, data: await inspectClaude(await listPackages(), inspection.pi.environment) }
   }

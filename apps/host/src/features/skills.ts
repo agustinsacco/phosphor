@@ -130,6 +130,7 @@ export function createSkillsFeature(
     'machine.models',
     'machine.providers',
     'machine.claude',
+    'machine.claudeUsage',
     'skills.list',
     'skills.read',
   ]
@@ -156,7 +157,7 @@ export function createSkillsFeature(
     parsed: NonNullable<ReturnType<typeof parseMachineParams>>,
   ): Promise<Awaited<ReturnType<HostFeature['call']>>> {
     try {
-      if (method.startsWith('machine.')) return await machineCall(method, context, ports)
+      if (method.startsWith('machine.')) return await machineCall(method, context, ports, parsed)
       const skills = await resolveSkills(context, ports, parsed.laneId)
       if (method === 'skills.list')
         return { ok: true, data: { skills: skills.map((s) => s.skill) } }

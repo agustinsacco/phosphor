@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest'
-import { parseMachineClaude, parseMachineParams } from '@phosphor/shared/host-protocol-machine'
+import {
+  parseMachineClaude,
+  parseMachineClaudeUsage,
+  parseMachineParams,
+} from '@phosphor/shared/host-protocol-machine'
 
 it('accepts exactly the three machine.claude enum fields and empty params', () => {
   for (const provider of ['ok', 'missing', 'outdated'])
@@ -24,3 +28,43 @@ it.each([
 ])('rejects malformed Claude diagnostics %j', (value) =>
   expect(parseMachineClaude(value)).toBe(null),
 )
+
+const usage = {
+  ok: true,
+  snapshot: {
+    fetchedAt: 1_760_000_000_000,
+    stale: false,
+    windows: [
+      { label: 'Current session', kind: 'five_hour', percentUsed: 12, resetsAt: 1_760_001_000_000 },
+      { label: 'Current week (all models)', kind: 'weekly', percentUsed: 40, resetsAt: null },
+    ],
+  },
+}
+
+it('accepts plan usage windows and only a boolean force param', () => {
+  expect(parseMachineClaudeUsage(usage)).toEqual({
+    ok: true,
+    snapshot: { ...usage.snapshot, contributing: null },
+  })
+  expect(parseMachineClaudeUsage({ ok: false, error: 'no-usage' })).toEqual({
+    ok: false,
+    error: 'no-usage',
+  })
+  expect(parseMachineParams('machine.claudeUsage', {})).toEqual({})
+  expect(parseMachineParams('machine.claudeUsage', { force: true })).toEqual({ force: true })
+  expect(parseMachineParams('machine.claudeUsage', { force: 'yes' })).toBe(null)
+  expect(parseMachineParams('machine.claude', { force: true })).toBe(null)
+})
+
+const window = usage.snapshot.windows[0]
+it.each([
+  null,
+  { ok: false, error: 'secret text' },
+  { ok: true },
+  { ok: true, snapshot: { ...usage.snapshot, stale: 'no' } },
+  { ok: true, snapshot: { ...usage.snapshot, windows: Array(17).fill(window) } },
+  { ok: true, snapshot: { ...usage.snapshot, windows: [{ ...window, kind: 'monthly' }] } },
+  { ok: true, snapshot: { ...usage.snapshot, windows: [{ ...window, percentUsed: 201 }] } },
+  { ok: true, snapshot: { ...usage.snapshot, windows: [{ ...window, resetsAt: 'soon' }] } },
+  { ok: true, snapshot: { ...usage.snapshot, windows: [{ ...window, label: '' }] } },
+])('rejects malformed plan usage %j', (value) => expect(parseMachineClaudeUsage(value)).toBe(null))

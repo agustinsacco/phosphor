@@ -1,3 +1,4 @@
+import type { ClaudeUsageSnapshotResult, ClaudeUsageWindow } from './models'
 import type { ThinkingLevel, ThinkingLevelMap } from './rpc'
 
 /** Read-only machine methods. No executable, environment or filesystem root comes from a client. */
@@ -41,19 +42,22 @@ export function isSkillFile(v: unknown): v is string {
 export function parseMachineParams(
   method: string,
   v: unknown,
-): { laneId?: string; name?: string; file?: string } | null {
+): { laneId?: string; name?: string; file?: string; force?: boolean } | null {
   if (!machineRecord(v)) return null
   const keys =
     method === 'skills.read'
       ? ['laneId', 'name', 'file']
       : method === 'skills.list'
         ? ['laneId']
-        : []
+        : method === 'machine.claudeUsage'
+          ? ['force']
+          : []
   if (
     ![
       'machine.models',
       'machine.providers',
       'machine.claude',
+      'machine.claudeUsage',
       'skills.list',
       'skills.read',
     ].includes(method) ||
@@ -69,7 +73,9 @@ export function parseMachineParams(
   if (method === 'skills.read' && (!text(v.name, 64) || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(v.name)))
     return null
   if (v.file !== undefined && !isSkillFile(v.file)) return null
+  if (v.force !== undefined && typeof v.force !== 'boolean') return null
   return {
+    ...(v.force === true ? { force: true } : {}),
     ...(typeof v.laneId === 'string' ? { laneId: v.laneId } : {}),
     ...(typeof v.name === 'string' ? { name: v.name } : {}),
     ...(typeof v.file === 'string' ? { file: v.file } : {}),
@@ -223,4 +229,51 @@ export function parseMachineClaude(value: unknown): MachineClaude | null {
   if (cli !== 'ok' && cli !== 'missing') return null
   if (auth !== 'ok' && auth !== 'signed-out' && auth !== 'unknown') return null
   return { provider, cli, auth }
+}
+
+/** Plan windows per `/usage` run; the CLI prints four today. */
+const USAGE_WINDOWS = 16
+const USAGE_KINDS: readonly ClaudeUsageWindow['kind'][] = [
+  'five_hour',
+  'weekly',
+  'weekly_model',
+  'other',
+]
+const stamp = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v > 0
+
+/**
+ * The Host's `machine.claudeUsage` answer: the windows its own `claude -p
+ * /usage` printed, reset times already absolute. The CLI's free-text
+ * "contributing" block never crosses the wire, so it is always null here.
+ */
+export function parseMachineClaudeUsage(v: unknown): ClaudeUsageSnapshotResult | null {
+  if (!machineRecord(v)) return null
+  if (v.ok === false) {
+    const error = v.error
+    return error === 'claude-not-found' || error === 'run-failed' || error === 'no-usage'
+      ? { ok: false, error }
+      : null
+  }
+  const snap = v.snapshot
+  if (v.ok !== true || !machineRecord(snap) || !stamp(snap.fetchedAt)) return null
+  if (typeof snap.stale !== 'boolean' || !Array.isArray(snap.windows)) return null
+  if (snap.windows.length > USAGE_WINDOWS) return null
+  const windows: ClaudeUsageWindow[] = []
+  for (const w of snap.windows) {
+    if (!machineRecord(w) || !text(w.label) || !USAGE_KINDS.includes(w.kind as never)) return null
+    const percentUsed = w.percentUsed
+    if (typeof percentUsed !== 'number' || !Number.isInteger(percentUsed)) return null
+    if (percentUsed < 0 || percentUsed > 200) return null
+    if (w.resetsAt !== null && !stamp(w.resetsAt)) return null
+    windows.push({
+      label: w.label,
+      kind: w.kind as ClaudeUsageWindow['kind'],
+      percentUsed,
+      resetsAt: w.resetsAt,
+    })
+  }
+  return {
+    ok: true,
+    snapshot: { fetchedAt: snap.fetchedAt, stale: snap.stale, windows, contributing: null },
+  }
 }

@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeMachine, type FakeMachine } from '../__fixtures__/machine'
-import { checkClaudeLane, parseLoggedIn } from './claude'
+import { checkClaudeLane, claudeUsageReader, parseLoggedIn } from './claude'
+import type { probe } from './probe'
 
 const provider = (version: string, installed = true) => ({
   name: '@saccolabs/pi-claude-cli',
@@ -85,6 +86,71 @@ describe('the Claude lane', () => {
     expect(await checkClaudeLane([provider('0.10.0')], old)).toEqual({
       available: false,
       reason: `${machine.bin}/claude auth status was unreadable (exit 1): error: unknown command "auth"`,
+    })
+  })
+})
+
+describe('the Host plan usage', () => {
+  const env = { env: { PATH: '/nowhere' }, secrets: [] }
+  const result = [
+    'Current session: 12% used',
+    'Current week (all models): 40% used',
+    "What's contributing to your limits usage?",
+    'Long sessions in /home/person/private',
+  ].join('\n')
+  const reply = (stdout: string, code = 0) =>
+    vi.fn<typeof probe>(async () => ({
+      code,
+      signal: null,
+      stdout,
+      stderr: '',
+      timedOut: false,
+      truncated: false,
+    }))
+
+  it('runs claude -p /usage once a minute, drops the contributing text, and floors a refresh', async () => {
+    const machine = claude(STATUS)
+    const run = reply(JSON.stringify({ result }))
+    const read = claudeUsageReader(run)
+    const first = await read(machine, { nowMs: 1_000_000 })
+    expect(first).toEqual({
+      ok: true,
+      snapshot: {
+        fetchedAt: 1_000_000,
+        stale: false,
+        contributing: null,
+        windows: [
+          { label: 'Current session', kind: 'five_hour', percentUsed: 12, resetsAt: null },
+          { label: 'Current week (all models)', kind: 'weekly', percentUsed: 40, resetsAt: null },
+        ],
+      },
+    })
+    expect(JSON.stringify(first)).not.toContain('private')
+    expect(run.mock.calls[0]?.slice(0, 2)).toEqual([
+      `${machine.env.PATH.split(':')[0]}/claude`,
+      ['-p', '/usage', '--output-format', 'json', '--no-session-persistence'],
+    ])
+    await read(machine, { nowMs: 1_050_000 })
+    await read(machine, { nowMs: 1_005_000, force: true })
+    expect(run).toHaveBeenCalledTimes(1)
+    await read(machine, { nowMs: 1_011_000, force: true })
+    expect(run).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports a missing CLI, a failed run and unparseable output without caching them', async () => {
+    expect(await claudeUsageReader(reply(''))(env)).toEqual({
+      ok: false,
+      error: 'claude-not-found',
+    })
+    const machine = claude(STATUS)
+    const failed = reply('', 1)
+    const read = claudeUsageReader(failed)
+    expect(await read(machine)).toEqual({ ok: false, error: 'run-failed' })
+    expect(await read(machine)).toEqual({ ok: false, error: 'run-failed' })
+    expect(failed).toHaveBeenCalledTimes(2)
+    expect(await claudeUsageReader(reply('{"result":"Signed out"}'))(machine)).toEqual({
+      ok: false,
+      error: 'no-usage',
     })
   })
 })

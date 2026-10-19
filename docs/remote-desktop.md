@@ -267,6 +267,11 @@ auth: ok|signed-out|unknown }`, validated by the strict shared
 Host older than the call refuses it; main returns null and the row keeps the
 single Claude status.
 
+`hosts:claudeUsage <hostId> [force]` reads `machine.claudeUsage` the same way and
+validates it with `parseMachineClaudeUsage`; null means unavailable or an older
+Host. A remote Claude lane's context popover shows it as the Host's plan usage
+([chat.md](chat.md#what-the-context-meters-popover-shows)).
+
 Terminal capability, controller input, reconnects and privacy are owned by
 [terminal.md](terminal.md#host-terminals). Native release resources and wire bounds
 are owned by [host.md](host.md#host-terminals).

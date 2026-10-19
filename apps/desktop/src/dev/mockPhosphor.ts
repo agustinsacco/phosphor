@@ -1477,6 +1477,7 @@ export function installMockPhosphor(): void {
             },
           ]
         case 'hosts:claude':
+        case 'hosts:claudeUsage':
           return null
         case 'hosts:providers':
           return [{ id: 'anthropic', name: 'Anthropic', status: 'ready' }]

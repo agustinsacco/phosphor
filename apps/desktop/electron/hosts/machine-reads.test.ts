@@ -148,3 +148,32 @@ it.each(['capability', 'connection', 'incarnation', 'state'] as const)(
     expect(await reads.claude('host')).toBeNull()
   },
 )
+
+it('reads the Host plan usage, forwards a refresh, and falls back for old Hosts', async () => {
+  const data = {
+    ok: true,
+    snapshot: {
+      fetchedAt: 1,
+      stale: false,
+      windows: [
+        { label: 'Current week (all models)', kind: 'weekly', percentUsed: 7, resetsAt: 2 },
+      ],
+    },
+  }
+  call.mockResolvedValueOnce({ type: 'result', id: 'usage', ok: true, data })
+  expect(await reads.claudeUsage('host', true)).toEqual({
+    ok: true,
+    snapshot: { ...data.snapshot, contributing: null },
+  })
+  expect(call).toHaveBeenCalledWith('machine.claudeUsage', { force: true })
+  call.mockResolvedValueOnce({
+    type: 'result',
+    id: 'usage',
+    ok: false,
+    error: { code: 'unsupported', message: 'Unknown method' },
+  })
+  expect(await reads.claudeUsage('host')).toBeNull()
+  expect(call).toHaveBeenLastCalledWith('machine.claudeUsage', {})
+  view.capabilities = []
+  expect(await reads.claudeUsage('host')).toBeNull()
+})

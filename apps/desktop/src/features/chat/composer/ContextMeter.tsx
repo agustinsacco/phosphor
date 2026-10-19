@@ -270,6 +270,9 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             </div>
             <HeadroomSavings statusText={headroomStatus} />
             {!remote && isClaudeCliModel(model) && <PlanUsage sessionId={sessionId} />}
+            {target?.kind === 'remote' && isClaudeCliModel(model) && (
+              <HostPlanUsage hostId={target.hostId} machine={machine ?? 'remote machine'} />
+            )}
             {!remote && model?.provider === 'openai-codex' && <CodexPlanUsage />}
             <PlanLimits statusText={rateLimitStatus} />
           </div>
@@ -464,21 +467,87 @@ function PlanUsage({ sessionId }: { sessionId: string }): React.JSX.Element {
   const stale = state?.ok === true && state.snapshot.stale
 
   return (
+    <PlanUsageView
+      label={`Plan usage · ${who}${stale ? ' · last known' : ''}`}
+      refreshTitle="Re-read this account's usage from the Claude CLI"
+      state={state}
+      onRefresh={refresh}
+    >
+      <AccountRouting sessionId={sessionId} account={account} />
+    </PlanUsageView>
+  )
+}
+
+/**
+ * A remote lane spends the Host's Claude login, not this computer's, so its
+ * plan windows come from the Host's own `claude -p /usage` (`machine.claudeUsage`).
+ * A Host older than that call answers null, which says so instead of hiding.
+ */
+function HostPlanUsage({ hostId, machine }: { hostId: string; machine: string }) {
+  const [state, setState] = useState<ClaudeUsageSnapshotResult | 'unsupported' | null>(null)
+  const [reload, setReload] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    setState(null)
+    void window.phosphor
+      .invoke('hosts:claudeUsage', hostId, reload > 0)
+      .catch(() => null)
+      .then((result) => {
+        if (!cancelled) setState(result ?? 'unsupported')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [hostId, reload])
+  const stale = state !== null && state !== 'unsupported' && state.ok && state.snapshot.stale
+  return (
+    <PlanUsageView
+      label={`Plan usage · Claude on ${machine}${stale ? ' · last known' : ''}`}
+      refreshTitle={`Re-read ${machine}'s usage from its Claude CLI`}
+      state={state === 'unsupported' ? null : state}
+      unavailable={
+        state === 'unsupported'
+          ? `Plan usage is unavailable from ${machine}. Update its Host, then refresh.`
+          : undefined
+      }
+      onRefresh={() => setReload((n) => n + 1)}
+    />
+  )
+}
+
+function PlanUsageView({
+  label,
+  refreshTitle,
+  state,
+  unavailable,
+  onRefresh,
+  children,
+}: {
+  label: string
+  refreshTitle: string
+  /** null while checking, unless `unavailable` explains why there is no answer. */
+  state: ClaudeUsageSnapshotResult | null
+  unavailable?: string
+  onRefresh: () => void
+  children?: React.ReactNode
+}): React.JSX.Element {
+  const checking = state === null && unavailable === undefined
+  return (
     <section className="border-border/60 mt-2 border-t pt-1.5">
       <div className="flex items-center justify-between gap-2">
-        <SectionLabel>{`Plan usage · ${who}${stale ? ' · last known' : ''}`}</SectionLabel>
+        <SectionLabel>{label}</SectionLabel>
         <TooltipButton
-          onClick={refresh}
-          disabled={state === null}
-          title="Re-read this account's usage from the Claude CLI"
+          onClick={onRefresh}
+          disabled={checking}
+          title={refreshTitle}
           className="text-text-tertiary hover:text-text hover:bg-bg-secondary -mr-1 flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-sm transition-colors disabled:opacity-50"
         >
-          {state === null ? <Spinner className="text-text-tertiary" /> : <RefreshIcon />}
+          {checking ? <Spinner className="text-text-tertiary" /> : <RefreshIcon />}
           Refresh
         </TooltipButton>
       </div>
       {state === null ? (
-        <div className="text-text-tertiary text-sm">Checking…</div>
+        <div className="text-text-tertiary text-sm">{unavailable ?? 'Checking…'}</div>
       ) : !state.ok || state.snapshot.windows.length === 0 ? (
         <div className="text-text-tertiary text-sm">
           {usageUnavailableReason(state.ok ? 'no-usage' : state.error)}
@@ -490,7 +559,7 @@ function PlanUsage({ sessionId }: { sessionId: string }): React.JSX.Element {
           ))}
         </div>
       )}
-      <AccountRouting sessionId={sessionId} account={account} />
+      {children}
     </section>
   )
 }

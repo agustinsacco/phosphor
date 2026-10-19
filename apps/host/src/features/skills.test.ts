@@ -374,4 +374,6 @@ it('serves machine.claude under the existing read capability with strict empty p
     data: { provider: 'missing', cli: 'missing', auth: 'unknown' },
   })
   expect(await feature.call('machine.claude', { extra: true })).toEqual(error('bad-request'))
+  expect(feature.methods).toContain('machine.claudeUsage')
+  expect(await feature.call('machine.claudeUsage', { force: 1 })).toEqual(error('bad-request'))
 })
