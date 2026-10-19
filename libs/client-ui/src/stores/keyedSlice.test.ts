@@ -11,7 +11,7 @@ const newSlice = (): ReturnType<typeof keyedSlice<Pane>> =>
 
 describe('keyedSlice — shared frozen empty', () => {
   it('hands every keyless reader the SAME object', () => {
-    // The rule CLAUDE.md fact 5 states: a selector that allocated a fresh `{}`
+    // The rule AGENTS.md fact 6 states: a selector that allocated a fresh `{}`
     // per miss would make every subscriber re-render on every store change.
     const panes = newSlice()
     const map: Record<string, Pane> = {}

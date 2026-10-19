@@ -779,7 +779,7 @@ it.each([
 )
 
 it('documents the Host listener without stale no-listener claims', async () => {
-  for (const file of ['docs/host.md', 'docs/remote-access.md', 'README.md', 'CLAUDE.md']) {
+  for (const file of ['docs/host.md', 'docs/remote-access.md', 'README.md', 'AGENTS.md']) {
     const text = await readFile(new URL(`../../../../${file}`, import.meta.url), 'utf8')
     expect(text).not.toMatch(/Host has no listener|clients; no listener/)
   }

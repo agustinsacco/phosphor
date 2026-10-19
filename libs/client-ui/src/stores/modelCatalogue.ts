@@ -13,7 +13,7 @@ import type { ModelCost, ThinkingLevelMap } from '@shared/rpc'
  *
  * So: one shared fetch, started at boot (`App.tsx`) rather than on first open,
  * and an explicit `status` the pickers can render as loading. Main memoises
- * the underlying spawn as well (`electron/ipc/pi-config-handlers.ts`), so a
+ * the underlying spawn as well (`electron/pi/catalogue.ts`), so a
  * remount costs an IPC round trip, not a process.
  *
  * One fetch, though, must not mean one CHANCE. Boot is the worst moment to ask

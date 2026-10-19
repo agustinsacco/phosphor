@@ -26,7 +26,7 @@
     "typecheck:client": "tsc --noEmit -p libs/host-client/tsconfig.json",
     "typecheck:host": "tsc --noEmit -p apps/host/tsconfig.json",
     "build:host": "node apps/host/scripts/build.mjs",
-    "lint": "eslint .",
+    "lint": "eslint . && node tools/scripts/dead-mocks.mjs",
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",

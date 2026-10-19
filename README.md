@@ -304,8 +304,8 @@ Six facts that explain the rest:
 1. **The main process owns all side effects.** The renderer runs sandboxed
    (`contextIsolation`, no Node) and is pure UI over typed IPC. Disk, network
    or a subprocess means `apps/desktop/electron/`, not `apps/desktop/src/`.
-2. **IPC is a typed contract.** A new channel is an entry in `libs/shared/src/ipc.ts`'s
-   `IpcInvokeMap`, a handler in the matching `apps/desktop/electron/ipc/<prefix>-handlers.ts`,
+2. **IPC is a typed contract.** A new channel is an entry in its prefix's map under
+   `libs/shared/src/ipc/` (combined into `IpcInvokeMap` by `libs/shared/src/ipc.ts`), a handler in the matching `apps/desktop/electron/ipc/<prefix>-handlers.ts`,
    and a case in `libs/client-ui/src/dev/mockPhosphor.ts`.
 3. **Stores (`libs/client-ui/src/stores/`) are projections of main-process state**, not a
    second source of truth. The chat store keeps a session's live title, tokens
@@ -320,7 +320,7 @@ Six facts that explain the rest:
    the model did: [docs/extensions.md](docs/extensions.md).
 6. **Failure is reported, not hidden.** Failures land on the session's chat;
    main-process detail goes to `phosphor.log`. For a bad session,
-   [CLAUDE.md](CLAUDE.md#debugging-a-failing-session) has the three layers of
+   [AGENTS.md](AGENTS.md#debugging-a-failing-session) has the three layers of
    evidence and the one command that decides Phosphor-vs-pi.
 
 ## Development
@@ -351,7 +351,7 @@ npm run dev
 
 [Testing](docs/testing.md) is the contract for dependency installation, check
 commands, typed test helpers, frozen interfaces, coverage evidence, size budgets
-and staged lint warnings. Tests currently live beside their subjects as
+and lint ratchets. Tests currently live beside their subjects as
 `*.test.ts`; this is temporary until RL-03 moves them to `test/` folders.
 Foundation and freeze suites already use the new layout.
 
@@ -432,8 +432,8 @@ the explicit implicit edge remains too. Graph checks require both edge types,
 while comparing unique targets for reachability. No import-inference plugin is enabled.
 
 Conventions (IPC channels, the `piCall` rule, modals, and the sharp edges worth
-knowing before touching pi's session files) are in [CLAUDE.md](CLAUDE.md). It
-is written for coding agents and is the shortest accurate orientation for a
+knowing before touching pi's session files) are in [AGENTS.md](AGENTS.md). It
+is written for coding agents (`CLAUDE.md` imports it) and is the shortest accurate orientation for a
 human too.
 
 ### The screenshots in this README
@@ -465,7 +465,7 @@ provenance live in [apps/site/README.md](apps/site/README.md#captures-and-privac
 
 ### Repo layout
 
-This tree is the single source of truth for "what lives where". `CLAUDE.md` and
+This tree is the single source of truth for "what lives where". `AGENTS.md` and
 [docs/architecture.md](docs/architecture.md) link here rather than keeping
 copies.
 
@@ -583,7 +583,7 @@ only ever renders inside a sandboxed iframe.
 
 | Read                                               | When                                                      |
 | -------------------------------------------------- | --------------------------------------------------------- |
-| [CLAUDE.md](CLAUDE.md)                             | Orientation, conventions, sharp edges, debugging          |
+| [AGENTS.md](AGENTS.md)                             | Orientation, engineering rules, sharp edges, debugging    |
 | [docs/README.md](docs/README.md)                   | The map: which file owns which fact                       |
 | [docs/](docs/)                                     | How Phosphor works now (architecture, extensions, MCP, …) |
 | [docs/known-issues.md](docs/known-issues.md)       | Defects that reproduce today, with the file that has them |

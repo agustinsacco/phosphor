@@ -1147,7 +1147,7 @@ Every program a check runs goes through `machine/probe.ts`:
 
 - stdin is `/dev/null`. A program that reads stdin to EOF, as `pi -p` does,
   waits forever on a pipe nobody closes (see the `pi -p` note in
-  [CLAUDE.md](../CLAUDE.md)).
+  [pi-integration.md](pi-integration.md#process-model)).
 - The program leads its own process group. A timeout, 10 s or 15 s for pi,
   SIGKILLs the whole group, grandchildren included.
 - Output past 64 KiB is read and dropped, so the program never blocks.

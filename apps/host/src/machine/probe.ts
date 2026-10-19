@@ -7,7 +7,7 @@ import { redact } from './environment'
  * The one way the Host runs another program to inspect the machine.
  *
  * - stdin is /dev/null, never an open pipe. `pi -p` and friends wait for
- *   EOF on stdin, and a pipe nobody closes never delivers it (CLAUDE.md).
+ *   EOF on stdin, and a pipe nobody closes never delivers it (docs/pi-integration.md).
  * - The program leads its own process group. A timeout SIGKILLs the whole
  *   group, so a hung grandchild cannot keep the Host waiting.
  * - Output past the cap is read and dropped, so the program never blocks on

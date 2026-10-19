@@ -145,7 +145,7 @@ function isRawEntry(value: unknown): value is RawEntry {
  * `get_entries` ships the whole file: 15 MB for the largest local session,
  * ~80 ms to parse and clone. Fine behind a click; keep it off render paths.
  *
- * Deliberately NOT `piCall` (CLAUDE.md fact 3): every caller turns `null`
+ * Deliberately NOT `piCall` (AGENTS.md fact 3): every caller turns `null`
  * into its own, more specific message.
  */
 export async function currentBranchUserMessages(

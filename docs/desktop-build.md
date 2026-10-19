@@ -48,6 +48,16 @@ Root tooling declares esbuild explicitly for portable package/boundary tests.
 These imports must resolve inside the root installation, not from an ancestor
 checkout; Vite retains its separate nested esbuild version.
 
+## Never package in the main checkout
+
+A packaging build (`electron-builder`, or anything that writes `release/`) in
+the main checkout drops a complete `Phosphor.app` under `release/`. Spotlight
+indexes it exactly like the real install in `/Applications`: same name, no
+version in search. Launching the stale one looks like a broken updater ("Update
+available" never clears). On 2026-08-27 a stray build five versions behind was
+launched this way. Install from the DMG on GitHub Releases and let it update
+itself. If a local package is ever needed, point the output outside the repo.
+
 ## Resources and release
 
 App-relative `build/` supplies platform icons, entitlements and the development

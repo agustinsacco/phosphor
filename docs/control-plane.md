@@ -382,6 +382,72 @@ migration version or target another product's database. Local test success does
 not prove deployment. Only the disposable `phosphor-control-test` stack belongs
 to automated local validation.
 
+### Hosted Web schema verification
+
+The authorized hosted target is the **personal** Supabase project
+`bzdbiswndlqvviiywsvj`, name `phosphor`. Verify both identity and ownership before
+any hosted work, never another product's project or org/prod AWS account
+`559050243724`. The known hosted ledger maps to canonical repository SQL as
+follows; a different timestamp does not mean a schema is missing:
+
+| Canonical repository migration           | Hosted version   | Hosted name           |
+| ---------------------------------------- | ---------------- | --------------------- |
+| `20261005235137_remote_directory.sql`    | `20261005235137` | `remote_directory`    |
+| `20261012144607_control_enrollment.sql`  | `20261012144607` | `control_enrollment`  |
+| `20261013120000_control_grants.sql`      | `20261013185415` | `control_grants`      |
+| `20261014120000_control_web_clients.sql` | `20261018182658` | `control_web_clients` |
+
+The Web migration is already applied to that target from the exact checked-in
+SQL. Its two functions were verified as security invokers with EXECUTE denied
+to anon/authenticated and allowed to service_role. No user/credential data was
+seeded. Recheck the actual state before each activation; this mapping is not a
+license to run a blind `db push`, replay schemas under repository timestamps or
+rewrite the hosted ledger. Do not edit applied SQL to make retries succeed.
+
+In an authorized SQL inspection surface on the explicitly verified project, run
+these **read-only** checks (no user rows or credential values):
+
+```sql
+select version, name
+from supabase_migrations.schema_migrations
+order by version;
+
+select p.oid::regprocedure as function_name,
+       p.prosecdef as security_definer,
+       p.proconfig as function_settings,
+       has_function_privilege('anon', p.oid, 'EXECUTE') as anon_execute,
+       has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated_execute,
+       has_function_privilege('service_role', p.oid, 'EXECUTE') as service_role_execute,
+       exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+               where a.grantee = 0 and a.privilege_type = 'EXECUTE') as public_execute,
+       pg_get_functiondef(p.oid) as definition
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in ('control_web_client_status', 'control_web_clients_list')
+order by p.oid::regprocedure::text;
+```
+
+Expect exactly `control_web_client_status(uuid,uuid)` and
+`control_web_clients_list(uuid)`, `security_definer=false`, empty fixed
+`search_path`, false anon/authenticated/public EXECUTE and true service_role
+EXECUTE. Compare the definitions (allowing PostgreSQL's formatting) with
+`supabase/migrations/20261014120000_control_web_clients.sql`: owner/kind/revocation
+and enabled-account checks for status, bounded owner-only listing, no credential
+storage. Inspect ledger statements through the authorized surface if content
+reconciliation is needed; do not infer equivalence from a name alone. Stop on
+missing/extra functions, unexpected privileges or content/ledger mismatch and
+obtain an explicit migration/reconciliation decision. If provisioning a genuinely
+new authorized target, review and apply the canonical migrations in order through
+the existing approved migration process; this helper neither provisions targets
+nor reconciles ledgers.
+
+The [repeatable Web activation runbook](web-client.md#repeatable-activation) owns
+the environment-only Management API helper, callback append, routing checks,
+guarded flag/deploy controls and rollback. The
+[local fixtures](web-client.md#repeatable-local-fixtures) reuse existing database,
+Desktop-auth and Control-stack suites; they are not hosted or real PWA OAuth
+acceptance. Neither an applied schema nor the OAuth allowlist enables rollout.
+
 ## Browser authentication (isolated app origin)
 
 Browser auth is opt-in. `CONTROL_WEB_ORIGIN`, `WEB_DIR` and

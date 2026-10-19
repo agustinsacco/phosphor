@@ -121,7 +121,7 @@ copies fork history and how machine-specific paths are remapped.
 
 **Risks.** Last-writer-wins can erase local edits, run a routine twice or leak MCP
 secrets. Copy is not fleet management: each session and each routine scheduler
-remains machine-local, consistent with CLAUDE.md fact 5.
+remains machine-local, consistent with AGENTS.md fact 5.
 
 ## Lane migration (direction decided, design exploratory)
 

@@ -194,7 +194,7 @@ export function Composer({
           excludeFromContext: exclude,
         })
         try {
-          // Deliberately raw rather than `piCall` (CLAUDE.md fact 3): a failed
+          // Deliberately raw rather than `piCall` (AGENTS.md fact 3): a failed
           // `!command` belongs in the bash item's own output next to the
           // command that produced it, not on the session-wide error surface.
           const response = await window.phosphor.piCommand(sessionId, {

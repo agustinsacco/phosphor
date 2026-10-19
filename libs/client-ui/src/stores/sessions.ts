@@ -421,7 +421,7 @@ export function attachPiCommandsListener(): () => void {
  * written branch shows up as an unclaimed extra row — read by a user as the
  * chat having been duplicated.
  *
- * The one sanctioned exemption from the `piCall` rule (CLAUDE.md fact 3): this
+ * The one sanctioned exemption from the `piCall` rule (AGENTS.md fact 3): this
  * batch wants the raw envelopes, both because `Promise.allSettled` reasons over
  * them and because a per-command failure is expected here — older pi builds
  * simply lack some of these commands, and surfacing five chat errors while a

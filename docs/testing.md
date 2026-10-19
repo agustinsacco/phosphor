@@ -56,6 +56,13 @@ Desktop/Host/Control/Web builds and Desktop/browser e2e, with a PASS/FAIL summar
 `SKIP_E2E=1` skips only e2e, never builds. E2E exercises the Electron app against
 the pi stub; packaging builds are not part of unit validation.
 
+E2E windows never appear on your screen, so a background agent running the
+suite cannot steal focus. `tools/scripts/e2e.sh` prefers `xvfb-run` (real
+windows on a virtual display, full speed) and otherwise leaves windows unmapped
+(`hideWindowsForE2E` in `apps/desktop/electron/window-chrome.ts`), about 2-3x
+slower because Chromium deprioritizes a window that was never shown.
+`PHOSPHOR_E2E_SHOW=1 npm run test:e2e` shows them on your display.
+
 ## Layout and helpers
 
 Tests currently live beside their subjects as `*.test.ts` or `*.test.tsx` across
@@ -162,7 +169,7 @@ e2e, site and Supabase paths retain their boundaries. Run inventory and inspect
 collisions, importer edits, budget renames and report-only paths before any
 separately approved relocation.
 
-## Size budgets and lint staging
+## Size budgets and lint ratchets
 
 ```bash
 node tools/scripts/size-budget.mjs check
@@ -181,13 +188,25 @@ ceilings and its icon-declaration exemption to `client-ui`; `web` and
 debt are measured from commit `9dfff24b`, never from new integration code. `--strict` also fails remaining baseline debt;
 it is not CI's default while that debt exists.
 
-ESLint stages React hooks warnings in renderer code/tests, typed
-`no-floating-promises` and `no-misused-promises` warnings in main/preload and
-libraries, and renderer raw-`piCommand` warnings. Native-confirm is an error in renderer source. Typed linting
-uses owning projects, not a default-project fallback. The RPC wrapper and test
-doubles have narrow exemptions. Warnings are an inventory for owners, not a
-zero-warning CI budget; existing prompt and Host boundary errors remain errors.
-Do not suppress rules or weaken types to pass a unit.
+Typed `no-floating-promises` and `no-misused-promises` are errors in every file
+a TS project owns: Desktop main/preload, every library, Host, Control and the
+Web app. Renderer raw-`piCommand`, `rules-of-hooks`, native-confirm, prompt and
+Host boundary rules are errors too. Typed linting uses owning projects, not a
+default-project fallback; Desktop renderer tests, e2e and tooling stay
+syntax-only. The RPC wrapper and test doubles have narrow exemptions.
+
+Violations that predate a rule are recorded in `eslint-suppressions.json`.
+ESLint fails on a new violation and also on a recorded one that no longer
+occurs, so the record only shrinks: after fixing one, run
+`npx eslint . --prune-suppressions` and commit the smaller file. Never add to
+it with `--suppress-rule`/`--suppress-all` to land a change. Only
+`exhaustive-deps` stays a warning: an inventory for owners, not a
+zero-warning CI budget. Do not disable rules or weaken types to pass a unit.
+
+`npm run lint` also runs `tools/scripts/dead-mocks.mjs`. It fails when a test
+`vi.mock`s a workspace module that nothing the test loads imports: such a mock
+passes silently while the code under test uses the real module. Mock the module
+the code imports now, or delete the mock.
 
 ## CI boundary
 

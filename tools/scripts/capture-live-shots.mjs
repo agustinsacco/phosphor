@@ -66,7 +66,7 @@ const TASK_EDIT =
 /** The artifact task, read-only, run on the checked-out branch. */
 const TASK_ARTIFACT =
   process.env.TASK_ARTIFACT ??
-  'Create a markdown artifact titled "How Phosphor talks to pi": a one-page explainer of the RPC boundary, based on libs/shared/src/rpc.ts and the architecture notes in CLAUDE.md. Do not edit any files.'
+  'Create a markdown artifact titled "How Phosphor talks to pi": a one-page explainer of the RPC boundary, based on libs/shared/src/rpc.ts and the architecture notes in AGENTS.md. Do not edit any files.'
 /**
  * Who serves each session: a provider filter-chip name plus a model search
  * string. Provider-scoped because several catalogues carry the same model

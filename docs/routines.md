@@ -312,7 +312,7 @@ refetch the routines queries.
 - `apps/desktop/electron/pi/session-runtime.ts`: Desktop bindings for `libs/session-runtime/src/pi/` startup
   and session admission. Routine startup and interactive IPC use the same
   provider-guarded service; routine startup and execution remain owned by their execution machine.
-- `apps/desktop/electron/ipc/routines-handlers.ts`, `libs/shared/src/ipc.ts`, `apps/desktop/electron/preload.ts`:
+- `apps/desktop/electron/ipc/routines-handlers.ts`, `libs/shared/src/ipc/services.ts`, `apps/desktop/electron/preload.ts`:
   typed operations and snapshot invalidations. `libs/client-ui/src/dev/mockRoutines.ts` is a
   clearly labelled browser simulation with no model execution.
 - `useRoutineLaneIndex` (`libs/client-ui/src/stores/routines.ts`) keeps the lane index fresh
