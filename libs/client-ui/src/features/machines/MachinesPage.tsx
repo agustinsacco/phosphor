@@ -71,9 +71,13 @@ export function MachinesPage(): React.JSX.Element {
   const local = selected === LOCAL_MACHINE
   const now = state.nowMs || Date.now()
   const back = async (): Promise<void> => {
-    if (selected && !(await confirmSettingsNavigation(selected))) return
-    state.show({ kind: 'list' })
-    setError(null)
+    try {
+      if (selected && !(await confirmSettingsNavigation(selected))) return
+      state.show({ kind: 'list' })
+      setError(null)
+    } catch {
+      if (live.current) setError('Could not leave settings. Try again.')
+    }
   }
   async function remove(): Promise<void> {
     if (!removing || busy) return
@@ -92,7 +96,7 @@ export function MachinesPage(): React.JSX.Element {
       }
       if (result.ok || result.error.code === 'not-found') {
         setRemoving(null)
-        back()
+        await back()
         setNotice(result.ok ? 'Machine removed.' : 'That machine was already removed.')
         await state.refresh()
       } else setError(controlMessage(result.error.code))
@@ -129,7 +133,7 @@ export function MachinesPage(): React.JSX.Element {
               <TooltipButton
                 tooltip="Back to all machines"
                 className="text-text-secondary hover:text-text -mb-2 text-base"
-                onClick={back}
+                onClick={() => void back()}
               >
                 ← Machines
               </TooltipButton>
@@ -237,12 +241,13 @@ export function MachinesPage(): React.JSX.Element {
                         state.view.kind === 'machine' && !state.view.settings ? 'page' : undefined
                       }
                       className={`pb-2 text-base ${state.view.kind === 'machine' && !state.view.settings ? 'border-accent border-b-2' : 'text-text-secondary'}`}
-                      onClick={() =>
-                        void (async () => {
-                          if (await confirmSettingsNavigation(machine.id))
-                            state.show({ kind: 'machine', id: machine.id })
-                        })()
-                      }
+                      onClick={() => {
+                        void confirmSettingsNavigation(machine.id)
+                          .then((allowed) => {
+                            if (allowed) state.show({ kind: 'machine', id: machine.id })
+                          })
+                          .catch(() => setError('Could not leave settings. Try again.'))
+                      }}
                     >
                       Overview
                     </TooltipButton>
@@ -285,7 +290,7 @@ export function MachinesPage(): React.JSX.Element {
                       : 'This machine is no longer in your account.'
                     : 'Sign in again to see this machine.'}
                 </span>
-                <Button onClick={back}>All machines</Button>
+                <Button onClick={() => void back()}>All machines</Button>
               </div>
             )}
           </div>
