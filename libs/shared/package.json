@@ -128,6 +128,18 @@
       "types": "./src/machine-settings-result.ts",
       "default": "./src/machine-settings-result.ts"
     },
+    "./machine-settings-change": {
+      "types": "./src/machine-settings-change.ts",
+      "default": "./src/machine-settings-change.ts"
+    },
+    "./machine-settings-fields": {
+      "types": "./src/machine-settings-fields.ts",
+      "default": "./src/machine-settings-fields.ts"
+    },
+    "./machine-settings-mcp": {
+      "types": "./src/machine-settings-mcp.ts",
+      "default": "./src/machine-settings-mcp.ts"
+    },
     "./machine-settings": {
       "types": "./src/machine-settings.ts",
       "default": "./src/machine-settings.ts"

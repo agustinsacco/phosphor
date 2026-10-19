@@ -9,8 +9,7 @@ import {
   parseGrantIssueRequest,
   parseGrantIssueResponse,
 } from '@phosphor/shared/control-api'
-import { GRANT_VERSION, GRANT_LIMITS, type GrantPayload } from '@phosphor/shared/host-grant'
-import { LEGACY_HOST_CAPABILITIES } from '@phosphor/shared/remote-host'
+import { grantClaims } from './grant-claims'
 import { userGuard, type createUserAuth } from '../auth/user'
 import type { AppDeps } from '../app'
 import type { TraceEvents } from '../events'
@@ -108,22 +107,18 @@ export function grants(
       throw new ControlFailure('unavailable')
     const { client } = parsed(parseClientRegisterResponse(value))
     if (client.id !== input.clientId) throw new ControlFailure('unavailable')
-    const iat = Math.floor(deps.clock() / 1000)
-    const payload: GrantPayload = {
-      v: GRANT_VERSION,
-      iss: deps.config.publicOrigin,
+    const payload = grantClaims({
+      origin: deps.config.publicOrigin,
       kid: keys.kid,
-      sub: userId,
+      userId,
       sid,
       hostId: input.hostId,
       epoch: value.epoch,
       client,
-      caps: LEGACY_HOST_CAPABILITIES,
-      ...(input.configure === true ? { configure: true as const } : {}),
-      iat,
-      exp: iat + GRANT_LIMITS.ttlSec,
+      configure: input.configure,
+      iat: Math.floor(deps.clock() / 1000),
       jti: Buffer.from(deps.random(8)).toString('hex'),
-    }
+    })
     const result = parsed(
       parseGrantIssueResponse({
         grant: keys.sign(payload),

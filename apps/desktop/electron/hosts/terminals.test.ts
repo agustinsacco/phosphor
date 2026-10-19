@@ -1,8 +1,7 @@
-import { generateKeyPairSync, randomUUID, sign } from 'node:crypto'
+import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createLoopbackPair } from '@shared/host-protocol-testing'
 import {
-  helloProofMessage,
   parseClientFrame,
   type ClientFrame,
   type HostFrame,
@@ -11,6 +10,7 @@ import {
 import type { TerminalFrame } from '@shared/host-protocol-terminals'
 import { createHostConnection } from './connection'
 import { createRemoteTerminals } from './terminals'
+import { terminalReady, terminalCommandReceipt } from './__fixtures__/terminal-frames'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => {
@@ -91,26 +91,16 @@ async function setup(configuration = false) {
         const f = parsed.frame
         frames.push(f)
         if (f.type === 'auth')
-          send({
-            type: 'ready',
-            protocolVersion: 1,
-            hello: {
+          send(
+            terminalReady({
               hostId,
-              hostVersion: '1.0.0',
-              protocolVersion: 1,
-              runtimeEpoch: epoch,
+              epoch,
               capabilities: caps,
-            },
-            proof: sign(
-              null,
-              Buffer.from(helloProofMessage(hostId, epoch, f.challenge ?? '')),
-              keys.privateKey,
-            ).toString('base64url'),
-            connectionId: '2222222222222222',
-            grantExpiresAt: new Date(Date.now() + 300000).toISOString(),
-            client: { id: clientId, label: 'Test' },
-            capabilities: caps,
-          })
+              clientId,
+              challenge: f.challenge ?? '',
+              privateKey: keys.privateKey,
+            }),
+          )
         else if (f.type === 'subscribe' && f.topic === 'lanes')
           send({
             type: 'lanes',
@@ -123,18 +113,7 @@ async function setup(configuration = false) {
           subscription = f.id
           if (autoReset) reset()
         } else if (f.type === 'command' && autoReceipt)
-          send({
-            type: 'receipt',
-            receipt: {
-              requestId: f.requestId,
-              status: 'done',
-              laneId: lane.laneId,
-              data:
-                f.op.type === 'terminal.create' || f.op.type === 'provider.login'
-                  ? { terminalId }
-                  : undefined,
-            },
-          })
+          send(terminalCommandReceipt(f, lane.laneId, terminalId))
         else if (f.type === 'call')
           send({
             type: 'result',

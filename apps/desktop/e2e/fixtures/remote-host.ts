@@ -23,9 +23,23 @@ import { MACHINE } from '../../../../libs/client-ui/src/features/machines/__fixt
 import { accountControlFixture } from './account-control'
 import { scratchDir } from './scratch'
 import { withHostNative } from './host-native.mjs'
+import { createHostFixtureBuilder } from './remote-host-build'
+import { installFixtureClaude } from './remote-host-claude'
+import { attachHostDiagnostics } from './remote-host-logs'
 
-let hostBuilt = false
-let hostHasNative = false
+const hostProject = resolve(import.meta.dirname, '../../../..')
+const buildHostFixture = createHostFixtureBuilder({
+  build: (native) => {
+    execFileSync(
+      process.execPath,
+      [join(hostProject, 'apps/host/scripts/build.mjs'), ...(native ? ['--native', native] : [])],
+      { cwd: hostProject, stdio: 'pipe' },
+    )
+  },
+  native: async (build) => {
+    await withHostNative(build)
+  },
+})
 
 /** Real dev Host CLI, disposable owner identity, SQLite store and pi process. */
 /**
@@ -37,20 +51,8 @@ export const REMOTE_TEST_TIMEOUT = process.env.CI ? 120_000 : 25_000
 export async function remoteHostFixture(
   options: { allowRepositoryChanges?: boolean; claude?: boolean; native?: boolean } = {},
 ) {
-  const project = resolve(import.meta.dirname, '../../../..')
-  if (!hostBuilt || !!options.native !== hostHasNative) {
-    const build = (native?: string) =>
-      execFileSync(
-        process.execPath,
-        [join(project, 'apps/host/scripts/build.mjs'), ...(native ? ['--native', native] : [])],
-        { cwd: project, stdio: 'pipe' },
-      )
-    if (options.native) {
-      await withHostNative(build)
-      hostHasNative = true
-    } else build()
-    hostBuilt = true
-  }
+  const project = hostProject
+  await buildHostFixture(!!options.native)
   const root = await scratchDir('phosphor-remote-')
   let h: Awaited<ReturnType<typeof accountControlFixture>> | undefined
   let child: ReturnType<typeof spawn> | undefined
@@ -164,20 +166,7 @@ export async function remoteHostFixture(
       if (!h) return
       const info = test.info()
       await info.attach('host.log', { body: hostOutput, contentType: 'text/plain' })
-      await info.attach('claude-fixture.log', {
-        body: (await readFile(join(root, 'claude-fixture.log'), 'utf8').catch(() => '')).slice(
-          -131072,
-        ),
-        contentType: 'text/plain',
-      })
-      await info.attach('host-runtime.log', {
-        body: (
-          await readFile(join(root, 'state/phosphor-host/logs/phosphor.log'), 'utf8').catch(
-            () => '',
-          )
-        ).slice(-131072),
-        contentType: 'text/plain',
-      })
+      await attachHostDiagnostics(info, root)
       const desktopLog = await readFile(join(h.userData, 'logs', 'phosphor.log'), 'utf8').catch(
         () => '',
       )
@@ -295,40 +284,7 @@ export async function remoteHostFixture(
       '#!/bin/sh\necho \'{"BackendState":"Stopped"}\'\n',
       { mode: 0o700 },
     )
-    if (options.claude)
-      await writeFile(
-        join(root, 'bin', 'claude'),
-        `#!/usr/bin/env node
-const fs = require('node:fs'), path = require('node:path');
-const defaultAuth = ${JSON.stringify(join(root, 'default-claude-auth.json'))};
-const scope = process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR;
-const file = scope ? path.join(scope, 'fixture-auth.json') : defaultAuth;
-const args = process.argv.slice(2);
-const observe = extra => fs.appendFileSync(${JSON.stringify(join(root, 'claude-fixture.log'))}, JSON.stringify({ args: args.slice(0,2), scoped: !!scope, ...extra }) + '\\n');
-observe({ phase: 'invoked' });
-if (args[0] === '--version') { console.log('2.1.301'); process.exit(0); }
-if (args[0] !== 'auth') process.exit(1);
-if (args[1] === 'login') {
-  console.log('HOST_A_ONLY Claude account email:');
-  let input = '';
-  process.stdin.on('data', chunk => {
-    input += chunk.toString();
-    if (!input.includes('\\n')) return;
-    const email = input.trim();
-    if (!email.includes('@')) process.exit(1);
-    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(file, JSON.stringify({ loggedIn: true, email, subscriptionType: 'max', accessToken: 'HOST_ONLY_PRIVATE_CLAUDE_TOKEN' }), { mode: 0o600 });
-    observe({ phase: 'login-saved', email });
-    console.log('HOST_A_ONLY Login successful.'); process.exit(0);
-  });
-} else if (args[1] === 'logout') { if (scope) fs.rmSync(file, { force: true }); else fs.writeFileSync(file, '{"loggedIn":false}', { mode: 0o600 }); process.exit(0); }
-else if (args[1] === 'status') {
-  if (!scope && !fs.existsSync(file)) console.log(JSON.stringify({ loggedIn: true, email: 'first@host.example', subscriptionType: 'max' }));
-  else console.log(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '{"loggedIn":false}');
-} else process.exit(1);
-`,
-        { mode: 0o700 },
-      )
+    if (options.claude) await installFixtureClaude(root)
     execFileSync('git', ['init', '-q', repo])
     const nonGit = join(root, 'notes')
     const addable = join(root, 'addable')

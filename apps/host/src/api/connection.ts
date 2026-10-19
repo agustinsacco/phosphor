@@ -1,4 +1,4 @@
-import { randomBytes, sign, verify, type KeyObject } from 'node:crypto'
+import { randomBytes, verify, type KeyObject } from 'node:crypto'
 import { CONTROL_LIMITS } from '@phosphor/shared/control-api'
 import {
   checkGrantClaims,
@@ -8,8 +8,6 @@ import {
 } from '@phosphor/shared/host-grant'
 import {
   HOST_LIMITS,
-  HOST_PROTOCOL_VERSION,
-  helloProofMessage,
   parseClientFrame,
   utf8Length,
   type FrameSocket,
@@ -20,6 +18,10 @@ import {
 import type { HostHello, HostCapability } from '@phosphor/shared/remote-host'
 import type { Authority } from './authority'
 import type { Keyset } from './keyset'
+import { grantedCapabilities, readyFrame } from './ready-frame'
+import { connectionLimits, type ConnectionLimits } from './connection-limits'
+
+export { hostProof } from './ready-frame'
 
 export type ApiLog = (event: string, fields: Record<string, string | number>) => void
 export interface ReadyConnection {
@@ -49,41 +51,13 @@ export interface ConnectionPorts {
   onClose?(connectionId: string): void
   log?: ApiLog
   now?: () => number
-  limits?: Partial<
-    Record<
-      | 'authTimeoutMs'
-      | 'inboundFrameBytes'
-      | 'sendQueueBytes'
-      | 'connectionsPerClient'
-      | 'pingIntervalMs'
-      | 'idleCloseMs',
-      number
-    >
-  >
-}
-
-export function hostProof(hello: HostHello, challenge: string, key: KeyObject) {
-  return sign(
-    null,
-    Buffer.from(helloProofMessage(hello.hostId, hello.runtimeEpoch, challenge)),
-    key,
-  ).toString('base64url')
+  limits?: ConnectionLimits
 }
 
 export function createConnection(ports: ConnectionPorts) {
   const { socket } = ports
   const now = ports.now ?? Date.now
-  const limits = { ...HOST_LIMITS, ...ports.limits }
-  for (const name of [
-    'authTimeoutMs',
-    'inboundFrameBytes',
-    'sendQueueBytes',
-    'connectionsPerClient',
-    'pingIntervalMs',
-    'idleCloseMs',
-  ] as const)
-    if (!Number.isSafeInteger(limits[name]) || limits[name] < 1 || limits[name] > HOST_LIMITS[name])
-      throw new Error('Invalid limit')
+  const limits = connectionLimits(ports.limits)
   const connectionId = randomBytes(8).toString('hex')
   const started = now()
   let trace: string | undefined
@@ -182,10 +156,7 @@ export function createConnection(ports: ConnectionPorts) {
     if (!grant && !ports.admit(payload.client.id)) return refuse(4429, 'connections')
     const initial = !grant
     grant = payload
-    caps = ports.hello.capabilities.filter(
-      (cap) =>
-        payload.caps.includes(cap) || (cap === 'machine.configure' && payload.configure === true),
-    )
+    caps = grantedCapabilities(ports.hello, payload)
     clearTimeout(deadline)
     clearTimeout(expiry)
     expiry = setTimeout(
@@ -194,27 +165,17 @@ export function createConnection(ports: ConnectionPorts) {
     )
     const grantExpiresAt = new Date(payload.exp * 1000).toISOString()
     if (initial && challenge !== undefined) {
-      send({
-        type: 'ready',
-        protocolVersion: HOST_PROTOCOL_VERSION,
-        // Old clients strictly parse capability arrays. Without the signed opt-in,
-        // advertise settings through an additive field, not an unknown capability.
-        hello: {
-          ...ports.hello,
-          capabilities: ports.hello.capabilities.filter(
-            (cap) =>
-              cap !== 'machine.configure' ||
-              payload.configure === true ||
-              payload.caps.includes(cap),
-          ),
-        },
-        settings: ports.hello.capabilities.includes('machine.configure'),
-        proof: hostProof(ports.hello, challenge, ports.key),
-        connectionId,
-        grantExpiresAt,
-        client: payload.client,
-        capabilities: caps,
-      })
+      send(
+        readyFrame({
+          hello: ports.hello,
+          grant: payload,
+          key: ports.key,
+          challenge,
+          connectionId,
+          grantExpiresAt,
+          caps,
+        }),
+      )
       if (!ended) {
         const ready = { connectionId, trace, client: payload.client, caps, socket }
         handler = ports.handler?.(ready)

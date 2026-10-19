@@ -24,25 +24,36 @@ export function executeAccountMove(
   }
   const allowed = () => {
     const lane = ports.store.getLane(admitted.laneId)
-    return authorized() &&
+    return (
+      authorized() &&
       lane?.control.controller?.clientId === job.client.id &&
       lane.control.fence === admitted.fence
+    )
   }
   const completion = dispatch(state, ports, job, queue, () =>
-    move(admitted.laneId, op.accountId, allowed).then(() => true, () => false),
+    move(admitted.laneId, op.accountId, allowed).then(
+      () => true,
+      () => false,
+    ),
   ).then((result) => {
-    if (!result.answered)
-      return terminal(state, ports, job, { requestId, status: 'unknown' }, true)
-    terminal(state, ports, job, result.value
-      ? { requestId, status: 'done', fence: admitted.fence }
-      : {
-          requestId,
-          status: 'failed',
-          error: {
-            code: 'internal',
-            message: 'Account change not completed. Check the lane before retrying; it may be stopped.',
+    if (!result.answered) return terminal(state, ports, job, { requestId, status: 'unknown' }, true)
+    terminal(
+      state,
+      ports,
+      job,
+      result.value
+        ? { requestId, status: 'done', fence: admitted.fence }
+        : {
+            requestId,
+            status: 'failed',
+            error: {
+              code: 'internal',
+              message:
+                'Account change not completed. Check the lane before retrying; it may be stopped.',
+            },
           },
-        }, true)
+      true,
+    )
   })
   return handled({ completion, detached: false })
 }

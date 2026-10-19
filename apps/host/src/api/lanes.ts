@@ -1,9 +1,11 @@
-import { HOST_LIMITS, type HostFrame, type Receipt } from '@phosphor/shared/host-protocol'
+import type { HostFrame, Receipt } from '@phosphor/shared/host-protocol'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { LaneService } from '../lanes/service'
 import { createSubscriptions } from '../lanes/subscriptions'
-import { streamLimits, type StreamLimits } from '../lanes/stream'
+import type { StreamLimits } from '../lanes/stream'
+import { createLaneSender, laneLimits } from './lane-transport'
 import type { ApiLog, AuthenticatedHandler, ReadyConnection } from './connection'
+import { createConfigurationAuthority } from './configuration-authority'
 
 export function createLaneAdapter(
   service: LaneService,
@@ -12,15 +14,7 @@ export function createLaneAdapter(
     log?: ApiLog
   } = {},
 ) {
-  const { pendingCommandsPerConnection = HOST_LIMITS.pendingCommandsPerConnection, ...input } =
-    options.limits ?? {}
-  if (
-    !Number.isSafeInteger(pendingCommandsPerConnection) ||
-    pendingCommandsPerConnection < 1 ||
-    pendingCommandsPerConnection > HOST_LIMITS.pendingCommandsPerConnection
-  )
-    throw new Error('Invalid pending limit')
-  const limits = streamLimits(input)
+  const { pendingCommandsPerConnection, limits } = laneLimits(options.limits)
   type Peer = {
     clientId: string
     reply(receipt: Receipt): void
@@ -31,8 +25,12 @@ export function createLaneAdapter(
   function handler(connection: ReadyConnection): AuthenticatedHandler {
     const { socket, connectionId, client } = connection
     let caps = connection.caps
-    let authorizationEpoch = 0
     let closed = false
+    const authorization = createConfigurationAuthority({
+      caps: () => caps,
+      closed: () => closed,
+      open: () => socket.isOpen(),
+    })
     let inFlight = 0
     const pending = new Set<string>()
     const interests = new Map<string, 'command' | 'status'>()
@@ -61,23 +59,14 @@ export function createLaneAdapter(
       socket.close(4429, '4429')
     }
     const traceFields: Record<string, string> = connection.trace ? { trace: connection.trace } : {}
-    function send(frame: HostFrame) {
-      if (closed || !socket.isOpen()) return
-      try {
-        const text = JSON.stringify(frame)
-        const bytes = Buffer.byteLength(text)
-        if (
-          bytes > limits.outboundFrameBytes ||
-          socket.bufferedBytes() + bytes > limits.sendQueueBytes
-        )
-          return stop()
-        socket.send(text)
-        if (frame.type === 'receipt')
-          options.log?.('api.receipt', { ...traceFields, status: frame.receipt.status })
-      } catch {
-        stop()
-      }
-    }
+    const send = createLaneSender({
+      socket,
+      limits,
+      closed: () => closed,
+      stop,
+      log: options.log,
+      traceFields,
+    })
     function interest(requestId: string, kind: 'command' | 'status') {
       if (interests.get(requestId) === 'command') return
       interests.delete(requestId)
@@ -103,9 +92,7 @@ export function createLaneAdapter(
       }
     }
     function renew(next: readonly HostCapability[]) {
-      const lostConfiguration =
-        caps.includes('machine.configure') && !next.includes('machine.configure')
-      if (lostConfiguration) authorizationEpoch++
+      const lostConfiguration = authorization.renew(next)
       caps = next
       if (lostConfiguration) service.terminals?.authorizationChanged()
       if (!caps.includes('terminal') || !caps.includes('sessions.control'))
@@ -222,19 +209,7 @@ export function createLaneAdapter(
           options.log?.('api.command', { ...traceFields, op: frame.op.type })
           pending.add(frame.requestId)
           interest(frame.requestId, 'command')
-          const admittedEpoch = authorizationEpoch
-          const sender = {
-            id: client.id,
-            label: client.label,
-            caps,
-            currentCaps: () =>
-              closed
-                ? []
-                : authorizationEpoch !== admittedEpoch
-                  ? caps.filter((cap) => cap !== 'machine.configure')
-                  : caps,
-            connectionId,
-          }
+          const sender = authorization.sender(client, connectionId)
           void (async () => {
             try {
               await service.commands.submit(sender, frame)
@@ -254,12 +229,7 @@ export function createLaneAdapter(
             })
           if (inFlight >= pendingCommandsPerConnection) return stop()
           inFlight++
-          const admittedEpoch = authorizationEpoch
-          const authorized = () =>
-            !closed &&
-            socket.isOpen() &&
-            (capability !== 'machine.configure' || admittedEpoch === authorizationEpoch) &&
-            (capability === null || caps.includes(capability))
+          const authorized = authorization.admit(capability)
           void (async () => {
             try {
               const outcome = await service.calls.call(frame.method, frame.params, authorized)

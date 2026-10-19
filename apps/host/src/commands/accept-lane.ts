@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { errorText } from '@phosphor/shared/errors'
+import type { UnprovisionedClaudeStartupError } from '@phosphor/session-runtime/pi/session-account'
 import type { HostRuntime } from '../session/runtime'
 import type { HostSessionRequest } from '../session/request'
 import type { AcceptContext, AcceptLane, AcceptLaneResult, AcceptTimings } from './accept'
@@ -28,6 +29,7 @@ export interface AcceptLaneState {
   request: HostSessionRequest
   token: string
   session: { sessionId: string; pid?: number } | null
+  startupAccountFailure?: UnprovisionedClaudeStartupError
   timings: AcceptTimings
   settleMs: number
   progress: (line: string) => void

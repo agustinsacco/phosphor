@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { errorText } from '@phosphor/shared/errors'
+import { UnprovisionedClaudeStartupError } from '@phosphor/session-runtime/pi/session-account'
 import { ALL_THINKING_LEVELS } from '@phosphor/shared/thinking'
 import type {
   AgentMessage,
@@ -57,11 +58,18 @@ async function startSession(state: AcceptLaneState, sessionPath?: string): Promi
   const { watch, timings, runtime, request } = state
   const mark = watch.mark()
   const by = deadline(timings.startMs)
-  state.session = await within(
-    runtime.start({ ...request, ...(sessionPath && { sessionPath }) }, watch.deliver),
-    by,
-    'answer to the start',
-  )
+  try {
+    state.session = await within(
+      runtime.start({ ...request, ...(sessionPath && { sessionPath }) }, watch.deliver),
+      by,
+      'answer to the start',
+    )
+  } catch (error) {
+    if (!(error instanceof UnprovisionedClaudeStartupError) || !error.controlsVerified) throw error
+    // Startup already stopped the process. Preserve accept's read-only provider
+    // diagnostic as a state failure without ever sending an unscoped prompt.
+    state.startupAccountFailure = error
+  }
   await watch.until(
     () => watch.since(mark).find(isBreakdownStatus),
     by,
@@ -101,9 +109,10 @@ export async function stop(state: AcceptLaneState): Promise<void> {
 export async function startStep(state: AcceptLaneState): Promise<void> {
   const { result } = state
   await startSession(state)
-  const { commands } = await call(state, { type: 'get_commands' })
-  if (!commands.some((command) => command.name === 'phosphor-context-budget')) {
-    throw new Error('get_commands does not list phosphor-context-budget')
+  if (!state.startupAccountFailure) {
+    const { commands } = await call(state, { type: 'get_commands' })
+    if (!commands.some((command) => command.name === 'phosphor-context-budget'))
+      throw new Error('get_commands does not list phosphor-context-budget')
   }
   result.extensionsLoaded = true
 }
@@ -111,7 +120,7 @@ export async function startStep(state: AcceptLaneState): Promise<void> {
 export async function stateStep(state: AcceptLaneState): Promise<void> {
   const { result, context } = state
   const lane = result.lane
-  const current = await call(state, { type: 'get_state' })
+  const current = state.startupAccountFailure?.state ?? (await call(state, { type: 'get_state' }))
   result.provider = current.model?.provider
   result.model = current.model?.id
   result.thinkingLevel = current.thinkingLevel
@@ -127,6 +136,7 @@ export async function stateStep(state: AcceptLaneState): Promise<void> {
         : ''
     throw new Error(`the ${lane} lane runs on provider ${result.provider ?? 'none'}${asked}${hint}`)
   }
+  if (state.startupAccountFailure) throw state.startupAccountFailure
   // Without --provider, a model named provider/id is read against pi's provider.
   const named = lane === 'claude' ? context.claudeModel : context.model
   const model = named && modelId(named, provider ?? result.provider)

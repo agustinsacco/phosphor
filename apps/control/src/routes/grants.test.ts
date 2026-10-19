@@ -54,25 +54,6 @@ function setup() {
     })
   return { deps, seed, hostId, hostKey, clientId, sid, results, app, call, token }
 }
-it('adds machine configuration only for an explicit owner-authorized request, without changing the legacy capability array', async () => {
-  const s = setup()
-  const res = await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId, configure: true })
-  expect(res.status).toBe(200)
-  const response = parseGrantIssueResponse(await res.json())
-  if (!response.ok) throw new Error('Invalid response')
-  const grant = splitGrant(response.value.grant)
-  if (!grant.ok) throw new Error('Invalid grant')
-  expect(grant.value.payload.configure).toBe(true)
-  expect(grant.value.payload.caps).toEqual(LEGACY_HOST_CAPABILITIES)
-  expect(grant.value.payload.caps).not.toContain('machine.configure')
-  const invalid = await s.call(R.grants, {
-    hostId: s.hostId,
-    clientId: s.clientId,
-    configure: 'true',
-  })
-  expect(invalid.status).toBe(400)
-})
-
 it('issues exactly the signed claims and publishes the matching public key, never secrets in logs', async () => {
   const s = setup()
   const res = await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId, ignored: 'unknown' })
@@ -334,4 +315,23 @@ it('delivers bounded revocations on heartbeat and keeps accepted beats on revoca
     }),
   )
   expect(JSON.stringify(vi.mocked(s.deps.log).mock.calls)).not.toContain(s.seed)
+})
+
+it('adds machine configuration only for an explicit owner-authorized request, without changing the legacy capability array', async () => {
+  const s = setup()
+  const res = await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId, configure: true })
+  expect(res.status).toBe(200)
+  const response = parseGrantIssueResponse(await res.json())
+  if (!response.ok) throw new Error('Invalid response')
+  const grant = splitGrant(response.value.grant)
+  if (!grant.ok) throw new Error('Invalid grant')
+  expect(grant.value.payload.configure).toBe(true)
+  expect(grant.value.payload.caps).toEqual(LEGACY_HOST_CAPABILITIES)
+  expect(grant.value.payload.caps).not.toContain('machine.configure')
+  const invalid = await s.call(R.grants, {
+    hostId: s.hostId,
+    clientId: s.clientId,
+    configure: 'true',
+  })
+  expect(invalid.status).toBe(400)
 })

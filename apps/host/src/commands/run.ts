@@ -1,16 +1,17 @@
 import { createRepositories } from '../features/repositories'
 import { createLaneDeletion, transcriptTrash } from '../lanes/delete'
-import { createProviderLogins } from '../providers/login'
-import { createHostClaudeAccounts } from '../providers/accounts'
-import { createAccountMoves } from '../settings/account-moves'
-import { createMachineSettings } from '../settings/service'
-import { createMachineTasks } from '../settings/tasks'
+import type { HostClaudeAccounts } from '../providers/accounts'
+import {
+  createRunAccounts,
+  createRunAdministration,
+  createRunControllerPresence,
+  runReadiness,
+} from './run-administration'
 import { realpathSync } from 'node:fs'
 import { createAttachments, type HostAttachments } from '../features/attachments'
 import { loadHostPty } from '../terminals/native'
 import { createTerminals, type HostTerminals } from '../terminals/service'
 import { terminalState } from '../terminals/state'
-import { createWrites } from '../features/writes'
 import { createAuthority } from '../api/authority'
 import { startApi } from '../api/server'
 import { randomBytes, randomInt } from 'node:crypto'
@@ -35,7 +36,7 @@ import {
 import { identityDirectory, IdentityFailure } from '../control/identity'
 import { acquireIdentityLock } from '../control/lock'
 import { loadHostConfig } from '../config/load'
-import { checkReadiness, readinessPorts } from '../machine/readiness'
+import type { readinessPorts } from '../machine/readiness'
 import { SHUTDOWN_SIGNALS, type Drainable, type ShutdownSignal } from '../shutdown'
 import {
   launchdExit,
@@ -60,12 +61,7 @@ import type { LaneService } from '../lanes/service'
 import type { Receipt } from '@phosphor/shared/host-protocol'
 import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
 import { join } from 'node:path'
-import { createFilesFeature } from '../features/files'
-import { createGitFeature } from '../features/git'
-import { createArtifactsFeature } from '../features/artifacts'
-import { createSkillsFeature } from '../features/skills'
 import { createHostRoutines, routineOwnership, type HostRoutines } from '../routines/service'
-import type { FeatureContext } from '../features/feature'
 
 /**
  * Shutdown exits as soon as the attached drain ends. A drain that ended before
@@ -103,7 +99,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
   let routines: HostRoutines | undefined
   let routinesStop: Promise<void> | undefined
   let nameLane: ReturnType<typeof createLaneNamer> | undefined
-  let claudeAccounts: ReturnType<typeof createHostClaudeAccounts> | undefined
+  let claudeAccounts: HostClaudeAccounts | undefined
   let activeLog: ReturnType<typeof createHostLog> | undefined
   let runtime: HostRuntime | undefined
   let runtimeDrain: ReturnType<HostRuntime['drain']> | undefined
@@ -263,11 +259,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
         activeLog = log
         const trash = transcriptTrash(hostStateDirectory(context.env, context.home))
         await trash.sweep().catch(() => {})
-        claudeAccounts = createHostClaudeAccounts({
-          directory: stateDirectory,
-          home: context.home,
-          env: machine.env,
-        })
+        claudeAccounts = createRunAccounts(context, stateDirectory, machine.env)
         runtime = createHostRuntime(
           { ...machine, log },
           {
@@ -333,12 +325,6 @@ async function runHostCommand(context: RunContext): Promise<number> {
             },
             ...terminalState(stateDirectory),
           })
-        const featureContext: FeatureContext = {
-          store,
-          env: context.env,
-          home: context.home,
-          log: (event, fields) => log.write('host', event, fields),
-        }
         const activeRuntime = runtime
         const repositories = createRepositories({
           home: context.home,
@@ -354,47 +340,35 @@ async function runHostCommand(context: RunContext): Promise<number> {
             activeTopic.repositoriesChanged()
           },
         })
-        const providerLogins = terminals
-          ? createProviderLogins(context, terminals, undefined, claudeAccounts)
-          : undefined
-        const settings = createMachineSettings({
-          context: featureContext,
+        const administration = createRunAdministration({
+          context,
           configPath: config.path,
           env: machine.env,
+          pi: machine.pi,
           store,
           runtime: activeRuntime,
           accounts: claudeAccounts,
-          pi: machine.pi,
-          authenticating: () => providerLogins?.active() ?? false,
-          sessionFor: live.sessionFor,
+          terminals,
+          binding,
+          live,
+          repositories,
+          routines,
+          log: log.write,
         })
         commands = createLaneCommands({
-          moveClaudeAccount: createAccountMoves({
-            accounts: claudeAccounts,
-            runtime,
-            store,
-            binding,
-          }),
+          moveClaudeAccount: administration.moveClaudeAccount,
           repositories,
-          machineTasks: terminals
-            ? createMachineTasks({
-                terminals,
-                settings,
-                home: context.home,
-                env: machine.env,
-                pi: machine.pi,
-              })
-            : undefined,
+          machineTasks: administration.machineTasks,
           deleteLane: createLaneDeletion({
             store,
             stop: binding.deleteStop,
             remove: runtime.remove,
             forget: live.forget,
           }),
-          providerLogins,
+          providerLogins: administration.providerLogins,
           attachments,
           terminals,
-          writes: createWrites(featureContext),
+          writes: administration.writes,
           store,
           ...binding,
           runtime: binding,
@@ -407,20 +381,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           now: context.now ?? Date.now,
           log: log.write,
         })
-        const features = [
-          settings.feature,
-          repositories.feature,
-          ...(terminals ? [terminals.feature] : []),
-          routines.feature,
-          createFilesFeature(featureContext),
-          createGitFeature(featureContext),
-          // Machine reads inspect the config this Host actually runs with, not the default path.
-          createSkillsFeature(featureContext, {
-            configPath: config.path,
-            claudeAuthentication: claudeAccounts.authenticationReady,
-          }),
-          createArtifactsFeature({ ...featureContext, store }),
-        ]
+        const features = administration.features()
         const calls = createLaneCalls({
           features,
           store,
@@ -430,8 +391,6 @@ async function runHostCommand(context: RunContext): Promise<number> {
           now: context.now ?? Date.now,
           log: log.write,
         })
-        const activeLive = live
-        const activeStore = store
         lanes = {
           terminals,
           epoch,
@@ -447,11 +406,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           calls,
           streams: live.streams,
           lanesTopic: live.lanesTopic,
-          controllerPresence(clientId) {
-            for (const lane of activeStore.listLanes())
-              if (lane.control.controller?.clientId === clientId)
-                activeLive.publish(lane.laneId, { kind: 'control', control: lane.control })
-          },
+          controllerPresence: createRunControllerPresence(store, live),
         }
         routines.start()
       } else context.log?.('host', 'lanes.unavailable', { reason: 'machine-unusable' })
@@ -504,24 +459,13 @@ async function runHostCommand(context: RunContext): Promise<number> {
         readiness:
           context.heartbeat?.readiness ??
           (() =>
-            checkReadiness(
-              config.config,
-              context.env,
-              context.platform,
-              {
-                ...(context.heartbeat?.readinessPorts ?? readinessPorts),
-                ...(claudeAccounts
-                  ? { claudeAuthentication: claudeAccounts.authenticationReady }
-                  : {}),
-              },
-              (found) => {
-                endpoint = found.endpoint
-                if (routeState !== found.state) {
-                  routeState = found.state
-                  context.log?.('host', 'tailscale.endpoint', { state: found.state })
-                }
-              },
-            )),
+            runReadiness(config.config, context, claudeAccounts, (found) => {
+              endpoint = found.endpoint
+              if (routeState !== found.state) {
+                routeState = found.state
+                context.log?.('host', 'tailscale.endpoint', { state: found.state })
+              }
+            })),
         seq: context.heartbeat?.seq ?? createSequenceStore(directory, context.uid, identity.hostId),
         hostVersion: HOST_VERSION,
         signal: context.signal,

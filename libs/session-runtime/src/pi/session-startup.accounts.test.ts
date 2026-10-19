@@ -47,7 +47,10 @@ it('refuses unavailable native-model fallback to Claude before any prompt or acc
       'verified Claude account',
     )
     expect(h.runtime.policy.account).not.toHaveBeenCalled()
-    expect(h.clients[0]!.request.mock.calls.map(([command]) => command.type)).toEqual(['get_state'])
+    expect(h.clients[0]!.request.mock.calls.map(([command]) => command.type)).toEqual([
+      'get_state',
+      'get_commands',
+    ])
     expect(h.runtime.accounts.remember).not.toHaveBeenCalled()
     expect(h.runtime.recordWorkspace).not.toHaveBeenCalled()
     expect(h.registry.list()).toEqual([])

@@ -5,6 +5,7 @@ import {
 import { runProviderLogin, type LoginContext } from '../commands/provider-login'
 import { TerminalForbidden, type HostTerminals } from '../terminals/service'
 import type { HostClaudeAccounts } from './accounts'
+import { prepareLoginAccount } from './login-account'
 
 /** The CLI owns provider membership, program, argv, environment and temporary cwd. */
 export function createProviderLogins(
@@ -53,25 +54,7 @@ export function createProviderLogins(
       )
       const perform = async () => {
         if (!authorized()) throw new TerminalForbidden('forbidden')
-        let accountId: string | undefined
-        let credentialEnv: Record<string, string> | undefined
-        if (op.provider === 'claude' && accounts) {
-          const prefs = await accounts.loadAccounts()
-          if (op.addAccount) {
-            if (prefs.accounts.length >= 16) throw new Error('too-many-accounts')
-            const target = await accounts.beginAddAccount()
-            accountId = target.id
-            credentialEnv = target.env
-          } else if (op.accountId) {
-            const account = prefs.accounts.find((account) => account.id === op.accountId)
-            if (!account) throw new Error('unknown-account')
-            // Reauthenticate in a new credential slot. A running process keeps its
-            // original token/org; a different identity becomes a separate account.
-            const target = await accounts.beginAddAccount()
-            accountId = target.id
-            credentialEnv = target.env
-          }
-        } else if (op.accountId || op.addAccount) throw new Error('unsupported')
+        const { accountId, credentialEnv } = await prepareLoginAccount(op, accounts)
         const outcome = await login({
           ...context,
           credentialEnv,

@@ -133,7 +133,16 @@ describe('Desktop TypeScript projects', () => {
   })
 
   it('load only the imported .mjs helpers as JavaScript, unchecked', { timeout: 60_000 }, () => {
-    expect(loadedJs('e2e')).toEqual(['tools/scripts/desktop-electron-launch.mjs'])
+    expect(loadedJs('e2e')).toEqual([
+      'apps/desktop/e2e/fixtures/host-native.mjs',
+      'tools/host-release/archive.mjs',
+      'tools/host-release/build-bundle.mjs',
+      'tools/host-release/build-native.mjs',
+      'tools/host-release/common.mjs',
+      'tools/host-release/installer.mjs',
+      'tools/host-release/native-stage.mjs',
+      'tools/scripts/desktop-electron-launch.mjs',
+    ])
     expect(loadedJs('tests')).toEqual(['apps/desktop/scripts/adhoc-sign-mac.mjs'])
     for (const project of ['e2e', 'tests'] as const) {
       for (const file of parseProject(repo, project).fileNames) expect(file).toMatch(/\.tsx?$/)

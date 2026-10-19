@@ -18,10 +18,15 @@ export function createRuntimeAccounts(
     files.set(sessionId, path)
     // Runtime bookkeeping outlives the configuration operation that admitted
     // a process. Revoking its client must not lose the process's billing identity.
-    void accounts.withAuthorization(() => true, () => accounts.bindSession(path, accountId)).catch(() => {
-      if (files.get(sessionId) === path) files.delete(sessionId)
-      log.write('host', 'account.binding-failed', { sessionId })
-    })
+    void accounts
+      .withAuthorization(
+        () => true,
+        () => accounts.bindSession(path, accountId),
+      )
+      .catch(() => {
+        if (files.get(sessionId) === path) files.delete(sessionId)
+        log.write('host', 'account.binding-failed', { sessionId })
+      })
   }
   function forget(id: string) {
     ids.delete(id)
@@ -39,7 +44,9 @@ export function createRuntimeAccounts(
       bind(id, registry.get(id)?.client.sessionFile)
     },
     forget,
-    hold: async (id: string, until: number) => { await accounts?.holdAccount(id, until) },
+    hold: async (id: string, until: number) => {
+      await accounts?.holdAccount(id, until)
+    },
     accountForSession: (id: string) => ids.get(id),
   }
 }

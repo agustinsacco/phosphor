@@ -1,8 +1,7 @@
 import { repositoryManagement } from '../hosts/repository-management'
 import { repositoryReads } from '../hosts/repository-reads'
 import { machineReads } from '../hosts/machine-reads'
-import { machineSettings } from '../hosts/settings'
-import { splitGrant } from '@shared/host-grant'
+import { registerHostSettingsHandlers } from './host-settings-handlers'
 import { uploadAttachments } from '../hosts/attachments'
 import { routeRemoteWrite } from '../hosts/write-features'
 import type { SessionPush } from '@shared/models'
@@ -105,7 +104,6 @@ export function registerHostsHandlers(): void {
     repositories.read(hostId, repositoryId, path),
   )
   const catalogues = machineReads(manager.connection)
-  const settings = machineSettings(manager.connection)
   handle('hosts:models', (_event, hostId) => catalogues.models(hostId))
   handle('hosts:claude', (_event, hostId) => catalogues.claude(hostId))
   handle('hosts:providers', (_event, hostId) => catalogues.providers(hostId))
@@ -265,38 +263,7 @@ export function registerHostsHandlers(): void {
     window(event)
     remoteLanes().setFocused(event.sender.id, target)
   })
-  handle('hosts:providerLogin', (event, hostId, provider, account) =>
-    terminals.signIn(event.sender.id, hostId, provider, account),
-  )
-  handle('hosts:settingsAccess', async (_event, hostId) => {
-    const c = manager.connection(hostId)
-    if (!c || c.snapshot().state !== 'ready' || !c.snapshot().configurationSupported)
-      throw new Error('Connect to an updated Host before enabling settings access.')
-    grants.configure(hostId)
-    try {
-      const grant = splitGrant((await grants.grantFor(hostId)).grant)
-      if (!grant.ok || !grant.value.payload.configure) throw new Error('unsupported-control')
-    } catch {
-      grants.configure(hostId, false)
-      throw new Error(
-        'The control plane did not grant configuration access. Update it or sign in again, then retry. Existing lane access was not changed.',
-      )
-    }
-    await manager.reconnect(hostId)
-  })
-  handle('hosts:settingsRead', (_event, hostId, section, repositoryId) =>
-    settings.read(hostId, section, repositoryId),
-  )
-  handle('hosts:settingsPatch', (_event, hostId, patch) => settings.patch(hostId, patch))
-  handle('hosts:claudeAccount', (_event, hostId, laneId, accountId) =>
-    settings.moveAccount(hostId, laneId, accountId),
-  )
-  handle('hosts:settingsCheck', (_event, hostId, repositoryId) =>
-    settings.check(hostId, repositoryId),
-  )
-  handle('hosts:machineTask', (event, hostId, task) =>
-    terminals.task(event.sender.id, hostId, task),
-  )
+  registerHostSettingsHandlers(manager, grants, terminals)
   handle('hosts:uploadAttachments', (event, sessionId, files) => {
     const lane = remoteLanes().readLane(event.sender.id, sessionId)
     if (!lane) throw new Error(REMOTE_UNAVAILABLE)

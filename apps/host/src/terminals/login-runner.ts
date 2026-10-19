@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { TERMINAL_LIMITS as L, type TerminalOp } from '@phosphor/shared/host-protocol-terminals'
 import type { runInTerminal, TerminalRun } from '../machine/terminal'
-import { createEntry, type TerminalState } from './service-state'
+import { createEntry, type TerminalState, type Entry } from './service-state'
 import { kill } from './lifecycle'
 import { output } from './output'
 import { TerminalForbidden } from './operations'
@@ -31,11 +31,7 @@ export function machineOp(
   }
   return null
 }
-function finishLogin(
-  state: TerminalState,
-  entry: import('./service-state').Entry,
-  exitCode: number,
-) {
+function finishLogin(state: TerminalState, entry: Entry, exitCode: number) {
   const watched = entry.listeners.size > 0
   kill(state, entry, exitCode)
   if (entry.login) entry.login.disconnectedAt = state.now()
