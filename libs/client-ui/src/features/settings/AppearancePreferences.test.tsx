@@ -93,3 +93,12 @@ it('browser settings keeps page links scoped and recovers sign-out after failure
   expect(signOut).toHaveBeenCalledTimes(2)
   expect(container.querySelector('[role="alert"]')).toBeNull()
 })
+
+it('browser appearance offers the shared font preferences without Desktop-only controls', async () => {
+  await compact()
+  expect(container.textContent).toContain('Chat font size')
+  expect(container.querySelector('[aria-label="Mono font"]')).not.toBeNull()
+  expect(container.textContent).not.toContain('UI scale')
+  expect(container.textContent).not.toContain('Editor font size')
+  expect(container.textContent).not.toContain('Terminal font size')
+})

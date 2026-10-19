@@ -160,3 +160,19 @@ it.each([DESKTOP_PLATFORM, COMPACT_PLATFORM])(
     expect(container.textContent).not.toContain('Keep Phosphor running after closing')
   },
 )
+
+it.each([
+  DESKTOP_PLATFORM,
+  COMPACT_PLATFORM,
+  { ...COMPACT_PLATFORM, formFactor: 'expanded' as const },
+])(
+  'Machines has one page title, not a second body title at $formFactor width',
+  async (platform) => {
+    await render(platform, <MachinesPage />)
+    const titles = [...container.querySelectorAll('*')].filter(
+      (element) => element.children.length === 0 && element.textContent === 'Machines',
+    )
+    expect(titles).toHaveLength(1)
+    expect(container.querySelector('h1')?.textContent).toBe('Machines')
+  },
+)
