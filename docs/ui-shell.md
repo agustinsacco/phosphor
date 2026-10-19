@@ -500,7 +500,9 @@ header (label with Rename, the status pill and a **Machine actions** menu contai
 Reconnect and Check again), followed by **Overview / Settings** navigation. Add a
 machine and debug actions belong to the list, not a selected Host. The same header
 and responsive container run in Desktop and the browser; the browser does not gain
-native settings by getting wider. Overview has cards in two columns: Readiness and On this machine on the
+native settings by getting wider. Long machine names occupy at most two visual
+lines; the heading retains the full text and long names expose the app's focusable
+hint. Overview has cards in two columns: Readiness and On this machine on the
 left, Providers and Details on the right. Readiness opens with a Connection row
 from the shared reachability rule, then pi, Claude Code and Tailscale. A passing
 row says what is true ("Signed in and ready"); a failing row opens to its
