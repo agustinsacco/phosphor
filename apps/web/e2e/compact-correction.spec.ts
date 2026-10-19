@@ -19,6 +19,14 @@ async function assertMachineDetail(
   const bounds = await header.boundingBox()
   expect(bounds?.y).toBeLessThan(180)
   expect(bounds?.height).toBeLessThan(100)
+  // The tabs keep the page's 16px rhythm below the header; a header margin once cut it to 4px.
+  const tabs = await page.getByRole('navigation', { name: 'Machine views' }).boundingBox()
+  expect((tabs?.y ?? 0) - ((bounds?.y ?? 0) + (bounds?.height ?? 0))).toBeGreaterThanOrEqual(12)
+  const tabHeights = await page
+    .getByRole('navigation', { name: 'Machine views' })
+    .getByRole('button')
+    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height))
+  expect(new Set(tabHeights).size).toBe(1)
   expect(
     await detail
       .getByRole('heading', { name: 'Synthetic Host', exact: true })

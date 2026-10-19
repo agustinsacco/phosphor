@@ -5,8 +5,17 @@
   font-size: 12.5px;
   color: var(--px-text-secondary);
 }
-.machine-detail-header {
-  margin-bottom: 4px;
+/* No margin on .machine-detail-header: Tailwind 4's space-y-* is a zero-specificity
+   margin-block-end, so any margin here replaces the parent's gap instead of adding to it. */
+.machine-view-tab {
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  padding-bottom: 8px;
+  color: var(--px-text-secondary);
+}
+.machine-view-tab[aria-current='page'] {
+  border-bottom-color: var(--px-accent);
+  color: var(--px-text);
 }
 .machine-detail-identity {
   display: flex;

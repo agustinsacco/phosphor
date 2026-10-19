@@ -231,7 +231,7 @@ export function MachinesPage(): React.JSX.Element {
                     aria-current={
                       state.view.kind === 'machine' && !state.view.settings ? 'page' : undefined
                     }
-                    className={`pb-2 text-base ${state.view.kind === 'machine' && !state.view.settings ? 'border-accent border-b-2' : 'text-text-secondary'}`}
+                    className="machine-view-tab text-base"
                     onClick={() => {
                       void confirmSettingsNavigation(machine.id)
                         .then((allowed) => {
@@ -248,7 +248,7 @@ export function MachinesPage(): React.JSX.Element {
                     aria-current={
                       state.view.kind === 'machine' && state.view.settings ? 'page' : undefined
                     }
-                    className={`pb-2 text-base ${state.view.kind === 'machine' && state.view.settings ? 'border-accent border-b-2' : 'text-text-secondary'}`}
+                    className="machine-view-tab text-base"
                     onClick={() => {
                       if (state.view.kind === 'machine' && state.view.settings) return
                       state.show({ kind: 'machine', id: machine.id, settings: 'providers' })
