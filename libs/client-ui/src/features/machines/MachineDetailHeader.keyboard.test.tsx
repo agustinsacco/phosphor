@@ -14,7 +14,13 @@ it('moves keyboard focus into maintenance and restores it when Escape dismisses 
       root.render(
         <MachineDetailHeader
           machine={{ ...MACHINE, endpoint: 'https://fixture.ts.net' }}
-          headline={{ label: 'Connected', tone: 'ok', detail: 'Ready' }}
+          headline={{
+            label: 'Connected',
+            tone: 'ok',
+            detail: 'Ready',
+            ok: true,
+            short: 'Connected',
+          }}
           now={Date.now()}
           checking={false}
           reconnecting={false}

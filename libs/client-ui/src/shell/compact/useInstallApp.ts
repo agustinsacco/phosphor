@@ -16,10 +16,14 @@ function update(patch: Partial<typeof snapshot>): void {
 }
 
 function listen(): () => void {
+  let completed = false
   const display = window.matchMedia?.('(display-mode: standalone)')
   const checkDisplay = (): void =>
     update({
-      installed: !!display?.matches || ('standalone' in navigator && navigator.standalone === true),
+      installed:
+        completed ||
+        !!display?.matches ||
+        ('standalone' in navigator && navigator.standalone === true),
     })
   const offer = (event: Event): void => {
     if (!('prompt' in event) || typeof event.prompt !== 'function' || !('userChoice' in event))
@@ -29,17 +33,18 @@ function listen(): () => void {
     update({ available: true })
   }
   const finish = (): void => {
+    completed = true
     prompt = null
     update({ available: false, installed: true })
   }
   checkDisplay()
   window.addEventListener('beforeinstallprompt', offer)
   window.addEventListener('appinstalled', finish)
-  display?.addEventListener('change', checkDisplay)
+  display?.addEventListener?.('change', checkDisplay)
   return () => {
     window.removeEventListener('beforeinstallprompt', offer)
     window.removeEventListener('appinstalled', finish)
-    display?.removeEventListener('change', checkDisplay)
+    display?.removeEventListener?.('change', checkDisplay)
     prompt = null
     update({ available: false })
   }

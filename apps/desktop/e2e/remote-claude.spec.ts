@@ -21,7 +21,7 @@ test('real Host Claude detail explains the missing provider and refreshes after 
     const machine = h.state.machines[0]
     if (!machine) throw new Error('Missing fixture machine')
     h.state.approvedMachine = machine
-    await h.page.getByRole('button', { name: '← Machines', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Back to machines', exact: true }).click()
     await h.page.getByRole('button', { name: 'Add a machine', exact: true }).first().click()
     const dialog = h.page.getByRole('dialog', { name: 'Add a machine', exact: true })
     await dialog.getByRole('button', { name: 'Continue to Install', exact: true }).click()
@@ -42,7 +42,8 @@ test('real Host Claude detail explains the missing provider and refreshes after 
     await expect(dialog).toBeHidden()
     await expect(claude).toContainText('Claude Code provider missing')
     await h.installClaudeProvider()
-    await detail.getByRole('button', { name: 'Check again', exact: true }).click()
+    await detail.getByRole('button', { name: 'Machine actions', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Check again', exact: true }).click()
     await expect(claude).toContainText('Signed in and ready')
     await expect(claude).not.toContainText('Claude Code provider missing')
     await expect(claude.locator('code')).toHaveCount(0)

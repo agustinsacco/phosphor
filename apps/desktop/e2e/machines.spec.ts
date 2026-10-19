@@ -90,7 +90,7 @@ test('signed-in directory walks guided enrollment, stable detail, rename and con
     await page.getByRole('textbox', { name: 'Machine label', exact: true }).fill('buildbox')
     await page.getByRole('textbox', { name: 'Machine label', exact: true }).press('Enter')
     await expect(page.getByRole('heading', { name: 'buildbox', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '← Machines' }).click()
+    await page.getByRole('button', { name: 'Back to machines' }).click()
     await expect(page.getByTestId('enrolled-machine-row')).toHaveCount(1)
     await expect(page.getByTestId('enrolled-machine-row')).toContainText('Waiting for setup')
     await page.getByTestId('enrolled-machine-row').click()

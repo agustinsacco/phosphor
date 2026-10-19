@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useId, useEffect, useRef, useState, type RefObject } from 'react'
 import type { MachineView } from '@shared/control-api'
 import { TooltipButton } from '@/components/Tooltip'
 import { MoreIcon } from '@/components/icons'
@@ -44,9 +44,6 @@ export function MachineDetailHeader({
             void useMachinesStore.getState().refresh()
           }}
         />
-        <StatusPill tone={headline.tone} hint={headline.detail}>
-          {headline.label}
-        </StatusPill>
         <MachineHeaderActions
           endpoint={!!machine.endpoint}
           checking={checking}
@@ -55,16 +52,21 @@ export function MachineDetailHeader({
           onReconnect={onReconnect}
         />
       </div>
-      <p className="machine-detail-metadata">
-        {platformName(machine.platform)} {machine.arch}
-        {version ? ` · Host ${version}` : ''}
-        <span className="machine-detail-history">
-          {machine.hostname !== machine.label ? ` · ${machine.hostname}` : ''}
-          {machine.lastSeenAt
-            ? ` · Last heartbeat ${relativeTime(machine.lastSeenAt, now)}`
-            : ' · No heartbeat yet'}
-        </span>
-      </p>
+      <div className="machine-detail-metadata">
+        <StatusPill tone={headline.tone} hint={headline.detail}>
+          {headline.label}
+        </StatusPill>
+        <p>
+          {platformName(machine.platform)} {machine.arch}
+          {version ? ` · Host ${version}` : ''}
+          <span className="machine-detail-history">
+            {machine.hostname !== machine.label ? ` · ${machine.hostname}` : ''}
+            {machine.lastSeenAt
+              ? ` · Last heartbeat ${relativeTime(machine.lastSeenAt, now)}`
+              : ' · No heartbeat yet'}
+          </span>
+        </p>
+      </div>
     </header>
   )
 }
@@ -84,12 +86,15 @@ function MachineHeaderActions({
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
+  const popupId = useId()
+  useActionFocus(open, popupId, trigger)
   return (
     <div className="relative ml-auto">
       <TooltipButton
         ref={trigger}
         aria-label="Machine actions"
         aria-expanded={open}
+        aria-controls={open ? popupId : undefined}
         className="machine-actions-trigger"
         onClick={() => setOpen(!open)}
       >
@@ -98,6 +103,7 @@ function MachineHeaderActions({
       {open && (
         <PopupMenu
           triggerRef={trigger}
+          id={popupId}
           fitViewport
           escapeContainer
           onClose={() => setOpen(false)}
@@ -129,4 +135,19 @@ function MachineHeaderActions({
       )}
     </div>
   )
+}
+
+function useActionFocus(
+  open: boolean,
+  id: string,
+  trigger: RefObject<HTMLButtonElement | null>,
+): void {
+  useEffect(() => {
+    if (!open) return
+    const button = trigger.current
+    document.getElementById(id)?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+    return () => {
+      if (button?.isConnected) button.focus()
+    }
+  }, [open, id, trigger])
 }
