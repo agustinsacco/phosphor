@@ -7,7 +7,7 @@ import { machineStatus, type MachineView } from '@shared/control-api'
 import { useEffect, useRef, useState } from 'react'
 import { useClaudeReadiness } from './ClaudeReadiness'
 import { CopyCommand } from './MachineControls'
-import { MachineLabel } from './MachineLabel'
+import { MachineDetailHeader } from './MachineDetailHeader'
 import {
   HOST_RUN,
   HOST_SERVICE_INSTALL,
@@ -18,7 +18,7 @@ import {
   relativeTime,
 } from './machinePresentation'
 import { machineHeadline } from './machineReachability'
-import { Card, CheckRow, Fact, Facts, Spinner, StatusPill, type CheckItem } from './MachineUi'
+import { Card, CheckRow, Fact, Facts, Spinner, type CheckItem } from './MachineUi'
 import { OnThisMachine } from './OnThisMachine'
 import { ProviderSignIn } from './ProviderSignIn'
 
@@ -106,52 +106,16 @@ export function MachineDetail({
 
   return (
     <div data-testid="machine-detail" className="space-y-4">
-      <header className="space-y-1.5">
-        <div className="flex flex-wrap items-center gap-3">
-          <MachineLabel
-            key={machine.id}
-            machine={machine}
-            onSaved={(updated) => {
-              useMachinesStore.setState((current) => ({
-                machines: current.machines.map((entry) =>
-                  entry.id === updated.id ? updated : entry,
-                ),
-              }))
-              void useMachinesStore.getState().refresh()
-            }}
-          />
-          <StatusPill tone={headline.tone} hint={headline.detail}>
-            {headline.label}
-          </StatusPill>
-          <div className="ml-auto flex items-center gap-2">
-            {machine.endpoint && (
-              <Button
-                size="sm"
-                tooltip="Drop and reopen the connection to this machine. Open lanes resync."
-                disabled={reconnecting}
-                onClick={() => void reconnect()}
-              >
-                {reconnecting ? 'Reconnecting…' : 'Reconnect'}
-              </Button>
-            )}
-            <Button size="sm" disabled={checking} onClick={() => void checkAgain()}>
-              {checking ? 'Checking…' : 'Check again'}
-            </Button>
-          </div>
-        </div>
-        <p className="text-text-secondary text-base">
-          {[
-            machine.hostname !== machine.label ? machine.hostname : null,
-            `${platformName(machine.platform)} ${machine.arch}`,
-            version ? `Host ${version}` : null,
-            machine.lastSeenAt
-              ? `Last heartbeat ${relativeTime(machine.lastSeenAt, corrected)}`
-              : 'No heartbeat yet',
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </p>
-      </header>
+      <MachineDetailHeader
+        machine={machine}
+        headline={headline}
+        version={version}
+        now={corrected}
+        checking={checking}
+        reconnecting={reconnecting}
+        onCheck={() => void checkAgain()}
+        onReconnect={() => void reconnect()}
+      />
       {navigation}
       {settings ?? (
         <>
@@ -298,28 +262,31 @@ function MachineDetailFacts({
   version: string | null | undefined
 }): React.JSX.Element {
   return (
-    <Card title="Details">
-      <Facts>
-        <Fact label="Hostname">{machine.hostname}</Fact>
-        <Fact label="Platform">
-          {platformName(machine.platform)} {machine.arch}
-        </Fact>
-        <Fact label="Host version">{version ?? 'Not reported'}</Fact>
-        <Fact label="Enrolled">{new Date(machine.enrolledAt).toLocaleDateString()}</Fact>
-        <Fact label="Address">{machine.endpoint ?? 'Not published'}</Fact>
-        <Fact label="Fingerprint">
-          <span className="flex items-center gap-1">
-            <code className="truncate font-mono text-sm">{machine.keyFingerprint}</code>
-            <CopyButton size="icon" text={machine.keyFingerprint} title="Copy fingerprint" />
-          </span>
-        </Fact>
-        <Fact label="Machine id">
-          <span className="flex items-center gap-1">
-            <code className="truncate font-mono text-sm">{machine.id}</code>
-            <CopyButton size="icon" text={machine.id} title="Copy machine id" />
-          </span>
-        </Fact>
-      </Facts>
-    </Card>
+    <details className="machine-facts">
+      <TooltipSummary>Connection & identity</TooltipSummary>
+      <Card title="Details">
+        <Facts>
+          <Fact label="Hostname">{machine.hostname}</Fact>
+          <Fact label="Platform">
+            {platformName(machine.platform)} {machine.arch}
+          </Fact>
+          <Fact label="Host version">{version ?? 'Not reported'}</Fact>
+          <Fact label="Enrolled">{new Date(machine.enrolledAt).toLocaleDateString()}</Fact>
+          <Fact label="Address">{machine.endpoint ?? 'Not published'}</Fact>
+          <Fact label="Fingerprint">
+            <span className="flex items-center gap-1">
+              <code className="truncate font-mono text-sm">{machine.keyFingerprint}</code>
+              <CopyButton size="icon" text={machine.keyFingerprint} title="Copy fingerprint" />
+            </span>
+          </Fact>
+          <Fact label="Machine id">
+            <span className="flex items-center gap-1">
+              <code className="truncate font-mono text-sm">{machine.id}</code>
+              <CopyButton size="icon" text={machine.id} title="Copy machine id" />
+            </span>
+          </Fact>
+        </Facts>
+      </Card>
+    </details>
   )
 }

@@ -342,7 +342,13 @@ it('bee2 reports an unreachable address despite green readiness and Check again 
   )
   expect(address?.nextElementSibling?.textContent).toBe('Not published')
   invoke.mockClear()
-  await click('Check again')
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Machine actions"]')?.click(),
+  )
+  const refreshButton = [...document.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Check again',
+  )
+  await act(async () => refreshButton?.click())
   expect(invoke).toHaveBeenCalledWith('control:machines')
   // The re-read replaced the machine with control's answer; the card says when it asked.
   expect(container.querySelector('[role=status]')?.textContent).toContain('checked just now')

@@ -3,6 +3,7 @@ import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
 import { Button } from '@/components/form'
+import { InstallApp } from './InstallApp'
 import { MachineFilesPane } from '@/features/files/MachineFilesPane'
 import { AppearancePreferences } from '@/features/settings/AppearancePreferences'
 import { useNavigation } from '@/navigation/Navigation'
@@ -40,6 +41,12 @@ export function CompactSettings({ machine }: { machine?: string }): React.JSX.El
               Push notifications are not available yet. Inbox shows attention while the app is
               connected.
             </p>
+          </section>
+          <section aria-labelledby="install-app">
+            <h2 id="install-app" className="mb-2 font-semibold">
+              App installation
+            </h2>
+            <InstallApp />
           </section>
           <BrowserAccountSettings />
         </div>
