@@ -138,6 +138,42 @@ it('renders sign-in for pending/unauthenticated identity without native startup'
     ),
   ).toBe(true)
 })
+it('keeps feature views behind the shared startup until font metrics settle', async () => {
+  account = signedIn()
+  let release!: () => void
+  const pending = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const fonts = vi
+    .spyOn(await import('@/lib/fonts'), 'loadBundledFonts')
+    .mockReturnValueOnce(pending)
+  try {
+    await act(async () => root.render(<CompactApp />))
+    expect(container.querySelector('[data-testid="startup-screen"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="compact-shell"]')).toBeNull()
+    await act(async () => release())
+    expect(container.querySelector('[data-testid="compact-shell"]')).not.toBeNull()
+  } finally {
+    fonts.mockRestore()
+  }
+})
+
+it('uses a keyboard-contained drawer on phones and restores trigger focus on Escape', async () => {
+  vi.stubGlobal('innerWidth', 412)
+  account = signedIn()
+  await act(async () => root.render(<CompactApp />))
+  const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Open navigation"]')!
+  trigger.focus()
+  await act(async () => trigger.click())
+  const drawer = document.querySelector('[role="dialog"][aria-label="Navigation"]')!
+  expect(drawer).not.toBeNull()
+  expect(drawer.contains(document.activeElement)).toBe(true)
+  expect(container.querySelector('.browser-content')?.hasAttribute('inert')).toBe(true)
+  await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+  expect(document.querySelector('[aria-label="Navigation"]')).toBeNull()
+  expect(document.activeElement).toBe(trigger)
+})
+
 it('boots only remote subscriptions, follows history, and returns to sign-in on account loss', async () => {
   account = {
     account: {

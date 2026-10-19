@@ -44,10 +44,6 @@ import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { makeRoutine, useRoutineLaneIndex } from '@/stores/routines'
 import {
-  ArtifactsIcon,
-  SkillsIcon,
-  ClockIcon,
-  MachinesIcon,
   ChevronDownIcon,
   MoreIcon,
   PinIcon,
@@ -69,6 +65,8 @@ import { UpdatePill } from '@/features/updates/UpdatePill'
 import { AccountFooter } from '@/features/account/AccountFooter'
 import { useLayoutStore } from '@/stores/layout'
 import { useMachinesStore } from '@/stores/machines'
+import { NavigationItem as NavRow } from '@/navigation/NavigationItem'
+import { PageLinks } from '@/navigation/PageLinks'
 import { projectName, isWorktreeFolder } from '@/lib/path'
 import {
   groupSessionsByProject,
@@ -860,35 +858,14 @@ export function Sidebar({
           }}
           icon={<PlusIcon strokeWidth={2.5} />}
         />
-        <NavRow
-          label="Artifacts"
-          active={activePage === 'artifacts'}
-          onClick={() => useLayoutStore.getState().togglePage('artifacts')}
-          icon={<ArtifactsIcon />}
+        <PageLinks
+          activePage={activePage}
+          onPage={(page) => {
+            if (page === 'machines' && activePage !== 'machines')
+              useMachinesStore.getState().show({ kind: 'list' })
+            else useLayoutStore.getState().togglePage(page)
+          }}
         />
-        <NavRow
-          label="Skills"
-          active={activePage === 'skills'}
-          onClick={() => useLayoutStore.getState().togglePage('skills')}
-          icon={<SkillsIcon />}
-        />
-        <NavRow
-          label="Routines"
-          active={activePage === 'routines'}
-          onClick={() => useLayoutStore.getState().togglePage('routines')}
-          icon={<ClockIcon />}
-        />
-        {
-          <NavRow
-            label="Machines"
-            active={activePage === 'machines'}
-            onClick={() => {
-              if (activePage === 'machines') useLayoutStore.getState().setPage(null)
-              else useMachinesStore.getState().show({ kind: 'list' })
-            }}
-            icon={<MachinesIcon />}
-          />
-        }
       </nav>
 
       <MachineSwitcher />
@@ -2093,48 +2070,6 @@ function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.El
     <div className="text-text-tertiary px-2 pb-0.5 pt-2.5 text-xs font-semibold font-mono uppercase tracking-wider">
       {children}
     </div>
-  )
-}
-
-/**
- * Flat sidebar nav row, matching the reference: a bordered circular icon
- * badge, then the label at full text weight. No row border or background at
- * rest — the badge is the only chrome, and hover tints the whole row.
- */
-function NavRow({
-  label,
-  icon,
-  badge = false,
-  active = false,
-  onClick,
-}: {
-  label: string
-  icon: React.ReactNode
-  /** Draw the icon in a bordered circle (the reference does this for New only). */
-  badge?: boolean
-  /** This row's page is the one on screen — same fill as an active session row. */
-  active?: boolean
-  onClick: () => void
-}): React.JSX.Element {
-  return (
-    <TooltipButton
-      onClick={onClick}
-      aria-pressed={active}
-      className={clsx(
-        'text-text group flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-left text-lg transition-colors',
-        active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
-      )}
-    >
-      <span
-        className={clsx(
-          'text-text-secondary group-hover:text-text flex h-[22px] w-[22px] shrink-0 items-center justify-center transition-colors',
-          badge && 'border-border group-hover:border-border-strong rounded-full border',
-        )}
-      >
-        {icon}
-      </span>
-      {label}
-    </TooltipButton>
   )
 }
 

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -11,7 +11,15 @@
     <title>Phosphor</title>
   </head>
   <body>
-    <div id="root"><p role="status">Opening Phosphor…</p></div>
+    <div id="root">
+      <div class="startup-screen">
+        <main class="startup-content">
+          <img class="startup-mark" src="/icons/icon-192.png" width="56" height="56" alt="" />
+          <h1 class="startup-title">Phosphor</h1>
+          <p class="startup-message" role="status">Opening your workspace…</p>
+        </main>
+      </div>
+    </div>
     <noscript>Phosphor needs JavaScript to connect securely to your machines.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>

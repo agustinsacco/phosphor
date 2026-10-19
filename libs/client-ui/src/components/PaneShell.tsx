@@ -27,7 +27,7 @@ export const PaneShell = memo(function PaneShell({
   rootRef?: React.Ref<HTMLDivElement>
   children: React.ReactNode
 }): React.JSX.Element {
-  const compact = usePlatform().formFactor === 'compact'
+  const compact = !usePlatform().splitPanes
   const { expanded, side } = useActivePanes()
 
   return (

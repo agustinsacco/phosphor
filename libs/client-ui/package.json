@@ -6,6 +6,7 @@
   "exports": {
     "./desktop": "./src/desktop.ts",
     "./compact": "./src/compact.ts",
+    "./bootstrap": "./src/bootstrap.ts",
     "./navigation": "./src/navigation/index.ts",
     "./platform": "./src/platform/Platform.tsx",
     "./styles/index.css": "./src/styles/index.css"

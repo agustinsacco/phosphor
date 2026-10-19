@@ -16,10 +16,10 @@ export function LoadingScreen({
   return (
     <div className="startup-screen" data-testid="startup-screen">
       <div className="titlebar-drag h-11 shrink-0" />
-      <main className="flex min-h-0 flex-1 flex-col items-center justify-center px-8 pb-11 text-center">
-        <PhosphorLoader size={80} decorative animated={!error} />
-        <h1 className="mt-6 font-mono text-3xl font-medium tracking-tight">Phosphor</h1>
-        <p className="text-text-secondary mt-3 text-lg" role={error ? 'alert' : 'status'}>
+      <main className="startup-content">
+        <PhosphorLoader size={56} decorative animated={!error} />
+        <h1 className="startup-title">Phosphor</h1>
+        <p className="startup-message" role={error ? 'alert' : 'status'}>
           {error ?? message}
         </p>
         {error && (
