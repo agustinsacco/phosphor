@@ -38,7 +38,9 @@ test('shared full pages fit phone, tablet and wide layouts with consistent font 
       }, theme)
       // Hydrate the preference through the same reload path as a returning browser.
       await page.goto(`${stack.origin}/new/${stack.hostId}`)
-      await expect(page.getByRole('button', { name: 'Model', exact: true })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Model', exact: true })).toContainText(
+        'HOST_A_ONLY',
+      )
       await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /^(?!.*dark)/)
       await page.evaluate(() => document.fonts.ready)
       expect(await page.evaluate(() => document.fonts.check('14px Inter'))).toBe(true)
