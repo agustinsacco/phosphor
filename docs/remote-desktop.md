@@ -68,7 +68,9 @@ sign-out, account change or Host removal. Down Hosts retain memory-only views.
 Main routes remote `pi:command`, `pi:extensionUiResponse` and
 `pi:disposeSession` without consulting the local pi registry. The allowlist is
 `libs/host-client/src/lane-ops.ts`, re-exported by the Desktop facade. Receipts become pi responses; controller rejections
-name the machine and controller. Unknown outcomes tell the user to check the lane
+name the machine and controller. A `prompt` rejected `lane-stopped` sends
+`lane.resume` and, once that is done, the prompt again (`sendToLane`); a failed
+resume is the answer. Unknown outcomes tell the user to check the lane
 before retrying. Unanswered commands expire after 60 seconds as unknown, never
 as a fresh retry. Local pi routing is unchanged.
 

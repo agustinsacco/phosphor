@@ -11,7 +11,7 @@ import type { ExtensionUIResponse, RpcCommand, RpcResponse } from '@phosphor/sha
 import type { RemoteLaneCreate } from '@phosphor/shared/ipc'
 import { createLaneProjection } from './projection'
 import type { createHostConnection, LaneFrame } from './connection'
-import { laneOperation, receiptResponse, REMOTE_UNAVAILABLE } from './lane-ops'
+import { laneOperation, receiptResponse, REMOTE_UNAVAILABLE, sendToLane } from './lane-ops'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { WriteLane } from './ports'
 
@@ -511,7 +511,7 @@ export function createRemoteLanes(ports: {
             HOST_LIMITS.inboundFrameBytes - 1024
         )
           return { ...base, success: false, error: 'Image too large for a remote lane.' }
-        const result = await c.send(op, h.laneId, h.summary.control.fence)
+        const result = await sendToLane(c, op, h.laneId, h.summary.control.fence)
         return { ...receiptResponse(command.type, result, ports.label(h.hostId)), id: command.id }
       } catch {
         return { ...base, success: false, error: REMOTE_UNAVAILABLE }

@@ -35,6 +35,28 @@ export function laneOperation(command: RpcCommand): LaneOp | string | null {
   }
 }
 
+type Host = { send(op: LaneOp, laneId?: string, fence?: number): Promise<CommandResult> }
+
+/**
+ * Sending a prompt is the intent to run the lane, so a stopped lane resumes once
+ * first. A Host restart (an update, a crash) stops every lane and nothing starts
+ * pi again; without this every message came back `lane-stopped`. Only `prompt`:
+ * steer and follow-up target a running turn, and nothing else needs pi to start.
+ */
+export async function sendToLane(
+  host: Host,
+  op: LaneOp,
+  laneId: string,
+  fence?: number,
+): Promise<CommandResult> {
+  const result = await host.send(op, laneId, fence)
+  if (op.type !== 'prompt' || result.status !== 'rejected' || result.code !== 'lane-stopped')
+    return result
+  const resumed = await host.send({ type: 'lane.resume' }, laneId, fence)
+  if (resumed.status !== 'done') return resumed
+  return host.send(op, laneId, resumed.fence ?? fence)
+}
+
 export function receiptResponse(
   command: string,
   result: CommandResult,
