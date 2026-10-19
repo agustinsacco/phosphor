@@ -88,7 +88,8 @@ it.each([COMPACT_PLATFORM, { ...COMPACT_PLATFORM, formFactor: 'expanded' as cons
     expect(dialog.textContent).toContain('The Host does not expose a default model.')
     const radio = dialog.querySelector<HTMLInputElement>('input[type=radio]')!
     expect(radio.checked).toBe(true)
-    expect(document.activeElement).toBe(radio)
+    const search = dialog.querySelector<HTMLInputElement>('[aria-label="Search models"]')!
+    expect(document.activeElement).toBe(search)
     const done = [...dialog.querySelectorAll('button')].find((b) => b.textContent === 'Done')!
     act(() => done.focus())
     act(() => {
@@ -96,7 +97,7 @@ it.each([COMPACT_PLATFORM, { ...COMPACT_PLATFORM, formFactor: 'expanded' as cons
         new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }),
       )
     })
-    expect(document.activeElement).toBe(radio)
+    expect(document.activeElement).toBe(search)
     await act(async () =>
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
     )

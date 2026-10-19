@@ -163,14 +163,14 @@ it('does not clear a new owner draft when the retired submission receipt arrives
   expect(useDraftsStore.getState().drafts[key]?.text).toBe('New owner task')
 })
 
-it('sends an attachment-only draft through the same remote attachment path', async () => {
+it('sends an image-only browser draft through the shared remote attachment path', async () => {
   useDraftsStore.getState().setText(key, '')
   const attachments = [
-    { kind: 'file' as const, name: 'notes.txt', path: '', size: 4, data: 'dGVzdA==' },
+    { kind: 'image' as const, name: 'image.png', mimeType: 'image/png', data: 'dGVzdA==' },
   ]
   useDraftsStore.getState().setAttachments(key, attachments)
   await render()
-  expect(el.textContent).toContain('notes.txt')
+  expect(el.querySelector('img')?.getAttribute('alt')).toBeTruthy()
   expect(startRemoteChat).not.toHaveBeenCalled()
   await send()
   expect(startRemoteChat).toHaveBeenCalledWith(
@@ -181,6 +181,16 @@ it('sends an attachment-only draft through the same remote attachment path', asy
     expect.any(Function),
   )
   await act(async () => complete())
+})
+
+it('refuses unsupported browser file drafts before creating a lane', async () => {
+  useDraftsStore
+    .getState()
+    .setAttachments(key, [{ kind: 'file', name: 'notes.txt', path: '', size: 4, data: 'dGVzdA==' }])
+  await render()
+  await send()
+  expect(startRemoteChat).not.toHaveBeenCalled()
+  expect(el.textContent).toContain('Only images can be attached in this browser')
 })
 
 it('does not release a replacement owner submission when an old receipt settles', async () => {

@@ -137,7 +137,7 @@ grant-authenticated loopback API, exposed privately by Tailscale Serve.
 enrollment, machine directory, clients, grants and Host heartbeats over shared
 contracts and server-only SQL functions. Desktop main's `control:*` clients own
 directory operations; `hosts:*` and machine-scoped IPC route directly to the Host.
-The Desktop renderer has no network access. The compact [Web client](web-client.md) uses the same `libs/client-ui` components over a browser adapter: same-origin cookie account requests and direct, proof-verified Host connections. No Node/Electron/runtime code enters its production graph. [Remote access](remote-access.md) shows the
+The Desktop renderer has no network access. The responsive [Web client](web-client.md) uses the same `libs/client-ui` feature pages, page containers and remote creation view over a browser adapter: same-origin cookie account requests and direct, proof-verified Host connections. No Node/Electron/runtime code enters its production graph. [Remote access](remote-access.md) shows the
 end-to-end flow and [remote protocol](remote-protocol.md) defines the transport.
 
 The control plane stores identity and machine metadata only, including Host public

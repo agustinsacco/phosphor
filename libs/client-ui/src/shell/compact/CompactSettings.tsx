@@ -28,7 +28,7 @@ export function CompactSettings({ machine }: { machine?: string }): React.JSX.El
               Appearance
             </h2>
             <p className="text-text-secondary mt-1">
-              Saved in this browser, not synced to other devices.
+              Theme is saved on this device. Font changes last until reload. Nothing is synced.
             </p>
             <AppearancePreferences />
           </section>

@@ -1,3 +1,81 @@
+.remote-workspace-page {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: auto;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.remote-workspace-intro {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 20px 20px 8px;
+}
+.remote-workspace-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: clamp(16px, 6vh, 64px) 0 24px;
+}
+.remote-workspace-heading h1 {
+  font-size: clamp(22px, 3vw, 28px);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.remote-workspace-heading p {
+  color: var(--px-text-secondary);
+  font-size: 13px;
+}
+.remote-workspace-page > .remote-start {
+  flex-shrink: 0;
+  max-height: 70%;
+  overflow: auto;
+}
+.remote-workspace-page .remote-start-title {
+  display: none;
+}
+.remote-lane-list {
+  border-top: 1px solid var(--px-border);
+  margin-top: 12px;
+}
+.remote-lane-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  text-align: left;
+  border-bottom: 1px solid var(--px-border);
+  cursor: pointer;
+}
+.remote-lane-row:hover {
+  background: var(--px-bg-secondary);
+}
+.remote-lane-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+.remote-lane-copy strong {
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.remote-lane-copy > span {
+  font-size: 11px;
+  color: var(--px-text-secondary);
+  overflow-wrap: anywhere;
+}
 .remote-start {
   width: 100%;
   min-width: 0;

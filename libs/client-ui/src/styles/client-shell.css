@@ -65,6 +65,11 @@ html[data-form-factor='compact'] {
   padding: 4px max(12px, env(safe-area-inset-right)) 4px max(12px, env(safe-area-inset-left));
   border-bottom: 1px solid var(--px-border);
 }
+.compact-header > button {
+  background: transparent;
+  border-color: transparent;
+  padding-inline: 6px;
+}
 .compact-header strong {
   flex: 1;
   min-width: 0;

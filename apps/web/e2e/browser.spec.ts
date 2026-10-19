@@ -26,6 +26,18 @@ async function signIn(page: Page, origin: string) {
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
   await expect(page.getByTestId('compact-shell')).toBeVisible()
 }
+async function navigatePage(page: Page, name: string) {
+  const compact = (page.viewportSize()?.width ?? 400) < 900
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-form-factor',
+    compact ? 'compact' : 'expanded',
+  )
+  if (compact) await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
+  await page
+    .getByRole('navigation', { name: 'Main navigation' })
+    .getByRole('button', { name, exact: true })
+    .click()
+}
 async function openLane(page: Page, title = 'Synthetic acceptance lane') {
   await page.getByRole('button', { name: title, exact: true }).click()
   await expect(page.getByText('No controller', { exact: true })).toBeVisible()
@@ -172,15 +184,11 @@ test('cookie/CSRF → verified Host → read/control/send; waiting update and ow
   for (const width of [400, 1100]) {
     await page.setViewportSize({ width, height: 850 })
     for (const theme of ['light', 'dark']) {
+      await navigatePage(page, 'Settings')
       await page
-        .getByRole('navigation', { name: 'Main navigation' })
-        .getByRole('button', { name: 'More', exact: true })
+        .getByRole('button', { name: theme === 'light' ? 'Light' : 'Dark', exact: true })
         .click()
-      await page.getByRole('button', { name: theme, exact: true }).click()
-      await page
-        .getByRole('navigation', { name: 'Main navigation' })
-        .getByRole('button', { name: 'Lanes', exact: true })
-        .click()
+      await navigatePage(page, 'Lanes')
       await page.getByRole('button', { name: 'Synthetic acceptance lane', exact: true }).click()
       await expect(page.getByText('Controlled by you', { exact: true })).toBeVisible()
       await expect(page.getByText('PHX-browserAcceptance', { exact: true })).toHaveCount(2)
@@ -257,10 +265,7 @@ test('cookie/CSRF → verified Host → read/control/send; waiting update and ow
       ),
     )
     .toBe(true)
-  await page
-    .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name: 'More', exact: true })
-    .click()
+  await navigatePage(page, 'Settings')
   await page.getByRole('button', { name: 'Sign out', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Sign in with GitHub' })).toBeVisible()
   await expect.poll(() => stack.state.closedConnections).toBe(stack.state.connections)

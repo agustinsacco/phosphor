@@ -5,6 +5,7 @@ import { HostHome } from './HostHome'
 import { LocalHomeDashboard } from './LocalHomeDashboard'
 import { LocalHomeComposer } from './LocalHomeComposer'
 import { RemoteStartView } from './RemoteStartView'
+import { RemoteWorkspacePage } from './RemoteWorkspacePage'
 import { useComposerMachine } from './useComposerMachine'
 import { MachinePicker } from '@/features/machines/MachinePicker'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -35,6 +36,15 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       onChange={setComposerMachine}
     />
   )
+  if (composerMachine !== 'local' && homeHostId === composerMachine)
+    return (
+      <RemoteWorkspacePage
+        hostId={composerMachine}
+        draftKey={homeDraftKey(workspacePath)}
+        textareaRef={textareaRef}
+        machinePicker={machinePicker}
+      />
+    )
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 sm:px-8">

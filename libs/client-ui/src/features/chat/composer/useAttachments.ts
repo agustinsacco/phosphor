@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { usePlatform } from '@/platform/Platform'
 import {
   placeAnnotated,
   isInlineableImage,
@@ -43,6 +44,25 @@ export interface AttachmentsApi {
   handleDrop: (event: React.DragEvent) => void
 }
 
+/** Validate transport support before reading bytes or mutating a draft. */
+async function readAttachment(
+  file: File,
+  remote: boolean,
+  nativeFiles: boolean,
+  onReject?: (message: string) => void,
+): Promise<PendingAttachment | null> {
+  if (!nativeFiles && !isInlineableImage(file.type)) {
+    onReject?.('Only images can be attached in this browser. Use Desktop for other files.')
+    return null
+  }
+  const limit = remote && !isInlineableImage(file.type) ? 20 * 1024 * 1024 : MAX_IMAGE_BYTES
+  if (file.size > limit) {
+    onReject?.(`${file.name} is too large to attach (limit ${limit / 1024 / 1024} MB).`)
+    return null
+  }
+  return toAttachment(file, (f) => window.phosphor.pathForFile(f), remote)
+}
+
 /** Bytes a pending attachment costs us to keep. Paths cost nothing. */
 export function attachmentBytes(attachment: PendingAttachment): number {
   // base64 is 4 chars per 3 bytes; the string itself is what we store.
@@ -67,6 +87,7 @@ export function useAttachments({
   /** Told why a file was refused, so the composer can say so out loud. */
   onReject?: (message: string) => void
 }): AttachmentsApi {
+  const { nativeFiles } = usePlatform()
   const [dragging, setDragging] = useState(false)
   const active = useRef(true)
   const currentRemote = useRef(remote)
@@ -86,12 +107,7 @@ export function useAttachments({
     (files: File[]) => {
       for (const file of files) {
         void (async () => {
-          const limit = remote && !isInlineableImage(file.type) ? 20 * 1024 * 1024 : MAX_IMAGE_BYTES
-          if (file.size > limit) {
-            onReject?.(`${file.name} is too large to attach (limit ${limit / 1024 / 1024} MB).`)
-            return
-          }
-          const attachment = await toAttachment(file, (f) => window.phosphor.pathForFile(f), remote)
+          const attachment = await readAttachment(file, remote, nativeFiles, onReject)
           if (!attachment || !active.current || currentRemote.current !== remote) return
           const next = [...latest.current, attachment]
           if ((remote && next.length > 10) || totalAttachmentBytes(next) > MAX_ATTACHMENT_BYTES) {
@@ -107,7 +123,7 @@ export function useAttachments({
         })()
       }
     },
-    [onChange, onReject, remote],
+    [nativeFiles, onChange, onReject, remote],
   )
 
   const remove = useCallback(

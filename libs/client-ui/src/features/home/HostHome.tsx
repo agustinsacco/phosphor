@@ -1,4 +1,3 @@
-import { Button } from '@/components/form'
 import { useMachinesStore } from '@/stores/machines'
 import {
   useRemoteLanesStore,
@@ -7,7 +6,8 @@ import {
   REMOTE_NOT_READY,
   REMOTE_UNAVAILABLE,
 } from '@/stores/remoteLanes'
-import { LaneCard } from './LaneCard'
+import { RemoteLaneRow } from './RemoteLaneRow'
+import './remoteStart.css'
 
 /** A Host has a lane snapshot, not This Mac's project ledger or spend statistics. */
 export function HostHome({ hostId }: { hostId: string }): React.JSX.Element {
@@ -25,29 +25,18 @@ export function HostHome({ hostId }: { hostId: string }): React.JSX.Element {
       <p className="text-text-secondary mb-2 font-mono text-xs uppercase tracking-wider">
         {connectionLabel(host?.state)}
       </p>
-      <h1 className="text-4xl font-semibold tracking-tight">{label}</h1>
+      <h2 className="text-lg font-medium">{label}</h2>
       {refusal ? (
         <p className="text-text-secondary mt-4">{refusal}</p>
       ) : (
         <>
-          <p className="text-text-secondary mt-2 text-lg">Your lanes on {label}</p>
-          <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-4">
+          <p className="text-text-secondary mt-1 text-sm">Your lanes on {label}</p>
+          <div className="remote-lane-list">
             {host?.lanes.map((lane) => (
-              <LaneCard
+              <RemoteLaneRow
                 key={lane.laneId}
-                title={lane.title ?? 'Untitled lane'}
-                status={
-                  <span className="text-text-secondary uppercase tracking-wider">
-                    {lane.activity}
-                  </span>
-                }
-                branch={lane.branch}
+                lane={lane}
                 onOpen={() => void openRemoteLane(hostId, lane.laneId)}
-                action={
-                  <Button size="sm" onClick={() => void openRemoteLane(hostId, lane.laneId)}>
-                    Open lane
-                  </Button>
-                }
               />
             ))}
           </div>

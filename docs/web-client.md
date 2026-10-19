@@ -1,9 +1,9 @@
 # Web client
 
-The browser client lives in `apps/web`. It imports the compact entry of
-`libs/client-ui`; Desktop imports the expanded entry of the same library.
-Chat, approvals, resources and their stores are shared production components,
-not a second transcript implementation. Desktop's bootstrap, preload and local
+The browser client lives in `apps/web`. It imports the browser entry of
+`libs/client-ui` (exported as `compact`); Desktop imports its native entry.
+Full feature pages, remote creation, chat, approvals, resources and their stores
+are shared production components, not parallel mobile implementations. Desktop's bootstrap, preload and local
 lanes remain separate and work without account sign-in.
 
 ## Account and Host boundary
@@ -28,10 +28,14 @@ mounts. Sign-out warnings distinguish confirmed local logout, pending remote
 cleanup and unconfirmed network outcomes. A retry returning 401 does not prove
 remote cleanup completed or revoke previously issued grants immediately.
 
-## Compact surfaces
+## Shared pages and responsive shells
 
-The compact shell is used at every browser width. History and popstate encode
-Host/lane identifiers, not filesystem paths. Missing machines, unavailable
+Browser presentation switches at 900px: drawer navigation below that width,
+persistent sidebar above it. `Platform.formFactor` controls presentation only;
+`localLanes`, `nativeFiles`, `fileEditing` and `splitPanes` remain false in the
+browser at every width. Modal/menu placement adapts without enabling native
+editors or pane controls. Desktop retains its native sidebar and local workbench.
+History and popstate encode Host/lane identifiers, not filesystem paths. Missing machines, unavailable
 capabilities and offline reads have explicit states; they never fall back to
 This computer. Reading a lane does not acquire control. The real Host-backed
 composer, controller controls and approval sheets are reused.
@@ -39,13 +43,37 @@ composer, controller controls and approval sheets are reused.
 Machines, Skills, Routines and Artifacts are remote-only. Aggregate routines
 preserve partial-state warnings and deduplicate qualified IDs. Incomplete
 artifact aggregation reports an error rather than a misleading complete list.
-Files and HEAD/working-copy comparisons are read-only. The first-prompt form
-has no attachment picker; images can be attached through the lane composer.
-Native terminals, file editing, provider installation/login and native settings
-are unavailable. Attention is in-app only, not OS push.
+Files and HEAD/working-copy comparisons are read-only. New lanes and existing
+lane composers accept inline images; other browser file attachments are refused
+before any lane creation/upload. Adding Host folders remains a Desktop action,
+not an unsupported browser dialog. Native terminals, file editing, provider
+installation/login and native settings are unavailable. Attention is in-app
+only, not OS push.
 
-Compact controls use touch-sized targets, 16px inputs, safe-area insets and a
-visual-viewport-aware layout. Desktop retains its existing density and shell.
+`PageShell` owns each page's single heading, actions and close behavior;
+`PageBody` supplies the shared width, gutters and scrolling for Machines,
+Artifacts, Skills, Routines and browser settings. `PageLinks`/`NavigationItem`
+supply the same global-page labels, order and row presentation in both sidebars.
+Browser settings reuse Desktop's `AppearancePreferences` rows; the native-only
+settings sections remain separate.
+
+`RemoteWorkspacePage` and `RemoteStartView` compose the complete remote start
+experience in both clients. Their controller validates remembered repositories,
+provider-ready model choices and submission receipts. The root URL opens New;
+one ready control-capable Host is selected and pinned into the URL, while
+multiple targets require a choice. An explicit missing Host never silently
+switches. Model precedence is last valid choice, a validated native preference
+when available, then the first usable catalogue model. Fallback is disclosed;
+no configured Host default or cross-device preference sync is claimed. The
+searchable model dialog and thinking selector are shared. Isolation changes are
+memory-only in the browser, preserving native preference persistence.
+
+Both clients use bundled Inter and the same tokens. The shared loading surface
+appears during browser account initialization, with explicit sanitized recovery;
+fonts settle with the same bounded readiness as Desktop before feature views
+mount. Phone controls retain 44px hit targets and 16px text-entry fields without
+inflating all interface copy; wide screens use compact desktop density. Safe-area
+insets and visual-viewport resize/scroll follow the on-screen keyboard.
 HTML/SVG previews use revocable Blob URLs, an empty iframe sandbox and a leading
 restrictive document CSP. Scripts, network, forms and authored navigation are
 refused. The parent permits only `frame-src blob:` for these previews and blocks
@@ -58,7 +86,9 @@ artifact/file protocols and scripted artifact behavior are unchanged.
 Composer drafts and image blobs are bounded, owner-scoped memory, including
 canonical remote-session tuple keys. Reloading does not restore those drafts.
 The adapter persists only the theme preference, never credentials, transcripts
-or draft contents. Unsupported native file attachments are rejected.
+or draft contents. Browser font changes last until reload. Owner loss also clears
+remembered creation targets/model choices and resets browser isolation. Unsupported
+native file attachments are rejected.
 
 The production service worker caches anonymous shell/static resources only.
 API routes, OAuth callbacks, Host requests and non-GET requests bypass it.
@@ -81,8 +111,10 @@ keeps `/` and `/guides/` on the site origin. The app uses
 `npm run test:e2e:web` runs Chromium and WebKit against the production bootstrap
 and a separate authenticated fixture that maps only socket transport to a disposable
 real Host. It exercises cookie/CSRF boundaries, Host proof, control/send, owner cleanup,
-resource isolation, hostile previews and app-framing refusal. Auth/database/pi are
-synthetic. See [the harness contract](../apps/web/e2e/README.md). The browser job is
+resource isolation, hostile previews and app-framing refusal. Responsive coverage
+captures shared pages at 360/412/768/1440px in both themes, verifies Inter readiness
+and containment, and rejects unsupported first-prompt files before mutation.
+Auth/database/pi are synthetic. See [the harness contract](../apps/web/e2e/README.md). The browser job is
 required by CI; `npm run validate` includes it unless `SKIP_E2E=1`. The combined-image
 check also verifies app/site Host-header routing, manifest, worker and API headers.
 

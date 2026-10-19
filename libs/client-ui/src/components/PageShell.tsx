@@ -11,10 +11,12 @@ export const PageShell = memo(function PageShell({
   title,
   actions,
   children,
+  dismissible = true,
 }: {
   title: React.ReactNode
   actions?: React.ReactNode
   children: React.ReactNode
+  dismissible?: boolean
 }): React.JSX.Element {
   const { localLanes } = usePlatform()
   const { location, navigate } = useNavigation()
@@ -27,9 +29,11 @@ export const PageShell = memo(function PageShell({
       <header className="page-shell-header">
         <h1 className="page-shell-title">{title}</h1>
         <div className="page-shell-actions">{actions}</div>
-        <PaneIconButton title="Close page" onClick={close}>
-          <CloseIcon size={13} />
-        </PaneIconButton>
+        {dismissible && (
+          <PaneIconButton title="Close page" onClick={close}>
+            <CloseIcon size={13} />
+          </PaneIconButton>
+        )}
       </header>
       <div className="page-shell-content">{children}</div>
     </div>

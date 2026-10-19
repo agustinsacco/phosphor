@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { TooltipLabel, tooltipProps } from '@/components/Tooltip'
 import { useWorktreesStore } from '@/stores/worktrees'
+import { usePlatform } from '@/platform/Platform'
 
 /**
  * Per-chat opt-out from branch isolation, next to the message it applies to.
@@ -22,6 +23,7 @@ export function IsolateToggle({
   workspacePath?: string
 }): React.JSX.Element {
   const trunk = useStartPoint(workspacePath)
+  const { localLanes } = usePlatform()
   return (
     <TooltipLabel
       {...tooltipProps(
@@ -43,7 +45,10 @@ export function IsolateToggle({
         type="checkbox"
         checked={checked}
         disabled={disabled}
-        onChange={(e) => useWorktreesStore.getState().setPreferWorktree(e.target.checked)}
+        onChange={(e) => {
+          if (localLanes) useWorktreesStore.getState().setPreferWorktree(e.target.checked)
+          else useWorktreesStore.setState({ preferWorktree: e.target.checked })
+        }}
         className="accent-[var(--px-accent)]"
       />
       {/*
