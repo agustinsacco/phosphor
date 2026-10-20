@@ -1,17 +1,10 @@
 import { useMachinesStore } from '@/stores/machines'
-import { useState } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
-import {
-  useRemoteLanesStore,
-  canControlSession,
-  machineLabel,
-  connectionLabel,
-} from '@/stores/remoteLanes'
+import { useRemoteLanesStore, machineLabel, connectionLabel } from '@/stores/remoteLanes'
 import { Button } from '@/components/form'
-import { useChatStore } from '@/stores/chat'
+import { useLaneControl } from './useLaneControl'
 
-/** pi writes nothing to resume until a first message; the Host refuses Stop before then. */
-export const STOP_NEEDS_PROMPT = 'Send a first message before stopping this lane.'
+export { STOP_NEEDS_PROMPT } from './useLaneControl'
 
 export function MachineChip({ sessionId }: { sessionId: string }): React.JSX.Element {
   const target = useSessionsStore((s) => s.live[sessionId]?.target)
@@ -27,81 +20,69 @@ export function MachineChip({ sessionId }: { sessionId: string }): React.JSX.Ele
 }
 
 export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const entry = useSessionsStore((s) => s.live[sessionId])
-  const hosts = useRemoteLanesStore((s) => s.hosts)
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const prompted = useChatStore(
-    (s) => s.sessions[sessionId]?.items.some((item) => item.kind === 'user') ?? false,
-  )
-  if (entry?.target?.kind !== 'remote' || !entry.laneId) return null
-  const hostId = entry.target.hostId
-  const laneId = entry.laneId
-  const host = hosts[hostId]
-  const lane = host?.lanes.find((lane) => lane.laneId === laneId)
-  const controller = lane?.control.controller
+  const control = useLaneControl(sessionId)
+  if (!control) return null
   // Control cannot change hands until the Host is back; the composer says what it waits for.
-  if (host?.state !== 'ready')
+  if (control.hostState !== 'ready')
     return (
       <div className="px-6 py-2">
         <MachineChip sessionId={sessionId} />
       </div>
     )
-  const enabled = host.capabilities.includes('sessions.control')
-  async function act(
-    channel: 'hosts:takeControl' | 'hosts:stopLane' | 'hosts:resumeLane' | 'hosts:releaseControl',
-  ): Promise<void> {
-    setBusy(true)
-    try {
-      await window.phosphor.invoke(channel, hostId, laneId)
-      setError(null)
-    } catch {
-      setError('The Host could not confirm this. Check the lane before retrying.')
-    } finally {
-      setBusy(false)
-    }
-  }
+  const { act, busy, stopped, stopBlocked } = control
   return (
     <div className="text-text-secondary flex flex-wrap items-center gap-2 px-6 py-2 text-sm">
       <MachineChip sessionId={sessionId} />
-      <span>
-        {controller
-          ? `Controlled by ${controller.self ? 'you' : controller.label}${controller.connected ? '' : ' (disconnected)'}`
-          : 'No controller'}
-      </span>
-      {!canControlSession(sessionId) && (
-        <Button size="xs" disabled={!enabled || busy} onClick={() => void act('hosts:takeControl')}>
+      <span>{control.status}</span>
+      {!control.controlling && (
+        <Button
+          size="xs"
+          disabled={!control.enabled || busy}
+          onClick={() => void act('hosts:takeControl')}
+        >
           Take control
         </Button>
       )}
-      {canControlSession(sessionId) && (
+      {control.controlling && (
         <Button size="xs" disabled={busy} onClick={() => void act('hosts:releaseControl')}>
           Release control
         </Button>
       )}
-      {canControlSession(sessionId) && (
+      {control.controlling && (
         <Button
           size="xs"
-          disabled={
-            busy || (!prompted && lane?.activity !== 'stopped' && lane?.activity !== 'failed')
-          }
-          title={
-            !prompted && lane?.activity !== 'stopped' && lane?.activity !== 'failed'
-              ? STOP_NEEDS_PROMPT
-              : undefined
-          }
-          onClick={() =>
-            void act(
-              lane?.activity === 'stopped' || lane?.activity === 'failed'
-                ? 'hosts:resumeLane'
-                : 'hosts:stopLane',
-            )
-          }
+          disabled={busy || stopBlocked !== null}
+          title={stopBlocked ?? undefined}
+          onClick={() => void act(stopped ? 'hosts:resumeLane' : 'hosts:stopLane')}
         >
-          {lane?.activity === 'stopped' || lane?.activity === 'failed' ? 'Resume' : 'Stop'}
+          {stopped ? 'Resume' : 'Stop'}
         </Button>
       )}
-      {error && <span role="alert">{error}</span>}
+      {control.error && <span role="alert">{control.error}</span>}
+    </div>
+  )
+}
+
+/**
+ * Stands in for the composer on a phone when this device is not the controller,
+ * so the one action that unlocks typing sits where typing happens. Who controls
+ * the lane is in the lane header, not repeated here.
+ */
+export function ReadOnlyLaneBar({ sessionId }: { sessionId: string }): React.JSX.Element {
+  const control = useLaneControl(sessionId)
+  return (
+    <div className="compact-observer">
+      <p role="status">Read-only. Take control to send messages.</p>
+      {control && (
+        <Button
+          variant="primary"
+          disabled={!control.enabled || control.busy}
+          onClick={() => void control.act('hosts:takeControl')}
+        >
+          Take control
+        </Button>
+      )}
+      {control?.error && <p role="alert">{control.error}</p>}
     </div>
   )
 }

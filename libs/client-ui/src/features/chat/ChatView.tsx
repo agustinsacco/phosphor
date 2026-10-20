@@ -1,7 +1,8 @@
 import { SessionFileTarget } from '@/features/files/SessionFileTarget'
 import { useRemoteLanesStore, readOnlyLane } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { RemoteLaneControls } from '@/features/machines/RemoteLaneControls'
+import { ReadOnlyLaneBar, RemoteLaneControls } from '@/features/machines/RemoteLaneControls'
+import { usePlatform } from '@/platform/Platform'
 import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import { ForkPickerModal } from './ForkPickerModal'
@@ -29,11 +30,14 @@ export function ChatView({
   const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
   // A lane whose Host is retrying keeps its composer, locked: it is waiting, not read-only.
   const readOnly = readOnlyLane(sessionId)
+  // A phone's lane header carries the controller state and its menu holds the
+  // actions (shell/compact/CompactLaneHeader), so the row would only repeat it.
+  const compact = usePlatform().formFactor === 'compact'
   return (
     <SessionFileTarget.Provider value={sessionId}>
       <div className="flex h-full min-w-0 flex-col">
         {!remote && <CrashBanner sessionId={sessionId} workspacePath={workspacePath} />}
-        <RemoteLaneControls sessionId={sessionId} />
+        {!compact && <RemoteLaneControls sessionId={sessionId} />}
         <NoModelsBanner sessionId={sessionId} />
         <RewoundBanner sessionId={sessionId} />
         <MessageList sessionId={sessionId} />
@@ -42,7 +46,9 @@ export function ChatView({
         <div className="shrink-0 px-6 pt-1">
           <RateLimitBanner sessionId={sessionId} className="mx-auto w-full max-w-3xl" />
         </div>
-        {readOnly ? (
+        {readOnly && compact && remote ? (
+          <ReadOnlyLaneBar sessionId={sessionId} />
+        ) : readOnly ? (
           <p role="status" className="p-6 text-sm">
             Read-only. Take control to send messages.
           </p>

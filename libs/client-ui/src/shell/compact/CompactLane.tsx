@@ -12,6 +12,8 @@ import {
 import { ChatView } from '@/features/chat/ChatView'
 import { ReadOnlyFilesPane } from '@/features/files/ReadOnlyFilesPane'
 import { SCREENS } from '@/navigation/screens'
+import { usePlatform } from '@/platform/Platform'
+import { COMPACT_LANE_PANES, useRemoteLaneSession } from './CompactLaneHeader'
 import type { Location } from '@/navigation/location'
 const ArtifactsPane = lazy(() =>
   import('@/features/artifacts/RemoteArtifactsPane').then((m) => ({
@@ -32,14 +34,7 @@ export function CompactLane({
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const snapshotStatus = useRemoteLanesStore((s) => s.snapshotStatus)
   const lane = host?.lanes.find((lane) => lane.laneId === laneId)
-  const session = useSessionsStore((s) =>
-    Object.values(s.live).find(
-      (entry) =>
-        entry.target?.kind === 'remote' &&
-        entry.target.hostId === hostId &&
-        entry.laneId === laneId,
-    ),
-  )
+  const session = useRemoteLaneSession(hostId, laneId)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const filter = useRemoteLanesStore((s) => s.filter)
@@ -111,19 +106,23 @@ function LanePanes({
 }): React.JSX.Element {
   const pane = location.pane ?? 'chat'
   const placement = SCREENS[pane].compact
+  // A phone switches panes from the lane menu in its header (CompactLaneHeader).
+  const tabs = usePlatform().formFactor !== 'compact'
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <nav className="compact-lane-tabs" aria-label="Lane panes">
-        {(['chat', 'files', 'changes', 'artifacts'] as const).map((id) => (
-          <TooltipButton
-            key={id}
-            aria-current={pane === id ? 'page' : undefined}
-            onClick={() => navigate({ ...location, pane: id })}
-          >
-            {SCREENS[id].title}
-          </TooltipButton>
-        ))}
-      </nav>
+      {tabs && (
+        <nav className="compact-lane-tabs" aria-label="Lane panes">
+          {COMPACT_LANE_PANES.map((id) => (
+            <TooltipButton
+              key={id}
+              aria-current={pane === id ? 'page' : undefined}
+              onClick={() => navigate({ ...location, pane: id })}
+            >
+              {SCREENS[id].title}
+            </TooltipButton>
+          ))}
+        </nav>
+      )}
       <div className="min-h-0 flex-1">
         <Suspense
           fallback={

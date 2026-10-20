@@ -32,9 +32,22 @@ async function navigatePage(page: Page, name: string) {
     'data-form-factor',
     compact ? 'compact' : 'expanded',
   )
-  if (compact) await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
+  if (compact) {
+    // A phone's lane header has only Back and the lane menu; the drawer is on the list.
+    const back = page.getByRole('button', { name: 'Back to lanes', exact: true })
+    if (await back.isVisible()) await back.click()
+    await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
+  }
   await page
     .getByRole('navigation', { name: 'Main navigation' })
+    .getByRole('button', { name, exact: true })
+    .click()
+}
+async function openPane(page: Page, name: string) {
+  if ((page.viewportSize()?.width ?? 400) < 900)
+    await page.getByRole('button', { name: /^Lane menu/ }).click()
+  await page
+    .getByRole('navigation', { name: 'Lane panes' })
     .getByRole('button', { name, exact: true })
     .click()
 }
@@ -314,34 +327,22 @@ test('real Host files and artifact isolation across two lanes', async ({
   const escaped = await denyNonlocal(context, stack.origin)
   await signIn(page, stack.origin)
   await openLane(page)
-  await page
-    .getByRole('navigation', { name: 'Lane panes' })
-    .getByRole('button', { name: 'Files', exact: true })
-    .click()
+  await openPane(page, 'Files')
   await page.getByRole('treeitem', { name: 'remote.txt', exact: true }).click()
   await expect(page.getByText('HOST_A_ONLY synthetic file', { exact: false })).toBeVisible()
   await expect(page.getByText('HOST_B_ONLY synthetic file', { exact: false })).toHaveCount(0)
-  await page
-    .getByRole('navigation', { name: 'Lane panes' })
-    .getByRole('button', { name: 'Artifacts', exact: true })
-    .click()
+  await openPane(page, 'Artifacts')
   await expect(
     page.frameLocator('iframe').getByRole('heading', { name: 'HOST_A_ONLY version 1' }),
   ).toBeVisible()
   await expect(page.locator('iframe')).toHaveAttribute('sandbox', '')
   await page.getByRole('button', { name: 'Back to lanes' }).click()
   await openLane(page, 'Second synthetic lane')
-  await page
-    .getByRole('navigation', { name: 'Lane panes' })
-    .getByRole('button', { name: 'Files', exact: true })
-    .click()
+  await openPane(page, 'Files')
   await page.getByRole('treeitem', { name: 'remote.txt', exact: true }).click()
   await expect(page.getByText('HOST_B_ONLY synthetic file', { exact: false })).toBeVisible()
   await expect(page.getByText('HOST_A_ONLY synthetic file', { exact: false })).toHaveCount(0)
-  await page
-    .getByRole('navigation', { name: 'Lane panes' })
-    .getByRole('button', { name: 'Artifacts', exact: true })
-    .click()
+  await openPane(page, 'Artifacts')
   await expect(
     page.frameLocator('iframe').getByRole('heading', { name: 'HOST_B_ONLY version 1' }),
   ).toBeVisible()

@@ -35,6 +35,13 @@ persistent sidebar above it. `Platform.formFactor` controls presentation only;
 `localLanes`, `nativeFiles`, `fileEditing` and `splitPanes` remain false in the
 browser at every width. Modal/menu placement adapts without enabling native
 editors or pane controls. Desktop retains its native sidebar and local workbench.
+Below 900px a lane has one header bar: Back to its Host's lanes, then the lane
+title with "Host · controller" under it (and the pane, when not Chat). The title
+opens the lane menu, a bottom sheet that switches Chat, Files, Changes and
+Artifacts and holds Take/Release control, Stop/Resume and New lane on that Host.
+There is no drawer button, machine filter or pane tab strip inside a lane. A
+reader sees a Take control bar where the composer would be. Wider browsers keep
+the pane tabs and the control row above the transcript.
 History and popstate encode Host/lane identifiers, not filesystem paths. Missing machines, unavailable
 capabilities and offline reads have explicit states; they never fall back to
 This computer. Reading a lane does not acquire control. The real Host-backed

@@ -10,6 +10,7 @@ import { usePlatform } from '@/platform/Platform'
 import { locationMachine } from '@/navigation/location'
 import { BrowserNavigation } from './BrowserNavigation'
 import { CompactLane } from './CompactLane'
+import { CompactLaneHeader } from './CompactLaneHeader'
 import { CompactLanes } from './CompactLanes'
 import { CompactNew } from './CompactNew'
 import { CompactSettings } from './CompactSettings'
@@ -23,7 +24,11 @@ export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Eleme
     <div className="compact-shell browser-shell" data-testid="compact-shell">
       {!compact && <BrowserNavigation machine={machine} onClose={() => setDrawer(false)} />}
       <div className="browser-content" inert={compact && drawer ? true : undefined}>
-        <BrowserHeader machine={machine} onMenu={() => setDrawer(true)} />
+        {compact && location.to === 'lane' ? (
+          <CompactLaneHeader location={location} />
+        ) : (
+          <BrowserHeader machine={machine} onMenu={() => setDrawer(true)} />
+        )}
         <main className="compact-main">
           <BrowserScreen machine={machine} pending={pending} />
         </main>
