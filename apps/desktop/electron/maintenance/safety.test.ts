@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { existsSync, realpathSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DEFAULT_APP_PREFS, DEFAULT_MAINTENANCE_PREFS } from '@shared/models'
@@ -131,6 +131,16 @@ it.each(['pin', 'lock'] as const)('protects a finished worktree with a %s', asyn
   expect(report.held.find((w) => w.path === lane)?.reason).toBe(
     protection === 'pin' ? 'pinned' : 'locked',
   )
+})
+
+it('protects a finished conversation pinned through a symlinked session directory', async () => {
+  decideSession(transcript, true)
+  const alias = join(root, 'session-alias')
+  await symlink(sessionDirForCwd(lane), alias)
+  state.prefs.pinnedSessions = [join(alias, '2026-09-01_conversation-a.jsonl')]
+  const report = await run()
+  expect(report.reclaimed).toEqual([])
+  expect(report.held.find((w) => w.path === lane)?.reason).toBe('pinned')
 })
 
 it('reclaims an explicitly finished lane, retains discovery and restores the exact tip and conversation', async () => {
