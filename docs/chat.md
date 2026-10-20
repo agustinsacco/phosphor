@@ -90,7 +90,12 @@ The composer is one small field with several ways in.
   Both composers accept attachment-only messages, including the first message.
 - Remote controllers can attach files when the ready Host announces
   `workspaces.write` and `sessions.control`. Images travel inline as on local
-  lanes, but main refuses encoded image prompt frames above the Host inbound limit
+  lanes, but each is first fitted into 2000 px, the square pi resizes every image
+  to before a model sees it (`lib/shrinkImage.ts`). A phone photo drops from
+  several MB to a few hundred KB, so it fits the prompt frame on a weak link. A
+  GIF, an image that already fits, or one the browser cannot re-encode smaller is
+  sent as it is; local lanes always send the original. Main refuses encoded image
+  prompt frames above the Host inbound limit
   minus a 1 KiB margin without sending or clearing the image draft; documents upload through main before the prompt, at most 20 MiB each
   and ten attachments per message. The Host path appears only in the normal
   `<attached-files>` block. Failure or uncertainty sends no prompt and never

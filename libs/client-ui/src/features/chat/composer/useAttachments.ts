@@ -8,6 +8,7 @@ import {
   type PendingImage,
 } from '../attachments'
 import { sceneBytes } from '../imageEditor/scene'
+import { shrinkImage } from '@/lib/shrinkImage'
 
 /**
  * Paste / drag-drop / pick plumbing shared by the chat composer and the home
@@ -44,17 +45,21 @@ export interface AttachmentsApi {
   handleDrop: (event: React.DragEvent) => void
 }
 
-/** Validate transport support before reading bytes or mutating a draft. */
+/**
+ * Validate transport support before reading bytes or mutating a draft. A
+ * Host-bound image is shrunk first, so a phone photo fits instead of being refused.
+ */
 async function readAttachment(
-  file: File,
+  picked: File,
   remote: boolean,
   nativeFiles: boolean,
   onReject?: (message: string) => void,
 ): Promise<PendingAttachment | null> {
-  if (!nativeFiles && !isInlineableImage(file.type)) {
+  if (!nativeFiles && !isInlineableImage(picked.type)) {
     onReject?.('Only images can be attached in this browser. Use Desktop for other files.')
     return null
   }
+  const file = remote && isInlineableImage(picked.type) ? await shrinkImage(picked) : picked
   const limit = remote && !isInlineableImage(file.type) ? 20 * 1024 * 1024 : MAX_IMAGE_BYTES
   if (file.size > limit) {
     onReject?.(`${file.name} is too large to attach (limit ${limit / 1024 / 1024} MB).`)
