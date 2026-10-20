@@ -469,9 +469,11 @@ then fades away.
 
 ## Reclaiming lanes automatically
 
-Deleting a lane by hand is the only thing that frees its disk, so a long-lived
-install keeps a worktree, and its `node_modules`, per lane forever. That adds
-up to gigabytes.
+A merged PR finishes code, not a conversation. Automatic cleanup requires an
+explicit **Finish conversation…** decision from the sidebar context menu for
+**every** transcript in the checkout. Suspend its live sessions first. **Reopen
+conversation** or resuming the lane clears that decision. Unknown, legacy,
+paused and otherwise unfinished conversations remain protected across restarts.
 
 Settings → Advanced → **Maintenance** runs a sweep with two switches, because
 measuring and deleting are different risks:
@@ -486,21 +488,51 @@ another, and the section lists what each one could free. (The button once
 covered only the active workspace, so one click freed one repo and silently
 left the rest.)
 
-Six conditions must all hold before a worktree is a candidate
-(`apps/desktop/electron/maintenance/policy.ts`), and every rejection is reported with its
-reason: not the main checkout, on a branch, clean, not a live session's cwd or
-an open workspace, **proven landed** (the same two proofs as manual delete),
-and untouched for `minAgeHours`. Deletion goes through `removeWorktree`, which
-refuses a dirty tree on its own. The PR proof runs only for clean lanes the
-squash test could not prove, four `gh` calls at a time. When nothing is
-reclaimable, the row counts why each lane was kept.
+All conditions must hold before a worktree is a candidate
+(`apps/desktop/electron/maintenance/policy.ts`): not the main checkout, on a
+branch, verifiably clean, not protected by a live session, recent workspace or
+routine, not Git-locked or pinned, **all conversations explicitly finished**,
+**proven landed**, and past `minAgeHours`. Empty or unreadable histories do not
+count as completed. Git ancestry can prove a research branch landed, but never
+proves its conversation finished. Existing opt-in preferences and **Reclaim
+now** do not bypass completion. Every rejection is reported with its reason.
+The PR proof runs only for clean lanes Git could not prove, four `gh` calls at
+a time.
+
+Before each removal, main takes the same workspace gate as Desktop session
+admission and rechecks eligibility, current ownership/protection, completion,
+activity, locks and dirty state. A queued resume invalidates completion before
+waiting for the gate. These ownership protections are process-local; an external
+pi process is not registered here. Git worktree locks remain a protection across
+processes and are never forced through.
+
+Manual **Remove worktree** is a separate explicit action: it previews affected
+conversations and requires confirmation, refuses live ownership and locks, and
+requires a second acknowledgment to discard dirty files. History is retained.
 
 A recent workspace that is not a git repository (a "No folder" sandbox) is
 skipped, not reported as a sweep error.
 
-The grace period exists because a branch can land while its lane is still
-being read. pi's session directory for that cwd counts as use, so a lane you
-read but never edit is still "touched".
+The grace period starts from the later of explicit completion and real activity:
+actual transcript-file modification times, persisted session-open/seen times,
+and checkout/session-directory timestamps. Appending a transcript need not
+change its directory mtime, so directory timestamps alone are not sufficient.
+
+Before removal, main saves repository, checkout path, branch, exact tip commit,
+related conversation IDs, completion/activity timestamps, eligibility reason and
+attempt outcome in `userData/session-maintenance.json`. A Git ref under
+`refs/phosphor/recovery/` keeps that tip reachable even after branch deletion.
+A crash after recording intent leaves a `pending` audit record, not lost identity.
+These records and refs are retained; cleanup does not age them out.
+
+Sidebar discovery also reads retained transcript headers under each repo's
+`.phosphor/worktrees/`, independent of surviving Git registrations, plus saved
+removal records for other checkout locations. Removed checkouts show **worktree
+removed**; their session tree remains readable. **Restore worktree** recreates
+the original path at the exact saved commit, detached to avoid overwriting a
+reused branch, without modifying the transcript. Dependencies must be reinstalled.
+Legacy missing checkouts with no saved identity stay visible but require manual
+restoration; Phosphor does not guess a replacement from today's trunk.
 
 Sizes come from `du`, which Windows lacks; an unmeasured size reports "unknown"
 and the policy never depends on the number. The scheduler is a plain interval

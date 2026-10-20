@@ -65,6 +65,17 @@ describe('sessionSubtitle', () => {
     expect(clean.map((s) => s.key)).toEqual(['time', 'branch'])
   })
 
+  it('renders removal and completion as state text, not the hardcoded worktree badge', () => {
+    expect(
+      sessionSubtitle(meta({ worktreeRemoved: true }), git({ isWorktree: true })).find(
+        (s) => s.key === 'state',
+      )?.text,
+    ).toBe('worktree removed')
+    expect(
+      sessionSubtitle(meta({ completedAt: 1 }), undefined).find((s) => s.key === 'state')?.text,
+    ).toBe('finished')
+  })
+
   it('never carries spend, however large', () => {
     const rich = sessionSubtitle(meta({ cost: 90.92 }), git({ branch: 'main' }))
     const tiny = sessionSubtitle(meta({ cost: 0.0042 }), undefined)

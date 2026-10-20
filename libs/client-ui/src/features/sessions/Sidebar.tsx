@@ -2,12 +2,7 @@ import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { MachineSwitcher, MachineLabelLine, OtherMachinesActivity } from './MachineSwitcher'
 import { RemoteLanes } from './RemoteLanes'
-import {
-  useRemoteLanesStore,
-  machineLabel,
-  navigateToLane,
-  alignLaneMachineFilter,
-} from '@/stores/remoteLanes'
+import { useRemoteLanesStore, machineLabel, navigateToLane } from '@/stores/remoteLanes'
 import { LaneRevealEffect, localLaneGroupKey } from './laneReveal'
 import { TooltipButton } from '@/components/Tooltip'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -27,6 +22,7 @@ import { isUnseen } from './unseen'
 import { SessionList, useSessionOrderActions } from './SessionList'
 import { orderedSessions } from './sessionOrder'
 import { sessionSubtitle } from './sessionSubtitle'
+import { completionActions, openSidebarConversation } from './completionActions'
 import { PrBadge, openPullRequest } from './PrBadge'
 import { LaneMarker } from './LaneMarker'
 import { BulkDeleteModal } from './BulkDeleteModal'
@@ -1556,10 +1552,7 @@ function SessionRow({
   // subtitle beneath it already carries `wt` and the branch.
   const rowWorkspaceName = projectName(meta.cwd || workspacePath, git)
 
-  const open = (): void => {
-    alignLaneMachineFilter('local')
-    void useSessionsStore.getState().openDiskSession(workspacePath, meta)
-  }
+  const open = (): void => openSidebarConversation(workspacePath, meta)
 
   const contextMenu = (event: React.MouseEvent): void => {
     const store = useSessionsStore.getState()
@@ -1567,6 +1560,7 @@ function SessionRow({
       { label: 'Open', onClick: open },
       ...orderActions,
       { label: 'Session tree…', onClick: onOpenTree },
+      ...completionActions(workspacePath, meta),
       {
         label: 'Make routine…',
         onClick: () => makeRoutine(workspacePath, meta.name ?? '', meta.firstUserText ?? ''),
@@ -1578,9 +1572,7 @@ function SessionRow({
       ...(markerMode === 'off'
         ? []
         : [{ label: 'Lane marker…', onClick: () => setPickingMarker(true) }]),
-      // The chip itself is a mouse-only shortcut (it cannot be a tab stop
-      // inside the row button — see PrBadge). This is the keyboard route, and
-      // the only way to discover the PR number without hovering.
+      // Keyboard route for the PR chip (see PrBadge).
       ...(pullRequest
         ? [
             {

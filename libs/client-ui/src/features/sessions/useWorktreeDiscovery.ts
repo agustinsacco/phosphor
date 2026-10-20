@@ -45,10 +45,15 @@ export function useWorktreeDiscovery(
       for (const root of roots) {
         if (cancelled) return
         try {
-          const worktrees = (await window.phosphor.invoke(
-            'git:listWorktrees',
-            root,
-          )) as WorktreeInfo[]
+          const [checkout, retained] = await Promise.allSettled([
+            window.phosphor.invoke('git:listWorktrees', root),
+            window.phosphor.invoke('sessions:retainedWorkspaces', root),
+          ])
+          if (retained.status === 'fulfilled')
+            for (const path of retained.value) found.set(path, root)
+          const worktrees: WorktreeInfo[] = checkout.status === 'fulfilled' ? checkout.value : []
+          if (checkout.status === 'rejected' || retained.status === 'rejected')
+            listedKey.current = null
           for (const wt of worktrees) {
             // `prunable` is git's own answer for "this folder is gone". A
             // deleted worktree is still listed until someone prunes it, and

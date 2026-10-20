@@ -14,7 +14,15 @@ it('maintenance preserves opt-in reclamation and report reasons', () => {
     minAgeHours: 24,
   })
   expectTypeOf<ReclaimHoldReason>().toEqualTypeOf<
-    'main-checkout' | 'no-branch' | 'dirty' | 'in-use' | 'unmerged' | 'too-recent'
+    | 'main-checkout'
+    | 'no-branch'
+    | 'dirty'
+    | 'in-use'
+    | 'unmerged'
+    | 'too-recent'
+    | 'unfinished'
+    | 'locked'
+    | 'pinned'
   >()
   expectTypeOf<ReclaimCandidate>().toEqualTypeOf<{
     path: string

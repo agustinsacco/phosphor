@@ -31,7 +31,15 @@ export const DEFAULT_MAINTENANCE_PREFS: MaintenancePrefs = {
 
 /** Why a worktree was NOT reclaimed. Makes a sweep auditable after the fact. */
 export type ReclaimHoldReason =
-  'main-checkout' | 'no-branch' | 'dirty' | 'in-use' | 'unmerged' | 'too-recent'
+  | 'main-checkout'
+  | 'no-branch'
+  | 'dirty'
+  | 'in-use'
+  | 'unmerged'
+  | 'too-recent'
+  | 'unfinished'
+  | 'locked'
+  | 'pinned'
 
 export interface ReclaimHold {
   path: string

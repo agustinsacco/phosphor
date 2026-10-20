@@ -2,7 +2,7 @@ import type { GitInfo } from '@shared/models'
 import { relativeTimeShort } from '@/lib/time'
 
 export interface SubtitleSegment {
-  key: 'time' | 'worktree' | 'branch' | 'dirty'
+  key: 'time' | 'worktree' | 'branch' | 'dirty' | 'state'
   text: string
   /** The branch segment is the only one allowed to truncate. */
   truncate?: boolean
@@ -17,6 +17,8 @@ export interface SubtitleSegment {
  */
 export interface SubtitleSource {
   mtimeMs?: number
+  worktreeRemoved?: boolean
+  completedAt?: number
 }
 
 /**
@@ -33,7 +35,9 @@ export interface SubtitleSource {
 export function sessionSubtitle(meta: SubtitleSource, git: GitInfo | undefined): SubtitleSegment[] {
   const segments: SubtitleSegment[] =
     meta.mtimeMs === undefined ? [] : [{ key: 'time', text: relativeTimeShort(meta.mtimeMs) }]
-  if (git?.isRepo) {
+  if (meta.worktreeRemoved) segments.push({ key: 'state', text: 'worktree removed' })
+  else if (meta.completedAt) segments.push({ key: 'state', text: 'finished' })
+  if (!meta.worktreeRemoved && git?.isRepo) {
     if (git.isWorktree) segments.push({ key: 'worktree', text: 'wt' })
     if (git.branch) segments.push({ key: 'branch', text: git.branch, truncate: true })
     if (git.dirtyCount) segments.push({ key: 'dirty', text: `±${git.dirtyCount}` })

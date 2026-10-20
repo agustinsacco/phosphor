@@ -33,6 +33,14 @@ vi.mock('node:child_process', async () => {
 vi.mock('node:fs/promises', () => ({ stat: async () => ({ mtimeMs: 0 }) }))
 vi.mock('../pi/pi-paths', () => ({ sessionDirForCwd: (path: string) => `${path}/sessions` }))
 vi.mock('../debug-log', () => ({ log: ports.log }))
+// Preserve the frozen orchestration observations with an explicitly eligible conversation port.
+vi.mock('./conversations', () => ({
+  conversationFacts: async () => ({ completedAtMs: 1, lastWriteMs: 0, pinned: false }),
+}))
+vi.mock('./removal', () => ({
+  removeCompletedWorktree: (repo: string, path: string) =>
+    ports.remove(repo, path, { deleteBranch: true }),
+}))
 
 const options: SweepOptions = {
   repoPath: '/repo',

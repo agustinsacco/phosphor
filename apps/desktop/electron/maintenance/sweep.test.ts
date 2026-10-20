@@ -7,7 +7,19 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DEFAULT_MAINTENANCE_PREFS } from '@shared/models'
 import { addWorktree, commitAll } from '../fs/git-worktrees'
+import './__fixtures__/memory-history'
 import { directorySize, sweep } from './sweep'
+
+// These tests isolate Git orchestration; conversation safety is exercised in safety.test.ts.
+vi.mock('./conversations', () => ({
+  conversationSnapshot: () => ({ completedAtMs: 1, lastWriteMs: 0, pinned: false }),
+  conversationFacts: async () => ({
+    sessions: [],
+    completedAtMs: 1,
+    lastWriteMs: 0,
+    pinned: false,
+  }),
+}))
 
 /**
  * Real git, real directories, real `du` — the same choice
@@ -20,6 +32,7 @@ import { directorySize, sweep } from './sweep'
 const gh = vi.hoisted(() => ({
   heads: vi.fn<(repo: string, branch: string) => Promise<string[] | null>>(),
 }))
+vi.mock('../pi/session-watcher', () => ({ notifyWorkspaceSessions: vi.fn() }))
 vi.mock('../fs/gh-cli', () => ({ ghMergedPrHeads: gh.heads, ghCommitTree: async () => null }))
 
 const execFileAsync = promisify(execFile)

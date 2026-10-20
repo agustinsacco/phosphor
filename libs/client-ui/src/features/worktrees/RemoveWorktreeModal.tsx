@@ -1,5 +1,5 @@
 import { TooltipLabel } from '@/components/Tooltip'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { WorktreeInfo } from '@shared/models'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { Button } from '@/components/form'
@@ -7,6 +7,7 @@ import { useAsyncAction } from '@/components/useAsyncAction'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { workspaceName } from '@/lib/path'
+import { ConversationRemovalPreview, checkoutIsLive } from './ConversationRemovalPreview'
 
 /**
  * Remove a linked worktree with the safety ladder: live-session guard →
@@ -28,18 +29,12 @@ export function RemoveWorktreeModal({
   const live = useSessionsStore((s) => s.live)
   const [dirtyCount, setDirtyCount] = useState<number>(Math.max(0, worktree.dirtyCount))
   const [discard, setDiscard] = useState(false)
+  const [confirmed, setConfirmed] = useState(false)
   const [deleteBranch, setDeleteBranch] = useState(true)
   const { busy, error, run } = useAsyncAction()
   const [branchNote, setBranchNote] = useState<string | null>(null)
 
-  const liveHere = useMemo(
-    () =>
-      Object.values(live).some(
-        (entry) =>
-          entry.workspacePath === worktree.path || entry.workspacePath === worktree.realPath,
-      ),
-    [live, worktree],
-  )
+  const liveHere = checkoutIsLive(live, worktree)
 
   const remove = (): Promise<void> =>
     run(async () => {
@@ -80,7 +75,9 @@ export function RemoveWorktreeModal({
               <Button
                 variant="danger"
                 onClick={() => void remove()}
-                disabled={busy || liveHere || (dirtyCount > 0 && !discard)}
+                disabled={
+                  busy || liveHere || worktree.locked || !confirmed || (dirtyCount > 0 && !discard)
+                }
                 className="disabled:cursor-not-allowed"
               >
                 {busy ? 'Removing…' : 'Remove worktree'}
@@ -90,6 +87,10 @@ export function RemoveWorktreeModal({
         }
       >
         <div className="space-y-3 px-4 py-3 text-lg">
+          {worktree.locked && (
+            <p>This worktree is Git-locked. Unlock it explicitly before removal.</p>
+          )}
+          <ConversationRemovalPreview path={worktree.path} onConfirm={setConfirmed} />
           {liveHere && (
             <div className="bg-warning/10 border-warning/30 text-text rounded-lg border px-3 py-2 text-base">
               A live session is running in this worktree. Close it from the sidebar first.

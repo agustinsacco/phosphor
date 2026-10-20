@@ -1,4 +1,6 @@
 import { handle } from './handle'
+import { removeReviewedWorktree } from '../maintenance/removal'
+import { withWorkspace } from '../maintenance/history'
 import { gitDisplayInfo, gitInfoBatch } from '@phosphor/session-runtime/git/git-info'
 import { ghAvailable, ghPrForBranch, ghPrsForRepo } from '../fs/gh-cli'
 import { createSessionBaseline, gitStatusMap, restoreFileTo, showFileAt } from '../fs/git-service'
@@ -9,7 +11,6 @@ import {
   listWorktrees,
   mergeBranch,
   pruneWorktrees,
-  removeWorktree,
   renameBranch,
   startPoint,
 } from '../fs/git-worktrees'
@@ -40,7 +41,7 @@ export function registerGitHandlers(): void {
   )
 
   handle('git:restoreFileTo', (_event, workspacePath, ref, relativePath) =>
-    restoreFileTo(workspacePath, ref, relativePath),
+    withWorkspace(workspacePath, () => restoreFileTo(workspacePath, ref, relativePath)),
   )
 
   handle('git:listWorktrees', (_event, repoPath) => listWorktrees(repoPath))
@@ -52,24 +53,30 @@ export function registerGitHandlers(): void {
   handle('git:addWorktree', (_event, repoPath, name, branch) => addWorktree(repoPath, name, branch))
 
   handle('git:removeWorktree', (_event, repoPath, worktreePath, options) =>
-    removeWorktree(repoPath, worktreePath, options),
+    removeReviewedWorktree(repoPath, worktreePath, options),
   )
 
   handle('git:renameBranch', (_event, repoPath, from, to) => renameBranch(repoPath, from, to))
 
   handle('git:pruneWorktrees', (_event, repoPath) => pruneWorktrees(repoPath))
 
-  handle('git:commitAll', (_event, worktreePath, message) => commitAll(worktreePath, message))
+  handle('git:commitAll', (_event, worktreePath, message) =>
+    withWorkspace(worktreePath, () => commitAll(worktreePath, message)),
+  )
 
-  handle('git:mergeBranch', (_event, repoPath, branch) => mergeBranch(repoPath, branch))
+  handle('git:mergeBranch', (_event, repoPath, branch) =>
+    withWorkspace(repoPath, () => mergeBranch(repoPath, branch)),
+  )
 
   handle('git:fetch', (_event, repoPath, options) => fetchRepo(repoPath, options))
 
-  handle('git:pull', (_event, cwd) => pullFastForward(cwd))
+  handle('git:pull', (_event, cwd) => withWorkspace(cwd, () => pullFastForward(cwd)))
 
   handle('git:updateFromMain', (_event, worktreePath, mainBranch) =>
-    updateFromMain(worktreePath, mainBranch),
+    withWorkspace(worktreePath, () => updateFromMain(worktreePath, mainBranch)),
   )
 
-  handle('git:checkoutBranch', (_event, repoPath, branch) => checkoutBranch(repoPath, branch))
+  handle('git:checkoutBranch', (_event, repoPath, branch) =>
+    withWorkspace(repoPath, () => checkoutBranch(repoPath, branch)),
+  )
 }
