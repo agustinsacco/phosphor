@@ -86,10 +86,13 @@ describe('maintenance handlers characterization', () => {
       prefs: DEFAULT_MAINTENANCE_PREFS,
       act: false,
       liveSessionCount: 1,
+      currentProtectedPaths: expect.any(Function),
       protectedPaths: ['/live', '/repo', '/routine', '/real/live', '/real/repo', '/real/routine'],
     })
     state.list.mockReturnValue([{ workspacePath: '/new' }, { workspacePath: '/other' }])
     state.routinePaths.mockReturnValue(['/scheduled'])
+    expect(state.sweep.mock.calls[0]![0].currentProtectedPaths?.()).toContain('/new')
+    expect(state.sweep.mock.calls[0]![0].currentProtectedPaths?.()).toContain('/scheduled')
     await invoke('maintenance:run')
     expect(state.sweep.mock.calls[1]![0]).toMatchObject({
       liveSessionCount: 2,

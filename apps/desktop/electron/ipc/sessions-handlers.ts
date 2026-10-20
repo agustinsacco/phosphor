@@ -1,4 +1,7 @@
 import { handle } from './handle'
+import { checkoutMissing, retainedWorkspaces, setCompleted } from '../maintenance/conversations'
+import { decorateSession } from '../maintenance/history'
+import { restoreWorktree } from '../maintenance/removal'
 import { unwatchWorkspaceSessions, watchWorkspaceSessions } from '../pi/session-watcher'
 import { listSessions, readSessionTree, workspaceStats } from '../pi/session-scanner'
 import { deleteLane } from '../pi/delete-lane'
@@ -9,7 +12,14 @@ import { forkClaudeLedgerForClone } from '../pi/claude-ledger'
 
 /** On-disk session discovery, tree reading and history rewrites. */
 export function registerSessionsHandlers(): void {
-  handle('sessions:list', (_event, workspacePath: string) => listSessions(workspacePath))
+  handle('sessions:list', async (_event, workspacePath: string) =>
+    (await listSessions(workspacePath)).map((meta) =>
+      decorateSession(meta, checkoutMissing(workspacePath)),
+    ),
+  )
+  handle('sessions:setCompleted', (_event, path, completed) => setCompleted(path, completed))
+  handle('sessions:retainedWorkspaces', (_event, repoPath) => retainedWorkspaces(repoPath))
+  handle('sessions:restoreWorktree', (_event, path) => restoreWorktree(path))
 
   handle('sessions:stats', (_event, workspacePath: string) => workspaceStats(workspacePath))
 

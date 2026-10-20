@@ -421,10 +421,8 @@ export async function renameBranch(
  * equivalent patch is already upstream. The synthesised commit is dangling and
  * unreferenced, so gc collects it.
  *
- * Both `origin/<trunk>` and local `<trunk>` are checked: the squash commit is
- * on the remote the moment the PR merges, and reaches local trunk only after
- * a pull. Anything unexpected answers "not merged" — the caller escalates to
- * `-D` on a true, so an error must never read as proof.
+ * Both remote and local trunk are checked. Unexpected errors mean "not merged",
+ * never proof that the caller may force-delete the branch.
  */
 export async function isBranchMerged(repoPath: string, branch: string): Promise<boolean> {
   const { defaultBranch } = await startPoint(repoPath)
@@ -516,6 +514,7 @@ export async function removeWorktree(
   repoPath: string,
   worktreePath: string,
   options: { force?: boolean; deleteBranch?: boolean } = {},
+  beforeRemove?: (target: WorktreeInfo) => void,
 ): Promise<
   | { removed: true; branchDeleted: boolean; branchError?: string }
   | { removed: false; dirtyCount: number }
@@ -526,6 +525,8 @@ export async function removeWorktree(
   )
   if (!target) throw new Error(`Not a linked worktree of this repo: ${worktreePath}`)
   if (target.isMain) throw new Error('Refusing to remove the main working tree.')
+  if (target.locked) throw new Error('Refusing to remove a locked worktree.')
+  if (target.dirtyCount < 0) throw new Error('Cannot verify worktree status.')
 
   if (!options.force && target.dirtyCount > 0) {
     return { removed: false, dirtyCount: target.dirtyCount }
@@ -534,6 +535,7 @@ export async function removeWorktree(
   const args = ['worktree', 'remove']
   if (options.force) args.push('--force')
   args.push(target.path)
+  beforeRemove?.(target) // Synchronous: no await between the final guard and dispatch.
   await git(repoPath, args)
 
   let branchDeleted = false
@@ -544,10 +546,8 @@ export async function removeWorktree(
       await git(repoPath, ['branch', '-d', branch])
       branchDeleted = true
     } catch (error) {
-      // `-d` refuses a squash-merged branch, which is how every Phosphor lane
-      // lands. Escalate to `-D` ONLY when the squash test or a merged PR
-      // proves the work is already on the trunk; a genuinely unmerged branch
-      // is still kept and reported, never forced.
+      // Escalate squash-merged branches to -D only with proof they landed;
+      // genuinely unmerged branches survive checkout removal.
       if (await isBranchLanded(repoPath, branch)) {
         try {
           await git(repoPath, ['branch', '-D', branch])

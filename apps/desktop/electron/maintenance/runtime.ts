@@ -25,6 +25,7 @@ async function runSweep(repoPath: string, act: boolean): Promise<MaintenanceRepo
     repoPath,
     prefs,
     protectedPaths: protectedPaths(),
+    currentProtectedPaths: protectedPaths,
     liveSessionCount: registry.list().length,
     act,
   })

@@ -1,3 +1,4 @@
+import '../maintenance/__fixtures__/memory-history'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'

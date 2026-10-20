@@ -20,9 +20,13 @@ function facts(over: Partial<WorktreeFacts> = {}): WorktreeFacts {
 
 const opts = { protectedPaths: [] as string[], now: NOW, minAgeHours: 24 }
 
+function finished(over: Partial<WorktreeFacts> = {}): WorktreeFacts {
+  return facts({ completedAtMs: NOW - 48 * HOUR, ...over })
+}
+
 describe('selectReclaimable', () => {
   it('reclaims a clean, merged, idle lane', () => {
-    const { candidates, held } = selectReclaimable([facts()], opts)
+    const { candidates, held } = selectReclaimable([finished()], opts)
     expect(candidates).toEqual([
       {
         path: '/repo/.phosphor/worktrees/lane',
@@ -41,13 +45,13 @@ describe('selectReclaimable', () => {
     ['unmerged', { merged: false }],
     ['too-recent', { lastWriteMs: NOW - 1 * HOUR }],
   ] as const)('holds %s', (reason, over) => {
-    const { candidates, held } = selectReclaimable([facts(over)], opts)
+    const { candidates, held } = selectReclaimable([finished(over)], opts)
     expect(candidates).toEqual([])
     expect(held[0]?.reason).toBe(reason)
   })
 
   it('holds a lane a live session is using, by real path', () => {
-    const { candidates, held } = selectReclaimable([facts({ realPath: '/real/lane' })], {
+    const { candidates, held } = selectReclaimable([finished({ realPath: '/real/lane' })], {
       ...opts,
       protectedPaths: ['/real/lane'],
     })
@@ -56,7 +60,7 @@ describe('selectReclaimable', () => {
   })
 
   it('holds a lane protected by its unresolved path too', () => {
-    const { held } = selectReclaimable([facts()], {
+    const { held } = selectReclaimable([finished()], {
       ...opts,
       protectedPaths: ['/repo/.phosphor/worktrees/lane'],
     })
@@ -64,26 +68,47 @@ describe('selectReclaimable', () => {
   })
 
   it('checks dirty before merged, so uncommitted work is never mislabelled', () => {
-    const { held } = selectReclaimable([facts({ dirtyCount: 3, merged: false })], opts)
+    const { held } = selectReclaimable([finished({ dirtyCount: 3, merged: false })], opts)
     expect(held[0]?.reason).toBe('dirty')
   })
 
   it('reclaims exactly at the age boundary', () => {
-    const { candidates } = selectReclaimable([facts({ lastWriteMs: NOW - 24 * HOUR })], opts)
+    const { candidates } = selectReclaimable([finished({ lastWriteMs: NOW - 24 * HOUR })], opts)
     expect(candidates).toHaveLength(1)
   })
 
   it('separates many lanes into candidates and holds', () => {
     const { candidates, held } = selectReclaimable(
       [
-        facts({ path: '/a', realPath: '/a' }),
-        facts({ path: '/b', realPath: '/b', dirtyCount: 2 }),
-        facts({ path: '/c', realPath: '/c', merged: false }),
+        finished({ path: '/a', realPath: '/a' }),
+        finished({ path: '/b', realPath: '/b', dirtyCount: 2 }),
+        finished({ path: '/c', realPath: '/c', merged: false }),
       ],
       opts,
     )
     expect(candidates.map((c) => c.path)).toEqual(['/a'])
     expect(held.map((h) => h.reason)).toEqual(['dirty', 'unmerged'])
+  })
+})
+
+describe('unfinished conversation regression', () => {
+  it('protects legacy sessions without an explicit completion decision', () => {
+    expect(selectReclaimable([facts()], opts).candidates).toEqual([])
+  })
+
+  it('protects a merged research lane even with no running process', () => {
+    const lane = { ...facts(), completedAtMs: null }
+    expect(selectReclaimable([lane], opts).held[0]?.reason).toBe('unfinished')
+  })
+
+  it('respects git worktree locks', () => {
+    const lane = { ...facts(), completedAtMs: NOW - 48 * HOUR, locked: true }
+    expect(selectReclaimable([lane], opts).held[0]?.reason).toBe('locked')
+  })
+
+  it('starts the grace period at completion, not an old directory timestamp', () => {
+    const lane = { ...facts(), completedAtMs: NOW - HOUR }
+    expect(selectReclaimable([lane], opts).held[0]?.reason).toBe('too-recent')
   })
 })
 

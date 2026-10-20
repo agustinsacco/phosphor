@@ -176,7 +176,7 @@ migration, and rewrites only the disposable header cwd to isolate project resour
 - JSONL tree files: `~/.pi/agent/sessions/--<cwd with / replaced by ->--/<timestamp>_<uuid>.jsonl`. Respect `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR`.
 - Line 1 header: `{type:"session", version:3, id, timestamp, cwd, parentSession?}`. All other entries have `id`/`parentId` (8-char hex) forming a **tree**; the current position is the leaf.
 - Entry types: `message` (wraps an AgentMessage), `model_change`, `thinking_level_change`, `compaction` (summary, firstKeptEntryId, tokensBefore), `branch_summary` (fromId, summary), `custom` (extension state, not in context), `custom_message` (in context), `label` (targetId, label), `session_info` (name).
-- Sidebar scan: parse header + last `session_info` + first user message + file mtime. Rows order by immutable header creation time (newest first), not mtime, so viewing or updating a session does not move it. Live-update via chokidar on the sessions dir.
+- Sidebar scan: parse header + last `session_info` + first user message + file mtime. Rows order by immutable header creation time (newest first), not mtime, so viewing or updating a session does not move it. Live-update via chokidar on the sessions dir. Discovery also reads retained worktree transcript headers and removal records, not only existing Git worktrees. Missing checkouts remain visible with their history and an exact-tip restore action when recovery identity exists ([lanes.md](lanes.md#reclaiming-lanes-automatically)).
 - Sessions are deleted by trashing the `.jsonl` file.
 - pi creates a session's file when the first user message is sent, then appends
   each entry as it lands (pi 1.2.0: a mid-turn `set_session_name` is on disk

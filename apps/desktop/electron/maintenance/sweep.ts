@@ -8,12 +8,13 @@ import {
   landedViaPullRequest,
   listWorktrees,
   pruneWorktrees,
-  removeWorktree,
 } from '../fs/git-worktrees'
 import { sessionDirForCwd } from '../pi/pi-paths'
 import { log } from '../debug-log'
 import { selectReclaimable, totalBytes, type WorktreeFacts } from './policy'
 import { initializeReport, reclaimCandidates } from './reclaim'
+import { conversationFacts } from './conversations'
+import { removeCompletedWorktree } from './removal'
 
 const execFileAsync = promisify(execFile)
 
@@ -61,18 +62,23 @@ const PR_LOOKUPS = 4
 async function gatherFacts(repoPath: string, measure: boolean): Promise<WorktreeFacts[]> {
   const worktrees = await listWorktrees(repoPath)
   const facts: WorktreeFacts[] = await Promise.all(
-    worktrees.map(async (w) => ({
-      path: w.path,
-      realPath: w.realPath,
-      branch: w.branch,
-      isMain: w.isMain,
-      // A missing directory reports −1; treat it as clean so the stale
-      // registration can be pruned, not as dirty work worth protecting.
-      dirtyCount: Math.max(0, w.dirtyCount),
-      merged: w.isMain || !w.branch ? false : await isBranchMerged(repoPath, w.branch),
-      lastWriteMs: await lastWrite(w.path),
-      bytes: measure ? await directorySize(w.path) : null,
-    })),
+    worktrees.map(async (w) => {
+      const conversations = await conversationFacts(w.path)
+      return {
+        path: w.path,
+        realPath: w.realPath,
+        branch: w.branch,
+        head: w.head,
+        isMain: w.isMain,
+        // Unknown dirty state is not permission to delete.
+        dirtyCount: w.dirtyCount < 0 ? 1 : w.dirtyCount,
+        locked: w.locked,
+        ...conversations,
+        merged: w.isMain || !w.branch ? false : await isBranchMerged(repoPath, w.branch),
+        lastWriteMs: Math.max(await lastWrite(w.path), conversations.lastWriteMs),
+        bytes: measure ? await directorySize(w.path) : null,
+      }
+    }),
   )
   // Git misses most lanes that landed as a PR (see `landedViaPullRequest`).
   // Ask GitHub only where the answer can matter: a clean lane git could not
@@ -99,6 +105,8 @@ export interface SweepOptions {
    */
   act: boolean
   now?: number
+  /** Re-read ownership and workspace protection immediately before removal. */
+  currentProtectedPaths?: () => string[]
 }
 
 /**
@@ -115,6 +123,7 @@ export async function sweep({
   liveSessionCount,
   act,
   now = Date.now(),
+  currentProtectedPaths = () => protectedPaths,
 }: SweepOptions): Promise<MaintenanceReport> {
   const report = initializeReport(repoPath, now, liveSessionCount)
   const { errors } = report
@@ -159,7 +168,14 @@ export async function sweep({
 
   if (!act) return report
 
-  await reclaimCandidates(report, removeWorktree)
+  await reclaimCandidates(report, (_repo, path) =>
+    removeCompletedWorktree(
+      repoPath,
+      path,
+      async () => (await gatherFacts(repoPath, false)).find((w) => w.path === path),
+      () => ({ protectedPaths: currentProtectedPaths(), now, minAgeHours: prefs.minAgeHours }),
+    ),
+  )
 
   log('maintenance', 'sweep complete', {
     repoPath,

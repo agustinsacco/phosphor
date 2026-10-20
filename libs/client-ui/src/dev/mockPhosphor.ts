@@ -7,6 +7,7 @@ import {
 } from './mockRemoteLanes'
 import type { MachineView } from '@shared/control-api'
 import { mockMachineSettingsInvoke } from './mockMachineSettings'
+import { mockSessionMaintenance } from './mockSessionMaintenance'
 /**
  * Dev-only mock of the preload API so the renderer can run in a plain
  * browser (vite dev server without Electron). Replays the captured real
@@ -18,7 +19,12 @@ import type { PhosphorApi } from '@shared/ipc'
 import { mockRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import { mockTraffic } from './mockTraffic'
 import { bytesToBase64 } from '../lib/base64'
-import type { ConnectorAuthPush, ConnectorAuthState, SessionPush } from '@shared/models'
+import type {
+  ConnectorAuthPush,
+  ConnectorAuthState,
+  SessionPush,
+  SessionMeta,
+} from '@shared/models'
 import type { McpListResult } from '@shared/mcp'
 import type { ArtifactListing, ArtifactSnapshot } from '@shared/artifacts'
 import { normalizeContextFilePrefs, type ContextFilePrefs } from '@shared/context-files'
@@ -506,7 +512,7 @@ function respond(command: RpcCommand): RpcResponse {
  * worktree folder folds into its main repo, so the same `path` was keyed
  * twice and React logged "two children with the same key".
  */
-const MOCK_DISK_SESSIONS = [
+const MOCK_DISK_SESSIONS: SessionMeta[] = [
   {
     path: '/mock/sessions/a.jsonl',
     sessionId: 'a',
@@ -1927,17 +1933,12 @@ export function installMockPhosphor(): void {
           return Promise.resolve(undefined)
         case 'app:setSessionReaperPrefs':
           return Promise.resolve(undefined)
-        case 'sessions:list': {
-          const workspacePath = args[0] as string
-          return Promise.resolve(MOCK_DISK_SESSIONS.filter((m) => m.cwd === workspacePath))
-        }
-        case 'sessions:delete': {
-          const path = args[0] as string | undefined
-          const id = args[1] as string | undefined
-          const index = MOCK_DISK_SESSIONS.findIndex((m) => m.path === path)
-          if (index !== -1) MOCK_DISK_SESSIONS.splice(index, 1)
-          return Promise.resolve(id ? [id] : [])
-        }
+        case 'sessions:setCompleted':
+        case 'sessions:retainedWorkspaces':
+        case 'sessions:restoreWorktree':
+        case 'sessions:list':
+        case 'sessions:delete':
+          return mockSessionMaintenance(channel, args, MOCK_DISK_SESSIONS)
         case 'sessions:stats':
           return Promise.resolve(mockStats())
         case 'headroom:status':

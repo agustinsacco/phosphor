@@ -42,6 +42,9 @@ const HOLD_LABELS: Array<[ReclaimHoldReason, string]> = [
   ['no-branch', 'detached'],
   ['dirty', 'uncommitted'],
   ['in-use', 'in use'],
+  ['unfinished', 'unfinished conversations'],
+  ['pinned', 'pinned'],
+  ['locked', 'locked'],
   ['unmerged', 'not landed'],
   ['too-recent', 'recently used'],
 ]
@@ -114,7 +117,7 @@ export function MaintenanceSection(): React.JSX.Element {
 
       <Row
         title="Reclaim dead lanes"
-        description="Sweep periodically for worktrees whose branch already landed. Always measures; only deletes when the switch below is on."
+        description="Sweep for explicitly finished conversations whose code landed. Unknown and unfinished conversations are always kept."
       >
         <Toggle on={prefs.enabled} onChange={(enabled) => save({ ...prefs, enabled })} />
       </Row>
@@ -132,7 +135,7 @@ export function MaintenanceSection(): React.JSX.Element {
 
       <Row
         title="Leave lanes alone for"
-        description="A merged lane is kept this long after its last use, in case you are still reading it."
+        description="Keep a finished lane this long after completion or its latest conversation activity, whichever is later."
       >
         <NumberField
           value={prefs.minAgeHours}
@@ -163,7 +166,7 @@ export function MaintenanceSection(): React.JSX.Element {
         description={
           report
             ? candidates > 0
-              ? `${formatBytes(report.reclaimableBytes)} on disk across ${withCandidates.length} workspace${withCandidates.length === 1 ? '' : 's'}. Uncommitted, unmerged and in-use lanes are never touched.`
+              ? `${formatBytes(report.reclaimableBytes)} on disk across ${withCandidates.length} workspace${withCandidates.length === 1 ? '' : 's'}. Unfinished, pinned, locked, uncommitted and in-use lanes are never touched.`
               : `Nothing to reclaim.${held ? ` Kept: ${held}.` : ''}`
             : undefined
         }

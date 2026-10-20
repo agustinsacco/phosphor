@@ -88,6 +88,9 @@ export type SessionPush =
 
 /** Parsed metadata for one on-disk session file (sidebar row + stats). */
 export interface SessionMeta {
+  /** Explicit user completion, never inferred from Git or model output. */
+  completedAt?: number
+  worktreeRemoved?: boolean
   path: string
   sessionId: string
   cwd: string

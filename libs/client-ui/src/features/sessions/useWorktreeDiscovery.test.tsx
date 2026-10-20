@@ -29,7 +29,11 @@ beforeEach(() => {
   pending.length = 0
   invoke
     .mockReset()
-    .mockImplementation(() => new Promise<WorktreeInfo[]>((resolve) => pending.push(resolve)))
+    .mockImplementation((channel: string) =>
+      channel === 'sessions:retainedWorkspaces'
+        ? Promise.resolve([])
+        : new Promise<WorktreeInfo[]>((resolve) => pending.push(resolve)),
+    )
   setDirs.mockReset()
   setSettled.mockReset()
   window.phosphor = { invoke } as unknown as typeof window.phosphor
@@ -56,7 +60,7 @@ it('lists each root once and reports the non-main worktrees it found', async () 
   expect(lastSettled()).toBe(true)
   // An equal roots array with a new identity is not a reason to list again.
   render(['/repo'])
-  expect(invoke).toHaveBeenCalledTimes(1)
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'git:listWorktrees')).toHaveLength(1)
   expect(lastSettled()).toBe(true)
 })
 
@@ -64,8 +68,42 @@ it('re-lists when the refresh key moves', async () => {
   render(['/repo'], 'lanes:0')
   await act(async () => pending[0]!([]))
   render(['/repo'], 'lanes:1')
-  expect(invoke).toHaveBeenCalledTimes(2)
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'git:listWorktrees')).toHaveLength(2)
   expect(lastSettled()).toBe(false)
+})
+
+it('retains missing-checkout histories even when Git no longer lists them', async () => {
+  invoke.mockImplementation((channel: string) =>
+    Promise.resolve(
+      channel === 'sessions:retainedWorkspaces' ? ['/repo/.phosphor/worktrees/gone'] : [],
+    ),
+  )
+  render(['/repo'])
+  await act(async () => {})
+  expect(setDirs).toHaveBeenLastCalledWith([
+    { path: '/repo/.phosphor/worktrees/gone', root: '/repo' },
+  ])
+})
+
+it('keeps Git discovery working when history discovery fails, and retries it', async () => {
+  let fail = true
+  invoke.mockImplementation((channel: string) =>
+    channel === 'sessions:retainedWorkspaces'
+      ? fail
+        ? Promise.reject(new Error('temporary'))
+        : Promise.resolve(['/repo/gone'])
+      : Promise.resolve([worktree('/repo/live')]),
+  )
+  render(['/repo'])
+  await act(async () => {})
+  expect(setDirs).toHaveBeenLastCalledWith([{ path: '/repo/live', root: '/repo' }])
+  fail = false
+  render(['/repo'])
+  await act(async () => {})
+  expect(setDirs).toHaveBeenLastCalledWith([
+    { path: '/repo/gone', root: '/repo' },
+    { path: '/repo/live', root: '/repo' },
+  ])
 })
 
 it('still settles when a listing is abandoned mid-flight for an equal set of roots', async () => {
@@ -73,7 +111,7 @@ it('still settles when a listing is abandoned mid-flight for an equal set of roo
   // The effect re-runs (roots re-derived) while the first listing is out:
   // that listing is cancelled, so the replacement must do the work itself.
   render(['/repo'])
-  expect(invoke).toHaveBeenCalledTimes(2)
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'git:listWorktrees')).toHaveLength(2)
   await act(async () => {
     pending[0]!([worktree('/stale')])
     pending[1]!([worktree('/repo-lane')])

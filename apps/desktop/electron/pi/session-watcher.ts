@@ -15,6 +15,13 @@ const debounceTimers = new Map<string, NodeJS.Timeout>()
  */
 export const MAX_WATCHED_SESSION_FILES = 2_000
 
+/** Checkout lifecycle changes also need a refresh when the transcript is unchanged. */
+export function notifyWorkspaceSessions(workspacePath: string): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send('sessions:changed', { workspacePath })
+  }
+}
+
 /** Watch a workspace's session dir; broadcasts `sessions:changed` pushes. */
 export function watchWorkspaceSessions(workspacePath: string): void {
   if (watchers.has(workspacePath)) return
@@ -75,11 +82,7 @@ export function watchWorkspaceSessions(workspacePath: string): void {
       workspacePath,
       setTimeout(() => {
         debounceTimers.delete(workspacePath)
-        for (const window of BrowserWindow.getAllWindows()) {
-          if (!window.isDestroyed()) {
-            window.webContents.send('sessions:changed', { workspacePath })
-          }
-        }
+        notifyWorkspaceSessions(workspacePath)
       }, 300),
     )
   }

@@ -21,6 +21,9 @@ import type { SessionTree } from './views'
 
 export interface SessionsInvokeMap {
   'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
+  'sessions:setCompleted': { args: [sessionFilePath: string, completed: boolean]; result: void }
+  'sessions:retainedWorkspaces': { args: [repoPath: string]; result: string[] }
+  'sessions:restoreWorktree': { args: [workspacePath: string]; result: void }
   'sessions:stats': { args: [workspacePath: string]; result: WorkspaceSessionStats }
   'sessions:watch': { args: [workspacePath: string]; result: void }
   'sessions:unwatch': { args: [workspacePath: string]; result: void }

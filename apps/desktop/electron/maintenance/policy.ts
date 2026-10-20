@@ -12,6 +12,8 @@ export interface WorktreeFacts {
   /** Symlink-resolved path — the only form safe to compare on macOS. */
   realPath: string
   branch: string | null
+  /** Tip the merge proof was gathered for. */
+  head?: string
   isMain: boolean
   /** Uncommitted entries, as `git worktree list` porcelain reports them. */
   dirtyCount: number
@@ -21,6 +23,10 @@ export interface WorktreeFacts {
   lastWriteMs: number
   /** Disk size in bytes, or null where it could not be measured. */
   bytes: number | null
+  /** Missing decisions, including legacy lanes, fail closed. */
+  completedAtMs?: number | null
+  locked?: boolean
+  pinned?: boolean
 }
 
 export interface PolicyOptions {
@@ -81,13 +87,25 @@ export function selectReclaimable(
       hold(w, 'in-use')
       continue
     }
+    if (w.locked) {
+      hold(w, 'locked')
+      continue
+    }
+    if (w.pinned) {
+      hold(w, 'pinned')
+      continue
+    }
+    if (!w.completedAtMs) {
+      hold(w, 'unfinished')
+      continue
+    }
     if (!w.merged) {
       hold(w, 'unmerged')
       continue
     }
     // A grace period after the last write. A branch can land while its lane is
     // still being read, and reopening a reclaimed lane costs a fresh install.
-    if (now - w.lastWriteMs < minAgeHours * HOUR_MS) {
+    if (now - Math.max(w.lastWriteMs, w.completedAtMs) < minAgeHours * HOUR_MS) {
       hold(w, 'too-recent')
       continue
     }
