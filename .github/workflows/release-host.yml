@@ -1,30 +1,99 @@
 name: Host Release
 
-# Publishes a signed Host release by hand: three bundles (linux-x64,
-# linux-arm64, darwin-arm64), a manifest signed with HOST_RELEASE_SIGNING_KEY,
-# and the installer generated from HOST_RELEASE_KEYS. Each version is its own
+# Publishes a signed Host release: three bundles (linux-x64, linux-arm64,
+# darwin-arm64), a manifest signed with HOST_RELEASE_SIGNING_KEY, and the
+# installer generated from HOST_RELEASE_KEYS. Each version is its own
 # `host-v<version>` release; the rolling `host-latest` release carries the
 # unversioned manifest and installer that `install.sh` and `phosphor update`
 # read. Neither is ever marked latest: Desktop's latest release is untouched.
+#
+# It runs after every green CI push to main, like Desktop's continuous release,
+# and publishes the next patch version only when Nx reports `host` affected
+# since the newest host-v tag (tools/scripts/release-scope.mjs). Run by hand,
+# it releases the exact main commit as the given version, or the next patch.
 on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
   workflow_dispatch:
     inputs:
       version:
-        description: Host version (X.Y.Z), higher than every published Host release
+        description: Host version (X.Y.Z) higher than every published one; empty for the next patch
         type: string
-        required: true
+        required: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: host-release
+  # Ineligible runs (red CI, other refs) get a group of their own, so they can
+  # never replace a queued release.
+  group: ${{ ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)) && 'host-release' || github.run_id }}
   cancel-in-progress: false
 
 jobs:
+  plan:
+    name: Decide whether to release
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    outputs:
+      sha: ${{ steps.decide.outputs.sha }}
+      version: ${{ steps.decide.outputs.version }}
+      ship: ${{ steps.decide.outputs.ship }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The commit CI validated, with history and tags for the Nx comparison.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Pick the version and decide
+        id: decide
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          EVENT: ${{ github.event_name }}
+          HEAD_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          # Every host-v tag, paginated: Desktop releases never hide a Host version.
+          tags=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/host-v" \
+            --jq '.[].ref | ltrimstr("refs/tags/host-v")')
+          newest=$(printf '%s\n' "$tags" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
+          version="${INPUT_VERSION:-}"
+          if [[ -z "$version" ]]; then
+            [[ -n "$newest" ]] || { echo "::error::No host-v release to follow; give a version"; exit 1; }
+            version="${newest%.*}.$(( ${newest##*.} + 1 ))"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          release=true
+          if [[ "$EVENT" == workflow_run ]] && sh tools/scripts/should-skip-release.sh "$HEAD_MESSAGE"; then
+            release=false
+          elif [[ "$EVENT" == workflow_run ]]; then
+            # Every doubt (no tag, Nx failure) releases; see release-scope.mjs.
+            npm ci --ignore-scripts --no-audit --no-fund
+            scope=$(node tools/scripts/release-scope.mjs "host-v$newest" host)
+            echo "$scope"
+            release=$(jq -r .release <<<"$scope")
+          fi
+          echo "ship=$release" >> "$GITHUB_OUTPUT"
+          echo "::notice::Host $version from $(git rev-parse --short HEAD): ship=$release"
+
   native:
     name: Native PTY (${{ matrix.target }})
-    if: github.ref == 'refs/heads/main'
+    needs: plan
+    if: needs.plan.outputs.ship == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -36,7 +105,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.plan.outputs.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24.14.1
@@ -62,24 +131,27 @@ jobs:
 
   release:
     name: Build, sign and publish the Host
-    needs: native
+    needs: [plan, native]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: needs.plan.outputs.ship == 'true'
     permissions:
       contents: write
       actions: read
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.plan.outputs.sha }}
 
       - name: Verify exact-SHA main CI
         uses: actions/github-script@v7
+        env:
+          SHA: ${{ needs.plan.outputs.sha }}
         with:
           script: |
             const { execFileSync } = require('node:child_process')
-            if (context.ref !== 'refs/heads/main' ||
-                execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() !== context.sha) {
+            const sha = process.env.SHA
+            if (context.ref !== 'refs/heads/main' || !/^[0-9a-f]{40}$/.test(sha) ||
+                execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() !== sha) {
               throw new Error('Host releases require the exact main checkout')
             }
             const request = { ...context.repo, workflow_id: 'ci.yml' }
@@ -88,13 +160,13 @@ jobs:
               throw new Error('Cannot verify CI workflow identity')
             }
             const { data } = await github.rest.actions.listWorkflowRuns({
-              ...request, branch: 'main', event: 'push', head_sha: context.sha, per_page: 100,
+              ...request, branch: 'main', event: 'push', head_sha: sha, per_page: 100,
             })
             const repository = `${context.repo.owner}/${context.repo.repo}`
             const runs = data.workflow_runs.filter(run =>
               run.workflow_id === workflow.id && run.path === workflow.path && run.name === 'CI' &&
               run.repository?.full_name === repository && run.head_repository?.full_name === repository &&
-              run.event === 'push' && run.head_branch === 'main' && run.head_sha === context.sha)
+              run.event === 'push' && run.head_branch === 'main' && run.head_sha === sha)
             runs.sort((a, b) => b.run_number - a.run_number || b.run_attempt - a.run_attempt)
             if (runs[0]?.status !== 'completed' || runs[0]?.conclusion !== 'success') {
               throw new Error('Wait for successful exact-SHA main CI before releasing the Host')
@@ -103,7 +175,8 @@ jobs:
       - name: Check the version
         id: version
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          SHA: ${{ needs.plan.outputs.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -120,7 +193,7 @@ jobs:
             # A failed run resumes only from the commit that created the tag; the
             # rebuilt bytes are then identical and are compared before any upload.
             tagged=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/host-v$VERSION" --jq '.object.sha')
-            if [[ "$tagged" != "$GITHUB_SHA" ]]; then
+            if [[ "$tagged" != "$SHA" ]]; then
               echo "::error::host-v$VERSION already exists on another commit"; exit 1
             fi
             resume=true
@@ -146,7 +219,7 @@ jobs:
 
       - name: Build the three bundles
         env:
-          HOST_RELEASE_VERSION: ${{ inputs.version }}
+          HOST_RELEASE_VERSION: ${{ needs.plan.outputs.version }}
         run: |
           set -euo pipefail
           node tools/host-release/installer.mjs --require
@@ -156,13 +229,13 @@ jobs:
 
       - name: Sign the manifest
         env:
-          HOST_RELEASE_VERSION: ${{ inputs.version }}
+          HOST_RELEASE_VERSION: ${{ needs.plan.outputs.version }}
           HOST_RELEASE_SIGNING_KEY: ${{ secrets.HOST_RELEASE_SIGNING_KEY }}
         run: node tools/host-release/manifest.mjs --out dist
 
       - name: Verify the signature against the pinned keys
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ needs.plan.outputs.version }}
         run: |
           set -euo pipefail
           node tools/host-release/installer.mjs --allowed-signers > "$RUNNER_TEMP/allowed_signers"
@@ -171,10 +244,11 @@ jobs:
             < "dist/phosphor-host-$VERSION.manifest.json"
           grep -q '^phosphor-release namespaces="phosphor-host-release" ssh-ed25519 ' dist/install.sh
 
-      - name: Publish host-v${{ inputs.version }} and host-latest
+      - name: Publish host-v${{ needs.plan.outputs.version }} and host-latest
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ needs.plan.outputs.version }}
           RESUME: ${{ steps.version.outputs.resume }}
+          SHA: ${{ needs.plan.outputs.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -183,7 +257,7 @@ jobs:
             "phosphor-host-$VERSION.manifest.json.sig" install.sh)
           [[ ${#assets[@]} -eq 6 ]]
           if [[ "$RESUME" != true ]]; then
-            gh release create "host-v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            gh release create "host-v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$SHA" \
               --latest=false --title "Phosphor Host $VERSION" \
               --notes "Signed Phosphor Host $VERSION. Install: curl -fsSL https://github.com/$GITHUB_REPOSITORY/releases/download/host-latest/install.sh | sh"
           fi
@@ -206,7 +280,7 @@ jobs:
           cp "phosphor-host-$VERSION.manifest.json" phosphor-host.manifest.json
           cp "phosphor-host-$VERSION.manifest.json.sig" phosphor-host.manifest.json.sig
           if ! gh release view host-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create host-latest --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            gh release create host-latest --repo "$GITHUB_REPOSITORY" --target "$SHA" \
               --latest=false --title "Phosphor Host (latest)" \
               --notes "Rolling pointer to the newest signed Phosphor Host release."
           fi

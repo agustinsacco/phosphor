@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Decides whether a validated main commit changes what the Desktop release
-// ships: is the Nx `desktop` project affected between the last PUBLISHED
-// release and this commit? Comparing against the last release, not the
+// Decides whether a validated main commit changes what a release ships: is
+// the Nx project (`desktop`, or `host` for Host releases) affected between its
+// last PUBLISHED release and this commit? Comparing against the last release, not the
 // previous commit, means a Desktop change still ships when a newer push
 // cancels its release run before it publishes.
 //
@@ -20,7 +20,13 @@ const execute = (command, args) =>
     env: { ...process.env, NX_DAEMON: 'false', NX_NO_CLOUD: 'true' },
   }).trim()
 
+const TAGS = { desktop: /^v\d+\.\d+\.\d+$/, host: /^host-v\d+\.\d+\.\d+$/ }
+
 export function desktopReleaseScope(releasedTag, executeCommand = execute) {
+  return releaseScope('desktop', releasedTag, executeCommand)
+}
+
+export function releaseScope(project, releasedTag, executeCommand = execute) {
   let head = null
   let base = null
   const release = (reason, projects = null) => ({ release: true, reason, base, head, projects })
@@ -28,8 +34,7 @@ export function desktopReleaseScope(releasedTag, executeCommand = execute) {
   try {
     head = git('rev-parse', 'HEAD')
     if (!sha(head)) return release('cannot identify the checked-out commit')
-    if (!/^v\d+\.\d+\.\d+$/.test(releasedTag ?? ''))
-      return release('no published release to compare')
+    if (!TAGS[project]?.test(releasedTag ?? '')) return release('no published release to compare')
     base = git('rev-list', '-n', '1', `refs/tags/${releasedTag}`)
     if (!sha(base)) return release('published release tag is not a commit')
     try {
@@ -51,11 +56,11 @@ export function desktopReleaseScope(releasedTag, executeCommand = execute) {
     if (!Array.isArray(projects) || projects.some((project) => !ALL_PROJECTS.includes(project)))
       return release('invalid Nx project report')
     projects.sort()
-    if (projects.includes('desktop'))
-      return release('desktop changed since ' + releasedTag, projects)
+    if (projects.includes(project))
+      return release(`${project} changed since ${releasedTag}`, projects)
     return {
       release: false,
-      reason: 'desktop unchanged since ' + releasedTag,
+      reason: `${project} unchanged since ${releasedTag}`,
       base,
       head,
       projects,
@@ -66,5 +71,5 @@ export function desktopReleaseScope(releasedTag, executeCommand = execute) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  console.log(JSON.stringify(desktopReleaseScope(process.argv[2])))
+  console.log(JSON.stringify(releaseScope(process.argv[3] ?? 'desktop', process.argv[2])))
 }

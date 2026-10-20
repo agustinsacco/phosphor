@@ -24,9 +24,13 @@ every library import against the package's exports.
 ### Install from a release
 
 This repository builds signed bundles, manifests and an installer for Linux x64,
-Linux arm64 and macOS arm64. The manual **Host Release** workflow
-(`.github/workflows/release-host.yml`, run from main with a version higher than
-every published one, after main's CI passed for that exact commit) builds all
+Linux arm64 and macOS arm64. The **Host Release** workflow
+(`.github/workflows/release-host.yml`) runs after every green CI push to main and
+publishes the next patch version when Nx reports `host` affected since the newest
+`host-v*` tag, unless the merge carries a `Skip-Release: true` trailer. Run by hand
+from main, it releases that commit as the given version (higher than every
+published one) or the next patch. Either way it requires main's CI to have passed
+for that exact commit. It builds all
 three, signs the manifest with the `HOST_RELEASE_SIGNING_KEY` secret, verifies the
 signature against the pinned keys, and publishes `host-v<version>`. It then
 replaces the unversioned manifest, its signature and the installer on the rolling
