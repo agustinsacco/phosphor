@@ -2242,7 +2242,7 @@ test('a pasted wide image stays inside the transcript column', async () => {
   // a `justify-end` flex line, so the overflow grew LEFTWARDS: across the rows
   // beside it, over the activity group's left edge, and then clipped off by
   // the scroller, leaving most of the image unviewable.
-  const harness = await launch()
+  const harness = await launch({ env: { PHOSPHOR_E2E_IMAGE_HINTS: '1' } })
   const { page } = harness
   try {
     await openWorkspace(page)
