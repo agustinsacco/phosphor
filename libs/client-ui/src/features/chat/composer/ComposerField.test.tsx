@@ -39,11 +39,13 @@ function Harness({
   onSubmit = () => {},
   onKeyDown,
   autocomplete,
+  onPasteFiles = () => {},
 }: {
   initial?: string
   onSubmit?: () => void
   onKeyDown?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => boolean
   autocomplete?: boolean
+  onPasteFiles?: (files: File[]) => void
 }): React.JSX.Element {
   const [value, setValue] = useState(initial)
   const ref = useRef<HTMLTextAreaElement>(null)
@@ -54,7 +56,7 @@ function Harness({
       onChange={setValue}
       onSubmit={onSubmit}
       onKeyDown={onKeyDown}
-      onPasteFiles={() => {}}
+      onPasteFiles={onPasteFiles}
       autocomplete={autocomplete}
       placeholder="type here"
       data-testid="field"
@@ -84,6 +86,34 @@ function press(
 }
 
 describe('ComposerField', () => {
+  it('handles a mixed image/text paste once, without also inserting clipboard text', () => {
+    const onPasteFiles = vi.fn()
+    render(<Harness initial="draft" onPasteFiles={onPasteFiles} />)
+    const image = new File(['image'], 'screenshot.png', { type: 'image/png' })
+    const paste = (): Event => {
+      const event = new Event('paste', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'clipboardData', {
+        value: {
+          items: [
+            { kind: 'string', getAsFile: () => null },
+            { kind: 'file', getAsFile: () => image },
+          ],
+          getData: () => 'unrelated clipboard text',
+        },
+      })
+      act(() => {
+        field().dispatchEvent(event)
+      })
+      return event
+    }
+    expect(paste().defaultPrevented).toBe(true)
+    expect(onPasteFiles).toHaveBeenCalledExactlyOnceWith([image])
+    expect(field().value).toBe('draft')
+    // A deliberate second paste is still allowed, not content-deduplicated.
+    expect(paste().defaultPrevented).toBe(true)
+    expect(onPasteFiles.mock.calls).toEqual([[[image]], [[image]]])
+  })
+
   it('sends on Enter', () => {
     const onSubmit = vi.fn()
     render(<Harness initial="hello" onSubmit={onSubmit} />)

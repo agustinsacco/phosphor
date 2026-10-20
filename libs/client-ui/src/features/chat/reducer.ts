@@ -31,6 +31,7 @@ import type {
 import { emptyChatSession, newItemId } from './chatItems'
 import { isSubagentNotice } from './subagentRuns'
 import { appendCustomItem } from './subagentReceipts'
+import { matchesUserEcho } from './userEcho'
 import {
   applyRevealedIdentity,
   pendingToolId,
@@ -571,12 +572,11 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
 
     case 'user': {
       const text = userMessageText(message)
-      // Dedup against the optimistic item we appended on send.
       for (let i = state.items.length - 1; i >= 0; i--) {
         const item = state.items[i]!
         if (item.kind === 'assistant') continue
         if (item.kind === 'user') {
-          if (item.optimistic && item.text === text) {
+          if (item.optimistic && matchesUserEcho(item, text, userMessageImages(message))) {
             // Take pi's timestamp: it is what rewind matches the row to its
             // entry by (`matchRenderedUserMessage`), and the optimistic item
             // never had one.
