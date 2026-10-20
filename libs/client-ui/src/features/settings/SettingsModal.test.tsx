@@ -9,6 +9,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useMachinesStore } from '@/stores/machines'
+import { useWorkspacesStore } from '@/stores/workspaces'
 import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import { isMachineSettingsTab } from './SettingsMachineScope'
 import { useFeedbackStore } from '@/features/feedback/feedbackStore'
@@ -181,17 +182,34 @@ it('links supporting Hosts directly to their settings without mounting local con
   expect(invoke.mock.calls.filter(([channel]) => channel !== 'feedback:state')).toEqual([])
 })
 
-it('blocks machine settings for an active remote lane even with This Mac selected', async () => {
+function activateRemoteLane(): string {
   const { sessionId, workspacePath, target, laneId } = mockRemoteInfo
   useSessionsStore.setState({
     activeSessionId: sessionId,
     live: { [sessionId]: { phosphorId: sessionId, workspacePath, target, laneId } },
   })
+  return workspacePath
+}
+
+it('follows This Mac in the switcher while a Host lane is still active', async () => {
+  const remotePath = activateRemoteLane()
+  useWorkspacesStore.setState({ homePath: '/Users/me/phosphor-home' })
+  useSettingsUiStore.setState({ tab: 'accounts' })
+  await act(async () => root.render(<SettingsModal />))
+  expect(document.body.textContent).toContain('Local account controls')
+  expect(document.body.textContent).not.toContain('Remote settings are not available here.')
+  expect(invoke).toHaveBeenCalledWith('packages:list', '/Users/me/phosphor-home')
+  expect(invoke).not.toHaveBeenCalledWith('packages:list', remotePath)
+})
+
+it('blocks machine settings for an active Host lane under All machines', async () => {
+  const remotePath = activateRemoteLane()
+  useRemoteLanesStore.setState({ filter: 'all' })
   useSettingsUiStore.setState({ tab: 'accounts' })
   await act(async () => root.render(<SettingsModal />))
   expect(document.body.textContent).toContain('To sign in on')
   expect(document.body.textContent).not.toContain('Local account controls')
-  expect(invoke).not.toHaveBeenCalledWith('packages:list', workspacePath)
+  expect(invoke).not.toHaveBeenCalledWith('packages:list', remotePath)
 })
 
 it.each([
@@ -233,6 +251,7 @@ it('refreshes scope from This Mac to a Host and back while Settings is open', as
 
 it('refreshes scope on a Mac lane to Host lane to Mac lane switch', async () => {
   const { sessionId, workspacePath, target, laneId } = mockRemoteInfo
+  useRemoteLanesStore.setState({ filter: 'all' })
   useSessionsStore.setState({
     activeSessionId: 'mac-lane',
     live: { [sessionId]: { phosphorId: sessionId, workspacePath, target, laneId } },

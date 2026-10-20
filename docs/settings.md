@@ -44,8 +44,12 @@ Machine settings carry a **This Mac** banner: Accounts, Agent (including Context
 budget and Directives), Extensions and their provider tabs, Connectors,
 Workspaces, Optimization, Voice and Advanced (including Maintenance).
 
-With a remote lane, a Host filter, or a machine detail active, these panels
-show a fixed unavailable explanation instead of mounting local controls. They
+With a Machines detail open, a Host chosen in the machine switcher, or a remote
+lane active under All machines, these panels show a fixed unavailable
+explanation instead of mounting local controls. Choosing **This Mac** in the
+switcher always shows This Mac's controls, even while a Host lane is still the
+active lane; they then use This Mac's home workspace, never the Host lane's
+folder. They
 neither load nor change This Mac's machine settings. The link opens **Machines →
 \<machine\> → Settings → Providers** on a supporting Host, or Readiness on an older
 Host. Remote package tabs show this explanation without consulting This Mac's

@@ -1,7 +1,7 @@
 import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { useActiveWorkspace } from '@/stores/workspaces'
+import { useSettingsWorkspace } from '../SettingsMachineScope'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { Row, SectionTitle, NumberField, TextField, Toggle } from '@/components/form'
 import type { ConfigFileHealth } from '@shared/models'
@@ -13,7 +13,7 @@ import { errorText } from '@shared/errors'
 /** Agent defaults written into pi's own settings.json (global or per project). */
 
 export function AgentTab(): React.JSX.Element {
-  const currentWorkspace = useActiveWorkspace()
+  const currentWorkspace = useSettingsWorkspace()
   const [scope, setScope] = useState<'global' | 'project'>('global')
   const [scoped, setScoped] = useState<{
     global: Record<string, unknown>

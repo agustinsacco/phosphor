@@ -1,7 +1,7 @@
 import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import type { PiPackageEntry } from '@shared/models'
-import { useActiveWorkspace } from '@/stores/workspaces'
+import { useSettingsWorkspace } from '../SettingsMachineScope'
 import { Button } from '@/components/form'
 import { CatalogueCards } from '../CatalogueCards'
 import { JobOutput } from '../JobOutput'
@@ -18,7 +18,7 @@ import { useSettingsUiStore } from '../settingsUiStore'
  * manager (`pi install` / `pi remove` / `pi update`) with streamed output.
  */
 export function ExtensionsTab(): React.JSX.Element {
-  const workspacePath = useActiveWorkspace()
+  const workspacePath = useSettingsWorkspace()
   const [entries, setEntries] = useState<PiPackageEntry[] | null>(null)
   const [latest, setLatest] = useState<Record<string, string | null>>({})
   const [claudeDetected, setClaudeDetected] = useState<boolean | null>(null)
