@@ -56,7 +56,7 @@ describe('policy declaration', () => {
       .filter(([, scope]) => scope === 'machine')
       .map(([channel]) => channel)
     expect(Object.keys(MACHINE_RESOURCE_ARGS).sort()).toEqual(machine.sort())
-    expect(machine).toHaveLength(169)
+    expect(machine).toHaveLength(174)
     expect(
       Object.entries(MACHINE_RESOURCE_ARGS)
         .filter(([, policy]) => policy === 'routed-pi')
@@ -113,7 +113,7 @@ describe('refusesMachineResourceArgs', () => {
           )
       }
     }
-    expect(positions).toBe(128)
+    expect(positions).toBe(132)
   })
 
   it('refuses the named option and array positions', () => {

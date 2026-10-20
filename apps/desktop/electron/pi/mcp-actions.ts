@@ -18,7 +18,7 @@ export { cancelMcpLogin } from './mcp-cli'
  * workspace; home is the safest cwd then — it resolves the global mcp.json
  * and no project file.
  */
-async function piCli(workspacePath: string | undefined): Promise<PiCli | null> {
+export async function piCli(workspacePath: string | undefined): Promise<PiCli | null> {
   const cwd = workspacePath ?? homedir()
   const stub = piStubPath()
   if (stub) {

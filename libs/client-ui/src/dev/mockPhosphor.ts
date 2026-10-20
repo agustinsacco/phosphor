@@ -25,7 +25,7 @@ import type {
   SessionPush,
   SessionMeta,
 } from '@shared/models'
-import type { McpListResult } from '@shared/mcp'
+import { mockMcpInspection, mockMcpList } from './mockMcpInspection'
 import type { ArtifactListing, ArtifactSnapshot } from '@shared/artifacts'
 import { normalizeContextFilePrefs, type ContextFilePrefs } from '@shared/context-files'
 import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
@@ -1683,36 +1683,17 @@ export function installMockPhosphor(): void {
             },
             legacy: false,
           })
-        case 'mcp:list': {
-          const result: McpListResult = {
-            ok: true,
-            servers: [
-              {
-                name: 'linear',
-                scope: 'global',
-                source: '/Users/dev/.pi/agent/mcp.json',
-                enabled: true,
-                exposure: 'codemode',
-                transport: 'https://mcp.linear.app/mcp',
-                state: 'connected',
-                tools: ['get_issue', 'save_issue', 'list_issues'],
-              },
-              {
-                name: 'notion',
-                scope: 'global',
-                source: '/Users/dev/.pi/agent/mcp.json',
-                enabled: true,
-                exposure: 'codemode',
-                transport: 'https://mcp.notion.com/mcp',
-                state: 'needs-auth',
-                tools: [],
-              },
-            ],
-            errors: [],
-          }
-          // Slow enough that the harness shows the pending state.
-          return new Promise<McpListResult>((resolve) => setTimeout(() => resolve(result), 900))
-        }
+        case 'mcp:laneControl':
+          return { ok: false, message: 'No native lane in the browser mock.' }
+        case 'mcp:readChecks':
+          return {}
+        case 'mcp:cancelCheck':
+        case 'mcp:setExposure':
+          return undefined
+        case 'mcp:checkServer':
+          return mockMcpInspection(String(args[0]))
+        case 'mcp:list':
+          return mockMcpList()
         case 'mcp:authorize': {
           const serverName = String(args[0])
           const emit = (state: ConnectorAuthState): void => {

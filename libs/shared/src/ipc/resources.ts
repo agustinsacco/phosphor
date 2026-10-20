@@ -1,6 +1,8 @@
 import type { ArtifactListing, ArtifactSnapshot } from '../artifacts'
+import type { McpCheckResult, McpCheckSnapshot, McpLaneResult } from '../mcp-inspection'
 import type {
   McpConfigsResult,
+  McpExposure,
   McpListResult,
   McpMigrationPlan,
   McpMigrationResult,
@@ -135,6 +137,26 @@ export interface McpInvokeMap {
    * state and tools. No session needed, no tokens spent.
    */
   'mcp:list': { args: [workspacePath?: string]; result: McpListResult }
+  'mcp:readChecks': { args: [workspacePath?: string]; result: Record<string, McpCheckSnapshot> }
+  'mcp:checkServer': {
+    args: [name: string, workspacePath: string | undefined, requestId: string]
+    result: McpCheckResult
+  }
+  'mcp:cancelCheck': { args: [requestId: string]; result: void }
+  'mcp:laneControl': {
+    args: [sessionId: string, name: string, operation: 'inspect' | 'reconnect']
+    result: McpLaneResult
+  }
+  'mcp:setExposure': {
+    args: [
+      scope: McpScope,
+      workspacePath: string | undefined,
+      name: string,
+      exposure: McpExposure,
+      tools: Record<string, McpExposure>,
+    ]
+    result: void
+  }
   /**
    * Sign a connector in with no session open: main runs `pi mcp login`, which
    * opens the browser itself and waits for the callback. Progress arrives on

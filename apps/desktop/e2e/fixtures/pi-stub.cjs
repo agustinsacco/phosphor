@@ -38,71 +38,8 @@
   // login waits for the test to "approve" it by writing `stub-mcp-approve-<s>`
   // so the awaiting-browser state can be asserted before it resolves.
   if (sub === 'mcp') {
-    const path = require('node:path')
-    const fs = require('node:fs')
-    const os = require('node:os')
-    const agentDir = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent')
-    const marker = (name) => path.join(agentDir, `stub-mcp-auth-${name}`)
-    const action = argv[1]
-    const server = argv[2]
-    if (action === 'list') {
-      const servers = []
-      const files = [
-        ['global', path.join(agentDir, 'mcp.json')],
-        ['project', path.join(process.cwd(), '.pi', 'mcp.json')],
-      ]
-      for (const [scope, file] of files) {
-        let doc
-        try {
-          doc = JSON.parse(fs.readFileSync(file, 'utf8'))
-        } catch {
-          continue
-        }
-        for (const [name, config] of Object.entries(doc.mcpServers ?? {})) {
-          const at = servers.findIndex((s) => s.name === name)
-          if (at !== -1) servers.splice(at, 1)
-          const enabled = config.enabled !== false
-          const state = !enabled
-            ? 'disabled'
-            : config.url && !fs.existsSync(marker(name))
-              ? 'needs-auth'
-              : 'connected'
-          servers.push({
-            name,
-            scope,
-            source: file,
-            enabled,
-            exposure: config.exposure ?? 'codemode',
-            transport: config.url ?? [config.command, ...(config.args ?? [])].join(' '),
-            state,
-            tools: state === 'connected' ? ['search', 'get_issue', 'save_issue'] : [],
-          })
-        }
-      }
-      process.stdout.write(JSON.stringify({ servers, errors: [] }, null, 2) + '\n')
-      process.exit(servers.every((s) => ['connected', 'disabled'].includes(s.state)) ? 0 : 1)
-    }
-    if (action === 'login' && server) {
-      process.stdout.write(
-        `Opening the browser to sign in to ${server}:\nhttps://stub.test/oauth/authorize?server=${server}\n`,
-      )
-      const approve = path.join(agentDir, `stub-mcp-approve-${server}`)
-      const poll = setInterval(() => {
-        if (!fs.existsSync(approve)) return
-        clearInterval(poll)
-        fs.writeFileSync(marker(server), 'ok')
-        process.stdout.write(`Signed in to ${server}.\n`)
-        process.exit(0)
-      }, 100)
-      return
-    }
-    if (action === 'logout' && server) {
-      fs.rmSync(marker(server), { force: true })
-      process.stdout.write(`Signed out of ${server}.\n`)
-      process.exit(0)
-    }
-    process.stderr.write(`stub: unsupported pi mcp ${argv.slice(1).join(' ')}\n`)
-    process.exit(2)
+    require('./pi-stub-mcp.cjs').runMcpCli(argv)
+    return
   }
   if (sub === 'install' || sub === 'remove' || sub === 'update' || argv.includes('-p')) {
     const path = require('node:path')
@@ -531,155 +468,12 @@ function handle(cmd) {
 
     case 'get_commands': {
       publishSwarm()
-      // Shaped like a real pi answer — enough rows that the menu's old cap of
-      // 12 would have hidden the last one, an alias pair, pi's built-in `/mcp`
-      // and inline extension, and prompt templates.
-      // Deliberately NO `source: 'skill'` entries: the skills e2e relies on
-      // this answer having none so it exercises the scan fallback. Skills in
-      // the menu are covered by the unit suite against a real payload.
-      const pkg = (name, file) => ({
-        path: `/stub/npm/node_modules/${name}/${file}`,
-        source: `npm:${name}`,
-        scope: 'user',
-        origin: 'package',
-        baseDir: `/stub/npm/node_modules/${name}`,
-      })
-      const prompt = (name) => ({
-        path: `/stub/agent/prompts/${name}.md`,
-        source: 'local',
-        scope: 'user',
-        origin: 'top-level',
-      })
       out({
         id: cmd.id,
         type: 'response',
         command: 'get_commands',
         success: true,
-        data: {
-          commands: [
-            {
-              name: 'phosphor-swarm',
-              description: 'Toggle lane authorization',
-              source: 'extension',
-            },
-            {
-              name: 'subagents-stop',
-              description: 'Stop a current-session async run',
-              source: 'extension',
-            },
-            {
-              name: 'subagents-steer',
-              description: 'Steer an owned async run',
-              source: 'extension',
-            },
-            {
-              name: 'phosphor-save-subagent-snapshot',
-              description: 'Save an inspection snapshot',
-              source: 'extension',
-            },
-            {
-              name: 'subagents-inspect-rpc',
-              description: 'Read-only child inspection',
-              source: 'extension',
-            },
-            {
-              name: 'stub-command',
-              description: 'A stub command',
-              source: 'extension',
-              sourceInfo: {
-                path: '/stub/agent/extensions/stub.ts',
-                source: 'local',
-                scope: 'user',
-                origin: 'top-level',
-              },
-            },
-            {
-              name: 'websearch',
-              description: 'Open web search curator',
-              source: 'extension',
-              sourceInfo: pkg('pi-web-access', 'index.ts'),
-            },
-            {
-              name: 'curator',
-              description: 'Toggle or configure the search curator workflow',
-              source: 'extension',
-              sourceInfo: pkg('pi-web-access', 'index.ts'),
-            },
-            {
-              name: 'search',
-              description: 'Browse stored web search results',
-              source: 'extension',
-              sourceInfo: pkg('pi-web-access', 'index.ts'),
-            },
-            // pi's built-in MCP registers one command; its source is `builtin`.
-            {
-              name: 'mcp',
-              description:
-                'Manage MCP servers: sign in, reconnect, enable or disable, and change exposure',
-              source: 'extension',
-              sourceInfo: {
-                path: 'builtin:mcp',
-                source: 'builtin',
-                scope: 'temporary',
-                origin: 'top-level',
-              },
-            },
-            // One handler under two names, which the menu folds into one row.
-            {
-              name: 'web-status',
-              description: 'Show web access status',
-              source: 'extension',
-              sourceInfo: pkg('pi-web-access', 'index.ts'),
-            },
-            {
-              name: 'ws',
-              description: 'Show web access status',
-              source: 'extension',
-              sourceInfo: pkg('pi-web-access', 'index.ts'),
-            },
-            {
-              name: 'computer-use',
-              description: 'Show pi-computer-use configuration',
-              source: 'extension',
-              sourceInfo: pkg('@injaneity/pi-computer-use', 'extensions/computer-use.ts'),
-            },
-            {
-              name: 'llama',
-              description: 'Manage llama.cpp router models',
-              source: 'extension',
-              sourceInfo: {
-                path: '<inline:llama.cpp>',
-                source: 'inline',
-                scope: 'temporary',
-                origin: 'top-level',
-              },
-            },
-            {
-              name: 'plan',
-              description: 'Draft an implementation plan',
-              source: 'prompt',
-              sourceInfo: prompt('plan'),
-            },
-            {
-              name: 'fix-tests',
-              description: 'Fix the failing tests',
-              source: 'prompt',
-              sourceInfo: prompt('fix-tests'),
-            },
-            {
-              name: 'review',
-              description: 'Review the working tree',
-              source: 'prompt',
-              sourceInfo: prompt('review'),
-            },
-            {
-              name: 'release-notes',
-              description: 'Draft release notes from the git log',
-              source: 'prompt',
-              sourceInfo: prompt('release-notes'),
-            },
-          ],
-        },
+        data: { commands: require('./pi-stub-commands.cjs') },
       })
       break
     }
@@ -757,6 +551,8 @@ function handle(cmd) {
       break
     }
     case 'prompt': {
+      if (require('./pi-stub-mcp.cjs').handleMcpControl(cmd, out, agentStreaming || compacting))
+        break
       if (/^\/phosphor-swarm (on|off)$/.test(cmd.message)) {
         if (cmd.message.endsWith(' on') && process.env.PHOSPHOR_E2E_SWARM_UNAVAILABLE === '1') {
           out({

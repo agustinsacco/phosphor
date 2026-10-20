@@ -86,7 +86,7 @@ describe('Desktop application and native install boundary', () => {
         join(app, 'node_modules', dependency, 'package.json'),
       )
     }
-    for (const file of ['smoke.spec.ts', 'startup.spec.ts', 'routines.spec.ts']) {
+    for (const file of ['fixtures/local-app.ts', 'startup.spec.ts', 'routines.spec.ts']) {
       expect(readFileSync(join(app, 'e2e', file), 'utf8')).toContain(
         '...desktopElectronLaunchOptions([',
       )

@@ -184,3 +184,147 @@ describe('portable session admission', () => {
     expect(h.clients).toHaveLength(0)
   })
 })
+
+it('holds reconnect admission through native completion while allowing read-only commands', async () => {
+  const h = fixture()
+  const live = await h.service.create({ workspacePath: '/repo' })
+  const client = h.clients[0]!
+  let finish!: () => void
+  let entered!: () => void
+  const started = new Promise<void>((resolve) => {
+    entered = resolve
+  })
+  client.request.mockImplementation(async (command) => {
+    if (command.type === 'get_commands')
+      return {
+        success: true,
+        data: {
+          commands: [
+            {
+              name: 'mcp',
+              source: 'extension',
+              description: 'MCP [inspection-v1]',
+              sourceInfo: { path: 'builtin:mcp', source: 'builtin' },
+            },
+          ],
+        },
+      } as never
+    if (command.type === 'prompt' && command.message.startsWith('/mcp reconnect ')) {
+      entered()
+      return new Promise((resolve) => {
+        finish = () => resolve({ success: true } as never)
+      })
+    }
+    return { success: true, data: { isStreaming: false, isCompacting: false } } as never
+  })
+  const reconnect = h.service.mcpControl(live.sessionId, 'api', 'reconnect')
+  await started
+  await expect(
+    h.service.command(live.sessionId, { type: 'prompt', message: 'new work' }),
+  ).rejects.toThrow('reconnecting')
+  await expect(h.service.mcpControl(live.sessionId, 'api', 'reconnect')).rejects.toThrow(
+    'already reconnecting',
+  )
+  await expect(h.service.command(live.sessionId, { type: 'get_state' })).resolves.toMatchObject({
+    success: true,
+  })
+  finish()
+  await reconnect
+  await expect(h.service.command(live.sessionId, { type: 'get_state' })).resolves.toMatchObject({
+    success: true,
+  })
+  expect(
+    client.request.mock.calls.some(
+      ([command]) => command.type === 'prompt' && command.message === 'new work',
+    ),
+  ).toBe(false)
+})
+
+it('queues reconnect behind automatic compaction, including its deferred stats read', async () => {
+  const h = fixture()
+  const live = await h.service.create({ workspacePath: '/repo' })
+  const client = h.clients[0]!
+  let enterStats!: () => void
+  let releaseStats!: () => void
+  let enterCompact!: () => void
+  let releaseCompact!: () => void
+  const statsStarted = new Promise<void>((resolve) => {
+    enterStats = resolve
+  })
+  const compactStarted = new Promise<void>((resolve) => {
+    enterCompact = resolve
+  })
+  client.request.mockClear()
+  client.request.mockImplementation(async (command) => {
+    if (command.type === 'get_session_stats') {
+      enterStats()
+      return new Promise((resolve) => {
+        releaseStats = () =>
+          resolve({ success: true, data: { contextUsage: { tokens: 500000 } } } as never)
+      })
+    }
+    if (command.type === 'compact') {
+      enterCompact()
+      return new Promise((resolve) => {
+        releaseCompact = () => resolve({ success: true } as never)
+      })
+    }
+    if (command.type === 'get_commands')
+      return {
+        success: true,
+        data: {
+          commands: [
+            {
+              name: 'mcp',
+              source: 'extension',
+              description: 'MCP [inspection-v1]',
+              sourceInfo: { path: 'builtin:mcp', source: 'builtin' },
+            },
+          ],
+        },
+      } as never
+    return {
+      success: true,
+      data: {
+        autoCompactionEnabled: true,
+        isStreaming: false,
+        isCompacting: false,
+        model: { contextWindow: 1000000 },
+      },
+    } as never
+  })
+  client.emit('event', { type: 'agent_settled' })
+  await statsStarted
+  const reconnect = h.service.mcpControl(live.sessionId, 'api', 'reconnect')
+  await Promise.resolve()
+  expect(client.request.mock.calls.some(([c]) => c.type === 'get_commands')).toBe(false)
+  releaseStats()
+  await compactStarted
+  expect(client.request.mock.calls.some(([c]) => c.type === 'get_commands')).toBe(false)
+  releaseCompact()
+  await reconnect
+  const types = client.request.mock.calls.map(([c]) => c.type)
+  expect(types.indexOf('compact')).toBeLessThan(types.indexOf('get_commands'))
+})
+
+it('refuses MCP reconnect while an earlier mutating command is still admitted', async () => {
+  const h = fixture()
+  const live = await h.service.create({ workspacePath: '/repo' })
+  const client = h.clients[0]!
+  let release!: () => void
+  client.request.mockImplementation(
+    async () =>
+      new Promise((resolve) => {
+        release = () => resolve({ success: true } as never)
+      }),
+  )
+  const mutation = h.service.command(live.sessionId, { type: 'set_thinking_level', level: 'off' })
+  await Promise.resolve()
+  await expect(h.service.mcpControl(live.sessionId, 'api', 'reconnect')).rejects.toThrow('busy')
+  release()
+  await mutation
+  vi.mocked(h.serviceRuntime.routines.owns).mockReturnValue(true)
+  await expect(h.service.mcpControl(live.sessionId, 'api', 'inspect')).rejects.toThrow(
+    'running routine',
+  )
+})

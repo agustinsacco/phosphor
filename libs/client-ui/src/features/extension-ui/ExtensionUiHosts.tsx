@@ -12,6 +12,7 @@ import { ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { ansiToSpans, stripAnsi } from '@shared/ansi'
 import { CONTEXT_BREAKDOWN_STATUS_KEY } from '@/features/chat/composer/contextBreakdown'
+import { MCP_INSPECTION_STATUS_KEY } from '@shared/mcp-inspection'
 import { LANE_RELOAD_STATUS_KEY } from '@phosphor/pi-extensions/lane-reload'
 import { SWARM_STATUS_KEY } from '@phosphor/pi-extensions/swarm'
 import { RATE_LIMIT_STATUS_KEY } from '@/features/chat/composer/rateLimit'
@@ -411,11 +412,8 @@ function ToastGlyph({ toast }: { toast: Toast }): React.JSX.Element {
 }
 
 /**
- * Status keys this strip must not render: they carry structured payloads for a
- * specific component rather than a human-readable line. `setStatus` is pi's
- * only channel for pushing extension state to the front-end, so it doubles as
- * a data bus — a status the strip doesn't recognise as prose belongs to
- * whichever component parses it.
+ * Machine payloads belong to their consumers, never the human status strip.
+ * Includes native MCP inspection replies correlated by main's session service.
  */
 const STRUCTURED_STATUS_KEYS = new Set([
   CONTEXT_BREAKDOWN_STATUS_KEY,
@@ -424,6 +422,7 @@ const STRUCTURED_STATUS_KEYS = new Set([
   HEADROOM_STATUS_KEY,
   // Main's reply channel for a between-turns reload; never for the user.
   LANE_RELOAD_STATUS_KEY,
+  MCP_INSPECTION_STATUS_KEY,
   SWARM_STATUS_KEY,
 ])
 
