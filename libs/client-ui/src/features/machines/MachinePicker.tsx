@@ -2,8 +2,15 @@ import { usePlatform } from '@/platform/Platform'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { MachineGlyph } from '@/features/sessions/MachineSwitcher'
 import type { HostCapability } from '@shared/remote-host'
-import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import type { HostConnectionView } from '@shared/ipc'
+import { hostReconnecting, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
+
+/** A machine that is coming back is connecting, not disconnected. */
+function stateSuffix(host: HostConnectionView | undefined): string {
+  if (!host || host.state === 'ready') return ''
+  return hostReconnecting(host.state) ? ' (connecting…)' : ' (not connected)'
+}
 
 /** Never resets an unavailable selection to the local machine. */
 export function MachinePicker({
@@ -42,7 +49,7 @@ export function MachinePicker({
           : []),
         ...choices.map(([id, host]) => ({
           value: id,
-          label: `${machineLabel(id)}${host.state === 'ready' ? '' : ' (not connected)'}`,
+          label: `${machineLabel(id)}${stateSuffix(host)}`,
         })),
       ]}
     >
@@ -53,11 +60,7 @@ export function MachinePicker({
           : includeAll && value === ''
             ? 'All machines'
             : machineLabel(value)}
-        {unavailable
-          ? ' (unavailable)'
-          : hosts[value] && hosts[value]?.state !== 'ready'
-            ? ' (not connected)'
-            : ''}
+        {unavailable ? ' (unavailable)' : stateSuffix(hosts[value])}
       </span>
     </ChoiceMenu>
   )

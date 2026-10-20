@@ -1,6 +1,12 @@
 import type { HostConnectionView } from '@shared/ipc'
 import { useMachinesStore } from '@/stores/machines'
-import { useRemoteLanesStore, connectionLabel, hostReconnecting } from '@/stores/remoteLanes'
+import { WaitingNote } from '@/components/Waiting'
+import {
+  useRemoteLanesStore,
+  connectingTo,
+  connectionLabel,
+  hostReconnecting,
+} from '@/stores/remoteLanes'
 import { RemoteLaneGroups } from '@/features/sessions/RemoteLaneGroups'
 import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
@@ -80,14 +86,17 @@ function MachineLaneList({
       <h2 className="font-semibold">
         {machine.label} · {connectionLabel(host?.state)}
       </h2>
+      {hostReconnecting(host?.state) && (
+        <WaitingNote>{connectingTo(machine.id, host?.state)}</WaitingNote>
+      )}
       {!readable ? (
-        <p role="status">
-          {host?.state === 'ready'
-            ? 'Lane reading is unavailable on this Host.'
-            : hostReconnecting(host?.state)
-              ? 'Connecting…'
+        !hostReconnecting(host?.state) && (
+          <p role="status">
+            {host?.state === 'ready'
+              ? 'Lane reading is unavailable on this Host.'
               : 'Machine not connected. Its lanes may need attention.'}
-        </p>
+          </p>
+        )
       ) : lanes.length === 0 ? (
         <p>{inbox ? 'No unread attention on this machine.' : 'No lanes yet.'}</p>
       ) : (

@@ -74,18 +74,43 @@ it('picker lists This Mac and only announced machines, preserving unavailable se
     ),
   ).toBe(true)
 })
-it('chip follows connected, reconnecting and down snapshots and recovers', () => {
+it('picker says a retrying machine is connecting, and only a down one is not connected', () => {
+  const host = mockRemoteHosts[MOCK_HOST_ID]!
+  for (const [state, suffix] of [
+    ['connecting', ' (connecting…)'],
+    ['reconnecting', ' (connecting…)'],
+    ['down', ' (not connected)'],
+    ['ready', ''],
+  ] as const) {
+    act(() => useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: { ...host, state } } }))
+    act(() =>
+      root.render(
+        <MachinePicker value={MOCK_HOST_ID} capability="sessions.control" onChange={() => {}} />,
+      ),
+    )
+    expect(button(MOCK_HOST_ID).textContent?.endsWith(`${MOCK_HOST_ID}${suffix}`)).toBe(true)
+    act(() => button(MOCK_HOST_ID).click())
+    const option = [...container.querySelectorAll('[role=option]')].find((o) =>
+      o.textContent?.includes(MOCK_HOST_ID),
+    )
+    expect(option?.textContent).toBe(`${MOCK_HOST_ID}${suffix}`)
+    act(() => button(MOCK_HOST_ID).click())
+  }
+})
+it('chip follows connected, connecting, reconnecting and down snapshots and recovers', () => {
   act(() => root.render(<MachineChip sessionId={mockRemoteInfo.sessionId} />))
   const host = mockRemoteHosts[MOCK_HOST_ID]
   if (!host) throw new Error('Missing host')
   for (const [state, label] of [
     ['ready', 'Connected'],
+    ['connecting', 'Connecting'],
     ['reconnecting', 'Reconnecting'],
     ['down', 'Down'],
     ['ready', 'Connected'],
   ] as const) {
     act(() => useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: { ...host, state } } }))
-    expect(container.textContent).toContain(label)
+    // A first attempt is not a reconnection: the chip agrees with the composer's note.
+    expect(container.textContent).toMatch(new RegExp(`· ${label}$`))
   }
 })
 it('On this machine gates reads and links, counts only that machine and opens filtered pages', async () => {

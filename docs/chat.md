@@ -1070,6 +1070,9 @@ Remote transcripts remain in memory. Drafts use Host-qualified lane keys; local
 attachment paths and uploaded Host document paths are not persisted in remote
 drafts. A reconnect reset replaces history through the normal hydration path.
 The composer disables during disconnection and recovers from the Host snapshot.
+While the Host connects or reconnects it stays on screen with its draft, locked
+(dimmed, `aria-busy`) under a spinner note that names the machine, and the lane
+header holds its control buttons; a lane held elsewhere is the only read-only one.
 Opening or focusing the lane marks it read on the Host; counters clear across
 clients. [Desktop routing](remote-desktop.md) owns connection and receipt details.
 

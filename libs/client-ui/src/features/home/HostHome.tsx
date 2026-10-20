@@ -2,11 +2,13 @@ import { useMachinesStore } from '@/stores/machines'
 import {
   useRemoteLanesStore,
   connectionLabel,
+  hostPending,
   openRemoteLane,
   REMOTE_NOT_READY,
   REMOTE_UNAVAILABLE,
 } from '@/stores/remoteLanes'
 import { RemoteLaneGroups } from '@/features/sessions/RemoteLaneGroups'
+import { WaitingNote } from '@/components/Waiting'
 import './remoteStart.css'
 
 /** A Host has a lane snapshot, not This Mac's project ledger or spend statistics. */
@@ -14,6 +16,7 @@ export function HostHome({ hostId }: { hostId: string }): React.JSX.Element {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const label = useMachinesStore((s) => s.machines.find((m) => m.id === hostId)?.label ?? hostId)
   const error = useRemoteLanesStore((s) => s.error)
+  const pending = useRemoteLanesStore((s) => hostPending(s, hostId))
   const refusal =
     host?.state !== 'ready'
       ? REMOTE_NOT_READY
@@ -26,7 +29,10 @@ export function HostHome({ hostId }: { hostId: string }): React.JSX.Element {
         {connectionLabel(host?.state)}
       </p>
       <h2 className="text-lg font-medium">{label}</h2>
-      {refusal ? (
+      {/* The composer below names the machine it waits for; this waits for the lanes. */}
+      {pending ? (
+        <WaitingNote className="mt-4">Loading lanes…</WaitingNote>
+      ) : refusal ? (
         <p className="text-text-secondary mt-4">{refusal}</p>
       ) : (
         <>

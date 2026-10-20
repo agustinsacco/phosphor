@@ -20,6 +20,7 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore } from '@/stores/layout'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import type { MachineView } from '@shared/control-api'
 vi.mock('@/stores/chat', async (importOriginal) => {
   const actual = await importOriginal<typeof ChatStoreModule>()
   return { ...actual, useChatStore: Object.assign(vi.fn(actual.useChatStore), actual.useChatStore) }
@@ -257,6 +258,36 @@ it('down keeps last-known rows inert and disables creation; setting up has an ex
     }),
   )
   expect(container.textContent).toContain('Not reachable yet')
+})
+it('a machine still connecting says so, before its directory row or Host snapshot arrives', () => {
+  const host = { ...mockRemoteHosts[MOCK_HOST_ID]!, state: 'reconnecting' as const }
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  act(() => root.render(<MachineLabelLine id={MOCK_HOST_ID} />))
+  expect(container.textContent).toContain('Connecting…')
+  expect(container.textContent).not.toContain('Not reachable')
+  // App start: the directory knows the machine, the Host snapshot is still loading.
+  const machine: MachineView = {
+    id: MOCK_HOST_ID,
+    label: 'Test Host',
+    hostname: 'test',
+    platform: 'linux',
+    arch: 'arm64',
+    hostVersion: null,
+    keyFingerprint: 'test',
+    enrolledAt: '2026-09-10T00:00:00.000Z',
+    lastSeenAt: new Date().toISOString(),
+    state: null,
+    readiness: null,
+    lanes: null,
+    endpoint: null,
+  }
+  act(() => useMachinesStore.setState({ machines: [machine] }))
+  act(() =>
+    useRemoteLanesStore.setState({ hosts: {}, snapshotStatus: 'loading', filter: MOCK_HOST_ID }),
+  )
+  act(() => root.render(<RemoteLanes />))
+  expect(container.textContent).toContain('Connecting…')
+  expect(container.textContent).not.toContain('Not reachable')
 })
 it('repository plus preselects that repository without sending a local creation', async () => {
   useRemoteLanesStore.setState({ filter: MOCK_HOST_ID })

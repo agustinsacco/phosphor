@@ -110,23 +110,33 @@ it('submits the Host-scoped draft and guards another send until acceptance', asy
   expect(useDraftsStore.getState().drafts[key]).toBeUndefined()
   expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
 })
-it('keeps the same focused field while a flaky Host reconnects', async () => {
+it('keeps the same field and draft while a flaky Host reconnects, locked until it is back', async () => {
   await render()
   const field = el.querySelector('textarea')!
-  act(() => field.focus())
   const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
-  for (const [state, connectionToken] of [
-    ['reconnecting', 'attempt-1'],
-    ['connecting', 'attempt-2'],
-    ['ready', 'attempt-3'],
-  ] as const)
+  for (const [state, connectionToken, words] of [
+    ['reconnecting', 'attempt-1', 'Reconnecting to'],
+    ['connecting', 'attempt-2', 'Connecting to'],
+  ] as const) {
     await act(async () =>
       useRemoteLanesStore.setState({
         hosts: { [MOCK_HOST_ID]: { ...host, state, connectionToken } },
       }),
     )
+    expect(field.matches(':disabled')).toBe(true)
+    const status = el.querySelector('.remote-start [role="status"]')
+    expect(status?.textContent).toBe(`${words} ${MOCK_HOST_ID}…`)
+    expect(status?.querySelector('svg.animate-spin')).not.toBeNull()
+    expect(el.textContent).not.toContain('Connect this machine')
+  }
+  await act(async () =>
+    useRemoteLanesStore.setState({
+      hosts: { [MOCK_HOST_ID]: { ...host, state: 'ready', connectionToken: 'attempt-3' } },
+    }),
+  )
   expect(el.querySelector('textarea')).toBe(field)
-  expect(document.activeElement).toBe(field)
+  expect(field.matches(':disabled')).toBe(false)
+  expect(field.value).toBe('Task for this Host')
 })
 it('keeps the space under the composer to its target row', async () => {
   await render()

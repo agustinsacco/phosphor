@@ -8,7 +8,7 @@ import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { MachinesIcon } from '@/components/icons'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { useMachinesStore } from '@/stores/machines'
-import { useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
+import { hostReconnecting, useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
@@ -82,6 +82,7 @@ export function MachineLabelLine({ id }: { id: string }): React.JSX.Element {
   const host = useRemoteLanesStore((s) => s.hosts[id])
   const machine = useMachinesStore((s) => s.machines.find((m) => m.id === id))
   const now = useMachinesStore((s) => s.nowMs)
+  const loading = useRemoteLanesStore((s) => s.snapshotStatus === 'loading')
   return (
     <div className="border-border mt-4 border-t px-2 pt-3">
       <div className="text-text-secondary flex items-center gap-2 text-sm font-medium">
@@ -92,21 +93,25 @@ export function MachineLabelLine({ id }: { id: string }): React.JSX.Element {
         <MachineDot state={id === 'local' ? 'ready' : host?.state} />
       </div>
       <div className="text-text-tertiary mt-1 text-xs">
-        {id === 'local' ? <LocalActivityText /> : machineStateText(host, machine, now)}
+        {id === 'local' ? <LocalActivityText /> : machineStateText(host, machine, now, loading)}
       </div>
     </div>
   )
 }
-function machineStateText(
+/** A Host on its way (or not yet in the first snapshot) is connecting, not unreachable. */
+export function machineStateText(
   host: HostConnectionView | undefined,
   machine: MachineView | undefined,
   now: number,
+  loading: boolean,
 ): string {
   return host?.state === 'ready'
     ? activityText(remoteActivity(host))
-    : machine
-      ? machineReachability(machine, host?.state, now || Date.now()).short
-      : 'Not reachable yet'
+    : (host ? hostReconnecting(host.state) : loading)
+      ? 'Connecting…'
+      : machine
+        ? machineReachability(machine, host?.state, now || Date.now()).short
+        : 'Not reachable yet'
 }
 
 function LocalActivityText(): React.JSX.Element {
@@ -238,6 +243,7 @@ function EnabledMachineSwitcher(): React.JSX.Element {
   const machines = useMachinesStore((s) => s.machines)
   const now = useMachinesStore((s) => s.nowMs)
   const hosts = useRemoteLanesStore((s) => s.hosts)
+  const loading = useRemoteLanesStore((s) => s.snapshotStatus === 'loading')
   const selected = useRemoteLanesStore((s) => s.filter)
   const { ids, activity } = useMachineActivity()
   const aggregate = otherMachineActivity(activity, '')
@@ -250,6 +256,7 @@ function EnabledMachineSwitcher(): React.JSX.Element {
             hosts[id],
             machines.find((m) => m.id === id),
             now,
+            loading,
           )
   const row = (id: string): React.ReactNode => {
     const state = id === 'local' ? 'ready' : hosts[id]?.state

@@ -16,6 +16,7 @@ import {
 import {
   useRemoteLanesStore,
   REMOTE_NOT_READY,
+  hostReconnecting,
   REMOTE_UNAVAILABLE,
   machineLabel,
 } from '@/stores/remoteLanes'
@@ -43,8 +44,9 @@ export function useRemoteModel(hostId: string) {
       ? defaultRemoteModel(models, providers, last, defaults.model)
       : undefined
   const missingModel = host?.state === 'ready' && catalogue.status === 'ready' && !model
-  const hint =
-    host?.state !== 'ready'
+  const hint = hostReconnecting(host?.state)
+    ? 'Connecting…'
+    : host?.state !== 'ready'
       ? REMOTE_NOT_READY
       : missingModel
         ? `No signed-in model on ${machineLabel(hostId)}.`

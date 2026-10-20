@@ -73,11 +73,16 @@ it('keeps an open lane on screen while its Host reconnects', async () => {
   // A Host that is down needs the user: the lane gives way to the instruction.
   await setState('down')
   expect(el.textContent).toBe('Machine not connected. Open Machines to reconnect.')
+  expect(el.querySelector('[aria-busy="true"]')).toBeNull()
 })
 
 it('says it is reconnecting, not that the machine is gone, before a lane has opened', async () => {
   const el = await render('reconnecting', false)
-  expect(el.textContent).toBe('Reconnecting to Studio…')
+  const busy = el.querySelector('[role="status"][aria-busy="true"]')
+  expect(busy?.querySelector('h1')?.textContent).toBe('Reconnecting to Studio…')
+  await setState('connecting')
+  expect(busy?.querySelector('h1')?.textContent).toBe('Connecting to Studio…')
   await setState('down')
   expect(el.textContent).toBe('Machine not connected. Open Machines to reconnect.')
+  expect(el.querySelector('[aria-busy="true"]')).toBeNull()
 })

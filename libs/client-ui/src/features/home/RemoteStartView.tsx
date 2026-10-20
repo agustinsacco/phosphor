@@ -6,7 +6,8 @@ import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { SubmitIconButton } from '@/components/ComposerButtons'
 import { homeDraftKey } from '@/stores/drafts'
-import { machineLabel } from '@/stores/remoteLanes'
+import { WaitingNote } from '@/components/Waiting'
+import { connectingTo, hostPending, machineLabel } from '@/stores/remoteLanes'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { IsolateToggle } from './IsolateToggle'
@@ -50,42 +51,53 @@ function RemoteStartComposer({
   const c = useRemoteStart(hostId, draftKey)
   // The model picker reads per-connection catalogues, so it alone restarts with one.
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
+  // Until the Host answers, nothing typed could start a lane: the field waits and says why.
+  const waiting = useRemoteLanesStore((s) => hostPending(s, hostId)) && !c.ready
   const status =
     c.warning ??
-    (!c.ready
-      ? 'Connect this machine with session control before creating a lane.'
-      : !c.repositoryId
-        ? 'Choose or add a repository on this machine.'
-        : null)
+    (waiting
+      ? null
+      : !c.ready
+        ? 'Connect this machine with session control before creating a lane.'
+        : !c.repositoryId
+          ? 'Choose or add a repository on this machine.'
+          : null)
   return (
     <section className="remote-start" aria-label="New lane">
       <h2 className="remote-start-title">New lane</h2>
-      <ComposerInput
-        remoteAttachments
-        value={c.text}
-        textareaRef={textareaRef ?? field}
-        onChange={c.setText}
-        onSubmit={() => void c.send()}
-        placeholder="Describe a task or ask a question"
-        rows={3}
-        autocomplete={false}
-        attachments={c.attachments}
-        onAttachmentsChange={c.setAttachments}
-        onWarning={c.setWarning}
-        slash={NO_SLASH}
-        swarm={{ enabled: false, onChange: () => undefined }}
-        modelPicker={<RemoteModelPicker key={generation} selection={c.selection} />}
-        actions={
-          <SubmitIconButton
-            busy={c.busy}
-            disabled={!c.canSend}
-            onClick={() => void c.send()}
-            label="Start lane"
-          />
-        }
-      />
+      <fieldset disabled={!c.ready} aria-busy={waiting || undefined} className="min-w-0">
+        <ComposerInput
+          remoteAttachments
+          value={c.text}
+          textareaRef={textareaRef ?? field}
+          onChange={c.setText}
+          onSubmit={() => void c.send()}
+          placeholder="Describe a task or ask a question"
+          rows={3}
+          autocomplete={false}
+          attachments={c.attachments}
+          onAttachmentsChange={c.setAttachments}
+          onWarning={c.setWarning}
+          slash={NO_SLASH}
+          swarm={{ enabled: false, onChange: () => undefined }}
+          modelPicker={<RemoteModelPicker key={generation} selection={c.selection} />}
+          actions={
+            <SubmitIconButton
+              busy={c.busy}
+              disabled={!c.canSend}
+              onClick={() => void c.send()}
+              label="Start lane"
+            />
+          }
+        />
+      </fieldset>
       <RemoteStartTargets hostId={hostId} controller={c} machinePicker={machinePicker} />
       {/* One line at most: the model dialog explains the model choice. */}
+      {waiting && !c.warning && (
+        <WaitingNote className="remote-start-status">
+          {connectingTo(hostId, c.host?.state)}
+        </WaitingNote>
+      )}
       {status && (
         <p
           role={c.warning ? 'alert' : 'status'}

@@ -82,7 +82,8 @@ are shared. Isolation changes are memory-only in the browser, preserving native
 preference persistence. Under the composer sit only the machine, repository and
 isolation row and at most one status line (a warning, missing control or
 missing repository). The composer keeps its field across reconnections to the
-same Host; only the model picker restarts with a new connection.
+same Host, locked while it waits; only the model picker restarts with a new
+connection.
 
 Both clients use bundled Inter and the same tokens. The shared loading surface
 appears during browser account initialization, with explicit sanitized recovery;
@@ -148,15 +149,23 @@ re-reads the account and machine directory:
 Directory heartbeats count only while the directory is fresh (two 30 s polls).
 A directory that went stale while the page slept cannot mark a Host down.
 
-While a Host is connecting or reconnecting, the UI keeps what it showed:
+While a Host is connecting or reconnecting, the UI keeps what it showed and
+says what it waits for. Nothing typed then could be sent, so no field takes input:
 
-- The lane list keeps the last-known lanes. Their rows hold actions until the
-  Host is ready.
-- An open lane stays mounted.
-- Its composer stays typeable for the lane's controller. Send is held, and a
-  `Reconnecting…` note says why.
+- The lane list keeps the last-known lanes under a spinner note,
+  `Reconnecting to <machine>…`. Their rows hold actions until the Host is ready.
+- An open lane stays mounted, transcript and draft included. Its composer is
+  locked (dimmed, `aria-busy`) under the same note, and the lane header holds
+  its control buttons. It is never shown as read-only.
+- Landing on a lane before its Host answers shows one loader that names the
+  machine (`Connecting to <machine>…`), not an empty screen.
+- The start screen locks its field under the same note, and its model chip reads
+  `Connecting…`. It does not ask to connect a machine that is on its way back.
 
-Only a Host that is down replaces these with an instruction.
+The first attempt says `Connecting`, a retry `Reconnecting`, in the notes
+and the machine chip alike (`connectingTo` and `connectionLabel` in
+`stores/remoteLanes.ts`). Only a Host that is down replaces
+these with an instruction.
 
 ## Build and deployment
 
@@ -173,6 +182,9 @@ real Host. It exercises cookie/CSRF boundaries, Host proof, control/send, owner 
 resource isolation, hostile previews and app-framing refusal. Responsive coverage
 captures shared pages at 360/412/768/1440px in both themes, verifies Inter readiness
 and containment, and rejects unsupported first-prompt files before mutation.
+`reconnect.spec.ts` holds the Host unreachable (`holdHost`) and checks that the
+lane, landing, start and lane-list screens wait, locked and labelled, at 400 and
+1100px, then that the lane unlocks with its draft once the Host answers.
 Auth/database/pi are synthetic. See [the harness contract](../apps/web/e2e/README.md). The browser job is
 required by CI; `npm run validate` includes it unless `SKIP_E2E=1`. The combined-image
 check also verifies app/site Host-header routing, manifest, worker and API headers.

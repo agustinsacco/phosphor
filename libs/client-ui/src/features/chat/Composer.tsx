@@ -1,10 +1,5 @@
-import {
-  useRemoteLanesStore,
-  canControlSession,
-  canDraftSession,
-  remoteNotReady,
-  REMOTE_UNAVAILABLE,
-} from '@/stores/remoteLanes'
+import { useRemoteLanesStore, canControlSession, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { HostWaitNote, useRemoteLock } from '@/features/machines/HostWaitNote'
 import { hostResourceKey } from '@shared/remote-host'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -66,7 +61,7 @@ export function Composer({
   const host = useRemoteLanesStore((s) =>
     entry?.target?.kind === 'remote' ? s.hosts[entry.target.hostId] : undefined,
   )
-  const disconnected = remote && host?.state !== 'ready'
+  const lock = useRemoteLock(sessionId)
   const remoteAttachments =
     remote &&
     host?.state === 'ready' &&
@@ -428,11 +423,8 @@ export function Composer({
     <div className="shrink-0 px-3 pb-4 pt-1 sm:px-5">
       <ComposerStrips sessionId={sessionId} />
 
-      {disconnected && <p className="mx-auto max-w-3xl text-sm">{remoteNotReady(host?.state)}</p>}
-      <fieldset
-        disabled={remote && !canDraftSession(sessionId)}
-        className="relative mx-auto min-w-0 max-w-3xl"
-      >
+      <HostWaitNote sessionId={sessionId} className="mx-auto mb-1.5 max-w-3xl" />
+      <fieldset {...lock} className="relative mx-auto min-w-0 max-w-3xl">
         <ComposerInput
           workspacePath={workspacePath}
           remoteAttachments={remoteAttachments}

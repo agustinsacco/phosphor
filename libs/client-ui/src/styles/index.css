@@ -753,6 +753,18 @@ select:focus:not(:focus-visible) {
 }
 
 /*
+ * A locked composer (its machine is connecting, or the lane is held elsewhere)
+ * must read as waiting at a glance, not as a field that ignores the keyboard.
+ * The draft stays legible; the note above the field says what it waits for.
+ */
+fieldset:disabled .composer-field {
+  opacity: 0.55;
+}
+fieldset[aria-busy='true'] .composer-field {
+  cursor: progress;
+}
+
+/*
  * Same trade for the sidebar's lane search: its field is the bordered row
  * around the input, which already turns accent on `focus-within`. The ring on
  * the input itself drew a second box inside the first and, at 2px offset,

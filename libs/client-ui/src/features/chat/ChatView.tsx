@@ -1,5 +1,5 @@
 import { SessionFileTarget } from '@/features/files/SessionFileTarget'
-import { useRemoteLanesStore, canControlSession } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, readOnlyLane } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { RemoteLaneControls } from '@/features/machines/RemoteLaneControls'
 import { MessageList } from './MessageList'
@@ -27,7 +27,8 @@ export function ChatView({
 }): React.JSX.Element {
   useRemoteLanesStore((s) => s.hosts)
   const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
-  const controllable = canControlSession(sessionId)
+  // A lane whose Host is retrying keeps its composer, locked: it is waiting, not read-only.
+  const readOnly = readOnlyLane(sessionId)
   return (
     <SessionFileTarget.Provider value={sessionId}>
       <div className="flex h-full min-w-0 flex-col">
@@ -41,12 +42,12 @@ export function ChatView({
         <div className="shrink-0 px-6 pt-1">
           <RateLimitBanner sessionId={sessionId} className="mx-auto w-full max-w-3xl" />
         </div>
-        {controllable ? (
-          <Composer sessionId={sessionId} workspacePath={workspacePath} />
-        ) : (
+        {readOnly ? (
           <p role="status" className="p-6 text-sm">
             Read-only. Take control to send messages.
           </p>
+        ) : (
+          <Composer sessionId={sessionId} workspacePath={workspacePath} />
         )}
         <StatusStrip sessionId={sessionId} />
         {!remote && <ForkPickerModal sessionId={sessionId} />}

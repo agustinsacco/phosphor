@@ -24,11 +24,14 @@ const LOCAL: HostTarget = Object.freeze({ kind: 'local' })
 export const REMOTE_NOT_READY = 'Machine not connected. Wait for reconnection.'
 
 export function connectionLabel(state: HostConnectionView['state'] | undefined): string {
+  // A first attempt is not a reconnection; the wait notes (`connectingTo`) say the same.
   return state === 'ready'
     ? 'Connected'
-    : state === 'connecting' || state === 'reconnecting'
-      ? 'Reconnecting'
-      : 'Down'
+    : state === 'connecting'
+      ? 'Connecting'
+      : state === 'reconnecting'
+        ? 'Reconnecting'
+        : 'Down'
 }
 
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
@@ -65,9 +68,15 @@ export function hostReconnecting(state: HostConnectionView['state'] | undefined)
   return state === 'connecting' || state === 'reconnecting'
 }
 
-/** The note where a remote lane's controls wait for its Host. */
-export function remoteNotReady(state: HostConnectionView['state'] | undefined): string {
-  return hostReconnecting(state) ? 'Reconnecting…' : REMOTE_NOT_READY
+/** Still reaching this Host: retrying, or the first snapshot has not listed it yet. */
+export function hostPending(s: { hosts: HostsSnapshot; snapshotStatus: string }, hostId: string) {
+  const host = s.hosts[hostId]
+  return host ? hostReconnecting(host.state) : s.snapshotStatus === 'loading'
+}
+
+/** What a screen says while a Host retries: a first attempt connects, a later one reconnects. */
+export function connectingTo(hostId: string, state: HostConnectionView['state'] | undefined) {
+  return `${state === 'reconnecting' ? 'Reconnecting' : 'Connecting'} to ${machineLabel(hostId)}…`
 }
 
 /** Null for a local session. Otherwise its Host's state, and whether this client holds the lane. */
@@ -87,13 +96,12 @@ export function canControlSession(sessionId: string): boolean {
 }
 
 /**
- * A controller keeps typing while its Host reconnects: the draft is local, and
- * disabling the field dropped focus and the phone's keyboard mid-word on a
- * flaky link. Sending still waits for `canControlSession`.
+ * Watched but not held, on a Host that could hand it over now. While the Host
+ * is not ready the lane only waits: its composer stays, locked, and says why.
  */
-export function canDraftSession(sessionId: string): boolean {
+export function readOnlyLane(sessionId: string): boolean {
   const lane = heldLane(sessionId)
-  return !lane || (lane.held && (lane.state === 'ready' || hostReconnecting(lane.state)))
+  return !!lane && lane.state === 'ready' && !lane.held
 }
 
 export const useRemoteLanesStore = create<{
