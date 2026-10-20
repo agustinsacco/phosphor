@@ -143,7 +143,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       ).toBe('true')
     }
   })
-  it('documents the implemented lock, updater and the manual Host Release workflow', () => {
+  it('documents the implemented lock, updater and the Host Release workflow', () => {
     const docs = readFileSync(join(root, 'docs/host.md'), 'utf8')
     for (const rule of [
       'Any updater must',
@@ -153,7 +153,8 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       'missing or malformed pid',
       'no program deletes the',
       'SIGKILL or power loss can leave a',
-      'The manual **Host Release** workflow',
+      'The **Host Release** workflow',
+      'runs after every green CI push to main',
       'refuses to build while `HOST_RELEASE_KEYS` is',
       '## Updating',
       '## Uninstalling',
