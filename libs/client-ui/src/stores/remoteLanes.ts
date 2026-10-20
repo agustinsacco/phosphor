@@ -60,16 +60,40 @@ export function canReadHost(host: HostConnectionView): boolean {
   return host.capabilities.includes('sessions.read')
 }
 
-export function canControlSession(sessionId: string): boolean {
+/** These retry on their own; every other state that is not ready needs the user. */
+export function hostReconnecting(state: HostConnectionView['state'] | undefined): boolean {
+  return state === 'connecting' || state === 'reconnecting'
+}
+
+/** The note where a remote lane's controls wait for its Host. */
+export function remoteNotReady(state: HostConnectionView['state'] | undefined): string {
+  return hostReconnecting(state) ? 'Reconnecting…' : REMOTE_NOT_READY
+}
+
+/** Null for a local session. Otherwise its Host's state, and whether this client holds the lane. */
+function heldLane(sessionId: string) {
   const entry = useSessionsStore.getState().live[sessionId]
-  if (entry?.target?.kind !== 'remote') return true
+  if (entry?.target?.kind !== 'remote') return null
   const host = useRemoteLanesStore.getState().hosts[entry.target.hostId]
   const lane = host?.lanes.find((item) => item.laneId === entry.laneId)
-  return (
-    host?.state === 'ready' &&
-    host.capabilities.includes('sessions.control') &&
-    lane?.control.controller?.self === true
-  )
+  const held =
+    !!host?.capabilities.includes('sessions.control') && lane?.control.controller?.self === true
+  return { state: host?.state, held }
+}
+
+export function canControlSession(sessionId: string): boolean {
+  const lane = heldLane(sessionId)
+  return !lane || (lane.state === 'ready' && lane.held)
+}
+
+/**
+ * A controller keeps typing while its Host reconnects: the draft is local, and
+ * disabling the field dropped focus and the phone's keyboard mid-word on a
+ * flaky link. Sending still waits for `canControlSession`.
+ */
+export function canDraftSession(sessionId: string): boolean {
+  const lane = heldLane(sessionId)
+  return !lane || (lane.held && (lane.state === 'ready' || hostReconnecting(lane.state)))
 }
 
 export const useRemoteLanesStore = create<{

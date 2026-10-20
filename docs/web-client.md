@@ -127,6 +127,33 @@ the account is signed out. Hashed asset caching is bounded. Updates do not force
 or reload over an unsent draft. Offline shell availability is not offline Host
 access or successful authentication.
 
+### Sleep and reconnection
+
+A dropped Host connection retries with jittered exponential backoff: 1 s,
+doubling to 60 s, and at least 30 s after a rate limit
+(`libs/host-client/src/retry.ts`). A phone that slept comes back with that
+retry far away. So when the page becomes visible, returns from the back-forward
+cache or comes back online, the adapter wakes every connection before it
+re-reads the account and machine directory:
+
+- A connection waiting out its backoff retries at once, except through a rate
+  limit.
+- A connection that still looks open is pinged. If no pong arrives within 8 s,
+  it is replaced.
+
+Directory heartbeats count only while the directory is fresh (two 30 s polls).
+A directory that went stale while the page slept cannot mark a Host down.
+
+While a Host is connecting or reconnecting, the UI keeps what it showed:
+
+- The lane list keeps the last-known lanes. Their rows hold actions until the
+  Host is ready.
+- An open lane stays mounted.
+- Its composer stays typeable for the lane's controller. Send is held, and a
+  `Reconnecting…` note says why.
+
+Only a Host that is down replaces these with an instruction.
+
 ## Build and deployment
 
 `npm run web:build` produces `apps/web/dist`; `npm run typecheck:web` checks the

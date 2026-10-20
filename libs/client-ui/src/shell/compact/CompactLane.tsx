@@ -2,7 +2,12 @@ import { useLayoutStore } from '@/stores/layout'
 import { TooltipButton } from '@/components/Tooltip'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
-import { openRemoteLane, useRemoteLanesStore } from '@/stores/remoteLanes'
+import {
+  hostReconnecting,
+  machineLabel,
+  openRemoteLane,
+  useRemoteLanesStore,
+} from '@/stores/remoteLanes'
 import { ChatView } from '@/features/chat/ChatView'
 import { ReadOnlyFilesPane } from '@/features/files/ReadOnlyFilesPane'
 import { SCREENS } from '@/navigation/screens'
@@ -70,10 +75,15 @@ export function CompactLane({
         This Host or lane is unavailable. It may have been removed.
       </p>
     )
-  if (!ready)
+  // A lane already on screen stays there while its Host retries: a phone that
+  // slept reconnects every time it wakes, and swapping the lane out lost its place.
+  const reconnecting = hostReconnecting(host.state)
+  if (!ready && !(reconnecting && lane && session))
     return (
       <p role="status" className="p-4">
-        Machine not connected. Open Machines to reconnect.
+        {reconnecting
+          ? `Reconnecting to ${machineLabel(hostId)}…`
+          : 'Machine not connected. Open Machines to reconnect.'}
       </p>
     )
   if (failed)
@@ -89,6 +99,18 @@ export function CompactLane({
         Opening lane…
       </p>
     )
+  return <LanePanes location={location} navigate={navigate} session={session} />
+}
+
+function LanePanes({
+  location,
+  navigate,
+  session,
+}: {
+  location: Extract<Location, { to: 'lane' }>
+  navigate: (next: Location) => void
+  session: { phosphorId: string; workspacePath: string }
+}): React.JSX.Element {
   const pane = location.pane ?? 'chat'
   const placement = SCREENS[pane].compact
   return (

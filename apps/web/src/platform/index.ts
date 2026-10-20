@@ -4,7 +4,7 @@ import { createRemoteLanes } from '@phosphor/host-client/remote-lanes'
 import type { FrameSocket } from '@phosphor/shared/host-protocol'
 import type { IdentityCrypto } from '@phosphor/host-client/crypto'
 import { createBrowserControl } from './control'
-import { createBrowserHosts } from './hosts'
+import { createBrowserHosts, DIRECTORY_POLL_MS } from './hosts'
 import { createBrowserEvents } from './events'
 import { createBrowserPreferences, type PreferenceStorage } from './preferences'
 import { createBrowserResources } from './resources'
@@ -251,6 +251,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     pathForFile: () => '',
     spellingSuggestions: () => null,
   }
+  const refreshQuietly = () => void refresh().catch(() => {})
   function refresh() {
     if (stopped) return Promise.resolve()
     return (refreshing ??= (async () => {
@@ -267,12 +268,11 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       if (!started) {
         started = true
         offLifecycle = (options.lifecycle ?? browserLifecycle()).subscribe(() => {
-          void refresh().catch(() => {})
+          hosts.wake()
+          refreshQuietly()
         })
         offInvalidation = invalidation?.subscribe(control.invalidate) ?? (() => {})
-        poll = setInterval(() => {
-          void refresh().catch(() => {})
-        }, 30_000)
+        poll = setInterval(refreshQuietly, DIRECTORY_POLL_MS)
         clock = setInterval(hosts.reconcile, 5000)
       }
       await refresh()
