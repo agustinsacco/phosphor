@@ -6,6 +6,7 @@ import {
   createFakePhosphor,
   installFakePhosphor,
 } from '../../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
+import type { McpCheckResult } from '@shared/mcp-inspection'
 import { ConnectorsTab } from './ConnectorsTab'
 
 vi.mock('../SettingsMachineScope', () => ({ useSettingsWorkspace: () => '/workspace' }))
@@ -24,7 +25,7 @@ afterEach(() => {
   restore?.()
 })
 
-async function renderPendingCheck() {
+async function renderPendingCheck(result?: McpCheckResult) {
   const config = { url: 'https://linear.example/mcp' }
   const fake = createFakePhosphor({
     'mcp:readConfigs': () => ({
@@ -35,7 +36,9 @@ async function renderPendingCheck() {
       legacy: false,
     }),
     'packages:list': () => [],
-    'mcp:list': () => new Promise(() => {}),
+    'mcp:readChecks': () => ({}),
+    'mcp:cancelCheck': () => {},
+    'mcp:checkServer': () => (result ? Promise.resolve(result) : new Promise(() => {})),
   })
   restore = installFakePhosphor(fake)
   container = document.createElement('div')
@@ -48,6 +51,11 @@ async function renderPendingCheck() {
 it('does not offer OAuth sign-in before authentication status is known', async () => {
   const row = await renderPendingCheck()
   expect(row.textContent).not.toContain('Sign in')
+})
+
+it('keeps OAuth authorization available when inspection needs a newer pi', async () => {
+  const row = await renderPendingCheck({ ok: false, unsupported: true, message: 'Upgrade pi.' })
+  expect(row.textContent).toContain('Authorize…')
 })
 
 it('keeps an explicit tools section visible before discovery finishes', async () => {

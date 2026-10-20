@@ -16,7 +16,7 @@ import { recordAppLaunch } from './feedback/feedback-service'
 import { maintenanceScheduler } from './maintenance/runtime'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
-import { disposeMcpLogins } from './pi/mcp-cli'
+import { disposeMcpConnections } from './pi/mcp-inspection'
 import { disposePackageJobs } from './pi/packages'
 import { ensureDesktopArtifactSkill } from './pi/session-launch'
 import { cancelAllLogins } from './pi/login-flow'
@@ -346,11 +346,9 @@ function beginQuit(): void {
   // pty out from under it would leave that timer running against a dead id.
   cancelAllLogins()
   cancelAllClaudeLogins()
-  // A connector sign-in is its own `pi mcp login` child — not in the registry,
-  // so disposeAll below would not touch it, and it holds the OAuth callback port.
-  disposeMcpLogins()
-  // Package jobs (pi install, npm, `claude update`, the provider proof) are
-  // their own process trees, outside the registry too. New ones are refused.
+  // Stop sign-ins, but drain native probes that may be saving rotated credentials.
+  const mcpConnections = disposeMcpConnections()
+  // Package jobs own separate trees too; stop admission before teardown.
   const packageJobs = disposePackageJobs()
   ptyManager.killAll()
   // Stop admission and persist interrupted routine outcomes before disposing
@@ -362,6 +360,7 @@ function beginQuit(): void {
       unwatchAll(),
       unwatchAllWorkspaces(),
       packageJobs,
+      mcpConnections,
     ]).finally(() => {
       quitComplete = true
       app.quit()
@@ -384,6 +383,7 @@ function hardShutdown(): never {
     registry.killAllSync()
     // Its kills are synchronous on POSIX; only the settlement is not awaited.
     void disposePackageJobs()
+    void disposeMcpConnections(true)
   } catch {
     // best effort — we are exiting regardless
   }

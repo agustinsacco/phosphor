@@ -588,7 +588,7 @@ See [remote artifacts](remote-desktop.md#remote-artifacts) for the wire limits.
 
 Bundled extensions and provider packages talk to Phosphor's UI the same way:
 `ctx.ui.setStatus(key, text)` → pi's extension-UI request → the per-session map
-in `stores/extensionUi.ts`. Six keys are load-bearing, and the key strings are
+in `stores/extensionUi.ts`. Seven keys are load-bearing, and the key strings are
 **case-sensitive literals on both sides**; nothing fails to compile when they
 disagree.
 
@@ -601,6 +601,9 @@ disagree.
 | `claude-rate-limit`          | `@saccolabs/pi-claude-cli` ≥ 0.4.5               | `chat/composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `libs/shared/src/claude-limits.ts` → account routing in main |
 | `claude-subagents`           | `@saccolabs/pi-claude-cli` ≥ 0.4.13              | `chat/subagentStatus.ts` → the status strip's agent chip, for sessions recorded before 0.9.0 (see below)                   |
 
+| `mcp-inspection` | Native pi MCP `[inspection-v1]` | `libs/session-runtime/src/pi/mcp-lane.ts`: versioned `{requestId, operation, server}` replies; hidden from the status strip |
+
+The native MCP key crosses into pi and is capability-gated; see [MCP](mcp.md).
 The two `claude-*` keys cross a repo boundary; their shape is documented on the
 emitting side in that repo's `docs/ARCHITECTURE.md`. Rules for all of them: the
 payload is JSON in a string, every parser returns `null` rather than throwing,

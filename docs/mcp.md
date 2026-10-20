@@ -74,11 +74,18 @@ custom servers share a list. Sections, in order:
 1. **Connected**: one card per server, as pi resolves the two files. The
    header carries name, a scope badge (`global`, `project`,
    `project · replaces global`, `global · project override`), the state from
-   the last check, the catalog summary and the URL or command, with **Sign in**
-   pinned right for an OAuth server that is not up. The footer holds the tool
-   disclosure (names from the last check, filterable past eight tools), the
-   exposure, the enabled checkbox, Edit and Remove. **Check again** and **Add
-   custom server…** sit above the list.
+   the last independent check, the catalog summary and the endpoint or command.
+   **Test** checks this connector without affecting a lane. **Sign in** appears
+   only after a known OAuth `needs-auth` result, never merely while checking.
+   If inspection is unsupported or fails, **Authorize…** preserves explicit OAuth
+   sign-in/retry without claiming that authentication is the connection problem.
+   **Tools** always remains available, including before discovery; it shows
+   names, descriptions, effective exposure and search across names/descriptions.
+   The sticky toolbar has **Refresh & test all**, **Cancel checks** and **Add
+   custom server…**. Refresh rereads configuration, not just connection state.
+   Connection details show test/discovery timestamps and credential mechanism.
+   A **Selected lane** disclosure appears for a local active lane in the same
+   workspace, with separate live tools and **Reconnect in lane**.
 2. **Add a connector**: the curated catalog, minus anything already
    configured (matched on the URL without its query, not on the name).
 3. **Advanced** (collapsed): both files with their path, server count or
@@ -91,6 +98,13 @@ decides it: the project file for a server it defines or overrides, the global
 file otherwise. Turning a server back on removes the key, except in an
 override, where an absent key would mean "inherit".
 
+**Tool visibility** edits the native default and ordered per-tool pattern rules.
+Each discovered tool also has an exact-rule selector; **Inherit rules** removes
+its exact override. These mutations change only `exposure` and `toolExposure`
+in the defining file or existing project override, preserving credentials and
+unknown keys. There is no adapter-style **Keep connected** toggle: native pi
+owns connection lifecycle.
+
 **Shortcut in both composers.** The `Rules 2/2 · MCP 7/8` chip
 (`features/chat/composer/ContextSourcesMenu.tsx`) lists the same servers with
 the same enabled checkbox (`mcp:setEnabled`), flags a server with direct tools,
@@ -100,19 +114,64 @@ folder, so a worktree lane's project file is the worktree's `.pi/mcp.json`.
 
 ## Status
 
-**"Is it up?" is `pi mcp list --json`.** Opening the tab runs it once (only
-when there are servers and no migration is pending), and **Check again** runs
-it again; so does a finished sign-in. It needs no session and spends no
-tokens: pi connects every enabled server once, prints a JSON report and exits
-(`apps/desktop/electron/pi/mcp-cli.ts`, `parseMcpList`). The report is
-untrusted subprocess output: a malformed entry is dropped, and an unreadable
-answer is a failure with pi's own last line, never an empty list. Each row
-reads `Up · N tools`, `Needs sign-in`, `Down`, `Disconnected`, `Connecting`
-or `Disabled` (`features/connectors/mcpStatus.ts`), with the server's error
-underneath. pi's own validation errors join the warnings at the top.
+**Independent tests use `pi mcp inspect <server> --json --timeout 15`.**
+This is a native pi capability, not a second MCP client. It discovers only the
+selected configured server's tools, with no tool invocation or model turn.
+The client accepts the version-1 inspection document and projects only bounded
+names, descriptions and exposure. Native error messages are sanitized; stderr
+and resolved credentials never reach the display cache.
 
-pi runs in the workspace folder, or in home with no workspace, so the answer
-covers the same files a session there would read.
+**Prerequisite:** inspection requires a pi build that implements `mcp inspect`.
+Stock pi 1.3.0 lacks it. Unsupported versions get an explicit message, not a
+fallback to an all-server probe or a model prompt. Existing configuration,
+enabling and sign-in continue to use pi's established commands.
+
+Opening the tab loads remembered metadata, then checks connectors independently.
+One failed or slow server never withholds the others. Main limits concurrency to
+three processes, including processes draining after reporting. A visible check
+has a 30-second wait bound. Native credential-command resolution and OAuth-safe
+cleanup can outlast the discovery deadline: cancel abandons queued checks and
+stops waiting for active ones, but lets native cleanup finish. A separate
+120-second process-tree deadline prevents orphan probes. Normal quit waits for
+that bounded drain so refreshed credentials can be saved; emergency shutdown
+cannot wait and forcibly terminates remaining probe trees.
+
+The private `mcp-inspections.json` under Desktop's user-data directory keeps at
+most 64 display snapshots within 4 MiB. Its keys hash workspace, server, scope
+and configuration; no raw configuration or resolved credentials are stored.
+A failed test retains the previous successful tool list with its discovery time.
+Changed configuration invalidates that snapshot, and late results cannot replace
+newer workspace/configuration state. The mounted tab rereads config on focus and
+every 15 seconds while visible; unchanged config does not launch more tests.
+
+**Live lane state is separate from independent tests.** For the selected local
+lane, `mcp:laneControl` enters the session service. Before dispatch it verifies
+that `get_commands` reports native `mcp` provenance (`builtin:mcp`, source
+`builtin`) and the `[inspection-v1]` capability marker. It sends
+`/mcp inspect|reconnect <name> --json --request <token>` and correlates the
+versioned `mcp-inspection` status on token, operation and server. A prompt
+acknowledgment alone is not success. Inspection reads current native state,
+including the latest completed tool discovery, without connecting anything.
+Visible settings request a new lane snapshot every 20 seconds.
+
+Reconnect uses the lane's loaded config and does not sign in or enable servers.
+The session service refuses it while another mutating command is admitted,
+and native pi checks idle state before reconnect. New mutating host commands
+are refused until native completion, even if the frontend's wait notice has
+appeared. Read-only commands and abort remain available. Native tool readiness
+protects calls started internally; the extension API itself has no global idle
+reservation. Routine-owned lanes cannot be controlled here. Provider-token
+(`auth.provider`) reconnect is explicitly unsupported by the machine API;
+inspection still works. Saved config changes retain the existing before-next-turn
+reload behavior described below.
+
+The shared inspection runner and parser live in `libs/session-runtime` and
+`libs/shared`. This restored workflow is Desktop-local. Host machine settings
+retain their existing revision-checked configuration, aggregate checks and
+login tasks; the PWA does not gain these new controls. These Desktop IPC channels
+do not bypass Host settings authorization or route local credentials remotely.
+Adding full inspection to that separate Host surface requires its own granted
+settings contract, rather than forwarding Desktop IPC.
 
 ## Sign-in
 

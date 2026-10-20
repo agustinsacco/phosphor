@@ -42,7 +42,7 @@ describe('Desktop Electron Playwright launcher', () => {
     expect(args).toEqual([join(root, 'apps/desktop'), '--disable-gpu'])
     expect(require('playwright-core/package.json').version).toBe('1.62.1')
     expect(loader).toBe(join(root, 'node_modules/playwright-core/lib/server/electron/loader.js'))
-    for (const file of ['smoke.spec.ts', 'startup.spec.ts', 'routines.spec.ts']) {
+    for (const file of ['fixtures/local-app.ts', 'startup.spec.ts', 'routines.spec.ts']) {
       const source = readFileSync(join(root, 'apps/desktop/e2e', file), 'utf8')
       expect(source).toContain('...desktopElectronLaunchOptions([')
       expect(source).not.toContain('executablePath:')

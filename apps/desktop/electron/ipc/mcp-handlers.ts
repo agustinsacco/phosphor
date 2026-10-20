@@ -1,9 +1,11 @@
 import { handle } from './handle'
+import { desktopSessions } from '../pi/session-runtime'
 import {
   readMcpConfigs,
   readMcpFile,
   removeMcpServer,
   setMcpServerEnabled,
+  setMcpExposure,
   upsertMcpServer,
   writeMcpFile,
 } from '../pi/mcp-config'
@@ -15,6 +17,14 @@ import {
   logoutMcpServer,
 } from '../pi/mcp-actions'
 import { broadcast } from '../broadcast'
+import {
+  checkMcpServer,
+  readMcpChecks,
+  cancelMcpCheck,
+  cancelOwnerChecks,
+} from '../pi/mcp-inspection'
+
+const observedOwners = new WeakSet<Electron.WebContents>()
 import { invalidatePiCommands } from '../pi/catalogue'
 
 /** pi's built-in MCP: its two mcp.json files and its `pi mcp` commands (Settings → Connectors). */
@@ -43,6 +53,22 @@ export function registerMcpHandlers(): void {
   )
 
   handle('mcp:list', (_event, workspacePath) => listMcpServers(workspacePath))
+  handle('mcp:readChecks', (_event, workspacePath) => readMcpChecks(workspacePath))
+  handle('mcp:laneControl', (_event, sessionId, name, operation) =>
+    desktopSessions.mcpControl(sessionId, name, operation),
+  )
+  handle('mcp:checkServer', (event, name, workspacePath, requestId) => {
+    if (!observedOwners.has(event.sender)) {
+      observedOwners.add(event.sender)
+      const owner = event.sender.id
+      event.sender.once('destroyed', () => cancelOwnerChecks(owner))
+    }
+    return checkMcpServer(event.sender.id, name, workspacePath, requestId)
+  })
+  handle('mcp:cancelCheck', (event, requestId) => cancelMcpCheck(event.sender.id, requestId))
+  handle('mcp:setExposure', (_event, scope, workspacePath, name, exposure, tools) =>
+    setMcpExposure(scope, workspacePath, name, exposure, tools),
+  )
 
   handle('mcp:authorize', (_event, serverName, workspacePath) =>
     authorizeMcpServer(serverName, workspacePath, (state) =>

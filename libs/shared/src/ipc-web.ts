@@ -353,6 +353,11 @@ export const IPC_WEB = {
     'Connector configuration and credentials belong to the Host or Desktop.',
   ),
   'mcp:list': unsupported('Connector configuration and credentials belong to the Host or Desktop.'),
+  'mcp:readChecks': unsupported('Use the selected machine’s connector settings.'),
+  'mcp:checkServer': unsupported('Use the selected machine’s connector settings.'),
+  'mcp:cancelCheck': unsupported('Use the selected machine’s connector settings.'),
+  'mcp:laneControl': unsupported('Use the selected machine’s connector settings.'),
+  'mcp:setExposure': unsupported('Use the selected machine’s connector settings.'),
   'mcp:authorize': unsupported(
     'Connector configuration and credentials belong to the Host or Desktop.',
   ),

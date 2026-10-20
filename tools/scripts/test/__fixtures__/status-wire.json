@@ -31,6 +31,12 @@
       "producer": null,
       "externalCompatibility": "@saccolabs/pi-claude-cli >= 0.4.13; legacy sessions before 0.9.0",
       "consumer": "apps/desktop/src/features/extension-ui/ExtensionUiHosts.tsx"
+    },
+    {
+      "key": "mcp-inspection",
+      "producer": null,
+      "externalCompatibility": "native pi MCP [inspection-v1]; capability-gated",
+      "consumer": "libs/session-runtime/src/pi/mcp-lane.ts"
     }
   ],
   "structuredWidgets": ["subagent-async", "subagent-inspect", "phosphor-subagent-save"],
