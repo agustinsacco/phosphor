@@ -98,8 +98,10 @@ test('browser creation rejects file uploads before mutation and keeps isolation 
   await checkbox.uncheck()
   await expect(checkbox).not.toBeChecked()
   await page.getByRole('button', { name: 'Repository', exact: true }).click()
-  await expect(page.getByText(/Add folder on/)).toHaveCount(0)
-  await page.keyboard.press('Escape')
+  // The Host's folder dialog is the same one Desktop opens; looking does not mutate.
+  await page.getByRole('option', { name: /^Add folder on/ }).click()
+  await expect(page.getByText("Choose a folder under this machine's home directory.")).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await page.getByRole('button', { name: 'Model', exact: true }).click()
   await page.getByRole('searchbox', { name: 'Search models' }).fill('no-such-model')
   await expect(page.getByText('No matching models.')).toBeVisible()

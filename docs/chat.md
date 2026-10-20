@@ -12,7 +12,11 @@ The composer is one small field with several ways in.
   or a live session. History, shell execution, Continue, Stop, queues and context
   usage require an existing session.
 - Multi-line. Enter sends, Shift+Enter newline. IME confirmation keys never
-  send.
+  send. On a touch-first device without hover (a phone's soft keyboard,
+  `lib/softKeyboard.ts`), Return adds a line like Shift+Enter and the send
+  button sends; Cmd/Ctrl/Alt+Enter from a connected keyboard still sends.
+  There, the shared send button also closes the keyboard so the reply has the
+  screen.
 - **Two groups and a strip.** The row under the field holds controls only.
   Left, what the agent gets: attach and the [Swarm](#swarm-authorization)
   pill. Right, the engine then go: the model · thinking split chip, then
@@ -37,9 +41,10 @@ The composer is one small field with several ways in.
   (renumbering; an empty item steps out a level, then exits). Tab/Shift+Tab
   nest and un-nest inside a list (Tab takes an autocomplete suggestion first
   when one shows). Cmd/Ctrl+Shift+8 and +7 toggle bullet and
-  numbered, Cmd/Ctrl+B and +I wrap, Cmd/Ctrl+Shift+C fences. **Enter always
-  sends**; continuation is deliberately not on it, or a one-line prompt starting
-  with `- ` would stop sending. Logic in `libs/client-ui/src/lib/composerText.ts`; keymap in
+  numbered, Cmd/Ctrl+B and +I wrap, Cmd/Ctrl+Shift+C fences. **Enter sends
+  from a hardware keyboard**; continuation is deliberately not on it, or a
+  one-line prompt starting with `- ` would stop sending. A phone's Return
+  already means "another line", so it continues the list. Logic in `libs/client-ui/src/lib/composerText.ts`; keymap in
   `composer/ComposerField.tsx`, shared by both composers.
 - **Formatting is keyboard-only**: bold, italic, inline code (Cmd/Ctrl+E), code
   block, lists and links (Cmd/Ctrl+Shift+K). No toolbar. Edits go through
@@ -85,7 +90,12 @@ The composer is one small field with several ways in.
   Both composers accept attachment-only messages, including the first message.
 - Remote controllers can attach files when the ready Host announces
   `workspaces.write` and `sessions.control`. Images travel inline as on local
-  lanes, but main refuses encoded image prompt frames above the Host inbound limit
+  lanes, but each is first fitted into 2000 px, the square pi resizes every image
+  to before a model sees it (`lib/shrinkImage.ts`). A phone photo drops from
+  several MB to a few hundred KB, so it fits the prompt frame on a weak link. A
+  GIF, an image that already fits, or one the browser cannot re-encode smaller is
+  sent as it is; local lanes always send the original. Main refuses encoded image
+  prompt frames above the Host inbound limit
   minus a 1 KiB margin without sending or clearing the image draft; documents upload through main before the prompt, at most 20 MiB each
   and ten attachments per message. The Host path appears only in the normal
   `<attached-files>` block. Failure or uncertainty sends no prompt and never

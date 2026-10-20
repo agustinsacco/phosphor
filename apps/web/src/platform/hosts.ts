@@ -16,6 +16,27 @@ import type { HostsSnapshot } from '@phosphor/shared/ipc'
 import type { BrowserControl } from './control'
 
 type Connection = ReturnType<typeof createHostConnection>
+/** The adapter re-reads the machine directory this often while the page runs. */
+export const DIRECTORY_POLL_MS = 30_000
+/** The IPC view of a connection: a controller is reduced to its label and whether it is us. */
+function project(view: HostConnectionSnapshot, clientId: string | undefined) {
+  return {
+    ...view,
+    lanes: view.lanes.map(({ control, ...lane }) => ({
+      ...lane,
+      control: {
+        fence: control.fence,
+        controller: control.controller
+          ? {
+              label: control.controller.label,
+              connected: control.controller.connected,
+              self: control.controller.clientId === clientId,
+            }
+          : null,
+      },
+    })),
+  }
+}
 export interface HostPorts {
   control: BrowserControl
   socket?: (url: string) => Promise<FrameSocket>
@@ -39,7 +60,8 @@ export function createBrowserHosts(ports: HostPorts) {
     sequence = 0,
     offset = 0,
     stopped = false
-  let directoryReady = false
+  let directoryReady = false,
+    directoryAt = 0
   const changed = () =>
     queueMicrotask(() => {
       if (!stopped) ports.changed()
@@ -111,6 +133,8 @@ export function createBrowserHosts(ports: HostPorts) {
   function reconcile() {
     if (stopped || !ports.control.session()) return
     for (const [hostId, entry] of entries) {
+      // Heartbeats in a directory nobody refreshed (the page slept) prove nothing: keep the link.
+      if (entry.connection && now() - directoryAt > 2 * DIRECTORY_POLL_MS) continue
       const up = machineStatus(entry.machine, now(), offset) === 'up'
       if (!up || !hostEndpoint(entry.machine.endpoint)) {
         if (entry.connection) entry.cached = entry.connection.snapshot()
@@ -165,6 +189,7 @@ export function createBrowserHosts(ports: HostPorts) {
       }
     }
     directoryReady = true
+    directoryAt = now()
     for (const id of entries.keys())
       if (!result.machines.some((m) => m.id === id)) {
         drop(id)
@@ -209,6 +234,11 @@ export function createBrowserHosts(ports: HostPorts) {
     connection: (id: string) => entries.get(id)?.connection,
     present: (id: string) => entries.has(id),
     label: (id: string) => entries.get(id)?.machine.label ?? 'Host',
+    /**
+     * The page is visible or online again: every connection retries or probes now,
+     * before the directory refresh, which is two more round trips on a weak link.
+     */
+    wake: () => entries.forEach((entry) => entry.connection?.wake()),
     async reconnect(id: string) {
       const epoch = generation
       const result = await refresh()
@@ -220,28 +250,10 @@ export function createBrowserHosts(ports: HostPorts) {
     snapshot(): HostsSnapshot {
       const clientId = ports.control.session()?.clientId
       return Object.fromEntries(
-        [...entries].map(([id, e]) => {
-          const view = e.connection?.snapshot() ?? structuredClone(e.cached)
-          return [
-            id,
-            {
-              ...view,
-              lanes: view.lanes.map(({ control, ...lane }) => ({
-                ...lane,
-                control: {
-                  fence: control.fence,
-                  controller: control.controller
-                    ? {
-                        label: control.controller.label,
-                        connected: control.controller.connected,
-                        self: control.controller.clientId === clientId,
-                      }
-                    : null,
-                },
-              })),
-            },
-          ]
-        }),
+        [...entries].map(([id, e]) => [
+          id,
+          project(e.connection?.snapshot() ?? structuredClone(e.cached), clientId),
+        ]),
       )
     },
     dispose() {

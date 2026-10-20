@@ -45,8 +45,12 @@ preserve partial-state warnings and deduplicate qualified IDs. Incomplete
 artifact aggregation reports an error rather than a misleading complete list.
 Files and HEAD/working-copy comparisons are read-only. New lanes and existing
 lane composers accept inline images; other browser file attachments are refused
-before any lane creation/upload. Adding Host folders remains a Desktop action,
-not an unsupported browser dialog. Native terminals, file editing, provider
+before any lane creation/upload. The start screen's Repository menu offers Add
+folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
+and adds folders under the Host's home over the same Host connection
+(`hosts:listFolders`, `hosts:createFolder`, `hosts:addRepository`, through
+`libs/host-client/src/repository-management.ts`). Removing a folder stays in
+Desktop. Native terminals, file editing, provider
 installation/login and native settings are unavailable. Attention is in-app
 only, not OS push.
 
@@ -71,10 +75,14 @@ provider-ready model choices and submission receipts. The root URL opens New;
 one ready control-capable Host is selected and pinned into the URL, while
 multiple targets require a choice. An explicit missing Host never silently
 switches. Model precedence is last valid choice, a validated native preference
-when available, then the first usable catalogue model. Fallback is disclosed;
-no configured Host default or cross-device preference sync is claimed. The
-searchable model dialog and thinking selector are shared. Isolation changes are
-memory-only in the browser, preserving native preference persistence.
+when available, then the first usable catalogue model. The model dialog
+discloses which rule chose it; no configured Host default or cross-device
+preference sync is claimed. The searchable model dialog and thinking selector
+are shared. Isolation changes are memory-only in the browser, preserving native
+preference persistence. Under the composer sit only the machine, repository and
+isolation row and at most one status line (a warning, missing control or
+missing repository). The composer keeps its field across reconnections to the
+same Host; only the model picker restarts with a new connection.
 
 Both clients use bundled Inter and the same tokens. The shared loading surface
 appears during browser account initialization, with explicit sanitized recovery;
@@ -122,6 +130,33 @@ an anonymous recovery message and Retry, not signed-in content or a claim that
 the account is signed out. Hashed asset caching is bounded. Updates do not force activation
 or reload over an unsent draft. Offline shell availability is not offline Host
 access or successful authentication.
+
+### Sleep and reconnection
+
+A dropped Host connection retries with jittered exponential backoff: 1 s,
+doubling to 60 s, and at least 30 s after a rate limit
+(`libs/host-client/src/retry.ts`). A phone that slept comes back with that
+retry far away. So when the page becomes visible, returns from the back-forward
+cache or comes back online, the adapter wakes every connection before it
+re-reads the account and machine directory:
+
+- A connection waiting out its backoff retries at once, except through a rate
+  limit.
+- A connection that still looks open is pinged. If no pong arrives within 8 s,
+  it is replaced.
+
+Directory heartbeats count only while the directory is fresh (two 30 s polls).
+A directory that went stale while the page slept cannot mark a Host down.
+
+While a Host is connecting or reconnecting, the UI keeps what it showed:
+
+- The lane list keeps the last-known lanes. Their rows hold actions until the
+  Host is ready.
+- An open lane stays mounted.
+- Its composer stays typeable for the lane's controller. Send is held, and a
+  `Reconnecting…` note says why.
+
+Only a Host that is down replaces these with an instruction.
 
 ## Build and deployment
 

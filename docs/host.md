@@ -444,7 +444,7 @@ variable directly names the config file.
 | `pi.executable`          | What `command -v pi` prints.                                                                                                                                                        |
 | `pi.node`                | The node that runs pi. Required when `pi.executable` resolves to a Node script, as an npm-installed pi does.                                                                        |
 | `resourceRoot`           | Holds `pi-ext/` and `skills/`. Defaults to the running bundle's own folder.                                                                                                         |
-| `repositories`           | 0 to 64 folders that sessions may run in. Never `/`. Add folders from Desktop or `setup --repository PATH --replace`.                                                               |
+| `repositories`           | 0 to 64 folders that sessions may run in. Never `/`. Add folders from Desktop, the web client or `setup --repository PATH --replace`.                                               |
 | `contextBudget`          | Desktop's grammar; `""` or absent is the 200k default. A value Desktop would quietly replace with the default, such as `77k`, is an error.                                          |
 | `environment.pass`       | Up to 64 more variable names for pi. Names only, never values. Naming `PATH` or a hook below is an error.                                                                           |
 | `environment.path`       | Up to 32 more PATH folders.                                                                                                                                                         |

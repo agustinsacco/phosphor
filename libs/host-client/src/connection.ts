@@ -2,6 +2,8 @@ import type { TerminalFrame } from '@phosphor/shared/host-protocol-terminals'
 import { browserCrypto, type IdentityCrypto } from './crypto'
 import { createHandshake } from './handshake'
 import { readyView } from './ready-view'
+import { createRetry, WAKE_PROBE_MS } from './retry'
+export { WAKE_PROBE_MS } from './retry'
 import { createRequests, type CommandResult } from './requests'
 export type { CommandResult, NotSent } from './requests'
 import { isEndpoint, type GrantIssueResponse } from '@phosphor/shared/control-api'
@@ -57,8 +59,8 @@ export function createHostConnection(ports: {
   }
   let socket: FrameSocket | null = null,
     stopped = false,
-    attempt = 0,
     generation = 0
+  const retry = createRetry(later, () => void connect(), now, ports.random)
   let trace = ''
   let challenge = '',
     key = '',
@@ -197,14 +199,7 @@ export function createHostConnection(ports: {
       return
     }
     update({ state: 'reconnecting', lastError: error ?? 'disconnected' })
-    const delay =
-      Math.min(60_000, 1000 * 2 ** Math.min(attempt++, 6)) * (ports.random ?? Math.random)()
-    later(
-      () => {
-        void connect()
-      },
-      Math.max(code === 4429 || error === 'too-many-requests' ? 30_000 : 0, delay),
-    )
+    retry.schedule(code === 4429 || error === 'too-many-requests')
   }
   function renew(expiresAt: string) {
     later(
@@ -257,7 +252,7 @@ export function createHostConnection(ports: {
       }
       for (const timer of timers) clearTimeout(timer)
       timers.clear()
-      attempt = 0
+      retry.reset()
       lastPong = now()
       runtimeEpoch = f.hello.runtimeEpoch
       requests.prepareReplay()
@@ -499,6 +494,14 @@ export function createHostConnection(ports: {
       })
     },
     attention: () => structuredClone(attention),
+    /** The page is back: retry now, or prove that a socket which slept still answers. */
+    wake() {
+      if (stopped) return
+      if (view.state !== 'ready') return void retry.wake()
+      const sent = now()
+      if (!write({ type: 'ping', at: sent })) socket?.close(1000, 'Transport failed')
+      else later(() => lastPong < sent && socket?.close(1000, 'Wake timeout'), WAKE_PROBE_MS)
+    },
     close() {
       attention.length = 0
       challenge = ''

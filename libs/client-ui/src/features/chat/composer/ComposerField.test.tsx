@@ -112,6 +112,38 @@ describe('ComposerField', () => {
     expect(field().selectionStart).toBe(8)
   })
 
+  describe('on a phone soft keyboard', () => {
+    beforeEach(() => {
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('coarse') }))
+    })
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('adds a line on Return instead of sending', () => {
+      const onSubmit = vi.fn()
+      render(<Harness initial="first line" onSubmit={onSubmit} />)
+      caretAt(10)
+      const event = press('Enter')
+      expect(onSubmit).not.toHaveBeenCalled()
+      // The browser inserts the newline; the field must not have swallowed it.
+      expect(event.defaultPrevented).toBe(false)
+    })
+
+    it('continues a list on Return', () => {
+      render(<Harness initial="- one" />)
+      caretAt(5)
+      press('Enter')
+      expect(field().value).toBe('- one\n- ')
+    })
+
+    it('still sends on a hardware keyboard chord', () => {
+      const onSubmit = vi.fn()
+      render(<Harness initial="hello" onSubmit={onSubmit} />)
+      caretAt(5)
+      press('Enter', { ctrlKey: true })
+      expect(onSubmit).toHaveBeenCalledOnce()
+    })
+  })
+
   it('renumbers as an ordered list grows', () => {
     render(<Harness initial="1. one" />)
     caretAt(6)

@@ -1,4 +1,4 @@
-import { repositoryManagement } from '../hosts/repository-management'
+import { repositoryManagement } from '@phosphor/host-client/repository-management'
 import { repositoryReads } from '../hosts/repository-reads'
 import { machineReads } from '../hosts/machine-reads'
 import { registerHostSettingsHandlers } from './host-settings-handlers'

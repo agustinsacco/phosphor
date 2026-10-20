@@ -1,6 +1,6 @@
 import type { HostConnectionView } from '@shared/ipc'
 import { useMachinesStore } from '@/stores/machines'
-import { useRemoteLanesStore, connectionLabel } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, connectionLabel, hostReconnecting } from '@/stores/remoteLanes'
 import { RemoteLaneGroups } from '@/features/sessions/RemoteLaneGroups'
 import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
@@ -69,7 +69,11 @@ function MachineLaneList({
   inbox: boolean
 }): React.JSX.Element {
   const { navigate } = useNavigation()
-  const readable = host?.state === 'ready' && host.capabilities.includes('sessions.read')
+  // While the Host retries, its last-known lanes stay listed; their rows hold actions until ready.
+  const readable =
+    !!host &&
+    (host.state === 'ready' || hostReconnecting(host.state)) &&
+    host.capabilities.includes('sessions.read')
   const lanes = readable ? host.lanes.filter((lane) => !inbox || lane.attention > lane.read) : []
   return (
     <section key={machine.id} className="space-y-3">
@@ -80,7 +84,9 @@ function MachineLaneList({
         <p role="status">
           {host?.state === 'ready'
             ? 'Lane reading is unavailable on this Host.'
-            : 'Machine not connected. Its lanes may need attention.'}
+            : hostReconnecting(host?.state)
+              ? 'Connecting…'
+              : 'Machine not connected. Its lanes may need attention.'}
         </p>
       ) : lanes.length === 0 ? (
         <p>{inbox ? 'No unread attention on this machine.' : 'No lanes yet.'}</p>

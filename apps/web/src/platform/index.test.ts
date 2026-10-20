@@ -43,7 +43,7 @@ it('has a concrete callable handler for exactly the supported classification', (
     control: proxy,
     hosts: proxy,
     lanes: proxy,
-    resources: { machines: proxy, repositories: proxy, ...proxy },
+    resources: { machines: proxy, repositories: proxy, folders: proxy, ...proxy },
     prefs: proxy,
     drafts: proxy,
   } as never)
@@ -60,7 +60,8 @@ it('has a concrete callable handler for exactly the supported classification', (
     hosts: proxy,
     lanes: proxy,
     resources: new Proxy(nested, {
-      get: (_t, key) => (key === 'machines' || key === 'repositories' ? proxy : noop),
+      get: (_t, key) =>
+        ['machines', 'repositories', 'folders'].includes(String(key)) ? proxy : noop,
     }),
     prefs: proxy,
     drafts: proxy,

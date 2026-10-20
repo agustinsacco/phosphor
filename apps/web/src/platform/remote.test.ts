@@ -9,6 +9,14 @@ import { browserCrypto } from '@phosphor/host-client/crypto'
 
 const disposals: (() => void)[] = []
 afterEach(() => disposals.splice(0).forEach((dispose) => dispose()))
+/** The page lifecycle of the latest setup: `resume()` is the page coming back from sleep. */
+const lifecycle = {
+  resume: () => {},
+  subscribe(listener: () => void) {
+    lifecycle.resume = listener
+    return () => {}
+  },
+}
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } })
 async function setup(
@@ -136,7 +144,7 @@ async function setup(
     socket,
     storage: null,
     invalidation: null,
-    lifecycle: { subscribe: () => () => {} },
+    lifecycle,
     ...(options.proof ? { identity: { ...browserCrypto, verify: options.proof } } : {}),
   })
   // Adapter closes first, before the synthetic Host services.
@@ -234,6 +242,16 @@ it('drops a delayed identity proof after logout; it cannot publish ready or subs
   expect(await s.api.invoke('hosts:snapshot')).toEqual({})
   expect(s.frames.some((f) => f.frame.type === 'subscribe')).toBe(false)
 })
+it('probes every Host the moment the page comes back, before the directory refresh', async () => {
+  const s = await setup()
+  await s.ready()
+  const pings = () => s.frames.filter(({ frame }) => frame.type === 'ping').map((f) => f.host)
+  expect(pings()).toEqual([])
+  lifecycle.resume()
+  // Heartbeat pings are 20s apart; these come from the wake, not the timer.
+  await vi.waitFor(() => expect(pings().sort()).toEqual(s.machines.map((m) => m.id).sort()))
+})
+
 it('renews short-lived grants in memory without registering a new client', async () => {
   const s = await setup({ expires: 5 })
   await s.ready()

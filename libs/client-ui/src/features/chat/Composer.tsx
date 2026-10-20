@@ -1,7 +1,8 @@
 import {
   useRemoteLanesStore,
   canControlSession,
-  REMOTE_NOT_READY,
+  canDraftSession,
+  remoteNotReady,
   REMOTE_UNAVAILABLE,
 } from '@/stores/remoteLanes'
 import { hostResourceKey } from '@shared/remote-host'
@@ -427,9 +428,9 @@ export function Composer({
     <div className="shrink-0 px-3 pb-4 pt-1 sm:px-5">
       <ComposerStrips sessionId={sessionId} />
 
-      {disconnected && <p className="mx-auto max-w-3xl text-sm">{REMOTE_NOT_READY}</p>}
+      {disconnected && <p className="mx-auto max-w-3xl text-sm">{remoteNotReady(host?.state)}</p>}
       <fieldset
-        disabled={remote && !canControlSession(sessionId)}
+        disabled={remote && !canDraftSession(sessionId)}
         className="relative mx-auto min-w-0 max-w-3xl"
       >
         <ComposerInput
@@ -468,7 +469,7 @@ export function Composer({
                 <StopIconButton onClick={() => void abort()} />
               ) : (
                 <SubmitIconButton
-                  disabled={!text.trim() && images.length === 0}
+                  disabled={(!text.trim() && !images.length) || !canControlSession(sessionId)}
                   onClick={() => void send()}
                   label="Send message"
                 />

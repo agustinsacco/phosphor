@@ -147,6 +147,65 @@ it('disables a disconnected remote composer and restores it from the ready snaps
   }
 })
 
+/* A phone on a flaky link reconnects every few seconds. The draft is local, so typing must
+ * survive a reconnect: disabling the field dropped focus and the soft keyboard mid-word. */
+it('keeps the field typeable while the Host reconnects, and holds only Send', async () => {
+  const { useSessionsStore } = await import('@/stores/sessions')
+  const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+  const { mockRemoteInfo, mockRemoteHosts, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID])
+  if (!host?.lanes[0]?.control.controller) throw new Error('Missing host')
+  host.lanes[0].control.controller.self = true
+  useSessionsStore.setState({
+    live: {
+      [mockRemoteInfo.sessionId]: { ...mockRemoteInfo, phosphorId: mockRemoteInfo.sessionId },
+    },
+  })
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  useChatStore.getState().ensure(mockRemoteInfo.sessionId)
+  const draftKey = hostResourceKey(
+    { kind: 'remote', hostId: MOCK_HOST_ID },
+    'session',
+    mockRemoteInfo.laneId ?? '',
+  )
+  const el = document.createElement('div')
+  document.body.append(el)
+  const root = createRoot(el)
+  try {
+    await act(async () =>
+      root.render(
+        <Composer
+          sessionId={mockRemoteInfo.sessionId}
+          workspacePath={mockRemoteInfo.workspacePath}
+        />,
+      ),
+    )
+    const textarea = el.querySelector('textarea')!
+    textarea.focus()
+    await act(async () => useDraftsStore.getState().setText(draftKey, 'half a thou'))
+    for (const state of ['reconnecting', 'connecting'] as const) {
+      await act(async () =>
+        useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: { ...host, state } } }),
+      )
+      expect(el.querySelector('fieldset')?.disabled).toBe(false)
+      expect(document.activeElement).toBe(textarea)
+      expect(el.querySelector<HTMLButtonElement>('[aria-label="Send message"]')?.disabled).toBe(
+        true,
+      )
+      expect(el.textContent).toContain('Reconnecting')
+    }
+    await act(async () => useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } }))
+    expect(el.querySelector<HTMLButtonElement>('[aria-label="Send message"]')?.disabled).toBe(false)
+    expect(textarea.value).toBe('half a thou')
+  } finally {
+    act(() => root.unmount())
+    el.remove()
+    useDraftsStore.getState().setText(draftKey, '')
+    useRemoteLanesStore.setState({ hosts: {} })
+    useSessionsStore.setState({ live: {} })
+  }
+})
+
 it.each(['prompt', 'abort'] as const)(
   'reports a rejected remote %s once and preserves the draft',
   async (action) => {

@@ -23,6 +23,14 @@ function machineHandlers(machines: ReturnType<typeof createBrowserResources>['ma
     'hosts:skills': machines.skills,
   } satisfies Partial<BrowserHandlers>
 }
+/** The Host's folder dialog; the folders are the Host's, so the browser can browse them too. */
+function folderHandlers(folders: ReturnType<typeof createBrowserResources>['folders']) {
+  return {
+    'hosts:listFolders': folders.folders,
+    'hosts:createFolder': folders.createFolder,
+    'hosts:addRepository': folders.add,
+  } satisfies Partial<BrowserHandlers>
+}
 export function createBrowserHandlers(ports: {
   control: BrowserControl
   hosts: BrowserHosts
@@ -64,6 +72,7 @@ export function createBrowserHandlers(ports: {
     'control:renameMachine': (id, label) => directoryMutation(control.rename(id, label)),
     'control:removeMachine': (id) => directoryMutation(control.remove(id)),
     ...machineHandlers(resources.machines),
+    ...folderHandlers(resources.folders),
     'hosts:repositoryFiles': resources.repositories.list,
     'hosts:repositoryFile': resources.repositories.read,
     'hosts:snapshot': hosts.snapshot,

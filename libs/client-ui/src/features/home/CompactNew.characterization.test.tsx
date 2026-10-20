@@ -110,6 +110,31 @@ it('submits the Host-scoped draft and guards another send until acceptance', asy
   expect(useDraftsStore.getState().drafts[key]).toBeUndefined()
   expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
 })
+it('keeps the same focused field while a flaky Host reconnects', async () => {
+  await render()
+  const field = el.querySelector('textarea')!
+  act(() => field.focus())
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  for (const [state, connectionToken] of [
+    ['reconnecting', 'attempt-1'],
+    ['connecting', 'attempt-2'],
+    ['ready', 'attempt-3'],
+  ] as const)
+    await act(async () =>
+      useRemoteLanesStore.setState({
+        hosts: { [MOCK_HOST_ID]: { ...host, state, connectionToken } },
+      }),
+    )
+  expect(el.querySelector('textarea')).toBe(field)
+  expect(document.activeElement).toBe(field)
+})
+it('keeps the space under the composer to its target row', async () => {
+  await render()
+  expect(el.textContent).toContain('Available model')
+  expect(el.textContent).not.toContain('takes control')
+  expect(el.textContent).not.toContain('Using the first available model')
+  expect(el.querySelectorAll('.remote-start-note')).toHaveLength(0)
+})
 it('keeps a newer draft when the old prompt receipt completes after unmount', async () => {
   await render()
   await send()
@@ -254,4 +279,35 @@ it('exposes an owner cleanup for repository targets, model and thinking memory',
   expect(useRemoteComposer.getState().repositories).toEqual({})
   expect(useRemoteModelPicks.getState().last).toEqual({})
   expect(useRemoteModelPicks.getState().thinking).toEqual({})
+})
+it('adds a folder on the Host from the browser, as Desktop does', async () => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  useRemoteLanesStore.setState({
+    hosts: {
+      [MOCK_HOST_ID]: { ...host, capabilities: [...host.capabilities, 'workspaces.write'] },
+    },
+  })
+  const listing = {
+    path: '',
+    truncated: false,
+    entries: [{ name: 'Projects', isRepository: false, configured: false }],
+  }
+  const invoke = vi
+    .spyOn(window.phosphor, 'invoke')
+    .mockImplementation((async (channel: string) =>
+      channel === 'hosts:listFolders' ? listing : undefined) as never)
+  Element.prototype.scrollIntoView = vi.fn()
+  await render()
+  await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Repository"]')!.click())
+  const add = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) =>
+    option.textContent?.startsWith('Add folder on'),
+  )
+  expect(add).toBeDefined()
+  expect(add!.getAttribute('aria-disabled')).not.toBe('true')
+  await act(async () => add!.click())
+  expect(invoke).toHaveBeenCalledWith('hosts:listFolders', MOCK_HOST_ID, '', false)
+  expect(document.body.textContent).toContain(
+    "Choose a folder under this machine's home directory.",
+  )
+  expect(document.body.textContent).toContain('Projects')
 })

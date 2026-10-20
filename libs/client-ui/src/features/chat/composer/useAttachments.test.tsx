@@ -70,3 +70,60 @@ it('bounds picks before retaining bytes and reports a global-budget refusal with
   await act(async () => pick(file()))
   expect(change).not.toHaveBeenCalled()
 })
+/* A phone photo, as a browser hands it over: 4032×3024 and too big to send whole. */
+function cameraPhoto() {
+  const photo = new File(['full-size'], 'IMG_0001.jpg', { type: 'image/jpeg' })
+  Object.defineProperty(photo, 'size', { value: 12 * 1024 * 1024 })
+  return photo
+}
+function stubCanvas() {
+  const drawn: [number, number][] = []
+  vi.stubGlobal(
+    'createImageBitmap',
+    vi.fn(async () => ({ width: 4032, height: 3024, close: () => {} })),
+  )
+  vi.stubGlobal(
+    'OffscreenCanvas',
+    class {
+      constructor(
+        readonly width: number,
+        readonly height: number,
+      ) {}
+      getContext() {
+        return { drawImage: (...args: number[]) => drawn.push([args[3]!, args[4]!]) }
+      }
+      async convertToBlob({ type }: { type: string }) {
+        return new Blob(['small'], { type })
+      }
+    },
+  )
+  return drawn
+}
+it('shrinks a Host-bound photo before it is read, so it fits a prompt frame', async () => {
+  const drawn = stubCanvas()
+  try {
+    await act(async () => root.render(<Harness />))
+    await act(async () => pick(cameraPhoto()))
+    expect(reject).not.toHaveBeenCalled()
+    expect(drawn).toEqual([[2000, 1500]])
+    expect(change).toHaveBeenCalledWith([
+      { kind: 'image', data: btoa('small'), mimeType: 'image/jpeg', name: 'IMG_0001.jpg' },
+    ])
+  } finally {
+    vi.unstubAllGlobals()
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  }
+})
+it('sends a local session its image as it is', async () => {
+  const drawn = stubCanvas()
+  try {
+    await act(async () => root.render(<Harness remote={false} />))
+    const photo = new File(['full-size'], 'IMG_0001.jpg', { type: 'image/jpeg' })
+    await act(async () => pick(photo))
+    expect(drawn).toEqual([])
+    expect(change).toHaveBeenCalledWith([expect.objectContaining({ data: btoa('full-size') })])
+  } finally {
+    vi.unstubAllGlobals()
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  }
+})
