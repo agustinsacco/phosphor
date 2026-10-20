@@ -165,6 +165,175 @@ html[data-form-factor='compact'] {
   background: var(--px-bg-secondary);
   border-radius: var(--px-radius-sm);
 }
+/* A phone's lane header: Back, then the title that opens the lane menu. */
+.compact-lane-header {
+  min-height: 52px;
+  gap: 2px;
+  padding-inline-start: max(4px, env(safe-area-inset-left));
+}
+.compact-header > button.compact-lane-title {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  padding: 4px 8px;
+  border-radius: var(--px-radius-sm);
+  background: transparent;
+  color: var(--px-text);
+  text-align: left;
+}
+.compact-lane-title:active {
+  background: var(--px-bg-secondary);
+}
+.compact-lane-title-text {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.compact-lane-title-text > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.compact-lane-title-text svg {
+  flex-shrink: 0;
+  color: var(--px-text-tertiary);
+}
+.compact-lane-status {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 5px;
+  color: var(--px-text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.compact-lane-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--px-text-tertiary);
+}
+.compact-lane-dot[data-tone='success'] {
+  background: var(--px-success);
+}
+.compact-lane-dot[data-tone='warning'] {
+  background: var(--px-warning);
+}
+.lane-sheet {
+  width: 100vw;
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--px-border);
+  border-radius: var(--px-radius-lg) var(--px-radius-lg) 0 0;
+  background: var(--px-surface-raised);
+  color: var(--px-text);
+}
+.lane-sheet-grab {
+  width: 36px;
+  height: 4px;
+  margin: 0 auto 10px;
+  border-radius: 2px;
+  background: var(--px-border-strong);
+}
+.lane-sheet-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px 12px;
+  border-bottom: 1px solid var(--px-border);
+  font-size: 14.5px;
+}
+.lane-sheet-group {
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+}
+.lane-sheet-label {
+  padding: 6px 8px 2px;
+  color: var(--px-text-tertiary);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.lane-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+  border-radius: var(--px-radius-sm);
+  background: transparent;
+  color: var(--px-text);
+  font-size: 14.5px;
+  text-align: left;
+}
+.lane-sheet-item:active:not(:disabled) {
+  background: var(--px-bg-secondary);
+}
+.lane-sheet-item:disabled {
+  opacity: 0.5;
+}
+.lane-sheet-item[aria-current='page'],
+.lane-sheet-item[aria-current='page'] .lane-sheet-icon {
+  color: var(--px-accent);
+  font-weight: 550;
+}
+.lane-sheet-danger,
+.lane-sheet-danger .lane-sheet-icon {
+  color: var(--px-danger);
+}
+.lane-sheet-icon {
+  display: flex;
+  width: 20px;
+  flex-shrink: 0;
+  justify-content: center;
+  color: var(--px-text-secondary);
+}
+.lane-sheet-stop {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  background: currentColor;
+}
+.lane-sheet-hint {
+  display: block;
+  color: var(--px-text-tertiary);
+  font-size: 12px;
+}
+.lane-sheet-error {
+  padding: 6px 8px;
+  color: var(--px-danger);
+  font-size: 12.5px;
+}
+/* Stands in for the composer when this device is only reading the lane. */
+.compact-observer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 4px 12px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius-lg);
+  background: var(--px-bg-secondary);
+  color: var(--px-text-secondary);
+  font-size: 13px;
+}
+.compact-observer > [role='status'] {
+  flex: 1;
+  min-width: 10rem;
+}
+.compact-observer > [role='alert'] {
+  flex-basis: 100%;
+  color: var(--px-danger);
+}
 .compact-list {
   display: flex;
   width: 100%;
