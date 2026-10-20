@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/form'
+import { WaitingNote, WaitingPane } from '@/components/Waiting'
 import { PlusIcon, SidebarToggleIcon } from '@/components/icons'
 import { useNavigation } from '@/navigation/Navigation'
 import { GlobalScreen } from '@/navigation/screens'
@@ -110,12 +111,7 @@ function BrowserScreen({
         This machine is no longer in your account.
       </p>
     )
-  if (pending)
-    return (
-      <p role="status" className="p-4">
-        Opening…
-      </p>
-    )
+  if (pending) return <WaitingPane title="Opening…" />
   if (location.to === 'lane')
     return (
       <CompactLane
@@ -153,13 +149,15 @@ function ChooseMachine(): React.JSX.Element {
   return (
     <section className="compact-list browser-empty" aria-label="Choose a machine">
       <h1>Your workspace, wherever you are.</h1>
-      <p>
-        {loading
-          ? 'Checking your machines…'
-          : machines.length
+      {loading ? (
+        <WaitingNote>Checking your machines…</WaitingNote>
+      ) : (
+        <p>
+          {machines.length
             ? 'Choose a machine above to continue.'
             : 'No machines yet. Add a Host from Machines.'}
-      </p>
+        </p>
+      )}
       <Button onClick={() => navigate({ to: 'page', page: 'machines' })}>Machines</Button>
     </section>
   )

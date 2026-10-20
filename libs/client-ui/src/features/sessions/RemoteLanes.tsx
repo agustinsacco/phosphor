@@ -1,5 +1,4 @@
 import { groupRemoteLanes, type RemoteLaneGroup } from './groupRemoteLanes'
-import { machineReachability } from '@/features/machines/machineReachability'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
 import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
@@ -7,7 +6,7 @@ import { RemoteLaneRow } from './RemoteLaneRow'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { SearchIcon, MoreIcon, PlusIcon } from '@/components/icons'
 import { WorkspaceGroupHeader, WorkspaceGroupTitle } from './SidebarPrimitives'
-import { MachineLabelLine } from './MachineSwitcher'
+import { MachineLabelLine, machineStateText } from './MachineSwitcher'
 import { LaneSearchBar } from './LaneSearchBar'
 import { laneMatches, laneQueryTerms } from './laneSearch'
 import { TooltipButton } from '@/components/Tooltip'
@@ -32,6 +31,7 @@ export function RemoteLanes(): React.JSX.Element | null {
   const machines = useMachinesStore((s) => s.machines)
   const now = useMachinesStore((s) => s.nowMs + s.clockOffsetMs)
   const error = useRemoteLanesStore((s) => s.error)
+  const loading = useRemoteLanesStore((s) => s.snapshotStatus === 'loading')
   if (!enabled || filter === 'local') return null
   const ids =
     filter === 'all'
@@ -60,12 +60,12 @@ export function RemoteLanes(): React.JSX.Element | null {
             ) : (
               <div className="text-text-tertiary px-2 py-3 text-sm">
                 {!hosts[id] || hosts[id].state === 'no-address'
-                  ? (() => {
-                      const machine = machines.find((m) => m.id === id)
-                      return machine
-                        ? machineReachability(machine, hosts[id]?.state, now || Date.now()).short
-                        : 'Not reachable yet'
-                    })()
+                  ? machineStateText(
+                      hosts[id],
+                      machines.find((m) => m.id === id),
+                      now,
+                      loading,
+                    )
                   : REMOTE_NOT_READY}
               </div>
             )}

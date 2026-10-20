@@ -2,9 +2,10 @@ import { useLayoutStore } from '@/stores/layout'
 import { TooltipButton } from '@/components/Tooltip'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
+import { WaitingPane } from '@/components/Waiting'
 import {
+  connectingTo,
   hostReconnecting,
-  machineLabel,
   openRemoteLane,
   useRemoteLanesStore,
 } from '@/stores/remoteLanes'
@@ -58,11 +59,7 @@ export function CompactLane({
     }
   }, [hostId, laneId, ready, navigationReady, attempt])
   if (snapshotStatus === 'idle' || snapshotStatus === 'loading')
-    return (
-      <p role="status" className="p-4">
-        Connecting to machines…
-      </p>
-    )
+    return <WaitingPane title="Connecting to your machines…" />
   if (snapshotStatus === 'error')
     return (
       <p role="alert" className="p-4">
@@ -78,12 +75,17 @@ export function CompactLane({
   // A lane already on screen stays there while its Host retries: a phone that
   // slept reconnects every time it wakes, and swapping the lane out lost its place.
   const reconnecting = hostReconnecting(host.state)
-  if (!ready && !(reconnecting && lane && session))
+  if (reconnecting && !(lane && session))
+    return (
+      <WaitingPane
+        title={connectingTo(hostId, host.state)}
+        detail="This lane opens when it answers."
+      />
+    )
+  if (!ready && !reconnecting)
     return (
       <p role="status" className="p-4">
-        {reconnecting
-          ? `Reconnecting to ${machineLabel(hostId)}…`
-          : 'Machine not connected. Open Machines to reconnect.'}
+        Machine not connected. Open Machines to reconnect.
       </p>
     )
   if (failed)
@@ -94,11 +96,7 @@ export function CompactLane({
       </div>
     )
   if (!session || !navigationReady)
-    return (
-      <p role="status" className="p-4">
-        Opening lane…
-      </p>
-    )
+    return <WaitingPane title="Opening lane…" detail={lane?.title ?? undefined} />
   return <LanePanes location={location} navigate={navigate} session={session} />
 }
 

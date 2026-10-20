@@ -149,10 +149,13 @@ and older-Host compatibility are in [Creating lanes](host.md#creating-lanes).
 
 An unavailable selection stays selected and disabled. Failure never starts a local session instead.
 
-Remote header and pane chips report Connected, Reconnecting or Down from the
-connection snapshot. Directory-down Hosts retain greyed, disabled lanes labelled
-"last known". The composer and panes show "Machine not connected. Wait for
-reconnection." while disconnected, then recover from snapshots without reload.
+Remote header and pane chips report Connected, Connecting (first attempt),
+Reconnecting or Down from the connection snapshot. Directory-down Hosts retain
+greyed, disabled lanes labelled "last known". While a Host connects or
+reconnects, the composer is locked with its draft under a spinner note naming
+the machine, and the header holds its control buttons. A down Host's composer
+and panes show "Machine not connected. Wait for reconnection." Both recover
+from snapshots without reload.
 
 Machines detail keeps Readiness and adds On this machine: lanes, skills, routines
 and artifacts, only for announced capabilities. Counts that fail to load say
@@ -326,7 +329,9 @@ signals from their existing summaries (`working`, `attention > read`, and
 session markers/unread counts, pending extension dialogs and chat errors.
 The button summarizes only machines other than the selected one.
 
-Reconnecting uses an amber pulsing status dot. Down machines show a grey dot,
+Reconnecting uses an amber pulsing status dot, and the sidebar says
+"Connecting…" for a Host that is connecting, reconnecting or not yet in the
+first Host snapshot, never "Not reachable". Down machines show a grey dot,
 the directory's last-seen age, and last-known groups with disabled lane and
 creation actions. A Host that is enrolled but not yet connected shows the
 reachability rule's short phrase (for example "Not reachable yet" or "Never
