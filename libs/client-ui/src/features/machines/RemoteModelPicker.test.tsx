@@ -25,7 +25,7 @@ import { useDraftsStore, homeDraftKey } from '@/stores/drafts'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
-it.each(['ready', 'down'] as const)(
+it.each(['ready', 'down', 'reconnecting'] as const)(
   'no usable model refuses creation with an honest %s hint',
   async (state) => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -63,6 +63,10 @@ it.each(['ready', 'down'] as const)(
         )!
         act(() => signIn.click())
         expect(useMachinesStore.getState().view).toEqual({ kind: 'machine', id: MOCK_HOST_ID })
+      } else if (state === 'reconnecting') {
+        // A Host that is coming back waits; it is not reported as disconnected.
+        expect(document.body.textContent).toContain('Connecting…')
+        expect(document.body.textContent).not.toContain('Machine not connected')
       } else {
         expect(document.body.textContent).toContain('Machine not connected. Wait for reconnection.')
         expect(document.body.textContent).not.toContain('No signed-in model')

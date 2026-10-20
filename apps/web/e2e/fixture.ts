@@ -73,9 +73,7 @@ export async function browserFixture(production = false) {
       hostPort = 0
     const sockets = new Set<Socket>()
     const hostSockets = new Set<Socket>()
-    const interruptHost = () => {
-      for (const socket of hostSockets) socket.destroy()
-    }
+    const gate = hostGate(hostSockets)
     const server = createServer(async (req, res) => {
       try {
         if (state.offline) {
@@ -293,7 +291,7 @@ export async function browserFixture(production = false) {
     // Transparent local transport mapping, not a TLS proxy or production fallback.
     // Preserve the browser Origin; rewrite only the loopback Host authority/path.
     server.on('upgrade', (req, socket, head) => {
-      if (production || req.url !== '/fixture-host' || req.headers.origin !== origin) {
+      if (production || gate.held || req.url !== '/fixture-host' || req.headers.origin !== origin) {
         socket.destroy()
         return
       }
@@ -321,7 +319,7 @@ export async function browserFixture(production = false) {
       socket.pipe(upstream).pipe(socket)
     })
     if (production)
-      return { origin, state, hostId, close, owners, laneId: '', secondLaneId: '', interruptHost }
+      return { origin, state, hostId, close, owners, laneId: '', secondLaneId: '', ...gate.api }
 
     const reserve = createServer()
     await new Promise<void>((done) => reserve.listen(0, '127.0.0.1', done))
@@ -507,12 +505,32 @@ export async function browserFixture(production = false) {
       owners,
       laneId: lanes[0]!,
       secondLaneId: lanes[1]!,
-      interruptHost,
+      ...gate.api,
     }
   } catch (error) {
     await close()
     throw error
   }
+}
+
+/** Drops the Host's live sockets, or keeps it unreachable until released (a phone waking offline). */
+function hostGate(sockets: Set<Socket>) {
+  const gate = {
+    held: false,
+    api: {
+      interruptHost: () => {
+        for (const socket of sockets) socket.destroy()
+      },
+      holdHost: () => {
+        gate.held = true
+        gate.api.interruptHost()
+        return () => {
+          gate.held = false
+        }
+      },
+    },
+  }
+  return gate
 }
 
 async function stop(child: ChildProcess) {
