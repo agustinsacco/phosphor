@@ -280,3 +280,34 @@ it('exposes an owner cleanup for repository targets, model and thinking memory',
   expect(useRemoteModelPicks.getState().last).toEqual({})
   expect(useRemoteModelPicks.getState().thinking).toEqual({})
 })
+it('adds a folder on the Host from the browser, as Desktop does', async () => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  useRemoteLanesStore.setState({
+    hosts: {
+      [MOCK_HOST_ID]: { ...host, capabilities: [...host.capabilities, 'workspaces.write'] },
+    },
+  })
+  const listing = {
+    path: '',
+    truncated: false,
+    entries: [{ name: 'Projects', isRepository: false, configured: false }],
+  }
+  const invoke = vi
+    .spyOn(window.phosphor, 'invoke')
+    .mockImplementation((async (channel: string) =>
+      channel === 'hosts:listFolders' ? listing : undefined) as never)
+  Element.prototype.scrollIntoView = vi.fn()
+  await render()
+  await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Repository"]')!.click())
+  const add = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) =>
+    option.textContent?.startsWith('Add folder on'),
+  )
+  expect(add).toBeDefined()
+  expect(add!.getAttribute('aria-disabled')).not.toBe('true')
+  await act(async () => add!.click())
+  expect(invoke).toHaveBeenCalledWith('hosts:listFolders', MOCK_HOST_ID, '', false)
+  expect(document.body.textContent).toContain(
+    "Choose a folder under this machine's home directory.",
+  )
+  expect(document.body.textContent).toContain('Projects')
+})
