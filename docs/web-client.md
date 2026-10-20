@@ -45,8 +45,12 @@ preserve partial-state warnings and deduplicate qualified IDs. Incomplete
 artifact aggregation reports an error rather than a misleading complete list.
 Files and HEAD/working-copy comparisons are read-only. New lanes and existing
 lane composers accept inline images; other browser file attachments are refused
-before any lane creation/upload. Adding Host folders remains a Desktop action,
-not an unsupported browser dialog. Native terminals, file editing, provider
+before any lane creation/upload. The start screen's Repository menu offers Add
+folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
+and adds folders under the Host's home over the same Host connection
+(`hosts:listFolders`, `hosts:createFolder`, `hosts:addRepository`, through
+`libs/host-client/src/repository-management.ts`). Removing a folder stays in
+Desktop. Native terminals, file editing, provider
 installation/login and native settings are unavailable. Attention is in-app
 only, not OS push.
 

@@ -1,5 +1,4 @@
 import { useRef, useState, type ReactNode, type RefObject } from 'react'
-import { usePlatform } from '@/platform/Platform'
 import { ComposerInput } from '@/features/chat/composer/ComposerInput'
 import type { SlashMenu } from '@/features/chat/composer/useSlashMenu'
 import { RemoteModelPicker } from '@/features/machines/RemoteModelPicker'
@@ -109,7 +108,6 @@ function RemoteStartTargets({
   machinePicker?: ReactNode
 }): React.JSX.Element {
   const [addingFolder, setAddingFolder] = useState(false)
-  const { nativeFiles } = usePlatform()
   return (
     <>
       <div className="remote-start-targets">
@@ -125,16 +123,11 @@ function RemoteStartTargets({
               label: repo.name,
               disabled: c.busy,
             })),
-            ...(nativeFiles
-              ? [
-                  {
-                    value: '__add__',
-                    label: `Add folder on ${machineLabel(hostId)}…`,
-                    disabled:
-                      c.busy || !c.ready || !c.host?.capabilities.includes('workspaces.write'),
-                  },
-                ]
-              : []),
+            {
+              value: '__add__',
+              label: `Add folder on ${machineLabel(hostId)}…`,
+              disabled: c.busy || !c.ready || !c.host?.capabilities.includes('workspaces.write'),
+            },
           ]}
           onChange={(id) => {
             if (id === '__add__') setAddingFolder(true)
@@ -148,7 +141,7 @@ function RemoteStartTargets({
         </ChoiceMenu>
         <IsolateToggle checked={c.isolate} disabled={c.busy} />
       </div>
-      {addingFolder && nativeFiles && (
+      {addingFolder && (
         <HostFolderBrowser
           hostId={hostId}
           onClose={() => setAddingFolder(false)}

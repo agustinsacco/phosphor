@@ -51,6 +51,10 @@
     "./routines": {
       "types": "./src/routines.ts",
       "default": "./src/routines.ts"
+    },
+    "./repository-management": {
+      "types": "./src/repository-management.ts",
+      "default": "./src/repository-management.ts"
     }
   },
   "dependencies": {

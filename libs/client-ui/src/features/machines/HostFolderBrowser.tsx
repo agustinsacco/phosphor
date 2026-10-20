@@ -39,6 +39,11 @@ function NewFolderRow({
         aria-label="New folder name"
         placeholder="Folder name"
         maxLength={255}
+        // A phone keyboard must not capitalise or "correct" a folder name; Return creates it.
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
+        enterKeyHint="done"
         value={name}
         disabled={busy}
         onChange={(e) => setName(e.target.value)}

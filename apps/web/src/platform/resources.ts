@@ -1,5 +1,6 @@
 import { machineReads } from '@phosphor/host-client/machine-reads'
 import { repositoryReads } from '@phosphor/host-client/repository-reads'
+import { repositoryManagement } from '@phosphor/host-client/repository-management'
 import { readFeature } from '@phosphor/host-client/read-features'
 import {
   createArtifactHost,
@@ -17,7 +18,6 @@ import type { BrowserHosts } from './hosts'
 
 export function createBrowserResources(hosts: BrowserHosts, lanes: RemoteLanes) {
   const machines = machineReads(hosts.connection)
-  const repositories = repositoryReads(hosts.connection)
   const routines = createRemoteRoutines({
     connection: hosts.connection,
     hosts: () => Object.keys(hosts.snapshot()),
@@ -71,7 +71,8 @@ export function createBrowserResources(hosts: BrowserHosts, lanes: RemoteLanes) 
   }
   return {
     machines,
-    repositories,
+    repositories: repositoryReads(hosts.connection),
+    folders: repositoryManagement(hosts.connection),
     clear: routines.clear,
     read(channel: IpcInvokeChannel, args: unknown[]) {
       const key = args[0]

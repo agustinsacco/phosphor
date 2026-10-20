@@ -601,6 +601,7 @@ workspace group menus can remove the configuration entry with confirmation;
 files are kept. The folder browser uses the Host home as its root and never
 opens a local folder picker. Show hidden lists dot folders for that dialog only.
 New folder creates one folder in the folder being viewed and opens it, so Add
-this folder adds it; it needs control capability. An older Host's refusal says to
+this folder adds it; it needs control capability. On a phone the name field
+neither capitalises nor autocorrects, and Return creates the folder. An older Host's refusal says to
 update it. Skills, Artifacts and Routines default to the sidebar
 machine, with a window-local page override reset by the next sidebar change.

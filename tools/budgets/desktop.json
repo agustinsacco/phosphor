@@ -70,7 +70,6 @@
     "electron/main.ts::file": 425,
     "electron/main.ts::createWindow[1]": 87,
     "electron/routines/runner.ts::executeRoutine[1]": 187,
-    "electron/hosts/repository-management.ts::repositoryManagement[1]": 93,
     "electron/hosts/traffic-log.ts::createTrafficLog[1]": 219,
     "electron/hosts/traffic-log.ts::createTrafficLog[1]/inbound[1]": 87,
     "electron/pi/session-tree.test.ts::describe[1]/it[6]": 82

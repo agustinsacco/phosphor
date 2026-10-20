@@ -1,8 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { HostConnectionSnapshot } from './connection'
-import type { HostFrame, Receipt } from '@shared/host-protocol'
+import type { HostFrame, Receipt } from '@phosphor/shared/host-protocol'
 import { repositoryManagement } from './repository-management'
-import { FOLDER_EXISTS, HOST_TOO_OLD } from '@shared/host-protocol-repositories'
+import { FOLDER_EXISTS, HOST_TOO_OLD } from '@phosphor/shared/host-protocol-repositories'
 const laneId = '12345678-1234-4234-8234-123456789abc'
 let view: HostConnectionSnapshot, generation: number
 const call = vi.fn<(...args: unknown[]) => Promise<Extract<HostFrame, { type: 'result' }>>>()

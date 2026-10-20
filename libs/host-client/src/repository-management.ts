@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto'
-import { parseClientFrame, type LaneOp } from '@shared/host-protocol'
+import { parseClientFrame, type LaneOp } from '@phosphor/shared/host-protocol'
 import {
   parseFolderParams,
   parseFolderList,
@@ -7,29 +6,52 @@ import {
   isRepositoryId,
   FOLDER_EXISTS,
   HOST_TOO_OLD,
-} from '@shared/host-protocol-repositories'
+} from '@phosphor/shared/host-protocol-repositories'
 import type { createHostConnection } from './connection'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
-export function repositoryManagement(
-  connection: (
-    hostId: string,
-  ) =>
-    | Pick<ReturnType<typeof createHostConnection>, 'snapshot' | 'incarnation' | 'call' | 'send'>
-    | undefined,
+/** Only for shape validation: the connection mints each frame's real request id. */
+const PROBE_REQUEST = '00000000-0000-4000-8000-000000000000'
+
+type Connection = Pick<
+  ReturnType<typeof createHostConnection>,
+  'snapshot' | 'incarnation' | 'call' | 'send'
+>
+
+/**
+ * The Host's connection, if it is ready and may write workspaces, with a check that it still is
+ * the same connection once a reply arrives: a reply from a replaced socket proves nothing.
+ */
+function admit(
+  connection: (hostId: string) => Connection | undefined,
+  hostId: string,
+  control: boolean,
 ) {
-  function admitted(hostId: string, control: boolean) {
-    const c = connection(hostId)
-    if (!c) throw new Error(REMOTE_UNAVAILABLE)
-    const generation = c.incarnation().generation
-    const available = () =>
-      connection(hostId) === c &&
-      c.incarnation().generation === generation &&
-      c.snapshot().state === 'ready' &&
-      c.snapshot().capabilities.includes('workspaces.write') &&
-      (!control || c.snapshot().capabilities.includes('sessions.control'))
-    if (!available()) throw new Error(REMOTE_UNAVAILABLE)
-    return { c, available }
-  }
+  const c = connection(hostId)
+  if (!c) throw new Error(REMOTE_UNAVAILABLE)
+  const generation = c.incarnation().generation
+  const available = () =>
+    connection(hostId) === c &&
+    c.incarnation().generation === generation &&
+    c.snapshot().state === 'ready' &&
+    c.snapshot().capabilities.includes('workspaces.write') &&
+    (!control || c.snapshot().capabilities.includes('sessions.control'))
+  if (!available()) throw new Error(REMOTE_UNAVAILABLE)
+  return { c, available }
+}
+
+function refusal(code: string | undefined, op: LaneOp): string {
+  return code === 'last-repository'
+    ? 'A machine needs at least one folder. Add another first.'
+    : code === 'conflict' && op.type === 'host.repositories.createFolder'
+      ? FOLDER_EXISTS
+      : code === 'unsupported'
+        ? HOST_TOO_OLD
+        : 'The remote change was not confirmed.'
+}
+
+/** Folder browsing and repository changes on a Host, shared by Desktop and the browser. */
+export function repositoryManagement(connection: (hostId: string) => Connection | undefined) {
+  const admitted = (hostId: string, control: boolean) => admit(connection, hostId, control)
   async function command(hostId: string, op: LaneOp, laneId?: string) {
     const { c, available } = admitted(hostId, true)
     const fence = laneId
@@ -38,24 +60,14 @@ export function repositoryManagement(
     if (laneId && fence === undefined) throw new Error(REMOTE_UNAVAILABLE)
     if (
       !parseClientFrame(
-        JSON.stringify({ type: 'command', requestId: randomUUID(), op, laneId, fence }),
+        JSON.stringify({ type: 'command', requestId: PROBE_REQUEST, op, laneId, fence }),
       ).ok
     )
       throw new Error(REMOTE_UNAVAILABLE)
     const result = await c.send(op, laneId, fence)
     if (!available()) throw new Error(REMOTE_UNAVAILABLE)
-    if (result.status !== 'done') {
-      const code = result.status === 'rejected' ? result.code : undefined
-      throw new Error(
-        code === 'last-repository'
-          ? 'A machine needs at least one folder. Add another first.'
-          : code === 'conflict' && op.type === 'host.repositories.createFolder'
-            ? FOLDER_EXISTS
-            : code === 'unsupported'
-              ? HOST_TOO_OLD
-              : 'The remote change was not confirmed.',
-      )
-    }
+    if (result.status !== 'done')
+      throw new Error(refusal(result.status === 'rejected' ? result.code : undefined, op))
     return result.data
   }
   return {
