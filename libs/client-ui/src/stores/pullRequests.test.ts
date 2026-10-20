@@ -38,6 +38,13 @@ describe('repoPullRequests', () => {
 })
 
 describe('refresh', () => {
+  it('queries the Host even when this client has no gh installed', async () => {
+    usePullRequestsStore.setState({ available: false })
+    const key = 'host:00000000-0000-4000-8000-000000000001/repo:1234567890abcdef'
+    await usePullRequestsStore.getState().refresh(key)
+    expect(invoke).toHaveBeenCalledWith('gh:prsForRepo', key)
+    expect(pullRequestFor(usePullRequestsStore.getState(), key, 'feat/a')?.number).toBe(412)
+  })
   it('fetches and indexes, then joins by branch', async () => {
     await usePullRequestsStore.getState().refresh(REPO)
     const state = usePullRequestsStore.getState()
