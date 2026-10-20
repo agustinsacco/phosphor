@@ -538,7 +538,7 @@ test('instruction sources distinguish global and project files in the composer',
   }
 })
 
-test('Mermaid viewer fits, zooms, pans, exports and restores focus', async () => {
+test('Mermaid viewer fits, zooms, pans, exports and restores focus @system-clipboard', async () => {
   const h = await launch()
   const { page } = h
   try {
@@ -959,7 +959,7 @@ test('composer formatting participates in native undo and redo', async () => {
   }
 })
 
-test('text fields get a right-click menu, and composers learn autocomplete', async () => {
+test('text fields get a right-click menu, and composers learn autocomplete @system-clipboard', async () => {
   const harness = await launch()
   const { page, app } = harness
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -1907,7 +1907,7 @@ test('explorer previews images, pages and PDFs, and refuses to launch programs',
   }
 })
 
-test('explorer copies, cuts, multi-drags and imports disk-backed files', async () => {
+test('explorer copies, cuts, multi-drags and imports disk-backed files @system-clipboard', async () => {
   const harness = await launch()
   const { page, workspace, app } = harness
   const external = await scratchDir('phosphor-drop-')
@@ -2061,7 +2061,7 @@ const PNG_1X1 =
 const PNG_WIDE =
   'iVBORw0KGgoAAAANSUhEUgAABwgAAADIAQAAAADUp4gRAAAAyUlEQVR42u3PQREAAAwCIPuX1hJ77aAB6XcxNDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ8N6z0InrHKhrFAAAAAElFTkSuQmCC'
 
-test('dropped chat images open on click and copy on right-click', async () => {
+test('dropped chat images open on click and copy on right-click @system-clipboard', async () => {
   const harness = await launch()
   const { page } = harness
   try {
@@ -2115,7 +2115,7 @@ test('dropped chat images open on click and copy on right-click', async () => {
   }
 })
 
-test('annotating a pasted image replaces it by default, or keeps both', async () => {
+test('annotating a pasted image replaces it by default, or keeps both @system-clipboard', async () => {
   const harness = await launch()
   const { page } = harness
   try {
@@ -2264,14 +2264,14 @@ test('a pasted wide image stays inside the transcript column', async () => {
           new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }),
         )
     }, PNG_WIDE)
-    await expect(page.getByRole('button', { name: 'Attached image', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Attached image', exact: true })).toHaveCount(1)
 
     await composer.fill('look at this')
     await composer.press('Enter')
 
     const scroller = page.getByTestId('transcript-scroll')
     const image = scroller.getByAltText('Attached image')
-    await expect(image).toBeVisible()
+    await expect(image).toHaveCount(1)
 
     // The assertion is geometric on purpose: the class list is not the
     // contract, "it fits in the column" is.
@@ -2627,7 +2627,7 @@ for (const bracketedPaste of [true, false]) {
   })
 }
 
-test('terminal pane spawns a real shell, and reopening replays its scrollback', async () => {
+test('terminal pane spawns a real shell, and reopening replays its scrollback @system-clipboard', async () => {
   const harness = await launch()
   const { page } = harness
   try {

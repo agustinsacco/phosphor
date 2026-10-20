@@ -63,6 +63,15 @@ windows on a virtual display, full speed) and otherwise leaves windows unmapped
 slower because Chromium deprioritizes a window that was never shown.
 `PHOSPHOR_E2E_SHOW=1 npm run test:e2e` shows them on your display.
 
+Hidden windows still share your system clipboard. Desktop tests tagged
+`@system-clipboard` are excluded locally, including when selected with `-g`:
+otherwise a background run can replace a copied screenshot with a test image or
+text such as `phosphor_menu_paste_9d3c`. CI runs these cases. To run them locally,
+explicitly opt in with `PHOSPHOR_E2E_CLIPBOARD=1 npm run test:e2e`; do not use the
+clipboard during that run. Synthetic paste/drop tests need no opt-in and never
+write to the system clipboard. We do not save and restore the clipboard: restoring
+an old snapshot could overwrite something you copied while the suite was running.
+
 ## Layout and helpers
 
 Tests currently live beside their subjects as `*.test.ts` or `*.test.tsx` across

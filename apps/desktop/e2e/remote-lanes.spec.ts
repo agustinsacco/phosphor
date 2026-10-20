@@ -133,7 +133,7 @@ test('Home composer sends only after controlled remote creation', async () => {
   }
 })
 
-test('Remote row menu is complete, gated and durable', async ({
+test('Remote row menu is complete, gated and durable @system-clipboard', async ({
   browserName: _browserName,
 }, info) => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
