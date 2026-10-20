@@ -4,7 +4,7 @@ import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
 import { subagentPolicyBlock } from '@shared/agent-directives'
 import type { AgentDirectivePrefs } from '@shared/models'
 import { Row, SectionTitle, Toggle } from '@/components/form'
-import { useActiveWorkspace } from '@/stores/workspaces'
+import { useSettingsWorkspace } from '../SettingsMachineScope'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { machinePromptBlock } from '@shared/machine-prompt'
 import { useAccount } from '../useAccount'
@@ -27,7 +27,7 @@ import { errorText } from '@shared/errors'
  *    the life of the lane.
  */
 export function DirectivesSection(): React.JSX.Element {
-  const workspace = useActiveWorkspace()
+  const workspace = useSettingsWorkspace()
   const { view } = useAccount()
   const signedIn = view?.account.status === 'signed-in'
   const [scope, setScope] = useState<'global' | 'project'>('global')

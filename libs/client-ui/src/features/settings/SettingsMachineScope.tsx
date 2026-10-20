@@ -3,6 +3,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
+import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useSettingsUiStore, type SettingsTab } from './settingsUiStore'
 
 const MACHINE_TABS: readonly SettingsTab[] = [
@@ -20,19 +21,35 @@ const MACHINE_TABS: readonly SettingsTab[] = [
   'voice',
 ]
 
+function useActiveRemoteHost(): string | null {
+  return useSessionsStore((s) => {
+    const target = s.activeSessionId ? s.live[s.activeSessionId]?.target : undefined
+    return target?.kind === 'remote' ? target.hostId : null
+  })
+}
+
+/**
+ * The machine Settings describes. An open machine detail wins, then an explicit
+ * This Mac choice in the switcher, even while a Host lane is still active.
+ */
 export function useSettingsHost(): string | null {
-  const target = useSessionsStore((s) =>
-    s.activeSessionId ? s.live[s.activeSessionId]?.target : undefined,
-  )
+  const remote = useActiveRemoteHost()
   const filter = useRemoteLanesStore((s) => s.filter)
   const page = useLayoutStore((s) => s.page)
   const view = useMachinesStore((s) => s.view)
   if (page === 'machines' && view.kind === 'machine') return view.id
-  return target?.kind === 'remote'
-    ? target.hostId
-    : filter !== 'local' && filter !== 'all'
-      ? filter
-      : null
+  if (filter === 'local') return null
+  return remote ?? (filter !== 'all' ? filter : null)
+}
+
+/**
+ * The workspace local settings read and write. A Host lane's path names a folder
+ * on that Host, so This Mac's settings use This Mac's home workspace instead.
+ */
+export function useSettingsWorkspace(): string | null {
+  const active = useActiveWorkspace()
+  const homePath = useWorkspacesStore((s) => s.homePath)
+  return useActiveRemoteHost() ? homePath : active
 }
 
 export function isMachineSettingsTab(tab: SettingsTab): boolean {

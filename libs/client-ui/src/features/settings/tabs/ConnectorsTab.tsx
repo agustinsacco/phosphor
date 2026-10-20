@@ -12,7 +12,7 @@ import {
 } from '@shared/mcp'
 import type { PiPackageEntry } from '@shared/models'
 import { errorText } from '@shared/errors'
-import { useActiveWorkspace } from '@/stores/workspaces'
+import { useSettingsWorkspace } from '../SettingsMachineScope'
 import { useConnectorsStore, type ConnectFlow } from '@/stores/connectors'
 import { FlowCard } from '@/features/connectors/FlowCard'
 import { MigrationCard, adapterPackages } from '@/features/connectors/MigrationCard'
@@ -56,7 +56,7 @@ function usesOAuth(server: McpResolvedServer): boolean {
  * `pi mcp login` / `logout`. See docs/mcp.md.
  */
 export function ConnectorsTab(): React.JSX.Element {
-  const workspacePath = useActiveWorkspace() ?? undefined
+  const workspacePath = useSettingsWorkspace() ?? undefined
   const [configs, setConfigs] = useState<McpConfigsResult | null>(null)
   const [packages, setPackages] = useState<PiPackageEntry[] | null>(null)
   const [report, setReport] = useState<McpListResult | null>(null)

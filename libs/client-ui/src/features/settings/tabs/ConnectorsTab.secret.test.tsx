@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { useConnectorsStore } from '@/stores/connectors'
 import { ConnectorsTab } from './ConnectorsTab'
 
-vi.mock('@/stores/workspaces', () => ({ useActiveWorkspace: () => '/workspace' }))
+vi.mock('../SettingsMachineScope', () => ({ useSettingsWorkspace: () => '/workspace' }))
 vi.mock('@/features/files/MonacoEditor', () => ({ MonacoEditor: () => null }))
 
 const invoke = vi.fn(async (channel: string) => {

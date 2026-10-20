@@ -188,3 +188,29 @@ test('Remote Files, Changes, controls, model and error surfaces refresh A→B→
     await h.close()
   }
 })
+
+test('Settings follows the switcher back to This Mac from a bee1 lane', async () => {
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
+  const h = await remoteHostFixture()
+  try {
+    await h.signIn()
+    await openRemote(h)
+    const settings = h.page.getByRole('dialog', { name: 'Settings', exact: true })
+    const remoteNotice = settings.getByText('Remote settings are not available here.')
+    for (const [machine, notice] of [
+      ['bee1', 1],
+      ['This Mac', 0],
+      ['bee1', 1],
+    ] as const) {
+      await selectMachine(h, machine)
+      await h.page.getByRole('button', { name: 'Settings', exact: true }).click()
+      await settings.getByRole('button', { name: 'Accounts', exact: true }).click()
+      await expect(settings).toContainText('These settings configure This Mac')
+      await expect(remoteNotice).toHaveCount(notice)
+      await settings.getByRole('button', { name: 'Close settings', exact: true }).click()
+      await expect(settings).toBeHidden()
+    }
+  } finally {
+    await h.close()
+  }
+})

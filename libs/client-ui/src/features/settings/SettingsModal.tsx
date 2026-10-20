@@ -6,7 +6,6 @@ import { CloseIcon } from '@/components/icons'
 import { useFindTarget } from '@/components/search/findTargets'
 import { useSettingsUiStore, type SettingsTab } from './settingsUiStore'
 import { EXTENSION_TABS, TABS, installedExtensionTabs } from './settingsIndex'
-import { useActiveWorkspace } from '@/stores/workspaces'
 import { highlightPattern } from './settingsQuery'
 import { revealSetting, usePaintMatches } from './settingsHighlight'
 import { SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './SettingsSearch'
@@ -28,7 +27,12 @@ import { KeybindingsTab } from './tabs/KeybindingsTab'
 import { AboutTab } from './tabs/AboutTab'
 import { FeedbackButton } from '@/features/feedback/FeedbackButton'
 
-import { isMachineSettingsTab, SettingsMachineScope, useSettingsHost } from './SettingsMachineScope'
+import {
+  isMachineSettingsTab,
+  SettingsMachineScope,
+  useSettingsHost,
+  useSettingsWorkspace,
+} from './SettingsMachineScope'
 
 const isExtensionTab = (id: SettingsTab): boolean => EXTENSION_TABS.some((t) => t.id === id)
 
@@ -40,7 +44,7 @@ export function SettingsModal(): React.JSX.Element | null {
   const open = useSettingsUiStore((s) => s.open)
   const tab = useSettingsUiStore((s) => s.tab)
   const reveal = useSettingsUiStore((s) => s.reveal)
-  const workspace = useActiveWorkspace()
+  const workspace = useSettingsWorkspace()
   const hostId = useSettingsHost()
   const [extensionTabs, setExtensionTabs] = useState<typeof EXTENSION_TABS>([])
   const dialogRef = useRef<HTMLDivElement>(null)

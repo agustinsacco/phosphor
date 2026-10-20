@@ -6,7 +6,7 @@ import { Button, Row, SectionTitle, Toggle } from '@/components/form'
 import { StatTile } from '@/components/StatTile'
 import { formatTokens } from '@/lib/format'
 import { sessionTitle } from '@/lib/sessionTitle'
-import { useActiveWorkspace } from '@/stores/workspaces'
+import { useSettingsWorkspace } from '../SettingsMachineScope'
 import { useSettingsUiStore, type SettingsTab } from '../settingsUiStore'
 import { usePackageJob } from '../usePackageJob'
 
@@ -19,7 +19,7 @@ import { usePackageJob } from '../usePackageJob'
  * never installs anything.
  */
 export function OptimizationTab(): React.JSX.Element {
-  const workspacePath = useActiveWorkspace()
+  const workspacePath = useSettingsWorkspace()
   const [status, setStatus] = useState<HeadroomStatus | null>(null)
   const [stats, setStats] = useState<OptimizationStats | null>(null)
   const [busy, setBusy] = useState(false)
