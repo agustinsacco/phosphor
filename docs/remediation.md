@@ -91,9 +91,9 @@ It merges only at 12/12 CI, squash, with `--match-head-commit`.
 - Deploy Site is path-triggered. It fails with "Deployment SHA is not the exact
   current main checkout" when a later merge lands first. Re-run it with
   `gh workflow run "Deploy Site" --ref main -f confirm=true`.
-- Host is manual and only for Host runtime changes:
-  `gh workflow run "Host Release" --ref main -f version=0.2.11` (the next
-  version).
+- Host releases itself after green CI on main when the Host changed since the
+  newest `host-v*` tag (next patch version). To force one:
+  `gh workflow run "Host Release" --ref main` (optionally `-f version=X.Y.Z`).
 - If main goes red, fix it in its own PR before merging anything else.
 
 ## Next steps, in order
