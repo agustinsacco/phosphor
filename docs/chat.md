@@ -88,6 +88,11 @@ The composer is one small field with several ways in.
   without sending. Undo removes it. Transcribed locally ([voice.md](voice.md)).
 - Images: paste or drag → thumbnails → sent as `images[]` with the prompt.
   Both composers accept attachment-only messages, including the first message.
+  If pi resizes or converts them, its appended image-processing hints confirm
+  the pending local message rather than adding a second bubble. The original
+  text and image previews stay on that row; pi's timestamp identifies it for
+  rewind. Only the known hint suffix and the same image count qualify, not
+  arbitrary appended prose or an already confirmed message.
 - Remote controllers can attach files when the ready Host announces
   `workspaces.write` and `sessions.control`. Images travel inline as on local
   lanes, but each is first fitted into 2000 px, the square pi resizes every image

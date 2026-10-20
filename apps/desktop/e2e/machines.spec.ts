@@ -108,7 +108,7 @@ test('signed-in directory walks guided enrollment, stable detail, rename and con
   }
 })
 
-test('onboarding uses one terminal command and keeps Online and Providers', async () => {
+test('onboarding uses one terminal command and keeps Online and Providers @system-clipboard', async () => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
   const info = test.info()
   const bin = await mkdtemp(join(tmpdir(), 'phosphor-tailscale-'))

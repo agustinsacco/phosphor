@@ -594,8 +594,8 @@ function handle(cmd) {
         data: { disposition: promptDisposition(cmd) },
       })
       contextTokens = CONTEXT_TOKENS
-      // Scenario switch, keyed off the prompt text: the default turn is what
-      // most tests assert on, so extra scenarios must not change it.
+      require('./image-echo.cjs')(cmd, out, persist)
+      // Scenario switches leave the default turn unchanged.
       const message = typeof cmd.message === 'string' ? cmd.message : ''
       if (message === 'LOCAL_ONLY fail-turn') {
         const failed = {
