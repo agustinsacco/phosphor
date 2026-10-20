@@ -87,6 +87,27 @@ describe('selectReclaimable', () => {
   })
 })
 
+describe('unfinished conversation regression', () => {
+  it('protects legacy sessions without an explicit completion decision', () => {
+    expect(selectReclaimable([facts()], opts).candidates).toEqual([])
+  })
+
+  it('protects a merged research lane even with no running process', () => {
+    const lane = { ...facts(), completedAtMs: null }
+    expect(selectReclaimable([lane], opts).held[0]?.reason).toBe('unfinished')
+  })
+
+  it('respects git worktree locks', () => {
+    const lane = { ...facts(), completedAtMs: NOW - 48 * HOUR, locked: true }
+    expect(selectReclaimable([lane], opts).held[0]?.reason).toBe('locked')
+  })
+
+  it('starts the grace period at completion, not an old directory timestamp', () => {
+    const lane = { ...facts(), completedAtMs: NOW - HOUR }
+    expect(selectReclaimable([lane], opts).held[0]?.reason).toBe('too-recent')
+  })
+})
+
 describe('totalBytes', () => {
   it('sums measured sizes and ignores unmeasured ones', () => {
     expect(totalBytes([{ bytes: 10 }, { bytes: null }, { bytes: 5 }])).toBe(15)
