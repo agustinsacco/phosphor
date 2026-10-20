@@ -1038,7 +1038,9 @@ the machine; the control strip names the controller. Viewers have a read-only
 composer and an explicit Take control action. There is no automatic takeover.
 Controllers can prompt, steer, queue, abort, compact, change model and thinking,
 answer dialogs, stop and resume. The machine's capabilities and current control
-are checked in main and again by the Host.
+are checked in main and again by the Host. A prompt to a stopped lane resumes it
+once and then delivers the message: a Host restart stops every lane, and sending
+is the intent to run it. Steer, follow-up and the rest stay refused.
 
 Remote creation uses the target machine's configured repositories and model
 catalogue. An unavailable Host never starts a local session instead.

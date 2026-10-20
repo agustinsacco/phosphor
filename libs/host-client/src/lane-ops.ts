@@ -3,6 +3,7 @@ import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import type { CommandResult } from './connection'
 
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
+const LANE_STOPPED = 'this lane is stopped. Press Resume at the top of the lane, then send again.'
 export const UNKNOWN_OUTCOME = 'The Host could not confirm this. Check the lane before retrying.'
 
 /** The entire remote pi allowlist. Never forward arbitrary RPC to a Host. */
@@ -35,6 +36,28 @@ export function laneOperation(command: RpcCommand): LaneOp | string | null {
   }
 }
 
+type Host = { send(op: LaneOp, laneId?: string, fence?: number): Promise<CommandResult> }
+
+/**
+ * Sending a prompt is the intent to run the lane, so a stopped lane resumes once
+ * first. A Host restart (an update, a crash) stops every lane and nothing starts
+ * pi again; without this every message came back `lane-stopped`. Only `prompt`:
+ * steer and follow-up target a running turn, and nothing else needs pi to start.
+ */
+export async function sendToLane(
+  host: Host,
+  op: LaneOp,
+  laneId: string,
+  fence?: number,
+): Promise<CommandResult> {
+  const result = await host.send(op, laneId, fence)
+  if (op.type !== 'prompt' || result.status !== 'rejected' || result.code !== 'lane-stopped')
+    return result
+  const resumed = await host.send({ type: 'lane.resume' }, laneId, fence)
+  if (resumed.status !== 'done') return resumed
+  return host.send(op, laneId, resumed.fence ?? fence)
+}
+
 export function receiptResponse(
   command: string,
   result: CommandResult,
@@ -50,7 +73,9 @@ export function receiptResponse(
         success: false,
         error: result.control?.controller
           ? `${machine}: controlled by ${result.control.controller.label}`
-          : `${machine}: ${result.code}`,
+          : result.code === 'lane-stopped'
+            ? `${machine}: ${LANE_STOPPED}`
+            : `${machine}: ${result.code}`,
       }
     case 'failed':
       return { ...base, success: false, error: result.error.message }
