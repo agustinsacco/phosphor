@@ -8,6 +8,16 @@ import { getPrefs } from '../store'
 import { decideSession, history, sessionDecision, withWorkspace } from './history'
 import { sessionPathKey } from '../pi/session-path-lock'
 
+function conversationPrefs() {
+  const prefs = getPrefs()
+  const seen = new Map<string, number>()
+  for (const [path, at] of Object.entries(prefs.seenSessions)) {
+    const key = sessionPathKey(path)
+    seen.set(key, Math.max(seen.get(key) ?? 0, at))
+  }
+  return { seen, pinned: new Set(prefs.pinnedSessions.map(sessionPathKey)) }
+}
+
 async function sessionCwd(path: string): Promise<string | null> {
   const handle = await open(path, 'r')
   try {
@@ -32,7 +42,7 @@ export async function conversationFacts(path: string) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     files = []
   }
-  const prefs = getPrefs()
+  const prefs = conversationPrefs()
   const sessions = await listSessions(path)
   const activity = await Promise.all(
     files.map(async (file) => {
@@ -41,7 +51,7 @@ export async function conversationFacts(path: string) {
       return Math.max(
         (await stat(transcript)).mtimeMs,
         decision.activityAt,
-        prefs.seenSessions[transcript] ?? 0,
+        prefs.seen.get(sessionPathKey(transcript)) ?? 0,
       )
     }),
   )
@@ -52,7 +62,7 @@ export async function conversationFacts(path: string) {
     activityAt: Math.max(
       session.mtimeMs,
       sessionDecision(session.path).activityAt,
-      prefs.seenSessions[session.path] ?? 0,
+      prefs.seen.get(sessionPathKey(session.path)) ?? 0,
     ),
   }))
   // Empty, malformed and legacy lanes require a decision, never vacuous approval.
@@ -64,7 +74,7 @@ export async function conversationFacts(path: string) {
     sessions: decisions,
     completedAtMs: complete ? Math.max(...decisions.map((s) => s.completedAt)) : null,
     lastWriteMs: Math.max(0, ...activity),
-    pinned: sessions.some((s) => prefs.pinnedSessions.includes(s.path)),
+    pinned: sessions.some((s) => prefs.pinned.has(sessionPathKey(s.path))),
   }
 }
 
@@ -131,13 +141,13 @@ export function conversationSnapshot(path: string, knownPaths: string[]) {
     files.some((file) => !knownPaths.includes(file))
   )
     throw new Error('Conversation inventory changed; kept for safety.')
-  const prefs = getPrefs()
+  const prefs = conversationPrefs()
   const decisions = files.map((file) => ({
     completedAt: sessionDecision(file).completedAt ?? 0,
     activityAt: Math.max(
       statSync(file).mtimeMs,
       sessionDecision(file).activityAt,
-      prefs.seenSessions[file] ?? 0,
+      prefs.seen.get(sessionPathKey(file)) ?? 0,
     ),
   }))
   return {
@@ -149,7 +159,7 @@ export function conversationSnapshot(path: string, knownPaths: string[]) {
       statSync(dir).mtimeMs,
       ...decisions.map((s) => s.activityAt),
     ),
-    pinned: files.some((file) => prefs.pinnedSessions.includes(file)),
+    pinned: files.some((file) => prefs.pinned.has(sessionPathKey(file))),
   }
 }
 
