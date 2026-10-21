@@ -7,6 +7,7 @@ import { useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
 import { hostResourceKey } from '@shared/remote-host'
 import { useChatStore } from '@/stores/chat'
+import { laneIsBeingDeleted } from '@/stores/sessions'
 import { useSessionsStore } from '@/stores/sessions'
 import {
   useRemoteLanesStore,
@@ -68,7 +69,9 @@ export function RemoteLaneRow({
   const [renaming, setRenaming] = useState(false)
   const [draft, setDraft] = useState('')
   const [picking, setPicking] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const deletingInBulk = useSessionsStore((s) => laneIsBeingDeleted(s.bulkDelete, key))
+  const [actionBusy, setBusy] = useState(false)
+  const busy = actionBusy || deletingInBulk
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const title = useRemoteLaneTitle(lane, hostId)
@@ -307,6 +310,7 @@ export function RemoteLaneRow({
           lane={lane}
           title={title}
           ready={ready}
+          disabled={!ready || deletingInBulk}
           active={active}
           pinned={pinned}
           marker={<LaneMarker marker={marker ?? ''} onPick={() => setPicking(true)} />}
