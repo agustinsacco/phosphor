@@ -57,6 +57,8 @@ export interface HostConnectionView {
   hostVersion?: string
   /** Host supports settings before this client requests configuration authority. */
   configurationSupported?: boolean
+  /** Host opens shells in its account's home folder, outside any lane. */
+  machineShell?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: HostLaneView[]

@@ -1637,7 +1637,8 @@ must match `--target`. Native resources and the license are included in BUILD-IN
 and signed archive hashes. The macOS spawn helper has mode 0755 in the archive.
 Linux uses node-pty's fork path and does not need the macOS helper.
 
-`terminal.list {laneId}` returns identities and status, never paths. Receipt-backed
+`terminal.list {laneId}` returns identities and status, never paths; `terminal.list {}`
+lists machine shells, whose `laneId` is empty. Receipt-backed
 `terminal.create`, `terminal.resize` and `terminal.kill` require `terminal`,
 `sessions.control`, and the current lane fence. Queued terminal operations recheck
 both capabilities when execution starts and after directory admission, before PTY
@@ -1651,6 +1652,15 @@ Client disconnects leave PTYs running. Lane removal kills them within one second
 even without a connected client. Host shutdown kills them; after restart, retained
 identities are `interrupted`. Only identities and status persist in private Host
 state. Input and scrollback never reach disk. A routine never types into a terminal.
+
+A machine shell is `terminal.create` with no lane and no fence. A Host that
+announces `terminal` sets `machineShell: true` in `ready`. The shell is the
+account's login shell in its home folder, with the same environment and `TERM`
+as a lane shell. Admission, queued start and dispatch require `terminal` and
+`sessions.control`. Any such client may watch, type, resize or kill it: it has no
+lane controller and no owner. Machine shells share the per-lane limit as one
+scope, count toward the Host limit, are never persisted and do not survive a
+Host restart.
 
 A terminal sends one `terminal.exit`. A process that ends by itself reports its
 own exit code. One the Host ends (kill, lane removal, shutdown, or a provider

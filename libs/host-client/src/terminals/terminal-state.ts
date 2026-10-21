@@ -1,9 +1,10 @@
-import { randomUUID } from 'node:crypto'
-import type { createHostConnection } from './connection'
+import type { createHostConnection } from '../connection'
 
 export type TerminalConnection = ReturnType<typeof createHostConnection>
 export interface TerminalLane {
   machine?: boolean
+  /** A shared machine shell: closing a window detaches from it instead of killing it. */
+  shell?: boolean
   configuration?: boolean
   hostId: string
   laneId: string
@@ -45,7 +46,7 @@ export function createTerminalEntry(
   >,
 ): RemoteTerminalEntry {
   return {
-    id: `remote-pty-${randomUUID()}`,
+    id: `remote-pty-${crypto.randomUUID()}`,
     ...identity,
     inputSeq: 0,
     synchronized: false,

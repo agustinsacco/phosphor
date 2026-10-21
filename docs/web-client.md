@@ -57,8 +57,10 @@ folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creat
 and adds folders under the Host's home over the same Host connection
 (`hosts:listFolders`, `hosts:createFolder`, `hosts:addRepository`, through
 `libs/host-client/src/repository-management.ts`). Removing a folder stays in
-Desktop. Native terminals, file editing, provider
-installation/login and native settings are unavailable. Attention is in-app
+Desktop. Host terminals work: lane shells and the Machine page's shell
+([terminal.md](terminal.md#machine-shells)), plus plain provider sign-in. File
+editing, provider installation, account configuration and native settings are
+unavailable. Attention is in-app
 only, not OS push.
 
 `PageShell` owns each page's single heading, actions and close behavior;
