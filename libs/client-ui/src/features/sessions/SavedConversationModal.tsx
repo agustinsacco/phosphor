@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { AgentMessage } from '@shared/rpc'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { Button } from '@/components/form'
+import { TooltipSummary } from '@/components/Tooltip'
 import { Markdown } from '@/components/markdown/Markdown'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { userMessageImages, userMessageText } from '@/features/chat/messageContent'
@@ -87,7 +88,7 @@ function SavedMessage({ message }: { message: AgentMessage }): React.JSX.Element
   if (message.role === 'bashExecution')
     return (
       <details>
-        <summary>{message.command}</summary>
+        <TooltipSummary>{message.command}</TooltipSummary>
         <pre className="whitespace-pre-wrap break-words">{message.output}</pre>
       </details>
     )
@@ -107,12 +108,12 @@ function SavedMessage({ message }: { message: AgentMessage }): React.JSX.Element
             <Markdown key={i} inAppLinks={false} text={block.text} />
           ) : block.type === 'thinking' && block.thinking ? (
             <details key={i}>
-              <summary>Thinking</summary>
+              <TooltipSummary>Thinking</TooltipSummary>
               <Markdown inAppLinks={false} text={block.thinking} />
             </details>
           ) : block.type === 'toolCall' ? (
             <details key={i}>
-              <summary>{block.name}</summary>
+              <TooltipSummary>{block.name}</TooltipSummary>
               <pre className="whitespace-pre-wrap break-words">
                 {JSON.stringify(block.arguments, null, 2)}
               </pre>
@@ -123,10 +124,10 @@ function SavedMessage({ message }: { message: AgentMessage }): React.JSX.Element
   )
   return message.role === 'toolResult' ? (
     <details>
-      <summary>
+      <TooltipSummary>
         {message.toolName}
         {message.isError ? ' · error' : ''}
-      </summary>
+      </TooltipSummary>
       {content}
     </details>
   ) : (

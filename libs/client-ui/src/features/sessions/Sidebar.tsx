@@ -22,7 +22,11 @@ import { isUnseen } from './unseen'
 import { SessionList, useSessionOrderActions } from './SessionList'
 import { orderedSessions } from './sessionOrder'
 import { sessionSubtitle } from './sessionSubtitle'
-import { completionActions, openSidebarConversation } from './completionActions'
+import {
+  completionActions,
+  openSidebarConversation,
+  useSavedConversation,
+} from './completionActions'
 import { PrBadge, openPullRequest } from './PrBadge'
 import { LaneMarker } from './LaneMarker'
 import { BulkDeleteModal } from './BulkDeleteModal'
@@ -55,7 +59,6 @@ import {
   SubtitleSegments,
 } from './SidebarPrimitives'
 import { TreeViewModal } from './TreeViewModal'
-import { SavedConversationModal } from './SavedConversationModal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { laneHaystack, laneMatches, laneQueryTerms, type LaneSearchFields } from './laneSearch'
 import { UpdatePill } from '@/features/updates/UpdatePill'
@@ -83,6 +86,10 @@ const MarkerPickerModal = lazy(() =>
   import('./MarkerPickerModal').then((module) => ({ default: module.MarkerPickerModal })),
 )
 
+const SavedConversationModal = lazy(() =>
+  import('./SavedConversationModal').then((module) => ({ default: module.SavedConversationModal })),
+)
+
 const SIDEBAR_WIDTH_KEY = 'phosphor:sidebarWidth'
 const SIDEBAR_MIN = 208
 const SIDEBAR_MAX = 420
@@ -101,6 +108,7 @@ export function Sidebar({
   workspacePath: string
   onInitialReady?: (ready: boolean) => void
 }): React.JSX.Element {
+  const savedConversation = useSavedConversation((s) => s.meta)
   const machineFilter = useRemoteLanesStore((s) => s.filter)
   const disk = useSessionsStore((s) => s.disk)
   const scanStatus = useSessionsStore((s) => s.scanStatus)
@@ -1197,7 +1205,11 @@ export function Sidebar({
         <AccountFooter />
       </div>
 
-      <SavedConversationModal />
+      {savedConversation && (
+        <Suspense fallback={null}>
+          <SavedConversationModal />
+        </Suspense>
+      )}
       {treeFor && (
         <TreeViewModal
           meta={treeFor}
