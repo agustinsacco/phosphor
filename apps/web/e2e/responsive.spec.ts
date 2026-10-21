@@ -38,9 +38,7 @@ test('shared full pages fit phone, tablet and wide layouts with consistent font 
       }, theme)
       // Hydrate the preference through the same reload path as a returning browser.
       await page.goto(`${stack.origin}/new/${stack.hostId}`)
-      await expect(page.getByRole('button', { name: 'Model', exact: true })).toContainText(
-        'HOST_A_ONLY',
-      )
+      await expect(page.getByTestId('remote-model-picker')).toContainText('HOST_A_ONLY')
       await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /^(?!.*dark)/)
       await page.evaluate(() => document.fonts.ready)
       expect(await page.evaluate(() => document.fonts.check('14px Inter'))).toBe(true)
@@ -102,9 +100,16 @@ test('browser creation rejects file uploads before mutation and keeps isolation 
   await page.getByRole('option', { name: /^Add folder on/ }).click()
   await expect(page.getByText("Choose a folder under this machine's home directory.")).toBeVisible()
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await page.getByRole('button', { name: 'Model', exact: true }).click()
+  await page.getByTestId('remote-model-picker').click()
   await page.getByRole('searchbox', { name: 'Search models' }).fill('no-such-model')
   await expect(page.getByText('No matching models.')).toBeVisible()
+  await page.keyboard.press('Escape')
+  // Wide browsers use the same model menu as Desktop; phones keep their dialog.
+  await page.setViewportSize({ width: 1280, height: 850 })
+  await expect(page.locator('html')).toHaveAttribute('data-form-factor', 'expanded')
+  await page.getByTestId('remote-model-picker').click()
+  await page.getByTestId('model-search').fill('no-such-model')
+  await expect(page.getByText('No models match “no-such-model”.')).toBeVisible()
   await page.keyboard.press('Escape')
   const after = await page.evaluate(() => window.phosphor.invoke('hosts:snapshot'))
   expect(after[stack.hostId]?.lanes).toEqual(before[stack.hostId]?.lanes)
