@@ -1,9 +1,14 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SetupCancelled } from '../commands/setup-terminal'
 import { fakeTerminal } from './__fixtures__/fake-terminal'
 import { createScreen, screenFor } from './screen'
 import { startSpinner } from './spinner'
 import { painter } from './theme'
+
+// A screen is only drawn outside CI (ui/terminal.ts), and Clack's task log
+// stops redrawing when CI=true, so these run as a person's terminal does.
+beforeEach(() => vi.stubEnv('CI', undefined))
+afterEach(() => vi.unstubAllEnvs())
 
 describe('screen', () => {
   it('draws a command as one rail: its title, blocks, rows and closing line', () => {
