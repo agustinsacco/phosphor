@@ -1,5 +1,6 @@
 import type { ClaudeRoutingMode, ClaudeUsageSnapshot } from './models'
 import type { ThinkingLevel } from './rpc'
+import type { MachineAgentBehavior } from './machine-agent-behavior'
 import { machineRecord, type MachineClaude, type MachineProvider } from './host-protocol-machine'
 import { MCP_SERVER_NAME, type McpServerConfig } from './mcp'
 import { text, keys, repositoryId } from './machine-settings-fields'
@@ -25,7 +26,7 @@ export interface MachineAccount {
   usage: ClaudeUsageSnapshot | null
   lanes: { id: string; title: string; active: boolean }[]
 }
-export interface MachineAgentDefaults {
+export interface MachineAgentDefaults extends MachineAgentBehavior {
   defaultProvider?: string
   defaultModel?: string
   defaultThinkingLevel?: ThinkingLevel
@@ -62,9 +63,18 @@ export type MachineSettings = {
     malformed: boolean
   }
   projectTrusted?: boolean
+  agentBehaviorSupported?: boolean
   agent?: MachineAgentDefaults
   resources?: {
-    packages: { spec: string; name: string; version?: string; installed: boolean; scope: string }[]
+    packages: {
+      spec: string
+      name: string
+      version?: string
+      installed: boolean
+      scope: string
+      filtered?: boolean
+      contents?: { extensions: number; skills: number; prompts: number; themes: number }
+    }[]
   }
   advanced?: {
     platform: string

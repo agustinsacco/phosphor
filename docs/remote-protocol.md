@@ -136,6 +136,14 @@ repository id, never a caller path. Patches name an allowlisted change and the
 current SHA-256 revision; they preserve unrelated settings. A lost reply is
 uncertain, not a reason to replay the mutation automatically.
 
+Agent reads advertise additive `agentBehaviorSupported: true` before clients offer
+compaction/retry, thinking-visibility and message-delivery edits. Older Hosts
+remain readable and show an upgrade explanation for those controls. Agent patches
+allow only reviewed bounded fields, preserve unknown nested settings, and never
+materialize inherited machine defaults into a folder. Resource responses may
+include reviewed package content counts and a resource-filter indicator; older
+responses without these fields remain valid.
+
 Configuration calls serialize through a bounded eight-entry service queue.
 File commits recheck the current revision and live authority immediately before
 an atomic rename. Losing configuration authority advances an admission epoch;

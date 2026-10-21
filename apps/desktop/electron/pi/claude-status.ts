@@ -14,27 +14,7 @@ const execFileAsync = promisify(execFile)
 export function parseClaudeAuthStatus(stdout: string): ClaudeAuthStatus {
   const start = stdout.indexOf('{')
   if (start === -1) return { ok: false, error: stdout.trim().slice(0, 200) || 'no output' }
-  try {
-    const parsed = JSON.parse(stdout.slice(start)) as {
-      loggedIn?: unknown
-      authMethod?: unknown
-      email?: unknown
-      subscriptionType?: unknown
-      orgName?: unknown
-      orgId?: unknown
-    }
-    return {
-      ok: true,
-      loggedIn: parsed.loggedIn === true,
-      orgId: typeof parsed.orgId === 'string' ? parsed.orgId : undefined,
-      plan: typeof parsed.subscriptionType === 'string' ? parsed.subscriptionType : undefined,
-      organization: typeof parsed.orgName === 'string' ? parsed.orgName : undefined,
-      method: typeof parsed.authMethod === 'string' ? parsed.authMethod : undefined,
-      email: typeof parsed.email === 'string' ? parsed.email : undefined,
-    }
-  } catch {
-    return { ok: false, error: 'unparseable auth status output' }
-  }
+  return parseAccountAuthStatus(stdout)
 }
 
 /** Extract a version like "2.1.219" from mixed CLI output. */

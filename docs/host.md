@@ -156,10 +156,16 @@ are terminals:
    An existing confirmed identity is kept.
 5. Install and start the user service unless it is already installed and running.
 6. Enable the Tailscale Serve route, keeping an existing correct route, and show its address.
-7. Offer Claude setup if needed: Anthropic's installer for missing Claude Code,
+7. With approval, install the standard headless-safe pi packages: the Claude Code
+   provider (`@saccolabs/pi-claude-cli`), Swarm subagents (`pi-subagents`) and web
+   access (`pi-web-access`). Already installed packages, pins and resource filters
+   are left alone; missing installations retain their configured spec on repair.
+   Computer use is not included. A declined install can be completed later from
+   Machine Settings → Skills & extensions, or by rerunning setup.
+8. Offer Claude setup if needed: Anthropic's installer for missing Claude Code,
    `pi install npm:@saccolabs/pi-claude-cli` for a missing or outdated provider,
    and interactive `claude` sign-in when needed. Each command needs approval.
-8. Show configured folders, or how to add one from Desktop.
+9. Show configured folders, or how to add one from Desktop.
 
 The terminal output is one aligned checklist and a final ready or fix line.
 Prompts read one line and default to Yes. Without a terminal, a prompt never
@@ -646,9 +652,14 @@ use the Host's pi agent directory. Folder scope resolves a registered repository
 id, verifies its realpath identity, and applies only when pi trusts that folder.
 Registration itself is not trust or a filesystem sandbox.
 
-Settings commits read bounded owned regular files without following final
-symlinks, preserve unrelated fields, check the revision and current authorization,
-and rename an exclusive private temporary file atomically. Repository management
+Settings reads accept owner-controlled pi configuration created with a normal
+002 umask (664 files / 775 directories); credentials and Host identity retain their
+separate private-file requirements. World-writable files/directories, foreign
+owners, hard links and final symlinks are refused. Commits read bounded regular
+files, preserve unrelated fields (including nested compaction/retry settings),
+check the revision and current authorization, and atomically rename an exclusive
+0600 temporary file. Folder agent editors show only that folder's overrides,
+not a merged copy of machine defaults. Repository management
 shares their process-local lock. This is not a cross-process compare-and-swap.
 A lost response can mean the edit applied; clients must inspect rather than replay
 it automatically. Host policy and pi defaults are separate file commits.
