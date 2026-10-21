@@ -56,6 +56,8 @@ it('recovers a failed first read without restoring or resuming, and closes with 
   expect(document.querySelector('textarea')).toBeNull()
   expect(read).toHaveBeenCalledTimes(2)
   expect(read).toHaveBeenLastCalledWith('/sessions/old.jsonl')
-  act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+  await act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+  })
   expect(document.querySelector('[role="dialog"]')).toBeNull()
 })
