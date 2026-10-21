@@ -24,9 +24,13 @@ every library import against the package's exports.
 ### Install from a release
 
 This repository builds signed bundles, manifests and an installer for Linux x64,
-Linux arm64 and macOS arm64. The manual **Host Release** workflow
-(`.github/workflows/release-host.yml`, run from main with a version higher than
-every published one, after main's CI passed for that exact commit) builds all
+Linux arm64 and macOS arm64. The **Host Release** workflow
+(`.github/workflows/release-host.yml`) runs after every green CI push to main and
+publishes the next patch version when Nx reports `host` affected since the newest
+`host-v*` tag, unless the merge carries a `Skip-Release: true` trailer. Run by hand
+from main, it releases that commit as the given version (higher than every
+published one) or the next patch. Either way it requires main's CI to have passed
+for that exact commit. It builds all
 three, signs the manifest with the `HOST_RELEASE_SIGNING_KEY` secret, verifies the
 signature against the pinned keys, and publishes `host-v<version>`. It then
 replaces the unversioned manifest, its signature and the installer on the rolling
@@ -1231,7 +1235,9 @@ lane stops its runtime session and detaches it. An unexpected exit keeps the
 failed projection. Successful model, thinking and name changes refresh state.
 
 Resume uses the stored cwd and session file, never a fresh transcript. A missing
-or null recorded file fails to start. Stop and model changes learn pi's current
+or null recorded file fails to start. A cwd removed outside Phosphor (a worktree
+deleted by hand) fails before pi starts, with a message telling the user to
+delete the lane, which still works. Stop and model changes learn pi's current
 file and update the lane index.
 An extension move followed by daemon shutdown or a crash before either can leave
 the stored file stale ([HL1](known-issues.md#host-lanes)).
@@ -1359,7 +1365,10 @@ No value can start with `-`, so none can become one of pi's flags. A file that
 one of this Host's sessions is running on is not started twice: a second start
 is refused, even one racing the first, and a file a session may be moving to
 counts too (see [Session commands](#session-commands)). A deletion names only
-`repository` and `sessionPath`. It refuses a running session, cancels a start of
+`repository` and `sessionPath`. Its `repository` may be a folder that no longer
+exists, as long as its canonical path (deepest existing ancestor resolved) is
+inside a configured repository: a worktree removed by hand leaves its transcript
+behind, and the lane must stay deletable. It refuses a running session, cancels a start of
 the same file still under way, and unlinks only one of pi's session files: a
 regular `.jsonl`, not a link, directly in a folder of pi's session root. All of
 this holds within one Host process: a pi that Desktop or another process runs on
@@ -1782,8 +1791,8 @@ cannot be removed (`last-repository`). No repository files are deleted.
 and `workspaces.write`, checked again while work waits and before destructive
 steps. It stops pi and its process group, then moves the transcript through the
 runtime's shared path-lock domain into `<state>/trash/`. A startup sweep removes
-matching trash files older than 30 days. Missing transcripts are allowed. A
-shared worktree is never removed. Worktree removal uses git without force, so
+matching trash files older than 30 days. Missing transcripts and a worktree
+already removed outside Phosphor are allowed. A shared worktree is never removed. Worktree removal uses git without force, so
 dirty worktrees remain. A branch is kept unless its work is proven merged,
 including squash merges by `git cherry` against a synthetic branch-tree commit.
 Symbolic branch refs are kept. Every merged branch, by ancestry or squash, is

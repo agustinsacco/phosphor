@@ -88,6 +88,7 @@ export function createBrowserHandlers(ports: {
     ...machineHandlers(resources.machines),
     ...folderHandlers(resources.folders),
     ...terminalHandlers(ports.terminals),
+    'gh:prsForRepo': resources.repositories.pullRequests,
     'hosts:repositoryFiles': resources.repositories.list,
     'hosts:repositoryFile': resources.repositories.read,
     'hosts:snapshot': hosts.snapshot,

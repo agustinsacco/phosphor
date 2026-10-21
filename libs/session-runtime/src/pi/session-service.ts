@@ -7,6 +7,7 @@ import { sessionPathKey, type SessionPathRuntime } from './session-path-lock'
 import type { SessionExecution, SessionPolicyRuntime } from './session-policy'
 import type { LiveSession, SessionRegistry } from './session-registry'
 import type { LaneReload } from './lane-reload'
+import { controlMcpInLane } from './mcp-lane'
 
 export interface SessionServiceRuntime<Delivery> {
   registry: Pick<SessionRegistry, 'get' | 'list' | 'dispose'>
@@ -32,7 +33,10 @@ export interface SessionServiceRuntime<Delivery> {
 }
 
 // Admission holds the same registry, lock domain and routine owner for the facade's lifetime.
-type SessionAdmission = Pick<SessionServiceRuntime<unknown>, 'registry' | 'paths' | 'routines'>
+type SessionAdmission = Pick<SessionServiceRuntime<unknown>, 'registry' | 'paths' | 'routines'> & {
+  mcpBusy: Set<string>
+  mutating: Map<string, number>
+}
 
 async function create<Delivery>(
   runtime: SessionServiceRuntime<Delivery>,
@@ -74,7 +78,15 @@ function session({ registry }: SessionAdmission, id: string): LiveSession {
   return found
 }
 
-function assertManualCommand({ routines }: SessionAdmission, id: string, command: RpcCommand) {
+function assertManualCommand(
+  { routines, mcpBusy }: SessionAdmission,
+  id: string,
+  command: RpcCommand,
+) {
+  if (mcpBusy.has(id) && !command.type.startsWith('get_') && command.type !== 'abort')
+    throw new Error(
+      'This lane is reconnecting a connector. Wait for it to finish before sending new work.',
+    )
   if (
     routines.owns(id) &&
     ![
@@ -146,9 +158,50 @@ async function command<Delivery>(
   const live = session(admission, id)
   if (command.type === 'get_messages') admission.routines.observe(id)
   assertManualCommand(admission, id, command)
-  return runtime.withBudgetCompaction(id, command.type, () =>
-    dispatchCommand(runtime, admission, live, id, command),
-  )
+  const mutating = !command.type.startsWith('get_')
+  if (mutating) admission.mutating.set(id, (admission.mutating.get(id) ?? 0) + 1)
+  try {
+    return await runtime.withBudgetCompaction(id, command.type, () =>
+      dispatchCommand(runtime, admission, live, id, command),
+    )
+  } finally {
+    if (mutating) {
+      const remaining = (admission.mutating.get(id) ?? 1) - 1
+      if (remaining) admission.mutating.set(id, remaining)
+      else admission.mutating.delete(id)
+    }
+  }
+}
+
+async function mcpControl(
+  runtime: Pick<SessionServiceRuntime<unknown>, 'withBudgetCompaction'>,
+  admission: SessionAdmission,
+  id: string,
+  name: string,
+  operation: 'inspect' | 'reconnect',
+) {
+  const live = session(admission, id)
+  if (operation !== 'inspect' && operation !== 'reconnect')
+    throw new Error('Invalid MCP operation.')
+  if (admission.routines.owns(id))
+    throw new Error('Connector controls are unavailable in a running routine.')
+  if (admission.mcpBusy.has(id)) throw new Error('This lane is already reconnecting a connector.')
+  if (operation === 'reconnect' && admission.mutating.has(id))
+    throw new Error('This lane is busy. Retry after its current command finishes.')
+  if (operation === 'reconnect') admission.mcpBusy.add(id)
+  try {
+    return await runtime.withBudgetCompaction(
+      id,
+      operation === 'reconnect' ? 'prompt' : 'get_state',
+      () => {
+        if (admission.routines.owns(id))
+          throw new Error('Connector controls are unavailable in a running routine.')
+        return controlMcpInLane(live.client, name, operation)
+      },
+    )
+  } finally {
+    if (operation === 'reconnect') admission.mcpBusy.delete(id)
+  }
 }
 
 function respond(admission: SessionAdmission, id: string, response: ExtensionUIResponse): void {
@@ -168,12 +221,20 @@ async function dispose<Delivery>(
 /** Process-local admission, not a network authorization boundary. */
 export function createSessionService<Delivery>(runtime: SessionServiceRuntime<Delivery>) {
   const { registry, paths, routines } = runtime
-  const admission = { registry, paths, routines }
+  const admission: SessionAdmission = {
+    registry,
+    paths,
+    routines,
+    mcpBusy: new Set(),
+    mutating: new Map(),
+  }
   return {
     create: (options: CreateSessionOptions, delivery?: Delivery, execution?: SessionExecution) =>
       create(runtime, admission, options, delivery, execution),
     command: (id: string, rpcCommand: RpcCommand) => command(runtime, admission, id, rpcCommand),
     respond: (id: string, response: ExtensionUIResponse) => respond(admission, id, response),
+    mcpControl: (id: string, name: string, operation: 'inspect' | 'reconnect') =>
+      mcpControl(runtime, admission, id, name, operation),
     dispose: (id: string) => dispose(runtime, admission, id),
     list: () => registry.list(),
   }

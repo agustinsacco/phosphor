@@ -169,11 +169,6 @@
       "count": 1
     }
   },
-  "libs/client-ui/src/stores/pullRequests.test.ts": {
-    "@typescript-eslint/no-misused-promises": {
-      "count": 3
-    }
-  },
   "libs/client-ui/src/stores/sessions.ts": {
     "phosphor/no-raw-pi-command": {
       "count": 8

@@ -11,13 +11,43 @@ const step = (name: string) => {
   return found[0]!
 }
 
-it('runs only by hand from main, after exact-SHA CI, one release at a time', () => {
-  expect(workflow).toMatch(/^on:\n {2}workflow_dispatch:\n/m)
-  expect(workflow).not.toMatch(/^\s+(push|pull_request|workflow_run|schedule):/m)
-  expect(workflow).toContain("if: github.ref == 'refs/heads/main'")
-  expect(workflow).toContain('group: host-release\n  cancel-in-progress: false')
-  expect(step('Verify exact-SHA main CI')).toContain('run.head_sha === context.sha')
+it('runs after green main CI or by hand from main, after exact-SHA CI, one release at a time', () => {
+  expect(workflow).toMatch(
+    /^on:\n {2}workflow_run:\n {4}workflows: \[CI\]\n {4}branches: \[main\]\n {4}types: \[completed\]\n {2}workflow_dispatch:\n/m,
+  )
+  expect(workflow).not.toMatch(/^\s+(push|pull_request|pull_request_target|schedule):/m)
+  const plan = workflow.slice(workflow.indexOf('  plan:'), workflow.indexOf('  native:'))
+  expect(plan).toContain(
+    "(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')",
+  )
+  for (const gate of [
+    "github.event.workflow_run.conclusion == 'success'",
+    "github.event.workflow_run.event == 'push'",
+    "github.event.workflow_run.head_branch == 'main'",
+    'github.event.workflow_run.head_repository.full_name == github.repository',
+  ])
+    expect(plan).toContain(gate)
+  expect(plan).toContain('ref: ${{ github.event.workflow_run.head_sha || github.sha }}')
+  // Only eligible runs share the queue, so a red CI run cannot replace a release.
+  expect(workflow).toMatch(/group: \$\{\{ .+ && 'host-release' \|\| github\.run_id \}\}/)
+  expect(workflow).toContain('  cancel-in-progress: false')
+  for (const job of ['native', 'release'])
+    expect(workflow.slice(workflow.indexOf(`  ${job}:`))).toMatch(
+      /^ {2}\w+:\n(?: {4}.*\n)*? {4}if: needs\.plan\.outputs\.ship == 'true'\n/,
+    )
+  expect(workflow).not.toContain('github.sha }}\n          ref')
+  const verify = step('Verify exact-SHA main CI')
+  expect(verify).toContain('SHA: ${{ needs.plan.outputs.sha }}')
+  expect(verify).toContain('run.head_sha === sha')
   expect(workflow.indexOf('Verify exact-SHA main CI')).toBeLessThan(workflow.indexOf('Install'))
+})
+
+it('releases automatically only when Nx reports the Host affected since its newest tag', () => {
+  const decide = step('Pick the version and decide')
+  expect(decide).toContain('git/matching-refs/tags/host-v')
+  expect(decide).toContain('version="${newest%.*}.$(( ${newest##*.} + 1 ))"')
+  expect(decide).toContain('if [[ "$EVENT" == workflow_run ]]; then')
+  expect(decide).toContain('release-scope.mjs "host-v$newest" host')
 })
 
 it('gives the signing key to the signing step only, and verifies before publishing', () => {
@@ -47,11 +77,15 @@ it('refuses a version that is not X.Y.Z, already exists or is not higher than th
   expect(check).toContain('gh api --paginate')
   expect(check).toContain('git/matching-refs/tags/host-v')
   expect(check).not.toContain('--limit')
-  expect(check).toContain('${{ inputs.version }}')
-  // Inputs reach shell only through env, never interpolated into a script.
+  expect(check).toContain('VERSION: ${{ needs.plan.outputs.version }}')
+  // Versions reach shell only through env, never interpolated into a script.
   for (const s of steps)
-    for (const line of s.split('\n').filter((l) => l.includes('${{ inputs.')))
-      expect(line, line).toMatch(/^\s+[A-Z_]+: \$\{\{ inputs\.version \}\}$|^Publish host-v/)
+    for (const line of s
+      .split('\n')
+      .filter((l) => /\$\{\{ (inputs\.|needs\.plan\.outputs\.version)/.test(l)))
+      expect(line, line).toMatch(
+        /^\s+[A-Z_]+: \$\{\{ (inputs\.version|needs\.plan\.outputs\.version) \}\}$|^Publish host-v/,
+      )
 })
 
 it('builds node-pty on each target runner and stages it into that target only', () => {
@@ -66,7 +100,7 @@ it('builds node-pty on each target runner and stages it into that target only', 
   expect(native).toContain('build-native.mjs')
   // build-native resolves node-pty from apps/desktop, which has its own lockfile.
   expect(native).toContain('npm ci --prefix apps/desktop --ignore-scripts')
-  expect(workflow).toContain('    needs: native\n')
+  expect(workflow).toContain('    needs: [plan, native]\n')
   expect(step('Build the three bundles')).toContain(
     '--native "native-artifacts/host-native-$target"',
   )

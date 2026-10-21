@@ -72,13 +72,15 @@ export const usePullRequestsStore = create<PullRequestsState>((set, get) => ({
         attemptedAt: Date.now(),
       })),
     }))
+    const pending = get().byRepo[repoPath]
     try {
-      let available = get().available
+      let available = repoPath.startsWith('host:') ? true : get().available
       if (available === undefined) {
         available = await window.phosphor.invoke('gh:available')
         set({ available })
       }
       const result = available ? await window.phosphor.invoke('gh:prsForRepo', repoPath) : null
+      if (get().byRepo[repoPath] !== pending) return
       set((s) => ({
         byRepo: repos.patch(s.byRepo, repoPath, (r) =>
           result
@@ -87,6 +89,7 @@ export const usePullRequestsStore = create<PullRequestsState>((set, get) => ({
         ),
       }))
     } catch {
+      if (get().byRepo[repoPath] !== pending) return
       // Keep known chips on IPC failure, but revoke any inferred absence.
       set((s) => ({
         byRepo: repos.patch(s.byRepo, repoPath, (r) => ({ ...r, complete: false, loading: false })),

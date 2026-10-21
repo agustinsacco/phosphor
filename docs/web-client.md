@@ -109,6 +109,17 @@ artifact/file protocols and scripted artifact behavior are unchanged.
 
 ## Installation
 
+The manifest supplies separate regular and Android `maskable` icons at 192px
+and 512px. Maskable icons have an opaque, edge-to-edge graphite background;
+the beacon fits inside the central 80%-diameter safe circle, so Android can apply
+its launcher shape without a white surround or clipping the mark. iOS uses a
+separate opaque 180px Apple touch icon and applies its own rounded corners.
+All are generated from the canonical Desktop SVG with
+`node tools/scripts/generate-icons.mjs --web-only`; no second logo is maintained.
+Existing installations may keep an OS-cached icon; reinstalling after deployment
+can be needed to see the new artwork. Headless checks verify the served pixels
+and manifest, not a physical launcher's appearance or refresh timing.
+
 **Install Phosphor** is available on sign-in, in navigation and in browser settings.
 When the browser supplies a deferred install prompt, the action opens it once and
 shares the pending state across entrypoints. Accepting the prompt is not reported

@@ -9,6 +9,10 @@ export default defineConfig({
   // still fully serial — this doesn't change local runs.
   fullyParallel: true,
   workers: 1,
+  // Hidden windows still share the OS clipboard with the person using this
+  // computer. Native clipboard cases run in CI or with explicit local consent.
+  grepInvert:
+    process.env.CI || process.env.PHOSPHOR_E2E_CLIPBOARD === '1' ? undefined : /@system-clipboard/,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {

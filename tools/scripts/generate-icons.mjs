@@ -13,6 +13,9 @@
  *   apps/desktop/build/icon.icns    macOS (via `iconutil`, so darwin-only)
  *   apps/desktop/build/icon.ico     windows (via `npx png-to-ico`, network on first run)
  *   apps/site/public/favicon.svg  a copy of icon.svg
+ *   apps/web/public/icons/*.png    regular, Android maskable and Apple touch icons
+ *
+ * Pass --web-only to regenerate only the PWA assets, on any platform.
  *
  * The favicon is written here rather than kept by hand because it WAS kept by
  * hand: it sat byte-identical to a superseded icon.svg with nothing comparing
@@ -38,6 +41,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const buildDir = join(root, 'apps/desktop/build')
 const tmp = join(buildDir, '.icon-tmp')
 const svg = readFileSync(join(buildDir, 'icon.svg'), 'utf8')
+const webOnly = process.argv.includes('--web-only')
 
 const SIZES = [16, 32, 48, 64, 128, 256, 512, 1024]
 
@@ -48,8 +52,8 @@ const SIZES = [16, 32, 48, 64, 128, 256, 512, 1024]
  */
 const MACOS_TILE_RATIO = 824 / 1024
 
-/** Render the mark at `size`, optionally inset to leave transparent margin. */
-async function render(browser, size, inset) {
+/** Render the same mark; installation icons let the OS round the opaque tile. */
+async function render(browser, size, inset, fullBleed = false) {
   const page = await browser.newPage({
     viewport: { width: size, height: size },
     deviceScaleFactor: 1,
@@ -61,7 +65,12 @@ async function render(browser, size, inset) {
       `svg{display:block;width:${art}px;height:${art}px;` +
       `position:absolute;left:${pad}px;top:${pad}px}</style>${svg}`,
   )
-  // omitBackground keeps the tile's rounded corners transparent.
+  if (fullBleed) {
+    // Keep the canonical beacon geometry and colour. Only remove the tile's
+    // corner cutouts: Android and iOS apply their own launcher masks.
+    await page.locator('svg > rect').evaluate((tile) => tile.removeAttribute('rx'))
+  }
+  // Regular icons retain transparent rounded corners.
   const png = await page.screenshot({ omitBackground: true })
   await page.close()
   return png
@@ -81,19 +90,33 @@ const ICONSET = [
   ['icon_512x512@2x.png', 1024],
 ]
 
-rmSync(tmp, { recursive: true, force: true })
-mkdirSync(tmp, { recursive: true })
+if (!webOnly) {
+  rmSync(tmp, { recursive: true, force: true })
+  mkdirSync(tmp, { recursive: true })
+}
 
 const browser = await chromium.launch()
 try {
-  for (const size of SIZES) {
-    // Full-bleed for linux/windows, inset for the macOS iconset.
-    writeFileSync(join(tmp, `icon-${size}.png`), await render(browser, size, 1))
-    writeFileSync(join(tmp, `mac-${size}.png`), await render(browser, size, MACOS_TILE_RATIO))
+  const webIcons = join(root, 'apps/web/public/icons')
+  mkdirSync(webIcons, { recursive: true })
+  for (const size of [192, 512]) {
+    writeFileSync(join(webIcons, `icon-${size}.png`), await render(browser, size, 1))
+    // The existing mark fits inside the central 80%-diameter safe circle.
+    writeFileSync(join(webIcons, `maskable-${size}.png`), await render(browser, size, 1, true))
+  }
+  writeFileSync(join(webIcons, 'apple-touch-icon.png'), await render(browser, 180, 1, true))
+  console.log('✓ apps/web/public/icons/ (regular, maskable, Apple touch)')
+  if (!webOnly) {
+    for (const size of SIZES) {
+      // Full-size for linux/windows, inset for the macOS iconset.
+      writeFileSync(join(tmp, `icon-${size}.png`), await render(browser, size, 1))
+      writeFileSync(join(tmp, `mac-${size}.png`), await render(browser, size, MACOS_TILE_RATIO))
+    }
   }
 } finally {
   await browser.close()
 }
+if (webOnly) process.exit(0)
 
 // linux / install.sh
 copyFileSync(join(tmp, 'icon-1024.png'), join(buildDir, 'icon.png'))

@@ -99,6 +99,13 @@ export async function hasSavedSession(file: string | undefined): Promise<boolean
 }
 export async function resumeLane(context: RuntimeLaneState, lane: StoredLane) {
   if (lane.sessionFile === null) throw new Error('the lane could not start')
+  // pi cannot run without its folder. Say so, rather than fail as an unknown start.
+  const folder = await lstat(lane.cwd).then(
+    (info) => info.isDirectory(),
+    (error: unknown) => (errnoIs(error, 'ENOENT', 'ENOTDIR') ? false : true),
+  )
+  if (!folder)
+    throw Object.assign(new Error('the lane folder is missing'), { code: 'lane-folder-missing' })
   // The runtime parser requires the recorded file to still exist.
   const session = await start(context, { repository: lane.cwd, sessionPath: lane.sessionFile })
   try {

@@ -16,10 +16,11 @@ import {
   SUBAGENT_ASYNC_WIDGET_KEY,
   SUBAGENT_INSPECT_WIDGET_KEY,
 } from '../../../libs/client-ui/src/features/chat/subagentRuns'
+import { MCP_INSPECTION_STATUS_KEY } from '../../../libs/shared/src/mcp-inspection'
 import { useExtensionUiStore } from '../../../libs/client-ui/src/stores/extensionUi'
 import frozenFixture from './__fixtures__/status-wire.json'
 
-// Keep the reviewed wire baseline intact; only its source locations moved.
+// Existing wire keys stay intact. MCP inspection deliberately adds a native host reply.
 const fixture = {
   ...frozenFixture,
   statuses: frozenFixture.statuses.map((entry) => ({
@@ -38,6 +39,7 @@ describe('status wire runtime characterization', () => {
       HEADROOM_STATUS_KEY,
       RATE_LIMIT_STATUS_KEY,
       SUBAGENTS_STATUS_KEY,
+      MCP_INSPECTION_STATUS_KEY,
     ]).toEqual(fixture.statuses.map(({ key }) => key))
     expect(RENDERER_HEADROOM_KEY).toBe(HEADROOM_STATUS_KEY)
     expect(SUBAGENT_ASYNC_WIDGET_KEY).toBe(fixture.asyncWidget.key)
@@ -284,6 +286,8 @@ const auditedTexts = new Map(
     ...sourceFiles('libs/client-ui/src'),
     ...sourceFiles('apps/web/src'),
     'libs/session-runtime/src/pi/lane-reload.ts',
+    'libs/session-runtime/src/pi/mcp-lane.ts',
+    'libs/shared/src/mcp-inspection.ts',
     'libs/session-runtime/src/pi/session-startup.ts',
     'libs/shared/src/claude-limits.ts',
     'apps/host/src/commands/accept-waits.ts',
@@ -312,6 +316,7 @@ function checkWire(audit: ReturnType<typeof literalAudit>, contract = fixture): 
   ).toEqual([
     '@saccolabs/pi-claude-cli >= 0.4.5; opaque external provider',
     '@saccolabs/pi-claude-cli >= 0.4.13; legacy sessions before 0.9.0',
+    'native pi MCP [inspection-v1]; capability-gated',
   ])
   assertWireKeys(
     audit.structuredSet('STRUCTURED_STATUS_KEYS'),

@@ -20,6 +20,8 @@ import { showContextMenu, showMenuBelow, type ContextMenuItem } from '@/componen
 import { TextInput } from '@/components/form'
 import { RemoteLanePresentation, useRemoteLaneTitle } from './RemoteLanePresentation'
 export { remoteLaneTitle } from './remoteLaneView'
+import { openPullRequest } from './PrBadge'
+import { useRemotePr } from './remotePullRequests'
 import { LaneMarker } from './LaneMarker'
 import { MarkerPickerModal } from './MarkerPickerModal'
 
@@ -70,6 +72,7 @@ export function RemoteLaneRow({
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const title = useRemoteLaneTitle(lane, hostId)
+  const { pr } = useRemotePr(hostId, lane)
   const controlled =
     ready &&
     !!host?.capabilities.includes('sessions.control') &&
@@ -130,6 +133,9 @@ export function RemoteLaneRow({
       useExtensionUiStore.getState().pushToast("Branch kept: it isn't merged yet.", 'info')
   }
   const items: ContextMenuItem[] = [
+    ...(pr
+      ? [{ label: `Open pull request #${pr.number}`, onClick: () => void openPullRequest(pr) }]
+      : []),
     {
       label: 'Open',
       disabled: !ready || busy,
@@ -297,6 +303,7 @@ export function RemoteLaneRow({
         </div>
       ) : (
         <RemoteLanePresentation
+          hostId={hostId}
           lane={lane}
           title={title}
           ready={ready}

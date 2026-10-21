@@ -5,6 +5,7 @@ import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parseSessionRequest } from './request'
 
+const OUTSIDE_ROOTS = 'must be an existing folder inside a configured repository'
 let dir: string
 let repo: string
 let session: string
@@ -207,6 +208,26 @@ describe('a session request', () => {
         { pointer: '/name', message: 'is not a request field' },
         { pointer: '/model', message: 'is not a request field' },
       ],
+    })
+  })
+
+  it('deletes the session of a worktree removed outside Phosphor, but never starts one', async () => {
+    // A lane whose worktree folder was removed by hand must still be deletable.
+    const gone = join(repo, '.phosphor', 'worktrees', 'removed')
+    mkdirSync(sessionDirForCwd(gone), { recursive: true })
+    const orphan = join(sessionDirForCwd(gone), '2026-10-09T10-00-00-000Z_def.jsonl')
+    writeFileSync(orphan, '{"type":"session"}\n')
+    expect(await parse({ repository: gone, sessionPath: orphan }, { deleting: true })).toEqual({
+      ok: true,
+      options: { workspacePath: gone, sessionPath: orphan },
+    })
+    const missing = { pointer: '/repository', message: OUTSIDE_ROOTS }
+    expect(await errors({ repository: gone, sessionPath: orphan })).toEqual([missing])
+    // A removed folder still has to be inside a configured repository.
+    const outside = join(dir, 'repo2', 'removed')
+    expect(await parse({ repository: outside, sessionPath: orphan }, { deleting: true })).toEqual({
+      ok: false,
+      errors: [missing],
     })
   })
 

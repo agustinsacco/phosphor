@@ -3,6 +3,8 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import {
   MCP_SERVER_NAME,
+  isMcpExposure,
+  type McpExposure,
   isMcpOverride,
   mcpNamespace,
   type McpConfigsResult,
@@ -328,6 +330,33 @@ export async function setMcpServerEnabled(
     if (!existing) throw new Error(`No MCP server "${name}" in this file.`)
     if (!enabled || isMcpOverride(existing)) existing.enabled = enabled
     else delete existing.enabled
+  })
+}
+
+/** Change exposure without copying credentials or replacing an override with a full definition. */
+export async function setMcpExposure(
+  scope: McpScope,
+  workspacePath: string | undefined,
+  name: string,
+  exposure: McpExposure,
+  tools: Record<string, McpExposure>,
+  dirs?: McpDirs,
+): Promise<void> {
+  if (
+    !isMcpExposure(exposure) ||
+    !tools ||
+    typeof tools !== 'object' ||
+    Array.isArray(tools) ||
+    Object.keys(tools).length > 2000 ||
+    Object.entries(tools).some(([key, value]) => !key || key.length > 256 || !isMcpExposure(value))
+  )
+    throw new Error('Invalid MCP exposure rules.')
+  await mutateFile(scope, workspacePath, dirs, (servers) => {
+    const existing = servers[name]
+    if (!existing) throw new Error(`No MCP server "${name}" in this file.`)
+    if (!Object.hasOwn(servers, name)) throw new Error(`No MCP server "${name}" in this file.`)
+    existing.exposure = exposure
+    existing.toolExposure = tools
   })
 }
 

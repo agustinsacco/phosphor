@@ -137,6 +137,12 @@ env overrides; cache remains disabled and graph/install boundaries stay intact.
   becomes latest. A failed or cancelled build leaves the previous release live;
   rerun the workflow to resume the same SHA's draft. Existing published tags
   remain no-ops. Release cadence, versioning, asset names and update URLs are unchanged.
+- **Host** (`release-host.yml`): after CI passes on a `main` push, it publishes
+  the next patch version only if Nx `host` is affected since the newest
+  `host-v*` tag (the same helper, `release-scope.mjs <tag> host`, where every
+  doubt releases) and no `Skip-Release: true` trailer stops it. Manual
+  `workflow_dispatch` is main-only, takes an optional version and bypasses
+  affected selection. Both verify exact-SHA CI and run one at a time.
 - **Site** (`deploy-site.yml`): a `main` push touching its path filter (equal to
   the `site` project's root plus `deploy` input) deploys after exact-SHA CI,
   unless the hold variable or a `Skip-Release: true` trailer stops it.
