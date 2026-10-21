@@ -220,6 +220,10 @@
       "types": "./src/writing.ts",
       "default": "./src/writing.ts"
     },
+    "./host-protocol-github": {
+      "types": "./src/host-protocol-github.ts",
+      "default": "./src/host-protocol-github.ts"
+    },
     "./host-protocol-files": {
       "types": "./src/host-protocol-files.ts",
       "default": "./src/host-protocol-files.ts"

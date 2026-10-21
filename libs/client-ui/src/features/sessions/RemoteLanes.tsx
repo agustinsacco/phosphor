@@ -1,3 +1,4 @@
+import { useRemotePullRequests } from './remotePullRequests'
 import { groupRemoteLanes, type RemoteLaneGroup } from './groupRemoteLanes'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
 import { openRemoteComposer } from '@/features/home/remoteComposer'
@@ -113,6 +114,7 @@ function RemoteRepositoryGroup({
     s.activeSessionId ? s.live[s.activeSessionId] : undefined,
   )
   const [collapsed, setCollapsed] = useState(false)
+  useRemotePullRequests(hostId, repositoryId, !collapsed && available)
   const [searching, setSearching] = useState(false)
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('')

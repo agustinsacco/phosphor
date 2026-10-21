@@ -43,6 +43,14 @@ export function remoteLanes(): RemoteLanes {
   return remote
 }
 
+function registerCatalogueHandlers(catalogues: ReturnType<typeof machineReads>): void {
+  handle('hosts:models', (_event, hostId) => catalogues.models(hostId))
+  handle('hosts:claude', (_event, hostId) => catalogues.claude(hostId))
+  handle('hosts:claudeUsage', (_event, ...args) => catalogues.claudeUsage(...args))
+  handle('hosts:providers', (_event, hostId) => catalogues.providers(hostId))
+  handle('hosts:skills', (_event, hostId) => catalogues.skills(hostId))
+}
+
 export function registerHostsHandlers(): void {
   const testEndpoint = e2eHostEndpoint(process.env, app.isPackaged)
   const control = controlClient()
@@ -104,11 +112,7 @@ export function registerHostsHandlers(): void {
     repositories.read(hostId, repositoryId, path),
   )
   const catalogues = machineReads(manager.connection)
-  handle('hosts:models', (_event, hostId) => catalogues.models(hostId))
-  handle('hosts:claude', (_event, hostId) => catalogues.claude(hostId))
-  handle('hosts:claudeUsage', (_event, ...args) => catalogues.claudeUsage(...args))
-  handle('hosts:providers', (_event, hostId) => catalogues.providers(hostId))
-  handle('hosts:skills', (_event, hostId) => catalogues.skills(hostId))
+  registerCatalogueHandlers(catalogues)
   remote = createRemoteLanes({
     connection: manager.connection,
     present: manager.present,
@@ -149,6 +153,8 @@ export function registerHostsHandlers(): void {
     const routine = routines?.route(channel, args)
     if (routine) return routine
     const key = args[0]
+    if (channel === 'gh:prsForRepo' && typeof key === 'string' && key.startsWith('host:'))
+      return { result: repositories.pullRequests(key) }
     if (typeof key === 'string' && /^host:[^/]+\/machine(?:\/|$)/.test(key))
       return routeRemoteRead(channel, args, () => catalogues.lane(key.slice(5).split('/')[0] ?? ''))
     if (

@@ -73,6 +73,7 @@ export function createBrowserHandlers(ports: {
     'control:removeMachine': (id) => directoryMutation(control.remove(id)),
     ...machineHandlers(resources.machines),
     ...folderHandlers(resources.folders),
+    'gh:prsForRepo': resources.repositories.pullRequests,
     'hosts:repositoryFiles': resources.repositories.list,
     'hosts:repositoryFile': resources.repositories.read,
     'hosts:snapshot': hosts.snapshot,

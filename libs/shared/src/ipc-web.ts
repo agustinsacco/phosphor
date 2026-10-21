@@ -395,7 +395,7 @@ export const IPC_WEB = {
   'sessions:claudeSessionId': unsupported('Local session files and mutations require Desktop.'),
   'sessions:forkClaudeLedger': unsupported('Local session files and mutations require Desktop.'),
   'gh:prForBranch': unsupported('This native service requires Desktop.'),
-  'gh:prsForRepo': unsupported('This native service requires Desktop.'),
+  'gh:prsForRepo': remote,
   'gh:available': unsupported('This native service requires Desktop.'),
   'git:info': unsupported('Only Host-scoped read-only status and file comparisons are available.'),
   'git:infoBatch': unsupported(
