@@ -75,8 +75,9 @@ function button(text: string): HTMLButtonElement {
   return found
 }
 it('shows remote PR state and opens its link without opening the lane', async () => {
-  const lane = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.lanes[0]!
-  lane.branch = 'remote-task'
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  const lane = { ...host.lanes[0]!, branch: 'remote-task' }
+  host.lanes[0] = lane
   usePullRequestsStore.setState({
     byRepo: {
       [remotePrKey(MOCK_HOST_ID, lane.repositoryId)]: {
