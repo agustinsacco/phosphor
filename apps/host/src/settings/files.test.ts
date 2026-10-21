@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { chmod, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { saveSettingsFile, settingsFile, withSettingsFileLock } from './files'
@@ -13,6 +13,16 @@ async function fixture() {
   return { dir, path: join(dir, 'settings.json') }
 }
 describe('private revision-checked settings files', () => {
+  it('edits owner-controlled pi config created with a group-writable umask', async () => {
+    const { dir, path } = await fixture()
+    await chmod(dir, 0o775)
+    await writeFile(path, '{"defaultModel":"before"}', { mode: 0o664 })
+    await chmod(path, 0o664)
+    const before = settingsFile(path)
+    await saveSettingsFile(path, { ...before.raw, defaultModel: 'after' }, before.revision, () => true)
+    expect(settingsFile(path).raw.defaultModel).toBe('after')
+    expect((await stat(path)).mode & 0o777).toBe(0o600)
+  })
   it('creates private files and preserves unknown settings', async () => {
     const { path } = await fixture()
     await writeFile(path, JSON.stringify({ packages: ['npm:user'], unrelated: { keep: true } }), {
