@@ -91,7 +91,7 @@ describe('foundation CI wiring', () => {
     )
     expect(e2e).toContain("github.event_name == 'push' &&")
     for (const legs of [push!, pr!]) {
-      const linux = legs.filter((leg) => leg.os === 'ubuntu-latest')
+      const linux = legs.filter((leg) => leg.os === 'ubuntu-24.04')
       expect(linux.map((leg) => leg.shard)).toEqual(['1/4', '2/4', '3/4', '4/4'])
       expect(linux.every((leg) => !leg.grep)).toBe(true)
     }
@@ -157,6 +157,13 @@ describe('foundation CI wiring', () => {
     expect(evaluateBudget(spans(ceiling + 1), budget).errors).toEqual([
       `Grown offender ${key} (file400): ${ceiling + 1} lines, baseline ${ceiling}`,
     ])
+  })
+
+  it('pins the Linux runner image', () => {
+    // ubuntu-latest moved to 26.04 under main and broke trash-backed lane deletion
+    // in the Desktop suite; an image change is a deliberate diff, not a surprise.
+    expect(workflow).not.toContain('ubuntu-latest')
+    expect(workflow.match(/runs-on: ubuntu-24\.04$/gm)).toHaveLength(8)
   })
 
   it('gates no job on affected projects', () => {

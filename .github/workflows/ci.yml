@@ -19,7 +19,7 @@ env:
 jobs:
   checks:
     name: Typecheck · size ratchet
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       # Only the unit and e2e jobs launch Electron.
@@ -48,7 +48,7 @@ jobs:
 
   lint:
     name: Lint · format
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -71,7 +71,7 @@ jobs:
 
   build:
     name: Build · Desktop · Web · Host · Control
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -99,7 +99,7 @@ jobs:
 
   unit:
     name: Unit tests (${{ matrix.shard }}/3)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -131,7 +131,7 @@ jobs:
 
   web-e2e:
     name: Web · ${{ matrix.browser }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -161,7 +161,7 @@ jobs:
 
   control-schema:
     name: Control schema · local Supabase · RLS
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -193,7 +193,7 @@ jobs:
     # phosphor.saccolabs.com is deployed from main by deploy-site.yml, which
     # only runs after a merge — this catches a broken page on the PR instead.
     name: Site · astro check · build · browser checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -240,7 +240,7 @@ jobs:
       matrix:
         # Sharded per test (fullyParallel, workers 1): the suite has no
         # cross-test ordering or shared state.
-        include: ${{ fromJSON(github.event_name == 'push' && '[{"os":"ubuntu-latest","shard":"1/4"},{"os":"ubuntu-latest","shard":"2/4"},{"os":"ubuntu-latest","shard":"3/4"},{"os":"ubuntu-latest","shard":"4/4"},{"os":"macos-latest","shard":"1/3"},{"os":"macos-latest","shard":"2/3"},{"os":"macos-latest","shard":"3/3"}]' || '[{"os":"ubuntu-latest","shard":"1/4"},{"os":"ubuntu-latest","shard":"2/4"},{"os":"ubuntu-latest","shard":"3/4"},{"os":"ubuntu-latest","shard":"4/4"},{"os":"macos-latest","shard":"1/1","grep":"@macos"}]') }}
+        include: ${{ fromJSON(github.event_name == 'push' && '[{"os":"ubuntu-24.04","shard":"1/4"},{"os":"ubuntu-24.04","shard":"2/4"},{"os":"ubuntu-24.04","shard":"3/4"},{"os":"ubuntu-24.04","shard":"4/4"},{"os":"macos-latest","shard":"1/3"},{"os":"macos-latest","shard":"2/3"},{"os":"macos-latest","shard":"3/3"}]' || '[{"os":"ubuntu-24.04","shard":"1/4"},{"os":"ubuntu-24.04","shard":"2/4"},{"os":"ubuntu-24.04","shard":"3/4"},{"os":"ubuntu-24.04","shard":"4/4"},{"os":"macos-latest","shard":"1/1","grep":"@macos"}]') }}
     env:
       # Map the windows. Chromium barely renders a window that was never
       # shown, which made every test 2-5x slower and timed out clicks (the
@@ -305,7 +305,7 @@ jobs:
     name: CI result
     if: always()
     needs: [checks, lint, build, unit, control-schema, site, e2e, web-e2e]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Every required job succeeded
         env:

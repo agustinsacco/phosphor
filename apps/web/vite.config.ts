@@ -21,7 +21,7 @@ export default defineConfig({
             throw new Error(
               `${String(error)}; importers: ${this.getModuleInfo(id)
                 ?.importers.flatMap((parent) => this.getModuleInfo(parent)?.importers ?? [parent])
-                .join(', ')}`,
+                .join(', ')}; included: ${this.getModuleInfo(id)?.isIncluded}`,
               { cause: error },
             )
           }

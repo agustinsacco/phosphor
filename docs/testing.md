@@ -247,6 +247,10 @@ installs what it needs and runs each mandatory command exactly once:
   slower and timed out clicks.
 - `control-schema` and `site`: the local Supabase stack and the site image.
 
+Linux jobs pin `ubuntu-24.04`. When `ubuntu-latest` moved to 26.04, the Desktop
+suite's trash-backed lane deletions failed, so an image change lands as its own
+diff.
+
 The audit's own tests also run in `npm test`; there is no redundant standalone
 audit step. No job is skipped by affected projects. Inventory artifacts,
 coverage comparisons and unit-gate evidence belong to the trusted per-unit

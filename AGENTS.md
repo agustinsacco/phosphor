@@ -86,8 +86,9 @@ are on the author and the reviewer.
 - **No unhandled promises.** `no-floating-promises` and `no-misused-promises` are
   errors wherever a TS project owns the file. Await it, return it, or `.catch` it
   into a visible failure; `void` only when the callee handles its own errors.
-  `oxlint-suppressions.json` records older violations and only shrinks: never add
-  to it to land a change.
+  `oxlint-suppressions.json` records older violations and only shrinks, as
+  `eslint-suppressions.json` does for the other rules: never add to either to
+  land a change.
 - **No dead mocks.** `npm run lint` fails on a `vi.mock` of a module the test never
   loads. Moving or renaming a module means retargeting its mocks.
 - **One home per helper.** Search before writing one. Path checks, process-tree
