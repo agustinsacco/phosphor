@@ -225,9 +225,10 @@ describe('a session request', () => {
     expect(await errors({ repository: gone, sessionPath: orphan })).toEqual([missing])
     // A removed folder still has to be inside a configured repository.
     const outside = join(dir, 'repo2', 'removed')
-    expect(
-      await parse({ repository: outside, sessionPath: orphan }, { deleting: true }),
-    ).toEqual({ ok: false, errors: [missing] })
+    expect(await parse({ repository: outside, sessionPath: orphan }, { deleting: true })).toEqual({
+      ok: false,
+      errors: [missing],
+    })
   })
 
   it('counts a field set to undefined, or carried by a prototype, as missing', async () => {
