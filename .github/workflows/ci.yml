@@ -243,9 +243,10 @@ jobs:
         include: ${{ fromJSON(github.event_name == 'push' && '[{"os":"ubuntu-24.04","shard":"1/4"},{"os":"ubuntu-24.04","shard":"2/4"},{"os":"ubuntu-24.04","shard":"3/4"},{"os":"ubuntu-24.04","shard":"4/4"},{"os":"macos-latest","shard":"1/3"},{"os":"macos-latest","shard":"2/3"},{"os":"macos-latest","shard":"3/3"}]' || '[{"os":"ubuntu-24.04","shard":"1/4"},{"os":"ubuntu-24.04","shard":"2/4"},{"os":"ubuntu-24.04","shard":"3/4"},{"os":"ubuntu-24.04","shard":"4/4"},{"os":"macos-latest","shard":"1/1","grep":"@macos"}]') }}
     env:
       # Map the windows. Chromium barely renders a window that was never
-      # shown, which made every test 2-5x slower and timed out clicks (the
-      # recurring account, Open Folder and Machine filter retries). The windows
-      # land on xvfb or the runner's own session, never a person's screen.
+      # shown, which made every test 2-5x slower. The windows land on xvfb or
+      # the runner's own session, never a person's screen. The first-test click
+      # timeouts were Electron's first launch on a fresh runner, which never
+      # paints: apps/desktop/e2e/warm-up.ts absorbs it.
       PHOSPHOR_E2E_SHOW: '1'
     steps:
       - uses: actions/checkout@v4

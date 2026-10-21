@@ -244,7 +244,10 @@ installs what it needs and runs each mandatory command exactly once:
   clipboard and the login shell). A test whose macOS behaviour differs from
   Linux beyond the modifier key carries the tag. Both set `PHOSPHOR_E2E_SHOW=1`:
   windows that are never mapped barely render, which made the suite several times
-  slower and timed out clicks.
+  slower. On Linux the suite's global setup (`apps/desktop/e2e/warm-up.ts`)
+  first launches Electron until one launch paints a frame: on a fresh runner the
+  first launch never does, so the first test of every shard used to time out a
+  click and pass on retry.
 - `control-schema` and `site`: the local Supabase stack and the site image.
 
 Linux jobs pin `ubuntu-24.04`. When `ubuntu-latest` moved to 26.04, the Desktop

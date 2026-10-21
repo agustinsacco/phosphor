@@ -83,6 +83,13 @@ describe('foundation CI wiring', () => {
     expect(workflow).not.toContain('tools/scripts/unit-gate.mjs')
   })
 
+  it('warms Electron up before the Desktop suite on Linux', () => {
+    expect(read('apps/desktop/playwright.config.ts')).toContain("globalSetup: './e2e/warm-up.ts'")
+    const warmUp = read('apps/desktop/e2e/warm-up.ts')
+    expect(warmUp).toContain("process.platform !== 'linux'")
+    expect(warmUp).toContain('requestAnimationFrame')
+  })
+
   it('maps Desktop e2e windows and limits only PR macOS legs to @macos', () => {
     const e2e = job('e2e')
     expect(e2e).toContain("PHOSPHOR_E2E_SHOW: '1'")
