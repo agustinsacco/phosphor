@@ -357,7 +357,10 @@ added animated electrons — and nothing compared them. The test also compares
 light/dark geometry, allowing their intentionally different contrast. Site
 browser tests compare the served social preview's mark pixels to the favicon.
 
-- **App icon:** always the full tile. Dark on every OS.
+- **App icon:** always the full tile. Dark on every OS. PWA maskable and Apple
+  touch icons use the same mark on an opaque square graphite tile: the OS, not
+  the artwork, applies the launcher shape. Keep the mark inside the maskable
+  safe circle (radius 40% of the canvas); regular icons retain rounded corners.
 - **Light backgrounds:** `apps/desktop/build/icon-light.svg` — same geometry, ember
   (`#b35c0f → #9d500b`) on paper `#f7f7f8`, shell opacities bumped (.35→.5,
   .2→.34) because a translucent line loses more contrast on paper than on
@@ -369,7 +372,8 @@ browser tests compare the served social preview's mark pixels to the favicon.
   the design, not a rendering bug — see the contrast rule below.
 - Regenerate platform assets with `node tools/scripts/generate-icons.mjs`
   (Playwright-rendered; icns is darwin-only). It reads only `icon.svg`, and
-  also writes `apps/site/public/favicon.svg`.
+  also writes `apps/site/public/favicon.svg` and `apps/web/public/icons/*.png`.
+  Use `--web-only` to regenerate just the PWA icons on any platform.
 
 **The contrast hierarchy is the mark.** The shells sit at `.35` and `.2` and
 are _allowed_ to disappear when small, because the nucleus, the orbit and its
