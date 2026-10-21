@@ -180,12 +180,16 @@ jobs:
           # cross-test ordering or shared state. The repo is public, so extra
           # runners cost wall time only for their ~1.5 min setup; six ubuntu
           # shards and two macOS shards bring the slowest job from ~14 to ~7 min.
-          - { os: ubuntu-latest, shardIndex: 1, shardTotal: 6 }
-          - { os: ubuntu-latest, shardIndex: 2, shardTotal: 6 }
-          - { os: ubuntu-latest, shardIndex: 3, shardTotal: 6 }
-          - { os: ubuntu-latest, shardIndex: 4, shardTotal: 6 }
-          - { os: ubuntu-latest, shardIndex: 5, shardTotal: 6 }
-          - { os: ubuntu-latest, shardIndex: 6, shardTotal: 6 }
+          # Linux shards are pinned to ubuntu-24.04: ubuntu-latest rolled to
+          # ubuntu-26.04 (image 20261018), where Electron's shell.trashItem
+          # fails, and every trash-backed delete (sessions, skills, routine
+          # lanes) broke at once. Unpin only with those specs green on it.
+          - { os: ubuntu-24.04, shardIndex: 1, shardTotal: 6 }
+          - { os: ubuntu-24.04, shardIndex: 2, shardTotal: 6 }
+          - { os: ubuntu-24.04, shardIndex: 3, shardTotal: 6 }
+          - { os: ubuntu-24.04, shardIndex: 4, shardTotal: 6 }
+          - { os: ubuntu-24.04, shardIndex: 5, shardTotal: 6 }
+          - { os: ubuntu-24.04, shardIndex: 6, shardTotal: 6 }
           - { os: macos-latest, shardIndex: 1, shardTotal: 2 }
           - { os: macos-latest, shardIndex: 2, shardTotal: 2 }
     steps:
