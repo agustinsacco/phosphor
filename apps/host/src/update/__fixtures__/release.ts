@@ -73,7 +73,13 @@ export function fixture() {
     arch: 'x64',
     configPath: join(home, '.config/phosphor-host/config.json'),
     print: (line) => messages.push(line),
-    update: { node: join(old, 'node/bin/node'), bundle: join(old, 'lib/phosphor.mjs'), keys },
+    update: {
+      node: join(old, 'node/bin/node'),
+      bundle: join(old, 'lib/phosphor.mjs'),
+      keys,
+      // Never the test runner's own cgroup, which may be a Host lane's.
+      cgroup: '0::/user.slice/user-1000.slice/session-1.scope\n',
+    },
     service: { runner: async () => ({ code: 3, stdout: '', stderr: '' }) },
   }
   const release = (

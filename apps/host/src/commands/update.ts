@@ -34,6 +34,7 @@ import { HOST_AGENT } from '../machine/launchd'
 import { HOST_UNIT, serviceRunner } from '../machine/systemd'
 import { hostStateDirectory } from '../lanes/state-dir'
 import { runService, type ServiceContext } from './service'
+import { detachUpdate, shouldDetach } from '../update/detach'
 
 export interface UpdateContext extends ServiceContext {
   json?: boolean
@@ -44,6 +45,8 @@ export interface UpdateContext extends ServiceContext {
     bundle?: string
     keys?: readonly HostReleaseKey[]
     expandedCap?: number
+    /** /proc/self/cgroup, replaced in tests. */
+    cgroup?: string
   }
 }
 export interface UpdateOptions {
@@ -240,6 +243,7 @@ export async function runUpdate(
           `this Host was installed from source; install a release with: ${INSTALL_COMMAND}`,
           69,
         )
+      if (shouldDetach(context, options)) return await detachUpdate(context, options)
       release = acquireInstallLock(layout.lib)
       signal.throwIfAborted()
       if (
@@ -312,11 +316,6 @@ export async function runUpdate(
           context.print('already up to date')
           return 0
         }
-        if (exists(join(layout.lib, 'versions', version)))
-          throw new UpdateFailure(
-            'Version folder already exists; use update --rollback or remove it first.',
-            69,
-          )
         stage = mkdtempSync(join(layout.lib, '.staging-'))
         let bytes = await downloadRelease(
           releaseUrl(context.env, `host-v${version}`, artifact.file),
@@ -342,6 +341,8 @@ export async function runUpdate(
       // All publication calls are synchronous. Signals abort only at the next boundary.
       if (stage) {
         const destination = join(layout.lib, 'versions', version)
+        // Newer than current, so only a rolled-back update left it: the verified bundle wins.
+        rmSync(destination, { recursive: true, force: true })
         renameSync(stage, destination)
         published = destination
         stage = undefined
