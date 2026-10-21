@@ -16,10 +16,24 @@ it('usage inspection never rotates OAuth credentials in a short-lived subprocess
   directories.push(dir)
   const script = join(dir, 'pi.cjs')
   const argv = join(dir, 'argv.json')
-  await writeFile(script, `require('node:fs').writeFileSync(${JSON.stringify(argv)}, JSON.stringify(process.argv.slice(2))); console.log('{"status":"not_ready"}')`)
-  vi.mocked(resolvePiInvoker).mockResolvedValue({ binaryPath: process.execPath, prefixArgs: [script], env: {} })
+  await writeFile(
+    script,
+    `require('node:fs').writeFileSync(${JSON.stringify(argv)}, JSON.stringify(process.argv.slice(2))); console.log('{"status":"not_ready"}')`,
+  )
+  vi.mocked(resolvePiInvoker).mockResolvedValue({
+    binaryPath: process.execPath,
+    prefixArgs: [script],
+    env: {},
+    stub: false,
+  })
   expect(await fetchCodexUsage()).toEqual({ ok: false, error: 'auth-unavailable' })
   expect(JSON.parse(await readFile(argv, 'utf8'))).toEqual([
-    'auth', 'check', '--provider', 'openai-codex', '--json', '--credentials', '--no-refresh',
+    'auth',
+    'check',
+    '--provider',
+    'openai-codex',
+    '--json',
+    '--credentials',
+    '--no-refresh',
   ])
 })

@@ -19,7 +19,12 @@ describe('private revision-checked settings files', () => {
     await writeFile(path, '{"defaultModel":"before"}', { mode: 0o664 })
     await chmod(path, 0o664)
     const before = settingsFile(path)
-    await saveSettingsFile(path, { ...before.raw, defaultModel: 'after' }, before.revision, () => true)
+    await saveSettingsFile(
+      path,
+      { ...before.raw, defaultModel: 'after' },
+      before.revision,
+      () => true,
+    )
     expect(settingsFile(path).raw.defaultModel).toBe('after')
     expect((await stat(path)).mode & 0o777).toBe(0o600)
   })

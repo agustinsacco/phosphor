@@ -159,6 +159,80 @@ describe('machine-owned settings service', () => {
       defaultModel: 'one',
     })
   })
+  it('reads folder overrides without materializing inherited machine model or behavior', async () => {
+    const f = await fixture()
+    await writeFile(
+      join(f.agentDir, 'settings.json'),
+      JSON.stringify({
+        defaultProvider: 'anthropic',
+        defaultModel: 'machine-model',
+        compaction: { enabled: false },
+      }),
+      { mode: 0o600 },
+    )
+    const folder = await f.read('agent', f.repository.id)
+    expect(folder.agent).not.toHaveProperty('defaultModel')
+    expect(folder.agent).not.toHaveProperty('compaction')
+    const machine = await f.read('agent')
+    expect(machine.agent).toMatchObject({
+      defaultModel: 'machine-model',
+      compaction: { enabled: false },
+    })
+  })
+  it('edits reviewed agent behavior without erasing other nested settings or exposing them', async () => {
+    const f = await fixture()
+    const path = join(f.agentDir, 'settings.json')
+    await writeFile(
+      path,
+      JSON.stringify({
+        compaction: { enabled: true, model: 'keep-private', reserveTokens: 16384 },
+        retry: { enabled: false, custom: 'keep' },
+        packages: ['npm:keep'],
+      }),
+      { mode: 0o600 },
+    )
+    const before = await f.read('agent')
+    expect(JSON.stringify(before)).not.toContain('keep-private')
+    const result = await f.patch(
+      'agent',
+      {
+        type: 'agent.patch',
+        patch: {
+          compaction: { enabled: false },
+          retry: { maxRetries: 5 },
+          steeringMode: 'all',
+          hideThinkingBlock: true,
+        },
+      },
+      before.revision,
+    )
+    expect(result.ok).toBe(true)
+    const saved = JSON.parse(await readFile(path, 'utf8'))
+    expect(saved).toMatchObject({
+      compaction: { enabled: false, model: 'keep-private', reserveTokens: 16384 },
+      retry: { enabled: false, custom: 'keep', maxRetries: 5 },
+      packages: ['npm:keep'],
+    })
+    expect((await f.read('agent')).agent).toMatchObject({
+      compaction: { enabled: false, reserveTokens: 16384 },
+      retry: { enabled: false, maxRetries: 5 },
+      steeringMode: 'all',
+      hideThinkingBlock: true,
+    })
+  })
+  it('rejects unreviewed behavior fields and malformed nested configuration rather than replacing it', async () => {
+    const f = await fixture()
+    const path = join(f.agentDir, 'settings.json')
+    await writeFile(path, JSON.stringify({ compaction: 'malformed' }), { mode: 0o600 })
+    const before = await f.read('agent')
+    const result = await f.patch(
+      'agent',
+      { type: 'agent.patch', patch: { compaction: { enabled: false } } },
+      before.revision,
+    )
+    expect(result.ok).toBe(false)
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ compaction: 'malformed' })
+  })
   it('saves Host policy separately without changing the running config or repository list', async () => {
     const f = await fixture()
     const before = await f.read('agent')
