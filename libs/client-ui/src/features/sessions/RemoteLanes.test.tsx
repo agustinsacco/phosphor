@@ -39,6 +39,13 @@ afterEach(() => {
   container.remove()
 })
 
+it('offers bulk lane selection in a remote repository menu', () => {
+  act(() => root.render(<RemoteLanes />))
+  const options = container.querySelector<HTMLButtonElement>('[aria-label^="Workspace options"]')!
+  act(() => options.click())
+  expect(document.body.textContent).toContain('Select all lanes')
+})
+
 it('stays dormant without sessions.read and shows unread machine-tagged lanes when enabled', () => {
   act(() => root.render(<RemoteLanes />))
   expect(container.textContent).toContain('Remote demo lane')
