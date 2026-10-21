@@ -381,8 +381,22 @@ The updater waits up to 90 seconds for a new run's accepted heartbeat. `run`
 writes `{ version, pid, startedAt, acceptedAt }` to `<state>/run.json` atomically
 at 0600 after its first accepted running heartbeat and at most once a minute.
 If the new version is not healthy, update selects the old version and restarts
-it again, then exits 75. A normal update without a running service asks you to
-restart `phosphor run`.
+it again, then exits 75. A signal that ends the updater during the restart is
+not a failed health check: the new version stays selected, since systemd
+finishes the restart on it either way. A normal update without a running
+service asks you to restart `phosphor run`.
+
+On Linux, `phosphor update` and `update --rollback` typed into a Host terminal
+run inside the Host's own unit, and restarting that unit would stop the
+updater with it. So the updater reads `/proc/self/cgroup` first and, inside
+`phosphor-host.service`, runs the same command again as the transient
+`phosphor-host-update` unit (`systemd-run --user --collect`), passing only
+`HOME`, `PATH`, `PHOSPHOR_HOST_RELEASE_URL`, `XDG_CONFIG_HOME` and
+`XDG_STATE_HOME`. The terminal prints where to follow it
+(`journalctl --user -u phosphor-host-update`) and closes when the Host
+restarts. If `systemd-run` fails, nothing changes and the update exits 75.
+`--check` restarts nothing and stays in the terminal.
+
 `phosphor update --rollback` selects the recorded previous installed version
 without network access; an installed service is restarted and health-checked even
 if it is stopped. Rollback is the updater's only downgrade path.
