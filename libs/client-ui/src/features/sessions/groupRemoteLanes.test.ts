@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { groupRemoteLanes } from './groupRemoteLanes'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 
-it('preserves repository and per-repository lane order without mutating the snapshot', () => {
+it('preserves repository order and snapshot order for lanes created together, without mutating it', () => {
   const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
   const base = host.lanes[0]!
   host.repositories.push({ id: 'second', name: 'Another folder', path: '/second' })
