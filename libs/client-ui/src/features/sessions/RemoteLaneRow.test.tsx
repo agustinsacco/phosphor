@@ -1,3 +1,5 @@
+import { usePullRequestsStore } from '@/stores/pullRequests'
+import { remotePrKey } from '@shared/host-protocol-github'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 // @vitest-environment jsdom
 import { act } from 'react'
@@ -72,6 +74,37 @@ function button(text: string): HTMLButtonElement {
   if (!found) throw new Error(text)
   return found
 }
+it('shows remote PR state and opens its link without opening the lane', async () => {
+  const lane = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.lanes[0]!
+  lane.branch = 'remote-task'
+  usePullRequestsStore.setState({
+    byRepo: {
+      [remotePrKey(MOCK_HOST_ID, lane.repositoryId)]: {
+        byBranch: {
+          [lane.branch!]: {
+            number: 42,
+            title: 'Remote PR',
+            state: 'MERGED',
+            url: 'https://github.com/a/b/pull/42',
+          },
+        },
+        complete: true,
+        loading: false,
+        fetchedAt: 1,
+        attemptedAt: 1,
+      },
+    },
+  })
+  render()
+  const chip = container.querySelector<HTMLElement>('[data-testid=session-pr-badge]')!
+  expect(chip.dataset.variant).toBe('merged')
+  await act(async () => chip.click())
+  expect(invoke).toHaveBeenCalledWith('app:openExternal', 'https://github.com/a/b/pull/42')
+  expect(invoke).not.toHaveBeenCalledWith('hosts:openLane', expect.anything(), expect.anything())
+  menu()
+  expect(button('Open pull request #42')).toBeTruthy()
+  usePullRequestsStore.setState({ byRepo: {} })
+})
 it('prefers the live name, then Host summary, then first prompt without local naming', () => {
   expect(remoteLaneTitle('Live', 'Summary', 'Prompt')).toBe('Live')
   expect(remoteLaneTitle('', 'Summary', 'Prompt')).toBe('Summary')

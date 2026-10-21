@@ -127,8 +127,10 @@ Explicit choices persist across reloads and mode changes.
 
 ## PR status
 
-`apps/desktop/electron/fs/gh-cli.ts` is the only place Phosphor shells out to `gh`, and it
-is **read-only by design**: no push, no create. Those are outward-facing writes
+Desktop's `apps/desktop/electron/fs/gh-cli.ts` and the Host's
+`features/git/github.ts` run read-only `gh` queries. Their listing, fallback and
+check shaping share `libs/session-runtime/src/git/github.ts`.
+They are **read-only by design**: no push, no create. Those are outward-facing writes
 and belong behind an explicit action, which is why the `↑ no PR` chip is inert
 rather than a one-click create button.
 
@@ -172,6 +174,15 @@ never produces this fallback. A failed query cannot prove absence either.
 A trunk checked out directly is not "a lane", and guessing "you could open a
 PR" there is wrong more often than right. A **confirmed** chip has no such
 restriction.
+
+Remote repository groups use the same PR store and chips, keyed by opaque
+Host/repository identity instead of a local path. Expanded groups refresh on Host
+summary changes and window focus. `github.prs` requires `workspaces.read`, resolves
+only configured repository ids, and uses the Host's environment and `gh` login;
+GitHub credentials never reach the client. Reads are coalesced and throttled per
+repository for 60 seconds on both sides, including failures. A missing or older
+Host feature leaves PR status unavailable, never inferred absent. Desktop's local
+`gh` availability has no bearing on remote PRs.
 
 ### The chip is one token carrying two signals
 
