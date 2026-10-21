@@ -46,6 +46,43 @@ it('offers bulk lane selection in a remote repository menu', () => {
   expect(document.body.textContent).toContain('Select all lanes')
 })
 
+it('selects remote lanes and confirms bulk deletion through Host commands only', async () => {
+  const host = structuredClone(mockRemoteHosts)[MOCK_HOST_ID]!
+  host.capabilities.push('workspaces.write')
+  host.lanes[0]!.control.controller = { self: true, label: 'You', connected: true }
+  host.lanes.push({
+    ...host.lanes[0]!,
+    laneId: '00000000-0000-4000-8000-000000000097',
+    title: 'Second lane',
+  })
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  useSessionsStore.setState({ bulkDelete: null, live: {} })
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'hosts:deleteLane' ? { branchKept: false } : undefined,
+  )
+  act(() => root.render(<RemoteLanes />))
+  act(() =>
+    container.querySelector<HTMLButtonElement>('[aria-label^="Workspace options"]')!.click(),
+  )
+  const click = (text: string) => {
+    const button = [...document.body.querySelectorAll('button')].find(
+      (b) => b.textContent === text,
+    )!
+    button.click()
+  }
+  act(() => click('Select all lanes'))
+  expect(container.querySelectorAll('[role=checkbox][aria-checked=true]')).toHaveLength(2)
+  act(() => click('Delete…'))
+  expect(invoke.mock.calls.filter(([c]) => c === 'hosts:deleteLane')).toHaveLength(0)
+  await act(async () => click('Delete 2 lanes'))
+  expect(invoke.mock.calls.filter(([c]) => c === 'hosts:deleteLane')).toHaveLength(2)
+  expect(
+    invoke.mock.calls.filter(([c]) => c.startsWith('sessions:') || c.startsWith('git:')),
+  ).toHaveLength(0)
+  expect(useSessionsStore.getState().bulkDelete).toMatchObject({ running: false, done: 2 })
+  invoke.mockReset().mockResolvedValue(undefined)
+})
+
 it('stays dormant without sessions.read and shows unread machine-tagged lanes when enabled', () => {
   act(() => root.render(<RemoteLanes />))
   expect(container.textContent).toContain('Remote demo lane')

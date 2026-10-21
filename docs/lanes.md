@@ -23,6 +23,16 @@ The lane header reports the connection state. The composer and panes disable
 while disconnected and recover when the Host snapshot is ready. See
 [Remote Desktop](remote-desktop.md#machine-context-and-lane-creation).
 
+Remote repository menus offer **Select all lanes** and **Select merged lanes**.
+Selection follows the visible search results and includes only lanes controlled by
+this client. The shared confirmation and non-blocking progress surface apply;
+Stop finishes the current deletion before cancelling the remainder. Every command
+rechecks connection, capabilities and control, never takes over implicitly, and
+is never retried on an uncertain result. Failures are reported per lane while
+other lanes continue. Shared worktrees are removed only with their last successfully
+deleted user; a failed or unselected lane keeps its directory. The Host refuses
+dirty worktree removal rather than discarding changes.
+
 ## The row
 
 ```
