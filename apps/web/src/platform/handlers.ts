@@ -44,6 +44,16 @@ function terminalHandlers(terminals: ReturnType<typeof createBrowserTerminals>['
     'hosts:providerLogin': (...args) => terminals['hosts:providerLogin'](...args),
   } satisfies Partial<BrowserHandlers>
 }
+/** Cross-tab delivery cannot prevent local logout. */
+function signOut(control: BrowserControl, broadcast: () => void) {
+  const result = control.signOut()
+  try {
+    broadcast()
+  } catch {
+    // Local invalidation still takes effect if the browser channel is unavailable.
+  }
+  return result
+}
 export function createBrowserHandlers(ports: {
   control: BrowserControl
   hosts: BrowserHosts
@@ -71,15 +81,7 @@ export function createBrowserHandlers(ports: {
   return {
     'account:get': control.view,
     'account:signIn': control.signIn,
-    'account:signOut': () => {
-      const result = control.signOut()
-      try {
-        ports.broadcastLogout()
-      } catch {
-        /* Cross-tab delivery cannot prevent local logout. */
-      }
-      return result
-    },
+    'account:signOut': () => signOut(control, ports.broadcastLogout),
     'control:machines': hosts.refresh,
     'control:lookupEnrollment': control.lookup,
     'control:approveEnrollment': (code, label) => directoryMutation(control.approve(code, label)),
