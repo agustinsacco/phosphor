@@ -83,7 +83,7 @@ function SavedMessage({ message }: { message: AgentMessage }): React.JSX.Element
     )
   }
   if (message.role === 'compactionSummary' || message.role === 'branchSummary')
-    return <Markdown text={message.summary} />
+    return <Markdown inAppLinks={false} text={message.summary} />
   if (message.role === 'bashExecution')
     return (
       <details>
@@ -98,15 +98,17 @@ function SavedMessage({ message }: { message: AgentMessage }): React.JSX.Element
       {userMessageImages(message)?.map((image, i) => (
         <ChatImage key={i} image={image} className="max-h-40 rounded-lg" />
       ))}
-      {message.role !== 'assistant' && <Markdown text={userMessageText(message)} />}
+      {message.role !== 'assistant' && (
+        <Markdown inAppLinks={false} text={userMessageText(message)} />
+      )}
       {message.role === 'assistant' &&
         message.content.map((block, i) =>
           block.type === 'text' ? (
-            <Markdown key={i} text={block.text} />
+            <Markdown key={i} inAppLinks={false} text={block.text} />
           ) : block.type === 'thinking' && block.thinking ? (
             <details key={i}>
               <summary>Thinking</summary>
-              <Markdown text={block.thinking} />
+              <Markdown inAppLinks={false} text={block.thinking} />
             </details>
           ) : block.type === 'toolCall' ? (
             <details key={i}>
