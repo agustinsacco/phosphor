@@ -3,12 +3,7 @@ import type { HostConnectionView } from '@phosphor/shared/ipc'
 
 type ReadyView = Pick<
   HostConnectionView,
-  | 'state'
-  | 'lastError'
-  | 'hostVersion'
-  | 'configurationSupported'
-  | 'machineShell'
-  | 'capabilities'
+  'state' | 'lastError' | 'hostVersion' | 'configurationSupported' | 'machineShell' | 'capabilities'
 >
 
 /** Project only the verified handshake's reviewed connection metadata. */
