@@ -10,9 +10,7 @@ import {
 import { openSidebarConversation, useSavedConversation } from './completionActions'
 import { SavedConversationModal } from './SavedConversationModal'
 
-vi.mock('@/components/markdown/Markdown', () => ({
-  Markdown: ({ text }: { text: string }) => <p>{text}</p>,
-}))
+vi.mock('@/stores/settings', () => ({ useSettingsStore: () => 'light' }))
 let root: Root | undefined
 let dispose: (() => void) | undefined
 let restore: (() => void) | undefined
@@ -32,7 +30,15 @@ it('recovers a failed first read without restoring or resuming, and closes with 
     .mockRejectedValueOnce(new Error('Temporary read failure'))
     .mockResolvedValueOnce([
       { role: 'user', content: 'Saved question' },
-      { role: 'assistant', content: [{ type: 'text', text: 'Saved answer' }] },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'Saved answer\n\n```bash\necho saved\n```\n\n[File](file:///repo/file.ts)',
+          },
+        ],
+      },
       { role: 'custom', display: false, content: 'Hidden receipt' },
     ])
   const fake = createFakePhosphor({ 'sessions:readTranscript': read })
@@ -54,6 +60,9 @@ it('recovers a failed first read without restoring or resuming, and closes with 
   expect(document.body.textContent).toContain('Saved answer')
   expect(document.body.textContent).not.toContain('Hidden receipt')
   expect(document.querySelector('textarea')).toBeNull()
+  expect(document.querySelector('.code-block')).toBeNull()
+  expect(document.querySelector('pre code')?.textContent).toContain('echo saved')
+  expect(document.querySelector('a')).toBeNull()
   expect(read).toHaveBeenCalledTimes(2)
   expect(read).toHaveBeenLastCalledWith('/sessions/old.jsonl')
   await act(() => {
