@@ -70,8 +70,10 @@ disconnects, not Host restarts. The Host chooses the login shell, environment
 and lane directory. Routines never type into them. UTF-8 scrollback is bounded
 to 256 KiB and 2048 chunks; reconnects replay a valid cursor or reset to that tail.
 Input is sequenced and acknowledged, never automatically retried after uncertainty.
-Desktop routes remote lane tabs through main's terminal bridge. The renderer sees
-only opaque Desktop ids. Create, resize and kill use receipts and the current lane
+Desktop routes remote lane tabs through main's terminal bridge; the PWA runs the
+same bridge (`libs/host-client/src/terminals/`) in the page, as one window, and
+shows the pane as a lane tab on a wide screen or from the lane menu on a phone.
+The renderer sees only opaque `remote-pty-` ids. Create, resize and kill use receipts and the current lane
 fence; typing uses main-owned input sequence numbers with at most 4096 UTF-8 bytes
 per frame. A write stops at the first uncertain acknowledgement and is never
 resent. While a frame is in flight, main queues up to 64 KiB of new UTF-8 input
@@ -100,4 +102,19 @@ or fence. Only their creating client can watch, type, resize or kill them, with
 but no input, output or terminal metadata is persisted. Exit and Host shutdown
 kill them; disconnect allows ten minutes for the same client to reattach.
 Grant or capability loss kills them immediately. Machines Readiness opens them
-in a modal and refreshes provider readiness when they exit.
+in a modal and refreshes provider readiness when they exit. The PWA can open the
+plain sign-in; configuring accounts still needs `machine.configure`.
+
+## Machine shells
+
+The Machine page of a connected Host has a Terminal card, in Desktop and the PWA.
+It opens the Host account's login shell in its home folder, outside any lane
+(`hosts:machineShell`). It needs `terminal` and `sessions.control` and a Host
+whose `ready` frame carries `machineShell`; an older Host shows "Update the Host
+on NAME to open a terminal here." One shell is shared: opening it attaches to a
+running machine shell before starting a new one, so every device with control
+sees and types into the same shell, with the same sequencing, limits and replay
+as lane shells. Hide detaches and leaves it running; closing the window or tab
+does the same. End shell kills it. It ends with the Host process and is never
+restored. Desktop's This computer card opens the local login shell in the local
+account's home through the existing PTY manager, also without a lane.

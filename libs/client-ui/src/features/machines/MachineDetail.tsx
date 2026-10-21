@@ -19,6 +19,7 @@ import {
 } from './machinePresentation'
 import { machineHeadline } from './machineReachability'
 import { Card, CheckRow, Fact, Facts, Spinner, type CheckItem } from './MachineUi'
+import { MachineTerminal } from './MachineTerminal'
 import { OnThisMachine } from './OnThisMachine'
 import { ProviderSignIn } from './ProviderSignIn'
 
@@ -221,6 +222,7 @@ export function MachineDetail({
               <MachineDetailFacts machine={machine} version={version} />
             </div>
           </div>
+          {connection && <MachineTerminal hostId={machine.id} label={machine.label} />}
 
           <section
             aria-label="Remove machine"

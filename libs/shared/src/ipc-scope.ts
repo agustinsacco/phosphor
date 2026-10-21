@@ -17,6 +17,7 @@ export const IPC_SCOPE = {
   'hosts:settingsCheck': 'app',
   'hosts:claudeAccount': 'app',
   'hosts:machineTask': 'app',
+  'hosts:machineShell': 'app',
   'hosts:uploadAttachments': 'app',
   'hosts:snapshot': 'app',
   'hosts:reconnect': 'app',

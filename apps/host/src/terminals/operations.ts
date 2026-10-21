@@ -35,6 +35,7 @@ function exited(state: TerminalState, entry: Entry, exitCode: number) {
     close(state)
   }
 }
+/** A lane shell, or with laneId '' a machine shell, which shares the lane limits as one scope. */
 function createTerminal(
   state: TerminalState,
   laneId: string,
@@ -44,15 +45,16 @@ function createTerminal(
   const { options, entries } = state
   // laneRoot awaits I/O: recheck limits after it, before any spawn.
   reap(state)
-  if (!alive(state, laneId)) throw new Error('unknown-lane')
+  if (laneId !== '' && !alive(state, laneId)) throw new Error('unknown-lane')
   if (
     entries.size >= L.perHost ||
-    [...entries.values()].filter((e) => e.laneId === laneId).length >= L.perLane
+    [...entries.values()].filter((e) => !e.login && e.laneId === laneId).length >= L.perLane
   )
     throw new Error('too-many-requests')
   const shell = (options.shell ?? (() => userInfo().shell || '/bin/sh'))()
   if (!isAbsolute(shell) || shell.includes('\0')) throw new Error('unavailable')
   const entry = createEntry({ terminalId: randomUUID(), laneId, status: 'running' })
+  if (laneId === '') entry.machine = true
   entries.set(entry.terminalId, entry)
   // Record identity before spawn. A crash can only restore an interrupted terminal.
   try {
@@ -73,6 +75,16 @@ function createTerminal(
     throw new Error('unavailable')
   }
   return { terminalId: entry.terminalId }
+}
+/** A shell in the Host account's home. Capabilities were checked by the command router. */
+export function createMachineShell(
+  state: TerminalState,
+  op: Extract<TerminalOp, { type: 'terminal.create' }>,
+) {
+  if (state.closed) throw new Error('unavailable')
+  const home = (state.options.home ?? (() => userInfo().homedir))()
+  if (!isAbsolute(home) || home.includes('\0')) throw new Error('unavailable')
+  return createTerminal(state, '', op, home)
 }
 export async function execute(
   state: TerminalState,
@@ -117,15 +129,16 @@ export function input(
   if (
     !entry ||
     (entry.login?.configuration && (!configuration || entry.login.authorized?.() === false)) ||
-    (!entry.login && !alive(state, entry.laneId)) ||
+    (!entry.login && !entry.machine && !alive(state, entry.laneId)) ||
     !entry.pty
   )
     return false
-  const lane = entry.login ? null : options.context.store.getLane(entry.laneId)
+  const lane = entry.login || entry.machine ? null : options.context.store.getLane(entry.laneId)
+  // A machine shell has no lane controller: any client holding control may type.
   if (
     (entry.login
       ? entry.login.owner !== clientId
-      : lane?.control.controller?.clientId !== clientId) ||
+      : !entry.machine && lane?.control.controller?.clientId !== clientId) ||
     frame.seq !== entry.inputSeq + 1
   )
     return false
@@ -159,11 +172,12 @@ export function terminalFeature(state: TerminalState): HostFeature {
         return { ok: false, error: { code: 'bad-request', message: 'Invalid terminal request.' } }
       try {
         reap(state)
-        await laneRoot(options.context, parsed.laneId)
+        if (parsed.laneId !== null) await laneRoot(options.context, parsed.laneId)
+        const scope = parsed.laneId ?? ''
         return {
           ok: true,
           data: [...entries.values()]
-            .filter((e) => e.laneId === parsed.laneId)
+            .filter((e) => !e.login && e.laneId === scope)
             .map(({ terminalId, laneId, status }) => ({ terminalId, laneId, status })),
         }
       } catch {

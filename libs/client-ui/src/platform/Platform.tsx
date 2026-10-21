@@ -27,7 +27,8 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   splitPanes: false,
   localLanes: false,
   fileEditing: false,
-  terminal: false,
+  // Host shells over the Host connection; a browser never opens a local one.
+  terminal: true,
   scriptedArtifacts: false,
   nativeFiles: false,
   machineSettings: false,

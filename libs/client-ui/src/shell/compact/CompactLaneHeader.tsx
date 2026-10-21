@@ -15,7 +15,7 @@ import { useSessionsStore } from '@/stores/sessions'
 type LaneLocation = Extract<Location, { to: 'lane' }>
 
 /** The panes a phone can show for a remote lane, in the order the menu lists them. */
-export const COMPACT_LANE_PANES = ['chat', 'files', 'changes', 'artifacts'] as const
+export const COMPACT_LANE_PANES = ['chat', 'files', 'changes', 'artifacts', 'terminal'] as const
 
 /** The live session bound to a Host lane, once `openRemoteLane` has created it. */
 export function useRemoteLaneSession(hostId: string, laneId: string) {

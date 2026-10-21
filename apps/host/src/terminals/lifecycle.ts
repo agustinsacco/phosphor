@@ -5,7 +5,8 @@ import { emit } from './output'
 export function persist(state: TerminalState) {
   state.options.save(
     [...state.entries.values()]
-      .filter((entry) => !entry.login)
+      // Machine shells cannot outlive a restart, so there is nothing to report later.
+      .filter((entry) => !entry.login && !entry.machine)
       .map(({ terminalId, laneId, status }) => ({
         terminalId,
         laneId,
@@ -57,7 +58,7 @@ export function reap(state: TerminalState) {
       entry.login
         ? entry.login.disconnectedAt !== undefined &&
           state.now() - entry.login.disconnectedAt >= PROVIDER_LOGIN_LIMITS.disconnectMs
-        : !alive(state, entry.laneId)
+        : !entry.machine && !alive(state, entry.laneId)
     ) {
       kill(state, entry)
       state.entries.delete(id)
