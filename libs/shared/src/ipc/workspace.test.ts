@@ -1,5 +1,6 @@
 import { expectTypeOf, it } from 'vitest'
 import type { IpcInvokeMap, SessionTree } from '../ipc'
+import type { AgentMessage } from '../rpc'
 import type { WorkspaceSearchRequest, WorkspaceSearchResult } from '../workspace-search'
 import type {
   AddWorktreeBranch,
@@ -38,6 +39,7 @@ export interface BaselineSessionsInvokeMap {
   }
 
   'sessions:readTree': { args: [sessionFilePath: string]; result: SessionTree }
+  'sessions:readTranscript': { args: [sessionFilePath: string]; result: AgentMessage[] }
 
   'sessions:appendLabel': {
     args: [sessionFilePath: string, targetId: string, label: string | undefined]

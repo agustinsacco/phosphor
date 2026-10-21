@@ -528,11 +528,16 @@ These records and refs are retained; cleanup does not age them out.
 Sidebar discovery also reads retained transcript headers under each repo's
 `.phosphor/worktrees/`, independent of surviving Git registrations, plus saved
 removal records for other checkout locations. Removed checkouts show **worktree
-removed**; their session tree remains readable. **Restore worktree** recreates
-the original path at the exact saved commit, detached to avoid overwriting a
-reused branch, without modifying the transcript. Dependencies must be reinstalled.
-Legacy missing checkouts with no saved identity stay visible but require manual
-restoration; Phosphor does not guess a replacement from today's trunk.
+removed**; clicking one opens a read-only saved conversation, without restoring
+files, starting pi, changing completion or rewriting the transcript's cwd. Failed
+reads offer Retry. The saved active context includes pi's compaction summaries;
+the session tree remains available separately. **Restore worktree** in the row's
+context menu recreates the original path at the exact saved commit, detached to
+avoid overwriting a reused branch, without modifying the transcript. Dependencies
+must be reinstalled.
+Legacy missing checkouts with no saved identity remain readable in the same way;
+only resuming work requires manual checkout restoration. Phosphor does not guess
+a replacement from today's trunk.
 
 Sizes come from `du`, which Windows lacks; an unmeasured size reports "unknown"
 and the policy never depends on the number. The scheduler is a plain interval

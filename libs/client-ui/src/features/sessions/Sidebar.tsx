@@ -55,6 +55,7 @@ import {
   SubtitleSegments,
 } from './SidebarPrimitives'
 import { TreeViewModal } from './TreeViewModal'
+import { SavedConversationModal } from './SavedConversationModal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { laneHaystack, laneMatches, laneQueryTerms, type LaneSearchFields } from './laneSearch'
 import { UpdatePill } from '@/features/updates/UpdatePill'
@@ -1196,6 +1197,7 @@ export function Sidebar({
         <AccountFooter />
       </div>
 
+      <SavedConversationModal />
       {treeFor && (
         <TreeViewModal
           meta={treeFor}

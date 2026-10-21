@@ -388,6 +388,7 @@ export const IPC_WEB = {
   'sessions:unwatch': unsupported('Local session files and mutations require Desktop.'),
   'sessions:delete': unsupported('Local session files and mutations require Desktop.'),
   'sessions:readTree': unsupported('Local session files and mutations require Desktop.'),
+  'sessions:readTranscript': unsupported('Local session files require Desktop.'),
   'sessions:appendLabel': unsupported('Local session files and mutations require Desktop.'),
   'sessions:jump': unsupported('Local session files and mutations require Desktop.'),
   'sessions:forkAt': unsupported('Local session files and mutations require Desktop.'),
