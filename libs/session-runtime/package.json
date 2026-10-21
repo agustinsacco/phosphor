@@ -72,6 +72,10 @@
       "types": "./src/file-log.ts",
       "default": "./src/file-log.ts"
     },
+    "./git/github": {
+      "types": "./src/git/github.ts",
+      "default": "./src/git/github.ts"
+    },
     "./git/git-exec": {
       "types": "./src/git/git-exec.ts",
       "default": "./src/git/git-exec.ts"
