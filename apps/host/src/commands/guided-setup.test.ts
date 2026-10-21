@@ -321,7 +321,11 @@ it.each([true, false])('offers npm pi installation and honors approval %s', asyn
   expect(control.output.join('\n')).toMatch(/ {2}! pi {15}not installed/)
   expect(run).toHaveBeenCalledTimes(approved ? 1 : 0)
   if (approved)
-    expect(run).toHaveBeenCalledWith(npm, ['install', '-g', '@earendil-works/pi-coding-agent'])
+    expect(run).toHaveBeenCalledWith(
+      npm,
+      ['install', '-g', '@earendil-works/pi-coding-agent'],
+      'task',
+    )
   else expect(report.notes).toEqual(['Run: npm install -g @earendil-works/pi-coding-agent'])
 })
 
@@ -391,9 +395,9 @@ it('offers the provider installer for an outdated package even with a ready CLI 
   context.setupTerminal = { confirm: async () => true, run }
   expect((await runGuidedSetup(context)).exitCode).toBe(0)
   expect(run).toHaveBeenCalledTimes(1)
-  expect(run).toHaveBeenCalledWith(process.execPath, [
-    machine.pi,
-    'install',
-    'npm:@saccolabs/pi-claude-cli',
-  ])
+  expect(run).toHaveBeenCalledWith(
+    process.execPath,
+    [machine.pi, 'install', 'npm:@saccolabs/pi-claude-cli'],
+    'task',
+  )
 })
