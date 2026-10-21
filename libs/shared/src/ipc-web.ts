@@ -8,6 +8,7 @@ const browser = { kind: 'browser-local' } as const
 const unsupported = (reason: string) => ({ kind: 'unsupported', reason }) as const
 
 const native = unsupported('This native or mutating Host feature is unavailable in the browser.')
+const readOnlyFiles = unsupported('Browser file access is read-only and explicitly Host-scoped.')
 
 /** Every new IPC channel requires an explicit browser admission decision. */
 export const IPC_WEB = {
@@ -454,26 +455,22 @@ export const IPC_WEB = {
   'git:checkoutBranch': unsupported(
     'Only Host-scoped read-only status and file comparisons are available.',
   ),
-  'fs:readDir': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
+  'fs:readDir': readOnlyFiles,
   'fs:readFile': remote,
-  'fs:previewUrl': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:openInDefaultApp': unsupported(
-    'Browser file access is read-only and explicitly Host-scoped.',
-  ),
-  'fs:quickLook': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:writeFile': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:createFile': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:createDir': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:rename': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:trash': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:transfer': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:pickEntries': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:watchWorkspace': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:statDirs': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:searchWorkspace': unsupported('Browser file access is read-only and explicitly Host-scoped.'),
-  'fs:cancelWorkspaceSearch': unsupported(
-    'Browser file access is read-only and explicitly Host-scoped.',
-  ),
+  'fs:previewUrl': readOnlyFiles,
+  'fs:openInDefaultApp': readOnlyFiles,
+  'fs:quickLook': readOnlyFiles,
+  'fs:writeFile': readOnlyFiles,
+  'fs:createFile': readOnlyFiles,
+  'fs:createDir': readOnlyFiles,
+  'fs:rename': readOnlyFiles,
+  'fs:trash': readOnlyFiles,
+  'fs:transfer': readOnlyFiles,
+  'fs:pickEntries': readOnlyFiles,
+  'fs:watchWorkspace': readOnlyFiles,
+  'fs:statDirs': readOnlyFiles,
+  'fs:searchWorkspace': readOnlyFiles,
+  'fs:cancelWorkspaceSearch': readOnlyFiles,
   'pty:create': remote,
   'pty:attach': remote,
   'pty:write': remote,
