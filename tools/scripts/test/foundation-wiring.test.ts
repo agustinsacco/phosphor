@@ -20,20 +20,24 @@ function job(name: string): string {
   return section[1]
 }
 
-const checkCommands = [
-  'npm ci',
-  'npm ci --prefix apps/site',
-  'npm run typecheck',
-  'node tools/scripts/size-budget.mjs check',
-  'npm run web:build',
-  'npx playwright install --with-deps chromium webkit',
-  'npm run lint',
-  'npx prettier --check .',
-  'npm test',
-  'npm run build',
-  'npm run build:host',
-  'npm run build:control',
-]
+// Each mandatory command, in the one job that owns it.
+const jobCommands = {
+  checks: [
+    'npm ci',
+    'npm ci --prefix apps/site',
+    'npm run typecheck',
+    'node tools/scripts/size-budget.mjs check',
+  ],
+  lint: ['npm ci', 'npm run lint', 'npx prettier --check .'],
+  build: [
+    'npm ci',
+    'npm run build',
+    'npm run web:build',
+    'npm run build:host',
+    'npm run build:control',
+  ],
+  unit: ['npm ci', 'npm ci --prefix apps/site', 'npm test -- --shard=${{ matrix.shard }}/3'],
+}
 
 const documentedCommands = [
   'npm ci',
@@ -63,13 +67,42 @@ function documentedShellLines(): string[] {
 }
 
 describe('foundation CI wiring', () => {
-  it('installs both domains before checks and runs each mandatory command exactly once', () => {
-    const checks = job('checks')
-    const commands = [...checks.matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1])
-    expect(commands).toEqual(checkCommands)
-    expect(checks).not.toMatch(/^\s*(?:if|continue-on-error):/m)
-    expect(checks).not.toMatch(/--passWithNoTests|--if-present|\|\|\s*(?:true|:)|--exclude/)
+  it.each(Object.entries(jobCommands))(
+    'installs before %s and runs each of its mandatory commands exactly once',
+    (name, expected) => {
+      const section = job(name)
+      const commands = [...section.matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1])
+      expect(commands).toEqual(expected)
+      expect(section).not.toMatch(/^\s*(?:if|continue-on-error):/m)
+      expect(section).not.toMatch(/--passWithNoTests|--if-present|\|\|\s*(?:true|:)|--exclude/)
+    },
+  )
+
+  it('splits unit tests into shards that together cover the whole suite', () => {
+    expect(job('unit')).toContain('shard: [1, 2, 3]')
     expect(workflow).not.toContain('tools/scripts/unit-gate.mjs')
+  })
+
+  it('maps Desktop e2e windows and limits only PR macOS legs to @macos', () => {
+    const e2e = job('e2e')
+    expect(e2e).toContain("PHOSPHOR_E2E_SHOW: '1'")
+    const [push, pr] = [...e2e.matchAll(/'(\[\{"os".*?\])'/g)].map(
+      (match) => JSON.parse(match[1]!) as { os: string; shard: string; grep?: string }[],
+    )
+    expect(e2e).toContain("github.event_name == 'push' &&")
+    for (const legs of [push!, pr!]) {
+      const linux = legs.filter((leg) => leg.os === 'ubuntu-latest')
+      expect(linux.map((leg) => leg.shard)).toEqual(['1/4', '2/4', '3/4', '4/4'])
+      expect(linux.every((leg) => !leg.grep)).toBe(true)
+    }
+    expect(push!.filter((leg) => leg.os === 'macos-latest')).toEqual([
+      { os: 'macos-latest', shard: '1/3' },
+      { os: 'macos-latest', shard: '2/3' },
+      { os: 'macos-latest', shard: '3/3' },
+    ])
+    expect(pr!.filter((leg) => leg.os === 'macos-latest')).toEqual([
+      { os: 'macos-latest', shard: '1/1', grep: '@macos' },
+    ])
   })
 
   it('uses the comprehensive runner including its all-file audit, Host, Control and site', () => {
@@ -97,7 +130,7 @@ describe('foundation CI wiring', () => {
     expect(read('tools/scripts/test/typecheck-coverage.test.ts')).toContain(
       'expect(auditCoverage(repo)).toEqual([])',
     )
-    expect(job('checks')).not.toMatch(/run: .*typecheck(?::host|:control|-coverage\.mjs)/)
+    expect(workflow).not.toMatch(/run: .*typecheck(?::host|:control|:web-e2e|-coverage\.mjs)/)
     expect(read('docs/host.md')).not.toContain('standalone `npm run typecheck:host`')
   })
 
@@ -126,22 +159,34 @@ describe('foundation CI wiring', () => {
     ])
   })
 
-  it('keeps affected selection shadow-only without gating any check', () => {
-    const checks = job('checks')
-    expect(checks).toContain('Shadow affected report (never skips checks)')
-    expect(checks).toContain('shadowSelection(context, github)')
-    expect(checks).not.toMatch(/needs:|steps\.[\w-]+\.outputs/)
+  it('gates no job on affected projects', () => {
+    expect(workflow).not.toMatch(/affected|shadowSelection/)
+    // Only the aggregator waits on other jobs; everything else starts at once.
+    expect(workflow.match(/^ {4}needs:/gm)).toHaveLength(1)
+    expect(job('result')).toMatch(/^ {4}needs:/m)
   })
 
   it('aggregates every required job and rejects all non-success results', () => {
     const jobs = [...workflow.split('\njobs:\n')[1]!.matchAll(/^ {2}([\w-]+):$/gm)].map(
       (match) => match[1],
     )
-    expect(jobs).toEqual(['checks', 'web-e2e', 'control-schema', 'site', 'e2e', 'result'])
+    expect(jobs).toEqual([
+      'checks',
+      'lint',
+      'build',
+      'unit',
+      'web-e2e',
+      'control-schema',
+      'site',
+      'e2e',
+      'result',
+    ])
     const result = job('result')
     expect(result).toContain('name: CI result')
     expect(result).toContain('if: always()')
-    expect(result).toContain('needs: [checks, control-schema, site, e2e, web-e2e]')
+    expect(result).toContain(
+      'needs: [checks, lint, build, unit, control-schema, site, e2e, web-e2e]',
+    )
     expect(result).toContain("RESULTS: ${{ join(needs.*.result, ' ') }}")
     expect(result).toContain('for r in $RESULTS; do [ "$r" = success ] ||')
     expect(result).toContain('exit 1;')
@@ -200,6 +245,7 @@ describe('living testing contract', () => {
       'no-misused-promises',
       'zero-warning CI budget',
       'eslint-suppressions.json',
+      'oxlint-suppressions.json',
       'tools/scripts/dead-mocks.mjs',
     ])
       expect(testing).toContain(phrase)

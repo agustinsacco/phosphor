@@ -97,17 +97,15 @@ describe('Desktop application and native install boundary', () => {
   })
 
   it('resolves esbuild from declared root tooling, never an ancestor checkout', () => {
-    expect(facade.devDependencies.esbuild).toBe('0.25.12')
+    expect(facade.devDependencies.esbuild).toBe('0.28.1')
     const require = createRequire(join(root, 'package.json'))
     const path = require.resolve('esbuild/package.json')
     expect(path).toBe(join(root, 'node_modules/esbuild/package.json'))
-    expect(json(path).version).toBe('0.25.12')
+    expect(json(path).version).toBe('0.28.1')
     expect(lstatSync(join(root, 'node_modules/esbuild')).isSymbolicLink()).toBe(false)
+    // Vite 8 bundles with Rolldown and shares the one declared esbuild.
     const viteRequire = createRequire(require.resolve('vite/package.json'))
-    expect(viteRequire.resolve('esbuild/package.json')).toBe(
-      join(root, 'node_modules/vite/node_modules/esbuild/package.json'),
-    )
-    expect(viteRequire('esbuild/package.json').version).toBe('0.28.1')
+    expect(viteRequire.resolve('esbuild/package.json')).toBe(path)
   })
 
   it('anchors relocated tooling to the workspace or application cwd', () => {

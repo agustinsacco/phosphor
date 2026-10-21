@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { writeNodeShim } from './__fixtures__/node-shim'
 
 // Pins the shipping release path through its public entries, with its own keys and folders:
 // generateInstaller and buildBundle, the manifest CLI that signs, then the generated install.sh.
@@ -34,6 +35,7 @@ const releaseEnv = (extra: NodeJS.ProcessEnv = {}) => ({
   ...extra,
 })
 let dir = ''
+let nodeDir = ''
 let installer = ''
 let release = ''
 let foreign = ''
@@ -115,8 +117,7 @@ beforeAll(() => {
   )
   const prefix = `node-v${nodeVersion}-${target}`
   const stage = join(dir, 'node-stage')
-  mkdirSync(join(stage, prefix, 'bin'), { recursive: true })
-  cpSync(process.execPath, join(stage, prefix, 'bin/node'))
+  nodeDir = writeNodeShim(join(stage, prefix, 'bin/node'))
   writeFileSync(join(stage, prefix, 'LICENSE'), 'Characterization runtime license\n')
   const cache = join(dir, 'cache')
   mkdirSync(cache)
@@ -143,6 +144,7 @@ beforeAll(() => {
 }, 180_000)
 afterAll(() => {
   if (dir) rmSync(dir, { recursive: true, force: true })
+  if (nodeDir) rmSync(nodeDir, { recursive: true, force: true })
 })
 
 describe('Host release install through its public entries', { timeout: 60_000 }, () => {

@@ -24,7 +24,7 @@ engineering remediation and what is left of it.
 npm run dev          # Electron + Vite with HMR (needs pi on PATH)
 npm run dev:web      # the renderer in a browser, against the mock API
 npm run typecheck    # all-file audit + Desktop/tests, libraries, Host, Control, tooling, site
-npm run lint         # eslint (with its suppression ratchet) + the dead-mock check
+npm run lint         # eslint + typed oxlint (suppression ratchets) + the dead-mock check
 npm run format       # prettier --write
 npm test             # vitest unit tests
 npm run test:e2e     # builds, then Playwright-Electron against the pi stub
@@ -86,7 +86,7 @@ are on the author and the reviewer.
 - **No unhandled promises.** `no-floating-promises` and `no-misused-promises` are
   errors wherever a TS project owns the file. Await it, return it, or `.catch` it
   into a visible failure; `void` only when the callee handles its own errors.
-  `eslint-suppressions.json` records older violations and only shrinks: never add
+  `oxlint-suppressions.json` records older violations and only shrinks: never add
   to it to land a change.
 - **No dead mocks.** `npm run lint` fails on a `vi.mock` of a module the test never
   loads. Moving or renaming a module means retargeting its mocks.

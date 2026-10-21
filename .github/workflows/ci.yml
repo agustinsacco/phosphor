@@ -13,18 +13,19 @@ env:
   # electron-builder's postinstall isn't needed for checks and slows CI down.
   ELECTRON_BUILDER_SKIP_REBUILD: '1'
 
+# Every job below runs in parallel; wall time is the slowest one, not the sum.
+# A job costs about a minute of checkout and `npm ci`, and the repo is public
+# (20 concurrent runners, 5 macOS), so independent work gets its own job.
 jobs:
   checks:
-    name: Typecheck · lint · unit tests · build
+    name: Typecheck · size ratchet
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
+    timeout-minutes: 15
+    env:
+      # Only the unit and e2e jobs launch Electron.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -33,22 +34,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Both the comprehensive typecheck and its coverage audit unit test need
-      # the site's independent TypeScript/Astro installation.
+      # The comprehensive typecheck includes the site's independent
+      # TypeScript/Astro installation.
       - name: Install site dependencies
         run: npm ci --prefix apps/site
-
-      - name: Shadow affected report (never skips checks)
-        uses: actions/github-script@v7
-        with:
-          script: |
-            try {
-              const { shadowSelection } = await import(`${process.env.GITHUB_WORKSPACE}/tools/scripts/ci-selection.mjs`)
-              console.log(JSON.stringify(await shadowSelection(context, github)))
-            } catch {
-              console.log(JSON.stringify({ mode: 'full', reason: 'shadow adapter failed', base: null, head: context.sha,
-                projects: ['client-ui', 'web', 'control', 'desktop', 'host', 'host-client', 'pi-extensions', 'runtime', 'schema', 'shared', 'site', 'tooling'] }))
-            }
 
       # Includes the all-file coverage audit, Host, Control and the site check.
       - name: Typecheck
@@ -57,23 +46,50 @@ jobs:
       - name: Size ratchet
         run: node tools/scripts/size-budget.mjs check
 
-      - name: Build (web)
-        run: npm run web:build
+  lint:
+    name: Lint · format
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
 
-      - name: Install browser crypto test engines
-        run: npx playwright install --with-deps chromium webkit
+      - name: Install dependencies
+        run: npm ci
 
+      # ESLint (syntax-only), oxlint's type-aware promise rules, dead mocks.
       - name: Lint
         run: npm run lint
 
       - name: Format check
         run: npx prettier --check .
 
-      - name: Unit tests
-        run: npm test
+  build:
+    name: Build · Desktop · Web · Host · Control
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build (main · preload · renderer)
         run: npm run build
+
+      - name: Build (web)
+        run: npm run web:build
 
       - name: Build (host)
         run: npm run build:host
@@ -81,11 +97,48 @@ jobs:
       - name: Build (control)
         run: npm run build:control
 
-  web-e2e:
-    name: Web · Chromium and WebKit
+  unit:
+    name: Unit tests (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm ci's electron postinstall downloads the Electron zip on every run.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The typecheck coverage audit's own unit test reads the site's install.
+      - name: Install site dependencies
+        run: npm ci --prefix apps/site
+
+      # Vitest splits by file. Each shard is a full, independent run.
+      - name: Unit tests
+        run: npm test -- --shard=${{ matrix.shard }}/3
+
+  web-e2e:
+    name: Web · ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
     env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       WEB_E2E_EVIDENCE: /tmp/phosphor-web-e2e
     steps:
       - uses: actions/checkout@v4
@@ -93,14 +146,16 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
-      - run: npm run typecheck:web-e2e
-      - run: npm run test:e2e:web
+      - name: Install dependencies
+        run: npm ci
+      - name: Install ${{ matrix.browser }}
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Browser acceptance (${{ matrix.browser }})
+        run: npm run test:e2e:web -- --project=${{ matrix.browser }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: web-browser-results
+          name: web-browser-results-${{ matrix.browser }}
           path: /tmp/phosphor-web-e2e/results/
           retention-days: 7
 
@@ -108,6 +163,8 @@ jobs:
     name: Control schema · local Supabase · RLS
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -137,6 +194,7 @@ jobs:
     # only runs after a merge — this catches a broken page on the PR instead.
     name: Site · astro check · build · browser checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -169,25 +227,26 @@ jobs:
   # back in a later release: restore this job from git history (it built the NSIS
   # installer, checked latest.yml and booted the packaged app with an npm pi).
 
+  # Linux runs the whole Desktop suite on every push. macOS runs the whole suite
+  # on main, which gates every release (release-continuous.yml waits for this
+  # workflow), and on a PR only the tests tagged @macos: native quit, undo,
+  # context menus, Meta shortcuts, the system clipboard and the login shell.
   e2e:
-    name: E2E smoke (${{ matrix.os }} ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
+    name: E2E smoke (${{ matrix.os }} ${{ matrix.shard }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Sharded per test (fullyParallel, workers 1): the suite has no
-          # cross-test ordering or shared state. The repo is public, so extra
-          # runners cost wall time only for their ~1.5 min setup; six ubuntu
-          # shards and two macOS shards bring the slowest job from ~14 to ~7 min.
-          - { os: ubuntu-latest, shardIndex: 1, shardTotal: 6 }
-          - { os: ubuntu-latest, shardIndex: 2, shardTotal: 6 }
-          - { os: ubuntu-latest, shardIndex: 3, shardTotal: 6 }
-          - { os: ubuntu-latest, shardIndex: 4, shardTotal: 6 }
-          - { os: ubuntu-latest, shardIndex: 5, shardTotal: 6 }
-          - { os: ubuntu-latest, shardIndex: 6, shardTotal: 6 }
-          - { os: macos-latest, shardIndex: 1, shardTotal: 2 }
-          - { os: macos-latest, shardIndex: 2, shardTotal: 2 }
+        # Sharded per test (fullyParallel, workers 1): the suite has no
+        # cross-test ordering or shared state.
+        include: ${{ fromJSON(github.event_name == 'push' && '[{"os":"ubuntu-latest","shard":"1/4"},{"os":"ubuntu-latest","shard":"2/4"},{"os":"ubuntu-latest","shard":"3/4"},{"os":"ubuntu-latest","shard":"4/4"},{"os":"macos-latest","shard":"1/3"},{"os":"macos-latest","shard":"2/3"},{"os":"macos-latest","shard":"3/3"}]' || '[{"os":"ubuntu-latest","shard":"1/4"},{"os":"ubuntu-latest","shard":"2/4"},{"os":"ubuntu-latest","shard":"3/4"},{"os":"ubuntu-latest","shard":"4/4"},{"os":"macos-latest","shard":"1/1","grep":"@macos"}]') }}
+    env:
+      # Map the windows. Chromium barely renders a window that was never
+      # shown, which made every test 2-5x slower and timed out clicks (the
+      # recurring account, Open Folder and Machine filter retries). The windows
+      # land on xvfb or the runner's own session, never a person's screen.
+      PHOSPHOR_E2E_SHOW: '1'
     steps:
       - uses: actions/checkout@v4
 
@@ -215,27 +274,26 @@ jobs:
 
       # `apps/desktop/scripts/__tests__/adhoc-sign-mac.test.ts` is `skipIf(platform !==
       # 'darwin')` — codesign exists nowhere else — so the ubuntu unit-test job
-      # skips it and CI never ran it at all. That is how a signer that fails
-      # its own verification merged green and killed every macOS release build
-      # for a day. This is the only macOS runner in CI; the suite takes well
-      # under a second.
+      # skips it. That is how a signer that fails its own verification merged
+      # green and killed every macOS release build for a day. The suite takes
+      # well under a second.
       - name: Unit tests (macOS-only suites)
-        if: runner.os == 'macOS' && matrix.shardIndex == 1
+        if: runner.os == 'macOS' && startsWith(matrix.shard, '1/')
         run: npx vitest run apps/desktop/scripts/__tests__/adhoc-sign-mac.test.ts
 
       # The Electron window needs a display server on Linux runners.
       - name: E2E (Linux, xvfb)
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --config apps/desktop/playwright.config.ts --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        run: xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --config apps/desktop/playwright.config.ts --shard=${{ matrix.shard }}
 
       - name: E2E (macOS)
         if: runner.os == 'macOS'
-        run: npx playwright test --config apps/desktop/playwright.config.ts --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        run: npx playwright test --config apps/desktop/playwright.config.ts --shard=${{ matrix.shard }} ${{ matrix.grep && format('--grep {0}', matrix.grep) || '' }}
 
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report-${{ matrix.os }}-${{ matrix.shardIndex }}
+          name: playwright-report-${{ matrix.os }}-${{ strategy.job-index }}
           path: |
             apps/desktop/playwright-report/
             apps/desktop/test-results/
@@ -246,7 +304,7 @@ jobs:
   result:
     name: CI result
     if: always()
-    needs: [checks, control-schema, site, e2e, web-e2e]
+    needs: [checks, lint, build, unit, control-schema, site, e2e, web-e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Every required job succeeded

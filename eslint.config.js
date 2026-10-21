@@ -65,18 +65,10 @@ const phosphor = {
 }
 
 // An unawaited promise loses its rejection: the IPC failures fixed in the
-// engineering review started this way. Errors wherever a TS project types the
-// file; eslint-suppressions.json records the debt that predates the rule, and
-// eslint fails on a suppression that no longer occurs, so the record only shrinks.
-const promiseRules = {
-  '@typescript-eslint/no-floating-promises': 'error',
-  '@typescript-eslint/no-misused-promises': 'error',
-}
-const typedProject = (files, project) => ({
-  files,
-  languageOptions: { parserOptions: { project, tsconfigRootDir: import.meta.dirname } },
-  rules: promiseRules,
-})
+// engineering review started this way. no-floating-promises and
+// no-misused-promises run in oxlint's type-aware pass (.oxlintrc.json), about
+// 20x faster than typed ESLint; oxlint-suppressions.json is their one-way
+// ratchet. ESLint stays syntax-only, so it never builds a TypeScript program.
 
 export default tseslint.config(
   {
@@ -155,26 +147,6 @@ export default tseslint.config(
     plugins: { phosphor },
     rules: { 'phosphor/no-raw-pi-command': 'error' },
   },
-  {
-    // Typed linting uses each file's owning TS project, never a fallback
-    // default project. Desktop renderer tests, e2e and tooling stay syntax-only.
-    files: ['apps/desktop/electron/**/*.ts', 'apps/desktop/test/main/**/*.ts', 'libs/**/*.ts'],
-    ignores: ['libs/client-ui/**', 'libs/host-client/**'],
-    languageOptions: {
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
-    },
-    rules: promiseRules,
-  },
-  typedProject(['libs/host-client/**/*.ts'], './libs/host-client/tsconfig.tests.json'),
-  typedProject(['libs/client-ui/**/*.{ts,tsx}'], './libs/client-ui/tsconfig.json'),
-  typedProject(['apps/host/**/*.ts'], './apps/host/tsconfig.json'),
-  typedProject(['apps/control/**/*.ts'], './apps/control/tsconfig.json'),
-  typedProject(
-    ['apps/web/*.ts', 'apps/web/src/**/*.{ts,tsx}'],
-    ['tsconfig.json', 'tsconfig.platform.json', 'tsconfig.tests.json', 'tsconfig.worker.json'].map(
-      (name) => `./apps/web/${name}`,
-    ),
-  ),
   {
     // The Host runs under plain Node: no Electron, no native Desktop modules,
     // and the libraries only through their package subpaths. boundary.test.ts
