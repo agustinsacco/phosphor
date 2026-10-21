@@ -25,6 +25,14 @@ export function minutesLeft(ms: number): string {
   return minutes === 1 ? '1 minute' : `${minutes} minutes`
 }
 
+function enrollmentText(userCode: string, fingerprint: string, expiresInMs: number): string {
+  return `To add this machine to your Phosphor account:
+  1. Open Phosphor on a computer where you are signed in.
+  2. Machines > Add a machine, and enter:  ${formatUserCode(userCode)}
+Key fingerprint: ${fingerprint}. Phosphor shows the same one.
+Waiting for approval. The code expires in ${minutesLeft(expiresInMs)}. Ctrl-C cancels.`
+}
+
 async function runLoginCommand(context: ControlContext): Promise<CommandResult> {
   try {
     return await withCommandLock(context, async () => {
@@ -97,17 +105,17 @@ async function runLoginCommand(context: ControlContext): Promise<CommandResult> 
           expiresAt: enrollment.expiresAt,
           trace: context.trace,
         })
-        context.print('Resuming the earlier request.')
+        if (!context.enrollment) context.print('Resuming the earlier request.')
       }
       const deadline = Math.min(
         Date.parse(enrollment.expiresAt),
         now() + CONTROL_LIMITS.enrollmentTtlSec * 1000,
       )
-      context.print(`To add this machine to your Phosphor account:
-  1. Open Phosphor on a computer where you are signed in.
-  2. Machines > Add a machine, and enter:  ${formatUserCode(enrollment.userCode)}
-Key fingerprint: ${keyFingerprint}. Phosphor shows the same one.
-Waiting for approval. The code expires in ${minutesLeft(deadline - now())}. Ctrl-C cancels.`)
+      const { userCode } = enrollment
+      const expiresInMs = deadline - now()
+      if (context.enrollment)
+        context.enrollment({ userCode, fingerprint: keyFingerprint, expiresInMs, resuming })
+      else context.print(enrollmentText(userCode, keyFingerprint, expiresInMs))
       const expired = {
         exitCode: EXIT.tempfail,
         message: 'The code expired. Run phosphor setup again.',
