@@ -8,13 +8,13 @@ test.setTimeout(600_000)
 const label = process.env.PROBE_LABEL ?? '?'
 
 test('frame probe', async () => {
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < Number(process.env.PROBE_LAUNCHES ?? 4); i++) {
     const t0 = Date.now()
     const h = await launch()
     const tWindow = Date.now() - t0
     const firstFrame = async () => {
       const s = Date.now()
-      while (Date.now() - s < 90_000) {
+      while (Date.now() - s < 20_000) {
         const ok = await h.page.evaluate(
           () =>
             new Promise<boolean>((r) => {

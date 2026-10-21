@@ -3,16 +3,16 @@ on:
   pull_request:
 jobs:
   probe:
-    name: probe ${{ matrix.n }} show=${{ matrix.show }}
+    name: probe ${{ matrix.variant }} ${{ matrix.n }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        n: [1, 2, 3]
-        show: ['1', '0']
+        n: [1, 2]
+        variant: [diff, fc-cache, electron-version]
     env:
-      PHOSPHOR_E2E_SHOW: ${{ matrix.show }}
+      PHOSPHOR_E2E_SHOW: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,10 +26,20 @@ jobs:
       - run: npm ci
       - run: npm run rebuild --prefix apps/desktop
       - run: npm run build
-      - name: session A
-        run: PROBE_LABEL=A xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --config apps/desktop/playwright.config.ts zz-frame-probe --retries=0
-      - name: session B
-        run: PROBE_LABEL=B xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --config apps/desktop/playwright.config.ts zz-frame-probe --retries=0
-      - name: real first test, fresh xvfb
+      - name: home before
+        run: |
+          ls -la ~ ~/.cache ~/.config ~/.pki 2>&1 | head -80
+          touch /tmp/marker; sleep 1
+      - name: fc-cache
+        if: matrix.variant == 'fc-cache'
+        run: time fc-cache -f >/dev/null 2>&1; ls -la ~/.cache/fontconfig /var/cache/fontconfig 2>&1 | head
+      - name: bare electron first
+        if: matrix.variant == 'electron-version'
+        run: time xvfb-run --auto-servernum apps/desktop/node_modules/electron/dist/electron --version
+      - name: session A (one launch)
+        run: PROBE_LABEL=A PROBE_LAUNCHES=1 xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --config apps/desktop/playwright.config.ts zz-frame-probe --retries=0
+      - name: what the first launch wrote
         if: always()
-        run: xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --config apps/desktop/playwright.config.ts remote-pages.spec.ts:233 account.spec.ts:6 --retries=0
+        run: find ~ /tmp /var/tmp /dev/shm -newer /tmp/marker -not -path '*/phosphor-e2e*' -not -path '*/node_modules/*' -not -path '*/work/phosphor/*' 2>/dev/null | grep -v '^/tmp/playwright' | head -80
+      - name: session B (two launches)
+        run: PROBE_LABEL=B PROBE_LAUNCHES=2 xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' npx playwright test --config apps/desktop/playwright.config.ts zz-frame-probe --retries=0
