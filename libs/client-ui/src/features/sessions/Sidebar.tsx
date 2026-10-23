@@ -25,6 +25,7 @@ import { sessionSubtitle } from './sessionSubtitle'
 import {
   completionActions,
   openSidebarConversation,
+  useRestoreWorktree,
   useSavedConversation,
 } from './completionActions'
 import { PrBadge, openPullRequest } from './PrBadge'
@@ -89,6 +90,9 @@ const MarkerPickerModal = lazy(() =>
 const SavedConversationModal = lazy(() =>
   import('./SavedConversationModal').then((module) => ({ default: module.SavedConversationModal })),
 )
+const RestoreWorktreeModal = lazy(() =>
+  import('./RestoreWorktreeModal').then((module) => ({ default: module.RestoreWorktreeModal })),
+)
 
 const SIDEBAR_WIDTH_KEY = 'phosphor:sidebarWidth'
 const SIDEBAR_MIN = 208
@@ -109,6 +113,7 @@ export function Sidebar({
   onInitialReady?: (ready: boolean) => void
 }): React.JSX.Element {
   const savedConversation = useSavedConversation((s) => s.meta)
+  const restoringWorktree = useRestoreWorktree((s) => s.target)
   const machineFilter = useRemoteLanesStore((s) => s.filter)
   const disk = useSessionsStore((s) => s.disk)
   const scanStatus = useSessionsStore((s) => s.scanStatus)
@@ -1208,6 +1213,11 @@ export function Sidebar({
       {savedConversation && (
         <Suspense fallback={null}>
           <SavedConversationModal />
+        </Suspense>
+      )}
+      {restoringWorktree && (
+        <Suspense fallback={null}>
+          <RestoreWorktreeModal />
         </Suspense>
       )}
       {treeFor && (
