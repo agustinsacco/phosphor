@@ -226,33 +226,38 @@ the code imports now, or delete the mock.
 
 ## CI boundary
 
-Every job runs in parallel, so CI's wall time is its slowest job. Each job
-installs what it needs and runs each mandatory command exactly once:
+CI runs on the project's own runners, one Linux and one macOS, both ARM64,
+selected by their `[self-hosted, <OS>, ARM64]` labels. Each runner takes one job
+at a time, so jobs on the same OS queue and a split pays only when there is a
+runner instance to take it. Each job installs what it needs and runs each
+mandatory command exactly once:
 
 - `checks`: root and site installs, comprehensive typecheck (including the
   all-file audit), then the size ratchet.
 - `lint`: `npm run lint` (ESLint, typed oxlint, dead mocks) and
   `npx prettier --check .`.
 - `build`: the Desktop, Web, Host and Control builds.
-- `unit`: `npm test` split into three Vitest file shards. Each shard installs the
-  site too, for the coverage audit's own test.
+- `unit`: `npm test`, with the site installed too for the coverage audit's own
+  test.
 - `web-e2e`: the browser acceptance suite, one leg per engine (Chromium,
   WebKit), each installing only its own browser.
-- `e2e`: the Desktop suite, four Linux shards under xvfb. macOS runs it in three
-  shards on main, which gates every release, and on a PR only the tests tagged
+- `e2e`: the Desktop suite, one Linux leg under xvfb. macOS runs the whole suite
+  on main, which gates every release, and on a PR only the tests tagged
   `@macos` (native quit, undo, context menus, Meta shortcuts, the system
   clipboard and the login shell). A test whose macOS behaviour differs from
   Linux beyond the modifier key carries the tag. Both set `PHOSPHOR_E2E_SHOW=1`:
   windows that are never mapped barely render, which made the suite several times
   slower. On Linux the suite's global setup (`apps/desktop/e2e/warm-up.ts`)
   first launches Electron until one launch paints a frame: on a fresh runner the
-  first launch never does, so the first test of every shard used to time out a
-  click and pass on retry.
+  first launch never does, so the first test of every run used to time out a
+  click and pass on retry. The macOS runner must run inside a logged-in user
+  session: the windows appear on its screen and the clipboard tests use its
+  system clipboard.
 - `control-schema` and `site`: the local Supabase stack and the site image.
 
-Linux jobs pin `ubuntu-24.04`. When `ubuntu-latest` moved to 26.04, the Desktop
-suite's trash-backed lane deletions failed, so an image change lands as its own
-diff.
+The repository is public, so a fork's pull request runs on these machines once
+a maintainer approves it. Approve outside contributors' runs only after reading
+the diff.
 
 The audit's own tests also run in `npm test`; there is no redundant standalone
 audit step. No job is skipped by affected projects. Inventory artifacts,

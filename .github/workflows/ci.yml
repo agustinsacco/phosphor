@@ -13,13 +13,14 @@ env:
   # electron-builder's postinstall isn't needed for checks and slows CI down.
   ELECTRON_BUILDER_SKIP_REBUILD: '1'
 
-# Every job below runs in parallel; wall time is the slowest one, not the sum.
-# A job costs about a minute of checkout and `npm ci`, and the repo is public
-# (20 concurrent runners, 5 macOS), so independent work gets its own job.
+# Every job runs on the project's own runners: one Linux (ARM64) and one macOS
+# (ARM64), each taking one job at a time. Jobs on the same OS queue, so a job is
+# split only where the split pays for its extra checkout and `npm ci`; adding
+# runner instances is what buys back parallelism.
 jobs:
   checks:
     name: Typecheck · size ratchet
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 15
     env:
       # Only the unit and e2e jobs launch Electron.
@@ -48,7 +49,7 @@ jobs:
 
   lint:
     name: Lint · format
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 15
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -71,7 +72,7 @@ jobs:
 
   build:
     name: Build · Desktop · Web · Host · Control
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 15
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -98,13 +99,9 @@ jobs:
         run: npm run build:control
 
   unit:
-    name: Unit tests (${{ matrix.shard }}/3)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
+    name: Unit tests
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -125,13 +122,12 @@ jobs:
       - name: Install site dependencies
         run: npm ci --prefix apps/site
 
-      # Vitest splits by file. Each shard is a full, independent run.
       - name: Unit tests
-        run: npm test -- --shard=${{ matrix.shard }}/3
+        run: npm test
 
   web-e2e:
     name: Web · ${{ matrix.browser }}
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -161,7 +157,7 @@ jobs:
 
   control-schema:
     name: Control schema · local Supabase · RLS
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 15
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -193,7 +189,7 @@ jobs:
     # phosphor.saccolabs.com is deployed from main by deploy-site.yml, which
     # only runs after a merge — this catches a broken page on the PR instead.
     name: Site · astro check · build · browser checks
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -227,24 +223,25 @@ jobs:
   # back in a later release: restore this job from git history (it built the NSIS
   # installer, checked latest.yml and booted the packaged app with an npm pi).
 
-  # Linux runs the whole Desktop suite on every push. macOS runs the whole suite
+  # Linux runs the whole Desktop suite on every event. macOS runs the whole suite
   # on main, which gates every release (release-continuous.yml waits for this
   # workflow), and on a PR only the tests tagged @macos: native quit, undo,
   # context menus, Meta shortcuts, the system clipboard and the login shell.
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shard }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    runs-on: ${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","ARM64"]') }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        # Sharded per test (fullyParallel, workers 1): the suite has no
-        # cross-test ordering or shared state.
-        include: ${{ fromJSON(github.event_name == 'push' && '[{"os":"ubuntu-24.04","shard":"1/4"},{"os":"ubuntu-24.04","shard":"2/4"},{"os":"ubuntu-24.04","shard":"3/4"},{"os":"ubuntu-24.04","shard":"4/4"},{"os":"macos-latest","shard":"1/3"},{"os":"macos-latest","shard":"2/3"},{"os":"macos-latest","shard":"3/3"}]' || '[{"os":"ubuntu-24.04","shard":"1/4"},{"os":"ubuntu-24.04","shard":"2/4"},{"os":"ubuntu-24.04","shard":"3/4"},{"os":"ubuntu-24.04","shard":"4/4"},{"os":"macos-latest","shard":"1/1","grep":"@macos"}]') }}
+        # One leg per runner. The suite has no cross-test ordering or shared
+        # state (fullyParallel, workers 1), so with more runner instances the
+        # legs can split again with --shard.
+        include: ${{ fromJSON(github.event_name == 'push' && '[{"os":"linux","shard":"1/1"},{"os":"macos","shard":"1/1"}]' || '[{"os":"linux","shard":"1/1"},{"os":"macos","shard":"1/1","grep":"@macos"}]') }}
     env:
       # Map the windows. Chromium barely renders a window that was never
       # shown, which made every test 2-5x slower. The windows land on xvfb or
-      # the runner's own session, never a person's screen. The first-test click
+      # the macOS runner's login session. The first-test click
       # timeouts were Electron's first launch on a fresh runner, which never
       # paints: apps/desktop/e2e/warm-up.ts absorbs it.
       PHOSPHOR_E2E_SHOW: '1'
@@ -306,7 +303,7 @@ jobs:
     name: CI result
     if: always()
     needs: [checks, lint, build, unit, control-schema, site, e2e, web-e2e]
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64]
     steps:
       - name: Every required job succeeded
         env:

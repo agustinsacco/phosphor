@@ -36,7 +36,7 @@ const jobCommands = {
     'npm run build:host',
     'npm run build:control',
   ],
-  unit: ['npm ci', 'npm ci --prefix apps/site', 'npm test -- --shard=${{ matrix.shard }}/3'],
+  unit: ['npm ci', 'npm ci --prefix apps/site', 'npm test'],
 }
 
 const documentedCommands = [
@@ -78,8 +78,8 @@ describe('foundation CI wiring', () => {
     },
   )
 
-  it('splits unit tests into shards that together cover the whole suite', () => {
-    expect(job('unit')).toContain('shard: [1, 2, 3]')
+  it('runs the whole unit suite in one job', () => {
+    expect(job('unit')).not.toContain('--shard')
     expect(workflow).not.toContain('tools/scripts/unit-gate.mjs')
   })
 
@@ -97,18 +97,13 @@ describe('foundation CI wiring', () => {
       (match) => JSON.parse(match[1]!) as { os: string; shard: string; grep?: string }[],
     )
     expect(e2e).toContain("github.event_name == 'push' &&")
-    for (const legs of [push!, pr!]) {
-      const linux = legs.filter((leg) => leg.os === 'ubuntu-24.04')
-      expect(linux.map((leg) => leg.shard)).toEqual(['1/4', '2/4', '3/4', '4/4'])
-      expect(linux.every((leg) => !leg.grep)).toBe(true)
-    }
-    expect(push!.filter((leg) => leg.os === 'macos-latest')).toEqual([
-      { os: 'macos-latest', shard: '1/3' },
-      { os: 'macos-latest', shard: '2/3' },
-      { os: 'macos-latest', shard: '3/3' },
+    expect(push).toEqual([
+      { os: 'linux', shard: '1/1' },
+      { os: 'macos', shard: '1/1' },
     ])
-    expect(pr!.filter((leg) => leg.os === 'macos-latest')).toEqual([
-      { os: 'macos-latest', shard: '1/1', grep: '@macos' },
+    expect(pr).toEqual([
+      { os: 'linux', shard: '1/1' },
+      { os: 'macos', shard: '1/1', grep: '@macos' },
     ])
   })
 
@@ -166,11 +161,15 @@ describe('foundation CI wiring', () => {
     ])
   })
 
-  it('pins the Linux runner image', () => {
-    // ubuntu-latest moved to 26.04 under main and broke trash-backed lane deletion
-    // in the Desktop suite; an image change is a deliberate diff, not a surprise.
-    expect(workflow).not.toContain('ubuntu-latest')
-    expect(workflow.match(/runs-on: ubuntu-24\.04$/gm)).toHaveLength(8)
+  it('runs every job on the project runners, selected by OS and architecture', () => {
+    const runsOn = [...workflow.matchAll(/^ {4}runs-on: (.+)$/gm)].map((match) => match[1])
+    const linux = '[self-hosted, Linux, ARM64]'
+    expect(runsOn.filter((value) => value === linux)).toHaveLength(8)
+    expect(runsOn.filter((value) => value !== linux)).toEqual([
+      `\${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","ARM64"]') }}`,
+    ])
+    // A bare `self-hosted` would hand Linux work to the Mac.
+    expect(workflow).not.toMatch(/runs-on: self-hosted$|ubuntu-|macos-/m)
   })
 
   it('gates no job on affected projects', () => {
