@@ -129,10 +129,11 @@ function RecoveryChoices(props: {
       {props.options.map((option) => (
         <label
           key={option.value}
-          className="border-border flex cursor-pointer gap-3 rounded-lg border px-3 py-2"
+          className="border-border flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2"
         >
           <input
             type="radio"
+            className="accent-accent mt-1"
             name="restore-source"
             value={option.value}
             checked={props.choice === option.value}
