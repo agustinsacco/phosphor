@@ -186,6 +186,8 @@ export const IPC_SCOPE = {
   'sessions:setCompleted': 'machine',
   'sessions:retainedWorkspaces': 'machine',
   'sessions:restoreWorktree': 'machine',
+  'sessions:worktreeRecovery': 'machine',
+  'sessions:recreateWorktree': 'machine',
   'sessions:stats': 'machine',
   'sessions:watch': 'machine',
   'sessions:unwatch': 'machine',

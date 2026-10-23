@@ -10,6 +10,8 @@ export type {
   SessionMeta,
   SessionScanStatus,
   WorkspaceSessionStats,
+  WorktreeRecovery,
+  WorktreeRecreateSource,
 } from './models/sessions'
 export type {
   GitInfo,

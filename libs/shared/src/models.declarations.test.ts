@@ -98,6 +98,8 @@ const publicExports = [
   'WorkspaceSessionStats',
   'WorktreeInfo',
   'WorktreePrefs',
+  'WorktreeRecovery',
+  'WorktreeRecreateSource',
   'clampUiScale',
   'normalizeLanePrefs',
   'piInstallLocation',

@@ -19,12 +19,19 @@ import type {
   UpdateFromMainResult,
   WorkspaceSessionStats,
   WorktreeInfo,
+  WorktreeRecovery,
+  WorktreeRecreateSource,
 } from '../models'
 export interface BaselineSessionsInvokeMap {
   'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
   'sessions:setCompleted': { args: [sessionFilePath: string, completed: boolean]; result: void }
   'sessions:retainedWorkspaces': { args: [repoPath: string]; result: string[] }
   'sessions:restoreWorktree': { args: [workspacePath: string]; result: void }
+  'sessions:worktreeRecovery': { args: [workspacePath: string]; result: WorktreeRecovery }
+  'sessions:recreateWorktree': {
+    args: [workspacePath: string, source: WorktreeRecreateSource]
+    result: void
+  }
 
   'sessions:stats': { args: [workspacePath: string]; result: WorkspaceSessionStats }
 

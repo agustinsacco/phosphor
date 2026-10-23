@@ -122,6 +122,28 @@ export interface SessionMeta {
 }
 
 /**
+ * Ways to bring back a conversation whose checkout was removed. Every option
+ * recreates the original path, so the transcript and its provider pairing stay
+ * untouched. Main recomputes the plan when one is chosen.
+ */
+export interface WorktreeRecovery {
+  /** A removal record exists: the exact saved commit can be restored. */
+  saved?: { tip: string; branch: string }
+  /** One branch matches this checkout and is free to check out again. */
+  branch?: { name: string; tip: string; subject: string; remoteOnly: boolean }
+  /** A new branch cut from trunk. Absent when the path is not a Phosphor worktree. */
+  fresh?: { base: string; branch: string }
+  /** Files the conversation's edit/write calls changed inside the old checkout. */
+  editedFiles: string[]
+  /** Total distinct edited files; `editedFiles` is capped. */
+  editedFileCount: number
+  /** Why nothing can be offered, when that is the case. */
+  unavailable?: string
+}
+
+export type WorktreeRecreateSource = 'branch' | 'fresh'
+
+/**
  * Latest attempt to scan a workspace's session directory.
  *
  * Absent = never attempted. `ok` = the newest `sessions:list` resolved
