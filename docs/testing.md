@@ -197,22 +197,26 @@ ceilings and its icon-declaration exemption to `client-ui`; `web` and
 debt are measured from commit `9dfff24b`, never from new integration code. `--strict` also fails remaining baseline debt;
 it is not CI's default while that debt exists.
 
-`npm run lint` gives typed ESLint an 8 GiB heap for its owning-project graphs;
-Node's default 4 GiB heap can exhaust before the complete audit finishes.
+`npm run lint` runs ESLint, then oxlint's type-aware pass (`.oxlintrc.json`,
+backed by tsgolint, the TypeScript 7 checker), then the dead-mock check. ESLint
+is syntax-only: it never builds a TypeScript program.
 
-Typed `no-floating-promises` and `no-misused-promises` are errors in every file
-a TS project owns: Desktop main/preload, every library, Host, Control and the
-Web app. Renderer raw-`piCommand`, `rules-of-hooks`, native-confirm, prompt and
-Host boundary rules are errors too. Typed linting uses owning projects, not a
-default-project fallback; Desktop renderer tests, e2e and tooling stay
-syntax-only. The RPC wrapper and test doubles have narrow exemptions.
+`no-floating-promises` and `no-misused-promises` are oxlint errors in every
+file a TS project owns: Desktop main/preload, every library, Host, Control and
+the Web app. Each file is typed by its own nearest tsconfig, so a file outside a
+project reports a tsconfig error rather than passing. Desktop renderer, e2e and
+tooling stay outside that pass. `tools/scripts/test/lint-policy.test.ts` pins both
+lists against the real config. Renderer raw-`piCommand`, `rules-of-hooks`,
+native-confirm, prompt and Host boundary rules are ESLint errors. The RPC wrapper
+and test doubles have narrow exemptions.
 
-Violations that predate a rule are recorded in `eslint-suppressions.json`.
-ESLint fails on a new violation and also on a recorded one that no longer
-occurs, so the record only shrinks: after fixing one, run
-`npx eslint . --prune-suppressions` and commit the smaller file. Never add to
-it with `--suppress-rule`/`--suppress-all` to land a change. Only
-`exhaustive-deps` stays a warning: an inventory for owners, not a
+Violations that predate a rule are recorded in `eslint-suppressions.json` and,
+for the promise rules, `oxlint-suppressions.json`. Both linters fail on a new
+violation and also on a recorded one that no longer occurs, so the records only
+shrink: after fixing one, run `npx eslint . --prune-suppressions` or
+`npx oxlint --type-aware --prune-suppressions .` and commit the smaller file.
+Never add to either with `--suppress-rule`/`--suppress-all` to land a change.
+Only `exhaustive-deps` stays a warning: an inventory for owners, not a
 zero-warning CI budget. Do not disable rules or weaken types to pass a unit.
 
 `npm run lint` also runs `tools/scripts/dead-mocks.mjs`. It fails when a test
@@ -222,15 +226,46 @@ the code imports now, or delete the mock.
 
 ## CI boundary
 
-The `checks` job installs root and site dependencies before typecheck or unit
-tests, runs comprehensive typecheck once (including the all-file audit), lint,
-formatting, unit tests, size ratchet and Desktop/Host/Control/Web builds. The audit's
-own tests also run in `npm test`; there is no redundant standalone audit step.
-The affected-project report is shadow-only and cannot skip checks. Inventory
-artifacts, coverage comparisons and unit-gate evidence belong to the trusted
-per-unit pipeline, not CI's untrusted PR input.
+CI runs on the project's own runners, one Linux and one macOS, both ARM64,
+selected by their `[self-hosted, <OS>, ARM64]` labels. Each runner takes one job
+at a time, so jobs on the same OS queue and a split pays only when there is a
+runner instance to take it. Each job installs what it needs and runs each
+mandatory command exactly once:
+
+- `checks`: root and site installs, comprehensive typecheck (including the
+  all-file audit), then the size ratchet.
+- `lint`: `npm run lint` (ESLint, typed oxlint, dead mocks) and
+  `npx prettier --check .`.
+- `build`: the Desktop, Web, Host and Control builds.
+- `unit`: `npm test`, with the site installed too for the coverage audit's own
+  test.
+- `web-e2e`: the browser acceptance suite, one leg per engine (Chromium,
+  WebKit), each installing only its own browser.
+- `e2e`: the Desktop suite, one Linux leg under xvfb. macOS runs the whole suite
+  on main, which gates every release, and on a PR only the tests tagged
+  `@macos` (native quit, undo, context menus, Meta shortcuts, the system
+  clipboard and the login shell). A test whose macOS behaviour differs from
+  Linux beyond the modifier key carries the tag. Both set `PHOSPHOR_E2E_SHOW=1`:
+  windows that are never mapped barely render, which made the suite several times
+  slower. On Linux the suite's global setup (`apps/desktop/e2e/warm-up.ts`)
+  first launches Electron until one launch paints a frame: on a fresh runner the
+  first launch never does, so the first test of every run used to time out a
+  click and pass on retry. The macOS runner must run inside a logged-in user
+  session: the windows appear on its screen and the clipboard tests use its
+  system clipboard.
+- `control-schema` and `site`: the local Supabase stack and the site image.
+
+The repository is public, so a fork's pull request runs on these machines once
+a maintainer approves it. Approve outside contributors' runs only after reading
+the diff.
+
+The audit's own tests also run in `npm test`; there is no redundant standalone
+audit step. No job is skipped by affected projects. Inventory artifacts,
+coverage comparisons and unit-gate evidence belong to the trusted per-unit
+pipeline, not CI's untrusted PR input.
 
 The final `CI result` job always aggregates every required job: `checks`,
-`control-schema`, `site`, `e2e` and `web-e2e`. Every result must be `success`, including all
-e2e matrix legs. `tools/scripts/test/foundation-wiring.test.ts` guards these
-steps and the documented commands against accidental removal.
+`lint`, `build`, `unit`, `control-schema`, `site`, `e2e` and `web-e2e`. Every
+result must be `success`, including all matrix legs.
+`tools/scripts/test/foundation-wiring.test.ts` guards these steps and the
+documented commands against accidental removal.

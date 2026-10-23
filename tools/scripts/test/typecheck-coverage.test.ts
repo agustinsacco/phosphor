@@ -45,7 +45,7 @@ function coverageFixture() {
 function runnerFixture() {
   const root = fixture()
   for (const path of [
-    'node_modules/typescript/lib/tsc.js',
+    'node_modules/typescript-native/lib/tsc.js',
     'apps/site/node_modules/typescript/lib/typescript.js',
     'apps/site/node_modules/@astrojs/check/package.json',
     'apps/site/node_modules/.bin/astro',
@@ -142,7 +142,12 @@ describe('comprehensive typecheck runner', () => {
     expect(calls.slice(0, -1).map((call) => call.args)).toEqual(
       typecheckProjects
         .filter((path) => path !== 'apps/site/tsconfig.json')
-        .map((path) => [join(root, 'node_modules/typescript/lib/tsc.js'), '--noEmit', '-p', path]),
+        .map((path) => [
+          join(root, 'node_modules/typescript-native/lib/tsc.js'),
+          '--noEmit',
+          '-p',
+          path,
+        ]),
     )
     expect(calls.at(-1)).toEqual({
       command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
@@ -182,7 +187,7 @@ describe('comprehensive typecheck runner', () => {
     const root = runnerFixture()
     const tool = join(root, 'apps/site/node_modules/typescript/lib/typescript.js')
     rmSync(tool)
-    symlinkSync(join(root, 'node_modules/typescript/lib/tsc.js'), tool)
+    symlinkSync(join(root, 'node_modules/typescript-native/lib/tsc.js'), tool)
     expect(() => runTypecheck(root, () => 0)).toThrow(/site.*local installation/i)
   })
 
