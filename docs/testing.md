@@ -241,7 +241,8 @@ mandatory command exactly once:
 - `unit`: `npm test`, with the site installed too for the coverage audit's own
   test.
 - `web-e2e`: the browser acceptance suite, one leg per engine (Chromium,
-  WebKit), each installing only its own browser.
+  WebKit), each installing only its own browser. Like Desktop it retries a
+  failed test once on CI and reports it as flaky.
 - `e2e`: the Desktop suite, one Linux leg under xvfb. macOS runs the whole suite
   on main, which gates every release, and on a PR only the tests tagged
   `@macos` (native quit, undo, context menus, Meta shortcuts, the system
