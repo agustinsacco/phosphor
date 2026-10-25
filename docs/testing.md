@@ -256,6 +256,11 @@ mandatory command exactly once:
   session, and its `@system-clipboard` tests overwrite that user's clipboard.
 - `control-schema` and `site`: the local Supabase stack and the site image.
 
+A Linux runner needs `xvfb`, Docker (with the runner user in the `docker`
+group) and the browsers' system libraries, installed once with
+`sudo npx playwright install-deps chromium webkit`. Jobs install only the
+browsers themselves, without sudo.
+
 The repository is public, so a fork's pull request runs on these machines once
 a maintainer approves it. Approve outside contributors' runs only after reading
 the diff.
