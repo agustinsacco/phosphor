@@ -7,6 +7,11 @@ work=$(mktemp -d)
 container=''
 built=false
 cleanup() {
+  local status=$?
+  if [ "$status" -ne 0 ] && [ -n "$container" ]; then
+    docker inspect -f 'container {{.State.Status}}, exit {{.State.ExitCode}}' "$container" >&2 || true
+    docker logs --tail 50 "$container" >&2 || true
+  fi
   if [ -n "$container" ]; then docker rm -f "$container" >/dev/null; fi
   if [ "$built" = true ]; then docker image rm "$name" >/dev/null; fi
   rm -rf "$work"

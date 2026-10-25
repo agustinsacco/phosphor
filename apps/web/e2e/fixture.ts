@@ -379,9 +379,7 @@ export async function browserFixture(production = false) {
         control: { url: controlOrigin },
         api: { port: hostPort, webOrigin: origin },
       }),
-      // Explicit, like every file the Host checks: the default follows the
-      // umask, and the Host refuses a group-writable config.
-      { mode: 0o600 },
+      { mode: 0o600 }, // not the umask's: the Host refuses a group-writable config
     )
     const child = spawn(
       process.execPath,
