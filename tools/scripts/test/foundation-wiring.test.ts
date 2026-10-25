@@ -163,10 +163,10 @@ describe('foundation CI wiring', () => {
 
   it('runs every job on the project runners, selected by OS and architecture', () => {
     const runsOn = [...workflow.matchAll(/^ {4}runs-on: (.+)$/gm)].map((match) => match[1])
-    const linux = '[self-hosted, Linux, ARM64]'
+    const linux = '[self-hosted, Linux, X64]'
     expect(runsOn.filter((value) => value === linux)).toHaveLength(8)
     expect(runsOn.filter((value) => value !== linux)).toEqual([
-      `\${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","ARM64"]') }}`,
+      `\${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","X64"]') }}`,
     ])
     // A bare `self-hosted` would hand Linux work to the Mac.
     expect(workflow).not.toMatch(/runs-on: self-hosted$|ubuntu-|macos-/m)

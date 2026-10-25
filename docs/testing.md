@@ -226,8 +226,9 @@ the code imports now, or delete the mock.
 
 ## CI boundary
 
-CI runs on the project's own runners, one Linux and one macOS, both ARM64,
-selected by their `[self-hosted, <OS>, ARM64]` labels. Each runner takes one job
+CI runs on the project's own runners, two Linux (x64) and one macOS (ARM64),
+selected by their `[self-hosted, Linux, X64]` and `[self-hosted, macOS, ARM64]`
+labels. Each runner takes one job
 at a time, so jobs on the same OS queue and a split pays only when there is a
 runner instance to take it. Each job installs what it needs and runs each
 mandatory command exactly once:

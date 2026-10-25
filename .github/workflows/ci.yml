@@ -13,14 +13,14 @@ env:
   # electron-builder's postinstall isn't needed for checks and slows CI down.
   ELECTRON_BUILDER_SKIP_REBUILD: '1'
 
-# Every job runs on the project's own runners: one Linux (ARM64) and one macOS
+# Every job runs on the project's own runners: two Linux (x64) and one macOS
 # (ARM64), each taking one job at a time. Jobs on the same OS queue, so a job is
 # split only where the split pays for its extra checkout and `npm ci`; adding
 # runner instances is what buys back parallelism.
 jobs:
   checks:
     name: Typecheck · size ratchet
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     env:
       # Only the unit and e2e jobs launch Electron.
@@ -49,7 +49,7 @@ jobs:
 
   lint:
     name: Lint · format
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -72,7 +72,7 @@ jobs:
 
   build:
     name: Build · Desktop · Web · Host · Control
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -100,7 +100,7 @@ jobs:
 
   unit:
     name: Unit tests
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -127,7 +127,7 @@ jobs:
 
   web-e2e:
     name: Web · ${{ matrix.browser }}
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -157,7 +157,7 @@ jobs:
 
   control-schema:
     name: Control schema · local Supabase · RLS
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -189,7 +189,7 @@ jobs:
     # phosphor.saccolabs.com is deployed from main by deploy-site.yml, which
     # only runs after a merge — this catches a broken page on the PR instead.
     name: Site · astro check · build · browser checks
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -229,7 +229,7 @@ jobs:
   # context menus, Meta shortcuts, the system clipboard and the login shell.
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shard }})
-    runs-on: ${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","ARM64"]') }}
+    runs-on: ${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","X64"]') }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -303,7 +303,7 @@ jobs:
     name: CI result
     if: always()
     needs: [checks, lint, build, unit, control-schema, site, e2e, web-e2e]
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Every required job succeeded
         env:
