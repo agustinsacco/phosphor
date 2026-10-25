@@ -244,7 +244,9 @@ jobs:
       # the macOS runner's login session. The first-test click
       # timeouts were Electron's first launch on a fresh runner, which never
       # paints: apps/desktop/e2e/warm-up.ts absorbs it.
-      PHOSPHOR_E2E_SHOW: '1'
+      # Linux only. macOS renders hidden windows at full speed, and the Mac is a
+      # shared machine: hidden windows never appear on its screen or take focus.
+      PHOSPHOR_E2E_SHOW: ${{ matrix.os == 'linux' && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
 

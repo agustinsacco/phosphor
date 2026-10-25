@@ -92,7 +92,7 @@ describe('foundation CI wiring', () => {
 
   it('maps Desktop e2e windows and limits only PR macOS legs to @macos', () => {
     const e2e = job('e2e')
-    expect(e2e).toContain("PHOSPHOR_E2E_SHOW: '1'")
+    expect(e2e).toContain("PHOSPHOR_E2E_SHOW: ${{ matrix.os == 'linux' && '1' || '0' }}")
     const [push, pr] = [...e2e.matchAll(/'(\[\{"os".*?\])'/g)].map(
       (match) => JSON.parse(match[1]!) as { os: string; shard: string; grep?: string }[],
     )

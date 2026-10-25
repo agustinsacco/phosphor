@@ -246,14 +246,14 @@ mandatory command exactly once:
   on main, which gates every release, and on a PR only the tests tagged
   `@macos` (native quit, undo, context menus, Meta shortcuts, the system
   clipboard and the login shell). A test whose macOS behaviour differs from
-  Linux beyond the modifier key carries the tag. Both set `PHOSPHOR_E2E_SHOW=1`:
-  windows that are never mapped barely render, which made the suite several times
-  slower. On Linux the suite's global setup (`apps/desktop/e2e/warm-up.ts`)
+  Linux beyond the modifier key carries the tag. Linux sets `PHOSPHOR_E2E_SHOW=1`:
+  windows that are never mapped barely render there, which made the suite several
+  times slower. macOS keeps the windows hidden, as local runs do, so nothing
+  appears on the Mac runner's screen. On Linux the suite's global setup (`apps/desktop/e2e/warm-up.ts`)
   first launches Electron until one launch paints a frame: on a fresh runner the
   first launch never does, so the first test of every run used to time out a
   click and pass on retry. The macOS runner must run inside a logged-in user
-  session: the windows appear on its screen and the clipboard tests use its
-  system clipboard.
+  session, and its `@system-clipboard` tests overwrite that user's clipboard.
 - `control-schema` and `site`: the local Supabase stack and the site image.
 
 The repository is public, so a fork's pull request runs on these machines once
