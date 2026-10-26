@@ -50,7 +50,10 @@ it('tags every Desktop test that currently exercises the real clipboard', () => 
     for (const name of names) {
       const test = tests.find(({ title }) => title.startsWith(name))
       expect(test, `${file}: ${name}`).toBeDefined()
-      expect(test!.title, `${file}: ${name}`).toBe(`${name} @system-clipboard`)
+      // Other tags (such as @macos) may follow; nothing else may.
+      expect(test!.title.slice(name.length), `${file}: ${name}`).toMatch(
+        /^ @system-clipboard(?: @[\w-]+)*$/,
+      )
     }
   }
 })

@@ -274,8 +274,10 @@ export async function remoteHostFixture(
     const repo = join(root, 'repository'),
       agent = join(root, 'agent'),
       conf = join(root, 'conf')
-    await mkdir(repo)
-    await mkdir(agent)
+    // Explicit modes: the Host refuses group-writable settings and their folders,
+    // and a umask of 002 would otherwise make them so.
+    await mkdir(repo, { mode: 0o700 })
+    await mkdir(agent, { mode: 0o700 })
     await mkdir(join(conf, 'identity'), { recursive: true, mode: 0o700 })
     await mkdir(join(root, 'bin'))
     // Ordinary executable/config inputs, not hooks in the Host bundle.
@@ -323,6 +325,7 @@ export async function remoteHostFixture(
     await writeFile(
       join(agent, 'settings.json'),
       JSON.stringify({ defaultProvider: 'fake', defaultModel: 'fake-model' }),
+      { mode: 0o600 },
     )
     const installClaudeProvider = async () => {
       const provider = join(agent, 'npm/node_modules/@saccolabs/pi-claude-cli')
@@ -338,6 +341,7 @@ export async function remoteHostFixture(
           defaultModel: 'fake-model',
           packages: ['npm:@saccolabs/pi-claude-cli'],
         }),
+        { mode: 0o600 },
       )
     }
     await writeFile(
@@ -346,6 +350,7 @@ export async function remoteHostFixture(
         fake: { type: 'api_key', key: 'fake-test-key' },
         anthropic: { type: 'api_key', key: 'fake-test-key' },
       }),
+      { mode: 0o600 },
     )
     await writeFile(
       join(conf, 'identity', 'host.json'),

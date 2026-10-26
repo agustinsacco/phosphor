@@ -3,8 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
 
-import type { SessionMeta } from '@shared/models'
-import { bootstrapSession, refreshSessionCommands, useSessionsStore } from './sessions'
+import type { LiveSessionInfo, SessionMeta } from '@shared/models'
+import {
+  bootstrapSession,
+  forgetRemoteSession,
+  refreshSessionCommands,
+  useSessionsStore,
+} from './sessions'
 import { useChatStore } from './chat'
 import { useTerminalStore } from './terminal'
 
@@ -65,6 +70,24 @@ describe('lane lifecycle races', () => {
     expect(await Promise.all([a, b])).toEqual(['one-writer', 'one-writer'])
     expect(invoke.mock.calls.filter(([c]) => c === 'pi:createSession')).toHaveLength(1)
     await useSessionsStore.getState().disposeSession('one-writer')
+  })
+
+  it('keeps a remote lane re-adopted while its previous cleanup was still running', async () => {
+    // A Host reconnect forgets a lane and reopens it under the same id. The
+    // cleanup awaits lazy imports before it drops `live`, so a re-adoption in
+    // that window found the old entry, did nothing, then lost the entry.
+    const info = {
+      sessionId: 'remote-1',
+      workspacePath: '/repo',
+      laneId: 'lane-1',
+      target: { kind: 'remote', hostId: 'host-1' },
+    } as LiveSessionInfo
+    const adopt = () =>
+      useSessionsStore.getState().adoptSession(info.sessionId, info.workspacePath, undefined, info)
+    await adopt()
+    await Promise.all([forgetRemoteSession('remote-1'), adopt()])
+    expect(useSessionsStore.getState().live['remote-1']).toMatchObject({ laneId: 'lane-1' })
+    expect(useChatStore.getState().sessions['remote-1']).toBeDefined()
   })
 
   it('cleans every duplicate and any main-only orphan returned by delete', async () => {

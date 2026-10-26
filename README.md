@@ -339,7 +339,7 @@ npm run dev
 | `npm run dev:web`    | Renderer alone, in a browser, against the mock preload API                |
 | `npm run build`      | Bundle main, preload and renderer to `apps/desktop/out/`                  |
 | `npm run typecheck`  | All-file audit; Desktop/tests, libraries, Host, Control, tooling and site |
-| `npm run lint`       | ESLint                                                                    |
+| `npm run lint`       | ESLint, oxlint's typed promise rules and the dead-mock check              |
 | `npm run format`     | Prettier                                                                  |
 | `npm test`           | Vitest unit tests                                                         |
 | `npm run test:e2e`   | Playwright-Electron smoke tests against the deterministic `pi`            |

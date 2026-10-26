@@ -1,3 +1,4 @@
+import { RemoteBulkDelete } from './RemoteBulkDelete'
 import { useRemotePullRequests } from './remotePullRequests'
 import { groupRemoteLanes, type RemoteLaneGroup } from './groupRemoteLanes'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
@@ -119,6 +120,7 @@ function RemoteRepositoryGroup({
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('')
   const [menu, setMenu] = useState(false)
+  const [selection, setSelection] = useState<'all' | 'merged' | null>(null)
   const [adding, setAdding] = useState(false)
   const [removing, setRemoving] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -214,6 +216,24 @@ function RemoteRepositoryGroup({
                 >
                   Remove from {machineLabel(hostId)}
                 </MenuRow>
+                {(['all', 'merged'] as const).map((mode) => (
+                  <MenuRow
+                    key={mode}
+                    active={false}
+                    disabled={
+                      !ready ||
+                      !host?.capabilities.includes('workspaces.write') ||
+                      !host.capabilities.includes('sessions.control')
+                    }
+                    onClick={() => {
+                      setMenu(false)
+                      setCollapsed(false)
+                      setSelection(mode)
+                    }}
+                  >
+                    {mode === 'all' ? 'Select all lanes' : 'Select merged lanes'}
+                  </MenuRow>
+                ))}
                 <MenuRow
                   active={false}
                   onClick={() => {
@@ -259,19 +279,29 @@ function RemoteRepositoryGroup({
       )}
       {!collapsed && (
         <div className={!ready ? 'opacity-50' : undefined}>
-          {visible.map((lane) => (
-            <RemoteLaneRow
-              key={lane.laneId}
+          {selection ? (
+            <RemoteBulkDelete
+              key={selection}
               hostId={hostId}
-              lane={lane}
-              ready={ready}
-              active={
-                active?.target?.kind === 'remote' &&
-                active.target.hostId === hostId &&
-                active.laneId === lane.laneId
-              }
+              lanes={visible}
+              mode={selection}
+              onClose={() => setSelection(null)}
             />
-          ))}
+          ) : (
+            visible.map((lane) => (
+              <RemoteLaneRow
+                key={lane.laneId}
+                hostId={hostId}
+                lane={lane}
+                ready={ready}
+                active={
+                  active?.target?.kind === 'remote' &&
+                  active.target.hostId === hostId &&
+                  active.laneId === lane.laneId
+                }
+              />
+            ))
+          )}
           {!visible.length && (
             <p className="text-text-tertiary px-2 py-2 text-sm">
               {query ? `No lanes match “${query}”` : 'No lanes yet'}
