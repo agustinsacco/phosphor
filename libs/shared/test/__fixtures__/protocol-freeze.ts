@@ -353,6 +353,7 @@ export const LANE_OP_TYPES = {
   'host.repositories.add': true,
   'host.repositories.remove': true,
   'host.repositories.createFolder': true,
+  'host.repositories.order': true,
   'provider.login': true,
   'machine.task': true,
   'claude.account': true,

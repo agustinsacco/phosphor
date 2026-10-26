@@ -33,6 +33,7 @@ export const IPC_SCOPE = {
   'hosts:addRepository': 'app',
   'hosts:createFolder': 'app',
   'hosts:removeRepository': 'app',
+  'hosts:orderRepositories': 'app',
   'hosts:releaseControl': 'app',
   'routines:list': 'machine',
   'routines:save': 'machine',

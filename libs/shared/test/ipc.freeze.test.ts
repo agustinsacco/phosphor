@@ -132,6 +132,7 @@ const expectedEntries = [
   ['hosts:markRead', 'app'],
   ['hosts:models', 'machine'],
   ['hosts:openLane', 'app'],
+  ['hosts:orderRepositories', 'app'],
   ['hosts:providerLogin', 'app'],
   ['hosts:providers', 'machine'],
   ['hosts:reconnect', 'app'],

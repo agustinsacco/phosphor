@@ -344,6 +344,13 @@ connected") in blue with an explicit empty state, never a bare "Setting up". A c
 Host with an empty repository shows “No lanes yet” and its capability-gated +. A
 ready Host with no folders shows “No folders yet” and, with `workspaces.write`,
 an Add folder on MACHINE… button that opens the Host folder browser.
+A Host's folders are listed in the Host config's order. Each current folder's
+Workspace options menu offers Add folder on MACHINE…, Remove from MACHINE, Move
+up and Move down (`RemoteFolderMenuRows`, shared with the web client). A move
+sends the whole new order (`hosts:orderRepositories`), so every client sees it
+once the Host republishes its repositories; an older Host's refusal is a toast
+that says to update it. A move is disabled at either end and without
+`workspaces.write`.
 Remote actions retain the fixed reconnection/unavailable hints and main's
 capability, readiness and stale-connection checks. Creating a remote lane never
 falls back to local creation.

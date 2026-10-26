@@ -8,6 +8,9 @@ const browser = { kind: 'browser-local' } as const
 const unsupported = (reason: string) => ({ kind: 'unsupported', reason }) as const
 
 const native = unsupported('This native or mutating Host feature is unavailable in the browser.')
+const localRoutines = unsupported(
+  'Local routine execution and native background services require Desktop.',
+)
 
 /** Every new IPC channel requires an explicit browser admission decision. */
 export const IPC_WEB = {
@@ -41,29 +44,22 @@ export const IPC_WEB = {
   'hosts:listFolders': remote,
   'hosts:addRepository': remote,
   'hosts:createFolder': remote,
-  'hosts:removeRepository': native,
+  'hosts:removeRepository': remote,
+  'hosts:orderRepositories': remote,
   'hosts:releaseControl': remote,
   'routines:list': remote,
   'routines:save': remote,
-  'routines:check': unsupported(
-    'Local routine execution and native background services require Desktop.',
-  ),
+  'routines:check': localRoutines,
   'routines:history': remote,
-  'routines:laneIndex': unsupported(
-    'Local routine execution and native background services require Desktop.',
-  ),
-  'routines:promoteRun': unsupported(
-    'Local routine execution and native background services require Desktop.',
-  ),
+  'routines:laneIndex': localRoutines,
+  'routines:promoteRun': localRoutines,
   'routines:run': remote,
   'routines:cancel': remote,
   'routines:skipNext': remote,
   'routines:archive': remote,
   'routines:delete': remote,
   'routines:pauseAll': remote,
-  'routines:background': unsupported(
-    'Local routine execution and native background services require Desktop.',
-  ),
+  'routines:background': localRoutines,
   'pi:health': unsupported(
     'Local pi processes and machine configuration are unavailable in the browser.',
   ),

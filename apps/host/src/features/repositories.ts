@@ -58,6 +58,7 @@ async function executeRepository(
       await mkdir(join(parent.full, op.path.slice(slash + 1)))
       return { ok: true }
     }
+    if (op.type === 'host.repositories.order') return await reorder(options, op, paths, allowed)
     const repository = options.store.listRepositories().find((r) => r.id === op.repositoryId)
     if (!repository) return { ok: false, code: 'bad-request' }
     if (options.live(repository.id)) return { ok: false, code: 'busy' }
@@ -77,6 +78,34 @@ async function executeRepository(
             : 'bad-request',
     }
   }
+}
+
+/**
+ * Rewrite the config's repository order. The request names every active repository once; a
+ * stale list (one added or removed since) is a conflict. A configured folder that is not active,
+ * such as one missing on disk, keeps its place in the config.
+ */
+async function reorder(
+  options: RepositoryOptions,
+  op: Extract<RepositoryOp, { type: 'host.repositories.order' }>,
+  paths: string[],
+  allowed: () => boolean,
+): Promise<{ ok: true } | { ok: false; code: RejectCode }> {
+  const active = options.store.listRepositories()
+  const byId = new Map(active.map((r) => [r.id, r.path]))
+  if (op.repositoryIds.length !== active.length || !op.repositoryIds.every((id) => byId.has(id)))
+    return { ok: false, code: 'conflict' }
+  const canonical = await Promise.all(paths.map((p) => realpath(p).catch(() => p)))
+  const wanted = op.repositoryIds.map((id) => byId.get(id)!)
+  const slots = canonical.flatMap((path, i) => (wanted.includes(path) ? [i] : []))
+  // Every active repository came from one config entry; anything else means the config moved.
+  if (slots.length !== wanted.length) return { ok: false, code: 'conflict' }
+  // Entries move as written: a symlinked spelling in the config stays as the user wrote it.
+  const next = [...paths]
+  slots.forEach((slot, i) => (next[slot] = paths[canonical.indexOf(wanted[i]!)]!))
+  if (!allowed()) return { ok: false, code: 'forbidden' }
+  await publishRepositoryConfig(options, next, allowed)
+  return { ok: true }
 }
 
 export function createRepositories(options: RepositoryOptions) {

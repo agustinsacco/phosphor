@@ -29,6 +29,8 @@ function folderHandlers(folders: ReturnType<typeof createBrowserResources>['fold
     'hosts:listFolders': folders.folders,
     'hosts:createFolder': folders.createFolder,
     'hosts:addRepository': folders.add,
+    'hosts:removeRepository': folders.remove,
+    'hosts:orderRepositories': folders.order,
   } satisfies Partial<BrowserHandlers>
 }
 export function createBrowserHandlers(ports: {

@@ -56,8 +56,12 @@ before any lane creation/upload. The start screen's Repository menu offers Add
 folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
 and adds folders under the Host's home over the same Host connection
 (`hosts:listFolders`, `hosts:createFolder`, `hosts:addRepository`, through
-`libs/host-client/src/repository-management.ts`). Removing a folder stays in
-Desktop. Native terminals, file editing, provider
+`libs/host-client/src/repository-management.ts`). On the Lanes page each of a
+Host's current folders is listed, lanes or not, with a Folder options menu:
+Add folder on MACHINE…, Remove from MACHINE, Move up and Move down
+(`hosts:removeRepository`, `hosts:orderRepositories`), the same rows as
+Desktop's sidebar, gated on readiness and `workspaces.write`. The Inbox, which
+lists only folders with unread lanes, has no folder menu. Native terminals, file editing, provider
 installation/login and native settings are unavailable. Attention is in-app
 only, not OS push.
 

@@ -101,6 +101,9 @@ export function registerHostsHandlers(): void {
   handle('hosts:removeRepository', (_event, hostId, repositoryId) =>
     management.remove(hostId, repositoryId),
   )
+  handle('hosts:orderRepositories', (_event, hostId, repositoryIds) =>
+    management.order(hostId, repositoryIds),
+  )
   handle('hosts:deleteLane', (_event, hostId, laneId, options) =>
     management.deleteLane(hostId, laneId, options),
   )
