@@ -1,6 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import {
-  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -14,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { expect } from 'vitest'
+import { writeNodeShim } from './node-shim'
 
 export const root = resolve(import.meta.dirname, '../../..')
 export const target = `${process.platform}-${process.arch}`
@@ -45,6 +45,8 @@ export interface BundleFixture {
   readonly privateKey: string
   /** Artifact the next prepared release publishes. A case may swap it but must restore it. */
   bundle: Buffer
+  /** Holds the symlink the archive's Node shim execs; outside `dir` on purpose. */
+  readonly nodeDir: string
 }
 export interface ReleaseMetadata {
   schema: number
@@ -83,6 +85,7 @@ export interface PreparedHome {
 /** Creates a fixture. If any step fails its temp root is removed before the error is rethrown. */
 export function setupBundleFixture(): BundleFixture {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'host-bundles-test-')))
+  let nodeDir: string | undefined
   try {
     for (const name of ['key', 'other'])
       execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', join(dir, name)])
@@ -93,27 +96,29 @@ export function setupBundleFixture(): BundleFixture {
       `import {generateInstaller} from './tools/host-release/installer.mjs'; generateInstaller(${JSON.stringify(script)}, ${JSON.stringify([{ id: 'test', publicKey }])})`,
     )
     const cache = join(dir, 'cache')
-    const pin = stageNodeArchive(dir, cache)
+    const stage = join(dir, 'node-stage')
+    nodeDir = writeNodeShim(join(stage, nodePrefix, 'bin/node'))
+    const pin = archiveNodeStage(stage, cache)
     const out = join(dir, 'out')
     const bundle = buildFixtureBundle({ cache, pin }, out)
-    return { dir, script, cache, pin, out, publicKey, privateKey, bundle }
+    return { dir, script, cache, pin, out, publicKey, privateKey, bundle, nodeDir }
   } catch (error) {
     rmSync(dir, { recursive: true, force: true })
+    if (nodeDir) rmSync(nodeDir, { recursive: true, force: true })
     throw error
   }
 }
 /** Accepts a fixture whose setup failed, so a suite's afterAll needs no guard. */
 export function disposeBundleFixture(fixture: BundleFixture | undefined) {
-  if (fixture) rmSync(fixture.dir, { recursive: true, force: true })
+  if (!fixture) return
+  rmSync(fixture.dir, { recursive: true, force: true })
+  rmSync(fixture.nodeDir, { recursive: true, force: true })
 }
-function stageNodeArchive(dir: string, cache: string): NodePin {
-  const stage = join(dir, 'node-stage')
-  const prefix = `node-v24.14.1-${target}`
-  mkdirSync(join(stage, prefix, 'bin'), { recursive: true })
-  cpSync(process.execPath, join(stage, prefix, 'bin/node'))
-  writeFileSync(join(stage, prefix, 'LICENSE'), 'Test runtime license\n')
+const nodePrefix = `node-v24.14.1-${target}`
+function archiveNodeStage(stage: string, cache: string): NodePin {
+  writeFileSync(join(stage, nodePrefix, 'LICENSE'), 'Test runtime license\n')
   mkdirSync(cache)
-  const cached = join(cache, `${prefix}.tar.gz`)
+  const cached = join(cache, `${nodePrefix}.tar.gz`)
   node(
     `import {archive} from './tools/host-release/archive.mjs'; import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(cached)},archive(${JSON.stringify(stage)}))`,
   )

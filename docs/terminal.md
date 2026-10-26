@@ -48,8 +48,10 @@ without leaving the session, and so a shell always sits in the right checkout.
   command pasted. First-open and chat actions share the same pending spawn.
   A paste targets that PTY only and waits for xterm to parse the shell output,
   including bracketed-paste mode; it cannot land in another session or login
-  terminal. Trailing fence newlines are removed. If the shell has not enabled
-  bracketed paste (including macOS system Bash), multiline commands stay in a
+  terminal. Trailing fence newlines are removed. A multiline command on a shell
+  without bracketed paste yet waits until the mode turns on or the output has
+  been quiet for 300 ms, since a cold zsh enables it only with its prompt. If
+  the shell never enables bracketed paste (including macOS system Bash), multiline commands stay in a
   focused editor inside the terminal pane. Enter or Run command executes the
   reviewed text; Shift+Enter adds a line, and Cancel discards it without sending
   anything to the shell. Single-line commands still paste at the prompt.

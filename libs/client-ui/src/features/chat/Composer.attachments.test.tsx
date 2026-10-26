@@ -266,3 +266,39 @@ it.each([
       expect(container.textContent).not.toContain(`/only-${other}`)
   }
 })
+
+it('queues a remote follow-up typed while the steer before it awaits its receipt', async () => {
+  useDraftsStore.setState({ drafts: { [key]: { text: 'PHX-steered', attachments: [] } } })
+  useChatStore.setState((s) => ({
+    sessions: {
+      ...s.sessions,
+      [mockRemoteInfo.sessionId]: { ...s.sessions[mockRemoteInfo.sessionId]!, isStreaming: true },
+    },
+  }))
+  const receipts: (() => void)[] = []
+  const pi = vi
+    .spyOn(window.phosphor, 'piCommand')
+    .mockImplementation(
+      (_id, op) =>
+        new Promise((done) =>
+          receipts.push(() => done({ type: 'response', command: op.type, success: true })),
+        ),
+    )
+  await draw()
+  const click = (name: string) =>
+    act(async () =>
+      [...container.querySelectorAll('button')].find((b) => b.textContent === name)?.click(),
+    )
+  await click('Steer now')
+  act(() => useDraftsStore.getState().setText(key, 'PHX-followed'))
+  await click('Queue follow-up')
+  // A second press of the same follow-up while it is in flight is not a resend.
+  await click('Queue follow-up')
+  const prompts = pi.mock.calls.filter(([, op]) => op.type === 'prompt').map(([, op]) => op)
+  expect(prompts).toEqual([
+    { type: 'prompt', message: 'PHX-steered', streamingBehavior: 'steer' },
+    { type: 'prompt', message: 'PHX-followed', streamingBehavior: 'followUp' },
+  ])
+  await act(async () => receipts.forEach((done) => done()))
+  expect(useDraftsStore.getState().get(key).text).toBe('')
+})

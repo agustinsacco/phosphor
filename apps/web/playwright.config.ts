@@ -8,7 +8,9 @@ export default defineConfig({
   globalSetup: './e2e/build.ts',
   outputDir: resolve(evidence, 'results'),
   workers: 1,
-  retries: 0,
+  // One CI retry, as Desktop: a headless page on a busy runner can stall its
+  // first frames. Playwright still reports the test as flaky.
+  retries: process.env.CI ? 1 : 0,
   timeout: 90_000,
   expect: { timeout: 15_000 },
   reporter: [['list']],

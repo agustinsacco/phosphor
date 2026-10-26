@@ -487,7 +487,7 @@ test('Mermaid viewer fits, zooms, pans, exports and restores focus @system-clipb
   }
 })
 
-test('cancelling quit preserves active sessions and coalesces repeated quit requests', async () => {
+test('cancelling quit preserves active sessions and coalesces repeated quit requests @macos', async () => {
   const h = await launch()
   try {
     const sessionId = await h.page.evaluate(async (workspacePath) => {
@@ -783,7 +783,7 @@ test('the / menu offers pi commands on the home screen and in a session', async 
   }
 })
 
-test('composer formatting participates in native undo and redo', async () => {
+test('composer formatting participates in native undo and redo @macos', async () => {
   const harness = await launch()
   const { page } = harness
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -827,7 +827,7 @@ test('composer formatting participates in native undo and redo', async () => {
   }
 })
 
-test('text fields get a right-click menu, and composers learn autocomplete @system-clipboard', async () => {
+test('text fields get a right-click menu, and composers learn autocomplete @system-clipboard @macos', async () => {
   const harness = await launch()
   const { page, app } = harness
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -918,7 +918,7 @@ test('text fields get a right-click menu, and composers learn autocomplete @syst
   }
 })
 
-test('composer shortcuts format selections, insert links and expand long drafts', async () => {
+test('composer shortcuts format selections, insert links and expand long drafts @macos', async () => {
   const harness = await launch()
   const { page } = harness
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -975,7 +975,7 @@ test('composer shortcuts format selections, insert links and expand long drafts'
   }
 })
 
-test('work-area shortcuts work from chat without stealing dialog or editor input', async () => {
+test('work-area shortcuts work from chat without stealing dialog or editor input @macos', async () => {
   const harness = await launch()
   const { page } = harness
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -1775,7 +1775,7 @@ test('explorer previews images, pages and PDFs, and refuses to launch programs',
   }
 })
 
-test('explorer copies, cuts, multi-drags and imports disk-backed files @system-clipboard', async () => {
+test('explorer copies, cuts, multi-drags and imports disk-backed files @system-clipboard @macos', async () => {
   const harness = await launch()
   const { page, workspace, app } = harness
   const external = await scratchDir('phosphor-drop-')
@@ -1983,7 +1983,7 @@ test('dropped chat images open on click and copy on right-click @system-clipboar
   }
 })
 
-test('annotating a pasted image replaces it by default, or keeps both @system-clipboard', async () => {
+test('annotating a pasted image replaces it by default, or keeps both @system-clipboard @macos', async () => {
   const harness = await launch()
   const { page } = harness
   try {
@@ -2437,7 +2437,7 @@ test('command palette opens with the keyboard shortcut', async () => {
 })
 
 for (const bracketedPaste of [true, false]) {
-  test(`chat commands run only after Enter (bracketed paste ${bracketedPaste})`, async () => {
+  test(`chat commands run only after Enter (bracketed paste ${bracketedPaste}) @macos`, async () => {
     const workspace = await scratchDir('phosphor-e2e-command-')
     const inputrc = join(workspace, '.inputrc')
     await writeFile(inputrc, `set enable-bracketed-paste ${bracketedPaste ? 'on' : 'off'}\n`)
@@ -2495,7 +2495,7 @@ for (const bracketedPaste of [true, false]) {
   })
 }
 
-test('terminal pane spawns a real shell, and reopening replays its scrollback @system-clipboard', async () => {
+test('terminal pane spawns a real shell, and reopening replays its scrollback @system-clipboard @macos', async () => {
   const harness = await launch()
   const { page } = harness
   try {
