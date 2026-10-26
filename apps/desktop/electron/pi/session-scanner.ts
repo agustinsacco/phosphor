@@ -1,8 +1,10 @@
-import { realpathSync } from 'node:fs'
-import { readdir, stat } from 'node:fs/promises'
+import { constants, realpathSync } from 'node:fs'
+import { open, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { SessionMeta, WorkspaceSessionStats } from '@shared/models'
 import { compareSessionsByCreation } from '@shared/session-order'
+import type { AgentMessage } from '@shared/rpc'
+import { parseSessionEntries, sessionContext } from '@phosphor/session-runtime/pi/session-context'
 import { sessionDirForCwd } from './pi-paths'
 import {
   cloneFold,
@@ -265,6 +267,30 @@ export async function workspaceStats(workspacePath: string): Promise<WorkspaceSe
     savedTokens,
     activeDays: activityByDay.size,
     activityByDay: Object.fromEntries(activityByDay),
+  }
+}
+
+/** Read saved context without spawning pi, healing cwd, or modifying completion. */
+export async function readSavedTranscript(path: string): Promise<AgentMessage[]> {
+  const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+  try {
+    const info = await file.stat()
+    if (!info.isFile() || info.size > 64 * 1024 * 1024)
+      throw new Error('Saved conversation is too large or is not a regular file.')
+    const buffer = Buffer.alloc(info.size + 1)
+    let total = 0
+    while (total < buffer.length) {
+      const { bytesRead } = await file.read(buffer, total, buffer.length - total, total)
+      if (!bytesRead) break
+      total += bytesRead
+    }
+    if (total !== info.size) throw new Error('Saved conversation changed. Try again.')
+    const entries = parseSessionEntries(buffer.toString('utf8', 0, total))
+    const context = entries && sessionContext(entries)
+    if (!context) throw new Error('Could not read saved conversation.')
+    return context.messages
+  } finally {
+    await file.close()
   }
 }
 

@@ -2276,11 +2276,11 @@ export function installMockPhosphor(): void {
           return Promise.resolve({ updated: true, commits: 3, sha: 'abcdef1234567890' })
         case 'git:checkoutBranch':
           return Promise.resolve({ checkedOut: true, branch: args[1] as string })
+        case 'sessions:readTranscript':
+          return Promise.resolve([{ role: 'user', content: 'Saved conversation' }])
         case 'sessions:readTree':
           return Promise.resolve(mockTree())
-        // No provider sidecar in the browser harness, so the debug block
-        // falls back to the pi session id — the same shape a real
-        // pre-observer-mode session produces.
+        // No provider sidecar here; debug falls back to the pi session id.
         case 'sessions:claudeSessionId':
           return Promise.resolve(null)
         // Same reason: no provider sidecar to fork in the browser harness.

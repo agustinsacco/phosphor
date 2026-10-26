@@ -18,6 +18,7 @@ import type {
   WorktreeInfo,
 } from '../models'
 import type { SessionTree } from './views'
+import type { AgentMessage } from '../rpc'
 
 export interface SessionsInvokeMap {
   'sessions:list': { args: [workspacePath: string]; result: SessionMeta[] }
@@ -33,6 +34,7 @@ export interface SessionsInvokeMap {
     result: string[]
   }
   'sessions:readTree': { args: [sessionFilePath: string]; result: SessionTree }
+  'sessions:readTranscript': { args: [sessionFilePath: string]; result: AgentMessage[] }
   'sessions:appendLabel': {
     args: [sessionFilePath: string, targetId: string, label: string | undefined]
     result: void

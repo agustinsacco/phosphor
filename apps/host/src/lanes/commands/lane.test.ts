@@ -9,6 +9,7 @@ import {
 } from '../__fixtures__/commands.fixture'
 import type { LaneAdmission } from './admission'
 import {
+  LANE_FOLDER_MISSING,
   deleteLane,
   deletionAllowed,
   executeLane,
@@ -231,6 +232,11 @@ describe('lifecycle', () => {
       code: 'internal',
       message: 'the lane could not start',
     })
+    f.ports.resumeLane = fail('lane-folder-missing')
+    expect(await lifecycle(f.ports, { ...input, opType: 'lane.resume' })).toEqual({
+      code: 'internal',
+      message: LANE_FOLDER_MISSING,
+    })
     f.ports.stopLane = fail('bad code')
     expect(await lifecycle(f.ports, { ...input, opType: 'lane.stop' })).toMatchObject({
       message: 'the lane could not stop',
@@ -244,6 +250,10 @@ describe('lifecycle', () => {
       {
         message: 'lane.command_error',
         data: { ...identity, op: 'lane.resume', code: 'first-prompt-required' },
+      },
+      {
+        message: 'lane.command_error',
+        data: { ...identity, op: 'lane.resume', code: 'lane-folder-missing' },
       },
     ])
     expect(JSON.stringify(f.logs)).not.toMatch(/private failure|bad code/)

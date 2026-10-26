@@ -6,7 +6,7 @@ import { ALL_THINKING_LEVELS } from '@phosphor/shared/thinking'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import { pointer, type ConfigError } from '../config/schema'
 import { errnoIs } from '../fs-safety'
-import { confineToRoots } from '../machine/repositories'
+import { confineRemovedToRoots, confineToRoots } from '../machine/repositories'
 
 /**
  * The only shape a caller can use to start or resume a Host session. pi's
@@ -116,7 +116,7 @@ export async function parseSessionRequest(
   if (repository === undefined) {
     if (own('repository') === undefined) fail('repository', 'is required')
   } else {
-    const problem = await repositoryProblem(repository, roots)
+    const problem = await repositoryProblem(repository, roots, options.deleting === true)
     if (typeof problem === 'string') fail('repository', problem)
     else parsed.workspacePath = problem.real
   }
@@ -136,11 +136,17 @@ export async function parseSessionRequest(
 async function repositoryProblem(
   path: string,
   roots: readonly string[],
+  deleting: boolean,
 ): Promise<string | { real: string }> {
   if (!isAbsolute(path)) return 'must be an absolute path'
   // One answer for missing and outside, so nothing is said about other folders.
   const real = await confineToRoots(path, roots)
-  if (!real) return 'must be an existing folder inside a configured repository'
+  if (!real) {
+    // A worktree removed outside Phosphor leaves its session files behind,
+    // and its lane must still be deletable. Only deletion skips the folder.
+    const removed = deleting ? await confineRemovedToRoots(path, roots) : null
+    return removed ? { real: removed } : 'must be an existing folder inside a configured repository'
+  }
   const folder = await stat(real).then(
     (info) => info.isDirectory(),
     () => false,

@@ -10,6 +10,8 @@ afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close()
 })
 
+// A subprocess round trip: the 1 s default is too short on a busy runner.
+const POLL = { timeout: 10_000 }
 async function fixture(env: Record<string, string> = {}, args = ['--mode', 'rpc']) {
   const root = await mkdtemp(join(tmpdir(), 'fake-commands-'))
   cleanup.push(() => rm(root, { recursive: true, force: true }))
@@ -40,12 +42,14 @@ async function fixture(env: Record<string, string> = {}, args = ['--mode', 'rpc'
     return id
   }
   const reply = async (id: string) => {
-    await expect.poll(() => records().some((r) => r.id === id && r.type === 'response')).toBe(true)
+    await expect
+      .poll(() => records().some((r) => r.id === id && r.type === 'response'), POLL)
+      .toBe(true)
     return records().find((r) => r.id === id && r.type === 'response')!
   }
   const request = (type: string, data = {}) => reply(send(type, data))
   const settled = (count: number) =>
-    expect.poll(() => records().filter((r) => r.type === 'agent_settled').length).toBe(count)
+    expect.poll(() => records().filter((r) => r.type === 'agent_settled').length, POLL).toBe(count)
   return { root, child, records, send, reply, request, settled, diagnostic: () => diagnostic }
 }
 
@@ -63,7 +67,7 @@ it.each(['reply', 'state'])('holds a clone %s until its release file exists', as
   const cloneId = h.send('prompt', { message: `/fake-clone-hold-${mode} ${release}` })
   if (mode === 'state') await h.reply(cloneId)
   const heldId = mode === 'state' ? h.send('get_state') : cloneId
-  await expect.poll(() => readFile(`${release}.held`, 'utf8')).toBe('')
+  await expect.poll(() => readFile(`${release}.held`, 'utf8'), POLL).toBe('')
   expect(h.records().some((r) => r.id === heldId)).toBe(false)
   await writeFile(release, '')
   await h.reply(heldId)
@@ -98,7 +102,7 @@ it('clones before extension failure and loses or hides state until explicitly fo
 it('round trips a dialog without acknowledging the original prompt early', async () => {
   const h = await fixture()
   const id = h.send('prompt', { message: '/fake-ask' })
-  await expect.poll(() => h.records().some((r) => r.method === 'confirm')).toBe(true)
+  await expect.poll(() => h.records().some((r) => r.method === 'confirm'), POLL).toBe(true)
   const dialog = h.records().find((r) => r.method === 'confirm')!
   expect(dialog).toMatchObject({ title: 'Allow?', message: 'The fake asks' })
   expect(h.records().some((r) => r.id === id)).toBe(false)
@@ -106,7 +110,7 @@ it('round trips a dialog without acknowledging the original prompt early', async
     JSON.stringify({ type: 'extension_ui_response', id: dialog.id, confirmed: true }) + '\n',
   )
   expect(await h.reply(id)).toMatchObject({ success: true })
-  await expect.poll(h.diagnostic).toContain('FAKE_PI_DIALOG {"confirmed":true}')
+  await expect.poll(h.diagnostic, POLL).toContain('FAKE_PI_DIALOG {"confirmed":true}')
   expect(h.records().some((r) => r.type === 'agent_start')).toBe(false)
 })
 
@@ -145,7 +149,7 @@ it('drains prompt, steer and follow-up queues in insertion order after abort', a
 
 it('refuses provider-only RPC launches before startup diagnostics', async () => {
   const h = await fixture({}, ['--mode', 'rpc', '--provider', 'anthropic'])
-  await expect.poll(() => h.child.exitCode).toBe(1)
+  await expect.poll(() => h.child.exitCode, POLL).toBe(1)
   expect(h.diagnostic()).toBe('--provider requires --model\n')
   expect(h.records()).toEqual([])
 })
@@ -216,7 +220,7 @@ it.each(['wrong', 'fail', 'exit'])('preserves the %s turn mode', async (mode) =>
   const h = await fixture({ FAKE_PI_TURN: mode, ANTHROPIC_API_KEY: 'fixture-secret' })
   await h.request('prompt', { message: 'PHX-token' })
   if (mode === 'exit') {
-    await expect.poll(() => h.child.exitCode).toBe(3)
+    await expect.poll(() => h.child.exitCode, POLL).toBe(3)
     expect(h.records().some((r) => r.type === 'agent_end')).toBe(false)
     return
   }
@@ -242,7 +246,7 @@ it('stalls ordinary prompts and writes its pid until aborted', async () => {
   const marker = join(h.root, 'stall')
   const stalled = await fixture({ FAKE_PI_STALL: marker })
   await stalled.request('prompt', { message: 'ordinary' })
-  await expect.poll(() => readFile(marker, 'utf8')).toBe(String(stalled.child.pid))
+  await expect.poll(() => readFile(marker, 'utf8'), POLL).toBe(String(stalled.child.pid))
   expect(await stalled.request('get_state')).toMatchObject({ data: { isStreaming: true } })
   await stalled.request('abort')
   await stalled.settled(1)
@@ -282,6 +286,6 @@ it('starts same-group and escaped children with the documented pid diagnostics',
     expect(() => process.kill(pid, 0)).not.toThrow()
   }
   children.child.kill('SIGTERM')
-  await expect.poll(() => children.child.exitCode).toBe(0)
+  await expect.poll(() => children.child.exitCode, POLL).toBe(0)
   expect(() => process.kill(escaped, 0)).not.toThrow()
 })

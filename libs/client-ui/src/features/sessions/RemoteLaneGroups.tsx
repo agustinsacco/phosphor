@@ -1,3 +1,4 @@
+import { useRemotePullRequests } from './remotePullRequests'
 import { useState } from 'react'
 import type { HostConnectionView } from '@shared/ipc'
 import { RemoteLaneRow } from '@/features/home/RemoteLaneRow'
@@ -43,6 +44,7 @@ function ReadOnlyRepositoryGroup({
   onOpen: (laneId: string) => void
 }): React.JSX.Element {
   const [collapsed, setCollapsed] = useState(false)
+  useRemotePullRequests(hostId, group.repositoryId, !collapsed && group.available)
   return (
     <section aria-label={group.name} className="min-w-0">
       <WorkspaceGroupHeader>

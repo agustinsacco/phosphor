@@ -23,6 +23,7 @@ export function RemoteLaneRow({
   const title = useRemoteLaneTitle(lane, hostId)
   return (
     <RemoteLanePresentation
+      hostId={hostId}
       lane={lane}
       title={title}
       ready={ready && !disabled}
