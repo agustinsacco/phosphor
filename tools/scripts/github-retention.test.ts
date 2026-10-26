@@ -87,7 +87,7 @@ it('keeps optional CI evidence short-lived without removing smoke tests or failu
   ).toHaveLength(1)
   expect(ci.match(/retention-days: 3/g)).toHaveLength(1)
   expect(ci).toContain('name: CI result')
-  expect(ci).toContain('name: playwright-report-${{ matrix.os }}-${{ matrix.shardIndex }}')
+  expect(ci).toContain('name: playwright-report-${{ matrix.os }}-${{ strategy.job-index }}')
   expect(ci).toContain('retention-days: 7')
   expect(workflow('deploy-site')).toContain('DOCKER_BUILD_RECORD_RETENTION_DAYS: 3')
   expect(existsSync(new URL('../../.github/workflows/release.yml', import.meta.url))).toBe(false)

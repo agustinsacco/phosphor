@@ -71,7 +71,7 @@ const commands = {
   },
   tooling: {
     typecheck: 'node tools/scripts/typecheck.mjs',
-    lint: 'eslint .',
+    lint: 'eslint . && oxlint --type-aware .',
     test: 'vitest run',
     validate: './tools/scripts/validate.sh',
     'format-check': 'prettier --check .',
