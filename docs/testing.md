@@ -226,7 +226,7 @@ the code imports now, or delete the mock.
 
 ## CI boundary
 
-CI runs on the project's own runners, two Linux (x64) and one macOS (ARM64),
+CI runs on the project's own runners, four Linux (x64) and one macOS (ARM64),
 selected by their `[self-hosted, Linux, X64]` and `[self-hosted, macOS, ARM64]`
 labels. Each runner takes one job
 at a time, so jobs on the same OS queue and a split pays only when there is a
@@ -234,16 +234,15 @@ runner instance to take it. Each job installs what it needs and runs each
 mandatory command exactly once:
 
 - `checks`: root and site installs, comprehensive typecheck (including the
-  all-file audit), then the size ratchet.
-- `lint`: `npm run lint` (ESLint, typed oxlint, dead mocks) and
-  `npx prettier --check .`.
-- `build`: the Desktop, Web, Host and Control builds.
+  all-file audit), `npm run lint` (ESLint, typed oxlint, dead mocks),
+  `npx prettier --check .`, then the size ratchet.
 - `unit`: `npm test`, with the site installed too for the coverage audit's own
   test.
 - `web-e2e`: the browser acceptance suite, one leg per engine (Chromium,
   WebKit), each installing only its own browser. Like Desktop it retries a
   failed test once on CI and reports it as flaky.
-- `e2e`: the Desktop suite, one Linux leg under xvfb. macOS runs the whole suite
+- `e2e`: the Desktop suite, two Linux shards under xvfb. It is the longest job,
+  so it is listed first and GitHub queues it first. macOS runs the whole suite
   on main, which gates every release, and on a PR only the tests tagged
   `@macos` (native quit, undo, context menus, Meta shortcuts, the system
   clipboard and the login shell). A test whose macOS behaviour differs from
@@ -256,6 +255,10 @@ mandatory command exactly once:
   click and pass on retry. The macOS runner must run inside a logged-in user
   session, and its `@system-clipboard` tests overwrite that user's clipboard.
 - `control-schema` and `site`: the local Supabase stack and the site image.
+
+There is no separate build job: each app is built by the job that tests it.
+Desktop in `e2e`, Web and Host in the web suite's global setup
+(`apps/web/e2e/build.ts`), Web and Control in the site image.
 
 A Linux runner needs `xvfb`, Docker (with the runner user in the `docker`
 group) and the browsers' system libraries, installed once with
@@ -271,8 +274,8 @@ audit step. No job is skipped by affected projects. Inventory artifacts,
 coverage comparisons and unit-gate evidence belong to the trusted per-unit
 pipeline, not CI's untrusted PR input.
 
-The final `CI result` job always aggregates every required job: `checks`,
-`lint`, `build`, `unit`, `control-schema`, `site`, `e2e` and `web-e2e`. Every
+The final `CI result` job always aggregates every required job: `e2e`,
+`checks`, `unit`, `web-e2e`, `control-schema` and `site`. Every
 result must be `success`, including all matrix legs.
 `tools/scripts/test/foundation-wiring.test.ts` guards these steps and the
 documented commands against accidental removal.

@@ -26,15 +26,9 @@ const jobCommands = {
     'npm ci',
     'npm ci --prefix apps/site',
     'npm run typecheck',
+    'npm run lint',
+    'npx prettier --check .',
     'node tools/scripts/size-budget.mjs check',
-  ],
-  lint: ['npm ci', 'npm run lint', 'npx prettier --check .'],
-  build: [
-    'npm ci',
-    'npm run build',
-    'npm run web:build',
-    'npm run build:host',
-    'npm run build:control',
   ],
   unit: ['npm ci', 'npm ci --prefix apps/site', 'npm test'],
 }
@@ -83,6 +77,20 @@ describe('foundation CI wiring', () => {
     expect(workflow).not.toContain('tools/scripts/unit-gate.mjs')
   })
 
+  it('builds every app in the job that tests it', () => {
+    expect(workflow).not.toMatch(/^ {2}build:$/m)
+    expect(job('e2e')).toContain('        run: npm run build\n')
+    expect(job('web-e2e')).toContain('run: npm run test:e2e:web')
+    expect(read('apps/web/playwright.config.ts')).toContain("globalSetup: './e2e/build.ts'")
+    const webSetup = read('apps/web/e2e/build.ts')
+    expect(webSetup).toContain("'apps/host/scripts/build.mjs'")
+    expect(webSetup).toContain("configFile: resolve(root, 'apps/web/vite.config.ts')")
+    expect(job('site')).toContain('run: bash tools/scripts/site-image.sh')
+    const image = read('apps/control/Dockerfile')
+    expect(image).toContain('RUN node apps/control/scripts/build.mjs')
+    expect(image).toContain('npm run build --prefix apps/web')
+  })
+
   it('warms Electron up before the Desktop suite on Linux', () => {
     expect(read('apps/desktop/playwright.config.ts')).toContain("globalSetup: './e2e/warm-up.ts'")
     const warmUp = read('apps/desktop/e2e/warm-up.ts')
@@ -98,11 +106,13 @@ describe('foundation CI wiring', () => {
     )
     expect(e2e).toContain("github.event_name == 'push' &&")
     expect(push).toEqual([
-      { os: 'linux', shard: '1/1' },
+      { os: 'linux', shard: '1/2' },
+      { os: 'linux', shard: '2/2' },
       { os: 'macos', shard: '1/1' },
     ])
     expect(pr).toEqual([
-      { os: 'linux', shard: '1/1' },
+      { os: 'linux', shard: '1/2' },
+      { os: 'linux', shard: '2/2' },
       { os: 'macos', shard: '1/1', grep: '@macos' },
     ])
   })
@@ -164,7 +174,7 @@ describe('foundation CI wiring', () => {
   it('runs every job on the project runners, selected by OS and architecture', () => {
     const runsOn = [...workflow.matchAll(/^ {4}runs-on: (.+)$/gm)].map((match) => match[1])
     const linux = '[self-hosted, Linux, X64]'
-    expect(runsOn.filter((value) => value === linux)).toHaveLength(8)
+    expect(runsOn.filter((value) => value === linux)).toHaveLength(6)
     expect(runsOn.filter((value) => value !== linux)).toEqual([
       `\${{ matrix.os == 'macos' && fromJSON('["self-hosted","macOS","ARM64"]') || fromJSON('["self-hosted","Linux","X64"]') }}`,
     ])
@@ -183,23 +193,12 @@ describe('foundation CI wiring', () => {
     const jobs = [...workflow.split('\njobs:\n')[1]!.matchAll(/^ {2}([\w-]+):$/gm)].map(
       (match) => match[1],
     )
-    expect(jobs).toEqual([
-      'checks',
-      'lint',
-      'build',
-      'unit',
-      'web-e2e',
-      'control-schema',
-      'site',
-      'e2e',
-      'result',
-    ])
+    // The longest job first: GitHub queues jobs in this order.
+    expect(jobs).toEqual(['e2e', 'checks', 'unit', 'web-e2e', 'control-schema', 'site', 'result'])
     const result = job('result')
     expect(result).toContain('name: CI result')
     expect(result).toContain('if: always()')
-    expect(result).toContain(
-      'needs: [checks, lint, build, unit, control-schema, site, e2e, web-e2e]',
-    )
+    expect(result).toContain('needs: [e2e, checks, unit, web-e2e, control-schema, site]')
     expect(result).toContain("RESULTS: ${{ join(needs.*.result, ' ') }}")
     expect(result).toContain('for r in $RESULTS; do [ "$r" = success ] ||')
     expect(result).toContain('exit 1;')
