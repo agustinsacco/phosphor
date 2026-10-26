@@ -200,6 +200,7 @@ export const MACHINE_RESOURCE_ARGS: MachineResourcePolicies = {
     { arg: 1, optional: true },
   ],
   'sessions:readTree': [{ arg: 0 }],
+  'sessions:readTranscript': [{ arg: 0 }],
   'sessions:appendLabel': [{ arg: 0 }],
   'sessions:jump': [{ arg: 0 }],
   'sessions:forkAt': [{ arg: 0 }],

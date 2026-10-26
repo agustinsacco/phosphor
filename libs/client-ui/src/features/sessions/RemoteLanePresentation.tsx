@@ -1,3 +1,6 @@
+import { PrBadge } from './PrBadge'
+import { useRemotePr } from './remotePullRequests'
+import { useLanePrefsStore } from '@/stores/lanePrefs'
 import type { HostLaneView } from '@shared/ipc'
 import { useId } from 'react'
 import { useChatStore } from '@/stores/chat'
@@ -28,6 +31,7 @@ export function useRemoteLaneTitle(lane: HostLaneView, hostId?: string): string 
 
 type RemoteLanePresentationProps = Omit<React.ComponentProps<typeof LaneRow>, 'children'> & {
   lane: HostLaneView
+  hostId?: string
   title: string
   ready?: boolean
   active?: boolean
@@ -38,6 +42,7 @@ type RemoteLanePresentationProps = Omit<React.ComponentProps<typeof LaneRow>, 'c
 /** Shared row surface; curation supplies its own handlers/marker, browser supplies only navigation. */
 export function RemoteLanePresentation({
   lane,
+  hostId,
   title,
   ready = true,
   active = false,
@@ -45,6 +50,8 @@ export function RemoteLanePresentation({
   marker,
   ...props
 }: RemoteLanePresentationProps): React.JSX.Element {
+  const { pr, confirmedNoPr } = useRemotePr(hostId, lane)
+  const showPr = useLanePrefsStore((s) => s.lanes.prStatus)
   const description = useId()
   const view = remoteLanePresentation(lane, ready)
   const stateLabel = {
@@ -85,6 +92,7 @@ export function RemoteLanePresentation({
           <span className="text-text-secondary flex items-center gap-1 text-base leading-4">
             <SubtitleSegments segments={view.segments} activity={view.activity} />
             {view.needsYou && <span className="text-warning shrink-0">needs you</span>}
+            {showPr && (pr || confirmedNoPr) && <PrBadge pr={pr ?? null} />}
           </span>
         </span>
       </LaneRow>

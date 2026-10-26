@@ -3,7 +3,12 @@ import { checkoutMissing, retainedWorkspaces, setCompleted } from '../maintenanc
 import { decorateSession } from '../maintenance/history'
 import { restoreWorktree } from '../maintenance/removal'
 import { unwatchWorkspaceSessions, watchWorkspaceSessions } from '../pi/session-watcher'
-import { listSessions, readSessionTree, workspaceStats } from '../pi/session-scanner'
+import {
+  listSessions,
+  readSessionTree,
+  readSavedTranscript,
+  workspaceStats,
+} from '../pi/session-scanner'
 import { deleteLane } from '../pi/delete-lane'
 import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
 import { withOfflineSessionMutation, withSessionForkSource } from '../pi/session-mutation'
@@ -36,6 +41,7 @@ export function registerSessionsHandlers(): void {
   )
 
   handle('sessions:readTree', (_event, sessionFilePath: string) => readSessionTree(sessionFilePath))
+  handle('sessions:readTranscript', (_event, path) => readSavedTranscript(path))
 
   // The lock is taken synchronously, before any await, so call order is lock order.
   handle('sessions:appendLabel', async (_event, sessionFilePath, targetId, label) => {

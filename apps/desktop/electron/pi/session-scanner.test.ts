@@ -1,12 +1,13 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest'
 import { realpathSync } from 'node:fs'
-import { mkdtemp, rm, writeFile, mkdir, utimes } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, mkdir, utimes, truncate } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   listSessions,
   parseSessionFile,
   readSessionTree,
+  readSavedTranscript,
   sessionDirNameForCwd,
   workspaceStats,
 } from './session-scanner'
@@ -76,6 +77,36 @@ describe('session scanner', () => {
 
   afterAll(async () => {
     await rm(dir, { recursive: true, force: true })
+  })
+
+  it('reads retained messages when cwd is gone without rewriting the file', async () => {
+    const path = join(dir, 'retained.jsonl')
+    const content =
+      SESSION_CONTENT +
+      line({
+        type: 'message',
+        id: 'fork',
+        parentId: 'aaaa0001',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Selected branch.\u2028Still here.' }],
+        },
+      })
+    await writeFile(path, content)
+    expect(await readSavedTranscript(path)).toEqual([
+      { role: 'user', content: 'build the thing', timestamp: 1 },
+      { role: 'assistant', content: [{ type: 'text', text: 'Selected branch.\u2028Still here.' }] },
+    ])
+    expect(await readFile(path, 'utf8')).toBe(content)
+  })
+
+  it('reports unreadable and missing saved transcripts instead of empty history', async () => {
+    const path = join(dir, 'invalid.jsonl')
+    await writeFile(path, 'not a session\n')
+    await expect(readSavedTranscript(path)).rejects.toThrow('Could not read saved conversation')
+    await expect(readSavedTranscript(join(dir, 'missing.jsonl'))).rejects.toThrow()
+    await truncate(path, 64 * 1024 * 1024 + 1)
+    await expect(readSavedTranscript(path)).rejects.toThrow('too large')
   })
 
   it('mangles cwd into the session dir name like pi does', () => {

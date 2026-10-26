@@ -77,9 +77,9 @@ Desktop supplies Node identity crypto and retains its test-only endpoint adapter
 The portable default uses WebCrypto and requires an enrolled HTTPS Tailscale endpoint.
 
 `npm run typecheck:client` checks the DOM-only source environment. Root unit
-selection includes the client suites, including offline Chromium and WebKit crypto
-and socket tests. Install those engines with `npx playwright install chromium webkit`
-(`--with-deps` on Linux CI). CI and `npm run validate` require the client typecheck;
+selection includes the client suites. The Chromium and WebKit crypto checks run in
+the web e2e suite (`apps/web/e2e/host-client-crypto.spec.ts`), which installs its
+own engine. CI and `npm run validate` require the client typecheck;
 the library's Nx test target and whole-workspace unit target discover its tests.
 
 ## Shared UI and Web builds

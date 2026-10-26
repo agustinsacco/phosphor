@@ -230,6 +230,7 @@ const expectedEntries = [
   ['sessions:forkClaudeLedger', 'machine'],
   ['sessions:jump', 'machine'],
   ['sessions:list', 'machine'],
+  ['sessions:readTranscript', 'machine'],
   ['sessions:readTree', 'machine'],
   ['sessions:restoreWorktree', 'machine'],
   ['sessions:retainedWorkspaces', 'machine'],

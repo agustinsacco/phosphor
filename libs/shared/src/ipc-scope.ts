@@ -191,6 +191,7 @@ export const IPC_SCOPE = {
   'sessions:unwatch': 'machine',
   'sessions:delete': 'machine',
   'sessions:readTree': 'machine',
+  'sessions:readTranscript': 'machine',
   'sessions:appendLabel': 'machine',
   'sessions:jump': 'machine',
   'sessions:forkAt': 'machine',

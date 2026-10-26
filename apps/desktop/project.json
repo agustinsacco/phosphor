@@ -10,7 +10,6 @@
       "{workspaceRoot}/tools/scripts/fix-node-pty.mjs",
       "{workspaceRoot}/tools/scripts/install.sh",
       "{workspaceRoot}/tools/scripts/should-skip-release.sh",
-      "{workspaceRoot}/tools/scripts/ci-selection.mjs",
       "{workspaceRoot}/tools/scripts/release-scope.mjs",
       "{workspaceRoot}/.github/workflows/release-continuous.yml"
     ],

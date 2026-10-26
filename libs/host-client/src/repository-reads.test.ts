@@ -27,6 +27,35 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ type: 'result', id: 'read', ok: true, data: { files: ['README.md'] } })
 })
+it('reads PRs by opaque repository identity and rejects unsafe replies', async () => {
+  const key = 'host:00000000-0000-4000-8000-000000000001/repo:' + repositoryId
+  call.mockResolvedValue({
+    type: 'result',
+    id: 'pr',
+    ok: true,
+    data: {
+      byBranch: {
+        lane: { number: 42, title: 'PR', state: 'MERGED', url: 'https://github.com/a/b/pull/42' },
+      },
+      complete: true,
+    },
+  })
+  expect(await reads.pullRequests(key)).toMatchObject({ byBranch: { lane: { state: 'MERGED' } } })
+  expect(call).toHaveBeenCalledWith('github.prs', { repositoryId })
+  call.mockResolvedValue({
+    type: 'result',
+    id: 'pr',
+    ok: true,
+    data: { byBranch: { lane: { url: 'file:///etc/passwd' } }, complete: true },
+  })
+  expect(await reads.pullRequests(key)).toBeNull()
+  await expect(reads.pullRequests('/local/repo')).rejects.toThrow('Not available')
+  call.mockImplementation(async () => {
+    generation++
+    return { type: 'result', id: 'pr', ok: true, data: { byBranch: {}, complete: true } }
+  })
+  await expect(reads.pullRequests(key)).rejects.toThrow('Not available')
+})
 it('uses repository scope and parses paths from an untrusted reply', async () => {
   expect(await reads.list('host', repositoryId)).toEqual(['README.md'])
   expect(call).toHaveBeenCalledWith('files.list', { repositoryId })

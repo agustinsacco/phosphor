@@ -11,11 +11,12 @@ const pr = (over: Partial<GhPullRequest> = {}): GhPullRequest => ({
   ...over,
 })
 
-let invoke: ReturnType<typeof vi.fn>
+const invoke = vi.fn<(channel: string, repo: string) => Promise<unknown>>()
 
 beforeEach(() => {
   usePullRequestsStore.setState({ byRepo: {}, available: undefined })
-  invoke = vi.fn(async (channel: string) =>
+  invoke.mockReset()
+  invoke.mockImplementation(async (channel: string) =>
     channel === 'gh:available' ? true : { byBranch: { 'feat/a': pr() }, complete: true },
   )
   ;(globalThis as { window?: unknown }).window = { phosphor: { invoke } }
@@ -38,6 +39,29 @@ describe('repoPullRequests', () => {
 })
 
 describe('refresh', () => {
+  it('queries the Host even when this client has no gh installed', async () => {
+    usePullRequestsStore.setState({ available: false })
+    const key = 'host:00000000-0000-4000-8000-000000000001/repo:1234567890abcdef'
+    await usePullRequestsStore.getState().refresh(key)
+    expect(invoke).toHaveBeenCalledWith('gh:prsForRepo', key)
+    expect(pullRequestFor(usePullRequestsStore.getState(), key, 'feat/a')?.number).toBe(412)
+  })
+  it('does not restore a removed repository from an in-flight response', async () => {
+    let finish!: (value: unknown) => void
+    invoke.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    const key = 'host:00000000-0000-4000-8000-000000000001/repo:1234567890abcdef'
+    const pending = usePullRequestsStore.getState().refresh(key)
+    usePullRequestsStore.getState().remove(key)
+    finish({ byBranch: { 'feat/a': pr() }, complete: true })
+    await pending
+    expect(usePullRequestsStore.getState().byRepo[key]).toBeUndefined()
+  })
+
   it('fetches and indexes, then joins by branch', async () => {
     await usePullRequestsStore.getState().refresh(REPO)
     const state = usePullRequestsStore.getState()

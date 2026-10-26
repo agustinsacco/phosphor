@@ -1,23 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import { lstat, mkdir, opendir, realpath, rename, rm } from 'node:fs/promises'
-import { join, dirname, basename } from 'node:path'
+import { join, dirname } from 'node:path'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import type { DeleteLaneOp } from '@phosphor/shared/host-protocol-repositories'
 import { isLaneBranchName, type RejectCode } from '@phosphor/shared/host-protocol'
 import type { HostStore } from './store'
 import { inside } from '../features/files'
+import { canonicalRemovedPath } from '../machine/repositories'
 import { defaultBranchRefs, resolveDefaultBranch } from './default-branch'
 
 const missing = (error: unknown) =>
   error instanceof Error && 'code' in error && error.code === 'ENOENT'
-async function canonicalRemovedPath(path: string): Promise<string> {
-  try {
-    return await realpath(path)
-  } catch (error) {
-    if (!missing(error)) throw error
-    return join(await canonicalRemovedPath(dirname(path)), basename(path))
-  }
-}
 const DAY = 86400_000
 export function transcriptTrash(state: string) {
   const root = join(state, 'trash')

@@ -1,69 +1,4 @@
 {
-  "apps/desktop/electron/main.ts": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    }
-  },
-  "apps/desktop/test/main/preload.freeze.test.ts": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    }
-  },
-  "apps/host/src/lanes/commands.close.test.ts": {
-    "@typescript-eslint/no-misused-promises": {
-      "count": 1
-    }
-  },
-  "apps/host/src/lanes/commands.lane.characterization.test.ts": {
-    "@typescript-eslint/no-misused-promises": {
-      "count": 1
-    }
-  },
-  "apps/host/src/lanes/commands/rpc.test.ts": {
-    "@typescript-eslint/no-misused-promises": {
-      "count": 2
-    }
-  },
-  "apps/host/src/lanes/runtime-host.test.ts": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    }
-  },
-  "apps/host/src/lanes/runtime-host/naming.ts": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    }
-  },
-  "libs/client-ui/src/app/App.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    }
-  },
-  "libs/client-ui/src/app/useGlobalShortcuts.remotePane.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 4
-    }
-  },
-  "libs/client-ui/src/components/Tooltip.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 4
-    }
-  },
-  "libs/client-ui/src/components/useLingering.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 2
-    }
-  },
-  "libs/client-ui/src/features/account/AccountFooter.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 3
-    }
-  },
-  "libs/client-ui/src/features/chat/BackgroundWorkIndicator.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    }
-  },
   "libs/client-ui/src/features/chat/Composer.tsx": {
     "phosphor/no-raw-pi-command": {
       "count": 1
@@ -114,74 +49,9 @@
       "count": 1
     }
   },
-  "libs/client-ui/src/features/chat/useNow.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 4
-    }
-  },
-  "libs/client-ui/src/features/chat/useSubagentInspection.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    }
-  },
-  "libs/client-ui/src/features/connectors/migrationNotice.test.ts": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    }
-  },
-  "libs/client-ui/src/features/extension-ui/ExtensionUiHosts.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    }
-  },
-  "libs/client-ui/src/features/files/FuzzyFinder.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 2
-    }
-  },
-  "libs/client-ui/src/features/home/WorkspaceHome.remote.test.tsx": {
-    "@typescript-eslint/no-misused-promises": {
-      "count": 2
-    }
-  },
-  "libs/client-ui/src/features/sessions/BulkDeleteModal.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 2
-    }
-  },
-  "libs/client-ui/src/features/sessions/MachineSwitcher.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 4
-    }
-  },
-  "libs/client-ui/src/features/sessions/RemoteLaneRow.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    }
-  },
-  "libs/client-ui/src/features/skills/SkillsPage.test.tsx": {
-    "@typescript-eslint/no-misused-promises": {
-      "count": 1
-    }
-  },
-  "libs/client-ui/src/features/worktrees/useGitInfo.test.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    }
-  },
-  "libs/client-ui/src/stores/pullRequests.test.ts": {
-    "@typescript-eslint/no-misused-promises": {
-      "count": 3
-    }
-  },
   "libs/client-ui/src/stores/sessions.ts": {
     "phosphor/no-raw-pi-command": {
       "count": 8
-    }
-  },
-  "libs/shared/src/host-protocol-testing/fake-host.test.ts": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 3
     }
   }
 }
