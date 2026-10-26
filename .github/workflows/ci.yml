@@ -135,7 +135,6 @@ jobs:
         browser: [chromium, webkit]
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-      WEB_E2E_EVIDENCE: /tmp/phosphor-web-e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -150,11 +149,15 @@ jobs:
         run: npx playwright install ${{ matrix.browser }}
       - name: Browser acceptance (${{ matrix.browser }})
         run: npm run test:e2e:web -- --project=${{ matrix.browser }}
+        env:
+          # Per runner: several runners share one machine, and each leg builds
+          # and serves its fixture app from this folder.
+          WEB_E2E_EVIDENCE: ${{ runner.temp }}/web-e2e
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: web-browser-results-${{ matrix.browser }}
-          path: /tmp/phosphor-web-e2e/results/
+          path: ${{ runner.temp }}/web-e2e/results/
           retention-days: 7
 
   control-schema:
