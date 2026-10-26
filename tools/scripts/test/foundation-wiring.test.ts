@@ -30,7 +30,7 @@ const jobCommands = {
     'npx prettier --check .',
     'node tools/scripts/size-budget.mjs check',
   ],
-  unit: ['npm ci', 'npm ci --prefix apps/site', 'npm test'],
+  unit: ['npm ci', 'npm ci --prefix apps/site', 'npm test -- --maxWorkers=8'],
 }
 
 const documentedCommands = [
@@ -193,7 +193,6 @@ describe('foundation CI wiring', () => {
     const jobs = [...workflow.split('\njobs:\n')[1]!.matchAll(/^ {2}([\w-]+):$/gm)].map(
       (match) => match[1],
     )
-    // The longest job first: GitHub queues jobs in this order.
     expect(jobs).toEqual(['e2e', 'checks', 'unit', 'web-e2e', 'control-schema', 'site', 'result'])
     const result = job('result')
     expect(result).toContain('name: CI result')

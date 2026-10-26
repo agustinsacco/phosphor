@@ -16,8 +16,8 @@ env:
 # Every job runs on the project's own runners: four Linux (x64) and one macOS
 # (ARM64), each taking one job at a time. Jobs on the same OS queue, so a job is
 # split only where the split pays for its extra checkout and `npm ci`; adding
-# runner instances is what buys back parallelism. The Desktop suite is the
-# longest job, so it is listed (and queued) first.
+# runner instances is what buys back parallelism. The Linux runners share one
+# 32-core machine, so no job may assume it has all the cores.
 jobs:
   # Linux runs the whole Desktop suite on every event. macOS runs the whole suite
   # on main, which gates every release (release-continuous.yml waits for this
@@ -158,8 +158,11 @@ jobs:
       - name: Install site dependencies
         run: npm ci --prefix apps/site
 
+      # Vitest defaults to one worker per core. The Linux runners share one
+      # 32-core machine, and 31 workers starved the jobs beside them (and their
+      # own tests timed out); 8 is a quarter, one per runner.
       - name: Unit tests
-        run: npm test
+        run: npm test -- --maxWorkers=8
 
   web-e2e:
     name: Web · ${{ matrix.browser }}

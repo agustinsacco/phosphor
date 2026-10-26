@@ -236,13 +236,13 @@ mandatory command exactly once:
 - `checks`: root and site installs, comprehensive typecheck (including the
   all-file audit), `npm run lint` (ESLint, typed oxlint, dead mocks),
   `npx prettier --check .`, then the size ratchet.
-- `unit`: `npm test`, with the site installed too for the coverage audit's own
+- `unit`: `npm test -- --maxWorkers=8` (the Linux runners share one 32-core
+  machine; one worker per core starved the jobs beside it), with the site installed too for the coverage audit's own
   test.
 - `web-e2e`: the browser acceptance suite, one leg per engine (Chromium,
   WebKit), each installing only its own browser. Like Desktop it retries a
   failed test once on CI and reports it as flaky.
-- `e2e`: the Desktop suite, two Linux shards under xvfb. It is the longest job,
-  so it is listed first and GitHub queues it first. macOS runs the whole suite
+- `e2e`: the Desktop suite, two Linux shards under xvfb. macOS runs the whole suite
   on main, which gates every release, and on a PR only the tests tagged
   `@macos` (native quit, undo, context menus, Meta shortcuts, the system
   clipboard and the login shell). A test whose macOS behaviour differs from
