@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useTerminalStore } from '@/stores/terminal'
 import { TerminalView } from './TerminalView'
 
 const terminal = vi.hoisted(() => ({
@@ -11,7 +12,19 @@ const terminal = vi.hoisted(() => ({
   loadAddon: vi.fn(),
   open: vi.fn(),
   onData: vi.fn(() => ({ dispose: vi.fn() })),
-  write: vi.fn((_data: string, done?: () => void) => done?.()),
+  modes: { bracketedPasteMode: false },
+  parsed: new Set<() => void>(),
+  onWriteParsed: vi.fn((listener: () => void) => {
+    terminal.parsed.add(listener)
+    return { dispose: () => terminal.parsed.delete(listener) }
+  }),
+  write: vi.fn((data: string, done?: () => void) => {
+    if (data.includes('\x1b[?2004h')) terminal.modes.bracketedPasteMode = true
+    done?.()
+    terminal.parsed.forEach((listener) => listener())
+  }),
+  paste: vi.fn(),
+  input: vi.fn(),
   reset: vi.fn(),
   focus: vi.fn(),
   dispose: vi.fn(),
@@ -44,6 +57,9 @@ let output: (data: string) => void
 const invoke = vi.fn()
 beforeEach(() => {
   vi.clearAllMocks()
+  terminal.modes.bracketedPasteMode = false
+  terminal.parsed.clear()
+  useTerminalStore.setState({ pendingPaste: null })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
     'ResizeObserver',
@@ -128,3 +144,32 @@ it.each([false, true])(
     )
   },
 )
+
+describe('a multiline Run in terminal on a cold shell', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+  const staged = () => container.querySelector('[aria-label="Staged terminal command"]')
+  const start = async () => {
+    useTerminalStore.getState().queuePaste('remote-pty-test', 'printf one\nprintf two', false)
+    invoke.mockImplementation((channel: string) =>
+      Promise.resolve(channel === 'pty:attach' ? { scrollback: 'Last login' } : undefined),
+    )
+    await render()
+  }
+
+  it('pastes once the shell turns bracketed paste on after its first output', async () => {
+    await start()
+    await act(async () => output('\x1b[?2004h% '))
+    await act(async () => vi.advanceTimersByTime(1000))
+    expect(terminal.paste).toHaveBeenCalledWith('printf one\nprintf two')
+    expect(staged()).toBeNull()
+  })
+
+  it('stages it for review when the shell settles without bracketed paste', async () => {
+    await start()
+    await act(async () => output('$ '))
+    await act(async () => vi.advanceTimersByTime(1000))
+    expect(terminal.paste).not.toHaveBeenCalled()
+    expect(staged()).not.toBeNull()
+  })
+})

@@ -1517,8 +1517,8 @@ shared and pi-extensions libraries, and only `tooling` depends on it, so a
 Host-only change selects `host` and `tooling` and never releases Desktop.
 The validator's `npm run typecheck` includes the Host project; it also runs
 `npm run build:host`. CI's checks job runs the comprehensive `npm run typecheck`,
-which includes the Host project, and `npm run build:host`; the unit tests, the bundle's included, run with every
-other suite in `npm test`.
+which includes the Host project, and its build job runs `npm run build:host`; the
+unit tests, the bundle's included, run with every other suite in `npm test`.
 
 ## Machine features
 

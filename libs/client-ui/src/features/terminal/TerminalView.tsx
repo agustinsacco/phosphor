@@ -11,6 +11,7 @@ import { formatShortcut, hostPlatform } from '@/lib/shortcuts'
 import { clipboardActionFor, clipboardModifiers } from './clipboardKeys'
 import { xtermTheme } from './xtermTheme'
 import { installTerminalLinks } from './terminalLinks'
+import { runInTerminal } from './runInTerminal'
 
 /** Copy the current selection, then hand focus back to the shell. */
 function copySelection(term: Terminal): void {
@@ -249,20 +250,8 @@ export const TerminalView = memo(function TerminalView({
   useEffect(() => {
     if (!readOnly && visible && ready && pendingPaste?.ptyId === ptyId && termRef.current) {
       const paste = useTerminalStore.getState().consumePaste(ptyId)
-      if (paste) {
-        const term = termRef.current
-        // Old Readline (including macOS system Bash) executes pasted newlines.
-        // Keep multiline input in an editor until the user explicitly runs it.
-        if (!paste.execute && /[\r\n]/.test(paste.text) && !term.modes.bracketedPasteMode) {
-          setStagedCommand(paste.text)
-          return
-        }
-        setStagedCommand(null)
-        term.paste(paste.text)
-        // Enter is a keypress, not part of the bracketed paste payload.
-        if (paste.execute) term.input('\r', true)
-        term.focus()
-      }
+      const term = termRef.current
+      if (paste) runInTerminal(term, paste, setStagedCommand, () => termRef.current === term)
     }
   }, [pendingPaste, visible, ready, ptyId, readOnly])
 

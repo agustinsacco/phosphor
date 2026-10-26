@@ -2,6 +2,8 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
+  // Linux: absorb Electron's first launch, which never paints (see the file).
+  globalSetup: './e2e/warm-up.ts',
   timeout: 120_000,
   expect: { timeout: 15_000 },
   // Only affects CI: lets `--shard` split individual tests (not just files)
