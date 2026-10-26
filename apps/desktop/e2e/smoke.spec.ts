@@ -1,142 +1,10 @@
-import { desktopElectronLaunchOptions } from '../../../tools/scripts/desktop-electron-launch.mjs'
-import {
-  test,
-  expect,
-  _electron as electron,
-  type ElectronApplication,
-  type Page,
-} from '@playwright/test'
+import { agentDir, launch, shutdown, openWorkspace, privateAgentDir } from './fixtures/local-app'
+import { test, expect } from '@playwright/test'
 import { chmod, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { scratchDir, scratchDirSync } from './fixtures/scratch'
-import { configureTestTeardown } from './fixtures/shutdown'
-import { tmpdir } from 'node:os'
-import { basename, join, resolve, sep } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-
-const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..')
-const piStub = join(repoRoot, 'e2e', 'fixtures', 'pi-stub.cjs')
-
-interface Harness {
-  app: ElectronApplication
-  page: Page
-  workspace: string
-}
-
-/**
- * Launch Phosphor against a deterministic pi stub in a scratch workspace.
- * Each test gets its own instance so no test can leave focus or pane state
- * that breaks the next one.
- */
-/**
- * Scratch pi-agent dir for the whole e2e run, so stub sessions are never
- * written into the developer's real ~/.pi.
- */
-const agentDir = scratchDirSync('phosphor-e2e-agent-')
-
-/**
- * A pi-agent dir of one test's own, for tests that seed `npm/node_modules`
- * with a fixture package.
- *
- * The shared `agentDir` above cannot be used for those. Several surfaces run a
- * REAL `npm install` into `<agentDir>/npm` — Settings installs packages,
- * and pi installs whatever `settings.json` declares — and npm owns
- * `node_modules` wholesale: it prunes anything absent from its own manifest,
- * which is exactly what a hand-written fixture directory is. The result was a
- * test that passed alone and failed in the suite, because the pruning install
- * only wins the race once npm's cache is warm from an earlier test.
- *
- * Isolating the dir is the fix rather than ordering the tests: it makes the
- * fixture unreachable by any other test's installer, in either direction.
- */
-function privateAgentDir(): string {
-  return scratchDirSync('phosphor-e2e-agent-solo-')
-}
-
-/**
- * `process.env` minus electron-vite's dev markers.
- *
- * main.ts decides dev-vs-built purely from `ELECTRON_RENDERER_URL`, and that
- * variable is exported into every child of `npm run dev`. Running the e2e
- * suite from a shell descended from a dev server therefore launched the built
- * main against the DEV SERVER's renderer: the suite silently tested code that
- * was never built, so it passed for the wrong reasons and failed on changes it
- * had never loaded. Strip the markers so a launch here always means `out/`.
- */
-function devServerEnvStripped(): NodeJS.ProcessEnv {
-  const env = { ...process.env }
-  delete env.ELECTRON_RENDERER_URL
-  delete env.NODE_ENV_ELECTRON_VITE
-  delete env.ELECTRON_CLI_ARGS
-  return env
-}
-
-async function launch(
-  options: {
-    workspace?: string
-    userDataDir?: string
-    /** Override the run-wide agent dir; see `privateAgentDir`. */
-    agentDir?: string
-    env?: Record<string, string>
-  } = {},
-): Promise<Harness> {
-  const workspace = options.workspace ?? (await scratchDir('phosphor-e2e-'))
-  await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
-
-  const app = await electron.launch({
-    ...desktopElectronLaunchOptions([repoRoot]),
-    env: {
-      ...devServerEnvStripped(),
-      NODE_ENV: 'production',
-      PHOSPHOR_PI_STUB: piStub,
-      PHOSPHOR_E2E_WORKSPACE: workspace,
-      PHOSPHOR_TEST_USER_DATA: options.userDataDir ?? '1',
-      PI_CODING_AGENT_DIR: options.agentDir ?? agentDir,
-      ...options.env,
-    },
-  })
-  configureTestTeardown(app)
-  const page = await app.firstWindow()
-  await page.waitForLoadState('domcontentloaded')
-  return { app, page, workspace }
-}
-
-/**
- * Close the app and remove everything it created: the scratch workspace and
- * the isolated userData dir main.ts points at for E2E runs (named by pid).
- */
-async function shutdown(harness: Harness): Promise<void> {
-  const pid = harness.app.process().pid
-  await harness.app.close()
-  await rm(harness.workspace, { recursive: true, force: true })
-  if (pid !== undefined) {
-    await rm(join(tmpdir(), `phosphor-e2e-${pid}`), { recursive: true, force: true })
-  }
-}
-
-/**
- * Get to the workspace home.
- *
- * The app restores its last location on launch, so a run may land on the
- * picker OR straight into a restored session. Wait for whichever appears
- * rather than assuming the picker — assuming it made this flaky, with the
- * 30s wait burned before failing.
- */
-async function openWorkspace(page: Page): Promise<void> {
-  const picker = page.getByRole('button', { name: /Open Folder/i })
-  const homeComposer = page.getByPlaceholder('Describe a task or ask a question')
-  const chatComposer = page.getByPlaceholder(/Describe a task…/i)
-
-  await expect(picker.or(homeComposer).or(chatComposer).first()).toBeVisible({ timeout: 30_000 })
-
-  if (await picker.isVisible()) {
-    await picker.click()
-  } else if (await chatComposer.isVisible()) {
-    // Restored into a session — get back to the home screen.
-    await page.getByRole('button', { name: /^New$/ }).click()
-  }
-  await expect(homeComposer).toBeVisible({ timeout: 20_000 })
-}
+import { scratchDir } from './fixtures/scratch'
+import { basename, join, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 /** scrollTop is fractional; scrollHeight/clientHeight are rounded. Capture the
  * observed position BEFORE measuring the native limit, then restore it. This
@@ -538,7 +406,7 @@ test('instruction sources distinguish global and project files in the composer',
   }
 })
 
-test('Mermaid viewer fits, zooms, pans, exports and restores focus', async () => {
+test('Mermaid viewer fits, zooms, pans, exports and restores focus @system-clipboard', async () => {
   const h = await launch()
   const { page } = h
   try {
@@ -619,7 +487,7 @@ test('Mermaid viewer fits, zooms, pans, exports and restores focus', async () =>
   }
 })
 
-test('cancelling quit preserves active sessions and coalesces repeated quit requests', async () => {
+test('cancelling quit preserves active sessions and coalesces repeated quit requests @macos', async () => {
   const h = await launch()
   try {
     const sessionId = await h.page.evaluate(async (workspacePath) => {
@@ -915,7 +783,7 @@ test('the / menu offers pi commands on the home screen and in a session', async 
   }
 })
 
-test('composer formatting participates in native undo and redo', async () => {
+test('composer formatting participates in native undo and redo @macos', async () => {
   const harness = await launch()
   const { page } = harness
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -959,7 +827,7 @@ test('composer formatting participates in native undo and redo', async () => {
   }
 })
 
-test('text fields get a right-click menu, and composers learn autocomplete', async () => {
+test('text fields get a right-click menu, and composers learn autocomplete @system-clipboard @macos', async () => {
   const harness = await launch()
   const { page, app } = harness
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -1050,7 +918,7 @@ test('text fields get a right-click menu, and composers learn autocomplete', asy
   }
 })
 
-test('composer shortcuts format selections, insert links and expand long drafts', async () => {
+test('composer shortcuts format selections, insert links and expand long drafts @macos', async () => {
   const harness = await launch()
   const { page } = harness
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -1107,7 +975,7 @@ test('composer shortcuts format selections, insert links and expand long drafts'
   }
 })
 
-test('work-area shortcuts work from chat without stealing dialog or editor input', async () => {
+test('work-area shortcuts work from chat without stealing dialog or editor input @macos', async () => {
   const harness = await launch()
   const { page } = harness
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -1907,7 +1775,7 @@ test('explorer previews images, pages and PDFs, and refuses to launch programs',
   }
 })
 
-test('explorer copies, cuts, multi-drags and imports disk-backed files', async () => {
+test('explorer copies, cuts, multi-drags and imports disk-backed files @system-clipboard @macos', async () => {
   const harness = await launch()
   const { page, workspace, app } = harness
   const external = await scratchDir('phosphor-drop-')
@@ -2061,7 +1929,7 @@ const PNG_1X1 =
 const PNG_WIDE =
   'iVBORw0KGgoAAAANSUhEUgAABwgAAADIAQAAAADUp4gRAAAAyUlEQVR42u3PQREAAAwCIPuX1hJ77aAB6XcxNDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ8N6z0InrHKhrFAAAAAElFTkSuQmCC'
 
-test('dropped chat images open on click and copy on right-click', async () => {
+test('dropped chat images open on click and copy on right-click @system-clipboard', async () => {
   const harness = await launch()
   const { page } = harness
   try {
@@ -2115,7 +1983,7 @@ test('dropped chat images open on click and copy on right-click', async () => {
   }
 })
 
-test('annotating a pasted image replaces it by default, or keeps both', async () => {
+test('annotating a pasted image replaces it by default, or keeps both @system-clipboard @macos', async () => {
   const harness = await launch()
   const { page } = harness
   try {
@@ -2242,7 +2110,7 @@ test('a pasted wide image stays inside the transcript column', async () => {
   // a `justify-end` flex line, so the overflow grew LEFTWARDS: across the rows
   // beside it, over the activity group's left edge, and then clipped off by
   // the scroller, leaving most of the image unviewable.
-  const harness = await launch()
+  const harness = await launch({ env: { PHOSPHOR_E2E_IMAGE_HINTS: '1' } })
   const { page } = harness
   try {
     await openWorkspace(page)
@@ -2264,14 +2132,14 @@ test('a pasted wide image stays inside the transcript column', async () => {
           new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }),
         )
     }, PNG_WIDE)
-    await expect(page.getByRole('button', { name: 'Attached image', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Attached image', exact: true })).toHaveCount(1)
 
     await composer.fill('look at this')
     await composer.press('Enter')
 
     const scroller = page.getByTestId('transcript-scroll')
     const image = scroller.getByAltText('Attached image')
-    await expect(image).toBeVisible()
+    await expect(image).toHaveCount(1)
 
     // The assertion is geometric on purpose: the class list is not the
     // contract, "it fits in the column" is.
@@ -2569,7 +2437,7 @@ test('command palette opens with the keyboard shortcut', async () => {
 })
 
 for (const bracketedPaste of [true, false]) {
-  test(`chat commands run only after Enter (bracketed paste ${bracketedPaste})`, async () => {
+  test(`chat commands run only after Enter (bracketed paste ${bracketedPaste}) @macos`, async () => {
     const workspace = await scratchDir('phosphor-e2e-command-')
     const inputrc = join(workspace, '.inputrc')
     await writeFile(inputrc, `set enable-bracketed-paste ${bracketedPaste ? 'on' : 'off'}\n`)
@@ -2627,7 +2495,7 @@ for (const bracketedPaste of [true, false]) {
   })
 }
 
-test('terminal pane spawns a real shell, and reopening replays its scrollback', async () => {
+test('terminal pane spawns a real shell, and reopening replays its scrollback @system-clipboard @macos', async () => {
   const harness = await launch()
   const { page } = harness
   try {

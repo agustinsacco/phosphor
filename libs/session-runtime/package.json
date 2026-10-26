@@ -40,6 +40,18 @@
       "types": "./src/claude/usage.ts",
       "default": "./src/claude/usage.ts"
     },
+    "./pi/mcp-inspection": {
+      "types": "./src/pi/mcp-inspection.ts",
+      "default": "./src/pi/mcp-inspection.ts"
+    },
+    "./pi/mcp-inspection-cache": {
+      "types": "./src/pi/mcp-inspection-cache.ts",
+      "default": "./src/pi/mcp-inspection-cache.ts"
+    },
+    "./pi/mcp-lane": {
+      "types": "./src/pi/mcp-lane.ts",
+      "default": "./src/pi/mcp-lane.ts"
+    },
     "./pi/mcp-config": {
       "types": "./src/pi/mcp-config.ts",
       "default": "./src/pi/mcp-config.ts"
@@ -59,6 +71,10 @@
     "./file-log": {
       "types": "./src/file-log.ts",
       "default": "./src/file-log.ts"
+    },
+    "./git/github": {
+      "types": "./src/git/github.ts",
+      "default": "./src/git/github.ts"
     },
     "./git/git-exec": {
       "types": "./src/git/git-exec.ts",

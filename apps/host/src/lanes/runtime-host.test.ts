@@ -175,6 +175,14 @@ describe('runtime lane binding', () => {
     await expect(s.binding.resumeLane(s.saved())).rejects.toThrow('could not start')
     expect(s.runtime.start).toHaveBeenCalledTimes(1)
   })
+  it('refuses to resume a lane whose folder was removed, naming why, without starting pi', async () => {
+    const s = setup()
+    const lane = { ...s.saved(), cwd: `${machine.repository}/.phosphor/worktrees/gone` }
+    await expect(
+      s.binding.resumeLane({ ...lane, sessionFile: `${machine.repository}/x.jsonl` }),
+    ).rejects.toMatchObject({ code: 'lane-folder-missing' })
+    expect(s.runtime.start).not.toHaveBeenCalled()
+  })
   it('does not refresh a failed mutation and stop receives the runtime id and detaches', async () => {
     const s = setup()
     const session = await s.binding.sessions.start({ repository: machine.repository })

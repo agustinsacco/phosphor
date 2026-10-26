@@ -147,6 +147,15 @@ const components: Components = {
 // local references readable without resolving them against the parent's lane.
 const externalLinkComponents: Components = {
   ...components,
+  // Rich fences can promote snippets into the active lane; unverified history cannot.
+  code: ({ className, children }) =>
+    className || String(children).includes('\n') ? (
+      <pre className="overflow-x-auto whitespace-pre-wrap">
+        <code>{children}</code>
+      </pre>
+    ) : (
+      <InlineCode>{children}</InlineCode>
+    ),
   a: ({ href, children, ...props }) =>
     href && classifyLink(href).kind === 'external' ? (
       <MarkdownLink href={href} {...props}>

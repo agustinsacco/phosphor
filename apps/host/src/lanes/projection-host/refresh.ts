@@ -74,12 +74,18 @@ function refresh(
   if (state.stopped) return Promise.resolve()
   state.requested = true
   state.settle ||= full
-  if (!state.refreshing)
-    state.refreshing = runRefresh(state, options).finally(() => {
-      state.refreshing = undefined
-      if (state.requested && !state.stopped) return refresh(state, options, false)
-    })
+  state.refreshing ??= refreshThenFollow(state, options)
   return state.refreshing
+}
+
+/** One run, then one more if a request arrived meanwhile; settles after both. */
+async function refreshThenFollow(state: RefreshState, options: ProjectionRefreshOptions) {
+  try {
+    await runRefresh(state, options)
+  } finally {
+    state.refreshing = undefined
+    if (state.requested && !state.stopped) await refresh(state, options, false)
+  }
 }
 
 export function createProjectionRefresh(options: ProjectionRefreshOptions) {

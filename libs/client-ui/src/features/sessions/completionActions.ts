@@ -1,12 +1,16 @@
+import { create } from 'zustand'
 import type { SessionMeta } from '@shared/models'
 import { promptChoice, presentText } from '@/stores/prompt'
 import { useSessionsStore } from '@/stores/sessions'
 import { alignLaneMachineFilter } from '@/stores/remoteLanes'
 
+/** Reading retained history never requires a checkout or a pi process. */
+export const useSavedConversation = create<{ meta: SessionMeta | null }>(() => ({ meta: null }))
+
 export function openSidebarConversation(workspace: string, meta: SessionMeta): void {
   alignLaneMachineFilter('local')
   if (meta.worktreeRemoved) {
-    void restoreCheckout(workspace, meta)
+    useSavedConversation.setState({ meta })
     return
   }
   void useSessionsStore.getState().openDiskSession(workspace, meta)

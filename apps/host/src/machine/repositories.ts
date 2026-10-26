@@ -1,5 +1,5 @@
 import { realpath, stat } from 'node:fs/promises'
-import { isAbsolute, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, sep } from 'node:path'
 import { errorText } from '@phosphor/shared/errors'
 import { fail, info, pass, warn, type Check } from '../checks'
 import { errnoIs, isInside } from '../fs-safety'
@@ -27,6 +27,37 @@ export async function confineToRoots(
   if (!isAbsolute(candidate)) return null
   try {
     const real = await realpath(candidate)
+    return roots.some((root) => isInsideRoot(real, root)) ? real : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The canonical path of a folder that may no longer exist: its deepest
+ * existing ancestor resolved, then the missing segments joined back on.
+ * Anything but ENOENT rethrows.
+ */
+export async function canonicalRemovedPath(path: string): Promise<string> {
+  try {
+    return await realpath(path)
+  } catch (error) {
+    if (!errnoIs(error, 'ENOENT') || dirname(path) === path) throw error
+    return join(await canonicalRemovedPath(dirname(path)), basename(path))
+  }
+}
+
+/**
+ * `confineToRoots` for a folder that may have been removed, such as a lane's
+ * worktree deleted outside Phosphor. Only its canonical path is checked.
+ */
+export async function confineRemovedToRoots(
+  candidate: string,
+  roots: readonly string[],
+): Promise<string | null> {
+  if (!isAbsolute(candidate)) return null
+  try {
+    const real = await canonicalRemovedPath(candidate)
     return roots.some((root) => isInsideRoot(real, root)) ? real : null
   } catch {
     return null

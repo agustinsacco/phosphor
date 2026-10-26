@@ -107,6 +107,37 @@ test.afterEach(async () => {
   await rm(scratch, { recursive: true, force: true })
 })
 
+test('a legacy removed checkout opens saved conversation without restoring or starting pi', async () => {
+  await app.close()
+  await writeFile(
+    transcript,
+    (await readFile(transcript, 'utf8')) +
+      JSON.stringify({
+        type: 'message',
+        id: 'ask00001',
+        parentId: 'name0001',
+        timestamp: '2026-09-01T00:00:02Z',
+        message: { role: 'user', content: 'Keep this research available after cleanup.' },
+      }) +
+      '\n',
+  )
+  const original = await readFile(transcript, 'utf8')
+  git(repo, 'worktree', 'remove', lane)
+  await launch()
+  const row = page.getByTestId('session-row').filter({ hasText: 'Unfinished research audit' })
+  await expect(row).toContainText('worktree removed')
+  await row.click()
+  const history = page.getByRole('dialog', { name: 'Saved conversation' })
+  await expect(history).toBeVisible()
+  await expect(history).toContainText('Keep this research available after cleanup.')
+  await expect(history).toContainText('Read-only')
+  expect(await page.evaluate(() => window.phosphor.invoke('pi:listLiveSessions'))).toEqual([])
+  expect(existsSync(lane)).toBe(false)
+  expect(await readFile(transcript, 'utf8')).toBe(original)
+  await history.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(history).not.toBeVisible()
+})
+
 test('unfinished sessions survive restart; explicit completion retains sidebar history and exact-tip restore', async () => {
   test.setTimeout(120_000)
   const original = await readFile(transcript, 'utf8')

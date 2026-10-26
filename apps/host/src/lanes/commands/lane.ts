@@ -12,6 +12,9 @@ export type LanePorts = ReceiptPorts &
     attachments?: Pick<HostAttachments, 'abort'>
   }
 type LifecycleOp = 'lane.resume' | 'lane.stop'
+/** A lane whose folder was removed outside Phosphor can only be deleted. */
+export const LANE_FOLDER_MISSING =
+  "This lane's folder no longer exists on the Host, so it cannot resume. Delete the lane to clear it."
 
 /** Control, read state, deletion and lifecycle, after admission. Anything else is unsupported. */
 export function executeLane(
@@ -181,6 +184,14 @@ export function executeLifecycle(
   return { completion, detached: false }
 }
 
+function lifecycleFailure(resume: boolean, code: unknown): string {
+  if (resume)
+    return code === 'lane-folder-missing' ? LANE_FOLDER_MISSING : 'the lane could not start'
+  return code === 'first-prompt-required'
+    ? 'Send a first message before stopping this lane.'
+    : 'the lane could not stop'
+}
+
 /** Null on success, else the fixed failure text. Only a token-shaped error code is logged. */
 export async function lifecycle(
   ports: Pick<LaneCommandPorts, 'resumeLane' | 'stopLane' | 'log'>,
@@ -197,14 +208,6 @@ export async function lifecycle(
       typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
     if (typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code))
       log(ports, 'lane.command_error', { laneId, requestId, op: opType, code })
-    return {
-      code: 'internal',
-      message:
-        !resume && code === 'first-prompt-required'
-          ? 'Send a first message before stopping this lane.'
-          : resume
-            ? 'the lane could not start'
-            : 'the lane could not stop',
-    } as const
+    return { code: 'internal', message: lifecycleFailure(resume, code) } as const
   }
 }

@@ -56,6 +56,7 @@ function harness(options: RuntimeOptions = {}) {
       success: true,
     })),
     respond: vi.fn(),
+    mcpControl: vi.fn(async () => ({ ok: false as const, message: 'Not used in this fixture.' })),
     dispose: vi.fn(async () => {}),
     list: () => [],
   }

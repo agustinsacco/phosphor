@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { desktopReleaseScope } from './release-scope.mjs'
+import { desktopReleaseScope, releaseScope } from './release-scope.mjs'
 
 const dir = mkdtempSync(join(tmpdir(), 'release-scope-'))
 const git = (...args: string[]) =>
@@ -32,6 +32,7 @@ beforeAll(() => {
     if (value === 'released') {
       released = git('rev-parse', 'HEAD')
       git('tag', 'v0.1.1')
+      git('tag', 'host-v0.2.10')
     }
     if (value === 'off-history') git('tag', 'v0.1.2')
   }
@@ -72,5 +73,26 @@ describe('desktop release scope', () => {
     ['Nx non-array', 'v0.1.1', runner({ projects: [] })],
   ])('%s releases rather than risk stranding a change', (_, tag, query) => {
     expect(desktopReleaseScope(tag, query)).toMatchObject({ release: true })
+  })
+})
+
+describe('host release scope', () => {
+  it('releases only when Nx reports host affected since the newest host-v tag', () => {
+    expect(releaseScope('host', 'host-v0.2.10', runner(['host', 'shared']))).toEqual({
+      release: true,
+      reason: 'host changed since host-v0.2.10',
+      base: released,
+      head,
+      projects: ['host', 'shared'],
+    })
+    expect(releaseScope('host', 'host-v0.2.10', runner(['desktop', 'site']))).toMatchObject({
+      release: false,
+      reason: 'host unchanged since host-v0.2.10',
+    })
+  })
+
+  it('does not accept a Desktop tag as the Host baseline, or the reverse', () => {
+    expect(releaseScope('host', 'v0.1.1', runner([]))).toMatchObject({ release: true })
+    expect(desktopReleaseScope('host-v0.2.10', runner([]))).toMatchObject({ release: true })
   })
 })

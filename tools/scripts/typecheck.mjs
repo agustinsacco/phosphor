@@ -18,7 +18,10 @@ function runCommand(command, args, cwd) {
 
 export function runTypecheck(root, run = runCommand) {
   root = resolve(root)
-  const compiler = localTool(root, 'typescript/lib/tsc.js')
+  // TypeScript 7, the native compiler: about 7x faster than 6 on these
+  // projects. `typescript` stays at 6 for the tools that need its JS API
+  // (typescript-eslint, the coverage audit, size budgets).
+  const compiler = localTool(root, 'typescript-native/lib/tsc.js')
   const site = join(root, 'apps/site')
   // npm adds ancestor .bin directories to PATH. Require the site's own tools
   // first so a missing site install cannot silently use the root toolchain.

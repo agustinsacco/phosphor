@@ -187,10 +187,15 @@ on focused lane summary changes (including turn end), reconnects and manual refr
 Streamed text does not reload the pane. Added and untracked files use an empty
 original. If HEAD cannot be read, its placeholder does not discard current text.
 
-Main routes only `fs:listFiles`, `fs:readFile`, `git:statusMap`, `git:showFileAt`,
-`skills:list` and `skills:readFile` to the read features, and only when the call
+Main routes lane-keyed `fs:listFiles`, `fs:readFile`, `git:statusMap`, `git:showFileAt`,
+`skills:list` and `skills:readFile` to the read features only when the call
 names a `host:` workspace. A call with no workspace, such as the global model catalogue,
 stays local even while a remote lane is focused.
+Repository-wide `gh:prsForRepo` instead uses an opaque `host:<id>/repo:<repositoryId>`
+key and requires ready `workspaces.read`, not an active lane or control. The Host
+runs `gh` in its configured repository with its own credentials; the client's
+local `gh` is not required. Remote rows reuse the PR/check-state chips and safe
+links described in [Lanes](lanes.md).
 The live chat picker keeps the lane's full pi model list through `lane.models`,
 requiring `sessions.read`. Stopped lanes do not fall back to a machine catalogue.
 Skills requires `skills.read`. Remote Skills shows the installed list

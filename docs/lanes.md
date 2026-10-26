@@ -23,6 +23,16 @@ The lane header reports the connection state. The composer and panes disable
 while disconnected and recover when the Host snapshot is ready. See
 [Remote Desktop](remote-desktop.md#machine-context-and-lane-creation).
 
+Remote repository menus offer **Select all lanes** and **Select merged lanes**.
+Selection follows the visible search results and includes only lanes controlled by
+this client. The shared confirmation and non-blocking progress surface apply;
+Stop finishes the current deletion before cancelling the remainder. Every command
+rechecks connection, capabilities and control, never takes over implicitly, and
+is never retried on an uncertain result. Failures are reported per lane while
+other lanes continue. Shared worktrees are removed only with their last successfully
+deleted user; a failed or unselected lane keeps its directory. The Host refuses
+dirty worktree removal rather than discarding changes.
+
 ## The row
 
 ```
@@ -127,8 +137,10 @@ Explicit choices persist across reloads and mode changes.
 
 ## PR status
 
-`apps/desktop/electron/fs/gh-cli.ts` is the only place Phosphor shells out to `gh`, and it
-is **read-only by design**: no push, no create. Those are outward-facing writes
+Desktop's `apps/desktop/electron/fs/gh-cli.ts` and the Host's
+`features/git/github.ts` run read-only `gh` queries. Their listing, fallback and
+check shaping share `libs/session-runtime/src/git/github.ts`.
+They are **read-only by design**: no push, no create. Those are outward-facing writes
 and belong behind an explicit action, which is why the `↑ no PR` chip is inert
 rather than a one-click create button.
 
@@ -172,6 +184,15 @@ never produces this fallback. A failed query cannot prove absence either.
 A trunk checked out directly is not "a lane", and guessing "you could open a
 PR" there is wrong more often than right. A **confirmed** chip has no such
 restriction.
+
+Remote repository groups use the same PR store and chips, keyed by opaque
+Host/repository identity instead of a local path. Expanded groups refresh on Host
+summary changes and window focus. `github.prs` requires `workspaces.read`, resolves
+only configured repository ids, and uses the Host's environment and `gh` login;
+GitHub credentials never reach the client. Reads are coalesced and throttled per
+repository for 60 seconds on both sides, including failures. A missing or older
+Host feature leaves PR status unavailable, never inferred absent. Desktop's local
+`gh` availability has no bearing on remote PRs.
 
 ### The chip is one token carrying two signals
 
@@ -528,11 +549,16 @@ These records and refs are retained; cleanup does not age them out.
 Sidebar discovery also reads retained transcript headers under each repo's
 `.phosphor/worktrees/`, independent of surviving Git registrations, plus saved
 removal records for other checkout locations. Removed checkouts show **worktree
-removed**; their session tree remains readable. **Restore worktree** recreates
-the original path at the exact saved commit, detached to avoid overwriting a
-reused branch, without modifying the transcript. Dependencies must be reinstalled.
-Legacy missing checkouts with no saved identity stay visible but require manual
-restoration; Phosphor does not guess a replacement from today's trunk.
+removed**; clicking one opens a read-only saved conversation, without restoring
+files, starting pi, changing completion or rewriting the transcript's cwd. Failed
+reads offer Retry. The saved active context includes pi's compaction summaries;
+the session tree remains available separately. **Restore worktree** in the row's
+context menu recreates the original path at the exact saved commit, detached to
+avoid overwriting a reused branch, without modifying the transcript. Dependencies
+must be reinstalled.
+Legacy missing checkouts with no saved identity remain readable in the same way;
+only resuming work requires manual checkout restoration. Phosphor does not guess
+a replacement from today's trunk.
 
 Sizes come from `du`, which Windows lacks; an unmeasured size reports "unknown"
 and the policy never depends on the number. The scheduler is a plain interval
