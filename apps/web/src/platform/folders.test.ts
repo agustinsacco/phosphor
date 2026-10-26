@@ -6,7 +6,13 @@ import { createBrowserHandlers } from './handlers'
 import { createBrowserResources } from './resources'
 import type { BrowserHosts } from './hosts'
 
-const FOLDER_CHANNELS = ['hosts:listFolders', 'hosts:createFolder', 'hosts:addRepository'] as const
+const FOLDER_CHANNELS = [
+  'hosts:listFolders',
+  'hosts:createFolder',
+  'hosts:addRepository',
+  'hosts:removeRepository',
+  'hosts:orderRepositories',
+] as const
 const repositoryId = '0123456789abcdef'
 
 /* Desktop's folder dialog, on the same Host connection the browser already holds. */
@@ -58,7 +64,7 @@ function setup() {
   return { handlers, host, view, listing, call, send }
 }
 
-it('admits browsing, creating and adding Host folders in the browser', () => {
+it('admits browsing, creating, adding, removing and ordering Host folders in the browser', () => {
   for (const channel of FOLDER_CHANNELS) expect(IPC_WEB[channel].kind).toBe('remote-supported')
 })
 
@@ -79,6 +85,23 @@ it('lists, creates and adds a folder over the Host connection', async () => {
   })
   expect(s.send).toHaveBeenLastCalledWith(
     { type: 'host.repositories.add', path: 'Projects/new-app' },
+    undefined,
+    undefined,
+  )
+})
+
+it('removes and orders folders over the Host connection, as Desktop does', async () => {
+  const s = setup()
+  await s.handlers['hosts:removeRepository']!(s.host, repositoryId)
+  expect(s.send).toHaveBeenLastCalledWith(
+    { type: 'host.repositories.remove', repositoryId },
+    undefined,
+    undefined,
+  )
+  const other = 'fedcba9876543210'
+  await s.handlers['hosts:orderRepositories']!(s.host, [other, repositoryId])
+  expect(s.send).toHaveBeenLastCalledWith(
+    { type: 'host.repositories.order', repositoryIds: [other, repositoryId] },
     undefined,
     undefined,
   )

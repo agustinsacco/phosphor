@@ -228,3 +228,54 @@ it('removes the last folder and can add the first folder to the empty config', a
   ).toBe(true)
   expect(store.listRepositories()).toHaveLength(1)
 })
+it('reorders the config and lists repositories in that order, keeping inactive entries in place', async () => {
+  await mkdir(join(home, 'third'))
+  await symlink(join(home, 'third'), join(home, 'third-link'))
+  const missing = join(home, 'missing')
+  const config = JSON.parse(await readFile(configPath, 'utf8'))
+  config.repositories = [
+    join(home, 'original'),
+    missing,
+    join(home, 'Projects'),
+    join(home, 'third-link'),
+  ]
+  await writeFile(configPath, JSON.stringify(config), { mode: 0o600 })
+  store.syncRepositories(config.repositories)
+  const [original, projects, third] = store.listRepositories().map((r) => r.id)
+  expect(store.listRepositories().map((r) => r.name)).toEqual(['original', 'Projects', 'third'])
+  const order = (repositoryIds: string[], allowed = true) =>
+    service.execute({ type: 'host.repositories.order', repositoryIds }, () => allowed)
+  expect(await order([third!, original!, projects!])).toEqual({ ok: true })
+  expect(JSON.parse(await readFile(configPath, 'utf8'))).toMatchObject({
+    contextBudget: '400k',
+    // The missing folder keeps its slot; the symlink keeps the spelling the user wrote.
+    repositories: [
+      join(home, 'third-link'),
+      missing,
+      join(home, 'original'),
+      join(home, 'Projects'),
+    ],
+  })
+  expect(store.listRepositories().map((r) => r.name)).toEqual(['third', 'original', 'Projects'])
+  expect(changed).toHaveBeenCalledTimes(1)
+  // A stale list, a stranger or a missing repository is a conflict and writes nothing.
+  for (const ids of [
+    [original!, projects!],
+    [original!, projects!, third!, 'aaaaaaaaaaaaaaaa'],
+  ])
+    expect(await order(ids)).toEqual({ ok: false, code: 'conflict' })
+  expect(await order([original!, projects!, third!], false)).toEqual({
+    ok: false,
+    code: 'forbidden',
+  })
+  expect(store.listRepositories().map((r) => r.name)).toEqual(['third', 'original', 'Projects'])
+  expect(changed).toHaveBeenCalledTimes(1)
+})
+it('lists repositories in config order, not the order they were first added', () => {
+  const a = join(home, 'original')
+  const b = join(home, 'Projects')
+  store.syncRepositories([a, b])
+  expect(store.listRepositories().map((r) => r.name)).toEqual(['original', 'Projects'])
+  expect(store.syncRepositories([b, a]).map((r) => r.name)).toEqual(['Projects', 'original'])
+  expect(store.listRepositories().map((r) => r.name)).toEqual(['Projects', 'original'])
+})

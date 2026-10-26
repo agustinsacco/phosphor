@@ -168,3 +168,48 @@ it.each([true, false])(
     }
   },
 )
+
+it('moves a Host folder up and down through the Host, disabling moves past either end', async () => {
+  const host = structuredClone(mockRemoteHosts)[MOCK_HOST_ID]!
+  host.capabilities.push('workspaces.write')
+  host.repositories.push({ id: '0000000000000002', name: 'Second repository', path: '/remote/b' })
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host }, filter: MOCK_HOST_ID })
+  act(() => root.render(<RemoteLanes />))
+  const options = (name: string) =>
+    container.querySelector<HTMLButtonElement>(`[aria-label="Workspace options for ${name}"]`)!
+  const row = (text: string) =>
+    [...document.body.querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent === text,
+    )!
+  act(() => options('Demo repository').click())
+  expect(row('Move up').disabled).toBe(true)
+  expect(row('Move down').disabled).toBe(false)
+  await act(async () => row('Move down').click())
+  expect(invoke).toHaveBeenLastCalledWith('hosts:orderRepositories', MOCK_HOST_ID, [
+    '0000000000000002',
+    '0000000000000001',
+  ])
+  act(() => options('Second repository').click())
+  expect(row('Move down').disabled).toBe(true)
+  await act(async () => row('Move up').click())
+  expect(invoke).toHaveBeenLastCalledWith('hosts:orderRepositories', MOCK_HOST_ID, [
+    '0000000000000002',
+    '0000000000000001',
+  ])
+})
+
+it('offers no folder moves without workspaces.write', () => {
+  const host = structuredClone(mockRemoteHosts)[MOCK_HOST_ID]!
+  host.repositories.push({ id: '0000000000000002', name: 'Second repository', path: '/remote/b' })
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host }, filter: MOCK_HOST_ID })
+  act(() => root.render(<RemoteLanes />))
+  act(() =>
+    container
+      .querySelector<HTMLButtonElement>('[aria-label="Workspace options for Demo repository"]')!
+      .click(),
+  )
+  const down = [...document.body.querySelectorAll<HTMLButtonElement>('button')].find(
+    (b) => b.textContent === 'Move down',
+  )!
+  expect(down.disabled).toBe(true)
+})
