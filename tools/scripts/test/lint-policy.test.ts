@@ -1,16 +1,12 @@
 import { ESLint } from 'eslint'
-import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { spawnSync } from 'node:child_process'
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 const root = resolve(import.meta.dirname, '../../..')
-const eslint = new ESLint({
-  cwd: root,
-  // lintText repeatedly supplies synthetic source. CI's one-shot inference can
-  // reuse the on-disk TypeScript program instead of checking that supplied text.
-  overrideConfig: {
-    languageOptions: { parserOptions: { disallowAutomaticSingleRunInference: true } },
-  },
-})
+const eslint = new ESLint({ cwd: root })
 const renderer = 'libs/client-ui/src/lib/rpc.ts'
 const rendererCaller = 'libs/client-ui/src/stores/sessions.ts'
 
@@ -25,8 +21,7 @@ async function severity(file: string, rule: string) {
   return config?.rules?.[rule]?.[0] ?? 0
 }
 
-// The first typed lint of each TS project builds its program: over 5 s on CI.
-describe('eslint policy', { timeout: 60_000 }, () => {
+describe('eslint policy', () => {
   it('preserves the existing renderer prompt error and Host boundary errors', async () => {
     expect(await messages('window.prompt("name")', rendererCaller, 'no-restricted-syntax')).toEqual(
       [expect.objectContaining({ severity: 2 })],
@@ -64,41 +59,12 @@ describe('eslint policy', { timeout: 60_000 }, () => {
   })
 
   it.each([
-    'apps/desktop/electron/preload.ts',
-    'apps/desktop/electron/pi/session-writer.test.ts',
-    'apps/desktop/test/main/preload.freeze.test.ts',
-    'libs/host-client/src/connection.ts',
-    'libs/host-client/src/connection.test.ts',
-    'libs/shared/src/errors.ts',
-    'libs/shared/test/ipc.freeze.test.ts',
-    'libs/session-runtime/src/bundled-extensions.ts',
-    'libs/session-runtime/src/pi/pi-paths.test.ts',
-    'libs/pi-extensions/pi-ext/context-budget.ts',
-    'libs/pi-extensions/pi-ext/context-budget.test.ts',
     rendererCaller,
-    'libs/client-ui/src/features/files/FilesChangedPane.test.tsx',
+    'apps/desktop/electron/preload.ts',
     'apps/host/src/main.ts',
-    'apps/control/src/main.ts',
-    'apps/web/src/main.tsx',
-    'apps/web/src/service-worker.ts',
-    'apps/web/vite.config.ts',
-  ])('rejects unhandled promises in %s without missing-project failures', async (file) => {
-    const code = `declare function accepts(callback: () => void): void;
-      Promise.resolve('unhandled');
-      accepts(async () => {});`
-    for (const rule of ['no-floating-promises', 'no-misused-promises']) {
-      expect(await messages(code, file, `@typescript-eslint/${rule}`)).toEqual([
-        expect.objectContaining({ severity: 2 }),
-      ])
-    }
-  })
-
-  it.each([
-    'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
-    'tools/scripts/test/lint-policy.test.ts',
     'apps/desktop/e2e/smoke.spec.ts',
-    'apps/web/e2e/fixture.ts',
-  ])('does not enable typed linting outside owning projects: %s', async (file) => {
+    'tools/scripts/test/lint-policy.test.ts',
+  ])('never builds a TypeScript program: %s', async (file) => {
     const config = await eslint.calculateConfigForFile(file)
     expect(config?.languageOptions?.parserOptions?.projectService).toBeUndefined()
     expect(config?.languageOptions?.parserOptions?.project).toBeUndefined()
@@ -155,5 +121,82 @@ describe('eslint policy', { timeout: 60_000 }, () => {
       'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
     ])
       expect(await severity(file, 'no-restricted-properties')).toBe(0)
+  })
+})
+
+// The real .oxlintrc.json against synthetic files in a scratch project with one
+// tsconfig: a probe written into the checkout would race tests that scan it.
+// Whole-repository project resolution is CI's own `npm run lint`.
+describe('oxlint promise policy', () => {
+  const owned = [
+    'apps/desktop/electron/preload.ts',
+    'apps/desktop/electron/pi/session-writer.test.ts',
+    'apps/desktop/test/main/preload.freeze.test.ts',
+    'libs/host-client/src/connection.ts',
+    'libs/shared/src/errors.ts',
+    'libs/shared/test/ipc.freeze.test.ts',
+    'libs/session-runtime/src/bundled-extensions.ts',
+    'libs/pi-extensions/pi-ext/context-budget.ts',
+    'libs/client-ui/src/stores/sessions.ts',
+    'libs/client-ui/src/features/files/FilesChangedPane.test.tsx',
+    'apps/host/src/main.ts',
+    'apps/control/src/main.ts',
+    'apps/web/src/main.tsx',
+    'apps/web/src/service-worker.ts',
+    'apps/web/vite.config.ts',
+  ]
+  const unowned = [
+    'apps/desktop/src/main.tsx',
+    'apps/desktop/test/renderer/helpers/fakePhosphor.ts',
+    'apps/desktop/e2e/smoke.spec.ts',
+    'apps/web/e2e/fixture.ts',
+    'tools/scripts/test/lint-policy.test.ts',
+  ]
+  const probe = `declare function accepts(callback: () => void): void
+Promise.resolve('unhandled')
+accepts(async () => {})
+export {}
+`
+  let dir = ''
+  let found = new Map<string, string[]>()
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'phosphor-oxlint-policy-'))
+    copyFileSync(join(root, '.oxlintrc.json'), join(dir, '.oxlintrc.json'))
+    writeFileSync(
+      join(dir, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: { strict: true, noEmit: true, jsx: 'preserve', lib: ['ES2023'] },
+        include: ['**/*.ts', '**/*.tsx'],
+      }),
+    )
+    for (const file of [...owned, ...unowned]) {
+      mkdirSync(join(dir, dirname(file)), { recursive: true })
+      writeFileSync(join(dir, file), probe)
+    }
+    const result = spawnSync(
+      process.execPath,
+      [join(root, 'node_modules/oxlint/bin/oxlint'), '--type-aware', '--format=json', '.'],
+      { cwd: dir, encoding: 'utf8', timeout: 60_000 },
+    )
+    const diagnostics = (
+      JSON.parse(result.stdout) as { diagnostics: { filename?: string; code?: string }[] }
+    ).diagnostics
+    found = new Map()
+    for (const { filename, code } of diagnostics)
+      if (filename && code) found.set(filename, [...(found.get(filename) ?? []), code])
+  }, 60_000)
+  afterAll(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true })
+  })
+
+  it.each(owned)('rejects unhandled promises in %s', (file) => {
+    expect(found.get(file)?.sort()).toEqual([
+      'typescript(no-floating-promises)',
+      'typescript(no-misused-promises)',
+    ])
+  })
+
+  it.each(unowned)('leaves files outside owning projects syntax-only: %s', (file) => {
+    expect(found.get(file)).toBeUndefined()
   })
 })

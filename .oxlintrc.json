@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [],
+  "categories": { "correctness": "off" },
+  "ignorePatterns": [
+    "**/out/**",
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/release/**",
+    ".claude/**",
+    ".phosphor/**",
+    ".pidex/**",
+    "apps/site/**",
+    "**/*.js",
+    "**/*.mjs",
+    "**/*.cjs"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "apps/desktop/electron/**/*.ts",
+        "apps/desktop/test/main/**/*.ts",
+        "libs/**/*.{ts,tsx}",
+        "apps/host/**/*.ts",
+        "apps/control/**/*.ts",
+        "apps/web/*.ts",
+        "apps/web/src/**/*.{ts,tsx}"
+      ],
+      "plugins": ["typescript"],
+      "rules": {
+        "typescript/no-floating-promises": "error",
+        "typescript/no-misused-promises": "error"
+      }
+    }
+  ]
+}

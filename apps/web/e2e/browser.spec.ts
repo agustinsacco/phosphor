@@ -21,6 +21,11 @@ async function denyNonlocal(
   })
   return escaped
 }
+/** A cached path that is not static shell. Hashed build assets are named after
+ * their modules (a `lanePrefs` chunk is code, not lane data), so they are exempt. */
+const privatePath = (path: string) =>
+  !/^\/assets\/[^/]+-[\w-]{6,}\.(?:js|css|woff2?|png|svg|webp)$/.test(path) &&
+  /api|auth|lane|fixture-host/.test(path)
 async function signIn(page: Page, origin: string) {
   await page.goto(origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
@@ -94,7 +99,7 @@ test('production bootstrap: anonymous cookie boundary and anonymous service-work
     const offlineFailures: string[] = []
     page.on('requestfailed', (request) => offlineFailures.push(new URL(request.url()).pathname))
     expect(cached).toContain('/')
-    expect(cached.some((path) => /api|auth|lane|fixture-host/.test(path))).toBe(false)
+    expect(cached.some(privatePath)).toBe(false)
     // Cut the disposable server rather than WebKit's offline emulation, which
     // can abort a navigation before the service worker sees its fetch failure.
     stack.state.offline = true
@@ -253,7 +258,7 @@ test('cookie/CSRF → verified Host → read/control/send; waiting update and ow
     return cachesFound.flat()
   })
   expect(cached.length).toBeGreaterThan(0)
-  expect(cached.some(({ path }) => /api|auth|lane|fixture-host/.test(path))).toBe(false)
+  expect(cached.some(({ path }) => privatePath(path))).toBe(false)
   expect(
     cached.some(({ body }) =>
       /UNSENT_OWNER_A_SYNTHETIC_DRAFT|PHX-browserAcceptance|HOST_A_ONLY synthetic file/.test(body),

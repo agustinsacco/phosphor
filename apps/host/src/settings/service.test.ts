@@ -24,8 +24,8 @@ async function fixture() {
   const agentDir = join(home, 'agent')
   const repo = join(home, 'project')
   const configPath = join(home, 'host.json')
-  await mkdir(agentDir)
-  await mkdir(repo)
+  await mkdir(agentDir, { mode: 0o700 })
+  await mkdir(repo, { mode: 0o700 })
   const config = {
     version: 1,
     pi: { executable: '/usr/bin/pi' },
