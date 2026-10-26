@@ -226,7 +226,7 @@ the code imports now, or delete the mock.
 
 ## CI boundary
 
-CI runs on the project's own runners, four Linux (x64) and one macOS (ARM64),
+CI runs on the project's own runners, two Linux (x64) and one macOS (ARM64),
 selected by their `[self-hosted, Linux, X64]` and `[self-hosted, macOS, ARM64]`
 labels. Each runner takes one job
 at a time, so jobs on the same OS queue and a split pays only when there is a
@@ -242,7 +242,7 @@ mandatory command exactly once:
 - `web-e2e`: the browser acceptance suite, one leg per engine (Chromium,
   WebKit), each installing only its own browser. Like Desktop it retries a
   failed test once on CI and reports it as flaky.
-- `e2e`: the Desktop suite, two Linux shards under xvfb. macOS runs the whole suite
+- `e2e`: the Desktop suite, one Linux leg under xvfb. macOS runs the whole suite
   on main, which gates every release, and on a PR only the tests tagged
   `@macos` (native quit, undo, context menus, Meta shortcuts, the system
   clipboard and the login shell). A test whose macOS behaviour differs from

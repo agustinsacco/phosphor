@@ -106,13 +106,11 @@ describe('foundation CI wiring', () => {
     )
     expect(e2e).toContain("github.event_name == 'push' &&")
     expect(push).toEqual([
-      { os: 'linux', shard: '1/2' },
-      { os: 'linux', shard: '2/2' },
+      { os: 'linux', shard: '1/1' },
       { os: 'macos', shard: '1/1' },
     ])
     expect(pr).toEqual([
-      { os: 'linux', shard: '1/2' },
-      { os: 'linux', shard: '2/2' },
+      { os: 'linux', shard: '1/1' },
       { os: 'macos', shard: '1/1', grep: '@macos' },
     ])
   })

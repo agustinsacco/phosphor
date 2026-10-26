@@ -13,7 +13,7 @@ env:
   # electron-builder's postinstall isn't needed for checks and slows CI down.
   ELECTRON_BUILDER_SKIP_REBUILD: '1'
 
-# Every job runs on the project's own runners: four Linux (x64) and one macOS
+# Every job runs on the project's own runners: two Linux (x64) and one macOS
 # (ARM64), each taking one job at a time. Jobs on the same OS queue, so a job is
 # split only where the split pays for its extra checkout and `npm ci`; adding
 # runner instances is what buys back parallelism. The Linux runners share one
@@ -30,10 +30,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Linux splits in two: the whole suite on one runner was the critical
-        # path. The suite has no cross-test ordering or shared state
-        # (fullyParallel, workers 1). One Mac runner takes the macOS leg whole.
-        include: ${{ fromJSON(github.event_name == 'push' && '[{"os":"linux","shard":"1/2"},{"os":"linux","shard":"2/2"},{"os":"macos","shard":"1/1"}]' || '[{"os":"linux","shard":"1/2"},{"os":"linux","shard":"2/2"},{"os":"macos","shard":"1/1","grep":"@macos"}]') }}
+        # One leg per OS: with two Linux runners a split only repeats install
+        # and build. The suite has no cross-test ordering or shared state
+        # (fullyParallel, workers 1), so more runners can shard it with --shard.
+        include: ${{ fromJSON(github.event_name == 'push' && '[{"os":"linux","shard":"1/1"},{"os":"macos","shard":"1/1"}]' || '[{"os":"linux","shard":"1/1"},{"os":"macos","shard":"1/1","grep":"@macos"}]') }}
     env:
       # Map the windows. Chromium barely renders a window that was never
       # shown, which made every test 2-5x slower. The windows land on xvfb or
@@ -160,7 +160,7 @@ jobs:
 
       # Vitest defaults to one worker per core. The Linux runners share one
       # 32-core machine, and 31 workers starved the jobs beside them (and their
-      # own tests timed out); 8 is a quarter, one per runner.
+      # own tests timed out).
       - name: Unit tests
         run: npm test -- --maxWorkers=8
 
