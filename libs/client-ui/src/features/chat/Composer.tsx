@@ -38,6 +38,7 @@ import { sessionDraftKey, useDraftsStore } from '@/stores/drafts'
 import { refreshSessionCommands, useSessionsStore } from '@/stores/sessions'
 import { useWritingStore } from '@/stores/writing'
 import { ipcErrorText } from '@shared/errors'
+import { createReceiptGuard, withDraftIds } from './receiptGuard'
 
 export function Composer({
   sessionId,
@@ -69,6 +70,7 @@ export function Composer({
     host.capabilities.includes('sessions.control') &&
     canControlSession(sessionId)
   const uploading = useRef(false)
+  const awaiting = useRef(createReceiptGuard())
   const draftKey =
     entry?.target?.kind === 'remote' && entry.laneId
       ? hostResourceKey(entry.target, 'session', entry.laneId)
@@ -224,12 +226,9 @@ export function Composer({
       }
 
       // Remote sends await uploads and receipts while the next draft stays editable.
-      const submitted = remote
-        ? images.map((a) => ({
-            ...a,
-            draftAttachmentId: a.draftAttachmentId ?? crypto.randomUUID(),
-          }))
-        : images
+      const drafted = withDraftIds(images, remote)
+      const submitted = awaiting.current.fresh(drafted)
+      if (awaiting.current.isResend(message, submitted)) return
       const submittedIds = new Set(submitted.map((a) => a.draftAttachmentId))
       let textEdited = false
       const unsubscribe = remote
@@ -237,7 +236,7 @@ export function Composer({
             if (next.drafts[draftKey]?.text !== previous.drafts[draftKey]?.text) textEdited = true
           })
         : () => undefined
-      if (remote) setImages(submitted)
+      if (remote) setImages(drafted)
       let consumed = false
       const finishRemoteDraft = (success: boolean) => {
         if (!remote) return
@@ -256,7 +255,7 @@ export function Composer({
       // has no document type, so the agent opens them with its own tools.
       let messageWithFiles: string
       try {
-        if (remote && images.length && !remoteAttachments)
+        if (remote && submitted.length && !remoteAttachments)
           throw new Error('Attachment upload unavailable.')
         uploading.current = true
         const attached = remote
@@ -264,7 +263,7 @@ export function Composer({
               consumed = true
               return window.phosphor.invoke('hosts:uploadAttachments', sessionId, files)
             })
-          : images
+          : submitted
         messageWithFiles = composePrompt(message, attached)
       } catch (error) {
         finishRemoteDraft(false)
@@ -293,6 +292,8 @@ export function Composer({
         )
       }
 
+      uploading.current = false // uploads are exclusive, receipt waits are not
+      const release = awaiting.current.hold(message, submittedIds)
       try {
         const accepted = await piCallAccepted(sessionId, {
           type: 'prompt',
@@ -318,7 +319,7 @@ export function Composer({
         chat.setError(sessionId, ipcErrorText(error))
       } finally {
         unsubscribe()
-        uploading.current = false
+        release()
       }
     },
     [sessionId, text, images, isStreaming, draftKey, remote, remoteAttachments, setImages],

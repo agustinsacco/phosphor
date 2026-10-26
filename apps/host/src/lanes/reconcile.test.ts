@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -173,7 +181,8 @@ it('scans exactly 256 worktree directories and reports a skipped scan for the 25
     RECONCILE_LIMITS.worktreesPerRepository,
   )
   expect(skipped).toEqual([1])
-})
+  // 257 real session files and SQLite rows: I/O-bound on a busy runner.
+}, 30_000)
 it('rejects links, invalid/oversize headers, wrong cwd and non-session files without logging contents', async () => {
   const file = session()
   const directory = sessionDirForCwd(repository, join(root, 'sessions'))
@@ -196,7 +205,6 @@ it('skips unreadable or unsafe folders without treating known files as removed',
   const file = session()
   await scan()
   const directory = sessionDirForCwd(repository, join(root, 'sessions'))
-  const { renameSync } = await import('node:fs')
   renameSync(directory, directory + '-aside')
   symlinkSync(directory + '-aside', directory)
   const skipped: number[] = []
@@ -290,5 +298,38 @@ it('uses the SQL cap when corrupt live rows make the cached count read low', asy
     ).toBe(2)
   } finally {
     db.close()
+  }
+})
+
+it('does not treat ENOTDIR on an exact known session path as deletion proof', async () => {
+  const file = session()
+  await scan()
+  const directory = sessionDirForCwd(repository, join(root, 'sessions'))
+  renameSync(directory, directory + '-aside')
+  writeFileSync(directory, 'not a directory')
+  const log = vi.fn()
+  expect(await scan(log)).toEqual({ repositories: 1, lanes: 1, added: 0, removed: 0 })
+  expect(store.sessionLane(file)?.removedAt).toBeNull()
+  expect(log).toHaveBeenCalledExactlyOnceWith(2)
+})
+
+it('does not count a concurrently admitted live row against the cached addition cap', async () => {
+  const first = session()
+  const second = session()
+  const lookup = store.sessionLane.bind(store)
+  const reads = new Map<string, number>()
+  const lookupSpy = vi.spyOn(store, 'sessionLane').mockImplementation((file) => {
+    const count = (reads.get(file) ?? 0) + 1
+    reads.set(file, count)
+    if (count === 2 && store.listLanes().length === 0)
+      store.ensureLane({ repositoryId, cwd: repository, sessionFile: file })
+    return lookup(file)
+  })
+  try {
+    expect(await scan()).toEqual({ repositories: 1, lanes: 2, added: 1, removed: 0 })
+    expect(lookup(first)?.removedAt).toBeNull()
+    expect(lookup(second)?.removedAt).toBeNull()
+  } finally {
+    lookupSpy.mockRestore()
   }
 })
