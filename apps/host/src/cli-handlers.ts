@@ -15,6 +15,16 @@ import { defaultConfigPath } from './config/load'
 import type { ControlContext } from './control/command'
 import { installHostPath } from './machine/shell-path'
 import type { Drainable } from './shutdown'
+import {
+  screenAccept,
+  screenDoctor,
+  screenInstall,
+  screenProviderLogin,
+  screenProviders,
+  screenTailscale,
+} from './cli-screens'
+import { screenFor } from './ui/screen'
+import type { RichTerminal } from './ui/spinner'
 import { HOST_SOURCE_SHA, HOST_VERSION } from './version'
 
 /** stdout carries only the report or JSON; everything else goes to stderr. */
@@ -30,6 +40,8 @@ export type CliContext = Omit<DoctorContext, 'configPath'> & {
   attach?: (target: Drainable) => () => void
   /** stdin and stdout are a terminal, which a login needs. */
   terminal?: boolean
+  /** A person's terminal, outside CI: commands draw a screen on it unless --json. */
+  rich?: RichTerminal
   /** Replaced in tests: hands the terminal to a login. */
   runInTerminal?: LoginContext['run']
   /** Control-plane I/O replaced in tests. */
@@ -87,6 +99,8 @@ export async function handleTailscale(
   io: CliIo,
   context: CliContext,
 ): Promise<number> {
+  const screen = screenFor(context.rich)
+  if (screen) return screenTailscale(command, screen, context)
   const configPath = configPathOf(command.options, context)
   const outcome = await runTailscale({ ...context, configPath }, command.action, context.tailscale)
   io.stdout(`${outcome.message}\n`)
@@ -100,6 +114,8 @@ export async function handleInstall(
   context: CliContext,
 ): Promise<number> {
   const { options } = command
+  const screen = screenFor(context.rich, options.json)
+  if (screen) return screenInstall(command, screen, context)
   const messages: string[] = []
   const install = {
     ...context,
@@ -125,6 +141,8 @@ export async function handleDoctor(
   io: CliIo,
   context: CliContext,
 ): Promise<number> {
+  const screen = screenFor(context.rich, command.options.json)
+  if (screen) return screenDoctor(command, screen, context)
   const report = await runDoctor({ ...context, configPath: configPathOf(command.options, context) })
   io.stdout(command.options.json ? indented(report) : renderDoctor(report))
   return report.exitCode
@@ -137,6 +155,8 @@ export async function handleProviders(
   context: CliContext,
 ): Promise<number> {
   const { json } = command.options
+  const screen = screenFor(context.rich, json)
+  if (screen) return screenProviders(command, screen, context)
   const outcome = await runProviders({
     ...context,
     configPath: configPathOf(command.options, context),
@@ -158,6 +178,8 @@ export async function handleProviderLogin(
   io: CliIo,
   context: CliContext,
 ): Promise<number> {
+  const screen = screenFor(context.rich)
+  if (screen) return screenProviderLogin(command, screen, context)
   const outcome = await runProviderLogin({
     ...context,
     configPath: configPathOf(command.options, context),
@@ -182,6 +204,8 @@ export async function handleAccept(
   context: CliContext,
 ): Promise<number> {
   const { options } = command
+  const screen = screenFor(context.rich, options.json)
+  if (screen) return screenAccept(command, screen, context)
   const outcome = await runAccept({
     ...context,
     configPath: configPathOf(options, context),

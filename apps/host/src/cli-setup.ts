@@ -4,6 +4,8 @@ import { configPathOf, type CliContext, type CliIo, type CommandOf } from './cli
 import { runGuidedSetup } from './commands/guided-setup'
 import { renderSetup, runSetup, type SetupReport } from './commands/setup'
 import { createIdentityStore, identityDirectory } from './control/identity'
+import { screenSetupView } from './ui/present-flow'
+import { screenFor } from './ui/screen'
 
 /** On a terminal setup is guided to the end; otherwise it only writes the config. */
 export function handleSetup(
@@ -52,6 +54,10 @@ async function guidedSetup(
 ): Promise<number> {
   const { options } = command
   const lifetime = commandLifetime(context, 'Setup could not finish.')
+  // On a person's terminal setup draws its checklist; with --json it prints lines to stderr.
+  const screen = screenFor(context.rich, options.json)
+  const drawn = screen ? screenSetupView(screen) : null
+  const plain = (line: string) => (options.json ? io.stderr : io.stdout)(`${line}\n`)
   let report: SetupReport
   try {
     report = await runGuidedSetup({
@@ -65,9 +71,11 @@ async function guidedSetup(
       node: options.node,
       replace: options.replace,
       signal: lifetime.signal,
-      print: (line) => (options.json ? io.stderr : io.stdout)(`${line}\n`),
+      print: drawn?.print ?? plain,
+      ...(drawn && screen && { view: drawn.view, enrollment: drawn.enrollment, screen }),
     })
   } finally {
+    drawn?.settle()
     lifetime.end()
   }
   if (options.json) io.stdout(`${JSON.stringify(report, null, 2)}\n`)
