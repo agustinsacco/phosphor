@@ -65,8 +65,9 @@ not a direct structured-history API; this is continuity, not identical wire inpu
   run.
 
 Phosphor checks the package version before starting or switching to Claude.
-The provider must be published and installed separately; Phosphor installs or
-upgrades nothing implicitly. Claude Code 2.1.263+ is required.
+The provider must be published separately. Guided Host setup offers its installation
+alongside headless-safe subagents and web access with explicit consent; ordinary
+session startup never installs or upgrades packages. Claude Code 2.1.263+ is required.
 
 ### Compaction has one owner
 
@@ -259,6 +260,24 @@ in `libs/session-runtime/src/pi/provider-auth.ts`, each id verified against
 Claude logins are a separate set, under Extensions → Claude Code
 ([settings.md](settings.md#claude-code-pi-claude-cli)), because they are
 config directories, not pi credentials.
+
+## Authentication persistence
+
+pi and Claude own durable credentials and their refresh lifecycle. Phosphor does
+not expire an account on a timer, synchronize credentials between machines, or
+sign out when a settings/usage probe fails. Claude status requires an explicit
+boolean `loggedIn`; a missing field or CLI error envelope means **unavailable**,
+not signed out, on Desktop and Hosts. Stored identities and routing remain intact.
+Reauthentication uses a fresh credential slot, leaving running lanes' credentials
+alone. Removing/signing out an account remains an explicit action.
+
+Codex usage inspection runs `pi auth check --credentials --no-refresh`. It must
+not rotate a refresh token in a short-lived subprocess that can be terminated
+before the updated credential reaches disk. Normal pi sessions own refresh;
+usage can be temporarily unavailable until a session refreshes an expired token.
+Host provider checks and Desktop readiness checks are also non-refreshing.
+These safeguards do not prevent provider-side revocation, subscription expiry,
+or failures inside the independently versioned pi/Claude credential stores.
 
 ## Two live risks
 

@@ -1,4 +1,6 @@
 import { join } from 'node:path'
+import { projectAgentBehavior } from '@phosphor/shared/machine-agent-behavior'
+import { machineRecord } from '@phosphor/shared/host-protocol-machine'
 import type { MachineSettings, MachineSettingsPatch } from '@phosphor/shared/machine-settings'
 import { readMcpConfigs } from '@phosphor/session-runtime/pi/mcp-config'
 import { validateHostConfig } from '../config/schema'
@@ -8,19 +10,22 @@ import { saveSettingsFile, settingsFile, SettingsFailure, withSettingsFileLock }
 export async function readAgentSettings(
   state: SettingsContext,
   cwd?: string,
-): Promise<Pick<MachineSettings, 'agent' | 'projectTrusted'>> {
+): Promise<Pick<MachineSettings, 'agent' | 'projectTrusted' | 'agentBehaviorSupported'>> {
   const global = settingsFile(join(state.agentDir, 'settings.json')).raw
   const configs = await readMcpConfigs(cwd, state.dirs)
   // This is an editor: show saved folder values even before trust. Runtime
   // readAgentSettings separately excludes them until pi trusts the folder.
   const project = cwd ? settingsFile(join(cwd, '.pi', 'settings.json')).raw : {}
-  const effective = { ...global, ...project }
+  // Editors must never bake machine defaults into a folder's overrides.
+  const effective = cwd ? project : global
   const host = validateHostConfig(settingsFile(state.options.configPath).raw)
   if (!host.ok)
     throw new SettingsFailure('bad-request', 'Host config is invalid. Nothing was overwritten.')
   return {
+    agentBehaviorSupported: true,
     ...(cwd ? { projectTrusted: configs.projectTrust?.trusted ?? false } : {}),
     agent: {
+      ...projectAgentBehavior(effective),
       ...(typeof effective.defaultProvider === 'string'
         ? { defaultProvider: effective.defaultProvider }
         : {}),
@@ -65,6 +70,16 @@ export async function changeAgentSettings(
       throw new SettingsFailure('bad-request', 'Settings changed. Reload before saving.')
     const file = settingsFile(path)
     const next = { ...file.raw, ...patch }
+    for (const key of ['compaction', 'retry'] as const) {
+      if (patch[key]) {
+        if (file.raw[key] !== undefined && !machineRecord(file.raw[key]))
+          throw new SettingsFailure(
+            'bad-request',
+            `Invalid ${key} settings. Nothing was overwritten.`,
+          )
+        next[key] = { ...(machineRecord(file.raw[key]) ? file.raw[key] : {}), ...patch[key] }
+      }
+    }
     if (policy && !validateHostConfig(next).ok)
       throw new SettingsFailure('bad-request', 'Invalid Host policy.')
     await saveSettingsFile(path, next, file.revision, commitAllowed)

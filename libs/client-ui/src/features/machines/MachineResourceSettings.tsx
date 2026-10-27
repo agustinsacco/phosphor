@@ -6,6 +6,7 @@ import { Card, StatusPill } from './MachineUi'
 import type { HostSettingsState } from './useHostSettings'
 
 import type { MachineSettings } from '@shared/machine-settings'
+import { HostDefaultPackages } from './HostDefaultPackages'
 export function MachineResourceSettings({
   hostId,
   label,
@@ -45,6 +46,7 @@ export function MachineResourceSettings({
           Install npm package
         </Button>
       </div>
+      <HostDefaultPackages {...{ resources, busy, programs }} />
       <MachinePackages {...{ resources, busy, programs }} />
       <Card title="Skills">
         <p className="text-text-secondary mb-3 text-base">
@@ -80,7 +82,14 @@ function MachinePackages({
                 <h3 className="text-lg font-medium">{pkg.name}</h3>
                 <p className="text-text-secondary break-all font-mono text-sm">
                   {pkg.spec} · {pkg.version ?? 'version not reported'} · {pkg.scope}
+                  {pkg.filtered ? ' · Resource filters configured' : ''}
                 </p>
+                {pkg.contents && (
+                  <p className="text-text-tertiary text-sm">
+                    {pkg.contents.extensions} extensions · {pkg.contents.skills} skills ·{' '}
+                    {pkg.contents.prompts} prompts · {pkg.contents.themes} themes
+                  </p>
+                )}
               </div>
               <StatusPill tone={pkg.installed ? 'ok' : 'off'}>
                 {pkg.installed ? 'Installed' : 'Not found'}
@@ -88,9 +97,14 @@ function MachinePackages({
               <Button
                 size="xs"
                 disabled={busy || pkg.scope === 'project' || !pkg.spec.startsWith('npm:')}
-                onClick={() => programs.task({ task: 'package.update', name: pkg.spec })}
+                onClick={() =>
+                  programs.task({
+                    task: pkg.installed ? 'package.update' : 'package.install',
+                    name: pkg.spec,
+                  })
+                }
               >
-                Update
+                {pkg.installed ? 'Update' : 'Repair installation'}
               </Button>
               <Button
                 size="xs"

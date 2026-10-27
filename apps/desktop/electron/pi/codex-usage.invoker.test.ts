@@ -21,7 +21,16 @@ it('reads credentials with fixed argv, a 64KiB bound and 15-second timeout', asy
   expect(await fetchCodexUsage()).toEqual({ ok: false, error: 'auth-unavailable' })
   expect(h.exec).toHaveBeenCalledWith(
     '/node',
-    ['/pi.js', 'auth', 'check', '--provider', 'openai-codex', '--json', '--credentials'],
+    [
+      '/pi.js',
+      'auth',
+      'check',
+      '--provider',
+      'openai-codex',
+      '--json',
+      '--credentials',
+      '--no-refresh',
+    ],
     { env: { PATH: '/shell' }, timeout: 15_000, maxBuffer: 64 * 1024, encoding: 'utf8' },
   )
 })
@@ -31,7 +40,16 @@ it('stub credentials retain the shell-aware environment and Electron-as-Node ove
   await fetchCodexUsage()
   expect(h.exec).toHaveBeenCalledWith(
     process.execPath,
-    ['/stub.cjs', 'auth', 'check', '--provider', 'openai-codex', '--json', '--credentials'],
+    [
+      '/stub.cjs',
+      'auth',
+      'check',
+      '--provider',
+      'openai-codex',
+      '--json',
+      '--credentials',
+      '--no-refresh',
+    ],
     expect.objectContaining({ env: { PATH: '/shell', ELECTRON_RUN_AS_NODE: '1' } }),
   )
   expect(h.health).not.toHaveBeenCalled()

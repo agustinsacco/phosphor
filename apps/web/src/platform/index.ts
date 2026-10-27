@@ -9,6 +9,7 @@ import { createBrowserEvents } from './events'
 import { createBrowserPreferences, type PreferenceStorage } from './preferences'
 import { createBrowserResources } from './resources'
 import { createBrowserHandlers } from './handlers'
+import { createBrowserTerminals } from './terminals'
 import { captureCompletionFence } from './completion-fence'
 import { createBrowserDrafts, OWNER_DRAFT_CHANNELS } from './drafts'
 
@@ -72,6 +73,11 @@ function browserStorage(): PreferenceStorage | undefined {
   }
 }
 
+/** A failed `pi:command` answers as pi would, so the chat shows it. */
+function piFailure(args: unknown[], error: string) {
+  const command = args[1] as IpcInvokeMap['pi:command']['args'][1]
+  return { type: 'response', command: command.type, id: command.id, success: false, error }
+}
 /** Install api on window BEFORE importing the shared UI; call start after installation. */
 export function createBrowserApi(options: BrowserApiOptions = {}): {
   api: PhosphorApi
@@ -99,6 +105,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       events.emit('machines', undefined)
     },
     invalidate: () => {
+      terminals.clear()
       lanes.clear()
       hosts.clear()
       resources.clear()
@@ -114,6 +121,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     identity: options.identity,
     changed: () => {
       lanes.reconcile()
+      terminals.reconcile()
       events.emit('hosts', undefined)
     },
     routinesChanged: (hostId) => events.emit('routines', { machine: `host:${hostId}` }),
@@ -134,11 +142,13 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     changed: () => events.emit('hosts', undefined),
   })
   const resources = createBrowserResources(hosts, lanes)
+  const terminals = createBrowserTerminals({ hosts, lanes, control, events })
   const handlers = createBrowserHandlers({
     control,
     hosts,
     lanes,
     resources,
+    terminals: terminals.handlers,
     prefs,
     drafts,
     window: () => {
@@ -179,14 +189,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       result = await handler(...args)
     } catch (error) {
       if (channel !== 'pi:command') throw error
-      const command = args[1] as IpcInvokeMap['pi:command']['args'][1]
-      return {
-        type: 'response',
-        command: command.type,
-        id: command.id,
-        success: false,
-        error: 'Remote lane unavailable.',
-      } as IpcInvokeMap[C]['result']
+      return piFailure(args, 'Remote lane unavailable.') as IpcInvokeMap[C]['result']
     }
     if (OWNER_DRAFT_CHANNELS.has(channel) && (stopped || epoch !== control.generation()))
       throw new Error('Draft owner changed.')
@@ -204,16 +207,11 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       !channel.startsWith('control:') &&
       channel !== 'hosts:reconnect'
     if (remote && (stopped || epoch !== control.generation() || !transportCurrent())) {
-      if (channel === 'pi:command') {
-        const command = args[1] as IpcInvokeMap['pi:command']['args'][1]
-        return {
-          type: 'response',
-          command: command.type,
-          id: command.id,
-          success: false,
-          error: 'Remote connection changed. Refresh before retrying.',
-        } as IpcInvokeMap[C]['result']
-      }
+      if (channel === 'pi:command')
+        return piFailure(
+          args,
+          'Remote connection changed. Refresh before retrying.',
+        ) as IpcInvokeMap[C]['result']
       throw new Error('Remote connection changed. Refresh before retrying.')
     }
     return result
@@ -286,6 +284,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       offInvalidation()
       invalidation?.close()
       control.dispose()
+      terminals.clear()
       hosts.dispose()
       lanes.clear()
       resources.clear()

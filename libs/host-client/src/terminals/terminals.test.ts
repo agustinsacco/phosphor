@@ -1,14 +1,15 @@
-import { generateKeyPairSync, randomUUID } from 'node:crypto'
+import { generateKeyPairSync, randomUUID, verify } from 'node:crypto'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { createLoopbackPair } from '@shared/host-protocol-testing'
+import { createLoopbackPair } from '@phosphor/shared/host-protocol-testing'
 import {
   parseClientFrame,
   type ClientFrame,
   type HostFrame,
   type LaneSummary,
-} from '@shared/host-protocol'
-import type { TerminalFrame } from '@shared/host-protocol-terminals'
-import { createHostConnection } from './connection'
+} from '@phosphor/shared/host-protocol'
+import type { TerminalFrame } from '@phosphor/shared/host-protocol-terminals'
+import { createHostConnection } from '../connection'
+import { browserCrypto } from '../crypto'
 import { createRemoteTerminals } from './terminals'
 import { terminalReady, terminalCommandReceipt } from './__fixtures__/terminal-frames'
 
@@ -75,6 +76,12 @@ async function setup(configuration = false) {
   const log = vi.fn()
   const inputDropped = vi.fn()
   const connection = createHostConnection({
+    // Node's keys sign the fixture; the portable connection verifies with WebCrypto otherwise.
+    identity: {
+      ...browserCrypto,
+      verify: (_key, bytes, proof) =>
+        verify(null, bytes, keys.publicKey, Buffer.from(proof, 'base64url')),
+    },
     log,
     hostId,
     endpoint: 'https://bee.tail.ts.net:47615',

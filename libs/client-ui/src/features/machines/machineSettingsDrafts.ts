@@ -1,10 +1,21 @@
 import { useEffect, useState } from 'react'
 import type { MachineAgentDefaults, MachineSettingsChange } from '@shared/machine-settings'
 import type { ThinkingLevel } from '@shared/rpc'
+import {
+  AGENT_BEHAVIOR_KEYS,
+  projectAgentBehavior,
+  type MachineAgentBehavior,
+} from '@shared/machine-agent-behavior'
 import { promptChoice } from '@/stores/prompt'
 import type { HostSettingsState } from './useHostSettings'
 
-type Fields = { model: string; thinking: ThinkingLevel; budget: string; naming: boolean }
+type Fields = {
+  model: string
+  thinking: ThinkingLevel
+  budget: string
+  naming: boolean
+  behavior: MachineAgentBehavior
+}
 type Draft = { revision: string; base: Fields; fields: Fields }
 const drafts = new Map<string, Draft>()
 let guard:
@@ -33,6 +44,7 @@ const fieldsFor = (state?: MachineAgentDefaults): Fields => ({
   thinking: state?.defaultThinkingLevel ?? 'medium',
   budget: state?.contextBudget || '200k',
   naming: state?.autoNameLanes ?? true,
+  behavior: projectAgentBehavior({ ...state }),
 })
 const same = (a: Fields, b: Fields) => JSON.stringify(a) === JSON.stringify(b)
 /** Non-secret drafts are isolated by Host + folder and survive a dropped connection.
@@ -86,6 +98,7 @@ export function useMachineAgentDraft(
       if ('defaultThinkingLevel' in change.patch) fields.thinking = base.thinking
       if ('contextBudget' in change.patch) fields.budget = base.budget
       if ('autoNameLanes' in change.patch) fields.naming = base.naming
+      if (AGENT_BEHAVIOR_KEYS.some((key) => key in change.patch)) fields.behavior = base.behavior
       return { revision: saved.revision, base, fields }
     })
   }
