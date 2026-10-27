@@ -189,6 +189,9 @@ jobs:
       - name: Browser acceptance (${{ matrix.browser }})
         run: npm run test:e2e:web -- --project=${{ matrix.browser }}
         env:
+          # Node sizes its default heap from the runner's cgroup memory limit,
+          # which leaves about 2 GB: too little for the Web build in global setup.
+          NODE_OPTIONS: --max-old-space-size=4096
           # Per runner: several runners share one machine, and each leg builds
           # and serves its fixture app from this folder.
           WEB_E2E_EVIDENCE: ${{ runner.temp }}/web-e2e
@@ -202,7 +205,7 @@ jobs:
   control-schema:
     name: Control schema · local Supabase · RLS
     runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
@@ -214,20 +217,29 @@ jobs:
       # For the sign-in test below, which runs Desktop's account code (vitest).
       - name: Install dependencies
         run: npm ci
-      # A dedicated local project, never linked to a hosted database. Suppress
-      # the CLI's development-key output; startup errors still reach stderr.
-      - name: Start isolated Supabase
-        run: npm run db:start --silent > /dev/null
-      - name: Database authorization tests
-        run: npm run test:control-db
-      # Real Supabase Auth, GitHub played by a local fixture container.
-      - name: Desktop sign-in against Supabase Auth
-        run: npm run test:auth-stack
-      - name: Control API against Supabase
-        run: npm run test:control-stack
-      - name: Remove only this test stack
-        if: always()
-        run: npm run db:stop
+      # A dedicated local project, never linked to a hosted database. Its
+      # project id and ports are fixed, and the runners share one Docker daemon,
+      # so one stack runs per machine at a time: the lock is held from start to
+      # stop, and a stack a cancelled job left behind is removed first.
+      - name: Supabase stack, one per machine
+        run: |
+          exec 9> /tmp/phosphor-control-supabase.lock
+          echo "Waiting for this machine's Supabase lock"
+          flock 9
+          npm run db:stop --silent > /dev/null 2>&1 || true
+          trap 'echo "::group::Remove only this test stack"; npm run db:stop; echo "::endgroup::"' EXIT
+          # Suppress the CLI's development-key output; startup errors still reach stderr.
+          npm run db:start --silent > /dev/null
+          echo "::group::Database authorization tests"
+          npm run test:control-db
+          echo "::endgroup::"
+          # Real Supabase Auth, GitHub played by a local fixture container.
+          echo "::group::Desktop sign-in against Supabase Auth"
+          npm run test:auth-stack
+          echo "::endgroup::"
+          echo "::group::Control API against Supabase"
+          npm run test:control-stack
+          echo "::endgroup::"
 
   site:
     # phosphor.saccolabs.com is deployed from main by deploy-site.yml, which
