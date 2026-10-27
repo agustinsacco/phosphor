@@ -271,6 +271,12 @@ group) and the browsers' system libraries, installed once with
 `sudo npx playwright install-deps chromium webkit`. Jobs install only the
 browsers themselves, without sudo.
 
+No job restores a cache archive (`setup-node`'s `cache: npm` or
+`actions/cache`). `~/.npm`, `~/.cache/electron` and the Playwright browsers
+persist on each machine and are shared by its runners, and `npm ci` installs
+from them. Restoring the 2 GB npm archive into them wrote about 4 GB per job
+to a disk whose writeback was already stalling the suites.
+
 The repository is public, so a fork's pull request runs on these machines once
 a maintainer approves it. Approve outside contributors' runs only after reading
 the diff.
