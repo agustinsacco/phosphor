@@ -9,12 +9,13 @@ import { userMessageImages, userMessageText } from '@/features/chat/messageConte
 import { ChatImage } from '@/features/chat/ChatImage'
 import { SessionFileTarget } from '@/features/files/SessionFileTarget'
 import { PlatformProvider, usePlatform } from '@/platform/Platform'
-import { useSavedConversation } from './completionActions'
+import { openRestoreWorktree, useSavedConversation } from './completionActions'
 
 /** A deliberately process-free reader: no composer, rewind, tools or session adoption. */
 export function SavedConversationModal(): React.JSX.Element | null {
   const platform = usePlatform()
   const meta = useSavedConversation((s) => s.meta)
+  const workspace = useSavedConversation((s) => s.workspace)
   const [messages, setMessages] = useState<AgentMessage[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
@@ -50,7 +51,19 @@ export function SavedConversationModal(): React.JSX.Element | null {
                 'Saved conversation'
               }
               subtitle="Read-only · worktree removed. Restore the checkout to continue working."
-              footer={<Button onClick={close}>Close</Button>}
+              footer={
+                <>
+                  <Button onClick={close}>Close</Button>
+                  {workspace && (
+                    <Button
+                      variant="primary"
+                      onClick={() => openRestoreWorktree(workspace, meta, true)}
+                    >
+                      Restore worktree…
+                    </Button>
+                  )}
+                </>
+              }
             >
               <div className="max-h-[70vh] space-y-6 overflow-y-auto p-6">
                 {error ? (

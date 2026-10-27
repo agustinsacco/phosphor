@@ -69,6 +69,7 @@ export const UNFENCED_OPS: readonly LaneOpType[] = [
   'host.repositories.add',
   'host.repositories.remove',
   'host.repositories.createFolder',
+  'host.repositories.order',
 ]
 
 export type RejectCode =

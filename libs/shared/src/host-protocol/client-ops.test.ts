@@ -171,6 +171,7 @@ describe('client-ops.ts', () => {
       'host.repositories.add',
       'host.repositories.remove',
       'host.repositories.createFolder',
+      'host.repositories.order',
       'lane.delete',
       'lane.create',
       'lane.resume',

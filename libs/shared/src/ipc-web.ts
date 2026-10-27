@@ -8,6 +8,12 @@ const browser = { kind: 'browser-local' } as const
 const unsupported = (reason: string) => ({ kind: 'unsupported', reason }) as const
 
 const native = unsupported('This native or mutating Host feature is unavailable in the browser.')
+const localRoutines = unsupported(
+  'Local routine execution and native background services require Desktop.',
+)
+const connectorConfig = unsupported(
+  'Connector configuration and credentials belong to the Host or Desktop.',
+)
 const readOnlyFiles = unsupported('Browser file access is read-only and explicitly Host-scoped.')
 
 /** Every new IPC channel requires an explicit browser admission decision. */
@@ -43,29 +49,22 @@ export const IPC_WEB = {
   'hosts:listFolders': remote,
   'hosts:addRepository': remote,
   'hosts:createFolder': remote,
-  'hosts:removeRepository': native,
+  'hosts:removeRepository': remote,
+  'hosts:orderRepositories': remote,
   'hosts:releaseControl': remote,
   'routines:list': remote,
   'routines:save': remote,
-  'routines:check': unsupported(
-    'Local routine execution and native background services require Desktop.',
-  ),
+  'routines:check': localRoutines,
   'routines:history': remote,
-  'routines:laneIndex': unsupported(
-    'Local routine execution and native background services require Desktop.',
-  ),
-  'routines:promoteRun': unsupported(
-    'Local routine execution and native background services require Desktop.',
-  ),
+  'routines:laneIndex': localRoutines,
+  'routines:promoteRun': localRoutines,
   'routines:run': remote,
   'routines:cancel': remote,
   'routines:skipNext': remote,
   'routines:archive': remote,
   'routines:delete': remote,
   'routines:pauseAll': remote,
-  'routines:background': unsupported(
-    'Local routine execution and native background services require Desktop.',
-  ),
+  'routines:background': localRoutines,
   'pi:health': unsupported(
     'Local pi processes and machine configuration are unavailable in the browser.',
   ),
@@ -342,49 +341,29 @@ export const IPC_WEB = {
   'packages:testClaudeProvider': unsupported(
     'Provider installation and native package management require Desktop.',
   ),
-  'mcp:readConfigs': unsupported(
-    'Connector configuration and credentials belong to the Host or Desktop.',
-  ),
-  'mcp:upsertServer': unsupported(
-    'Connector configuration and credentials belong to the Host or Desktop.',
-  ),
-  'mcp:removeServer': unsupported(
-    'Connector configuration and credentials belong to the Host or Desktop.',
-  ),
-  'mcp:setEnabled': unsupported(
-    'Connector configuration and credentials belong to the Host or Desktop.',
-  ),
-  'mcp:list': unsupported('Connector configuration and credentials belong to the Host or Desktop.'),
+  'mcp:readConfigs': connectorConfig,
+  'mcp:upsertServer': connectorConfig,
+  'mcp:removeServer': connectorConfig,
+  'mcp:setEnabled': connectorConfig,
+  'mcp:list': connectorConfig,
   'mcp:readChecks': unsupported('Use the selected machine’s connector settings.'),
   'mcp:checkServer': unsupported('Use the selected machine’s connector settings.'),
   'mcp:cancelCheck': unsupported('Use the selected machine’s connector settings.'),
   'mcp:laneControl': unsupported('Use the selected machine’s connector settings.'),
   'mcp:setExposure': unsupported('Use the selected machine’s connector settings.'),
-  'mcp:authorize': unsupported(
-    'Connector configuration and credentials belong to the Host or Desktop.',
-  ),
-  'mcp:cancelAuth': unsupported(
-    'Connector configuration and credentials belong to the Host or Desktop.',
-  ),
-  'mcp:logout': unsupported(
-    'Connector configuration and credentials belong to the Host or Desktop.',
-  ),
-  'mcp:migrationPlan': unsupported(
-    'Connector configuration and credentials belong to the Host or Desktop.',
-  ),
-  'mcp:migrate': unsupported(
-    'Connector configuration and credentials belong to the Host or Desktop.',
-  ),
-  'mcp:readFile': unsupported(
-    'Connector configuration and credentials belong to the Host or Desktop.',
-  ),
-  'mcp:writeFile': unsupported(
-    'Connector configuration and credentials belong to the Host or Desktop.',
-  ),
+  'mcp:authorize': connectorConfig,
+  'mcp:cancelAuth': connectorConfig,
+  'mcp:logout': connectorConfig,
+  'mcp:migrationPlan': connectorConfig,
+  'mcp:migrate': connectorConfig,
+  'mcp:readFile': connectorConfig,
+  'mcp:writeFile': connectorConfig,
   'sessions:list': unsupported('Local session files and mutations require Desktop.'),
   'sessions:setCompleted': unsupported('Local session maintenance requires Desktop.'),
   'sessions:retainedWorkspaces': unsupported('Local session maintenance requires Desktop.'),
   'sessions:restoreWorktree': unsupported('Local session maintenance requires Desktop.'),
+  'sessions:worktreeRecovery': unsupported('Local session maintenance requires Desktop.'),
+  'sessions:recreateWorktree': unsupported('Local session maintenance requires Desktop.'),
   'sessions:stats': unsupported('Local session files and mutations require Desktop.'),
   'sessions:watch': unsupported('Local session files and mutations require Desktop.'),
   'sessions:unwatch': unsupported('Local session files and mutations require Desktop.'),

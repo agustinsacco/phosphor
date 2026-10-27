@@ -242,13 +242,6 @@ describe('runUpdate', () => {
       },
     ],
     [
-      'existing version',
-      69,
-      (f: ReturnType<typeof fixture>) => {
-        f.install('1.2.3')
-      },
-    ],
-    [
       'gzip bomb',
       75,
       (f: ReturnType<typeof fixture>) => {
@@ -505,6 +498,36 @@ describe('runUpdate', () => {
     expect(await runUpdate(f.context)).toBe(75)
     unchanged(f)
     expect(readdirSync(join(f.lib, 'versions'))).toEqual(['1.0.0'])
+  })
+  it('retries an update whose health check rolled it back, replacing the folder it left', async () => {
+    const f = setup()
+    const unit = join(f.home, '.config/systemd/user/phosphor-host.service')
+    mkdirSync(join(unit, '..'), { recursive: true })
+    writeFileSync(unit, 'unit')
+    let now = 10000
+    f.context.now = () => now
+    f.context.wait = async () => {
+      now += 1000
+    }
+    let healthy = false
+    f.context.service = {
+      runner: async (_p, args) => {
+        if (healthy && args.includes('restart')) {
+          const state = join(f.home, '.local/state/phosphor-host')
+          mkdirSync(state, { recursive: true })
+          const run = { version: '1.2.3', pid: process.pid, startedAt: now, acceptedAt: now }
+          atomicRecord(join(state, 'run.json'), run, 0o600)
+        }
+        return { code: 0, stdout: '' }
+      },
+    }
+    expect(await runUpdate(f.context)).toBe(75)
+    unchanged(f)
+    writeFileSync(join(f.lib, 'versions/1.2.3/lib/phosphor.mjs'), 'stale')
+    healthy = true
+    expect(await runUpdate(f.context)).toBe(0)
+    expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/1.2.3')
+    expect(readFileSync(join(f.lib, 'versions/1.2.3/lib/phosphor.mjs'), 'utf8')).toBe('test')
   })
   it('defers a signal injected inside current swap until install.json is consistent', async () => {
     const f = setup()

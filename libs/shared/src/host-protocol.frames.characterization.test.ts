@@ -485,6 +485,7 @@ const OPS = [
   [{ type: 'host.repositories.add', path: 'src/repo' }, { path: '../repo' }],
   [{ type: 'host.repositories.remove', repositoryId: REPO }, { repositoryId: 'x' }],
   [{ type: 'host.repositories.createFolder', path: 'src/new' }, { path: '' }],
+  [{ type: 'host.repositories.order', repositoryIds: [REPO] }, { repositoryIds: [REPO, REPO] }],
   [{ type: 'provider.login', provider: 'anthropic' }, { provider: '-x' }],
   [{ type: 'machine.task', task: 'claude.installProvider' }, { task: 'bad' }],
   [{ type: 'claude.account', accountId: 'default' }, { accountId: 'bad' }],

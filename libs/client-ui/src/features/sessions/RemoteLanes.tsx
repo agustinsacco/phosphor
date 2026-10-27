@@ -14,6 +14,7 @@ import { laneMatches, laneQueryTerms } from './laneSearch'
 import { TooltipButton } from '@/components/Tooltip'
 import { useRef, useState } from 'react'
 import { RemoteRepositoryRemoval } from './RemoteRepositoryRemoval'
+import { RemoteFolderMenuRows } from './RemoteFolderMenuRows'
 export { LAST_FOLDER_REFUSAL } from './RemoteRepositoryRemoval'
 import { Button } from '@/components/form'
 import { useMachinesStore } from '@/stores/machines'
@@ -196,26 +197,13 @@ function RemoteRepositoryGroup({
                 onClose={() => setMenu(false)}
                 className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
               >
-                <MenuRow
-                  active={false}
-                  disabled={!ready || !host?.capabilities.includes('workspaces.write')}
-                  onClick={() => {
-                    setMenu(false)
-                    setAdding(true)
-                  }}
-                >
-                  Add folder on {machineLabel(hostId)}…
-                </MenuRow>
-                <MenuRow
-                  active={false}
-                  disabled={!ready || !host?.capabilities.includes('workspaces.write')}
-                  onClick={() => {
-                    setMenu(false)
-                    setRemoving(true)
-                  }}
-                >
-                  Remove from {machineLabel(hostId)}
-                </MenuRow>
+                <RemoteFolderMenuRows
+                  hostId={hostId}
+                  repositoryId={repositoryId}
+                  onAdd={() => setAdding(true)}
+                  onRemove={() => setRemoving(true)}
+                  onDone={() => setMenu(false)}
+                />
                 {(['all', 'merged'] as const).map((mode) => (
                   <MenuRow
                     key={mode}

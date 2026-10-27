@@ -99,5 +99,7 @@ export interface HostsInvokeMap {
   'hosts:addRepository': { args: [hostId: string, path: string]; result: { repositoryId: string } }
   'hosts:createFolder': { args: [hostId: string, path: string]; result: void }
   'hosts:removeRepository': { args: [hostId: string, repositoryId: string]; result: void }
+  /** Every active repository id, in the order the Host should list them. */
+  'hosts:orderRepositories': { args: [hostId: string, repositoryIds: string[]]; result: void }
   'hosts:releaseControl': { args: [hostId: string, laneId: string]; result: void }
 }

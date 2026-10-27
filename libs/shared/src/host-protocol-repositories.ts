@@ -1,10 +1,13 @@
 import { isUuid } from './control-api'
+import { HOST_LIMITS } from './host-protocol/constants'
 
 export type RepositoryOp =
   | { type: 'host.repositories.add'; path: string }
   | { type: 'host.repositories.remove'; repositoryId: string }
   /** Makes one new folder; its parent must already exist. Never adds it to the config. */
   | { type: 'host.repositories.createFolder'; path: string }
+  /** Every active repository's id, once each, in the order the Host should list them. */
+  | { type: 'host.repositories.order'; repositoryIds: string[] }
 export type DeleteLaneOp = {
   type: 'lane.delete'
   laneId: string
@@ -78,6 +81,16 @@ export function parseRepositoryOp(v: unknown): RepositoryOp | null {
     isFolderName(v.path.split('/').pop())
   )
     return { type: v.type, path: v.path }
+  if (
+    v.type === 'host.repositories.order' &&
+    keys(v, ['type', 'repositoryIds']) &&
+    Array.isArray(v.repositoryIds) &&
+    v.repositoryIds.length > 0 &&
+    v.repositoryIds.length <= HOST_LIMITS.repositoriesPerHost &&
+    v.repositoryIds.every(isRepositoryId) &&
+    new Set(v.repositoryIds).size === v.repositoryIds.length
+  )
+    return { type: v.type, repositoryIds: [...(v.repositoryIds as string[])] }
   return null
 }
 export function parseDeleteLaneOp(v: unknown): DeleteLaneOp | null {

@@ -408,7 +408,9 @@ at 0600 after its first accepted running heartbeat and at most once a minute.
 If the new version is not healthy, update selects the old version and restarts
 it again, then exits 75. A signal that ends the updater during the restart is
 not a failed health check: the new version stays selected, since systemd
-finishes the restart on it either way. A normal update without a running
+finishes the restart on it either way. The rolled-back version folder stays as
+`previous`; the next update to that version replaces it with the freshly
+verified bundle. A normal update without a running
 service asks you to restart `phosphor run`.
 
 On Linux, `phosphor update` and `update --rollback` typed into a Host terminal
@@ -1804,8 +1806,8 @@ switches are refused.
 ## Repository management and lane deletion
 
 `allowRepositoryChanges` is a boolean, default on. Turning it off refuses
-`machine.folders.list`, `host.repositories.add`, `host.repositories.remove` and
-`host.repositories.createFolder`.
+`machine.folders.list`, `host.repositories.add`, `host.repositories.remove`,
+`host.repositories.createFolder` and `host.repositories.order`.
 These owner-authenticated operations require `workspaces.write`; mutations also
 require `sessions.control` and use durable receipts. Folder paths are relative
 to the Host user's real home. Absolute paths, `.` and `..` components and symlink
@@ -1831,6 +1833,16 @@ applies only to newly added folders. Only then do the repository snapshot and ru
 roots change. This is process-local serialization, not a cross-process config
 lock. Remove changes config only and refuses live repositories. The final folder
 cannot be removed (`last-repository`). No repository files are deleted.
+
+The config's `repositories` order is the order `host.repositories` and the lane
+snapshot list folders in; a folder first seen later no longer sorts by when it
+was added. `host.repositories.order` takes `repositoryIds`: every active
+repository's id, once each, at most 64. A list that names a stranger or misses
+one (a folder added or removed since the client looked) is `conflict` and
+writes nothing. It rewrites only the order, through the same atomic config
+write: active entries move as the user wrote them, symlinked spellings included,
+and a configured folder that is not active, such as one missing on disk, keeps
+its slot. It returns no data. Older Hosts answer `unsupported`.
 
 `lane.delete` requires the current controller, matching fence, `sessions.control`
 and `workspaces.write`, checked again while work waits and before destructive

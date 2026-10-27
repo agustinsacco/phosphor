@@ -2,6 +2,7 @@ import { handle } from './handle'
 import { checkoutMissing, retainedWorkspaces, setCompleted } from '../maintenance/conversations'
 import { decorateSession } from '../maintenance/history'
 import { restoreWorktree } from '../maintenance/removal'
+import { recreateWorktree, worktreeRecovery } from '../maintenance/recovery'
 import { unwatchWorkspaceSessions, watchWorkspaceSessions } from '../pi/session-watcher'
 import {
   listSessions,
@@ -25,6 +26,8 @@ export function registerSessionsHandlers(): void {
   handle('sessions:setCompleted', (_event, path, completed) => setCompleted(path, completed))
   handle('sessions:retainedWorkspaces', (_event, repoPath) => retainedWorkspaces(repoPath))
   handle('sessions:restoreWorktree', (_event, path) => restoreWorktree(path))
+  handle('sessions:worktreeRecovery', (_event, path) => worktreeRecovery(path))
+  handle('sessions:recreateWorktree', (_event, path, source) => recreateWorktree(path, source))
 
   handle('sessions:stats', (_event, workspacePath: string) => workspaceStats(workspacePath))
 

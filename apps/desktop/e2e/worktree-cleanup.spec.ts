@@ -138,6 +138,32 @@ test('a legacy removed checkout opens saved conversation without restoring or st
   await expect(history).not.toBeVisible()
 })
 
+test('a legacy removed checkout with no saved identity continues on a new branch from the reader', async () => {
+  git(repo, 'worktree', 'remove', lane)
+  git(repo, 'branch', '-D', 'research')
+  await page.reload()
+  const row = page.getByTestId('session-row').filter({ hasText: 'Unfinished research audit' })
+  await expect(row).toContainText('worktree removed')
+  const original = await readFile(transcript, 'utf8')
+  await row.click()
+  const history = page.getByRole('dialog', { name: 'Saved conversation' })
+  await history.getByRole('button', { name: 'Restore worktree…', exact: true }).click()
+  const restore = page.getByRole('dialog', { name: 'Restore worktree' })
+  await expect(restore).toContainText('did not edit or write files')
+  await expect(restore.getByRole('radio', { name: /New branch from main/ })).toBeChecked()
+  await restore.getByRole('button', { name: 'Restore and continue', exact: true }).click()
+  await expect(restore).not.toBeVisible()
+  await expect(history).not.toBeVisible()
+  await expect(row).not.toContainText('worktree removed')
+  expect(git(lane, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('phosphor/research')
+  expect(await readFile(transcript, 'utf8')).toBe(original)
+  await expect
+    .poll(
+      async () => (await page.evaluate(() => window.phosphor.invoke('pi:listLiveSessions'))).length,
+    )
+    .toBe(1)
+})
+
 test('unfinished sessions survive restart; explicit completion retains sidebar history and exact-tip restore', async () => {
   test.setTimeout(120_000)
   const original = await readFile(transcript, 'utf8')
@@ -182,7 +208,10 @@ test('unfinished sessions survive restart; explicit completion retains sidebar h
   await expect(row).toBeVisible()
   await expect(row).toContainText('worktree removed')
   await row.click({ button: 'right' })
-  await page.getByText('Restore worktree', { exact: true }).click()
+  await page.getByText('Restore worktree…', { exact: true }).click()
+  const restore = page.getByRole('dialog', { name: 'Restore worktree' })
+  await expect(restore.getByRole('radio', { name: /Restore saved commit/ })).toBeChecked()
+  await restore.getByRole('button', { name: 'Restore', exact: true }).click()
   await expect(row).not.toContainText('worktree removed')
   expect(git(lane, 'rev-parse', 'HEAD')).toBe(tip)
   expect(await readFile(transcript, 'utf8')).toBe(original)

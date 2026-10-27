@@ -11,10 +11,16 @@ let textarea: HTMLTextAreaElement | null = null
 let observers: { callback: ResizeObserverCallback }[] = []
 /** scrollHeight jsdom reports is always 0; steer it per assertion. */
 let mockScrollHeight = 0
+let frames: FrameRequestCallback[] = []
 
 beforeEach(() => {
   observers = []
+  frames = []
   mockScrollHeight = 0
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => frames.push(callback))
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+    frames[id - 1] = () => undefined
+  })
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -46,6 +52,12 @@ function setMockScrollHeight(value: number): void {
   if (textarea) {
     Object.defineProperty(textarea, 'scrollHeight', { value, configurable: true })
   }
+}
+
+function flushFrames(): void {
+  const pending = frames
+  frames = []
+  act(() => pending.forEach((frame) => frame(0)))
 }
 
 /** Simulates a column-width change: the live observer fires, same text. */
@@ -134,6 +146,19 @@ describe('useAutoResizeTextarea', () => {
     // Same text, narrower column: more wrapping.
     setMockScrollHeight(180)
     fireResize()
+    flushFrames()
+    expect(textarea!.style.height).toBe('180px')
+  })
+
+  it('never resizes the element it observes inside the observer callback', () => {
+    // A synchronous write there makes the browser report "ResizeObserver loop
+    // completed with undelivered notifications", a page error in WebKit.
+    setMockScrollHeight(100)
+    renderHarness('text')
+    setMockScrollHeight(180)
+    fireResize()
+    expect(textarea!.style.height).toBe('100px')
+    flushFrames()
     expect(textarea!.style.height).toBe('180px')
   })
 

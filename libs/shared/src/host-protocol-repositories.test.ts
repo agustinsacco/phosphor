@@ -111,3 +111,24 @@ it('strictly parses confirmed branch retention, never guesses a missing result',
   for (const result of [null, {}, { branchKept: 1 }, { branchKept: false, extra: true }])
     expect(parseDeleteLaneResult(result)).toBeNull()
 })
+it('admits a folder order of distinct repository ids, laneless', () => {
+  const a = '1234567890abcdef'
+  const b = 'fedcba0987654321'
+  const order = (repositoryIds: unknown, extra = {}) =>
+    parseRepositoryOp({ type: 'host.repositories.order', repositoryIds, ...extra })
+  expect(order([b, a])).toEqual({ type: 'host.repositories.order', repositoryIds: [b, a] })
+  for (const ids of [[], [a, a], [a, 'bad'], a, null, Array.from({ length: 65 }, () => a)])
+    expect(order(ids)).toBeNull()
+  expect(order([a], { extra: 1 })).toBeNull()
+  const frame = (extra: object) =>
+    parseClientFrame(
+      JSON.stringify({
+        type: 'command',
+        requestId: laneId,
+        op: { type: 'host.repositories.order', repositoryIds: [a, b] },
+        ...extra,
+      }),
+    ).ok
+  expect(frame({})).toBe(true)
+  expect(frame({ laneId, fence: 1 })).toBe(false)
+})
