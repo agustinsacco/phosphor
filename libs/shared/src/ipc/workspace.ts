@@ -16,6 +16,8 @@ import type {
   UpdateFromMainResult,
   WorkspaceSessionStats,
   WorktreeInfo,
+  WorktreeRecovery,
+  WorktreeRecreateSource,
 } from '../models'
 import type { SessionTree } from './views'
 import type { AgentMessage } from '../rpc'
@@ -25,6 +27,13 @@ export interface SessionsInvokeMap {
   'sessions:setCompleted': { args: [sessionFilePath: string, completed: boolean]; result: void }
   'sessions:retainedWorkspaces': { args: [repoPath: string]; result: string[] }
   'sessions:restoreWorktree': { args: [workspacePath: string]; result: void }
+  /** Options for a removed checkout, including when no removal record exists. */
+  'sessions:worktreeRecovery': { args: [workspacePath: string]; result: WorktreeRecovery }
+  /** Recreates a removed checkout at its original path from a branch or from trunk. */
+  'sessions:recreateWorktree': {
+    args: [workspacePath: string, source: WorktreeRecreateSource]
+    result: void
+  }
   'sessions:stats': { args: [workspacePath: string]; result: WorkspaceSessionStats }
   'sessions:watch': { args: [workspacePath: string]; result: void }
   'sessions:unwatch': { args: [workspacePath: string]; result: void }

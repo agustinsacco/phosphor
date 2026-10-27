@@ -1918,6 +1918,8 @@ export function installMockPhosphor(): void {
         case 'sessions:setCompleted':
         case 'sessions:retainedWorkspaces':
         case 'sessions:restoreWorktree':
+        case 'sessions:worktreeRecovery':
+        case 'sessions:recreateWorktree':
         case 'sessions:list':
         case 'sessions:delete':
           return mockSessionMaintenance(channel, args, MOCK_DISK_SESSIONS)

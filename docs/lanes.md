@@ -552,13 +552,34 @@ removal records for other checkout locations. Removed checkouts show **worktree
 removed**; clicking one opens a read-only saved conversation, without restoring
 files, starting pi, changing completion or rewriting the transcript's cwd. Failed
 reads offer Retry. The saved active context includes pi's compaction summaries;
-the session tree remains available separately. **Restore worktree** in the row's
-context menu recreates the original path at the exact saved commit, detached to
-avoid overwriting a reused branch, without modifying the transcript. Dependencies
-must be reinstalled.
-Legacy missing checkouts with no saved identity remain readable in the same way;
-only resuming work requires manual checkout restoration. Phosphor does not guess
-a replacement from today's trunk.
+the session tree remains available separately.
+
+**Restore worktree…** (the row's context menu, or the reader's footer, which
+also resumes the conversation afterwards) opens a chooser
+(`maintenance/recovery.ts`). Every option recreates the **original path**, so
+the transcript and the Claude provider's cwd-keyed ledger stay untouched; moving
+a conversation to a new folder would mean rewriting both. Options, most exact
+first, and only those that apply:
+
+- **Restore saved commit**: the exact saved commit, detached to avoid
+  overwriting a reused branch. Needs a removal record.
+- **Check out `<branch>`**: one branch, local or on origin only, that matches
+  the checkout: the branch in a stale Git registration or the removal record,
+  else the single branch named `<folder>` or `…/<folder>`, with the configured
+  prefix breaking a tie. Several candidates mean no guess. Trunk and branches
+  checked out elsewhere are never offered.
+- **New branch from `<trunk>`**: `<prefix><folder>` (suffixed when taken) cut
+  from the start point new lanes use. It does not bring back the lane's earlier
+  work, and the chooser says so.
+
+The chooser lists the files the conversation's `edit`/`write` calls changed in
+the old checkout, or states that there were none. Shell commands are not
+checked, so an empty list is a hint, not proof. Main recomputes the plan inside
+the workspace gate when an option is picked, refuses an existing path, a live
+session, a locked registration and paths outside `.phosphor/worktrees/`, and
+drops a stale Git registration of that same path first (other stale entries
+are left alone). Dependencies must be
+reinstalled. Phosphor never picks a replacement silently.
 
 Sizes come from `du`, which Windows lacks; an unmeasured size reports "unknown"
 and the policy never depends on the number. The scheduler is a plain interval

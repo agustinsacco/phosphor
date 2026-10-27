@@ -68,7 +68,8 @@ it('lets the user retry a failed initial catalogue read without leaving the comp
   expect(attempts).toBe(2)
 })
 
-it.each([COMPACT_PLATFORM, { ...COMPACT_PLATFORM, formFactor: 'expanded' as const }])(
+// Expanded width uses the composer's chips instead: RemoteModelPicker.expanded.test.tsx.
+it.each([COMPACT_PLATFORM])(
   'offers the same accessible bounded model dialog without native reads at $formFactor width',
   async (platform) => {
     attempts = 1

@@ -408,7 +408,9 @@ at 0600 after its first accepted running heartbeat and at most once a minute.
 If the new version is not healthy, update selects the old version and restarts
 it again, then exits 75. A signal that ends the updater during the restart is
 not a failed health check: the new version stays selected, since systemd
-finishes the restart on it either way. A normal update without a running
+finishes the restart on it either way. The rolled-back version folder stays as
+`previous`; the next update to that version replaces it with the freshly
+verified bundle. A normal update without a running
 service asks you to restart `phosphor run`.
 
 On Linux, `phosphor update` and `update --rollback` typed into a Host terminal
