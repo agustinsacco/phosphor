@@ -238,10 +238,14 @@ mandatory command exactly once:
   `npx prettier --check .`, then the size ratchet.
 - `unit`: `npm test -- --maxWorkers=8` (the Linux runners share one 32-core
   machine; one worker per core starved the jobs beside it), with the site installed too for the coverage audit's own
-  test.
+  test. Its `TMPDIR` is a per-runner folder in `/dev/shm`, cleared at the start of each run: on the shared drive a small `fsync` waited seconds behind other
+  jobs' writeback and timed tests out. Desktop e2e keeps a disk `TMPDIR`,
+  because `gio trash` refuses tmpfs.
 - `web-e2e`: the browser acceptance suite, one leg per engine (Chromium,
   WebKit), each installing only its own browser. Like Desktop it retries a
-  failed test once on CI and reports it as flaky.
+  failed test once on CI and reports it as flaky. It sets Node's heap to 4 GB:
+  Node otherwise sizes it from the runner's cgroup memory limit, and the Web
+  build in its global setup outgrew the result.
 - `e2e`: the Desktop suite, one Linux leg under xvfb. macOS runs the whole suite
   on main, which gates every release, and on a PR only the tests tagged
   `@macos` (native quit, undo, context menus, Meta shortcuts, the system
@@ -255,6 +259,10 @@ mandatory command exactly once:
   click and pass on retry. The macOS runner must run inside a logged-in user
   session, and its `@system-clipboard` tests overwrite that user's clipboard.
 - `control-schema` and `site`: the local Supabase stack and the site image.
+  The stack's project id and ports are fixed and the Linux runners share one
+  Docker daemon, so `control-schema` runs it in one step under a machine-wide
+  `flock` (`/tmp/phosphor-control-supabase.lock`), held from start to stop. A
+  stack a cancelled job left behind is stopped first.
 
 There is no separate build job: each app is built by the job that tests it.
 Desktop in `e2e`, Web and Host in the web suite's global setup
@@ -264,6 +272,12 @@ A Linux runner needs `xvfb`, Docker (with the runner user in the `docker`
 group) and the browsers' system libraries, installed once with
 `sudo npx playwright install-deps chromium webkit`. Jobs install only the
 browsers themselves, without sudo.
+
+No job restores a cache archive (`setup-node`'s `cache: npm` or
+`actions/cache`). `~/.npm`, `~/.cache/electron` and the Playwright browsers
+persist on each machine and are shared by its runners, and `npm ci` installs
+from them. Restoring the 2 GB npm archive into them wrote about 4 GB per job
+to a disk whose writeback was already stalling the suites.
 
 The repository is public, so a fork's pull request runs on these machines once
 a maintainer approves it. Approve outside contributors' runs only after reading
