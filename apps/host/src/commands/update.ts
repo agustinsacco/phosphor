@@ -44,6 +44,8 @@ export interface UpdateContext extends ServiceContext {
     bundle?: string
     keys?: readonly HostReleaseKey[]
     expandedCap?: number
+    /** This process's /proc/self/cgroup, for the Host-terminal handoff. */
+    cgroup?: () => string
   }
 }
 export interface UpdateOptions {
@@ -153,7 +155,10 @@ async function restartHealthy(
 ): Promise<boolean> {
   const now = context.now ?? Date.now
   const after = now()
-  if ((await runService({ ...context, signal }, 'restart')) !== 0) return false
+  const restarted = (await runService({ ...context, signal }, 'restart')) === 0
+  // A signal that also ended systemctl says nothing about health; rollback would race the restart.
+  signal.throwIfAborted()
+  if (!restarted) return false
   const wait = context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal }))
   for (let i = 0; i <= 90; i++) {
     signal.throwIfAborted()
