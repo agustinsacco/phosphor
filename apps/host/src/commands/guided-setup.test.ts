@@ -231,12 +231,30 @@ it.each(['missing', 'signed-out'] as const)(
   },
 )
 
-it('sets up Claude with three separately approved commands, then skips all of them', async () => {
+it('sets up headless extensions and Claude with approval, then skips completed work', async () => {
+  const originalWhich = executables.which
+  vi.spyOn(executables, 'which').mockImplementation(async (name, path) =>
+    name === 'claude'
+      ? originalWhich(name, join(context.home, '.local/bin'))
+      : originalWhich(name, path),
+  )
+  const installed = new Set<string>()
   let provider = false
   let signedIn = false
   context.packages = async () =>
     provider
       ? [
+          ...['pi-subagents', 'pi-web-access']
+            .filter((name) => installed.has(name))
+            .map((name) => ({
+              spec: `npm:${name}`,
+              name,
+              installed: true,
+              scope: 'global' as const,
+              kind: 'npm' as const,
+              filtered: false,
+              resources: EMPTY_RESOURCES,
+            })),
           {
             spec: 'npm:@saccolabs/pi-claude-cli',
             name: '@saccolabs/pi-claude-cli',
@@ -259,7 +277,10 @@ it('sets up Claude with three separately approved commands, then skips all of th
         { mode: 0o700 },
       )
     }
-    if (args.includes('install')) provider = true
+    if (args.includes('install')) {
+      provider = true
+      installed.add(args.at(-1)!.replace('npm:', ''))
+    }
     if (file.endsWith('/claude')) {
       signedIn = true
       await writeFile(
@@ -274,9 +295,11 @@ it('sets up Claude with three separately approved commands, then skips all of th
   expect((await runGuidedSetup(context)).exitCode).toBe(0)
   expect(signedIn).toBe(true)
   expect(run.mock.calls.map(([file, args]) => [file, ...args])).toEqual([
+    [process.execPath, machine.pi, 'install', 'npm:@saccolabs/pi-claude-cli'],
+    [process.execPath, machine.pi, 'install', 'npm:pi-subagents'],
+    [process.execPath, machine.pi, 'install', 'npm:pi-web-access'],
     ['curl', '-fsSL', 'https://claude.ai/install.sh', '-o', expect.stringMatching(/\/install.sh$/)],
     ['/bin/bash', expect.stringMatching(/\/install.sh$/)],
-    [process.execPath, machine.pi, 'install', 'npm:@saccolabs/pi-claude-cli'],
     [join(context.home, '.local/bin/claude')],
   ])
   const count = confirm.mock.calls.length
@@ -374,7 +397,11 @@ it('does not run either Claude installer when its individual prompt is declined'
 })
 
 it('offers the provider installer for an outdated package even with a ready CLI and login', async () => {
-  machine.script('claude', 'echo \'{"loggedIn":true}\'')
+  const claude = machine.script('claude', 'echo \'{"loggedIn":true}\'')
+  const originalWhich = executables.which
+  vi.spyOn(executables, 'which').mockImplementation((name, path) =>
+    name === 'claude' ? Promise.resolve(claude) : originalWhich(name, path),
+  )
   let updated = false
   context.packages = async () => [
     {
@@ -392,7 +419,10 @@ it('offers the provider installer for an outdated package even with a ready CLI 
     updated = true
     return 0
   })
-  context.setupTerminal = { confirm: async () => true, run }
+  context.setupTerminal = {
+    confirm: async (question) => !question.startsWith('Install the standard Host'),
+    run,
+  }
   expect((await runGuidedSetup(context)).exitCode).toBe(0)
   expect(run).toHaveBeenCalledTimes(1)
   expect(run).toHaveBeenCalledWith(

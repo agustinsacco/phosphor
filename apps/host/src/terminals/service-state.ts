@@ -20,6 +20,8 @@ export type Entry = TerminalSummary & {
     disconnectedAt?: number
     finish: (result: TerminalRun) => void
   }
+  /** A machine shell: no lane, cwd is the Host account's home, never persisted. */
+  machine?: true
   pty?: HostPty
   /** The code kill() reported, which a login's tombstone repeats. */
   exitCode?: number
@@ -38,6 +40,7 @@ export type TerminalOptions = {
   epoch: string
   now?: () => number
   shell?: () => string
+  home?: () => string
   load(): unknown
   save(rows: TerminalSummary[]): void
 }

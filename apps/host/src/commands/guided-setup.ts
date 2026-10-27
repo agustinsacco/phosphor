@@ -1,13 +1,13 @@
 import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir, userInfo } from 'node:os'
 import { join } from 'node:path'
-import { listPackages } from '@phosphor/session-runtime/pi/packages'
+import type { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { EXIT } from '../checks'
 import type { ControlContext } from '../control/command'
 import { loadHostConfig } from '../config/load'
 import { buildPiEnvironment } from '../machine/environment'
 import { which } from '../machine/executables'
-import { inspectClaude, CLAUDE_PROVIDER_PACKAGE } from '../machine/claude'
+import { CLAUDE_PROVIDER_PACKAGE } from '../machine/claude'
 import { inspectTailscale, successfulProbe, tailscaleOptions } from '../machine/tailscale'
 import { probe } from '../machine/probe'
 import type { ServiceContext } from './service'
@@ -23,6 +23,7 @@ import {
   type SetupTerminal,
   type TerminalScreen,
 } from './setup-terminal'
+import { installDefaultPackages, inspectSetupClaude } from './default-packages'
 
 export type GuidedSetupContext = SetupContext &
   ServiceContext &
@@ -236,8 +237,8 @@ async function setUpClaude(
   pi: { executable: string; node?: string },
   environment: ReturnType<typeof buildPiEnvironment>,
 ): Promise<string | null> {
-  const packages = context.packages ?? listPackages
-  const status = () => packages().then((found) => inspectClaude(found, environment))
+  await installDefaultPackages(context)
+  const status = () => inspectSetupClaude(context, environment)
   const ready = (state: Awaited<ReturnType<typeof status>>) =>
     state.provider === 'ok' && state.cli === 'ok' && state.auth === 'ok'
   let claude = await status()

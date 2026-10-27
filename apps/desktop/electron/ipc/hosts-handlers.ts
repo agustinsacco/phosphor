@@ -29,7 +29,7 @@ import { artifactLibrary } from '../artifacts/artifact-sync'
 import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
 import { routeRemoteRead } from '../hosts/read-features'
 import { createRemoteLanes, type RemoteLanes } from '../hosts/remote-lanes'
-import { createRemoteTerminals } from '../hosts/terminals'
+import { createRemoteTerminals } from '@phosphor/host-client/terminals/terminals'
 import { createRemoteRoutines } from '../hosts/routines'
 import { createHostAttention, readHostReceipt } from '../hosts/attention'
 import { trafficLog } from '../hosts/traffic-log'
@@ -131,6 +131,7 @@ export function registerHostsHandlers(): void {
   const terminals = createRemoteTerminals({
     connection: manager.connection,
     inputDropped: () => log('hosts', 'terminal_input_dropped'),
+    unrefTimer: (timer) => timer.unref(),
     lane: (windowId, sessionId, workspace) =>
       remoteLanes().terminalLane(windowId, sessionId, workspace),
     clientId: clients.current,

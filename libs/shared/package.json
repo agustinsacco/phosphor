@@ -140,6 +140,14 @@
       "types": "./src/machine-settings-mcp.ts",
       "default": "./src/machine-settings-mcp.ts"
     },
+    "./host-default-packages": {
+      "types": "./src/host-default-packages.ts",
+      "default": "./src/host-default-packages.ts"
+    },
+    "./machine-agent-behavior": {
+      "types": "./src/machine-agent-behavior.ts",
+      "default": "./src/machine-agent-behavior.ts"
+    },
     "./machine-settings": {
       "types": "./src/machine-settings.ts",
       "default": "./src/machine-settings.ts"

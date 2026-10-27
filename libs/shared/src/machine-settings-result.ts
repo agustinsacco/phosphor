@@ -8,6 +8,7 @@ import {
   type MachineAccount,
 } from './machine-settings'
 import type { ThinkingLevel } from './rpc'
+import { projectAgentBehavior } from './machine-agent-behavior'
 const text = (v: unknown, max = 512): v is string =>
   typeof v === 'string' && v.length <= max && !v.includes('\0')
 const list = (v: unknown, limit: number): v is unknown[] => Array.isArray(v) && v.length <= limit
@@ -214,7 +215,9 @@ function parseAgent(value: Record<string, unknown>, base: MachineSettings): Mach
   return {
     ...base,
     ...(typeof value.projectTrusted === 'boolean' ? { projectTrusted: value.projectTrusted } : {}),
+    ...(value.agentBehaviorSupported === true ? { agentBehaviorSupported: true } : {}),
     agent: {
+      ...projectAgentBehavior(a),
       ...(a.defaultProvider ? { defaultProvider: a.defaultProvider } : {}),
       ...(a.defaultModel ? { defaultModel: a.defaultModel } : {}),
       ...(a.defaultThinkingLevel
@@ -223,6 +226,25 @@ function parseAgent(value: Record<string, unknown>, base: MachineSettings): Mach
       contextBudget: a.contextBudget,
       autoNameLanes: a.autoNameLanes,
     },
+  }
+}
+function parsePackageContents(
+  value: unknown,
+):
+  | NonNullable<NonNullable<MachineSettings['resources']>['packages'][number]['contents']>
+  | undefined {
+  if (
+    !machineRecord(value) ||
+    !['extensions', 'skills', 'prompts', 'themes'].every(
+      (key) => number(value[key]) && Number.isSafeInteger(value[key]) && value[key] <= 100_000,
+    )
+  )
+    return undefined
+  return {
+    extensions: value.extensions as number,
+    skills: value.skills as number,
+    prompts: value.prompts as number,
+    themes: value.themes as number,
   }
 }
 function parseResources(
@@ -248,6 +270,8 @@ function parseResources(
       ...(p.version ? { version: p.version } : {}),
       installed: p.installed,
       scope: p.scope,
+      ...(typeof p.filtered === 'boolean' ? { filtered: p.filtered } : {}),
+      ...(parsePackageContents(p.contents) ? { contents: parsePackageContents(p.contents)! } : {}),
     })
   }
   return { ...base, resources: { packages } }

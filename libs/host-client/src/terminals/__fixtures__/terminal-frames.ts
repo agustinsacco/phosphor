@@ -1,6 +1,6 @@
 import { sign, type KeyObject } from 'node:crypto'
-import { helloProofMessage, type HostFrame, type ClientFrame } from '@shared/host-protocol'
-import type { HostHello } from '@shared/remote-host'
+import { helloProofMessage, type HostFrame, type ClientFrame } from '@phosphor/shared/host-protocol'
+import type { HostHello } from '@phosphor/shared/remote-host'
 
 type Ready = Extract<HostFrame, { type: 'ready' }>
 

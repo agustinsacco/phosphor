@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { shutdownApproval } from '../shutdown-approval'
+import { homedir } from 'node:os'
 
 /**
  * Covers the two contracts the terminal pane leans on:
@@ -58,6 +59,30 @@ beforeEach(() => {
   sent.length = 0
   ptySpawn.mockReset()
   onBroadcast.mockReset()
+})
+
+describe('Machine page shell', () => {
+  it('opens in home without a lane, reuses the shell, and recreates after End shell', () => {
+    fakePty()
+    const first = ptyManager.createHome(80, 24)
+    expect(ptySpawn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({ cwd: homedir(), cols: 80, rows: 24 }),
+    )
+    expect(ptyManager.createHome(90, 30)).toEqual(first)
+    expect(ptySpawn).toHaveBeenCalledOnce()
+    ptyManager.kill(first.ptyId)
+    fakePty()
+    expect(ptyManager.createHome(80, 24).ptyId).not.toBe(first.ptyId)
+    ptyManager.killAll()
+  })
+
+  it('rejects unsafe dimensions before spawning', () => {
+    expect(() => ptyManager.createHome(NaN, 24)).toThrow('dimensions')
+    expect(() => ptyManager.createHome(80, 0)).toThrow('dimensions')
+    expect(ptySpawn).not.toHaveBeenCalled()
+  })
 })
 
 describe('PtyManager.create — spawn failures', () => {
