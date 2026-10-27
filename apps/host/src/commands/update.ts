@@ -34,7 +34,6 @@ import { HOST_AGENT } from '../machine/launchd'
 import { HOST_UNIT, serviceRunner } from '../machine/systemd'
 import { hostStateDirectory } from '../lanes/state-dir'
 import { runService, type ServiceContext } from './service'
-import { detachUpdate, shouldDetach } from '../update/detach'
 
 export interface UpdateContext extends ServiceContext {
   json?: boolean
@@ -45,8 +44,8 @@ export interface UpdateContext extends ServiceContext {
     bundle?: string
     keys?: readonly HostReleaseKey[]
     expandedCap?: number
-    /** /proc/self/cgroup, replaced in tests. */
-    cgroup?: string
+    /** This process's /proc/self/cgroup, for the Host-terminal handoff. */
+    cgroup?: () => string
   }
 }
 export interface UpdateOptions {
@@ -156,7 +155,10 @@ async function restartHealthy(
 ): Promise<boolean> {
   const now = context.now ?? Date.now
   const after = now()
-  if ((await runService({ ...context, signal }, 'restart')) !== 0) return false
+  const restarted = (await runService({ ...context, signal }, 'restart')) === 0
+  // A signal that also ended systemctl says nothing about health; rollback would race the restart.
+  signal.throwIfAborted()
+  if (!restarted) return false
   const wait = context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal }))
   for (let i = 0; i <= 90; i++) {
     signal.throwIfAborted()
@@ -243,7 +245,6 @@ export async function runUpdate(
           `this Host was installed from source; install a release with: ${INSTALL_COMMAND}`,
           69,
         )
-      if (shouldDetach(context, options)) return await detachUpdate(context, options)
       release = acquireInstallLock(layout.lib)
       signal.throwIfAborted()
       if (

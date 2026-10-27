@@ -105,7 +105,6 @@ describe('release fixture install tree and links', () => {
         node: join(f.old, 'node/bin/node'),
         bundle: join(f.old, 'lib/phosphor.mjs'),
         keys: f.keys,
-        cgroup: '0::/user.slice/user-1000.slice/session-1.scope\n',
       },
     })
     print('hello')
