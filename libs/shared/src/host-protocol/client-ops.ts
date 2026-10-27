@@ -33,6 +33,7 @@ export const BAD_REQUEST_OP_TYPES = [
   'host.repositories.add',
   'host.repositories.remove',
   'host.repositories.createFolder',
+  'host.repositories.order',
   'lane.delete',
   'lane.create',
   'lane.resume',

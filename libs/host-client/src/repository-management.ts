@@ -102,6 +102,9 @@ export function repositoryManagement(connection: (hostId: string) => Connection 
     async remove(hostId: string, repositoryId: string) {
       await command(hostId, { type: 'host.repositories.remove', repositoryId })
     },
+    async order(hostId: string, repositoryIds: string[]) {
+      await command(hostId, { type: 'host.repositories.order', repositoryIds })
+    },
     async deleteLane(
       hostId: string,
       laneId: string,

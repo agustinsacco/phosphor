@@ -122,6 +122,7 @@ export interface BaselineHostsInvokeMap {
   'hosts:createFolder': { args: [hostId: string, path: string]; result: void }
 
   'hosts:removeRepository': { args: [hostId: string, repositoryId: string]; result: void }
+  'hosts:orderRepositories': { args: [hostId: string, repositoryIds: string[]]; result: void }
 
   'hosts:releaseControl': { args: [hostId: string, laneId: string]; result: void }
 }
