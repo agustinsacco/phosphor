@@ -79,15 +79,13 @@ describe('terminal login runner', () => {
     f.exit(0)
     await expect(run).resolves.toEqual({ code: null })
   })
-  it('allows only the login owner to resize/kill and forbids machine create or lane mutations', async () => {
+  // Lane-less create now opens a machine shell (machine-shell.test.ts); a login stays private.
+  it('allows only the login owner to resize/kill and forbids lane mutations', async () => {
     const f = setup()
     const run = f.run()
     const terminalId = f.entry().terminalId
     const resize = { type: 'terminal.resize' as const, terminalId, cols: 100, rows: 40 }
     expect(() => machineOp(f.state, 'other', resize)).toThrow(TerminalForbidden)
-    expect(() =>
-      machineOp(f.state, 'owner', { type: 'terminal.create', cols: 80, rows: 24 }),
-    ).toThrow(TerminalForbidden)
     expect(() =>
       machineOp(f.state, 'owner', { type: 'terminal.kill', terminalId: randomUUID() }),
     ).toThrow(TerminalForbidden)

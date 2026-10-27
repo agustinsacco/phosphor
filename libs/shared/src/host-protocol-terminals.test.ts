@@ -6,6 +6,7 @@ import {
   parseTerminalInput,
   parseTerminalSubscribe,
   parseTerminalList,
+  parseTerminalListParams,
   parseTerminalFrame,
   parseTerminalCreated,
 } from './host-protocol-terminals'
@@ -100,5 +101,18 @@ describe('host-protocol-terminals', () => {
     expect(
       parseTerminalFrame({ ...frame, type: 'terminal.exit', data: undefined, exitCode: 0 }),
     ).toBeNull()
+  })
+})
+
+describe('machine shell listing', () => {
+  it('lists a lane with {laneId} and machine shells with {}', () => {
+    expect(parseTerminalListParams({ laneId: id })).toEqual({ laneId: id })
+    expect(parseTerminalListParams({})).toEqual({ laneId: null })
+    expect(parseTerminalListParams({ laneId: 'x' })).toBeNull()
+    expect(parseTerminalListParams({ laneId: id, path: '/' })).toBeNull()
+    expect(parseTerminalList([{ terminalId: id, laneId: '', status: 'running' }])).toEqual([
+      { terminalId: id, laneId: '', status: 'running' },
+    ])
+    expect(parseTerminalList([{ terminalId: id, laneId: 'x', status: 'running' }])).toBeNull()
   })
 })

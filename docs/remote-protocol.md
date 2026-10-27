@@ -126,6 +126,11 @@ reports effective capabilities in an optional `auth-renewed.capabilities` array;
 losing configuration authority removes it immediately. Desktop requests this
 privilege separately from normal lane access and forgets the request on sign-out.
 
+The additive `machineShell` boolean in `ready` says the Host accepts a lane-less
+`terminal.create`, a shell in its home folder ([terminal.md](terminal.md#machine-shells)).
+Older clients ignore it; older Hosts omit it, and clients then refuse locally
+rather than send an op the Host would forbid.
+
 ### Machine configuration operations
 
 `machine.settings.read`, `machine.settings.patch` and `machine.settings.check`

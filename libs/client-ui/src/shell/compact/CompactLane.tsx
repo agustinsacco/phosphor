@@ -15,6 +15,9 @@ import { SCREENS } from '@/navigation/screens'
 import { usePlatform } from '@/platform/Platform'
 import { COMPACT_LANE_PANES, useRemoteLaneSession } from './CompactLaneHeader'
 import type { Location } from '@/navigation/location'
+const TerminalPane = lazy(() =>
+  import('@/features/terminal/TerminalPane').then((m) => ({ default: m.TerminalPane })),
+)
 const ArtifactsPane = lazy(() =>
   import('@/features/artifacts/RemoteArtifactsPane').then((m) => ({
     default: m.RemoteArtifactsPane,
@@ -108,6 +111,11 @@ function LanePanes({
   const placement = SCREENS[pane].compact
   // A phone switches panes from the lane menu in its header (CompactLaneHeader).
   const tabs = usePlatform().formFactor !== 'compact'
+  const terminal = useRemoteLanesStore(
+    (s) =>
+      'hostId' in location.lane &&
+      !!s.hosts[location.lane.hostId]?.capabilities.includes('terminal'),
+  )
   return (
     <div className="flex h-full min-h-0 flex-col">
       {tabs && (
@@ -147,6 +155,10 @@ function LanePanes({
             />
           ) : pane === 'artifacts' ? (
             <ArtifactsPane sessionId={session.phosphorId} workspacePath={session.workspacePath} />
+          ) : pane === 'terminal' && terminal ? (
+            <TerminalPane sessionId={session.phosphorId} workspacePath={session.workspacePath} />
+          ) : pane === 'terminal' ? (
+            <p className="p-4">This Host does not allow terminals for this device.</p>
           ) : (
             <p className="p-4">This pane is unavailable.</p>
           )}

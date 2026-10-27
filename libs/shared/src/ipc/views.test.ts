@@ -71,6 +71,7 @@ export interface BaselineHostConnectionView {
     | 'signed-out'
   hostVersion?: string
   configurationSupported?: boolean
+  machineShell?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: BaselineHostLaneView[]

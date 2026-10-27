@@ -3,7 +3,7 @@ import type { HostConnectionView } from '@phosphor/shared/ipc'
 
 type ReadyView = Pick<
   HostConnectionView,
-  'state' | 'lastError' | 'hostVersion' | 'configurationSupported' | 'capabilities'
+  'state' | 'lastError' | 'hostVersion' | 'configurationSupported' | 'machineShell' | 'capabilities'
 >
 
 /** Project only the verified handshake's reviewed connection metadata. */
@@ -13,6 +13,7 @@ export function readyView(frame: Extract<HostFrame, { type: 'ready' }>): ReadyVi
     lastError: undefined,
     hostVersion: frame.hello.hostVersion,
     configurationSupported: frame.settings === true,
+    machineShell: frame.machineShell === true,
     capabilities: [...frame.capabilities],
   }
 }
