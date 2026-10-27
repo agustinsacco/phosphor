@@ -190,7 +190,6 @@ export async function exportArtifactPdf(request: ArtifactPdfRequest): Promise<{ 
       printBackground: true,
       pageSize: { width: PAGE_WIDTH_INCHES, height: PAGE_HEIGHT_INCHES },
       margins: {
-        marginType: 'custom',
         top: PAGE_MARGIN_INCHES,
         bottom: PAGE_MARGIN_INCHES,
         left: PAGE_MARGIN_INCHES,
