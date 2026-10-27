@@ -28,6 +28,8 @@ describe('control API routes', () => {
       hostSelf: '/api/v1/hosts/self',
       hostHeartbeat: '/api/v1/hosts/self/heartbeat',
       hostRevoke: '/api/v1/hosts/self/revoke',
+      usagePing: '/api/v1/usage/ping',
+      adminStats: '/api/v1/admin/stats',
     })
   })
 

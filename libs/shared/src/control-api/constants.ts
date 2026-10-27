@@ -38,7 +38,7 @@ export const CONTROL_LIMITS = {
 export const CONTROL_ROUTES = {
   /** GET, public: process and configuration health. */
   health: `${CONTROL_API_PREFIX}/health`,
-  /** GET, user: who the control plane thinks you are. */
+  /** GET, user: who the control plane thinks you are. DELETE: delete the account. */
   me: `${CONTROL_API_PREFIX}/me`,
   /** POST, signed by the new key (x-phosphor-key): start enrolling a Host. */
   enrollments: `${CONTROL_API_PREFIX}/enrollments`,
@@ -62,6 +62,10 @@ export const CONTROL_ROUTES = {
   hostHeartbeat: `${CONTROL_API_PREFIX}/hosts/self/heartbeat`,
   /** POST, Host-signed: `phosphor logout`. */
   hostRevoke: `${CONTROL_API_PREFIX}/hosts/self/revoke`,
+  /** POST, anonymous, native origin only: the daily usage ping. */
+  usagePing: `${CONTROL_API_PREFIX}/usage/ping`,
+  /** GET, the one administrator, app origin only: aggregate counts. */
+  adminStats: `${CONTROL_API_PREFIX}/admin/stats`,
 } as const
 
 /** PATCH {label} renames, DELETE revokes. User-authenticated. */

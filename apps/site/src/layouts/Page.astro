@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css'
-import { releases, repo } from '../lib/content'
+import { download, repo } from '../lib/content'
 interface Props {
   title?: string
   description?: string
@@ -61,7 +61,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
             ><span class="github-mark" aria-hidden="true"></span><span class="header-link-label"
               >GitHub</span
             ></a
-          ><a class="header-link" href={`${releases}/latest`}
+          ><a class="header-link" href={download.latest} rel="nofollow"
             >Releases <span aria-hidden="true">↗</span></a
           >
         </div>
@@ -76,7 +76,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
       <div>
         <a href="/guides/">Guides</a><a href={`${repo}/blob/main/docs/README.md`}
           >Technical docs ↗</a
-        ><a href={`${repo}/blob/main/LICENSE`}>MIT license</a><a href={repo}>Source ↗</a><a
+        ><a href="/privacy/">Privacy</a><a href={`${repo}/blob/main/LICENSE`}>MIT license</a><a href={repo}>Source ↗</a><a
           href={`${repo}/issues`}>Get help ↗</a
         ><a href="#main">Back to top ↑</a>
       </div>

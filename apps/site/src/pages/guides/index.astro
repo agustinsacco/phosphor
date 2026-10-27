@@ -1,7 +1,7 @@
 ---
 import Guide from '../../layouts/Guide.astro'
 import Command from '../../components/Command.astro'
-import { doc, guides, piDoc, releases, repo } from '../../lib/content'
+import { doc, download, guides, piDoc, repo } from '../../lib/content'
 const sections: [string, string][] = [
   ['install', '1. Install'],
   ['sign-in', '2. Sign in'],
@@ -24,13 +24,13 @@ const sections: [string, string][] = [
     </p>
     <Command cmd="npm install -g @earendil-works/pi-coding-agent" label="Install pi" />
     <p>
-      <a href={`${releases}/latest`}>Download Phosphor from the latest release</a>. On macOS, open
+      <a href={download.latest} rel="nofollow">Download Phosphor from the latest release</a>. On macOS, open
       the DMG and drag Phosphor to Applications. On Linux, use the AppImage or the .deb. On Windows,
       run the x64 .exe installer.
     </p>
     <p>Or, on macOS or Linux:</p>
     <Command
-      cmd={`curl -fsSL ${releases}/latest/download/install.sh | sh`}
+      cmd={download.install}
       label="Install Phosphor on macOS or Linux"
     />
     <p>

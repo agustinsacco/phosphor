@@ -188,5 +188,15 @@ export function browserAuth(deps: AppDeps, auth: ReturnType<typeof createUserAut
       return c.json(await sessions.logout(c, session))
     })
   }
-  return { adapter, routes }
+  return { adapter, routes, signedOut: signedOut(sessions) }
+}
+/**
+ * After the account itself is gone, the browser only needs to forget it. The
+ * adapter re-sealed the session on admission; drop that so only the clear is sent.
+ */
+function signedOut(sessions: BrowserSessions) {
+  return (c: Context<Env>) => {
+    c.header('Set-Cookie', undefined)
+    sessions.cookies.clear(c, 'session')
+  }
 }

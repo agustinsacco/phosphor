@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
+import { DOWNLOAD_ARTIFACTS, DOWNLOAD_PATH_PREFIX } from '@phosphor/shared/control-api'
 
 // The site links into this repository by path. Moving a file (the Nx relocation
 // moved scripts/install.sh) silently turns those links into GitHub 404s.
@@ -24,4 +25,16 @@ it('every repository path the site links to exists', () => {
   }
   expect(paths.size).toBeGreaterThan(5)
   for (const path of paths) expect(existsSync(join(root, path)), path).toBe(true)
+})
+
+// Download links go through the control server's counting redirect. A path it
+// does not know falls through to the site's 404 instead of the release.
+it('every download link names an artifact the redirect serves, and crawlers skip them', () => {
+  const linked = new Set<string>()
+  for (const text of files)
+    for (const [, artifact] of text.matchAll(/[`"'}]\/download\/([^/`"'\s|<]*)/g))
+      linked.add(artifact ?? '')
+  expect([...linked].sort()).toEqual([...DOWNLOAD_ARTIFACTS].sort())
+  const robots = readFileSync(join(root, 'apps/site/public/robots.txt'), 'utf8')
+  expect(robots.split('\n')).toContain(`Disallow: ${DOWNLOAD_PATH_PREFIX}`)
 })

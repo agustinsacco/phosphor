@@ -35,6 +35,7 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 | [host.md](host.md)                             | Host CLI, machine identity, environment, checks and acceptance sessions |
 | [remote-access.md](remote-access.md)           | Remote entry point, end-to-end flow and trust boundaries                |
 | [control-plane.md](control-plane.md)           | Site and account API server, authentication ports and configuration     |
+| [usage-analytics.md](usage-analytics.md)       | Anonymous download and usage counters, the owner-only admin summary     |
 | [remote-desktop.md](remote-desktop.md)         | Desktop Host connections, machine context, routing and isolation        |
 | [remote-protocol.md](remote-protocol.md)       | Host frames, receipts, streams, fences and grant verification           |
 | [remote-development.md](remote-development.md) | Remote diagnostics, disposable validation and transport probes          |

@@ -1,0 +1,141 @@
+---
+import Guide from '../layouts/Guide.astro'
+import { doc, repo } from '../lib/content'
+const sections: [string, string][] = [
+  ['summary', 'In short'],
+  ['site', 'This website'],
+  ['downloads', 'Download counts'],
+  ['app', 'The app on your computer'],
+  ['account', 'A Phosphor account'],
+  ['services', 'Services we rely on'],
+  ['delete', 'Deleting your data'],
+  ['contact', 'Changes and questions'],
+]
+---
+
+<Guide
+  title="Privacy"
+  eyebrow="Policy / last updated 27 October 2026"
+  description="Phosphor is an open-source app that runs on your computer. This page lists everything the project's own servers receive, how long it is kept, and how to remove it."
+  sections={sections}
+>
+  <section id="summary">
+    <h2>In short</h2>
+    <ul>
+      <li>
+        Your prompts, code, files, transcripts and provider keys stay on your computer or your own
+        machines. Phosphor's servers never receive them.
+      </li><li>
+        This website sets no cookies and runs no analytics or third-party scripts.
+      </li><li>
+        Download links add one to a daily total. Nothing about who clicked is stored.
+      </li><li>
+        A Phosphor account is optional. You only need one for remote access, and you can delete it
+        yourself at any time.
+      </li><li>
+        Nothing is sold or shared for advertising. The source for every server is public in <a
+          href={repo}>the repository</a
+        >.
+      </li>
+    </ul>
+  </section>
+  <section id="site">
+    <h2>This website</h2>
+    <p>
+      phosphor.saccolabs.com is a set of static pages. It has no cookies, no tracking pixels and no
+      scripts from anyone else. The server's request log records the time, the route, the response
+      status and how long it took. It doesn't record your IP address, and the log is kept only as
+      long as the server's log rotation keeps it.
+    </p>
+  </section>
+  <section id="downloads">
+    <h2>Download counts</h2>
+    <p>
+      The site's download links and install command go through <code>/download/…</code> on this
+      server. It adds one to a total for that day and that link, then sends you to the GitHub
+      release. The stored row is the date, which link, and the count. No address, cookie, referrer
+      or browser details are stored with it.
+    </p>
+    <p>
+      To stop one visitor inflating the totals, the server keeps a keyed hash of the address in
+      memory for up to an hour. The key is random, made fresh every time the server starts, and
+      never written down, so the hash can't be turned back into an address. Linking to GitHub
+      directly skips the count entirely.
+    </p>
+  </section>
+  <section id="app">
+    <h2>The app on your computer</h2>
+    <p>
+      Phosphor Desktop and the Host run <a href="https://pi.dev">pi</a>, which talks to the model
+      providers you set up. Those requests go straight from your computer to the provider, under
+      the provider's own terms. Phosphor doesn't proxy, copy or log them.
+    </p>
+    <p>
+      Desktop checks GitHub Releases for updates, so GitHub sees that request. Phosphor's servers
+      don't.
+    </p>
+  </section>
+  <section id="account">
+    <h2>A Phosphor account</h2>
+    <p>
+      You only need an account to reach your own machines remotely. Signing in with GitHub creates
+      it. The control server then keeps:
+    </p>
+    <ul>
+      <li>your GitHub login, user id, name, avatar and email, as GitHub provides them;</li><li>
+        each machine you connect: its label, hostname, platform, Phosphor version, public key, when
+        it was last seen, and the number of lanes running (never what is in them);
+      </li><li>the apps and browsers you've authorized, and when they were authorized;</li><li>
+        a log of connecting, renaming and removing machines, kept for 180 days, without labels or
+        addresses.
+      </li>
+    </ul>
+    <p>
+      The request log notes your account id against each signed-in request. To rate-limit sign-in
+      and API calls, the server holds your address in memory for up to an hour. It is never written
+      to disk.
+    </p>
+    <p>
+      The <a href="https://phosphor-app.saccolabs.com/">web app</a> keeps you signed in with one encrypted,
+      first-party cookie. It is only used for signing in. The details are in the <a
+        href={doc('remote-access.md#trust-boundary')}>remote access trust boundary</a
+      >.
+    </p>
+  </section>
+  <section id="services">
+    <h2>Services we rely on</h2>
+    <ul>
+      <li>
+        <strong>Cloudflare</strong> sits in front of both sites and sees your IP address, as any network
+        provider does.
+      </li><li>
+        <strong>Supabase</strong> hosts the account database and sign-in. Its sign-in records can include
+        your IP address and browser.
+      </li><li>
+        <strong>GitHub</strong> handles sign-in and hosts the downloads.
+      </li>
+    </ul>
+    <p>Each one handles that data under its own privacy policy.</p>
+  </section>
+  <section id="delete">
+    <h2>Deleting your data</h2>
+    <p>
+      Deleting your account removes it from Phosphor's database, along with your machines,
+      authorized apps and their log. Any connected Host stops on its next check-in. Nothing on your
+      own computers is touched. Download counts aren't linked to anyone, so there's nothing in them
+      to remove.
+    </p>
+    <p>
+      Without an account, Phosphor's servers hold nothing about you. To remove the app, uninstall
+      it. Its settings live on your computer.
+    </p>
+  </section>
+  <section id="contact">
+    <h2>Changes and questions</h2>
+    <p>
+      If this changes, this page changes in the same update, and the <a
+        href={`${repo}/commits/main/apps/site/src/pages/privacy.astro`}>history of this page</a
+      > is public. For questions, <a href={`${repo}/issues`}>open an issue</a>.
+    </p>
+  </section>
+</Guide>

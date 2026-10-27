@@ -18,6 +18,17 @@ import guideConnectors from '../assets/shots/guide-connectors.webp'
 
 export const repo = 'https://github.com/agustinsacco/Phosphor'
 export const releases = `${repo}/releases`
+export const site = 'https://phosphor.saccolabs.com'
+/**
+ * Download links go through the control server's counting redirect, which adds one
+ * to a daily total and answers a fixed 302 to the GitHub release. It stores no
+ * address, cookie or referrer (docs/usage-analytics.md). The paths must stay in
+ * DOWNLOAD_ARTIFACTS; tools/scripts/site-repo-links.test.ts checks them.
+ */
+export const download = {
+  latest: '/download/latest',
+  install: `curl -fsSL ${site}/download/install-sh | sh`,
+}
 export const doc = (path: string) => `${repo}/blob/main/docs/${path}`
 /** pi's own documentation, for anything pi owns: packages, extensions, providers. */
 export const piDoc = (page: string) => `https://pi.dev/docs/latest/${page}`

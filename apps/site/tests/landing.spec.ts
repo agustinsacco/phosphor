@@ -8,6 +8,7 @@ const routes = [
   '/guides/accounts/',
   '/guides/extensions/',
   '/guides/connectors/',
+  '/privacy/',
 ]
 
 for (const path of routes) {
@@ -74,13 +75,16 @@ test('all local links resolve, including cross-page fragments and full-size capt
   const destinations = new Set<string>()
   for (const path of routes) {
     await page.goto(path)
-    for (const url of await page
-      .locator('a[href]')
-      .evaluateAll((links) =>
-        links
-          .map((link) => (link as HTMLAnchorElement).href)
-          .filter((url) => new URL(url).origin === location.origin),
-      ))
+    for (const url of await page.locator('a[href]').evaluateAll((links) =>
+      links
+        .map((link) => (link as HTMLAnchorElement).href)
+        // A /download/ link is the control server's counted redirect off-site.
+        .filter(
+          (url) =>
+            new URL(url).origin === location.origin &&
+            !new URL(url).pathname.startsWith('/download/'),
+        ),
+    ))
       destinations.add(url)
   }
   const bodies = new Map<string, string>()
@@ -163,7 +167,7 @@ test('landing states the problem, answers questions, and ends on the install com
   await expect(commands).toHaveCount(2)
   await expect(commands.first()).toHaveText('npm install -g @earendil-works/pi-coding-agent')
   await expect(commands.nth(1)).toHaveText(
-    'curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh',
+    'curl -fsSL https://phosphor.saccolabs.com/download/install-sh | sh',
   )
 })
 
@@ -177,16 +181,29 @@ for (const path of routes) {
   })
 }
 
-test('header links go to the repo and straight to the latest release', async ({ page }) => {
+test('header links go to the repo, and to the latest release through the download count', async ({
+  page,
+}) => {
   await page.goto('/')
   const header = page.locator('.site-header')
   await expect(header.getByRole('link', { name: 'GitHub' })).toHaveAttribute(
     'href',
     'https://github.com/agustinsacco/Phosphor',
   )
-  await expect(header.getByRole('link', { name: 'Releases' })).toHaveAttribute(
+  const releases = header.getByRole('link', { name: 'Releases' })
+  await expect(releases).toHaveAttribute('href', '/download/latest')
+  await expect(releases).toHaveAttribute('rel', 'nofollow')
+  // Every counted link asks crawlers not to follow it, and robots.txt agrees.
+  for (const path of routes) {
+    await page.goto(path)
+    const counted = page.locator('a[href^="/download/"]')
+    for (const rel of await counted.evaluateAll((links) => links.map((a) => a.getAttribute('rel'))))
+      expect(rel, path).toBe('nofollow')
+  }
+  await page.goto('/')
+  await expect(page.locator('.site-footer').getByRole('link', { name: 'Privacy' })).toHaveAttribute(
     'href',
-    'https://github.com/agustinsacco/Phosphor/releases/latest',
+    '/privacy/',
   )
 })
 
