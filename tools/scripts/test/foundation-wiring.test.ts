@@ -30,7 +30,7 @@ const jobCommands = {
     'npx prettier --check .',
     'node tools/scripts/size-budget.mjs check',
   ],
-  unit: ['npm ci', 'npm ci --prefix apps/site', 'npm test -- --maxWorkers=8'],
+  unit: ['npm ci', 'npm ci --prefix apps/site', '|', 'npm test -- --maxWorkers=8'],
 }
 
 const documentedCommands = [
@@ -71,6 +71,19 @@ describe('foundation CI wiring', () => {
       expect(section).not.toMatch(/--passWithNoTests|--if-present|\|\|\s*(?:true|:)|--exclude/)
     },
   )
+
+  it('gives only the unit suite a per-runner temp folder in RAM, cleared each run', () => {
+    // The tests' temp-file fsyncs stalled for seconds behind the shared disk's
+    // writeback. Desktop e2e keeps disk TMPDIR: gio trash refuses tmpfs.
+    const unit = job('unit')
+    const dir = '/dev/shm/phosphor-unit-$RUNNER_NAME'
+    const setup = unit.indexOf(`echo "TMPDIR=${dir}" >> "$GITHUB_ENV"`)
+    expect(setup).toBeGreaterThan(-1)
+    expect(unit).toContain(`rm -rf "${dir}"\n          mkdir -m 700 "${dir}"`)
+    expect(setup).toBeLessThan(unit.indexOf('run: npm test -- --maxWorkers=8'))
+    for (const other of ['e2e', 'checks', 'web-e2e', 'control-schema', 'site'])
+      expect(job(other)).not.toContain('/dev/shm')
+  })
 
   it('runs the whole unit suite in one job', () => {
     expect(job('unit')).not.toContain('--shard')
