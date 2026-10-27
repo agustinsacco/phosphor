@@ -12,6 +12,7 @@
     "../../libs/session-runtime/src/**/*.ts",
     "../../libs/shared/src/**/*.ts",
     "electron.vite.config.ts",
+    "renderer-plugins.ts",
     "../../libs/pi-extensions/pi-ext/**/*.ts"
   ]
 }

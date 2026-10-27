@@ -167,10 +167,17 @@ are terminals:
    and interactive `claude` sign-in when needed. Each command needs approval.
 9. Show configured folders, or how to add one from Desktop.
 
-The terminal output is one aligned checklist and a final ready or fix line.
-Prompts read one line and default to Yes. Without a terminal, a prompt never
-runs a command and prints the command instead. External commands use argv,
-without shell interpolation, and interactive output passes through. The Claude
+The terminal output is one aligned checklist and a final ready or fix line,
+drawn as a screen (see [Commands](#commands)) with a spinner on the running
+step. Prompts default to Yes: on the screen they are a Yes/No choice where
+Escape or Ctrl-C cancels setup (exit 130); on a plain terminal they read one
+line. Without a terminal, a prompt never runs a command and prints the command
+instead. External commands use argv, without shell interpolation. A command that
+reads no input (the npm pi install, the Claude installer download, the provider
+install) shows its output as a short log that collapses on success and stays on
+failure; sudo, the Claude installer and `claude` sign-in get the terminal
+itself. The enrollment code is framed with its fingerprint, and a spinner waits
+for approval with the code's remaining time. The Claude
 installer is downloaded with curl into a temporary directory and executed by
 Bash only after approval. The temporary directory is removed afterwards.
 
@@ -264,6 +271,18 @@ phosphor help
 
 stdout carries only the report or the JSON. Usage errors and accept's progress
 go to stderr.
+
+On a person's terminal, commands draw a screen instead: a titled rail with
+spinners while they wait, marked rows (✓ ready, ▲ attention, ✗ failed, – skipped),
+home shown as `~`, commands to run in colour, and a closing line that says how
+the command ended. Text wraps to the terminal's width, and colour follows
+`NO_COLOR` and `FORCE_COLOR`. Ctrl-C during a spinner stops the command the same
+way as SIGINT (exit 130). The exit codes are the same either way.
+
+Output stays the plain text above, unchanged for scripts, when stdin or stdout
+is not a terminal, with `--json`, under CI (`CI` or `GITHUB_ACTIONS`), with
+`TERM=dumb`, or with `PHOSPHOR_PLAIN=1`. `service logs` is always plain, so
+agents and pipes read the same lines as before.
 `version` prints the independent Host release version, or `0.0.0-dev.<sha7>`
 for dev builds (`0.0.0-dev.source` when no commit is stamped).
 
@@ -389,7 +408,9 @@ at 0600 after its first accepted running heartbeat and at most once a minute.
 If the new version is not healthy, update selects the old version and restarts
 it again, then exits 75. A signal that ends the updater during the restart is
 not a failed health check: the new version stays selected, since systemd
-finishes the restart on it either way. A normal update without a running
+finishes the restart on it either way. The rolled-back version folder stays as
+`previous`; the next update to that version replaces it with the freshly
+verified bundle. A normal update without a running
 service asks you to restart `phosphor run`.
 
 On Linux, `phosphor update` and `update --rollback` typed into a Host terminal
@@ -417,7 +438,8 @@ release's `current/bin/phosphor`. A foreign launcher and
 `phosphor.before-release` stay untouched. Source installs print the bundle
 folder to delete instead. Config, identity, state and provider data stay in
 place, and the command prints the config and state directories. Add `--json`
-for a machine-readable result.
+for a machine-readable result. On a screen, `phosphor uninstall` without `--yes`
+first asks; No exits 0 and Escape exits 130, both leaving everything in place.
 
 `phosphor uninstall --purge --yes` first logs out remotely and only on success
 removes the default config and state directories too. Both flags are required.
@@ -1784,8 +1806,8 @@ switches are refused.
 ## Repository management and lane deletion
 
 `allowRepositoryChanges` is a boolean, default on. Turning it off refuses
-`machine.folders.list`, `host.repositories.add`, `host.repositories.remove` and
-`host.repositories.createFolder`.
+`machine.folders.list`, `host.repositories.add`, `host.repositories.remove`,
+`host.repositories.createFolder` and `host.repositories.order`.
 These owner-authenticated operations require `workspaces.write`; mutations also
 require `sessions.control` and use durable receipts. Folder paths are relative
 to the Host user's real home. Absolute paths, `.` and `..` components and symlink
@@ -1811,6 +1833,16 @@ applies only to newly added folders. Only then do the repository snapshot and ru
 roots change. This is process-local serialization, not a cross-process config
 lock. Remove changes config only and refuses live repositories. The final folder
 cannot be removed (`last-repository`). No repository files are deleted.
+
+The config's `repositories` order is the order `host.repositories` and the lane
+snapshot list folders in; a folder first seen later no longer sorts by when it
+was added. `host.repositories.order` takes `repositoryIds`: every active
+repository's id, once each, at most 64. A list that names a stranger or misses
+one (a folder added or removed since the client looked) is `conflict` and
+writes nothing. It rewrites only the order, through the same atomic config
+write: active entries move as the user wrote them, symlinked spellings included,
+and a configured folder that is not active, such as one missing on disk, keeps
+its slot. It returns no data. Older Hosts answer `unsupported`.
 
 `lane.delete` requires the current controller, matching fence, `sessions.control`
 and `workspaces.write`, checked again while work waits and before destructive

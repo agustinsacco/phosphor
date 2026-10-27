@@ -25,6 +25,7 @@ import { useDraftsStore, homeDraftKey } from '@/stores/drafts'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 it.each(['ready', 'down', 'reconnecting'] as const)(
   'no usable model refuses creation with an honest %s hint',
   async (state) => {
@@ -116,7 +117,12 @@ it.each([
   const root = createRoot(container)
   function Harness({ id }: { id: string }) {
     const selection = useRemoteModel(id)
-    return <RemoteModelPicker selection={selection} />
+    // The dialog presentation; the expanded chips are RemoteModelPicker.expanded.test.tsx.
+    return (
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <RemoteModelPicker selection={selection} />
+      </PlatformProvider>
+    )
   }
   try {
     for (const id of sequence) {
@@ -172,7 +178,9 @@ it('uses the Mac thinking default, remembers per Host across remounts, and clamp
     return (
       <div>
         <output>{selection.thinking}</output>
-        <RemoteModelPicker selection={selection} />
+        <PlatformProvider value={COMPACT_PLATFORM}>
+          <RemoteModelPicker selection={selection} />
+        </PlatformProvider>
       </div>
     )
   }

@@ -1530,6 +1530,7 @@ export function installMockPhosphor(): void {
         case 'hosts:deleteLane':
           return Promise.resolve({ branchKept: false })
         case 'hosts:removeRepository':
+        case 'hosts:orderRepositories':
         case 'hosts:createFolder':
           return Promise.resolve(undefined)
         case 'hosts:listFolders':
@@ -1917,6 +1918,8 @@ export function installMockPhosphor(): void {
         case 'sessions:setCompleted':
         case 'sessions:retainedWorkspaces':
         case 'sessions:restoreWorktree':
+        case 'sessions:worktreeRecovery':
+        case 'sessions:recreateWorktree':
         case 'sessions:list':
         case 'sessions:delete':
           return mockSessionMaintenance(channel, args, MOCK_DISK_SESSIONS)

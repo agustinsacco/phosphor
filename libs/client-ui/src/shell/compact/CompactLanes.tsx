@@ -97,7 +97,7 @@ function MachineLaneList({
               : 'Machine not connected. Its lanes may need attention.'}
           </p>
         )
-      ) : lanes.length === 0 ? (
+      ) : lanes.length === 0 && (inbox || host.repositories.length === 0) ? (
         <p>{inbox ? 'No unread attention on this machine.' : 'No lanes yet.'}</p>
       ) : (
         <RemoteLaneGroups
@@ -110,6 +110,7 @@ function MachineLaneList({
               : host.repositories
           }
           lanes={lanes}
+          manage={!inbox}
           onOpen={(laneId) =>
             navigate({
               to: 'lane',

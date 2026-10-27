@@ -92,7 +92,7 @@ function RemoteStartComposer({
         />
       </fieldset>
       <RemoteStartTargets hostId={hostId} controller={c} machinePicker={machinePicker} />
-      {/* One line at most: the model dialog explains the model choice. */}
+      {/* One line at most: the model picker explains the model choice. */}
       {waiting && !c.warning && (
         <WaitingNote className="remote-start-status">
           {connectingTo(hostId, c.host?.state)}

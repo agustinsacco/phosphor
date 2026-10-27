@@ -1,7 +1,6 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'node:path'
+import { rendererPlugins } from './renderer-plugins'
 
 export default defineConfig({
   main: {
@@ -55,7 +54,7 @@ export default defineConfig({
   },
   renderer: {
     root: 'src',
-    plugins: [react(), tailwindcss()],
+    plugins: rendererPlugins(),
     resolve: {
       // Source libraries sit outside the app install domain. Keep their JS
       // dependencies on the app's copies rather than bundling a second copy.

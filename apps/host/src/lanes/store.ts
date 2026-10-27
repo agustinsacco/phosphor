@@ -64,6 +64,7 @@ export class HostStore {
   private readonly isConnected: (clientId: string) => boolean
   private readonly logCorruptLane: (count: number) => void
   private readonly logCorruptReceipt: (count: number) => void
+  private configOrder: Record<string, number> = {} // Config positions: the listing order.
   readonly limits: Readonly<StoreLimits>
   constructor(
     private readonly db: DatabaseSync,
@@ -121,6 +122,7 @@ export class HostStore {
     )
       .all(this.limits.repositoriesPerHost)
       .flatMap((row) => repositoryFromRow(row, this.logCorruptLane) ?? [])
+      .sort((a, b) => (this.configOrder[a.id] ?? 64) - (this.configOrder[b.id] ?? 64))
   }
   syncRepositories(
     paths: readonly string[],
@@ -147,7 +149,7 @@ export class HostStore {
         unavailable++
       }
     }
-    const result = this.transaction(() => {
+    this.transaction(() => {
       this.db.prepare('UPDATE repositories SET active=0').run()
       for (const repository of repositories.values())
         this.db
@@ -156,10 +158,10 @@ export class HostStore {
         ON CONFLICT(id) DO UPDATE SET active=1,name=excluded.name`,
           )
           .run(repository.id, repository.path, repository.name, this.clock())
-      return this.listRepositories()
     })
+    this.configOrder = Object.fromEntries([...repositories.keys()].map((id, i) => [id, i]))
     if (unavailable) logUnavailable(unavailable)
-    return result
+    return this.listRepositories()
   }
   listLanes(): StoredLane[] {
     return summaryQuery(

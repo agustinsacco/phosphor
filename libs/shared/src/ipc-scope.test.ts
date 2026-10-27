@@ -19,7 +19,7 @@ it('lists the reviewed machine surface; everything else is app-local', () => {
       'startLogin submitCode cancelLogin logout accounts removeAccount reorderAccounts setRouting refreshAccountUsage bindSession assignSession accountSessions sessionAccount usageSnapshot',
     mcp: 'readConfigs upsertServer removeServer setEnabled list readChecks checkServer cancelCheck laneControl setExposure authorize cancelAuth logout migrationPlan migrate readFile writeFile',
     sessions:
-      'list stats watch unwatch delete readTree readTranscript appendLabel jump forkAt claudeSessionId forkClaudeLedger setCompleted retainedWorkspaces restoreWorktree',
+      'list stats watch unwatch delete readTree readTranscript appendLabel jump forkAt claudeSessionId forkClaudeLedger setCompleted retainedWorkspaces restoreWorktree worktreeRecovery recreateWorktree',
     gh: 'prForBranch prsForRepo available',
     git: 'info infoBatch statusMap sessionBaseline showFileAt restoreFileTo listWorktrees listBranches startPoint addWorktree removeWorktree renameBranch pruneWorktrees commitAll mergeBranch fetch pull updateFromMain checkoutBranch',
     maintenance: 'scan run',

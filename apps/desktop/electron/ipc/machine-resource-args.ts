@@ -192,6 +192,8 @@ export const MACHINE_RESOURCE_ARGS: MachineResourcePolicies = {
   'sessions:setCompleted': [{ arg: 0 }],
   'sessions:retainedWorkspaces': [{ arg: 0 }],
   'sessions:restoreWorktree': [{ arg: 0 }],
+  'sessions:worktreeRecovery': [{ arg: 0 }],
+  'sessions:recreateWorktree': [{ arg: 0 }],
   'sessions:stats': [{ arg: 0 }],
   'sessions:watch': [{ arg: 0 }],
   'sessions:unwatch': [{ arg: 0 }],
