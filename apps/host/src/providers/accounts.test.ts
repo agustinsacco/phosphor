@@ -82,6 +82,33 @@ it('lets doctor inspect the selected private account without writes, auth probes
   expect(readHostClaudeEnvironment({ directory: empty, home: empty, env: {} })).toEqual({})
   expect(existsSync(join(empty, 'claude-accounts'))).toBe(false)
 })
+it('preserves multiple identities and selected credentials across a Host reload and an unreadable auth probe', async () => {
+  const a = service()
+  signedIn('personal@example.test')
+  await a.accounts.loadAccounts()
+  const work = await a.accounts.beginAddAccount()
+  signedIn('work@example.test')
+  await a.accounts.finishAddAccount(work.id)
+  await a.accounts.setRouting('specific', work.id)
+  const file = join(a.directory, 'claude-accounts', 'accounts.json')
+  const before = readFileSync(file, 'utf8')
+  const reloaded = createHostClaudeAccounts({
+    directory: a.directory,
+    home: a.directory,
+    env: { PATH: '/trusted' },
+  })
+  auth.mockResolvedValue({ code: 1, stdout: '{"error":"temporarily unavailable"}', stderr: '' })
+  expect(await reloaded.authenticationReady()).toBeNull()
+  expect((await reloaded.loadAccounts()).accounts.map((account) => account.email)).toEqual([
+    'personal@example.test',
+    'work@example.test',
+  ])
+  expect(reloaded.credentialEnvironment()).toEqual({
+    CLAUDE_SECURESTORAGE_CONFIG_DIR: join(a.directory, 'claude-accounts', work.id),
+  })
+  expect(readFileSync(file, 'utf8')).toBe(before)
+  expect(auth.mock.calls.every(([, args]) => !args.includes('logout'))).toBe(true)
+})
 it('refuses metadata commits after scoped authority is lost', async () => {
   const a = service()
   signedIn('first@example.test')

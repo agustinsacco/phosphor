@@ -28,6 +28,7 @@ export interface TerminalSubscribe {
 }
 export interface TerminalSummary {
   terminalId: string
+  /** Empty for a machine shell: one opened in the Host account's home, outside any lane. */
   laneId: string
   status: 'running' | 'exited' | 'interrupted'
 }
@@ -143,10 +144,11 @@ export function parseTerminalSubscribe(v: unknown): TerminalSubscribe | null {
     ...(after ? { after } : {}),
   }
 }
-export function parseTerminalListParams(v: unknown): { laneId: string } | null {
-  return terminalRecord(v) && terminalKeys(v, ['laneId']) && isUuid(v.laneId)
-    ? { laneId: v.laneId }
-    : null
+/** `{laneId}` lists that lane's shells; `{}` lists machine shells, which have no lane. */
+export function parseTerminalListParams(v: unknown): { laneId: string | null } | null {
+  if (!terminalRecord(v) || !terminalKeys(v, ['laneId'])) return null
+  if (v.laneId === undefined) return { laneId: null }
+  return isUuid(v.laneId) ? { laneId: v.laneId } : null
 }
 export function parseTerminalList(v: unknown): TerminalSummary[] | null {
   if (!Array.isArray(v) || v.length > TERMINAL_LIMITS.perHost) return null
@@ -156,7 +158,8 @@ export function parseTerminalList(v: unknown): TerminalSummary[] | null {
       !terminalRecord(row) ||
       !terminalKeys(row, ['terminalId', 'laneId', 'status']) ||
       !isUuid(row.terminalId) ||
-      !isUuid(row.laneId) ||
+      // An empty laneId is a machine shell, which belongs to no lane.
+      !(row.laneId === '' || isUuid(row.laneId)) ||
       (row.status !== 'running' && row.status !== 'exited' && row.status !== 'interrupted')
     )
       return null

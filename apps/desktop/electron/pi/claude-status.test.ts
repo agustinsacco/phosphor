@@ -78,8 +78,8 @@ it('parses all supported fields and ignores invalid field types', () => {
     orgId: 'id',
   })
   expect(parseClaudeAuthStatus('{"loggedIn":"true","authMethod":1,"email":false}')).toEqual({
-    ok: true,
-    loggedIn: false,
+    ok: false,
+    error: 'auth status unavailable',
   })
   expect(parseClaudeAuthStatus('{broken')).toEqual({
     ok: false,

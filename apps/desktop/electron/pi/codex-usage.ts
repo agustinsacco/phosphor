@@ -50,8 +50,10 @@ export function parseCodexUsage(value: unknown, now = Date.now()): CodexUsageRes
   return { ok: true, snapshot: { fetchedAt: now, windows, credits } }
 }
 
-/** pi owns storage and OAuth refresh. Secrets are captured only in main memory;
- * never log subprocess errors (they may contain stdout), tokens or response bodies. */
+/** Usage inspection must not refresh a rotating credential: this short-lived process
+ * can time out after the server rotates it but before pi saves it. Session pi owns
+ * refresh and persistence. A stale access token means unavailable usage, not logout.
+ * Never log subprocess errors, tokens or response bodies. */
 async function readAuth(): Promise<string> {
   const invoker = await resolvePiInvoker('piProcessEnv-stub')
   const { stdout } = await execFileAsync(
@@ -64,6 +66,7 @@ async function readAuth(): Promise<string> {
       'openai-codex',
       '--json',
       '--credentials',
+      '--no-refresh',
     ],
     {
       env: invoker.env,

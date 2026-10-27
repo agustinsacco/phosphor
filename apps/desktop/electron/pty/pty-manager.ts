@@ -1,6 +1,8 @@
 import { spawn, type IPty } from 'node-pty'
 import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
+import { homedir } from 'node:os'
+import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
 import { BrowserWindow } from 'electron'
 import { isBusy } from './busy'
 import { ScrollbackBuffer } from './scrollback-buffer'
@@ -36,6 +38,16 @@ class PtyManager {
   private readonly sessions = new Map<string, PtySession>()
   private pollTimer: NodeJS.Timeout | null = null
   private helperChecked = false
+  private homeShell?: string
+
+  /** The Machine page's shell is independent of all workspace/lane shells. */
+  createHome(cols: number, rows: number): { ptyId: string } {
+    if (!parseTerminalOp({ type: 'terminal.create', cols, rows }))
+      throw new Error('Invalid terminal dimensions.')
+    if (!this.homeShell || !this.sessions.has(this.homeShell))
+      this.homeShell = this.create(homedir(), cols, rows).ptyId
+    return { ptyId: this.homeShell }
+  }
 
   get size(): number {
     return this.sessions.size
