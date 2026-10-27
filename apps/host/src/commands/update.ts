@@ -2,7 +2,7 @@ import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { loadHostConfig } from '../config/load'
 import { buildPiEnvironment } from '../machine/environment'
 import { CLAUDE_PROVIDER_PACKAGE } from '../machine/claude'
-import { setupTerminal, type SetupTerminal } from './setup-terminal'
+import { setupTerminal, type SetupTerminal, type TerminalScreen } from './setup-terminal'
 import {
   lstatSync,
   mkdtempSync,
@@ -15,19 +15,17 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
-import {
-  HOST_RELEASE_KEYS,
-  HOST_RELEASE_MANIFEST_MAX_BYTES,
-  HOST_RELEASE_VERSION_PATTERN,
-  type HostReleaseKey,
-} from '@phosphor/shared/host-release'
-import { HOST_PROTOCOL_VERSION } from '@phosphor/shared/remote-host'
+import { HOST_RELEASE_VERSION_PATTERN, type HostReleaseKey } from '@phosphor/shared/host-release'
 import { commandLayout, INSTALL_COMMAND, type InstalledLayout } from '../update/layout'
-import { verifyReleaseArtifact, verifyReleaseManifest } from '../update/verify'
-import { downloadRelease, releaseUrl } from '../update/download'
+import {
+  compareVersions,
+  fetchSignedRelease,
+  stageRelease,
+  UpdateFailure,
+  type UpdateStep,
+} from '../update/fetch'
 import { acquireInstallLock, hasCode } from '../update/lock'
 import { atomicRecord, readBounded } from '../update/files'
-import { decompressRelease, extractRelease } from '../update/archive'
 import { readRunHealth } from '../update/health'
 import { installLifetime, signalTurn } from '../update/lifetime'
 import { HOST_AGENT } from '../machine/launchd'
@@ -35,10 +33,16 @@ import { HOST_UNIT, serviceRunner } from '../machine/systemd'
 import { hostStateDirectory } from '../lanes/state-dir'
 import { runService, type ServiceContext } from './service'
 
+export { compareVersions, UpdateFailure, type UpdateStep } from '../update/fetch'
+
 export interface UpdateContext extends ServiceContext {
   json?: boolean
+  /** Each step as it starts, for a terminal; plain output prints only the result. */
+  progress?: (step: UpdateStep) => void
   packages?: typeof listPackages
   setupTerminal?: SetupTerminal
+  /** A terminal's screen, which shows the provider update as a log. */
+  screen?: TerminalScreen
   update?: {
     node?: string
     bundle?: string
@@ -52,23 +56,6 @@ export interface UpdateOptions {
   version?: string
   check?: boolean
   rollback?: boolean
-}
-export class UpdateFailure extends Error {
-  constructor(
-    message: string,
-    readonly exitCode = 75,
-  ) {
-    super(message)
-  }
-}
-export function compareVersions(a: string, b: string): number {
-  const x = a.split('.').map(Number),
-    y = b.split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    const d = (x[i] ?? 0) - (y[i] ?? 0)
-    if (d) return d
-  }
-  return 0
 }
 export function installedVersion(layout: InstalledLayout, version: unknown): version is string {
   if (typeof version !== 'string' || !HOST_RELEASE_VERSION_PATTERN.test(version)) return false
@@ -155,10 +142,12 @@ async function restartHealthy(
 ): Promise<boolean> {
   const now = context.now ?? Date.now
   const after = now()
+  context.progress?.({ step: 'restart', version })
   const restarted = (await runService({ ...context, signal }, 'restart')) === 0
   // A signal that also ended systemctl says nothing about health; rollback would race the restart.
   signal.throwIfAborted()
   if (!restarted) return false
+  context.progress?.({ step: 'health', version })
   const wait = context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal }))
   for (let i = 0; i <= 90; i++) {
     signal.throwIfAborted()
@@ -208,13 +197,15 @@ export async function updateClaudeProvider(
       nodePath: config.pi.node,
     })
     const terminal =
-      context.setupTerminal ?? setupTerminal(environment.env, signal, context.json ? 2 : 1)
+      context.setupTerminal ??
+      setupTerminal(environment.env, signal, context.json ? 2 : 1, context.screen)
     const args = [
       ...(config.pi.node ? [config.pi.executable] : []),
       'update',
       `npm:${CLAUDE_PROVIDER_PACKAGE}`,
     ]
-    if ((await terminal.run(config.pi.node ?? config.pi.executable, args)) !== 0)
+    context.progress?.({ step: 'provider' })
+    if ((await terminal.run(config.pi.node ?? config.pi.executable, args, 'task')) !== 0)
       throw new Error('update')
   } catch {
     // Cancellation (SIGTERM, Ctrl-C) ends the update; only the provider's own failure is a warning.
@@ -268,37 +259,10 @@ export async function runUpdate(
           throw new UpdateFailure('No valid previous version is installed.', 69)
         version = record.previous
       } else {
-        const keys = context.update?.keys ?? HOST_RELEASE_KEYS
-        if (!keys.length) throw new UpdateFailure('No Host release keys are pinned.', 69)
-        const tag = options.version ? `host-v${options.version}` : 'host-latest'
-        const name = options.version
-          ? `phosphor-host-${options.version}.manifest.json`
-          : 'phosphor-host.manifest.json'
-        const manifest = await downloadRelease(
-          releaseUrl(context.env, tag, name),
-          HOST_RELEASE_MANIFEST_MAX_BYTES,
-          signal,
-        )
-        const signature = await downloadRelease(
-          releaseUrl(context.env, tag, `${name}.sig`),
-          8192,
-          signal,
-        )
-        const signed = verifyReleaseManifest(manifest, signature.toString('utf8'), keys)
-        version = signed.version
-        if (options.version && version !== options.version)
-          throw new UpdateFailure('Release version does not match the request.', 64)
-        if (compareVersions(version, layout.version) < 0)
-          throw new UpdateFailure('refusing to downgrade', 64)
-        const artifact = signed.artifacts.find(
-          (a) => a.target === `${context.platform}-${context.arch ?? process.arch}`,
-        )
-        if (!artifact || !signed.protocols.some((p) => p >= HOST_PROTOCOL_VERSION))
-          throw new UpdateFailure('Release does not support this Host.', 69)
-        // A newer protocol is how a Host catches up with updated apps; say so when it drops ours.
-        if (!signed.protocols.includes(HOST_PROTOCOL_VERSION))
-          notice =
-            'This release speaks a newer Host protocol: apps that have not updated cannot connect.'
+        const source = { ...context, ...context.update }
+        const found = await fetchSignedRelease(source, options.version, layout.version, signal)
+        version = found.version
+        notice = found.notice
         if (options.check) {
           release()
           release = undefined
@@ -318,24 +282,7 @@ export async function runUpdate(
           return 0
         }
         stage = mkdtempSync(join(layout.lib, '.staging-'))
-        let bytes = await downloadRelease(
-          releaseUrl(context.env, `host-v${version}`, artifact.file),
-          artifact.bytes,
-          signal,
-        )
-        verifyReleaseArtifact(bytes, artifact)
-        const tar = decompressRelease(bytes, context.update?.expandedCap)
-        // Drop the compressed buffer here. Peak is compressed plus decompressed,
-        // each capped at 256 MiB (512 MiB total, plus small verification buffers).
-        bytes = Buffer.alloc(0)
-        extractRelease(tar, stage, context.update?.expandedCap)
-        if (
-          readBounded(join(stage, 'VERSION'), 32).replace(/\n+$/, '') !== version ||
-          !['bin/phosphor', 'node/bin/node', 'lib/phosphor.mjs'].every((n) =>
-            lstatSync(join(stage ?? '', n)).isFile(),
-          )
-        )
-          throw new UpdateFailure('Invalid release bundle.')
+        await stageRelease(source, stage, version, found.artifact, signal)
       }
       const service = await serviceState(context)
       signal.throwIfAborted()
@@ -353,6 +300,7 @@ export async function runUpdate(
       signal.throwIfAborted()
       if (service.installed && (service.running || options.rollback)) {
         if (!(await restartHealthy(context, version, signal))) {
+          context.progress?.({ step: 'rollback', version: layout.version })
           select(layout, layout.version, version)
           await runService({ ...context, signal }, 'restart')
           throw new UpdateFailure(
@@ -368,6 +316,7 @@ export async function runUpdate(
       if (!service.installed || (!service.running && !options.rollback))
         context.print(`restart phosphor run to use ${version}`)
       if (!options.rollback) await updateClaudeProvider(context, signal)
+      context.progress?.({ step: 'selected', version, installed: layout.version })
       context.print(`Selected Host ${version}.`)
       if (notice) context.print(notice)
       return 0

@@ -167,10 +167,17 @@ are terminals:
    and interactive `claude` sign-in when needed. Each command needs approval.
 9. Show configured folders, or how to add one from Desktop.
 
-The terminal output is one aligned checklist and a final ready or fix line.
-Prompts read one line and default to Yes. Without a terminal, a prompt never
-runs a command and prints the command instead. External commands use argv,
-without shell interpolation, and interactive output passes through. The Claude
+The terminal output is one aligned checklist and a final ready or fix line,
+drawn as a screen (see [Commands](#commands)) with a spinner on the running
+step. Prompts default to Yes: on the screen they are a Yes/No choice where
+Escape or Ctrl-C cancels setup (exit 130); on a plain terminal they read one
+line. Without a terminal, a prompt never runs a command and prints the command
+instead. External commands use argv, without shell interpolation. A command that
+reads no input (the npm pi install, the Claude installer download, the provider
+install) shows its output as a short log that collapses on success and stays on
+failure; sudo, the Claude installer and `claude` sign-in get the terminal
+itself. The enrollment code is framed with its fingerprint, and a spinner waits
+for approval with the code's remaining time. The Claude
 installer is downloaded with curl into a temporary directory and executed by
 Bash only after approval. The temporary directory is removed afterwards.
 
@@ -264,6 +271,18 @@ phosphor help
 
 stdout carries only the report or the JSON. Usage errors and accept's progress
 go to stderr.
+
+On a person's terminal, commands draw a screen instead: a titled rail with
+spinners while they wait, marked rows (✓ ready, ▲ attention, ✗ failed, – skipped),
+home shown as `~`, commands to run in colour, and a closing line that says how
+the command ended. Text wraps to the terminal's width, and colour follows
+`NO_COLOR` and `FORCE_COLOR`. Ctrl-C during a spinner stops the command the same
+way as SIGINT (exit 130). The exit codes are the same either way.
+
+Output stays the plain text above, unchanged for scripts, when stdin or stdout
+is not a terminal, with `--json`, under CI (`CI` or `GITHUB_ACTIONS`), with
+`TERM=dumb`, or with `PHOSPHOR_PLAIN=1`. `service logs` is always plain, so
+agents and pipes read the same lines as before.
 `version` prints the independent Host release version, or `0.0.0-dev.<sha7>`
 for dev builds (`0.0.0-dev.source` when no commit is stamped).
 
@@ -419,7 +438,8 @@ release's `current/bin/phosphor`. A foreign launcher and
 `phosphor.before-release` stay untouched. Source installs print the bundle
 folder to delete instead. Config, identity, state and provider data stay in
 place, and the command prints the config and state directories. Add `--json`
-for a machine-readable result.
+for a machine-readable result. On a screen, `phosphor uninstall` without `--yes`
+first asks; No exits 0 and Escape exits 130, both leaving everything in place.
 
 `phosphor uninstall --purge --yes` first logs out remotely and only on success
 removes the default config and state directories too. Both flags are required.

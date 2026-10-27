@@ -680,7 +680,11 @@ it.each(['new', 'current', 'check'] as const)(
     expect(await runUpdate(f.context, { check: kind === 'check' })).toBe(0)
     expect(run).toHaveBeenCalledTimes(kind === 'check' ? 0 : 1)
     if (kind !== 'check') {
-      expect(run).toHaveBeenCalledWith('/trusted/pi', ['update', 'npm:@saccolabs/pi-claude-cli'])
+      expect(run).toHaveBeenCalledWith(
+        '/trusted/pi',
+        ['update', 'npm:@saccolabs/pi-claude-cli'],
+        'task',
+      )
       expect(f.messages).toContain(
         'Warning: Claude provider update failed. Run: pi update npm:@saccolabs/pi-claude-cli',
       )

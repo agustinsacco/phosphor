@@ -28,6 +28,15 @@ export interface ControlContext extends ClientPorts {
   store?: IdentityStore
   lockPorts?: LockPorts
   wait?: (ms: number, signal?: AbortSignal) => Promise<void>
+  /** A terminal shows the enrollment code itself; without this login prints it as text. */
+  enrollment?: (code: EnrollmentCode) => void
+}
+/** What a person needs to approve this machine in Phosphor. */
+export interface EnrollmentCode {
+  userCode: string
+  fingerprint: string
+  expiresInMs: number
+  resuming: boolean
 }
 export interface CommandResult {
   exitCode: number

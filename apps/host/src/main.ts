@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { runCli } from './cli'
 import { stopProbes } from './machine/probe'
 import { createShutdown, flushStreams, SHUTDOWN_SIGNALS } from './shutdown'
+import { richTerminal } from './ui/terminal'
 
 // Each probe and each pi leads its own process group, so a terminal's Ctrl-C
 // reaches neither: the Host stops them on the way out. A second signal
@@ -36,6 +37,7 @@ const code = await runCli(
     defaultResourceRoot: dirname(fileURLToPath(import.meta.url)),
     attach: shutdown.attach,
     terminal: process.stdin.isTTY === true && process.stdout.isTTY === true,
+    rich: richTerminal(process.env),
   },
 )
 shutdown.finish(code)
