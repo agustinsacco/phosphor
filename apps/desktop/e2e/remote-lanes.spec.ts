@@ -25,9 +25,7 @@ test('Create on bee1 with a usable default and name the first turn', async ({
     await selectMachine(h, 'bee1')
     await h.page.getByRole('button', { name: 'New lane in repository', exact: true }).click()
     await expect(h.page.getByRole('button', { name: 'Machine', exact: true })).toContainText('bee1')
-    await expect(h.page.getByRole('button', { name: 'Model', exact: true })).toContainText(
-      'HOST_B_ONLY Reasoner',
-    )
+    await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY Reasoner')
     await expect(h.page.getByRole('button', { name: 'Repository', exact: true })).toContainText(
       'repository',
     )
@@ -68,10 +66,8 @@ test('Create on bee1 with a usable default and name the first turn', async ({
     await low.press('Enter')
     await expect(h.page.getByTestId('thinking-chip')).toContainText('Low')
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
-    await expect(h.page.getByRole('button', { name: 'Model', exact: true })).toContainText(
-      'HOST_B_ONLY Reasoner',
-    )
-    await expect(h.page.getByRole('button', { name: 'Thinking', exact: true })).toContainText('low')
+    await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY Reasoner')
+    await expect(h.page.getByTestId('remote-thinking-picker')).toContainText('Low')
     expect(await h.localSentinel()).toBe('LOCAL_ONLY decoy\n')
   } finally {
     await h.close()
@@ -84,13 +80,11 @@ test('Home composer sends only after controlled remote creation', async () => {
   try {
     await h.signIn()
     await selectMachine(h, 'bee1')
-    await expect(h.page.getByRole('button', { name: 'Model', exact: true })).toContainText(
-      'HOST_B_ONLY Reasoner',
-    )
+    await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY Reasoner')
     await h.page.getByRole('button', { name: 'Repository', exact: true }).click()
     await h.page.getByRole('option', { name: 'notes', exact: true }).click()
-    await h.page.getByRole('button', { name: 'Thinking', exact: true }).click()
-    await h.page.getByRole('option', { name: 'high', exact: true }).click()
+    await h.page.getByTestId('remote-thinking-picker').click()
+    await h.page.getByRole('button', { name: 'High', exact: true }).click()
     await h.page.getByRole('checkbox').uncheck()
     const draft = h.page.getByPlaceholder('Describe a task or ask a question')
     await draft.fill('PHX-home')
@@ -109,9 +103,7 @@ test('Home composer sends only after controlled remote creation', async () => {
     } finally {
       restore()
     }
-    await expect(h.page.getByRole('button', { name: 'Model', exact: true })).toContainText(
-      'HOST_B_ONLY Reasoner',
-    )
+    await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY Reasoner')
 
     await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()
     await expect(h.page.locator('main').getByText('PHX-home', { exact: true })).toHaveCount(2)
@@ -225,9 +217,7 @@ test('A manual Host name wins while first-prompt auto-naming is pending', async 
     await h.signIn()
     await selectMachine(h, 'bee1')
     await h.page.getByRole('button', { name: 'New lane in repository', exact: true }).click()
-    await expect(h.page.getByRole('button', { name: 'Model', exact: true })).toContainText(
-      'HOST_B_ONLY Reasoner',
-    )
+    await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY Reasoner')
     await h.page.getByPlaceholder('Describe a task or ask a question').fill(h.slowName.prompt)
     await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()
     await expect(h.page.getByText('Controlled by you', { exact: true })).toBeVisible()

@@ -8,7 +8,7 @@ test('shared pages wrap at doubled text sizes and the composer follows a reduced
   await page.setViewportSize({ width: 412, height: 924 })
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Model', exact: true })).toBeVisible()
+  await expect(page.getByTestId('remote-model-picker')).toBeVisible()
   for (const route of ['settings', 'machines']) {
     await page.goto(`${stack.origin}/pages/${route}`)
     await expect(page.locator('.page-shell h1')).toHaveCount(1)
@@ -31,7 +31,7 @@ test('shared pages wrap at doubled text sizes and the composer follows a reduced
     await page.screenshot({ path: info.outputPath(`${route}-doubled-text.png`), fullPage: true })
   }
   await page.goto(`${stack.origin}/new/${stack.hostId}`)
-  await expect(page.getByRole('button', { name: 'Model', exact: true })).toBeVisible()
+  await expect(page.getByTestId('remote-model-picker')).toBeVisible()
   await page.setViewportSize({ width: 412, height: 480 })
   await page.getByRole('textbox', { name: 'Chat message' }).focus()
   await expect
