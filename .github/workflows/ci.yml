@@ -144,6 +144,16 @@ jobs:
       - name: Install site dependencies
         run: npm ci --prefix apps/site
 
+      # The tests' temp files go to RAM, one folder per runner: on the shared
+      # drive a small fsync waited seconds behind other jobs' writeback and
+      # timed tests out. Only this job: gio trash (Desktop e2e) refuses tmpfs.
+      # Each run clears the folder its runner's last run left behind.
+      - name: Temp folder in RAM
+        run: |
+          rm -rf "/dev/shm/phosphor-unit-$RUNNER_NAME"
+          mkdir -m 700 "/dev/shm/phosphor-unit-$RUNNER_NAME"
+          echo "TMPDIR=/dev/shm/phosphor-unit-$RUNNER_NAME" >> "$GITHUB_ENV"
+
       # Vitest defaults to one worker per core. The Linux runners share one
       # 32-core machine, and 31 workers starved the jobs beside them (and their
       # own tests timed out).

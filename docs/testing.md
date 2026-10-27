@@ -238,7 +238,9 @@ mandatory command exactly once:
   `npx prettier --check .`, then the size ratchet.
 - `unit`: `npm test -- --maxWorkers=8` (the Linux runners share one 32-core
   machine; one worker per core starved the jobs beside it), with the site installed too for the coverage audit's own
-  test.
+  test. Its `TMPDIR` is a per-runner folder in `/dev/shm`, cleared at the start of each run: on the shared drive a small `fsync` waited seconds behind other
+  jobs' writeback and timed tests out. Desktop e2e keeps a disk `TMPDIR`,
+  because `gio trash` refuses tmpfs.
 - `web-e2e`: the browser acceptance suite, one leg per engine (Chromium,
   WebKit), each installing only its own browser. Like Desktop it retries a
   failed test once on CI and reports it as flaky. It sets Node's heap to 4 GB:
