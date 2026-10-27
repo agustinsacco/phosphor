@@ -105,6 +105,7 @@ describe('SETTINGS_INDEX against the tab sources', () => {
     MaintenanceSection: 'advanced',
     OptimizationTab: 'optimization',
     SubagentsTab: 'subagents',
+    UsagePingSection: 'advanced',
     VoiceTab: 'voice',
     WebAccessTab: 'web-access',
     WorkspacesTab: 'workspaces',

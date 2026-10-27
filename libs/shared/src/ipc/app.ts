@@ -13,6 +13,7 @@ import type {
   ComposerDraftRecord,
   LanePrefs,
 } from '../models'
+import type { UsagePingPatch, UsagePingSettings } from '../usage-ping'
 
 export interface AppInvokeMap {
   'app:getPrefs': { args: []; result: AppPrefs }
@@ -136,4 +137,12 @@ export interface AppInvokeMap {
   'app:saveDialog': { args: [SaveDialogOptions]; result: string | null }
   'app:revealPath': { args: [string]; result: void }
   'app:openExternal': { args: [string]; result: void }
+  /**
+   * The anonymous daily usage ping: its switch, whether the one-time notice
+   * was shown, and exactly what the next ping carries. Reading it also starts
+   * main's daily schedule, so a launch that never opens a window never pings.
+   */
+  'app:usagePing': { args: []; result: UsagePingSettings }
+  /** Turn the ping on or off, or record that the notice was shown. */
+  'app:setUsagePing': { args: [patch: UsagePingPatch]; result: UsagePingSettings }
 }

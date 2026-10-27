@@ -36,6 +36,7 @@ import { FeedbackModal } from '@/features/feedback/FeedbackModal'
 import { useTerminalStore } from '@/stores/terminal'
 import { attachConnectorAuthListener } from '@/stores/connectors'
 import { noticeMcpMigration } from '@/features/connectors/migrationNotice'
+import { noticeUsagePing } from '@/features/settings/usagePingNotice'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { useDraftsStore } from '@/stores/drafts'
@@ -109,6 +110,8 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     if (health?.ok) void noticeMcpMigration()
   }, [health?.ok])
+  // Announced once ever, before the first usage ping; reading it starts main's schedule.
+  useEffect(() => void noticeUsagePing(), [])
   useEffect(() => attachMachinesListener(), [])
   useEffect(() => attachRemoteLanesListener(), [])
 

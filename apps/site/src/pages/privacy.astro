@@ -1,11 +1,23 @@
 ---
 import Guide from '../layouts/Guide.astro'
 import { doc, repo } from '../lib/content'
+const ping = `POST /api/v1/usage/ping
+{
+  "v": 1,
+  "product": "desktop",
+  "version": "0.1.600",
+  "os": "darwin",
+  "arch": "arm64",
+  "first": false,
+  "newWeek": true,
+  "newMonth": false
+}`
 const sections: [string, string][] = [
   ['summary', 'In short'],
   ['site', 'This website'],
   ['downloads', 'Download counts'],
   ['app', 'The app on your computer'],
+  ['ping', 'The daily usage ping'],
   ['account', 'A Phosphor account'],
   ['services', 'Services we rely on'],
   ['delete', 'Deleting your data'],
@@ -29,6 +41,9 @@ const sections: [string, string][] = [
         This website sets no cookies and runs no analytics or third-party scripts.
       </li><li>
         Download links add one to a daily total. Nothing about who clicked is stored.
+      </li><li>
+        Phosphor Desktop sends one anonymous ping a day so we can count active installs. It carries
+        no ID, and you can turn it off.
       </li><li>
         A Phosphor account is optional. You only need one for remote access, and you can delete it
         yourself at any time.
@@ -73,6 +88,28 @@ const sections: [string, string][] = [
     <p>
       Desktop checks GitHub Releases for updates, so GitHub sees that request. Phosphor's servers
       don't.
+    </p>
+  </section>
+  <section id="ping">
+    <h2>The daily usage ping</h2>
+    <p>
+      Once a day, a few minutes after you open it, Phosphor Desktop tells this server that it is in
+      use. This is the whole message:
+    </p>
+    <pre><code>{ping}</code></pre>
+    <p>
+      That is the version, the operating system, the processor type, and whether this is the
+      install's first ping ever, this week or this month. Your computer works those three answers out
+      from the dates of its own last ping, which it keeps and never sends. There is no install ID,
+      account, machine name or anything about your work. The server adds the message to daily totals
+      for that version and platform and keeps nothing else, so no stored row is about one install.
+      It rate-limits with the same in-memory keyed hash as downloads, held for up to a day.
+    </p>
+    <p>
+      Only official release builds send it, and only after a one-time notice in the app. Turn it off
+      in <strong>Settings → Advanced → Privacy</strong>, which also shows exactly what the next ping
+      would carry, or set <code>DO_NOT_TRACK=1</code> or <code>PHOSPHOR_NO_USAGE_PING=1</code> in
+      the environment Phosphor starts in. The Host doesn't send it.
     </p>
   </section>
   <section id="account">
@@ -122,8 +159,8 @@ const sections: [string, string][] = [
     <p>
       Deleting your account removes it from Phosphor's database, along with your machines,
       authorized apps and their log. Any connected Host stops on its next check-in. Nothing on your
-      own computers is touched. Download counts aren't linked to anyone, so there's nothing in them
-      to remove.
+      own computers is touched. Download counts and usage pings aren't linked to anyone, so there's
+      nothing in them to remove.
     </p>
     <p>
       Without an account, Phosphor's servers hold nothing about you. To remove the app, uninstall

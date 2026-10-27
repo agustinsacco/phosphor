@@ -27,7 +27,7 @@ and a tab whose package vanished falls back to Extensions.
 | Workspaces     | Lane naming/markers, new-session branching, recents, sandboxes       | Phosphor prefs; layout reset clears localStorage        |
 | Optimization   | Headroom tool-result compression + the Advisor                       | Phosphor prefs; `headroom:*` lifecycle in main          |
 | Voice          | Dictation on/off and which local speech model                        | Phosphor prefs; model files in `<userData>/voice/`      |
-| Advanced       | pi health, raw config editors, maintenance, discovered resources     | the pi files it edits; maintenance prefs                |
+| Advanced       | pi health, raw config editors, maintenance, privacy, resources       | the pi files it edits; maintenance prefs                |
 | Keybindings    | Static reference sheet                                               | nothing                                                 |
 | About          | Versions, update check, pi drift warning, font licenses              | nothing                                                 |
 
@@ -509,6 +509,11 @@ privacy rules are in [voice.md](voice.md).
   "Delete automatically" is on. Interval (≥15 min) and a grace period (a merged
   lane is kept this long after its last use) are configurable. See
   [lanes.md](lanes.md#reclaiming-lanes-automatically).
+- **Privacy**: the switch for Desktop's anonymous daily usage ping, **Show
+  exactly what is sent** with the next ping's literal body, and a link to the
+  privacy page. Dimmed with the reason in a dev build or under `DO_NOT_TRACK`.
+  Desktop only; the browser renders nothing here
+  ([usage-analytics.md](usage-analytics.md#desktop)).
 - **Local pi resources**: a read-only listing of the loose extensions, prompts
   and themes pi discovered. Packages are the Extensions tab; skills have their
   own page ([ui-shell.md](ui-shell.md#global-surfaces)). `auth.json` is never

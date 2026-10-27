@@ -72,7 +72,33 @@ with any other key or value gets 400. A request carrying `Authorization` gets
 400 too, so a ping is never tied to an account. One carrying `Origin` gets 403,
 so no web page can send one. The route is not served on the app origin.
 
-Nothing in this repository sends the ping yet.
+Desktop sends it; the Host doesn't yet.
+
+### Desktop
+
+`apps/desktop/electron/usage/ping.ts` sends at most one ping per UTC day. The
+planner and sender are shared in `libs/shared/src/usage-ping.ts`.
+
+- **On unless turned off.** Settings → Advanced → Privacy holds the switch
+  and shows the next ping's exact body ([settings.md](settings.md#advanced)).
+- **Notice first.** Nothing is sent until the renderer has shown a one-time
+  notice (`noticeUsagePing`) and recorded it with `app:setUsagePing`. The notice
+  isn't shown where nothing would be sent.
+- **Never from dev, E2E or an opt-out.** Unpackaged builds,
+  `DO_NOT_TRACK` (any value but empty, `0`, `false` or `no`) and
+  `PHOSPHOR_NO_USAGE_PING` block it. No timer is set at all then.
+- **When.** The renderer's `app:usagePing` read on window load starts the
+  schedule: a first try 2–10 minutes later, then a recheck every 6 hours, so an
+  app left open over midnight counts on the new day too. A launch that never
+  opens a window never pings.
+- **What it keeps.** `usage-ping.json` in userData, apart from the renderer's
+  prefs: the switch, the notice flag, and the UTC day, ISO week and month of the
+  last counted ping. The flags are derived from these marks. The marks move only
+  on a 204, so a failed ping is retried on the next check.
+- **How it sends.** Node's `fetch` from main, not Electron's `net`, so no
+  session cookie or proxy credential can ride along. No `Authorization`,
+  `Origin` or client header, `redirect: 'error'`, a 10 s timeout, and always to
+  `DEFAULT_CONTROL_URL`.
 
 ## Abuse limits
 
