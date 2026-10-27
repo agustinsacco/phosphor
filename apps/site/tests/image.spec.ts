@@ -37,7 +37,25 @@ test('production image retains direct guide resolution, static cache policy and 
     expect(response.ok(), path).toBe(true)
     expect(response.headers()['cache-control'], path).toBe('public, max-age=31536000, immutable')
   }
+  // Download links count, then leave for the release; the redirect is fixed and uncached.
+  for (const [path, target] of [
+    ['/download/latest', 'https://github.com/agustinsacco/Phosphor/releases/latest'],
+    [
+      '/download/install-sh?next=https://example.com/',
+      'https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh',
+    ],
+  ]) {
+    const response = await request.get(path!, { maxRedirects: 0 })
+    expect(response.status(), path).toBe(302)
+    expect(response.headers().location, path).toBe(target)
+    expect(response.headers()['cache-control'], path).toBe('no-store')
+    expect(response.headers()['x-robots-tag'], path).toBe('noindex, nofollow')
+  }
+  const robots = await request.get('/robots.txt')
+  expect(await robots.text()).toContain('Disallow: /download/')
   for (const path of [
+    '/download/',
+    '/download/mac',
     '/missing-page',
     '/guides/missing/',
     '/_astro/missing.png',
