@@ -281,11 +281,6 @@ export async function runUpdate(
           context.print('already up to date')
           return 0
         }
-        if (exists(join(layout.lib, 'versions', version)))
-          throw new UpdateFailure(
-            'Version folder already exists; use update --rollback or remove it first.',
-            69,
-          )
         stage = mkdtempSync(join(layout.lib, '.staging-'))
         await stageRelease(source, stage, version, found.artifact, signal)
       }
@@ -294,6 +289,8 @@ export async function runUpdate(
       // All publication calls are synchronous. Signals abort only at the next boundary.
       if (stage) {
         const destination = join(layout.lib, 'versions', version)
+        // Newer than current, so only a rolled-back update left it: the verified bundle wins.
+        rmSync(destination, { recursive: true, force: true })
         renameSync(stage, destination)
         published = destination
         stage = undefined

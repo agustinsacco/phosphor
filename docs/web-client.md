@@ -84,11 +84,14 @@ provider-ready model choices and submission receipts. The root URL opens New;
 one ready control-capable Host is selected and pinned into the URL, while
 multiple targets require a choice. An explicit missing Host never silently
 switches. Model precedence is last valid choice, a validated native preference
-when available, then the first usable catalogue model. The model dialog
-discloses which rule chose it; no configured Host default or cross-device
-preference sync is claimed. The searchable model dialog and thinking selector
-are shared. Isolation changes are memory-only in the browser, preserving native
-preference persistence. Under the composer sit only the machine, repository and
+when available, then the first usable catalogue model. At expanded width
+(Desktop and a wide browser) the model and thinking pickers are the lane
+composer's own split chip and searchable model menu, as on This Mac's home, and
+the chip's tooltip discloses which rule chose the model. A compact phone opens a
+bounded model dialog that discloses the same, beside the shared thinking
+selector. No configured Host default or cross-device preference sync is claimed.
+Isolation changes are memory-only in the browser, preserving native preference
+persistence. Under the composer sit only the machine, repository and
 isolation row and at most one status line (a warning, missing control or
 missing repository). The composer keeps its field across reconnections to the
 same Host, locked while it waits; only the model picker restarts with a new
