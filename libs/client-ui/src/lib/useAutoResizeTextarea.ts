@@ -16,7 +16,7 @@ export const COMPOSER_MAX_HEIGHT = 240
  * Measuring `scrollHeight` instead tracks the wrapped lines.
  *
  * A ResizeObserver keeps sizing correct when the column width changes (pane
- * or window resize) without any text change.
+ * or window resize) without any text change, one frame later.
  */
 export function useAutoResizeTextarea(
   ref: RefObject<HTMLTextAreaElement | null>,
@@ -35,8 +35,18 @@ export function useAutoResizeTextarea(
     }
     resize()
 
-    const observer = new ResizeObserver(resize)
+    // Resizing the observed element inside its own callback is a resize loop
+    // the browser reports as an error (WebKit raises it as a page error), so
+    // the re-measure waits for the next frame.
+    let frame = 0
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(resize)
+    })
     observer.observe(el)
-    return () => observer.disconnect()
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
   }, [ref, text, maxHeight])
 }
