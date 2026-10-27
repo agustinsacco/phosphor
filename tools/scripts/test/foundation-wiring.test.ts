@@ -30,7 +30,7 @@ const jobCommands = {
     'npx prettier --check .',
     'node tools/scripts/size-budget.mjs check',
   ],
-  unit: ['npm ci', 'npm ci --prefix apps/site', 'npm test -- --maxWorkers=8'],
+  unit: ['npm ci', 'npm ci --prefix apps/site', '|', 'npm test -- --maxWorkers=8'],
 }
 
 const documentedCommands = [
@@ -72,6 +72,19 @@ describe('foundation CI wiring', () => {
     },
   )
 
+  it('gives only the unit suite a per-runner temp folder in RAM, cleared each run', () => {
+    // The tests' temp-file fsyncs stalled for seconds behind the shared disk's
+    // writeback. Desktop e2e keeps disk TMPDIR: gio trash refuses tmpfs.
+    const unit = job('unit')
+    const dir = '/dev/shm/phosphor-unit-$RUNNER_NAME'
+    const setup = unit.indexOf(`echo "TMPDIR=${dir}" >> "$GITHUB_ENV"`)
+    expect(setup).toBeGreaterThan(-1)
+    expect(unit).toContain(`rm -rf "${dir}"\n          mkdir -m 700 "${dir}"`)
+    expect(setup).toBeLessThan(unit.indexOf('run: npm test -- --maxWorkers=8'))
+    for (const other of ['e2e', 'checks', 'web-e2e', 'control-schema', 'site'])
+      expect(job(other)).not.toContain('/dev/shm')
+  })
+
   it('runs the whole unit suite in one job', () => {
     expect(job('unit')).not.toContain('--shard')
     expect(workflow).not.toContain('tools/scripts/unit-gate.mjs')
@@ -89,6 +102,35 @@ describe('foundation CI wiring', () => {
     const image = read('apps/control/Dockerfile')
     expect(image).toContain('RUN node apps/control/scripts/build.mjs')
     expect(image).toContain('npm run build --prefix apps/web')
+  })
+
+  it('runs one local Supabase stack per machine, from start to stop', () => {
+    // Fixed project id and ports on one shared Docker daemon: two stacks at
+    // once tear each other down.
+    const control = job('control-schema')
+    const lock = control.indexOf('flock 9')
+    expect(control).toContain('exec 9> /tmp/phosphor-control-supabase.lock')
+    expect(lock).toBeGreaterThan(-1)
+    const leftovers = control.indexOf('npm run db:stop --silent > /dev/null 2>&1 || true')
+    const start = control.indexOf('npm run db:start')
+    expect(leftovers).toBeGreaterThan(lock)
+    expect(start).toBeGreaterThan(leftovers)
+    expect(control.slice(lock, start)).toMatch(/trap '.*npm run db:stop.*' EXIT/)
+    for (const suite of ['test:control-db', 'test:auth-stack', 'test:control-stack'])
+      expect(control.indexOf(`npm run ${suite}`)).toBeGreaterThan(start)
+    expect(control.match(/^ {6}- name: /gm)).toHaveLength(2)
+  })
+
+  it("installs from the runners' own npm and Electron caches, never a restored archive", () => {
+    // ~/.npm and ~/.cache/electron persist on the self-hosted runners and are
+    // shared by them; restoring a 2 GB archive into them wrote ~4 GB per job.
+    expect(workflow).not.toContain('cache: npm')
+    expect(workflow).not.toContain('cache-dependency-path')
+    expect(workflow).not.toContain('actions/cache@')
+  })
+
+  it('sizes the Web build heap explicitly rather than from the runner cgroup', () => {
+    expect(job('web-e2e')).toContain('NODE_OPTIONS: --max-old-space-size=4096')
   })
 
   it('warms Electron up before the Desktop suite on Linux', () => {
