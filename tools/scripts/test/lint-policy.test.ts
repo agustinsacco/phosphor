@@ -22,6 +22,12 @@ async function severity(file: string, rule: string) {
 }
 
 describe('eslint policy', () => {
+  // Loading the config, plugins and parser is a one-off cost the first lint
+  // pays; on a loaded CI machine it alone outran a test's 5 s budget.
+  beforeAll(async () => {
+    await eslint.lintText('', { filePath: rendererCaller })
+  }, 60_000)
+
   it('preserves the existing renderer prompt error and Host boundary errors', async () => {
     expect(await messages('window.prompt("name")', rendererCaller, 'no-restricted-syntax')).toEqual(
       [expect.objectContaining({ severity: 2 })],
