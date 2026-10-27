@@ -17,5 +17,11 @@ export function mockSessionMaintenance(
     if (index !== -1) sessions.splice(index, 1)
     return Promise.resolve(args[1] ? [args[1]] : [])
   }
+  if (channel === 'sessions:worktreeRecovery')
+    return Promise.resolve({
+      editedFiles: [],
+      editedFileCount: 0,
+      fresh: { base: 'origin/main', branch: 'phosphor/mock-lane' },
+    })
   return Promise.resolve(channel === 'sessions:retainedWorkspaces' ? [] : undefined)
 }
