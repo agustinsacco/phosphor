@@ -55,6 +55,10 @@
     "./repository-management": {
       "types": "./src/repository-management.ts",
       "default": "./src/repository-management.ts"
+    },
+    "./terminals/terminals": {
+      "types": "./src/terminals/terminals.ts",
+      "default": "./src/terminals/terminals.ts"
     }
   },
   "dependencies": {

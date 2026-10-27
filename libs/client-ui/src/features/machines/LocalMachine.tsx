@@ -5,6 +5,7 @@ import { Button } from '@/components/form'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useSessionsStore } from '@/stores/sessions'
 import { Card, CheckRow, Fact, Facts, Skeleton, StatusPill, type CheckItem } from './MachineUi'
+import { MachineTerminal } from './MachineTerminal'
 import { localMachineLabel, PI_INSTALL, platformName } from './machinePresentation'
 
 /** Each read is `undefined` until it settles; a settled read can still be empty. */
@@ -158,6 +159,7 @@ export function LocalMachineDetail({ computer }: { computer: Computer }): React.
           )}
         </Card>
       </div>
+      <MachineTerminal hostId="local" label={label} />
     </div>
   )
 }

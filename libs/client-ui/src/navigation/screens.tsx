@@ -114,7 +114,7 @@ export const SCREENS = {
     title: 'Terminal',
     scope: 'both',
     expanded: 'pane',
-    compact: { notYet: 'Terminals are available in Desktop.' },
+    compact: 'pane',
   },
 } satisfies Record<Page | LanePane | 'lanes' | 'new' | 'inbox', Screen>
 

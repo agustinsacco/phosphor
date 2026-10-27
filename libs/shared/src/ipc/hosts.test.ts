@@ -61,6 +61,10 @@ export interface BaselineHostsInvokeMap {
     result: MachineSettings
   }
   'hosts:machineTask': { args: [hostId: string, task: MachineTaskOp]; result: { ptyId: string } }
+  'hosts:machineShell': {
+    args: [hostId: string, cols: number, rows: number]
+    result: { ptyId: string }
+  }
 
   'hosts:uploadAttachments': {
     args: [sessionId: string, files: { name: string; mime: string; data: string }[]]

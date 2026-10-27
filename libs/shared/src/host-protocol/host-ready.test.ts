@@ -115,4 +115,12 @@ describe('host-ready.ts parseReadyFrame', () => {
     })
     expect(parseReadyFrame({ ...READY, hello, capabilities: ['routines'] })).toBeNull()
   })
+
+  it('carries the additive machineShell marker only as a boolean', () => {
+    expect(parseReadyFrame({ ...READY, machineShell: true })).toStrictEqual({
+      ...READY,
+      machineShell: true,
+    })
+    expect(parseReadyFrame({ ...READY, machineShell: 'yes' })).toBeNull()
+  })
 })
