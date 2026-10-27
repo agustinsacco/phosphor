@@ -2,14 +2,15 @@ import { splitGrant } from '@shared/host-grant'
 import { machineSettings } from '../hosts/settings'
 import type { createHostManager } from '../hosts/manager'
 import type { createGrants } from '../hosts/grants'
-import type { createRemoteTerminals } from '../hosts/terminals'
+import type { createRemoteTerminals } from '@phosphor/host-client/terminals/terminals'
+import { ptyManager } from '../pty/pty-manager'
 import { handle } from './handle'
 
 /** Feature-only registrars, leaving the deferred Host runtime/router refactor untouched. */
 export function registerHostSettingsHandlers(
   manager: Pick<ReturnType<typeof createHostManager>, 'connection' | 'reconnect'>,
   grants: Pick<ReturnType<typeof createGrants>, 'configure' | 'grantFor'>,
-  terminals: Pick<ReturnType<typeof createRemoteTerminals>, 'task' | 'signIn'>,
+  terminals: Pick<ReturnType<typeof createRemoteTerminals>, 'task' | 'signIn' | 'shell'>,
 ): void {
   const settings = machineSettings(manager.connection)
   handle('hosts:providerLogin', (event, hostId, provider, account) =>
@@ -43,5 +44,10 @@ export function registerHostSettingsHandlers(
   )
   handle('hosts:machineTask', (event, hostId, task) =>
     terminals.task(event.sender.id, hostId, task),
+  )
+  handle('hosts:machineShell', (event, hostId, cols, rows) =>
+    hostId === 'local'
+      ? ptyManager.createHome(cols, rows)
+      : terminals.shell(event.sender.id, hostId, cols, rows),
   )
 }

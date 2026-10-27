@@ -9,8 +9,22 @@
 // prompt; a missed one strands users on an old build.
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
-import { ALL_PROJECTS } from './ci-selection.mjs'
 
+// Every registered Nx project; nx-affected.test.ts keeps it complete.
+export const ALL_PROJECTS = [
+  'client-ui',
+  'web',
+  'control',
+  'desktop',
+  'host',
+  'host-client',
+  'pi-extensions',
+  'runtime',
+  'schema',
+  'shared',
+  'site',
+  'tooling',
+]
 const sha = (value) => /^[a-f0-9]{40}$/.test(value ?? '')
 const execute = (command, args) =>
   execFileSync(command, args, {

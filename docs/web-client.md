@@ -61,8 +61,11 @@ Host's current folders is listed, lanes or not, with a Folder options menu:
 Add folder on MACHINE…, Remove from MACHINE, Move up and Move down
 (`hosts:removeRepository`, `hosts:orderRepositories`), the same rows as
 Desktop's sidebar, gated on readiness and `workspaces.write`. The Inbox, which
-lists only folders with unread lanes, has no folder menu. Native terminals, file editing, provider
-installation/login and native settings are unavailable. Attention is in-app
+lists only folders with unread lanes, has no folder menu. Host terminals work:
+lane shells and the Machine page's shell
+([terminal.md](terminal.md#machine-shells)), plus plain provider sign-in. File
+editing, provider installation, account configuration and native settings are
+unavailable. Attention is in-app
 only, not OS push.
 
 `PageShell` owns each page's single heading, actions and close behavior;

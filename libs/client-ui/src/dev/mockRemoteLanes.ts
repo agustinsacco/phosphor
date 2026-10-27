@@ -84,6 +84,7 @@ export function mixedRemoteHosts(): HostsSnapshot {
     'terminal',
   )
   base.configurationSupported = true
+  base.machineShell = true
   for (const lane of base.lanes)
     lane.control.controller = { self: true, label: 'This Desktop', connected: true }
   const ids = [

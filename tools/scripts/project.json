@@ -33,7 +33,7 @@
       "cache": false,
       "inputs": ["workspace"],
       "options": {
-        "command": "eslint .",
+        "command": "eslint . && oxlint --type-aware .",
         "cwd": "."
       },
       "outputs": []

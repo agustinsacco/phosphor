@@ -79,6 +79,7 @@ const baselineScope = {
   'hosts:settingsPatch': 'app',
   'hosts:settingsCheck': 'app',
   'hosts:machineTask': 'app',
+  'hosts:machineShell': 'app',
   'hosts:claudeAccount': 'app',
   'hosts:uploadAttachments': 'app',
   'hosts:snapshot': 'app',

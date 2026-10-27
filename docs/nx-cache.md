@@ -2,8 +2,7 @@
 
 All targets are explicitly **uncached**, including lint, typecheck, unit and
 unsigned Desktop compilation. `nx:run-commands` defaults to `cache: false`.
-CI never skips a check because of affected projects; it logs a shadow report
-beside the full checks. Affected does gate one thing: the Desktop release (see
+CI never skips a check because of affected projects. Affected does gate one thing: the Desktop release (see
 [Per-app releases and deploys](#per-app-releases-and-deploys)). The original npm
 commands and full validator do not depend on Nx.
 
@@ -40,7 +39,7 @@ files it consumes. That is what makes affected mean something per app:
 
 Root `package.json`, `package-lock.json` and `nx.json` still select every
 project (Nx's own rule for dependency and workspace configuration changes). The
-measured per-file matrix lives in `tools/scripts/ci-selection.test.ts`.
+measured per-file matrix lives in `tools/scripts/nx-affected.test.ts`.
 Ignored or checkout-external mutable inputs are not a complete cache contract.
 
 Lint and typecheck declare `outputs: []`: ESLint uses no disk cache and
@@ -72,26 +71,15 @@ rebuild, install, interactive, probe, provider, package, sign, release and deplo
 operations are never cache candidates here. No node_modules, credentials,
 session/pi/browser homes or DB data are cache outputs.
 
-## Shadow CI selection
+## What CI selects
 
-The checks job fetches full history and logs actual HEAD, base and OSS Nx projects.
-No report controls skipping: the checks, schema and site jobs and every OS
-shard remain mandatory behind the single required `CI result` job, and workflow edits select only `tooling`.
-So any future skipping must run everything when `tooling` is affected. Equal
-base/head is a shadow no-op only.
+Nothing by project: every CI job runs on every push, behind the single required
+`CI result` job, and workflow edits select only `tooling`. The one cut is by
+platform: a PR runs only the `@macos` Desktop e2e tests on macOS, and main runs
+them all ([testing.md](testing.md#ci-boundary)). Any future skipping must run
+everything when `tooling` is affected.
 
-Same-repository PRs verify main base and PR head ancestry against the checkout.
-Main pushes search successful completed CI push/main runs in the same repository,
-excluding the current run and requiring an available ancestor commit. Failed main
-runs do not advance the baseline. The read-only search checks at most 300 runs
-(three pages), with ten-second request timeouts. Exhaustion proves nothing about
-older runs.
-
-Forks, merge groups, unsupported events, checkout mismatches, shallow/missing
-history and API/Nx/parse failures fall back to all projects. Rollback removes the
-shadow step/helper, leaving full uncached checks and release/deployment unchanged.
-
-The Control → Desktop test edge participates in the per-file shadow matrix,
+The Control → Desktop test edge participates in the per-file matrix,
 including explicit cases for `gotrue.ts` and `loopback.ts`. It conservatively
 selects Control and its Web consumer for any Desktop edit. The edge changes no
 production boundary, does not enable caching and does not start the isolated stack test.

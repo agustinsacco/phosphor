@@ -2372,6 +2372,7 @@ export function installMockPhosphor(): void {
         case 'sessions:watch':
         case 'sessions:unwatch':
           return Promise.resolve(undefined)
+        case 'hosts:machineShell':
         case 'pty:create': {
           const ptyId = 'mock-pty-' + Math.random().toString(36).slice(2, 8)
           setTimeout(() => {
@@ -2381,8 +2382,7 @@ export function installMockPhosphor(): void {
         }
         case 'pty:write': {
           const [ptyId, data] = args as [string, string]
-          const echo = data.replace(/\r/g, '\r\n$ ')
-          for (const l of ptyListeners.get(ptyId) ?? []) l(echo)
+          for (const l of ptyListeners.get(ptyId) ?? []) l(data.replace(/\r/g, '\r\n$ '))
           return Promise.resolve(undefined)
         }
         case 'pty:attach':

@@ -37,6 +37,7 @@ import {
 import { isArtifactWriteTool } from '@/lib/artifactTools'
 import { useLayoutStore } from './layout'
 import { lanePrefs } from './lanePrefs'
+import { cleanupInFlight, trackCleanup } from './sessionCleanup'
 import { ipcErrorText } from '@shared/errors'
 
 /**
@@ -605,14 +606,13 @@ function markSuspended(diskPath: string): void {
 const settles = createSettleTracker()
 
 /**
- * Drop everything the renderer holds for a session whose process is gone.
- *
- * Session-scoped side state: kill its PTYs, drop its artifacts, and clear
- * its extension UI. Lazy imports keep this store free of load-order
- * cycles; AWAITED so the cleanup cannot outlive the caller (fire-and-forget
- * raced test teardown, and would equally race app shutdown).
+ * Drop a gone session's renderer state: PTYs, artifacts, extension UI. Lazy
+ * imports keep this store free of load-order cycles. Callers await it, since a
+ * fire-and-forget cleanup raced test teardown and app shutdown, and adoption
+ * under the same id waits for it (sessionCleanup.ts).
  */
-async function cleanupLocalSessionState(sessionId: string): Promise<void> {
+const cleanupLocalSessionState = (id: string) => trackCleanup(id, () => dropSessionState(id))
+async function dropSessionState(sessionId: string): Promise<void> {
   // Before any await, so a cleanup that fails partway still releases it and
   // a session re-adopted under this id is not throttled by its predecessor.
   commandsRefreshedAt.delete(sessionId)
@@ -1144,13 +1144,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   adoptSession: async (sessionId, workspacePath, diskPath, info) => {
+    const cleanup = cleanupInFlight(sessionId)
+    if (cleanup) await cleanup
     if (get().live[sessionId]) return
     useChatStore.getState().ensure(sessionId, { resuming: true })
     attachSessionPushHandler(sessionId)
     set((s) => ({
-      // diskPath only when the caller already knows it; `bootstrapSession`'s
-      // `get_state` is what supplies it for a reload re-adoption, and resume
-      // matching waits on that round trip.
+      // diskPath only when the caller knows it; a reload re-adoption gets it from
+      // `bootstrapSession`'s `get_state`, and resume matching waits on that.
       live: {
         ...s.live,
         [sessionId]: {
@@ -1164,8 +1165,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       unread: { ...s.unread, [sessionId]: 0 },
     }))
     try {
-      // Works for both cases: a resumed orchestrator replays its history, a
-      // freshly spawned one simply has none.
+      // A resumed lane replays its history; a freshly spawned one has none.
       await rehydrateTranscript(sessionId)
     } catch {
       // non-fatal

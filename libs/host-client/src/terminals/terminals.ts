@@ -14,9 +14,9 @@ import {
   parseTerminalOp,
   TERMINAL_LIMITS,
   terminalBytes,
-} from '@shared/host-protocol-terminals'
-import type { IpcInvokeChannel } from '@shared/ipc'
-import { REMOTE_UNAVAILABLE } from './lane-ops'
+} from '@phosphor/shared/host-protocol-terminals'
+import type { IpcInvokeChannel } from '@phosphor/shared/ipc'
+import { REMOTE_UNAVAILABLE } from '../lane-ops'
 
 /** Main owns identities and input sequencing. Input never enters the receipt replay queue. */
 export function createRemoteTerminals(ports: {
@@ -24,6 +24,8 @@ export function createRemoteTerminals(ports: {
   lane: (windowId: number, sessionId: string, workspace: string) => TerminalLane
   clientId: () => string | null
   inputDropped?: () => void
+  /** Desktop main: an attach timeout must not keep the process alive. */
+  unrefTimer?: (timer: ReturnType<typeof setTimeout>) => void
   emit: (windowId: number, channel: string, value: string | number) => void
 }) {
   const entries = new Map<string, Entry>()
@@ -242,7 +244,7 @@ export function createRemoteTerminals(ports: {
         dropPending(e)
         reject(new Error('Terminal unavailable.'))
       }, 5000)
-      timer.unref()
+      ports.unrefTimer?.(timer)
       const watch = (e.watch = e.lane.connection.watchTerminal(e.terminalId, (frame) => {
         if (closed || !valid(e)) return
         if (frame.type === 'subscribe-failed') {
@@ -406,13 +408,14 @@ export function createRemoteTerminals(ports: {
   return {
     signIn: programs.signIn,
     task: programs.task,
+    shell: programs.shell,
     reconcile,
     clear(windowId?: number) {
       for (const a of admissions)
         if (windowId === undefined || a.windowId === windowId) a.cancelled = true
       for (const e of entries.values())
         if (windowId === undefined || e.windowId === windowId) {
-          if (e.lane.machine && !e.ended) {
+          if (e.lane.machine && !e.lane.shell && !e.ended) {
             e.killing = true
             e.watch?.close()
             e.watch = undefined

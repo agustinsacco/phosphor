@@ -7,6 +7,7 @@ import type { createBrowserResources } from './resources'
 import type { createBrowserPreferences } from './preferences'
 import { staticArtifactPreview } from './preview'
 import type { createBrowserDrafts } from './drafts'
+import type { createBrowserTerminals } from './terminals'
 
 export type BrowserHandlers = {
   [C in WebSupportedChannel]: (
@@ -33,12 +34,35 @@ function folderHandlers(folders: ReturnType<typeof createBrowserResources>['fold
     'hosts:orderRepositories': folders.order,
   } satisfies Partial<BrowserHandlers>
 }
+/** Host shells: lane terminals, the Machine page's shell and provider sign-in. */
+function terminalHandlers(terminals: ReturnType<typeof createBrowserTerminals>['handlers']) {
+  return {
+    'pty:create': (...args) => terminals['pty:create'](...args),
+    'pty:attach': (...args) => terminals['pty:attach'](...args),
+    'pty:write': (...args) => terminals['pty:write'](...args),
+    'pty:resize': (...args) => terminals['pty:resize'](...args),
+    'pty:kill': (...args) => terminals['pty:kill'](...args),
+    'hosts:machineShell': (...args) => terminals['hosts:machineShell'](...args),
+    'hosts:providerLogin': (...args) => terminals['hosts:providerLogin'](...args),
+  } satisfies Partial<BrowserHandlers>
+}
+/** Cross-tab delivery cannot prevent local logout. */
+function signOut(control: BrowserControl, broadcast: () => void) {
+  const result = control.signOut()
+  try {
+    broadcast()
+  } catch {
+    // Local invalidation still takes effect if the browser channel is unavailable.
+  }
+  return result
+}
 export function createBrowserHandlers(ports: {
   control: BrowserControl
   hosts: BrowserHosts
   lanes: RemoteLanes
   window: () => RemoteWindow
   resources: ReturnType<typeof createBrowserResources>
+  terminals: ReturnType<typeof createBrowserTerminals>['handlers']
   prefs: ReturnType<typeof createBrowserPreferences>
   drafts: ReturnType<typeof createBrowserDrafts>
   openExternal: (url: string) => void
@@ -59,15 +83,7 @@ export function createBrowserHandlers(ports: {
   return {
     'account:get': control.view,
     'account:signIn': control.signIn,
-    'account:signOut': () => {
-      const result = control.signOut()
-      try {
-        ports.broadcastLogout()
-      } catch {
-        /* Cross-tab delivery cannot prevent local logout. */
-      }
-      return result
-    },
+    'account:signOut': () => signOut(control, ports.broadcastLogout),
     'control:machines': hosts.refresh,
     'control:lookupEnrollment': control.lookup,
     'control:approveEnrollment': (code, label) => directoryMutation(control.approve(code, label)),
@@ -75,6 +91,7 @@ export function createBrowserHandlers(ports: {
     'control:removeMachine': (id) => directoryMutation(control.remove(id)),
     ...machineHandlers(resources.machines),
     ...folderHandlers(resources.folders),
+    ...terminalHandlers(ports.terminals),
     'gh:prsForRepo': resources.repositories.pullRequests,
     'hosts:repositoryFiles': resources.repositories.list,
     'hosts:repositoryFile': resources.repositories.read,
