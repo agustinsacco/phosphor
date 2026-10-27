@@ -11,7 +11,12 @@
     "src/remote-lanes.ts::createRemoteLanes[1]/command[1]": 94,
     "src/requests.ts::createRequests[1]": 130,
     "src/routines.test.ts::setup[1]": 82,
-    "src/routines.test.ts::it[8]": 81
+    "src/routines.test.ts::it[8]": 81,
+    "src/terminals/terminals.test.ts::file": 1066,
+    "src/terminals/terminals.test.ts::setup[1]": 222,
+    "src/terminals/terminals.ts::file": 454,
+    "src/terminals/terminals.ts::createRemoteTerminals[1]": 433,
+    "src/terminals/terminals.ts::createRemoteTerminals[1]/write[1]": 81
   },
   "exemptions": [],
   "renames": {}

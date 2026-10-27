@@ -3,6 +3,7 @@ import type { HostSettingsState } from './useHostSettings'
 
 import { MachineHostPolicy, MachineModelDefaults } from './MachineAgentSections'
 import { useMachineAgentSettings } from './useMachineAgentSettings'
+import { MachineAgentBehavior } from './MachineAgentBehavior'
 export function MachineAgentSettings({
   hostId,
   label,
@@ -44,6 +45,13 @@ export function MachineAgentSettings({
         </div>
       )}
       <MachineModelDefaults controller={controller} label={label} settings={settings} />
+      {settings.data?.agentBehaviorSupported ? (
+        <MachineAgentBehavior controller={controller} label={label} />
+      ) : (
+        <p className="text-text-secondary text-base">
+          Update this Host to configure compaction, retry and message delivery.
+        </p>
+      )}
       {!repositoryId && <MachineHostPolicy controller={controller} label={label} />}
     </div>
   )

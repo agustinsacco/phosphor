@@ -66,20 +66,22 @@ the machine name. This Mac's Context budget preference never caps that meter.
 banner names the execution machine. Nothing copies settings or credentials between
 machines, falls back to This Mac, or queues writes while disconnected. Overview
 continues to own reachability, reconnect, readiness, traffic logging and removal.
+Editing is currently Desktop-only. The browser/mobile client shows an explicit
+Desktop-required explanation rather than substituting local settings.
 
 Configuration requires an explicit **Enable configuration access** action and a
 signed `machine.configure` grant. Normal lane control does not imply this grant.
 Older Hosts show an upgrade explanation instead of unsupported controls. Offline
 and failed reads are unavailable states, not empty settings.
 
-| Section             | Owner and behavior                                                                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Providers           | Host provider status, supported private CLI sign-in, separate Claude provider/CLI installation, isolated Claude accounts, routing, usage and associated lanes |
-| Connectors          | pi's global or registered-folder MCP configuration, curated/custom connectors, enablement, private authentication and explicitly reviewed status checks       |
-| Agent defaults      | pi model/thinking defaults; separate Host context-budget and automatic-naming policy                                                                          |
-| Folders             | Existing Host browse/register/unregister controls and an explicit pi trust review, subject to the Host's repository-change policy                             |
-| Skills & extensions | Host package inventory and reviewed machine-scoped npm install/update/remove; the machine-filtered Skills page remains read-only                              |
-| Advanced            | Read-only Host paths, platform and environment-name diagnostics, never environment values or a remote raw-JSON editor                                         |
+| Section             | Owner and behavior                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Providers           | Host provider status, supported private CLI sign-in, separate Claude provider/CLI installation, isolated Claude accounts, routing, usage and associated lanes        |
+| Connectors          | pi's global or registered-folder MCP configuration, curated/custom connectors, enablement, private authentication and explicitly reviewed status checks              |
+| Agent defaults      | pi model/thinking, compaction, retry, thinking visibility and message delivery; separate Host context-budget and automatic-naming policy                             |
+| Folders             | Existing Host browse/register/unregister controls and an explicit pi trust review, subject to the Host's repository-change policy                                    |
+| Skills & extensions | Headless-safe default catalogue, package inventory/resource counts and reviewed npm install/repair/update/remove; the machine-filtered Skills page remains read-only |
+| Advanced            | Read-only Host paths, platform and environment-name diagnostics, never environment values or a remote raw-JSON editor                                                |
 
 Claude uses the same account routing, cooldowns and transcript bindings as
 Desktop. Credentials stay in the Host's Claude credential store. Reauthentication
@@ -109,6 +111,18 @@ anything; a changed server revision blocks saving until they are discarded.
 Tab, scope, back and refresh controls confirm discarding edits. Saving one form
 rebases its acknowledged fields without discarding other dirty fields. Host
 policy and pi defaults are separate commits, not an atomic multi-file save.
+
+The standard Host extensions are the Claude Code provider, Swarm subagents and
+web access, offered with consent during guided setup. Missing packages have
+one-click reviewed install/repair actions; computer use is not provisioned on
+headless Hosts. Existing pins and resource filters are shown, not silently reset.
+
+Agent defaults include compaction/retry parameters, thinking visibility and
+steering/follow-up delivery. The same pi settings apply to native and Claude
+providers. A failed model catalogue can be retried; configured custom model ids
+and thinking-only changes do not require a catalogue match. Folder editors show
+their own overrides, not materialized machine defaults. Unknown nested settings
+are retained on save.
 
 New lanes read pi defaults and resources; existing lanes are not silently
 restarted. Folder editors keep saved values visible before trust, clearly marked

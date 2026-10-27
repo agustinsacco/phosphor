@@ -21,6 +21,13 @@ async function readResources(state: SettingsContext, cwd?: string) {
         version: p.version,
         installed: p.installed,
         scope: p.scope,
+        filtered: p.filtered,
+        contents: {
+          extensions: p.resources.extensions.length,
+          skills: p.resources.skills.length,
+          prompts: p.resources.prompts.length,
+          themes: p.resources.themes.length,
+        },
       })),
     },
   }

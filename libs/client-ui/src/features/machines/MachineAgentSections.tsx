@@ -5,6 +5,7 @@ import { Card, Skeleton } from './MachineUi'
 import type { HostSettingsState } from './useHostSettings'
 
 import type { MachineAgentController } from './useMachineAgentSettings'
+import { HostCustomModel } from './HostCustomModel'
 export function MachineModelDefaults({
   controller,
   label,
@@ -57,11 +58,7 @@ export function MachineModelDefaults({
             </select>
           )}
         </label>
-        {catalogueFailed && (
-          <p role="alert" className="text-warning text-base">
-            Could not read {label}’s model catalogue. No local models are substituted.
-          </p>
-        )}
+        <HostCustomModel controller={controller} label={label} />
         <label className="block text-base">
           Thinking level
           <select
@@ -77,7 +74,7 @@ export function MachineModelDefaults({
           </select>
         </label>
         <div className="flex justify-end">
-          <Button disabled={busy || !knownModel} onClick={() => void saveModel()}>
+          <Button disabled={busy || !controller.validModel} onClick={() => void saveModel()}>
             {settings.saving ? 'Saving…' : 'Review model defaults'}
           </Button>
         </div>

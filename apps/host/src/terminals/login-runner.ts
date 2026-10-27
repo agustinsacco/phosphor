@@ -4,7 +4,7 @@ import type { runInTerminal, TerminalRun } from '../machine/terminal'
 import { createEntry, type TerminalState, type Entry } from './service-state'
 import { kill } from './lifecycle'
 import { output } from './output'
-import { TerminalForbidden } from './operations'
+import { createMachineShell, TerminalForbidden } from './operations'
 
 export function machineOp(
   state: TerminalState,
@@ -13,8 +13,19 @@ export function machineOp(
   configuration = false,
 ) {
   const { entries } = state
-  if (state.closed || op.type === 'terminal.create') throw new TerminalForbidden('forbidden')
+  if (state.closed) throw new TerminalForbidden('forbidden')
+  if (op.type === 'terminal.create') return createMachineShell(state, op)
   const entry = entries.get(op.terminalId)
+  // Machine shells are shared by every client with control; the router checked those caps.
+  if (entry?.machine) {
+    if (op.type === 'terminal.resize') entry.pty?.resize(op.cols, op.rows)
+    else {
+      kill(state, entry)
+      entries.delete(entry.terminalId)
+      entry.listeners.clear()
+    }
+    return null
+  }
   if (
     !entry?.login ||
     entry.login.owner !== owner ||

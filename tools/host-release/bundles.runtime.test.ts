@@ -16,6 +16,20 @@ import {
   installPrepared,
   setupBundleFixture,
 } from './__fixtures__/bundle-fixture'
+/** The resumable terminal flow is already provisioned, so it must not prompt or install code. */
+function installHostDefaults(machine: ReturnType<typeof fakeMachine>) {
+  machine.installClaude()
+  const names = ['@saccolabs/pi-claude-cli', 'pi-subagents', 'pi-web-access']
+  for (const name of names.slice(1)) {
+    const directory = join(machine.agentDir, 'npm/node_modules', name)
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+  }
+  writeFileSync(
+    join(machine.agentDir, 'settings.json'),
+    JSON.stringify({ packages: names.map((name) => `npm:${name}`) }),
+  )
+}
 let fixture: BundleFixture
 beforeAll(() => {
   fixture = setupBundleFixture()
@@ -94,7 +108,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it('runs the terminal install command and guided setup against local control, then resumes safely', async () => {
     const control = await controlMachine()
     const machine = fakeMachine()
-    machine.installClaude()
+    installHostDefaults(machine)
     control.setCreation({ expiresAt: new Date(Date.now() + 600000).toISOString() })
     const fetch = control.context.fetch
     if (!fetch) throw new Error('fixture fetch')
