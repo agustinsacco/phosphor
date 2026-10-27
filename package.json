@@ -71,6 +71,7 @@
     "url": "git+https://github.com/agustinsacco/Phosphor.git"
   },
   "devDependencies": {
+    "@clack/prompts": "1.7.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.3",

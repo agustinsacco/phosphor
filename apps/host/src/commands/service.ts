@@ -21,7 +21,7 @@ import {
   serviceExitPath,
 } from '../machine/launchd'
 import { hostLogDirectory } from '../machine/log'
-import { renderStatus, runStatus } from './status'
+import { renderStatus, runStatus, type StatusReport } from './status'
 import type { RunContext } from './run'
 import { serviceProgram } from '../update/layout'
 
@@ -45,6 +45,13 @@ export interface ServiceContext extends RunContext {
     write?: typeof writeServiceUnit
     remove?: typeof removeServiceUnit
   }
+  /** A terminal shows the control plane's status itself; without this status prints its text. */
+  status?: (report: StatusReport) => void
+}
+/** service status ends with what the control plane knows of this machine. */
+function showControlStatus(context: ServiceContext, report: StatusReport): void {
+  if (context.status) context.status(report)
+  else context.print(renderStatus(report).trimEnd())
 }
 async function runServiceCommand(
   context: ServiceContext,
@@ -184,7 +191,7 @@ async function runServiceCommand(
         `Linger: ${linger.code !== 0 ? 'unknown' : linger.stdout.trim() === 'yes' ? 'on' : 'off'}`,
       )
       const status = await runStatus(context)
-      context.print(renderStatus(status.report).trimEnd())
+      showControlStatus(context, status.report)
       return status.exitCode
     }
     context.print('The service command could not finish.')
@@ -296,7 +303,7 @@ async function runLaunchdService(
     if (result.code !== 0) return fail('The service state could not be read.')
     for (const line of launchdStatusLines(result.stdout)) context.print(line)
     const status = await runStatus(context)
-    context.print(renderStatus(status.report).trimEnd())
+    showControlStatus(context, status.report)
     return status.exitCode
   } catch (error) {
     if (error instanceof IdentityFailure) {

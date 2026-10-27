@@ -6,6 +6,8 @@ import { runLogin } from './commands/login'
 import { runLogout } from './commands/logout'
 import { renderStatus, runStatus } from './commands/status'
 import { createHostLog, hostLogDirectory, type HostLog } from './machine/log'
+import { screenControl, screenService } from './cli-screens-control'
+import { screenFor } from './ui/screen'
 
 /** A command's abort signal, and the call that marks the command ended. */
 export interface CommandLifetime {
@@ -60,7 +62,7 @@ export function controlLog(context: Pick<CliContext, 'env' | 'home'>): HostLog {
 }
 
 /** What run, service and the control commands share: ports, log, config, signal and printer. */
-function controlContext(
+export function controlContext(
   options: CliOptions,
   context: CliContext,
   log: HostLog,
@@ -102,6 +104,10 @@ export async function handleService(
   io: CliIo,
   context: CliContext,
 ): Promise<number> {
+  // logs streams journalctl as it is; the other actions draw a screen.
+  const { action } = command
+  const screen = screenFor(context.rich)
+  if (screen && action !== 'logs') return screenService({ ...command, action }, screen, context)
   const log = controlLog(context)
   const lifetime = commandLifetime(context, 'The service command could not finish.')
   const run = controlContext(command.options, context, log, lifetime.signal, printLine(io))
@@ -118,6 +124,8 @@ export async function handleControl(
   io: CliIo,
   context: CliContext,
 ): Promise<number> {
+  const screen = screenFor(context.rich, command.options.json)
+  if (screen) return screenControl(command, screen, context)
   const log = controlLog(context)
   const lifetime = commandLifetime(context, 'The control command could not finish.')
   const print = (line: string) => io.stdout(`${line}\n`)

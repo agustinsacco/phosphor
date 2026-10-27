@@ -42,11 +42,12 @@ it.each([0, 1])(
       ],
       setupTerminal: { confirm: async () => false, run },
     })
-    expect(run).toHaveBeenCalledWith(process.execPath, [
-      machine.pi,
-      'update',
-      'npm:@saccolabs/pi-claude-cli',
-    ])
+    // 'task': the provider update needs no input, so a terminal may show it as a log.
+    expect(run).toHaveBeenCalledWith(
+      process.execPath,
+      [machine.pi, 'update', 'npm:@saccolabs/pi-claude-cli'],
+      'task',
+    )
     expect(print.mock.calls.flat().join('')).toBe(
       code === 0
         ? ''

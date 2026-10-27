@@ -83,6 +83,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   vi.restoreAllMocks()
   for (const restore of restores.splice(0).reverse()) restore()
 })
@@ -184,7 +185,8 @@ describe('the Host entry CLI call', () => {
   it('describes the machine and roots resources beside the entry module', async () => {
     override(process, 'getuid', () => 501)
     await importMain({ stdin: true, stdout: true })
-    expect(cliCall().context).toEqual({
+    const { rich: _rich, ...context } = cliCall().context
+    expect(context).toEqual({
       env: process.env,
       platform: process.platform,
       uid: 501,
@@ -196,6 +198,27 @@ describe('the Host entry CLI call', () => {
       terminal: true,
     })
     expect(cliCall().context.env).toBe(process.env)
+  })
+
+  it.each([
+    [{}, true],
+    [{ CI: 'true' }, false],
+    [{ PHOSPHOR_PLAIN: '1' }, false],
+  ])('on a terminal with %o, draws a screen: %s', async (env, drawn) => {
+    for (const name of ['CI', 'GITHUB_ACTIONS', 'PHOSPHOR_PLAIN', 'TERM'])
+      vi.stubEnv(name, undefined)
+    for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value)
+    await importMain({ stdin: true, stdout: true })
+    const { rich } = cliCall().context
+    if (!drawn) return expect(rich).toBeUndefined()
+    expect(rich).toMatchObject({ input: process.stdin, output: process.stdout, animate: true })
+  })
+
+  it('draws no screen when either end is not a terminal', async () => {
+    vi.stubEnv('CI', undefined)
+    vi.stubEnv('GITHUB_ACTIONS', undefined)
+    await importMain({ stdin: true, stdout: false })
+    expect(cliCall().context.rich).toBeUndefined()
   })
 
   it('passes no uid where the platform has no getuid', async () => {
