@@ -91,6 +91,27 @@ describe('foundation CI wiring', () => {
     expect(image).toContain('npm run build --prefix apps/web')
   })
 
+  it('runs one local Supabase stack per machine, from start to stop', () => {
+    // Fixed project id and ports on one shared Docker daemon: two stacks at
+    // once tear each other down.
+    const control = job('control-schema')
+    const lock = control.indexOf('flock 9')
+    expect(control).toContain('exec 9> /tmp/phosphor-control-supabase.lock')
+    expect(lock).toBeGreaterThan(-1)
+    const leftovers = control.indexOf('npm run db:stop --silent > /dev/null 2>&1 || true')
+    const start = control.indexOf('npm run db:start')
+    expect(leftovers).toBeGreaterThan(lock)
+    expect(start).toBeGreaterThan(leftovers)
+    expect(control.slice(lock, start)).toMatch(/trap '.*npm run db:stop.*' EXIT/)
+    for (const suite of ['test:control-db', 'test:auth-stack', 'test:control-stack'])
+      expect(control.indexOf(`npm run ${suite}`)).toBeGreaterThan(start)
+    expect(control.match(/^ {6}- name: /gm)).toHaveLength(2)
+  })
+
+  it('sizes the Web build heap explicitly rather than from the runner cgroup', () => {
+    expect(job('web-e2e')).toContain('NODE_OPTIONS: --max-old-space-size=4096')
+  })
+
   it('warms Electron up before the Desktop suite on Linux', () => {
     expect(read('apps/desktop/playwright.config.ts')).toContain("globalSetup: './e2e/warm-up.ts'")
     const warmUp = read('apps/desktop/e2e/warm-up.ts')
