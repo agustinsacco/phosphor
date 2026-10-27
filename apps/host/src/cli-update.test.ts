@@ -5,6 +5,8 @@ const fixtures: ReturnType<typeof fixture>[] = []
 function setup() {
   const f = fixture()
   fixtures.push(f)
+  // Not the Host unit, even run from a Host terminal: that would hand every update off.
+  f.context.update = { ...f.context.update, cgroup: () => '0::/user.slice/test.scope\n' }
   return f
 }
 afterEach(() => {
