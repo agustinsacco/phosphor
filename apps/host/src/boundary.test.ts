@@ -23,6 +23,12 @@ function assertPackageImport(specifier: string | undefined, file: string, suppor
     if (!file.startsWith(join(src, 'api') + '/')) throw new Error('ws is only allowed in Host api/')
     return
   }
+  // The terminal screen is the one place that draws with Clack; commands stay plain.
+  if (specifier === '@clack/prompts') {
+    if (!file.startsWith(join(src, 'ui') + '/'))
+      throw new Error('@clack/prompts is only allowed in Host ui/')
+    return
+  }
   // Tests may use their runner, and esbuild to bundle a module for a child
   // process (state-dir's umask case); neither reaches the Host bundle.
   expect(
@@ -37,6 +43,14 @@ describe('Host import boundary', () => {
       'ws is only allowed in Host api/',
     )
     expect(() => assertPackageImport('ws', join(src, 'api/server.ts'), false)).not.toThrow()
+  })
+  it('refuses Clack outside the terminal screen', () => {
+    expect(() =>
+      assertPackageImport('@clack/prompts', join(src, 'commands/doctor.ts'), false),
+    ).toThrow('@clack/prompts is only allowed in Host ui/')
+    expect(() =>
+      assertPackageImport('@clack/prompts', join(src, 'ui/screen.ts'), false),
+    ).not.toThrow()
   })
   it('reaches the libraries only through exported subpaths, and nothing else outside Node', () => {
     expect(files.length).toBeGreaterThan(10)
