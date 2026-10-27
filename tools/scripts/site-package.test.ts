@@ -34,7 +34,8 @@ describe('independent apps/site package contract', () => {
     const ci = read('.github/workflows/ci.yml')
     const deploy = read('.github/workflows/deploy-site.yml')
     const script = read('tools/scripts/site-image.sh')
-    expect(ci).toContain('cache-dependency-path: apps/site/package-lock.json')
+    // Installed from the runners' persistent npm cache, against the site's own lock.
+    expect(ci).not.toContain('cache-dependency-path')
     expect(ci).toContain('working-directory: apps/site')
     expect(ci).toContain('bash tools/scripts/site-image.sh')
     expect(ci).toContain('path: apps/site/test-results/')
