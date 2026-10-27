@@ -15,6 +15,12 @@ and machine state through signed heartbeats.
 - `GET /api/v1/me`: authenticated account handle, enabled flag and host limit.
   It calls `control_account` to upsert the account and refresh its GitHub login.
   Suspended accounts can still read this route.
+- `DELETE /api/v1/me`: deletes the caller's account, returning 204 with no body.
+  `control_account_delete` removes the Supabase user, and every directory row
+  cascades with it: account state, Hosts, clients, enrollments, grant sessions and
+  audit events, plus Supabase's identities and sessions. Each of its Hosts hears
+  `gone` on its next heartbeat and stops. A missing account returns 404. Suspended
+  accounts can still delete themselves. The anonymous usage counters are untouched.
 - `POST /api/v1/enrollments`: key-signed enrollment creation. The signed key must
   match the body key. Codes expire after ten minutes and only their SHA-256
   hashes are stored. Code collisions retry at most three times.
@@ -45,6 +51,10 @@ and machine state through signed heartbeats.
   `session_id`. Issuance is limited to 120 per minute per user.
 - `GET /api/v1/grant-keys`: public `{keys: [{kid, publicKey}]}`. Raw Ed25519 public
   keys are base64url. This route alone uses `public, max-age=300` caching.
+- `POST /api/v1/usage/ping` and `GET /download/:artifact`: anonymous usage and
+  download counters, owned by [Usage analytics](usage-analytics.md).
+- `GET /api/v1/admin/stats`: the owner's aggregate summary, served only to a
+  browser session on the app origin ([Usage analytics](usage-analytics.md#admin-summary)).
 
 Every user route except `/me` checks account suspension and refuses it with 403.
 Key conflicts and the per-account active Host limit return 409. All request and
@@ -126,9 +136,11 @@ edge secrets or peer error messages. [Tracing a machine](remote-development.md#t
 lists the events and their correlation rules.
 
 Rate limits are sliding windows held per purpose, the key prefix before the
-first colon. Each of the eight purposes (`enrollment-create`, `enrollment-poll-ip`,
+first colon. Each of the eleven purposes (`enrollment-create`, `enrollment-poll-ip`,
 `enrollment-poll`, `enrollment-failure`, `user-verify`, `host-auth`,
-`grant-issue`, `client-register`) has its own 10,000-key cap, 80,000 keys in all.
+`grant-issue`, `client-register`, `usage-ping`, `usage-download`, `admin-read`) has
+its own 10,000-key cap, 110,000 keys in all. The two usage purposes never answer 429:
+an over-limit request is answered normally and not counted.
 At capacity a purpose sweeps its expired windows and refuses new keys with 429
 rather than evicting live windows. Saturating one purpose never refuses another,
 so an unauthenticated enrollment flood cannot spend the capacity of user
@@ -340,6 +352,10 @@ physical-device acceptance.
 - `remote_audit_events`: owner, Host, event kind and time for enrollment,
   rename, owner revocation and self-revocation. No labels or IPs are recorded.
 
+The anonymous counters `usage_daily` and `usage_downloads`, and the one-row
+`control_private.admins`, belong to [Usage analytics](usage-analytics.md#schema).
+None of them references a user, Host or client.
+
 All tables have row-level security. Authenticated users can read their own
 account state. Enabled owners can read their host, client and audit rows,
 including revoked entries. Anonymous roles have no table access. Enrollment
@@ -350,7 +366,9 @@ functions for account refresh, enrollment create/poll/lookup/approve, machine
 list/rename/revoke and Host key/self/self-revoke/heartbeat, client registration and
 revocation, grant issuance and revocation lookup. These functions use an empty
 search path. They are security invokers except the revocation lookup described in
-[Grants and revocation](#grants-and-revocation). Both client roles and `public`
+[Grants and revocation](#grants-and-revocation), account deletion, and the admin
+check described in [Usage analytics](usage-analytics.md#admin-summary). Each of
+those three runs one fixed statement over ids the server has already verified. Both client roles and `public`
 lose execute privileges, including on the timestamp and MachineView helpers
 in the non-exposed `control_private` schema. The server separately authenticates
 requests and checks account suspension. RLS is not its authorization boundary.
@@ -372,8 +390,8 @@ is not an execution grant. Endpoint storage validation is not network authorizat
 
 There are no prompts, filesystem paths, transcripts, artifacts, private keys or
 provider credentials in these tables. Public keys identify Hosts only. Lane
-counts do not contain lane data. Account deletion cascades through its directory
-records only, not remote files. Applying a migration does not install an agent,
+counts do not contain lane data. Account deletion (`DELETE /api/v1/me`) cascades
+through its directory records only, not remote files. Applying a migration does not install an agent,
 enable signup, or expose any execution service.
 
 Hosted migration work requires explicit target verification and reconciliation
@@ -529,6 +547,8 @@ wrong Origin are refused too.
   `{clients: [{id, label, kind, revokedAt}]}`, at most 100 rows, active first.
   It also works for native bearer callers. `DELETE /api/v1/clients/:id` retains
   its owner-only behavior and can revoke another device.
+- `DELETE /api/v1/me` deletes the account like the native route, then answers with
+  a single cookie clear in place of the re-sealed session.
 - Browser requests cannot POST client registration or substitute a different
   `clientId` in `POST /api/v1/grants`. Use the id from `/api/auth/session` with
   the existing `{hostId, clientId}` grant API. Grant sid is extracted from the

@@ -76,6 +76,18 @@ export { parseClientRegisterRequest, parseClientRegisterResponse } from './contr
 export { parseGrantIssueRequest, parseGrantIssueResponse } from './control-api/grants'
 export { parseHostRevocations } from './control-api/grants'
 
+export { DOWNLOAD_ARTIFACTS, DOWNLOAD_PATH_PREFIX, USAGE_PRODUCTS } from './control-api/usage'
+export { ADMIN_BREAKDOWN_ROWS, ADMIN_SERIES_DAYS } from './control-api/usage'
+export {
+  downloadPath,
+  isReleaseVersion,
+  parseAdminStats,
+  parseUsagePing,
+} from './control-api/usage'
+export type { AdminPlatformRow, AdminSeriesDay, AdminStats } from './control-api/usage'
+export type { AdminVersionRow, DownloadArtifact, UsagePing } from './control-api/usage'
+export type { UsageProduct, UsageTotals } from './control-api/usage'
+
 export { isControlErrorCode, parseControlError, parseHealthResponse } from './control-api/status'
 export { machineStatus } from './control-api/status'
 export type { MachineStatus } from './control-api/status'

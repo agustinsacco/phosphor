@@ -31,6 +31,8 @@ describe('control wire constants', () => {
       hostSelf: '/api/v1/hosts/self',
       hostHeartbeat: '/api/v1/hosts/self/heartbeat',
       hostRevoke: '/api/v1/hosts/self/revoke',
+      usagePing: '/api/v1/usage/ping',
+      adminStats: '/api/v1/admin/stats',
     })
     expect(machineRoute('m1')).toBe('/api/v1/machines/m1')
   })

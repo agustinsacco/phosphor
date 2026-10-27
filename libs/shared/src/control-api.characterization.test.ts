@@ -43,20 +43,22 @@ import type {
 
 // Every runtime export, grouped by kind.
 const RUNTIME_EXPORTS = {
-  object:
-    'ARCHES CONTROL_ERROR_STATUS CONTROL_LIMITS CONTROL_ROUTES CONTROL_TRACE_HEADERS HOST_HEADERS PLATFORMS',
-  string: 'CONTROL_API_PREFIX DEFAULT_CONTROL_URL HOST_SIGNATURE_SCHEME USER_CODE_ALPHABET',
-  number: 'CONTROL_API_VERSION USER_CODE_LENGTH',
-  function: `formatKeyFingerprint formatUserCode hostSigningString isControlClient isControlErrorCode
-    isControlTrace isEndpoint isHostname isIsoTime isKeyFingerprint isNonce isPublicKey isSha256Hex
-    isSignature isUuid isVersion machineRoute machineStatus normalizeLabel normalizeUserCode
-    parseClientRegisterRequest parseClientRegisterResponse parseControlError
+  object: `ARCHES CONTROL_ERROR_STATUS CONTROL_LIMITS CONTROL_ROUTES CONTROL_TRACE_HEADERS
+    DOWNLOAD_ARTIFACTS HOST_HEADERS PLATFORMS USAGE_PRODUCTS`,
+  string: `CONTROL_API_PREFIX DEFAULT_CONTROL_URL DOWNLOAD_PATH_PREFIX
+    HOST_SIGNATURE_SCHEME USER_CODE_ALPHABET`,
+  number: 'ADMIN_BREAKDOWN_ROWS ADMIN_SERIES_DAYS CONTROL_API_VERSION USER_CODE_LENGTH',
+  function: `downloadPath formatKeyFingerprint formatUserCode hostSigningString isControlClient
+    isControlErrorCode isControlTrace isEndpoint isHostname isIsoTime isKeyFingerprint isNonce isPublicKey isReleaseVersion
+    isSha256Hex isSignature isUuid isVersion machineRoute machineStatus normalizeLabel normalizeUserCode
+    parseAdminStats parseClientRegisterRequest parseClientRegisterResponse parseControlError
     parseEnrollmentApproveRequest parseEnrollmentApproveResponse parseEnrollmentCreateRequest
     parseEnrollmentCreateResponse parseEnrollmentLookupRequest parseEnrollmentLookupResponse
     parseEnrollmentPollRequest parseEnrollmentPollResponse parseGrantIssueRequest
     parseGrantIssueResponse parseHealthResponse parseHeartbeatRequest parseHeartbeatResponse
     parseHostRevocations parseHostSelfResponse parseMachineRenameRequest parseMachineView
-    parseMachinesResponse parseMeResponse parseTimestamp userCodeFromBytes withinSkew`,
+    parseMachinesResponse parseMeResponse parseTimestamp parseUsagePing userCodeFromBytes
+    withinSkew`,
 }
 
 const ID = '0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00'
@@ -70,7 +72,7 @@ describe('public inventory', () => {
     const kinds = Object.entries(RUNTIME_EXPORTS).flatMap(([kind, names]) =>
       names.split(/\s+/).map((name) => [name, kind]),
     )
-    expect(kinds).toHaveLength(58)
+    expect(kinds).toHaveLength(67)
     expect(
       Object.fromEntries(
         Object.keys(api).map((name) => [name, typeof api[name as keyof typeof api]]),
@@ -115,6 +117,8 @@ describe('public inventory', () => {
       'hostSelf',
       'hostHeartbeat',
       'hostRevoke',
+      'usagePing',
+      'adminStats',
     ])
     expect(api.HOST_SIGNATURE_SCHEME).toBe('phosphor-host-v1')
     expect(Object.entries(api.HOST_HEADERS)).toEqual([

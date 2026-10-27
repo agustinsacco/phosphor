@@ -7,6 +7,7 @@ import Command from '../components/Command.astro'
 import {
   connectors,
   doc,
+  download,
   guides,
   packages,
   piDoc,
@@ -481,13 +482,13 @@ import {
         <li>
           <span class="mono">2 / Phosphor · macOS and Linux</span>
           <Command
-            cmd={`curl -fsSL ${releases}/latest/download/install.sh | sh`}
+            cmd={download.install}
             label="Install Phosphor on macOS or Linux"
           />
         </li>
       </ol>
       <p class="fineprint">
-        On Windows, run the .exe from the <a class="text-link" href={`${releases}/latest`}
+        On Windows, run the .exe from the <a class="text-link" href={download.latest} rel="nofollow"
           >latest release</a
         >. The script checks release checksums, but it’s still a script piped into your shell, so <a
           class="text-link"
@@ -497,7 +498,8 @@ import {
       <div class="source-line">
         <a class="action action-primary" href="/guides/">Full install guide →</a><a
           class="text-link"
-          href={`${releases}/latest`}>Download the latest release ↗</a
+          href={download.latest}
+          rel="nofollow">Download the latest release ↗</a
         >
       </div>
       <div class="guide-grid">

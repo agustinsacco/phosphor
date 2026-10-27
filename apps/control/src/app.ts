@@ -21,11 +21,13 @@ import type { NonceCache, RateLimiter } from './limits'
 import type { Supabase } from './supabase'
 import { serveStatic } from './static'
 import { health } from './routes/health'
-import { me } from './routes/me'
+import { deleteMe, me } from './routes/me'
 import { enrollments } from './routes/enrollments'
 import { machines } from './routes/machines'
 import { hosts, hostAuthentication } from './routes/hosts'
 import { grants } from './routes/grants'
+import { usage } from './routes/usage'
+import { admin } from './routes/admin'
 
 export interface AppDeps {
   config: Config
@@ -40,7 +42,7 @@ export interface AppDeps {
 }
 const routeMethods: Record<string, readonly string[]> = {
   [CONTROL_ROUTES.health]: ['GET'],
-  [CONTROL_ROUTES.me]: ['GET'],
+  [CONTROL_ROUTES.me]: ['GET', 'DELETE'],
   [CONTROL_ROUTES.enrollments]: ['POST'],
   [CONTROL_ROUTES.enrollmentPoll]: ['POST'],
   [CONTROL_ROUTES.enrollmentLookup]: ['POST'],
@@ -56,6 +58,16 @@ const routeMethods: Record<string, readonly string[]> = {
   [CONTROL_ROUTES.hostSelf]: ['GET'],
   [CONTROL_ROUTES.hostHeartbeat]: ['POST'],
   [CONTROL_ROUTES.hostRevoke]: ['POST'],
+  [CONTROL_ROUTES.usagePing]: ['POST'],
+  [CONTROL_ROUTES.adminStats]: ['GET'],
+}
+/** The methods a registered API path takes; undefined for a path no route owns. */
+function allowedMethods(path: string): readonly string[] | undefined {
+  const child = (parent: string) =>
+    path.startsWith(parent + '/') && path.slice(parent.length + 1).split('/').length === 1
+  if (child(CONTROL_ROUTES.machines)) return ['PATCH', 'DELETE']
+  if (child(CONTROL_ROUTES.clients)) return ['DELETE']
+  return routeMethods[path]
 }
 export function createApp(deps: AppDeps) {
   const app = new Hono<Env>()
@@ -102,14 +114,7 @@ export function createApp(deps: AppDeps) {
     }
     if (!deps.config.configured && c.req.path !== CONTROL_ROUTES.health)
       throw new ControlFailure('unavailable')
-    const allowed =
-      c.req.path.startsWith(CONTROL_ROUTES.machines + '/') &&
-      c.req.path.slice(CONTROL_ROUTES.machines.length + 1).split('/').length === 1
-        ? ['PATCH', 'DELETE']
-        : c.req.path.startsWith(CONTROL_ROUTES.clients + '/') &&
-            c.req.path.slice(CONTROL_ROUTES.clients.length + 1).split('/').length === 1
-          ? ['DELETE']
-          : routeMethods[c.req.path]
+    const allowed = allowedMethods(c.req.path)
     if (c.req.method === 'OPTIONS' || (allowed && !allowed.includes(c.req.method))) {
       c.header('Allow', (allowed ?? ['GET']).join(', '))
       throw new ControlFailure('bad-request', 405)
@@ -126,10 +131,16 @@ export function createApp(deps: AppDeps) {
   }
   const hostAuth = hostAuthentication(deps)
   app.get(CONTROL_ROUTES.me, me(auth, deps.supabase))
+  app.delete(
+    CONTROL_ROUTES.me,
+    deleteMe(auth, deps.supabase, events, (c) => browser?.signedOut(c)),
+  )
   enrollments(app, deps, auth, hostAuth, events)
   machines(app, deps, auth, events)
   hosts(app, deps, hostAuth, events)
   grants(app, deps, auth, events)
+  usage(app, deps, events)
+  admin(app, deps, auth, events)
   app.all('/*', (c) => {
     if (c.req.path.startsWith('/api/')) throw new ControlFailure('not-found')
     return serveStatic(
