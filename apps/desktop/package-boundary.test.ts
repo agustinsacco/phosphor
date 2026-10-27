@@ -82,7 +82,7 @@ describe('Desktop application and native install boundary', () => {
       packages: Record<string, { version: string }>
     }
     expect(readFileSync(join(electron, 'dist/version'), 'utf8').trim()).toBe(
-      lock.packages['node_modules/electron'].version,
+      lock.packages['node_modules/electron']?.version,
     )
     expect(lstatSync(join(electron, 'dist', executable)).isFile()).toBe(true)
     const require = createRequire(join(app, 'package.json'))
