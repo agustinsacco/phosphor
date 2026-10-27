@@ -108,6 +108,14 @@ describe('foundation CI wiring', () => {
     expect(control.match(/^ {6}- name: /gm)).toHaveLength(2)
   })
 
+  it("installs from the runners' own npm and Electron caches, never a restored archive", () => {
+    // ~/.npm and ~/.cache/electron persist on the self-hosted runners and are
+    // shared by them; restoring a 2 GB archive into them wrote ~4 GB per job.
+    expect(workflow).not.toContain('cache: npm')
+    expect(workflow).not.toContain('cache-dependency-path')
+    expect(workflow).not.toContain('actions/cache@')
+  })
+
   it('sizes the Web build heap explicitly rather than from the runner cgroup', () => {
     expect(job('web-e2e')).toContain('NODE_OPTIONS: --max-old-space-size=4096')
   })
