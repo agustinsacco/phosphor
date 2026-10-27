@@ -179,10 +179,18 @@ describe('explicit Nx project contract', () => {
     const require = createRequire(import.meta.url)
     const nxRequire = createRequire(require.resolve('nx/package.json'))
     expect(readJson('package.json').overrides).toEqual({
-      'nx@23.2.1': { axios: '1.20.0', 'brace-expansion': '5.0.12', 'smol-toml': '1.9.0' },
+      'nx@23.2.1': {
+        axios: '1.20.0',
+        'brace-expansion': '5.0.12',
+        'follow-redirects': '1.16.2',
+        'smol-toml': '1.9.0',
+      },
+      katex: '$katex',
     })
     const axios = nxRequire('axios')
     expect(axios.VERSION).toBe('1.20.0')
+    const axiosRequire = createRequire(nxRequire.resolve('axios'))
+    expect(axiosRequire('follow-redirects/package.json').version).toBe('1.16.2')
     expect(axios.getUri({ url: '/graph', params: { project: 'desktop' } })).toBe(
       '/graph?project=desktop',
     )

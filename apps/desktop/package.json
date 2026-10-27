@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
-    "electron": "^43.2.0",
+    "electron": "^43.8.3",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "app-builder-lib": "26.15.3"
@@ -51,9 +51,9 @@
     "cron-parser": "^5.10.1",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.8.9",
-    "katex": "^0.18.1",
+    "katex": "0.18.10",
     "luxon": "^3.7.2",
-    "mermaid": "^11.16.0",
+    "mermaid": "^11.17.2",
     "monaco-editor": "^0.53.0",
     "node-pty": "^1.1.0",
     "react": "^19.2.8",
@@ -71,5 +71,8 @@
   },
   "nx": {
     "includedScripts": []
+  },
+  "overrides": {
+    "katex": "$katex"
   }
 }

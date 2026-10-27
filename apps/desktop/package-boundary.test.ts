@@ -78,7 +78,12 @@ describe('Desktop application and native install boundary', () => {
     // Filesystem-only check must precede any lazy Electron executable lookup.
     const electron = join(app, 'node_modules/electron')
     const executable = readFileSync(join(electron, 'path.txt'), 'utf8').trim()
-    expect(readFileSync(join(electron, 'dist/version'), 'utf8').trim()).toBe('43.2.0')
+    const lock = JSON.parse(readFileSync(join(app, 'package-lock.json'), 'utf8')) as {
+      packages: Record<string, { version: string }>
+    }
+    expect(readFileSync(join(electron, 'dist/version'), 'utf8').trim()).toBe(
+      lock.packages['node_modules/electron']?.version,
+    )
     expect(lstatSync(join(electron, 'dist', executable)).isFile()).toBe(true)
     const require = createRequire(join(app, 'package.json'))
     for (const dependency of ['electron', 'node-pty']) {

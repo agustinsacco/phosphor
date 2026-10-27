@@ -358,9 +358,12 @@ Foundation and freeze suites already use the new layout.
 ### Nx task orchestration
 
 Core Nx is pinned to `23.2.1`. Nx-scoped security overrides pin `axios` to
-`1.20.0`, `brace-expansion` to `5.0.12` and `smol-toml` to `1.9.0`, overriding
-upstream's exact vulnerable pins. Remove these overrides when a tested upstream
-release fixes them. npm also hoists the `brace-expansion` security patch from
+`1.20.0`, `brace-expansion` to `5.0.12`, `follow-redirects` to `1.16.2` and
+`smol-toml` to `1.9.0`, overriding upstream's exact vulnerable pins. Remove these
+overrides when a tested upstream release fixes them. A separate `katex: "$katex"`
+override, in the root and Desktop manifests, makes mermaid and rehype-katex use
+the app's patched KaTeX instead of their own `^0.16` copies, so the rendered
+markup matches the stylesheet the app imports. npm also hoists the `brace-expansion` security patch from
 `5.0.9` to `5.0.12` for existing root `minimatch` consumers (ESLint and
 app-builder-lib); this is the sole pre-existing dependency resolution change.
 Older nested packaging dependencies still have baseline audit findings; the

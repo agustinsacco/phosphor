@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'node:path'
+import { rendererPlugins } from './renderer-plugins'
 
 /**
  * Browser-only renderer dev server (`npm run dev:web`).
@@ -12,11 +11,12 @@ import { resolve } from 'node:path'
  * Tailwind and no path aliases. This mirrors the `renderer` block there so the
  * mock-API harness documented in AGENTS.md actually renders.
  *
- * Keep the alias and plugin list in sync with electron.vite.config.ts.
+ * Keep the aliases in sync with electron.vite.config.ts; both take their
+ * plugins from `renderer-plugins.ts`.
  */
 export default defineConfig({
   root: resolve(import.meta.dirname, 'src'),
-  plugins: [react(), tailwindcss()],
+  plugins: rendererPlugins(),
   resolve: {
     dedupe: ['react', 'react-dom', 'zustand', 'luxon', 'cron-parser'],
     alias: {
