@@ -328,7 +328,8 @@ even before a Host is enrolled. This Mac is the default when a window opens and 
 selection is not persisted. Add machine opens the existing Machines add flow.
 All machines lists local repository groups first, followed by labelled Hosts.
 
-Connected Hosts show repository-grouped lanes with running, new and needs-you
+Connected Hosts show repository-grouped lanes, newest first within each folder
+(a lane you just created is at the top, as a new local session is), with running, new and needs-you
 signals from their existing summaries (`working`, `attention > read`, and
 `needs-input` or `failed`). Local activity uses streaming chat state, unseen
 session markers/unread counts, pending extension dialogs and chat errors.
