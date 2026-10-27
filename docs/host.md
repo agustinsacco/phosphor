@@ -156,10 +156,16 @@ are terminals:
    An existing confirmed identity is kept.
 5. Install and start the user service unless it is already installed and running.
 6. Enable the Tailscale Serve route, keeping an existing correct route, and show its address.
-7. Offer Claude setup if needed: Anthropic's installer for missing Claude Code,
+7. With approval, install the standard headless-safe pi packages: the Claude Code
+   provider (`@saccolabs/pi-claude-cli`), Swarm subagents (`pi-subagents`) and web
+   access (`pi-web-access`). Already installed packages, pins and resource filters
+   are left alone; missing installations retain their configured spec on repair.
+   Computer use is not included. A declined install can be completed later from
+   Machine Settings → Skills & extensions, or by rerunning setup.
+8. Offer Claude setup if needed: Anthropic's installer for missing Claude Code,
    `pi install npm:@saccolabs/pi-claude-cli` for a missing or outdated provider,
    and interactive `claude` sign-in when needed. Each command needs approval.
-8. Show configured folders, or how to add one from Desktop.
+9. Show configured folders, or how to add one from Desktop.
 
 The terminal output is one aligned checklist and a final ready or fix line.
 Prompts read one line and default to Yes. Without a terminal, a prompt never
@@ -646,9 +652,14 @@ use the Host's pi agent directory. Folder scope resolves a registered repository
 id, verifies its realpath identity, and applies only when pi trusts that folder.
 Registration itself is not trust or a filesystem sandbox.
 
-Settings commits read bounded owned regular files without following final
-symlinks, preserve unrelated fields, check the revision and current authorization,
-and rename an exclusive private temporary file atomically. Repository management
+Settings reads accept owner-controlled pi configuration created with a normal
+002 umask (664 files / 775 directories); credentials and Host identity retain their
+separate private-file requirements. World-writable files/directories, foreign
+owners, hard links and final symlinks are refused. Commits read bounded regular
+files, preserve unrelated fields (including nested compaction/retry settings),
+check the revision and current authorization, and atomically rename an exclusive
+0600 temporary file. Folder agent editors show only that folder's overrides,
+not a merged copy of machine defaults. Repository management
 shares their process-local lock. This is not a cross-process compare-and-swap.
 A lost response can mean the edit applied; clients must inspect rather than replay
 it automatically. Host policy and pi defaults are separate file commits.
@@ -1637,7 +1648,8 @@ must match `--target`. Native resources and the license are included in BUILD-IN
 and signed archive hashes. The macOS spawn helper has mode 0755 in the archive.
 Linux uses node-pty's fork path and does not need the macOS helper.
 
-`terminal.list {laneId}` returns identities and status, never paths. Receipt-backed
+`terminal.list {laneId}` returns identities and status, never paths; `terminal.list {}`
+lists machine shells, whose `laneId` is empty. Receipt-backed
 `terminal.create`, `terminal.resize` and `terminal.kill` require `terminal`,
 `sessions.control`, and the current lane fence. Queued terminal operations recheck
 both capabilities when execution starts and after directory admission, before PTY
@@ -1651,6 +1663,15 @@ Client disconnects leave PTYs running. Lane removal kills them within one second
 even without a connected client. Host shutdown kills them; after restart, retained
 identities are `interrupted`. Only identities and status persist in private Host
 state. Input and scrollback never reach disk. A routine never types into a terminal.
+
+A machine shell is `terminal.create` with no lane and no fence. A Host that
+announces `terminal` sets `machineShell: true` in `ready`. The shell is the
+account's login shell in its home folder, with the same environment and `TERM`
+as a lane shell. Admission, queued start and dispatch require `terminal` and
+`sessions.control`. Any such client may watch, type, resize or kill it: it has no
+lane controller and no owner. Machine shells share the per-lane limit as one
+scope, count toward the Host limit, are never persisted and do not survive a
+Host restart.
 
 A terminal sends one `terminal.exit`. A process that ends by itself reports its
 own exit code. One the Host ends (kill, lane removal, shutdown, or a provider

@@ -47,6 +47,7 @@ export function parseReadyFrame(
     !label(v.client.label) ||
     !capabilities(v.capabilities) ||
     (v.settings !== undefined && typeof v.settings !== 'boolean') ||
+    (v.machineShell !== undefined && typeof v.machineShell !== 'boolean') ||
     !v.capabilities.every((c) => h.hello.capabilities.includes(c))
   )
     return null
@@ -60,5 +61,6 @@ export function parseReadyFrame(
     client: { id: v.client.id, label: v.client.label },
     capabilities: v.capabilities,
     ...(v.settings !== undefined ? { settings: v.settings as boolean } : {}),
+    ...(v.machineShell !== undefined ? { machineShell: v.machineShell as boolean } : {}),
   }
 }

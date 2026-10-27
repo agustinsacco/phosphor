@@ -24,6 +24,8 @@ export async function withSettingsFileLock<T>(path: string, run: () => Promise<T
     if (locks.get(path) === pending) locks.delete(path)
   }
 }
+/** Pi config follows the user's umask (often 002); unlike credentials it need not be 0600.
+ * Ownership, no links, bounded reads and no world-writes remain mandatory. */
 export function settingsFile(path: string): { raw: Record<string, unknown>; revision: string } {
   let bytes: Buffer = Buffer.alloc(0)
   try {
@@ -34,12 +36,12 @@ export function settingsFile(path: string): { raw: Record<string, unknown>; revi
         !stat.isFile() ||
         stat.nlink !== 1 ||
         stat.size > 64 * 1024 ||
-        (stat.mode & 0o022) !== 0 ||
+        (stat.mode & 0o002) !== 0 ||
         (process.getuid && stat.uid !== process.getuid())
       )
         throw new SettingsFailure(
           'forbidden',
-          'Settings file is not a private, owned regular file.',
+          'Settings must be an owned regular file, not a link or world-writable file.',
         )
       const bounded = Buffer.alloc(64 * 1024 + 1)
       let count = 0
@@ -86,7 +88,7 @@ export async function saveSettingsFile(
   if (
     !directory.isDirectory() ||
     directory.isSymbolicLink() ||
-    (directory.mode & 0o022) !== 0 ||
+    (directory.mode & 0o002) !== 0 ||
     (process.getuid && directory.uid !== process.getuid())
   )
     throw new SettingsFailure('forbidden', 'Settings directory is not safe to modify.')

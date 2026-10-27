@@ -70,6 +70,8 @@ export type HostFrame =
       readonly client: { readonly id: string; readonly label: string }
       /** Additive support marker; legacy grants keep their original capabilities. */
       readonly settings?: boolean
+      /** Additive support marker: `terminal.create` without a lane opens a machine shell. */
+      readonly machineShell?: boolean
       /** Effective capabilities for this connection. */
       readonly capabilities: readonly HostCapability[]
     }

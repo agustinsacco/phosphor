@@ -53,6 +53,11 @@ export interface HostsInvokeMap {
     result: MachineSettings
   }
   'hosts:machineTask': { args: [hostId: string, task: MachineTaskOp]; result: { ptyId: string } }
+  /** The Host account's shell in its home folder; reattaches to a running one. */
+  'hosts:machineShell': {
+    args: [hostId: string, cols: number, rows: number]
+    result: { ptyId: string }
+  }
   'hosts:uploadAttachments': {
     args: [sessionId: string, files: { name: string; mime: string; data: string }[]]
     result: string[]

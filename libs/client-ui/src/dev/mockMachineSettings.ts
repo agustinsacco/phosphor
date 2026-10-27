@@ -23,6 +23,7 @@ export function mockSettingsRead(
     value = {
       section,
       revision: '',
+      ...(section === 'agent' ? { agentBehaviorSupported: true } : {}),
       ...(repositoryId ? { repositoryId } : {}),
       [section]: samples[section],
     }

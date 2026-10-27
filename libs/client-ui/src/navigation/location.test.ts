@@ -43,6 +43,7 @@ describe('Location codec', () => {
       expect(screen.expanded).toBeTruthy()
       expect(typeof screen.compact === 'string' || screen.compact.notYet.length > 0).toBe(true)
     }
-    expect(SCREENS.terminal.compact.notYet).toContain('Desktop')
+    // Host shells reach the browser over the Host connection.
+    expect(SCREENS.terminal.compact).toBe('pane')
   })
 })
