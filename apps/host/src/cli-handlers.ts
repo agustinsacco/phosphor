@@ -10,6 +10,7 @@ import type { ServiceContext } from './commands/service'
 import { runTailscale } from './commands/tailscale'
 import { runUninstall } from './commands/uninstall'
 import { runUpdate, type UpdateContext } from './commands/update'
+import { handOffFromHost } from './update/handoff'
 import { defaultConfigPath } from './config/load'
 import type { ControlContext } from './control/command'
 import { installHostPath } from './machine/shell-path'
@@ -111,7 +112,7 @@ export async function handleInstall(
   }
   const exitCode =
     command.name === 'update'
-      ? await runUpdate(install, options)
+      ? ((await handOffFromHost(install, options)) ?? (await runUpdate(install, options)))
       : await runUninstall(install, options.purge, options.yes)
   io.stdout(
     options.json ? `${JSON.stringify({ exitCode, messages })}\n` : messages.join('\n') + '\n',
