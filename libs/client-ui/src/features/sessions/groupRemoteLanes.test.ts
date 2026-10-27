@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { groupRemoteLanes } from './groupRemoteLanes'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 
-it('preserves repository and per-repository lane order without mutating the snapshot', () => {
+it('preserves repository order and snapshot order for lanes created together, without mutating it', () => {
   const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
   const base = host.lanes[0]!
   host.repositories.push({ id: 'second', name: 'Another folder', path: '/second' })
@@ -31,6 +31,32 @@ it('preserves repository and per-repository lane order without mutating the snap
   expect(groups.map((group) => group.available)).toEqual([true, true, false, false])
   expect(groups.flatMap((group) => group.lanes)).toHaveLength(host.lanes.length)
   expect(host).toEqual(original)
+})
+
+it('puts the newest lane at the top of its repository, as Desktop does for sessions', () => {
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  const base = host.lanes[0]!
+  // The Host lists lanes oldest first (`ORDER BY created_at`), and a lane
+  // created during the session arrives as a delta appended at the end.
+  host.lanes = [
+    { ...base, laneId: 'oldest', createdAt: '2026-10-01T10:00:00.000Z' },
+    { ...base, laneId: 'middle', createdAt: '2026-10-02T10:00:00.000Z' },
+    { ...base, laneId: 'unparsable', createdAt: 'not a date' },
+    { ...base, laneId: 'newest', createdAt: '2026-10-03T10:00:00.000Z' },
+  ]
+  const [group] = groupRemoteLanes(host.repositories, host.lanes)
+  expect(group!.lanes.map((lane) => lane.laneId)).toEqual([
+    'newest',
+    'middle',
+    'oldest',
+    'unparsable',
+  ])
+  expect(host.lanes.map((lane) => lane.laneId)).toEqual([
+    'oldest',
+    'middle',
+    'unparsable',
+    'newest',
+  ])
 })
 
 it('keeps empty known repositories and unknown lanes even when no active folders remain', () => {
