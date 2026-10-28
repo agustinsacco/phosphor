@@ -44,58 +44,104 @@ afterEach(async () => {
   vi.restoreAllMocks()
   machine.cleanup()
 })
+/** One Host over a real fake-pi runtime: lane commands, calls and the unattached reader. */
+function boot() {
+  const env = buildPiEnvironment({
+    hostEnv: machine.hostEnv,
+    nodePath: process.execPath,
+    platform: process.platform,
+  }).env
+  const log = createHostLog(join(machine.dir, 'logs'), [])
+  real = createHostRuntime(
+    {
+      pi: { binaryPath: process.execPath, prefixArgs: [machine.cli] },
+      env,
+      roots: [machine.repository],
+      resourceRoot: EXTENSIONS_ROOT,
+      contextBudget: '',
+      log,
+    },
+    { dialogs: 'forward' },
+  )
+  real.life.to('validating')
+  real.life.to('ready')
+  let reader: ReturnType<typeof createUnattachedSnapshots> = () => null
+  live = createLiveLanes({
+    epoch: '0123456789abcdef',
+    store,
+    runtime: real,
+    now: Date.now,
+    log: vi.fn(),
+    unattached: (id) => reader(id),
+  })
+  reader = createUnattachedSnapshots({
+    store,
+    summary: live.summaryFor,
+    cursor: live.streams.cursor,
+    sessionsRoot: join(machine.agentDir, 'sessions'),
+    log: vi.fn(),
+  })
+  const binding = createRuntimeLanes({ runtime: real, store, live, log: log.write })
+  const receipts: Receipt[] = []
+  const commands = createLaneCommands({
+    store,
+    ...binding,
+    runtime: binding,
+    sessionFor: live.sessionFor,
+    openDialogs: live.openDialogs,
+    summaryFor: live.summaryFor,
+    publish: live.publish,
+    deliver: (_id, receipt) => receipts.push(receipt),
+    now: Date.now,
+    log: log.write,
+  })
+  const calls = createLaneCalls({
+    store,
+    live,
+    runtime: real,
+    unattached: (id) => reader(id),
+    now: Date.now,
+    log: log.write,
+  })
+  const client = { id: randomUUID(), label: 'Client', caps: ['sessions.control'] as const }
+  return { runtime: real, binding, commands, calls, client, receipts }
+}
 describe('runtime lane binding', () => {
+  it('creates, queries and stops a lane at thinking level max', async () => {
+    const { commands, calls, client, receipts, binding } = boot()
+    await commands.submit(client, {
+      type: 'command',
+      requestId: randomUUID(),
+      op: { type: 'lane.create', repositoryId, worktree: null, thinkingLevel: 'max' },
+    })
+    const receipt = receipts.at(-1)
+    if (receipt?.status !== 'done' || !receipt.laneId) throw new Error('lane at max not created')
+    const laneId = receipt.laneId
+    expect(await calls.call('lane.state', { laneId })).toMatchObject({
+      ok: true,
+      data: { thinkingLevel: 'max' },
+    })
+    const sessionId = live.sessionFor(laneId)
+    if (!sessionId) throw new Error('missing session')
+    await binding.command(sessionId, { type: 'prompt', message: 'hello' })
+    const answered = async () => {
+      const read = await calls.call('lane.messages', { laneId })
+      return read.ok && (read.data as { messages: unknown[] }).messages.length === 2
+    }
+    for (let i = 0; i < 300 && !(await answered()); i++) await sleep(10)
+    expect(await answered()).toBe(true)
+    await commands.submit(client, {
+      type: 'command',
+      requestId: randomUUID(),
+      laneId,
+      fence: 1,
+      op: { type: 'lane.stop' },
+    })
+    expect(receipts.at(-1)).toMatchObject({ status: 'done' })
+    expect(live.sessionFor(laneId)).toBeNull()
+  })
   it('creates, streams, stops, reads, resumes and drains a real fake-pi process', async () => {
-    const env = buildPiEnvironment({
-      hostEnv: machine.hostEnv,
-      nodePath: process.execPath,
-      platform: process.platform,
-    }).env
-    const log = createHostLog(join(machine.dir, 'logs'), [])
-    real = createHostRuntime(
-      {
-        pi: { binaryPath: process.execPath, prefixArgs: [machine.cli] },
-        env,
-        roots: [machine.repository],
-        resourceRoot: EXTENSIONS_ROOT,
-        contextBudget: '',
-        log,
-      },
-      { dialogs: 'forward' },
-    )
-    real.life.to('validating')
-    real.life.to('ready')
-    let reader: ReturnType<typeof createUnattachedSnapshots> = () => null
-    live = createLiveLanes({
-      epoch: '0123456789abcdef',
-      store,
-      runtime: real,
-      now: Date.now,
-      log: vi.fn(),
-      unattached: (id) => reader(id),
-    })
-    reader = createUnattachedSnapshots({
-      store,
-      summary: live.summaryFor,
-      cursor: live.streams.cursor,
-      sessionsRoot: join(machine.agentDir, 'sessions'),
-      log: vi.fn(),
-    })
-    const binding = createRuntimeLanes({ runtime: real, store, live, log: log.write })
-    const receipts: Receipt[] = []
-    const commands = createLaneCommands({
-      store,
-      ...binding,
-      runtime: binding,
-      sessionFor: live.sessionFor,
-      openDialogs: live.openDialogs,
-      summaryFor: live.summaryFor,
-      publish: live.publish,
-      deliver: (_id, receipt) => receipts.push(receipt),
-      now: Date.now,
-      log: log.write,
-    })
-    const client = { id: randomUUID(), label: 'Client', caps: ['sessions.control'] as const }
+    const { runtime: real, binding, commands, calls, client, receipts } = boot()
     await commands.submit(client, {
       type: 'command',
       requestId: randomUUID(),
@@ -149,14 +195,6 @@ describe('runtime lane binding', () => {
       laneId,
       fence: 1,
       op: { type: 'lane.stop' },
-    })
-    const calls = createLaneCalls({
-      store,
-      live,
-      runtime: real,
-      unattached: reader,
-      now: Date.now,
-      log: log.write,
     })
     expect(await calls.call('lane.messages', { laneId })).toMatchObject({
       ok: true,
