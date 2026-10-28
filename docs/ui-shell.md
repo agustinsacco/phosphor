@@ -67,7 +67,20 @@ screen.
 
 ## Left sidebar (Claude Desktop style)
 
-Signed-in windows show a lane scope control beneath the main navigation: a
+The sidebar's top rows and footer are shared with the browser's navigation
+([web client](web-client.md#shared-pages-and-responsive-shells)).
+`features/sessions/SidebarNavigation.tsx` renders New, the global page links
+(Artifacts, Skills, Routines, Machines) and the machine scope; New goes through
+`useNavigation()` with the Host in scope, which on Desktop opens that Host's
+composer, or home under This Mac and All machines. `SidebarFooter` renders the
+update notice (where `appInfo` allows native updates) and the account footer,
+whose Settings gear and menu entry call `navigate({ to: 'page', page: 'settings' })`;
+Desktop maps that to the Settings dialog. The shell supplies only what a page
+link does (Desktop toggles the page; Machines opens its list) and where a chosen
+scope goes (Desktop: `useRemoteLanesStore.filter`).
+
+Signed-in windows show a lane scope control beneath the main navigation
+(`MachineSwitcher`, the only machine-scope control on either client): a
 divider, a “Lanes on” caption and a bordered field with the selected machine's
 status dot, name and state in words (“Idle”, “2 running”, reachability). It is
 a picker, not a nav row, so it never uses the Machines page icon. Each window

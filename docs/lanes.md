@@ -379,7 +379,7 @@ mid-turn is findable under the name on screen.
 ## Deleting lanes
 
 One Host lane row (`features/sessions/RemoteLaneRow`) and one menu serve every
-surface: Desktop's sidebar, the browser's Lanes and Inbox, Host home and the
+surface: Desktop's sidebar, the browser's navigation, Lanes and Inbox, Host home and the
 machine preview. `remoteLaneActions` builds the menu as a pure list (Open, Rename,
 Take or Release control, Stop or Resume, Mark read, Pin, Lane marker, Copy debug
 info, Copy spend, Delete, plus Open pull request when the lane has one) and

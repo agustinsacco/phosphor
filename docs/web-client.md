@@ -68,7 +68,22 @@ configure grant from Control; this change does not widen what Control signs.
 ## Shared pages and responsive shells
 
 Browser presentation switches at 900px: drawer navigation below that width,
-persistent sidebar above it. `Platform.formFactor` controls presentation only;
+persistent sidebar above it. Both hold one navigation body: the Phosphor
+brand, Desktop's sidebar top (`SidebarNavigation`: New, then Inbox, then the
+global page links, then the **Lanes on** machine scope), the Host lane tree for
+that scope (`RemoteLanes`, the same component and density as Desktop's sidebar),
+Desktop's sidebar footer (`SidebarFooter`: the account menu and the Settings
+gear), **Install Phosphor** where `installableApp` allows it, and a short note.
+There is no Lanes link: the tree is in the navigation, and `/lanes` (the lane
+header's Back, deep links) renders the same list as a page. The machine scope is
+the only machine control; the header has none. It offers each known Host and All
+machines, never This Mac (that needs `localLanes`), and lives in the URL, so a
+choice replaces the location's `machine` (from a lane, it opens that machine's
+lane list) and back, forward and deep links keep it. New opens the New page for
+the machine in scope, or asks for one under All machines. In the phone drawer,
+opening a page, a lane, New or Settings closes the drawer; choosing a machine
+keeps it open on that machine's lanes. The header keeps Back and New lane.
+`Platform.formFactor` controls presentation only;
 `localLanes`, `nativeFiles`, `fileEditing` and `splitPanes` remain false in the
 browser at every width. Modal/menu placement adapts without enabling native
 editors or pane controls. Desktop retains its native sidebar and local workbench.
@@ -107,11 +122,13 @@ home folder opens read-only from **Machines → a Host → Machine files**.
 
 `PageShell` owns each page's single heading, actions and close behavior;
 `PageBody` supplies the shared width, gutters and scrolling for Machines,
-Artifacts, Skills, Routines and Settings. `PageLinks`/`NavigationItem`
-supply the same global-page labels, order and row presentation in both sidebars.
-Only Desktop fills their `trailing` slot, with the Machines row's activity on
-machines outside the lane scope; the browser has no This computer and no lane
-scope control, so its rows carry none.
+Artifacts, Skills, Routines and Settings. `SidebarNavigation` (through
+`PageLinks`/`NavigationItem`) supplies the same New row, global-page labels,
+order, row presentation and Machines-row activity on machines outside the scope
+in both clients. The footer's Settings gear opens the Settings page for the
+machine in scope; the account menu offers Machines, Settings and Sign out. It
+shows no keyboard shortcut, because the browser installs
+none (`appShortcuts`), and no Cancel while signing in (`cancelSignIn`).
 The Settings page frames Desktop's `SettingsSurface`: the same search field, section
 navigation and sections, listed by platform capability
 ([settings](settings.md#sections-and-capabilities)). The browser shows Appearance,
@@ -120,7 +137,7 @@ machine settings of each known Host; it lists no This Mac sections.
 
 ### One lane row, list and menu
 
-The browser's Lanes and Inbox pages, Host home (under the start composer) and
+The browser's navigation, Lanes and Inbox pages, Host home (under the start composer) and
 the machine page's lane preview render Desktop's Host lane components, not
 copies ([Lanes](lanes.md#remote-lanes) owns their rules):
 
