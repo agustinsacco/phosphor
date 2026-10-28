@@ -24,11 +24,14 @@ import { evidence } from '../playwright.config'
 
 const project = resolve(import.meta.dirname, '../../..')
 const endpoint = 'https://fixture.ts.net'
+/** A stopped Host's children can still be releasing state files; rm retries ENOTEMPTY. */
+const removeRoot = (root: string) =>
+  rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
 
 /** Disposable real Control handlers + Host CLI. Only Auth/database ports and pi are synthetic. */
 export async function browserFixture(production = false) {
   const root = await mkdtemp(join(tmpdir(), 'phosphor-web-'))
-  const cleanups: (() => Promise<unknown>)[] = [() => rm(root, { recursive: true, force: true })]
+  const cleanups: (() => Promise<unknown>)[] = [() => removeRoot(root)]
   const close = async () => {
     const errors: unknown[] = []
     for (const cleanup of cleanups.splice(0).reverse()) await cleanup().catch((e) => errors.push(e))
