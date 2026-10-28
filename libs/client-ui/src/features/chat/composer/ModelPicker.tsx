@@ -11,6 +11,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { ModelMenu } from './ModelMenu'
 import { ThinkingMenu, thinkingLabel } from './ThinkingMenu'
 import { ModelChip, ModelChipSkeleton, ThinkingChip } from './ModelChip'
+import { useHostModelUnavailability } from '@/features/machines/useHostModelUnavailability'
 
 /**
  * Model + thinking-level pickers in the composer footer.
@@ -22,6 +23,8 @@ import { ModelChip, ModelChipSkeleton, ThinkingChip } from './ModelChip'
  *     just computed client-side to match rather than a hardcoded list that was
  *     wrong for most models.
  */
+const NO_MODELS: Model[] = []
+
 export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element {
   // Menu and in-flight selection feedback belong to the lane, too.
   return <SessionModelPicker key={sessionId} sessionId={sessionId} />
@@ -29,18 +32,17 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
 
 function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const session = useSessionsStore((s) => s.live[sessionId])
-  const remote = session?.target?.kind === 'remote'
+  const hostId = session?.target?.kind === 'remote' ? session.target.hostId : null
+  const remote = hostId !== null
   const summaryModel = useRemoteLanesStore((s) =>
-    session?.target?.kind === 'remote'
-      ? s.hosts[session.target.hostId]?.lanes.find((lane) => lane.laneId === session.laneId)?.model
-      : undefined,
+    hostId ? s.hosts[hostId]?.lanes.find((lane) => lane.laneId === session?.laneId)?.model : null,
   )
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
-  const models = useChatStore((s) => s.sessions[sessionId]?.models) ?? []
+  const models = useChatStore((s) => s.sessions[sessionId]?.models) ?? NO_MODELS
   const modelsLoaded = useChatStore((s) => s.sessions[sessionId]?.modelsLoaded ?? false)
   const thinkingLevels = useChatStore((s) => s.sessions[sessionId]?.thinkingLevels)
   const [open, setOpen] = useState<'model' | 'thinking' | null>(null)
-  /** Model name the chip is switching to, or null when settled. */
+  const unavailable = useHostModelUnavailability(hostId, models, open === 'model')
   const [switchingTo, setSwitchingTo] = useState<string | null>(null)
 
   if (!meta) {
@@ -211,6 +213,7 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
           onClose={() => setOpen(null)}
           loading={!modelsLoaded}
           emptyText="No models configured — sign in via the terminal (`pi /login`) or add API keys."
+          unavailable={unavailable}
           className="w-[30rem] max-w-[92vw]"
         />
       )}

@@ -50,3 +50,27 @@ it('discloses fallback order rather than claiming a configured Host default', as
   expect(remoteModelExplanation(model, model)).toContain('last selected')
   expect(remoteModelExplanation(model, undefined, model)).toContain('Desktop default')
 })
+
+it('blocks only signed-out providers and profile-only Bedrock ids, with the reason', async () => {
+  const { hostModelUnavailability } = await import('./remoteModel')
+  const listed = [
+    ...models,
+    { id: 'key', name: 'Key', provider: 'api-key', reasoning: false },
+    { id: 'anthropic.claude-x', name: 'X', provider: 'amazon-bedrock', reasoning: false },
+    { id: 'us.anthropic.claude-x', name: 'X (US)', provider: 'amazon-bedrock', reasoning: false },
+  ]
+  const blocked = hostModelUnavailability(listed, providers, 'bee1')
+  expect([...blocked.keys()].sort()).toEqual([
+    'amazon-bedrock/anthropic.claude-x',
+    'offline/not-ready',
+  ])
+  expect(blocked.get('offline/not-ready')?.detail).toBe('Sign in to Offline on bee1')
+})
+it('falls back to a model pi lists for a provider the sign-in check does not cover', () => {
+  const listed = [{ id: 'key', name: 'Key', provider: 'api-key', reasoning: false }, ...models]
+  expect(defaultRemoteModel(listed, providers)?.id).toBe('first')
+  expect(defaultRemoteModel(listed, [])?.id).toBe('key')
+  expect(defaultRemoteModel(listed, [{ id: 'api-key', name: 'Key', status: 'unknown' }])?.id).toBe(
+    'key',
+  )
+})

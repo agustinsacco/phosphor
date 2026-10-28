@@ -57,9 +57,9 @@ export interface ModelMenuEntry {
  * Models the catalogue itself shows to be uninvocable (a bare Bedrock
  * foundation id that only exists as inference profiles — see
  * `lib/modelAvailability`) render dimmed and unselectable, with the working
- * variants named in the hint. They stay visible rather than hidden so that
- * searching "fable" still explains where Fable went, instead of silently
- * omitting the row the user typed.
+ * variants named in the hint, as do models a caller's `unavailable` names
+ * (a Host's signed-out provider). They stay visible rather than hidden so that
+ * searching "fable" still explains where Fable went.
  */
 export function ModelMenu({
   models,
@@ -69,6 +69,7 @@ export function ModelMenu({
   emptyText,
   loading = false,
   notice,
+  unavailable: blocked,
   className,
 }: {
   models: ModelMenuEntry[]
@@ -83,6 +84,8 @@ export function ModelMenu({
   loading?: boolean
   /** Shown above a NON-empty list that is known to be incomplete. */
   notice?: string
+  /** Replaces the catalogue's own rule, keyed `provider/id`, when the caller knows more. */
+  unavailable?: ReadonlyMap<string, { detail: string }>
   className?: string
 }): React.JSX.Element {
   const [query, setQuery] = useState('')
@@ -102,7 +105,7 @@ export function ModelMenu({
     void useModelPicksStore.getState().hydrate()
   }, [])
 
-  const unavailable = useMemo(() => unavailableModels(models), [models])
+  const unavailable = useMemo(() => blocked ?? unavailableModels(models), [blocked, models])
   const starredSet = useMemo(() => new Set(starred), [starred])
   const recentSet = useMemo(() => new Set(recent), [recent])
 
@@ -128,12 +131,9 @@ export function ModelMenu({
   const byKey = useMemo(() => new Map(results.map((r) => [r.key, r])), [results])
 
   /**
-   * The rendered list, flattened.
-   *
-   * Headers and rows share one array because ↑/↓ has to walk rows in the exact
-   * order they appear — deriving the order twice (once to render, once to
-   * navigate) is how a highlight ends up on a different row than the one Enter
-   * picks.
+   * The rendered list, flattened. Headers and rows share one array because ↑/↓
+   * has to walk rows in the exact order they appear: deriving the order twice
+   * is how a highlight ends up on a different row than the one Enter picks.
    */
   const rows = useMemo(
     () =>
