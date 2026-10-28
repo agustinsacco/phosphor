@@ -129,3 +129,51 @@ it('gives the controller Release and Stop, with Stop explained until a first mes
   act(() => button(/^New lane on/)!.click())
   expect(navigate).toHaveBeenCalledWith({ to: 'new', machine: MOCK_HOST_ID })
 })
+
+it('lists the shared lane actions in the sheet, with the same hints as every lane menu (regression)', () => {
+  render()
+  act(() => button(/^Lane menu/)!.click())
+  const group = sheet()!.querySelector('[aria-label="Lane actions"]')!
+  const rows = [...group.querySelectorAll('button')]
+  expect(
+    rows.map((b) => b.querySelector('span:not(.action-sheet-icon) > span')?.textContent),
+  ).toEqual([
+    'Rename',
+    'Take control',
+    'Stop',
+    'Mark read',
+    'Pin',
+    'Lane marker',
+    'Copy debug info',
+    'Copy spend',
+    'Delete',
+    `New lane on ${MOCK_HOST_ID}`,
+  ])
+  const row = (label: string) => rows.find((b) => b.textContent?.startsWith(label))!
+  expect(row('Delete').disabled).toBe(true)
+  expect(row('Delete').textContent).toContain('Take control first.')
+  expect(row('Pin').disabled).toBe(true)
+  expect(row('Pin').textContent).toContain('Update this Host')
+})
+
+it('lets the controller delete the lane from the sheet (regression)', () => {
+  controller(true)
+  act(() =>
+    useRemoteLanesStore.setState((s) => ({
+      hosts: {
+        [MOCK_HOST_ID]: {
+          ...s.hosts[MOCK_HOST_ID]!,
+          capabilities: ['sessions.read', 'sessions.control', 'workspaces.write'],
+        },
+      },
+    })),
+  )
+  render()
+  act(() => button(/^Lane menu/)!.click())
+  const remove = button(/^Delete/)
+  expect(remove?.disabled).toBe(false)
+  if (!remove) return
+  act(() => remove.click())
+  expect(sheet()?.getAttribute('aria-label')).not.toBe('Lane menu')
+  expect(document.body.textContent).toContain('Delete session')
+})
