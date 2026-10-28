@@ -107,39 +107,6 @@ function boot() {
   return { runtime: real, binding, commands, calls, client, receipts }
 }
 describe('runtime lane binding', () => {
-  it('creates, queries and stops a lane at thinking level max', async () => {
-    const { commands, calls, client, receipts, binding } = boot()
-    await commands.submit(client, {
-      type: 'command',
-      requestId: randomUUID(),
-      op: { type: 'lane.create', repositoryId, worktree: null, thinkingLevel: 'max' },
-    })
-    const receipt = receipts.at(-1)
-    if (receipt?.status !== 'done' || !receipt.laneId) throw new Error('lane at max not created')
-    const laneId = receipt.laneId
-    expect(await calls.call('lane.state', { laneId })).toMatchObject({
-      ok: true,
-      data: { thinkingLevel: 'max' },
-    })
-    const sessionId = live.sessionFor(laneId)
-    if (!sessionId) throw new Error('missing session')
-    await binding.command(sessionId, { type: 'prompt', message: 'hello' })
-    const answered = async () => {
-      const read = await calls.call('lane.messages', { laneId })
-      return read.ok && (read.data as { messages: unknown[] }).messages.length === 2
-    }
-    for (let i = 0; i < 300 && !(await answered()); i++) await sleep(10)
-    expect(await answered()).toBe(true)
-    await commands.submit(client, {
-      type: 'command',
-      requestId: randomUUID(),
-      laneId,
-      fence: 1,
-      op: { type: 'lane.stop' },
-    })
-    expect(receipts.at(-1)).toMatchObject({ status: 'done' })
-    expect(live.sessionFor(laneId)).toBeNull()
-  })
   it('creates, streams, stops, reads, resumes and drains a real fake-pi process', async () => {
     const { runtime: real, binding, commands, calls, client, receipts } = boot()
     await commands.submit(client, {
@@ -273,5 +240,38 @@ describe('runtime lane binding', () => {
     pair.client.close(1000, 'test finished')
     expect(real.list()).toEqual([])
     for (const pid of pids) if (pid !== undefined) expect(isGone(pid)).toBe(true)
+  })
+  it('creates, queries and stops a lane at thinking level max', async () => {
+    const { commands, calls, client, receipts, binding } = boot()
+    await commands.submit(client, {
+      type: 'command',
+      requestId: randomUUID(),
+      op: { type: 'lane.create', repositoryId, worktree: null, thinkingLevel: 'max' },
+    })
+    const receipt = receipts.at(-1)
+    if (receipt?.status !== 'done' || !receipt.laneId) throw new Error('lane at max not created')
+    const laneId = receipt.laneId
+    expect(await calls.call('lane.state', { laneId })).toMatchObject({
+      ok: true,
+      data: { thinkingLevel: 'max' },
+    })
+    const sessionId = live.sessionFor(laneId)
+    if (!sessionId) throw new Error('missing session')
+    await binding.command(sessionId, { type: 'prompt', message: 'hello' })
+    const answered = async () => {
+      const read = await calls.call('lane.messages', { laneId })
+      return read.ok && (read.data as { messages: unknown[] }).messages.length === 2
+    }
+    for (let i = 0; i < 300 && !(await answered()); i++) await sleep(10)
+    expect(await answered()).toBe(true)
+    await commands.submit(client, {
+      type: 'command',
+      requestId: randomUUID(),
+      laneId,
+      fence: 1,
+      op: { type: 'lane.stop' },
+    })
+    expect(receipts.at(-1)).toMatchObject({ status: 'done' })
+    expect(live.sessionFor(laneId)).toBeNull()
   })
 })
