@@ -128,6 +128,40 @@ describe('eslint policy', () => {
     ])
       expect(await severity(file, 'no-restricted-properties')).toBe(0)
   })
+
+  it.each([
+    'usePlatform().formFactor === "compact"',
+    'const { formFactor } = usePlatform()',
+    'const { formFactor: width } = usePlatform()',
+    'platform?.formFactor',
+    'platform["formFactor"]',
+    'document.documentElement.dataset.formFactor',
+  ])('keeps form-factor reads out of features: %s', async (code) => {
+    const feature = 'libs/client-ui/src/features/chat/ChatView.tsx'
+    expect(await messages(code, feature, 'phosphor/form-factor-in-layout')).toEqual([
+      expect.objectContaining({ severity: 2 }),
+    ])
+  })
+
+  it('lets only primitives, the platform and shells read the form factor', async () => {
+    for (const file of [
+      rendererCaller,
+      'libs/client-ui/src/app/TopBar.tsx',
+      'libs/client-ui/src/navigation/PageLinks.tsx',
+      'libs/client-ui/src/features/sessions/Sidebar.test.tsx',
+    ])
+      expect(await severity(file, 'phosphor/form-factor-in-layout')).toBe(2)
+    for (const file of [
+      'libs/client-ui/src/components/ContextMenu.tsx',
+      'libs/client-ui/src/platform/Platform.tsx',
+      'libs/client-ui/src/shell/compact/BrowserShell.tsx',
+    ])
+      expect(await severity(file, 'phosphor/form-factor-in-layout')).toBe(0)
+    // Building a platform and naming the type are not reads.
+    const code = `const phone: Platform = { ...DESKTOP_PLATFORM, formFactor: 'compact' }
+      type Width = Platform['formFactor']`
+    expect(await messages(code, rendererCaller, 'phosphor/form-factor-in-layout')).toEqual([])
+  })
 })
 
 // The real .oxlintrc.json against synthetic files in a scratch project with one
