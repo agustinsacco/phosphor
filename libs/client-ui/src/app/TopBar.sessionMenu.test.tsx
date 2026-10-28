@@ -98,7 +98,9 @@ it('disables the commands for a reader and Export on every Host lane (regression
   }
   expect(row('Export')?.disabled).toBe(true)
   expect(row('Export')?.textContent).toContain('Not available on remote lanes yet.')
-  act(() => document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+  act(() => {
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+  })
   controller(true)
   render()
   act(() => trigger()?.click())
