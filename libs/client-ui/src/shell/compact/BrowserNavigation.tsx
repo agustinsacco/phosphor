@@ -4,9 +4,7 @@ import { Button } from '@/components/form'
 import { InstallApp } from './InstallApp'
 import { CloseIcon } from '@/components/icons'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
-import { NavigationItem } from '@/navigation/NavigationItem'
 import { NavigationProvider, useNavigation, type Navigation } from '@/navigation/Navigation'
-import { SCREENS } from '@/navigation/screens'
 import type { Location } from '@/navigation/location'
 import { usePlatform } from '@/platform/Platform'
 import { RemoteLanes } from '@/features/sessions/RemoteLanes'
@@ -67,14 +65,7 @@ function NavigationBody({
             go({ to: 'page', page, machine: page === 'machines' ? undefined : machine })
           }
           onScope={(scope) => navigate(scopedLocation(location, scope))}
-        >
-          <NavigationItem
-            label={SCREENS.inbox.title}
-            icon={<SCREENS.inbox.icon />}
-            active={location.to === 'inbox'}
-            onClick={() => go({ to: 'inbox', machine })}
-          />
-        </SidebarNavigation>
+        />
         <div data-session-scroll className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           <RemoteLanes />
         </div>

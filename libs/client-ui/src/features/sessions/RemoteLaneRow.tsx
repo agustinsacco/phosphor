@@ -10,7 +10,7 @@ export { remoteLaneTitle } from './remoteLaneView'
 
 /**
  * The one Host lane row, on every surface that lists Host lanes: Desktop's
- * sidebar, the browser's Lanes and Inbox, Host home and the machine preview.
+ * sidebar, the browser's navigation and Lanes page, Host home and the machine preview.
  * Its menu opens on right-click, the menu key or a touch long-press, and holds
  * the shared lane actions. Pins and markers are the Host's, so every client
  * shows the same ones. Curation uses durable Host/lane identities, never

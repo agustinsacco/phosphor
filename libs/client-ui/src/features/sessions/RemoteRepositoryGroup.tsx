@@ -28,19 +28,15 @@ export type RemoteLaneDensity = 'sidebar' | 'page'
 /**
  * One Host folder and its lanes, in every list of Host lanes: search, the
  * workspace options menu (folder rows, lane selection for bulk delete,
- * collapse), New lane in this folder, and the shared lane rows. `manage` is
- * off where the list is a filtered subset (the Inbox): moves need the whole
- * folder order, and a selection would act on lanes the list hides.
+ * collapse), New lane in this folder, and the shared lane rows.
  */
 export function RemoteRepositoryGroup({
   hostId,
   group,
-  manage,
   density = 'sidebar',
 }: {
   hostId: string
   group: RemoteLaneGroup
-  manage: boolean
   density?: RemoteLaneDensity
 }): React.JSX.Element {
   const { repositoryId, name, available, lanes } = group
@@ -72,7 +68,7 @@ export function RemoteRepositoryGroup({
           className={controlClass}
           onOpen={() => setCollapsed(false)}
         />
-        {available && manage && (
+        {available && (
           <RemoteWorkspaceOptions
             hostId={hostId}
             group={group}

@@ -31,16 +31,14 @@ function host(writable: boolean) {
   return view
 }
 
-async function render(inbox = false) {
+async function render() {
   const element = document.createElement('div')
   document.body.append(element)
   const root = createRoot(element)
   await act(async () =>
     root.render(
-      <NavigationProvider
-        value={{ location: { to: inbox ? 'inbox' : 'lanes' }, navigate: vi.fn() }}
-      >
-        <CompactLanes inbox={inbox} />
+      <NavigationProvider value={{ location: { to: 'lanes' }, navigate: vi.fn() }}>
+        <CompactLanes />
       </NavigationProvider>,
     ),
   )
@@ -94,14 +92,8 @@ it('lists a folder with no lanes, so it can still be managed', async () => {
   ).not.toBeNull()
 })
 
-it('keeps the folder menu out of the Inbox and the moves off without workspaces.write', async () => {
-  const view = host(false)
-  view.lanes = [{ ...view.lanes[0]!, attention: 2, read: 1 }]
-  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: view }, snapshotStatus: 'ready' })
-  {
-    await using inbox = await render(true)
-    expect(inbox.element.querySelector('[aria-label^="Workspace options"]')).toBeNull()
-  }
+it('keeps the folder rows off without workspaces.write', async () => {
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host(false) }, snapshotStatus: 'ready' })
   await using lanes = await render()
   act(() =>
     lanes.element

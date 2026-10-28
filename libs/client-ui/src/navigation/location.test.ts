@@ -14,7 +14,6 @@ describe('Location codec', () => {
   it.each<Location>([
     { to: 'lanes' },
     { to: 'lanes', machine: 'host-one' },
-    { to: 'inbox' },
     { to: 'new', machine: 'host-two' },
     { to: 'page', page: 'skills', machine: 'host-one' },
     { to: 'page', page: 'settings' },

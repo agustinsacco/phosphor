@@ -13,19 +13,17 @@ import { MachineSwitcher, OtherMachinesActivity, type MachineScopeChange } from 
  * The top of the left navigation on every client: New, the page links and the
  * machine scope, as flat icon-and-label rows. New goes through the shell's
  * navigation with the Host in scope, so Desktop opens that Host's composer (or
- * home) and the browser moves to that machine's New page.
+ * home) and the browser moves to that machine's New page. A shell cannot add
+ * rows: both clients list the same pages.
  */
 export function SidebarNavigation({
   onPage,
   onScope,
-  children,
 }: {
   /** Opens a global page. Desktop toggles the page; the browser moves to its URL. */
   onPage: (page: GlobalPage) => void
   /** Where a chosen machine scope goes. Default: Desktop's persisted sidebar filter. */
   onScope?: MachineScopeChange
-  /** Shell-only rows between New and the page links. */
-  children?: React.ReactNode
 }): React.JSX.Element {
   const { location, navigate } = useNavigation()
   const scope = useRemoteLanesStore((s) => s.filter)
@@ -43,7 +41,6 @@ export function SidebarNavigation({
             })
           }
         />
-        {children}
         <PageLinks
           activePage={location.to === 'page' ? location.page : null}
           trailing={{ machines: <OtherMachinesActivity /> }}

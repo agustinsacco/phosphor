@@ -11,24 +11,21 @@ import { SectionLabel } from './SidebarPrimitives'
 
 /**
  * One Host's lanes, as every surface lists them (Desktop's sidebar, the
- * browser's Lanes and Inbox, Host home): pinned lanes first in their own
- * section, as local pinned lanes are, then one group per folder in the Host's
- * order. A ready Host with no folders offers Add folder instead. Pass a
- * filtered `lanes` and `repositories` with `manage` off for a subset.
+ * browser's navigation and Lanes page, Host home): pinned lanes first in their
+ * own section, as local pinned lanes are, then one group per folder in the
+ * Host's order. A ready Host with no folders offers Add folder instead.
  */
 export function RemoteHostLanes({
   hostId,
   repositories,
   lanes,
-  manage = true,
   density,
 }: Pick<HostConnectionView, 'repositories' | 'lanes'> & {
   hostId: string
-  manage?: boolean
   density?: RemoteLaneDensity
 }): React.JSX.Element {
   const ready = useRemoteLanesStore((s) => s.hosts[hostId]?.state === 'ready')
-  if (ready && manage && !repositories.length && !lanes.length) return <NoFolders hostId={hostId} />
+  if (ready && !repositories.length && !lanes.length) return <NoFolders hostId={hostId} />
   const pinned = lanes.filter((lane) => lane.pinned).sort(compareLanesByCreation)
   return (
     <>
@@ -43,7 +40,6 @@ export function RemoteHostLanes({
           key={group.repositoryId}
           hostId={hostId}
           group={group}
-          manage={manage}
           density={density}
         />
       ))}

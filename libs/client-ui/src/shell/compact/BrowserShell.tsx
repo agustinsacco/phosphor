@@ -125,7 +125,7 @@ function BrowserScreen({
         This link is unavailable. Open Lanes or Machines to continue.
       </p>
     )
-  return <CompactLanes machine={machine} inbox={location.to === 'inbox'} />
+  return <CompactLanes machine={machine} />
 }
 
 function ChooseMachine(): React.JSX.Element {

@@ -13,13 +13,8 @@ import { PageBody } from '@/components/PageBody'
 import '@/features/home/remoteStart.css'
 import { Button } from '@/components/form'
 
-export function CompactLanes({
-  machine,
-  inbox = false,
-}: {
-  machine?: string
-  inbox?: boolean
-}): React.JSX.Element {
+/** The phone's lane list, and where a lane's Back goes: the same Host lane lists as Desktop's sidebar. */
+export function CompactLanes({ machine }: { machine?: string }): React.JSX.Element {
   const machines = useMachinesStore((s) => s.machines)
   const loading = useMachinesStore((s) => s.loading)
   const error = useMachinesStore((s) => s.error)
@@ -27,9 +22,9 @@ export function CompactLanes({
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const selected = machines.filter((m) => !machine || m.id === machine)
   return (
-    <PageShell title={inbox ? 'Inbox' : 'Lanes'} dismissible={false}>
+    <PageShell title="Lanes" dismissible={false}>
       <PageBody>
-        <section className="space-y-4" aria-label={inbox ? 'Inbox' : 'Lanes'}>
+        <section className="space-y-4" aria-label="Lanes">
           {loading && <p role="status">Loading machines…</p>}
           {snapshotStatus === 'error' && (
             <p role="alert">
@@ -51,12 +46,7 @@ export function CompactLanes({
             </p>
           )}
           {selected.map((machine) => (
-            <MachineLaneList
-              key={machine.id}
-              machine={machine}
-              host={hosts[machine.id]}
-              inbox={inbox}
-            />
+            <MachineLaneList key={machine.id} machine={machine} host={hosts[machine.id]} />
           ))}
         </section>
       </PageBody>
@@ -67,18 +57,16 @@ export function CompactLanes({
 function MachineLaneList({
   machine,
   host,
-  inbox,
 }: {
   machine: { id: string; label: string }
   host?: HostConnectionView
-  inbox: boolean
 }): React.JSX.Element {
   // While the Host retries, its last-known lanes stay listed; their rows hold actions until ready.
   const readable =
     !!host &&
     (host.state === 'ready' || hostReconnecting(host.state)) &&
     host.capabilities.includes('sessions.read')
-  const lanes = readable ? host.lanes.filter((lane) => !inbox || lane.attention > lane.read) : []
+  const lanes = readable ? host.lanes : []
   return (
     <section key={machine.id} className="space-y-3">
       <h2 className="font-semibold">
@@ -95,21 +83,13 @@ function MachineLaneList({
               : 'Machine not connected. Its lanes may need attention.'}
           </p>
         )
-      ) : lanes.length === 0 &&
-        (inbox || (host.repositories.length === 0 && host.state !== 'ready')) ? (
-        <p>{inbox ? 'No unread attention on this machine.' : 'No lanes yet.'}</p>
+      ) : lanes.length === 0 && host.repositories.length === 0 && host.state !== 'ready' ? (
+        <p>No lanes yet.</p>
       ) : (
         <RemoteHostLanes
           hostId={machine.id}
-          repositories={
-            inbox
-              ? host.repositories.filter((repository) =>
-                  lanes.some((lane) => lane.repositoryId === repository.id),
-                )
-              : host.repositories
-          }
+          repositories={host.repositories}
           lanes={lanes}
-          manage={!inbox}
           density="page"
         />
       )}

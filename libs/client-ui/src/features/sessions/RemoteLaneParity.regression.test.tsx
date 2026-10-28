@@ -21,7 +21,7 @@ import { RemoteLanes } from './RemoteLanes'
  * The browser's list and Host home used to render a navigation-only row: no menu, no delete.
  */
 
-const SURFACES = ['desktop', 'browser', 'inbox', 'home', 'machine'] as const
+const SURFACES = ['desktop', 'browser', 'home', 'machine'] as const
 type Surface = (typeof SURFACES)[number]
 const SECOND = '0000000000000002'
 const READER_MENU = [
@@ -60,7 +60,7 @@ function surface(name: Surface): React.ReactNode {
   if (name === 'desktop') return <RemoteLanes />
   if (name === 'home') return <HostHome hostId={MOCK_HOST_ID} />
   if (name === 'machine') return <OnThisMachine hostId={MOCK_HOST_ID} />
-  return <CompactLanes inbox={name === 'inbox'} />
+  return <CompactLanes />
 }
 function render(name: Surface, platform = DESKTOP_PLATFORM): void {
   act(() =>
@@ -286,17 +286,6 @@ it.each(['desktop', 'browser', 'home'] as const)(
     expect(useRemoteComposer.getState().repositories[MOCK_HOST_ID]).toBe('0000000000000001')
   },
 )
-
-it('the inbox keeps its unread filter and leaves the folder menu out of filtered subsets', () => {
-  host((view) => {
-    view.lanes.push({ ...view.lanes[0]!, laneId: 'read', title: 'Read lane', read: 1 })
-  })
-  render('inbox')
-  expect(el.textContent).toContain('Remote demo lane')
-  expect(el.textContent).not.toContain('Read lane')
-  expect(el.querySelector('[aria-label^="Workspace options"]')).toBeNull()
-  expect(el.querySelector('[aria-label="Search lanes in Demo repository"]')).not.toBeNull()
-})
 
 it('the browser offers Add folder on a ready Host with no folders, as Desktop does', () => {
   host((view) => {
