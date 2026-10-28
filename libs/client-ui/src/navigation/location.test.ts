@@ -7,6 +7,10 @@ describe('Location codec', () => {
     expect(decodeLocation('/')).toEqual({ to: 'new' })
     expect(decodeLocation('/lanes')).toEqual({ to: 'lanes' })
   })
+  it('opens an old Inbox link on the lane list, as Desktop has no Inbox', () => {
+    expect(decodeLocation('/inbox')).toEqual({ to: 'lanes' })
+    expect(decodeLocation('/inbox/host-one')).toEqual({ to: 'lanes', machine: 'host-one' })
+  })
   it.each<Location>([
     { to: 'lanes' },
     { to: 'lanes', machine: 'host-one' },

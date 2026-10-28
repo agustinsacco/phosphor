@@ -104,11 +104,13 @@ async function openDrawer(): Promise<Element> {
   return document.querySelector('[role="dialog"][aria-label="Navigation"]')!
 }
 
-/** The shared composition, the scope, the Host lane tree, then the footer, in that order. */
+/**
+ * The shared composition, the scope, the Host lane tree, then the footer, in that order.
+ * The rows are Desktop's sidebar rows (SidebarNavigation characterization), no more.
+ */
 function expectSharedNavigation(scope: Element): void {
   expect(labels(scope.querySelector('nav[aria-label="Main navigation"]'))).toEqual([
     'New',
-    'Inbox',
     'Artifacts',
     'Skills',
     'Routines',
@@ -130,6 +132,13 @@ it('wide: the column renders the shared composition, the machine scope and the H
   expectSharedNavigation(container.querySelector('aside.browser-navigation')!)
   expect(container.querySelector('select[aria-label="Machine filter"]')).toBeNull()
   expect(container.querySelectorAll('button[aria-label="Machine filter"]')).toHaveLength(1)
+})
+
+it('an old /inbox link opens the lane list, since neither client has an Inbox', async () => {
+  window.history.replaceState(null, '', '/inbox')
+  await render(WIDE_BROWSER_PLATFORM)
+  expect(container.querySelector('.page-shell h1')?.textContent).toBe('Lanes')
+  expect(container.querySelector('section[aria-label="Lanes"]')).not.toBeNull()
 })
 
 it('phone: the drawer renders the same body, and opening a lane from it closes the drawer', async () => {
