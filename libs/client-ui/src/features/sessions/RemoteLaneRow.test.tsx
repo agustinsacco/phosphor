@@ -5,18 +5,14 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
-import {
-  ONLY_WHILE_RUNNING,
-  RemoteLaneRow,
-  remoteControlHint,
-  remoteLaneTitle,
-  TAKE_CONTROL_FIRST,
-} from './RemoteLaneRow'
+import { RemoteLaneRow, remoteLaneTitle } from './RemoteLaneRow'
+import { ONLY_WHILE_RUNNING, remoteControlHint, TAKE_CONTROL_FIRST } from './remoteLaneActions'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
+import { NavigationProvider } from '@/navigation/Navigation'
 let root: Root, container: HTMLDivElement
 const invoke = vi.fn(),
   command = vi.fn()
@@ -237,3 +233,56 @@ it.each([false, true])(
     toast.mockRestore()
   },
 )
+it('projects live names reactively by Host/lane identity rather than stale summary or another Host', () => {
+  const lane = mockRemoteHosts[MOCK_HOST_ID]!.lanes[0]!
+  const remote = (hostId: string, phosphorId: string) => ({
+    phosphorId,
+    workspacePath: phosphorId,
+    target: { kind: 'remote' as const, hostId },
+    laneId: lane.laneId,
+  })
+  useSessionsStore.setState({
+    live: { other: remote('other', 'other'), current: remote(MOCK_HOST_ID, 'current') },
+  })
+  for (const sessionId of ['other', 'current']) {
+    useChatStore.getState().ensure(sessionId)
+    useChatStore.getState().setMeta(sessionId, {
+      sessionId,
+      thinkingLevel: 'off',
+      isStreaming: false,
+      isCompacting: false,
+      steeringMode: 'all',
+      followUpMode: 'all',
+      autoCompactionEnabled: true,
+      messageCount: 0,
+      pendingMessageCount: 0,
+    })
+  }
+  act(() => useChatStore.getState().patchMeta('other', { sessionName: 'Wrong Host' }))
+  act(() => root.render(<RemoteLaneRow lane={lane} hostId={MOCK_HOST_ID} ready />))
+  expect(container.textContent).toContain(lane.title)
+  act(() => useChatStore.getState().patchMeta('current', { sessionName: 'Live title' }))
+  expect(container.querySelector('button')?.getAttribute('aria-label')).toBe('Live title')
+  expect(container.textContent).not.toContain('Wrong Host')
+})
+it('holds navigation and the menu while the Host is not ready', () => {
+  const navigate = vi.fn()
+  act(() =>
+    root.render(
+      <NavigationProvider value={{ location: { to: 'lanes' }, navigate }}>
+        <RemoteLaneRow
+          hostId={MOCK_HOST_ID}
+          lane={useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.lanes[0]!}
+          ready={false}
+        />
+        <ContextMenuHost />
+      </NavigationProvider>,
+    ),
+  )
+  const row = container.querySelector('button')!
+  expect(row.disabled).toBe(true)
+  act(() => row.click())
+  expect(navigate).not.toHaveBeenCalled()
+  menu()
+  expect(document.querySelector('[data-testid=context-menu]')).toBeNull()
+})

@@ -7,12 +7,11 @@ import {
   connectionLabel,
   hostReconnecting,
 } from '@/stores/remoteLanes'
-import { RemoteLaneGroups } from '@/features/sessions/RemoteLaneGroups'
+import { RemoteHostLanes } from '@/features/sessions/RemoteHostLanes'
 import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
 import '@/features/home/remoteStart.css'
 import { Button } from '@/components/form'
-import { useNavigation } from '@/navigation/Navigation'
 
 export function CompactLanes({
   machine,
@@ -74,7 +73,6 @@ function MachineLaneList({
   host?: HostConnectionView
   inbox: boolean
 }): React.JSX.Element {
-  const { navigate } = useNavigation()
   // While the Host retries, its last-known lanes stay listed; their rows hold actions until ready.
   const readable =
     !!host &&
@@ -97,10 +95,11 @@ function MachineLaneList({
               : 'Machine not connected. Its lanes may need attention.'}
           </p>
         )
-      ) : lanes.length === 0 && (inbox || host.repositories.length === 0) ? (
+      ) : lanes.length === 0 &&
+        (inbox || (host.repositories.length === 0 && host.state !== 'ready')) ? (
         <p>{inbox ? 'No unread attention on this machine.' : 'No lanes yet.'}</p>
       ) : (
-        <RemoteLaneGroups
+        <RemoteHostLanes
           hostId={machine.id}
           repositories={
             inbox
@@ -111,13 +110,7 @@ function MachineLaneList({
           }
           lanes={lanes}
           manage={!inbox}
-          onOpen={(laneId) =>
-            navigate({
-              to: 'lane',
-              lane: { hostId: machine.id, laneId },
-              pane: 'chat',
-            })
-          }
+          density="page"
         />
       )}
     </section>

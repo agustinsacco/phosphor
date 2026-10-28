@@ -76,8 +76,16 @@ function render(name: Surface, platform = DESKTOP_PLATFORM): void {
 }
 const row = (): HTMLButtonElement =>
   el.querySelector<HTMLButtonElement>('[data-testid=remote-session-row]')!
+/** A mouse right-click: a press starts the gesture, so each click opens its own menu. */
 function rightClick(): void {
-  act(() => row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))
+  act(() => {
+    for (const type of ['pointerdown', 'pointerup']) {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'pointerType', { value: 'mouse' })
+      row().dispatchEvent(event)
+    }
+    row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+  })
 }
 function menuRows(): HTMLButtonElement[] {
   return [
@@ -174,10 +182,10 @@ it.each(SURFACES)('%s row lets the controller delete the lane', (name) => {
 it.each(SURFACES)('%s row opens through navigation, so both shells route the lane', (name) => {
   render(name)
   act(() => row().click())
+  // No pane: Desktop restores the lane's own pane; the browser's lane URL defaults to chat.
   expect(navigate).toHaveBeenCalledWith({
     to: 'lane',
     lane: { hostId: MOCK_HOST_ID, laneId: lane().laneId },
-    pane: 'chat',
   })
   expect(invoke).not.toHaveBeenCalledWith('hosts:openLane', MOCK_HOST_ID, lane().laneId)
 })

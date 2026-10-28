@@ -170,3 +170,12 @@ export function WorkspaceGroupTitle({
     </TooltipButton>
   )
 }
+
+/** A label over a section of rows that is not a folder group, such as Pinned. */
+export function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return (
+    <div className="text-text-tertiary px-2 pb-0.5 pt-2.5 text-xs font-semibold font-mono uppercase tracking-wider">
+      {children}
+    </div>
+  )
+}

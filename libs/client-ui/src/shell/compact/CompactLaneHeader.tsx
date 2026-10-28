@@ -1,33 +1,26 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import clsx from 'clsx'
+import { useId, useState } from 'react'
+import type { HostLaneView } from '@shared/ipc'
+import { ActionSheet, ActionSheetItem } from '@/components/ActionSheet'
+import type { ContextMenuItem } from '@/components/ContextMenu'
 import { Button } from '@/components/form'
-import { ModalOverlay } from '@/components/Modal'
 import { TooltipButton } from '@/components/Tooltip'
-import { ChevronDownIcon, ChevronIcon, PlusIcon, UserIcon } from '@/components/icons'
+import { ChevronDownIcon, ChevronIcon, PlusIcon } from '@/components/icons'
+import {
+  useRemoteLaneActions,
+  useRemoteLaneSession,
+} from '@/features/sessions/useRemoteLaneActions'
+import { promptText } from '@/stores/prompt'
 import { useLaneControl, type LaneControl } from '@/features/machines/useLaneControl'
 import { useNavigation } from '@/navigation/Navigation'
 import { SCREENS } from '@/navigation/screens'
 import type { LanePane, Location } from '@/navigation/location'
 import { useMachinesStore } from '@/stores/machines'
 import { connectionLabel, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSessionsStore } from '@/stores/sessions'
 
 type LaneLocation = Extract<Location, { to: 'lane' }>
 
 /** The panes a phone can show for a remote lane, in the order the menu lists them. */
 export const COMPACT_LANE_PANES = ['chat', 'files', 'changes', 'artifacts', 'terminal'] as const
-
-/** The live session bound to a Host lane, once `openRemoteLane` has created it. */
-export function useRemoteLaneSession(hostId: string, laneId: string) {
-  return useSessionsStore((s) =>
-    Object.values(s.live).find(
-      (entry) =>
-        entry.target?.kind === 'remote' &&
-        entry.target.hostId === hostId &&
-        entry.laneId === laneId,
-    ),
-  )
-}
 
 /**
  * A phone's lane header: Back, then the lane title as the one button that opens
@@ -40,13 +33,27 @@ export function CompactLaneHeader({ location }: { location: LaneLocation }): Rea
   const hostId = 'hostId' in location.lane ? location.lane.hostId : ''
   const laneId = 'laneId' in location.lane ? location.lane.laneId : ''
   const pane = location.pane ?? 'chat'
-  const title = useRemoteLanesStore(
-    (s) => s.hosts[hostId]?.lanes.find((lane) => lane.laneId === laneId)?.title || 'Lane',
+  const lane = useRemoteLanesStore((s) =>
+    s.hosts[hostId]?.lanes.find((item) => item.laneId === laneId),
   )
+  const title = lane?.title || 'Lane'
   const session = useRemoteLaneSession(hostId, laneId)
   const control = useLaneControl(session?.phosphorId)
   const [open, setOpen] = useState(false)
   const statusId = useId()
+  const sheet = (actions: ContextMenuItem[], error: string | null): React.JSX.Element => (
+    <LaneSheet
+      title={title}
+      hostId={hostId}
+      sessionId={session?.phosphorId}
+      pane={pane}
+      actions={actions}
+      error={error}
+      onPane={(next) => navigate({ ...location, pane: next })}
+      onNewLane={() => navigate({ to: 'new', machine: hostId })}
+      onClose={() => setOpen(false)}
+    />
+  )
   return (
     <header className="compact-header compact-lane-header">
       <Button aria-label="Back to lanes" onClick={() => navigate({ to: 'lanes', machine: hostId })}>
@@ -72,16 +79,12 @@ export function CompactLaneHeader({ location }: { location: LaneLocation }): Rea
           pane={pane === 'chat' ? undefined : SCREENS[pane].title}
         />
       </TooltipButton>
-      {open && (
-        <LaneSheet
-          title={title}
-          hostId={hostId}
-          sessionId={session?.phosphorId}
-          pane={pane}
-          onPane={(next) => navigate({ ...location, pane: next })}
-          onNewLane={() => navigate({ to: 'new', machine: hostId })}
-          onClose={() => setOpen(false)}
-        />
+      {lane ? (
+        <HostLaneMenu hostId={hostId} lane={lane} open={open} onClose={() => setOpen(false)}>
+          {({ items, error }) => sheet(items, error)}
+        </HostLaneMenu>
+      ) : (
+        open && sheet([], null)
       )}
     </header>
   )
@@ -120,11 +123,51 @@ function LaneStatus({
   )
 }
 
+/** The lane's menu: the shared lane actions, presented as a phone sheet, and their dialogs. */
+function HostLaneMenu({
+  hostId,
+  lane,
+  open,
+  onClose,
+  children,
+}: {
+  hostId: string
+  lane: HostLaneView
+  open: boolean
+  onClose: () => void
+  children: (actions: { items: ContextMenuItem[]; error: string | null }) => React.ReactNode
+}): React.JSX.Element {
+  const ready = useRemoteLanesStore((s) => s.hosts[hostId]?.state === 'ready')
+  const actions = useRemoteLaneActions({
+    hostId,
+    lane,
+    ready,
+    withOpen: false,
+    onDone: onClose,
+    onRename: () => {
+      onClose()
+      void promptText({
+        title: 'Rename lane',
+        initialValue: actions.title === 'Untitled lane' ? '' : actions.title,
+        submitLabel: 'Rename',
+      }).then((name) => (name ? actions.saveName(name) : false))
+    },
+  })
+  return (
+    <>
+      {actions.dialogs}
+      {open && children({ items: actions.items(), error: actions.error })}
+    </>
+  )
+}
+
 function LaneSheet({
   title,
   hostId,
   sessionId,
   pane,
+  actions,
+  error,
   onPane,
   onNewLane,
   onClose,
@@ -133,152 +176,91 @@ function LaneSheet({
   hostId: string
   sessionId: string | undefined
   pane: LanePane
+  /** The shared lane actions; none while the Host has not listed the lane. */
+  actions: ContextMenuItem[]
+  error: string | null
   onPane: (pane: LanePane) => void
   onNewLane: () => void
   onClose: () => void
 }): React.JSX.Element {
   const control = useLaneControl(sessionId)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const previous = document.activeElement
-    ref.current?.querySelector<HTMLButtonElement>('[aria-current="page"]')?.focus()
-    return () => {
-      if (previous instanceof HTMLElement && previous.isConnected) previous.focus()
-    }
-  }, [])
   return (
-    <ModalOverlay onClose={onClose} backdrop="dim">
-      <div ref={ref} role="dialog" aria-modal="true" aria-label="Lane menu" className="lane-sheet">
-        <div className="lane-sheet-grab" aria-hidden />
-        <div className="lane-sheet-head">
+    <ActionSheet
+      label="Lane menu"
+      head={
+        <>
           <strong>{title}</strong>
           <LaneStatus hostId={hostId} control={control} />
-        </div>
-        <nav aria-label="Lane panes" className="lane-sheet-group">
-          <p className="lane-sheet-label">View</p>
-          {COMPACT_LANE_PANES.map((id) => {
-            const Icon = SCREENS[id].icon
-            return (
-              <SheetItem
-                key={id}
-                icon={<Icon size={16} />}
-                current={pane === id}
-                onClick={() => {
-                  onClose()
-                  onPane(id)
-                }}
-              >
-                {SCREENS[id].title}
-              </SheetItem>
-            )
-          })}
-        </nav>
-        <LaneActions
-          hostId={hostId}
-          control={control}
-          onClose={onClose}
-          onNewLane={() => {
-            onClose()
-            onNewLane()
-          }}
-        />
-      </div>
-    </ModalOverlay>
+        </>
+      }
+      onClose={onClose}
+    >
+      <nav aria-label="Lane panes" className="action-sheet-group">
+        <p className="action-sheet-label">View</p>
+        {COMPACT_LANE_PANES.map((id) => {
+          const Icon = SCREENS[id].icon
+          return (
+            <ActionSheetItem
+              key={id}
+              icon={<Icon size={16} />}
+              current={pane === id}
+              onClick={() => {
+                onClose()
+                onPane(id)
+              }}
+            >
+              {SCREENS[id].title}
+            </ActionSheetItem>
+          )
+        })}
+      </nav>
+      <LaneActionGroup
+        hostId={hostId}
+        actions={actions}
+        error={error}
+        onNewLane={() => {
+          onClose()
+          onNewLane()
+        }}
+      />
+    </ActionSheet>
   )
 }
 
-/** Control and lifecycle rows. A confirmed action closes the menu; a refusal stays to explain. */
-function LaneActions({
+/** The shared lane actions as sheet rows, then New lane on this Host. */
+function LaneActionGroup({
   hostId,
-  control,
-  onClose,
+  actions,
+  error,
   onNewLane,
 }: {
   hostId: string
-  control: LaneControl | null
-  onClose: () => void
+  actions: ContextMenuItem[]
+  error: string | null
   onNewLane: () => void
 }): React.JSX.Element {
-  const run = (channel: Parameters<LaneControl['act']>[0]): void => {
-    void control?.act(channel).then((ok) => {
-      if (ok) onClose()
-    })
-  }
   return (
-    <div role="group" aria-label="Lane actions" className="lane-sheet-group">
-      <p className="lane-sheet-label">Lane</p>
-      {control && !control.controlling && (
-        <SheetItem
-          icon={<UserIcon size={16} />}
-          disabled={!control.enabled || control.busy}
-          onClick={() => run('hosts:takeControl')}
+    <div role="group" aria-label="Lane actions" className="action-sheet-group">
+      <p className="action-sheet-label">Lane</p>
+      {actions.map((item) => (
+        <ActionSheetItem
+          key={item.label}
+          danger={item.danger}
+          disabled={item.disabled}
+          hint={item.hint}
+          onClick={item.onClick}
         >
-          Take control
-        </SheetItem>
-      )}
-      {control?.controlling && (
-        <SheetItem
-          icon={<UserIcon size={16} />}
-          disabled={control.busy}
-          onClick={() => run('hosts:releaseControl')}
-        >
-          Release control
-        </SheetItem>
-      )}
-      {control?.controlling && (
-        <SheetItem
-          icon={<span className="lane-sheet-stop" />}
-          danger={!control.stopped}
-          disabled={control.busy || control.stopBlocked !== null}
-          hint={control.stopBlocked ?? undefined}
-          onClick={() => run(control.stopped ? 'hosts:resumeLane' : 'hosts:stopLane')}
-        >
-          {control.stopped ? 'Resume lane' : 'Stop lane'}
-        </SheetItem>
-      )}
-      <SheetItem icon={<PlusIcon size={16} />} onClick={onNewLane}>
+          {item.label}
+        </ActionSheetItem>
+      ))}
+      <ActionSheetItem icon={<PlusIcon size={16} />} onClick={onNewLane}>
         New lane on {machineLabel(hostId)}
-      </SheetItem>
-      {control?.error && (
-        <p role="alert" className="lane-sheet-error">
-          {control.error}
+      </ActionSheetItem>
+      {error && (
+        <p role="alert" className="action-sheet-error">
+          {error}
         </p>
       )}
     </div>
-  )
-}
-
-function SheetItem({
-  icon,
-  current = false,
-  danger = false,
-  disabled = false,
-  hint,
-  onClick,
-  children,
-}: {
-  icon: React.ReactNode
-  current?: boolean
-  danger?: boolean
-  disabled?: boolean
-  /** Why the row is disabled; shown under its label, where a phone can read it. */
-  hint?: string
-  onClick: () => void
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <TooltipButton
-      tooltip={false}
-      className={clsx('lane-sheet-item', danger && 'lane-sheet-danger')}
-      aria-current={current ? 'page' : undefined}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <span className="lane-sheet-icon">{icon}</span>
-      <span className="min-w-0">
-        <span className="block truncate">{children}</span>
-        {hint && <span className="lane-sheet-hint">{hint}</span>}
-      </span>
-    </TooltipButton>
   )
 }

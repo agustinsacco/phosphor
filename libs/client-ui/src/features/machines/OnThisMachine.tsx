@@ -1,9 +1,9 @@
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
-import { RemoteLaneRow } from '@/features/home/RemoteLaneRow'
+import { RemoteLaneRow } from '@/features/sessions/RemoteLaneRow'
 import { useNavigation } from '@/navigation/Navigation'
 import { artifactOnMachine } from '@/features/artifacts/globalArtifacts'
 import { useEffect, useState } from 'react'
-import { useRemoteLanesStore, openRemoteLane, REMOTE_NOT_READY } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { openMachinePage } from '@/stores/machinePages'
 import { TooltipButton } from '@/components/Tooltip'
 import { Skeleton } from './MachineUi'
@@ -89,15 +89,7 @@ export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element
           {host.lanes.length > 0 && (
             <fieldset className="machine-lane-preview" aria-label="Lane preview" disabled={!ready}>
               {host.lanes.slice(0, LANES_SHOWN).map((lane) => (
-                <RemoteLaneRow
-                  key={lane.laneId}
-                  lane={lane}
-                  hostId={hostId}
-                  disabled={!ready}
-                  onOpen={() => {
-                    if (ready) void openRemoteLane(hostId, lane.laneId)
-                  }}
-                />
+                <RemoteLaneRow key={lane.laneId} lane={lane} hostId={hostId} ready={ready} />
               ))}
               {host.lanes.length > LANES_SHOWN && (
                 <TooltipButton

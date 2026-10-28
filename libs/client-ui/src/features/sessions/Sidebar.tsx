@@ -54,6 +54,7 @@ import {
 } from '@/components/icons'
 import {
   LaneRow,
+  SectionLabel,
   WorkspaceGroupHeader,
   WorkspaceGroupTitle,
   SessionIndicator,
@@ -2081,14 +2082,6 @@ function PendingSessionRow({
  * because a live session swaps from the second to the first mid-turn and the
  * swap has to be invisible. They had drifted into two different subtitles.
  */
-
-function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return (
-    <div className="text-text-tertiary px-2 pb-0.5 pt-2.5 text-xs font-semibold font-mono uppercase tracking-wider">
-      {children}
-    </div>
-  )
-}
 
 /**
  * Placeholder headers for the whole group list, before prefs have landed.

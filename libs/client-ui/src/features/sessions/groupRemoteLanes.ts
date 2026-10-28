@@ -8,7 +8,7 @@ export interface RemoteLaneGroup {
 }
 
 /** Newest first, like Desktop's sessions; an unreadable timestamp sinks, ties keep snapshot order. */
-function compareLanesByCreation(a: HostLaneView, b: HostLaneView): number {
+export function compareLanesByCreation(a: HostLaneView, b: HostLaneView): number {
   const time = (lane: HostLaneView): number => {
     const parsed = Date.parse(lane.createdAt)
     return Number.isFinite(parsed) ? parsed : -Infinity

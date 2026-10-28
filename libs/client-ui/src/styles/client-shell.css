@@ -228,10 +228,8 @@ html[data-form-factor='compact'] {
 .compact-lane-dot[data-tone='warning'] {
   background: var(--px-warning);
 }
-/* The phone bottom sheet (components/ActionSheet.tsx). The `lane-sheet` names are the
-   compact lane header's spelling of the same rules. */
-.action-sheet,
-.lane-sheet {
+/* The phone bottom sheet (components/ActionSheet.tsx). */
+.action-sheet {
   width: 100vw;
   padding: 8px 12px 12px;
   border-top: 1px solid var(--px-border);
@@ -239,16 +237,14 @@ html[data-form-factor='compact'] {
   background: var(--px-surface-raised);
   color: var(--px-text);
 }
-.action-sheet-grab,
-.lane-sheet-grab {
+.action-sheet-grab {
   width: 36px;
   height: 4px;
   margin: 0 auto 10px;
   border-radius: 2px;
   background: var(--px-border-strong);
 }
-.action-sheet-head,
-.lane-sheet-head {
+.action-sheet-head {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -256,22 +252,19 @@ html[data-form-factor='compact'] {
   border-bottom: 1px solid var(--px-border);
   font-size: 14.5px;
 }
-.action-sheet-group,
-.lane-sheet-group {
+.action-sheet-group {
   display: flex;
   flex-direction: column;
   padding-top: 6px;
 }
-.action-sheet-label,
-.lane-sheet-label {
+.action-sheet-label {
   padding: 6px 8px 2px;
   color: var(--px-text-tertiary);
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.action-sheet-item,
-.lane-sheet-item {
+.action-sheet-item {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -282,50 +275,34 @@ html[data-form-factor='compact'] {
   font-size: 14.5px;
   text-align: left;
 }
-.action-sheet-item:active:not(:disabled),
-.lane-sheet-item:active:not(:disabled) {
+.action-sheet-item:active:not(:disabled) {
   background: var(--px-bg-secondary);
 }
-.action-sheet-item:disabled,
-.lane-sheet-item:disabled {
+.action-sheet-item:disabled {
   opacity: 0.5;
 }
 .action-sheet-item[aria-current='page'],
-.lane-sheet-item[aria-current='page'],
-.action-sheet-item[aria-current='page'] .action-sheet-icon,
-.lane-sheet-item[aria-current='page'] .lane-sheet-icon {
+.action-sheet-item[aria-current='page'] .action-sheet-icon {
   color: var(--px-accent);
   font-weight: 550;
 }
 .action-sheet-danger,
-.lane-sheet-danger,
-.action-sheet-danger .action-sheet-icon,
-.lane-sheet-danger .lane-sheet-icon {
+.action-sheet-danger .action-sheet-icon {
   color: var(--px-danger);
 }
-.action-sheet-icon,
-.lane-sheet-icon {
+.action-sheet-icon {
   display: flex;
   width: 20px;
   flex-shrink: 0;
   justify-content: center;
   color: var(--px-text-secondary);
 }
-.action-sheet-stop,
-.lane-sheet-stop {
-  width: 11px;
-  height: 11px;
-  border-radius: 2px;
-  background: currentColor;
-}
-.action-sheet-hint,
-.lane-sheet-hint {
+.action-sheet-hint {
   display: block;
   color: var(--px-text-tertiary);
   font-size: 12px;
 }
-.action-sheet-error,
-.lane-sheet-error {
+.action-sheet-error {
   padding: 6px 8px;
   color: var(--px-danger);
   font-size: 12.5px;

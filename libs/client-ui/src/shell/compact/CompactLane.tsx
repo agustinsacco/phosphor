@@ -13,7 +13,8 @@ import { ChatView } from '@/features/chat/ChatView'
 import { ReadOnlyFilesPane } from '@/features/files/ReadOnlyFilesPane'
 import { SCREENS } from '@/navigation/screens'
 import { usePlatform } from '@/platform/Platform'
-import { COMPACT_LANE_PANES, useRemoteLaneSession } from './CompactLaneHeader'
+import { COMPACT_LANE_PANES } from './CompactLaneHeader'
+import { useRemoteLaneSession } from '@/features/sessions/useRemoteLaneActions'
 import type { Location } from '@/navigation/location'
 const TerminalPane = lazy(() =>
   import('@/features/terminal/TerminalPane').then((m) => ({ default: m.TerminalPane })),

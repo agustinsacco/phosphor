@@ -123,7 +123,7 @@ it('gives the controller Release and Stop, with Stop explained until a first mes
   act(() => button(/^Lane menu/)!.click())
   expect(button('Take control')).toBeUndefined()
   expect(button('Release control')!.disabled).toBe(false)
-  const stop = button(/^Stop lane/)!
+  const stop = button(/^Stop/)!
   expect(stop.disabled).toBe(true)
   expect(stop.textContent).toContain('Send a first message')
   act(() => button(/^New lane on/)!.click())

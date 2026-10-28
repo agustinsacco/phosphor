@@ -2,7 +2,7 @@ import {
   mockRemoteAction,
   mockRemoteLaneMarks,
   onMockRemoteChanged,
-  mockRemoteHosts,
+  mockRemoteSnapshot,
   mixedRemoteHosts,
   mockRemoteInfo,
 } from './mockRemoteLanes'
@@ -1506,7 +1506,7 @@ export function installMockPhosphor(): void {
           return localStorage.getItem('mock:remoteLanes') === '1'
             ? localStorage.getItem('mock:remoteMixed') === '1'
               ? mixedRemoteHosts()
-              : structuredClone(mockRemoteHosts)
+              : mockRemoteSnapshot()
             : {}
         case 'hosts:openLane':
         case 'hosts:createLane':

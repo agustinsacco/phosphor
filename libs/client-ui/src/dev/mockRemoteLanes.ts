@@ -82,6 +82,13 @@ export function mockRemoteLaneMarks(laneId: unknown, change: LaneMarksChange): v
   for (const listener of listeners) listener()
 }
 
+/** The harness Host's snapshot. It keeps lane pins and markers, as a current Host does. */
+export function mockRemoteSnapshot(): HostsSnapshot {
+  const hosts = structuredClone(mockRemoteHosts)
+  for (const host of Object.values(hosts)) host.laneMarks = true
+  return hosts
+}
+
 /** Opt-in screenshot directory. Ordinary harness and test defaults stay unchanged. */
 export function mixedRemoteHosts(): HostsSnapshot {
   const base = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)

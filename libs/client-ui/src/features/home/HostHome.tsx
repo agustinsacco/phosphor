@@ -3,11 +3,10 @@ import {
   useRemoteLanesStore,
   connectionLabel,
   hostPending,
-  openRemoteLane,
   REMOTE_NOT_READY,
   REMOTE_UNAVAILABLE,
 } from '@/stores/remoteLanes'
-import { RemoteLaneGroups } from '@/features/sessions/RemoteLaneGroups'
+import { RemoteHostLanes } from '@/features/sessions/RemoteHostLanes'
 import { WaitingNote } from '@/components/Waiting'
 import './remoteStart.css'
 
@@ -39,11 +38,11 @@ export function HostHome({ hostId }: { hostId: string }): React.JSX.Element {
           <p className="text-text-secondary mt-1 text-sm">Your lanes on {label}</p>
           <div className="remote-lane-list">
             {host && (
-              <RemoteLaneGroups
+              <RemoteHostLanes
                 hostId={hostId}
                 repositories={host.repositories}
                 lanes={host.lanes}
-                onOpen={(laneId) => void openRemoteLane(hostId, laneId)}
+                density="page"
               />
             )}
           </div>
