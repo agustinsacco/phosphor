@@ -147,6 +147,13 @@ with `-2` through `-5`. Exhaustion shows “Couldn't find a free branch name on 
 draft. Unknown outcomes never trigger a branch retry. The Host's new-only guarantee
 and older-Host compatibility are in [Creating lanes](host.md#creating-lanes).
 
+A creation that did not succeed crosses IPC as a fixed code, never the Host's text
+(`createFailureText` in `libs/host-client/src/lane-ops.ts`). A refusal, a failed
+receipt or a frame that was never sent created nothing: the composer says the
+machine couldn't start the lane and that the Host log has the cause, or names the
+lane limit for a `too-many-requests` refusal. Only an unknown receipt or a dropped
+connection says the Host could not confirm it. Every case keeps the draft.
+
 An unavailable selection stays selected and disabled. Failure never starts a local session instead.
 
 Remote header and pane chips report Connected, Connecting (first attempt),
