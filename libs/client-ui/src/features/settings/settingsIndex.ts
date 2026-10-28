@@ -209,6 +209,11 @@ export const SETTINGS_INDEX: SettingEntry[] = [
       ['Delete automatically', 'remove'],
     ],
   ),
+  ...section(
+    'advanced',
+    ['Privacy', 'analytics telemetry tracking'],
+    [['Send an anonymous daily usage ping', 'telemetry analytics do not track opt out']],
+  ),
   ...section('advanced', ['Local pi resources', 'prompts themes extensions']),
   ...section('about', null, [
     ['Phosphor version', 'release'],

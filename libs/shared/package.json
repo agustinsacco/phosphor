@@ -84,6 +84,10 @@
       "types": "./src/control-api.ts",
       "default": "./src/control-api.ts"
     },
+    "./usage-ping": {
+      "types": "./src/usage-ping.ts",
+      "default": "./src/usage-ping.ts"
+    },
     "./errors": {
       "types": "./src/errors.ts",
       "default": "./src/errors.ts"

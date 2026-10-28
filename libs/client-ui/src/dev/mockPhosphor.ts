@@ -84,6 +84,13 @@ const MOCK_STORED_ARTIFACT: { listing: ArtifactListing; artifact: ArtifactSnapsh
 
 let mockStoredArtifactRemoved = false
 
+const MOCK_USAGE_PING = {
+  v: 1,
+  product: 'desktop',
+  version: '0.1.600',
+  os: 'darwin',
+  arch: 'arm64',
+}
 const listeners = new Map<string, Set<(push: SessionPush) => void>>()
 const ptyListeners = new Map<string, Set<(data: string) => void>>()
 let replaying = false
@@ -2368,6 +2375,13 @@ export function installMockPhosphor(): void {
           return Promise.resolve({ ok: true, mode: 'github', url: 'https://github.com/' })
         case 'feedback:dismiss':
           return Promise.resolve(undefined)
+        // Notice already shown, so the harness renders Settings without a toast.
+        case 'app:usagePing':
+        case 'app:setUsagePing':
+          return Promise.resolve({
+            ...{ enabled: true, noticeShown: true, blocked: null, ...(args[0] as object) },
+            preview: { ...MOCK_USAGE_PING, first: false, newWeek: true, newMonth: false },
+          } as never)
         case 'fs:statDirs':
           return Promise.resolve((args[0] as string[]).map((path) => ({ path, mtimeMs: 1 })))
         case 'fs:watchWorkspace':

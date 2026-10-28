@@ -5,6 +5,7 @@ import { piInstallLocation, type PiHealth } from '@shared/models'
 import type { PiResources } from '@shared/models'
 import { ConfigFileEditor, piConfigFile } from '../ConfigFileEditor'
 import { MaintenanceSection } from './MaintenanceSection'
+import { UsagePingSection } from './UsagePingSection'
 
 /** pi install health, discovered resources, and raw config file editing. */
 
@@ -53,6 +54,7 @@ export function AdvancedTab(): React.JSX.Element {
       </Row>
 
       <MaintenanceSection />
+      <UsagePingSection />
 
       <SectionTitle small>
         Local pi resources (loose files — packages are in the Extensions tab; skills have their own

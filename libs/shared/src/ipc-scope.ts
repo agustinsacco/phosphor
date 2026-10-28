@@ -98,6 +98,8 @@ export const IPC_SCOPE = {
   'app:saveDialog': 'machine',
   'app:revealPath': 'machine',
   'app:openExternal': 'app',
+  'app:usagePing': 'app',
+  'app:setUsagePing': 'app',
   'clipboard:writeImage': 'app',
   'clipboard:readImage': 'app',
   'clipboard:writeFiles': 'app',
