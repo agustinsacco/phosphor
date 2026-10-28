@@ -8,6 +8,7 @@ import {
   showMenuBelow,
   type ContextMenuItem,
 } from './ContextMenu'
+import { COMPACT_PLATFORM, DESKTOP_PLATFORM, PlatformProvider } from '@/platform/Platform'
 
 let root: Root
 let container: HTMLDivElement
@@ -99,5 +100,50 @@ describe('ContextMenuHost expanded popover (characterization)', () => {
     act(() => showContextMenuAt(10, 10, items()))
     act(() => void window.dispatchEvent(new Event('blur')))
     expect(menu()).toBeNull()
+  })
+})
+
+describe('useMenuTriggers and the phone action sheet (regression: no long-press menu)', () => {
+  function mount(node: React.ReactNode, platform = DESKTOP_PLATFORM): HTMLButtonElement {
+    act(() =>
+      root.render(
+        <PlatformProvider value={platform}>
+          <ContextMenuHost />
+          {node}
+        </PlatformProvider>,
+      ),
+    )
+    return document.querySelector<HTMLButtonElement>('[data-testid="row"]')!
+  }
+  const sheet = (): HTMLElement | null => document.querySelector('[role="dialog"]')
+
+  it('renders an action sheet on a phone: title, visible hints, disabled, danger, groups, Cancel', () => {
+    mount(null, COMPACT_PLATFORM)
+    const run = vi.fn()
+    act(() => showContextMenuAt(5, 5, items(run), { title: 'Fix the build' }))
+    expect(menu()).toBeNull()
+    const dialog = sheet()!
+    expect(dialog.getAttribute('aria-label')).toBe('Fix the build')
+    expect(dialog.querySelector('.action-sheet-head')!.textContent).toBe('Fix the build')
+    const groups = Array.from(dialog.querySelectorAll('[role="group"]'))
+    expect(groups.map((group) => group.querySelectorAll('button').length)).toEqual([2, 2])
+    const buttons = Array.from(dialog.querySelectorAll('button'))
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      'Open',
+      'Suspend~200 MB',
+      'Fork',
+      'Deleteto trash',
+      'Cancel',
+    ])
+    expect(buttons[1]!.querySelector('.action-sheet-hint')!.textContent).toBe('~200 MB')
+    expect(buttons[2]!.disabled).toBe(true)
+    expect(buttons[3]!.className).toContain('action-sheet-danger')
+    act(() => buttons[0]!.click())
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(sheet()).toBeNull()
+
+    act(() => showContextMenuAt(5, 5, items()))
+    act(() => Array.from(sheet()!.querySelectorAll('button')).at(-1)!.click())
+    expect(sheet()).toBeNull()
   })
 })
