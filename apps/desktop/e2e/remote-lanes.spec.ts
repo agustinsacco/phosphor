@@ -140,7 +140,7 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
       'Open',
       'Rename',
       'Release control',
-      'Stop',
+      /^Stop/, // Until the lane's first message, Stop's name carries why it waits.
       'Mark read',
       'Pin',
       'Lane marker',
