@@ -79,6 +79,8 @@ describe('lane.create', () => {
     expect(f.ports.sessions.start).toHaveBeenCalledTimes(1)
   })
   it('returns fixed folder errors and generic start errors, logging safe codes only', async () => {
+    // A folder git does not track runs in place, so its branch is never checked.
+    vi.spyOn(folders, 'insideGitWorkTree').mockResolvedValueOnce(true)
     const invalid = create({ worktree: { branch: 'bad..name' } })
     await f.service.submit(f.one, invalid)
     expect(f.last(invalid.requestId)).toMatchObject({
@@ -96,7 +98,8 @@ describe('lane.create', () => {
         error: { message: 'the lane could not start' },
       })
     }
-    expect(f.logs.filter((l) => l.message === 'lane.command_error')).toHaveLength(1)
+    // The folder sentence and the one token-shaped code.
+    expect(f.logs.filter((l) => l.message === 'lane.command_error')).toHaveLength(2)
     expect(JSON.stringify(f.logs)).not.toContain('private')
   })
   it('maps a store capacity race to too-many-requests and stops the started session', async () => {

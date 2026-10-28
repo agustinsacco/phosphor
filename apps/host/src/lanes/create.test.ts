@@ -3,7 +3,10 @@ import { createLane, type LaneSessions } from './create'
 import { HostStore, type StoredLane } from './store'
 import { prepareLaneFolder } from './worktree'
 
-vi.mock('./worktree', () => ({ prepareLaneFolder: vi.fn() }))
+vi.mock('./worktree', () => ({
+  prepareLaneFolder: vi.fn(),
+  insideGitWorkTree: vi.fn(async () => true),
+}))
 let order: string[]
 let sessions: LaneSessions
 let store: HostStore

@@ -74,7 +74,10 @@ export function releaseCreatedLane(
     void drain(state, ports, execute, hold.laneId, hold.queue).catch(() => {})
 }
 
-/** Classify a createLane failure. Only a token-shaped error code is logged. */
+/**
+ * Classify a createLane failure. The log gets a token-shaped error code, or a folder
+ * error's sentence, which the Host fixes itself; never free text from pi or git.
+ */
 export function creationFailure(
   ports: Pick<LaneCommandPorts, 'log'>,
   requestId: string,
@@ -87,6 +90,8 @@ export function creationFailure(
     typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
   if (typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code))
     log(ports, 'lane.command_error', { requestId, op: 'lane.create', code })
+  else if (error instanceof LaneFolderError)
+    log(ports, 'lane.command_error', { requestId, op: 'lane.create', reason: error.message })
   return {
     kind: 'failed',
     error: {

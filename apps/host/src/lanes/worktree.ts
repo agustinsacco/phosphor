@@ -28,6 +28,14 @@ export interface LaneFolder {
   branch: string | null
   undo(): Promise<void>
 }
+/** Whether git tracks the folder. A worktree needs it; a lane in place does not. */
+export async function insideGitWorkTree(root: string): Promise<boolean> {
+  const inside = await git(root, ['rev-parse', '--is-inside-work-tree'], {
+    env: { GIT_TERMINAL_PROMPT: '0' },
+    trim: true,
+  }).catch(() => '')
+  return inside === 'true'
+}
 export async function prepareLaneFolder(input: {
   root: string
   worktree: { readonly branch: string; readonly fresh?: true } | null
