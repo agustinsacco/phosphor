@@ -297,8 +297,12 @@ function PopoverRow({
         item.danger ? 'text-danger hover:bg-danger-soft' : 'hover:bg-bg-secondary',
       )}
     >
-      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      {item.hint && <span className="text-text-tertiary shrink-0 text-sm">{item.hint}</span>}
+      {/* The label never gives way to its hint: a long hint (a disabled row's reason)
+          wraps beside it, and only a label wider than the whole menu truncates. */}
+      <span className="max-w-full shrink-0 grow truncate">{item.label}</span>
+      {item.hint && (
+        <span className="text-text-tertiary min-w-0 text-right text-sm">{item.hint}</span>
+      )}
       {item.shortcut && (
         <span className="text-text-tertiary shrink-0 font-mono text-sm">{item.shortcut}</span>
       )}

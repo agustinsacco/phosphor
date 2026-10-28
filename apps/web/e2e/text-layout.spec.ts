@@ -41,7 +41,7 @@ test('shared pages wrap at doubled text sizes and the composer follows a reduced
   await page.screenshot({ path: info.outputPath('reduced-keyboard-viewport.png'), fullPage: true })
 })
 
-test('a menu row keeps its whole label beside a long hint', async ({ stack, page }) => {
+test('a menu row keeps its whole label beside a long hint', async ({ stack, page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
@@ -58,4 +58,5 @@ test('a menu row keeps its whole label beside a long hint', async ({ stack, page
   const clipped = (el: Element) => el.clientWidth === 0 || el.scrollWidth > el.clientWidth + 1
   expect(await label.evaluate(clipped)).toBe(false)
   expect(await row.locator('span').nth(1).evaluate(clipped)).toBe(false)
+  await page.screenshot({ path: info.outputPath('menu-long-hint-1440.png') })
 })
