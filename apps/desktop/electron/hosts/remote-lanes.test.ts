@@ -1165,41 +1165,32 @@ it.each(['incarnation', 'focus-cycle', 'removed-lane'] as const)(
   },
 )
 
-it.each(['branch-exists', 'forbidden'] as const)(
-  'creation passes only the fixed fresh refusal code: %s',
-  async (code) => {
-    const t = await setup()
-    vi.spyOn(t.c, 'send').mockResolvedValue({ requestId: randomUUID(), status: 'rejected', code })
-    await expect(
-      t.lanes.create(t.window, t.hostId, {
-        repositoryId: '0123456789abcdef',
-        worktree: { branch: 'fresh', fresh: true },
-      }),
-    ).rejects.toThrow(code === 'branch-exists' ? 'branch-exists' : 'Lane creation not confirmed.')
-    t.c.close()
-    t.host.stop()
-  },
-)
-
-it.each(['failed', 'transport'] as const)(
-  'never authorizes a retry from a %s error message',
-  async (mode) => {
-    const t = await setup()
-    const send = vi.spyOn(t.c, 'send')
-    if (mode === 'failed')
-      send.mockResolvedValue({
-        requestId: randomUUID(),
-        status: 'failed',
-        error: { code: 'internal', message: 'branch-exists' },
-      })
-    else send.mockRejectedValue(new Error('branch-exists'))
-    await expect(
-      t.lanes.create(t.window, t.hostId, {
-        repositoryId: '0123456789abcdef',
-        worktree: { branch: 'fresh', fresh: true },
-      }),
-    ).rejects.toThrow('Lane creation not confirmed.')
-    t.c.close()
-    t.host.stop()
-  },
-)
+// Only a fresh branch-exists may retry. A definite refusal or failure says nothing was
+// created; only an outcome the Host never answered stays "not confirmed". Host text
+// (here a message that reads "branch-exists") never crosses IPC.
+it.each([
+  ['rejected branch-exists', { status: 'rejected', code: 'branch-exists' }, 'branch-exists'],
+  ['rejected forbidden', { status: 'rejected', code: 'forbidden' }, 'lane-create-failed'],
+  ['rejected at capacity', { status: 'rejected', code: 'too-many-requests' }, 'lane-limit'],
+  [
+    'failed',
+    { status: 'failed', error: { code: 'internal', message: 'branch-exists' } },
+    'lane-create-failed',
+  ],
+  ['not-sent', { status: 'not-sent', reason: 'not-connected' }, 'lane-create-failed'],
+  ['unknown', { status: 'unknown' }, 'Lane creation not confirmed.'],
+  ['transport', new Error('branch-exists'), 'Lane creation not confirmed.'],
+] as const)('creation answers a %s outcome with only its fixed text', async (_, outcome, text) => {
+  const t = await setup()
+  const send = vi.spyOn(t.c, 'send')
+  if (outcome instanceof Error) send.mockRejectedValue(outcome)
+  else send.mockResolvedValue({ requestId: randomUUID(), ...outcome })
+  await expect(
+    t.lanes.create(t.window, t.hostId, {
+      repositoryId: '0123456789abcdef',
+      worktree: { branch: 'fresh', fresh: true },
+    }),
+  ).rejects.toThrow(new Error(text))
+  t.c.close()
+  t.host.stop()
+})

@@ -334,3 +334,24 @@ it.each(['exhausted', 'prefix'] as const)(
     expect(receipt).not.toHaveBeenCalled()
   },
 )
+
+// A Host that answered "failed" was shown as "could not confirm", which sent people
+// checking for a lane that was never created.
+it.each([
+  ['lane-create-failed', `${MOCK_HOST_ID} couldn't start this lane. Nothing was created.`],
+  ['lane-limit', `${MOCK_HOST_ID} has reached its lane limit.`],
+  ['Lane creation not confirmed.', 'The Host could not confirm this.'],
+])('keeps the draft and names a %s creation outcome', async (code, message) => {
+  useWorktreesStore.setState({ preferWorktree: false, branchPrefix: 'phosphor/' })
+  const original = invoke.getMockImplementation()
+  invoke.mockImplementation(async (channel, ...args) => {
+    if (channel === 'hosts:createLane') throw new Error(code)
+    return original?.(channel, ...args)
+  })
+  await render()
+  await send()
+  expect(useDraftsStore.getState().drafts[key]?.text).toBe('First prompt')
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:createLane')).toHaveLength(1)
+  expect(el.textContent).toContain(message)
+  expect(receipt).not.toHaveBeenCalled()
+})
