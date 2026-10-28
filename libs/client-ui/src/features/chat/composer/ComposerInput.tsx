@@ -1,9 +1,8 @@
 import { usePlatform } from '@/platform/Platform'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { AttachButton } from '@/components/ComposerButtons'
 import { DictateButton } from '@/features/voice/DictateButton'
-import { fuzzyFilter } from '@/lib/fuzzy'
 import type { PendingAttachment } from '../attachments'
 import { ComposerField, type ComposerFieldProps } from './ComposerField'
 import { AttachmentChips, DropOverlay } from './AttachmentChips'
@@ -12,10 +11,13 @@ import { FileMentionMenu } from './FileMentionMenu'
 import { CommandMenu } from './CommandMenu'
 import type { useSlashMenu } from './useSlashMenu'
 import { SwarmControl, SwarmSwitch, swarmLook, useSwarm } from './SwarmSwitch'
+import { useFileMentions, workspaceFileSource, type FileMentionSource } from './useFileMentions'
 
 interface ComposerInputProps extends Omit<ComposerFieldProps, 'onPasteFiles'> {
   remoteAttachments?: boolean
   workspacePath?: string
+  /** Where `@` reads files. Defaults to the workspace's own; null offers none. */
+  fileSource?: FileMentionSource | null
   attachments: PendingAttachment[]
   onAttachmentsChange: (attachments: PendingAttachment[]) => void
   onWarning: (message: string) => void
@@ -33,6 +35,7 @@ interface ComposerInputProps extends Omit<ComposerFieldProps, 'onPasteFiles'> {
 export function ComposerInput({
   workspacePath,
   remoteAttachments = false,
+  fileSource,
   attachments: images,
   onAttachmentsChange,
   onWarning,
@@ -57,71 +60,24 @@ export function ComposerInput({
   const liveSwarm = useSwarm('sessionId' in swarm ? swarm.sessionId : '')
   const enabled = 'sessionId' in swarm ? (liveSwarm?.enabled ?? false) : swarm.enabled
   const pending = 'sessionId' in swarm && swarmLook(liveSwarm) === 'pending'
-  const [mention, setMention] = useState<{ anchor: number; query: string } | null>(null)
-  const [activeIndex, setActiveIndex] = useState(0)
-  const [index, setIndex] = useState<{ workspacePath: string; files: string[] } | null>(null)
-  useEffect(() => {
-    if (!workspacePath || !mention || index?.workspacePath === workspacePath) return
-    let cancelled = false
-    void window.phosphor
-      .invoke('fs:listFiles', workspacePath)
-      .then((files) => {
-        if (!cancelled) setIndex({ workspacePath, files })
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [mention, workspacePath, index])
-  // Sending/clearing a draft must close its popup, including attachment-only sends.
-  useEffect(() => {
-    if (!field.value) setMention(null)
-  }, [field.value])
-  const matches = useMemo(
-    () =>
-      mention && index && index.workspacePath === workspacePath
-        ? fuzzyFilter(mention.query, index.files, (f) => f, 12)
-        : [],
-    [mention, index, workspacePath],
+  const workspaceFiles = useMemo(
+    () => (workspacePath ? workspaceFileSource(workspacePath) : null),
+    [workspacePath],
   )
+  const mention = useFileMentions({
+    source: fileSource === undefined ? workspaceFiles : fileSource,
+    value: field.value,
+    onChange: field.onChange,
+    textareaRef: field.textareaRef,
+  })
   const change = (value: string, caret: number): void => {
     field.onChange(value, caret)
     slash.sync(value)
-    const match = /(^|\s)@([^\s@]*)$/.exec(value.slice(0, caret))
-    setMention(match ? { anchor: caret - match[2]!.length - 1, query: match[2]! } : null)
-    setActiveIndex(0)
-  }
-  const pick = (file: string): void => {
-    if (!mention) return
-    const after = field.value.slice(mention.anchor + 1 + mention.query.length)
-    const next =
-      field.value.slice(0, mention.anchor) + file + (after.startsWith(' ') ? '' : ' ') + after
-    field.onChange(next, mention.anchor + file.length + 1)
-    setMention(null)
-    field.textareaRef.current?.focus()
+    mention.track(value, caret)
   }
   const keyDown: ComposerFieldProps['onKeyDown'] = (event) => {
     if (slash.handleKeyDown(event)) return true
-    if (!slash.visible && mention && matches.length) {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault()
-        setActiveIndex(
-          (i) => (i + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length,
-        )
-        return true
-      }
-      if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
-        event.preventDefault()
-        const file = matches[activeIndex]
-        if (file) pick(file)
-        return true
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        setMention(null)
-        return true
-      }
-    }
+    if (!slash.visible && mention.handleKeyDown(event)) return true
     return field.onKeyDown?.(event) ?? false
   }
   return (
@@ -138,13 +94,13 @@ export function ComposerInput({
           onClose={slash.close}
         />
       )}
-      {!slash.visible && mention && matches.length > 0 && (
+      {!slash.visible && mention.open && mention.matches.length > 0 && (
         <FileMentionMenu
-          files={matches}
-          activeIndex={activeIndex}
-          onHover={setActiveIndex}
-          onPick={pick}
-          onClose={() => setMention(null)}
+          files={mention.matches}
+          activeIndex={mention.activeIndex}
+          onHover={mention.setActiveIndex}
+          onPick={mention.pick}
+          onClose={mention.close}
         />
       )}
       <div
@@ -177,7 +133,7 @@ export function ComposerInput({
           autocomplete={
             field.autocomplete !== false &&
             !slash.visible &&
-            !mention &&
+            !mention.open &&
             !field.value.startsWith('!')
           }
         />
