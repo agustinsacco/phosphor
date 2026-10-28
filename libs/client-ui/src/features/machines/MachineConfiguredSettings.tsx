@@ -51,7 +51,8 @@ function MachineSettingsToolbar({ controller }: ControllerProps): React.JSX.Elem
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       {scoped ? (
-        <label className="text-text-secondary flex items-center gap-2 text-sm">
+        // Wraps instead of shrinking: WebKit keeps a select at its longest option's width.
+        <label className="text-text-secondary flex min-w-0 flex-wrap items-center gap-2 text-sm">
           Configuration scope
           <select
             aria-label="Host configuration scope"
@@ -64,7 +65,7 @@ function MachineSettingsToolbar({ controller }: ControllerProps): React.JSX.Elem
               })()
             }}
             disabled={settings.saving || starting}
-            className="border-border bg-bg max-w-72 rounded-md border p-1.5"
+            className="border-border bg-bg max-w-[min(18rem,100%)] rounded-md border p-1.5"
           >
             <option value="">{machine.label} · machine defaults</option>
             {connection?.repositories.map((repo) => (
