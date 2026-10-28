@@ -69,20 +69,24 @@ configure grant from Control; this change does not widen what Control signs.
 
 Browser presentation switches at 900px: drawer navigation below that width,
 persistent sidebar above it. Both hold one navigation body: the Phosphor
-brand, Desktop's sidebar top (`SidebarNavigation`: New, then Inbox, then the
-global page links, then the **Lanes on** machine scope), the Host lane tree for
+brand, Desktop's sidebar top (`SidebarNavigation`: New, the global page links,
+then the **Lanes on** machine scope), the Host lane tree for
 that scope (`RemoteLanes`, the same component and density as Desktop's sidebar),
 Desktop's sidebar footer (`SidebarFooter`: the account menu and the Settings
 gear), **Install Phosphor** where `installableApp` allows it, and a short note.
 There is no Lanes link: the tree is in the navigation, and `/lanes` (the lane
-header's Back, deep links) renders the same list as a page. The machine scope is
-the only machine control; the header has none. It offers each known Host and All
-machines, never This Mac (that needs `localLanes`), and lives in the URL, so a
-choice replaces the location's `machine` (from a lane, it opens that machine's
-lane list) and back, forward and deep links keep it. New opens the New page for
-the machine in scope, or asks for one under All machines. In the phone drawer,
-opening a page, a lane, New or Settings closes the drawer; choosing a machine
-keeps it open on that machine's lanes. The header keeps Back and New lane.
+header's Back, deep links) renders the same list as a page. The browser offers
+the same pages as Desktop and no others: `SidebarNavigation` takes no shell
+rows, there is no Inbox, and an old `/inbox` link opens the lane list. A lane
+that needs you is marked on its row and in the machine scope, as on Desktop. The
+machine scope is the only machine control; the header has none. It offers each
+known Host and All machines, never This Mac (that needs `localLanes`), and lives
+in the URL, so a choice replaces the location's `machine` (from a lane, it opens
+that machine's lane list) and back, forward and deep links keep it. New opens
+the New page for the machine in scope, or asks for one under All machines. In
+the phone drawer, opening a page, a lane, New or Settings closes the drawer;
+choosing a machine keeps it open on that machine's lanes. The header keeps Back
+and New lane.
 `Platform.formFactor` controls presentation only, so only primitives
 (`components/`), `platform/` and the shells (`shell/`) read it; the
 `phosphor/form-factor-in-layout` lint rule refuses it in features, navigation and
@@ -146,7 +150,7 @@ machine settings of each known Host; it lists no This Mac sections.
 
 ### One lane row, list and menu
 
-The browser's navigation, Lanes and Inbox pages, Host home (under the start composer) and
+The browser's navigation and Lanes page, Host home (under the start composer) and
 the machine page's lane preview render Desktop's Host lane components, not
 copies ([Lanes](lanes.md#remote-lanes) owns their rules):
 
@@ -157,9 +161,7 @@ copies ([Lanes](lanes.md#remote-lanes) owns their rules):
   Workspace options (Add folder on MACHINE…, Remove from MACHINE, Move up, Move
   down, Select all lanes, Select merged lanes, Collapse lanes) and New lane in
   the folder, which opens the start composer with that folder chosen. Pages
-  pass `density="page"` for touch-sized header buttons. The Inbox lists only
-  unread lanes and their folders, so it has no Workspace options: moves need
-  the whole order and a selection would act on hidden lanes.
+  pass `density="page"` for touch-sized header buttons.
 - `RemoteLaneRow` is the one Host lane row: title, elapsed time, worktree,
   branch, PR chip, marker and activity, as on Desktop. Unread attention is not
   labelled as a request for input, and a stopped process is not presented as a
