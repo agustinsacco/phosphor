@@ -83,24 +83,24 @@ not presented as a task result. Lanes whose repository is absent from the curren
 Host folders remain in explicit unavailable-folder groups in both clients, rather
 than being silently hidden. Browser rows navigate only; native curation stays native.
 
-`RemoteWorkspacePage` and `RemoteStartView` compose the complete remote start
-experience in both clients. Their controller validates remembered repositories,
-provider-ready model choices and submission receipts. The root URL opens New;
-one ready control-capable Host is selected and pinned into the URL, while
+`RemoteWorkspacePage` composes the complete remote start page in both clients,
+and its input is `StartComposer`, the one new-lane composer This Mac uses too
+([remote creation](remote-desktop.md#machine-context-and-lane-creation)).
+`RemoteStartView` supplies the Host target: it validates remembered
+repositories, usable model choices and submission receipts. The root URL opens
+New; one ready control-capable Host is selected and pinned into the URL, while
 multiple targets require a choice. An explicit missing Host never silently
 switches. Model precedence is last valid choice, a validated native preference
-when available, then the first usable catalogue model. At expanded width
-(Desktop and a wide browser) the model and thinking pickers are the lane
-composer's own split chip and searchable model menu, as on This Mac's home, and
-the chip's tooltip discloses which rule chose the model. A compact phone opens a
-bounded model dialog that discloses the same, beside the shared thinking
-selector. No configured Host default or cross-device preference sync is claimed.
-Isolation changes are memory-only in the browser, preserving native preference
-persistence. Under the composer sit only the machine, repository and
-isolation row and at most one status line (a warning, missing control or
-missing repository). The composer keeps its field across reconnections to the
-same Host, locked while it waits; only the model picker restarts with a new
-connection.
+when available, then the first usable catalogue model. At every width the model
+and thinking pickers are the lane composer's own split chip and searchable model
+menu, which a phone opens as a bottom sheet, and the chip's tooltip discloses
+which rule chose the model. No configured Host default or cross-device
+preference sync is claimed. Isolation changes are memory-only in the browser,
+preserving native preference persistence. Above the input sit the machine,
+repository and isolation row; under it, the hints line and at most one note (a
+warning, the connection it waits for, missing control or missing repository).
+The composer keeps its field across reconnections to the same Host, locked while
+it waits; only the model picker restarts with a new connection.
 
 Both clients use bundled Inter and the same tokens. The shared loading surface
 appears during browser account initialization, with explicit sanitized recovery;

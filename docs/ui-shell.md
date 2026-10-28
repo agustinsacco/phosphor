@@ -522,7 +522,8 @@ selection (All machines uses This Mac), with a user override until the next
 sidebar change. Remote creation uses that machine's configured repositories and
 provider catalogue, never a local fallback.
 
-The Host home composer uses that machine's folder, model and thinking choices.
+The Host home composer is This Mac's composer over that machine's folder, model
+and thinking choices.
 [Remote creation](remote-desktop.md#machine-context-and-lane-creation) owns isolation,
 branch collisions and window-local thinking memory.
 

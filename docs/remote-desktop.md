@@ -359,9 +359,28 @@ falls back to local creation.
 The home composer follows the sidebar machine selection (All machines uses This
 Mac). A picker override lasts until the next sidebar selection change. This target
 is window-local renderer state, never persisted. Host-targeted folder, model and
-thinking chips use that machine's repositories and signed-in provider catalogue.
+thinking chips use that machine's repositories and model catalogue.
 The branch choice follows the isolation rule above. The model prefers the last usable choice on that Host, then a usable Desktop default,
-then the first model of the first ready provider. The effective choice is visible.
+then the first model of the first signed-in provider, then the first other usable
+model. The effective choice is visible.
+
+Host lanes start from the same composer as This Mac (`features/home/StartComposer.tsx`):
+the machine, repository and isolation row above a two-row input, **Start lane**,
+a hints line and one note line. `useLocalStart` and the Host target in
+`RemoteStartView` supply only what differs. On a Host, `@` lists the chosen
+repository's files through `hosts:repositoryFiles` (with `workspaces.read`).
+The Host has no command list, swarm check or context-file preference before a
+lane exists, so a new Host lane offers no `/` menu, Swarm switch or Rules
+readout; inside a Host lane `/` lists the lane's own commands.
+
+One rule decides which Host models can be picked, for the new-lane picker and
+for a Host lane's model menu alike (`hostModelUnavailability`). Both list what
+pi reports available on that machine; the new-lane picker reads it through
+`hosts:models`, a lane through its own pi. A model is disabled, with the reason,
+when the Host's sign-in check (`hosts:providers`) reports its provider signed
+out ("Sign in to Anthropic on bee1"), or when it is a bare Bedrock id that needs
+an inference profile. A provider the check does not cover, such as an API key
+in the Host's environment, stays usable because pi listed it.
 
 Thinking is remembered per Host in this window, capped at 64 Hosts. Sign-out or
 remote disable clears it, and restart resets it; it never writes agent settings.
