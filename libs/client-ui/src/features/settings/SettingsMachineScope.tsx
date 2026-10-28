@@ -1,25 +1,11 @@
-import { Button } from '@/components/form'
+import { useMemo } from 'react'
+import { usePlatform } from '@/platform/Platform'
 import { useLayoutStore } from '@/stores/layout'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
-import { useSettingsUiStore, type SettingsTab } from './settingsUiStore'
-
-const MACHINE_TABS: readonly SettingsTab[] = [
-  'accounts',
-  'agent',
-  'extensions',
-  'claude-provider',
-  'connectors',
-  'web-access',
-  'computer-use',
-  'subagents',
-  'optimization',
-  'advanced',
-  'workspaces',
-  'voice',
-]
+import { useSettingsUiStore, type SettingsMachine } from './settingsUiStore'
 
 function useActiveRemoteHost(): string | null {
   return useSessionsStore((s) => {
@@ -29,7 +15,7 @@ function useActiveRemoteHost(): string | null {
 }
 
 /**
- * The machine Settings describes. An open machine detail wins, then an explicit
+ * The Host Settings opens on: an open machine detail wins, then an explicit
  * This Mac choice in the switcher, even while a Host lane is still active.
  */
 export function useSettingsHost(): string | null {
@@ -52,47 +38,62 @@ export function useSettingsWorkspace(): string | null {
   return useActiveRemoteHost() ? homePath : active
 }
 
-export function isMachineSettingsTab(tab: SettingsTab): boolean {
-  return MACHINE_TABS.includes(tab)
+export interface SettingsMachineChoice {
+  id: SettingsMachine
+  label: string
 }
 
-/** Keep local machine effects unmounted while viewing a Host. */
-export function SettingsMachineScope({ hostId }: { hostId: string | null }): React.JSX.Element {
-  const label =
-    useMachinesStore((s) => s.machines.find((m) => m.id === hostId)?.label) ?? 'this machine'
-  const supported = useRemoteLanesStore(
-    (s) => !!hostId && s.hosts[hostId]?.configurationSupported === true,
-  )
+/** This Mac when the client has local lanes, then every known Host when it can configure one. */
+function useSettingsMachineChoices(): SettingsMachineChoice[] {
+  const { localLanes, machineSettings } = usePlatform()
+  const machines = useMachinesStore((s) => s.machines)
+  const hosts = useRemoteLanesStore((s) => s.hosts)
+  return useMemo(() => {
+    const label = (id: string): string => machines.find((m) => m.id === id)?.label ?? id
+    const hostIds = [...new Set([...machines.map((m) => m.id), ...Object.keys(hosts)])]
+    return [
+      ...(localLanes ? [{ id: 'local', label: 'This Mac' }] : []),
+      ...(machineSettings ? hostIds.map((id) => ({ id, label: label(id) })) : []),
+    ]
+  }, [localLanes, machineSettings, machines, hosts])
+}
+
+/**
+ * The machine the surface configures. The Configure choice wins; otherwise the
+ * Settings Host, then This Mac, then the page's machine (`fallback`), then the
+ * first Host. Null only when the client can configure no machine.
+ */
+export function useSettingsMachine(fallback?: string): {
+  choices: SettingsMachineChoice[]
+  machine: SettingsMachineChoice | null
+} {
+  const choices = useSettingsMachineChoices()
+  const chosen = useSettingsUiStore((s) => s.machine)
+  const host = useSettingsHost()
+  const find = (id: string | null | undefined): SettingsMachineChoice | undefined =>
+    id ? choices.find((choice) => choice.id === id) : undefined
+  const machine =
+    find(chosen) ?? find(host) ?? find('local') ?? find(fallback) ?? choices[0] ?? null
+  return { choices, machine }
+}
+
+/** The one line that says which machine a machine section configures. */
+export function SettingsMachineScope({
+  machine,
+}: {
+  machine: SettingsMachineChoice
+}): React.JSX.Element {
   return (
-    <div className="border-border bg-bg-secondary text-text mb-5 rounded-lg border p-3 text-base">
-      <p className="text-text font-medium">This Mac</p>
-      <p className="text-text-secondary mt-1">
-        These settings configure This Mac, not a remote machine.
-      </p>
-      {hostId && (
-        <>
-          <p className="text-text-secondary mt-2">
-            {supported ? 'To configure' : 'To sign in on'} {label}, use Machines → {label} →{' '}
-            {supported ? 'Settings' : 'Readiness'}.
-          </p>
-          <p className="text-text-secondary mt-1">Remote settings are not available here.</p>
-          <Button
-            className="mt-3"
-            onClick={() => {
-              useSettingsUiStore.getState().setOpen(false)
-              useMachinesStore
-                .getState()
-                .show(
-                  supported
-                    ? { kind: 'machine', id: hostId, settings: 'providers' }
-                    : { kind: 'machine', id: hostId },
-                )
-            }}
-          >
-            Open {label} {supported ? 'settings' : 'readiness'}
-          </Button>
-        </>
-      )}
-    </div>
+    <p
+      className="border-border bg-bg-secondary text-text mb-5 rounded-lg border px-3 py-2 text-base font-medium"
+      data-testid="settings-machine-scope"
+    >
+      Configuring {machine.label}
+      <span className="text-text-secondary font-normal">
+        {machine.id === 'local'
+          ? '. These settings stay on This Mac.'
+          : '. Credentials stay on this Host; nothing syncs to another machine.'}
+      </span>
+    </p>
   )
 }

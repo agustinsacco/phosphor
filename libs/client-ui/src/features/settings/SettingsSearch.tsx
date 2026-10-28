@@ -27,14 +27,17 @@ export interface SettingsSearch {
 
 const optionId = (listId: string, index: number): string => `${listId}-${index}`
 
-/** Search state over the tabs in `available`, shared by the field and the results. */
-export function useSettingsSearch(available: ReadonlySet<SettingsTab>): SettingsSearch {
+/** Search state over `index` rows on the tabs in `available`, shared by the field and the results. */
+export function useSettingsSearch(
+  available: ReadonlySet<SettingsTab>,
+  index: SettingEntry[],
+): SettingsSearch {
   const query = useSettingsUiStore((s) => s.query)
   const listing = useSettingsUiStore((s) => s.listing)
   const listId = useId()
 
   const { groups, results, counts } = useMemo(() => {
-    const found = query.trim() ? searchSettings(query, available) : []
+    const found = query.trim() ? searchSettings(query, available, index) : []
     let start = 0
     return {
       groups: found.map((group) => {
@@ -47,7 +50,7 @@ export function useSettingsSearch(available: ReadonlySet<SettingsTab>): Settings
         ? new Map(found.map((group) => [group.tab, group.entries.length]))
         : null,
     }
-  }, [query, available])
+  }, [query, available, index])
 
   const { active, setActive, step } = useMatchCursor(results.length)
   // A new query starts from its best result.

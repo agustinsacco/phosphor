@@ -52,13 +52,13 @@ export function BeforeYouStart(): React.JSX.Element {
         <p className="text-text-secondary pl-6">
           {signedIn
             ? 'Signed in to Phosphor.'
-            : 'Sign in with GitHub in Settings → Accounts before approving a machine.'}
+            : 'Sign in with GitHub in Settings → Phosphor account before approving a machine.'}
         </p>
         {!signedIn && (
           <Button
             className="ml-6"
             onClick={() => {
-              useSettingsUiStore.getState().setTab('accounts')
+              useSettingsUiStore.getState().setTab('account')
               useSettingsUiStore.getState().setOpen(true)
             }}
           >

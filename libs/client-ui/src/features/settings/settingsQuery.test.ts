@@ -90,6 +90,7 @@ describe('highlightPattern', () => {
 describe('SETTINGS_INDEX against the tab sources', () => {
   const FILE_TABS: Record<string, SettingsTab> = {
     AboutTab: 'about',
+    AccountTab: 'account',
     AccountsTab: 'accounts',
     AdvancedTab: 'advanced',
     AgentTab: 'agent',
@@ -101,6 +102,7 @@ describe('SETTINGS_INDEX against the tab sources', () => {
     ContextBudgetSection: 'agent',
     DirectivesSection: 'agent',
     ExtensionsTab: 'extensions',
+    InstallAppTab: 'install',
     KeybindingsTab: 'keybindings',
     MaintenanceSection: 'advanced',
     OptimizationTab: 'optimization',
@@ -151,11 +153,25 @@ describe('SETTINGS_INDEX against the tab sources', () => {
 
   it('indexes only titles the tabs still render', () => {
     const stale = SETTINGS_INDEX.filter((entry) => {
-      if (entry.tab === 'keybindings') return false
+      if (entry.tab === 'keybindings' || entry.tab.startsWith('host-')) return false
       const files = Object.keys(FILE_TABS).filter((file) => FILE_TABS[file] === entry.tab)
       return !files.some((file) => sources.get(file)?.includes(entry.title))
     }).map((entry) => `${entry.tab}: ${entry.title}`)
     expect(stale).toEqual([])
+  })
+
+  it('indexes each Host section by the heading its panel renders', () => {
+    const machines = resolve(import.meta.dirname, '../machines')
+    const panels = readdirSync(machines)
+      .filter((f) => /^(Machine\w+Settings|HostConnectorSections)\.tsx$/.test(f))
+      .map((f) => readFileSync(resolve(machines, f), 'utf8'))
+      .join('\n')
+    const hostEntries = SETTINGS_INDEX.filter((entry) => entry.tab.startsWith('host-'))
+    expect(hostEntries.map((entry) => entry.title)).toEqual(
+      TABS.filter((tab) => tab.machine === 'host').map((tab) => tab.label),
+    )
+    for (const entry of hostEntries)
+      expect(panels, entry.title).toContain(`font-semibold">${entry.title}</h2>`)
   })
 
   it('has unique titles within each section', () => {

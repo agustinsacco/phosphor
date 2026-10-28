@@ -2,7 +2,10 @@ import type { MachineView } from '@shared/control-api'
 import type { MachineSettingsSection } from '@shared/machine-settings'
 import { HostProgramDialog } from './HostProgramDialog'
 import { MachineSettingsGate, MachineSettingsNavigation } from './MachineSettingsLayout'
-import { useMachineSettingsController } from './useMachineSettingsController'
+import {
+  useMachineSettingsController,
+  type MachineSettingsController,
+} from './useMachineSettingsController'
 export type MachineSettingsTab = MachineSettingsSection | 'folders'
 export function MachineSettings({
   machine,
@@ -12,7 +15,6 @@ export function MachineSettings({
   section: MachineSettingsTab
 }): React.JSX.Element {
   const controller = useMachineSettingsController(machine, section)
-  const { settings, error, program, setProgram } = controller
   return (
     <section
       aria-label={`Settings on ${machine.label}`}
@@ -27,15 +29,27 @@ export function MachineSettings({
       </div>
       <div className="flex flex-col gap-5 md:flex-row">
         <MachineSettingsNavigation controller={controller} />
-        <div className="min-w-0 flex-1 space-y-4">
-          {(error || settings.error) && (
-            <p role="alert" className="text-danger text-base">
-              {error ?? settings.error}
-            </p>
-          )}
-          <MachineSettingsGate controller={controller} />
-        </div>
+        <MachineSettingsBody controller={controller} />
       </div>
+    </section>
+  )
+}
+
+/** One Host section behind its gate, with its errors and program dialog; Settings hosts the nav. */
+export function MachineSettingsBody({
+  controller,
+}: {
+  controller: MachineSettingsController
+}): React.JSX.Element {
+  const { machine, settings, error, program, setProgram } = controller
+  return (
+    <div className="min-w-0 flex-1 space-y-4">
+      {(error || settings.error) && (
+        <p role="alert" className="text-danger text-base">
+          {error ?? settings.error}
+        </p>
+      )}
+      <MachineSettingsGate controller={controller} />
       {program && (
         <HostProgramDialog
           hostLabel={machine.label}
@@ -47,6 +61,6 @@ export function MachineSettings({
           onSettled={() => void settings.refresh()}
         />
       )}
-    </section>
+    </div>
   )
 }

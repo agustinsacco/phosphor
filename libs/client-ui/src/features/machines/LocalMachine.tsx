@@ -85,6 +85,7 @@ export function localChecks(computer: Computer): CheckItem[] {
 export function openProviderSettings(): void {
   useSettingsUiStore.getState().setTab('accounts')
   useSettingsUiStore.getState().setOpen(true)
+  useSettingsUiStore.getState().setMachine('local')
 }
 
 export function LocalMachineDetail({ computer }: { computer: Computer }): React.JSX.Element {
