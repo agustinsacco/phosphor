@@ -177,6 +177,7 @@ describe('client-ops.ts', () => {
       'lane.resume',
       'lane.stop',
       'lane.markRead',
+      'lane.marks',
       'control.take',
       'control.release',
     ])

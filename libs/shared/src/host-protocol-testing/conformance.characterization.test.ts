@@ -55,6 +55,7 @@ const SCENARIOS = [
   'stops buffered replay after an oversized event (oversize reset: true)',
   'caps connections per client without affecting existing sockets',
   'fails only an oversize subscription or call, leaving another lane streaming',
+  'sets pins and markers from any controlling client, unfenced and on a stopped lane, and publishes them',
 ]
 /** Scenarios with no capability check: only a harness reason can skip them. */
 const UNGATED = [
@@ -208,7 +209,7 @@ function outcome(entry: RunnerTask) {
 it('registers every scenario in its original order under its expanded title', ({ task }) => {
   for (const suite of ['frozen registration', 'real yielding']) {
     const tasks = collected(task, suite)
-    expect(tasks).toHaveLength(37)
+    expect(tasks).toHaveLength(38)
     expect(tasks.map((entry) => [entry.type, entry.name])).toEqual(
       SCENARIOS.map((name) => ['test', name]),
     )

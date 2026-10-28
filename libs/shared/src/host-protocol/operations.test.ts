@@ -44,6 +44,7 @@ describe('host-protocol operation declarations', () => {
       'host.repositories.remove',
       'host.repositories.createFolder',
       'host.repositories.order',
+      'lane.marks',
     ])
     expect(HOST_CALL_METHODS).toStrictEqual([
       'host.repositories',

@@ -143,6 +143,7 @@ const expectedEntries = [
   ['hosts:repositoryFiles', 'machine'],
   ['hosts:resumeLane', 'app'],
   ['hosts:setFocusedLane', 'app'],
+  ['hosts:setLaneMarks', 'app'],
   ['hosts:settingsAccess', 'app'],
   ['hosts:settingsCheck', 'app'],
   ['hosts:settingsPatch', 'app'],
