@@ -47,6 +47,19 @@ function session(value: unknown): WebSessionResponse {
   return { user: { id: u.id, login: u.login }, clientId: v.clientId, csrfToken: v.csrfToken }
 }
 
+/** Transport receives only sanitized refusal codes, never HTTP bodies or credentials. */
+function grantFailure(error: unknown): Error {
+  return new Error(
+    error instanceof ControlFailure && error.code === 'forbidden'
+      ? 'account-disabled'
+      : error instanceof ControlFailure && ['not-found', 'gone'].includes(error.code)
+        ? 'grant-refused'
+        : error instanceof ControlFailure
+          ? error.code
+          : 'offline',
+  )
+}
+
 /** Cookie credentials never leave fetch. Only CSRF and short-lived grants enter memory. */
 export function createBrowserControl(ports: ControlPorts) {
   let current: WebSessionResponse | null = null
@@ -305,16 +318,7 @@ export function createBrowserControl(ports: ControlPorts) {
           clientId: current.clientId,
         })
       } catch (error) {
-        // eslint-disable-next-line preserve-caught-error -- Transport receives only sanitized refusal codes, never HTTP bodies or credentials.
-        throw new Error(
-          error instanceof ControlFailure && error.code === 'forbidden'
-            ? 'account-disabled'
-            : error instanceof ControlFailure && ['not-found', 'gone'].includes(error.code)
-              ? 'grant-refused'
-              : error instanceof ControlFailure
-                ? error.code
-                : 'offline',
-        )
+        throw grantFailure(error)
       }
     },
     dispose() {
