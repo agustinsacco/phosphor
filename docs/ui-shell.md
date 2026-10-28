@@ -404,8 +404,9 @@ workspace group headers use it, and so does the Host lane row on every surface,
 in Desktop and the browser ([Lanes](lanes.md#remote-lanes)).
 
 On an expanded form factor the menu is a popover clamped inside the window, with
-hints and shortcuts as muted text and tooltips; Escape, an outside press or window
-blur closes it. On a compact form factor (a phone) the same items render as a bottom
+hints and shortcuts as muted text and tooltips. A label never gives way to its hint:
+a long hint, such as a disabled row's reason, wraps beside it. Escape, an outside
+press or window blur closes it. On a compact form factor (a phone) the same items render as a bottom
 action sheet (`components/ActionSheet.tsx`): the title as its head, each hint as
 visible text under its label (a disabled row's hint is its reason), danger rows in
 red, separators as gaps between groups, and a Cancel row. Backdrop tap and Escape
