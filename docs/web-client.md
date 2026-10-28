@@ -83,7 +83,16 @@ lane list) and back, forward and deep links keep it. New opens the New page for
 the machine in scope, or asks for one under All machines. In the phone drawer,
 opening a page, a lane, New or Settings closes the drawer; choosing a machine
 keeps it open on that machine's lanes. The header keeps Back and New lane.
-`Platform.formFactor` controls presentation only;
+`Platform.formFactor` controls presentation only, so only primitives
+(`components/`), `platform/` and the shells (`shell/`) read it; the
+`phosphor/form-factor-in-layout` lint rule refuses it in features, navigation and
+stores. A phone and a wide browser therefore get the same features, and every
+Desktop/browser difference is a capability listed in `platform/Platform.test.ts`.
+`platform/surfaceParity.characterization.test.tsx` checks that a Host lane's menu,
+its Session options and Settings match on Desktop, in a wide browser and on a
+phone. A shell passes layout down instead: the phone's lane header carries the
+lane's controls (`ChatView`'s `laneControls`), and a list beside its detail, such
+as Machine files, is the `ListDetail` primitive, one at a time on a phone.
 `localLanes`, `nativeFiles`, `fileEditing` and `splitPanes` remain false in the
 browser at every width. Modal/menu placement adapts without enabling native
 editors or pane controls. Desktop retains its native sidebar and local workbench.

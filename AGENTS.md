@@ -166,6 +166,11 @@ Read the linked doc before touching any of these.
   depth-aware Escape. No window-level Escape listeners in modal content.
 - Never call `window.prompt`: Electron makes it throw. Use `promptText` /
   `presentText` from `libs/client-ui/src/stores/prompt.ts` (lint enforces it).
+- Choose behaviour by a `Platform` capability, never by screen width: in
+  `libs/client-ui/src` only `components/`, `platform/` and `shell/` read
+  `Platform.formFactor` (lint enforces it). A new Desktop/browser difference is a
+  capability listed in `platform/Platform.test.ts`
+  ([Web client](docs/web-client.md#shared-pages-and-responsive-shells)).
 - Model-authored HTML renders only in a sandboxed iframe over
   `phosphor-artifact://` (`artifact-protocol.ts`), never `srcdoc`. The iframe never
   gains `allow-same-origin` and the policy never gains a `connect-src`.
