@@ -75,12 +75,14 @@ editors or pane controls. Desktop retains its native sidebar and local workbench
 Below 900px a lane has one header bar: Back to its Host's lanes, then the lane
 title with "Host · controller" under it (and the pane, when not Chat). The title
 opens the lane menu, a bottom sheet (`ActionSheet`) that switches Chat, Files,
-Changes, Artifacts and Terminal and holds the lane's shared actions, the same
+Changes, Artifacts and Terminal, then the lane's Session options (the same
+list as Desktop's top bar, [chat](chat.md)), then its shared actions, the same
 list as every Host lane row's menu without Open (see below), then New lane on
 that Host. A confirmed action closes the sheet; a refusal stays to say why.
 There is no drawer button, machine filter or pane tab strip inside a lane. A
 reader sees a Take control bar where the composer would be. Wider browsers keep
-the pane tabs and the control row above the transcript.
+the pane tabs, which end with the Session options button, and the control row
+above the transcript.
 History and popstate encode Host/lane identifiers, not filesystem paths. Missing machines, unavailable
 capabilities and offline reads have explicit states; they never fall back to
 This computer. Reading a lane does not acquire control. The real Host-backed

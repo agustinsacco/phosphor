@@ -807,10 +807,20 @@ session's ⋮ menu is in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
   and shows catalogue capacity separately from the effective session window.
   Live window changes come from the context extension between stats polls.
 - **Stop** (`abort`) is the send button while a turn runs. Everything else is
-  in the ⋮ menu: Export HTML…, Compact now… (optional custom instructions),
-  auto-compaction, auto-retry, and the two queue-mode rows (Steering /
-  Follow-ups, "All at once" / "One at a time", cycled in place). Toggles keep
-  the menu open. Renaming is `/name` or the sidebar row.
+  in **Session options** (the ⋮ button): Export HTML…, Compact now… (optional
+  custom instructions), Auto-compaction, Auto-retry, and the two queue modes
+  (Steering, Follow-ups). Each toggle or mode shows its current value as the
+  row's hint ("on", "one at a time"); choosing it sends the other value and
+  closes the menu. One builder (`features/chat/sessionMenuItems.ts`) makes the
+  list for every surface: Desktop's top bar, the end of the wide browser's
+  lane tabs, and the phone lane sheet's Session group. It opens with
+  `showMenuBelow`, so it is a popover on wide screens and the action sheet on
+  phones. On a Host lane the commands go through `piCall` to the lane's pi and
+  need control: a reader sees them disabled with "Take control first." (the
+  shared lane actions' rule), and a Host that is not connected or does not
+  offer control says so instead. Export HTML is disabled on Host lanes ("Not
+  available on remote lanes yet."), because pi would write the file on the
+  Host. Renaming is `/name` or the sidebar row.
 
 ### Streaming text is paced, not rendered per delta
 

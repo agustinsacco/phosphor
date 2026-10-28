@@ -456,7 +456,9 @@ target This Mac. The top-bar artifact count belongs to the active lane.
 Remote slash commands come from the lane, and file mentions search its Host file
 list. Thinking levels derive from the lane model. Local rules/MCP and Swarm menus
 are hidden. Shell shortcuts, queued-message removal, rewind and fork are refused
-with the fixed unavailable hint. Continue waits for the remote receipt and echo;
+with the fixed unavailable hint. The top bar's Session options work on a Host
+lane for its controller (compaction, auto-retry, queue modes); Export HTML stays
+a This Mac action ([chat](chat.md)). Continue waits for the remote receipt and echo;
 it never inserts an optimistic duplicate. Error cards do not inspect This Mac's
 AWS profile. Lane and machine switches reset visible selections or show loading
 or refusal while the new target loads.
