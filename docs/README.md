@@ -58,7 +58,7 @@ The [Web client](web-client.md) contract covers the compact PWA, shared renderer
 | [routines.md](routines.md)   | Local and Host schedules, run history, catch-up and unattended access |
 | [lanes.md](lanes.md)         | The lane row, PR status, naming, search, delete, reclaim              |
 | [worktrees.md](worktrees.md) | Git worktree lifecycle and the branch control                         |
-| [settings.md](settings.md)   | The settings modal and which config file each tab writes              |
+| [settings.md](settings.md)   | The shared Settings surface, its sections and what each one writes    |
 | [feedback.md](feedback.md)   | In-app rating and feedback, filed as a labelled GitHub issue          |
 | [voice.md](voice.md)         | Dictation with a local speech model: download, processes, privacy     |
 

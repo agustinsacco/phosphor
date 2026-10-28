@@ -406,7 +406,10 @@ and [Host repository management](host.md#repository-management-and-lane-deletion
 
 ## Machine settings and provider sign-in
 
-**Machines → a Host → Settings** configures that execution machine, not This Mac.
+**Settings → Configure → \<Host\>** and **Machines → a Host → Settings** configure that
+execution machine, not This Mac. Settings opens on the Host of the active Host lane
+(or an open Machines detail, or the Host chosen in the switcher), and Configure still
+offers This Mac.
 The separate Overview keeps reachability, readiness, reconnect and diagnostics.
 The [settings contract](settings.md#host-machine-settings) owns the sections,
 review steps, scope, drafts and application timing. Desktop (and the browser, see

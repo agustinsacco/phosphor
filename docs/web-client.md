@@ -30,7 +30,8 @@ remote cleanup completed or revoke previously issued grants immediately.
 
 ### Configuration access and lane deletion
 
-**Machines → a Host → Settings** is the same shared page as Desktop's. A signed-in
+A Host's machine settings (**Settings → Configure → \<Host\>**, or **Machines → a Host →
+Settings**) are the same shared sections as Desktop's. A signed-in
 browser page holds configuration authority for a Host only after an explicit
 per-page opt-in: **Enable configuration access**, confirmed in a dialog, calls
 `hosts:settingsAccess`. The adapter (`apps/web/src/platform/settings.ts`) then asks
@@ -101,17 +102,21 @@ lane shells and the Machine page's shell
 ([terminal.md](terminal.md#machine-shells)), plus plain provider sign-in. Host
 machine settings, including provider installation and Claude accounts, work after
 [configuration access](#configuration-access-and-lane-deletion). File editing and
-native settings are unavailable. Attention is in-app only, not OS push.
+This Mac's settings are unavailable. Attention is in-app only, not OS push. A Host's
+home folder opens read-only from **Machines → a Host → Machine files**.
 
 `PageShell` owns each page's single heading, actions and close behavior;
 `PageBody` supplies the shared width, gutters and scrolling for Machines,
-Artifacts, Skills, Routines and browser settings. `PageLinks`/`NavigationItem`
+Artifacts, Skills, Routines and Settings. `PageLinks`/`NavigationItem`
 supply the same global-page labels, order and row presentation in both sidebars.
 Only Desktop fills their `trailing` slot, with the Machines row's activity on
 machines outside the lane scope; the browser has no This computer and no lane
 scope control, so its rows carry none.
-Browser settings reuse Desktop's `AppearancePreferences` rows; the native-only
-settings sections remain separate. Lanes and remote Home use Desktop's repository
+The Settings page frames Desktop's `SettingsSurface`: the same search field, section
+navigation and sections, listed by platform capability
+([settings](settings.md#sections-and-capabilities)). The browser shows Appearance,
+Phosphor account, App installation and About, then **Configure** with the Host
+machine settings of each known Host; it lists no This Mac sections. Lanes and remote Home use Desktop's repository
 grouping/order and row title, elapsed time, worktree/branch and activity indicators.
 Unread attention is not labelled as a request for input, and a stopped process is
 not presented as a task result. Lanes whose repository is absent from the current
@@ -163,7 +168,8 @@ Existing installations may keep an OS-cached icon; reinstalling after deployment
 can be needed to see the new artwork. Headless checks verify the served pixels
 and manifest, not a physical launcher's appearance or refresh timing.
 
-**Install Phosphor** is available on sign-in, in navigation and in browser settings.
+**Install Phosphor** is available on sign-in, in navigation and in **Settings → App
+installation**.
 When the browser supplies a deferred install prompt, the action opens it once and
 shares the pending state across entrypoints. Accepting the prompt is not reported
 as completed installation; the browser's `appinstalled` event or a standalone

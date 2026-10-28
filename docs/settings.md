@@ -1,60 +1,90 @@
 # 09 — Settings
 
-A **modal**, not a second window (`ModalOverlay` in
-`libs/client-ui/src/features/settings/SettingsModal.tsx`), so it inherits the theme, the UI
-scale and the app's lifecycle. Cmd/Ctrl+, opens it; Cmd/Ctrl+/ opens it on
-Keybindings.
+One component, `SettingsSurface` (`libs/client-ui/src/features/settings/`), holds the
+search field, the section navigation and the open section in every shell. Desktop
+frames it in a **modal** (`SettingsModal.tsx`, dialog "Settings", `ModalOverlay`), so it
+inherits the theme, the UI scale and the app's lifecycle. Cmd/Ctrl+, opens it;
+Cmd/Ctrl+/ opens it on Keybindings. The browser frames the same surface in its
+Settings page (`shell/compact/CompactSettings.tsx`, `PageShell`/`PageBody`). The frames
+add only their chrome: a title and a close button in the dialog, the page heading in
+the browser.
 
-Twelve top-level tabs and four indented under Extensions, one per package.
-MCP Connectors is top level and always present, since MCP is built into pi
-rather than added by a package. Subagents requires an installed package. The existing provider tabs also show for declared packages so their
-health/configuration screens remain reachable during setup. The package list
-is re-read on every open, so a fresh install gets its tab without a restart,
-and a tab whose package vanished falls back to Extensions.
+## Sections and capabilities
 
-| Tab            | What it is                                                           | Writes                                                  |
-| -------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
-| Appearance     | Theme, UI scale, per-surface font sizes, mono font                   | Phosphor prefs (electron-store)                         |
-| Writing        | Spellcheck switch, autocomplete, learned prompts                     | Phosphor prefs; `<userData>/writing/prompts.jsonl`      |
-| Agent          | pi's agent defaults, global or per project                           | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
-| Accounts       | Subscription logins pi can drive                                     | pi's provider auth                                      |
-| Extensions     | pi package management                                                | shells out to `pi install` / `remove` / `update`        |
-| ↳ Claude Code  | The `pi-claude-cli` provider: health, accounts, pi context ownership | Phosphor prefs + the package's own config               |
-| ↳ Web access   | The `pi-web-access` provider: search, fetch, PDF                     | `web-search.json`                                       |
-| ↳ Subagents    | Delegation guide, profile precedence, configuration ownership        | global Pi settings through the shared raw editor        |
-| ↳ Computer use | Info page for `@injaneity/pi-computer-use`                           | nothing (read-only)                                     |
-| MCP Connectors | pi's built-in MCP: curated OAuth catalog + custom servers            | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`           |
-| Workspaces     | Lane naming/markers, new-session branching, recents, sandboxes       | Phosphor prefs; layout reset clears localStorage        |
-| Optimization   | Headroom tool-result compression + the Advisor                       | Phosphor prefs; `headroom:*` lifecycle in main          |
-| Voice          | Dictation on/off and which local speech model                        | Phosphor prefs; model files in `<userData>/voice/`      |
-| Advanced       | pi health, raw config editors, maintenance, discovered resources     | the pi files it edits; maintenance prefs                |
-| Keybindings    | Static reference sheet                                               | nothing                                                 |
-| About          | Versions, update check, pi drift warning, font licenses              | nothing                                                 |
+`settingsIndex.ts` declares every section with a **scope** (`device`: this client;
+`machine`: the machine chosen in **Configure**) and the `Platform` capabilities it
+needs. The surface lists only sections the platform supports, and search
+(`SETTINGS_INDEX`) honours the same filter, down to single rows. Nothing branches on
+the form factor.
+
+| Section          | Scope             | Needs                 | Desktop | Browser | What it is                                                                                                      | Writes                                                  |
+| ---------------- | ----------------- | --------------------- | ------- | ------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Appearance       | device            | (rows below)          | yes     | yes     | Theme, UI scale, per-surface font sizes, mono font                                                              | Phosphor prefs (electron-store; browser storage)        |
+| Writing          | device            | `writingAssist`       | yes     | no      | Spellcheck switch, autocomplete, learned prompts                                                                | Phosphor prefs; `<userData>/writing/prompts.jsonl`      |
+| Keybindings      | device            | `appShortcuts`        | yes     | no      | Static reference sheet                                                                                          | nothing                                                 |
+| Phosphor account | device            | none                  | yes     | yes     | The signed-in GitHub account and Sign out (or Sign in)                                                          | `account:*`                                             |
+| App installation | device            | `installableApp`      | no      | yes     | Install Phosphor, and the in-app attention note                                                                 | nothing                                                 |
+| About            | device            | rows need `appInfo`   | yes     | yes     | Versions, update check, pi drift warning, font licenses                                                         | nothing                                                 |
+| Agent            | machine, This Mac | `localLanes`          | yes     | no      | pi's agent defaults, global or per project                                                                      | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
+| Accounts         | machine, This Mac | `localLanes`          | yes     | no      | Subscription logins pi can drive                                                                                | pi's provider auth                                      |
+| Extensions       | machine, This Mac | `localLanes`          | yes     | no      | pi package management                                                                                           | shells out to `pi install` / `remove` / `update`        |
+| ↳ Claude Code    | machine, This Mac | `localLanes`, package | yes     | no      | The `pi-claude-cli` provider: health, accounts, pi context ownership                                            | Phosphor prefs + the package's own config               |
+| ↳ Web access     | machine, This Mac | `localLanes`, package | yes     | no      | The `pi-web-access` provider: search, fetch, PDF                                                                | `web-search.json`                                       |
+| ↳ Subagents      | machine, This Mac | `localLanes`, package | yes     | no      | Delegation guide, profile precedence, configuration ownership                                                   | global Pi settings through the shared raw editor        |
+| ↳ Computer use   | machine, This Mac | `localLanes`, package | yes     | no      | Info page for `@injaneity/pi-computer-use`                                                                      | nothing (read-only)                                     |
+| MCP Connectors   | machine, This Mac | `localLanes`          | yes     | no      | pi's built-in MCP: curated OAuth catalog + custom servers                                                       | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`           |
+| Workspaces       | machine, This Mac | `localLanes`          | yes     | no      | Lane naming/markers, new-session branching, recents, sandboxes                                                  | Phosphor prefs; layout reset clears localStorage        |
+| Optimization     | machine, This Mac | `localLanes`          | yes     | no      | Headroom tool-result compression + the Advisor                                                                  | Phosphor prefs; `headroom:*` lifecycle in main          |
+| Voice            | machine, This Mac | `localLanes`          | yes     | no      | Dictation on/off and which local speech model                                                                   | Phosphor prefs; model files in `<userData>/voice/`      |
+| Advanced         | machine, This Mac | `localLanes`          | yes     | no      | pi health, raw config editors, maintenance, discovered resources                                                | the pi files it edits; maintenance prefs                |
+| Host sections    | machine, a Host   | `machineSettings`     | yes     | yes     | Providers, Connectors, Agent defaults, Folders, Skills & extensions, Advanced ([below](#host-machine-settings)) | the Host, through `hosts:settings*`                     |
+
+Appearance rows: UI scale needs `pageZoom` (native page zoom) and Terminal font size
+needs `terminal`. Without `savedFontPrefs` the section says that font changes last
+until reload; only the theme is stored on the device. About's version, update, pi and
+runtime rows need `appInfo`; without it About shows the lockup and font licenses.
+Send feedback sits in the navigation's footer when the platform has `feedback`
+([feedback.md](feedback.md)).
+
+MCP Connectors is top level and always present on This Mac, since MCP is built into
+pi rather than added by a package. Subagents requires an installed package. The
+existing provider tabs also show for declared packages so their health/configuration
+screens remain reachable during setup. The package list is re-read on every open and
+tab change, so a fresh install gets its tab without a restart, and a tab whose package
+vanished falls back to Extensions.
 
 Phosphor's prefs live in electron-store. pi's config stays in pi's files. The
 two are never mixed.
 
-Below the `md` breakpoint the sidebar becomes a top bar: the search field, then
-the tabs as one horizontally scrolling strip. Send feedback stays reachable below
-the strip. On wider layouts it is pinned to the bottom of the left column.
+Below the `md` breakpoint the navigation becomes a top bar: the search field, then
+the sections and the Configure selector as one horizontally scrolling strip. On wider
+layouts the navigation is a column beside the open section, with Send feedback pinned
+to its bottom.
 
 ## Machine scope
 
-Machine settings carry a **This Mac** banner: Accounts, Agent (including Context
-budget and Directives), Extensions and their provider tabs, Connectors,
-Workspaces, Optimization, Voice and Advanced (including Maintenance).
+Device sections come first, then **Configure** (a selector of machines) and the
+chosen machine's sections. Configure lists **This Mac** when the client has local
+lanes (`localLanes`) and every known Host (the machines directory and the connected
+Hosts) when it can configure one (`machineSettings`).
 
-With a Machines detail open, a Host chosen in the machine switcher, or a remote
-lane active under All machines, these panels show a fixed unavailable
-explanation instead of mounting local controls. Choosing **This Mac** in the
-switcher always shows This Mac's controls, even while a Host lane is still the
-active lane; they then use This Mac's home workspace, never the Host lane's
-folder. They
-neither load nor change This Mac's machine settings. The link opens **Machines →
-\<machine\> → Settings → Providers** on a supporting Host, or Readiness on an older
-Host. Remote package tabs show this explanation without consulting This Mac's
-installed packages.
-Appearance, Writing, Keybindings and About remain client-wide.
+The default is the Settings Host (`useSettingsHost`): an open Machines detail, else
+the active Host lane, else a Host chosen in the machine switcher. Choosing This Mac in
+the switcher wins over an active Host lane. Without a Settings Host the default is
+This Mac when present, else the browser page's machine, else the first Host. The
+choice lives in `settingsUiStore.machine` and resets each time the dialog opens or the
+browser page is entered. Switching machines keeps the same concern where both have one
+(Accounts and Providers, Agent and Agent defaults, MCP Connectors and Connectors,
+Extensions and Skills & extensions, Advanced and Advanced), otherwise it opens the
+machine's first section.
+
+Every machine section opens under a one-line scope, **Configuring \<machine\>**.
+This Mac's sections mount only while This Mac is chosen, so choosing it always shows
+its controls, even while a Host lane is the active lane; they then use This Mac's home
+workspace, never the Host lane's folder. While a Host is chosen none of This Mac's
+controls mount and This Mac's packages are not read. A Host's sections render inline
+through the same controller and gate as the Machines page (below). Leaving a Host
+section with an unsaved draft asks first, as the Machines page does.
 
 A remote lane's context meter uses the Host-reported effective window, preferring
 the live context extension value over the stats poll. It labels the budget with
@@ -62,8 +92,11 @@ the machine name. This Mac's Context budget preference never caps that meter.
 
 ## Host machine settings
 
-**Machines → a Host → Settings** is separate from the This Mac modal. The target
-banner names the execution machine. Nothing copies settings or credentials between
+A Host's machine settings open from Settings (**Configure → \<Host\>**) and from
+**Machines → a Host → Settings**. Both use `useMachineSettingsController` and
+`MachineSettingsGate`; the Machines page adds its own section list and a target banner
+naming the execution machine, while Settings lists the same sections in its own
+navigation. Nothing copies settings or credentials between
 machines, falls back to This Mac, or queues writes while disconnected. Overview
 continues to own reachability, reconnect, readiness, traffic logging and removal.
 Desktop and the browser/mobile client show the same page. The browser's
@@ -279,7 +312,9 @@ Code** provider keeps its own set of logins under Extensions → Claude Code.
 
 ### Phosphor account
 
-Optional GitHub sign-in lives in the sidebar footer, not in this tab.
+Optional GitHub sign-in lives in the sidebar footer and in **Settings → Phosphor
+account**, which shows the signed-in profile with Sign out (Sign in with GitHub when
+signed out) in Desktop and the browser.
 It lets you add and manage Hosts on the Machines page
 ([remote-access.md](remote-access.md)). Local work never needs it.
 Launch reads the plain profile. A signed-out launch makes no control request

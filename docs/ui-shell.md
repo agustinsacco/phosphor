@@ -219,8 +219,9 @@ Signed-out windows have no machine switcher or remote groups.
   it offers optional GitHub sign-in and Settings. Signing in shows browser
   progress and Cancel. The gear opens Settings directly. Keyboard navigation,
   Escape and outside-click dismissal return focus to the row. No token reaches
-  this UI ([settings.md](settings.md#phosphor-account)). Send feedback lives
-  in the Settings footer ([feedback.md](feedback.md)).
+  this UI ([settings.md](settings.md#phosphor-account)); Settings → Phosphor
+  account shows the same profile and Sign out. Send feedback lives in the
+  Settings footer ([feedback.md](feedback.md)).
 - Collapsible (Cmd/Ctrl+B), width-draggable.
 
 ## Pane system
@@ -539,10 +540,11 @@ zero. Offline and account errors are explicit and offer retry.
 
 A Host's detail has one **Back to machines** breadcrumb, then a compact identity
 header (label with Rename, the status pill and a **Machine actions** menu containing
-Reconnect and Check again), followed by **Overview / Settings** navigation. Add a
+Reconnect and Check again), followed by **Overview / Settings / Machine files** navigation (Machine files opens
+the Host's home folder read-only in a dialog). Add a
 machine and debug actions belong to the list, not a selected Host. The same header
 and responsive container run in Desktop and the browser; the browser does not gain
-native settings by getting wider. Long machine names occupy at most two visual
+This Mac's settings by getting wider. Long machine names occupy at most two visual
 lines; the heading retains the full text and long names expose the app's focusable
 hint. Overview has cards in two columns: Readiness and On this machine on the
 left, Providers and Details on the right. Readiness opens with a Connection row
@@ -564,6 +566,7 @@ outdated, Claude Code missing, signed out); older Hosts keep the single status.
 Providers lists the connected Host's providers, signed-in first. Not signed in
 is neutral, not a warning, because most people use one or two. Supporting Hosts
 link to **Settings → Providers**, rather than duplicating authentication controls.
+The same sections open from Settings → Configure → \<Host\>. The Machines page's
 Settings has its own target banner, explicit configuration-access request and
 Providers, Connectors, Agent defaults, Folders, Skills & extensions and Advanced
 sections. [The settings contract](settings.md#host-machine-settings) owns their
