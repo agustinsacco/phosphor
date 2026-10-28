@@ -81,6 +81,34 @@ loopback transport, fake Host and reusable conformance suite. Production
 sources cannot import it; a boundary test enforces this rule. Crypto is
 injected into the fake, and the tests verify real Ed25519 proofs.
 
+## Lane pins and markers
+
+A Host keeps each lane's pin and marker, so every client shows the same ones.
+`lane.marks {pinned?, marker?}` is a lane command (`laneId` on the frame) with at
+least one of the two fields and no other keys. `marker` is a glyph, `''` for an
+explicit "no marker", or `null` to forget the choice so the lane falls back to its
+derived auto marker; an absent field keeps its current value. A glyph is at most
+32 UTF-16 units (the picker's longest emoji is 14), with no control characters,
+line or paragraph separators, or unpaired surrogates
+(`libs/shared/src/host-protocol-lane-marks.ts`). The op is unfenced: it needs
+`sessions.control` but not control of the lane, and it works on a stopped lane.
+An unknown lane is `unknown-lane`; older Hosts answer `unsupported`, which clients
+show as "update the Host".
+
+`LaneSummary` carries the result as additive optional fields: `pinned: true`
+(omitted when not pinned) and `marker` (omitted when there is no explicit choice;
+`''` is an explicit none). The parser keeps each only when valid and drops an
+invalid one without refusing the summary; older clients rebuild summaries from
+known keys and ignore both.
+
+Desktop and the browser send it through `hosts:setLaneMarks(hostId, laneId,
+{pinned?, marker?})` over the shared `libs/host-client/src/lane-marks.ts`. Desktop
+kept Host-lane pins and markers in its own prefs under each lane's Host resource
+key before Hosts kept them; once per Host per app run, when that Host is `ready`
+with `laneMarks`, Desktop sends those legacy entries for lanes the Host lists with
+no marks yet, then removes them locally. A lane the Host already marked keeps the
+Host's marks.
+
 ## Lane receipt call
 
 `lane.receipt {laneId}` is a read-only call under the existing `sessions.read`
@@ -130,6 +158,10 @@ The additive `machineShell` boolean in `ready` says the Host accepts a lane-less
 `terminal.create`, a shell in its home folder ([terminal.md](terminal.md#machine-shells)).
 Older clients ignore it; older Hosts omit it, and clients then refuse locally
 rather than send an op the Host would forbid.
+
+The additive `laneMarks` boolean in `ready` says the Host keeps lane pins and
+markers ([Lane pins and markers](#lane-pins-and-markers)). Clients project it as
+`HostConnectionView.laneMarks`.
 
 ### Machine configuration operations
 

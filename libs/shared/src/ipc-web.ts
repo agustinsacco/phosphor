@@ -51,6 +51,7 @@ export const IPC_WEB = {
   'hosts:createFolder': remote,
   'hosts:removeRepository': remote,
   'hosts:orderRepositories': remote,
+  'hosts:setLaneMarks': remote,
   'hosts:releaseControl': remote,
   'routines:list': remote,
   'routines:save': remote,

@@ -9,6 +9,7 @@ import type { LiveSessionInfo } from '@shared/models'
 import type { HostTarget } from '@shared/remote-host'
 import { forgetRemoteSession, useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
+import { migrateLegacyLaneMarks } from './remoteLaneMarks'
 import { useExtensionUiStore } from './extensionUi'
 import { useLayoutStore } from './layout'
 import { useWorkspacesStore } from './workspaces'
@@ -119,6 +120,7 @@ export const useRemoteLanesStore = create<{
 }))
 
 bindRemoteHostView((hostId) => useRemoteLanesStore.getState().hosts[hostId])
+useRemoteLanesStore.subscribe((state) => migrateLegacyLaneMarks(state.hosts))
 
 // Window-local selection survives sidebar remounts, but not account or directory removal.
 useMachinesStore.subscribe((state, previous) => {

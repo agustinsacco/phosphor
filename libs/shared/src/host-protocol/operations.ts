@@ -2,6 +2,7 @@
 import type { AttachmentOp } from '../host-protocol-attachments'
 import type { ProviderLoginOp } from '../host-protocol-providers'
 import type { MachineTaskOp } from '../machine-settings'
+import type { LaneMarksOp } from '../host-protocol-lane-marks'
 import type { DeleteLaneOp, RepositoryOp } from '../host-protocol-repositories'
 import type { RoutineOp } from '../host-protocol-routines'
 import type { TerminalOp } from '../host-protocol-terminals'
@@ -30,6 +31,7 @@ export type LanePiOp = DistributiveOmit<Extract<RpcCommand, { type: LanePiOpType
 export type LaneOp =
   | RepositoryOp
   | DeleteLaneOp
+  | LaneMarksOp
   | ProviderLoginOp
   | MachineTaskOp
   | TerminalOp
@@ -70,6 +72,7 @@ export const UNFENCED_OPS: readonly LaneOpType[] = [
   'host.repositories.remove',
   'host.repositories.createFolder',
   'host.repositories.order',
+  'lane.marks',
 ]
 
 export type RejectCode =

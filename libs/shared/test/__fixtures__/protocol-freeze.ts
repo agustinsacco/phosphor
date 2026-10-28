@@ -347,6 +347,7 @@ export const LANE_OP_TYPES = {
   'lane.resume': true,
   'lane.stop': true,
   'lane.markRead': true,
+  'lane.marks': true,
   'lane.delete': true,
   'control.take': true,
   'control.release': true,

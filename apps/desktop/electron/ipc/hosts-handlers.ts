@@ -1,3 +1,4 @@
+import { laneMarks } from '@phosphor/host-client/lane-marks'
 import { repositoryManagement } from '@phosphor/host-client/repository-management'
 import { repositoryReads } from '../hosts/repository-reads'
 import { machineReads } from '../hosts/machine-reads'
@@ -51,7 +52,12 @@ function registerCatalogueHandlers(catalogues: ReturnType<typeof machineReads>):
   handle('hosts:skills', (_event, hostId) => catalogues.skills(hostId))
 }
 
-function registerManagementHandlers(management: ReturnType<typeof repositoryManagement>): void {
+/** Folders, lane deletion and lane pins and markers: changes a Host keeps for every client. */
+function registerManagementHandlers(
+  connection: Parameters<typeof repositoryManagement>[0] & Parameters<typeof laneMarks>[0],
+): void {
+  const management = repositoryManagement(connection)
+  const marks = laneMarks(connection)
   handle('hosts:listFolders', (_event, hostId, path, hidden) =>
     management.folders(hostId, path, hidden),
   )
@@ -65,6 +71,9 @@ function registerManagementHandlers(management: ReturnType<typeof repositoryMana
   )
   handle('hosts:deleteLane', (_event, hostId, laneId, options) =>
     management.deleteLane(hostId, laneId, options),
+  )
+  handle('hosts:setLaneMarks', (_event, hostId, laneId, change) =>
+    marks.set(hostId, laneId, change),
   )
 }
 
@@ -109,7 +118,7 @@ export function registerHostsHandlers(): void {
         traffic: (direction, frame, bytes) => trafficLog.frame(hostId, direction, frame, bytes),
       }),
   })
-  registerManagementHandlers(repositoryManagement(manager.connection))
+  registerManagementHandlers(manager.connection)
   const repositories = repositoryReads(manager.connection)
   handle('hosts:repositoryFiles', (_event, hostId, repositoryId) =>
     repositories.list(hostId, repositoryId),

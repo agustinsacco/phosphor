@@ -28,6 +28,10 @@
       "types": "./src/host-protocol-repositories.ts",
       "default": "./src/host-protocol-repositories.ts"
     },
+    "./host-protocol-lane-marks": {
+      "types": "./src/host-protocol-lane-marks.ts",
+      "default": "./src/host-protocol-lane-marks.ts"
+    },
     "./host-protocol-providers": {
       "types": "./src/host-protocol-providers.ts",
       "default": "./src/host-protocol-providers.ts"

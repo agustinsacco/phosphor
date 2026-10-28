@@ -35,7 +35,9 @@ export interface SessionTree {
   leafId: string | null
 }
 
-export type HostLaneView = Omit<LaneSummary, 'control'> & {
+export type HostLaneView = Omit<LaneSummary, 'control' | 'pinned'> & {
+  /** Pinned on the Host; `marker` is the Host's explicit marker choice. */
+  pinned?: boolean
   control: {
     fence: number
     controller: { label: string; connected: boolean; self: boolean } | null
@@ -59,6 +61,8 @@ export interface HostConnectionView {
   configurationSupported?: boolean
   /** Host opens shells in its account's home folder, outside any lane. */
   machineShell?: boolean
+  /** Host keeps lane pins and markers, so every client shows the same ones. */
+  laneMarks?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: HostLaneView[]

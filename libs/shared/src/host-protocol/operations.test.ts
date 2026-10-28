@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import * as facade from '../host-protocol'
 import type { AttachmentOp } from '../host-protocol-attachments'
 import type { ProviderLoginOp } from '../host-protocol-providers'
+import type { LaneMarksOp } from '../host-protocol-lane-marks'
 import type { DeleteLaneOp, RepositoryOp } from '../host-protocol-repositories'
 import type { ROUTINE_OPS, RoutineOp } from '../host-protocol-routines'
 import type { TerminalOp } from '../host-protocol-terminals'
@@ -73,6 +74,7 @@ describe('host-protocol operation declarations', () => {
       LaneOp,
       | RepositoryOp
       | DeleteLaneOp
+      | LaneMarksOp
       | ProviderLoginOp
       | TerminalOp
       | RoutineOp
@@ -103,6 +105,7 @@ describe('host-protocol operation declarations', () => {
       | Core['type']
       | RepositoryOp['type']
       | DeleteLaneOp['type']
+      | LaneMarksOp['type']
       | ProviderLoginOp['type']
       | TerminalOp['type']
       | (typeof ROUTINE_OPS)[number]

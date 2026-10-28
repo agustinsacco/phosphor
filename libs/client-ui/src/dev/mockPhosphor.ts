@@ -1,11 +1,13 @@
 import {
   mockRemoteAction,
+  mockRemoteLaneMarks,
   onMockRemoteChanged,
   mockRemoteHosts,
   mixedRemoteHosts,
   mockRemoteInfo,
 } from './mockRemoteLanes'
 import type { MachineView } from '@shared/control-api'
+import type { LaneMarksChange } from '@shared/host-protocol-lane-marks'
 import { mockMachineSettingsInvoke } from './mockMachineSettings'
 import { mockSessionMaintenance } from './mockSessionMaintenance'
 /**
@@ -1526,6 +1528,9 @@ export function installMockPhosphor(): void {
         // R1/R2 mock (B)
         case 'hosts:releaseControl':
           mockRemoteAction(channel)
+          return Promise.resolve(undefined)
+        case 'hosts:setLaneMarks':
+          mockRemoteLaneMarks(args[1], args[2] as LaneMarksChange)
           return Promise.resolve(undefined)
         case 'hosts:deleteLane':
           return Promise.resolve({ branchKept: false })

@@ -1,5 +1,6 @@
 import type { GrantPayload } from '../../host-grant'
 import type { LaneOp, RejectCode } from '../../host-protocol'
+import { withLaneMarks } from '../../host-protocol-lane-marks'
 import type { ThinkingLevel } from '../../rpc'
 import { send } from './delivery'
 import { now, type Command, type FakeHostState, type Lane } from './state'
@@ -58,14 +59,15 @@ export function createLane(
   return laneId
 }
 
-/** Fences every op except take and markRead; an uncontrolled lane is claimed before the op. */
+/** Fences every op except take, markRead and marks; an uncontrolled lane is claimed before the op. */
 export function admitController(
   state: FakeHostState,
   grant: GrantPayload,
   f: Command,
   l: Lane,
 ): Refusal | null {
-  if (f.op.type === 'control.take' || f.op.type === 'lane.markRead') return null
+  if (f.op.type === 'control.take' || f.op.type === 'lane.markRead' || f.op.type === 'lane.marks')
+    return null
   if (f.fence !== l.summary.control.fence) return { code: 'stale-fence', lane: l }
   const controller = l.summary.control.controller
   if (controller && controller.clientId !== grant.client.id)
@@ -99,6 +101,9 @@ export function applyOperation(
       ...l.summary,
       read: Math.max(l.summary.read, Math.min(op.upTo, l.summary.attention)),
     }
+    summary(state, send, l)
+  } else if (op.type === 'lane.marks') {
+    l.summary = withLaneMarks(l.summary, op)
     summary(state, send, l)
   } else if (op.type === 'lane.stop') {
     l.summary = { ...l.summary, activity: 'stopped' }

@@ -2,6 +2,7 @@
 import { parseAttachmentOp } from '../host-protocol-attachments'
 import { parseProviderLoginOp } from '../host-protocol-providers'
 import { parseMachineTask, isMachineAccountId } from '../machine-settings'
+import { parseLaneMarksOp } from '../host-protocol-lane-marks'
 import { parseDeleteLaneOp, parseRepositoryOp } from '../host-protocol-repositories'
 import { parseRoutineOp, ROUTINE_OPS } from '../host-protocol-routines'
 import { parseTerminalOp } from '../host-protocol-terminals'
@@ -39,6 +40,7 @@ export const BAD_REQUEST_OP_TYPES = [
   'lane.resume',
   'lane.stop',
   'lane.markRead',
+  'lane.marks',
   'control.take',
   'control.release',
 ] as const
@@ -138,6 +140,7 @@ function coreOp(v: OpFields): LaneOp | null {
 /** The module that parses `type`'s op family, or undefined for the core ops above. */
 function familyParser(type: unknown): ((v: OpFields) => LaneOp | null) | undefined {
   if (type === 'lane.delete') return parseDeleteLaneOp
+  if (type === 'lane.marks') return parseLaneMarksOp
   if (typeof type === 'string' && type.startsWith('host.repositories.')) return parseRepositoryOp
   if (type === 'provider.login') return parseProviderLoginOp
   if (type === 'machine.task') return parseMachineTask

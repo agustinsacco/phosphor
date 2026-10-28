@@ -379,8 +379,10 @@ mid-turn is findable under the name on screen.
 
 Remote rows use the same context menu and inline rename as local rows. The title
 prefers the live session name, the Host summary, then the first prompt. The Host,
-not Desktop, generates remote titles. Pin and marker preferences use Host/lane
-resource keys. Local-only tree, fork, clone, routine and HTML export actions are
+not Desktop, generates remote titles. A Host that announces `laneMarks` keeps
+remote pins and markers itself, so every client shows the same ones
+([protocol](remote-protocol.md#lane-pins-and-markers)); Desktop's older local
+choices, kept under Host/lane resource keys, move to it. Local-only tree, fork, clone, routine and HTML export actions are
 omitted. Remote Delete needs control and workspace-write capability. A disabled
 action's hint names its obstacle: “Take control first.” for a viewer, “Only
 while running.” for rename and spend on a stopped lane, and “Not available on

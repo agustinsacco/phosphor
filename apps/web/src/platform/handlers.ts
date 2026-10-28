@@ -1,5 +1,6 @@
 import type { IpcInvokeMap } from '@phosphor/shared/ipc'
 import type { WebSupportedChannel } from '@phosphor/shared/ipc-web'
+import { laneMarks } from '@phosphor/host-client/lane-marks'
 import type { RemoteLanes, RemoteWindow } from '@phosphor/host-client/remote-lanes'
 import type { BrowserControl } from './control'
 import type { BrowserHosts } from './hosts'
@@ -70,6 +71,7 @@ export function createBrowserHandlers(ports: {
   machinesChanged: () => void
 }): BrowserHandlers {
   const { control, hosts, lanes, resources, prefs, drafts } = ports
+  const marks = laneMarks(hosts.connection)
   const read = <C extends WebSupportedChannel>(channel: C, args: IpcInvokeMap[C]['args']) =>
     resources.read(channel, args) as Promise<IpcInvokeMap[C]['result']>
   const routine = <C extends WebSupportedChannel>(channel: C, args: IpcInvokeMap[C]['args']) =>
@@ -105,6 +107,7 @@ export function createBrowserHandlers(ports: {
     'hosts:takeControl': (host, lane) => lanes.action(host, lane, 'control.take'),
     'hosts:releaseControl': (host, lane) => lanes.action(host, lane, 'control.release'),
     'hosts:markRead': (host, lane) => lanes.action(host, lane, 'lane.markRead'),
+    'hosts:setLaneMarks': marks.set,
     'pi:command': (id, command) => lanes.command(1, id, command),
     'pi:extensionUiResponse': (id, response) => lanes.respond(1, id, response),
     'pi:disposeSession': (id) => lanes.dispose(1, id),

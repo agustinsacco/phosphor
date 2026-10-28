@@ -1,3 +1,4 @@
+import type { LaneMarksChange } from '@phosphor/shared/host-protocol-lane-marks'
 import type { DeleteLaneOp } from '@phosphor/shared/host-protocol-repositories'
 import type { HostAttachments } from '../../features/attachments'
 import type { HostStore, StoredLane } from '../store'
@@ -8,7 +9,10 @@ import type { CommandState, Execution, Job, LaneCommandPorts, LaneQueue } from '
 
 export type LanePorts = ReceiptPorts &
   Pick<LaneCommandPorts, 'publish' | 'summaryFor' | 'deleteLane' | 'resumeLane' | 'stopLane'> & {
-    store: Pick<HostStore, 'takeControl' | 'releaseControl' | 'markRead' | 'getLane'>
+    store: Pick<
+      HostStore,
+      'takeControl' | 'releaseControl' | 'markRead' | 'setLaneMarks' | 'getLane'
+    >
     attachments?: Pick<HostAttachments, 'abort'>
   }
 type LifecycleOp = 'lane.resume' | 'lane.stop'
@@ -33,6 +37,9 @@ export function executeLane(
       return releaseControl(state, ports, job, queue, admitted.laneId)
     case 'lane.markRead':
       markRead(state, ports, queue, admitted.laneId, op.upTo)
+      break
+    case 'lane.marks':
+      setLaneMarks(state, ports, queue, admitted.laneId, op)
       break
     case 'lane.delete':
       return deleteLane(state, ports, job, queue, { admitted, op, allowed })
@@ -115,6 +122,19 @@ export function markRead(
   upTo: number,
 ): void {
   ports.store.markRead(laneId, upTo)
+  const summary = ports.summaryFor(laneId)
+  if (summary) publish(state, ports, laneId, { kind: 'summary', summary }, queue)
+}
+
+/** Unfenced, on live and stopped lanes: any client that may control lanes pins and marks them. */
+export function setLaneMarks(
+  state: CommandState,
+  ports: LanePorts,
+  queue: LaneQueue,
+  laneId: string,
+  change: LaneMarksChange,
+): void {
+  ports.store.setLaneMarks(laneId, change)
   const summary = ports.summaryFor(laneId)
   if (summary) publish(state, ports, laneId, { kind: 'summary', summary }, queue)
 }

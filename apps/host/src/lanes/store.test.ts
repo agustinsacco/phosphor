@@ -17,6 +17,7 @@ import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 import { loadSqlite } from './sqlite'
 import { hostStateDirectory, prepareStateDirectory, prepareStateFile } from './state-dir'
 import { openStore, opHash, HostStore, REMOVED_LANE_TTL_MS } from './store'
+import { LANE_SELECT } from './store/marks'
 
 // HA-02 inventory baseline: 85 existing cases passed before the receipt-suite split.
 let root: string
@@ -159,7 +160,7 @@ describe('Host store ordering and durability', () => {
     const prepare = db.prepare.bind(db)
     let reads = 0
     const spy = vi.spyOn(db, 'prepare').mockImplementation((sql) => {
-      if (sql.startsWith('SELECT * FROM lanes WHERE lane_id=')) {
+      if (sql.startsWith(`${LANE_SELECT} WHERE lane_id=`)) {
         reads++
         expect(() =>
           competitor.prepare('UPDATE lanes SET title=? WHERE lane_id=?').run('race', id),

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { realpathSync, statSync } from 'node:fs'
-import { basename, relative, isAbsolute } from 'node:path'
+import { basename } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
 import {
   HOST_LIMITS,
@@ -11,6 +11,8 @@ import {
 import { SCHEMA } from './schema'
 import { errnoIs } from '../fs-safety'
 import { openStoreDatabase } from './store/open'
+import { validateRepositoryIdentity } from './store/identity'
+import { LANE_SELECT, writeLaneMarks, type LaneMarksChange } from './store/marks'
 import {
   laneFromRow,
   repositoryFromRow,
@@ -35,17 +37,7 @@ import * as receipts from './store/receipts'
 export * from './store/types'
 import { absolutePath, check, integer, text, uuid } from './validation'
 export { opHash } from './validation'
-
-/** Only newly added folders are home-confined; owner-configured roots remain unrestricted. */
-export function validateRepositoryIdentity(identity: RepositoryIdentity): void {
-  const { expected } = identity
-  const home = realpathSync.native(identity.home)
-  const full = realpathSync.native(expected.path)
-  const rel = relative(home, full)
-  const info = statSync(full)
-  check(full === expected.path && !isAbsolute(rel) && rel !== '..' && !rel.startsWith('../'))
-  check(info.isDirectory() && info.dev === expected.dev && info.ino === expected.ino)
-}
+export { validateRepositoryIdentity } from './store/identity'
 
 export const REMOVED_LANE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
@@ -166,14 +158,14 @@ export class HostStore {
   listLanes(): StoredLane[] {
     return summaryQuery(
       this.db,
-      'SELECT * FROM lanes WHERE removed_at IS NULL ORDER BY created_at,lane_id LIMIT ?',
+      `${LANE_SELECT} WHERE removed_at IS NULL ORDER BY created_at,lane_id LIMIT ?`,
     )
       .all(this.limits.lanesPerHost)
       .flatMap((row) => this.laneFromRow(row) ?? [])
   }
   getLane(id: string): StoredLane | null {
     uuid(id)
-    const row = summaryQuery(this.db, 'SELECT * FROM lanes WHERE lane_id=?').get(id)
+    const row = summaryQuery(this.db, `${LANE_SELECT} WHERE lane_id=?`).get(id)
     return row ? this.laneFromRow(row) : null
   }
   private requireLane(id: string): StoredLane {
@@ -205,7 +197,7 @@ export class HostStore {
       const existing =
         sessionFile === null
           ? undefined
-          : summaryQuery(this.db, 'SELECT * FROM lanes WHERE session_file=?').get(sessionFile)
+          : summaryQuery(this.db, `${LANE_SELECT} WHERE session_file=?`).get(sessionFile)
       if (existing) {
         check(str(existing, 'repository_id') === repositoryId && str(existing, 'cwd') === cwd)
         const lane = this.laneFromRow(existing)
@@ -350,6 +342,13 @@ export class HostStore {
       return this.requireLane(id).attention
     })
   }
+  /** Pin and marker only: never updatedAt, control or the attention counters. */
+  setLaneMarks(id: string, change: LaneMarksChange): StoredLane {
+    return this.transaction(() => {
+      writeLaneMarks(this.db, this.requireLane(id), change)
+      return this.requireLane(id)
+    })
+  }
   markRead(id: string, upTo: number): number {
     integer(upTo)
     return this.transaction(() => {
@@ -394,7 +393,7 @@ export class HostStore {
   /** A bounded read for reconciliation, without exposing the database handle. */
   sessionLane(file: string): StoredLane | null {
     absolutePath(file)
-    const row = summaryQuery(this.db, 'SELECT * FROM lanes WHERE session_file=?').get(file)
+    const row = summaryQuery(this.db, `${LANE_SELECT} WHERE session_file=?`).get(file)
     return row ? this.laneFromRow(row) : null
   }
 }
