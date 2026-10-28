@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { useMenuTriggers, type ContextMenuItem } from '@/components/ContextMenu'
 import { TooltipButton } from '@/components/Tooltip'
 import { ChevronIcon } from '@/components/icons'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
@@ -108,13 +109,23 @@ export function LaneRow({
   )
 }
 
+const NO_MENU = (): ContextMenuItem[] => []
+
+/** A group's header row. `menu` opens on right-click, the menu key or a long-press. */
 export function WorkspaceGroupHeader({
   children,
+  menu,
+  menuTitle,
   ...props
-}: React.ComponentProps<'div'>): React.JSX.Element {
+}: React.ComponentProps<'div'> & {
+  menu?: () => ContextMenuItem[]
+  menuTitle?: string
+}): React.JSX.Element {
+  const triggers = useMenuTriggers(menu ?? NO_MENU, { title: menuTitle, disabled: !menu })
   return (
     <div
       {...props}
+      {...(menu ? triggers : {})}
       className="group/header relative flex w-full items-center gap-1 pb-0.5 pl-2 pr-1 pt-2.5"
     >
       {children}

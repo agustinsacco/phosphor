@@ -17,7 +17,7 @@ import { hasDelegatedWork, SUBAGENT_ASYNC_WIDGET_KEY } from '@/features/chat/sub
 import { useWorktreeDiscovery, type WorktreeDir } from './useWorktreeDiscovery'
 import { useSessionBooting } from '@/features/chat/BootingIndicator'
 import { promptRenameSandbox } from '@/features/workspaces/promptRenameSandbox'
-import { showContextMenu } from '@/components/ContextMenu'
+import { useMenuTriggers, type ContextMenuItem } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { SessionList, useSessionOrderActions } from './SessionList'
 import { orderedSessions } from './sessionOrder'
@@ -768,7 +768,7 @@ export function Sidebar({
     void store.refreshMissing(open.flatMap((g) => g.unscannedPaths))
   }, [groups, collapsed])
 
-  const groupContextMenu = (event: React.MouseEvent, group: GroupedSessions): void => {
+  const groupMenuItems = (group: GroupedSessions): ContextMenuItem[] => {
     const git = gitByCwd[group.workspacePath]
     const openWorktreeModal = async (kind: 'remove' | 'merge'): Promise<void> => {
       const repoPath = git?.mainRepoPath
@@ -779,7 +779,7 @@ export function Sidebar({
       )
       if (worktree) setWorktreeModal({ kind, repoPath, worktree })
     }
-    showContextMenu(event, [
+    return [
       {
         label: 'New session',
         onClick: () => {
@@ -805,7 +805,7 @@ export function Sidebar({
             },
           ]
         : []),
-    ])
+    ]
   }
 
   const moveGroup = (group: GroupedSessions, direction: 'up' | 'down'): void => {
@@ -925,7 +925,7 @@ export function Sidebar({
                     expand={() => toggleGroup(group, true)}
                     clearSearch={() => closeSearch(group.workspacePath)}
                   />
-                  <WorkspaceGroupHeader onContextMenu={(event) => groupContextMenu(event, group)}>
+                  <WorkspaceGroupHeader menu={() => groupMenuItems(group)} menuTitle={group.name}>
                     <WorkspaceGroupTitle
                       name={group.name}
                       collapsed={isCollapsed}
@@ -1577,10 +1577,9 @@ function SessionRow({
   const rowWorkspaceName = projectName(meta.cwd || workspacePath, git)
 
   const open = (): void => openSidebarConversation(workspacePath, meta)
-
-  const contextMenu = (event: React.MouseEvent): void => {
+  const menuItems = (): ContextMenuItem[] => {
     const store = useSessionsStore.getState()
-    showContextMenu(event, [
+    return [
       { label: 'Open', onClick: open },
       ...orderActions,
       { label: 'Session tree…', onClick: onOpenTree },
@@ -1652,8 +1651,9 @@ function SessionRow({
         disabled: bulkDeleteRunning,
         onClick: () => onDelete(title),
       },
-    ])
+    ]
   }
+  const menu = useMenuTriggers(menuItems, { title })
 
   const subtitle = sessionSubtitle(meta, git)
   const activity =
@@ -1828,7 +1828,7 @@ function SessionRow({
     <>
       <LaneRow
         onClick={open}
-        onContextMenu={contextMenu}
+        {...menu}
         onDoubleClick={beginRename}
         disabled={deleting}
         aria-busy={deleting}
@@ -1971,9 +1971,8 @@ function PendingSessionRow({
     // survives the swap to `SessionRow` (which prefers the live name too).
     void applySessionRename(phosphorId, name)
   }
-
-  const contextMenu = (event: React.MouseEvent): void => {
-    showContextMenu(event, [
+  const menuItems = (): ContextMenuItem[] => {
+    return [
       { label: 'Open', onClick: () => void navigateToLane({ sessionId: phosphorId }) },
       ...orderActions,
       { label: 'Rename…', onClick: beginRename },
@@ -1985,8 +1984,9 @@ function PendingSessionRow({
         disabled: deleting,
         onClick: () => onDelete(title),
       },
-    ])
+    ]
   }
+  const menu = useMenuTriggers(menuItems, { title })
 
   const className = clsx(
     'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
@@ -2061,7 +2061,7 @@ function PendingSessionRow({
       onClick={() => void navigateToLane({ sessionId: phosphorId })}
       disabled={deleting}
       aria-busy={deleting}
-      onContextMenu={contextMenu}
+      {...menu}
       onDoubleClick={beginRename}
       data-testid="session-row"
       data-pending="true"
