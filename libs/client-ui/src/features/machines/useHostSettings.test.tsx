@@ -6,7 +6,7 @@ import {
   createFakePhosphor,
   installFakePhosphor,
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
-import { COMPACT_PLATFORM, DESKTOP_PLATFORM, PlatformProvider } from '@/platform/Platform'
+import { DESKTOP_PLATFORM, PlatformProvider, type Platform } from '@/platform/Platform'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import type {
   MachineSettings,
@@ -36,10 +36,11 @@ function Probe({ repositoryId }: { repositoryId?: string }) {
   state = useHostSettings('host', 'connectors', repositoryId)
   return null
 }
+const UNSUPPORTED: Platform = { ...DESKTOP_PLATFORM, machineSettings: false }
 async function render(repositoryId?: string, supported = true) {
   await act(async () => {
     root.render(
-      <PlatformProvider value={supported ? DESKTOP_PLATFORM : COMPACT_PLATFORM}>
+      <PlatformProvider value={supported ? DESKTOP_PLATFORM : UNSUPPORTED}>
         <Probe repositoryId={repositoryId} />
       </PlatformProvider>,
     )

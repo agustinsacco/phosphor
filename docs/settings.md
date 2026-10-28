@@ -66,8 +66,9 @@ the machine name. This Mac's Context budget preference never caps that meter.
 banner names the execution machine. Nothing copies settings or credentials between
 machines, falls back to This Mac, or queues writes while disconnected. Overview
 continues to own reachability, reconnect, readiness, traffic logging and removal.
-Editing is currently Desktop-only. The browser/mobile client shows an explicit
-Desktop-required explanation rather than substituting local settings.
+Desktop and the browser/mobile client show the same page. The browser's
+configuration access lasts only while the page is open
+([web client](web-client.md#configuration-access-and-lane-deletion)).
 
 Configuration requires an explicit **Enable configuration access** action and a
 signed `machine.configure` grant. Normal lane control does not imply this grant.

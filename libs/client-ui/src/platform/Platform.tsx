@@ -31,7 +31,8 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   terminal: true,
   scriptedArtifacts: false,
   nativeFiles: false,
-  machineSettings: false,
+  // Host settings over the Host connection, after the explicit configuration access request.
+  machineSettings: true,
 })
 /** A wide browser changes presentation, never its authority or native capabilities. */
 export const WIDE_BROWSER_PLATFORM: Platform = Object.freeze({

@@ -48,9 +48,12 @@ export function createBrowserTerminals(ports: {
       'pty:kill': route('pty:kill'),
       'hosts:machineShell': (hostId: string, cols: number, rows: number) =>
         bridge.shell(WINDOW, hostId, cols, rows),
-      /** Provider sign-in runs in a private Host terminal; configuring accounts needs Desktop. */
+      /** Provider sign-in runs in a private Host terminal; account changes need configuration access. */
       'hosts:providerLogin': (...args: IpcInvokeMap['hosts:providerLogin']['args']) =>
         bridge.signIn(WINDOW, ...args),
+      /** Reviewed machine programs, as Desktop runs them: they need configuration access. */
+      'hosts:machineTask': (...args: IpcInvokeMap['hosts:machineTask']['args']) =>
+        bridge.task(WINDOW, ...args),
     },
   }
 }

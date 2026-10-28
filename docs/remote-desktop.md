@@ -409,15 +409,17 @@ and [Host repository management](host.md#repository-management-and-lane-deletion
 **Machines → a Host → Settings** configures that execution machine, not This Mac.
 The separate Overview keeps reachability, readiness, reconnect and diagnostics.
 The [settings contract](settings.md#host-machine-settings) owns the sections,
-review steps, scope, drafts and application timing. Desktop asks separately for
-signed configuration access; old Hosts retain their Readiness sign-in route.
+review steps, scope, drafts and application timing. Desktop (and the browser, see
+[web client](web-client.md#configuration-access-and-lane-deletion)) asks separately
+for signed configuration access; old Hosts retain their Readiness sign-in route.
 No remote failure mounts a local editor, synchronizes auth or queues a write.
 
-`libs/host-client/src/settings.ts` validates the requested section/folder, projects
-only reviewed fields, and refuses late results from a disconnected or replaced
-connection. Configuration-capability changes invalidate renderer read generations.
-Drafts retain non-secret edits per Host/folder; stale revisions cannot be saved.
-Unconfirmed writes and account moves are not automatically retried.
+`libs/host-client/src/settings.ts`, shared with the browser, validates the requested
+section/folder, projects only reviewed fields, and refuses late results from a
+disconnected or replaced connection. Configuration-capability changes invalidate
+renderer read generations. Drafts retain non-secret edits per Host/folder; stale
+revisions cannot be saved. Unconfirmed writes and account moves are not
+automatically retried.
 
 The Host runs supported fixed CLI sign-in paths in an owner-private terminal.
 Settings programs require `machine.configure`, `terminal` and `sessions.control`,

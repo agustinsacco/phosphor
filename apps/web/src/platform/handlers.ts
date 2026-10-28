@@ -9,6 +9,7 @@ import type { createBrowserPreferences } from './preferences'
 import { staticArtifactPreview } from './preview'
 import type { createBrowserDrafts } from './drafts'
 import type { createBrowserTerminals } from './terminals'
+import type { createBrowserSettings } from './settings'
 
 export type BrowserHandlers = {
   [C in WebSupportedChannel]: (
@@ -45,6 +46,17 @@ function terminalHandlers(terminals: ReturnType<typeof createBrowserTerminals>['
     'pty:kill': (...args) => terminals['pty:kill'](...args),
     'hosts:machineShell': (...args) => terminals['hosts:machineShell'](...args),
     'hosts:providerLogin': (...args) => terminals['hosts:providerLogin'](...args),
+    'hosts:machineTask': (...args) => terminals['hosts:machineTask'](...args),
+  } satisfies Partial<BrowserHandlers>
+}
+/** Host machine settings, after the explicit configuration access request. */
+function settingsHandlers(settings: () => ReturnType<typeof createBrowserSettings>) {
+  return {
+    'hosts:settingsAccess': (...args) => settings().access(...args),
+    'hosts:settingsRead': (...args) => settings().read(...args),
+    'hosts:settingsPatch': (...args) => settings().patch(...args),
+    'hosts:settingsCheck': (...args) => settings().check(...args),
+    'hosts:claudeAccount': (...args) => settings().moveAccount(...args),
   } satisfies Partial<BrowserHandlers>
 }
 /** Cross-tab delivery cannot prevent local logout. */
@@ -64,6 +76,7 @@ export function createBrowserHandlers(ports: {
   window: () => RemoteWindow
   resources: ReturnType<typeof createBrowserResources>
   terminals: ReturnType<typeof createBrowserTerminals>['handlers']
+  settings: ReturnType<typeof createBrowserSettings>
   prefs: ReturnType<typeof createBrowserPreferences>
   drafts: ReturnType<typeof createBrowserDrafts>
   openExternal: (url: string) => void
@@ -94,6 +107,7 @@ export function createBrowserHandlers(ports: {
     ...machineHandlers(resources.machines),
     ...folderHandlers(resources.folders),
     ...terminalHandlers(ports.terminals),
+    ...settingsHandlers(() => ports.settings),
     'gh:prsForRepo': resources.repositories.pullRequests,
     'hosts:repositoryFiles': resources.repositories.list,
     'hosts:repositoryFile': resources.repositories.read,
@@ -108,6 +122,7 @@ export function createBrowserHandlers(ports: {
     'hosts:releaseControl': (host, lane) => lanes.action(host, lane, 'control.release'),
     'hosts:markRead': (host, lane) => lanes.action(host, lane, 'lane.markRead'),
     'hosts:setLaneMarks': marks.set,
+    'hosts:deleteLane': (host, lane, options) => resources.folders.deleteLane(host, lane, options),
     'pi:command': (id, command) => lanes.command(1, id, command),
     'pi:extensionUiResponse': (id, response) => lanes.respond(1, id, response),
     'pi:disposeSession': (id) => lanes.dispose(1, id),

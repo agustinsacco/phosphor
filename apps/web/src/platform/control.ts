@@ -74,10 +74,12 @@ export function createBrowserControl(ports: ControlPorts) {
       ? 'Signed out here. Remote cleanup is pending; existing Host grants may remain valid briefly.'
       : 'Disconnected here. Cookie sign-out and remote revocation were not confirmed. Retry sign out.'
   const requests = new Set<AbortController>()
+  const configurationHosts = new Set<string>()
   const publish = () => ports.changed(structuredClone(view))
   function invalidate(error?: string) {
     generation++
     current = null
+    configurationHosts.clear()
     for (const request of requests) request.abort()
     requests.clear()
     ports.invalidate()
@@ -310,12 +312,19 @@ export function createBrowserControl(ports: ControlPorts) {
         await json(machineRoute(id), 'DELETE')
         return {}
       }),
+    /** Per-Host configure opt-in, memory only: set by settings access, cleared with the owner. */
+    configure(hostId: string, enabled = true) {
+      if (!enabled) return void configurationHosts.delete(hostId)
+      if (!current || logoutPending || stopped) throw new Error('signed-out')
+      configurationHosts.add(hostId)
+    },
     async grant(hostId: string) {
       if (!current || logoutPending) throw new Error('signed-out')
       try {
         return await parsed(CONTROL_ROUTES.grants, parseGrantIssueResponse, 'POST', {
           hostId,
           clientId: current.clientId,
+          ...(configurationHosts.has(hostId) ? { configure: true } : {}),
         })
       } catch (error) {
         throw grantFailure(error)

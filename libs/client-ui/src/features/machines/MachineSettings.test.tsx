@@ -8,6 +8,7 @@ import { useMachinesStore } from '@/stores/machines'
 import { mixedRemoteHosts } from '@/dev/mockRemoteLanes'
 import { mockSettingsRead, mockSettingsPatch } from '@/dev/mockMachineSettings'
 import { promptChoice } from '@/stores/prompt'
+import { COMPACT_PLATFORM, PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 vi.mock('@/stores/prompt', () => ({
   promptChoice: vi.fn(async () => undefined),
   promptText: vi.fn(),
@@ -198,3 +199,25 @@ it('keeps provider credentials separated by Host and makes usage unavailable, no
   expect(container.textContent).toContain('Unavailable is not zero')
   expect(invoke.mock.calls.every(([channel]) => channel.startsWith('hosts:'))).toBe(true)
 })
+it.each([COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM])(
+  'offers the same explicit configuration access in a $formFactor browser',
+  async (platform) => {
+    const hosts = mixedRemoteHosts()
+    hosts[machine.id]!.capabilities = ['sessions.read', 'sessions.control']
+    useRemoteLanesStore.setState({ hosts })
+    await act(async () => {
+      root.render(
+        <PlatformProvider value={platform}>
+          <MachineSettings machine={machine} section="providers" />
+        </PlatformProvider>,
+      )
+    })
+    expect(container.textContent).not.toContain('available in Phosphor Desktop')
+    vi.mocked(promptChoice).mockResolvedValue('enable')
+    await act(async () => {
+      button('Enable configuration access').click()
+    })
+    expect(promptChoice).toHaveBeenCalledOnce()
+    expect(invoke).toHaveBeenCalledWith('hosts:settingsAccess', machine.id)
+  },
+)

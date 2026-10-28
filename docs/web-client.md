@@ -28,6 +28,41 @@ mounts. Sign-out warnings distinguish confirmed local logout, pending remote
 cleanup and unconfirmed network outcomes. A retry returning 401 does not prove
 remote cleanup completed or revoke previously issued grants immediately.
 
+### Configuration access and lane deletion
+
+**Machines → a Host → Settings** is the same shared page as Desktop's. A signed-in
+browser page holds configuration authority for a Host only after an explicit
+per-page opt-in: **Enable configuration access**, confirmed in a dialog, calls
+`hosts:settingsAccess`. The adapter (`apps/web/src/platform/settings.ts`) then asks
+Control for that Host's grant with `configure: true`, checks that the signed grant
+carries it, and reconnects so the Host admits `machine.configure`. If Control does
+not sign it, the opt-in is rolled back and the existing lane access is unchanged.
+This is Desktop's flow, `enableConfigurationAccess` in
+`libs/host-client/src/settings.ts`, over the browser's grant cache.
+
+The opt-in lives only in the control client's memory (`apps/web/src/platform/control.ts`):
+it is never written to localStorage, IndexedDB or a cookie, and sign-out, an owner
+or client change, a refused cookie and `dispose()` (closing or reloading the page)
+clear it. Grants keep their five-minute lifetime and renew only while the page
+runs. `hosts:settingsRead`, `hosts:settingsPatch`, `hosts:settingsCheck` and
+`hosts:claudeAccount` use the shared `machineSettings` checks: each needs a ready
+connection holding `machine.configure` and goes only to that Host, never to
+Control, so a secret typed into a setting travels only over the verified Host
+connection. `hosts:machineTask` runs reviewed programs in the browser's Host
+terminals, as Desktop's `terminals.task` does. Nothing logs settings payloads.
+
+`hosts:deleteLane` uses the shared `repositoryManagement.deleteLane`, as Desktop
+does. The Host admits `lane.delete` only from the lane's controller, so a reader
+sees Delete disabled until it takes control.
+
+Threat note: a signed-in browser session can now configure a Host (change pi
+settings and connectors, install reviewed packages, move Claude accounts), but
+only after a person confirms the per-page opt-in, and with the same Host
+enforcement as Desktop. The Host's admission is unchanged: it grants
+`machine.configure` only for a signed `configure` grant, regardless of client
+kind, and drops it on an epoch change. A stolen cookie could already request a
+configure grant from Control; this change does not widen what Control signs.
+
 ## Shared pages and responsive shells
 
 Browser presentation switches at 900px: drawer navigation below that width,
@@ -63,10 +98,10 @@ Add folder on MACHINE…, Remove from MACHINE, Move up and Move down
 Desktop's sidebar, gated on readiness and `workspaces.write`. The Inbox, which
 lists only folders with unread lanes, has no folder menu. Host terminals work:
 lane shells and the Machine page's shell
-([terminal.md](terminal.md#machine-shells)), plus plain provider sign-in. File
-editing, provider installation, account configuration and native settings are
-unavailable. Attention is in-app
-only, not OS push.
+([terminal.md](terminal.md#machine-shells)), plus plain provider sign-in. Host
+machine settings, including provider installation and Claude accounts, work after
+[configuration access](#configuration-access-and-lane-deletion). File editing and
+native settings are unavailable. Attention is in-app only, not OS push.
 
 `PageShell` owns each page's single heading, actions and close behavior;
 `PageBody` supplies the shared width, gutters and scrolling for Machines,

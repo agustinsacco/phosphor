@@ -10,6 +10,7 @@ import { createBrowserPreferences, type PreferenceStorage } from './preferences'
 import { createBrowserResources } from './resources'
 import { createBrowserHandlers } from './handlers'
 import { createBrowserTerminals } from './terminals'
+import { createBrowserSettings } from './settings'
 import { captureCompletionFence } from './completion-fence'
 import { createBrowserDrafts, OWNER_DRAFT_CHANNELS } from './drafts'
 
@@ -149,6 +150,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     lanes,
     resources,
     terminals: terminals.handlers,
+    settings: createBrowserSettings({ control, hosts }),
     prefs,
     drafts,
     window: () => {
@@ -205,7 +207,9 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       classification.kind === 'remote-supported' &&
       !channel.startsWith('account:') &&
       !channel.startsWith('control:') &&
-      channel !== 'hosts:reconnect'
+      // Both replace the Host connection on purpose: the new one is the result.
+      channel !== 'hosts:reconnect' &&
+      channel !== 'hosts:settingsAccess'
     if (remote && (stopped || epoch !== control.generation() || !transportCurrent())) {
       if (channel === 'pi:command')
         return piFailure(

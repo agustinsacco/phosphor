@@ -679,7 +679,8 @@ The [API](#api) dispatches authenticated commands through this pipeline.
 
 ## Machine settings
 
-Desktop's **Machines → this Host → Settings** administers this execution machine.
+**Machines → this Host → Settings**, in Desktop or the browser, administers this
+execution machine.
 [Settings](settings.md#host-machine-settings) owns the UI; [the protocol](remote-protocol.md#machine-configuration-operations)
 owns its typed operations. Configuration requires a separately requested signed
 `machine.configure` grant, not merely lane control. Older clients and ordinary
@@ -1094,7 +1095,7 @@ needs a terminal (stdin and stdout), and exits 64 without one; over SSH, use
   screen, which is why the steps are typed.
 - **`claude`** runs `claude auth login` from pi's PATH for the CLI default
   credential: follow its link/code instructions. Private roster accounts are
-  reauthenticated through Desktop's Machine Settings, not by replacing the CLI
+  reauthenticated through Machine Settings, not by replacing the CLI
   default. If one is selected, signing into the default does not change that
   selection or make a different account ready.
 
