@@ -5,6 +5,7 @@ import type { ContextMenuItem } from '@/components/ContextMenu'
 import { Button } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import { ChevronDownIcon, ChevronIcon, PlusIcon } from '@/components/icons'
+import { currentSessionMenuItems, SESSION_OPTIONS } from '@/features/chat/sessionMenuItems'
 import {
   useRemoteLaneActions,
   useRemoteLaneSession,
@@ -14,6 +15,7 @@ import { useLaneControl, type LaneControl } from '@/features/machines/useLaneCon
 import { useNavigation } from '@/navigation/Navigation'
 import { SCREENS } from '@/navigation/screens'
 import type { LanePane, Location } from '@/navigation/location'
+import { useChatStore } from '@/stores/chat'
 import { useMachinesStore } from '@/stores/machines'
 import { connectionLabel, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 
@@ -214,6 +216,7 @@ function LaneSheet({
           )
         })}
       </nav>
+      {sessionId && <SessionOptionsGroup sessionId={sessionId} onClose={onClose} />}
       <LaneActionGroup
         hostId={hostId}
         actions={actions}
@@ -224,6 +227,36 @@ function LaneSheet({
         }}
       />
     </ActionSheet>
+  )
+}
+
+/** The session options every surface offers (`sessionMenuItems`), as sheet rows. */
+function SessionOptionsGroup({
+  sessionId,
+  onClose,
+}: {
+  sessionId: string
+  onClose: () => void
+}): React.JSX.Element {
+  // Subscribed so the hints follow the session; the items read the stores themselves.
+  useChatStore((s) => s.sessions[sessionId]?.meta)
+  return (
+    <div role="group" aria-label={SESSION_OPTIONS} className="action-sheet-group">
+      <p className="action-sheet-label">Session</p>
+      {currentSessionMenuItems(sessionId).map((item) => (
+        <ActionSheetItem
+          key={item.label}
+          disabled={item.disabled}
+          hint={item.hint}
+          onClick={() => {
+            onClose()
+            item.onClick()
+          }}
+        >
+          {item.label}
+        </ActionSheetItem>
+      ))}
+    </div>
   )
 }
 

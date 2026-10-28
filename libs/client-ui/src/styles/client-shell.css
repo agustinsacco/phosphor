@@ -159,6 +159,11 @@ html[data-form-factor='compact'] {
   padding: 6px;
   font-size: 12.5px;
 }
+/* Session options close the strip at their own size, not a tab's share. */
+.compact-lane-tabs button.compact-lane-options {
+  flex: none;
+  padding: 0;
+}
 .compact-lane-tabs [aria-current='page'] {
   color: var(--px-accent);
   font-weight: 550;

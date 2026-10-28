@@ -10,6 +10,7 @@ import {
   useRemoteLanesStore,
 } from '@/stores/remoteLanes'
 import { ChatView } from '@/features/chat/ChatView'
+import { SessionMenu } from '@/features/chat/SessionMenu'
 import { ReadOnlyFilesPane } from '@/features/files/ReadOnlyFilesPane'
 import { SCREENS } from '@/navigation/screens'
 import { usePlatform } from '@/platform/Platform'
@@ -130,6 +131,7 @@ function LanePanes({
               {SCREENS[id].title}
             </TooltipButton>
           ))}
+          <SessionMenu sessionId={session.phosphorId} className="compact-lane-options" />
         </nav>
       )}
       <div className="min-h-0 flex-1">

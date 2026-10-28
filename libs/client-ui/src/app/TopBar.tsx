@@ -135,7 +135,6 @@ function MachineFilesButton({
  * height and gutters on the home screen, where there is no session to describe.
  */
 function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.Element {
-  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
   const sessionName = useChatStore((s) => s.sessions[sessionId]?.meta?.sessionName)
   // pi never auto-titles, so fall back to the thread's own first prompt — the
   // same chain the sidebar uses (see lib/sessionTitle).
@@ -183,7 +182,7 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
       </IconButton>
       <ArtifactsButton sessionId={sessionId} active={rightPane === 'artifacts'} />
       <SubagentsButton sessionId={sessionId} active={rightPane === 'subagents'} />
-      {!remote && <SessionMenu sessionId={sessionId} />}
+      <SessionMenu sessionId={sessionId} />
     </>
   )
 }
