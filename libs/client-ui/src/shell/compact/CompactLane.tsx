@@ -111,7 +111,8 @@ function LanePanes({
 }): React.JSX.Element {
   const pane = location.pane ?? 'chat'
   const placement = SCREENS[pane].compact
-  // A phone switches panes from the lane menu in its header (CompactLaneHeader).
+  // A phone switches panes from the lane menu in its header (CompactLaneHeader), which
+  // also carries the lane's controls; wider browsers keep tabs and Desktop's control row.
   const tabs = usePlatform().formFactor !== 'compact'
   const terminal = useRemoteLanesStore(
     (s) =>
@@ -149,6 +150,7 @@ function LanePanes({
               key={session.phosphorId}
               sessionId={session.phosphorId}
               workspacePath={session.workspacePath}
+              laneControls={tabs ? 'row' : 'header'}
             />
           ) : pane === 'files' || pane === 'changes' ? (
             <ReadOnlyFilesPane

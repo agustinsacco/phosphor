@@ -9,6 +9,16 @@ const rendererFiles = [
   'apps/web/src/**/*.{ts,tsx}',
 ]
 
+// `x['name']` and x[`name`] name the same key as `x.name`.
+function keyIs(property, name) {
+  if (property.type === 'Literal') return property.value === name
+  return (
+    property.type === 'TemplateLiteral' &&
+    property.expressions.length === 0 &&
+    property.quasis[0]?.value.cooked === name
+  )
+}
+
 // no-restricted-syntax must stay an error for prompt; this separate rule stages
 // the nested RPC escape hatch as a warning, including computed literal access.
 const phosphor = {
@@ -30,14 +40,6 @@ const phosphor = {
             node = node.expression
           return node
         }
-        function keyIs(property, name) {
-          if (property.type === 'Literal') return property.value === name
-          return (
-            property.type === 'TemplateLiteral' &&
-            property.expressions.length === 0 &&
-            property.quasis[0]?.value.cooked === name
-          )
-        }
         function memberNamed(node, name) {
           node = unwrap(node)
           return (
@@ -57,6 +59,33 @@ const phosphor = {
             ) {
               context.report({ node, messageId: 'rawRpc' })
             }
+          },
+        }
+      },
+    },
+    // A phone and a wide browser are one client at two widths (Platform.test.ts),
+    // so only layout may tell them apart. Building a platform is not a read.
+    'form-factor-in-layout': {
+      meta: {
+        type: 'problem',
+        schema: [],
+        messages: {
+          formFactor:
+            'Only components/, platform/ and shell/ read the form factor. Choose behaviour by a Platform capability; take layout from a primitive or the shell.',
+        },
+      },
+      create(context) {
+        const named = (key, computed) =>
+          computed
+            ? keyIs(key, 'formFactor')
+            : key.type === 'Identifier' && key.name === 'formFactor'
+        return {
+          MemberExpression(node) {
+            if (named(node.property, node.computed))
+              context.report({ node, messageId: 'formFactor' })
+          },
+          'ObjectPattern > Property'(node) {
+            if (named(node.key, node.computed)) context.report({ node, messageId: 'formFactor' })
           },
         }
       },
@@ -146,6 +175,18 @@ export default tseslint.config(
     ],
     plugins: { phosphor },
     rules: { 'phosphor/no-raw-pi-command': 'error' },
+  },
+  {
+    // Features, navigation and stores choose by capability; primitives, the
+    // platform and the shells own layout, so only they read the form factor.
+    files: ['libs/client-ui/src/**/*.{ts,tsx}'],
+    ignores: [
+      'libs/client-ui/src/components/**',
+      'libs/client-ui/src/platform/**',
+      'libs/client-ui/src/shell/**',
+    ],
+    plugins: { phosphor },
+    rules: { 'phosphor/form-factor-in-layout': 'error' },
   },
   {
     // The Host runs under plain Node: no Electron, no native Desktop modules,

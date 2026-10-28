@@ -1,3 +1,4 @@
+import { ListDetail } from '@/components/ListDetail'
 import { usePlatform } from '@/platform/Platform'
 import { RepositoryFilePreview } from './RepositoryFilePreview'
 import { RemoteFileTree } from './RemoteFileTree'
@@ -10,9 +11,7 @@ export function MachineFilesPane({ hostId }: { hostId: string }): React.JSX.Elem
   return <MachineFilesView key={hostId} hostId={hostId} />
 }
 function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
-  const platform = usePlatform()
-  const compact = platform.formFactor === 'compact'
-  const nativeEditor = platform.fileEditing
+  const nativeEditor = usePlatform().fileEditing
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const [repositoryId, setRepositoryId] = useState('')
   const [files, setFiles] = useState<string[]>([])
@@ -105,28 +104,27 @@ function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
       {error ? (
         <p role="alert">{REMOTE_UNAVAILABLE}</p>
       ) : (
-        <div className={`flex min-h-0 flex-1 gap-4 ${compact ? 'flex-col' : ''}`}>
-          {(!compact || !path) && (
-            <nav
-              aria-label="Repository files"
-              className={`border-border bg-bg-secondary/40 overflow-auto ${compact ? 'flex-1' : 'w-1/3 border-r'}`}
-            >
-              <RemoteFileTree files={files} selected={path} onSelect={setPath} loading={loading} />
-            </nav>
-          )}
-          <div aria-label="File preview" className="min-w-0 flex-1 overflow-hidden">
+        <ListDetail
+          listLabel="Repository files"
+          detailLabel="File preview"
+          list={
+            <RemoteFileTree files={files} selected={path} onSelect={setPath} loading={loading} />
+          }
+          open={!!path}
+          onBack={() => setPath('')}
+          backLabel="Files"
+          detail={(back) => (
             <RepositoryFilePreview
-              compact={compact}
+              back={back}
               nativeEditor={nativeEditor}
               path={path}
               resourcePath={`host:${hostId}/repository:${repositoryId}/${path}`}
               preview={preview}
               reading={reading}
               binary={binary}
-              onBack={() => setPath('')}
             />
-          </div>
-        </div>
+          )}
+        />
       )}
     </section>
   )
