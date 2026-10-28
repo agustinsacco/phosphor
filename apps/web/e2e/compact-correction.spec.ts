@@ -162,6 +162,10 @@ test('Install action has manual fallback and only reports completion on appinsta
   await page.getByRole('button', { name: 'Close navigation', exact: true }).click()
   await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page
+    .getByRole('navigation', { name: 'Settings sections', exact: true })
+    .getByRole('button', { name: 'App installation', exact: true })
+    .click()
   await expect(page.getByRole('heading', { name: 'App installation', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Install Phosphor', exact: true }).last().click()
   await expect(page.getByRole('status')).toContainText('Finish installation in your browser')

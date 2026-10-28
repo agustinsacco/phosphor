@@ -82,7 +82,7 @@ test('Background attention and sign-out preserve machine boundaries', async () =
   }
 })
 
-test('Provider login and error remedies target bee1, Settings is This Mac', async ({
+test('Provider login and error remedies target bee1, Settings configures bee1 and This Mac', async ({
   browserName: _browserName,
 }, info) => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
@@ -132,17 +132,19 @@ test('Provider login and error remedies target bee1, Settings is This Mac', asyn
 
     await h.page.getByRole('button', { name: 'Settings', exact: true }).click()
     const settings = h.page.getByRole('dialog', { name: 'Settings', exact: true })
+    await settings.getByRole('button', { name: 'Providers', exact: true }).click()
+    await expect(settings.getByTestId('settings-machine-scope')).toContainText('Configuring bee1')
+    await expect(settings.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible()
+    await settings
+      .getByRole('combobox', { name: 'Configure', exact: true })
+      .selectOption({ label: 'This Mac' })
     for (const tab of ['Accounts', 'Agent', 'Extensions', 'Advanced']) {
       await settings.getByRole('button', { name: tab, exact: true }).click()
-      await expect(settings).toContainText(
-        'These settings configure This Mac, not a remote machine.',
+      await expect(settings.getByTestId('settings-machine-scope')).toContainText(
+        'Configuring This Mac',
       )
-      await expect(settings).toContainText('Remote settings are not available here.')
     }
-    await settings.getByRole('button', { name: 'Accounts', exact: true }).click()
-    await expect(
-      settings.getByRole('button', { name: 'Open bee1 settings', exact: true }),
-    ).toBeVisible()
+    await expect(settings).not.toContainText('Remote settings are not available here.')
     await captures(h, info, 'remote-settings-scope')
     expect(errors).toEqual([])
   } finally {

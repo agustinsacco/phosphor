@@ -284,6 +284,10 @@ test('cookie/CSRF → verified Host → read/control/send; waiting update and ow
     )
     .toBe(true)
   await navigatePage(page, 'Settings')
+  await page
+    .getByRole('navigation', { name: 'Settings sections', exact: true })
+    .getByRole('button', { name: 'Phosphor account', exact: true })
+    .click()
   await page.getByRole('button', { name: 'Sign out', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Sign in with GitHub' })).toBeVisible()
   await expect.poll(() => stack.state.closedConnections).toBe(stack.state.connections)
