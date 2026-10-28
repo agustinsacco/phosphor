@@ -8,6 +8,7 @@ import type { Location } from '@/navigation/location'
 import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 import { useChatStore } from '@/stores/chat'
 import { useMachinesStore } from '@/stores/machines'
+import { usePromptStore } from '@/stores/prompt'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { CompactLaneHeader } from './CompactLaneHeader'
@@ -176,4 +177,40 @@ it('lets the controller delete the lane from the sheet (regression)', () => {
   act(() => remove.click())
   expect(sheet()?.getAttribute('aria-label')).not.toBe('Lane menu')
   expect(document.body.textContent).toContain('Delete session')
+})
+
+const sessionRow = (label: string): HTMLButtonElement | undefined =>
+  [
+    ...(sheet()?.querySelectorAll<HTMLButtonElement>('[aria-label="Session options"] button') ??
+      []),
+  ].find((b) => b.textContent?.startsWith(label))
+
+it('shows Session options in the lane sheet, disabled for a reader (regression)', () => {
+  render()
+  act(() => button(/^Lane menu/)!.click())
+  for (const label of ['Compact now', 'Auto-compaction', 'Auto-retry', 'Steering', 'Follow-ups']) {
+    expect(sessionRow(label)?.disabled, label).toBe(true)
+    expect(sessionRow(label)?.textContent, label).toContain('Take control first.')
+  }
+  expect(sessionRow('Export')?.disabled).toBe(true)
+  expect(sessionRow('Export')?.textContent).toContain('Not available on remote lanes yet.')
+})
+
+it("sends the controller's Compact now from the lane sheet through pi (regression)", async () => {
+  const piCommand = vi.fn(async () => ({ success: true }))
+  Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke, piCommand } })
+  usePromptStore.setState({ requests: [] })
+  controller(true)
+  render()
+  act(() => button(/^Lane menu/)!.click())
+  expect(sessionRow('Auto-retry')?.disabled).toBe(false)
+  expect(sessionRow('Export')?.disabled).toBe(true)
+  await act(async () => sessionRow('Compact now')?.click())
+  expect(sheet()?.getAttribute('aria-label')).not.toBe('Lane menu')
+  const request = usePromptStore.getState().requests[0]
+  if (request) await act(async () => usePromptStore.getState().dismiss(request, 'keep it short'))
+  expect(piCommand).toHaveBeenCalledWith(mockRemoteInfo.sessionId, {
+    type: 'compact',
+    customInstructions: 'keep it short',
+  })
 })
