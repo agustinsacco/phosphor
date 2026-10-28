@@ -347,7 +347,10 @@ ready Host with no folders shows “No folders yet” and, with `workspaces.writ
 an Add folder on MACHINE… button that opens the Host folder browser.
 A Host's folders are listed in the Host config's order. Each current folder's
 Workspace options menu offers Add folder on MACHINE…, Remove from MACHINE, Move
-up and Move down (`RemoteFolderMenuRows`, shared with the web client). A move
+up and Move down (`RemoteFolderMenuRows`), then Select all lanes, Select merged
+lanes and Collapse lanes. The folder header (`RemoteRepositoryGroup`) and the
+Host's list (`RemoteHostLanes`, pinned lanes first) are the same components the
+web client's Lanes page and Host home render ([web client](web-client.md#one-lane-row-list-and-menu)). A move
 sends the whole new order (`hosts:orderRepositories`), so every client sees it
 once the Host republishes its repositories; an older Host's refusal is a toast
 that says to update it. A move is disabled at either end and without

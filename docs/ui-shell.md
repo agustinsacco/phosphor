@@ -386,7 +386,8 @@ onto itself, which opens the menu three ways:
 The hook's handlers compose with the element's own: `onClick` needs nothing, and a
 caller with its own `onKeyDown` calls the hook's first and skips its own when the
 event's default was prevented. Desktop's local lane rows, live-only rows and
-workspace group headers use it.
+workspace group headers use it, and so does the Host lane row on every surface,
+in Desktop and the browser ([Lanes](lanes.md#remote-lanes)).
 
 On an expanded form factor the menu is a popover clamped inside the window, with
 hints and shortcuts as muted text and tooltips; Escape, an outside press or window

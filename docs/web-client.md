@@ -54,7 +54,8 @@ terminals, as Desktop's `terminals.task` does. Nothing logs settings payloads.
 
 `hosts:deleteLane` uses the shared `repositoryManagement.deleteLane`, as Desktop
 does. The Host admits `lane.delete` only from the lane's controller, so a reader
-sees Delete disabled until it takes control.
+sees the lane menu's Delete disabled with “Take control first.” until it takes
+control.
 
 Threat note: a signed-in browser session can now configure a Host (change pi
 settings and connectors, install reviewed packages, move Claude accounts), but
@@ -73,8 +74,10 @@ browser at every width. Modal/menu placement adapts without enabling native
 editors or pane controls. Desktop retains its native sidebar and local workbench.
 Below 900px a lane has one header bar: Back to its Host's lanes, then the lane
 title with "Host · controller" under it (and the pane, when not Chat). The title
-opens the lane menu, a bottom sheet that switches Chat, Files, Changes and
-Artifacts and holds Take/Release control, Stop/Resume and New lane on that Host.
+opens the lane menu, a bottom sheet (`ActionSheet`) that switches Chat, Files,
+Changes, Artifacts and Terminal and holds the lane's shared actions, the same
+list as every Host lane row's menu without Open (see below), then New lane on
+that Host. A confirmed action closes the sheet; a refusal stays to say why.
 There is no drawer button, machine filter or pane tab strip inside a lane. A
 reader sees a Take control bar where the composer would be. Wider browsers keep
 the pane tabs and the control row above the transcript.
@@ -92,12 +95,7 @@ before any lane creation/upload. The start screen's Repository menu offers Add
 folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
 and adds folders under the Host's home over the same Host connection
 (`hosts:listFolders`, `hosts:createFolder`, `hosts:addRepository`, through
-`libs/host-client/src/repository-management.ts`). On the Lanes page each of a
-Host's current folders is listed, lanes or not, with a Folder options menu:
-Add folder on MACHINE…, Remove from MACHINE, Move up and Move down
-(`hosts:removeRepository`, `hosts:orderRepositories`), the same rows as
-Desktop's sidebar, gated on readiness and `workspaces.write`. The Inbox, which
-lists only folders with unread lanes, has no folder menu. Host terminals work:
+`libs/host-client/src/repository-management.ts`). Host terminals work:
 lane shells and the Machine page's shell
 ([terminal.md](terminal.md#machine-shells)), plus plain provider sign-in. Host
 machine settings, including provider installation and Claude accounts, work after
@@ -116,12 +114,35 @@ The Settings page frames Desktop's `SettingsSurface`: the same search field, sec
 navigation and sections, listed by platform capability
 ([settings](settings.md#sections-and-capabilities)). The browser shows Appearance,
 Phosphor account, App installation and About, then **Configure** with the Host
-machine settings of each known Host; it lists no This Mac sections. Lanes and remote Home use Desktop's repository
-grouping/order and row title, elapsed time, worktree/branch and activity indicators.
-Unread attention is not labelled as a request for input, and a stopped process is
-not presented as a task result. Lanes whose repository is absent from the current
-Host folders remain in explicit unavailable-folder groups in both clients, rather
-than being silently hidden. Browser rows navigate only; native curation stays native.
+machine settings of each known Host; it lists no This Mac sections.
+
+### One lane row, list and menu
+
+The browser's Lanes and Inbox pages, Host home (under the start composer) and
+the machine page's lane preview render Desktop's Host lane components, not
+copies ([Lanes](lanes.md#remote-lanes) owns their rules):
+
+- `RemoteHostLanes` lists a Host: pinned lanes first under Pinned, then one
+  `RemoteRepositoryGroup` per folder in the Host's order, and lanes whose folder
+  left the Host in an explicit unavailable-folder group. A ready Host with no
+  folders offers Add folder on MACHINE…. Each folder header has Search lanes,
+  Workspace options (Add folder on MACHINE…, Remove from MACHINE, Move up, Move
+  down, Select all lanes, Select merged lanes, Collapse lanes) and New lane in
+  the folder, which opens the start composer with that folder chosen. Pages
+  pass `density="page"` for touch-sized header buttons. The Inbox lists only
+  unread lanes and their folders, so it has no Workspace options: moves need
+  the whole order and a selection would act on hidden lanes.
+- `RemoteLaneRow` is the one Host lane row: title, elapsed time, worktree,
+  branch, PR chip, marker and activity, as on Desktop. Unread attention is not
+  labelled as a request for input, and a stopped process is not presented as a
+  task result. A tap opens the lane through the browser's history. Right-click,
+  the ContextMenu key, Shift+F10 or a touch long-press (one short vibration
+  where the device can) opens its menu; below 900px the menu is a bottom sheet
+  titled with the lane.
+- The menu comes from `remoteLaneActions`, the same items and hints Desktop
+  shows. Delete, Rename and Stop need control (“Take control first.”); Delete
+  also needs `workspaces.write`. Bulk delete goes through the shared
+  `RemoteBulkDelete`.
 
 `RemoteWorkspacePage` composes the complete remote start page in both clients,
 and its input is `StartComposer`, the one new-lane composer This Mac uses too
