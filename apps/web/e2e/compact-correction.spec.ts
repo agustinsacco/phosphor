@@ -88,8 +88,10 @@ test('Machines detail has a compact hierarchy and Lanes uses Desktop repository 
       await page.getByRole('button', { name: /Synthetic Host/ }).click()
       await assertMachineDetail(page, info, width, theme)
       await page.goto(`${stack.origin}/lanes/${stack.hostId}`)
-      const repository = page.getByRole('region', { name: 'repository', exact: true })
-      const other = page.getByRole('region', { name: 'other', exact: true })
+      // Wide browsers list the same folders in the navigation column; check the Lanes page.
+      const lanes = page.locator('main.compact-main')
+      const repository = lanes.getByRole('region', { name: 'repository', exact: true })
+      const other = lanes.getByRole('region', { name: 'other', exact: true })
       await expect(
         repository.getByRole('button', { name: 'Synthetic acceptance lane', exact: true }),
       ).toBeVisible()
