@@ -4,14 +4,21 @@ import {
   isMachineAccountId,
   type MachineSettingsPatch,
   type MachineSettingsSection,
-} from '@shared/machine-settings'
-import { parseMachineSettings } from '@shared/machine-settings-result'
+} from '@phosphor/shared/machine-settings'
+import { parseMachineSettings } from '@phosphor/shared/machine-settings-result'
+import { splitGrant } from '@phosphor/shared/host-grant'
 import type { createHostConnection } from './connection'
 
-/** Machine-scoped only. Missing authority or a replaced connection never falls back locally. */
-export function machineSettings(
-  connection: (hostId: string) => ReturnType<typeof createHostConnection> | undefined,
-) {
+type Connection = Pick<
+  ReturnType<typeof createHostConnection>,
+  'snapshot' | 'incarnation' | 'call' | 'send'
+>
+
+/**
+ * Host settings over one Host connection, shared by Desktop and the browser.
+ * Machine-scoped only. Missing authority or a replaced connection never falls back locally.
+ */
+export function machineSettings(connection: (hostId: string) => Connection | undefined) {
   async function call(
     hostId: string,
     method: string,
@@ -88,4 +95,39 @@ export function machineSettings(
       return call(hostId, 'machine.settings.patch', params)
     },
   }
+}
+
+/** Per-Host configure opt-in and the grant it changes. Each client keeps it in memory only. */
+export interface ConfigurationGrants {
+  /** Ask for (or stop asking for) `configure: true` in this Host's grants; drops its cached grant. */
+  configure(hostId: string, enabled?: boolean): void
+  grantFor(hostId: string): Promise<{ grant: string }>
+}
+
+/**
+ * The explicit "Enable configuration access" step: opt in, prove the control plane signed a
+ * configure grant, then reconnect so the Host admits it. A refused upgrade rolls the opt-in back.
+ */
+export async function enableConfigurationAccess(
+  ports: {
+    connection: (hostId: string) => Pick<Connection, 'snapshot'> | undefined
+    grants: ConfigurationGrants
+    reconnect: (hostId: string) => Promise<void>
+  },
+  hostId: string,
+): Promise<void> {
+  const c = ports.connection(hostId)
+  if (!c || c.snapshot().state !== 'ready' || !c.snapshot().configurationSupported)
+    throw new Error('Connect to an updated Host before enabling settings access.')
+  ports.grants.configure(hostId)
+  try {
+    const grant = splitGrant((await ports.grants.grantFor(hostId)).grant)
+    if (!grant.ok || !grant.value.payload.configure) throw new Error('unsupported-control')
+  } catch {
+    ports.grants.configure(hostId, false)
+    throw new Error(
+      'The control plane did not grant configuration access. Update it or sign in again, then retry. Existing lane access was not changed.',
+    )
+  }
+  await ports.reconnect(hostId)
 }

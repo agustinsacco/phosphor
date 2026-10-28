@@ -413,8 +413,8 @@ review steps, scope, drafts and application timing. Desktop asks separately for
 signed configuration access; old Hosts retain their Readiness sign-in route.
 No remote failure mounts a local editor, synchronizes auth or queues a write.
 
-`electron/hosts/settings.ts` validates the requested section/folder, projects only
-reviewed fields, and refuses late results from a disconnected or replaced
+`libs/host-client/src/settings.ts` validates the requested section/folder, projects
+only reviewed fields, and refuses late results from a disconnected or replaced
 connection. Configuration-capability changes invalidate renderer read generations.
 Drafts retain non-secret edits per Host/folder; stale revisions cannot be saved.
 Unconfirmed writes and account moves are not automatically retried.
