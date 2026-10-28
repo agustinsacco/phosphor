@@ -229,3 +229,19 @@ it('removes the cleanup warning only after a server-confirmed complete retry', a
   expect(await control.signOut()).toEqual({ account: { status: 'signed-out' } })
   expect(fetch).toHaveBeenCalledTimes(4)
 })
+
+it.each([
+  ['account-disabled', () => json({ error: { code: 'forbidden', message: 'Disabled' } }, 403)],
+  ['grant-refused', () => json({ error: { code: 'not-found', message: 'Refused' } }, 404)],
+  ['grant-refused', () => json({ error: { code: 'gone', message: 'Gone' } }, 410)],
+  ['unavailable', () => json({ error: { code: 'unavailable', message: 'Down' } }, 503)],
+  ['offline', () => Promise.reject(new TypeError('Network failed'))],
+] as const)('reports only the sanitized grant refusal %s', async (code, reply) => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async (path) =>
+    path === WEB_AUTH_ROUTES.session ? json(session) : reply(),
+  )
+  const { control } = setup(fetch)
+  await control.refresh()
+  const host = '33333333-3333-4333-8333-333333333333'
+  await expect(control.grant(host)).rejects.toThrow(new Error(code))
+})
