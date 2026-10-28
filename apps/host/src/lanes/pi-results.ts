@@ -1,5 +1,6 @@
 import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 import type { AgentMessage, RpcSessionState } from '@phosphor/shared/rpc'
+import { ALL_THINKING_LEVELS } from '@phosphor/shared/thinking'
 
 export const PI_MESSAGES_MAX = HOST_LIMITS.pendingEvents * 25
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -18,7 +19,7 @@ function state(value: unknown): value is RpcSessionState {
     typeof value.isStreaming === 'boolean' &&
     typeof value.isCompacting === 'boolean' &&
     typeof value.thinkingLevel === 'string' &&
-    ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(value.thinkingLevel) &&
+    ALL_THINKING_LEVELS.some((level) => level === value.thinkingLevel) &&
     (value.steeringMode === 'all' || value.steeringMode === 'one-at-a-time') &&
     (value.followUpMode === 'all' || value.followUpMode === 'one-at-a-time') &&
     typeof value.autoCompactionEnabled === 'boolean' &&
