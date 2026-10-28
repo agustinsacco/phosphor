@@ -26,12 +26,14 @@ export function RemoteWorkspacePage({
         </div>
         <HostHome hostId={hostId} />
       </div>
-      <RemoteStartView
-        hostId={hostId}
-        draftKey={draftKey}
-        textareaRef={textareaRef}
-        machinePicker={machinePicker}
-      />
+      <div className="remote-start">
+        <RemoteStartView
+          hostId={hostId}
+          draftKey={draftKey}
+          textareaRef={textareaRef}
+          machinePicker={machinePicker}
+        />
+      </div>
     </div>
   )
 }
