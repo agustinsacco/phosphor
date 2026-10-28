@@ -54,7 +54,7 @@ test('Connectors: native lane inspection and reconnect do not create model turns
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-    await page.getByRole('button', { name: 'Start session', exact: true }).click()
+    await page.getByRole('button', { name: 'Start lane', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible({
       timeout: 30_000,
     })

@@ -39,10 +39,10 @@ test('action hints stay quiet and dismiss before menus or dialogs', async () => 
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height - 8)
 
     // A disabled action still explains itself on hover.
-    const start = page.getByRole('button', { name: 'Start session', exact: true })
+    const start = page.getByRole('button', { name: 'Start lane', exact: true })
     await expect(start).toBeDisabled()
     await start.hover()
-    await expect(tooltip).toContainText('Start session')
+    await expect(tooltip).toContainText('Start lane')
     await page.mouse.move(0, 0)
     await expect(tooltip).toHaveCount(0)
 
@@ -179,7 +179,7 @@ test('new lane accepts an image-only first prompt', async () => {
         .dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }))
     }, PNG_1X1)
     await expect(page.getByRole('button', { name: 'Attached image', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'Start session', exact: true }).click()
+    await page.getByRole('button', { name: 'Start lane', exact: true }).click()
     // Image-only messages have no text bubble (the user-message test id).
     await expect(page.getByPlaceholder(/Describe a task…/i)).toBeVisible()
     await expect(page.getByRole('img', { name: 'Attached image', exact: true })).toBeVisible()
@@ -197,7 +197,7 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     const toggle = page.getByRole('switch', { name: 'Swarm', exact: true })
     await expect(toggle).toBeEnabled()
     await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled({
@@ -369,7 +369,7 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
     await expect(toggle).toBeChecked()
     await page.getByRole('button', { name: /^New$/ }).click()
     await page.getByPlaceholder('Describe a task or ask a question').fill('second lane')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     const fresh = page.getByRole('switch', { name: 'Swarm', exact: true })
     await expect(fresh).toHaveAttribute('data-state', 'off', { timeout: 20_000 })
     await expect(fresh).not.toBeChecked()
@@ -389,7 +389,7 @@ test('instruction sources distinguish global and project files in the composer',
     ).toBeVisible()
     await page.keyboard.press('Escape')
     await page.getByPlaceholder('Describe a task or ask a question').fill('contextsources')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByPlaceholder(/Describe a task…/i)).toBeVisible()
     await page.getByTestId('context-sources').click()
     const sources = page.getByRole('list', { name: 'AGENTS.md sources' })
@@ -412,7 +412,7 @@ test('Mermaid viewer fits, zooms, pans, exports and restores focus @system-clipb
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('mermaidviewer')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     const expand = page.getByRole('button', { name: 'Expand Mermaid diagram' })
     await expand.focus()
     await expand.press('Enter')
@@ -583,7 +583,7 @@ test('Changes supports keyboard open/back and live diff font preferences', async
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     const before = await readFile(join(workspace, 'hello.ts'), 'utf8')
     await page.getByRole('button', { name: /Changes pane/ }).click()
@@ -623,7 +623,7 @@ test('session chrome stays readable with long labels, laptop widths and zoom', a
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     await page.getByTestId('session-row').first().dblclick()
     const longTitle =
@@ -1066,7 +1066,7 @@ test('steering controls and modified Enter send the intended RPC mode', async ()
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('queue-hold')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
     const chat = page.getByRole('textbox', { name: 'Chat message' })
     const steer = page.getByRole('button', { name: 'Steer now' })
@@ -1167,7 +1167,7 @@ test('Codex context popover reads account usage and refreshes through main', asy
     })
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     await page.locator('button[data-tooltip^="Context:"]').click()
     await expect(page.getByText('Plan usage · ChatGPT account')).toBeVisible()
@@ -1210,7 +1210,7 @@ for (const provider of ['stub', 'pi-claude-cli'] as const) {
     try {
       await openWorkspace(page)
       await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-      await page.getByRole('button', { name: /Start session/i }).click()
+      await page.getByRole('button', { name: /Start lane/i }).click()
       await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
       // The budget check runs once the turn settles.
@@ -1248,7 +1248,7 @@ test('a session within its window and the budget is never compacted by Phosphor'
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     // The check ran (it reads get_state after the turn settles) and stopped there.
     await expect
@@ -1272,7 +1272,7 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
     await openWorkspace(page)
 
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     // Streamed assistant text.
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
@@ -1327,7 +1327,7 @@ test('file finder reveals and highlights a nested file in the explorer', async (
     )
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     // The finder must restore the tree even when content search was showing.
     await page.keyboard.press(`${mod}+Shift+f`)
@@ -1402,7 +1402,7 @@ test('Changes revert restores working content without changing staged edits', as
     const original = await readFile(join(workspace, 'hello.ts'), 'utf8')
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     const lane = join(workspace, '.phosphor', 'worktrees', 'hello')
     expect(existsSync(lane)).toBe(true)
@@ -1427,7 +1427,7 @@ test('closing dirty editor tabs offers cancel, discard and save', async () => {
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     await page.getByRole('button', { name: /Files pane/ }).click()
     const row = page
@@ -1514,7 +1514,7 @@ test('explorer creates entries from empty space and keeps renamed editor buffers
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     await rm(join(workspace, 'hello.ts'))
     await page.getByRole('button', { name: /Files pane/ }).click()
@@ -1565,7 +1565,7 @@ test('⌘F finds in the transcript, ⌘⇧F searches workspace files and opens t
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
     // ⌘F from the composer opens the transcript's find bar.
@@ -1651,7 +1651,7 @@ test('explorer follows external create, move and delete changes on disk', async 
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     await page.getByRole('button', { name: /Files pane/ }).click()
 
@@ -1737,7 +1737,7 @@ test('explorer previews images, pages and PDFs, and refuses to launch programs',
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     await page.getByRole('button', { name: /Files pane/ }).click()
     const explorer = page.getByTestId('file-explorer')
@@ -1789,7 +1789,7 @@ test('explorer copies, cuts, multi-drags and imports disk-backed files @system-c
     await writeFile(source, Buffer.from([0, 255, 1, 2]))
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     await page.getByRole('button', { name: /Files pane/ }).click()
     const explorer = page.getByTestId('file-explorer')
@@ -1900,7 +1900,7 @@ test('floating IDE panes share compact corners in both themes', async () => {
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     for (const theme of ['light', 'dark']) {
       await page.evaluate((value) => {
@@ -2115,7 +2115,7 @@ test('a pasted wide image stays inside the transcript column', async () => {
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
     // Paste, not drop: the drop path is covered above, and pasting a
@@ -2164,7 +2164,7 @@ test('a pasted long URL wraps inside its bubble instead of scrolling the transcr
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
     const longUrl =
@@ -2218,7 +2218,7 @@ test('a notice with an unbreakable path stays inside the window', async () => {
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('longnotify')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     const card = page.getByTestId('toast').filter({ hasText: 'ENOENT' }).locator('.toast-card')
     await expect(card).toBeVisible({ timeout: 30_000 })
@@ -2257,7 +2257,7 @@ test('right-hand pane controls stay clear of the OS window controls', async () =
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
     await page.getByRole('button', { name: /Terminal pane/ }).click()
@@ -2452,7 +2452,7 @@ for (const bracketedPaste of [true, false]) {
     try {
       await openWorkspace(page)
       await page.getByPlaceholder('Describe a task or ask a question').fill('terminal-command')
-      await page.getByRole('button', { name: /Start session/i }).click()
+      await page.getByRole('button', { name: /Start lane/i }).click()
       const paste = page.getByRole('button', { name: "Run in terminal (pastes, doesn't execute)" })
       const staged = page.getByRole('textbox', { name: 'Staged terminal command' })
       const result = join(h.workspace, 'command-ran.txt')
@@ -2503,7 +2503,7 @@ test('terminal pane spawns a real shell, and reopening replays its scrollback @s
 
     // Start a session so the pane toggles are available.
     await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
     const toggleTerminal = async (): Promise<void> => {
@@ -2602,7 +2602,7 @@ test('terminal web and OSC 8 links open externally with Control or Command click
     })
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+`' : 'Control+`')
     const terminal = page.locator('.xterm').first()
@@ -2655,12 +2655,12 @@ test('the right pane is per session, so a terminal does not follow you', async (
 
     // Two sessions in the same workspace.
     await page.getByPlaceholder('Describe a task or ask a question').fill('first')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
     await page.getByRole('button', { name: /^New$/ }).click()
     await page.getByPlaceholder('Describe a task or ask a question').fill('second')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
     // Open a terminal in the SECOND session.
@@ -2699,7 +2699,7 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     // The in-flight window is short, so watch for it with a MutationObserver
     // rather than polling — a poll can straddle the whole window and miss it.
@@ -2838,7 +2838,7 @@ test('worktree flow: create from the branch chip, session stays under the projec
     // a new chat gets its own branch off trunk, so this lands in a second
     // worktree.
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
     // The folder is slugged from the FIRST MESSAGE, not from the generated
@@ -2927,7 +2927,7 @@ test('a session whose file lands late still becomes a real, right-clickable row'
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     const row = page.getByTestId('session-row').first()
     await expect(row).toBeVisible({ timeout: 30_000 })
@@ -2961,7 +2961,7 @@ test('double-clicking a sidebar row renames the session inline', async () => {
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     // Let auto-naming finish first: it lands seconds after the first reply and
     // would otherwise overwrite the rename mid-test.
@@ -3021,7 +3021,7 @@ test('new chat without isolation runs in the open workspace', async () => {
     // branch that is already checked out, creating nothing.
     await page.getByRole('checkbox', { name: 'new branch' }).uncheck()
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
     await expect(page.getByTestId('branch-chip')).toContainText('main', { timeout: 15_000 })
@@ -3293,7 +3293,7 @@ test('reopens the last session on relaunch and continues without disturbing its 
     try {
       await openWorkspace(first.page)
       await first.page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-      await first.page.getByRole('button', { name: /Start session/i }).click()
+      await first.page.getByRole('button', { name: /Start lane/i }).click()
       // Session is live once the chat composer replaces the greeting composer.
       await expect(first.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
         timeout: 20_000,
@@ -3368,7 +3368,7 @@ test('a rewind leaves one sidebar row, and its old file points at the new one', 
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     const reply = page.getByText(/Done:\s*hello\.ts\s*updated\./)
     await expect(reply).toBeVisible({ timeout: 30_000 })
     const rows = page.getByTestId('session-row')
@@ -3497,7 +3497,7 @@ test('lane marker picker works offline and persists choices across marker modes'
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     const row = page.locator('[data-testid="session-row"]:not([data-pending])').first()
     const marker = row.getByTestId('lane-marker')
@@ -3569,7 +3569,7 @@ test('lane rows carry no spend, and the row menu still offers it', async () => {
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     // `:not([data-pending])` is load-bearing, as it is at the relaunch test
     // above. A live session keeps its PLACEHOLDER row for the whole first
@@ -3608,7 +3608,7 @@ test('sidebar session drag, menu and keyboard order survives suspend and restart
     await openWorkspace(page)
     for (let i = 1; i <= 3; i++) {
       await page.getByPlaceholder('Describe a task or ask a question').fill(`Ordering session ${i}`)
-      await page.getByRole('button', { name: /Start session/i }).click()
+      await page.getByRole('button', { name: /Start lane/i }).click()
       await expect(page.locator('[data-testid="session-row"]:not([data-pending])')).toHaveCount(i, {
         timeout: 30_000,
       })
@@ -3698,7 +3698,7 @@ test('sidebar groups sessions from several workspaces and badges pinned rows', a
     try {
       await openWorkspace(first.page)
       await first.page.getByPlaceholder('Describe a task or ask a question').fill('work in A')
-      await first.page.getByRole('button', { name: /Start session/i }).click()
+      await first.page.getByRole('button', { name: /Start lane/i }).click()
       await expect(first.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
         timeout: 20_000,
       })
@@ -3730,7 +3730,7 @@ test('sidebar groups sessions from several workspaces and badges pinned rows', a
         timeout: 20_000,
       })
       await second.page.getByPlaceholder('Describe a task or ask a question').fill('work in B')
-      await second.page.getByRole('button', { name: /Start session/i }).click()
+      await second.page.getByRole('button', { name: /Start lane/i }).click()
       await expect(second.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
         timeout: 20_000,
       })
@@ -4024,7 +4024,7 @@ test('HTML artifact iframe fits its pane, fullscreen and a short viewport', asyn
   try {
     await openWorkspace(h.page)
     await h.page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
-    await h.page.getByRole('button', { name: /Start session/i }).click()
+    await h.page.getByRole('button', { name: /Start lane/i }).click()
     const scroller = h.page.getByTestId('artifact-scroll')
     const iframe = scroller.locator('iframe')
     await expect(iframe).toBeVisible({ timeout: 30_000 })
@@ -4070,7 +4070,7 @@ test('artifact pane scrolls a long document', async () => {
     await page
       .getByPlaceholder('Describe a task or ask a question')
       .fill('write a longartifact please')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     // The artifact tool card carries the artifact's identity now, not a
     // generic "Used artifact_create" row. Tool rows live inside the turn's
@@ -4113,7 +4113,7 @@ test('transcript: reading back during a stream is not undone, and rows sit flush
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('do a longstream now')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     const scroller = page.getByTestId('transcript-scroll')
     await expect(scroller).toBeVisible({ timeout: 30_000 })
@@ -4171,7 +4171,7 @@ test('transcript: reading back through a finished transcript is never fought', a
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('do manyturns now')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     const scroller = page.getByTestId('transcript-scroll')
     await expect(page.getByText('many turns complete')).toBeVisible({ timeout: 60_000 })
@@ -4233,7 +4233,7 @@ test('transcript: a settling run cannot drag a reader back to the tail', async (
     await page
       .getByPlaceholder('Describe a task or ask a question')
       .fill('do manyturns tailgroup now')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     const scroller = page.getByTestId('transcript-scroll')
     await expect(scroller).toBeVisible({ timeout: 30_000 })
@@ -4315,7 +4315,7 @@ test('a long tool run collapses to one dense group', async () => {
     // 40 tool-only turns: the shape a long agent run takes, and the only shape
     // where grouping and per-row spacing actually show up.
     await page.getByPlaceholder('Describe a task or ask a question').fill('run manyitems now')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText('many items complete')).toBeVisible({ timeout: 60_000 })
 
     // pi emits one assistant message per tool call, so this run arrives as ~40
@@ -4404,7 +4404,7 @@ test('a thought shows its headline while it streams, then folds into how long it
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('thinkstream please')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     // Live: the run's last row carries a timer and the newest sentence, and
     // the group's line keeps its step summary.
@@ -4440,7 +4440,7 @@ test('a Claude fan-out is one row per sub-agent, with the ones that died named',
     // two of which the CLI also reports as started and finished. Eight markers,
     // three agents.
     await page.getByPlaceholder('Describe a task or ask a question').fill('fanout please')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByText('Two agents reported; one never did.')).toBeVisible({
       timeout: 60_000,
     })
@@ -4540,7 +4540,7 @@ test('a parallel delegation shows every child working at once, then settles', as
     await page
       .getByPlaceholder('Describe a task or ask a question')
       .fill('Fix the token refresh bug, split the work in parallel')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     const row = page.getByRole('button', { name: /Running workflow/ })
     await expect(row).toBeVisible({ timeout: 60_000 })
@@ -4611,7 +4611,7 @@ test('the home workbench keeps parallel lanes visible and reuses subagent inspec
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('queue-hold')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
     await page.getByRole('button', { name: /^New$/ }).click()
     const board = page.getByRole('region', { name: 'Lane workbench' })
@@ -4622,7 +4622,7 @@ test('the home workbench keeps parallel lanes visible and reuses subagent inspec
     await page.getByRole('button', { name: 'New lane', exact: true }).click()
     await expect(page.getByPlaceholder('Describe a task or ask a question')).toBeFocused()
     await page.getByPlaceholder('Describe a task or ask a question').fill('delegate please')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByTestId('subagent-chip')).toContainText('1 background run active', {
       timeout: 60_000,
     })
@@ -4657,7 +4657,7 @@ test('the home workbench keeps parallel lanes visible and reuses subagent inspec
         expect(await board.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
           true,
         )
-        await expect(page.getByRole('button', { name: /Start session/i })).toBeVisible()
+        await expect(page.getByRole('button', { name: /Start lane/i })).toBeVisible()
         await page.screenshot({
           path: test.info().outputPath(`workbench-${width}-${theme}.png`),
           animations: 'disabled',
@@ -4686,7 +4686,7 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     // background tree on the `subagent-async` widget, and the completion
     // message that wakes the model.
     await page.getByPlaceholder('Describe a task or ask a question').fill('delegate please')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     // While the reviewer runs, its row says who, and what it is on right now.
     await expect(page.getByText('Delegating to')).toBeVisible({ timeout: 60_000 })
@@ -4834,7 +4834,7 @@ test('recorded workflow completions and attention stay visible, attributable and
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('workflow-evidence')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(
       page.getByText('Reviewer reported; validation and QA continue independently.'),
     ).toBeVisible()
@@ -5047,7 +5047,7 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('workflow-evidence')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByTestId('background-work-indicator')).toBeVisible()
     await page.getByRole('button', { name: 'View subagents' }).click()
     const panel = page.getByRole('region', { name: 'Subagents', exact: true })
@@ -5170,7 +5170,7 @@ test('subagent pane owns scrolling, keeps rows stable and preserves drafts acros
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('workflow-evidence')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await page.getByRole('button', { name: 'View subagents' }).click()
     const pane = page.getByRole('region', { name: 'Subagents', exact: true })
     await pane.getByRole('button', { name: 'Fullscreen pane' }).click()
@@ -5583,7 +5583,7 @@ test('a sandbox with a chat open in it can still be renamed, and keeps its chats
       timeout: 20_000,
     })
     await page.getByPlaceholder('Describe a task or ask a question').fill('scratch work')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByPlaceholder(/Describe a task…/i)).toBeVisible({ timeout: 20_000 })
 
     // Wait for the row to reach disk — a live session's transcript is what the
@@ -5653,7 +5653,7 @@ test('a project can be removed from the sidebar, closing its chats and keeping i
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
     await expect(page.getByTestId('session-row').first()).toContainText('Stub Session Title', {
       timeout: 30_000,
     })
@@ -5710,7 +5710,7 @@ test('the workspace header filters lanes on Enter and restores them on Escape', 
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     // Wait for the named row: the title is what the filter matches on.
     const row = page.getByTestId('session-row').first()
@@ -5763,7 +5763,7 @@ test('a renderer reload re-adopts the live session instead of orphaning it', asy
     try {
       await openWorkspace(harness.page)
       await harness.page.getByPlaceholder('Describe a task or ask a question').fill('hello')
-      await harness.page.getByRole('button', { name: /Start session/i }).click()
+      await harness.page.getByRole('button', { name: /Start lane/i }).click()
       await expect(harness.page.getByPlaceholder(/Describe a task…/i)).toBeVisible({
         timeout: 20_000,
       })
@@ -5959,7 +5959,7 @@ test('an artifact link the model wrote opens the Artifacts pane', async () => {
   try {
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('artifactlink please')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     const artifactLink = page.getByRole('link', { name: 'Preview the design' })
     await expect(artifactLink).toHaveAttribute('data-tooltip', 'Open in Artifacts pane', {
@@ -5998,7 +5998,7 @@ test('an artifact outlives its session’s context, a restart and the session it
     await first.page
       .getByPlaceholder('Describe a task or ask a question')
       .fill('artifactlink please')
-    await first.page.getByRole('button', { name: /Start session/i }).click()
+    await first.page.getByRole('button', { name: /Start lane/i }).click()
     await expect(first.page.getByTestId('right-pane')).toContainText('E2E Linked Doc', {
       timeout: 30_000,
     })
@@ -6069,7 +6069,7 @@ test('a link to a spec the model wrote opens it in the Files pane', async () => 
     )
     await openWorkspace(page)
     await page.getByPlaceholder('Describe a task or ask a question').fill('speclink')
-    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: /Start lane/i }).click()
 
     // The web URL keeps its href (it opens in the default browser, so the test
     // must never click it — that would launch a real browser on the runner).

@@ -20,7 +20,7 @@ test('Every lane surface refreshes A→B→A', async ({ browserName: _browserNam
     await selectMachine(h, 'This Mac')
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
     await h.page.getByPlaceholder('Describe a task or ask a question').fill('artifact')
-    await h.page.getByRole('button', { name: 'Start session', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()
     const local = h.page.getByTestId('session-row').first()
     await expect(local).toBeVisible()
     await pane(h, 'Artifacts')

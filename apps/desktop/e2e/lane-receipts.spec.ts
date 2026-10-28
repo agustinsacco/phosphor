@@ -73,7 +73,7 @@ test('This Mac lane shows its own receipt after settling off screen', async ({
     await h.relaunchDesktop()
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
     await h.page.getByPlaceholder('Describe a task or ask a question').fill('PHX-receipt')
-    await h.page.getByRole('button', { name: 'Start session', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()
     await expect(h.page.getByRole('textbox', { name: 'Chat message', exact: true })).toBeVisible()
     // The receipt reads gitByCwd at settle time (known-issues R10); the title reads the same entry.
     await expect(h.page).toHaveTitle(/^workspace \(phosphor\//, { timeout: 15_000 })

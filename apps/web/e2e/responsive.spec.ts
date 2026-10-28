@@ -100,11 +100,12 @@ test('browser creation rejects file uploads before mutation and keeps isolation 
   await page.getByRole('option', { name: /^Add folder on/ }).click()
   await expect(page.getByText("Choose a folder under this machine's home directory.")).toBeVisible()
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  // Phones and wide browsers open the same model menu as Desktop; a phone's is a sheet.
   await page.getByTestId('remote-model-picker').click()
-  await page.getByRole('searchbox', { name: 'Search models' }).fill('no-such-model')
-  await expect(page.getByText('No matching models.')).toBeVisible()
+  await expect(page.locator('[data-compact-menu] [data-testid="model-list"]')).toBeVisible()
+  await page.getByTestId('model-search').fill('no-such-model')
+  await expect(page.getByText('No models match “no-such-model”.')).toBeVisible()
   await page.keyboard.press('Escape')
-  // Wide browsers use the same model menu as Desktop; phones keep their dialog.
   await page.setViewportSize({ width: 1280, height: 850 })
   await expect(page.locator('html')).toHaveAttribute('data-form-factor', 'expanded')
   await page.getByTestId('remote-model-picker').click()

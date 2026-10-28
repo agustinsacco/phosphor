@@ -40,7 +40,7 @@ failures.** If a spec fails right after you changed code, rebuild first.
   selectors (`session-row`, `workspace-group`, `workspace-switcher`,
   `session-workspace-badge`) or `getByRole` with aria-labels.
 - Composer buttons are icon buttons with aria-labels: "Send message",
-  "Start session", "Stop", "Attach images".
+  "Start lane", "Stop", "Attach images".
 - New prefs/IPC used at boot need nothing special — the real handlers run;
   only the *browser* mock (`libs/client-ui/src/dev/mockPhosphor.ts`) needs explicit cases.
 - Keep tests serial-safe: fresh `mktemp` dirs per launch, no shared state.
