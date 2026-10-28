@@ -17,7 +17,11 @@ export async function start(context: RuntimeLaneState, request: unknown) {
   try {
     const state = await runtime.command(session.sessionId, { type: 'get_state' })
     const data = state.success ? piState(state.data) : null
-    if (!data) throw new Error('the lane could not start')
+    // The token code is what the Host log records; the message stays fixed.
+    if (!data)
+      throw Object.assign(new Error('the lane could not start'), {
+        code: state.success ? 'pi-state-unreadable' : 'pi-state-failed',
+      })
     return {
       sessionId: session.sessionId,
       sessionFile: typeof data.sessionFile === 'string' ? data.sessionFile : null,
