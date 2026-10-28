@@ -1,6 +1,6 @@
 import type { LaneOp } from '@phosphor/shared/host-protocol'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
-import { insideGitWorkTree, prepareLaneFolder } from './worktree'
+import { gitTracksFolder, prepareLaneFolder } from './worktree'
 import type { Controller, HostStore, StoredLane } from './store'
 
 export interface LaneSessions {
@@ -26,7 +26,7 @@ export async function createLane(
   const { op, controller } = input
   // Clients offer "new branch" for every Host folder. Where git does not track the
   // folder, the lane runs in place, as This Mac does when it hides that toggle.
-  const worktree = op.worktree && (await insideGitWorkTree(input.root)) ? op.worktree : null
+  const worktree = op.worktree && (await gitTracksFolder(input.root)) ? op.worktree : null
   const folder = await prepareLaneFolder({ root: input.root, worktree, log: ports.log })
   let sessionId: string | undefined
   let laneId: string | undefined

@@ -338,8 +338,8 @@ it.each(['exhausted', 'prefix'] as const)(
 // A Host that answered "failed" was shown as "could not confirm", which sent people
 // checking for a lane that was never created.
 it.each([
-  ['lane-create-failed', `${MOCK_HOST_ID} couldn't start this lane. Nothing was created.`],
-  ['lane-limit', `${MOCK_HOST_ID} has reached its lane limit.`],
+  ['lane-create-failed', `${MOCK_HOST_ID} couldn't start this lane.`],
+  ['lane-limit', `${MOCK_HOST_ID} is at its lane limit or too busy.`],
   ['Lane creation not confirmed.', 'The Host could not confirm this.'],
 ])('keeps the draft and names a %s creation outcome', async (code, message) => {
   useWorktreesStore.setState({ preferWorktree: false, branchPrefix: 'phosphor/' })

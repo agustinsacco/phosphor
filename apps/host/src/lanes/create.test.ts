@@ -5,7 +5,7 @@ import { prepareLaneFolder } from './worktree'
 
 vi.mock('./worktree', () => ({
   prepareLaneFolder: vi.fn(),
-  insideGitWorkTree: vi.fn(async () => true),
+  gitTracksFolder: vi.fn(async () => true),
 }))
 let order: string[]
 let sessions: LaneSessions

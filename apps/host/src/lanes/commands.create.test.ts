@@ -79,8 +79,6 @@ describe('lane.create', () => {
     expect(f.ports.sessions.start).toHaveBeenCalledTimes(1)
   })
   it('returns fixed folder errors and generic start errors, logging safe codes only', async () => {
-    // A folder git does not track runs in place, so its branch is never checked.
-    vi.spyOn(folders, 'insideGitWorkTree').mockResolvedValueOnce(true)
     const invalid = create({ worktree: { branch: 'bad..name' } })
     await f.service.submit(f.one, invalid)
     expect(f.last(invalid.requestId)).toMatchObject({

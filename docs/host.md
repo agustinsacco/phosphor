@@ -1311,9 +1311,12 @@ An unexpected projection error after attachment returns `unknown`, not `failed`.
 The API adapter dispatches `lane.create` to this service through the durable
 command pipeline.
 
-A folder git does not track has no worktrees. A worktree request there runs the
-lane in the folder itself, unbranched, as This Mac does when it hides its "new
-branch" toggle; the branch name is not checked.
+A folder in no git repository has no worktrees. When git answers "not a git
+repository" for it, a worktree request runs the lane in the folder itself,
+unbranched, as This Mac does when it hides its "new branch" toggle; the branch
+name is not checked. Any other git failure (git missing, a timeout, an untrusted
+owner) fails the worktree step instead, so a lane never lands in a main checkout
+it was meant to branch from. Bare repositories count as repositories.
 
 A failed creation logs `lane.command_error` with a token-shaped `code` when the
 error has one, such as `pi-state-unreadable` (pi answered `get_state` with a

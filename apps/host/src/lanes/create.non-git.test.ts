@@ -2,9 +2,12 @@ import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { git } from '@phosphor/session-runtime/git/git-exec'
+import * as exec from '@phosphor/session-runtime/git/git-exec'
 import { createLane, type LaneSessions } from './create'
 import { HostStore, type StoredLane } from './store'
+import { gitTracksFolder, LaneFolderError } from './worktree'
+
+const { git } = exec
 
 let folder: string
 let sessions: LaneSessions
@@ -50,6 +53,22 @@ it('runs in a folder git does not track even when a new branch was asked for', a
     branch: null,
     worktree: false,
   })
+})
+
+// Only git's own "not a git repository" answer runs in place. Anything else asked
+// for a branch and must not quietly edit the main checkout instead.
+it('fails, never runs in place, when git itself cannot answer', async () => {
+  vi.spyOn(exec, 'git').mockRejectedValue(
+    Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' }),
+  )
+  // Without git even the branch-name check fails; the point is that it fails.
+  await expect(create()).rejects.toBeInstanceOf(LaneFolderError)
+  expect(sessions.start).not.toHaveBeenCalled()
+})
+
+it('counts a bare repository as tracked', async () => {
+  await git(folder, ['init', '--bare'])
+  expect(await gitTracksFolder(folder)).toBe(true)
 })
 
 it('still gives a git folder its own worktree', async () => {

@@ -1170,6 +1170,12 @@ it.each(['incarnation', 'focus-cycle', 'removed-lane'] as const)(
 // (here a message that reads "branch-exists") never crosses IPC.
 it.each([
   ['rejected branch-exists', { status: 'rejected', code: 'branch-exists' }, 'branch-exists'],
+  [
+    'non-fresh branch-exists',
+    { status: 'rejected', code: 'branch-exists' },
+    'lane-create-failed',
+    false,
+  ],
   ['rejected forbidden', { status: 'rejected', code: 'forbidden' }, 'lane-create-failed'],
   ['rejected at capacity', { status: 'rejected', code: 'too-many-requests' }, 'lane-limit'],
   [
@@ -1180,7 +1186,8 @@ it.each([
   ['not-sent', { status: 'not-sent', reason: 'not-connected' }, 'lane-create-failed'],
   ['unknown', { status: 'unknown' }, 'Lane creation not confirmed.'],
   ['transport', new Error('branch-exists'), 'Lane creation not confirmed.'],
-] as const)('creation answers a %s outcome with only its fixed text', async (_, outcome, text) => {
+] as const)('creation answers a %s outcome with only its fixed text', async (...row) => {
+  const [, outcome, text, fresh = true] = row
   const t = await setup()
   const send = vi.spyOn(t.c, 'send')
   if (outcome instanceof Error) send.mockRejectedValue(outcome)
@@ -1188,7 +1195,7 @@ it.each([
   await expect(
     t.lanes.create(t.window, t.hostId, {
       repositoryId: '0123456789abcdef',
-      worktree: { branch: 'fresh', fresh: true },
+      worktree: fresh ? { branch: 'fresh', fresh: true } : { branch: 'fresh' },
     }),
   ).rejects.toThrow(new Error(text))
   t.c.close()

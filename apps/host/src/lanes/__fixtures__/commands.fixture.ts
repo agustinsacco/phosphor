@@ -12,6 +12,7 @@ import {
   type LaneCommandFrame,
   type LaneCommandPorts,
 } from '../commands'
+import * as folders from '../worktree'
 
 export function deferred<T>() {
   let release: (value: T) => void = () => {
@@ -99,6 +100,9 @@ export async function createCommandsFixture(): Promise<CommandsFixture> {
   const root = mkdtempSync(join(tmpdir(), 'host-commands-'))
   const repository = join(root, 'repo')
   mkdirSync(repository)
+  // The folder stands in for a repository, so worktree requests reach the (mocked)
+  // folder step instead of running in place.
+  vi.spyOn(folders, 'gitTracksFolder').mockResolvedValue(true)
   const store = await openStore(join(root, 'state'), process.getuid?.(), { now: () => Date.now() })
   const entry = store.syncRepositories([repository])[0]
   if (!entry) throw new Error('missing repository')

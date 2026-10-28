@@ -27,9 +27,10 @@ function createWarning(code: string, machine: string): string {
     case 'branch-prefix-too-long':
       return 'Branch prefix is too long for a Host worktree. Shorten it in Settings.'
     case 'lane-create-failed':
-      return `${machine} couldn't start this lane. Nothing was created. Your draft is kept, and the Host log has the cause.`
+      return `${machine} couldn't start this lane. Your draft is kept.`
     case 'lane-limit':
-      return `${machine} has reached its lane limit. Delete a lane there, then send again.`
+      // The Host also sends too-many-requests for too many commands in flight.
+      return `${machine} is at its lane limit or too busy. Try again, or delete a lane there.`
     default:
       return 'The Host could not confirm this. Check the lane before retrying. Your draft is kept.'
   }
