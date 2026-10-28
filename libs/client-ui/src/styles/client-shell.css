@@ -79,15 +79,6 @@ html[data-form-factor='compact'] {
   font-size: 13px;
   font-weight: 550;
 }
-.compact-header select {
-  min-width: 0;
-  max-width: 42%;
-  border-radius: var(--px-radius-sm);
-  background: transparent;
-  color: var(--px-text-secondary);
-  font-size: 12.5px;
-  text-overflow: ellipsis;
-}
 .compact-main {
   display: flex;
   flex: 1;
@@ -101,8 +92,9 @@ html[data-form-factor='compact'] {
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
-  width: 208px;
-  padding: 8px;
+  width: 256px;
+  min-height: 0;
+  padding: 8px 0;
   background: var(--px-sidebar);
   color: var(--px-text);
 }
@@ -111,26 +103,20 @@ html[data-form-factor='compact'] {
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  padding: 8px;
+  padding: 8px 16px;
   font-size: 13px;
 }
 .browser-brand button {
   margin-left: auto;
 }
-.browser-navigation-links {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
 .browser-install-nav {
-  padding: 0 12px 12px;
+  padding: 8px 12px 0;
 }
 .browser-install button {
   max-width: 100%;
 }
 .browser-navigation-note {
-  margin-top: auto;
-  padding: 16px 8px;
+  padding: 4px 12px 8px;
   color: var(--px-text-tertiary);
   font-size: 11px;
 }
@@ -143,7 +129,7 @@ html[data-form-factor='compact'] {
   width: min(88vw, 300px);
   height: 100%;
   overflow-y: auto;
-  padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+  padding: max(8px, env(safe-area-inset-top)) 0 max(8px, env(safe-area-inset-bottom));
   border-right: 1px solid var(--px-border);
 }
 .compact-lane-tabs {

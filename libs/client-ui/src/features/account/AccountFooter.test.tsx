@@ -173,3 +173,20 @@ it('offers no Cancel for a sign-in the client cannot cancel', async () => {
     Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Cancel'),
   ).toBe(false)
 })
+it('advertises the Settings shortcut only where the app shortcuts are installed', async () => {
+  await act(async () =>
+    root.render(
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <AccountFooter />
+      </PlatformProvider>,
+    ),
+  )
+  expect(button('Settings').getAttribute('aria-description')).toBeNull()
+  expect(button('Settings').getAttribute('data-tooltip')).toBe('Settings')
+  await click('Sign in')
+  expect(
+    Array.from(document.querySelectorAll('[data-popup-menu] button')).find((b) =>
+      b.textContent?.startsWith('Settings'),
+    )?.textContent,
+  ).toBe('Settings ')
+})

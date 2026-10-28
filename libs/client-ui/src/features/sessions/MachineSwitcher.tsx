@@ -8,6 +8,7 @@ import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { MachinesIcon } from '@/components/icons'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { useMachinesStore } from '@/stores/machines'
+import { usePlatform } from '@/platform/Platform'
 import { hostReconnecting, useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
@@ -162,9 +163,22 @@ function useLocalMachineActivity(): MachineActivity {
   return { running, new: newCount, needsYou }
 }
 
-export function MachineSwitcher(): React.JSX.Element | null {
+/** Chooses the lane scope: a machine id, `local` or `all`. */
+export type MachineScopeChange = (scope: string) => void
+const setFilter: MachineScopeChange = (scope) => useRemoteLanesStore.getState().setFilter(scope)
+
+/**
+ * The only machine-scope control. It shows `useRemoteLanesStore.filter`;
+ * `onScope` lets a shell keep the scope elsewhere (the browser's URL) and
+ * project it back into the filter.
+ */
+export function MachineSwitcher({
+  onScope = setFilter,
+}: {
+  onScope?: MachineScopeChange
+}): React.JSX.Element | null {
   const enabled = useMachinesStore((s) => s.remoteEnabled)
-  return enabled ? <EnabledMachineSwitcher /> : null
+  return enabled ? <EnabledMachineSwitcher onScope={onScope} /> : null
 }
 
 /** Activity per machine, local included, keyed like the filter. */
@@ -239,7 +253,8 @@ function EnabledOtherMachinesActivity(): React.JSX.Element | null {
  * a divider and a "Lanes on" caption, a bordered field, a status dot rather than
  * the Machines icon, and the state spelled out (not colour alone).
  */
-function EnabledMachineSwitcher(): React.JSX.Element {
+function EnabledMachineSwitcher({ onScope }: { onScope: MachineScopeChange }): React.JSX.Element {
+  const { localLanes } = usePlatform()
   const machines = useMachinesStore((s) => s.machines)
   const now = useMachinesStore((s) => s.nowMs)
   const hosts = useRemoteLanesStore((s) => s.hosts)
@@ -292,11 +307,11 @@ function EnabledMachineSwitcher(): React.JSX.Element {
         header={
           <div className="text-text-tertiary flex justify-between px-3 py-2 text-xs">
             <span className="font-semibold uppercase tracking-wider">Machines</span>
-            <span>{ids.length + 1} total</span>
+            <span>{ids.length + Number(localLanes)} total</span>
           </div>
         }
         choices={[
-          { value: 'local', label: row('local') },
+          ...(localLanes ? [{ value: 'local', label: row('local') }] : []),
           ...ids.map((id) => ({ value: id, label: row(id) })),
           {
             value: 'all',
@@ -313,7 +328,7 @@ function EnabledMachineSwitcher(): React.JSX.Element {
           if (id === 'add') {
             useMachinesStore.getState().show({ kind: 'list' })
             useMachinesStore.setState({ adding: true })
-          } else useRemoteLanesStore.getState().setFilter(id)
+          } else onScope(id)
         }}
       >
         {selected === 'all' ? (

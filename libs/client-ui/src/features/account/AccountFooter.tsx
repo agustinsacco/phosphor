@@ -5,8 +5,10 @@ import { PopupMenu } from '@/components/PopupMenu'
 import { GearIcon, Spinner, UserIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
 import { useAccount } from '@/features/settings/useAccount'
-import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { formatShortcut } from '@/lib/shortcuts'
+import { useNavigation } from '@/navigation/Navigation'
+import { locationMachine } from '@/navigation/location'
+import { usePlatform } from '@/platform/Platform'
 import { useMachinesStore } from '@/stores/machines'
 
 export function avatarInitials(user?: AccountProfileView): string {
@@ -57,6 +59,9 @@ export function AccountAvatar({
 
 export function AccountFooter(): React.JSX.Element {
   const { view, error: loadError } = useAccount()
+  const { location, navigate } = useNavigation()
+  // Only a client that installs the app shortcuts advertises one.
+  const shortcut = usePlatform().appShortcuts ? formatShortcut('mod', ',') : null
   const account = view?.account ?? { status: 'signed-out' }
   const user = account.status === 'signed-in' ? account.user : undefined
   const online = useMachinesStore(
@@ -80,7 +85,7 @@ export function AccountFooter(): React.JSX.Element {
   }
   const settings = (): void => {
     close()
-    useSettingsUiStore.getState().setOpen(true)
+    navigate({ to: 'page', page: 'settings', machine: locationMachine(location) })
   }
   const item =
     'hover:bg-bg-secondary flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-lg'
@@ -151,7 +156,7 @@ export function AccountFooter(): React.JSX.Element {
             )}
             <TooltipButton className={item} onClick={settings}>
               Settings{' '}
-              <span className="text-text-tertiary text-base">{formatShortcut('mod', ',')}</span>
+              {shortcut && <span className="text-text-tertiary text-base">{shortcut}</span>}
             </TooltipButton>
             {user && (
               <div className="border-border mt-1 border-t pt-1">
@@ -171,16 +176,7 @@ export function AccountFooter(): React.JSX.Element {
       )}
       <div className="flex items-center gap-1">
         {account.status === 'signing-in' ? (
-          <div className="flex min-w-0 flex-1 items-center gap-2 py-2 text-base">
-            <Spinner />
-            <span className="min-w-0">Finish in your browser…</span>
-            <TooltipButton
-              className="text-text-secondary ml-auto"
-              onClick={() => run('account:cancelSignIn')}
-            >
-              Cancel
-            </TooltipButton>
-          </div>
+          <SigningIn onCancel={() => run('account:cancelSignIn')} />
         ) : (
           <TooltipButton
             ref={trigger}
@@ -202,7 +198,7 @@ export function AccountFooter(): React.JSX.Element {
         )}
         <TooltipButton
           aria-label="Settings"
-          title={`Settings (${formatShortcut('mod', ',')})`}
+          title={shortcut ? `Settings (${shortcut})` : 'Settings'}
           onClick={settings}
           className="text-text-secondary hover:bg-sidebar-hover hover:text-text flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
         >
@@ -213,6 +209,22 @@ export function AccountFooter(): React.JSX.Element {
         <p role="alert" className="text-danger px-1.5 text-sm">
           {error ?? loadError ?? (account.status === 'signed-out' ? account.error : '')}
         </p>
+      )}
+    </div>
+  )
+}
+
+/** A sign-in finishing in the system browser; Cancel only where this client can cancel it. */
+function SigningIn({ onCancel }: { onCancel: () => void }): React.JSX.Element {
+  const { cancelSignIn } = usePlatform()
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2 py-2 text-base">
+      <Spinner />
+      <span className="min-w-0">Finish in your browser…</span>
+      {cancelSignIn && (
+        <TooltipButton className="text-text-secondary ml-auto" onClick={onCancel}>
+          Cancel
+        </TooltipButton>
       )}
     </div>
   )

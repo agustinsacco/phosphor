@@ -179,3 +179,12 @@ it('New and the footer Settings gear navigate through the URL with the current m
   await act(async () => byLabel(column, 'Settings').click())
   expect(window.location.pathname).toBe(`/pages/settings/${MOCK_HOST_ID}`)
 })
+
+it('phone: the footer Settings gear closes the drawer and opens Settings for the machine in scope', async () => {
+  window.history.replaceState(null, '', `/lanes/${MOCK_HOST_ID}`)
+  await render(COMPACT_PLATFORM)
+  const drawer = await openDrawer()
+  await act(async () => byLabel(drawer, 'Settings').click())
+  expect(window.location.pathname).toBe(`/pages/settings/${MOCK_HOST_ID}`)
+  expect(document.querySelector('[aria-label="Navigation"]')).toBeNull()
+})

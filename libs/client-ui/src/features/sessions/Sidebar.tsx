@@ -1,6 +1,6 @@
-import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
-import { MachineSwitcher, MachineLabelLine, OtherMachinesActivity } from './MachineSwitcher'
+import { MachineLabelLine } from './MachineSwitcher'
+import { SidebarFooter, SidebarNavigation } from './SidebarNavigation'
 import { RemoteLanes } from './RemoteLanes'
 import { useRemoteLanesStore, machineLabel, navigateToLane } from '@/stores/remoteLanes'
 import { LaneRevealEffect, localLaneGroupKey } from './laneReveal'
@@ -63,12 +63,7 @@ import {
 import { TreeViewModal } from './TreeViewModal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { laneHaystack, laneMatches, laneQueryTerms, type LaneSearchFields } from './laneSearch'
-import { UpdatePill } from '@/features/updates/UpdatePill'
-import { AccountFooter } from '@/features/account/AccountFooter'
-import { useLayoutStore } from '@/stores/layout'
-import { useMachinesStore } from '@/stores/machines'
-import { NavigationItem as NavRow } from '@/navigation/NavigationItem'
-import { PageLinks } from '@/navigation/PageLinks'
+import { toggleDesktopPage } from '@/navigation/desktopNavigation'
 import { projectName, isWorktreeFolder } from '@/lib/path'
 import {
   groupSessionsByProject,
@@ -129,7 +124,6 @@ export function Sidebar({
   /** Session file of the lane being opened right now, if any. */
   const openingPath = useSessionsStore((s) => s.opening?.path)
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
-  const activePage = useLayoutStore((s) => s.page)
 
   const recents = useWorkspacesStore((s) => s.recents)
   const workspacesHydrated = useWorkspacesStore((s) => s.hydrated)
@@ -853,34 +847,7 @@ export function Sidebar({
           also where the macOS traffic-light inset lives. */}
       <WorkspaceSwitcher />
 
-      {/* Flat nav rows, matching the reference: icon + label, no border or
-          shadow. New routes to the home screen; the folder is chosen there
-          via the composer's workspace chip. Artifacts and Skills open GLOBAL
-          pages over the main region — they used to toggle a per-session right
-          pane, which made both rows silent no-ops on the home screen. */}
-      <nav className="px-2 pb-1.5">
-        <NavRow
-          label="New"
-          badge
-          onClick={() => {
-            const filter = useRemoteLanesStore.getState().filter
-            if (filter !== 'local' && filter !== 'all') openRemoteComposer(filter)
-            else useSessionsStore.getState().activate(null)
-          }}
-          icon={<PlusIcon strokeWidth={2.5} />}
-        />
-        <PageLinks
-          activePage={activePage}
-          trailing={{ machines: <OtherMachinesActivity /> }}
-          onPage={(page) => {
-            if (page === 'machines' && activePage !== 'machines')
-              useMachinesStore.getState().show({ kind: 'list' })
-            else useLayoutStore.getState().togglePage(page)
-          }}
-        />
-      </nav>
-
-      <MachineSwitcher />
+      <SidebarNavigation onPage={toggleDesktopPage} />
       <div data-session-scroll className="flex-1 overflow-y-auto px-2 pb-2">
         <div hidden={machineFilter !== 'all' && machineFilter !== 'local'}>
           {machineFilter === 'all' && <MachineLabelLine id="local" />}
@@ -1206,10 +1173,7 @@ export function Sidebar({
         <RemoteLanes />
       </div>
 
-      <div className="border-border border-t px-3 py-2">
-        <UpdatePill />
-        <AccountFooter />
-      </div>
+      <SidebarFooter />
 
       {savedConversation && (
         <Suspense fallback={null}>

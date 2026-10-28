@@ -25,6 +25,8 @@ export interface Platform {
   feedback: boolean
   /** The client can be installed as an app from this page (Settings → App installation). */
   installableApp: boolean
+  /** A sign-in waiting on the system browser can be cancelled from here. */
+  cancelSignIn: boolean
 }
 export const DESKTOP_PLATFORM: Platform = Object.freeze({
   formFactor: 'expanded',
@@ -42,6 +44,7 @@ export const DESKTOP_PLATFORM: Platform = Object.freeze({
   appInfo: true,
   feedback: true,
   installableApp: false,
+  cancelSignIn: true,
 })
 export const COMPACT_PLATFORM: Platform = Object.freeze({
   formFactor: 'compact',
@@ -61,6 +64,7 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   appInfo: false,
   feedback: false,
   installableApp: true,
+  cancelSignIn: false,
 })
 /** A wide browser changes presentation, never its authority or native capabilities. */
 export const WIDE_BROWSER_PLATFORM: Platform = Object.freeze({
