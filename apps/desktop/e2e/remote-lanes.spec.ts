@@ -8,6 +8,7 @@ import {
   captures,
   openRemote,
   takeControl,
+  sidebarHost,
 } from './fixtures/remote-ui'
 
 test('Create on bee1 with a usable default and name the first turn', async ({
@@ -23,7 +24,9 @@ test('Create on bee1 with a usable default and name the first turn', async ({
     }).trim()
     await h.signIn()
     await selectMachine(h, 'bee1')
-    await h.page.getByRole('button', { name: 'New lane in repository', exact: true }).click()
+    await sidebarHost(h)
+      .getByRole('button', { name: 'New lane in repository', exact: true })
+      .click()
     await expect(h.page.getByRole('button', { name: 'Machine', exact: true })).toContainText('bee1')
     await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY Reasoner')
     await expect(h.page.getByRole('button', { name: 'Repository', exact: true })).toContainText(
@@ -216,7 +219,9 @@ test('A manual Host name wins while first-prompt auto-naming is pending', async 
   try {
     await h.signIn()
     await selectMachine(h, 'bee1')
-    await h.page.getByRole('button', { name: 'New lane in repository', exact: true }).click()
+    await sidebarHost(h)
+      .getByRole('button', { name: 'New lane in repository', exact: true })
+      .click()
     await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY Reasoner')
     await h.page.getByPlaceholder('Describe a task or ask a question').fill(h.slowName.prompt)
     await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()

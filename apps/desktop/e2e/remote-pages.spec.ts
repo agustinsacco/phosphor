@@ -2,7 +2,14 @@ import { test, expect } from '@playwright/test'
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
-import { selectMachine, openRemote, takeControl, captures, pane } from './fixtures/remote-ui'
+import {
+  selectMachine,
+  openRemote,
+  takeControl,
+  captures,
+  pane,
+  sidebarHost,
+} from './fixtures/remote-ui'
 
 test('Browse, add and remove folders on bee1', async ({ browserName: _browserName }, info) => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
@@ -10,7 +17,7 @@ test('Browse, add and remove folders on bee1', async ({ browserName: _browserNam
   try {
     await h.signIn()
     await selectMachine(h, 'bee1')
-    await h.page
+    await sidebarHost(h)
       .getByRole('button', { name: 'Workspace options for repository', exact: true })
       .click()
     await h.page.getByRole('button', { name: 'Add folder on bee1…', exact: true }).click()
@@ -36,9 +43,11 @@ test('Browse, add and remove folders on bee1', async ({ browserName: _browserNam
     await modal.getByRole('button', { name: /addable/, exact: false }).click()
     await modal.getByRole('button', { name: 'Add this folder', exact: true }).click()
     await expect(
-      h.page.getByRole('button', { name: 'Workspace options for addable', exact: true }),
+      sidebarHost(h).getByRole('button', { name: 'Workspace options for addable', exact: true }),
     ).toBeVisible()
-    await h.page.getByRole('button', { name: 'Workspace options for addable', exact: true }).click()
+    await sidebarHost(h)
+      .getByRole('button', { name: 'Workspace options for addable', exact: true })
+      .click()
     await h.page.getByRole('button', { name: 'Remove from bee1', exact: true }).click()
     await expect(modal).toContainText('kept')
     await modal.getByRole('button', { name: 'Remove folder', exact: true }).click()
@@ -46,7 +55,7 @@ test('Browse, add and remove folders on bee1', async ({ browserName: _browserNam
       h.page.getByRole('button', { name: 'Workspace options for addable', exact: true }),
     ).toHaveCount(0)
     expect(await readFile(join(h.addable, 'addable.txt'), 'utf8')).toBe('HOST_ADDABLE_ONLY\n')
-    await h.page
+    await sidebarHost(h)
       .getByRole('button', { name: 'Workspace options for repository', exact: true })
       .click()
     await h.page.getByRole('button', { name: 'Remove from bee1', exact: true }).click()
@@ -236,7 +245,7 @@ test('Folder policy disabled refuses browsing without changing configuration', a
   try {
     await h.signIn()
     await selectMachine(h, 'bee1')
-    await h.page
+    await sidebarHost(h)
       .getByRole('button', { name: 'Workspace options for repository', exact: true })
       .click()
     await h.page.getByRole('button', { name: 'Add folder on bee1…', exact: true }).click()
@@ -283,14 +292,16 @@ test('The last Host folder can be removed and its files stay', async () => {
     await h.command({ type: 'lane.stop' }, h.laneId)
     await h.signIn()
     await selectMachine(h, 'bee1')
-    await h.page.getByRole('button', { name: 'Workspace options for notes', exact: true }).click()
+    await sidebarHost(h)
+      .getByRole('button', { name: 'Workspace options for notes', exact: true })
+      .click()
     await h.page.getByRole('button', { name: 'Remove from bee1', exact: true }).click()
     const modal = h.page.locator('[data-modal-overlay]')
     await modal.getByRole('button', { name: 'Remove folder', exact: true }).click()
     await expect(
       h.page.getByRole('button', { name: 'Workspace options for notes', exact: true }),
     ).toHaveCount(0)
-    await h.page
+    await sidebarHost(h)
       .getByRole('button', { name: 'Workspace options for repository', exact: true })
       .click()
     await h.page.getByRole('button', { name: 'Remove from bee1', exact: true }).click()

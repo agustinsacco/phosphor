@@ -123,10 +123,16 @@ export async function selectMachine(h: RemoteFixture, name: string) {
   await h.page.getByRole('option').filter({ hasText: name }).click()
 }
 
+/**
+ * bee1's lanes in the sidebar. Host home lists the same folders and lanes under its
+ * composer, so a folder control or row looked up outside this region matches twice.
+ */
+export function sidebarHost(h: RemoteFixture) {
+  return h.page.getByRole('region', { name: 'bee1', exact: true })
+}
+
 export function remoteRow(h: RemoteFixture, title = 'Remote test lane') {
-  return h.page
-    .getByRole('region', { name: 'bee1', exact: true })
-    .getByRole('button', { name: new RegExp(title) })
+  return sidebarHost(h).getByRole('button', { name: new RegExp(title) })
 }
 
 export async function captures(h: Pick<RemoteFixture, 'page'>, info: TestInfo, name: string) {
