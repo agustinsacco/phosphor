@@ -24,6 +24,7 @@ it('registers the control family in order and passes it against a healthy Host',
       'rejects a viewer dialog answer and resolves the controller answer in the stream',
       'stops and resumes lanes, marks attention read, and exposes failure',
       'keeps controller ownership across disconnect and reconnect without changing its fence',
+      'sets pins and markers from any controlling client, unfenced and on a stopped lane, and publishes them',
     ].map((name) => [name, 'pass']),
   )
 })

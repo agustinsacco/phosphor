@@ -355,7 +355,10 @@ ready Host with no folders shows “No folders yet” and, with `workspaces.writ
 an Add folder on MACHINE… button that opens the Host folder browser.
 A Host's folders are listed in the Host config's order. Each current folder's
 Workspace options menu offers Add folder on MACHINE…, Remove from MACHINE, Move
-up and Move down (`RemoteFolderMenuRows`, shared with the web client). A move
+up and Move down (`RemoteFolderMenuRows`), then Select all lanes, Select merged
+lanes and Collapse lanes. The folder header (`RemoteRepositoryGroup`) and the
+Host's list (`RemoteHostLanes`, pinned lanes first) are the same components the
+web client's Lanes page and Host home render ([web client](web-client.md#one-lane-row-list-and-menu)). A move
 sends the whole new order (`hosts:orderRepositories`), so every client sees it
 once the Host republishes its repositories; an older Host's refusal is a toast
 that says to update it. A move is disabled at either end and without
@@ -367,9 +370,28 @@ falls back to local creation.
 The home composer follows the sidebar machine selection (All machines uses This
 Mac). A picker override lasts until the next sidebar selection change. This target
 is window-local renderer state, never persisted. Host-targeted folder, model and
-thinking chips use that machine's repositories and signed-in provider catalogue.
+thinking chips use that machine's repositories and model catalogue.
 The branch choice follows the isolation rule above. The model prefers the last usable choice on that Host, then a usable Desktop default,
-then the first model of the first ready provider. The effective choice is visible.
+then the first model of the first signed-in provider, then the first other usable
+model. The effective choice is visible.
+
+Host lanes start from the same composer as This Mac (`features/home/StartComposer.tsx`):
+the machine, repository and isolation row above a two-row input, **Start lane**,
+a hints line and one note line. `useLocalStart` and the Host target in
+`RemoteStartView` supply only what differs. On a Host, `@` lists the chosen
+repository's files through `hosts:repositoryFiles` (with `workspaces.read`).
+The Host has no command list, swarm check or context-file preference before a
+lane exists, so a new Host lane offers no `/` menu, Swarm switch or Rules
+readout; inside a Host lane `/` lists the lane's own commands.
+
+One rule decides which Host models can be picked, for the new-lane picker and
+for a Host lane's model menu alike (`hostModelUnavailability`). Both list what
+pi reports available on that machine; the new-lane picker reads it through
+`hosts:models`, a lane through its own pi. A model is disabled, with the reason,
+when the Host's sign-in check (`hosts:providers`) reports its provider signed
+out ("Sign in to Anthropic on bee1"), or when it is a bare Bedrock id that needs
+an inference profile. A provider the check does not cover, such as an API key
+in the Host's environment, stays usable because pi listed it.
 
 Thinking is remembered per Host in this window, capped at 64 Hosts. Sign-out or
 remote disable clears it, and restart resets it; it never writes agent settings.
@@ -395,18 +417,23 @@ and [Host repository management](host.md#repository-management-and-lane-deletion
 
 ## Machine settings and provider sign-in
 
-**Machines → a Host → Settings** configures that execution machine, not This Mac.
+**Settings → Configure → \<Host\>** and **Machines → a Host → Settings** configure that
+execution machine, not This Mac. Settings opens on the Host of the active Host lane
+(or an open Machines detail, or the Host chosen in the switcher), and Configure still
+offers This Mac.
 The separate Overview keeps reachability, readiness, reconnect and diagnostics.
 The [settings contract](settings.md#host-machine-settings) owns the sections,
-review steps, scope, drafts and application timing. Desktop asks separately for
-signed configuration access; old Hosts retain their Readiness sign-in route.
+review steps, scope, drafts and application timing. Desktop (and the browser, see
+[web client](web-client.md#configuration-access-and-lane-deletion)) asks separately
+for signed configuration access; old Hosts retain their Readiness sign-in route.
 No remote failure mounts a local editor, synchronizes auth or queues a write.
 
-`electron/hosts/settings.ts` validates the requested section/folder, projects only
-reviewed fields, and refuses late results from a disconnected or replaced
-connection. Configuration-capability changes invalidate renderer read generations.
-Drafts retain non-secret edits per Host/folder; stale revisions cannot be saved.
-Unconfirmed writes and account moves are not automatically retried.
+`libs/host-client/src/settings.ts`, shared with the browser, validates the requested
+section/folder, projects only reviewed fields, and refuses late results from a
+disconnected or replaced connection. Configuration-capability changes invalidate
+renderer read generations. Drafts retain non-secret edits per Host/folder; stale
+revisions cannot be saved. Unconfirmed writes and account moves are not
+automatically retried.
 
 The Host runs supported fixed CLI sign-in paths in an owner-private terminal.
 Settings programs require `machine.configure`, `terminal` and `sessions.control`,
@@ -437,7 +464,9 @@ target This Mac. The top-bar artifact count belongs to the active lane.
 Remote slash commands come from the lane, and file mentions search its Host file
 list. Thinking levels derive from the lane model. Local rules/MCP and Swarm menus
 are hidden. Shell shortcuts, queued-message removal, rewind and fork are refused
-with the fixed unavailable hint. Continue waits for the remote receipt and echo;
+with the fixed unavailable hint. The top bar's Session options work on a Host
+lane for its controller (compaction, auto-retry, queue modes); Export HTML stays
+a This Mac action ([chat](chat.md)). Continue waits for the remote receipt and echo;
 it never inserts an optimistic duplicate. Error cards do not inspect This Mac's
 AWS profile. Lane and machine switches reset visible selections or show loading
 or refusal while the new target loads.

@@ -293,7 +293,7 @@ for (const theme of ['light', 'dark'] as const) {
       await h.page
         .getByPlaceholder('Describe a task or ask a question')
         .fill('Reimagine Phosphor loading')
-      await h.page.getByRole('button', { name: /Start session/i }).click()
+      await h.page.getByRole('button', { name: /Start lane/i }).click()
       const row = h.page.getByTestId('session-row')
       await expect(row).toHaveAttribute('data-pending', 'true')
       await expect(row).toHaveAttribute('data-activity', 'starting')
@@ -574,7 +574,7 @@ test('a running session can be stopped and deleted from its row', async () => {
   const h = await launch('dark')
   try {
     await h.page.getByPlaceholder('Describe a task or ask a question').fill('queue-hold')
-    await h.page.getByRole('button', { name: /Start session/i }).click()
+    await h.page.getByRole('button', { name: /Start lane/i }).click()
     const row = h.page.getByTestId('session-row')
     await expect(row).toHaveAttribute('data-activity', 'working')
     await row.click({ button: 'right' })

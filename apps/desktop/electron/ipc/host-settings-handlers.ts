@@ -1,5 +1,4 @@
-import { splitGrant } from '@shared/host-grant'
-import { machineSettings } from '../hosts/settings'
+import { enableConfigurationAccess, machineSettings } from '@phosphor/host-client/settings'
 import type { createHostManager } from '../hosts/manager'
 import type { createGrants } from '../hosts/grants'
 import type { createRemoteTerminals } from '@phosphor/host-client/terminals/terminals'
@@ -16,22 +15,12 @@ export function registerHostSettingsHandlers(
   handle('hosts:providerLogin', (event, hostId, provider, account) =>
     terminals.signIn(event.sender.id, hostId, provider, account),
   )
-  handle('hosts:settingsAccess', async (_event, hostId) => {
-    const c = manager.connection(hostId)
-    if (!c || c.snapshot().state !== 'ready' || !c.snapshot().configurationSupported)
-      throw new Error('Connect to an updated Host before enabling settings access.')
-    grants.configure(hostId)
-    try {
-      const grant = splitGrant((await grants.grantFor(hostId)).grant)
-      if (!grant.ok || !grant.value.payload.configure) throw new Error('unsupported-control')
-    } catch {
-      grants.configure(hostId, false)
-      throw new Error(
-        'The control plane did not grant configuration access. Update it or sign in again, then retry. Existing lane access was not changed.',
-      )
-    }
-    await manager.reconnect(hostId)
-  })
+  handle('hosts:settingsAccess', (_event, hostId) =>
+    enableConfigurationAccess(
+      { connection: manager.connection, grants, reconnect: (id) => manager.reconnect(id) },
+      hostId,
+    ),
+  )
   handle('hosts:settingsRead', (_event, hostId, section, repositoryId) =>
     settings.read(hostId, section, repositoryId),
   )

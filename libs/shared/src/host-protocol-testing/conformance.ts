@@ -47,6 +47,7 @@ const hostConformanceScenarios: readonly ConformanceScenario[] = [
   streams.bufferedReplayAfterOversize,
   limits.connectionsPerClient,
   limits.oversizeSubscription,
+  control.laneMarks,
 ]
 
 /** The same scenarios run against the model and the real Host adapter. No fake internals. */

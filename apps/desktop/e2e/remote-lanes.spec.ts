@@ -8,6 +8,7 @@ import {
   captures,
   openRemote,
   takeControl,
+  sidebarHost,
 } from './fixtures/remote-ui'
 
 test('Create on bee1 with a usable default and name the first turn', async ({
@@ -23,7 +24,9 @@ test('Create on bee1 with a usable default and name the first turn', async ({
     }).trim()
     await h.signIn()
     await selectMachine(h, 'bee1')
-    await h.page.getByRole('button', { name: 'New lane in repository', exact: true }).click()
+    await sidebarHost(h)
+      .getByRole('button', { name: 'New lane in repository', exact: true })
+      .click()
     await expect(h.page.getByRole('button', { name: 'Machine', exact: true })).toContainText('bee1')
     await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY Reasoner')
     await expect(h.page.getByRole('button', { name: 'Repository', exact: true })).toContainText(
@@ -130,6 +133,8 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
 }, info) => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
+  const menuItem = (name: string | RegExp) =>
+    h.page.getByTestId('context-menu').getByRole('button', { name, exact: true })
   try {
     await h.signIn()
     await openRemote(h)
@@ -140,7 +145,7 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
       'Open',
       'Rename',
       'Release control',
-      'Stop',
+      /^Stop/, // Until the lane's first message, Stop's name carries why it waits.
       'Mark read',
       'Pin',
       'Lane marker',
@@ -148,27 +153,19 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
       'Copy spend',
       'Delete',
     ])
-      await expect(
-        h.page.getByTestId('context-menu').getByRole('button', { name, exact: true }),
-      ).toBeVisible()
+      await expect(menuItem(name)).toBeVisible()
     for (const name of ['Session tree', 'Fork', 'Clone', 'Make routine'])
-      await expect(
-        h.page.getByTestId('context-menu').getByRole('button', { name, exact: true }),
-      ).toHaveCount(0)
+      await expect(menuItem(name)).toHaveCount(0)
     await captures(h, info, 'remote-row-menu')
-    await h.page
-      .getByTestId('context-menu')
-      .getByRole('button', { name: 'Pin', exact: true })
-      .click()
+    await menuItem('Pin').click()
+    // A pin lives on the Host: the row moves under Pinned once the Host has applied it,
+    // and a menu opened before then still offers Pin.
+    const pinned = sidebarHost(h).getByRole('region', { name: 'Pinned', exact: true })
+    await expect(pinned.getByRole('button', { name: /Remote test lane/ })).toBeVisible()
     await row.focus()
     await row.press('Shift+F10')
-    await expect(
-      h.page.getByTestId('context-menu').getByRole('button', { name: 'Unpin', exact: true }),
-    ).toBeVisible()
-    await h.page
-      .getByTestId('context-menu')
-      .getByRole('button', { name: 'Copy debug info', exact: true })
-      .click()
+    await expect(menuItem('Unpin')).toBeVisible()
+    await menuItem('Copy debug info').click()
     await expect
       .poll(() => h.app.evaluate(({ clipboard }) => clipboard.readText()))
       .toContain('bee1')
@@ -176,10 +173,7 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
     expect(clipboard).toContain('bee1')
     expect(clipboard).not.toContain(h.root)
     await row.press('Shift+F10')
-    await h.page
-      .getByTestId('context-menu')
-      .getByRole('button', { name: 'Lane marker', exact: true })
-      .click()
+    await menuItem('Lane marker').click()
     const picker = h.page.getByRole('dialog', { name: 'Lane marker', exact: true })
     await picker.getByRole('textbox', { name: 'Search icons', exact: true }).fill('rocket')
     await picker.getByRole('button', { name: 'rocket', exact: true }).click()
@@ -187,10 +181,7 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
     await captures(h, info, 'remote-row-marker')
 
     await row.click({ button: 'right' })
-    await h.page
-      .getByTestId('context-menu')
-      .getByRole('button', { name: 'Rename', exact: true })
-      .click()
+    await menuItem('Rename').click()
     await h.page
       .getByRole('textbox', { name: 'Lane name', exact: true })
       .fill('HOST_A_ONLY renamed')
@@ -202,9 +193,7 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
     await openRemote(h, 'HOST_A_ONLY renamed')
     await expect(remoteRow(h, 'HOST_A_ONLY renamed').getByTestId('lane-marker')).toContainText('🚀')
     await remoteRow(h, 'HOST_A_ONLY renamed').press('Shift+F10')
-    await expect(
-      h.page.getByTestId('context-menu').getByRole('button', { name: 'Unpin', exact: true }),
-    ).toBeVisible()
+    await expect(menuItem('Unpin')).toBeVisible()
   } finally {
     await h.close()
   }
@@ -216,7 +205,9 @@ test('A manual Host name wins while first-prompt auto-naming is pending', async 
   try {
     await h.signIn()
     await selectMachine(h, 'bee1')
-    await h.page.getByRole('button', { name: 'New lane in repository', exact: true }).click()
+    await sidebarHost(h)
+      .getByRole('button', { name: 'New lane in repository', exact: true })
+      .click()
     await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY Reasoner')
     await h.page.getByPlaceholder('Describe a task or ask a question').fill(h.slowName.prompt)
     await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()

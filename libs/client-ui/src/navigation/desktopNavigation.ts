@@ -1,8 +1,10 @@
 import { useSessionsStore } from '@/stores/sessions'
-import { useLayoutStore, sessionPanes } from '@/stores/layout'
+import { useLayoutStore, sessionPanes, type GlobalPage } from '@/stores/layout'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { navigateToLane, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useMachinesStore } from '@/stores/machines'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { openRemoteComposer } from '@/features/home/remoteComposer'
 import type { Location } from './location'
 
 /** URL-free facade: persisted native lane/pane semantics remain owned by their stores. */
@@ -37,8 +39,20 @@ export async function navigateDesktop(location: Location): Promise<void> {
     else useLayoutStore.getState().setPage(location.page)
     return
   }
+  // New on a Host opens that Host's composer, as the sidebar's New always has.
+  if (location.to === 'new' && location.machine) {
+    openRemoteComposer(location.machine)
+    return
+  }
   if (location.to !== 'unavailable') {
     if (location.machine) useRemoteLanesStore.getState().setFilter(location.machine)
     useSessionsStore.getState().activate(null)
   }
+}
+
+/** Desktop's page links toggle their page; Machines opens on its list. */
+export function toggleDesktopPage(page: GlobalPage): void {
+  if (page === 'machines' && useLayoutStore.getState().page !== 'machines')
+    useMachinesStore.getState().show({ kind: 'list' })
+  else useLayoutStore.getState().togglePage(page)
 }

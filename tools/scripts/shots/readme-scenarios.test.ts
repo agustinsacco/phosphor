@@ -76,7 +76,7 @@ function scenarioState({ pickerVisible = true, expanded = 'false' } = {}) {
 const home = 'Placeholder:Describe a task or ask a question'
 const row = 'TestId:session-row.first'
 const rename = 'Label:Session name'
-const start = 'Role:/Start session/i.click'
+const start = 'Role:/Start lane/i.click'
 
 describe('readme scenario steps', () => {
   it('starts on the checked-out branch and renames through the sidebar', async () => {

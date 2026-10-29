@@ -3,15 +3,15 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { SettingsModal } from './SettingsModal'
-import type { HostConnectionView } from '@shared/ipc'
 import { useSettingsUiStore } from './settingsUiStore'
 import { useLayoutStore } from '@/stores/layout'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useMachinesStore } from '@/stores/machines'
 import { useWorkspacesStore } from '@/stores/workspaces'
-import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
-import { isMachineSettingsTab } from './SettingsMachineScope'
+import { MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
+import { isThisMacTab } from './settingsIndex'
+import type { MachineView } from '@shared/control-api'
 import { useFeedbackStore } from '@/features/feedback/feedbackStore'
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -52,7 +52,14 @@ beforeEach(() => {
   invoke.mockImplementation(defaultInvoke)
   useRemoteLanesStore.setState({ filter: 'local', hosts: {} })
   useSessionsStore.setState({ activeSessionId: null, live: {} })
-  useMachinesStore.setState({ machines: [], view: { kind: 'list' } })
+  useMachinesStore.setState({
+    machines: [
+      { id: 'test-host', label: 'Test Host' },
+      { id: 'selected-host', label: 'Selected Host' },
+      { id: MOCK_HOST_ID, label: 'Lane Host' },
+    ] as MachineView[],
+    view: { kind: 'list' },
+  })
   useLayoutStore.setState({ page: null })
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
     configurable: true,
@@ -142,45 +149,13 @@ it.each([
     useRemoteLanesStore.setState({ filter: 'test-host' })
     useSettingsUiStore.setState({ tab })
     await act(async () => root.render(<SettingsModal />))
-    expect(document.body.textContent).toContain('Remote settings are not available here.')
+    expect(document.body.textContent).toContain('Configuring Test Host')
     expect(document.body.textContent).not.toContain('Local account controls')
     expect(document.body.textContent).not.toContain('Local agent controls')
     expect(document.body.textContent).not.toContain('Local machine controls')
-    expect(invoke.mock.calls.filter(([channel]) => channel !== 'feedback:state')).toEqual([])
-    const button = [...document.querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('readiness'),
-    )
-    act(() => button?.click())
-    expect(useSettingsUiStore.getState().open).toBe(false)
-    expect(useMachinesStore.getState().view).toEqual({ kind: 'machine', id: 'test-host' })
+    expect(invoke.mock.calls.some(([channel]) => channel === 'packages:list')).toBe(false)
   },
 )
-
-it('links supporting Hosts directly to their settings without mounting local controls', async () => {
-  useRemoteLanesStore.setState({
-    filter: 'test-host',
-    hosts: {
-      'test-host': {
-        state: 'ready',
-        capabilities: [],
-        configurationSupported: true,
-      } as unknown as HostConnectionView,
-    },
-  })
-  useSettingsUiStore.setState({ tab: 'accounts' })
-  await act(async () => root.render(<SettingsModal />))
-  const button = [...document.querySelectorAll('button')].find((button) =>
-    button.textContent?.includes('Open this machine settings'),
-  )
-  expect(button).toBeTruthy()
-  await act(async () => button?.click())
-  expect(useMachinesStore.getState().view).toEqual({
-    kind: 'machine',
-    id: 'test-host',
-    settings: 'providers',
-  })
-  expect(invoke.mock.calls.filter(([channel]) => channel !== 'feedback:state')).toEqual([])
-})
 
 function activateRemoteLane(): string {
   const { sessionId, workspacePath, target, laneId } = mockRemoteInfo
@@ -202,12 +177,12 @@ it('follows This Mac in the switcher while a Host lane is still active', async (
   expect(invoke).not.toHaveBeenCalledWith('packages:list', remotePath)
 })
 
-it('blocks machine settings for an active Host lane under All machines', async () => {
+it('opens on the Host of an active Host lane under All machines', async () => {
   const remotePath = activateRemoteLane()
   useRemoteLanesStore.setState({ filter: 'all' })
   useSettingsUiStore.setState({ tab: 'accounts' })
   await act(async () => root.render(<SettingsModal />))
-  expect(document.body.textContent).toContain('To sign in on')
+  expect(document.body.textContent).toContain('Configuring Lane Host')
   expect(document.body.textContent).not.toContain('Local account controls')
   expect(invoke).not.toHaveBeenCalledWith('packages:list', remotePath)
 })
@@ -223,16 +198,16 @@ it.each([
   'web-access',
   'subagents',
   'computer-use',
-] as const)('marks %s as This Mac policy', (tab) => expect(isMachineSettingsTab(tab)).toBe(true))
+] as const)('marks %s as This Mac policy', (tab) => expect(isThisMacTab(tab)).toBe(true))
 
-it('blocks machine effects for a selected Machines detail without an active remote lane', async () => {
+it('opens on a selected Machines detail without an active remote lane', async () => {
   useLayoutStore.setState({ page: 'machines' })
   useMachinesStore.setState({ view: { kind: 'machine', id: 'selected-host' } })
   useSettingsUiStore.setState({ tab: 'agent' })
   await act(async () => root.render(<SettingsModal />))
-  expect(document.body.textContent).toContain('Remote settings are not available here.')
+  expect(document.body.textContent).toContain('Configuring Selected Host')
   expect(document.body.textContent).not.toContain('Local agent controls')
-  expect(invoke.mock.calls.filter(([channel]) => channel !== 'feedback:state')).toEqual([])
+  expect(invoke.mock.calls.some(([channel]) => channel === 'packages:list')).toBe(false)
 })
 
 it('refreshes scope from This Mac to a Host and back while Settings is open', async () => {
@@ -242,11 +217,11 @@ it('refreshes scope from This Mac to a Host and back while Settings is open', as
   invoke.mockClear()
   await act(async () => useRemoteLanesStore.setState({ filter: 'test-host' }))
   expect(document.body.textContent).not.toContain('Local account controls')
-  expect(document.body.textContent).toContain('Remote settings are not available here.')
-  expect(invoke).not.toHaveBeenCalled()
+  expect(document.body.textContent).toContain('Configuring Test Host')
+  expect(invoke.mock.calls.some(([channel]) => channel === 'packages:list')).toBe(false)
   await act(async () => useRemoteLanesStore.setState({ filter: 'local' }))
   expect(document.body.textContent).toContain('Local account controls')
-  expect(document.body.textContent).not.toContain('Remote settings are not available here.')
+  expect(document.body.textContent).toContain('Configuring This Mac')
 })
 
 it('refreshes scope on a Mac lane to Host lane to Mac lane switch', async () => {
@@ -260,9 +235,24 @@ it('refreshes scope on a Mac lane to Host lane to Mac lane switch', async () => 
   await act(async () => root.render(<SettingsModal />))
   expect(document.body.textContent).toContain('Local account controls')
   await act(async () => useSessionsStore.setState({ activeSessionId: sessionId }))
-  expect(document.body.textContent).toContain('To sign in on')
+  expect(document.body.textContent).toContain('Configuring Lane Host')
   expect(document.body.textContent).not.toContain('Local account controls')
   await act(async () => useSessionsStore.setState({ activeSessionId: 'mac-lane' }))
   expect(document.body.textContent).toContain('Local account controls')
-  expect(document.body.textContent).not.toContain('To sign in on')
+  expect(document.body.textContent).not.toContain('Configuring Lane Host')
+})
+
+it('keeps the chosen machine until Settings closes, then follows the default again', async () => {
+  useRemoteLanesStore.setState({ filter: 'test-host' })
+  useSettingsUiStore.setState({ tab: 'accounts' })
+  await act(async () => root.render(<SettingsModal />))
+  const select = document.querySelector<HTMLSelectElement>('select[aria-label="Configure"]')!
+  await act(async () => {
+    select.value = 'local'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  expect(document.body.textContent).toContain('Local account controls')
+  await act(async () => useSettingsUiStore.getState().setOpen(false))
+  await act(async () => useSettingsUiStore.getState().setOpen(true))
+  expect(document.body.textContent).toContain('Configuring Test Host')
 })

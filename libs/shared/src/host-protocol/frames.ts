@@ -72,6 +72,8 @@ export type HostFrame =
       readonly settings?: boolean
       /** Additive support marker: `terminal.create` without a lane opens a machine shell. */
       readonly machineShell?: boolean
+      /** Additive support marker: the Host keeps lane pins and markers (`lane.marks`). */
+      readonly laneMarks?: boolean
       /** Effective capabilities for this connection. */
       readonly capabilities: readonly HostCapability[]
     }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePlatform } from '@/platform/Platform'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import {
@@ -7,6 +7,7 @@ import {
   rememberRemoteThinking,
 } from '@/stores/remoteModelPicks'
 import type { ThinkingLevel } from '@shared/rpc'
+import type { MachineModel } from '@shared/host-protocol-machine'
 import { ALL_THINKING_LEVELS, clampThinkingLevel } from '@shared/thinking'
 import {
   useMachineCataloguesStore,
@@ -20,7 +21,14 @@ import {
   REMOTE_UNAVAILABLE,
   machineLabel,
 } from '@/stores/remoteLanes'
-import { defaultRemoteModel, remoteModelExplanation, type ModelChoice } from './remoteModel'
+import {
+  defaultRemoteModel,
+  hostModelUnavailability,
+  remoteModelExplanation,
+  type ModelChoice,
+} from './remoteModel'
+
+const NO_MODELS: MachineModel[] = []
 
 export function useRemoteModel(hostId: string) {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
@@ -34,10 +42,11 @@ export function useRemoteModel(hostId: string) {
   useEffect(() => {
     if (hostId) void useMachineCataloguesStore.getState().load(hostId)
   }, [hostId, generation])
-  const models = host?.capabilities.includes('skills.read') ? catalogue.models : []
+  const models = host?.capabilities.includes('skills.read') ? catalogue.models : NO_MODELS
   const providers = catalogue.providers
-  const usable = models.filter((m) =>
-    providers.some((p) => p.id === m.provider && p.status === 'ready'),
+  const unavailable = useMemo(
+    () => hostModelUnavailability(models, providers, machineLabel(hostId)),
+    [models, providers, hostId],
   )
   const model =
     host?.state === 'ready'
@@ -58,7 +67,8 @@ export function useRemoteModel(hostId: string) {
     missingModel,
     hint,
     model,
-    models: usable,
+    models,
+    unavailable,
     explanation: model ? remoteModelExplanation(model, last, defaults.model) : hint,
     canRetry:
       host?.state === 'ready' &&

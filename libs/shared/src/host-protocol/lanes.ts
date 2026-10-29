@@ -54,6 +54,10 @@ export interface LaneSummary {
   readonly attention: number
   readonly read: number
   readonly control: LaneControl
+  /** Pinned on the Host. Absent when not pinned. */
+  readonly pinned?: true
+  /** An explicit marker choice; '' is "no marker" on purpose. Absent: the derived auto marker. */
+  readonly marker?: string
 }
 
 /** One consistent view of a lane at `(epoch, seq)`; events continue from `seq + 1`. */

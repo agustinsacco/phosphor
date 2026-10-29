@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   readLane: vi.fn(),
   localList: vi.fn(),
   remoteList: vi.fn(),
+  connection: vi.fn(),
 }))
 vi.mock('electron', () => ({ app: { once: vi.fn() }, BrowserWindow: {}, Notification: {} }))
 vi.mock('../account', () => ({ accountUserId: vi.fn(), onAccountChange: vi.fn() }))
@@ -16,7 +17,9 @@ vi.mock('../store', () => ({ getRemoteClients: vi.fn(), setRemoteClients: vi.fn(
 vi.mock('../hosts/client-id', () => ({ createClientIds: () => ({}) }))
 vi.mock('../hosts/grants', () => ({ createGrants: () => ({}) }))
 vi.mock('../hosts/connection', () => ({ createHostConnection: vi.fn() }))
-vi.mock('../hosts/manager', () => ({ createHostManager: () => ({ snapshot: () => ({}) }) }))
+vi.mock('../hosts/manager', () => ({
+  createHostManager: () => ({ snapshot: () => ({}), connection: mocks.connection }),
+}))
 vi.mock('../hosts/socket', () => ({
   openHostSocket: vi.fn(),
   e2eHostEndpoint: () => undefined,
@@ -94,4 +97,26 @@ it('does not deny explicit Mac catalogue reads because a remote lane is focused'
   if (typeof router !== 'function') throw new Error('Missing router')
   for (const channel of ['fs:readFile', 'fs:listFiles', 'fs:readDir'])
     expect(router(7, channel, ['/Mac/catalogue'])).toBeFalsy()
+})
+
+it('sets Host lane marks over the shared host-client module, unfenced', async () => {
+  const laneId = '12345678-1234-4234-8234-123456789abc'
+  mocks.handle.mockClear()
+  registerHostsHandlers()
+  const handler: unknown = mocks.handle.mock.calls.find(
+    ([channel]) => channel === 'hosts:setLaneMarks',
+  )?.[1]
+  expect(typeof handler).toBe('function')
+  const send = vi.fn(async () => ({ requestId: laneId, status: 'done' }))
+  const view = {
+    state: 'ready',
+    capabilities: ['sessions.read', 'sessions.control'],
+    lanes: [{ laneId, control: { fence: 2, controller: null } }],
+  }
+  const connection = { snapshot: () => view, incarnation: () => ({ generation: 1 }), send }
+  mocks.connection.mockImplementation((hostId: string) => (hostId === 'h' ? connection : undefined))
+  if (typeof handler !== 'function') return
+  await handler({ sender: { id: 7 } }, 'h', laneId, { marker: '🦊' })
+  expect(send).toHaveBeenCalledWith({ type: 'lane.marks', marker: '🦊' }, laneId)
+  await expect(handler({ sender: { id: 7 } }, 'other', laneId, { pinned: true })).rejects.toThrow()
 })

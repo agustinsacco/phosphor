@@ -23,7 +23,7 @@ function setup() {
     connectionToken: 'first',
     capabilities: ['sessions.read', 'sessions.control', 'workspaces.write'],
     repositories: [],
-    lanes: [],
+    lanes: [] as { laneId: string; control: { fence: number } }[],
   }
   const listing = {
     path: 'Projects',
@@ -34,7 +34,12 @@ function setup() {
   const send = vi.fn(async (op: { type: string }) => ({
     requestId: randomUUID(),
     status: 'done',
-    data: op.type === 'host.repositories.add' ? { id: repositoryId, path: '/home/u/x' } : null,
+    data:
+      op.type === 'host.repositories.add'
+        ? { id: repositoryId, path: '/home/u/x' }
+        : op.type === 'lane.delete'
+          ? { branchKept: true }
+          : null,
   }))
   const connection = {
     snapshot: () => view,
@@ -117,4 +122,27 @@ it('sends nothing while the Host is away or cannot write workspaces', async () =
   await expect(s.handlers['hosts:listFolders']!(randomUUID(), '', false)).rejects.toThrow()
   expect(s.call).not.toHaveBeenCalled()
   expect(s.send).not.toHaveBeenCalled()
+})
+
+it('deletes a lane over the Host connection with its control fence, as Desktop does', async () => {
+  const s = setup()
+  expect(IPC_WEB['hosts:deleteLane'].kind).toBe('remote-supported')
+  expect(typeof s.handlers['hosts:deleteLane']).toBe('function')
+  const laneId = randomUUID()
+  s.view.lanes.push({ laneId, control: { fence: 3 } })
+  const options = { removeWorktree: true, removeBranch: false }
+  await expect(s.handlers['hosts:deleteLane']!(s.host, laneId, options)).resolves.toEqual({
+    branchKept: true,
+  })
+  expect(s.send).toHaveBeenLastCalledWith({ type: 'lane.delete', laneId, ...options }, laneId, 3)
+  // The Host admits lane.delete only from the lane's controller; a refusal is not a success.
+  s.send.mockResolvedValueOnce({
+    requestId: randomUUID(),
+    status: 'rejected',
+    code: 'forbidden',
+  } as never)
+  await expect(s.handlers['hosts:deleteLane']!(s.host, laneId, options)).rejects.toThrow(
+    'The remote change was not confirmed.',
+  )
+  await expect(s.handlers['hosts:deleteLane']!(s.host, randomUUID(), options)).rejects.toThrow()
 })

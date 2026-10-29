@@ -618,7 +618,13 @@ other permissions are refused. A newer schema exits 78; other open failures
 exit 70 and name the folder.
 
 The SQLite WAL database holds repositories, stable lane ids, control fences and
-controllers, attention and read counters, and request receipts. On start, run
+controllers, attention and read counters, lane pins and markers, and request
+receipts. Pins and markers live in their own STRICT `lane_marks` table, one row
+per marked lane, whose `lane_id` references `lanes` with `ON DELETE CASCADE`:
+pruning a lane row removes its marks. Every open creates that table if it is
+missing, outside the versioned schema, so an existing state file gains it without
+a `user_version` change and `phosphor update --rollback` still opens the file:
+the older Host ignores the table. On start, run
 reconciles pi's session files against the lane index and marks interrupted
 requests as unknown. Unavailable configured repositories become inactive, with
 one count-only log line; they do not stop heartbeats. Their ids stay stable when
@@ -673,7 +679,8 @@ The [API](#api) dispatches authenticated commands through this pipeline.
 
 ## Machine settings
 
-Desktop's **Machines → this Host → Settings** administers this execution machine.
+**Machines → this Host → Settings**, in Desktop or the browser, administers this
+execution machine.
 [Settings](settings.md#host-machine-settings) owns the UI; [the protocol](remote-protocol.md#machine-configuration-operations)
 owns its typed operations. Configuration requires a separately requested signed
 `machine.configure` grant, not merely lane control. Older clients and ordinary
@@ -1088,7 +1095,7 @@ needs a terminal (stdin and stdout), and exits 64 without one; over SSH, use
   screen, which is why the steps are typed.
 - **`claude`** runs `claude auth login` from pi's PATH for the CLI default
   credential: follow its link/code instructions. Private roster accounts are
-  reauthenticated through Desktop's Machine Settings, not by replacing the CLI
+  reauthenticated through Machine Settings, not by replacing the CLI
   default. If one is selected, signing into the default does not change that
   selection or make a different account ready.
 
@@ -1814,6 +1821,18 @@ cross-provider model switch rebinds pi from its saved transcript, or recreates
 an empty lane with the selected model when no file exists yet. Persisted names
 are not parsed as creation names on resume; an unsaved name is restored via RPC. In-turn model
 switches are refused.
+
+## Lane pins and markers
+
+`lane.marks` pins or marks one lane, named by the command frame's `laneId`, with
+`pinned` and `marker` ([protocol](remote-protocol.md#lane-pins-and-markers)). It
+needs `sessions.control`, like every command, but not control of the lane: it is
+unfenced, never acquires or moves control, and works on a stopped lane. An unknown
+or removed lane is `unknown-lane`. The Host stores the change over the lane's
+current marks in `lane_marks` (see [State](#state)) and drops the row when the lane
+is neither pinned nor marked. It then publishes the lane's summary, so `lanes`
+subscribers receive a `lanes-delta` upsert. `updatedAt`, `attention` and `read`
+do not change. Every `ready` frame carries `laneMarks: true`.
 
 ## Repository management and lane deletion
 

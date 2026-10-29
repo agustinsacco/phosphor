@@ -56,6 +56,14 @@
       "types": "./src/repository-management.ts",
       "default": "./src/repository-management.ts"
     },
+    "./lane-marks": {
+      "types": "./src/lane-marks.ts",
+      "default": "./src/lane-marks.ts"
+    },
+    "./settings": {
+      "types": "./src/settings.ts",
+      "default": "./src/settings.ts"
+    },
     "./terminals/terminals": {
       "types": "./src/terminals/terminals.ts",
       "default": "./src/terminals/terminals.ts"

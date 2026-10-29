@@ -50,7 +50,8 @@ export interface BaselineSessionTree {
   leafId: string | null
 }
 
-export type BaselineHostLaneView = Omit<LaneSummary, 'control'> & {
+export type BaselineHostLaneView = Omit<LaneSummary, 'control' | 'pinned'> & {
+  pinned?: boolean
   control: {
     fence: number
     controller: { label: string; connected: boolean; self: boolean } | null
@@ -72,6 +73,7 @@ export interface BaselineHostConnectionView {
   hostVersion?: string
   configurationSupported?: boolean
   machineShell?: boolean
+  laneMarks?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: BaselineHostLaneView[]

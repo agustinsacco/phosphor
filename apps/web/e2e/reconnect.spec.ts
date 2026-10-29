@@ -72,6 +72,8 @@ test('a Host that is still connecting locks every composer and says what it wait
     } finally {
       release()
     }
-    await expect(page.getByRole('button', { name: 'Synthetic acceptance lane' })).toBeVisible()
+    await expect(
+      page.locator('main.compact-main').getByRole('button', { name: 'Synthetic acceptance lane' }),
+    ).toBeVisible()
   }
 })

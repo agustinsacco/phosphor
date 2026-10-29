@@ -1,6 +1,6 @@
-import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
-import { MachineSwitcher, MachineLabelLine, OtherMachinesActivity } from './MachineSwitcher'
+import { MachineLabelLine } from './MachineSwitcher'
+import { SidebarFooter, SidebarNavigation } from './SidebarNavigation'
 import { RemoteLanes } from './RemoteLanes'
 import { useRemoteLanesStore, machineLabel, navigateToLane } from '@/stores/remoteLanes'
 import { LaneRevealEffect, localLaneGroupKey } from './laneReveal'
@@ -17,7 +17,7 @@ import { hasDelegatedWork, SUBAGENT_ASYNC_WIDGET_KEY } from '@/features/chat/sub
 import { useWorktreeDiscovery, type WorktreeDir } from './useWorktreeDiscovery'
 import { useSessionBooting } from '@/features/chat/BootingIndicator'
 import { promptRenameSandbox } from '@/features/workspaces/promptRenameSandbox'
-import { showContextMenu } from '@/components/ContextMenu'
+import { useMenuTriggers, type ContextMenuItem } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { SessionList, useSessionOrderActions } from './SessionList'
 import { orderedSessions } from './sessionOrder'
@@ -54,6 +54,7 @@ import {
 } from '@/components/icons'
 import {
   LaneRow,
+  SectionLabel,
   WorkspaceGroupHeader,
   WorkspaceGroupTitle,
   SessionIndicator,
@@ -62,12 +63,7 @@ import {
 import { TreeViewModal } from './TreeViewModal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { laneHaystack, laneMatches, laneQueryTerms, type LaneSearchFields } from './laneSearch'
-import { UpdatePill } from '@/features/updates/UpdatePill'
-import { AccountFooter } from '@/features/account/AccountFooter'
-import { useLayoutStore } from '@/stores/layout'
-import { useMachinesStore } from '@/stores/machines'
-import { NavigationItem as NavRow } from '@/navigation/NavigationItem'
-import { PageLinks } from '@/navigation/PageLinks'
+import { toggleDesktopPage } from '@/navigation/desktopNavigation'
 import { projectName, isWorktreeFolder } from '@/lib/path'
 import {
   groupSessionsByProject,
@@ -128,7 +124,6 @@ export function Sidebar({
   /** Session file of the lane being opened right now, if any. */
   const openingPath = useSessionsStore((s) => s.opening?.path)
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
-  const activePage = useLayoutStore((s) => s.page)
 
   const recents = useWorkspacesStore((s) => s.recents)
   const workspacesHydrated = useWorkspacesStore((s) => s.hydrated)
@@ -768,7 +763,7 @@ export function Sidebar({
     void store.refreshMissing(open.flatMap((g) => g.unscannedPaths))
   }, [groups, collapsed])
 
-  const groupContextMenu = (event: React.MouseEvent, group: GroupedSessions): void => {
+  const groupMenuItems = (group: GroupedSessions): ContextMenuItem[] => {
     const git = gitByCwd[group.workspacePath]
     const openWorktreeModal = async (kind: 'remove' | 'merge'): Promise<void> => {
       const repoPath = git?.mainRepoPath
@@ -779,7 +774,7 @@ export function Sidebar({
       )
       if (worktree) setWorktreeModal({ kind, repoPath, worktree })
     }
-    showContextMenu(event, [
+    return [
       {
         label: 'New session',
         onClick: () => {
@@ -805,7 +800,7 @@ export function Sidebar({
             },
           ]
         : []),
-    ])
+    ]
   }
 
   const moveGroup = (group: GroupedSessions, direction: 'up' | 'down'): void => {
@@ -852,34 +847,7 @@ export function Sidebar({
           also where the macOS traffic-light inset lives. */}
       <WorkspaceSwitcher />
 
-      {/* Flat nav rows, matching the reference: icon + label, no border or
-          shadow. New routes to the home screen; the folder is chosen there
-          via the composer's workspace chip. Artifacts and Skills open GLOBAL
-          pages over the main region — they used to toggle a per-session right
-          pane, which made both rows silent no-ops on the home screen. */}
-      <nav className="px-2 pb-1.5">
-        <NavRow
-          label="New"
-          badge
-          onClick={() => {
-            const filter = useRemoteLanesStore.getState().filter
-            if (filter !== 'local' && filter !== 'all') openRemoteComposer(filter)
-            else useSessionsStore.getState().activate(null)
-          }}
-          icon={<PlusIcon strokeWidth={2.5} />}
-        />
-        <PageLinks
-          activePage={activePage}
-          trailing={{ machines: <OtherMachinesActivity /> }}
-          onPage={(page) => {
-            if (page === 'machines' && activePage !== 'machines')
-              useMachinesStore.getState().show({ kind: 'list' })
-            else useLayoutStore.getState().togglePage(page)
-          }}
-        />
-      </nav>
-
-      <MachineSwitcher />
+      <SidebarNavigation onPage={toggleDesktopPage} />
       <div data-session-scroll className="flex-1 overflow-y-auto px-2 pb-2">
         <div hidden={machineFilter !== 'all' && machineFilter !== 'local'}>
           {machineFilter === 'all' && <MachineLabelLine id="local" />}
@@ -925,7 +893,7 @@ export function Sidebar({
                     expand={() => toggleGroup(group, true)}
                     clearSearch={() => closeSearch(group.workspacePath)}
                   />
-                  <WorkspaceGroupHeader onContextMenu={(event) => groupContextMenu(event, group)}>
+                  <WorkspaceGroupHeader menu={() => groupMenuItems(group)} menuTitle={group.name}>
                     <WorkspaceGroupTitle
                       name={group.name}
                       collapsed={isCollapsed}
@@ -1205,10 +1173,7 @@ export function Sidebar({
         <RemoteLanes />
       </div>
 
-      <div className="border-border border-t px-3 py-2">
-        <UpdatePill />
-        <AccountFooter />
-      </div>
+      <SidebarFooter />
 
       {savedConversation && (
         <Suspense fallback={null}>
@@ -1577,10 +1542,9 @@ function SessionRow({
   const rowWorkspaceName = projectName(meta.cwd || workspacePath, git)
 
   const open = (): void => openSidebarConversation(workspacePath, meta)
-
-  const contextMenu = (event: React.MouseEvent): void => {
+  const menuItems = (): ContextMenuItem[] => {
     const store = useSessionsStore.getState()
-    showContextMenu(event, [
+    return [
       { label: 'Open', onClick: open },
       ...orderActions,
       { label: 'Session tree…', onClick: onOpenTree },
@@ -1652,8 +1616,9 @@ function SessionRow({
         disabled: bulkDeleteRunning,
         onClick: () => onDelete(title),
       },
-    ])
+    ]
   }
+  const menu = useMenuTriggers(menuItems, { title })
 
   const subtitle = sessionSubtitle(meta, git)
   const activity =
@@ -1828,7 +1793,7 @@ function SessionRow({
     <>
       <LaneRow
         onClick={open}
-        onContextMenu={contextMenu}
+        {...menu}
         onDoubleClick={beginRename}
         disabled={deleting}
         aria-busy={deleting}
@@ -1971,9 +1936,8 @@ function PendingSessionRow({
     // survives the swap to `SessionRow` (which prefers the live name too).
     void applySessionRename(phosphorId, name)
   }
-
-  const contextMenu = (event: React.MouseEvent): void => {
-    showContextMenu(event, [
+  const menuItems = (): ContextMenuItem[] => {
+    return [
       { label: 'Open', onClick: () => void navigateToLane({ sessionId: phosphorId }) },
       ...orderActions,
       { label: 'Rename…', onClick: beginRename },
@@ -1985,8 +1949,9 @@ function PendingSessionRow({
         disabled: deleting,
         onClick: () => onDelete(title),
       },
-    ])
+    ]
   }
+  const menu = useMenuTriggers(menuItems, { title })
 
   const className = clsx(
     'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
@@ -2061,7 +2026,7 @@ function PendingSessionRow({
       onClick={() => void navigateToLane({ sessionId: phosphorId })}
       disabled={deleting}
       aria-busy={deleting}
-      onContextMenu={contextMenu}
+      {...menu}
       onDoubleClick={beginRename}
       data-testid="session-row"
       data-pending="true"
@@ -2081,14 +2046,6 @@ function PendingSessionRow({
  * because a live session swaps from the second to the first mid-turn and the
  * swap has to be invisible. They had drifted into two different subtitles.
  */
-
-function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return (
-    <div className="text-text-tertiary px-2 pb-0.5 pt-2.5 text-xs font-semibold font-mono uppercase tracking-wider">
-      {children}
-    </div>
-  )
-}
 
 /**
  * Placeholder headers for the whole group list, before prefs have landed.

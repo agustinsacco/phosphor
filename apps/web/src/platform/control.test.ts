@@ -229,3 +229,76 @@ it('removes the cleanup warning only after a server-confirmed complete retry', a
   expect(await control.signOut()).toEqual({ account: { status: 'signed-out' } })
   expect(fetch).toHaveBeenCalledTimes(4)
 })
+
+it.each([
+  ['account-disabled', () => json({ error: { code: 'forbidden', message: 'Disabled' } }, 403)],
+  ['grant-refused', () => json({ error: { code: 'not-found', message: 'Refused' } }, 404)],
+  ['grant-refused', () => json({ error: { code: 'gone', message: 'Gone' } }, 410)],
+  ['unavailable', () => json({ error: { code: 'unavailable', message: 'Down' } }, 503)],
+  ['offline', () => Promise.reject(new TypeError('Network failed'))],
+] as const)('reports only the sanitized grant refusal %s', async (code, reply) => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async (path) =>
+    path === WEB_AUTH_ROUTES.session ? json(session) : reply(),
+  )
+  const { control } = setup(fetch)
+  await control.refresh()
+  const host = '33333333-3333-4333-8333-333333333333'
+  await expect(control.grant(host)).rejects.toThrow(new Error(code))
+})
+
+describe('browser configuration grant opt-in', () => {
+  const host = '33333333-3333-4333-8333-333333333333'
+  const other = '44444444-4444-4444-8444-444444444444'
+  function grants(fetch: ReturnType<typeof vi.fn<typeof globalThis.fetch>>) {
+    return fetch.mock.calls
+      .filter(([path]) => path === '/api/v1/grants')
+      .map(([, init]) => JSON.parse(String(init?.body)) as Record<string, unknown>)
+  }
+  function grantFetch(sessionStatus: () => number = () => 200) {
+    return vi.fn<typeof globalThis.fetch>(async (path) =>
+      path === WEB_AUTH_ROUTES.session
+        ? json(sessionStatus() === 200 ? session : {}, sessionStatus())
+        : path === '/api/v1/grants'
+          ? json({ error: { code: 'unavailable', message: 'Unavailable' } }, 503)
+          : json({}, 401),
+    )
+  }
+  it('asks for configure only for the Host the page opted in, and stops when opted out', async () => {
+    const fetch = grantFetch()
+    const { control } = setup(fetch)
+    await control.refresh()
+    await control.grant(host).catch(() => {})
+    control.configure(host)
+    await control.grant(host).catch(() => {})
+    await control.grant(other).catch(() => {})
+    control.configure(host, false)
+    await control.grant(host).catch(() => {})
+    expect(grants(fetch)).toEqual([
+      { hostId: host, clientId },
+      { hostId: host, clientId, configure: true },
+      { hostId: other, clientId },
+      { hostId: host, clientId },
+    ])
+  })
+  it('refuses to opt in while signed out or disposed', async () => {
+    const { control } = setup(grantFetch())
+    expect(() => control.configure(host)).toThrow('signed-out')
+    await control.refresh()
+    control.dispose()
+    expect(() => control.configure(host)).toThrow('signed-out')
+  })
+  it('forgets the opt-in when Control refuses the cookie', async () => {
+    let status = 200
+    const fetch = grantFetch(() => status)
+    const { control } = setup(fetch)
+    await control.refresh()
+    control.configure(host)
+    status = 401
+    await control.refresh()
+    status = 200
+    control.signIn()
+    await control.refresh()
+    await control.grant(host).catch(() => {})
+    expect(grants(fetch)).toEqual([{ hostId: host, clientId }])
+  })
+})

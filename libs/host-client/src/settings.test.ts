@@ -33,7 +33,7 @@ function fixture() {
     },
   }
 }
-describe('Desktop machine settings boundary', () => {
+describe('Host machine settings boundary', () => {
   it('uses only the named Host and projects approved fields', async () => {
     const f = fixture()
     f.fake.call.mockResolvedValue({

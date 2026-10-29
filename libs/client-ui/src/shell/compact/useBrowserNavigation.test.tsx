@@ -51,7 +51,7 @@ it('projects legacy lane activation to a single deep link and clears browser foc
   expect(window.location.pathname).toBe(`/lanes/${MOCK_HOST_ID}/${mockRemoteInfo.laneId}/chat`)
   expect(push).toHaveBeenCalledTimes(1)
   await act(async () => {
-    window.history.replaceState(null, '', '/inbox')
+    window.history.replaceState(null, '', '/lanes')
     window.dispatchEvent(new PopStateEvent('popstate'))
   })
   expect(useSessionsStore.getState().activeSessionId).toBeNull()

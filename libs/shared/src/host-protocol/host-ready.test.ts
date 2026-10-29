@@ -124,3 +124,14 @@ describe('host-ready.ts parseReadyFrame', () => {
     expect(parseReadyFrame({ ...READY, machineShell: 'yes' })).toBeNull()
   })
 })
+
+describe('lane marks support marker', () => {
+  it('carries the additive laneMarks marker only as a boolean', () => {
+    expect(parseReadyFrame({ ...READY, laneMarks: true })).toStrictEqual({
+      ...READY,
+      laneMarks: true,
+    })
+    expect(parseReadyFrame({ ...READY, laneMarks: 'yes' })).toBeNull()
+    expect(ready({ laneMarks: true })).toMatchObject({ ok: true, value: { laneMarks: true } })
+  })
+})

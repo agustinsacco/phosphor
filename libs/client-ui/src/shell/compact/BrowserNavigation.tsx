@@ -4,11 +4,11 @@ import { Button } from '@/components/form'
 import { InstallApp } from './InstallApp'
 import { CloseIcon } from '@/components/icons'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
-import { NavigationItem } from '@/navigation/NavigationItem'
-import { PageLinks } from '@/navigation/PageLinks'
-import { useNavigation } from '@/navigation/Navigation'
-import { SCREENS } from '@/navigation/screens'
+import { NavigationProvider, useNavigation, type Navigation } from '@/navigation/Navigation'
 import type { Location } from '@/navigation/location'
+import { usePlatform } from '@/platform/Platform'
+import { RemoteLanes } from '@/features/sessions/RemoteLanes'
+import { SidebarFooter, SidebarNavigation } from '@/features/sessions/SidebarNavigation'
 
 export function BrowserNavigation({
   machine,
@@ -37,10 +37,17 @@ function NavigationBody({
   onClose: () => void
 }): React.JSX.Element {
   const { location, navigate } = useNavigation()
-  const go = (next: Location): void => {
-    onClose()
-    navigate(next)
+  const { installableApp } = usePlatform()
+  // Anything opened from here (a page, a lane, New, Settings) closes the phone drawer;
+  // choosing a machine scope uses the outer navigation and keeps it open.
+  const closing: Navigation = {
+    location,
+    navigate: (next) => {
+      onClose()
+      navigate(next)
+    },
   }
+  const go = closing.navigate
   return (
     <>
       <div className="browser-brand">
@@ -52,38 +59,34 @@ function NavigationBody({
           </Button>
         )}
       </div>
-      <nav aria-label="Main navigation" className="browser-navigation-links">
-        {(['new', 'lanes', 'inbox'] as const).map((to) => {
-          const { icon: Icon, title } = SCREENS[to]
-          return (
-            <NavigationItem
-              key={to}
-              label={title}
-              icon={<Icon />}
-              active={location.to === to}
-              onClick={() => go({ to, machine })}
-            />
-          )
-        })}
-        <PageLinks
-          activePage={location.to === 'page' ? location.page : null}
+      <NavigationProvider value={closing}>
+        <SidebarNavigation
           onPage={(page) =>
             go({ to: 'page', page, machine: page === 'machines' ? undefined : machine })
           }
+          onScope={(scope) => navigate(scopedLocation(location, scope))}
         />
-        <NavigationItem
-          label="Settings"
-          icon={<SCREENS.settings.icon />}
-          active={location.to === 'page' && location.page === 'settings'}
-          onClick={() => go({ to: 'page', page: 'settings', machine })}
-        />
-      </nav>
-      <div className="browser-install-nav">
-        <InstallApp />
-      </div>
+        <div data-session-scroll className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+          <RemoteLanes />
+        </div>
+        <SidebarFooter />
+      </NavigationProvider>
+      {installableApp && (
+        <div className="browser-install-nav">
+          <InstallApp />
+        </div>
+      )}
       <p className="browser-navigation-note">Connected directly to your machines.</p>
     </>
   )
+}
+
+/** The browser keeps the machine scope in the URL; a lane or dead link falls back to its list. */
+function scopedLocation(location: Location, scope: string): Location {
+  const machine = scope === 'all' ? undefined : scope
+  return location.to === 'lane' || location.to === 'unavailable'
+    ? { to: 'lanes', machine }
+    : { ...location, machine }
 }
 
 function NavigationDrawer({

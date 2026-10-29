@@ -1,3 +1,4 @@
+import { withLaneMarks, type LaneMarksChange } from '@shared/host-protocol-lane-marks'
 import type { HostsSnapshot } from '@shared/ipc'
 import type { LiveSessionInfo } from '@shared/models'
 
@@ -69,6 +70,23 @@ export function mockRemoteAction(channel: string): void {
     },
   ]
   for (const listener of listeners) listener()
+}
+
+/** `hosts:setLaneMarks`: the mock Host keeps the lane's pin and marker, as a real Host does. */
+export function mockRemoteLaneMarks(laneId: unknown, change: LaneMarksChange): void {
+  const host = mockRemoteHosts[MOCK_HOST_ID]
+  if (!host) return
+  host.lanes = host.lanes.map((lane) =>
+    lane.laneId === laneId ? withLaneMarks(lane, change) : lane,
+  )
+  for (const listener of listeners) listener()
+}
+
+/** The harness Host's snapshot. It keeps lane pins and markers, as a current Host does. */
+export function mockRemoteSnapshot(): HostsSnapshot {
+  const hosts = structuredClone(mockRemoteHosts)
+  for (const host of Object.values(hosts)) host.laneMarks = true
+  return hosts
 }
 
 /** Opt-in screenshot directory. Ordinary harness and test defaults stay unchanged. */

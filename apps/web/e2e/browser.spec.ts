@@ -31,22 +31,35 @@ async function signIn(page: Page, origin: string) {
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
   await expect(page.getByTestId('compact-shell')).toBeVisible()
 }
-async function navigatePage(page: Page, name: string) {
+/** The left navigation: the wide column, or the phone drawer opened from the list. */
+async function openNavigation(page: Page) {
   const compact = (page.viewportSize()?.width ?? 400) < 900
   await expect(page.locator('html')).toHaveAttribute(
     'data-form-factor',
     compact ? 'compact' : 'expanded',
   )
-  if (compact) {
-    // A phone's lane header has only Back and the lane menu; the drawer is on the list.
-    const back = page.getByRole('button', { name: 'Back to lanes', exact: true })
-    if (await back.isVisible()) await back.click()
-    await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
-  }
-  await page
-    .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name, exact: true })
-    .click()
+  if (!compact) return page.locator('aside.browser-navigation')
+  // A phone's lane header has only Back and the lane menu; the drawer is on the list.
+  const back = page.getByRole('button', { name: 'Back to lanes', exact: true })
+  if (await back.isVisible()) await back.click()
+  await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
+  return page.getByRole('dialog', { name: 'Navigation', exact: true })
+}
+async function navigatePage(page: Page, name: string) {
+  const navigation = await openNavigation(page)
+  // Settings is the account footer's gear, as on Desktop; the rest are Main navigation rows.
+  await (
+    name === 'Settings'
+      ? navigation.getByRole('button', { name: 'Settings', exact: true })
+      : navigation
+          .getByRole('navigation', { name: 'Main navigation' })
+          .getByRole('button', { name, exact: true })
+  ).click()
+}
+/** The lane tree is in the navigation, under the machine scope; there is no Lanes link. */
+async function openNavigationLane(page: Page, title: string) {
+  const navigation = await openNavigation(page)
+  await navigation.getByRole('button', { name: title, exact: true }).click()
 }
 async function openPane(page: Page, name: string) {
   if ((page.viewportSize()?.width ?? 400) < 900)
@@ -206,8 +219,7 @@ test('cookie/CSRF → verified Host → read/control/send; waiting update and ow
       await page
         .getByRole('button', { name: theme === 'light' ? 'Light' : 'Dark', exact: true })
         .click()
-      await navigatePage(page, 'Lanes')
-      await page.getByRole('button', { name: 'Synthetic acceptance lane', exact: true }).click()
+      await openNavigationLane(page, 'Synthetic acceptance lane')
       await expect(page.getByText('Controlled by you', { exact: true })).toBeVisible()
       await expect(page.getByText('PHX-browserAcceptance', { exact: true })).toHaveCount(2)
       await expect(page.getByText('PHX-browserAcceptance', { exact: true }).last()).toBeVisible()
@@ -284,6 +296,10 @@ test('cookie/CSRF → verified Host → read/control/send; waiting update and ow
     )
     .toBe(true)
   await navigatePage(page, 'Settings')
+  await page
+    .getByRole('navigation', { name: 'Settings sections', exact: true })
+    .getByRole('button', { name: 'Phosphor account', exact: true })
+    .click()
   await page.getByRole('button', { name: 'Sign out', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Sign in with GitHub' })).toBeVisible()
   await expect.poll(() => stack.state.closedConnections).toBe(stack.state.connections)

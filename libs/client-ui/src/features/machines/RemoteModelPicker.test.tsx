@@ -117,7 +117,7 @@ it.each([
   const root = createRoot(container)
   function Harness({ id }: { id: string }) {
     const selection = useRemoteModel(id)
-    // The dialog presentation; the expanded chips are RemoteModelPicker.expanded.test.tsx.
+    // A phone gets the same chips as every width (RemoteModelPicker.phone.test.tsx).
     return (
       <PlatformProvider value={COMPACT_PLATFORM}>
         <RemoteModelPicker selection={selection} />
@@ -129,7 +129,9 @@ it.each([
       await act(async () => root.render(<Harness id={id} />))
       expect(container.textContent).toContain(`Model for ${id}`)
       expect(container.textContent).not.toContain(`Model for ${id === 'a' ? 'b' : 'a'}`)
-      expect(container.querySelector('[aria-label=Thinking]') !== null).toBe(id === 'a')
+      expect(container.querySelector('[data-testid=remote-thinking-picker]') !== null).toBe(
+        id === 'a',
+      )
     }
   } finally {
     act(() => root.unmount())
@@ -192,20 +194,23 @@ it('uses the Mac thinking default, remembers per Host across remounts, and clamp
   const root = createRoot(container)
   try {
     await act(async () => root.render(<Harness id="a" />))
-    expect(container.querySelector('[aria-label=Model]')?.textContent).toBe('Reasoner')
-    expect(container.querySelector('[aria-label=Thinking]')?.textContent).toBe('high')
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label=Thinking]')!.click())
+    const thinking = '[data-testid=remote-thinking-picker]'
+    expect(container.querySelector('[data-testid=remote-model-picker]')?.textContent).toBe(
+      'Reasoner',
+    )
+    expect(container.querySelector(thinking)?.textContent).toBe('High')
+    act(() => container.querySelector<HTMLButtonElement>(thinking)!.click())
     act(() =>
-      [...document.querySelectorAll<HTMLButtonElement>('[role=option]')]
-        .find((b) => b.textContent === 'low')!
+      [...document.querySelectorAll<HTMLButtonElement>('[data-popup-menu] button')]
+        .find((b) => b.textContent === 'Low')!
         .click(),
     )
     await act(async () => root.render(<Harness id="b" />))
     expect(container.querySelector('output')?.textContent).toBe('off')
-    expect(container.querySelector('[aria-label=Thinking]')).toBeNull()
+    expect(container.querySelector(thinking)).toBeNull()
     await act(async () => root.render(null))
     await act(async () => root.render(<Harness id="a" />))
-    expect(container.querySelector('[aria-label=Thinking]')?.textContent).toBe('low')
+    expect(container.querySelector(thinking)?.textContent).toBe('Low')
     expect(useRemoteModelPicks.getState().thinking).toEqual({ a: 'low' })
     expect(invoke.mock.calls.every((args) => args[0] !== 'pi:patchAgentSettings')).toBe(true)
   } finally {

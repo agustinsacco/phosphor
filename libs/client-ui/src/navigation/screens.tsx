@@ -10,7 +10,6 @@ import {
   TerminalIcon,
   SidebarToggleIcon,
   PlusIcon,
-  WarningIcon,
 } from '@/components/icons'
 import { lazy, Suspense, type ComponentType } from 'react'
 import type { GlobalPage } from '@/stores/layout'
@@ -46,7 +45,6 @@ export const SCREENS = {
     expanded: 'sidebar',
     compact: 'page',
   },
-  inbox: { title: 'Inbox', icon: WarningIcon, scope: 'both', expanded: 'modal', compact: 'page' },
   new: { title: 'New', icon: PlusIcon, scope: 'both', expanded: 'home', compact: 'page' },
   machines: {
     icon: MachinesIcon,
@@ -116,7 +114,7 @@ export const SCREENS = {
     expanded: 'pane',
     compact: 'pane',
   },
-} satisfies Record<Page | LanePane | 'lanes' | 'new' | 'inbox', Screen>
+} satisfies Record<Page | LanePane | 'lanes' | 'new', Screen>
 
 export function GlobalScreen({
   page,

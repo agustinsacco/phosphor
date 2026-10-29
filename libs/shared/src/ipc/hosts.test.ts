@@ -123,6 +123,10 @@ export interface BaselineHostsInvokeMap {
 
   'hosts:removeRepository': { args: [hostId: string, repositoryId: string]; result: void }
   'hosts:orderRepositories': { args: [hostId: string, repositoryIds: string[]]; result: void }
+  'hosts:setLaneMarks': {
+    args: [hostId: string, laneId: string, marks: { pinned?: boolean; marker?: string | null }]
+    result: void
+  }
 
   'hosts:releaseControl': { args: [hostId: string, laneId: string]; result: void }
 }

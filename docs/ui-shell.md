@@ -38,7 +38,8 @@ the app document, not to artifact iframe contents.
 One **full-width bar** (`libs/client-ui/src/app/TopBar.tsx`) above the sidebar, chat and
 pane columns: sidebar toggle, workspace chip, branch control
 ([worktrees.md](worktrees.md)), session title, the pane switches (terminal,
-files, changes, artifacts, subagents) and the session kebab. The terminal switch carries a
+files, changes, artifacts, subagents) and the Session options button, on local
+and Host lanes alike. The terminal switch carries a
 tab count and a running-process dot; the artifacts switch appears once the
 session has an artifact, with a count and an unseen dot.
 
@@ -66,7 +67,20 @@ screen.
 
 ## Left sidebar (Claude Desktop style)
 
-Signed-in windows show a lane scope control beneath the main navigation: a
+The sidebar's top rows and footer are shared with the browser's navigation
+([web client](web-client.md#shared-pages-and-responsive-shells)).
+`features/sessions/SidebarNavigation.tsx` renders New, the global page links
+(Artifacts, Skills, Routines, Machines) and the machine scope; New goes through
+`useNavigation()` with the Host in scope, which on Desktop opens that Host's
+composer, or home under This Mac and All machines. `SidebarFooter` renders the
+update notice (where `appInfo` allows native updates) and the account footer,
+whose Settings gear and menu entry call `navigate({ to: 'page', page: 'settings' })`;
+Desktop maps that to the Settings dialog. The shell supplies only what a page
+link does (Desktop toggles the page; Machines opens its list) and where a chosen
+scope goes (Desktop: `useRemoteLanesStore.filter`).
+
+Signed-in windows show a lane scope control beneath the main navigation
+(`MachineSwitcher`, the only machine-scope control on either client): a
 divider, a “Lanes on” caption and a bordered field with the selected machine's
 status dot, name and state in words (“Idle”, “2 running”, reachability). It is
 a picker, not a nav row, so it never uses the Machines page icon. Each window
@@ -219,8 +233,9 @@ Signed-out windows have no machine switcher or remote groups.
   it offers optional GitHub sign-in and Settings. Signing in shows browser
   progress and Cancel. The gear opens Settings directly. Keyboard navigation,
   Escape and outside-click dismissal return focus to the row. No token reaches
-  this UI ([settings.md](settings.md#phosphor-account)). Send feedback lives
-  in the Settings footer ([feedback.md](feedback.md)).
+  this UI ([settings.md](settings.md#phosphor-account)); Settings → Phosphor
+  account shows the same profile and Sign out. Send feedback lives in the
+  Settings footer ([feedback.md](feedback.md)).
 - Collapsible (Cmd/Ctrl+B), width-draggable.
 
 ## Pane system
@@ -359,6 +374,44 @@ Escape dismisses a visible hint before its menu/modal or a running turn, through
 the existing depth-aware Escape coordinator. Hints contain no interactive content.
 The visual recipe lives in [style-guide.md](style-guide.md#action-hints).
 
+## Menus
+
+`components/ContextMenu.tsx` owns item menus. `ContextMenuHost` is mounted once per
+shell; `showContextMenu`, `showContextMenuAt` and `showMenuBelow` open it and take an
+optional `{ title }` naming what the menu acts on.
+
+An element that has a menu spreads `useMenuTriggers(items, { title, disabled })`
+onto itself, which opens the menu three ways:
+
+- **Right-click** opens it at the pointer.
+- **Keyboard**: the ContextMenu key or Shift+F10 opens it below the element. Text
+  fields inside the element keep those keys.
+- **Long-press**: holding a touch or pen pointer for 480ms opens it at the press
+  point and asks for one 10ms vibration where the browser has the Vibration API
+  (iOS has none, so it stays silent). Moving more than 10px, `pointercancel`,
+  release or a scroll cancels the hold, so rows still pan. A mouse hold never
+  opens it. The click that follows a long-press is swallowed, on the element and
+  on the menu that opened under the finger, so the row does not also open.
+  Android Chrome's own long-press `contextmenu` is deduplicated: whichever comes
+  first opens the one menu and the one vibration.
+
+`disabled` opens nothing and lets every event through. Elements with a menu carry
+`data-menu-trigger`, which turns off the iOS callout and text selection on hold.
+The hook's handlers compose with the element's own: `onClick` needs nothing, and a
+caller with its own `onKeyDown` calls the hook's first and skips its own when the
+event's default was prevented. Desktop's local lane rows, live-only rows and
+workspace group headers use it, and so does the Host lane row on every surface,
+in Desktop and the browser ([Lanes](lanes.md#remote-lanes)).
+
+On an expanded form factor the menu is a popover clamped inside the window, with
+hints and shortcuts as muted text and tooltips. A label never gives way to its hint:
+a long hint, such as a disabled row's reason, wraps beside it. Escape, an outside
+press or window blur closes it. On a compact form factor (a phone) the same items render as a bottom
+action sheet (`components/ActionSheet.tsx`): the title as its head, each hint as
+visible text under its label (a disabled row's hint is its reason), danger rows in
+red, separators as gaps between groups, and a Cancel row. Backdrop tap and Escape
+close it; focus moves into the sheet and returns to the element on close.
+
 ## Global surfaces
 
 - **Global pages** — Artifacts, Skills, and Routines (sidebar rows). Full-main-region
@@ -486,7 +539,8 @@ selection (All machines uses This Mac), with a user override until the next
 sidebar change. Remote creation uses that machine's configured repositories and
 provider catalogue, never a local fallback.
 
-The Host home composer uses that machine's folder, model and thinking choices.
+The Host home composer is This Mac's composer over that machine's folder, model
+and thinking choices.
 [Remote creation](remote-desktop.md#machine-context-and-lane-creation) owns isolation,
 branch collisions and window-local thinking memory.
 
@@ -502,10 +556,11 @@ zero. Offline and account errors are explicit and offer retry.
 
 A Host's detail has one **Back to machines** breadcrumb, then a compact identity
 header (label with Rename, the status pill and a **Machine actions** menu containing
-Reconnect and Check again), followed by **Overview / Settings** navigation. Add a
+Reconnect and Check again), followed by **Overview / Settings / Machine files** navigation (Machine files opens
+the Host's home folder read-only in a dialog). Add a
 machine and debug actions belong to the list, not a selected Host. The same header
 and responsive container run in Desktop and the browser; the browser does not gain
-native settings by getting wider. Long machine names occupy at most two visual
+This Mac's settings by getting wider. Long machine names occupy at most two visual
 lines; the heading retains the full text and long names expose the app's focusable
 hint. Overview has cards in two columns: Readiness and On this machine on the
 left, Providers and Details on the right. Readiness opens with a Connection row
@@ -527,6 +582,7 @@ outdated, Claude Code missing, signed out); older Hosts keep the single status.
 Providers lists the connected Host's providers, signed-in first. Not signed in
 is neutral, not a warning, because most people use one or two. Supporting Hosts
 link to **Settings → Providers**, rather than duplicating authentication controls.
+The same sections open from Settings → Configure → \<Host\>. The Machines page's
 Settings has its own target banner, explicit configuration-access request and
 Providers, Connectors, Agent defaults, Folders, Skills & extensions and Advanced
 sections. [The settings contract](settings.md#host-machine-settings) owns their

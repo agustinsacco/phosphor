@@ -62,14 +62,14 @@ export function BehaviorToggle({
   change(value: boolean): void
 }): React.JSX.Element {
   return (
-    <label className="flex items-center justify-between gap-3 text-base">
+    <label className="flex flex-wrap items-center justify-between gap-3 text-base">
       <span>{title}</span>
       <select
         aria-label={title}
         value={value === undefined ? '' : String(value)}
         disabled={busy}
         onChange={(e) => change(e.target.value === 'true')}
-        className="border-border bg-bg rounded-md border p-2"
+        className="border-border bg-bg max-w-full rounded-md border p-2"
       >
         <option value="" disabled>
           Inherited / pi default
@@ -93,14 +93,14 @@ export function BehaviorDelivery({
 }): React.JSX.Element {
   const title = type === 'steeringMode' ? 'Steering delivery' : 'Follow-up delivery'
   return (
-    <label className="flex items-center justify-between gap-3 text-base">
+    <label className="flex flex-wrap items-center justify-between gap-3 text-base">
       <span>{title}</span>
       <select
         aria-label={title}
         disabled={busy}
         value={value ?? ''}
         onChange={(e) => change(e.target.value as 'all' | 'one-at-a-time')}
-        className="border-border bg-bg rounded-md border p-2"
+        className="border-border bg-bg max-w-full rounded-md border p-2"
       >
         <option value="" disabled>
           Inherited / pi default

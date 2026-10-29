@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/form'
 import { WaitingNote, WaitingPane } from '@/components/Waiting'
 import { PlusIcon, SidebarToggleIcon } from '@/components/icons'
@@ -20,6 +20,10 @@ export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Eleme
   const compact = usePlatform().formFactor === 'compact'
   const [drawer, setDrawer] = useState(false)
   const machine = locationMachine(location)
+  // A route opened through a store (the account menu's Machines, a lane menu) closes the
+  // phone drawer too; a machine scope change alone keeps it open.
+  const route = JSON.stringify({ ...location, machine: undefined })
+  useEffect(() => setDrawer(false), [route])
   return (
     <div className="compact-shell browser-shell" data-testid="compact-shell">
       {!compact && <BrowserNavigation machine={machine} onClose={() => setDrawer(false)} />}
@@ -49,7 +53,6 @@ function BrowserHeader({
 }): React.JSX.Element {
   const { location, navigate } = useNavigation()
   const compact = usePlatform().formFactor === 'compact'
-  const machines = useMachinesStore((s) => s.machines)
   const title = useRemoteLanesStore((s) =>
     location.to === 'lane' && 'hostId' in location.lane
       ? s.hosts[location.lane.hostId]?.lanes.find(
@@ -70,28 +73,6 @@ function BrowserHeader({
         </Button>
       )}
       <strong>{title}</strong>
-      <select
-        aria-label="Machine filter"
-        value={machine ?? ''}
-        onChange={(event) => {
-          const selected = event.target.value || undefined
-          navigate(
-            location.to === 'lane' || location.to === 'unavailable'
-              ? { to: 'lanes', machine: selected }
-              : { ...location, machine: selected },
-          )
-        }}
-      >
-        <option value="">All machines</option>
-        {machine && !machines.some((item) => item.id === machine) && (
-          <option value={machine}>Unavailable machine</option>
-        )}
-        {machines.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.label}
-          </option>
-        ))}
-      </select>
       <Button aria-label="New lane" onClick={() => navigate({ to: 'new', machine })}>
         <PlusIcon size={17} />
       </Button>
@@ -144,7 +125,7 @@ function BrowserScreen({
         This link is unavailable. Open Lanes or Machines to continue.
       </p>
     )
-  return <CompactLanes machine={machine} inbox={location.to === 'inbox'} />
+  return <CompactLanes machine={machine} />
 }
 
 function ChooseMachine(): React.JSX.Element {

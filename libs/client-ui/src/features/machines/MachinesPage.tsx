@@ -17,6 +17,7 @@ import { MachinesPageActions } from './MachinesPageActions'
 import { LocalMachineDetail, useThisComputer } from './LocalMachine'
 import { HostGuide, HostSetup } from './MachineControls'
 import { MachineDetail } from './MachineDetail'
+import { MachineFilesButton } from './MachineFilesButton'
 import { MachineSettings } from './MachineSettings'
 import { confirmSettingsNavigation } from './machineSettingsDrafts'
 import { MachineList } from './MachineList'
@@ -256,6 +257,7 @@ export function MachinesPage(): React.JSX.Element {
                   >
                     Settings
                   </TooltipButton>
+                  <MachineFilesButton machine={machine} />
                 </nav>
               }
               settings={

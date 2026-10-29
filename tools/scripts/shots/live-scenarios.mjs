@@ -51,7 +51,7 @@ async function runEditSession({ page, homeComposer }, PROVIDER_EDIT, MODEL_EDIT,
   await page.getByRole('checkbox', { name: 'new branch' }).check()
   await pickHomeModel(page, PROVIDER_EDIT, MODEL_EDIT)
   await homeComposer.fill(TASK_EDIT)
-  await page.getByRole('button', { name: /Start session/i }).click()
+  await page.getByRole('button', { name: /Start lane/i }).click()
   console.log('edit session: running…')
   await runTurn(page)
 }
@@ -114,7 +114,7 @@ async function runArtifactSession(
   await page.getByRole('checkbox', { name: 'new branch' }).uncheck()
   await pickHomeModel(page, PROVIDER_ARTIFACT, MODEL_ARTIFACT)
   await homeComposer.fill(TASK_ARTIFACT)
-  await page.getByRole('button', { name: /Start session/i }).click()
+  await page.getByRole('button', { name: /Start lane/i }).click()
   console.log('artifact session: running…')
   await runTurn(page)
 

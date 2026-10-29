@@ -195,6 +195,48 @@ async function controllerReconnect(
   })
 }
 
+async function laneMarks(
+  { h, lacks, flush, expect, auth, create, command, events }: ConformanceKit,
+  t: TestContext,
+) {
+  if (lacks('sessions.read', 'sessions.control'))
+    t.skip('requires sessions.read and sessions.control')
+  const a = await auth(),
+    laneId = await create(a),
+    b = await auth({ client: otherClient })
+  b.send({ type: 'subscribe', id: 'all', topic: 'lanes' })
+  b.send({ type: 'subscribe', id: 'lane', topic: 'lane', laneId })
+  await flush()
+  const upserted = () =>
+    b.frames.findLast((f) => f.type === 'lanes-delta' && f.upsert.some((l) => l.laneId === laneId))
+  expect(
+    await command(b, laneId, { type: 'lane.marks', pinned: true, marker: '🦊' }, 99),
+  ).toMatchObject({ status: 'done' })
+  expect(upserted()).toMatchObject({
+    upsert: [
+      {
+        laneId,
+        pinned: true,
+        marker: '🦊',
+        control: { fence: 1, controller: { clientId: h.claims.client.id } },
+      },
+    ],
+  })
+  expect(events(b).some((e) => e.event.kind === 'control')).toBe(false)
+  expect(await command(a, laneId, { type: 'lane.stop' })).toMatchObject({ status: 'done' })
+  expect(await command(b, laneId, { type: 'lane.marks', marker: null })).toMatchObject({
+    status: 'done',
+  })
+  const cleared = upserted()
+  expect(cleared?.type === 'lanes-delta' && cleared.upsert[0]).toMatchObject({ pinned: true })
+  expect(cleared?.type === 'lanes-delta' && cleared.upsert[0]).not.toHaveProperty('marker')
+  const viewer = await auth({ client: otherClient, caps: ['sessions.read'] })
+  expect(await command(viewer, laneId, { type: 'lane.marks', pinned: false })).toMatchObject({
+    status: 'rejected',
+    code: 'forbidden',
+  })
+}
+
 /** Control capability, takeover fences, dialogs, stop/resume and controller presence, in registration order. */
 export const controlScenarios = {
   capabilityAndCalls: scenario(
@@ -216,5 +258,9 @@ export const controlScenarios = {
   controllerReconnect: scenario(
     'keeps controller ownership across disconnect and reconnect without changing its fence',
     controllerReconnect,
+  ),
+  laneMarks: scenario(
+    'sets pins and markers from any controlling client, unfenced and on a stopped lane, and publishes them',
+    laneMarks,
   ),
 }

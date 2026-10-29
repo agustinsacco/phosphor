@@ -29,7 +29,10 @@ The composer is one small field with several ways in.
   popover) and, for a provider pi does not ship, its name in mono. The strip
   also holds the `/ @ !` cheat sheet while the field is empty, and is the line
   a draft starting with `!` takes over to explain itself. The home composer
-  has the same shape, with only the rules and connectors in its strip.
+  has the same shape, with only the rules and connectors in its strip. It is
+  one component for This Mac and every Host (`features/home/StartComposer.tsx`,
+  [remote creation](remote-desktop.md#machine-context-and-lane-creation)); a
+  target offers only what it has before a lane exists.
 - **Continue:** a compact play icon immediately left of Send, behind a
   hairline so the two never read as one slot, sends the literal message
   `continue`, without sending or clearing the draft or attachments. It is the
@@ -773,7 +776,10 @@ session's ⋮ menu is in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
 - **Model picker** (from `get_available_models`), grouped by **family** by
   default so every route to one model sits under one header, toggleable to
   provider grouping, with `provider:`/`id:`/`name:`/`is:` search qualifiers,
-  starred and recent rows. Custom and local providers are listed too.
+  starred and recent rows. Custom and local providers are listed too. A model
+  that cannot run is listed dimmed and unselectable with its reason; on a Host
+  that is the same rule its new-lane picker applies
+  ([remote creation](remote-desktop.md#machine-context-and-lane-creation)).
 - **Thinking-level selector**: pi has **seven** levels, `off` → `max`. Which
   ones a model offers is per model: a non-reasoning model has only `off`,
   `xhigh`/`max` are opt-in. A live session asks pi
@@ -801,10 +807,20 @@ session's ⋮ menu is in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
   and shows catalogue capacity separately from the effective session window.
   Live window changes come from the context extension between stats polls.
 - **Stop** (`abort`) is the send button while a turn runs. Everything else is
-  in the ⋮ menu: Export HTML…, Compact now… (optional custom instructions),
-  auto-compaction, auto-retry, and the two queue-mode rows (Steering /
-  Follow-ups, "All at once" / "One at a time", cycled in place). Toggles keep
-  the menu open. Renaming is `/name` or the sidebar row.
+  in **Session options** (the ⋮ button): Export HTML…, Compact now… (optional
+  custom instructions), Auto-compaction, Auto-retry, and the two queue modes
+  (Steering, Follow-ups). Each toggle or mode shows its current value as the
+  row's hint ("on", "one at a time"); choosing it sends the other value and
+  closes the menu. One builder (`features/chat/sessionMenuItems.ts`) makes the
+  list for every surface: Desktop's top bar, the end of the wide browser's
+  lane tabs, and the phone lane sheet's Session group. It opens with
+  `showMenuBelow`, so it is a popover on wide screens and the action sheet on
+  phones. On a Host lane the commands go through `piCall` to the lane's pi and
+  need control: a reader sees them disabled with "Take control first." (the
+  shared lane actions' rule), and a Host that is not connected or does not
+  offer control says so instead. Export HTML is disabled on Host lanes ("Not
+  available on remote lanes yet."), because pi would write the file on the
+  Host. Renaming is `/name` or the sidebar row.
 
 ### Streaming text is paced, not rendered per delta
 

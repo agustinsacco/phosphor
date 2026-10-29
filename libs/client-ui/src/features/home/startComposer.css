@@ -1,0 +1,34 @@
+.start-composer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
+.start-composer-targets {
+  min-width: 0;
+}
+
+.start-composer-targets > * {
+  max-width: 100%;
+}
+
+.start-composer-host {
+  color: var(--px-text-secondary);
+  overflow-wrap: anywhere;
+  padding-inline: 0.5rem;
+}
+
+.start-composer-note {
+  margin-top: 0.5rem;
+  padding-inline: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .start-composer-targets > :nth-child(2) {
+    flex: 1 1 50%;
+  }
+}

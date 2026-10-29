@@ -31,16 +31,14 @@ function host(writable: boolean) {
   return view
 }
 
-async function render(inbox = false) {
+async function render() {
   const element = document.createElement('div')
   document.body.append(element)
   const root = createRoot(element)
   await act(async () =>
     root.render(
-      <NavigationProvider
-        value={{ location: { to: inbox ? 'inbox' : 'lanes' }, navigate: vi.fn() }}
-      >
-        <CompactLanes inbox={inbox} />
+      <NavigationProvider value={{ location: { to: 'lanes' }, navigate: vi.fn() }}>
+        <CompactLanes />
       </NavigationProvider>,
     ),
   )
@@ -62,7 +60,7 @@ it('offers the Host folder menu in the browser: add, remove and move through the
   useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host(true) }, snapshotStatus: 'ready' })
   await using view = await render()
   const options = view.element.querySelector<HTMLButtonElement>(
-    '[aria-label="Folder options for Demo repository"]',
+    '[aria-label="Workspace options for Demo repository"]',
   )!
   act(() => options.click())
   expect(button('Add folder on')?.disabled).toBe(false)
@@ -90,22 +88,16 @@ it('lists a folder with no lanes, so it can still be managed', async () => {
   await using rendered = await render()
   expect(rendered.element.textContent).toContain('Second repository')
   expect(
-    rendered.element.querySelector('[aria-label="Folder options for Second repository"]'),
+    rendered.element.querySelector('[aria-label="Workspace options for Second repository"]'),
   ).not.toBeNull()
 })
 
-it('keeps the folder menu out of the Inbox and the moves off without workspaces.write', async () => {
-  const view = host(false)
-  view.lanes = [{ ...view.lanes[0]!, attention: 2, read: 1 }]
-  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: view }, snapshotStatus: 'ready' })
-  {
-    await using inbox = await render(true)
-    expect(inbox.element.querySelector('[aria-label^="Folder options"]')).toBeNull()
-  }
+it('keeps the folder rows off without workspaces.write', async () => {
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host(false) }, snapshotStatus: 'ready' })
   await using lanes = await render()
   act(() =>
     lanes.element
-      .querySelector<HTMLButtonElement>('[aria-label="Folder options for Demo repository"]')!
+      .querySelector<HTMLButtonElement>('[aria-label="Workspace options for Demo repository"]')!
       .click(),
   )
   for (const text of ['Add folder on', 'Remove from', 'Move up', 'Move down'])

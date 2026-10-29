@@ -6,6 +6,9 @@ import type { AccountView } from '@shared/account'
 import { AccountAvatar, AccountFooter, avatarInitials } from './AccountFooter'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useMachinesStore } from '@/stores/machines'
+import { NavigationProvider } from '@/navigation/Navigation'
+import type { Location } from '@/navigation/location'
+import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 
 let root: Root
 let container: HTMLDivElement
@@ -136,4 +139,54 @@ it('uses deterministic initials and colour on missing or failed images, never a 
   act(() => container.querySelector('img')?.dispatchEvent(new Event('error')))
   expect(container.textContent).toBe('OC')
   expect(container.firstElementChild?.className).toBe(colour)
+})
+
+it('opens Settings through the shell navigation with the current machine', async () => {
+  account = { account: { status: 'signed-in', user, remembered: true } }
+  const navigate = vi.fn<(next: Location) => void>()
+  const location: Location = { to: 'lanes', machine: 'host-a' }
+  await act(async () =>
+    root.render(
+      <NavigationProvider value={{ location, navigate }}>
+        <AccountFooter />
+      </NavigationProvider>,
+    ),
+  )
+  await click('Settings')
+  expect(navigate).toHaveBeenLastCalledWith({ to: 'page', page: 'settings', machine: 'host-a' })
+  await click('Your account')
+  await click('Settings')
+  expect(navigate).toHaveBeenCalledTimes(2)
+  expect(useSettingsUiStore.getState().open).toBe(false)
+})
+it('offers no Cancel for a sign-in the client cannot cancel', async () => {
+  account = { account: { status: 'signing-in' } }
+  await act(async () =>
+    root.render(
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <AccountFooter />
+      </PlatformProvider>,
+    ),
+  )
+  expect(container.textContent).toContain('Finish in your browser')
+  expect(
+    Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Cancel'),
+  ).toBe(false)
+})
+it('advertises the Settings shortcut only where the app shortcuts are installed', async () => {
+  await act(async () =>
+    root.render(
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <AccountFooter />
+      </PlatformProvider>,
+    ),
+  )
+  expect(button('Settings').getAttribute('aria-description')).toBeNull()
+  expect(button('Settings').getAttribute('data-tooltip')).toBe('Settings')
+  await click('Sign in')
+  expect(
+    Array.from(document.querySelectorAll('[data-popup-menu] button')).find((b) =>
+      b.textContent?.startsWith('Settings'),
+    )?.textContent,
+  ).toBe('Settings ')
 })

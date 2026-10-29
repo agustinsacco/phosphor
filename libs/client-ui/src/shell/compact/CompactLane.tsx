@@ -10,10 +10,12 @@ import {
   useRemoteLanesStore,
 } from '@/stores/remoteLanes'
 import { ChatView } from '@/features/chat/ChatView'
+import { SessionMenu } from '@/features/chat/SessionMenu'
 import { ReadOnlyFilesPane } from '@/features/files/ReadOnlyFilesPane'
 import { SCREENS } from '@/navigation/screens'
 import { usePlatform } from '@/platform/Platform'
-import { COMPACT_LANE_PANES, useRemoteLaneSession } from './CompactLaneHeader'
+import { COMPACT_LANE_PANES } from './CompactLaneHeader'
+import { useRemoteLaneSession } from '@/features/sessions/useRemoteLaneActions'
 import type { Location } from '@/navigation/location'
 const TerminalPane = lazy(() =>
   import('@/features/terminal/TerminalPane').then((m) => ({ default: m.TerminalPane })),
@@ -109,7 +111,8 @@ function LanePanes({
 }): React.JSX.Element {
   const pane = location.pane ?? 'chat'
   const placement = SCREENS[pane].compact
-  // A phone switches panes from the lane menu in its header (CompactLaneHeader).
+  // A phone switches panes from the lane menu in its header (CompactLaneHeader), which
+  // also carries the lane's controls; wider browsers keep tabs and Desktop's control row.
   const tabs = usePlatform().formFactor !== 'compact'
   const terminal = useRemoteLanesStore(
     (s) =>
@@ -129,6 +132,7 @@ function LanePanes({
               {SCREENS[id].title}
             </TooltipButton>
           ))}
+          <SessionMenu sessionId={session.phosphorId} className="compact-lane-options" />
         </nav>
       )}
       <div className="min-h-0 flex-1">
@@ -146,6 +150,7 @@ function LanePanes({
               key={session.phosphorId}
               sessionId={session.phosphorId}
               workspacePath={session.workspacePath}
+              laneControls={tabs ? 'row' : 'header'}
             />
           ) : pane === 'files' || pane === 'changes' ? (
             <ReadOnlyFilesPane

@@ -22,7 +22,7 @@ export async function startSession(state) {
   // branch (unticked so no worktree chrome lands in the shots).
   await page.getByRole('checkbox', { name: 'new branch' }).uncheck()
   await homeComposer.fill(TASK)
-  await page.getByRole('button', { name: /Start session/i }).click()
+  await page.getByRole('button', { name: /Start lane/i }).click()
   await page.getByText(/Done:\s*hello\.ts\s*updated\./).waitFor({ timeout: 60_000 })
 
   // Auto-naming hands the stub's fixed title back, which reads like a bug in
@@ -120,7 +120,7 @@ export async function captureArtifacts(state) {
   await page.getByRole('checkbox', { name: 'new branch' }).uncheck()
   // `longartifact` is the phrase the e2e pi stub branches on.
   await homeComposer.fill('write a longartifact please')
-  await page.getByRole('button', { name: /Start session/i }).click()
+  await page.getByRole('button', { name: /Start lane/i }).click()
   const artifactScroll = page.getByTestId('artifact-scroll')
   await artifactScroll.waitFor({ timeout: 60_000 })
   await artifactScroll.evaluate((el) => (el.scrollTop = 260))
@@ -147,7 +147,7 @@ export async function captureSubagents(state) {
   await homeComposer.waitFor({ timeout: 20_000 })
   await page.getByRole('checkbox', { name: 'new branch' }).uncheck()
   await homeComposer.fill('Fix the token refresh bug, split the work in parallel')
-  await page.getByRole('button', { name: /Start session/i }).click()
+  await page.getByRole('button', { name: /Start lane/i }).click()
   const workflow = page.getByRole('button', { name: /Running workflow/ })
   await workflow.waitFor({ timeout: 60_000 })
   const parallelRow = page.getByTestId('session-row').first()

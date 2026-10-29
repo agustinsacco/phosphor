@@ -11,7 +11,7 @@ export const PAGES = ['machines', 'routines', 'skills', 'artifacts', 'settings']
 export type Page = (typeof PAGES)[number]
 export type LaneKey = { hostId: string; laneId: string } | { sessionId: string }
 export type Location =
-  | { to: 'lanes' | 'new' | 'inbox'; machine?: string }
+  | { to: 'lanes' | 'new'; machine?: string }
   | { to: 'lane'; lane: LaneKey; pane?: LanePane }
   | { to: 'page'; page: Page; machine?: string }
   | { to: 'unavailable' }
@@ -46,10 +46,11 @@ export function decodeLocation(pathname: string): Location {
     if (hostId && laneId && LANE_PANES.includes(pane as LanePane))
       return { to: 'lane', lane: { hostId, laneId }, pane: pane as LanePane }
   }
-  if (['lanes', 'new', 'inbox'].includes(parts[0] ?? '') && parts.length <= 2) {
+  // The browser once had an Inbox. Neither client has one, so an old link opens the lane list.
+  const list = parts[0] === 'inbox' ? 'lanes' : parts[0]
+  if ((list === 'lanes' || list === 'new') && parts.length <= 2) {
     const machine = id(parts[1])
-    if (parts.length === 1 || machine)
-      return { to: parts[0] as 'lanes' | 'new' | 'inbox', ...(machine ? { machine } : {}) }
+    if (parts.length === 1 || machine) return { to: list, ...(machine ? { machine } : {}) }
   }
   if (parts[0] === 'pages' && PAGES.includes(parts[1] as Page) && parts.length <= 3) {
     const machine = id(parts[2])

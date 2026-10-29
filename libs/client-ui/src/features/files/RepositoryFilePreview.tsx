@@ -1,32 +1,30 @@
-import { Button } from '@/components/form'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { MonacoEditor } from './MonacoEditor'
 import { languageForPath } from '@/lib/monaco'
 
-/** Width chooses arrangement; platform capabilities choose the preview implementation. */
+/** The caller arranges it (`ListDetail`); platform capabilities choose the preview implementation. */
 export function RepositoryFilePreview({
-  compact,
+  back,
   nativeEditor,
   path,
   resourcePath,
   preview,
   reading,
   binary,
-  onBack,
 }: {
-  compact: boolean
+  /** The way back to the file list, where the layout gives one. */
+  back?: React.ReactNode
   nativeEditor: boolean
   path: string
   resourcePath: string
   preview: string
   reading: boolean
   binary: boolean
-  onBack: () => void
 }): React.JSX.Element {
   if (!nativeEditor && path)
     return (
       <div className="h-full overflow-auto">
-        {compact && <Button onClick={onBack}>← Files</Button>}
+        {back}
         {reading ? (
           <p role="status">Reading file…</p>
         ) : binary ? (

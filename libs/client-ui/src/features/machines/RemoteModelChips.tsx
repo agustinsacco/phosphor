@@ -6,7 +6,7 @@ import { ModelChip, ThinkingChip } from '@/features/chat/composer/ModelChip'
 import type { useRemoteModel } from './useRemoteModel'
 
 /**
- * The Host start page's model and thinking chips at expanded width.
+ * The Host start page's model and thinking chips, at every width.
  *
  * The same split chip and searchable `ModelMenu` as This Mac's home and every
  * lane composer, so starting a lane on a Host looks like starting one here.
@@ -61,6 +61,7 @@ export function RemoteModelChips({
           }}
           onClose={() => setOpen(null)}
           emptyText={selection.hint}
+          unavailable={selection.unavailable}
           className="w-[30rem] max-w-[92vw]"
         />
       )}

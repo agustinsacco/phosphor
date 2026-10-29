@@ -361,6 +361,7 @@ describe('Host API constants and op lists', () => {
       'host.repositories.remove',
       'host.repositories.createFolder',
       'host.repositories.order',
+      'lane.marks',
     ])
   })
 

@@ -232,6 +232,15 @@ export function createBrowserHosts(ports: HostPorts) {
     reconcile,
     clear,
     connection: (id: string) => entries.get(id)?.connection,
+    grantFor(id: string): Promise<GrantIssueResponse> {
+      const entry = entries.get(id)
+      return entry ? grant(entry.machine) : Promise.reject(new Error('grant-refused'))
+    },
+    /** Drops the cached and in-flight grant only; the open connection keeps its admission. */
+    forgetGrant(id: string) {
+      grants.delete(id)
+      flights.delete(id)
+    },
     present: (id: string) => entries.has(id),
     label: (id: string) => entries.get(id)?.machine.label ?? 'Host',
     /**

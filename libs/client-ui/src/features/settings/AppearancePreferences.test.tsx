@@ -10,6 +10,7 @@ import {
 import { AppearanceTab } from './tabs/AppearanceTab'
 import { CompactSettings } from '@/shell/compact/CompactSettings'
 import { useSettingsStore } from '@/stores/settings'
+import { useSettingsUiStore } from './settingsUiStore'
 import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 import { NavigationProvider } from '@/navigation/Navigation'
 
@@ -19,7 +20,7 @@ vi.hoisted(() =>
     value: () => ({ matches: false, addEventListener: () => {} }),
   }),
 )
-vi.mock('@/features/files/MachineFilesPane', () => ({ MachineFilesPane: () => null }))
+vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 let root: Root
 let container: HTMLDivElement
 let fake: ReturnType<typeof createFakePhosphor>
@@ -29,6 +30,8 @@ const navigate = vi.fn()
 const signOut = vi.fn<() => Promise<AccountView>>()
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  Element.prototype.scrollTo = vi.fn()
+  useSettingsUiStore.setState({ tab: 'appearance' })
   theme.mockReset()
   navigate.mockReset()
   signOut
@@ -39,6 +42,13 @@ beforeEach(() => {
     'app:setTheme': theme,
     'app:setFontPrefs': () => {},
     'account:signOut': signOut,
+    'account:get': () => ({
+      account: {
+        status: 'signed-in',
+        user: { name: 'Ada', login: 'ada', email: null },
+        remembered: true,
+      },
+    }),
   })
   restore = installFakePhosphor(fake)
   useSettingsStore.setState({ theme: 'dark' })
@@ -81,12 +91,11 @@ it('Desktop appearance applies theme and exposes its font controls', async () =>
   expect(container.textContent).toContain('Chat font size')
   expect(container.textContent).toContain('Terminal font size')
 })
-it('browser settings keeps page links scoped and recovers sign-out after failure', async () => {
+it('browser settings recovers sign-out after failure', async () => {
   await compact()
-  await click('Skills')
-  expect(navigate).toHaveBeenCalledWith({ to: 'page', page: 'skills', machine: 'bee1' })
   await click('Light')
   expect(theme).toHaveBeenCalledWith('light')
+  await click('Phosphor account')
   await click('Sign out')
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('Could not sign out')
   await click('Sign out')
@@ -94,13 +103,14 @@ it('browser settings keeps page links scoped and recovers sign-out after failure
   expect(container.querySelector('[role="alert"]')).toBeNull()
 })
 
-it('browser appearance offers the shared font preferences without Desktop-only controls', async () => {
+it('browser appearance offers the font rows its capabilities support', async () => {
   await compact()
   expect(container.textContent).toContain('Chat font size')
   expect(container.querySelector('[aria-label="Mono font"]')).not.toBeNull()
   expect(container.textContent).not.toContain('UI scale')
-  expect(container.textContent).not.toContain('Editor font size')
-  expect(container.textContent).not.toContain('Terminal font size')
+  expect(container.textContent).toContain('Editor font size')
+  expect(container.textContent).toContain('Terminal font size')
+  expect(container.textContent).toContain('Font changes last until reload.')
 })
 
 it('wide browser preferences stay browser-safe and use the same font persistence as Desktop', async () => {
@@ -115,7 +125,6 @@ it('wide browser preferences stay browser-safe and use the same font persistence
     )
     expect(invoke).not.toHaveBeenCalled()
     expect(container.textContent).not.toContain('UI scale')
-    expect(container.textContent).not.toContain('Terminal font size')
     const select = container.querySelector<HTMLSelectElement>('[aria-label="Mono font"]')!
     await act(async () => {
       select.value = 'monospace'

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { loadSqlite } from '../sqlite'
 import { SCHEMA } from '../schema'
 import { StateFailure } from '../state-dir'
+import { LANE_MARKS_SCHEMA } from './marks'
 import { openStoreDatabase } from './open'
 
 let root: string
@@ -47,6 +48,7 @@ it('sets PRAGMAs, migrates once and recovers before pruning with the configured 
       'PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;',
       'migrate',
       SCHEMA,
+      LANE_MARKS_SCHEMA,
       'PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;',
       'interrupt',
       'prune:42',
@@ -62,6 +64,7 @@ it('sets PRAGMAs, migrates once and recovers before pruning with the configured 
   try {
     expect(events).toEqual([
       'PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;',
+      LANE_MARKS_SCHEMA,
       'PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;',
       'interrupt',
       'prune:43',

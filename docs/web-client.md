@@ -28,20 +28,89 @@ mounts. Sign-out warnings distinguish confirmed local logout, pending remote
 cleanup and unconfirmed network outcomes. A retry returning 401 does not prove
 remote cleanup completed or revoke previously issued grants immediately.
 
+### Configuration access and lane deletion
+
+A Host's machine settings (**Settings → Configure → \<Host\>**, or **Machines → a Host →
+Settings**) are the same shared sections as Desktop's. A signed-in
+browser page holds configuration authority for a Host only after an explicit
+per-page opt-in: **Enable configuration access**, confirmed in a dialog, calls
+`hosts:settingsAccess`. The adapter (`apps/web/src/platform/settings.ts`) then asks
+Control for that Host's grant with `configure: true`, checks that the signed grant
+carries it, and reconnects so the Host admits `machine.configure`. If Control does
+not sign it, the opt-in is rolled back and the existing lane access is unchanged.
+This is Desktop's flow, `enableConfigurationAccess` in
+`libs/host-client/src/settings.ts`, over the browser's grant cache.
+
+The opt-in lives only in the control client's memory (`apps/web/src/platform/control.ts`):
+it is never written to localStorage, IndexedDB or a cookie, and sign-out, an owner
+or client change, a refused cookie and `dispose()` (closing or reloading the page)
+clear it. Grants keep their five-minute lifetime and renew only while the page
+runs. `hosts:settingsRead`, `hosts:settingsPatch`, `hosts:settingsCheck` and
+`hosts:claudeAccount` use the shared `machineSettings` checks: each needs a ready
+connection holding `machine.configure` and goes only to that Host, never to
+Control, so a secret typed into a setting travels only over the verified Host
+connection. `hosts:machineTask` runs reviewed programs in the browser's Host
+terminals, as Desktop's `terminals.task` does. Nothing logs settings payloads.
+
+`hosts:deleteLane` uses the shared `repositoryManagement.deleteLane`, as Desktop
+does. The Host admits `lane.delete` only from the lane's controller, so a reader
+sees the lane menu's Delete disabled with “Take control first.” until it takes
+control.
+
+Threat note: a signed-in browser session can now configure a Host (change pi
+settings and connectors, install reviewed packages, move Claude accounts), but
+only after a person confirms the per-page opt-in, and with the same Host
+enforcement as Desktop. The Host's admission is unchanged: it grants
+`machine.configure` only for a signed `configure` grant, regardless of client
+kind, and drops it on an epoch change. A stolen cookie could already request a
+configure grant from Control; this change does not widen what Control signs.
+
 ## Shared pages and responsive shells
 
 Browser presentation switches at 900px: drawer navigation below that width,
-persistent sidebar above it. `Platform.formFactor` controls presentation only;
+persistent sidebar above it. Both hold one navigation body: the Phosphor
+brand, Desktop's sidebar top (`SidebarNavigation`: New, the global page links,
+then the **Lanes on** machine scope), the Host lane tree for
+that scope (`RemoteLanes`, the same component and density as Desktop's sidebar),
+Desktop's sidebar footer (`SidebarFooter`: the account menu and the Settings
+gear), **Install Phosphor** where `installableApp` allows it, and a short note.
+There is no Lanes link: the tree is in the navigation, and `/lanes` (the lane
+header's Back, deep links) renders the same list as a page. The browser offers
+the same pages as Desktop and no others: `SidebarNavigation` takes no shell
+rows, there is no Inbox, and an old `/inbox` link opens the lane list. A lane
+that needs you is marked on its row and in the machine scope, as on Desktop. The
+machine scope is the only machine control; the header has none. It offers each
+known Host and All machines, never This Mac (that needs `localLanes`), and lives
+in the URL, so a choice replaces the location's `machine` (from a lane, it opens
+that machine's lane list) and back, forward and deep links keep it. New opens
+the New page for the machine in scope, or asks for one under All machines. In
+the phone drawer, opening a page, a lane, New or Settings closes the drawer;
+choosing a machine keeps it open on that machine's lanes. The header keeps Back
+and New lane.
+`Platform.formFactor` controls presentation only, so only primitives
+(`components/`), `platform/` and the shells (`shell/`) read it; the
+`phosphor/form-factor-in-layout` lint rule refuses it in features, navigation and
+stores. A phone and a wide browser therefore get the same features, and every
+Desktop/browser difference is a capability listed in `platform/Platform.test.ts`.
+`platform/surfaceParity.characterization.test.tsx` checks that a Host lane's menu,
+its Session options and Settings match on Desktop, in a wide browser and on a
+phone. A shell passes layout down instead: the phone's lane header carries the
+lane's controls (`ChatView`'s `laneControls`), and a list beside its detail, such
+as Machine files, is the `ListDetail` primitive, one at a time on a phone.
 `localLanes`, `nativeFiles`, `fileEditing` and `splitPanes` remain false in the
 browser at every width. Modal/menu placement adapts without enabling native
 editors or pane controls. Desktop retains its native sidebar and local workbench.
 Below 900px a lane has one header bar: Back to its Host's lanes, then the lane
 title with "Host · controller" under it (and the pane, when not Chat). The title
-opens the lane menu, a bottom sheet that switches Chat, Files, Changes and
-Artifacts and holds Take/Release control, Stop/Resume and New lane on that Host.
+opens the lane menu, a bottom sheet (`ActionSheet`) that switches Chat, Files,
+Changes, Artifacts and Terminal, then the lane's Session options (the same
+list as Desktop's top bar, [chat](chat.md)), then its shared actions, the same
+list as every Host lane row's menu without Open (see below), then New lane on
+that Host. A confirmed action closes the sheet; a refusal stays to say why.
 There is no drawer button, machine filter or pane tab strip inside a lane. A
 reader sees a Take control bar where the composer would be. Wider browsers keep
-the pane tabs and the control row above the transcript.
+the pane tabs, which end with the Session options button, and the control row
+above the transcript.
 History and popstate encode Host/lane identifiers, not filesystem paths. Missing machines, unavailable
 capabilities and offline reads have explicit states; they never fall back to
 This computer. Reading a lane does not acquire control. The real Host-backed
@@ -56,51 +125,73 @@ before any lane creation/upload. The start screen's Repository menu offers Add
 folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
 and adds folders under the Host's home over the same Host connection
 (`hosts:listFolders`, `hosts:createFolder`, `hosts:addRepository`, through
-`libs/host-client/src/repository-management.ts`). On the Lanes page each of a
-Host's current folders is listed, lanes or not, with a Folder options menu:
-Add folder on MACHINE…, Remove from MACHINE, Move up and Move down
-(`hosts:removeRepository`, `hosts:orderRepositories`), the same rows as
-Desktop's sidebar, gated on readiness and `workspaces.write`. The Inbox, which
-lists only folders with unread lanes, has no folder menu. Host terminals work:
+`libs/host-client/src/repository-management.ts`). Host terminals work:
 lane shells and the Machine page's shell
-([terminal.md](terminal.md#machine-shells)), plus plain provider sign-in. File
-editing, provider installation, account configuration and native settings are
-unavailable. Attention is in-app
-only, not OS push.
+([terminal.md](terminal.md#machine-shells)), plus plain provider sign-in. Host
+machine settings, including provider installation and Claude accounts, work after
+[configuration access](#configuration-access-and-lane-deletion). File editing and
+This Mac's settings are unavailable. Attention is in-app only, not OS push. A Host's
+home folder opens read-only from **Machines → a Host → Machine files**.
 
 `PageShell` owns each page's single heading, actions and close behavior;
 `PageBody` supplies the shared width, gutters and scrolling for Machines,
-Artifacts, Skills, Routines and browser settings. `PageLinks`/`NavigationItem`
-supply the same global-page labels, order and row presentation in both sidebars.
-Only Desktop fills their `trailing` slot, with the Machines row's activity on
-machines outside the lane scope; the browser has no This computer and no lane
-scope control, so its rows carry none.
-Browser settings reuse Desktop's `AppearancePreferences` rows; the native-only
-settings sections remain separate. Lanes and remote Home use Desktop's repository
-grouping/order and row title, elapsed time, worktree/branch and activity indicators.
-Unread attention is not labelled as a request for input, and a stopped process is
-not presented as a task result. Lanes whose repository is absent from the current
-Host folders remain in explicit unavailable-folder groups in both clients, rather
-than being silently hidden. Browser rows navigate only; native curation stays native.
+Artifacts, Skills, Routines and Settings. `SidebarNavigation` (through
+`PageLinks`/`NavigationItem`) supplies the same New row, global-page labels,
+order, row presentation and Machines-row activity on machines outside the scope
+in both clients. The footer's Settings gear opens the Settings page for the
+machine in scope; the account menu offers Machines, Settings and Sign out. It
+shows no keyboard shortcut, because the browser installs
+none (`appShortcuts`), and no Cancel while signing in (`cancelSignIn`).
+The Settings page frames Desktop's `SettingsSurface`: the same search field, section
+navigation and sections, listed by platform capability
+([settings](settings.md#sections-and-capabilities)). The browser shows Appearance,
+Phosphor account, App installation and About, then **Configure** with the Host
+machine settings of each known Host; it lists no This Mac sections.
 
-`RemoteWorkspacePage` and `RemoteStartView` compose the complete remote start
-experience in both clients. Their controller validates remembered repositories,
-provider-ready model choices and submission receipts. The root URL opens New;
-one ready control-capable Host is selected and pinned into the URL, while
+### One lane row, list and menu
+
+The browser's navigation and Lanes page, Host home (under the start composer) and
+the machine page's lane preview render Desktop's Host lane components, not
+copies ([Lanes](lanes.md#remote-lanes) owns their rules):
+
+- `RemoteHostLanes` lists a Host: pinned lanes first under Pinned, then one
+  `RemoteRepositoryGroup` per folder in the Host's order, and lanes whose folder
+  left the Host in an explicit unavailable-folder group. A ready Host with no
+  folders offers Add folder on MACHINE…. Each folder header has Search lanes,
+  Workspace options (Add folder on MACHINE…, Remove from MACHINE, Move up, Move
+  down, Select all lanes, Select merged lanes, Collapse lanes) and New lane in
+  the folder, which opens the start composer with that folder chosen. Pages
+  pass `density="page"` for touch-sized header buttons.
+- `RemoteLaneRow` is the one Host lane row: title, elapsed time, worktree,
+  branch, PR chip, marker and activity, as on Desktop. Unread attention is not
+  labelled as a request for input, and a stopped process is not presented as a
+  task result. A tap opens the lane through the browser's history. Right-click,
+  the ContextMenu key, Shift+F10 or a touch long-press (one short vibration
+  where the device can) opens its menu; below 900px the menu is a bottom sheet
+  titled with the lane.
+- The menu comes from `remoteLaneActions`, the same items and hints Desktop
+  shows. Delete, Rename and Stop need control (“Take control first.”); Delete
+  also needs `workspaces.write`. Bulk delete goes through the shared
+  `RemoteBulkDelete`.
+
+`RemoteWorkspacePage` composes the complete remote start page in both clients,
+and its input is `StartComposer`, the one new-lane composer This Mac uses too
+([remote creation](remote-desktop.md#machine-context-and-lane-creation)).
+`RemoteStartView` supplies the Host target: it validates remembered
+repositories, usable model choices and submission receipts. The root URL opens
+New; one ready control-capable Host is selected and pinned into the URL, while
 multiple targets require a choice. An explicit missing Host never silently
 switches. Model precedence is last valid choice, a validated native preference
-when available, then the first usable catalogue model. At expanded width
-(Desktop and a wide browser) the model and thinking pickers are the lane
-composer's own split chip and searchable model menu, as on This Mac's home, and
-the chip's tooltip discloses which rule chose the model. A compact phone opens a
-bounded model dialog that discloses the same, beside the shared thinking
-selector. No configured Host default or cross-device preference sync is claimed.
-Isolation changes are memory-only in the browser, preserving native preference
-persistence. Under the composer sit only the machine, repository and
-isolation row and at most one status line (a warning, missing control or
-missing repository). The composer keeps its field across reconnections to the
-same Host, locked while it waits; only the model picker restarts with a new
-connection.
+when available, then the first usable catalogue model. At every width the model
+and thinking pickers are the lane composer's own split chip and searchable model
+menu, which a phone opens as a bottom sheet, and the chip's tooltip discloses
+which rule chose the model. No configured Host default or cross-device
+preference sync is claimed. Isolation changes are memory-only in the browser,
+preserving native preference persistence. Above the input sit the machine,
+repository and isolation row; under it, the hints line and at most one note (a
+warning, the connection it waits for, missing control or missing repository).
+The composer keeps its field across reconnections to the same Host, locked while
+it waits; only the model picker restarts with a new connection.
 
 Both clients use bundled Inter and the same tokens. The shared loading surface
 appears during browser account initialization, with explicit sanitized recovery;
@@ -128,7 +219,8 @@ Existing installations may keep an OS-cached icon; reinstalling after deployment
 can be needed to see the new artwork. Headless checks verify the served pixels
 and manifest, not a physical launcher's appearance or refresh timing.
 
-**Install Phosphor** is available on sign-in, in navigation and in browser settings.
+**Install Phosphor** is available on sign-in, in navigation and in **Settings → App
+installation**.
 When the browser supplies a deferred install prompt, the action opens it once and
 shares the pending state across entrypoints. Accepting the prompt is not reported
 as completed installation; the browser's `appinstalled` event or a standalone

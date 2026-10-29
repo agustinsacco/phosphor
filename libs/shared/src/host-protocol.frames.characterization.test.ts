@@ -476,6 +476,7 @@ const OPS = [
   [{ type: 'lane.resume' }, null],
   [{ type: 'lane.stop' }, null],
   [{ type: 'lane.markRead', upTo: 3 }, { upTo: -1 }],
+  [{ type: 'lane.marks', pinned: true, marker: '🦊' }, { marker: 'a\nb' }],
   [
     { type: 'lane.delete', laneId: OTHER, removeWorktree: true, removeBranch: false },
     { laneId: 1 },
@@ -512,7 +513,7 @@ const OPS = [
 const everyOpType: Record<Exclude<LaneOpType, (typeof OPS)[number][0]['type']>, never> = {}
 /** Families whose parsers allow exactly their own keys, so an unknown field refuses the op. */
 const EXACT_KEY_OPS =
-  /^(lane\.delete|claude\.account|machine\.|host\.repositories\.|provider\.|terminal\.|routine\.|files\.|attachments\.)/
+  /^(lane\.delete|lane\.marks|claude\.account|machine\.|host\.repositories\.|provider\.|terminal\.|routine\.|files\.|attachments\.)/
 /** Families absent from the receipt-code allowlist: an invalid one is unsupported, not bad-request. */
 const UNLISTED_OPS = /^(files|attachments)\./
 /** Families that never carry a lane id or fence. */

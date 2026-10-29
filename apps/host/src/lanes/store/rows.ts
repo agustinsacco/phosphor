@@ -5,6 +5,7 @@ import {
   type RepositorySummary,
 } from '@phosphor/shared/host-protocol'
 import { absolutePath, check, integer, text, uuid } from '../validation'
+import { marksFromRow } from './marks'
 import type { StoredLane } from './types'
 
 export interface RowPorts {
@@ -117,6 +118,7 @@ export function laneFromRow(row: Row, ports: RowPorts): StoredLane | null {
       read,
       control: controlFromRow(row, ports.isConnected),
       removedAt: row.removed_at === null ? null : iso(num(row, 'removed_at')),
+      ...marksFromRow(row),
     }
   } catch {
     return logCorruptRow(ports.logCorruptLane)

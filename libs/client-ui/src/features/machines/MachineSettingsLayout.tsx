@@ -4,17 +4,9 @@ import { errorText } from '@shared/errors'
 import { CopyCommand } from './MachineControls'
 
 import { ConfiguredMachineSettings } from './MachineConfiguredSettings'
-import type { MachineSettingsTab } from './MachineSettings'
+import { MACHINE_SETTINGS_TABS } from './machineSettingsTabs'
 import type { MachineSettingsController } from './useMachineSettingsController'
 type ControllerProps = { controller: MachineSettingsController }
-const SECTIONS: [MachineSettingsTab, string][] = [
-  ['providers', 'Providers'],
-  ['connectors', 'Connectors'],
-  ['agent', 'Agent defaults'],
-  ['folders', 'Folders'],
-  ['resources', 'Skills & extensions'],
-  ['advanced', 'Advanced'],
-]
 
 export function MachineSettingsNavigation({ controller }: ControllerProps): React.JSX.Element {
   const { machine, section, settings, starting, select } = controller
@@ -23,7 +15,7 @@ export function MachineSettingsNavigation({ controller }: ControllerProps): Reac
       aria-label="Machine settings"
       className="flex gap-1 overflow-x-auto md:w-40 md:shrink-0 md:flex-col"
     >
-      {SECTIONS.map(([key, title]) => (
+      {MACHINE_SETTINGS_TABS.map(([key, title]) => (
         <TooltipButton
           key={key}
           tooltip={`${title} on ${machine.label}`}

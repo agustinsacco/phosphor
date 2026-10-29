@@ -216,3 +216,38 @@ describe('host-lanes.ts', () => {
     expect(parseAttentionFrame({ ...frame, cursor: { epoch: EPOCH, seq: 0 } })).toBeNull()
   })
 })
+
+describe('lane marks on a summary', () => {
+  it('keeps a pin and an explicit marker, including an explicit none', () => {
+    for (const marks of [
+      { pinned: true },
+      { marker: '🦊' },
+      { marker: '' },
+      { pinned: true, marker: '👨‍👩‍👧‍👦' },
+    ])
+      expect(parseLaneSummary({ ...SUMMARY, ...marks })).toStrictEqual({ ...SUMMARY, ...marks })
+    expect(parseLaneSummary(SUMMARY)).toStrictEqual(SUMMARY)
+  })
+
+  it('drops an invalid mark without refusing the summary', () => {
+    for (const marks of [
+      { pinned: false },
+      { pinned: 'yes' },
+      { marker: null },
+      { marker: 7 },
+      { marker: 'x'.repeat(33) },
+      { marker: 'a\nb' },
+    ]) {
+      expect(parseLaneSummary({ ...SUMMARY, ...marks }), JSON.stringify(marks)).toStrictEqual(
+        SUMMARY,
+      )
+      expect(summaryOk({ ...SUMMARY, ...marks })).toBe(true)
+    }
+  })
+
+  it('carries marks through lanes and lanes-delta frames', () => {
+    const marked = { ...SUMMARY, pinned: true, marker: '🚀' }
+    expect(lanes({ lanes: [marked] })).toMatchObject({ ok: true, value: { lanes: [marked] } })
+    expect(delta({ upsert: [marked] })).toMatchObject({ ok: true, value: { upsert: [marked] } })
+  })
+})

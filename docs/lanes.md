@@ -14,7 +14,8 @@ The sidebar lists authenticated Host lanes alongside local groups, with a machin
 filter. A disconnected machine keeps its memory-only rows greyed, disabled and
 labelled last known. Remote creation uses a machine and its configured repository.
 
-Host + and New open the home composer, not a separate modal.
+Host + and New open the home composer, not a separate modal. A folder's + (New lane
+in FOLDER) chooses that folder, in Desktop and the browser alike.
 [Remote creation](remote-desktop.md#machine-context-and-lane-creation) owns the flow.
 
 This Mac retains the local folder and branch flow. Selecting an unavailable Host never creates a local session.
@@ -377,14 +378,36 @@ mid-turn is findable under the name on screen.
 
 ## Deleting lanes
 
-Remote rows use the same context menu and inline rename as local rows. The title
-prefers the live session name, the Host summary, then the first prompt. The Host,
-not Desktop, generates remote titles. Pin and marker preferences use Host/lane
-resource keys. Local-only tree, fork, clone, routine and HTML export actions are
-omitted. Remote Delete needs control and workspace-write capability. A disabled
-action's hint names its obstacle: “Take control first.” for a viewer, “Only
-while running.” for rename and spend on a stopped lane, and “Not available on
-remote lanes yet.” only when the Host lacks the capability. It uses the
+One Host lane row (`features/sessions/RemoteLaneRow`) and one menu serve every
+surface: Desktop's sidebar, the browser's navigation and Lanes page, Host home and the
+machine preview. `remoteLaneActions` builds the menu as a pure list (Open, Rename,
+Take or Release control, Stop or Resume, Mark read, Pin, Lane marker, Copy debug
+info, Copy spend, Delete, plus Open pull request when the lane has one) and
+`useRemoteLaneActions` runs it; the phone's lane sheet lists the same items
+without Open. The row's menu opens on right-click, the ContextMenu key or
+Shift+F10, and a touch long-press; on a phone it is a bottom sheet. The row
+renames inline, the sheet through a prompt. Opening a row navigates to the lane
+without naming a pane, so Desktop restores that lane's pane and the browser opens
+Chat. The title prefers the live session name, the Host summary, then the first
+prompt. The Host, not Desktop, generates remote titles.
+
+Pins and markers belong to the Host: a Host that announces `laneMarks` keeps
+them, so every client shows the same ones
+([protocol](remote-protocol.md#lane-pins-and-markers)); Desktop's older local
+choices, kept under Host/lane resource keys, move to it, and rows read only the
+Host's. Without `laneMarks`, Pin and Lane marker are disabled with “Update this
+Host to pin and mark lanes.” A pinned Host lane shows the pin icon and sits in a
+Pinned section above that Host's folders, newest first, with its folder named,
+as local pinned lanes sit above local groups. Pins stay per Host: one Host's
+pinned lanes never mix with another's or with local ones.
+
+Local-only tree, fork, clone, routine and HTML export actions are omitted.
+Remote Delete needs control and workspace-write capability, in Desktop and the
+browser alike. A disabled action's hint names its obstacle: “Take control
+first.” for a viewer, “Only while running.” for rename and spend on a stopped
+lane, “Send a first message before stopping this lane.” for Stop on an open lane
+with no first message (the Host refuses it), and “Not available on remote lanes
+yet.” only when the Host lacks the capability. Delete uses the
 same resource confirmation, keeps failures visible, and closes the lane on
 success. A shared worktree gets transcript-only deletion. The Host keeps trashed
 transcripts for 30 days; worktree removal and merged-branch deletion are optional.
