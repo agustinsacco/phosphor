@@ -160,6 +160,12 @@ export function ConnectorsTab(): React.JSX.Element {
                 Add custom server…
               </Button>
             </div>
+            {checks.slow && (
+              <p role="status" className="text-text-secondary w-full text-sm">
+                Still checking. pi may test every connector in one pass, so one slow connector can
+                hold up the others. Results stay saved if you leave.
+              </p>
+            )}
           </div>
           <div className="mt-2 space-y-2">
             {configs?.servers.map((server) => (

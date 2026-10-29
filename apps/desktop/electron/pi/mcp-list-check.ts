@@ -5,6 +5,8 @@ import type { InspectionResult, McpInspectorCli } from '@phosphor/session-runtim
 type Cli = McpInspectorCli & { version?: string }
 type Inspect = (cli: Cli, name: string, signal: AbortSignal) => Promise<InspectionResult>
 type List = (cli: Cli, signal: AbortSignal) => Promise<McpListResult>
+/** Stores a finished list for every connector, whether or not anyone still waits for it. */
+export type PersistList = (list: McpListResult) => Promise<void>
 
 const CANCELLED: InspectionResult = { ok: false, message: 'Check cancelled.' }
 
@@ -64,12 +66,13 @@ export class NativeMcpCheck {
     scope: string,
     name: string,
     signal: AbortSignal,
+    persist?: PersistList,
   ): Promise<InspectionResult> {
     const key = JSON.stringify([cli.binaryPath, cli.prefixArgs ?? [], cli.version ?? ''])
     let known = this.support.get(key)
     let result: InspectionResult
     if (known) {
-      if ((await known) === false) return this.fromList(cli, scope, name, signal)
+      if ((await known) === false) return this.fromList(cli, scope, name, signal, persist)
       result = await this.inspect(cli, name, signal)
     } else {
       // The first check decides for the checks that arrive while it runs.
@@ -83,22 +86,29 @@ export class NativeMcpCheck {
     }
     if (result.ok || !result.unsupported) return result
     this.support.set(key, Promise.resolve(false))
-    return this.fromList(cli, scope, name, signal)
+    return this.fromList(cli, scope, name, signal, persist)
   }
 
+  /**
+   * A cancelled caller stops waiting, never the run: pi may be saving a rotated OAuth
+   * token, and the finished list still answers every card through `persist`.
+   */
   private async fromList(
     cli: Cli,
     scope: string,
     name: string,
     signal: AbortSignal,
+    persist?: PersistList,
   ): Promise<InspectionResult> {
     const key = JSON.stringify([cli.binaryPath, cli.prefixArgs ?? [], cli.cwd, scope])
     let run = this.lists.get(key)
     if (!run) {
-      const started = this.list(cli, this.stop.signal).catch((): McpListResult => ({
-        ok: false,
-        message: 'pi mcp list failed.',
-      }))
+      const started = this.list(cli, this.stop.signal)
+        .catch((): McpListResult => ({ ok: false, message: 'pi mcp list failed.' }))
+        .then(async (list) => {
+          await persist?.(list).catch(() => {})
+          return list
+        })
       this.lists.set(key, started)
       void started.then(() => {
         if (this.lists.get(key) === started) this.lists.delete(key)
