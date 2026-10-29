@@ -85,3 +85,36 @@ it('reports a connector pi did not list as a failed check', async () => {
     message: 'pi did not report this connector. Test again.',
   })
 })
+
+it('saves a shared list run for every connector even after every caller cancelled', async () => {
+  const { cancelMcpCheck, readMcpChecks } = await import('./mcp-inspection')
+  const { log } = await import('../debug-log')
+  vi.mocked(log).mockClear()
+  const round = Date.now()
+  const pending = ['linear', 'datadog', 'slack'].map((name) =>
+    checkMcpServer(1, name, undefined, `cancelled-${name}`),
+  )
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  for (const name of ['linear', 'datadog', 'slack']) cancelMcpCheck(1, `cancelled-${name}`)
+  expect(await Promise.all(pending)).toEqual(
+    Array.from({ length: 3 }, () => ({ ok: false, message: 'Check cancelled.' })),
+  )
+  let saved: Awaited<ReturnType<typeof readMcpChecks>> = {}
+  for (let wait = 0; wait < 40; wait++) {
+    saved = await readMcpChecks(undefined)
+    if (Object.values(saved).every((entry) => entry.checkedAt >= round) && saved.slack) break
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  expect(saved.linear?.checkedAt).toBeGreaterThanOrEqual(round)
+  expect(saved.datadog?.report.state).toBe('needs-auth')
+  expect(saved.slack?.checkedAt).toBeGreaterThanOrEqual(round)
+  // Each run leaves one line in phosphor.log: how long, and what pi said per server.
+  expect(log).toHaveBeenCalledWith(
+    'mcp',
+    'list finished',
+    expect.objectContaining({
+      ms: expect.any(Number),
+      states: { linear: 'connected', datadog: 'needs-auth', slack: 'connected' },
+    }),
+  )
+})
