@@ -136,13 +136,14 @@ function ConnectorHeader({
           <span className="bg-bg-secondary text-text-tertiary rounded px-1.5 text-xs">{scope}</span>
           <span className="text-text-secondary flex items-center gap-1.5 text-sm">
             {state && <span className={clsx('h-1.5 w-1.5 rounded-full', STATE_DOT[state])} />}
-            {check?.checking
-              ? 'Checking…'
-              : state
-                ? stateLabel({
-                    state,
-                    tools: check?.snapshot?.tools.map((tool) => tool.name) ?? [],
-                  })
+            {/* The last known state stays readable while a new check runs. */}
+            {state
+              ? `${stateLabel({
+                  state,
+                  tools: check?.snapshot?.tools.map((tool) => tool.name) ?? [],
+                })}${check?.checking ? ' · checking…' : ''}`
+              : check?.checking
+                ? 'Checking…'
                 : failedCheck
                   ? 'Check failed'
                   : 'Not checked'}

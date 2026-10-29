@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import { join } from 'node:path'
+import type { McpConfigsResult, McpListResult } from '@shared/mcp'
 import type { McpCheckResult, McpCheckSnapshot } from '@shared/mcp-inspection'
 import {
   McpInspectionCache,
@@ -9,14 +10,34 @@ import { McpInspector, runMcpList } from '@phosphor/session-runtime/pi/mcp-inspe
 import { readMcpConfigs } from './mcp-config'
 import { piCli } from './mcp-actions'
 import { disposeMcpLogins, parseMcpList } from './mcp-cli'
-import { NativeMcpCheck } from './mcp-list-check'
+import { inspectionFromList, NativeMcpCheck } from './mcp-list-check'
+import { log } from '../debug-log'
+
+/**
+ * `pi mcp list` answers once every server has: the slowest sets the pace. pi bounds
+ * each server itself (60s requests, a 25s wait on another process's OAuth refresh),
+ * so this cap only catches a wedged process and never cuts a refresh short.
+ */
+const LIST_CAP_MS = 150_000
 
 const inspector = new McpInspector()
 const native = new NativeMcpCheck(
   (cli, name, signal) => inspector.check(cli, name, signal),
   async (cli, signal) => {
-    const result = await runMcpList(cli, { timeoutMs: 45_000, signal })
-    return result.error ? { ok: false, message: result.error } : parseMcpList(result.stdout, '')
+    const started = Date.now()
+    const result = await runMcpList(cli, { timeoutMs: LIST_CAP_MS, signal })
+    const list: McpListResult = result.error
+      ? { ok: false, message: result.error }
+      : parseMcpList(result.stdout, '')
+    // Names and states only: the one record of how long a check took and why.
+    log('mcp', 'list finished', {
+      ms: Date.now() - started,
+      ...(result.reason ? { failure: result.reason } : {}),
+      ...(list.ok
+        ? { states: Object.fromEntries(list.servers.map((item) => [item.name, item.state])) }
+        : {}),
+    })
+    return list
   },
 )
 const requests = new Map<string, AbortController>()
@@ -74,14 +95,37 @@ async function runCheck(
   const key = inspectionKey(context(workspacePath), server)
   const cli = await piCli(workspacePath)
   if (!cli) return { ok: false, message: 'Pi is not available.' }
-  const scope = configs.servers.map((item) => inspectionKey(context(workspacePath), item)).join()
-  const result = await native.check({ ...cli, env: cli.env ?? {} }, scope, name, signal)
+  const scope = scopeOf(configs, workspacePath)
+  const result = await native.check({ ...cli, env: cli.env ?? {} }, scope, name, signal, (list) =>
+    persistList(list, workspacePath, scope),
+  )
   if (!result.ok) return result
   if (signal.aborted) return { ok: false, message: 'Check cancelled.' }
   const after = (await readMcpConfigs(workspacePath)).servers.find((item) => item.name === name)
   if (!after || inspectionKey(context(workspacePath), after) !== key)
     return { ok: false, message: 'Connector configuration changed during the check. Test again.' }
   return { ok: true, snapshot: await metadata().put(key, result.report) }
+}
+
+function scopeOf(configs: McpConfigsResult, workspacePath: string | undefined): string {
+  return configs.servers.map((item) => inspectionKey(context(workspacePath), item)).join()
+}
+
+/** Every connector of a finished list, unless the configuration changed while pi ran. */
+async function persistList(
+  list: McpListResult,
+  workspacePath: string | undefined,
+  scope: string,
+): Promise<void> {
+  const configs = await readMcpConfigs(workspacePath)
+  if (scopeOf(configs, workspacePath) !== scope) return
+  await Promise.all(
+    configs.servers.map(async (server) => {
+      const result = inspectionFromList(list, server.name)
+      if (result.ok)
+        await metadata().put(inspectionKey(context(workspacePath), server), result.report)
+    }),
+  )
 }
 
 export function cancelMcpCheck(owner: number, requestId: string): void {

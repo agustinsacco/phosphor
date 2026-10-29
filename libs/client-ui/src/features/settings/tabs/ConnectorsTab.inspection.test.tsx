@@ -78,3 +78,39 @@ it('does not call a connector down when only the check failed', async () => {
   expect(row.textContent).toContain('Check failed')
   expect(row.textContent).toContain('Authorize…')
 })
+
+it('keeps the last known state visible while a new check runs, and says when it is slow', async () => {
+  vi.useFakeTimers()
+  const config = { url: 'https://linear.example/mcp' }
+  const report = { name: 'linear', state: 'connected' as const, tools: [] }
+  const tools = [{ name: 'search', exposure: 'codemode' as const }]
+  restore = installFakePhosphor(
+    createFakePhosphor({
+      'mcp:readConfigs': () => ({
+        servers: [{ name: 'linear', scope: 'global', config, defined: config }],
+        files: [],
+        errors: [],
+        projectTrust: null,
+        legacy: false,
+      }),
+      'packages:list': () => [],
+      'mcp:readChecks': () => ({ linear: { checkedAt: 1, report, tools, discoveredAt: 1 } }),
+      'mcp:cancelCheck': () => {},
+      'mcp:checkServer': () => new Promise(() => {}),
+    }),
+  )
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  try {
+    await act(async () => root!.render(<ConnectorsTab />))
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    const row = container.querySelector<HTMLElement>('[data-testid="connector-linear"]')!
+    expect(row.textContent).toContain('Up · 1 tool · checking…')
+    expect(container.textContent).not.toContain('Still checking')
+    await act(async () => vi.advanceTimersByTimeAsync(11_000))
+    expect(container.textContent).toContain('Still checking')
+  } finally {
+    vi.useRealTimers()
+  }
+})

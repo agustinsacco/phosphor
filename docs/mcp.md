@@ -137,8 +137,20 @@ Host's aggregate check uses too). A list that fails shows a generic message,
 never pi's stderr. Configuration, enabling and sign-in use pi's established
 commands either way.
 
-Opening the tab loads remembered metadata, then checks connectors independently.
-One failed or slow server never withholds the others. Main limits concurrency to
+**A list answers at the pace of its slowest server.** A local command server
+started through `uvx` takes seconds where an HTTP server takes under one, and pi
+allows each server 60-second requests plus a 25-second wait on another
+process's OAuth refresh lock. So the list's process cap is 150 seconds, past
+pi's own bounds: a slow server reports `failed` without taking the others down,
+and no refresh is cut short. Cancel stops the cards waiting, never the run. Every
+finished run is saved for every connector, even when nobody waits for it, unless
+the configuration changed meanwhile. Each run logs one `mcp list finished` line
+to `phosphor.log` with its duration and each server's state.
+
+Opening the tab loads remembered metadata, then checks connectors. A card keeps
+its last known state while a new check runs (`Up · 3 tools · checking…`), and
+after 10 seconds the toolbar says checks are still running. With `mcp inspect`,
+one failed or slow server never withholds the others. Main limits concurrency to
 three processes, including processes draining after reporting. A visible check
 has a 30-second wait bound. Native credential-command resolution and OAuth-safe
 cleanup can outlast the discovery deadline: cancel abandons queued checks and

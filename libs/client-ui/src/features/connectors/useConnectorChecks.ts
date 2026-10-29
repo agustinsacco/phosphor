@@ -98,11 +98,27 @@ export function useConnectorChecks(
     void load()
     return cancel
   }, [workspacePath, scope, servers, ready, revision, test, cancel, generation])
+  const checking = Object.values(checks).some((value) => value.checking)
   return {
     checks: loadedScope.current === scope ? checks : {},
     test,
     cancel,
     refresh,
-    checking: Object.values(checks).some((value) => value.checking),
+    checking,
+    slow: useSlow(checking),
   }
+}
+
+/** True once checks have run for 10s without a pause: worth a word, not a failure. */
+function useSlow(active: boolean): boolean {
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    if (!active) return
+    const timer = setTimeout(() => setSlow(true), 10_000)
+    return () => {
+      clearTimeout(timer)
+      setSlow(false)
+    }
+  }, [active])
+  return active && slow
 }
