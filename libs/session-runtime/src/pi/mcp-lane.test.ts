@@ -101,3 +101,14 @@ it('rejects invalid names before touching the native session', async () => {
   expect(await controlMcpInLane(client, 'x --login', 'inspect')).toMatchObject({ ok: false })
   expect(request).not.toHaveBeenCalled()
 })
+it('marks stock pi without the inspection capability as unsupported, not a lane failure', async () => {
+  const stock = {
+    ...native,
+    description: 'Manage MCP servers: sign in, reconnect, enable or disable, and change exposure',
+  }
+  const { client } = fixture(stock)
+  expect(await controlMcpInLane(client, 'pagerduty', 'inspect')).toMatchObject({
+    ok: false,
+    unsupported: true,
+  })
+})

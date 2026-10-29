@@ -1,6 +1,6 @@
 import type { parseSettingsRead } from '@phosphor/shared/machine-settings'
 import { machineRecord } from '@phosphor/shared/host-protocol-machine'
-import { runPrintMode } from '@phosphor/session-runtime/pi/print-mode'
+import { runMcpList } from '@phosphor/session-runtime/pi/mcp-inspection'
 import type { SettingsContext } from './context'
 import { SettingsFailure } from './files'
 
@@ -49,10 +49,9 @@ export async function checkConnectors(
   const cwd = state.workspace(read.repositoryId)
   const checkedRevision = state.revision('connectors', cwd)
   const checkedGeneration = state.connectorGeneration
-  const result = await runPrintMode(
-    options.pi.binaryPath,
-    [...options.pi.prefixArgs, 'mcp', 'list', '--json'],
-    { cwd: cwd ?? options.context.home, env: options.env, timeoutMs: 25_000 },
+  const result = await runMcpList(
+    { ...options.pi, cwd: cwd ?? options.context.home, env: options.env },
+    { timeoutMs: 25_000 },
   )
   if (!authorized()) throw new SettingsFailure('forbidden', 'Configuration access was revoked.')
   if (

@@ -116,7 +116,9 @@ function ConnectorHeader({
   onTest,
 }: RowProps): React.JSX.Element {
   const disabled = server.config.enabled === false
-  const state = disabled ? 'disabled' : check?.error ? 'failed' : check?.snapshot?.report.state
+  // A failed check says nothing about the server, so it never reads as Down.
+  const failedCheck = !disabled && Boolean(check?.error)
+  const state = disabled ? 'disabled' : failedCheck ? undefined : check?.snapshot?.report.state
   const scope = server.overridden
     ? 'global · project override'
     : server.replacesGlobal
@@ -141,7 +143,9 @@ function ConnectorHeader({
                     state,
                     tools: check?.snapshot?.tools.map((tool) => tool.name) ?? [],
                   })
-                : 'Not checked'}
+                : failedCheck
+                  ? 'Check failed'
+                  : 'Not checked'}
           </span>
         </div>
         {entry && <p className="text-text-secondary mt-0.5 text-base">{entry.summary}</p>}
@@ -161,7 +165,10 @@ function ConnectorHeader({
       {usesOAuth(server) &&
         !disabled &&
         !check?.checking &&
-        (state === 'needs-auth' || state === 'failed' || flow?.phase === 'failed') && (
+        (state === 'needs-auth' ||
+          state === 'failed' ||
+          failedCheck ||
+          flow?.phase === 'failed') && (
           <Button size="sm" onClick={onSignIn}>
             {state === 'needs-auth' ? 'Sign in' : 'Authorize…'}
           </Button>

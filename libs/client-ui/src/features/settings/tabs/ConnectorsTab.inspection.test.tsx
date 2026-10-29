@@ -71,3 +71,10 @@ it('offers an independent test on each connector', async () => {
     ),
   ).toBe(true)
 })
+
+it('does not call a connector down when only the check failed', async () => {
+  const row = await renderPendingCheck({ ok: false, message: 'Check timed out.' })
+  expect(row.textContent).not.toContain('Down')
+  expect(row.textContent).toContain('Check failed')
+  expect(row.textContent).toContain('Authorize…')
+})

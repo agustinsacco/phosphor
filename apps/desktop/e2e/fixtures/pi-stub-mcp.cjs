@@ -54,6 +54,11 @@ function inspection(name) {
 function runMcpCli(argv) {
   const action = argv[1]
   const name = argv[2]
+  if (action === 'inspect' && process.env.PHOSPHOR_E2E_STOCK_PI_MCP) {
+    // Every pi release through 1.4.0 answers exactly this.
+    console.error('Unknown mcp command "inspect".\nUse "pi mcp --help" for usage.')
+    process.exit(1)
+  }
   if (action === 'inspect') {
     const emit = () => {
       console.log(JSON.stringify({ version: 1, server: inspection(name) }))

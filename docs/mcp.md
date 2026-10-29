@@ -77,15 +77,18 @@ custom servers share a list. Sections, in order:
    the last independent check, the catalog summary and the endpoint or command.
    **Test** checks this connector without affecting a lane. **Sign in** appears
    only after a known OAuth `needs-auth` result, never merely while checking.
-   If inspection is unsupported or fails, **Authorize…** preserves explicit OAuth
-   sign-in/retry without claiming that authentication is the connection problem.
+   A check that itself fails (timeout, cancel, pi missing) reads **Check failed**,
+   never **Down**: it says nothing about the server. **Authorize…** then
+   preserves explicit OAuth sign-in/retry without claiming that authentication
+   is the connection problem.
    **Tools** always remains available, including before discovery; it shows
    names, descriptions, effective exposure and search across names/descriptions.
    The sticky toolbar has **Refresh & test all**, **Cancel checks** and **Add
    custom server…**. Refresh rereads configuration, not just connection state.
    Connection details show test/discovery timestamps and credential mechanism.
    A **Selected lane** disclosure appears for a local active lane in the same
-   workspace, with separate live tools and **Reconnect in lane**.
+   workspace, with separate live tools and **Reconnect in lane**, but only when
+   that lane's pi supports native inspection (below).
 2. **Add a connector**: the curated catalog, minus anything already
    configured (matched on the URL without its query, not on the name).
 3. **Advanced** (collapsed): both files with their path, server count or
@@ -114,17 +117,25 @@ folder, so a worktree lane's project file is the worktree's `.pi/mcp.json`.
 
 ## Status
 
-**Independent tests use `pi mcp inspect <server> --json --timeout 15`.**
+**Independent tests prefer `pi mcp inspect <server> --json --timeout 15`.**
 This is a native pi capability, not a second MCP client. It discovers only the
 selected configured server's tools, with no tool invocation or model turn.
 The client accepts the version-1 inspection document and projects only bounded
 names, descriptions and exposure. Native error messages are sanitized; stderr
 and resolved credentials never reach the display cache.
 
-**Prerequisite:** inspection requires a pi build that implements `mcp inspect`.
-Stock pi 1.3.0 lacks it. Unsupported versions get an explicit message, not a
-fallback to an all-server probe or a model prompt. Existing configuration,
-enabling and sign-in continue to use pi's established commands.
+**No pi release has `mcp inspect` yet; 1.4.0 lacks it.** Such a pi answers from
+`pi mcp list --json` instead (`apps/desktop/electron/pi/mcp-list-check.ts`).
+The first check probes `inspect` once; the verdict is remembered per pi binary
+and version, so upgrading pi re-probes. Checks against a pi without it share one
+list run per workspace and configuration, so **Refresh & test all** starts one
+process, not one per card. The list connects every enabled server and reports
+state, tool names and per-tool exposure, but no tool descriptions. pi exits 1
+when any server is not connected; that report still counts
+(`runMcpList` in `libs/session-runtime/src/pi/mcp-inspection.ts`, which the
+Host's aggregate check uses too). A list that fails shows a generic message,
+never pi's stderr. Configuration, enabling and sign-in use pi's established
+commands either way.
 
 Opening the tab loads remembered metadata, then checks connectors independently.
 One failed or slow server never withholds the others. Main limits concurrency to
@@ -147,7 +158,9 @@ every 15 seconds while visible; unchanged config does not launch more tests.
 **Live lane state is separate from independent tests.** For the selected local
 lane, `mcp:laneControl` enters the session service. Before dispatch it verifies
 that `get_commands` reports native `mcp` provenance (`builtin:mcp`, source
-`builtin`) and the `[inspection-v1]` capability marker. It sends
+`builtin`) and the `[inspection-v1]` capability marker; no pi release has it
+yet. Without it the answer is `unsupported`, and the card hides **Selected
+lane** and stops polling that lane. With it, main sends
 `/mcp inspect|reconnect <name> --json --request <token>` and correlates the
 versioned `mcp-inspection` status on token, operation and server. A prompt
 acknowledgment alone is not success. Inspection reads current native state,
@@ -427,7 +440,10 @@ prompts) and its `mcp` / `mcpScript` tools go with the package.
   trust; injectable dirs for hermetic tests), `mcp-migration.ts` (the adapter
   migration: `mcp-translation.ts` holds the per-entry rules and
   `mcp-migration-plan.ts` the plan), `mcp-cli.ts` (`pi mcp list / login / logout`), `mcp-actions.ts`
-  (working directory, environment and admission for those commands).
+  (working directory, environment and admission for those commands),
+  `mcp-inspection.ts` and `mcp-list-check.ts` (connector checks, with the
+  stock-pi list fallback). The e2e stub behaves like stock pi under
+  `PHOSPHOR_E2E_STOCK_PI_MCP`.
 - IPC: `mcp:readConfigs / upsertServer / removeServer / setEnabled`,
   `mcp:readFile / writeFile`, `mcp:list`, `mcp:authorize / cancelAuth / logout`,
   `mcp:migrationPlan / migrate` and the `mcp:authState` broadcast

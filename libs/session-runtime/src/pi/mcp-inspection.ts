@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { MCP_SERVER_NAME } from '@phosphor/shared/mcp'
 import { parseMcpInspection, type McpInspection } from '@phosphor/shared/mcp-inspection'
-import { killProcessTree, OWN_GROUP } from './print-mode'
+import { killProcessTree, OWN_GROUP, runPrintMode, type PrintModeResult } from './print-mode'
 
 export interface McpInspectorCli {
   binaryPath: string
@@ -23,6 +23,25 @@ interface Job {
   abort: () => void
 }
 const CANCELLED: InspectionResult = { ok: false, message: 'Check cancelled.' }
+
+/**
+ * `pi mcp list --json`: every enabled server, connected once. pi exits 1 when any
+ * of them is not connected; the report on stdout still stands. stderr is never
+ * read, since native config commands may put secrets in an error.
+ */
+export function runMcpList(
+  cli: McpInspectorCli,
+  options: { timeoutMs: number; signal?: AbortSignal },
+): Promise<PrintModeResult> {
+  return runPrintMode(cli.binaryPath, [...(cli.prefixArgs ?? []), 'mcp', 'list', '--json'], {
+    cwd: cli.cwd,
+    env: cli.env,
+    timeoutMs: options.timeoutMs,
+    ...(options.signal ? { signal: options.signal } : {}),
+    stderr: 'ignore',
+    reportExitCodes: [1],
+  })
+}
 
 /**
  * Single-server native probes. Reports settle before native OAuth cleanup completes.
