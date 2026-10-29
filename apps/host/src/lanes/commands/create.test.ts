@@ -104,7 +104,13 @@ describe('creationFailure', () => {
       kind: 'failed',
       error: { code: 'internal', message: 'the lane could not start' },
     })
-    expect(errors()).toEqual([])
+    // A folder failure's sentence is fixed by the Host, so the log can name it.
+    expect(errors()).toEqual([
+      {
+        message: 'lane.command_error',
+        data: { requestId, op: 'lane.create', reason: 'That name is not valid.' },
+      },
+    ])
   })
 
   it('logs only token-shaped error codes', () => {

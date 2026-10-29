@@ -163,9 +163,9 @@ describe('runtime lane binding', () => {
       success: false,
       error: 'private',
     })
-    await expect(s.binding.sessions.start({ repository: machine.repository })).rejects.toThrow(
-      'could not start',
-    )
+    await expect(
+      s.binding.sessions.start({ repository: machine.repository }),
+    ).rejects.toMatchObject({ message: 'the lane could not start', code: 'pi-state-failed' })
     expect(s.runtime.stop).toHaveBeenCalledTimes(1)
     const stopped = s.runtime.stop.mock.calls[0]?.[0]
     if (!stopped) throw new Error('missing stopped session')
@@ -174,6 +174,21 @@ describe('runtime lane binding', () => {
     )
     await expect(s.binding.resumeLane(s.saved())).rejects.toThrow('could not start')
     expect(s.runtime.start).toHaveBeenCalledTimes(1)
+  })
+  // A state pi answered but the Host could not read (thinking level max, before the
+  // Host knew it) logged only "failed internal", with nothing pointing at the cause.
+  it('codes a start whose pi state the Host cannot read, for the Host log', async () => {
+    const s = setup()
+    s.runtime.command.mockResolvedValue({
+      type: 'response',
+      command: 'get_state',
+      success: true,
+      // A level newer than this Host knows; the protocol types cannot express it.
+      data: { thinkingLevel: 'extreme' } as never,
+    })
+    await expect(
+      s.binding.sessions.start({ repository: machine.repository }),
+    ).rejects.toMatchObject({ message: 'the lane could not start', code: 'pi-state-unreadable' })
   })
   it('refuses to resume a lane whose folder was removed, naming why, without starting pi', async () => {
     const s = setup()

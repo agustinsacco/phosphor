@@ -11,7 +11,14 @@ import type { ExtensionUIResponse, RpcCommand, RpcResponse } from '@phosphor/sha
 import type { RemoteLaneCreate } from '@phosphor/shared/ipc'
 import { createLaneProjection } from './projection'
 import type { createHostConnection, LaneFrame } from './connection'
-import { laneOperation, receiptResponse, REMOTE_UNAVAILABLE, sendToLane } from './lane-ops'
+import {
+  createFailureText,
+  laneOperation,
+  receiptResponse,
+  REMOTE_UNAVAILABLE,
+  sendToLane,
+  settledReceipt,
+} from './lane-ops'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { WriteLane } from './ports'
 
@@ -47,9 +54,6 @@ type Handle = {
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
-
-/** Only a definitive fresh-branch rejection authorizes a new create request. */
-class FreshBranchExists extends Error {}
 
 export function isRemoteHandle(id: string): boolean {
   return /^remote-[0-9a-f]{16}$/.test(id)
@@ -284,16 +288,7 @@ export function createRemoteLanes(ports: {
       !c.snapshot().capabilities.includes('sessions.control')
     )
       throw new Error(REMOTE_UNAVAILABLE)
-    if (
-      op.type === 'lane.create' &&
-      op.worktree?.fresh &&
-      result.status === 'rejected' &&
-      result.code === 'branch-exists'
-    )
-      throw new FreshBranchExists('branch-exists')
-    const response = receiptResponse(op.type, result, ports.label(hostId))
-    if (!response.success) throw new Error(response.error)
-    return result
+    return settledReceipt(op, result, ports.label(hostId))
   }
   async function readCall(h: Handle, capability: HostCapability, method: string, params: unknown) {
     const c = connection(h.hostId)
@@ -402,9 +397,7 @@ export function createRemoteLanes(ports: {
         ...input,
         type: 'lane.create',
         worktree: input.worktree ?? null,
-      }).catch((error: unknown) =>
-        error instanceof FreshBranchExists ? 'branch-exists' : 'Lane creation not confirmed.',
-      )
+      }).catch(createFailureText)
       if (typeof result === 'string') throw new Error(result)
       if (result.status !== 'done' || !result.laneId)
         throw new Error('Lane creation not confirmed.')

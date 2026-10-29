@@ -31,7 +31,7 @@
     "src/config/schema.ts::validateHostConfig[1]": 127,
     "src/control/trace.test.ts::it[1]": 99,
     "src/features/attachments.test.ts::%3Canonymous%3E[2]": 120,
-    "src/lanes/runtime-host.integration.test.ts::describe[1]/it[1]": 191,
+    "src/lanes/runtime-host.integration.test.ts::describe[1]/it[1]": 134,
     "src/lanes/worktree.ts::prepareLaneFolder[1]": 193,
     "src/providers/wire.test.ts::it[1]": 88,
     "src/routines/runner.ts::createRoutineExecutor[1]": 161,

@@ -60,6 +60,13 @@ packages:run(action, spec, scope, ws?) → { jobId }
 so one hook powers the Extensions tab, the MCP migration card's package
 removal, the Headroom install, onboarding and the Claude provider test.
 
+`start()` listens on the job's channels in the same step that receives the
+`jobId`, not after a render. Main replies before it sends any of the job's
+messages and both arrive in order, but a message nobody listens to yet is
+dropped, so a job that ends at once (a quick `pi remove`, a failed spawn) would
+otherwise stay Running forever. Only the latest `start()` is heard: an earlier
+job whose reply arrives later is ignored.
+
 A job reports its exit once, whichever comes first: the process closing, a
 spawn error (127), its 15-minute deadline, or quit. Each job leads its own
 process tree (a POSIX process group; on Windows a bounded `taskkill /T /F`), so

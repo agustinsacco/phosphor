@@ -96,7 +96,8 @@ describe('lane.create', () => {
         error: { message: 'the lane could not start' },
       })
     }
-    expect(f.logs.filter((l) => l.message === 'lane.command_error')).toHaveLength(1)
+    // The folder sentence and the one token-shaped code.
+    expect(f.logs.filter((l) => l.message === 'lane.command_error')).toHaveLength(2)
     expect(JSON.stringify(f.logs)).not.toContain('private')
   })
   it('maps a store capacity race to too-many-requests and stops the started session', async () => {

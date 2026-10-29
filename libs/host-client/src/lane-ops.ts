@@ -5,6 +5,50 @@ import type { CommandResult } from './connection'
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
 const LANE_STOPPED = 'this lane is stopped. Press Resume at the top of the lane, then send again.'
 export const UNKNOWN_OUTCOME = 'The Host could not confirm this. Check the lane before retrying.'
+const CREATE_UNCONFIRMED = 'Lane creation not confirmed.'
+
+/** A receipt that settled without success. The message is what callers always showed. */
+class ReceiptFailure extends Error {
+  constructor(
+    message: string,
+    readonly result: CommandResult,
+  ) {
+    super(message)
+  }
+}
+
+/** Only a definitive fresh-branch rejection authorizes a new create request. */
+class FreshBranchExists extends Error {}
+
+/** The receipt when it succeeded; otherwise thrown, as `createFailureText` reads it. */
+export function settledReceipt(op: LaneOp, result: CommandResult, machine: string): CommandResult {
+  if (
+    op.type === 'lane.create' &&
+    op.worktree?.fresh &&
+    result.status === 'rejected' &&
+    result.code === 'branch-exists'
+  )
+    throw new FreshBranchExists('branch-exists')
+  const response = receiptResponse(op.type, result, machine)
+  if (!response.success) throw new ReceiptFailure(response.error, result)
+  return result
+}
+
+/**
+ * The fixed IPC text for a lane.create that did not succeed; Host details never cross
+ * IPC. A refusal, a failure or an unsent frame created nothing. Anything else, an
+ * unknown receipt or a dropped connection, may have.
+ */
+export function createFailureText(error: unknown): string {
+  if (error instanceof FreshBranchExists) return 'branch-exists'
+  if (!(error instanceof ReceiptFailure)) return CREATE_UNCONFIRMED
+  const { result } = error
+  if (result.status === 'rejected')
+    return result.code === 'too-many-requests' ? 'lane-limit' : 'lane-create-failed'
+  return result.status === 'failed' || result.status === 'not-sent'
+    ? 'lane-create-failed'
+    : CREATE_UNCONFIRMED
+}
 
 /** The entire remote pi allowlist. Never forward arbitrary RPC to a Host. */
 export function laneOperation(command: RpcCommand): LaneOp | string | null {

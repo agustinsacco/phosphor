@@ -19,6 +19,23 @@ interface Submission {
   onWarning: (message: string) => void
 }
 
+/** Fixed codes from `hosts:createLane` and `startRemoteChat`; anything else stays uncertain. */
+function createWarning(code: string, machine: string): string {
+  switch (code) {
+    case 'branch-name-exhausted':
+      return `Couldn't find a free branch name on ${machine}.`
+    case 'branch-prefix-too-long':
+      return 'Branch prefix is too long for a Host worktree. Shorten it in Settings.'
+    case 'lane-create-failed':
+      return `${machine} couldn't start this lane. Your draft is kept.`
+    case 'lane-limit':
+      // The Host also sends too-many-requests for too many commands in flight.
+      return `${machine} is at its lane limit or too busy. Try again, or delete a lane there.`
+    default:
+      return 'The Host could not confirm this. Check the lane before retrying. Your draft is kept.'
+  }
+}
+
 /** Claims outlive the view, but not an owner reset. Only a confirmed receipt spends a draft. */
 export async function submitRemoteHome(s: Submission): Promise<void> {
   const claims = useHomeSubmissionsStore.getState()
@@ -46,13 +63,7 @@ export async function submitRemoteHome(s: Submission): Promise<void> {
     )
   } catch (failure) {
     if (!current()) return
-    const code = ipcErrorText(failure)
-    const message =
-      code === 'branch-name-exhausted'
-        ? `Couldn't find a free branch name on ${machineLabel(s.hostId)}.`
-        : code === 'branch-prefix-too-long'
-          ? 'Branch prefix is too long for a Host worktree. Shorten it in Settings.'
-          : 'The Host could not confirm this. Check the lane before retrying. Your draft is kept.'
+    const message = createWarning(ipcErrorText(failure), machineLabel(s.hostId))
     s.onWarning(message)
     useExtensionUiStore.getState().pushToast(message, 'warning')
   } finally {
