@@ -11,9 +11,11 @@ function useLaneInspection(sessionId: string, name: string) {
   const [slow, setSlow] = useState(false)
   const busy = useRef(false)
   const epoch = useRef(0)
+  // The lane's pi cannot inspect (stock pi 1.4.0): asking again changes nothing.
+  const unsupported = useRef(false)
   const run = useCallback(
     async (operation: 'inspect' | 'reconnect') => {
-      if (busy.current) return
+      if (busy.current || unsupported.current) return
       busy.current = true
       const current = epoch.current
       setPending(true)
@@ -23,6 +25,7 @@ function useLaneInspection(sessionId: string, name: string) {
       }, 30_000)
       try {
         const answer = await window.phosphor.invoke('mcp:laneControl', sessionId, name, operation)
+        if (!answer.ok && answer.unsupported) unsupported.current = true
         if (current === epoch.current) setResult(answer)
       } catch {
         if (current === epoch.current)
@@ -71,8 +74,15 @@ export function LaneConnectorStatus({
   return <LaneStatus key={`${activeId}:${name}`} sessionId={activeId} name={name} />
 }
 
-function LaneStatus({ sessionId, name }: { sessionId: string; name: string }): React.JSX.Element {
+function LaneStatus({
+  sessionId,
+  name,
+}: {
+  sessionId: string
+  name: string
+}): React.JSX.Element | null {
   const { result, pending, slow, run } = useLaneInspection(sessionId, name)
+  if (result && !result.ok && result.unsupported) return null
   const report = result?.ok ? result.report : undefined
   return (
     <details className="border-border border-t px-3.5 py-2 text-sm">

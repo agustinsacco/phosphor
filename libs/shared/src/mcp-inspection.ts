@@ -25,7 +25,9 @@ export interface McpCheckSnapshot {
 }
 
 export type McpLaneResult =
-  { ok: true; report: McpInspection; inspectedAt: number } | { ok: false; message: string }
+  | { ok: true; report: McpInspection; inspectedAt: number }
+  /** `unsupported`: the lane's pi lacks native inspection, so lane controls stay hidden. */
+  | { ok: false; message: string; unsupported?: boolean }
 
 export type McpCheckResult =
   { ok: true; snapshot: McpCheckSnapshot } | { ok: false; message: string; unsupported?: boolean }

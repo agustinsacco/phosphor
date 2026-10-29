@@ -161,6 +161,8 @@ export interface McpServerReport {
   state: McpServerState
   /** The server's own tool names, in its order. */
   tools: string[]
+  /** Only tools whose effective exposure differs from `exposure`. */
+  toolExposure?: Record<string, McpExposure>
   error?: string
 }
 

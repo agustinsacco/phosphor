@@ -72,8 +72,10 @@ module.exports = [
   // pi's built-in MCP registers one command; its source is `builtin`.
   {
     name: 'mcp',
-    description:
-      'Manage MCP servers: sign in, reconnect, enable or disable, and change exposure [inspection-v1]',
+    // Stock pi (PHOSPHOR_E2E_STOCK_PI_MCP, as in 1.4.0) lacks the inspection marker.
+    description: `Manage MCP servers: sign in, reconnect, enable or disable, and change exposure${
+      process.env.PHOSPHOR_E2E_STOCK_PI_MCP ? '' : ' [inspection-v1]'
+    }`,
     source: 'extension',
     sourceInfo: {
       path: 'builtin:mcp',

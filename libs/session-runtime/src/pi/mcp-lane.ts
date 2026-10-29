@@ -33,6 +33,7 @@ export async function controlMcpInLane(
     )
       return {
         ok: false,
+        unsupported: true,
         message:
           'This lane’s pi does not support native MCP inspection. Upgrade pi and start a new lane.',
       }

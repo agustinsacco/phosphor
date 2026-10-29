@@ -49,6 +49,8 @@ export interface PrintModeOptions {
   maxOutputBytes?: number
   /** Host uses fail with 4096 bytes; Desktop retains its soft chunk-boundary cap. */
   overflow?: 'truncate' | 'fail'
+  /** Nonzero exits whose stdout is still the answer, like `pi mcp list` with a server down. */
+  reportExitCodes?: readonly number[]
 }
 
 interface PrintRun {
@@ -110,7 +112,7 @@ function observe(run: PrintRun): void {
   run.child.on('close', (code) => {
     finish(
       run,
-      code === 0
+      code === 0 || (code !== null && run.options.reportExitCodes?.includes(code))
         ? { stdout: run.stdout }
         : {
             stdout: '',

@@ -87,3 +87,37 @@ test('Connectors: native lane inspection and reconnect do not create model turns
     await shutdown(harness)
   }
 })
+
+test('Connectors: stock pi without mcp inspect still reports each connector', async () => {
+  const agent = privateAgentDir()
+  await writeFile(
+    join(agent, 'mcp.json'),
+    JSON.stringify({
+      mcpServers: { local: { command: 'fake' }, remote: { url: 'https://remote.test/mcp' } },
+    }),
+  )
+  const harness = await launch({ agentDir: agent, env: { PHOSPHOR_E2E_STOCK_PI_MCP: '1' } })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+    await page.getByRole('button', { name: 'Start lane', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible({
+      timeout: 30_000,
+    })
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await page.getByRole('button', { name: 'MCP Connectors', exact: true }).click()
+    const local = page.getByTestId('connector-local')
+    const remote = page.getByTestId('connector-remote')
+    await expect(local.getByText('Up · 3 tools')).toBeVisible()
+    await expect(remote.getByText('Needs sign-in')).toBeVisible()
+    await expect(remote.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
+    await expect(page.getByText(/does not support connector inspection/)).toHaveCount(0)
+    // The lane's pi cannot inspect either, so its controls stay out of the way.
+    await expect(local.getByText(/Selected lane/)).toHaveCount(0)
+    await local.getByRole('button', { name: 'Tools (3)', exact: true }).click()
+    await expect(local.getByText('get_issue', { exact: true })).toBeVisible()
+  } finally {
+    await shutdown(harness)
+  }
+})

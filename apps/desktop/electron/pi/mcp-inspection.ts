@@ -5,12 +5,20 @@ import {
   McpInspectionCache,
   inspectionKey,
 } from '@phosphor/session-runtime/pi/mcp-inspection-cache'
-import { McpInspector } from '@phosphor/session-runtime/pi/mcp-inspection'
+import { McpInspector, runMcpList } from '@phosphor/session-runtime/pi/mcp-inspection'
 import { readMcpConfigs } from './mcp-config'
 import { piCli } from './mcp-actions'
-import { disposeMcpLogins } from './mcp-cli'
+import { disposeMcpLogins, parseMcpList } from './mcp-cli'
+import { NativeMcpCheck } from './mcp-list-check'
 
 const inspector = new McpInspector()
+const native = new NativeMcpCheck(
+  (cli, name, signal) => inspector.check(cli, name, signal),
+  async (cli, signal) => {
+    const result = await runMcpList(cli, { timeoutMs: 45_000, signal })
+    return result.error ? { ok: false, message: result.error } : parseMcpList(result.stdout, '')
+  },
+)
 const requests = new Map<string, AbortController>()
 let cache: McpInspectionCache | undefined
 function metadata(): McpInspectionCache {
@@ -66,7 +74,8 @@ async function runCheck(
   const key = inspectionKey(context(workspacePath), server)
   const cli = await piCli(workspacePath)
   if (!cli) return { ok: false, message: 'Pi is not available.' }
-  const result = await inspector.check({ ...cli, env: cli.env ?? {} }, name, signal)
+  const scope = configs.servers.map((item) => inspectionKey(context(workspacePath), item)).join()
+  const result = await native.check({ ...cli, env: cli.env ?? {} }, scope, name, signal)
   if (!result.ok) return result
   if (signal.aborted) return { ok: false, message: 'Check cancelled.' }
   const after = (await readMcpConfigs(workspacePath)).servers.find((item) => item.name === name)
@@ -84,5 +93,5 @@ export function cancelOwnerChecks(owner: number): void {
 export function disposeMcpConnections(force = false): Promise<void> {
   disposeMcpLogins()
   for (const controller of requests.values()) controller.abort()
-  return inspector.dispose(force)
+  return Promise.all([inspector.dispose(force), native.dispose()]).then(() => {})
 }

@@ -1,6 +1,12 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import type { ConnectorAuthState } from '@shared/models'
-import type { McpListResult, McpServerReport, McpServerState } from '@shared/mcp'
+import {
+  isMcpExposure,
+  type McpExposure,
+  type McpListResult,
+  type McpServerReport,
+  type McpServerState,
+} from '@shared/mcp'
 import { log } from '../debug-log'
 
 /**
@@ -20,6 +26,8 @@ export interface PiCli {
   /** pi's cwd — decides whether a project `.pi/mcp.json` applies. */
   cwd: string
   env?: Record<string, string>
+  /** `pi --version`: decides whether a capability learned from this pi still holds. */
+  version?: string
 }
 
 function spawnPi(cli: PiCli, args: string[]): ChildProcess {
@@ -75,6 +83,14 @@ const STATES = new Set<McpServerState>([
   'disabled',
 ])
 
+function toolExposure(value: unknown): { toolExposure?: Record<string, McpExposure> } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const entries = Object.entries(value).filter((entry): entry is [string, McpExposure] =>
+    isMcpExposure(entry[1]),
+  )
+  return entries.length ? { toolExposure: Object.fromEntries(entries) } : {}
+}
+
 function lastLine(text: string): string {
   return text.trim().split('\n').filter(Boolean).pop() ?? ''
 }
@@ -114,6 +130,7 @@ export function parseMcpList(stdout: string, stderr: string): McpListResult {
       tools: Array.isArray(s.tools)
         ? s.tools.filter((t): t is string => typeof t === 'string')
         : [],
+      ...toolExposure(s.toolExposure),
       ...(typeof s.error === 'string' ? { error: s.error } : {}),
     })
   }
