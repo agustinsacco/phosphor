@@ -18,6 +18,17 @@ function BehaviorNumber({
     setText(String(value ?? ''))
     setError(false)
   }, [value])
+  const commit = () => {
+    if (!text) {
+      setText(String(value ?? ''))
+      setError(false)
+      return
+    }
+    const n = Number(text)
+    const valid = Number.isSafeInteger(n) && n >= 0 && n <= max
+    setError(!valid)
+    if (valid && n !== value) change(n)
+  }
   return (
     <label className="block text-base">
       {title}
@@ -30,16 +41,9 @@ function BehaviorNumber({
         step={1}
         className="border-border bg-bg mt-1 w-full rounded-md border p-2"
         onChange={(e) => setText(e.target.value)}
-        onBlur={() => {
-          if (!text) {
-            setText(String(value ?? ''))
-            setError(false)
-            return
-          }
-          const n = Number(text)
-          const valid = Number.isSafeInteger(n) && n >= 0 && n <= max
-          setError(!valid)
-          if (valid) change(n)
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
         }}
       />
       {error && (

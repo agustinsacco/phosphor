@@ -1,19 +1,16 @@
-import { Button } from '@/components/form'
-import { promptChoice } from '@/stores/prompt'
+import { useEffect, useState } from 'react'
+import { isValidContextBudgetValue } from '@shared/context-budget'
 import type { ThinkingLevel } from '@shared/rpc'
 import { Card, Skeleton } from './MachineUi'
-import type { HostSettingsState } from './useHostSettings'
 
 import type { MachineAgentController } from './useMachineAgentSettings'
 import { HostCustomModel } from './HostCustomModel'
 export function MachineModelDefaults({
   controller,
   label,
-  settings,
 }: {
   controller: MachineAgentController
   label: string
-  settings: HostSettingsState
 }): React.JSX.Element {
   const {
     state,
@@ -24,7 +21,7 @@ export function MachineModelDefaults({
     setModel,
     setThinking,
     busy,
-    saveModel,
+    draft,
     knownModel,
   } = controller
   return (
@@ -42,11 +39,14 @@ export function MachineModelDefaults({
               onChange={(e) => setModel(e.target.value)}
               className="border-border bg-bg mt-1 w-full rounded-md border p-2"
             >
-              <option value="">
-                {state?.defaultModel
-                  ? `${state?.defaultProvider ?? 'provider'}/${state?.defaultModel} · choose from catalogue to change`
-                  : 'Use pi’s existing default; choose a model to change'}
-              </option>
+              {/* pi has no "unset" through this form: the empty choice exists only until a model is saved. */}
+              {!draft.base.model && (
+                <option value="">
+                  {state?.defaultModel
+                    ? `${state?.defaultProvider ?? 'provider'}/${state?.defaultModel} · choose from catalogue to change`
+                    : 'Use pi’s existing default; choose a model to change'}
+                </option>
+              )}
               {model && !knownModel && (
                 <option value={model}>Saved model is unavailable in this catalogue</option>
               )}
@@ -73,11 +73,6 @@ export function MachineModelDefaults({
             ))}
           </select>
         </label>
-        <div className="flex justify-end">
-          <Button disabled={busy || !controller.validModel} onClick={() => void saveModel()}>
-            {settings.saving ? 'Saving…' : 'Review model defaults'}
-          </Button>
-        </div>
       </div>
     </Card>
   )
@@ -89,7 +84,22 @@ export function MachineHostPolicy({
   controller: MachineAgentController
   label: string
 }): React.JSX.Element {
-  const { draft, budget, naming, setBudget, setNaming, busy } = controller
+  const { budget, naming, setBudget, setNaming, busy } = controller
+  const [text, setText] = useState(budget)
+  const [invalid, setInvalid] = useState(false)
+  useEffect(() => {
+    setText(budget)
+    setInvalid(false)
+  }, [budget])
+  const commit = () => {
+    const next = text.trim()
+    if (next === budget) return
+    if (next !== '' && !isValidContextBudgetValue(next)) {
+      setInvalid(true)
+      return
+    }
+    setBudget(next)
+  }
   return (
     <Card title="Host policy" aside="Requires a Host service restart">
       <div className="space-y-4">
@@ -97,15 +107,30 @@ export function MachineHostPolicy({
           Context budget
           <input
             aria-label="Host context budget"
-            value={budget}
+            aria-invalid={invalid || undefined}
+            value={text}
             disabled={busy}
-            onChange={(e) => setBudget(e.target.value)}
+            placeholder="200k"
+            onChange={(e) => {
+              setText(e.target.value)
+              setInvalid(false)
+            }}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit()
+            }}
             className="border-border bg-bg mt-1 w-full rounded-md border p-2"
           />
-          <span className="text-text-secondary mt-1 block text-sm">
-            Default 200k. One budget for native and Claude Code lanes. Automatic compaction keeps
-            response headroom.
-          </span>
+          {invalid ? (
+            <span role="alert" className="text-danger mt-1 block text-sm">
+              Not saved: use a budget from 100k to 1M (e.g. 300k), auto, or off.
+            </span>
+          ) : (
+            <span className="text-text-secondary mt-1 block text-sm">
+              Default 200k. One budget for native and Claude Code lanes. Automatic compaction keeps
+              response headroom.
+            </span>
+          )}
         </label>
         <label className="flex items-center gap-2 text-base">
           <input
@@ -116,30 +141,10 @@ export function MachineHostPolicy({
           />
           Automatically name new lanes
         </label>
-        <Button
-          disabled={busy}
-          onClick={() =>
-            void (async () => {
-              if (
-                (await promptChoice({
-                  title: `Save Host policy on ${label}?`,
-                  message:
-                    'This writes the Host configuration. It does not restart the service or stop lanes. The saved policy takes effect after an explicit Host service restart.',
-                  choices: [{ value: 'save', label: 'Save policy', primary: true }],
-                })) === 'save'
-              )
-                await draft.save({
-                  type: 'agent.patch',
-                  patch: { contextBudget: budget.trim(), autoNameLanes: naming },
-                })
-            })()
-          }
-        >
-          Review Host policy
-        </Button>
         <p className="text-text-tertiary text-sm">
-          To apply saved Host policy, explicitly restart the service on {label} when running work
-          can stop. Model defaults above do not need a service restart.
+          Saving does not restart the service or stop lanes. Restart the service on {label} when
+          running work can stop to apply saved Host policy. Model defaults above do not need a
+          restart.
         </p>
       </div>
     </Card>
