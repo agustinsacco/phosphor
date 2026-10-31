@@ -110,4 +110,24 @@ describe('files.list in a folder without git', () => {
     await chmod(join(f.root, 'locked'), 0)
     expect(await f.list()).toEqual({ ok: true, data: { files: ['kept.txt'] } })
   })
+
+  it.skipIf(process.getuid?.() === 0)('fails a folder it cannot read at all', async () => {
+    await put(f.root, 'kept.txt')
+    await chmod(f.root, 0o300)
+    try {
+      expect(await f.list()).toEqual({
+        ok: false,
+        error: { code: 'internal', message: 'File query failed.' },
+      })
+    } finally {
+      await chmod(f.root, 0o755)
+    }
+  })
+
+  it('leaves out names a file path cannot carry instead of failing the list', async () => {
+    await put(f.root, 'kept.txt')
+    await put(f.root, 'back\\slash.txt')
+    await put(f.root, 'c:notes.txt')
+    expect(await f.list()).toEqual({ ok: true, data: { files: ['kept.txt'] } })
+  })
 })
