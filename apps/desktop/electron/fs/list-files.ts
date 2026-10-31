@@ -1,24 +1,9 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { readdir } from 'node:fs/promises'
-import { join, relative, sep } from 'node:path'
+import { walkFiles } from '@phosphor/session-runtime/files/walk'
 import { MAX_LISTED_FILES } from '@shared/workspace-search'
 
 const execFileAsync = promisify(execFile)
-
-const DEFAULT_IGNORES = new Set([
-  '.git',
-  'node_modules',
-  'dist',
-  'out',
-  'build',
-  'target',
-  '.next',
-  '.venv',
-  'venv',
-  '__pycache__',
-  '.cache',
-])
 
 export interface WorkspaceFileList {
   /** Workspace-relative, `/`-separated: git's tracked files, then its untracked ones. */
@@ -29,8 +14,8 @@ export interface WorkspaceFileList {
 
 /**
  * List workspace files for @-mentions, the fuzzy finder and the workspace search.
- * Prefers `git ls-files` (gitignore-aware, fast); falls back to a bounded
- * recursive walk with standard ignores.
+ * Prefers `git ls-files` (gitignore-aware, fast); falls back to the bounded
+ * walk the Host uses too (`walkFiles`).
  *
  * `-z` because without it git quotes any path outside plain ASCII
  * (`"caf\303\251.md"`), which then names no file on disk.
@@ -60,39 +45,9 @@ export async function listWorkspaceFileList(
     // Not a git repo — fall through, unless the listing was stopped.
     signal?.throwIfAborted()
   }
-  const results: string[] = []
-  const truncated = await walk(workspacePath, workspacePath, results, signal)
-  return { files: results, truncated }
+  return walkFiles(workspacePath, MAX_LISTED_FILES, signal)
 }
 
 export async function listWorkspaceFiles(workspacePath: string): Promise<string[]> {
   return (await listWorkspaceFileList(workspacePath)).files
-}
-
-/** Collect files below `dir`; true when it stopped at `MAX_LISTED_FILES` with more left. */
-async function walk(
-  root: string,
-  dir: string,
-  results: string[],
-  signal: AbortSignal | undefined,
-): Promise<boolean> {
-  signal?.throwIfAborted()
-  let entries
-  try {
-    entries = await readdir(dir, { withFileTypes: true })
-  } catch {
-    return false
-  }
-  for (const entry of entries) {
-    if (entry.name.startsWith('.') && entry.isDirectory()) continue
-    if (DEFAULT_IGNORES.has(entry.name)) continue
-    const full = join(dir, entry.name)
-    if (entry.isDirectory()) {
-      if (await walk(root, full, results, signal)) return true
-    } else if (entry.isFile()) {
-      if (results.length >= MAX_LISTED_FILES) return true
-      results.push(relative(root, full).split(sep).join('/'))
-    }
-  }
-  return false
 }

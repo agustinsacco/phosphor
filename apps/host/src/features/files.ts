@@ -1,5 +1,6 @@
-import { opendir, realpath, stat } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
+import { walkFiles } from '@phosphor/session-runtime/files/walk'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import { FILE_LIMITS, isFilePath, type FileRead } from '@phosphor/shared/host-protocol-files'
 import type { CallErrorCode } from '@phosphor/shared/host-protocol'
@@ -100,27 +101,18 @@ export async function listedPaths(root: string, path = '.'): Promise<string[]> {
   await validateList(files, (file) => checkedPath(root, file, true))
   return files
 }
-/** Non-git configured folders still have a bounded file browser. */
+/**
+ * A configured folder without git browses as Desktop's does: the first 20,000 files
+ * past dependency, build, cache and hidden folders, links left out. Every listed
+ * path is then checked as a git list is, so a folder swapped for a link mid-walk
+ * refuses the list rather than naming what lies outside.
+ */
 export async function filePaths(root: string): Promise<string[]> {
   try {
     await safeGit(root, ['rev-parse', '--is-inside-work-tree'])
   } catch {
-    const pending = [''],
-      files: string[] = []
-    let visited = 0
-    while (pending.length) {
-      const path = pending.shift() ?? ''
-      if (++visited > FILE_LIMITS.entries) throw new FileFailure('too-large')
-      if (path) await checkedPath(root, path)
-      for await (const entry of await opendir(join(root, path))) {
-        if (entry.name.toLowerCase() === '.git') continue
-        const relative = path ? `${path}/${entry.name}` : entry.name
-        await checkedPath(root, relative)
-        if (entry.isDirectory()) pending.push(relative)
-        else if (entry.isFile()) files.push(relative)
-        if (pending.length + files.length > FILE_LIMITS.entries) throw new FileFailure('too-large')
-      }
-    }
+    const { files } = await walkFiles(root, FILE_LIMITS.entries)
+    await validateList(files, (file) => checkedPath(root, file, true))
     return files.sort()
   }
   return listedPaths(root)
