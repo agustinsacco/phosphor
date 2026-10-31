@@ -23,6 +23,7 @@ import { languageForPath } from '@/lib/monaco'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE, REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { canControlSession } from '@/stores/remoteLanes'
+import { fileListErrorText } from '@shared/host-protocol-files'
 import { promptText } from '@/stores/prompt'
 
 /** Remote content stays in memory. No local preview protocols or filesystem watcher. */
@@ -109,11 +110,10 @@ function RemoteFilesView({
             if (!dirtyRef.current) setError(null)
           }
         },
-        () => {
-          if (alive) {
-            setLoading(false)
-            setError(REMOTE_UNAVAILABLE)
-          }
+        (error: unknown) => {
+          if (!alive) return
+          setLoading(false)
+          setError(fileListErrorText(error, REMOTE_UNAVAILABLE))
         },
       )
     return () => {

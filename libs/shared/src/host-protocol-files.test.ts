@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { FILE_LIMITS, isFilePath, parseFileParams, parseFileResult } from './host-protocol-files'
+import {
+  FILE_LIMITS,
+  FILE_LIST_FAILED,
+  FILE_LIST_TOO_LARGE,
+  fileListErrorText,
+  fileListFailure,
+  isFilePath,
+  parseFileParams,
+  parseFileResult,
+} from './host-protocol-files'
 const laneId = '12345678-1234-4234-8234-123456789abc'
 describe('host protocol files', () => {
   it('rejects unsafe paths and accepts POSIX paths at the bound', () => {
@@ -92,5 +101,22 @@ describe('host protocol files', () => {
     expect(
       parseFileResult('git.status', { status: { a: 'xx' }, branch: null, ahead: 0, behind: 0 }),
     ).toBeNull()
+  })
+})
+
+describe('file list failure texts', () => {
+  it('maps only too-large and internal to fixed text', () => {
+    expect(FILE_LIST_TOO_LARGE).toBe('Too many files to list: the Host stops at 20,000.')
+    expect(fileListFailure('too-large')).toBe(FILE_LIST_TOO_LARGE)
+    expect(fileListFailure('internal')).toBe(FILE_LIST_FAILED)
+    for (const code of ['bad-request', 'unknown-lane', 'unsupported', 'Result exceeds the limit.'])
+      expect(fileListFailure(code)).toBeNull()
+  })
+  it('recognises the fixed text through IPC and nothing near it', () => {
+    const ipc = (m: string) => new Error(`Error invoking remote method 'fs:listFiles': Error: ${m}`)
+    expect(fileListErrorText(ipc(FILE_LIST_FAILED), 'x')).toBe(FILE_LIST_FAILED)
+    expect(fileListErrorText(new Error(FILE_LIST_TOO_LARGE), 'x')).toBe(FILE_LIST_TOO_LARGE)
+    for (const other of [ipc(`${FILE_LIST_FAILED} /private`), 'too-large', null, undefined])
+      expect(fileListErrorText(other, 'x')).toBe('x')
   })
 })
