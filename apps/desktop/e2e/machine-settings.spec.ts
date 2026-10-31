@@ -22,15 +22,16 @@ test('machine settings save only on bee1, preserve revisions and never read back
       h.hostId
     ]!
     expect(before.connectionToken).toBeTruthy()
-    await settings.getByRole('textbox', { name: 'Host context budget', exact: true }).fill('100k')
-    await settings.getByRole('button', { name: 'Review Host policy', exact: true }).click()
-    await h.page.getByRole('button', { name: 'Save policy', exact: true }).click()
+    const budget = settings.getByRole('textbox', { name: 'Host context budget', exact: true })
+    await budget.fill('100k')
+    await budget.press('Enter')
     await expect
       .poll(async () => JSON.parse(await readFile(h.config, 'utf8')).contextBudget)
       .toBe('100k')
-    await expect(
-      settings.getByRole('button', { name: 'Review Host policy', exact: true }),
-    ).toBeEnabled()
+    await expect(h.page.getByTestId('toast-stack')).toContainText(
+      'Saved on bee1 — applies after the Host service restarts',
+    )
+    await expect(budget).toBeEnabled()
     const after = (await h.page.evaluate(() => window.phosphor.invoke('hosts:snapshot')))[h.hostId]!
     expect(after.state).toBe('ready')
     expect(after.connectionToken).toBe(before.connectionToken)
