@@ -68,6 +68,17 @@ describe('walkFiles', () => {
 
   it('rejects with the reason once stopped', async () => {
     await put('a.txt')
-    await expect(walkFiles(root, 100, AbortSignal.abort('time'))).rejects.toBe('time')
+    await expect(walkFiles(root, 100, { signal: AbortSignal.abort('time') })).rejects.toBe('time')
+  })
+
+  it('counts every entry it reads against the budget, ignored and skipped ones too', async () => {
+    await put('node_modules/x.js', '.hidden/y.txt', 'z/a.txt')
+    await symlink(base, join(root, 'link'))
+    // Four root entries and one in z: five reads list z/a.txt, four cannot.
+    expect(await walkFiles(root, 100, { entries: 5 })).toEqual({
+      files: ['z/a.txt'],
+      truncated: false,
+    })
+    expect(await walkFiles(root, 100, { entries: 4 })).toEqual({ files: [], truncated: true })
   })
 })

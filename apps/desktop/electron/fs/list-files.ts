@@ -45,7 +45,7 @@ export async function listWorkspaceFileList(
     // Not a git repo — fall through, unless the listing was stopped.
     signal?.throwIfAborted()
   }
-  return walkFiles(workspacePath, MAX_LISTED_FILES, signal)
+  return walkFiles(workspacePath, MAX_LISTED_FILES, { signal })
 }
 
 export async function listWorkspaceFiles(workspacePath: string): Promise<string[]> {

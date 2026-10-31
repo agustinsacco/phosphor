@@ -1,4 +1,4 @@
-import { realpath, stat } from 'node:fs/promises'
+import { access, constants, realpath, stat } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
 import { walkFiles } from '@phosphor/session-runtime/files/walk'
 import { git } from '@phosphor/session-runtime/git/git-exec'
@@ -101,17 +101,23 @@ export async function listedPaths(root: string, path = '.'): Promise<string[]> {
   await validateList(files, (file) => checkedPath(root, file, true))
   return files
 }
+/** Entries one walk may read, ignored and skipped ones included: ten per listed file. */
+const WALK_ENTRIES = FILE_LIMITS.entries * 10
 /**
- * A configured folder without git browses as Desktop's does: the first 20,000 files
- * past dependency, build, cache and hidden folders, links left out. Every listed
- * path is then checked as a git list is, so a folder swapped for a link mid-walk
- * refuses the list rather than naming what lies outside.
+ * A configured folder without git lists as Desktop's file finder does: the first
+ * 20,000 files past dependency, build and cache files and folders and hidden
+ * folders, links left out, within an entry budget. A name no file path can carry is left out too. Every
+ * listed path is then checked as a git list is, so a folder swapped for a link
+ * mid-walk refuses the list rather than naming what lies outside.
  */
 export async function filePaths(root: string): Promise<string[]> {
   try {
     await safeGit(root, ['rev-parse', '--is-inside-work-tree'])
   } catch {
-    const { files } = await walkFiles(root, FILE_LIMITS.entries)
+    // The walk skips folders it cannot read; a root it cannot read is a failure.
+    await access(root, constants.R_OK | constants.X_OK)
+    const walked = await walkFiles(root, FILE_LIMITS.entries, { entries: WALK_ENTRIES })
+    const files = walked.files.filter(isFilePath)
     await validateList(files, (file) => checkedPath(root, file, true))
     return files.sort()
   }
