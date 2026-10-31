@@ -110,7 +110,8 @@ that Host. A confirmed action closes the sheet; a refusal stays to say why.
 There is no drawer button, machine filter or pane tab strip inside a lane. A
 reader sees a Take control bar where the composer would be. Wider browsers keep
 the pane tabs, which end with the Session options button, and the control row
-above the transcript.
+above the transcript; their header follows the lane title with its repository
+and branch, as Desktop's top bar does ([UI shell](ui-shell.md#top-bar)).
 History and popstate encode Host/lane identifiers, not filesystem paths. Missing machines, unavailable
 capabilities and offline reads have explicit states; they never fall back to
 This computer. Reading a lane does not acquire control. The real Host-backed

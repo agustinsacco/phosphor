@@ -3,6 +3,7 @@ import type { SessionPush } from '@phosphor/shared/models'
 import { errnoIs } from '../../fs-safety'
 import { piState } from '../pi-results'
 import type { StoredLane } from '../store'
+import { runEnded, syncBranch } from './branch'
 import { MODEL_TRANSCRIPT_REFUSAL, type Binding, type RuntimeLaneState } from './state'
 
 const STARTUP_PUSHES = 256
@@ -44,6 +45,7 @@ export async function attach(context: RuntimeLaneState, laneId: string, sessionI
   binding.laneId = laneId
   replayStartup(context, binding, laneId)
   await binding.attachment.ready
+  await syncBranch(context, binding)
   if (options.nameLane) {
     const response = await runtime.command(sessionId, { type: 'get_state' })
     const state = response.success ? piState(response.data) : null
@@ -164,7 +166,12 @@ export async function stopLane(
 
 function bufferPush(context: RuntimeLaneState, binding: Binding, push: SessionPush) {
   if (push.kind === 'stderr') return
-  if (binding.laneId !== undefined) return context.options.live.push(binding.laneId, push)
+  if (binding.laneId !== undefined) {
+    context.options.live.push(binding.laneId, push)
+    // syncBranch reports its own failures.
+    if (runEnded(push)) void syncBranch(context, binding)
+    return
+  }
   if (binding.overflow) return
   const bytes = Buffer.byteLength(JSON.stringify(push))
   if (binding.pushes.length >= STARTUP_PUSHES || binding.bytes + bytes > STARTUP_BYTES) {

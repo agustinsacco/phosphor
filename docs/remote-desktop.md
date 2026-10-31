@@ -499,7 +499,9 @@ which lane is focused.
 
 The Host owns lane naming and lifecycle; see [Host lifecycle](host.md#remote-lane-names-and-lifecycle).
 
-Host-generated names change the lane title, not its branch.
+Host-generated names change the lane title, not its branch. The branch a lane
+row and the top bar show follows the lane's folder after every run
+([Host lifecycle](host.md#remote-lane-names-and-lifecycle)).
 [Host naming](host.md#remote-lane-names-and-lifecycle) owns package resolution and diagnostics.
 
 Desktop retains full model metadata per open lane in memory. Without it, a

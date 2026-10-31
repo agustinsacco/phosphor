@@ -43,6 +43,11 @@ and Host lanes alike. The terminal switch carries a
 tab count and a running-process dot; the artifacts switch appears once the
 session has an artifact, with a count and an unseen dot.
 
+On a Host lane the folder and branch controls give way to a read-only
+`LaneLocation` (`features/machines/LaneLocation.tsx`): the lane's repository,
+`wt` for a worktree and its branch, from the Host's lane summary, which follows
+the lane folder after every run. The browser's lane header shows the same.
+
 Everything right of the sidebar toggle is **session-only**, except the Files
 button on Host home. On This Mac's home screen the bar keeps its height and
 renders nothing else, because that screen puts the same folder and branch

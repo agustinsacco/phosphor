@@ -1795,6 +1795,15 @@ for bounds, deletion policy and the connection capability matrix.
 
 The Host owns the generated title; it does not rename the branch.
 
+A lane's branch follows its folder. The Host records the branch at creation,
+then reads the branch checked out in the lane's folder again when the lane
+attaches (start or resume) and after every run (`agent_end` without a retry), so
+a branch the agent or a terminal switched to, created or renamed reaches every
+client's lane row and lane header. A detached or unreadable HEAD keeps the last
+branch named. A stopped lane keeps its last reading until it runs again
+(`lanes/runtime-host/branch.ts`). The lane's folder and `worktree` flag never
+change.
+
 An unnamed lane immediately uses its first accepted user message as its summary
 title: the first nonempty line, trimmed, at most 80 characters. The Host also
 names new lanes after the first accepted prompt. `autoNameLanes` is a boolean,
@@ -1881,7 +1890,8 @@ steps. It stops pi and its process group, then moves the transcript through the
 runtime's shared path-lock domain into `<state>/trash/`. A startup sweep removes
 matching trash files older than 30 days. Missing transcripts and a worktree
 already removed outside Phosphor are allowed. A shared worktree is never removed. Worktree removal uses git without force, so
-dirty worktrees remain. A branch is kept unless its work is proven merged,
+dirty worktrees remain. The branch considered is the lane's latest reading
+(above). A branch is kept unless its work is proven merged,
 including squash merges by `git cherry` against a synthetic branch-tree commit.
 Symbolic branch refs are kept. Every merged branch, by ancestry or squash, is
 deleted the same way: worktrees are rechecked immediately before

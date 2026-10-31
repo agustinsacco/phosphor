@@ -5,6 +5,7 @@ import {
   useActiveMachine,
 } from '@/stores/remoteLanes'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
+import { SessionLaneLocation } from '@/features/machines/LaneLocation'
 import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
@@ -74,11 +75,15 @@ export function TopBar({
           screen rather than window furniture — and rendering them in both
           places at once would put two identical folder chips on one screen,
           which is the "two answers to one question" problem the top bar was
-          meant to solve, reintroduced. One surface owns them per screen. */}
+          meant to solve, reintroduced. One surface owns them per screen.
+
+          A Host lane shows its own repository and branch, read-only, from
+          the Host's lane summary: the local chips act on This Mac's disk. */}
       {activeSessionId ? (
         <>
           {!remote && <WorkspaceChip workspacePath={workspacePath} compact />}
           {!remote && <BranchControl workspacePath={workspacePath} />}
+          <SessionLaneLocation sessionId={activeSessionId} />
           <MachineChip sessionId={activeSessionId} />
           <ActiveSessionControls sessionId={activeSessionId} />
         </>
