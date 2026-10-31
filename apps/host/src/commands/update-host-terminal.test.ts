@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, readlinkSync, readdirSync, writeFileSync } fro
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { fixture } from '../update/__fixtures__/release'
-import { HANDOFF_FAILED, UPDATE_UNIT, insideHostUnit } from '../update/handoff'
+import { HANDOFF_FAILED, UPDATE_UNIT, hostUpdateProgram, insideHostUnit } from '../update/handoff'
 import type { Drainable } from '../shutdown'
 import { runCli } from '../cli'
 import { runUpdate } from './update'
@@ -33,10 +33,10 @@ async function cli(f: ReturnType<typeof fixture>, argv: string[]) {
   return { code, lines: stdout.join('').split('\n').filter(Boolean) }
 }
 
-function setup(cgroup: string) {
+function setup(cgroup: string, available: string | null = '1.2.3') {
   const f = fixture()
   fixtures.push(f)
-  f.release()
+  if (available) f.release(available)
   f.context.update = { ...f.context.update, cgroup: () => cgroup }
   const unit = join(f.home, '.config/systemd/user/phosphor-host.service')
   mkdirSync(join(unit, '..'), { recursive: true })
@@ -100,6 +100,80 @@ it.each([[[]], [['--version', '1.2.3']], [['--rollback']]])(
     expect(lines).toContain(`Follow it with: journalctl --user -u ${UPDATE_UNIT}`)
   },
 )
+
+// The Machines page starts the same command with a button, where nobody reads the journal:
+// the terminal must say what it found, and stay put when there is nothing to install.
+it('says which release it found before handing a plain update off', async () => {
+  const { f, calls } = setup(HOST_CGROUP)
+  f.context.service = {
+    runner: async (program, args) => {
+      calls.push({ program, args })
+      return { code: 0, stdout: '' }
+    },
+  }
+  const { code, lines } = await cli(f, [])
+  expect(code).toBe(0)
+  expect(calls.map((c) => c.program)).toEqual(['systemd-run'])
+  expect(lines[0]).toBe('Installed: 1.0.0; available: 1.2.3')
+})
+
+it('stays in the terminal and restarts nothing when the Host is already current', async () => {
+  const { f, calls } = setup(HOST_CGROUP, '1.0.0')
+  f.context.packages = async () => []
+  f.context.service = {
+    runner: async (program, args) => {
+      calls.push({ program, args })
+      return { code: 0, stdout: '' }
+    },
+  }
+  const { code, lines } = await cli(f, [])
+  expect(code).toBe(0)
+  expect(calls).toEqual([])
+  expect(lines).toContain('already up to date')
+  expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/1.0.0')
+})
+
+it('hands nothing off when the release check fails, and reports it in the terminal', async () => {
+  const { f, calls } = setup(HOST_CGROUP, null)
+  f.context.service = {
+    runner: async (program, args) => {
+      calls.push({ program, args })
+      return { code: 0, stdout: '' }
+    },
+  }
+  const { code, lines } = await cli(f, [])
+  expect(code).not.toBe(0)
+  expect(calls).toEqual([])
+  expect(lines.length).toBeGreaterThan(0)
+  expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/1.0.0')
+})
+
+it('runs a button update with the installed release and only the updater variables', () => {
+  const f = fixture()
+  fixtures.push(f)
+  const env = {
+    HOME: f.home,
+    PATH: '/usr/bin',
+    PHOSPHOR_HOST_RELEASE_URL: 'https://mirror.example/host',
+    XDG_STATE_HOME: '/state',
+    XDG_RUNTIME_DIR: '/run/user/1000',
+    SECRET_TOKEN: 'never passed',
+  }
+  const { node, bundle } = f.context.update!
+  const version = join(f.lib, 'versions/1.0.0')
+  expect(hostUpdateProgram(f.home, env, 'linux', node, bundle)).toEqual({
+    node: join(version, 'node/bin/node'),
+    bundle: join(version, 'lib/phosphor.mjs'),
+    env: {
+      PHOSPHOR_HOST_RELEASE_URL: 'https://mirror.example/host',
+      XDG_STATE_HOME: '/state',
+      XDG_RUNTIME_DIR: '/run/user/1000',
+    },
+  })
+  // macOS has no handoff, so its restart would end the updater before its health check.
+  expect(hostUpdateProgram(f.home, env, 'darwin', node, bundle)).toBeNull()
+  expect(hostUpdateProgram(f.home, env, 'linux', '/usr/bin/node', '/src/phosphor.mjs')).toBeNull()
+})
 
 it('keeps --check in the terminal: it restarts nothing', async () => {
   const { f, calls } = setup(HOST_CGROUP)

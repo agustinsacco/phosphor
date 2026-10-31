@@ -15,7 +15,8 @@ afterEach(() => {
   vi.clearAllMocks()
   vi.useRealTimers()
 })
-function fixture() {
+type HostUpdater = NonNullable<Parameters<typeof createMachineTasks>[0]['hostUpdater']>
+function fixture(hostUpdater?: HostUpdater) {
   let finish!: () => void
   const runner = vi.fn<ReturnType<HostTerminals['loginRunner']>>()
   const terminals = {
@@ -42,6 +43,7 @@ function fixture() {
     home: '/host/home',
     env: { HOME: '/host/home', PATH: '/trusted/bin' },
     pi: { binaryPath: '/trusted/node', prefixArgs: ['/trusted/pi.js'] },
+    hostUpdater,
   })
   return { tasks, settings, terminals, runner, finish: () => finish() }
 }
@@ -177,6 +179,39 @@ describe('fixed-purpose private machine programs', () => {
     await vi.waitFor(() => expect(f.tasks.active()).toBe(false))
     expect(existsSync(dirname(script))).toBe(false)
     expect(f.settings.invalidateConnectors).toHaveBeenCalledOnce()
+  })
+  it('updates the Host with its own release updater, the pi env and only the updater variables', async () => {
+    const f = fixture(() => ({
+      node: '/host/lib/versions/1.0.0/node/bin/node',
+      bundle: '/host/lib/versions/1.0.0/lib/phosphor.mjs',
+      env: { XDG_STATE_HOME: '/host/state' },
+    }))
+    expect(
+      await f.tasks.execute({ type: 'machine.task', task: 'host.update' }, 'client', () => true),
+    ).toEqual({ terminalId: 'private-pty' })
+    expect(f.runner).toHaveBeenCalledWith(
+      '/host/lib/versions/1.0.0/node/bin/node',
+      ['/host/lib/versions/1.0.0/lib/phosphor.mjs', 'update'],
+      {
+        cwd: '/host/home',
+        env: {
+          HOME: '/host/home',
+          PATH: '/trusted/bin',
+          XDG_STATE_HOME: '/host/state',
+          TERM: 'xterm-256color',
+        },
+      },
+    )
+    f.finish()
+  })
+  it('refuses a Host update where no release updater may run', async () => {
+    for (const hostUpdater of [undefined, () => null]) {
+      const f = fixture(hostUpdater)
+      await expect(
+        f.tasks.execute({ type: 'machine.task', task: 'host.update' }, 'client', () => true),
+      ).rejects.toThrow('unavailable')
+      expect(f.runner).not.toHaveBeenCalled()
+    }
   })
   it('never executes a failed official installer download', async () => {
     const f = fixture()
