@@ -556,7 +556,7 @@ zero. Offline and account errors are explicit and offer retry.
 
 A Host's detail has one **Back to machines** breadcrumb, then a compact identity
 header (label with Rename, the status pill and a **Machine actions** menu containing
-Reconnect and Check again), followed by **Overview / Settings / Machine files** navigation (Machine files opens
+Reconnect, Check again and Update Host…, which opens Settings → Advanced), followed by **Overview / Settings / Machine files** navigation (Machine files opens
 the Host's home folder read-only in a dialog). Add a
 machine and debug actions belong to the list, not a selected Host. The same header
 and responsive container run in Desktop and the browser; the browser does not gain
@@ -586,8 +586,9 @@ The same sections open from Settings → Configure → \<Host\>. The Machines pa
 Settings has its own target banner, explicit configuration-access request and
 Providers, Connectors, Agent defaults, Folders, Skills & extensions and Advanced
 sections. [The settings contract](settings.md#host-machine-settings) owns their
-review, authority, drafts and timing. Advanced is read-only; there is no shared
-local/remote raw editor or automatic service restart.
+review, authority, drafts and timing. Advanced's only action is **Pause and
+update**, a confirmed Host update ([host.md](host.md#updating)); otherwise it is
+read-only, with no shared local/remote raw editor and no automatic service restart.
 
 Older Hosts retain Sign in when granted `terminal` and `sessions.control`. It opens
 a private terminal on that Host: `/login PROVIDER`, follow pi's steps, then `/quit`,

@@ -18,6 +18,7 @@ import {
   relativeTime,
 } from './machinePresentation'
 import { machineHeadline } from './machineReachability'
+import { confirmSettingsNavigation } from './machineSettingsDrafts'
 import { Card, CheckRow, Fact, Facts, Spinner, type CheckItem } from './MachineUi'
 import { MachineTerminal } from './MachineTerminal'
 import { OnThisMachine } from './OnThisMachine'
@@ -116,6 +117,14 @@ export function MachineDetail({
         reconnecting={reconnecting}
         onCheck={() => void checkAgain()}
         onReconnect={() => void reconnect()}
+        onUpdate={() =>
+          void confirmSettingsNavigation(machine.id).then((go) => {
+            if (go)
+              useMachinesStore
+                .getState()
+                .show({ kind: 'machine', id: machine.id, settings: 'advanced' })
+          })
+        }
       />
       {navigation}
       {settings ?? (

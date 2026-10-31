@@ -36,7 +36,8 @@ function update(): HTMLButtonElement {
 }
 
 it('asks the Host to pause and update itself through its fixed-purpose task', () => {
-  act(() => update().click())
+  const button = update()
+  act(() => button.click())
   expect(programs.task).toHaveBeenCalledWith({ task: 'host.update' })
   expect(container.textContent).toContain('Host updates')
 })

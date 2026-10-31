@@ -32,9 +32,11 @@ function hostLanes(lanes: HostLaneView[]) {
 it('says which lanes the update pauses and starts it only once confirmed', async () => {
   hostLanes([lane('working'), lane('idle'), lane('needs-input')])
   vi.mocked(promptChoice).mockResolvedValue('run')
-  const openProgram = vi.fn(async (start: () => Promise<{ ptyId: string }>) => {
-    await start()
-  })
+  const openProgram = vi.fn(
+    async (start: () => Promise<{ ptyId: string }>, _title: string, _note?: string) => {
+      await start()
+    },
+  )
   await runHostTask(machine, { current: true }, openProgram, { task: 'host.update' })
   const ask = vi.mocked(promptChoice).mock.calls[0]![0]
   expect(ask.title).toBe('Pause and update bee1?')

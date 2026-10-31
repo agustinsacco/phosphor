@@ -419,10 +419,28 @@ updater with it. So the updater reads `/proc/self/cgroup` first and, inside
 `phosphor-host.service`, runs the same command again as the transient
 `phosphor-host-update` unit (`systemd-run --user --collect`), passing only
 `HOME`, `PATH`, `PHOSPHOR_HOST_RELEASE_URL`, `XDG_CONFIG_HOME` and
-`XDG_STATE_HOME`. The terminal prints where to follow it
-(`journalctl --user -u phosphor-host-update`) and closes when the Host
-restarts. If `systemd-run` fails, nothing changes and the update exits 75.
-`--check` restarts nothing and stays in the terminal.
+`XDG_STATE_HOME`. A plain `update` checks the signed manifest first. A failed
+check prints its error and hands nothing off. When the Host is already current,
+the update runs in the terminal, restarts nothing and says so. Otherwise it
+prints `Installed: X; available: Y` and where to follow it
+(`journalctl --user -u phosphor-host-update`), and the terminal closes when
+the Host restarts. If `systemd-run` fails, nothing changes and the update
+exits 75. `--check` restarts nothing and stays in the terminal.
+
+**Pause and update** (Machines → a Host → Settings → Advanced, also
+**Update Host…** in Machine actions) sends the fixed-purpose
+`machine.task` `host.update`. It carries no version, folder or argument. The
+Host runs its own installed release's `node lib/phosphor.mjs update` in a
+private configuration PTY, with pi's environment plus only
+`PHOSPHOR_HOST_RELEASE_URL`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME`,
+`XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS`, so the handoff above moves
+it out of the unit. The restart's drain ([Lifecycle](#lifecycle)) is the
+pause: a turn in flight is aborted and saved, and each lane resumes on its next
+message. The confirmation counts the lanes that are working. The Host refuses
+the task (`unavailable`) on a source install and on macOS. macOS has no
+handoff, so the restart would end the updater before its health check. A Host
+older than this task rejects it as `bad-request`, and the client says to run
+`phosphor update` there once.
 
 `phosphor update --rollback` selects the recorded previous installed version
 without network access; an installed service is restarted and health-checked even

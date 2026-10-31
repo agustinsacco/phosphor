@@ -19,6 +19,7 @@ export function MachineDetailHeader({
   reconnecting,
   onCheck,
   onReconnect,
+  onUpdate,
 }: {
   machine: MachineView
   headline: ReturnType<typeof machineHeadline>
@@ -28,6 +29,8 @@ export function MachineDetailHeader({
   reconnecting: boolean
   onCheck: () => void
   onReconnect: () => void
+  /** Opens the Host's update control (Settings, Advanced). */
+  onUpdate?: () => void
 }): React.JSX.Element {
   return (
     <header className="machine-detail-header">
@@ -50,6 +53,7 @@ export function MachineDetailHeader({
           reconnecting={reconnecting}
           onCheck={onCheck}
           onReconnect={onReconnect}
+          onUpdate={onUpdate}
         />
       </div>
       <div className="machine-detail-metadata">
@@ -77,12 +81,14 @@ function MachineHeaderActions({
   reconnecting,
   onCheck,
   onReconnect,
+  onUpdate,
 }: {
   endpoint: boolean
   checking: boolean
   reconnecting: boolean
   onCheck: () => void
   onReconnect: () => void
+  onUpdate?: () => void
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -131,6 +137,17 @@ function MachineHeaderActions({
           >
             {checking ? 'Checking…' : 'Check again'}
           </MenuRow>
+          {endpoint && onUpdate && (
+            <MenuRow
+              active={false}
+              onClick={() => {
+                setOpen(false)
+                onUpdate()
+              }}
+            >
+              Update Host…
+            </MenuRow>
+          )}
         </PopupMenu>
       )}
     </div>

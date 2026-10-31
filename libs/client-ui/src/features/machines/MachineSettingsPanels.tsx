@@ -51,7 +51,7 @@ export function MachineSettingsPanels({ controller }: ControllerProps): React.JS
         />
       )}
       {section === 'advanced' && (
-        <MachineAdvancedSettings label={machine.label} settings={settings} />
+        <MachineAdvancedSettings label={machine.label} settings={settings} programs={programs} />
       )}
     </>
   )

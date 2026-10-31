@@ -148,6 +148,27 @@ it('hands nothing off when the release check fails, and reports it in the termin
   expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/1.0.0')
 })
 
+// Running here after a failed check would update from inside the unit if a retry succeeded,
+// and the restart would end the updater before its health check.
+it('reports a failed release check instead of trying again inside the Host unit', async () => {
+  const { f, calls } = setup(HOST_CGROUP, null)
+  f.context.service = {
+    runner: async (program, args) => {
+      calls.push({ program, args })
+      return { code: 0, stdout: '' }
+    },
+  }
+  let checks = 0
+  f.context.progress = (step) => {
+    if (step.step === 'check' && ++checks === 2) f.release('1.2.3')
+  }
+  const { code } = await cli(f, [])
+  expect(code).not.toBe(0)
+  expect(checks).toBe(1)
+  expect(calls).toEqual([])
+  expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/1.0.0')
+})
+
 it('runs a button update with the installed release and only the updater variables', () => {
   const f = fixture()
   fixtures.push(f)

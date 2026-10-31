@@ -29,17 +29,21 @@ function programs(result: CommandResult) {
 }
 
 // An older Host's parser has no `host.update` task, so it rejects the op as malformed.
-it('tells the person to update an older Host by hand once, instead of a sign-in error', async () => {
-  const t = programs({ requestId: 'r', status: 'rejected', code: 'bad-request' })
-  await expect(
-    t.bridge.task(1, 'host', { type: 'machine.task', task: 'host.update' }),
-  ).rejects.toThrow(HOST_UPDATE_UNSUPPORTED)
-  expect(t.send).toHaveBeenCalledWith({ type: 'machine.task', task: 'host.update' })
-})
+it.each(['bad-request', 'unsupported'] as const)(
+  'tells the person to update an older Host by hand once when it answers %s',
+  async (code) => {
+    const t = programs({ requestId: 'r', status: 'rejected', code })
+    await expect(
+      t.bridge.task(1, 'host', { type: 'machine.task', task: 'host.update' }),
+    ).rejects.toThrow(HOST_UPDATE_UNSUPPORTED)
+    expect(t.send).toHaveBeenCalledWith({ type: 'machine.task', task: 'host.update' })
+  },
+)
 
 // A current Host refuses where its updater must not run from a button: macOS, a source install.
 it('says the update did not start when a current Host refuses it', async () => {
-  const t = programs({ requestId: 'r', status: 'rejected', code: 'internal' })
+  // The Host's refusal leaves the command unanswered, which it reports as unknown.
+  const t = programs({ requestId: 'r', status: 'unknown' })
   await expect(
     t.bridge.task(1, 'host', { type: 'machine.task', task: 'host.update' }),
   ).rejects.toThrow(HOST_UPDATE_NOT_STARTED)
