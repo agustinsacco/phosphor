@@ -203,3 +203,21 @@ it('accepts the exact createSkillsFeature skills.list data envelope and rejects 
   for (const data of [[skill], null, {}, { skills: null }, { skills: {} }])
     await expect(readFeature('skills:list', [root], lane(data))).rejects.toThrow()
 })
+it('names a Host file list over the cap with fixed text, and nothing else', async () => {
+  const failing = (message: string) => {
+    const port = lane(null)
+    port.call = vi.fn(async () => {
+      throw new Error(message)
+    })
+    return port
+  }
+  await expect(readFeature('fs:listFiles', [root], failing('too-large'))).rejects.toThrow(
+    new Error('Too many files to list: the Host stops at 20,000.'),
+  )
+  await expect(readFeature('fs:listFiles', [root], failing('/private output'))).rejects.toThrow(
+    new Error('Not available on remote lanes yet.'),
+  )
+  await expect(readFeature('git:statusMap', [root], failing('too-large'))).rejects.toThrow(
+    new Error('Not available on remote lanes yet.'),
+  )
+})
