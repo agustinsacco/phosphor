@@ -1,5 +1,4 @@
 import { useMachinesStore } from '@/stores/machines'
-import { promptChoice } from '@/stores/prompt'
 import type { MachineView } from '@shared/control-api'
 import { errorText } from '@shared/errors'
 import { useState } from 'react'
@@ -8,6 +7,7 @@ import { useHostSettings } from './useHostSettings'
 
 import type { MachineSettingsTab } from './MachineSettings'
 import { useMachinePrograms } from './useMachinePrograms'
+import { confirmSettingsAccess } from './settingsAccess'
 export function useMachineSettingsController(
   machine: Pick<MachineView, 'id' | 'label'>,
   section: MachineSettingsTab,
@@ -24,16 +24,7 @@ export function useMachineSettingsController(
   const { setError, alive } = programs
   const [accessBusy, setAccessBusy] = useState(false)
   async function access() {
-    if (
-      (await promptChoice({
-        title: `Enable settings access for ${machine.label}?`,
-        message:
-          'This grants this client authority to configure the Host, including reviewed code installs. It reconnects the link; running lanes stay on the Host and resync. Lane control alone does not grant this permission.',
-        choices: [{ value: 'enable', label: `Enable for ${machine.label}`, primary: true }],
-      })) !== 'enable' ||
-      !alive.current
-    )
-      return
+    if (!(await confirmSettingsAccess(machine.label)) || !alive.current) return
     setAccessBusy(true)
     setError(null)
     try {
