@@ -1615,8 +1615,16 @@ File reads accept exactly one of `laneId` or `repositoryId`. A repository id mus
 match the current configured snapshot; paths are relative to that repository.
 Git queries remain lane-only. Lane queries require a stored, non-removed lane
 inside an active repository. Paths are relative to its cwd; traversal, symlink escapes and `.git` reads are refused.
-Git-backed lists stop with `too-large` above 20,000 files. Non-git browsing
-also bounds directory traversal and skips `.git`. Text and diffs are capped at
+Git-backed lists stop with `too-large` above 20,000 files. A folder outside git
+is listed by the walk behind Desktop's Go to file, @-mentions and workspace search
+(`libs/session-runtime/src/files/walk.ts`). It skips hidden folders, every `.git`,
+files and folders named `node_modules`, `dist`, `out`, `build`, `target`, `.next`,
+`.venv`, `venv`, `__pycache__` or `.cache`, symlinks, special files and subfolders
+it cannot read. It stops at 20,000 files or after examining 200,000 directory
+entries, skipped ones included, and returns what it found, sorted, never
+`too-large`. A root the Host cannot read answers `internal`. A name no file path
+can carry (a backslash, a top-level drive prefix) is left out, and every listed path still
+passes the lane's path checks. Text and diffs are capped at
 2 MiB. File reads classify binary by a NUL in the first 2 MiB; larger files
 without a NUL in that sample return `too-large`. Git blobs over 2 MiB return
 `too-large` before reading content, including binary blobs. Smaller binary
