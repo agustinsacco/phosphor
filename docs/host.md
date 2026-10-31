@@ -1602,6 +1602,14 @@ catalogue and `machine.providers` with provider names and readiness only. It
 never returns credentials or provider diagnostic text. Probes use the Host's
 validated pi binary and configured environment, not call parameters.
 
+Each model or command probe is one `pi --mode rpc --no-session` with a 15 s
+deadline. Once pi answers, the Host closes its stdin (pi's orderly shutdown),
+then sends SIGTERM 2 s later and SIGKILL 2 s after that; a probe that times out
+gets SIGTERM at once and SIGKILL 2 s later. pi holds `auth.json.lock` while it refreshes an expired
+OAuth token at startup, and only an orderly exit removes it. A SIGKILLed pi
+leaves the lock for 30 s, so the models probe that follows the commands probe
+would wait past its deadline and the model list would fail.
+
 `skills.list {laneId?}` resolves global skills and, when a lane is named, that
 lane's project skills through pi. `skills.read {name, laneId?, file?}` resolves
 again without remembering earlier calls. A project skill wins over a global
