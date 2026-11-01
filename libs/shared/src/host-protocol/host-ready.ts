@@ -49,6 +49,7 @@ export function parseReadyFrame(
     (v.settings !== undefined && typeof v.settings !== 'boolean') ||
     (v.machineShell !== undefined && typeof v.machineShell !== 'boolean') ||
     (v.laneMarks !== undefined && typeof v.laneMarks !== 'boolean') ||
+    (v.laneStart !== undefined && typeof v.laneStart !== 'boolean') ||
     !v.capabilities.every((c) => h.hello.capabilities.includes(c))
   )
     return null
@@ -64,5 +65,6 @@ export function parseReadyFrame(
     ...(v.settings !== undefined ? { settings: v.settings as boolean } : {}),
     ...(v.machineShell !== undefined ? { machineShell: v.machineShell as boolean } : {}),
     ...(v.laneMarks !== undefined ? { laneMarks: v.laneMarks as boolean } : {}),
+    ...(v.laneStart !== undefined ? { laneStart: v.laneStart as boolean } : {}),
   }
 }
