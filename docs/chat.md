@@ -1007,7 +1007,12 @@ account, and the next turn re-reads the whole thread.
 account on the Host, so its section is titled `Plan usage · Claude on <machine>`
 and comes from that Host's own `claude -p /usage` for the account the lane bills
 (`hosts:claudeUsage` → [`machine.claudeUsage`](host.md#claude-machine-diagnostics)).
-Accounts are switched in the Host's machine settings, not here. A Host older
+Its **Switch account** moves the lane to another account on that Host, as This
+Mac's does ([cli-providers](cli-providers.md)). It needs lane control, and asks
+for the Host's settings access first if this client lacks it; the picker stays
+open through the reconnect that grant causes, then reads the Host's accounts. A
+failed read says so and offers Retry, and usage is re-read after every move
+attempt, confirmed or not. A Host older
 than the call says so in the section and offers Refresh, rather than hiding it.
 
 This is the one figure on the popover that comes from the account rather than

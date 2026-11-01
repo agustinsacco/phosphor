@@ -7,6 +7,7 @@
  * offering an account that cannot serve it (signed out) would cost the user a
  * spawn and give them a dead lane back.
  */
+import type { MachineAccount } from '@shared/machine-settings'
 import type { ClaudeAccountView } from '@shared/models'
 
 export interface MoveTarget {
@@ -35,6 +36,25 @@ export function moveTargets(
       id: view.account.id,
       label: view.auth.email ?? view.account.email ?? view.account.label,
       held: view.cooldownUntil !== null && view.cooldownUntil > nowMs,
+    }))
+    .sort((a, b) => Number(a.held) - Number(b.held))
+}
+
+/**
+ * The same rule for a Host lane, over the Host's account list. The lane's own
+ * account is the one that lists it among its lanes.
+ */
+export function machineMoveTargets(
+  accounts: MachineAccount[],
+  laneId: string,
+  nowMs: number = Date.now(),
+): MoveTarget[] {
+  return accounts
+    .filter((a) => a.loggedIn !== false && !a.lanes.some((lane) => lane.id === laneId))
+    .map((a) => ({
+      id: a.id,
+      label: a.email ?? a.label,
+      held: a.cooldownUntil !== null && a.cooldownUntil > nowMs,
     }))
     .sort((a, b) => Number(a.held) - Number(b.held))
 }

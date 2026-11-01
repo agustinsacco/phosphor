@@ -26,7 +26,8 @@ import {
 import { HEADROOM_STATUS_KEY, parseHeadroomStatus } from './headroomStatus'
 import { assessBurn, burnSamples } from '@/lib/burnRate'
 import { compactReset, isClaudeCliModel, windowResetLabel } from '@/lib/claudeUsage'
-import { moveTargets, type MoveTarget } from '@/lib/claudeGateway'
+import { moveTargets } from '@/lib/claudeGateway'
+import { AccountSwitcher } from './AccountSwitcher'
 import type {
   ClaudeSessionAccount,
   ClaudeUsageSnapshotResult,
@@ -562,89 +563,29 @@ function AccountRouting({
   account: ClaudeSessionAccount | null
 }): React.JSX.Element | null {
   const moveSessionToAccount = useSessionsStore((s) => s.moveSessionToAccount)
-  const [picking, setPicking] = useState(false)
-  const [targets, setTargets] = useState<MoveTarget[] | null>(null)
-  const [moving, setMoving] = useState<string | null>(null)
+  const accountId = account?.id
+  const load = useCallback(
+    async () => moveTargets((await window.phosphor.invoke('claude:accounts')).views, accountId),
+    [accountId],
+  )
   if (!account || account.total < 2) return null
-
   const held = account.cooldownUntil !== null
-
-  const open = (): void => {
-    setPicking((p) => !p)
-    if (targets !== null) return
-    void window.phosphor
-      .invoke('claude:accounts')
-      .then((result) => setTargets(moveTargets(result.views, account.id)))
-      .catch(() => setTargets([]))
-  }
-
   return (
-    <div className="mt-1.5 text-sm">
-      <div className="flex items-start justify-between gap-2">
-        {/* Wraps rather than truncates: the held case names the account the
-            next lane goes to, which is the whole point of the sentence. */}
-        <span className={clsx('flex-1 leading-snug', held ? 'text-warning' : 'text-text-tertiary')}>
-          {held
-            ? account.mode === 'specific'
-              ? 'Out of plan allowance, and routing is pinned here — Settings → Claude Code.'
-              : account.alternative
-                ? `Out of plan allowance. New sessions go to ${account.alternative.label}.`
-                : 'Out of plan allowance, and every other account is too.'
-            : `Spending ${account.email ?? account.label} of ${account.total} accounts.`}
-        </span>
-        <TooltipButton
-          onClick={open}
-          className="text-accent shrink-0 hover:underline"
-          aria-expanded={picking}
-        >
-          {picking ? 'Cancel' : 'Switch account'}
-        </TooltipButton>
-      </div>
-      {picking && (
-        <div className="border-border/60 mt-1.5 space-y-0.5 rounded-md border p-1">
-          {targets === null ? (
-            <div className="text-text-tertiary flex items-center gap-1.5 px-1 py-0.5">
-              <Spinner className="text-text-tertiary" /> Reading accounts…
-            </div>
-          ) : targets.length === 0 ? (
-            <div className="text-text-tertiary px-1 py-0.5">
-              No other signed-in account to move this session to.
-            </div>
-          ) : (
-            <>
-              {targets.map((target) => (
-                <TooltipButton
-                  key={target.id}
-                  disabled={moving !== null}
-                  onClick={() => {
-                    setMoving(target.id)
-                    void moveSessionToAccount(sessionId, target.id).finally(() => {
-                      setMoving(null)
-                      setPicking(false)
-                    })
-                  }}
-                  className="hover:bg-bg-secondary flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left transition-colors disabled:opacity-50"
-                >
-                  {/* Fixed slot so a row does not jump when its spinner appears. */}
-                  <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-                    {moving === target.id && <Spinner className="text-accent" />}
-                  </span>
-                  <span className="text-text flex-1 truncate">{target.label}</span>
-                  {target.held && <span className="text-warning shrink-0 text-2xs">held</span>}
-                  {account.alternative?.id === target.id && !target.held && (
-                    <span className="text-text-tertiary shrink-0 text-2xs">next in routing</span>
-                  )}
-                </TooltipButton>
-              ))}
-              <div className="text-text-tertiary px-1.5 pt-0.5 text-2xs leading-snug">
-                Restarts this lane on the chosen account: same session file, one full re-read of the
-                thread.
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
+    <AccountSwitcher
+      warn={held}
+      summary={
+        held
+          ? account.mode === 'specific'
+            ? 'Out of plan allowance, and routing is pinned here — Settings → Claude Code.'
+            : account.alternative
+              ? `Out of plan allowance. New sessions go to ${account.alternative.label}.`
+              : 'Out of plan allowance, and every other account is too.'
+          : `Spending ${account.email ?? account.label} of ${account.total} accounts.`
+      }
+      nextId={account.alternative?.id}
+      load={load}
+      move={async (id) => void (await moveSessionToAccount(sessionId, id))}
+    />
   )
 }
 

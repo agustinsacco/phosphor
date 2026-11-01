@@ -217,6 +217,12 @@ billing the default credential. Concurrent round-robin starts serialize cursor
 selection within their execution machine.
 
 The Host's accounts are managed in **Machines → Host → Settings → Providers**.
+A Claude lane's usage popover has **Switch account** on This Mac and on a Host:
+one component (`AccountSwitcher.tsx`) with the same target rule (`claudeGateway.ts`).
+On a Host it needs lane control, asks for settings access if the client lacks it,
+reads the Host's accounts only when opened (and again after the reconnect that
+grant causes, or on Retry), and sends the same `claude.account` move. Losing lane
+control while picking hides the list until control returns.
 Its selected account also feeds readiness and `doctor`; inspection never advances
 the routing cursor. Claude CLI default sign-in and a private selected account are
 distinct. Reauthentication runs in a fresh credential slot so running processes

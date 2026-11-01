@@ -14,6 +14,7 @@ import {
   windowTitle,
 } from '@/lib/claudeUsage'
 import type { ClaudeUsageSnapshotResult, PlanUsageWindow } from '@shared/models'
+import { HostAccountRouting } from './HostAccountRouting'
 
 /**
  * A remote lane spends a Host's Claude login, not this computer's, so its plan
@@ -56,7 +57,9 @@ export function HostPlanUsage({ sessionId }: { sessionId: string }): React.JSX.E
           : undefined
       }
       onRefresh={() => setReload((n) => n + 1)}
-    />
+    >
+      <HostAccountRouting sessionId={sessionId} onMoved={() => setReload((n) => n + 1)} />
+    </PlanUsageView>
   )
 }
 
