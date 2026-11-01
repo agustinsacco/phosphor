@@ -1,5 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 import { invalidatePiCommands } from './catalogue'
+import { probeCommandsCached } from './commands'
+import { installLocalSkill } from './skills/share'
 import { PiUnavailableError, resolvePiInvoker } from './invoker'
 import { ensureDesktopArtifactSkill } from './session-launch'
 import {
@@ -17,8 +19,8 @@ import {
   type SkillProbeOptions,
 } from './skills'
 
-/** Missing pi scans locally; discovery/environment errors still reach the caller. */
-export async function listSkills(workspacePath?: string) {
+/** How to ask pi for skills; without pi, no binary. Other environment errors still throw. */
+async function probeOptions(workspacePath?: string): Promise<SkillProbeOptions> {
   const options: SkillProbeOptions = { ...(workspacePath ? { workspacePath } : {}) }
   try {
     const invoker = await resolvePiInvoker('minimal-stub')
@@ -30,7 +32,24 @@ export async function listSkills(workspacePath?: string) {
   } catch (error) {
     if (!(error instanceof PiUnavailableError)) throw error
   }
-  return resolveSkills(options)
+  return options
+}
+
+/** Missing pi scans locally; discovery/environment errors still reach the caller. */
+export async function listSkills(workspacePath?: string) {
+  return resolveSkills(await probeOptions(workspacePath))
+}
+
+/**
+ * A shared skill into this Mac's global skills folder. pi's global answer is read fresh (not
+ * through `resolveSkills`, which would replace the Skills page's known folders); a probe that
+ * fails copies nothing.
+ */
+export async function installSharedSkill(bundle: unknown, overwrite: unknown) {
+  const commands = await probeCommandsCached(await probeOptions(), { fresh: true })
+  const result = await installLocalSkill(bundle, overwrite, commands)
+  if (result.status === 'installed') invalidatePiCommands()
+  return result
 }
 
 /** Mutations publish a fresh command menu only after their disk work succeeds. */

@@ -26,6 +26,8 @@ export const IPC_WEB = {
   'hosts:repositoryFiles': remote,
   'hosts:repositoryFile': remote,
   'hosts:skills': remote,
+  'hosts:skillExport': remote,
+  'hosts:skillInstall': remote,
   'hosts:providerLogin': remote,
   'hosts:settingsAccess': remote,
   'hosts:settingsRead': remote,

@@ -14,7 +14,7 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | Chat and lanes  | Fork, clone, rewind/tree editing, shell shortcuts, queued-message removal, local rules/MCP and Swarm controls, lane HTML export |
 | Files           | Content search, rich previews/quick look, external imports and open-in-app                                                      |
-| Skills          | Install, upload, export, discovery and mutation                                                                                 |
+| Skills          | Catalogue install, upload, export to a file, discovery and in-place edits                                                       |
 | Settings        | Raw configuration editors, project/non-npm package mutation, and cross-machine settings or authentication copying/sync          |
 | Artifacts       | Revision-aware writes from an artifact into a remote workspace                                                                  |
 | Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                            |
@@ -85,17 +85,18 @@ silently configure the wrong machine.
 
 **Decided.** Skills, artifacts, routines, extensions, provider logins and MCP
 config belong to the execution machine. Machine-qualified skills, artifacts,
-routines and provider sign-in already exist. Moving a copy will be explicit: "Copy to bee1",
-with confirmation showing what will be written where and any conflicts.
+routines and provider sign-in already exist, and skills already copy between
+machines ([Skill sharing](remote-desktop.md#skill-sharing)). Moving any other
+primitive will be just as explicit: "Copy to bee1", with confirmation showing
+what will be written where and any conflicts.
 Primitive sync is a later feature, not automatic fleet sync or orchestration.
 Provider credentials will never move.
 
 **Design, dependencies and touches.** Machine-qualified views, bounded file
 transfer and a common machine engine must back these operations:
 
-- Skills are files. `electron/pi/skills.ts` already resolves through pi and
-  limits mutations to writable roots, with import previews and bundle bounds.
-  Copy will need a target scope, content comparison and explicit conflict choice.
+- Skills copy whole into the target's global folder today. Still open: project
+  scope as a target and a content comparison before Replace.
 - Artifacts have indexes and version blobs (`electron/artifacts/artifact-library.ts`
   and `libs/pi-extensions/pi-ext/artifact-store.ts`). Copy must preserve referenced
   versions and integrity, not send temporary preview URLs or overwrite identity.

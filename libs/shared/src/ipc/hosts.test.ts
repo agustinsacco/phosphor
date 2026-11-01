@@ -4,6 +4,7 @@ import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
 import type { MachineClaude, MachineModel, MachineProvider } from '../host-protocol-machine'
 import type { SkillsListResult } from '../skills'
+import type { SkillBundle, SkillInstallResult } from '../host-protocol-skill-share'
 import type { ClaudeUsageSnapshotResult, LiveSessionInfo } from '../models'
 import type {
   MachineSettings,
@@ -38,6 +39,16 @@ export interface BaselineHostsInvokeMap {
   }
 
   'hosts:skills': { args: [hostId: string]; result: SkillsListResult }
+
+  // Skill sharing: one bundle out of a machine, then into another's global skills folder.
+  'hosts:skillExport': {
+    args: [source: { machine: string; name: string; dir?: string }]
+    result: SkillBundle
+  }
+  'hosts:skillInstall': {
+    args: [machine: string, bundle: SkillBundle, overwrite: boolean]
+    result: SkillInstallResult
+  }
 
   'hosts:providerLogin': {
     args: [
