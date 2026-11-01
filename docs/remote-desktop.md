@@ -501,7 +501,9 @@ target This Mac. The top-bar artifact count belongs to the active lane.
 
 Remote slash commands come from the lane, and file mentions search its Host file
 list. Thinking levels derive from the lane model. Local rules/MCP menus are hidden; the
-Swarm switch works as on This Mac, against the lane's own status. Shell shortcuts, queued-message removal, rewind and fork are refused
+Swarm switch works as on This Mac, against the lane's own status. For the lane's
+controller, `!cmd` runs in the Host's shell and a queued message's ✕ drains and
+re-queues on the Host. Rewind and fork are refused
 with the fixed unavailable hint. The top bar's Session options work on a Host
 lane for its controller (compaction, auto-retry, queue modes); Export HTML stays
 a This Mac action ([chat](chat.md)). Continue waits for the remote receipt and echo;
