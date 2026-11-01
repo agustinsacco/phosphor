@@ -1,5 +1,6 @@
 import type { LaneOp } from '@phosphor/shared/host-protocol'
 import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
+import { BASH_UNCONFIRMED } from '@phosphor/shared/remote-host'
 import type { CommandResult } from './connection'
 
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
@@ -127,7 +128,7 @@ export function receiptResponse(
           : result.code === 'lane-stopped'
             ? `${machine}: ${LANE_STOPPED}`
             : result.code === 'unsupported'
-              ? `${machine}: its Host does not support this yet. Update the Host, then retry.`
+              ? `${machine}: its Host does not support this. Updating the Host may help.`
               : `${machine}: ${result.code}`,
       }
     case 'failed':
@@ -135,6 +136,10 @@ export function receiptResponse(
     case 'not-sent':
       return { ...base, success: false, error: `Command not sent: ${result.reason}.` }
     default:
-      return { ...base, success: false, error: UNKNOWN_OUTCOME }
+      return {
+        ...base,
+        success: false,
+        error: command === 'bash' ? `${machine}: ${BASH_UNCONFIRMED}` : UNKNOWN_OUTCOME,
+      }
   }
 }

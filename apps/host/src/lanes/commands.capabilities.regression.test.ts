@@ -222,6 +222,14 @@ const FAMILIES: Family[] = [
     ran: () => f.command.mock.calls.length,
   },
   {
+    // A `!command` is shell access: it needs the terminal capability too.
+    name: 'bash',
+    scope: 'lane',
+    caps: TERMINAL,
+    op: () => ({ type: 'bash', command: 'x' }),
+    ran: () => f.command.mock.calls.length,
+  },
+  {
     name: 'extension_ui_response',
     scope: 'lane',
     caps: CONTROL,

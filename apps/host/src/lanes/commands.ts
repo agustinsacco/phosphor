@@ -51,7 +51,9 @@ function capabilityFor(
   const routine = parseRoutineOp(op)
   if (routine)
     return routineRequiresControl(routine) ? ['routines', 'sessions.control'] : ['routines']
-  if (parseProviderLoginOp(op) || parseTerminalOp(op)) return ['terminal', 'sessions.control']
+  // A `!command` is shell access, so it asks for the shell's capability as well.
+  if (parseProviderLoginOp(op) || parseTerminalOp(op) || op.type === 'bash')
+    return ['terminal', 'sessions.control']
   const write = op.type.startsWith('files.') ? ports.writes?.capabilityFor(op.type) : null
   return write ? [write, 'sessions.control'] : ['sessions.control']
 }

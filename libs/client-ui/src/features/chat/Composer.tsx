@@ -39,6 +39,7 @@ import { refreshSessionCommands, useSessionsStore } from '@/stores/sessions'
 import { useWritingStore } from '@/stores/writing'
 import { ipcErrorText } from '@shared/errors'
 import { createReceiptGuard, withDraftIds } from './receiptGuard'
+import { runShellCommand } from './composer/runShellCommand'
 
 export function Composer({
   sessionId,
@@ -178,52 +179,7 @@ export function Composer({
         const shellCommand = message.slice(exclude ? 2 : 1).trim()
         if (!shellCommand) return
         useDraftsStore.getState().clear(draftKey)
-        const itemId = chat.addBashItem(sessionId, {
-          command: shellCommand,
-          output: '',
-          exitCode: null,
-          running: true,
-          truncated: false,
-          excludeFromContext: exclude,
-        })
-        try {
-          // Deliberately raw rather than `piCall` (AGENTS.md fact 3): a failed
-          // `!command` belongs in the bash item's own output next to the
-          // command that produced it, not on the session-wide error surface.
-          const response = await window.phosphor.piCommand(sessionId, {
-            type: 'bash',
-            command: shellCommand,
-            excludeFromContext: exclude,
-          })
-          // A Host drops receipt data over its size cap: say so rather than spin forever.
-          if (response.success && !response.data) {
-            chat.updateBashItem(sessionId, itemId, {
-              output: 'The command ran, but its output was too large to return.',
-              exitCode: null,
-              running: false,
-            })
-          } else if (response.success && response.data) {
-            chat.updateBashItem(sessionId, itemId, {
-              output: response.data.output,
-              exitCode: response.data.exitCode,
-              running: false,
-              truncated: response.data.truncated,
-              fullOutputPath: response.data.fullOutputPath,
-            })
-          } else if (!response.success) {
-            chat.updateBashItem(sessionId, itemId, {
-              output: response.error,
-              exitCode: -1,
-              running: false,
-            })
-          }
-        } catch (error) {
-          chat.updateBashItem(sessionId, itemId, {
-            output: ipcErrorText(error),
-            exitCode: -1,
-            running: false,
-          })
-        }
+        await runShellCommand(sessionId, shellCommand, exclude)
         return
       }
 

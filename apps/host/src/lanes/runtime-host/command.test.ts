@@ -200,7 +200,7 @@ it.each([
   { type: 'set_follow_up_mode', mode: 'all' },
   { type: 'set_auto_compaction', enabled: false },
 ] satisfies RpcCommand[])(
-  'republishes lane state after $type so every client sees it',
+  'refreshes the lane projection after $type, so its next snapshot and lane.state carry it',
   async (cmd) => {
     const s = await attached()
     const changed = vi.spyOn(s.binding.attachment!, 'stateChanged')

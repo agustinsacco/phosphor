@@ -503,9 +503,14 @@ Remote slash commands come from the lane, and file mentions search its Host file
 list. Thinking levels derive from the lane model. Local rules/MCP menus are hidden; the
 Swarm switch works as on This Mac, against the lane's own status. For the lane's
 controller, `!cmd` runs in the Host's shell and a queued message's ✕ drains and
-re-queues on the Host. Rewind and fork are refused
+re-queues on the Host. A `!cmd` still running at the Host's command deadline
+shows as unconfirmed rather than failed, keeps its Stop, and its output arrives
+with the lane's next snapshot; other viewers see the command only then. Rewind
+and fork are refused
 with the fixed unavailable hint. The top bar's Session options work on a Host
-lane for its controller (compaction, auto-retry, queue modes); Export HTML stays
+lane for its controller (compaction, auto-retry, queue modes). Other viewers see
+a mode change on their next lane snapshot. pi reports no auto-retry state, so
+that toggle shows what this window last set, not the Host's value; Export HTML stays
 a This Mac action ([chat](chat.md)). Continue waits for the remote receipt and echo;
 it never inserts an optimistic duplicate. Error cards do not inspect This Mac's
 AWS profile. Lane and machine switches reset visible selections or show loading

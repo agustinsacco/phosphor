@@ -53,10 +53,17 @@ follow-up, abort, abort-retry, model, thinking level, compact, session name,
 `clear_queue`, the steering and follow-up modes, auto-compaction, auto-retry,
 `bash` and `abort_bash`. The client (`laneOperation` in `libs/host-client`) and
 the Host (`toPiCommand`) list the same set; anything else is refused
-`unsupported`, which the client reports as "update the Host". `bash` adds no
-authority: a controller can already ask the agent to run the same command.
-Its output returns in the receipt's data, so output above the receipt-data cap
-reports as done without output. Commands that move pi to another session file
+`unsupported`, which the client reports as "updating the Host may help".
+
+`bash` needs `terminal` as well as `sessions.control`, like a terminal, and adds
+no authority beyond them: a controller can already ask the agent to run the
+same command. It skips pi's `tool_call` hooks, including an installed permission
+gate, but the controller is who answers that gate's dialogs anyway. Its output
+returns in the receipt's data (pi keeps the last 50 KB), so output above the
+receipt-data cap reports as done without output. A shell can outlast the
+command deadline; its receipt is then `unknown` and the client shows the
+command as unconfirmed, not failed, with a Stop that sends `abort_bash`. Its
+output reaches viewers with the lane's next snapshot. Commands that move pi to another session file
 (fork, clone, new and switch session) stay refused.
 
 `HOST_LIMITS` caps inbound frames at 8 MiB, outbound frames at 16 MiB,

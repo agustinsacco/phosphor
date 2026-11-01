@@ -13,6 +13,14 @@ export const HOST_CAPABILITIES = [
   'machine.configure',
 ] as const
 
+/**
+ * How a Host lane's `!command` reads when the Host answered without its outcome
+ * (its command deadline passed). The shell may still be running there; the
+ * composer keys its unconfirmed bash item on this suffix.
+ */
+export const BASH_UNCONFIRMED =
+  'the Host could not confirm this command in time. It may still be running there; its output reaches the transcript when the lane reloads.'
+
 /** Keep the legacy grant array consumable by old Hosts. New authority is opt-in. */
 export const LEGACY_HOST_CAPABILITIES = HOST_CAPABILITIES.filter(
   (cap) => cap !== 'machine.configure',

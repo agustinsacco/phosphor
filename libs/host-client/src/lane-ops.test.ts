@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { LaneOp } from '@phosphor/shared/host-protocol'
 import type { CommandResult } from './connection'
-import { laneOperation, receiptResponse, sendToLane } from './lane-ops'
+import { BASH_UNCONFIRMED } from '@phosphor/shared/remote-host'
+import { laneOperation, receiptResponse, sendToLane, UNKNOWN_OUTCOME } from './lane-ops'
 
 const LANE = 'f83d7d13-9111-43bf-847b-87b9db21e7d8'
 const stopped: CommandResult = { requestId: 'r1', status: 'rejected', code: 'lane-stopped' }
@@ -62,6 +63,16 @@ describe('sendToLane', () => {
 })
 
 describe('receiptResponse', () => {
+  // A `!command` that outlives the Host's deadline is not a failure: it may still run.
+  it('reports an unconfirmed shell command as possibly still running, not failed', () => {
+    const unknown: CommandResult = { requestId: 'r', status: 'unknown' } as CommandResult
+    expect(receiptResponse('bash', unknown, 'bee1')).toMatchObject({
+      success: false,
+      error: `bee1: ${BASH_UNCONFIRMED}`,
+    })
+    expect(receiptResponse('prompt', unknown, 'bee1')).toMatchObject({ error: UNKNOWN_OUTCOME })
+  })
+
   // "bee1: lane-stopped" left the user retrying a composer that could never send.
   it('tells the user to resume a stopped lane', () => {
     expect(receiptResponse('steer', stopped, 'bee1')).toMatchObject({
@@ -93,6 +104,9 @@ describe('laneOperation', () => {
   it('tells the user to update an older Host that refuses an op as unsupported', () => {
     expect(
       receiptResponse('bash', { requestId: 'r', status: 'rejected', code: 'unsupported' }, 'bee1'),
-    ).toMatchObject({ success: false, error: expect.stringContaining('Update the Host') })
+    ).toMatchObject({
+      success: false,
+      error: expect.stringContaining('Updating the Host may help'),
+    })
   })
 })

@@ -82,6 +82,25 @@ export async function piCallAccepted<T extends RpcCommand['type']>(
 }
 
 /**
+ * Send a command and return its outcome without reporting it anywhere: the
+ * explicit choice for a caller that shows a failure itself, next to what failed
+ * (a `!command`'s bash item). An IPC failure reads like a refused command.
+ */
+export async function piCallInline<T extends RpcCommand['type']>(
+  sessionId: string,
+  command: Extract<RpcCommand, { type: T }>,
+): Promise<{ ok: true; data: RpcResponseDataMap[T] | undefined } | { ok: false; error: string }> {
+  try {
+    const response = await window.phosphor.piCommand<T>(sessionId, command)
+    return response.success
+      ? { ok: true, data: response.data }
+      : { ok: false, error: response.error ?? `${command.type} failed` }
+  } catch (error) {
+    return { ok: false, error: ipcErrorText(error) }
+  }
+}
+
+/**
  * Re-read the transcript from pi and replace the rendered items.
  *
  * Anything that moves the session's branch point — rewind, the fork picker,

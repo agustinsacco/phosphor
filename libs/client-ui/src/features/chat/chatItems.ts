@@ -61,6 +61,8 @@ export interface BashItem {
   truncated: boolean
   fullOutputPath?: string | null
   excludeFromContext?: boolean
+  /** A Host could not confirm the outcome in time: it may still be running. */
+  unconfirmed?: boolean
 }
 
 export interface DividerItem {
