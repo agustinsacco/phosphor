@@ -18,6 +18,19 @@ import {
 } from './terminal-state'
 import { REMOTE_UNAVAILABLE } from '../lane-ops'
 
+/**
+ * An older Host's parser has no `host.update` task, so it rejects the op as malformed
+ * (`bad-request`), or as `unsupported` when it predates `machine.task` itself.
+ */
+export const HOST_UPDATE_UNSUPPORTED =
+  'This Host is too old to update from Phosphor. Run phosphor update on it once; later updates can start here.'
+/**
+ * A current Host refuses where its updater must not run from here (macOS, a source
+ * install) or while another program runs: the op ends without a terminal.
+ */
+export const HOST_UPDATE_NOT_STARTED =
+  'The Host did not start its update. Run phosphor update on the Host instead.'
+
 interface ProgramState {
   connection?: (hostId: string) => TerminalConnection | undefined
   control(lane: TerminalLane): boolean
@@ -68,6 +81,13 @@ async function machineProgram(
     state.admissions.delete(admission)
   }
   const created = result.status === 'done' ? parseTerminalCreated(result.data) : null
+  if (!created && op.type === 'machine.task' && op.task === 'host.update')
+    throw new Error(
+      result.status === 'rejected' &&
+        (result.code === 'bad-request' || result.code === 'unsupported')
+        ? HOST_UPDATE_UNSUPPORTED
+        : HOST_UPDATE_NOT_STARTED,
+    )
   if (!created) throw new Error('Sign-in not confirmed. Refresh before trying again.')
   const unavailable =
     (needsConfiguration && !c.snapshot().capabilities.includes('machine.configure')) ||

@@ -145,6 +145,8 @@ export const MACHINE_TASKS = [
   'mcp.login',
   'mcp.logout',
   'folder.trust',
+  /** The Host's own signed `phosphor update`: no version, folder or argument from the caller. */
+  'host.update',
 ] as const
 export interface MachineTaskOp {
   type: 'machine.task'

@@ -1,4 +1,5 @@
 import { promptChoice } from '@/stores/prompt'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import type { MachineView } from '@shared/control-api'
 import type { ProviderLoginOp } from '@shared/host-protocol-providers'
 import type { MachineTaskOp } from '@shared/machine-settings'
@@ -32,12 +33,54 @@ export async function loginHostProgram(
       : `pi opens on ${machine.label}. Type /login ${provider}, follow its supported account or code flow, then /quit. To sign out, use /logout ${provider}. API-key-only providers may instead need a credential or environment configuration on the Host.`,
   )
 }
+/**
+ * The update restarts the Host, and its drain is the pause: a turn in flight is
+ * aborted and saved, every pi stops, and a lane resumes on its next message.
+ */
+function hostUpdateNotice(machine: Pick<MachineView, 'id' | 'label'>): string {
+  const lanes = useRemoteLanesStore.getState().hosts[machine.id]?.lanes ?? []
+  const working = lanes.filter(
+    (lane) => lane.activity === 'working' || lane.activity === 'needs-input',
+  ).length
+  const pause =
+    working === 0
+      ? `No lane on ${machine.label} is working. Live lanes stop and pick up again on their next message.`
+      : `${working === 1 ? `1 lane on ${machine.label} is` : `${working} lanes on ${machine.label} are`} working. The update pauses ${working === 1 ? 'it' : 'them'}: the turn in progress stops and is saved, and you continue it after the update.`
+  return `${machine.label} checks for a newer signed Phosphor Host release and installs it, then restarts. ${pause} If the new version fails its health check, the old one comes back.`
+}
+
+async function runHostUpdate(
+  machine: Pick<MachineView, 'id' | 'label'>,
+  alive: RefObject<boolean>,
+  openProgram: OpenHostProgram,
+) {
+  if (
+    (await promptChoice({
+      title: `Pause and update ${machine.label}?`,
+      message: hostUpdateNotice(machine),
+      choices: [{ value: 'run', label: 'Pause and update', primary: true }],
+    })) !== 'run' ||
+    !alive.current
+  )
+    return
+  await openProgram(
+    () =>
+      window.phosphor.invoke('hosts:machineTask', machine.id, {
+        type: 'machine.task',
+        task: 'host.update',
+      }),
+    'Host update',
+    `The update runs on ${machine.label}. When there is a newer release, the Host restarts and this terminal closes; ${machine.label} reconnects on the new version within about a minute.`,
+  )
+}
+
 export async function runHostTask(
   machine: Pick<MachineView, 'id' | 'label'>,
   alive: RefObject<boolean>,
   openProgram: OpenHostProgram,
   input: Omit<MachineTaskOp, 'type'>,
 ) {
+  if (input.task === 'host.update') return runHostUpdate(machine, alive, openProgram)
   const destructive = input.task === 'package.remove' || input.task === 'mcp.logout'
   const description =
     input.task === 'claude.installCli'

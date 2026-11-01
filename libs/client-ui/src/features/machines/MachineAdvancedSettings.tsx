@@ -1,12 +1,46 @@
+import { Button } from '@/components/form'
 import { Card, Fact, Facts, StatusPill } from './MachineUi'
+import type { MachinePrograms } from './MachineProviderSettings'
 import type { HostSettingsState } from './useHostSettings'
+
+/** The Host's own signed update; the confirmation and terminal are `runHostTask`'s. */
+function HostUpdateCard({
+  label,
+  programs,
+}: {
+  label: string
+  programs: MachinePrograms
+}): React.JSX.Element {
+  return (
+    <Card
+      title="Host updates"
+      aside={
+        <Button
+          size="sm"
+          disabled={!programs.available || programs.busy}
+          onClick={() => programs.task({ task: 'host.update' })}
+        >
+          Pause and update
+        </Button>
+      }
+    >
+      <p className="text-text-secondary text-base">
+        Install the newest signed Phosphor Host release on {label}. Its lanes pause while it
+        restarts, and a failed health check brings the old version back.
+        {!programs.available && ' Needs Host terminal access.'}
+      </p>
+    </Card>
+  )
+}
 
 export function MachineAdvancedSettings({
   label,
   settings,
+  programs,
 }: {
   label: string
   settings: HostSettingsState
+  programs: MachinePrograms
 }): React.JSX.Element | null {
   const runtime = settings.data?.advanced
   if (!runtime) return null
@@ -15,9 +49,11 @@ export function MachineAdvancedSettings({
       <div>
         <h2 className="text-2xl font-semibold">Advanced</h2>
         <p className="text-text-secondary mt-1 text-base">
-          Read-only execution diagnostics from {label}. Secret values are never returned.
+          Host updates and read-only execution diagnostics from {label}. Secret values are never
+          returned.
         </p>
       </div>
+      <HostUpdateCard label={label} programs={programs} />
       <Card title="Runtime">
         <Facts>
           <Fact label="Platform">{runtime.platform}</Fact>

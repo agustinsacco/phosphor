@@ -70,8 +70,15 @@ describe('machine settings boundaries', () => {
     expect(
       parseMachineTask({ type: 'machine.task', task: 'mcp.login', name: 'github', repositoryId }),
     ).toBeTruthy()
+    expect(parseMachineTask({ type: 'machine.task', task: 'host.update' })).toEqual({
+      type: 'machine.task',
+      task: 'host.update',
+    })
     for (const value of [
       { task: 'shell' },
+      { task: 'host.update', name: '1.2.3' },
+      { task: 'host.update', repositoryId },
+      { task: 'host.update', version: '1.2.3' },
       { task: 'package.install', name: 'npm:pkg; touch /tmp/x' },
       { task: 'package.install', name: 'https://example/x' },
       { task: 'package.install', name: 'npm:pkg', repositoryId },

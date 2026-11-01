@@ -19,6 +19,8 @@ export interface MachineTaskOptions {
   home: string
   env: Record<string, string>
   pi: { binaryPath: string; prefixArgs: string[] }
+  /** This Host's own release updater, or null where a button must not run it (`hostUpdateProgram`). */
+  hostUpdater?: () => { node: string; bundle: string; env: Record<string, string> } | null
 }
 
 async function downloadClaudeInstaller(
@@ -63,9 +65,16 @@ export async function runMachineTask(
   const cwd = options.settings.workspace(op.repositoryId) ?? options.home
   let file = options.pi.binaryPath
   let args = [...options.pi.prefixArgs]
+  let env = options.env
   let temporary: string | undefined
   try {
-    if (op.task === 'claude.installCli') {
+    if (op.task === 'host.update') {
+      const updater = options.hostUpdater?.()
+      if (!updater) throw new Error('unavailable')
+      file = updater.node
+      args = [updater.bundle, 'update']
+      env = { ...options.env, ...updater.env }
+    } else if (op.task === 'claude.installCli') {
       const curl = await which('curl', options.env.PATH ?? '')
       const bash = await which('bash', options.env.PATH ?? '')
       if (!curl || !bash) throw new Error('unavailable')
@@ -96,7 +105,7 @@ export async function runMachineTask(
       if (op.task === 'mcp.login') args.push('--timeout', '300')
     } else args.push('--no-session', '--no-extensions')
     if (!authorized()) throw new TerminalForbidden('forbidden')
-    await run(file, args, { cwd, env: { ...options.env, TERM: 'xterm-256color' } })
+    await run(file, args, { cwd, env: { ...env, TERM: 'xterm-256color' } })
   } finally {
     if (temporary) await rm(temporary, { recursive: true, force: true })
   }

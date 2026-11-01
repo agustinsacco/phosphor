@@ -115,7 +115,7 @@ and failed reads are unavailable states, not empty settings.
 | Agent defaults      | pi model/thinking, compaction, retry, thinking visibility and message delivery; separate Host context-budget and automatic-naming policy                             |
 | Folders             | Existing Host browse/register/unregister controls and an explicit pi trust review, subject to the Host's repository-change policy                                    |
 | Skills & extensions | Headless-safe default catalogue, package inventory/resource counts and reviewed npm install/repair/update/remove; the machine-filtered Skills page remains read-only |
-| Advanced            | Read-only Host paths, platform and environment-name diagnostics, never environment values or a remote raw-JSON editor                                                |
+| Advanced            | Pause and update (the Host's own signed `phosphor update`), read-only Host paths, platform and environment-name diagnostics, never values or a raw-JSON editor       |
 
 Claude uses the same account routing, cooldowns and transcript bindings as
 Desktop. Credentials stay in the Host's Claude credential store. Reauthentication

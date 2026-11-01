@@ -19,6 +19,7 @@ import { createGitFeature } from '../features/git'
 import { createArtifactsFeature } from '../features/artifacts'
 import { createSkillsFeature } from '../features/skills'
 import { checkReadiness, readinessPorts } from '../machine/readiness'
+import { hostUpdateProgram } from '../update/handoff'
 
 interface AdministrationOptions {
   context: RunContext
@@ -112,6 +113,8 @@ export function createRunAdministration(options: AdministrationOptions) {
           home: context.home,
           env: options.env,
           pi: options.pi,
+          // Read when asked: this process's own release, never a path from the request.
+          hostUpdater: () => hostUpdateProgram(context.home, context.env, process.platform),
         })
       : undefined,
     writes: createWrites(featureContext),

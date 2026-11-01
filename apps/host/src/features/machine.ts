@@ -1,6 +1,6 @@
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { inspectClaude } from '../machine/claude'
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { hostname } from 'node:os'
 import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
 import {
@@ -72,6 +72,45 @@ function startInspection(context: FeatureContext, ports: MachinePorts): Promise<
         defaultResourceRoot: import.meta.dirname,
       })
 }
+/** After stdin closes, and again after SIGTERM, how long pi gets before the next signal. */
+const QUERY_STOP_GRACE_MS = 2_000
+/**
+ * End a query's pi so it can release what it holds. pi takes `auth.json.lock` to
+ * refresh an expired OAuth token at startup and still holds it when it answers.
+ * A SIGKILL leaves that lock for pi's 30s stale window, and the next query (models
+ * right after commands) waits on it past its own deadline. Closing stdin is pi's
+ * orderly shutdown and SIGTERM still runs its exit hooks; SIGKILL is the last
+ * resort. Once pi is gone, whatever is left of its group is killed.
+ */
+function stopQuery(child: ChildProcess, answered: boolean): void {
+  const pid = child.pid
+  if (pid === undefined) return
+  const group = (signal: NodeJS.Signals) => {
+    try {
+      process.kill(-pid, signal)
+    } catch {
+      /* Already exited. */
+    }
+  }
+  if (child.exitCode !== null || child.signalCode !== null) return group('SIGKILL')
+  const steps: NodeJS.Signals[] = answered ? ['SIGTERM', 'SIGKILL'] : ['SIGKILL']
+  let timer: NodeJS.Timeout | undefined
+  const escalate = () => {
+    const signal = steps.shift()
+    if (!signal) return
+    timer = setTimeout(() => {
+      group(signal)
+      escalate()
+    }, QUERY_STOP_GRACE_MS)
+  }
+  child.once('exit', () => {
+    clearTimeout(timer)
+    group('SIGKILL')
+  })
+  child.stdin?.end()
+  if (!answered) group('SIGTERM')
+  escalate()
+}
 /** One bounded, session-less query. No tools, prompts or caller-selected command can run. */
 export function queryMachine(
   pi: NonNullable<HostInspection['pi']>,
@@ -96,15 +135,8 @@ export function queryMachine(
       if (settled) return
       settled = true
       clearTimeout(timer)
-      if (child.pid !== undefined) {
-        try {
-          process.kill(-child.pid, 'SIGKILL')
-        } catch {
-          /* Already exited. */
-        }
-      }
-      child.stdout.destroy()
-      child.stdin.destroy()
+      // Keep reading stdout so pi never blocks on a full pipe while it shuts down.
+      stopQuery(child, !error)
       if (error) reject(error)
       else resolve(data)
     }
@@ -113,6 +145,7 @@ export function queryMachine(
     child.on('close', () => finish(new FeatureFailure('internal')))
     child.stdin.on('error', () => finish(new FeatureFailure('internal')))
     child.stdout.on('data', (chunk: Buffer) => {
+      if (settled) return
       bytes += chunk.length
       if (bytes > 2 * 1024 * 1024) return finish(new FeatureFailure('too-large'))
       for (const line of decoder.push(chunk)) {
