@@ -93,7 +93,7 @@ it('builds node-pty on each target runner and stages it into that target only', 
   for (const [target, runner] of [
     ['linux-x64', 'ubuntu-22.04'],
     ['linux-arm64', 'ubuntu-22.04-arm'],
-    ['darwin-arm64', 'macos-14'],
+    ['darwin-arm64', 'macos-15'],
   ])
     expect(native).toContain(`{ target: ${target}, runner: ${runner} }`)
   expect(native).not.toContain('secrets.')

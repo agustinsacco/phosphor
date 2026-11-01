@@ -65,7 +65,9 @@ jobs:
     name: Verify exact main SHA and successful CI
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.confirm == true)
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # CI runs on self-hosted runners shared with pull requests, so a main run can
+    # queue for most of an hour. The poll below waits up to 90 minutes.
+    timeout-minutes: 100
     permissions:
       contents: read
       actions: read
@@ -98,7 +100,7 @@ jobs:
           set -euo pipefail
           echo 'should_deploy=false' >> "$GITHUB_OUTPUT"
           # Read only. Never dispatch or rerun CI, and never trust a PR run.
-          for attempt in $(seq 1 120); do
+          for attempt in $(seq 1 360); do
             MAIN_SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
             export MAIN_SHA
             decision=$(node tools/scripts/site-deploy-policy.mjs) || { echo "$decision"; exit 1; }
@@ -115,7 +117,7 @@ jobs:
               echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            if [ "$attempt" -lt 120 ]; then sleep 15; fi
+            if [ "$attempt" -lt 360 ]; then sleep 15; fi
           done
           echo '::error::Cannot verify successful exact-SHA main CI within the polling window.'
           exit 1
