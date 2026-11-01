@@ -11,7 +11,6 @@ const ALL_OFF: AgentDirectivePrefs = {
   worktreeGuard: false,
   laneCharter: false,
   subagentPolicy: false,
-  custom: '',
 }
 
 function compose(prefs: Partial<AgentDirectivePrefs>): string {
@@ -39,7 +38,7 @@ describe('subagentPolicyBlock', () => {
 })
 
 describe('composeDirectives', () => {
-  it('emits nothing when every block is off and there is no custom text', () => {
+  it('emits nothing when every block is off', () => {
     expect(
       composeDirectives({ cwd: CWD, git: GIT, prefs: ALL_OFF, charter: CHARTER }),
     ).toBeUndefined()
@@ -55,23 +54,36 @@ describe('composeDirectives', () => {
     expect(compose({ laneCharter: true })).toContain('<phosphor_lane>')
   })
 
-  it('keeps the documented order: workspace, lane, sub-agents, custom', () => {
-    const out = compose({
-      machineAwareness: true,
-      worktreeGuard: true,
-      laneCharter: true,
-      subagentPolicy: true,
-      custom: 'MY OWN TEXT',
-    })
+  it('keeps the documented order: workspace, machine, lane, sub-agents', () => {
+    const out =
+      composeDirectives({
+        cwd: CWD,
+        git: GIT,
+        prefs: {
+          machineAwareness: true,
+          worktreeGuard: true,
+          laneCharter: true,
+          subagentPolicy: true,
+        },
+        charter: CHARTER,
+        machine: { kind: 'desktop', signedIn: true },
+      }) ?? ''
     const order = [
       '<phosphor_workspace>',
+      '<phosphor_machine>',
       '<phosphor_lane>',
       '<phosphor_subagents>',
-      'MY OWN TEXT',
     ].map((needle) => out.indexOf(needle))
 
     expect(order.every((index) => index >= 0)).toBe(true)
     expect([...order].sort((a, b) => a - b)).toEqual(order)
+  })
+
+  it('ignores free text a stored pref still carries: the user’s text lives in AGENTS.md', () => {
+    const stored = { ...ALL_OFF, custom: 'MY OWN TEXT' } as AgentDirectivePrefs
+    expect(
+      composeDirectives({ cwd: CWD, git: GIT, prefs: stored, charter: CHARTER }),
+    ).toBeUndefined()
   })
 
   it('drops the lane charter without a charter, but keeps the sub-agent policy', () => {

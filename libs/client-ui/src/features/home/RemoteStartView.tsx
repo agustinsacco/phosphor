@@ -46,7 +46,7 @@ function RemoteStartComposer({
   )
 }
 
-/** A Host as a start target. No `/`, swarm or context sources until the Host offers them. */
+/** A Host as a start target. No `/` or context sources until the Host offers them. */
 function useHostStart(hostId: string, draftKey: string): StartTarget {
   const c = useRemoteStart(hostId, draftKey)
   // The model picker reads per-connection catalogues, so it alone restarts with one.
@@ -65,7 +65,7 @@ function useHostStart(hostId: string, draftKey: string): StartTarget {
     remoteAttachments: true,
     files,
     slash: null,
-    swarm: null,
+    swarm: { enabled: c.swarm, onChange: c.setSwarm },
     modelPicker: <RemoteModelPicker key={generation} selection={c.selection} />,
     targets: <HostStartTargets hostId={hostId} controller={c} />,
     contextSources: null,

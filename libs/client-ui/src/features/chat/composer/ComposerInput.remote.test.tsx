@@ -13,8 +13,8 @@ vi.mock('@/features/voice/DictateButton', () => ({ DictateButton: () => null }))
 vi.mock('./SwarmSwitch', () => ({
   useSwarm: () => null,
   swarmLook: () => '',
-  SwarmSwitch: () => <span>local swarm</span>,
-  SwarmControl: () => <span>local swarm</span>,
+  SwarmSwitch: () => <span>live swarm</span>,
+  SwarmControl: () => <span>draft swarm</span>,
 }))
 it.each([
   ['/mac', 'host:machine/lane:lane-a', '/mac'],
@@ -36,7 +36,7 @@ it.each([
         attachments={[]}
         onAttachmentsChange={() => {}}
         onWarning={() => {}}
-        swarm={{ enabled: false, onChange: () => {} }}
+        swarm={{ sessionId: workspacePath }}
         slash={slash}
         modelPicker={null}
         actions={null}
@@ -55,9 +55,10 @@ it.each([
       expect(container.textContent).toContain(`${workspacePath.split('/').at(-1)}-only.ts`)
       if (workspacePath.startsWith('host:')) {
         expect(container.textContent).not.toContain('mac-only.ts')
-        expect(container.textContent).not.toContain('local swarm')
         expect(container.querySelector('[aria-label="Attach files"]')).toBeNull()
       }
+      // Host lanes load the same Swarm extension, so their switch follows the lane too.
+      expect(container.textContent).toContain('live swarm')
     }
   } finally {
     act(() => root.unmount())

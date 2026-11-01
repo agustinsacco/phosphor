@@ -8,11 +8,12 @@ const root = resolve(import.meta.dirname, '../../..')
 describe('bundledExtensions', () => {
   it('includes production extension entry points, without helpers, tests or optional packages', () => {
     // Modules imported by an extension, not loaded separately with -e:
-    // Budget/files/ledger helpers belong to context-breakdown; store/snapshot helpers to artifacts;
+    // Budget/files/global/ledger helpers belong to context-breakdown; store/snapshot helpers to artifacts;
     // status-keys is the shared wire vocabulary, imported by producers and consumers.
     const imported = new Set([
       'context-budget.ts',
       'context-files.ts',
+      'global-context.ts',
       'message-ledger.ts',
       'swarm.ts',
       'artifact-store.ts',

@@ -4,6 +4,7 @@ import type {
   MachineSettingsSection,
 } from '@shared/machine-settings'
 import { parseSettingsPatch } from '@shared/machine-settings'
+import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
 const states = new Map<string, { revision: number; values: Map<string, MachineSettings> }>()
 /** Machine-keyed demo state, never a local-machine read or persistent credential store. */
 export function mockSettingsRead(
@@ -29,7 +30,10 @@ export function mockSettingsRead(
     }
     host.values.set(key, value)
   }
-  return structuredClone({ ...value, revision: host.revision.toString(16).padStart(64, '0') })
+  const revision = host.revision.toString(16).padStart(64, '0')
+  // A Host's instructions section is revisioned by the file itself.
+  if (value.instructions) value.instructions.revision = revision
+  return structuredClone({ ...value, revision })
 }
 export function mockSettingsPatch(hostId: string, patch: MachineSettingsPatch): MachineSettings {
   const input = parseSettingsPatch(patch)
@@ -39,6 +43,8 @@ export function mockSettingsPatch(hostId: string, patch: MachineSettingsPatch): 
     throw new Error('Settings changed. Reload before saving.')
   const change = input.change
   if (current.agent && change.type === 'agent.patch') Object.assign(current.agent, change.patch)
+  if (current.instructions && change.type === 'instructions.write')
+    Object.assign(current.instructions, { content: change.content, exists: true })
   if (current.providers) {
     if (change.type === 'claude.routing') {
       current.providers.mode = change.mode
@@ -109,6 +115,13 @@ function mockSettingsSamples(hostId: string, repositoryId?: string) {
       defaultThinkingLevel: 'medium',
       contextBudget: '200k',
       autoNameLanes: true,
+      agentDirectives: { ...DEFAULT_AGENT_DIRECTIVES },
+    },
+    instructions: {
+      path: `/home/${tag}/.pi/agent/AGENTS.md`,
+      content: `# ${tag}\n\n- Run the project's checks before calling work done.\n`,
+      revision: '',
+      exists: true,
     },
     resources: {
       packages: [

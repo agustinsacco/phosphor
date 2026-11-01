@@ -106,6 +106,8 @@ export interface BaselineAppInvokeMap {
     result: void
   }
 
+  /** Forget the retired "Your own text" Settings showed for copying. */
+  'app:clearRetiredDirectives': { args: []; result: void }
   'app:setContextBudget': { args: [value: string]; result: void }
 
   /**

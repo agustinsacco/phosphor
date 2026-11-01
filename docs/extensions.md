@@ -233,12 +233,12 @@ It never cleans arbitrary `/tmp` directories. Recursive deletion outside the
 lane and the applicable exemptions still prompts; mentioning the helper or
 `mktemp` does not exempt another command.
 
-**Settings → Agent → Directives → Your own text** can teach new sessions:
+The machine's [global instructions](chat.md#global-instructions) can teach every lane:
 "Create temporary work with `python3 ~/.pi/agent/bin/pi-scratch.py create`;
 clean only the returned directory with `python3 ~/.pi/agent/bin/pi-scratch.py
 clean <directory>`. Prefer this helper over recursive shell deletion."
-Global directives can be overridden by project directives. The gate's rules
-are edited in its installed TypeScript file, not in the Directives field.
+A repository's own AGENTS.md can say the same for that repository only. The
+gate's rules are edited in its installed TypeScript file, not in instructions.
 
 These are accident guards, not a sandbox or a policy for SDK calls, other
 tools, aliases, or substituted executables. Path checks happen before execution,
@@ -283,7 +283,7 @@ The private `@phosphor/pi-extensions` source package keeps these standalone
 files and adjacent tests together. Development resolves the resource root at
 `libs/pi-extensions`; packaged apps still read `resources/pi-ext`, outside the
 asar. The builder copies the same non-test TypeScript inventory, including
-`context-budget.ts`, `context-files.ts`, `message-ledger.ts` and `swarm.ts` imported by `context-breakdown.ts`,
+`context-budget.ts`, `context-files.ts`, `global-context.ts`, `message-ledger.ts` and `swarm.ts` imported by `context-breakdown.ts`,
 `artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, and the optional gate.
 Optional Python helpers remain in the source tree, not the shipped resource filter.
 
@@ -548,7 +548,7 @@ without aborting a run. See [One context budget](cli-providers.md#one-context-bu
 `context-breakdown.ts` also installs the per-lane CLAUDE.md / AGENTS.md filter
 from `context-files.ts` (the composer checkboxes, [chat.md](chat.md#context-files)).
 pi has no per-file switch (`--no-context-files` drops both, and only at
-startup), so the filter strips the disabled files' `<project_instructions>`
+startup), so the filter strips the disabled repository files' `<project_instructions>`
 blocks from the `project_context` section in `context_with_system`, before
 **every** model request. Not `before_agent_start`: a run that starts without a
 user prompt (a sub-agent's completion waking the parent) rebuilds the prompt
@@ -557,9 +557,18 @@ transcript keeps pi's own sections, so a file turned back on is sent again from
 the next request with no restart. The starting state arrives in
 `PHOSPHOR_CONTEXT_FILES` and changes as the host-only `/phosphor-context-files`
 command (`claude=off agents=on`), which pi runs at once, mid-turn included,
-with no model. Files are matched by name in every directory pi searched, its
-agent directory included (`AGENTS.override.md` counts as AGENTS.md). The
-parser expects pi's rendering verbatim; an unknown shape is sent unchanged.
+with no model. Files are matched by name in every directory pi searched except
+its agent directory, whose file always stays (`AGENTS.override.md` counts as
+AGENTS.md). The parser expects pi's rendering verbatim; an unknown shape is sent
+unchanged.
+
+Before that filter, `global-context.ts` keeps the agent directory's file current.
+pi reads it once per session start or reload, so on every request the extension
+stats the candidates in pi's order, re-reads the first one when its size or mtime
+changed, and replaces, adds or removes the global block to match. Repository
+blocks stay as pi rendered them, the session file keeps the text the lane started
+with, and a lane started with `--no-context-files` gains nothing. The context
+breakdown measures the swapped prompt.
 
 `context-breakdown.ts` exists because pi reports context usage as one number,
 and the composed system prompt and active tool schemas are not reachable from

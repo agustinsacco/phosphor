@@ -5,6 +5,7 @@ import { SettingsFailure } from './files'
 import { changeAgentSettings } from './agent-settings'
 import { changeConnectorSettings } from './connector-settings'
 import { changeProviderSettings } from './provider-settings'
+import { writeInstructionsSettings } from './instructions-settings'
 import type { SettingsSnapshot } from './snapshot'
 
 export async function applySettings(
@@ -44,6 +45,10 @@ export async function applySettings(
       break
     case 'agent.patch':
       await changeAgentSettings(state, input, change.patch, cwd, commitAllowed)
+      break
+    case 'instructions.write':
+      // Checked against the file's own revision again just before the rename.
+      await writeInstructionsSettings(state, change.content, input.revision, authorized)
       break
     default:
       await changeConnectorSettings(state, change, before, cwd, input.revision, commitAllowed)

@@ -52,7 +52,6 @@ export function sessionFixture() {
           worktreeGuard: false,
           laneCharter: false,
           subagentPolicy: false,
-          custom: '',
         },
         agentDirectivesByProject: {},
       }),

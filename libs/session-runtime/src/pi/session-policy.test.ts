@@ -20,8 +20,8 @@ function ports() {
         machineAwareness: true,
         worktreeGuard: false,
         laneCharter: false,
-        subagentPolicy: false,
-        custom: 'global',
+        // Global and project differ in every block a worktree lane shows, so each marks its source.
+        subagentPolicy: true,
       },
       agentDirectivesByProject: {
         '/repo': {
@@ -29,7 +29,6 @@ function ports() {
           worktreeGuard: true,
           laneCharter: true,
           subagentPolicy: true,
-          custom: 'project',
         },
       },
     }),
@@ -109,7 +108,7 @@ describe('portable session policy', () => {
       expect(spawnOptions.appendSystemPrompt).toContain('Working directory: /repo/lane')
       expect(spawnOptions.appendSystemPrompt).toContain('Branch: lane')
       expect(spawnOptions.appendSystemPrompt).toContain('pi subagent: follow its advertised schema')
-      expect(spawnOptions.appendSystemPrompt).toMatch(/project$/)
+      expect(spawnOptions.appendSystemPrompt).toContain('<phosphor_lane>')
       expect(spawnOptions.env).toMatchObject({ PI_CLAUDE_CLI_CONTEXT: 'pi', ORDER: 'proxy' })
       expect(runtime.resetCompaction).toHaveBeenCalledOnce()
       if (provider === 'pi-claude-cli') {
@@ -178,7 +177,7 @@ describe('portable session policy', () => {
     )
     expect(spawnOptions.appendSystemPrompt).not.toContain('<phosphor_lane>')
     expect(spawnOptions.appendSystemPrompt).toContain('<phosphor_workspace>')
-    expect(spawnOptions.appendSystemPrompt).toContain('project')
+    expect(spawnOptions.appendSystemPrompt).toContain('pi subagent: follow its advertised schema')
   })
 
   it('refuses an old provider before account selection or settings repair', async () => {
@@ -214,7 +213,7 @@ describe('portable session policy', () => {
     expect(runtime.resetCompaction).not.toHaveBeenCalled()
   })
 
-  it('keeps stub discovery/provider/proxy/repair bypasses and global custom directives', async () => {
+  it('keeps stub discovery/provider/proxy/repair bypasses and global directives', async () => {
     const runtime = ports()
     const prepared = await prepareSessionPolicy(
       { workspacePath: '/stub' },
@@ -222,7 +221,10 @@ describe('portable session policy', () => {
       { ...launch, stub: true },
       runtime,
     )
-    expect(prepared.spawnOptions.appendSystemPrompt).toBe('global')
+    expect(prepared.spawnOptions.appendSystemPrompt).toContain(
+      'pi subagent: follow its advertised schema',
+    )
+    expect(prepared.spawnOptions.appendSystemPrompt).not.toContain('<phosphor_workspace>')
     expect(prepared.spawnOptions).not.toHaveProperty('extensions')
     for (const call of [
       runtime.git,

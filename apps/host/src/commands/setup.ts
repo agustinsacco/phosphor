@@ -48,6 +48,23 @@ export interface SetupReport {
   next?: string
 }
 
+/** What even a replace keeps: the Host's identity, policy and its owner's own wiring. */
+const KEPT_ON_REPLACE = [
+  'hostId',
+  'contextBudget',
+  'agentDirectives',
+  'accounts',
+  'control',
+  'api',
+  'resourceRoot',
+] as const satisfies readonly (keyof HostConfigV1)[]
+
+function keptOnReplace(kept: HostConfigV1 | undefined): Partial<HostConfigV1> {
+  return Object.fromEntries(
+    KEPT_ON_REPLACE.flatMap((key) => (kept?.[key] !== undefined ? [[key, kept[key]]] : [])),
+  ) as Partial<HostConfigV1>
+}
+
 /** Detect only local programs. No session, provider login or network request runs here. */
 export async function runSetup(context: SetupContext): Promise<SetupReport> {
   const file = resolve(context.cwd, context.configPath)
@@ -161,12 +178,7 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
   const config: HostConfigV1 = {
     ...(!context.replace ? kept : {}),
     version: 1,
-    ...(kept?.hostId !== undefined ? { hostId: kept.hostId } : {}),
-    ...(kept?.contextBudget !== undefined ? { contextBudget: kept.contextBudget } : {}),
-    ...(kept?.accounts !== undefined ? { accounts: kept.accounts } : {}),
-    ...(kept?.control !== undefined ? { control: kept.control } : {}),
-    ...(kept?.api !== undefined ? { api: kept.api } : {}),
-    ...(kept?.resourceRoot !== undefined ? { resourceRoot: kept.resourceRoot } : {}),
+    ...keptOnReplace(kept),
     pi,
     repositories: [...new Set(repositories)],
     environment: { ...(kept?.environment?.pass ? { pass: kept.environment.pass } : {}), path },

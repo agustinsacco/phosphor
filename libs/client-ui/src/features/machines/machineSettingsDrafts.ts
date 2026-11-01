@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MachineAgentDefaults } from '@shared/machine-settings'
 import { projectAgentBehavior } from '@shared/machine-agent-behavior'
+import { normalizeAgentDirectives } from '@shared/models'
 import { promptChoice } from '@/stores/prompt'
 import type { HostSettingsState } from './useHostSettings'
 import {
@@ -74,6 +75,7 @@ const fieldsFor = (state?: MachineAgentDefaults): Fields => ({
   budget: state?.contextBudget || '200k',
   naming: state?.autoNameLanes ?? true,
   behavior: projectAgentBehavior({ ...state }),
+  directives: normalizeAgentDirectives(state?.agentDirectives),
 })
 const same = (a: Fields, b: Fields) => JSON.stringify(a) === JSON.stringify(b)
 /** Keeps a dirty draft for a remount and tells navigation what it is waiting on. */

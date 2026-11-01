@@ -1,30 +1,30 @@
-import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
+import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
-import { subagentPolicyBlock } from '@shared/agent-directives'
 import type { AgentDirectivePrefs } from '@shared/models'
-import { Row, SectionTitle, Toggle } from '@/components/form'
+import { Button, Row, SectionTitle } from '@/components/form'
 import { useSettingsWorkspace } from '../SettingsMachineScope'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { machinePromptBlock } from '@shared/machine-prompt'
 import { useAccount } from '../useAccount'
 import { errorText } from '@shared/errors'
+import { localMachineLabel } from '@/features/machines/machinePresentation'
+import { EditInstructions } from '../instructions/EditInstructions'
+import { localInstructions } from '../instructions/instructionsSource'
+import { DirectiveToggles } from './DirectiveToggles'
+import { RetiredDirectives } from '../instructions/RetiredDirectives'
 
 /**
- * Settings for the directive stack: what Phosphor appends to a lane's system
- * prompt.
+ * What a lane on this computer is told beyond pi's own prompt.
  *
- * Three things make this a setting rather than a constant.
+ * Two layers, owned differently:
  *
- * 1. The right contents depend on the model. Anthropic cut its frontier
- *    harness prompt by roughly 70-80% and the cut is frontier-only, so a fleet
- *    running a mix needs a lean profile and a fuller one.
- * 2. Enforcement differs by provider. The worktree guard and the charter reach
- *    the model on every provider, but only the native path can also *enforce*
- *    them at the tool boundary. On the Claude Code bridge they are advice.
- * 3. The composed result must be visible before it is sent. A prompt you
- *    cannot read is one you cannot debug, and this one is on every request for
- *    the life of the lane.
+ * 1. Global instructions are the user's words: pi's global context file in
+ *    this computer's agent directory, the same one pi in a terminal reads.
+ *    Phosphor edits it in place and adds no file of its own. Every lane reads
+ *    it per request, so a save reaches running lanes at their next message.
+ * 2. The directive blocks are Phosphor's words with per-lane facts in them,
+ *    so they are switches, and the composed result is shown exactly as the
+ *    session service builds it. They are fixed when a lane starts.
  */
 export function DirectivesSection(): React.JSX.Element {
   const workspace = useSettingsWorkspace()
@@ -33,18 +33,23 @@ export function DirectivesSection(): React.JSX.Element {
   const [scope, setScope] = useState<'global' | 'project'>('global')
   const [global, setGlobal] = useState<AgentDirectivePrefs>(DEFAULT_AGENT_DIRECTIVES)
   const [byProject, setByProject] = useState<Record<string, AgentDirectivePrefs>>({})
+  const [retired, setRetired] = useState<Record<string, string>>({})
+  const [editing, setEditing] = useState(false)
+  const machine = localMachineLabel(window.phosphor.platform)
+  const source = useMemo(() => localInstructions(machine), [machine])
 
   const reload = useCallback((): void => {
     void window.phosphor.invoke('app:getPrefs').then((prefs) => {
       setGlobal(prefs.agentDirectives)
       setByProject(prefs.agentDirectivesByProject)
+      setRetired(prefs.retiredDirectives)
     })
   }, [])
 
   useEffect(() => reload(), [reload])
 
   const override = workspace ? byProject[workspace] : undefined
-  const editing = scope === 'project' ? (override ?? global) : global
+  const shown = scope === 'project' ? (override ?? global) : global
   const usingOverride = scope === 'project' && override !== undefined
 
   const save = async (next: AgentDirectivePrefs | null): Promise<void> => {
@@ -54,69 +59,30 @@ export function DirectivesSection(): React.JSX.Element {
         next,
         scope === 'project' ? (workspace ?? undefined) : undefined,
       )
-      useExtensionUiStore.getState().pushToast('Saved — applies to newly started lanes', 'info')
+      useExtensionUiStore.getState().pushToast('Saved. Applies to newly started lanes.', 'info')
       reload()
     } catch (error) {
       useExtensionUiStore.getState().pushToast(errorText(error), 'error')
     }
   }
 
-  const patch = (partial: Partial<AgentDirectivePrefs>): void => {
-    void save({ ...editing, ...partial })
-  }
-
-  // What actually goes out, assembled the same way main assembles it. Shown
-  // rather than described: this is the only place the user can see the whole
-  // of layer 2 at once.
-  const preview = useMemo(() => {
-    const blocks: string[] = []
-    if (editing.worktreeGuard) {
-      blocks.push(
-        [
-          '<phosphor_workspace>',
-          'Working directory: <this lane’s worktree>',
-          'This session runs in a git worktree. The repository’s main checkout is',
-          'on a DIFFERENT branch. Resolve every relative path against the working',
-          'directory above, and never shorten an absolute path back to the main',
-          'checkout — files there belong to another branch and read with no error.',
-          '</phosphor_workspace>',
-        ].join('\n'),
-      )
-    }
-    if (editing.machineAwareness !== false) {
-      const machine = machinePromptBlock({ kind: 'desktop', signedIn })
-      if (machine) blocks.push(machine)
-    }
-    if (editing.laneCharter) {
-      blocks.push(
-        [
-          '<phosphor_lane>',
-          'This session is a LANE: one unit of work, on its own branch, that ends in a',
-          'pull request. Not a scratch session.',
-          'Branch: <this lane’s branch>',
-          '- Commit your work on this branch as you go. Do not commit to the base branch.',
-          '- Open a pull request when the work is done. That is how this lane closes.',
-          '- Keep the change reviewable: aim under 400 changed lines and 20 files.',
-          "- Run the project's own typecheck, tests and lint before claiming the work is done.",
-          '</phosphor_lane>',
-        ].join('\n'),
-      )
-    }
-    if (editing.subagentPolicy) {
-      blocks.push(subagentPolicyBlock())
-    }
-    if (editing.custom.trim()) blocks.push(editing.custom.trim())
-    return blocks.join('\n\n')
-  }, [editing, signedIn])
-
   return (
     <div className="flex flex-col gap-3">
       <SectionTitle>Directives</SectionTitle>
 
+      <Row
+        title="Global instructions"
+        description={`Your own instructions for every agent on ${machine}: pi's global AGENTS.md, which Phosphor lanes, routines, sub-agents and pi in a terminal all load. Running lanes use a save from their next message.`}
+      >
+        <Button size="sm" onClick={() => setEditing(true)}>
+          Edit instructions
+        </Button>
+      </Row>
+      <RetiredDirectives retired={retired} onDismissed={reload} />
+
       <div className="text-text-secondary text-sm leading-relaxed">
-        What Phosphor appends to every lane&rsquo;s system prompt, in this order. pi also loads
-        project rules into its assembled prompt. These instructions guide the agent; tool guards
-        provide enforcement. Changes apply to newly started sessions.
+        What Phosphor appends to every lane&rsquo;s system prompt, in this order. These instructions
+        guide the agent; tool guards provide enforcement. Changes apply to newly started lanes.
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -141,62 +107,11 @@ export function DirectivesSection(): React.JSX.Element {
         )}
       </div>
 
-      <Row
-        title="Worktree guard"
-        description="Tells a worktree lane that the main checkout is a different branch. Stops a class of confident wrong-branch answers."
-      >
-        <Toggle on={editing.worktreeGuard} onChange={(on) => patch({ worktreeGuard: on })} />
-      </Row>
-
-      <Row
-        title="Machine awareness"
-        description="Tells signed-in local lanes where Phosphor's window is. Host lanes identify their machine and warn against disrupting their own service. Fixed when a lane starts."
-      >
-        <Toggle
-          on={editing.machineAwareness !== false}
-          onChange={(on) => patch({ machineAwareness: on })}
-        />
-      </Row>
-
-      <Row
-        title="Lane charter"
-        description="States that this is a lane, that it owns its branch, that it ends in a pull request, that the change stays reviewable, and that checks are run rather than claimed."
-      >
-        <Toggle on={editing.laneCharter} onChange={(on) => patch({ laneCharter: on })} />
-      </Row>
-
-      <Row
-        title="Sub-agent policy"
-        description="Prefers direct answers for small work. For broader delegation, distinguishes native Claude Agent parameters from pi subagent parameters and asks the agent to wait for findings."
-      >
-        <Toggle on={editing.subagentPolicy} onChange={(on) => patch({ subagentPolicy: on })} />
-      </Row>
-
-      <div className="flex flex-col gap-1.5">
-        <div className="text-text text-base">Your own text</div>
-        <div className="text-text-secondary text-sm">
-          Appended last, so it can qualify either block above. Keep it short: every token here is
-          spent on every request for the life of the lane.
-        </div>
-        <textarea
-          value={editing.custom}
-          onChange={(e) => setGlobalOrProject(e.target.value)}
-          onBlur={() => patch({ custom: editing.custom })}
-          rows={5}
-          spellCheck={false}
-          placeholder="e.g. Prefer small PRs. Never touch generated files under src/gen/."
-          className="border-border focus:border-border-focus bg-bg text-text placeholder:text-text-tertiary rounded-lg border px-2.5 py-2 font-mono text-sm outline-none"
-        />
-      </div>
-
-      <details className="border-border bg-bg-secondary rounded-lg border">
-        <TooltipSummary className="text-text-secondary cursor-pointer px-3 py-2 font-mono text-xs uppercase">
-          What gets sent ({preview.length} chars)
-        </TooltipSummary>
-        <pre className="text-text-secondary overflow-x-auto px-3 pb-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
-          {preview || 'Nothing — both blocks are off and there is no custom text.'}
-        </pre>
-      </details>
+      <DirectiveToggles
+        value={shown}
+        machine={{ kind: 'desktop', signedIn }}
+        onChange={(patch) => void save({ ...shown, ...patch })}
+      />
 
       {usingOverride && (
         <TooltipButton
@@ -206,15 +121,7 @@ export function DirectivesSection(): React.JSX.Element {
           Clear this project&rsquo;s override
         </TooltipButton>
       )}
+      {editing && <EditInstructions source={source} onClose={() => setEditing(false)} />}
     </div>
   )
-
-  // Local edit before blur-save, so typing does not write a pref per keystroke.
-  function setGlobalOrProject(custom: string): void {
-    if (scope === 'project' && workspace) {
-      setByProject((prev) => ({ ...prev, [workspace]: { ...editing, custom } }))
-    } else {
-      setGlobal((prev) => ({ ...prev, custom }))
-    }
-  }
 }

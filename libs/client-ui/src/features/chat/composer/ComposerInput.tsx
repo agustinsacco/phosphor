@@ -21,7 +21,8 @@ interface ComposerInputProps extends Omit<ComposerFieldProps, 'onPasteFiles'> {
   attachments: PendingAttachment[]
   onAttachmentsChange: (attachments: PendingAttachment[]) => void
   onWarning: (message: string) => void
-  swarm: { sessionId: string } | { enabled: boolean; onChange: (enabled: boolean) => void }
+  /** A live lane's switch, a new lane's choice, or null where no lane can carry it. */
+  swarm: { sessionId: string } | { enabled: boolean; onChange: (enabled: boolean) => void } | null
   slash: ReturnType<typeof useSlashMenu>
   commandStatus?: 'idle' | 'loading' | 'ready' | 'error'
   commandError?: string
@@ -57,9 +58,11 @@ export function ComposerInput({
     onChange: onAttachmentsChange,
     onReject: onWarning,
   })
-  const liveSwarm = useSwarm('sessionId' in swarm ? swarm.sessionId : '')
-  const enabled = 'sessionId' in swarm ? (liveSwarm?.enabled ?? false) : swarm.enabled
-  const pending = 'sessionId' in swarm && swarmLook(liveSwarm) === 'pending'
+  const live = swarm && 'sessionId' in swarm ? swarm : null
+  const draft = swarm && 'enabled' in swarm ? swarm : null
+  const liveSwarm = useSwarm(live?.sessionId ?? '')
+  const enabled = live ? (liveSwarm?.enabled ?? false) : (draft?.enabled ?? false)
+  const pending = !!live && swarmLook(liveSwarm) === 'pending'
   const workspaceFiles = useMemo(
     () => (workspacePath ? workspaceFileSource(workspacePath) : null),
     [workspacePath],
@@ -144,8 +147,7 @@ export function ComposerInput({
             {platform.localLanes && (
               <DictateButton textareaRef={field.textareaRef} onChange={change} />
             )}
-            {workspacePath &&
-              !workspacePath.startsWith('host:') &&
+            {swarm &&
               ('sessionId' in swarm ? (
                 <SwarmSwitch sessionId={swarm.sessionId} />
               ) : (

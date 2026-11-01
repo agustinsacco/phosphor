@@ -1,5 +1,6 @@
 import { isAbsolute, normalize } from 'node:path'
 import { isValidContextBudgetValue } from '@phosphor/shared/context-budget'
+import { AGENT_DIRECTIVE_KEYS, type AgentDirectivePrefs } from '@phosphor/shared/models'
 import { isWebOrigin } from '../api/browser-origin'
 import { isControlUrl } from '../control/url'
 import { passRefusal } from '../machine/environment'
@@ -28,6 +29,8 @@ export interface HostConfigV1 {
   allowRepositoryChanges?: boolean
   autoNameLanes?: boolean
   contextBudget?: string
+  /** The generated blocks lanes get at start; an absent key is on. Read at each lane start. */
+  agentDirectives?: Partial<AgentDirectivePrefs>
   environment?: {
     /** Extra variable names pi receives. */
     pass?: string[]
@@ -63,6 +66,7 @@ const KEYS = {
     'repositories',
     'contextBudget',
     'autoNameLanes',
+    'agentDirectives',
     'allowRepositoryChanges',
     'environment',
     'accounts',
@@ -101,6 +105,25 @@ export function resolveHostId(config: Pick<HostConfigV1, 'hostId'>, hostname: st
     .replace(/^[^A-Za-z0-9]+/, '')
     .slice(0, 128)
   return id || 'host'
+}
+
+/** The lane policy switches: automatic naming and the directive blocks. */
+function policyErrors(config: Record<string, unknown>): ConfigError[] {
+  const errors: ConfigError[] =
+    config.autoNameLanes !== undefined && typeof config.autoNameLanes !== 'boolean'
+      ? [{ pointer: '/autoNameLanes', message: 'must be a boolean' }]
+      : []
+  const value = config.agentDirectives
+  if (value === undefined) return errors
+  if (!isRecord(value))
+    return [...errors, { pointer: '/agentDirectives', message: 'must be an object of booleans' }]
+  for (const [key, on] of Object.entries(value)) {
+    const at = pointer('agentDirectives', key)
+    if (!(AGENT_DIRECTIVE_KEYS as readonly string[]).includes(key))
+      errors.push({ pointer: at, message: 'unknown key' })
+    else if (typeof on !== 'boolean') errors.push({ pointer: at, message: 'must be a boolean' })
+  }
+  return errors
 }
 
 export function validateHostConfig(value: unknown): ConfigValidation {
@@ -147,8 +170,7 @@ export function validateHostConfig(value: unknown): ConfigValidation {
     else path(repository, pointer('repositories', index))
   })
 
-  if (value.autoNameLanes !== undefined && typeof value.autoNameLanes !== 'boolean')
-    fail('/autoNameLanes', 'must be a boolean')
+  errors.push(...policyErrors(value))
   if (
     value.allowRepositoryChanges !== undefined &&
     typeof value.allowRepositoryChanges !== 'boolean'

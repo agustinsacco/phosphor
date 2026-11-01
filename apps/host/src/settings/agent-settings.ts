@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { projectAgentBehavior } from '@phosphor/shared/machine-agent-behavior'
+import { normalizeAgentDirectives } from '@phosphor/shared/models'
 import { machineRecord } from '@phosphor/shared/host-protocol-machine'
 import type { MachineSettings, MachineSettingsPatch } from '@phosphor/shared/machine-settings'
 import { readMcpConfigs } from '@phosphor/session-runtime/pi/mcp-config'
@@ -41,9 +42,13 @@ export async function readAgentSettings(
         : {}),
       contextBudget: host.config.contextBudget ?? '',
       autoNameLanes: host.config.autoNameLanes !== false,
+      agentDirectives: normalizeAgentDirectives(host.config.agentDirectives),
     },
   }
 }
+
+/** Host config, not pi settings: they apply to the next lane started on this Host. */
+const POLICY_KEYS = new Set(['contextBudget', 'autoNameLanes', 'agentDirectives'])
 
 export async function changeAgentSettings(
   state: SettingsContext,
@@ -54,11 +59,8 @@ export async function changeAgentSettings(
 ) {
   // Host policy fields cannot be mixed into a pi settings patch. Separate commits
   // avoid pretending a multi-file update is atomic.
-  const policy = 'contextBudget' in patch || 'autoNameLanes' in patch
-  if (
-    policy &&
-    Object.keys(patch).some((key) => key !== 'contextBudget' && key !== 'autoNameLanes')
-  )
+  const policy = Object.keys(patch).some((key) => POLICY_KEYS.has(key))
+  if (policy && Object.keys(patch).some((key) => !POLICY_KEYS.has(key)))
     throw new SettingsFailure('bad-request', 'Save Host policy separately from model defaults.')
   const path = policy
     ? state.options.configPath
@@ -70,6 +72,11 @@ export async function changeAgentSettings(
       throw new SettingsFailure('bad-request', 'Settings changed. Reload before saving.')
     const file = settingsFile(path)
     const next = { ...file.raw, ...patch }
+    if (patch.agentDirectives)
+      next.agentDirectives = {
+        ...(machineRecord(file.raw.agentDirectives) ? file.raw.agentDirectives : {}),
+        ...patch.agentDirectives,
+      }
     for (const key of ['compaction', 'retry'] as const) {
       if (patch[key]) {
         if (file.raw[key] !== undefined && !machineRecord(file.raw[key]))

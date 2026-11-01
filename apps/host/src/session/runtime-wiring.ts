@@ -45,8 +45,9 @@ export function wireRuntimeStartup(state: RuntimeState) {
     policy: {
       git: gitInfo,
       machineContext: () => machineContext,
+      // Read per lane: Settings saves the toggles to the Host config.
       preferences: () => ({
-        agentDirectives: DEFAULT_AGENT_DIRECTIVES,
+        agentDirectives: options.agentDirectives?.() ?? DEFAULT_AGENT_DIRECTIVES,
         agentDirectivesByProject: {},
       }),
       defaultProvider: async (cwd) => (await readAgentSettings(cwd, agentDir)).defaultProvider,

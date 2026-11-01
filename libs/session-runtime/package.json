@@ -92,6 +92,10 @@
       "types": "./src/pi/agent-settings.ts",
       "default": "./src/pi/agent-settings.ts"
     },
+    "./pi/global-instructions": {
+      "types": "./src/pi/global-instructions.ts",
+      "default": "./src/pi/global-instructions.ts"
+    },
     "./pi/auth-identity": {
       "types": "./src/pi/auth-identity.ts",
       "default": "./src/pi/auth-identity.ts"

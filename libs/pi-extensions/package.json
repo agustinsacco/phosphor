@@ -32,6 +32,10 @@
       "types": "./pi-ext/context-files.ts",
       "default": "./pi-ext/context-files.ts"
     },
+    "./global-context": {
+      "types": "./pi-ext/global-context.ts",
+      "default": "./pi-ext/global-context.ts"
+    },
     "./swarm": {
       "types": "./pi-ext/swarm.ts",
       "default": "./pi-ext/swarm.ts"

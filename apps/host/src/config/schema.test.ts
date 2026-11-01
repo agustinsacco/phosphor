@@ -112,6 +112,20 @@ describe('Host config v1', () => {
     }
   })
 
+  it('takes directive toggles as booleans for the known blocks only', () => {
+    expect(errorsOf({ ...minimal, agentDirectives: {} })).toEqual([])
+    expect(
+      errorsOf({ ...minimal, agentDirectives: { laneCharter: false, subagentPolicy: true } }),
+    ).toEqual([])
+    expect(errorsOf({ ...minimal, agentDirectives: { laneCharter: 'no', custom: false } })).toEqual(
+      [
+        { pointer: '/agentDirectives/laneCharter', message: 'must be a boolean' },
+        { pointer: '/agentDirectives/custom', message: 'unknown key' },
+      ],
+    )
+    expect(errorsOf({ ...minimal, agentDirectives: [] })[0]?.pointer).toBe('/agentDirectives')
+  })
+
   it('refuses a config that is not an object', () => {
     for (const value of [null, [], 'config', 1]) {
       expect(errorsOf(value)).toEqual([{ pointer: '', message: 'must be an object' }])

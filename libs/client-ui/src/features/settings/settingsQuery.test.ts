@@ -101,6 +101,7 @@ describe('SETTINGS_INDEX against the tab sources', () => {
     ConnectorsTab: 'connectors',
     ContextBudgetSection: 'agent',
     DirectivesSection: 'agent',
+    DirectiveToggles: 'agent',
     ExtensionsTab: 'extensions',
     InstallAppTab: 'install',
     KeybindingsTab: 'keybindings',

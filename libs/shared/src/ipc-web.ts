@@ -135,6 +135,9 @@ export const IPC_WEB = {
   'app:setAgentDirectives': unsupported(
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),
+  'app:clearRetiredDirectives': unsupported(
+    'Native settings, local paths and persistent session data are unavailable in the browser.',
+  ),
   'app:setContextBudget': unsupported(
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),
@@ -224,6 +227,13 @@ export const IPC_WEB = {
     'Local pi processes and machine configuration are unavailable in the browser.',
   ),
   'pi:writeConfigFile': unsupported(
+    'Local pi processes and machine configuration are unavailable in the browser.',
+  ),
+  // A Host's file is edited through hosts:settingsRead / hosts:settingsPatch.
+  'pi:readInstructions': unsupported(
+    'Local pi processes and machine configuration are unavailable in the browser.',
+  ),
+  'pi:writeInstructions': unsupported(
     'Local pi processes and machine configuration are unavailable in the browser.',
   ),
   'pi:webSearchConfig': unsupported(

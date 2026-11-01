@@ -4,7 +4,7 @@ import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 import type { HostClaudeAccounts } from '../providers/accounts'
 import { createRuntimeAccounts } from './runtime-accounts'
 import type { MachineContext } from '@phosphor/shared/machine-prompt'
-import type { SessionPush } from '@phosphor/shared/models'
+import type { AgentDirectivePrefs, SessionPush } from '@phosphor/shared/models'
 import { createContextBudgetRuntime } from '@phosphor/session-runtime/pi/context-budget'
 import { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import { createSessionPathRuntime } from '@phosphor/session-runtime/pi/session-path-lock'
@@ -55,6 +55,8 @@ export interface RuntimeOptions {
   timings?: Partial<DrainTimings>
   dialogs?: 'cancel' | 'forward'
   routines?: SessionServiceRuntime<Delivery>['routines']
+  /** The generated directive blocks for the next lane; all on when absent. */
+  agentDirectives?: () => AgentDirectivePrefs
 }
 
 /** One process-local ownership domain, shared by every start, command and deletion. */

@@ -57,7 +57,7 @@ it('keeps remote client account ids in a separate main-only store', async () => 
   expect(JSON.stringify(getPrefs())).not.toContain(user)
 })
 
-it('defaults legacy global and project machine awareness on', () => {
+it('defaults legacy global and project machine awareness on, dropping retired free text', () => {
   getPrefs()
   const legacy = { worktreeGuard: false, laneCharter: false, subagentPolicy: false, custom: '' }
   persisted.data.agentDirectives = legacy
@@ -65,4 +65,6 @@ it('defaults legacy global and project machine awareness on', () => {
   const prefs = getPrefs()
   expect(prefs.agentDirectives.machineAwareness).toBe(true)
   expect(prefs.agentDirectivesByProject['/legacy-project']?.machineAwareness).toBe(true)
+  expect(prefs.agentDirectives).not.toHaveProperty('custom')
+  expect(prefs.agentDirectivesByProject['/legacy-project']).not.toHaveProperty('custom')
 })

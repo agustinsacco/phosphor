@@ -5,6 +5,8 @@ import { text, keys, isMachineAccountId } from './machine-settings-fields'
 import { validMcpConfig } from './machine-settings-mcp'
 import type { MachineSettingsPatch } from './machine-settings'
 import { AGENT_BEHAVIOR_KEYS, validAgentBehavior } from './machine-agent-behavior'
+import { AGENT_DIRECTIVE_KEYS } from './models/directives'
+import { isGlobalInstructionsText } from './global-instructions'
 
 type Scope = Pick<MachineSettingsPatch, 'section' | 'repositoryId'>
 
@@ -58,6 +60,7 @@ function validAgentPatch(c: Record<string, unknown>, read: Scope): boolean {
       'defaultThinkingLevel',
       'contextBudget',
       'autoNameLanes',
+      'agentDirectives',
       ...AGENT_BEHAVIOR_KEYS,
     ])
   )
@@ -70,11 +73,35 @@ function validAgentPatch(c: Record<string, unknown>, read: Scope): boolean {
         ? typeof value === 'string' && (value === '' || isValidContextBudgetValue(value))
         : key === 'autoNameLanes'
           ? typeof value === 'boolean'
-          : key === 'defaultThinkingLevel'
-            ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(String(value))
-            : text(value, 200),
+          : key === 'agentDirectives'
+            ? validDirectives(value)
+            : key === 'defaultThinkingLevel'
+              ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(String(value))
+              : text(value, 200),
   )
-  return valid && !(read.repositoryId && ('contextBudget' in p || 'autoNameLanes' in p))
+  return (
+    valid &&
+    !(read.repositoryId && ('contextBudget' in p || 'autoNameLanes' in p || 'agentDirectives' in p))
+  )
+}
+
+/** Some of the generated blocks, each on or off. */
+function validDirectives(value: unknown): boolean {
+  return (
+    machineRecord(value) &&
+    keys(value, [...AGENT_DIRECTIVE_KEYS]) &&
+    Object.values(value).every((on) => typeof on === 'boolean')
+  )
+}
+
+function validInstructionsChange(c: Record<string, unknown>, read: Scope): boolean {
+  return (
+    c.type === 'instructions.write' &&
+    read.section === 'instructions' &&
+    !read.repositoryId &&
+    keys(c, ['type', 'content']) &&
+    isGlobalInstructionsText(c.content)
+  )
 }
 
 function validConnectorChange(c: Record<string, unknown>, read: Scope): boolean {
@@ -115,5 +142,10 @@ function validConnectorChange(c: Record<string, unknown>, read: Scope): boolean 
 }
 
 export function validSettingsChange(c: Record<string, unknown>, read: Scope): boolean {
-  return validClaudeChange(c, read) || validAgentPatch(c, read) || validConnectorChange(c, read)
+  return (
+    validClaudeChange(c, read) ||
+    validAgentPatch(c, read) ||
+    validConnectorChange(c, read) ||
+    validInstructionsChange(c, read)
+  )
 }

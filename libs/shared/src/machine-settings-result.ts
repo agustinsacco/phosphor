@@ -9,6 +9,8 @@ import {
 } from './machine-settings'
 import type { ThinkingLevel } from './rpc'
 import { projectAgentBehavior } from './machine-agent-behavior'
+import { normalizeAgentDirectives } from './models/directives'
+import { parseGlobalInstructions } from './global-instructions'
 const text = (v: unknown, max = 512): v is string =>
   typeof v === 'string' && v.length <= max && !v.includes('\0')
 const list = (v: unknown, limit: number): v is unknown[] => Array.isArray(v) && v.length <= limit
@@ -107,6 +109,8 @@ export function parseMachineSettings(value: unknown): MachineSettings | null {
       return parseAgent(value, base)
     case 'resources':
       return parseResources(value, base)
+    case 'instructions':
+      return parseInstructions(value, base)
     default:
       return parseAdvanced(value, base)
   }
@@ -225,8 +229,20 @@ function parseAgent(value: Record<string, unknown>, base: MachineSettings): Mach
         : {}),
       contextBudget: a.contextBudget,
       autoNameLanes: a.autoNameLanes,
+      ...(machineRecord(a.agentDirectives)
+        ? { agentDirectives: normalizeAgentDirectives(a.agentDirectives) }
+        : {}),
     },
   }
+}
+/** The file's own revision is the section's: a save is checked against the bytes that were read. */
+function parseInstructions(
+  value: Record<string, unknown>,
+  base: MachineSettings,
+): MachineSettings | null {
+  const instructions = parseGlobalInstructions(value.instructions)
+  if (!instructions || base.repositoryId || instructions.revision !== base.revision) return null
+  return { ...base, instructions }
 }
 function parsePackageContents(
   value: unknown,

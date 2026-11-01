@@ -86,7 +86,11 @@ export type {
 } from './models/maintenance'
 export { MAX_DRAFTS, MAX_DRAFT_BLOB_BYTES } from './models/drafts'
 export type { DraftAttachment, ComposerDraftRecord } from './models/drafts'
-export { DEFAULT_AGENT_DIRECTIVES } from './models/directives'
+export {
+  AGENT_DIRECTIVE_KEYS,
+  DEFAULT_AGENT_DIRECTIVES,
+  normalizeAgentDirectives,
+} from './models/directives'
 export type { AgentDirectivePrefs } from './models/directives'
 export { DEFAULT_HEADROOM_PREFS } from './models/optimization'
 export type {

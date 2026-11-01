@@ -1,6 +1,7 @@
 import type { MachineSettingsChange } from '@shared/machine-settings'
 import { AGENT_BEHAVIOR_KEYS, type MachineAgentBehavior } from '@shared/machine-agent-behavior'
 import type { ThinkingLevel } from '@shared/rpc'
+import type { AgentDirectivePrefs } from '@shared/models'
 import { machineAgentModel } from './machineAgentModel'
 
 export type AgentDraftFields = {
@@ -9,6 +10,8 @@ export type AgentDraftFields = {
   budget: string
   naming: boolean
   behavior: MachineAgentBehavior
+  /** Host config, read at each lane start: no restart. */
+  directives: AgentDirectivePrefs
 }
 export type AgentPatch = Extract<MachineSettingsChange, { type: 'agent.patch' }>['patch']
 
@@ -40,6 +43,7 @@ export function nextAgentPatch(
   const policy: AgentPatch = {}
   if (fields.budget.trim() !== base.budget) policy.contextBudget = fields.budget.trim()
   if (fields.naming !== base.naming) policy.autoNameLanes = fields.naming
+  if (!same(fields.directives, base.directives)) policy.agentDirectives = fields.directives
   return filled(policy)
 }
 
@@ -67,9 +71,14 @@ export function rebaseAgentFields(
     budget: adopt('budget', 'contextBudget' in patch),
     naming: adopt('naming', 'autoNameLanes' in patch),
     behavior,
+    // After behavior: drafts compare fields as JSON, so the order is fieldsFor's.
+    directives: adopt('directives', 'agentDirectives' in patch),
   }
 }
 
-/** Host policy is a separate file and only takes effect after a service restart. */
+/**
+ * Host policy that only takes effect after a service restart. The directive
+ * switches share its file but are read at each lane start.
+ */
 export const isPolicyPatch = (patch: AgentPatch): boolean =>
   'contextBudget' in patch || 'autoNameLanes' in patch

@@ -88,6 +88,16 @@ describe('filterProjectContext', () => {
     )
   })
 
+  it('keeps the user’s global file: the toggles cover repository files only', () => {
+    expect(
+      filterProjectContext(render([GLOBAL, CLAUDE, AGENTS]), off('agents'), '/home/u/.pi/agent'),
+    ).toBe(render([GLOBAL, CLAUDE]))
+    const globalClaude = { path: '/home/u/.pi/agent/CLAUDE.md', content: 'g' }
+    expect(
+      filterProjectContext(render([globalClaude, CLAUDE]), off('claude'), '/home/u/.pi/agent'),
+    ).toBe(render([globalClaude]))
+  })
+
   it('returns null when nothing is left, and the input when nothing matched', () => {
     expect(filterProjectContext(render([CLAUDE]), off('claude'))).toBeNull()
     const section = render([AGENTS])
@@ -151,7 +161,7 @@ describe('contextFilesIn', () => {
       '/home/u/.pi/agent',
     )
     expect(files.map(({ scope, included }) => ({ scope, included }))).toEqual([
-      { scope: 'global', included: false },
+      { scope: 'global', included: true },
       { scope: 'project', included: false },
       { scope: 'project', included: true },
     ])

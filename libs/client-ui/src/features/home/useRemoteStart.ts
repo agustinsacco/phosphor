@@ -22,6 +22,7 @@ export function useRemoteStart(hostId: string, draftKey: string) {
   const draft = useDraftsStore((s) => s.drafts[draftKey])
   const text = draft?.text ?? ''
   const attachments = draft?.attachments ?? EMPTY_ATTACHMENTS
+  const swarm = draft?.swarm ?? false
   const busy = useHomeSubmissionsStore((s) => !!s.pending[draftKey])
   const isolate = useWorktreesStore((s) => s.preferWorktree)
   const [warning, setWarning] = useState<string | null>(null)
@@ -48,6 +49,7 @@ export function useRemoteStart(hostId: string, draftKey: string) {
       text: text.trim(),
       attachments,
       isolate,
+      swarm,
       input: {
         repositoryId,
         provider: selection.model.provider,
@@ -65,6 +67,7 @@ export function useRemoteStart(hostId: string, draftKey: string) {
     selection,
     text,
     attachments,
+    swarm,
     busy,
     isolate,
     warning,
@@ -76,5 +79,6 @@ export function useRemoteStart(hostId: string, draftKey: string) {
     setText: (value: string) => useDraftsStore.getState().setText(draftKey, value),
     setAttachments: (value: PendingAttachment[]) =>
       useDraftsStore.getState().setAttachments(draftKey, value),
+    setSwarm: (enabled: boolean) => useDraftsStore.getState().patch(draftKey, { swarm: enabled }),
   }
 }

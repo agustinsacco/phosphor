@@ -43,6 +43,7 @@ import {
   setRecentWorkspaces,
   setTheme,
   setAgentDirectives,
+  clearRetiredDirectives,
   setWorktreePrefs,
   setContextBudget,
   setContextFile,
@@ -130,6 +131,8 @@ function registerPreferenceHandlers(): void {
   handle('app:setAgentDirectives', (_event, directives, projectPath) =>
     setAgentDirectives(directives, projectPath),
   )
+
+  handle('app:clearRetiredDirectives', () => clearRetiredDirectives())
 
   handle('app:markSessionSeen', (_event, sessionPath: string) => {
     markSessionSeen(sessionPath)

@@ -414,9 +414,13 @@ the machine, repository and isolation row above a two-row input, **Start lane**,
 a hints line and one note line. `useLocalStart` and the Host target in
 `RemoteStartView` supply only what differs. On a Host, `@` lists the chosen
 repository's files through `hosts:repositoryFiles` (with `workspaces.read`).
-The Host has no command list, swarm check or context-file preference before a
-lane exists, so a new Host lane offers no `/` menu, Swarm switch or Rules
-readout; inside a Host lane `/` lists the lane's own commands.
+The Host has no command list or context-file preference before a lane exists,
+so a new Host lane offers no `/` menu or Rules readout; inside a Host lane `/`
+lists the lane's own commands. The Swarm switch records its choice on the draft,
+as on This Mac. After `hosts:createLane` the client turns Swarm on in the new
+lane (`get_commands`, then `/phosphor-swarm on`) before it sends the first
+prompt. If the Host's pi lacks pi-subagents or refuses, the lane exists but gets
+no first message, and the draft and its choice are kept with a warning.
 
 One rule decides which Host models can be picked, for the new-lane picker and
 for a Host lane's model menu alike (`hostModelUnavailability`). Both list what
@@ -496,8 +500,8 @@ disabled; [remote surface gaps](future-features.md#remote-surface-gaps) owns thi
 target This Mac. The top-bar artifact count belongs to the active lane.
 
 Remote slash commands come from the lane, and file mentions search its Host file
-list. Thinking levels derive from the lane model. Local rules/MCP and Swarm menus
-are hidden. Shell shortcuts, queued-message removal, rewind and fork are refused
+list. Thinking levels derive from the lane model. Local rules/MCP menus are hidden; the
+Swarm switch works as on This Mac, against the lane's own status. Shell shortcuts, queued-message removal, rewind and fork are refused
 with the fixed unavailable hint. The top bar's Session options work on a Host
 lane for its controller (compaction, auto-retry, queue modes); Export HTML stays
 a This Mac action ([chat](chat.md)). Continue waits for the remote receipt and echo;

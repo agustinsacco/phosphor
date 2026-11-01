@@ -7,7 +7,7 @@ it('lists the reviewed machine surface; everything else is app-local', () => {
     hosts: 'models claude claudeUsage providers skills repositoryFiles repositoryFile',
     routines:
       'list save check history laneIndex promoteRun run cancel skipNext archive delete pauseAll background',
-    pi: 'health createSession command extensionUiResponse disposeSession listLiveSessions generateTitle agentSettings agentSettingsScoped commands catalogueModels readConfigFile writeConfigFile webSearchConfig patchWebSearchConfig patchAgentSettings checkAgentSettings listResources subscriptionAuth codexUsage loginTerminal startLogin cancelLogin',
+    pi: 'health createSession command extensionUiResponse disposeSession listLiveSessions generateTitle agentSettings agentSettingsScoped commands catalogueModels readConfigFile writeConfigFile webSearchConfig patchWebSearchConfig patchAgentSettings checkAgentSettings listResources readInstructions writeInstructions subscriptionAuth codexUsage loginTerminal startLogin cancelLogin',
     app: 'resumeTarget selectFolder createSandbox listSandboxes renameSandbox deleteSandbox userInfo saveDialog revealPath',
     artifacts: 'stageHtml exportPdf forSession list read remove',
     fs: 'listFiles readDir readFile previewUrl openInDefaultApp quickLook writeFile createFile createDir rename trash transfer pickEntries watchWorkspace statDirs searchWorkspace cancelWorkspaceSearch',

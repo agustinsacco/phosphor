@@ -403,6 +403,7 @@ export function Composer({
    * competed with the transcript for the same frames.
    */
   const modelPicker = useMemo(() => <ModelPicker sessionId={sessionId} />, [sessionId])
+  const swarmTarget = useMemo(() => ({ sessionId }), [sessionId])
   const continueButton = useMemo(() => <ContinueButton sessionId={sessionId} />, [sessionId])
   const readouts = useMemo(
     () => (
@@ -444,7 +445,7 @@ export function Composer({
           onAttachmentsChange={setImages}
           onWarning={setAttachWarning}
           slash={slash}
-          swarm={remote ? { enabled: false, onChange: () => undefined } : { sessionId }}
+          swarm={swarmTarget}
           scopeStatus={
             isCompacting && (
               <span className="text-text-secondary flex items-center gap-1.5 px-1 text-base">

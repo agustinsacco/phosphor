@@ -1,4 +1,5 @@
-import type { ClaudeRoutingMode, ClaudeUsageSnapshot } from './models'
+import type { AgentDirectivePrefs, ClaudeRoutingMode, ClaudeUsageSnapshot } from './models'
+import type { GlobalInstructions } from './global-instructions'
 import type { ThinkingLevel } from './rpc'
 import type { MachineAgentBehavior } from './machine-agent-behavior'
 import { machineRecord, type MachineClaude, type MachineProvider } from './host-protocol-machine'
@@ -13,6 +14,7 @@ export const MACHINE_SETTINGS_SECTIONS = [
   'agent',
   'resources',
   'advanced',
+  'instructions',
 ] as const
 export type MachineSettingsSection = (typeof MACHINE_SETTINGS_SECTIONS)[number]
 export interface MachineAccount {
@@ -32,6 +34,12 @@ export interface MachineAgentDefaults extends MachineAgentBehavior {
   defaultThinkingLevel?: ThinkingLevel
   contextBudget: string
   autoNameLanes: boolean
+  /** The generated blocks the Host appends at lane start. Absent from Hosts that predate them. */
+  agentDirectives?: AgentDirectivePrefs
+}
+/** Only the keys sent change; directive switches merge into the Host's own. */
+export type MachineAgentPatch = Partial<Omit<MachineAgentDefaults, 'agentDirectives'>> & {
+  agentDirectives?: Partial<AgentDirectivePrefs>
 }
 export type MachineSettings = {
   section: MachineSettingsSection
@@ -76,6 +84,8 @@ export type MachineSettings = {
       contents?: { extensions: number; skills: number; prompts: number; themes: number }
     }[]
   }
+  /** pi's global context file in the Host's agent directory; `revision` is the file's. */
+  instructions?: GlobalInstructions
   advanced?: {
     platform: string
     hostVersion: string
@@ -91,10 +101,11 @@ export type MachineSettingsChange =
   | { type: 'claude.reorder'; ids: string[] }
   | { type: 'claude.refreshUsage' }
   | { type: 'claude.usage'; accountId: string }
-  | { type: 'agent.patch'; patch: Partial<MachineAgentDefaults> }
+  | { type: 'agent.patch'; patch: MachineAgentPatch }
   | { type: 'mcp.upsert'; name: string; config: McpServerConfig; approveCode?: true }
   | { type: 'mcp.remove'; name: string }
   | { type: 'mcp.enabled'; name: string; enabled: boolean }
+  | { type: 'instructions.write'; content: string }
 export interface MachineSettingsPatch {
   section: MachineSettingsSection
   repositoryId?: string

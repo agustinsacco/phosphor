@@ -1,7 +1,8 @@
 /**
  * Layer 2 of the directive stack: what Phosphor appends to a lane's system
- * prompt. See `apps/desktop/electron/pi/directives.ts` for the full stack and why this is
- * a setting rather than a constant.
+ * prompt. See `libs/shared/src/agent-directives.ts` for the full stack and why
+ * this is a setting rather than a constant. The user's own text is not here: it
+ * lives in pi's global AGENTS.md (`global-instructions.ts`).
  *
  * Global by default with a per-project override, because the right contents
  * depend on the repo AND on which model the lane runs: Anthropic's frontier
@@ -35,14 +36,30 @@ export interface AgentDirectivePrefs {
    * the form that works rather than banning the tool.
    */
   subagentPolicy: boolean
-  /** Free text appended last, so it can qualify either block above. */
-  custom: string
 }
+
+export const AGENT_DIRECTIVE_KEYS = [
+  'machineAwareness',
+  'worktreeGuard',
+  'laneCharter',
+  'subagentPolicy',
+] as const satisfies readonly (keyof AgentDirectivePrefs)[]
 
 export const DEFAULT_AGENT_DIRECTIVES: AgentDirectivePrefs = {
   machineAwareness: true,
   worktreeGuard: true,
   laneCharter: true,
   subagentPolicy: true,
-  custom: '',
+}
+
+/**
+ * Stored directive prefs, completed from the defaults. An absent or
+ * non-boolean key takes its default, never "off", and anything else stored
+ * (the retired free-text `custom`) is dropped.
+ */
+export function normalizeAgentDirectives(stored: unknown): AgentDirectivePrefs {
+  const raw = (stored && typeof stored === 'object' ? stored : {}) as Record<string, unknown>
+  const next = { ...DEFAULT_AGENT_DIRECTIVES }
+  for (const key of AGENT_DIRECTIVE_KEYS) if (typeof raw[key] === 'boolean') next[key] = raw[key]
+  return next
 }

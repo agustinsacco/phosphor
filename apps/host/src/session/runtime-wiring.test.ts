@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { SessionPush } from '@phosphor/shared/models'
+import { DEFAULT_AGENT_DIRECTIVES, type SessionPush } from '@phosphor/shared/models'
 import {
   createSessionStartup,
   type SessionSink,
@@ -87,6 +87,16 @@ it('injects one registry/path domain into every wiring entry and pauses compacti
   expect(startup.budget.paused('session')).toBe(false)
   owns.mockReturnValue(true)
   expect(startup.budget.paused('session')).toBe(true)
+})
+it('reads the directive toggles at each lane start, all on without a reader', () => {
+  expect(setup().startup.policy.preferences().agentDirectives).toEqual(DEFAULT_AGENT_DIRECTIVES)
+  vi.clearAllMocks()
+  let laneCharter = true
+  const { startup } = setup({
+    agentDirectives: () => ({ ...DEFAULT_AGENT_DIRECTIVES, laneCharter }),
+  })
+  laneCharter = false
+  expect(startup.policy.preferences().agentDirectives.laneCharter).toBe(false)
 })
 it('uses machine-only executable/environment and canonical workspace confinement', async () => {
   vi.stubEnv('UNTRUSTED_INHERITED', 'not forwarded')

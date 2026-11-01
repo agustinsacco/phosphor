@@ -45,7 +45,6 @@ const spawn = createSessionStartup({
         worktreeGuard: false,
         laneCharter: false,
         subagentPolicy: false,
-        custom: '',
       },
       agentDirectivesByProject: {},
     }),

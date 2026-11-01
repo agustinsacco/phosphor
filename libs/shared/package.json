@@ -52,6 +52,10 @@
       "types": "./src/agent-directives.ts",
       "default": "./src/agent-directives.ts"
     },
+    "./global-instructions": {
+      "types": "./src/global-instructions.ts",
+      "default": "./src/global-instructions.ts"
+    },
     "./ansi": {
       "types": "./src/ansi.ts",
       "default": "./src/ansi.ts"

@@ -16,6 +16,7 @@ import type {
   SubscriptionProviderStatus,
   PiResources,
 } from '../models'
+import type { GlobalInstructions } from '../global-instructions'
 
 export interface PiInvokeMap {
   'pi:health': { args: []; result: PiHealth }
@@ -97,6 +98,13 @@ export interface PiInvokeMap {
   'pi:writeConfigFile': {
     args: [name: 'settings' | 'models' | 'web-search', content: string]
     result: void
+  }
+  /** The global context file pi loads from its agent directory (global-instructions.ts). */
+  'pi:readInstructions': { args: []; result: GlobalInstructions }
+  /** Save over the file read at `revision`; refused when it changed on disk since. */
+  'pi:writeInstructions': {
+    args: [content: string, revision: string]
+    result: GlobalInstructions
   }
   /** pi-web-access config (web-search.json), with file health for the tab. */
   'pi:webSearchConfig': {
