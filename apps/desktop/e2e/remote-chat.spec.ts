@@ -113,7 +113,9 @@ test('Remote slash, mentions and attachments use Host inputs', async () => {
     await chat.fill('!echo HOST_SHELL')
     await chat.press('Enter')
     await expect(chat).toHaveValue('')
-    await expect(h.page.locator('main').getByText(/^stub bash: echo HOST_SHELL in /)).toBeVisible()
+    await expect(
+      h.page.locator('main').getByText('HOST_A_ONLY shell: echo HOST_SHELL'),
+    ).toBeVisible()
     await expect(h.page.locator('main').getByText('exit 0', { exact: true })).toBeVisible()
     const chosen = h.page.waitForEvent('filechooser')
     await h.page.getByRole('button', { name: 'Attach files', exact: true }).click()
