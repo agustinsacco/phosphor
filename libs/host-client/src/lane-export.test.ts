@@ -16,6 +16,7 @@ it.each([
   ['unsupported', 'This Host cannot export lanes yet. Update the Host, then retry.'],
   ['too-large', 'This lane is too large to export from its Host.'],
   ['lane-stopped', 'Resume the lane to export it.'],
+  ['forbidden', 'does not include lane control'],
   ['internal', 'the lane query could not complete'],
 ])('explains a %s refusal', async (code, message) => {
   const c = host({ ok: false, error: { code, message: 'the lane query could not complete' } })

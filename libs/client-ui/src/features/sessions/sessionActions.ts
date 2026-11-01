@@ -42,7 +42,7 @@ export async function exportRemoteLaneHtml(
   defaultName: string,
   nativeFiles: boolean,
 ): Promise<void> {
-  const name = `${defaultName.replace(/[\\/:*?"<>|]/g, '-')}.html`
+  const name = `${defaultName.replace(/[\\/:*?"<>|]/g, '-').trim() || 'session'}.html`
   try {
     if (!nativeFiles) return downloadHtml(name, await laneHtml(sessionId))
     const outputPath = await window.phosphor.invoke('app:saveDialog', {
@@ -61,14 +61,35 @@ export async function exportRemoteLaneHtml(
 const laneHtml = async (sessionId: string): Promise<string> =>
   (await window.phosphor.invoke('hosts:exportLaneHtml', sessionId)).html
 
+/**
+ * Download without ever rendering: as `text/html`, a browser that ignores
+ * `download` (iOS standalone PWAs) would open the export, model-written content
+ * and pi's scripts, as a page in the app's own origin. As an octet stream it can
+ * only be saved. The URL is revoked late, because WebKit and older Firefox read
+ * it after the click returns.
+ */
 function downloadHtml(name: string, html: string): void {
-  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+  const url = URL.createObjectURL(new Blob([html], { type: 'application/octet-stream' }))
   const link = document.createElement('a')
   link.href = url
   link.download = name
+  link.rel = 'noopener'
+  document.body.appendChild(link)
   link.click()
-  // The click starts the download synchronously; the URL is not needed after.
-  setTimeout(() => URL.revokeObjectURL(url), 0)
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+/** Export HTML from any lane: pi's own export on This Mac, the Host's on a Host lane. */
+export function exportAnySession(
+  sessionId: string,
+  name: string,
+  remote: boolean,
+  nativeFiles: boolean,
+): Promise<void> {
+  return remote
+    ? exportRemoteLaneHtml(sessionId, name, nativeFiles)
+    : exportSessionHtml(sessionId, name)
 }
 
 /**

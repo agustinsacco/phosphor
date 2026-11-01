@@ -48,6 +48,19 @@ it('a browser downloads the Host export, with no native channel', async () => {
   expect(invoke.mock.calls).toEqual([['hosts:exportLaneHtml', 'lane']])
   expect(click).toHaveBeenCalledOnce()
   expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('lane.html')
+  // Never text/html: a browser that ignores `download` must not render it in the app's origin.
+  const blob = vi.mocked(URL.createObjectURL).mock.calls[0]![0] as Blob
+  expect(blob.type).toBe('application/octet-stream')
+  expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+})
+
+it('names an unnamed lane "session", never a hidden ".html"', async () => {
+  answer({ 'app:saveDialog': null })
+  await exportRemoteLaneHtml('lane', ' ', true)
+  expect(invoke).toHaveBeenCalledWith(
+    'app:saveDialog',
+    expect.objectContaining({ defaultPath: 'session.html' }),
+  )
 })
 
 it("shows the Host's refusal on the lane's chat", async () => {

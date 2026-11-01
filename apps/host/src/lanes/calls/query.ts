@@ -67,9 +67,11 @@ export interface LaneQueryOptions {
 type ReceiptResult = (messages: Parameters<typeof hostLaneReceipt>[0]) => CallOutcome
 
 export function laneQueryCapability(method: string): HostCapability | null {
-  return method === 'host.repositories' || method === EXPORT || queries.has(method)
-    ? 'sessions.read'
-    : null
+  // An export carries more than lane.messages: pi's system prompt (context files,
+  // skills catalogue), tool definitions and the whole session tree. So it needs
+  // the grant's control capability, though not control of the lane.
+  if (method === EXPORT) return 'sessions.control'
+  return method === 'host.repositories' || queries.has(method) ? 'sessions.read' : null
 }
 
 export function stoppedQuery(
@@ -137,11 +139,22 @@ async function exportHtml(
   const sessionId = options.live.sessionFor(laneId)
   if (sessionId === null) return failure('lane-stopped')
   if (!options.runtime.exportHtml) return failure('unsupported')
+  // Same deadline as a live read: the client stops waiting then, so the call's
+  // slot is freed too. A late answer still removes its folder.
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    const html = await options.runtime.exportHtml(sessionId, EXPORT_MAX_BYTES)
-    return { ok: true, data: { html } }
+    const html = await Promise.race([
+      options.runtime.exportHtml(sessionId, EXPORT_MAX_BYTES),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), HOST_LIMITS.commandAnswerMs)
+        timer.unref()
+      }),
+    ])
+    return html === null ? failure('internal') : { ok: true, data: { html } }
   } catch (error) {
     return failure(error instanceof ExportTooLarge ? 'too-large' : 'internal')
+  } finally {
+    clearTimeout(timer)
   }
 }
 

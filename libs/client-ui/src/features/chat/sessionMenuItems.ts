@@ -1,6 +1,6 @@
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { remoteControlHint } from '@/features/sessions/remoteLaneActions'
-import { exportRemoteLaneHtml, exportSessionHtml } from '@/features/sessions/sessionActions'
+import { exportAnySession } from '@/features/sessions/sessionActions'
 import { piCallOk } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
 import { promptText } from '@/stores/prompt'
@@ -58,12 +58,8 @@ export function sessionMenuItems({
   return [
     {
       label: 'Export HTML…',
-      onClick: () => {
-        const name = meta?.sessionName ?? 'session'
-        void (remote
-          ? exportRemoteLaneHtml(sessionId, name, nativeFiles)
-          : exportSessionHtml(sessionId, name))
-      },
+      onClick: () =>
+        void exportAnySession(sessionId, meta?.sessionName || 'session', remote, nativeFiles),
     },
     {
       label: 'Compact now…',

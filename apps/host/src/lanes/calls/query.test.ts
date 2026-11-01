@@ -342,11 +342,24 @@ it('stoppedQuery avoids unnecessary reads and preserves snapshot error distincti
 
 describe('lane.exportHtml', () => {
   const ID = { laneId: lane.laneId }
-  it('needs sessions.read and returns the Host-exported document of a running lane', async () => {
+  it('gives up at the command deadline instead of holding the call slot', async () => {
+    vi.useFakeTimers()
+    try {
+      const { options } = fixture()
+      options.runtime.exportHtml = vi.fn(() => new Promise<string>(() => {}))
+      const pending = resolveLaneQuery(options, 'lane.exportHtml', ID)
+      await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+      await expect(pending).resolves.toMatchObject({ ok: false, error: { code: 'internal' } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('needs sessions.control and returns the Host-exported document of a running lane', async () => {
     const { options, command } = fixture()
     const exportHtml = vi.fn(async () => '<html>lane</html>')
     options.runtime.exportHtml = exportHtml
-    expect(laneQueryCapability('lane.exportHtml')).toBe('sessions.read')
+    expect(laneQueryCapability('lane.exportHtml')).toBe('sessions.control')
     expect(await resolveLaneQuery(options, 'lane.exportHtml', ID)).toEqual({
       ok: true,
       data: { html: '<html>lane</html>' },

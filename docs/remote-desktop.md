@@ -44,7 +44,8 @@ may try a fresh action once ready. `closed` means no automatic retry.
 intermediate states are coalesced. Machine reads use it to reject stale replies. Controllers expose only a label, connection
 status and whether they are this Desktop, never a client or user id. Repositories,
 lane summaries, cursors, the last 50 attention events and open lane streams stay
-in memory. No transcript is written to the client's disk. Remote lane access
+in memory. No transcript is written to the client's disk, except an export the
+user saves. Remote lane access
 requires `sessions.read` in the Host's authenticated `ready` frame; mutations
 also require `sessions.control`.
 
@@ -511,8 +512,8 @@ with the fixed unavailable hint. The top bar's Session options work on a Host
 lane for its controller (compaction, auto-retry, queue modes). Other viewers see
 a mode change on their next lane snapshot. pi reports no auto-retry state, so
 that toggle shows what this window last set, not the Host's value. Export HTML
-works for any viewer: the Host exports and this device saves the file
-([chat](chat.md)). Continue waits for the remote receipt and echo;
+needs no lane control, only a grant with `sessions.control`: the Host exports
+and this device saves the file ([chat](chat.md)). Continue waits for the remote receipt and echo;
 it never inserts an optimistic duplicate. Error cards do not inspect This Mac's
 AWS profile. Lane and machine switches reset visible selections or show loading
 or refusal while the new target loads.

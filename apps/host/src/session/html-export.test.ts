@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -48,6 +48,23 @@ describe('exportSessionHtml', () => {
       return { type: 'response', command: 'export_html', success: false, error: 'no session' }
     })
     await expect(exportSessionHtml(command, 'sid', 1024)).rejects.toThrow('no session')
+    expect(existsSync(dirname(seen[0]!))).toBe(false)
+  })
+
+  it.each([
+    ['answers with another path', (path: string) => (writeFileSync(path, 'x'), '/etc/passwd')],
+    ['reports success but writes nothing', (path: string) => path],
+    ['leaves a symlink', (path: string) => (symlinkSync('/etc/hostname', path), path)],
+    ['leaves a folder', (path: string) => (mkdirSync(path), path)],
+  ])('refuses an export when pi %s, and removes the folder', async (_name, act) => {
+    const seen: string[] = []
+    const command = vi.fn(async (_id: string, request: RpcCommand): Promise<RpcResponse> => {
+      if (request.type !== 'export_html' || !request.outputPath) throw new Error('unexpected')
+      seen.push(request.outputPath)
+      const path = act(request.outputPath)
+      return { type: 'response', command: 'export_html', success: true, data: { path } }
+    })
+    await expect(exportSessionHtml(command, 'sid', 1024)).rejects.toThrow()
     expect(existsSync(dirname(seen[0]!))).toBe(false)
   })
 })

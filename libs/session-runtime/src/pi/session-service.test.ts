@@ -85,7 +85,12 @@ describe('portable session admission', () => {
     await expect(
       h.service.command(live.sessionId, { type: 'prompt', message: 'unsafe' }),
     ).rejects.toThrow('owned by a running routine')
-    expect(h.clients[0]!.request).toHaveBeenCalledExactlyOnceWith({ type: 'get_messages' })
+    // An export is a read: it copies the transcript, so a routine's lane allows it.
+    await h.service.command(live.sessionId, { type: 'export_html', outputPath: '/tmp/x.html' })
+    expect(h.clients[0]!.request.mock.calls).toEqual([
+      [{ type: 'get_messages' }],
+      [{ type: 'export_html', outputPath: '/tmp/x.html' }],
+    ])
     await h.service.dispose(live.sessionId)
     expect(h.serviceRuntime.routines.cancel).toHaveBeenCalledWith(live.sessionId)
     expect(h.registry.list()).toEqual([])
@@ -228,6 +233,9 @@ it('holds reconnect admission through native completion while allowing read-only
   await expect(h.service.command(live.sessionId, { type: 'get_state' })).resolves.toMatchObject({
     success: true,
   })
+  await expect(
+    h.service.command(live.sessionId, { type: 'export_html', outputPath: '/tmp/x.html' }),
+  ).resolves.toMatchObject({ success: true })
   finish()
   await reconnect
   await expect(h.service.command(live.sessionId, { type: 'get_state' })).resolves.toMatchObject({

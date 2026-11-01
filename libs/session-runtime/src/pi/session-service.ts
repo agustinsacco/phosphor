@@ -78,25 +78,32 @@ function session({ registry }: SessionAdmission, id: string): LiveSession {
   return found
 }
 
+/**
+ * Commands that leave the session as it was. An export only writes a copy of
+ * the transcript, so a routine's lane can be exported, a connector reconnect
+ * need not wait for one, and an export need not wait for a reconnect.
+ */
+const READS = new Set<RpcCommand['type']>([
+  'get_state',
+  'get_messages',
+  'get_session_stats',
+  'get_available_models',
+  'get_commands',
+  'export_html',
+])
+const reads = (command: RpcCommand): boolean =>
+  READS.has(command.type) || command.type.startsWith('get_')
+
 function assertManualCommand(
   { routines, mcpBusy }: SessionAdmission,
   id: string,
   command: RpcCommand,
 ) {
-  if (mcpBusy.has(id) && !command.type.startsWith('get_') && command.type !== 'abort')
+  if (mcpBusy.has(id) && !reads(command) && command.type !== 'abort')
     throw new Error(
       'This lane is reconnecting a connector. Wait for it to finish before sending new work.',
     )
-  if (
-    routines.owns(id) &&
-    ![
-      'get_state',
-      'get_messages',
-      'get_session_stats',
-      'get_available_models',
-      'get_commands',
-    ].includes(command.type)
-  ) {
+  if (routines.owns(id) && !READS.has(command.type)) {
     throw new Error(
       'This lane is owned by a running routine. Cancel it from Routines before continuing manually.',
     )
@@ -158,7 +165,7 @@ async function command<Delivery>(
   const live = session(admission, id)
   if (command.type === 'get_messages') admission.routines.observe(id)
   assertManualCommand(admission, id, command)
-  const mutating = !command.type.startsWith('get_')
+  const mutating = !reads(command)
   if (mutating) admission.mutating.set(id, (admission.mutating.get(id) ?? 0) + 1)
   try {
     return await runtime.withBudgetCompaction(id, command.type, () =>

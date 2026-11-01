@@ -6,6 +6,7 @@ const REFUSALS: Partial<Record<CallErrorCode, string>> = {
   unsupported: 'This Host cannot export lanes yet. Update the Host, then retry.',
   'too-large': 'This lane is too large to export from its Host.',
   'lane-stopped': 'Resume the lane to export it.',
+  forbidden: "This device's access to the Host does not include lane control, which exports need.",
 }
 
 /** The Host exports to its own file and returns the document; no path crosses the wire. */

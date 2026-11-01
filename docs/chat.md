@@ -859,11 +859,11 @@ session's ⋮ menu is in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
   phones. On a Host lane the commands go through `piCall` to the lane's pi and
   need control: a reader sees them disabled with "Take control first." (the
   shared lane actions' rule), and a Host that is not connected or does not
-  offer control says so instead. Export HTML reads the lane, so any viewer may
-  use it. On a Host lane the Host exports and returns the document
+  offer control says so instead. Export HTML (and `/export`) does not need lane
+  control. On a Host lane the Host exports and returns the document
   (`hosts:exportLaneHtml`); Desktop then saves it where the save dialog says,
-  asked before the Host is, and a browser downloads it. A stopped lane says to
-  resume it first. Renaming is `/name` or the sidebar row.
+  asked before the Host is, and a browser downloads it as a file it never
+  renders. A stopped lane says to resume it first. Renaming is `/name` or the sidebar row.
 
 ### Streaming text is paced, not rendered per delta
 
