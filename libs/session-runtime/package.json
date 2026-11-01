@@ -259,6 +259,10 @@
     "./files/mutations": {
       "types": "./src/files/mutations.ts",
       "default": "./src/files/mutations.ts"
+    },
+    "./skills/share-bundle": {
+      "types": "./src/skills/share-bundle.ts",
+      "default": "./src/skills/share-bundle.ts"
     }
   },
   "nx": {

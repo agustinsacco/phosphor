@@ -9,6 +9,7 @@ import {
 import type { MachineView } from '@shared/control-api'
 import type { LaneMarksChange } from '@shared/host-protocol-lane-marks'
 import { mockMachineSettingsInvoke } from './mockMachineSettings'
+import { mockSkillShareInvoke } from './mockSkillShare'
 import { mockSessionMaintenance } from './mockSessionMaintenance'
 /**
  * Dev-only mock of the preload API so the renderer can run in a plain
@@ -1497,7 +1498,9 @@ export function installMockPhosphor(): void {
         case 'hosts:repositoryFile':
           return { binary: false, size: 20, content: '# Remote repository\n', revision: null }
         case 'hosts:skills':
-          return { skills: [], probe: 'rpc', userRoot: `host:${args[0]}/machine` }
+        case 'hosts:skillExport':
+        case 'hosts:skillInstall':
+          return mockSkillShareInvoke(channel, args) as never
         case 'hosts:providerLogin':
           throw new Error('Provider sign-in needs a connected Host.')
         case 'hosts:uploadAttachments':

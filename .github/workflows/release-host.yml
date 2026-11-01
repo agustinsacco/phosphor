@@ -100,7 +100,9 @@ jobs:
         include:
           - { target: linux-x64, runner: ubuntu-22.04 }
           - { target: linux-arm64, runner: ubuntu-22.04-arm }
-          - { target: darwin-arm64, runner: macos-14 }
+          # macos-14 is retired on 2026-11-02. node-pty takes its deployment target
+          # from the bundled Node's headers, not the runner, so older macOS still runs it.
+          - { target: darwin-arm64, runner: macos-15 }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4

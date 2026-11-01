@@ -24,6 +24,7 @@ import { Button, TextInput } from '@/components/form'
 import { Markdown } from '@/components/markdown/Markdown'
 import { NewSkillModal } from './NewSkillModal'
 import { groupSkills } from './skillGroups'
+import { SkillMachines, SkillShareActions } from './SkillShare'
 
 /**
  * Global Skills page: outcome-first discovery with evidence and fit before
@@ -528,6 +529,7 @@ function SkillDetail({
       >
         {skill.dir} · {skill.files.length} files · {formatSize(skill.totalSize)}
       </div>
+      <SkillMachines skill={skill} workspacePath={workspacePath} />
       {skill.warnings.length > 0 && (
         <div className="text-warning pt-1 text-sm">
           {skill.warnings.map((warning) => (
@@ -584,17 +586,14 @@ function SkillDetail({
             Update
           </Button>
         )}
-        {!workspacePath.startsWith('host:') && (
-          <Button
-            size="sm"
-            disabled={pending != null}
-            onClick={() =>
-              void run('export', () => window.phosphor.invoke('skills:export', skill.dir))
-            }
-          >
-            Export
-          </Button>
-        )}
+        <SkillShareActions
+          skill={skill}
+          workspacePath={workspacePath}
+          disabled={pending != null}
+          onExport={() =>
+            void run('export', () => window.phosphor.invoke('skills:export', skill.dir))
+          }
+        />
         {platform.fileEditing && skill.writable && (
           <Button
             size="sm"

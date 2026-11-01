@@ -1636,6 +1636,18 @@ skill of the same name. Without a lane, only global skills are available.
 markdown file. Reads reject escapes and `.git`, cap text at 2 MiB, and label
 binary files without returning content. Lists cap at 500 skills and 1,000 models.
 
+`skills.export {name}` returns one global skill as a bundle of base64 files for
+[skill sharing](remote-desktop.md#skill-sharing). Only a `SKILL.md` folder exports;
+symbolic links, dot folders, `node_modules` and provenance sidecars stay behind,
+and a bundle over 200 files, 2 MiB per file or 4 MiB in total answers `too-large`.
+`skills.install {bundle, overwrite?}` belongs to the `machine.configure` feature
+(`src/features/skill-install.ts`). It writes into the Host pi's global skills folder,
+never a caller path, and answers `{status: 'installed', replaced}` or
+`{status: 'conflict', replaceable}`. A same-named folder there is replaced only
+with `overwrite`. A same-named skill that pi resolves from anywhere else is never
+replaceable. Calls serialize with at most four waiting. Authority is checked before
+the call and again after pi resolves the existing skills, before any write.
+
 The registered `artifacts.read` feature indexes an admitted lane's session file on
 request under `hostStateDirectory()/artifacts`. `artifacts.list {laneId?}` returns
 current-branch metadata for one lane or all admitted lanes, capped at 2,000 artifacts

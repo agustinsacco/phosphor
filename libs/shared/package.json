@@ -271,6 +271,10 @@
     "./ipc-web": {
       "types": "./src/ipc-web.ts",
       "default": "./src/ipc-web.ts"
+    },
+    "./host-protocol-skill-share": {
+      "types": "./src/host-protocol-skill-share.ts",
+      "default": "./src/host-protocol-skill-share.ts"
     }
   },
   "dependencies": {

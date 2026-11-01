@@ -1,6 +1,7 @@
 import type { IpcInvokeMap } from '@phosphor/shared/ipc'
 import type { WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { laneMarks } from '@phosphor/host-client/lane-marks'
+import { remoteSkillShare } from '@phosphor/host-client/skill-share'
 import type { RemoteLanes, RemoteWindow } from '@phosphor/host-client/remote-lanes'
 import type { BrowserControl } from './control'
 import type { BrowserHosts } from './hosts'
@@ -16,14 +17,21 @@ export type BrowserHandlers = {
     ...args: IpcInvokeMap[C]['args']
   ) => IpcInvokeMap[C]['result'] | Promise<IpcInvokeMap[C]['result']>
 }
-/** Read-only machine catalogues: no lane is needed. */
-function machineHandlers(machines: ReturnType<typeof createBrowserResources>['machines']) {
+/** Machine catalogues and skill sharing: no lane is needed. The browser has no 'local'. */
+function machineHandlers(
+  machines: ReturnType<typeof createBrowserResources>['machines'],
+  connection: BrowserHosts['connection'],
+) {
+  const share = remoteSkillShare(connection)
   return {
     'hosts:models': machines.models,
     'hosts:claude': machines.claude,
     'hosts:claudeUsage': machines.claudeUsage,
     'hosts:providers': machines.providers,
     'hosts:skills': machines.skills,
+    'hosts:skillExport': (source) => share.export(source.machine, source.name),
+    'hosts:skillInstall': (machine, bundle, overwrite) =>
+      share.install(machine, bundle, overwrite === true),
   } satisfies Partial<BrowserHandlers>
 }
 /** The Host's folder dialog; the folders are the Host's, so the browser can browse them too. */
@@ -104,7 +112,7 @@ export function createBrowserHandlers(ports: {
     'control:approveEnrollment': (code, label) => directoryMutation(control.approve(code, label)),
     'control:renameMachine': (id, label) => directoryMutation(control.rename(id, label)),
     'control:removeMachine': (id) => directoryMutation(control.remove(id)),
-    ...machineHandlers(resources.machines),
+    ...machineHandlers(resources.machines, hosts.connection),
     ...folderHandlers(resources.folders),
     ...terminalHandlers(ports.terminals),
     ...settingsHandlers(() => ports.settings),

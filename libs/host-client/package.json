@@ -67,6 +67,10 @@
     "./terminals/terminals": {
       "types": "./src/terminals/terminals.ts",
       "default": "./src/terminals/terminals.ts"
+    },
+    "./skill-share": {
+      "types": "./src/skill-share.ts",
+      "default": "./src/skill-share.ts"
     }
   },
   "dependencies": {

@@ -187,6 +187,11 @@ an atomic rename. Losing configuration authority advances an admission epoch;
 regranting it cannot revive an old asynchronous write or spawn. These are
 process-local locks and checks, not a cross-process filesystem transaction.
 
+`skills.install {bundle, overwrite?}` also requires `machine.configure`. It copies
+one validated skill bundle (`libs/shared/src/host-protocol-skill-share.ts`) into
+the Host's global skills folder; the client reads it with `skills.export {name}`
+under `skills.read` ([host.md](host.md#machine-features)).
+
 `machine.task` selects a reviewed fixed-purpose program, not arbitrary argv,
 executable paths or environment. `host.update` runs the Host's own installed
 release updater and takes no other field ([host.md](host.md#updating)); an

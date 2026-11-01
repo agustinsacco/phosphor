@@ -1,7 +1,8 @@
 import { isUtf8 } from 'node:buffer'
 import { constants } from 'node:fs'
 import { open, realpath, stat } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative } from 'node:path'
+import { readSkillBundle, SkillShareError } from '@phosphor/session-runtime/skills/share-bundle'
 import {
   machineRecord,
   MACHINE_LIMITS,
@@ -36,12 +37,13 @@ async function laneCwd(context: FeatureContext, laneId?: string): Promise<string
     throw new FeatureFailure('unknown-lane')
   }
 }
-interface LocatedSkill {
+export interface LocatedSkill {
   skill: MachineSkill
   file: string
   cwd?: string
 }
-async function resolveSkills(
+/** Resolve through this Host's pi; a project skill shadows a global one of the same name. */
+export async function resolveSkills(
   context: FeatureContext,
   ports: MachinePorts,
   laneId?: string,
@@ -117,6 +119,16 @@ async function readSkill(entry: LocatedSkill, file?: string) {
     await fd.close()
   }
 }
+/** Only a SKILL.md folder travels: a loose Markdown skill's folder is the whole skills root. */
+async function exportSkill(entry: LocatedSkill) {
+  if (basename(entry.file) !== 'SKILL.md') throw new FeatureFailure('bad-request')
+  try {
+    return await readSkillBundle(dirname(entry.file), entry.skill.name)
+  } catch (error) {
+    const tooLarge = error instanceof SkillShareError && error.code === 'too-large'
+    throw new FeatureFailure(tooLarge ? 'too-large' : 'bad-request')
+  }
+}
 export function createSkillsFeature(
   context: FeatureContext,
   ports: MachinePorts = {},
@@ -133,6 +145,7 @@ export function createSkillsFeature(
     'machine.claudeUsage',
     'skills.list',
     'skills.read',
+    'skills.export',
   ]
   return {
     capability: 'skills.read',
@@ -166,6 +179,7 @@ export function createSkillsFeature(
         return { ok: true, data: { skills: skills.map((s) => s.skill) } }
       const entry = skills.find((s) => s.skill.name === parsed.name)
       if (!entry) throw new FeatureFailure('bad-request')
+      if (method === 'skills.export') return { ok: true, data: await exportSkill(entry) }
       try {
         return { ok: true, data: await readSkill(entry, parsed.file) }
       } catch (error) {

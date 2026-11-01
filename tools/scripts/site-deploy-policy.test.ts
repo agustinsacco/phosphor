@@ -219,13 +219,13 @@ describe('deploy-site workflow trust and path wiring', () => {
     expect(source).toContain('${{ env.IMAGE_NAME }}:${{ needs.guard.outputs.sha }}')
     expect(source.match(/Recheck current main before/g)).toHaveLength(2)
     expect(source).toContain('sleep 15')
-    expect(source).toContain('seq 1 120')
+    expect(source).toContain('seq 1 360')
     expect(source).toContain('exit 1')
   })
 
   it.each([
     { successAt: 45, expectedExit: 0, polls: 45, mockPolicy: true, failure: false },
-    { successAt: 121, expectedExit: 1, polls: 120, mockPolicy: true, failure: false },
+    { successAt: 361, expectedExit: 1, polls: 360, mockPolicy: true, failure: false },
     { successAt: 1, expectedExit: 0, polls: 1, mockPolicy: false, failure: false },
     { successAt: 1, expectedExit: 1, polls: 1, mockPolicy: false, failure: true },
   ])(
