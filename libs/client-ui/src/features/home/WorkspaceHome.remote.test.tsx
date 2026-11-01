@@ -31,12 +31,15 @@ vi.mock('@/features/chat/composer/ComposerInput', () => ({
   ComposerInput: ({
     onSubmit,
     modelPicker,
+    swarm,
   }: {
     onSubmit: () => void
     modelPicker: React.ReactNode
+    swarm: { enabled: boolean; onChange: (enabled: boolean) => void } | null
   }) => (
     <div data-testid="home-composer">
       {modelPicker}
+      {swarm && <button onClick={() => swarm.onChange(!swarm.enabled)}>Toggle swarm</button>}
       <button onClick={onSubmit}>Send draft</button>
     </div>
   ),
@@ -178,6 +181,22 @@ it.each([true, false])(
     })
   },
 )
+
+it('offers Swarm on a Host and authorizes the new lane before sending the task', async () => {
+  receipt.mockImplementation(async (_id, command: { type: string }) =>
+    command.type === 'get_commands'
+      ? { success: true, data: { commands: [{ name: 'phosphor-swarm', source: 'extension' }] } }
+      : { success: true },
+  )
+  await render()
+  await act(async () =>
+    [...el.querySelectorAll('button')].find((b) => b.textContent === 'Toggle swarm')!.click(),
+  )
+  expect(useDraftsStore.getState().drafts[key]?.swarm).toBe(true)
+  await send()
+  const sent = receipt.mock.calls.map(([, command]) => command.message ?? command.type)
+  expect(sent).toEqual(['get_commands', '/phosphor-swarm on', 'First prompt'])
+})
 
 it.each(['none', 'text', 'attachment'] as const)(
   'clears accepted content after persistence debounce, preserving newer edits=%s',

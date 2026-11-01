@@ -3,7 +3,13 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { startRemoteChat } from './startRemoteChat'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-const { adopt, pi, control } = vi.hoisted(() => ({ adopt: vi.fn(), pi: vi.fn(), control: vi.fn() }))
+const { adopt, pi, control, swarm } = vi.hoisted(() => ({
+  adopt: vi.fn(),
+  pi: vi.fn(),
+  control: vi.fn(),
+  swarm: vi.fn(),
+}))
+vi.mock('@/lib/swarm', () => ({ requestSwarm: swarm }))
 vi.mock('@/stores/sessions', () => ({
   useSessionsStore: { getState: () => ({ claimNav: () => 1 }) },
 }))
@@ -23,6 +29,7 @@ beforeEach(() => {
   control.mockReturnValue(true)
   adopt.mockResolvedValue(undefined)
   pi.mockResolvedValue(true)
+  swarm.mockResolvedValue(undefined)
   invoke.mockImplementation(async (channel) =>
     channel === 'hosts:snapshot' ? mockRemoteHosts : mockRemoteInfo,
   )
@@ -42,6 +49,34 @@ it('creates with Host choices, opens and sends before clearing the draft', async
   })
   expect(accepted).toHaveBeenCalledOnce()
 })
+it('authorizes Swarm on the new Host lane before its first prompt, as This Mac does', async () => {
+  const order: string[] = []
+  swarm.mockImplementation(async (sessionId: string, enabled: boolean) => {
+    order.push(`swarm ${sessionId} ${enabled}`)
+  })
+  pi.mockImplementation(async (_id, command: { message: string }) => {
+    order.push(command.message)
+    return true
+  })
+  await startRemoteChat(MOCK_HOST_ID, input, 'First prompt', [], accepted, { swarm: true })
+  expect(order).toEqual([`swarm ${mockRemoteInfo.sessionId} true`, 'First prompt'])
+  expect(accepted).toHaveBeenCalledOnce()
+})
+
+it('sends no task and keeps the draft when the Host lane refuses Swarm', async () => {
+  swarm.mockRejectedValue(new Error('This lane does not support the Swarm control.'))
+  await expect(
+    startRemoteChat(MOCK_HOST_ID, input, 'Keep draft', [], accepted, { swarm: true }),
+  ).rejects.toThrow('swarm-failed')
+  expect(pi).not.toHaveBeenCalled()
+  expect(accepted).not.toHaveBeenCalled()
+})
+
+it('leaves Swarm alone unless the draft chose it', async () => {
+  await startRemoteChat(MOCK_HOST_ID, input, 'First prompt', [], accepted)
+  expect(swarm).not.toHaveBeenCalled()
+})
+
 it.each(['down', 'capability', 'viewer', 'receipt', 'transport'])(
   'keeps the draft on %s and never falls back to a local lane',
   async (failure) => {
