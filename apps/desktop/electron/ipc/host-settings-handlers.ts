@@ -4,6 +4,7 @@ import type { createGrants } from '../hosts/grants'
 import type { createRemoteTerminals } from '@phosphor/host-client/terminals/terminals'
 import { ptyManager } from '../pty/pty-manager'
 import { handle } from './handle'
+import { registerSkillShareHandlers } from './skill-share-handlers'
 
 /** Feature-only registrars, leaving the deferred Host runtime/router refactor untouched. */
 export function registerHostSettingsHandlers(
@@ -12,6 +13,7 @@ export function registerHostSettingsHandlers(
   terminals: Pick<ReturnType<typeof createRemoteTerminals>, 'task' | 'signIn' | 'shell'>,
 ): void {
   const settings = machineSettings(manager.connection)
+  registerSkillShareHandlers(manager)
   handle('hosts:providerLogin', (event, hostId, provider, account) =>
     terminals.signIn(event.sender.id, hostId, provider, account),
   )

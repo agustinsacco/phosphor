@@ -48,11 +48,13 @@ export function parseMachineParams(
   const keys =
     method === 'skills.read'
       ? ['laneId', 'name', 'file']
-      : method === 'skills.list'
-        ? ['laneId']
-        : method === 'machine.claudeUsage'
-          ? ['laneId', 'force']
-          : []
+      : method === 'skills.export'
+        ? ['name']
+        : method === 'skills.list'
+          ? ['laneId']
+          : method === 'machine.claudeUsage'
+            ? ['laneId', 'force']
+            : []
   if (
     ![
       'machine.models',
@@ -61,6 +63,7 @@ export function parseMachineParams(
       'machine.claudeUsage',
       'skills.list',
       'skills.read',
+      'skills.export',
     ].includes(method) ||
     Object.keys(v).some((k) => !keys.includes(k))
   )
@@ -71,7 +74,10 @@ export function parseMachineParams(
       !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v.laneId))
   )
     return null
-  if (method === 'skills.read' && (!text(v.name, 64) || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(v.name)))
+  if (
+    (method === 'skills.read' || method === 'skills.export') &&
+    (!text(v.name, 64) || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(v.name))
+  )
     return null
   if (v.file !== undefined && !isSkillFile(v.file)) return null
   if (v.force !== undefined && typeof v.force !== 'boolean') return null

@@ -10,6 +10,8 @@ export const IPC_SCOPE = {
   'hosts:repositoryFiles': 'machine',
   'hosts:repositoryFile': 'machine',
   'hosts:skills': 'machine',
+  'hosts:skillExport': 'app',
+  'hosts:skillInstall': 'app',
   'hosts:providerLogin': 'app',
   'hosts:settingsAccess': 'app',
   'hosts:settingsRead': 'app',

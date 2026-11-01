@@ -2,6 +2,7 @@ import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
 import type { MachineClaude, MachineModel, MachineProvider } from '../host-protocol-machine'
 import type { SkillsListResult } from '../skills'
+import type { SkillBundle, SkillInstallResult } from '../host-protocol-skill-share'
 import type {
   MachineSettings,
   MachineSettingsPatch,
@@ -33,6 +34,16 @@ export interface HostsInvokeMap {
     result: FileRead
   }
   'hosts:skills': { args: [hostId: string]; result: SkillsListResult }
+  /** One skill bundle to share. `machine` is 'local' or a Host id; This Mac needs `dir` from `skills:list`. */
+  'hosts:skillExport': {
+    args: [source: { machine: string; name: string; dir?: string }]
+    result: SkillBundle
+  }
+  /** Copy a bundle into a machine's global skills folder; a Host needs configuration access. */
+  'hosts:skillInstall': {
+    args: [machine: string, bundle: SkillBundle, overwrite: boolean]
+    result: SkillInstallResult
+  }
   'hosts:providerLogin': {
     args: [
       hostId: string,
