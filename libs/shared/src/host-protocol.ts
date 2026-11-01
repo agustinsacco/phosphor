@@ -38,6 +38,7 @@ export type {
 export {
   CAPABILITY_FOR,
   HOST_CALL_METHODS,
+  LANE_CREATE_PHASES,
   LANE_PI_OPS,
   UNFENCED_OPS,
   isLanePiOp,
@@ -46,6 +47,7 @@ export {
   type FailureCode,
   type HostCallMethod,
   type LaneOp,
+  type LaneCreatePhase,
   type LaneOpType,
   type LanePiOp,
   type LanePiOpType,

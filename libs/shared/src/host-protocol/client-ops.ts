@@ -73,7 +73,8 @@ function createOp(v: OpFields): LaneOp | null {
     (v.name !== undefined && !label(v.name)) ||
     (v.provider !== undefined && !text(v.provider, 200)) ||
     (v.model !== undefined && !text(v.model, 200)) ||
-    (v.thinkingLevel !== undefined && !member(v.thinkingLevel, thinking))
+    (v.thinkingLevel !== undefined && !member(v.thinkingLevel, thinking)) ||
+    (v.prompt !== undefined && !text(v.prompt, HOST_LIMITS.inboundFrameBytes))
   )
     return null
   return {
@@ -90,6 +91,7 @@ function createOp(v: OpFields): LaneOp | null {
     ...(v.provider !== undefined ? { provider: v.provider } : {}),
     ...(v.model !== undefined ? { model: v.model } : {}),
     ...(v.thinkingLevel !== undefined ? { thinkingLevel: v.thinkingLevel } : {}),
+    ...(v.prompt !== undefined ? { prompt: v.prompt } : {}),
   }
 }
 

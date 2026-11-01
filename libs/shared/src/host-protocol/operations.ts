@@ -71,6 +71,12 @@ export type LaneOp =
       readonly provider?: string
       readonly model?: string
       readonly thinkingLevel?: string
+      /**
+       * The lane's first prompt, sent by the Host as soon as pi is attached, so a
+       * new lane needs one round trip instead of five. Only to a Host whose ready
+       * frame says `laneStart`; its done receipt's data says `{ prompted }`.
+       */
+      readonly prompt?: string
     }
   | { readonly type: 'claude.account'; readonly accountId: string }
   | { readonly type: 'lane.resume' }
@@ -110,8 +116,17 @@ export type RejectCode =
 
 export type FailureCode = 'pi-error' | 'timeout' | 'internal'
 
+/** Where a `lane.create` is, in the order a Host reaches them. */
+export const LANE_CREATE_PHASES = ['queued', 'branching', 'starting', 'prompting'] as const
+export type LaneCreatePhase = (typeof LANE_CREATE_PHASES)[number]
+
 export type Receipt =
-  | { readonly requestId: string; readonly status: 'pending' }
+  | {
+      readonly requestId: string
+      readonly status: 'pending'
+      /** Progress of a `lane.create`, delivered unrecorded to the creating connection. */
+      readonly phase?: LaneCreatePhase
+    }
   | {
       readonly requestId: string
       readonly status: 'done'

@@ -74,6 +74,11 @@ export type HostFrame =
       readonly machineShell?: boolean
       /** Additive support marker: the Host keeps lane pins and markers (`lane.marks`). */
       readonly laneMarks?: boolean
+      /**
+       * Additive support marker: `lane.create` takes a first `prompt`, reports its
+       * phases on pending receipts, and finds a free name for a fresh branch itself.
+       */
+      readonly laneStart?: boolean
       /** Effective capabilities for this connection. */
       readonly capabilities: readonly HostCapability[]
     }
