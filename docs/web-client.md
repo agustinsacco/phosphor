@@ -33,7 +33,8 @@ remote cleanup completed or revoke previously issued grants immediately.
 A Host's machine settings (**Settings → Configure → \<Host\>**, or **Machines → a Host →
 Settings**) are the same shared sections as Desktop's. A signed-in
 browser page holds configuration authority for a Host only after an explicit
-per-page opt-in: **Enable configuration access**, confirmed in a dialog, calls
+per-page opt-in: **Enable configuration access** in Settings, or **Switch account**
+in a Host lane's usage popover, confirmed in the same dialog, calls
 `hosts:settingsAccess`. The adapter (`apps/web/src/platform/settings.ts`) then asks
 Control for that Host's grant with `configure: true`, checks that the signed grant
 carries it, and reconnects so the Host admits `machine.configure`. If Control does

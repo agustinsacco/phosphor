@@ -38,7 +38,7 @@ let root: Root | null = null
 let container: HTMLDivElement | null = null
 const onMoved = vi.fn()
 
-function host(capabilities: HostCapability[]) {
+function host(capabilities: HostCapability[], self = true) {
   const base = mockRemoteHosts[MOCK_HOST_ID]!
   useRemoteLanesStore.setState({
     hosts: {
@@ -48,11 +48,35 @@ function host(capabilities: HostCapability[]) {
         capabilities,
         lanes: base.lanes.map((lane) => ({
           ...lane,
-          control: { fence: 1, controller: { label: 'This Mac', connected: true, self: true } },
+          control: { fence: 1, controller: { label: 'This Mac', connected: true, self } },
         })),
       },
     },
   })
+}
+
+/** A fresh Host connection: not ready, and not yet saying what it supports. */
+function reconnecting(): void {
+  const current = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  useRemoteLanesStore.setState({
+    hosts: {
+      [MOCK_HOST_ID]: {
+        ...current,
+        state: 'connecting',
+        capabilities: [],
+        lanes: [],
+        configurationSupported: undefined,
+      },
+    },
+  })
+}
+
+const FULL: HostCapability[] = ['sessions.read', 'sessions.control', 'machine.configure']
+
+async function answerPrompt(value: string | undefined): Promise<void> {
+  const request = usePromptStore.getState().requests[0]
+  if (!request) throw new Error('no prompt')
+  await act(async () => usePromptStore.getState().dismiss(request, value))
 }
 
 function render(): void {
@@ -153,5 +177,60 @@ it('surfaces a failed move instead of swallowing it', async () => {
   click('personal@example.com')
   await act(async () => {})
   expect(document.body.textContent).toContain('Account move not confirmed.')
-  expect(onMoved).not.toHaveBeenCalled()
+  // The Host may have moved the lane before the link changed: usage is re-read.
+  expect(onMoved).toHaveBeenCalled()
+})
+
+it('keeps the picker open through the reconnect a granted access causes, then reads', async () => {
+  host(['sessions.read', 'sessions.control'])
+  render()
+  click('Switch account')
+  await act(async () => {})
+  await answerPrompt('enable')
+  expect(invoke).toHaveBeenCalledWith('hosts:settingsAccess', MOCK_HOST_ID)
+  act(() => reconnecting())
+  expect(document.body.textContent).toContain('Reconnecting to')
+  expect(invoke).not.toHaveBeenCalledWith('hosts:settingsRead', MOCK_HOST_ID, 'providers')
+  act(() => host(FULL))
+  await act(async () => {})
+  expect(invoke).toHaveBeenCalledWith('hosts:settingsRead', MOCK_HOST_ID, 'providers')
+  expect(document.body.textContent).toContain('personal@example.com')
+})
+
+it('stays closed and grants nothing when access is declined', async () => {
+  host(['sessions.read', 'sessions.control'])
+  render()
+  click('Switch account')
+  await act(async () => {})
+  await answerPrompt(undefined)
+  expect(invoke).not.toHaveBeenCalled()
+  expect(document.body.textContent).toContain('Switch account')
+})
+
+it('hides the targets when control is lost while picking, and Cancel still closes', async () => {
+  host(FULL)
+  render()
+  click('Switch account')
+  await act(async () => {})
+  expect(document.body.textContent).toContain('personal@example.com')
+  act(() => host(FULL, false))
+  expect(document.body.textContent).not.toContain('personal@example.com')
+  expect(document.body.textContent).toContain('Take control of this lane')
+  click('Cancel')
+  expect(document.body.textContent).toContain('Switch account')
+})
+
+it('shows a failed first read as a failure, not an empty list, and retries', async () => {
+  host(FULL)
+  invoke.mockImplementationOnce(async () => {
+    throw new Error('Host settings operation not confirmed.')
+  })
+  render()
+  click('Switch account')
+  await act(async () => {})
+  expect(document.body.textContent).toContain('Host settings operation not confirmed.')
+  expect(document.body.textContent).not.toContain('No other signed-in')
+  click('Retry')
+  await act(async () => {})
+  expect(document.body.textContent).toContain('personal@example.com')
 })

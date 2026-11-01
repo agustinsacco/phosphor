@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { confirmSettingsAccess } from '@/features/machines/settingsAccess'
 import { machineMoveTargets } from '@/lib/claudeGateway'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -10,6 +10,11 @@ import { AccountSwitcher } from './AccountSwitcher'
  * Host. The Host does the move (`claude.account`: stop, rebind, resume under the
  * lane's fence), so it needs lane control plus the Host's configuration grant,
  * which it asks for with the dialog Settings uses.
+ *
+ * Granting access reconnects the Host, and a reconnecting Host has not said yet
+ * whether it can be configured. The switcher stays mounted through that, on the
+ * last answer the Host gave, so the picker the user opened is still open, and
+ * its accounts are read once the grant is live.
  */
 export function HostAccountRouting({
   sessionId,
@@ -23,6 +28,8 @@ export function HostAccountRouting({
   const laneId = live?.laneId
   const host = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
   const ready = host?.state === 'ready'
+  const supported = useRef<boolean | undefined>(undefined)
+  if (ready) supported.current = host.configurationSupported === true
   const configurable = ready && host.capabilities.includes('machine.configure')
   const held =
     ready &&
@@ -35,12 +42,18 @@ export function HostAccountRouting({
     return machineMoveTargets(data.providers?.accounts ?? [], laneId)
   }, [hostId, laneId])
 
-  if (!hostId || !laneId || host?.configurationSupported !== true) return null
+  if (!hostId || !laneId || !host || supported.current !== true) return null
   const label = machineLabel(hostId)
   return (
     <AccountSwitcher
       summary={`Move this lane to another Claude account on ${label}.`}
-      blocked={held ? undefined : 'Take control of this lane to move it to another account.'}
+      blocked={
+        !ready
+          ? `Reconnecting to ${label}…`
+          : held
+            ? undefined
+            : 'Take control of this lane to move it to another account.'
+      }
       where={label}
       ready={configurable}
       beforeOpen={async () => {
@@ -51,8 +64,13 @@ export function HostAccountRouting({
       }}
       load={load}
       move={async (accountId) => {
-        await window.phosphor.invoke('hosts:claudeAccount', hostId, laneId, accountId)
-        onMoved()
+        // Usage is re-read even when the move is not confirmed: the Host may
+        // have moved the lane before the link changed.
+        try {
+          await window.phosphor.invoke('hosts:claudeAccount', hostId, laneId, accountId)
+        } finally {
+          onMoved()
+        }
       }}
     />
   )

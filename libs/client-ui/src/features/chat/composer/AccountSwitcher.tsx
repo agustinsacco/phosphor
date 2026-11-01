@@ -14,11 +14,15 @@ import { errorText } from '@shared/errors'
 export function AccountSwitcher(props: {
   summary: string
   warn?: boolean
-  /** Why switching is off, or undefined when it is allowed. */
+  /**
+   * Why switching is off, or undefined when it is allowed. It hides an open
+   * picker's list (Cancel still closes it) rather than closing it, so a Host
+   * reconnect after the access grant does not throw away the user's click.
+   */
   blocked?: string
   /** Asked before the picker opens; false keeps it closed. */
   beforeOpen?: () => Promise<boolean>
-  /** Targets may be read now. */
+  /** Targets may be read now. Each time this turns true while picking, they are read again. */
   ready?: boolean
   load: () => Promise<MoveTarget[]>
   move: (accountId: string) => Promise<void>
@@ -27,7 +31,7 @@ export function AccountSwitcher(props: {
   where?: string
 }): React.JSX.Element {
   const { summary, warn, blocked, beforeOpen, ready = true, load, move, nextId, where } = props
-  const { picking, targets, moving, error, open, choose } = useAccountPicker(
+  const { picking, opening, targets, moving, error, open, retry, choose } = useAccountPicker(
     ready,
     load,
     move,
@@ -43,7 +47,7 @@ export function AccountSwitcher(props: {
         </span>
         <TooltipButton
           onClick={() => void open()}
-          disabled={blocked !== undefined}
+          disabled={opening || (blocked !== undefined && !picking)}
           className="text-accent shrink-0 hover:underline disabled:opacity-50"
           aria-expanded={picking}
         >
@@ -51,9 +55,10 @@ export function AccountSwitcher(props: {
         </TooltipButton>
       </div>
       {error && <div className="text-danger mt-1 leading-snug">{error}</div>}
-      {picking && (
+      {picking && blocked === undefined && (
         <TargetList
           targets={targets}
+          onRetry={retry}
           moving={moving}
           nextId={nextId}
           where={where}
@@ -64,14 +69,28 @@ export function AccountSwitcher(props: {
   )
 }
 
+type Loaded = { targets: MoveTarget[] } | { failed: string }
+
 function TargetList(props: {
-  targets: MoveTarget[] | null
+  targets: Loaded | null
+  onRetry: () => void
   moving: string | null
   nextId?: string
   where?: string
   onChoose: (id: string) => void
 }): React.JSX.Element {
-  const { targets, moving, nextId, where, onChoose } = props
+  const { targets: loaded, onRetry, moving, nextId, where, onChoose } = props
+  if (loaded !== null && 'failed' in loaded) {
+    return (
+      <div className="border-border/60 text-danger mt-1.5 rounded-md border px-2 py-1 leading-snug">
+        Could not read the accounts{where ? ` on ${where}` : ''}: {loaded.failed}{' '}
+        <TooltipButton onClick={onRetry} className="text-accent hover:underline">
+          Retry
+        </TooltipButton>
+      </div>
+    )
+  }
+  const targets = loaded?.targets ?? null
   return (
     <div className="border-border/60 mt-1.5 space-y-0.5 rounded-md border p-1">
       {targets === null ? (
@@ -113,7 +132,12 @@ function TargetList(props: {
   )
 }
 
-/** Open/close, lazy target loading and the move in flight, with any error to show. */
+/**
+ * Open/close, lazy target loading and the move in flight, with any error to show.
+ * Each open or retry is a new attempt: a result only counts for the attempt that
+ * asked, and a failed read stays a failure (never an empty list) until retried
+ * or until `ready` comes back, which reads again.
+ */
 function useAccountPicker(
   ready: boolean,
   load: () => Promise<MoveTarget[]>,
@@ -121,35 +145,39 @@ function useAccountPicker(
   beforeOpen?: () => Promise<boolean>,
 ) {
   const [picking, setPicking] = useState(false)
-  const [targets, setTargets] = useState<MoveTarget[] | null>(null)
+  const [opening, setOpening] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  const [loaded, setLoaded] = useState<{ attempt: number; result: Loaded } | null>(null)
   const [moving, setMoving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!picking || !ready || targets !== null) return
+    if (!picking || !ready) return
     let cancelled = false
+    const settle = (result: Loaded): void => {
+      if (!cancelled) setLoaded({ attempt, result })
+    }
     load().then(
-      (list) => !cancelled && setTargets(list),
-      (e: unknown) => {
-        if (cancelled) return
-        setTargets([])
-        setError(errorText(e))
-      },
+      (targets) => settle({ targets }),
+      (e: unknown) => settle({ failed: errorText(e) }),
     )
     return () => {
       cancelled = true
     }
-  }, [picking, ready, targets, load])
+  }, [picking, ready, attempt, load])
 
   const open = async (): Promise<void> => {
     setError(null)
     if (picking) return setPicking(false)
+    setOpening(true)
     try {
       if (beforeOpen && !(await beforeOpen())) return
     } catch (e) {
       return setError(errorText(e))
+    } finally {
+      setOpening(false)
     }
-    setTargets(null)
+    setAttempt((n) => n + 1)
     setPicking(true)
   }
 
@@ -166,5 +194,7 @@ function useAccountPicker(
     }
   }
 
-  return { picking, targets, moving, error, open, choose }
+  const targets = loaded?.attempt === attempt ? loaded.result : null
+  const retry = (): void => setAttempt((n) => n + 1)
+  return { picking, opening, targets, moving, error, open, retry, choose }
 }
