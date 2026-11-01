@@ -51,9 +51,10 @@ function capabilityFor(
   const routine = parseRoutineOp(op)
   if (routine)
     return routineRequiresControl(routine) ? ['routines', 'sessions.control'] : ['routines']
-  // A `!command` is shell access, so it asks for the shell's capability as well.
-  if (parseProviderLoginOp(op) || parseTerminalOp(op) || op.type === 'bash')
-    return ['terminal', 'sessions.control']
+  // A `!command` is pi's own shell tool, so it needs only control, like a prompt
+  // that asks the agent to run it. `terminal` is the pty feature: a Host without
+  // node-pty never advertises it, and pi's shell does not use it.
+  if (parseProviderLoginOp(op) || parseTerminalOp(op)) return ['terminal', 'sessions.control']
   const write = op.type.startsWith('files.') ? ports.writes?.capabilityFor(op.type) : null
   return write ? [write, 'sessions.control'] : ['sessions.control']
 }

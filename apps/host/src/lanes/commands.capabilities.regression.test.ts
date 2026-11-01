@@ -222,10 +222,11 @@ const FAMILIES: Family[] = [
     ran: () => f.command.mock.calls.length,
   },
   {
-    // A `!command` is shell access: it needs the terminal capability too.
+    // A `!command` runs through pi, not a pty: a Host without node-pty, which
+    // never advertises `terminal`, still runs it for a controller.
     name: 'bash',
     scope: 'lane',
-    caps: TERMINAL,
+    caps: CONTROL,
     op: () => ({ type: 'bash', command: 'x' }),
     ran: () => f.command.mock.calls.length,
   },

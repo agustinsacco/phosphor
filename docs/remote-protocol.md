@@ -55,9 +55,10 @@ follow-up, abort, abort-retry, model, thinking level, compact, session name,
 the Host (`toPiCommand`) list the same set; anything else is refused
 `unsupported`, which the client reports as "updating the Host may help".
 
-`bash` needs `terminal` as well as `sessions.control`, like a terminal, and adds
-no authority beyond them: a controller can already ask the agent to run the
-same command. It skips pi's `tool_call` hooks, including an installed permission
+`bash` needs `sessions.control`, as a prompt does, and adds no authority beyond
+it: a controller can already ask the agent to run the same command. It does not
+need `terminal`, which is the Host's pty feature: pi runs the shell itself, so a
+Host without node-pty runs it too. It skips pi's `tool_call` hooks, including an installed permission
 gate, but the controller is who answers that gate's dialogs anyway. Its output
 returns in the receipt's data (pi keeps the last 50 KB), so output above the
 receipt-data cap reports as done without output. A shell can outlast the
