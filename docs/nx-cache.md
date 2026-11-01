@@ -133,6 +133,7 @@ env overrides; cache remains disabled and graph/install boundaries stay intact.
   affected selection. Both verify exact-SHA CI and run one at a time.
 - **Site** (`deploy-site.yml`): a `main` push touching its path filter (equal to
   the `site` project's root plus `deploy` input) deploys after exact-SHA CI,
+  waiting up to 90 minutes for it because CI queues on shared self-hosted runners,
   unless the hold variable or a `Skip-Release: true` trailer stops it.
 
 Schema, docs and CI-only merges ship nothing.
