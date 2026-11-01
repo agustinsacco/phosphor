@@ -109,12 +109,12 @@ test('Remote slash, mentions and attachments use Host inputs', async () => {
     await chat.fill('@guide')
     await expect(h.page.getByText('nested/guide.md', { exact: true })).toBeVisible()
     await expect(h.page.getByText('LOCAL_ONLY decoy', { exact: true })).toHaveCount(0)
-    await chat.fill('!echo LOCAL_ONLY')
+    // `!cmd` runs in the Host lane's pi, in the Host's checkout, not on This Mac.
+    await chat.fill('!echo HOST_SHELL')
     await chat.press('Enter')
-    await expect(chat).toHaveValue('!echo LOCAL_ONLY')
-    await expect(
-      h.page.getByText('Not available on remote lanes yet.', { exact: true }),
-    ).toBeVisible()
+    await expect(chat).toHaveValue('')
+    await expect(h.page.locator('main').getByText(/^stub bash: echo HOST_SHELL in /)).toBeVisible()
+    await expect(h.page.locator('main').getByText('exit 0', { exact: true })).toBeVisible()
     const chosen = h.page.waitForEvent('filechooser')
     await h.page.getByRole('button', { name: 'Attach files', exact: true }).click()
     await (

@@ -934,6 +934,20 @@ function handle(cmd) {
       out({ id: cmd.id, type: 'response', command: 'set_session_name', success: true })
       break
 
+    // pi's RPC `bash` (a composer `!command`) answers with the shell's result;
+    // the stub echoes the command and its cwd so a test sees where it ran.
+    case 'bash':
+      out({
+        ...{ id: cmd.id, type: 'response', command: 'bash', success: true },
+        data: {
+          output: `stub bash: ${cmd.command} in ${path.basename(process.cwd())}\n`,
+          exitCode: 0,
+          cancelled: false,
+          truncated: false,
+        },
+      })
+      break
+
     default:
       out({ id: cmd.id, type: 'response', command: cmd.type, success: true })
   }
