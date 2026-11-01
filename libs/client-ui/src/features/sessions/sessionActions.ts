@@ -3,6 +3,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { piCall, piCallOk } from '@/lib/rpc'
 import { presentText, promptText } from '@/stores/prompt'
 import { formatSessionDebugInfo } from '@/lib/sessionDebugInfo'
+import { errorText } from '@shared/errors'
 
 /**
  * Session operations shared by the chat composer, the session menu and the
@@ -29,6 +30,45 @@ export async function exportSessionHtml(sessionId: string, defaultName = 'sessio
 
   const data = await piCall(sessionId, { type: 'export_html', outputPath })
   if (data) await window.phosphor.invoke('app:revealPath', data.path)
+}
+
+/**
+ * Export a Host lane. Its pi runs on the Host, which returns the document; this
+ * device keeps it: Desktop through the save dialog (asked first, so cancelling
+ * costs the Host nothing), a browser as a download. Failures show on the chat.
+ */
+export async function exportRemoteLaneHtml(
+  sessionId: string,
+  defaultName: string,
+  nativeFiles: boolean,
+): Promise<void> {
+  const name = `${defaultName.replace(/[\\/:*?"<>|]/g, '-')}.html`
+  try {
+    if (!nativeFiles) return downloadHtml(name, await laneHtml(sessionId))
+    const outputPath = await window.phosphor.invoke('app:saveDialog', {
+      title: 'Export session as HTML',
+      defaultPath: name,
+      filters: [{ name: 'HTML', extensions: ['html'] }],
+    })
+    if (!outputPath) return
+    await window.phosphor.invoke('fs:writeFile', outputPath, await laneHtml(sessionId))
+    await window.phosphor.invoke('app:revealPath', outputPath)
+  } catch (error) {
+    useChatStore.getState().setError(sessionId, `Export failed: ${errorText(error)}`)
+  }
+}
+
+const laneHtml = async (sessionId: string): Promise<string> =>
+  (await window.phosphor.invoke('hosts:exportLaneHtml', sessionId)).html
+
+function downloadHtml(name: string, html: string): void {
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  link.click()
+  // The click starts the download synchronously; the URL is not needed after.
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 /**

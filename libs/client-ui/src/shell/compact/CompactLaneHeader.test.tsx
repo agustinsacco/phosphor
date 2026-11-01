@@ -192,8 +192,8 @@ it('shows Session options in the lane sheet, disabled for a reader (regression)'
     expect(sessionRow(label)?.disabled, label).toBe(true)
     expect(sessionRow(label)?.textContent, label).toContain('Take control first.')
   }
-  expect(sessionRow('Export')?.disabled).toBe(true)
-  expect(sessionRow('Export')?.textContent).toContain('Not available on remote lanes yet.')
+  // Exporting reads the lane, so a reader may do it.
+  expect(sessionRow('Export')?.disabled).toBe(false)
 })
 
 it("sends the controller's Compact now from the lane sheet through pi (regression)", async () => {
@@ -204,7 +204,7 @@ it("sends the controller's Compact now from the lane sheet through pi (regressio
   render()
   act(() => button(/^Lane menu/)!.click())
   expect(sessionRow('Auto-retry')?.disabled).toBe(false)
-  expect(sessionRow('Export')?.disabled).toBe(true)
+  expect(sessionRow('Export')?.disabled).toBe(false)
   await act(async () => sessionRow('Compact now')?.click())
   expect(sheet()?.getAttribute('aria-label')).not.toBe('Lane menu')
   const request = usePromptStore.getState().requests[0]

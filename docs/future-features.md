@@ -12,7 +12,7 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 
 | Surface         | Missing capability                                                                                                                                 |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chat and lanes  | Fork, clone, rewind/tree editing, local rules/MCP controls, the Subagents pane, lane HTML export                                                   |
+| Chat and lanes  | Fork, clone, rewind/tree editing, local rules/MCP controls, the Subagents pane                                                                     |
 | Files           | Content search, rich previews/quick look, external imports and open-in-app                                                                         |
 | Skills          | Catalogue install, upload, export to a file, discovery and in-place edits                                                                          |
 | Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync |

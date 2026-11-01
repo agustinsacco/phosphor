@@ -91,6 +91,8 @@ export interface HostsInvokeMap {
   'hosts:resumeLane': { args: [hostId: string, laneId: string]; result: void }
   'hosts:takeControl': { args: [hostId: string, laneId: string]; result: void }
   'hosts:markRead': { args: [hostId: string, laneId: string]; result: void }
+  /** A lane this window opened, exported by its Host as one HTML document. */
+  'hosts:exportLaneHtml': { args: [sessionId: string]; result: { html: string } }
   'hosts:deleteLane': {
     args: [
       hostId: string,

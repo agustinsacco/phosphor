@@ -68,6 +68,10 @@ command as unconfirmed, not failed, with a Stop that sends `abort_bash`. Its
 output reaches viewers with the lane's next snapshot. Commands that move pi to another session file
 (fork, clone, new and switch session) stay refused.
 
+`lane.exportHtml` is a call, not a command: any `sessions.read` viewer may
+export a running lane. It takes only the lane id and answers `{ html }`; the
+Host picks where pi writes and removes the file ([Host](host.md#session-commands)).
+
 `HOST_LIMITS` caps inbound frames at 8 MiB, outbound frames at 16 MiB,
 subscriptions at 64 per socket, pending commands and in-flight calls at 32 per
 socket, and receipt interest at 64 ids. Excess commands are rejected without

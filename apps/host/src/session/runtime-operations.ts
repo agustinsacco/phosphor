@@ -3,6 +3,7 @@ import type { LiveSessionInfo } from '@phosphor/shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@phosphor/shared/rpc'
 import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
 import { commandRefusal, mayRunExtensionCommand } from './command-policy'
+import { exportSessionHtml } from './html-export'
 import { stopSession } from './lifecycle'
 import { parseSessionRequest } from './request'
 import { RequestError, type Delivery, type RuntimeState } from './runtime-state'
@@ -120,6 +121,9 @@ export function createRuntimeOperations(
       start(state, service, request, deliver),
     /** A pi RPC command, unless commandRefusal refuses it. */
     command: (id: string, request: RpcCommand) => command(state, service, id, request),
+    /** The session as one HTML document, exported to a Host-owned file that is then removed. */
+    exportHtml: (id: string, maxBytes: number) =>
+      exportSessionHtml((sid, request) => service.command(sid, request), id, maxBytes),
     /** Send a controller's answer without treating it as an RPC command. */
     extensionUiResponse(id: string, response: ExtensionUIResponse): void {
       life.assertReady()

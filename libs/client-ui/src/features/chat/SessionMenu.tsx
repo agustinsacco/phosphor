@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { showMenuBelow } from '@/components/ContextMenu'
 import { TooltipButton } from '@/components/Tooltip'
+import { usePlatform } from '@/platform/Platform'
 import { currentSessionMenuItems, SESSION_OPTIONS } from './sessionMenuItems'
 
 /**
@@ -15,10 +16,11 @@ export function SessionMenu({
   sessionId: string
   className?: string
 }): React.JSX.Element {
+  const { nativeFiles } = usePlatform()
   return (
     <TooltipButton
       onClick={(event) =>
-        showMenuBelow(event.currentTarget, currentSessionMenuItems(sessionId), {
+        showMenuBelow(event.currentTarget, currentSessionMenuItems(sessionId, nativeFiles), {
           title: SESSION_OPTIONS,
         })
       }

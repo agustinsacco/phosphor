@@ -47,6 +47,7 @@ export const IPC_WEB = {
   'hosts:resumeLane': remote,
   'hosts:takeControl': remote,
   'hosts:markRead': remote,
+  'hosts:exportLaneHtml': remote,
   'hosts:deleteLane': remote,
   'hosts:listFolders': remote,
   'hosts:addRepository': remote,

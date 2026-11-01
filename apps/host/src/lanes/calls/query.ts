@@ -6,6 +6,7 @@ import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { HostRuntime } from '../../session/runtime'
 import type { createLiveLanes } from '../live'
 import { piMessages, piState } from '../pi-results'
+import { ExportTooLarge } from '../../session/html-export'
 import type { SnapshotResult } from '../projection-host'
 import type { CallOutcome } from '../service'
 import type { HostStore } from '../store'
@@ -21,6 +22,8 @@ const queries = new Map<string, RpcCommand>([
   ['lane.models', { type: 'get_available_models' }],
   ['lane.commands', { type: 'get_commands' }],
 ])
+/** Not a pi query: the Host exports to its own file and returns the document. */
+const EXPORT = 'lane.exportHtml'
 const failure = (code: Extract<CallOutcome, { ok: false }>['error']['code']): CallOutcome => ({
   ok: false,
   error: { code, message: 'the lane query could not complete' },
@@ -53,7 +56,10 @@ export interface LaneQueryOptions {
   store: Pick<HostStore, 'listRepositories' | 'getLane'>
   live: Pick<ReturnType<typeof createLiveLanes>, 'sessionFor'> &
     Partial<Pick<ReturnType<typeof createLiveLanes>, 'receiptTiming'>>
-  runtime: { command(...args: Parameters<HostRuntime['command']>): Promise<RpcResponse> }
+  runtime: {
+    command(...args: Parameters<HostRuntime['command']>): Promise<RpcResponse>
+    exportHtml?: HostRuntime['exportHtml']
+  }
   unattached(laneId: string): SnapshotResult | null
   now(): number
   log: RuntimeLog
@@ -61,7 +67,9 @@ export interface LaneQueryOptions {
 type ReceiptResult = (messages: Parameters<typeof hostLaneReceipt>[0]) => CallOutcome
 
 export function laneQueryCapability(method: string): HostCapability | null {
-  return method === 'host.repositories' || queries.has(method) ? 'sessions.read' : null
+  return method === 'host.repositories' || method === EXPORT || queries.has(method)
+    ? 'sessions.read'
+    : null
 }
 
 export function stoppedQuery(
@@ -114,11 +122,35 @@ export async function requestLiveQuery(
   }
 }
 
+/** Leaves room in the result frame for its envelope and JSON escaping of the document. */
+const EXPORT_MAX_BYTES = HOST_LIMITS.outboundFrameBytes / 2
+
+async function exportHtml(
+  options: Pick<LaneQueryOptions, 'runtime' | 'store' | 'live'>,
+  params: unknown,
+): Promise<CallOutcome> {
+  if (!record(params)) return failure('bad-request')
+  const laneId = params.laneId
+  if (typeof laneId !== 'string' || !isUuid(laneId)) return failure('bad-request')
+  const lane = options.store.getLane(laneId)
+  if (!lane || lane.removedAt !== null) return failure('unknown-lane')
+  const sessionId = options.live.sessionFor(laneId)
+  if (sessionId === null) return failure('lane-stopped')
+  if (!options.runtime.exportHtml) return failure('unsupported')
+  try {
+    const html = await options.runtime.exportHtml(sessionId, EXPORT_MAX_BYTES)
+    return { ok: true, data: { html } }
+  } catch (error) {
+    return failure(error instanceof ExportTooLarge ? 'too-large' : 'internal')
+  }
+}
+
 export async function resolveLaneQuery(
   options: LaneQueryOptions,
   method: string,
   params: unknown,
 ): Promise<CallOutcome> {
+  if (method === EXPORT) return exportHtml(options, params)
   const command = queries.get(method)
   if (method !== 'host.repositories' && !command) return failure('unsupported')
   if (!record(params)) return failure('bad-request')

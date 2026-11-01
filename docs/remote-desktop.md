@@ -510,8 +510,9 @@ and fork are refused
 with the fixed unavailable hint. The top bar's Session options work on a Host
 lane for its controller (compaction, auto-retry, queue modes). Other viewers see
 a mode change on their next lane snapshot. pi reports no auto-retry state, so
-that toggle shows what this window last set, not the Host's value; Export HTML stays
-a This Mac action ([chat](chat.md)). Continue waits for the remote receipt and echo;
+that toggle shows what this window last set, not the Host's value. Export HTML
+works for any viewer: the Host exports and this device saves the file
+([chat](chat.md)). Continue waits for the remote receipt and echo;
 it never inserts an optimistic duplicate. Error cards do not inspect This Mac's
 AWS profile. Lane and machine switches reset visible selections or show loading
 or refusal while the new target loads.

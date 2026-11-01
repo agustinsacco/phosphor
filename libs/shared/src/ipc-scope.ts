@@ -31,6 +31,7 @@ export const IPC_SCOPE = {
   'hosts:resumeLane': 'app',
   'hosts:takeControl': 'app',
   'hosts:markRead': 'app',
+  'hosts:exportLaneHtml': 'app',
   'hosts:deleteLane': 'app',
   'hosts:listFolders': 'app',
   'hosts:addRepository': 'app',

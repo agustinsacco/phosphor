@@ -1471,7 +1471,11 @@ not arbitrary RPC. These runtime refusals preserve session-file ownership:
 
 - `new_session`, `switch_session`, `fork` and `clone`. Each moves pi to another
   session file, and only a request starts or resumes one.
-- `export_html` with an `outputPath`. An export goes where pi puts it.
+- `export_html` with an `outputPath`. Without one, pi writes into the lane's
+  cwd, the user's worktree. Remote clients do not send `export_html`: the
+  `lane.exportHtml` call (`sessions.read`, running lanes only) has the runtime
+  export into a private temporary folder of its own, read the document back
+  (refused `too-large` above half an outbound frame) and remove the folder.
 - Any type that is not one of pi's.
 
 A prompt that starts with `/` can run an extension command, and that can move pi

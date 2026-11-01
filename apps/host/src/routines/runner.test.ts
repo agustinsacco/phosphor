@@ -119,6 +119,7 @@ async function start() {
     drain: vi.fn<HostRuntime['drain']>(),
     start: vi.fn<HostRuntime['start']>(),
     command: vi.fn<HostRuntime['command']>(),
+    exportHtml: vi.fn<HostRuntime['exportHtml']>(),
     extensionUiResponse: vi.fn<HostRuntime['extensionUiResponse']>(),
     stop: vi.fn<HostRuntime['stop']>(),
     remove: vi.fn<HostRuntime['remove']>(),
