@@ -380,9 +380,13 @@ the machine, repository and isolation row above a two-row input, **Start lane**,
 a hints line and one note line. `useLocalStart` and the Host target in
 `RemoteStartView` supply only what differs. On a Host, `@` lists the chosen
 repository's files through `hosts:repositoryFiles` (with `workspaces.read`).
-The Host has no command list, swarm check or context-file preference before a
-lane exists, so a new Host lane offers no `/` menu, Swarm switch or Rules
-readout; inside a Host lane `/` lists the lane's own commands.
+The repository picker wears This Mac's folder chip (`workspaces/folderChip.tsx`).
+Swarm works as on This Mac: the choice rides on the Host draft, and
+`startRemoteChat` applies `/phosphor-swarm on` to the new lane before its first
+prompt. If the lane refuses it, no task is sent and the draft is kept. The Host
+has no command list, context-file preference or branch list before a lane exists,
+so a new Host lane offers no `/` menu, Rules readout or branch chip; inside a
+Host lane `/` lists the lane's own commands.
 
 One rule decides which Host models can be picked, for the new-lane picker and
 for a Host lane's model menu alike (`hostModelUnavailability`). Both list what
@@ -462,8 +466,8 @@ disabled; [remote surface gaps](future-features.md#remote-surface-gaps) owns thi
 target This Mac. The top-bar artifact count belongs to the active lane.
 
 Remote slash commands come from the lane, and file mentions search its Host file
-list. Thinking levels derive from the lane model. Local rules/MCP and Swarm menus
-are hidden. Shell shortcuts, queued-message removal, rewind and fork are refused
+list. Thinking levels derive from the lane model. The Swarm switch is the
+lane's own, as on This Mac. Local rules/MCP menus are hidden. Shell shortcuts, queued-message removal, rewind and fork are refused
 with the fixed unavailable hint. The top bar's Session options work on a Host
 lane for its controller (compaction, auto-retry, queue modes); Export HTML stays
 a This Mac action ([chat](chat.md)). Continue waits for the remote receipt and echo;
