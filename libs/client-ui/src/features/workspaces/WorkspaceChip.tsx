@@ -6,6 +6,7 @@ import { CheckIcon, ChevronIcon } from '@/components/icons'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { projectName } from '@/lib/path'
+import { FOLDER_CHIP, FOLDER_CHIP_IDLE, FolderIcon } from './folderChip'
 
 /**
  * Which folder you are in, and the menu to change it.
@@ -54,10 +55,8 @@ export function WorkspaceChip({
           compact
             ? 'bg-bg-secondary text-text-secondary hover:text-text rounded-md px-2 py-0.5 text-sm'
             : clsx(
-                'border-border rounded-lg border px-2.5 py-1 text-base font-medium',
-                open
-                  ? 'bg-bg-secondary text-text border-border-strong'
-                  : 'bg-surface text-text-secondary hover:text-text hover:border-border-strong',
+                FOLDER_CHIP,
+                open ? 'bg-bg-secondary text-text border-border-strong' : FOLDER_CHIP_IDLE,
               ),
         )}
       >
@@ -125,21 +124,5 @@ export function WorkspaceChip({
         </PopupMenu>
       )}
     </span>
-  )
-}
-
-function FolderIcon(): React.JSX.Element {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="shrink-0"
-    >
-      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-    </svg>
   )
 }

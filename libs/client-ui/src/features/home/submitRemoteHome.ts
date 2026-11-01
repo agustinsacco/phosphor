@@ -14,6 +14,7 @@ interface Submission {
   draftKey: string
   input: RemoteLaneCreate
   isolate: boolean
+  swarm: boolean
   text: string
   attachments: PendingAttachment[]
   onWarning: (message: string) => void
@@ -28,6 +29,8 @@ function createWarning(code: string, machine: string): string {
       return 'Branch prefix is too long for a Host worktree. Shorten it in Settings.'
     case 'lane-create-failed':
       return `${machine} couldn't start this lane. Your draft is kept.`
+    case 'swarm-failed':
+      return `${machine} couldn't turn on Swarm for this lane, so the task was not sent. Your draft is kept.`
     case 'lane-limit':
       // The Host also sends too-many-requests for too many commands in flight.
       return `${machine} is at its lane limit or too busy. Try again, or delete a lane there.`
@@ -47,6 +50,8 @@ export async function submitRemoteHome(s: Submission): Promise<void> {
   const revision = useDraftsStore.getState().revisions[s.draftKey]
   const generation = machineReadGeneration(s.hostId)
   const current = () => active && generation === machineReadGeneration(s.hostId)
+  // Passed only when chosen, so a plain start makes the same call it always has.
+  const options: [] | [{ swarm: true }] = s.swarm ? [{ swarm: true }] : []
   try {
     await startRemoteChat(
       s.hostId,
@@ -60,6 +65,7 @@ export async function submitRemoteHome(s: Submission): Promise<void> {
         if (current() && useDraftsStore.getState().revisions[s.draftKey] === revision)
           useDraftsStore.getState().clear(s.draftKey)
       },
+      ...options,
     )
   } catch (failure) {
     if (!current()) return

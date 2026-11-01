@@ -183,11 +183,9 @@ it.each([true, false])(
 )
 
 it('offers Swarm on a Host and authorizes the new lane before sending the task', async () => {
-  receipt.mockImplementation(async (_id, command: { type: string }) =>
-    command.type === 'get_commands'
-      ? { success: true, data: { commands: [{ name: 'phosphor-swarm', source: 'extension' }] } }
-      : { success: true },
-  )
+  // The first pi command is the swarm check's get_commands; the rest take the default receipt.
+  const commands = [{ name: 'phosphor-swarm', source: 'extension' }]
+  receipt.mockResolvedValueOnce({ success: true, data: { commands } })
   await render()
   await act(async () =>
     [...el.querySelectorAll('button')].find((b) => b.textContent === 'Toggle swarm')!.click(),

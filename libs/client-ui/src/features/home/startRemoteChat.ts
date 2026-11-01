@@ -11,6 +11,7 @@ import {
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore, canControlSession, adoptRemoteLane } from '@/stores/remoteLanes'
 import { piCallOk } from '@/lib/rpc'
+import { requestSwarm } from '@/lib/swarm'
 
 /** Only a definitive fresh-branch refusal may retry. Uncertain receipts keep the draft. */
 export async function startRemoteChat(
@@ -19,6 +20,7 @@ export async function startRemoteChat(
   text: string,
   attachments: PendingAttachment[],
   accepted: () => void,
+  options: { swarm?: boolean } = {},
 ): Promise<void> {
   const host = useRemoteLanesStore.getState().hosts[hostId]
   if (host?.state !== 'ready' || !host.capabilities.includes('sessions.control')) throw new Error()
@@ -49,6 +51,11 @@ export async function startRemoteChat(
   const fresh = await window.phosphor.invoke('hosts:snapshot')
   useRemoteLanesStore.setState({ hosts: fresh })
   if (!canControlSession(info.sessionId)) throw new Error()
+  // As on This Mac: authorize before the task, never send it without the chosen authorization.
+  if (options.swarm)
+    await requestSwarm(info.sessionId, true).catch(() => {
+      throw new Error('swarm-failed')
+    })
   const uploaded = await remotePromptAttachments(attachments, (files) =>
     window.phosphor.invoke('hosts:uploadAttachments', info.sessionId, files),
   )

@@ -21,7 +21,8 @@ interface ComposerInputProps extends Omit<ComposerFieldProps, 'onPasteFiles'> {
   attachments: PendingAttachment[]
   onAttachmentsChange: (attachments: PendingAttachment[]) => void
   onWarning: (message: string) => void
-  swarm: { sessionId: string } | { enabled: boolean; onChange: (enabled: boolean) => void }
+  /** A live lane's switch, a draft's choice, or null where the target cannot offer it. */
+  swarm: { sessionId: string } | { enabled: boolean; onChange: (enabled: boolean) => void } | null
   slash: ReturnType<typeof useSlashMenu>
   commandStatus?: 'idle' | 'loading' | 'ready' | 'error'
   commandError?: string
@@ -57,9 +58,12 @@ export function ComposerInput({
     onChange: onAttachmentsChange,
     onReject: onWarning,
   })
-  const liveSwarm = useSwarm('sessionId' in swarm ? swarm.sessionId : '')
-  const enabled = 'sessionId' in swarm ? (liveSwarm?.enabled ?? false) : swarm.enabled
-  const pending = 'sessionId' in swarm && swarmLook(liveSwarm) === 'pending'
+  const live = swarm && 'sessionId' in swarm ? swarm.sessionId : null
+  const liveSwarm = useSwarm(live ?? '')
+  const enabled = live
+    ? (liveSwarm?.enabled ?? false)
+    : !!swarm && 'enabled' in swarm && swarm.enabled
+  const pending = !!live && swarmLook(liveSwarm) === 'pending'
   const workspaceFiles = useMemo(
     () => (workspacePath ? workspaceFileSource(workspacePath) : null),
     [workspacePath],
@@ -144,17 +148,18 @@ export function ComposerInput({
             {platform.localLanes && (
               <DictateButton textareaRef={field.textareaRef} onChange={change} />
             )}
-            {workspacePath &&
-              !workspacePath.startsWith('host:') &&
-              ('sessionId' in swarm ? (
-                <SwarmSwitch sessionId={swarm.sessionId} />
-              ) : (
+            {live ? (
+              <SwarmSwitch sessionId={live} />
+            ) : (
+              swarm &&
+              'onChange' in swarm && (
                 <SwarmControl
                   state={{ version: 1, available: true, enabled, requested: enabled }}
                   hint="Authorize delegation for this new lane. Requires pi-subagents; checked before the first prompt. Nothing launches until you send."
                   onToggle={() => swarm.onChange(!enabled)}
                 />
-              ))}
+              )
+            )}
             {scopeStatus}
           </div>
           <div className="ml-auto flex min-w-0 items-center gap-1.5">

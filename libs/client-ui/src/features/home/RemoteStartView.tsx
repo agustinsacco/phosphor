@@ -3,6 +3,7 @@ import type { FileMentionSource } from '@/features/chat/composer/useFileMentions
 import { RemoteModelPicker } from '@/features/machines/RemoteModelPicker'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
+import { FOLDER_CHIP_CLASS, FolderIcon } from '@/features/workspaces/folderChip'
 import { homeDraftKey } from '@/stores/drafts'
 import { connectingTo, hostPending, machineLabel } from '@/stores/remoteLanes'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
@@ -46,7 +47,7 @@ function RemoteStartComposer({
   )
 }
 
-/** A Host as a start target. No `/`, swarm or context sources until the Host offers them. */
+/** A Host as a start target. No `/` or context sources until the Host offers them before a lane exists. */
 function useHostStart(hostId: string, draftKey: string): StartTarget {
   const c = useRemoteStart(hostId, draftKey)
   // The model picker reads per-connection catalogues, so it alone restarts with one.
@@ -65,7 +66,7 @@ function useHostStart(hostId: string, draftKey: string): StartTarget {
     remoteAttachments: true,
     files,
     slash: null,
-    swarm: null,
+    swarm: { enabled: c.swarm, onChange: c.setSwarm },
     modelPicker: <RemoteModelPicker key={generation} selection={c.selection} />,
     targets: <HostStartTargets hostId={hostId} controller={c} />,
     contextSources: null,
@@ -115,6 +116,7 @@ function HostStartTargets({
         label="Repository"
         value={c.repositoryId}
         placement="above"
+        triggerClassName={FOLDER_CHIP_CLASS}
         choices={[
           ...(c.host?.repositories ?? []).map((repo) => ({
             value: repo.id,
@@ -132,7 +134,8 @@ function HostStartTargets({
           else c.setRepository(id)
         }}
       >
-        <span className="truncate">
+        <FolderIcon />
+        <span className="max-w-40 truncate">
           {c.host?.repositories.find((repo) => repo.id === c.repositoryId)?.name ??
             'Choose repository'}
         </span>

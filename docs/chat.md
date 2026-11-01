@@ -606,9 +606,9 @@ workspace's unsent draft, including across restarts. Its hint explains that
 pi-subagents availability is checked on startup. The choice is consumed on send,
 not inherited by the next new lane or another workspace. Startup verifies the
 host command is registered and awaits its successful application **before the
-first prompt**, in both plain folders and worktrees. If unavailable or rejected,
-no task runs: the draft and choice return with an error, and the unused process
-is disposed. A missing command is never sent as an ordinary model prompt.
+first prompt**, in both plain folders and worktrees, on This Mac and on a Host. If unavailable or rejected,
+no task runs: the draft and choice return with an error. This Mac disposes the
+unused process; a Host keeps the empty lane it already created. A missing command is never sent as an ordinary model prompt.
 
 In an **existing lane**, the switch is a pill with four looks, all driven by Pi's
 acknowledged status (`composer/SwarmSwitch.tsx`, `swarm.css`), never an optimistic

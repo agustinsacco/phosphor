@@ -444,7 +444,7 @@ export function Composer({
           onAttachmentsChange={setImages}
           onWarning={setAttachWarning}
           slash={slash}
-          swarm={remote ? { enabled: false, onChange: () => undefined } : { sessionId }}
+          swarm={{ sessionId }}
           scopeStatus={
             isCompacting && (
               <span className="text-text-secondary flex items-center gap-1.5 px-1 text-base">
