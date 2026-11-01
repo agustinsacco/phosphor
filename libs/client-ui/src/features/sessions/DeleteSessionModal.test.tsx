@@ -31,3 +31,14 @@ it('keeps a failed deletion visible and allows retry on a live-only session', as
   expect(remove).toHaveBeenCalledWith('/repo', target)
   expect(close).toHaveBeenCalledOnce()
 })
+
+it('promises only the lane record for a Host lane whose folder is gone', () => {
+  const target = { workspacePath: '', title: 'Untitled lane' }
+  act(() =>
+    root.render(
+      <DeleteSessionModal remote="unlisted" target={target} onRemove={vi.fn()} onClose={vi.fn()} />,
+    ),
+  )
+  expect(document.body.textContent).toContain('transcript, worktree and branch stay on disk')
+  expect(document.body.textContent).not.toContain('trash')
+})

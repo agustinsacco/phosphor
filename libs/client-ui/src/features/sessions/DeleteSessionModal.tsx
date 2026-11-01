@@ -20,7 +20,8 @@ export function DeleteSessionModal({
 }: {
   target: DeleteSessionTarget
   onRemove?: () => Promise<void>
-  remote?: boolean
+  /** A Host lane; `unlisted` when its folder has left the Host, so only the record goes. */
+  remote?: boolean | 'unlisted'
   onClose: () => void
 }): React.JSX.Element {
   const [busy, setBusy] = useState(false)
@@ -52,9 +53,11 @@ export function DeleteSessionModal({
         <h2 className="text-base font-semibold">Delete session?</h2>
         <p className="break-words font-medium">{target.title}</p>
         <p className="text-text-secondary text-sm">
-          {remote
-            ? 'Any running turn will be stopped. The Host keeps the transcript in its trash for 30 days. The worktree, branch and project files are kept.'
-            : 'Any running turn will be stopped. Saved transcripts go to Trash; unsaved conversation is discarded. The worktree, branch and project files are kept.'}
+          {remote === 'unlisted'
+            ? 'Its folder is no longer on this Host, so only the lane is removed. The transcript, worktree and branch stay on disk.'
+            : remote
+              ? 'Any running turn will be stopped. The Host keeps the transcript in its trash for 30 days. The worktree, branch and project files are kept.'
+              : 'Any running turn will be stopped. Saved transcripts go to Trash; unsaved conversation is discarded. The worktree, branch and project files are kept.'}
         </p>
         {error && (
           <p role="alert" className="text-danger text-sm">
