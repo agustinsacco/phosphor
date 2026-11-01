@@ -352,3 +352,35 @@ it('proves lanes against a develop-only trunk and keeps unmerged, current and tr
     'refs/heads/develop\nrefs/heads/unmerged',
   )
 })
+
+it('forgets a lane whose folder left the Host, keeping its transcript and worktree', async () => {
+  const repo = store.syncRepositories([root])[0]
+  if (!repo) throw new Error('fixture')
+  const cwd = join(root, '.phosphor', 'worktrees', 'gone')
+  await mkdir(cwd, { recursive: true })
+  await writeFile(join(cwd, 'work'), 'kept')
+  const lane = store.ensureLane({ repositoryId: repo.id, cwd, sessionFile: null, worktree: true })
+  store.syncRepositories([])
+  const stop = vi.fn(async () => {}),
+    remove = vi.fn(async () => {}),
+    forget = vi.fn()
+  const deletion = createLaneDeletion({ store, stop, remove, forget })
+  const op = { type: 'lane.delete' as const, laneId: lane.laneId }
+  // Nothing to prove a worktree or branch against, so neither is touched.
+  expect(await deletion({ ...op, removeWorktree: true, removeBranch: false }, () => true)).toEqual({
+    ok: false,
+    code: 'bad-request',
+  })
+  expect(
+    await deletion({ ...op, removeWorktree: false, removeBranch: false }, () => false),
+  ).toEqual({ ok: false, code: 'forbidden' })
+  expect(stop).not.toHaveBeenCalled()
+  expect(await deletion({ ...op, removeWorktree: false, removeBranch: false }, () => true)).toEqual(
+    { ok: true, data: { branchKept: false } },
+  )
+  expect(stop).toHaveBeenCalledWith(lane.laneId, expect.any(Function))
+  expect(remove).not.toHaveBeenCalled()
+  expect(store.listLanes()).toEqual([])
+  expect(forget).toHaveBeenCalledWith(lane.laneId)
+  expect(await readFile(join(cwd, 'work'), 'utf8')).toBe('kept')
+})
