@@ -148,6 +148,8 @@ const expectedEntries = [
   ['hosts:settingsCheck', 'app'],
   ['hosts:settingsPatch', 'app'],
   ['hosts:settingsRead', 'app'],
+  ['hosts:skillExport', 'app'],
+  ['hosts:skillInstall', 'app'],
   ['hosts:skills', 'machine'],
   ['hosts:snapshot', 'app'],
   ['hosts:stopLane', 'app'],

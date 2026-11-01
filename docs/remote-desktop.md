@@ -171,7 +171,8 @@ Unavailable, not zero. Links open the machine-filtered page. This Mac keeps its
 existing detail sections and uses its own lanes, Skills, Routines and Artifacts pages.
 
 Skills follows the sidebar machine selection and has a switcher for This Mac plus
-machines announcing `skills.read`. Remote skills remain read-only. Machine-wide
+machines announcing `skills.read`. Remote skills are not edited in place; they can
+be shared ([Skill sharing](#skill-sharing)). Machine-wide
 skills and model/provider catalogues do not require an open lane. Main validates
 results, gates on `skills.read` before and after the call, and rejects replies
 from replaced connections or incarnations. Page stores ignore late replies after
@@ -207,7 +208,40 @@ links described in [Lanes](lanes.md).
 The live chat picker keeps the lane's full pi model list through `lane.models`,
 requiring `sessions.read`. Stopped lanes do not fall back to a machine catalogue.
 Skills requires `skills.read`. Remote Skills shows the installed list
-and SKILL.md read-only, with no export, upload, discovery installs or mutations.
+and SKILL.md read-only, with no export, upload, discovery installs or in-place edits.
+
+### Skill sharing
+
+A skill's detail has **Share** on every machine's Skills page. It clones the whole
+skill folder into another machine's global skills folder (`<agent dir>/skills/<name>`);
+the two copies are not linked afterwards. A line under the skill's path says which
+other machines already have a global skill of that name, from `pi:commands` for
+This Mac and `hosts:skills` for each ready Host. Offline or unreadable machines are
+never reported as lacking it.
+
+The popover lists This Mac (in Desktop) and each Host announcing `skills.read`.
+A Host takes a copy only while ready with `machine.configure`; otherwise its row
+says Not connected, links to its settings to enable configuration access, or asks
+for a Host update. A copy shows two steps: the read from the source (with file
+count and size) and the write on the target. If the target already has the name in
+its skills folder, the popover asks before **Replace**, which deletes that folder
+and writes the bundle already read. A same-named skill that the target loads from
+anywhere else (a package, a settings path, a link) blocks the copy outright,
+because replacing the folder would not replace it.
+
+`hosts:skillExport` and `hosts:skillInstall` carry one bounded bundle
+(`libs/shared/src/host-protocol-skill-share.ts`: 200 files, 2 MiB per file, 4 MiB
+in total, base64) through the renderer, so Desktop and the browser share the flow.
+`'local'` is This Mac: export accepts only a folder the last `skills:list` reported,
+and install probes pi's global commands without touching the Skills page's
+known-folder registry. Any other machine is a Host id, routed through
+`libs/host-client/src/skill-share.ts`, which gates the read on `skills.read` and
+the write on `machine.configure` before and after the call. Bundles never carry
+symbolic links, dot folders, `node_modules` or provenance sidecars. Writes stage
+in a private folder and rename into place
+(`libs/session-runtime/src/skills/share-bundle.ts`), so a target never holds half
+a skill. An unconfirmed write is reported, never retried. The browser has no
+`'local'`.
 Unsupported panes retain the not-available state. Remote attachments require a
 ready Host with `workspaces.write` and `sessions.control` and the current controller.
 Main uploads document bytes with fenced begin/chunk/commit receipts before sending

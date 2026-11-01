@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import type { RunContext } from './run'
 import type { HostMachine, HostRuntime } from '../session/runtime'
 import type { HostStore } from '../lanes/store'
@@ -18,6 +19,7 @@ import { createFilesFeature } from '../features/files'
 import { createGitFeature } from '../features/git'
 import { createArtifactsFeature } from '../features/artifacts'
 import { createSkillsFeature } from '../features/skills'
+import { createSkillInstallFeature } from '../features/skill-install'
 import { checkReadiness, readinessPorts } from '../machine/readiness'
 import { hostUpdateProgram } from '../update/handoff'
 
@@ -72,6 +74,11 @@ function features(
       }),
     }),
     createArtifactsFeature({ ...context, store: options.store }),
+    // Shared skills land where this Host's pi reads global skills.
+    createSkillInstallFeature(context, {
+      configPath: options.configPath,
+      skillsRoot: join(settings.agentDir, 'skills'),
+    }),
   ]
 }
 

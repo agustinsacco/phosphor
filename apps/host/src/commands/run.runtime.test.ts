@@ -315,8 +315,10 @@ describe('run lane composition', () => {
             'machine.providers',
             'skills.list',
             'skills.read',
+            'skills.export',
           ])
             expect(hooks.lanes?.calls.capabilityFor(method)).toBe('skills.read')
+          expect(hooks.lanes?.calls.capabilityFor('skills.install')).toBe('machine.configure')
           expect(hooks.lanes?.streams.cursor('12345678-1234-4234-8234-123456789012').epoch).toBe(
             hooks.epoch,
           )

@@ -431,7 +431,9 @@ close it; focus moves into the sheet and returns to the element on close.
   and its artifact opens read-only on the page; a deleted session's can be
   removed there.
 - **Skills machine context** follows the active lane by default. Its header switcher
-  offers This Mac and Hosts announcing `skills.read`. Remote skills are read-only;
+  offers This Mac and Hosts announcing `skills.read`. Remote skills are not edited in
+  place; **Share** clones any skill to another machine
+  ([Skill sharing](remote-desktop.md#skill-sharing));
   unavailable machines never fall back to local skills. Remote machines show their
   models and providers on the Skills page; This Mac shows them in Settings.
 - **Skills discovery** is a capability workbench: outcome filters, task fit,
