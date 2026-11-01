@@ -1,10 +1,28 @@
-import { promptChoice } from '@/stores/prompt'
 import type { MachineModel } from '@shared/host-protocol-machine'
 import type { ThinkingLevel } from '@shared/rpc'
 import { useEffect, useState } from 'react'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useMachineAgentDraft } from './machineSettingsDrafts'
-import { machineAgentModel } from './machineAgentModel'
+import { isPolicyPatch, type AgentPatch } from './machineAgentPatch'
 import type { HostSettingsState } from './useHostSettings'
+
+/** One "Saved" notice at a time: a run of edits replaces it rather than stacking cards. */
+let savedToast = 0
+function announceSave(label: string, patch: AgentPatch, saved: boolean): void {
+  const toasts = useExtensionUiStore.getState()
+  if (savedToast) toasts.dismissToast(savedToast)
+  savedToast = 0
+  if (!saved) {
+    toasts.pushToast(`Couldn’t save on ${label}. Your change is kept in Agent defaults.`, 'error')
+    return
+  }
+  savedToast = toasts.pushToast(
+    isPolicyPatch(patch)
+      ? `Saved on ${label} — applies after the Host service restarts`
+      : `Saved on ${label} — applies to new lanes`,
+    'info',
+  )
+}
 
 export function useMachineAgentSettings(
   hostId: string,
@@ -16,12 +34,10 @@ export function useMachineAgentSettings(
   const [models, setModels] = useState<MachineModel[] | null>(null)
   const [catalogueFailed, setCatalogueFailed] = useState(false)
   const [catalogueAttempt, setCatalogueAttempt] = useState(0)
-  const draft = useMachineAgentDraft(hostId, repositoryId, settings)
+  const draft = useMachineAgentDraft(hostId, repositoryId, settings, (patch, saved) =>
+    announceSave(label, patch, saved),
+  )
   const { model, thinking, budget, naming } = draft.fields
-  const setModel = (value: string) => draft.set('model', value)
-  const setThinking = (value: ThinkingLevel) => draft.set('thinking', value)
-  const setBudget = (value: string) => draft.set('budget', value)
-  const setNaming = (value: boolean) => draft.set('naming', value)
   useEffect(() => {
     let live = true
     setModels(null)
@@ -38,26 +54,8 @@ export function useMachineAgentSettings(
       live = false
     }
   }, [hostId, catalogueAttempt])
-  const busy = settings.loading || settings.saving || draft.stale
-  const saveModel = async () => {
-    const selected = models?.find((m) => JSON.stringify([m.provider, m.id]) === model)
-    const chosen = machineAgentModel(model)
-    if (model && !chosen) return
-    if (
-      (await promptChoice({
-        title: `Save agent defaults on ${label}?`,
-        message: `${selected?.name ?? chosen?.[1] ?? 'Keep the existing/inherited model'}${chosen ? ` (${chosen[0]})` : ''}, thinking ${thinking}. ${repositoryId ? 'This folder only; machine defaults stay unchanged.' : 'Machine defaults for new lanes.'} Existing lanes are not restarted.`,
-        choices: [{ value: 'save', label: `Save on ${label}`, primary: true }],
-      })) === 'save'
-    )
-      await draft.save({
-        type: 'agent.patch',
-        patch: {
-          ...(chosen ? { defaultProvider: chosen[0], defaultModel: chosen[1] } : {}),
-          defaultThinkingLevel: thinking,
-        },
-      })
-  }
+  // Saving does not lock the form: autosave queues the next edit behind it.
+  const busy = settings.loading || draft.stale
   const knownModel = models?.some((m) => JSON.stringify([m.provider, m.id]) === model)
   return {
     state,
@@ -69,14 +67,13 @@ export function useMachineAgentSettings(
     thinking,
     budget,
     naming,
-    setModel,
-    setThinking,
-    setBudget,
-    setNaming,
+    setModel: (value: string) => draft.set('model', value),
+    setThinking: (value: ThinkingLevel) => draft.set('thinking', value),
+    setBudget: (value: string) => draft.set('budget', value),
+    setNaming: (value: boolean) => draft.set('naming', value),
     busy,
-    saveModel,
+    saving: draft.saving,
     knownModel,
-    validModel: !model || machineAgentModel(model) !== null,
   }
 }
 export type MachineAgentController = ReturnType<typeof useMachineAgentSettings>

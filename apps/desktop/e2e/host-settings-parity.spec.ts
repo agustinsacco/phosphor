@@ -26,8 +26,6 @@ test('Host agent behavior edits ordinary umask configuration without touching lo
     await settings
       .getByRole('combobox', { name: 'Enable automatic compaction', exact: true })
       .selectOption('false')
-    await settings.getByRole('button', { name: 'Review agent behavior', exact: true }).click()
-    await h.page.getByRole('button', { name: 'Save behavior', exact: true }).click()
     await expect
       .poll(async () => JSON.parse(await readFile(file, 'utf8')).compaction.enabled)
       .toBe(false)

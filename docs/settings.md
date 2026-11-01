@@ -139,12 +139,21 @@ removed. A check runs `pi mcp list --json`; its reviewed status/tool counts expi
 after 60 seconds and are invalidated by configuration or authentication changes.
 Signing in never automatically executes a connector check.
 
-Edits carry a revision and preserve unrelated settings. Agent drafts are
-non-secret and keyed by Host/folder. Disconnection retains them without sending
-anything; a changed server revision blocks saving until they are discarded.
-Tab, scope, back and refresh controls confirm discarding edits. Saving one form
-rebases its acknowledged fields without discarding other dirty fields. Host
-policy and pi defaults are separate commits, not an atomic multi-file save.
+Agent defaults save themselves, as This Mac's Agent tab does: a select or checkbox
+when it changes, a text or number field on blur or Enter. Each save sends only
+the fields that differ, against the latest revision, one at a time; an edit made
+while one is in flight follows it. Host policy and pi defaults are separate
+commits, not an atomic multi-file save. A toast says where each save landed
+("Saved on \<Host\> — applies to new lanes", or "— applies after the Host
+service restarts" for policy), replacing the previous one; the section shows
+"Saving on \<Host\>…" meanwhile. An invalid context budget or a half-filled
+custom model is flagged in place and not sent. Edits preserve unrelated settings.
+
+A change the Host refuses stays as a non-secret draft keyed by Host/folder, with
+an error toast and a **Try again** / **Discard changes** banner; it is not
+resent until asked, nor after a remount or reconnect. A changed server revision
+blocks it until it is discarded. Tab, scope, back and refresh controls wait for
+a save in flight, and ask before discarding a refused draft.
 
 The standard Host extensions are the Claude Code provider, Swarm subagents and
 web access, offered with consent during guided setup. Missing packages have
