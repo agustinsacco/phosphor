@@ -22,6 +22,13 @@ export const LANE_PI_OPS = [
   'set_thinking_level',
   'compact',
   'set_session_name',
+  'clear_queue',
+  'set_steering_mode',
+  'set_follow_up_mode',
+  'set_auto_compaction',
+  'set_auto_retry',
+  'bash',
+  'abort_bash',
 ] as const
 export type LanePiOpType = (typeof LANE_PI_OPS)[number]
 /** pi's own command shapes, without pi's correlation id (the Host assigns it). */

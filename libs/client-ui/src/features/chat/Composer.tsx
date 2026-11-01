@@ -1,4 +1,4 @@
-import { useRemoteLanesStore, canControlSession, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, canControlSession } from '@/stores/remoteLanes'
 import { HostWaitNote, useRemoteLock } from '@/features/machines/HostWaitNote'
 import { hostResourceKey } from '@shared/remote-host'
 import { TooltipButton } from '@/components/Tooltip'
@@ -172,11 +172,6 @@ export function Composer({
 
       const chat = useChatStore.getState()
 
-      if (remote && message.startsWith('!')) {
-        chat.setError(sessionId, REMOTE_UNAVAILABLE)
-        return
-      }
-
       // `!command` / `!!command` → RPC bash execution.
       if (message.startsWith('!') && !isStreaming) {
         const exclude = message.startsWith('!!')
@@ -200,7 +195,14 @@ export function Composer({
             command: shellCommand,
             excludeFromContext: exclude,
           })
-          if (response.success && response.data) {
+          // A Host drops receipt data over its size cap: say so rather than spin forever.
+          if (response.success && !response.data) {
+            chat.updateBashItem(sessionId, itemId, {
+              output: 'The command ran, but its output was too large to return.',
+              exitCode: null,
+              running: false,
+            })
+          } else if (response.success && response.data) {
             chat.updateBashItem(sessionId, itemId, {
               output: response.data.output,
               exitCode: response.data.exitCode,
@@ -516,10 +518,11 @@ export function Composer({
             the line over to explain itself; an empty field lends its right
             end to the cheat sheet that used to crowd the placeholder. */}
         <div className="text-text-tertiary @container flex min-h-6 flex-wrap items-center gap-x-3 gap-y-0.5 px-2 pt-1.5 text-sm">
-          {!remote && text.startsWith('!') ? (
+          {text.startsWith('!') ? (
             <span className="text-text-secondary">
-              <span className="font-mono">!cmd</span> runs in your shell and enters context on the
-              next prompt · <span className="font-mono">!!cmd</span> keeps the output out of context
+              <span className="font-mono">!cmd</span> runs in {remote ? "the Host's" : 'your'} shell
+              and enters context on the next prompt · <span className="font-mono">!!cmd</span> keeps
+              the output out of context
             </span>
           ) : (
             <>

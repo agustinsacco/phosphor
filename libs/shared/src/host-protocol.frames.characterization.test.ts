@@ -134,7 +134,7 @@ const CLIENT_REPLIES: readonly (readonly [input: unknown, output: unknown])[] = 
   [{ ...COMMAND, laneId: 'bad' }, receiptReply('bad-request')],
   [{ ...COMMAND, trace: 'bad' }, receiptReply('bad-request')],
   [{ ...COMMAND, op: undefined }, receiptReply('bad-request')],
-  [{ ...COMMAND, trace: 'bad', op: { type: 'bash' } }, receiptReply('unsupported')],
+  [{ ...COMMAND, trace: 'bad', op: { type: 'new_session' } }, receiptReply('unsupported')],
   [{ ...CALL, method: 'Lane.state' }, CALL_REPLY],
   [{ ...CALL, method: 'lane.state', trace: 'bad' }, CALL_REPLY],
   [{ ...CALL, method: undefined }, CALL_REPLY],
@@ -471,6 +471,13 @@ const OPS = [
   [{ type: 'set_thinking_level', level: 'max' }, { level: 'ultra' }],
   [{ type: 'compact', customInstructions: 'Keep tests' }, { customInstructions: '' }],
   [{ type: 'set_session_name', name: 'Lane' }, { name: ' Lane' }],
+  [{ type: 'clear_queue' }, null],
+  [{ type: 'set_steering_mode', mode: 'all' }, { mode: 'some' }],
+  [{ type: 'set_follow_up_mode', mode: 'one-at-a-time' }, { mode: 1 }],
+  [{ type: 'set_auto_compaction', enabled: false }, { enabled: 'no' }],
+  [{ type: 'set_auto_retry', enabled: true }, { enabled: null }],
+  [{ type: 'bash', command: 'ls', excludeFromContext: true }, { command: '' }],
+  [{ type: 'abort_bash' }, null],
   [{ type: 'extension_ui_response', response: RESPONSE }, { response: { ...RESPONSE, value: '' } }],
   [{ ...CREATE, provider: 'p', model: 'm', thinkingLevel: 'off' }, { worktree: { fresh: true } }],
   [{ type: 'lane.resume' }, null],
@@ -601,7 +608,14 @@ describe('parseClientFrame operation families', () => {
     }
   })
   it('classifies unknown op types as unsupported and shapeless ops as bad-request', () => {
-    const unknown = ['bash', 'get_state', 'Prompt', 'files.list', 'terminal.input', 'routine.list']
+    const unknown = [
+      'new_session',
+      'get_state',
+      'Prompt',
+      'files.list',
+      'terminal.input',
+      'routine.list',
+    ]
     for (const type of [...unknown, 'host.repositories.list', 'attachments.abort', 'lane.rename'])
       expect(command({ type }), type).toStrictEqual(receiptReply('unsupported'))
     for (const op of [null, [], 'prompt', 1, {}, { type: 1 }, [{ type: 'abort' }]])

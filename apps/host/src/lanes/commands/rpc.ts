@@ -23,6 +23,13 @@ export function toPiCommand(op: LaneOp, id: string): RpcCommand | null {
     case 'set_thinking_level':
     case 'compact':
     case 'set_session_name':
+    case 'clear_queue':
+    case 'set_steering_mode':
+    case 'set_follow_up_mode':
+    case 'set_auto_compaction':
+    case 'set_auto_retry':
+    case 'bash':
+    case 'abort_bash':
       return { ...op, id }
     default:
       return null

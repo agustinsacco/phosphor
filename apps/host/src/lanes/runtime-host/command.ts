@@ -47,7 +47,14 @@ export async function command(
       recordManualName(context, binding, args[1].name)
     if (
       response.success &&
-      ['set_model', 'set_thinking_level', 'set_session_name'].includes(args[1].type)
+      [
+        'set_model',
+        'set_thinking_level',
+        'set_session_name',
+        'set_steering_mode',
+        'set_follow_up_mode',
+        'set_auto_compaction',
+      ].includes(args[1].type)
     ) {
       if (args[1].type === 'set_model') await finishModelSelection(context, args[0], binding)
       else {

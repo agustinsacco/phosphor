@@ -48,6 +48,17 @@ rejected or unknown. Unknown means the outcome is uncertain, not permission to
 repeat the action with a new id. A pi command unanswered after 30 seconds becomes
 unknown; a later completion cannot replace it or send another terminal receipt.
 
+The pi commands a controller may send are `LANE_PI_OPS`: prompt, steer,
+follow-up, abort, abort-retry, model, thinking level, compact, session name,
+`clear_queue`, the steering and follow-up modes, auto-compaction, auto-retry,
+`bash` and `abort_bash`. The client (`laneOperation` in `libs/host-client`) and
+the Host (`toPiCommand`) list the same set; anything else is refused
+`unsupported`, which the client reports as "update the Host". `bash` adds no
+authority: a controller can already ask the agent to run the same command.
+Its output returns in the receipt's data, so output above the receipt-data cap
+reports as done without output. Commands that move pi to another session file
+(fork, clone, new and switch session) stay refused.
+
 `HOST_LIMITS` caps inbound frames at 8 MiB, outbound frames at 16 MiB,
 subscriptions at 64 per socket, pending commands and in-flight calls at 32 per
 socket, and receipt interest at 64 ids. Excess commands are rejected without

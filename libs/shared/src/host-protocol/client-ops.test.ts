@@ -65,9 +65,42 @@ describe('command ops through the public entry', () => {
       expect(command({ type: 'set_thinking_level', level })).toStrictEqual(
         accepted({ type: 'set_thinking_level', level }),
       )
+    const session = [
+      [{ type: 'clear_queue', x: 1 }, { type: 'clear_queue' }],
+      [{ type: 'abort_bash', x: 1 }, { type: 'abort_bash' }],
+      [
+        { type: 'set_steering_mode', mode: 'all', x: 1 },
+        { type: 'set_steering_mode', mode: 'all' },
+      ],
+      [
+        { type: 'set_follow_up_mode', mode: 'one-at-a-time' },
+        { type: 'set_follow_up_mode', mode: 'one-at-a-time' },
+      ],
+      [
+        { type: 'set_auto_compaction', enabled: false },
+        { type: 'set_auto_compaction', enabled: false },
+      ],
+      [
+        { type: 'set_auto_retry', enabled: true },
+        { type: 'set_auto_retry', enabled: true },
+      ],
+      [
+        { type: 'bash', command: 'ls', x: 1 },
+        { type: 'bash', command: 'ls' },
+      ],
+      [
+        { type: 'bash', command: 'ls', excludeFromContext: true },
+        { type: 'bash', command: 'ls', excludeFromContext: true },
+      ],
+    ] as const
+    for (const [input, output] of session) expect(command(input)).toStrictEqual(accepted(output))
     for (const op of [
       { type: 'set_session_name', name: 'x'.repeat(81) },
       { type: 'lane.markRead' },
+      { type: 'set_steering_mode', mode: 'some' },
+      { type: 'set_auto_retry', enabled: 'yes' },
+      { type: 'bash', command: '' },
+      { type: 'bash', command: 'ls', excludeFromContext: 1 },
     ])
       expect(command(op)).toStrictEqual(refused('bad-request'))
   })
@@ -153,7 +186,16 @@ describe('client-ops.ts', () => {
       repositoryId: REPO,
       worktree: null,
     })
-    for (const v of [null, undefined, [], 'abort', 1, [{ type: 'abort' }], {}, { type: 'bash' }])
+    for (const v of [
+      null,
+      undefined,
+      [],
+      'abort',
+      1,
+      [{ type: 'abort' }],
+      {},
+      { type: 'new_session' },
+    ])
       expect(parseLaneOp(v)).toBeNull()
   })
 

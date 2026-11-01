@@ -1,5 +1,4 @@
 import { useSessionsStore } from '@/stores/sessions'
-import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { isNewerVersion } from '@shared/version'
 import { useChatStore } from '@/stores/chat'
 import { piCallOk } from '@/lib/rpc'
@@ -41,17 +40,14 @@ export async function unqueueMessage(
   text: string,
 ): Promise<void> {
   const chat = useChatStore.getState()
-  if (useSessionsStore.getState().live[sessionId]?.target?.kind === 'remote') {
-    chat.setError(sessionId, REMOTE_UNAVAILABLE)
-    return
-  }
+  const remote = useSessionsStore.getState().live[sessionId]?.target?.kind === 'remote'
   const response = await window.phosphor.piCommand<'clear_queue'>(sessionId, {
     type: 'clear_queue',
   })
   const drainedQueues = response.success ? response.data : undefined
   if (!drainedQueues) {
     const rejection = response.success ? null : response.error
-    chat.setError(sessionId, await unqueueFailureMessage(rejection))
+    chat.setError(sessionId, await unqueueFailureMessage(rejection, remote))
     return
   }
 
@@ -94,11 +90,13 @@ export async function unqueueMessage(
  * queues. Only a rejection proves the queues were left alone, so only then
  * does this promise they were.
  */
-async function unqueueFailureMessage(rejection: string | null): Promise<string> {
+async function unqueueFailureMessage(rejection: string | null, remote: boolean): Promise<string> {
   const parts = [
     `Could not remove the queued message: ${rejection ?? 'clear_queue returned no queues'}.`,
   ]
   if (rejection) parts.push('Your queued messages are unchanged.')
+  // A Host lane runs the Host's pi: this machine's version says nothing about it.
+  if (remote) return parts.join(' ')
 
   const installed = await window.phosphor
     .invoke('pi:health')

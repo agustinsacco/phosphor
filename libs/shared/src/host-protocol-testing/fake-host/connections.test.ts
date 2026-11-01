@@ -122,7 +122,7 @@ describe('connections through createFakeHost', () => {
   it('answers a malformed frame by its reply kind and ignores frames it does not model', async () => {
     const h = harness()
     const v = await h.viewer()
-    v.raw(JSON.stringify({ type: 'command', requestId: LANE, op: { type: 'bash' } }))
+    v.raw(JSON.stringify({ type: 'command', requestId: LANE, op: { type: 'new_session' } }))
     v.raw(JSON.stringify({ type: 'command', requestId: LANE, laneId: 'x', op: { type: 'abort' } }))
     v.raw(JSON.stringify({ type: 'call', id: 'bad', method: 5 }))
     v.send({ type: 'terminal.input', terminalId: LANE, seq: 1, data: 'ls' })
@@ -484,10 +484,14 @@ describe('connections module', () => {
     receive(
       st,
       anonymous.c,
-      JSON.stringify({ type: 'command', requestId: LANE, op: { type: 'bash' } }),
+      JSON.stringify({ type: 'command', requestId: LANE, op: { type: 'new_session' } }),
     )
     const v = attached(st)
-    receive(st, v.c, JSON.stringify({ type: 'command', requestId: LANE, op: { type: 'bash' } }))
+    receive(
+      st,
+      v.c,
+      JSON.stringify({ type: 'command', requestId: LANE, op: { type: 'new_session' } }),
+    )
     receive(st, v.c, JSON.stringify({ type: 'call', id: 'bad', method: 5 }))
     receive(st, v.c, '{')
     expect(anonymous.wire.closes).toEqual(['4401 Auth required'])

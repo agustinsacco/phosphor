@@ -15,6 +15,7 @@ import { hex, integer, isLaneBranchName, label, member, record, text } from './p
 type OpFields = Record<string, unknown>
 
 const thinking = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+const queueModes = ['all', 'one-at-a-time'] as const
 
 /**
  * An invalid op whose type is listed here is refused as bad-request; any other
@@ -119,6 +120,26 @@ function coreOp(v: OpFields): LaneOp | null {
           : null
     case 'set_session_name':
       return label(v.name) ? { type: v.type, name: v.name } : null
+    case 'clear_queue':
+    case 'abort_bash':
+      return { type: v.type }
+    case 'set_steering_mode':
+    case 'set_follow_up_mode':
+      return member(v.mode, queueModes) ? { type: v.type, mode: v.mode } : null
+    case 'set_auto_compaction':
+    case 'set_auto_retry':
+      return typeof v.enabled === 'boolean' ? { type: v.type, enabled: v.enabled } : null
+    case 'bash':
+      return text(v.command, HOST_LIMITS.inboundFrameBytes) &&
+        (v.excludeFromContext === undefined || typeof v.excludeFromContext === 'boolean')
+        ? {
+            type: v.type,
+            command: v.command,
+            ...(v.excludeFromContext !== undefined
+              ? { excludeFromContext: v.excludeFromContext }
+              : {}),
+          }
+        : null
     case 'extension_ui_response': {
       const r = parseExtensionUiResponse(v.response)
       return r ? { type: v.type, response: r } : null

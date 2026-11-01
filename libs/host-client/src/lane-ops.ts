@@ -61,7 +61,14 @@ export function laneOperation(command: RpcCommand): LaneOp | string | null {
     case 'set_model':
     case 'set_thinking_level':
     case 'compact':
-    case 'set_session_name': {
+    case 'set_session_name':
+    case 'clear_queue':
+    case 'set_steering_mode':
+    case 'set_follow_up_mode':
+    case 'set_auto_compaction':
+    case 'set_auto_retry':
+    case 'bash':
+    case 'abort_bash': {
       const { id: _id, ...op } = command
       return op
     }
@@ -119,7 +126,9 @@ export function receiptResponse(
           ? `${machine}: controlled by ${result.control.controller.label}`
           : result.code === 'lane-stopped'
             ? `${machine}: ${LANE_STOPPED}`
-            : `${machine}: ${result.code}`,
+            : result.code === 'unsupported'
+              ? `${machine}: its Host does not support this yet. Update the Host, then retry.`
+              : `${machine}: ${result.code}`,
       }
     case 'failed':
       return { ...base, success: false, error: result.error.message }

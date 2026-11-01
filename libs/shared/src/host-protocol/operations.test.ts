@@ -36,6 +36,13 @@ describe('host-protocol operation declarations', () => {
       'set_thinking_level',
       'compact',
       'set_session_name',
+      'clear_queue',
+      'set_steering_mode',
+      'set_follow_up_mode',
+      'set_auto_compaction',
+      'set_auto_retry',
+      'bash',
+      'abort_bash',
     ])
     expect(UNFENCED_OPS).toStrictEqual([
       'lane.create',

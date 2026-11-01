@@ -1,5 +1,6 @@
 import { useSessionsStore } from '@/stores/sessions'
-import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { TAKE_CONTROL_FIRST } from '@/features/sessions/remoteLaneActions'
 import { TooltipButton } from '@/components/Tooltip'
 import { useChatStore } from '@/stores/chat'
 import { unqueueMessage } from './queueActions'
@@ -44,7 +45,9 @@ function QueueChip({
   sessionId: string
   index: number
 }): React.JSX.Element {
-  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
+  // A Host lane's queue belongs to its controller; re-read when control moves.
+  const live = useSessionsStore((s) => s.live[sessionId])
+  const blocked = useRemoteLanesStore(() => live !== undefined && !canControlSession(sessionId))
   const steer = kind === 'steer'
   return (
     <div
@@ -60,10 +63,10 @@ function QueueChip({
       </span>
       {text && <span className="truncate">{text}</span>}
       <TooltipButton
-        disabled={remote}
+        disabled={blocked}
         onClick={() => void unqueueMessage(sessionId, kind, index, text)}
         aria-label={steer ? 'Remove queued steering message' : 'Remove queued follow-up message'}
-        title={remote ? REMOTE_UNAVAILABLE : 'Remove — the agent has not read this yet'}
+        title={blocked ? TAKE_CONTROL_FIRST : 'Remove — the agent has not read this yet'}
         className="shrink-0 rounded-full px-1 text-xs opacity-60 transition-opacity hover:opacity-100"
       >
         ✕
