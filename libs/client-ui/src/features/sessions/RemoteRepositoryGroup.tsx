@@ -83,7 +83,9 @@ export function RemoteRepositoryGroup({
         {available && <NewLaneButton hostId={hostId} group={group} className={controlClass} />}
       </WorkspaceGroupHeader>
       {!available && (
-        <p className="text-text-tertiary px-2 py-1 text-sm">Not in this Host’s current folders.</p>
+        <p className="text-text-tertiary px-2 py-1 text-sm">
+          Not in this Host’s current folders. Delete a lane from its menu.
+        </p>
       )}
       {search.searching && <GroupSearchBar search={search} total={lanes.length} />}
       {!collapsed && (

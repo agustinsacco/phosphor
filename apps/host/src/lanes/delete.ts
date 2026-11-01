@@ -91,8 +91,9 @@ export function createLaneDeletion(options: {
     allowed: () => boolean,
   ): Promise<{ ok: true; data: { branchKept: boolean } } | { ok: false; code: RejectCode }> => {
     const lane = options.store.getLane(op.laneId)
-    const repo = lane && options.store.listRepositories().find((r) => r.id === lane.repositoryId)
-    if (!lane || lane.removedAt !== null || !repo) return { ok: false, code: 'unknown-lane' }
+    if (!lane || lane.removedAt !== null) return { ok: false, code: 'unknown-lane' }
+    const repo = options.store.listRepositories().find((r) => r.id === lane.repositoryId)
+    if (!repo) return forgetUnlisted(options, lane.laneId, op, allowed)
     if (!allowed()) return { ok: false, code: 'forbidden' }
     const shared = () =>
       options.store.listLanes().some((l) => l.laneId !== lane.laneId && l.cwd === lane.cwd)
@@ -156,6 +157,30 @@ export function createLaneDeletion(options: {
       return { ok: false, code: allowed() ? 'bad-request' : 'forbidden' }
     }
   }
+}
+
+/**
+ * A lane whose folder left the Host's config. With no folder to prove a
+ * worktree, branch or transcript against, only the Host's record goes: the
+ * files stay, and a transcript returns as a lane if the folder is added back.
+ */
+async function forgetUnlisted(
+  options: Parameters<typeof createLaneDeletion>[0],
+  laneId: string,
+  op: DeleteLaneOp,
+  allowed: () => boolean,
+): Promise<{ ok: true; data: { branchKept: boolean } } | { ok: false; code: RejectCode }> {
+  if (op.removeWorktree || op.removeBranch) return { ok: false, code: 'bad-request' }
+  if (!allowed()) return { ok: false, code: 'forbidden' }
+  try {
+    await options.stop(laneId, allowed)
+  } catch {
+    return { ok: false, code: allowed() ? 'bad-request' : 'forbidden' }
+  }
+  if (!allowed()) return { ok: false, code: 'forbidden' }
+  options.store.markRemoved(laneId)
+  options.forget(laneId)
+  return { ok: true, data: { branchKept: false } }
 }
 
 /** Kept branches are not lane deletion failures. Checkout is re-checked around the deletion. */

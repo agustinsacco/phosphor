@@ -1943,6 +1943,13 @@ Kept branches are not deletion failures. The receipt returns only
 unknown outcome. Removal is published to every connected client. Resources already removed before a later
 failure are not recreated; a retry can finish the remaining work.
 
+A lane whose repository is no longer active (its folder left the config or is
+missing on disk) keeps its row, and clients list it under an unavailable folder.
+With no repository to check a worktree, branch or transcript against,
+`lane.delete` refuses `removeWorktree` and `removeBranch` as `bad-request`.
+Without them it stops pi, marks the lane removed and leaves every file where it
+is. If the folder returns, reconciliation admits a surviving transcript again.
+
 ### Claude machine diagnostics
 
 The read-only `machine.claude` call takes empty params under the same `skills.read`

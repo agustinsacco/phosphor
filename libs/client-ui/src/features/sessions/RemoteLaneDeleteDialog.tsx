@@ -31,8 +31,13 @@ export function RemoteLaneDeleteDialog({
   allowed: boolean
   onClose: () => void
 }): React.JSX.Element {
+  // A lane whose folder left the Host has nothing to prove a worktree against.
+  const listed = useRemoteLanesStore(
+    (s) => !!s.hosts[hostId]?.repositories.some((repo) => repo.id === lane.repositoryId),
+  )
   const ownsWorktree = useRemoteLanesStore(
     (s) =>
+      listed &&
       lane.worktree &&
       !s.hosts[hostId]?.lanes.some(
         (other) => other.laneId !== lane.laneId && other.cwd === lane.cwd,
@@ -46,7 +51,7 @@ export function RemoteLaneDeleteDialog({
   if (!ownsWorktree)
     return (
       <DeleteSessionModal
-        remote
+        remote={listed || 'unlisted'}
         target={{ title, workspacePath }}
         onClose={onClose}
         onRemove={async () => {
