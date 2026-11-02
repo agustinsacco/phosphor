@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HOST_LIMITS, parseHostFrame, type LaneOp } from '@phosphor/shared/host-protocol'
+import type { HostCapability } from '@phosphor/shared/remote-host'
 import * as folders from './worktree'
 import { LaneCapacityReached } from './store'
 import { type LaneCommandFrame } from './commands'
@@ -404,7 +405,7 @@ describe('lane.create phases and first prompt', () => {
     })
   })
 
-  it('reports nothing after the deadline answered unknown', async () => {
+  it('reports nothing and sends no prompt after the deadline answered unknown', async () => {
     const folder = deferred<void>()
     vi.spyOn(folders, 'prepareLaneFolder').mockImplementation(async () => {
       await folder.promise
@@ -420,7 +421,63 @@ describe('lane.create phases and first prompt', () => {
       { requestId: request.requestId, status: 'pending', phase: 'branching' },
       { requestId: request.requestId, status: 'unknown' },
     ])
-    expect(f.command).toHaveBeenCalledTimes(1)
+    expect(f.command).not.toHaveBeenCalled()
+  })
+
+  it('sends no first prompt once the grant lost sessions.control during the creation', async () => {
+    const attached = deferred<void>()
+    vi.mocked(f.ports.sessions.attach).mockImplementationOnce(async (laneId, sessionId) => {
+      await attached.promise
+      f.sessions.set(laneId, sessionId)
+    })
+    let caps: HostCapability[] = ['sessions.control']
+    const request = create({ prompt: 'hello' })
+    const running = f.service.submit({ ...f.one, currentCaps: () => caps }, request)
+    await vi.advanceTimersByTimeAsync(0)
+    caps = []
+    attached.release()
+    await running
+    expect(f.command).not.toHaveBeenCalled()
+    expect(f.last(request.requestId)).toMatchObject({ status: 'done', data: { prompted: false } })
+  })
+
+  it('counts a creation whose lane is not stored yet against the lane cap', async () => {
+    const folder = deferred<void>()
+    vi.spyOn(folders, 'prepareLaneFolder').mockImplementationOnce(async () => {
+      await folder.promise
+      return { cwd: f.lane.cwd, branch: null, undo: async () => {} }
+    })
+    vi.spyOn(f.store, 'listLanes').mockReturnValue(
+      Array.from({ length: f.store.limits.lanesPerHost - 1 }, () => f.lane),
+    )
+    const first = create({})
+    const running = f.service.submit(f.one, first)
+    await vi.advanceTimersByTimeAsync(0)
+    const second = create({})
+    await f.service.submit(f.two, second)
+    expect(f.last(second.requestId)).toMatchObject({ code: 'too-many-requests' })
+    folder.release()
+    await running
+    expect(f.last(first.requestId)).toMatchObject({ status: 'done' })
+  })
+
+  it('keeps its repository live, so not removable, until the creation settles', async () => {
+    const started = deferred<{ sessionId: string; sessionFile: null }>()
+    const entered = deferred<void>()
+    vi.mocked(f.ports.sessions.start).mockImplementationOnce(() => {
+      entered.release()
+      return started.promise
+    })
+    f.sessions.clear()
+    const { repositoryId } = f.lane
+    expect(f.service.repositoryLive(repositoryId)).toBe(false)
+    const running = f.service.submit(f.one, create({}))
+    await entered.promise
+    expect(f.service.repositoryLive(repositoryId)).toBe(true)
+    started.reject(new Error('boot'))
+    await running
+    await vi.advanceTimersByTimeAsync(0)
+    expect(f.service.repositoryLive(repositoryId)).toBe(false)
   })
 
   it('sends the first prompt before a lane op queued behind the creation', async () => {
