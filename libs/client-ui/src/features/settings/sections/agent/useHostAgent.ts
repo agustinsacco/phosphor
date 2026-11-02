@@ -1,5 +1,4 @@
 import type { MachineAgentDefaults } from '@shared/machine-settings'
-import type { MachineModel } from '@shared/host-protocol-machine'
 import {
   AGENT_FIELDS,
   withAgentField,
@@ -10,6 +9,7 @@ import type { ThinkingLevel } from '@shared/rpc'
 import { useEffect, useMemo, useState } from 'react'
 import type { SaveState, SettingsNoticeProps } from '@/components/form'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { useMachineCatalogue, useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { hostInstructions } from '../../instructions/instructionsSource'
 import { useHostSection } from '../../machine/HostSection'
 import { useMachineAgentDraft } from '../../machine/machineSettingsDrafts'
@@ -42,27 +42,13 @@ function announceSave(
   )
 }
 
-/** The Host's catalogue, read for this page so a failure can be retried here. */
+/** The Host's catalogue, shared with its pickers; a failed read can be retried here. */
 function useHostCatalogue(hostId: string): Pick<AgentSource, 'models' | 'catalogue'> {
-  const [models, setModels] = useState<MachineModel[] | null>(null)
-  const [failed, setFailed] = useState(false)
-  const [attempt, setAttempt] = useState(0)
-  useEffect(() => {
-    let live = true
-    setModels(null)
-    setFailed(false)
-    window.phosphor.invoke('hosts:models', hostId).then(
-      (rows) => live && setModels(rows),
-      () => live && setFailed(true),
-    )
-    return () => {
-      live = false
-    }
-  }, [hostId, attempt])
-  const choices = useMemo(() => (models ? modelChoices(models) : null), [models])
-  return failed
-    ? { models: [], catalogue: { failed: true, retry: () => setAttempt((n) => n + 1) } }
-    : { models: choices }
+  const { models, status } = useMachineCatalogue(hostId)
+  const choices = useMemo(() => modelChoices(models), [models])
+  if (status !== 'error') return { models: status === 'ready' ? choices : null }
+  const retry = () => void useMachineCataloguesStore.getState().load(hostId, undefined, true)
+  return { models: [], catalogue: { failed: true, retry } }
 }
 
 /** In folder scope, the machine's own values: what a folder inherits (a second read). */

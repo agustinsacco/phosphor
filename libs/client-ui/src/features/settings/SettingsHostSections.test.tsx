@@ -9,6 +9,7 @@ import { mixedRemoteHosts } from '@/dev/mockRemoteLanes'
 import { mockSettingsRead, mockSettingsPatch } from '@/dev/mockMachineSettings'
 import { promptChoice } from '@/stores/prompt'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 vi.mock('@/stores/prompt', () => ({
   promptChoice: vi.fn(async () => undefined),
@@ -33,6 +34,7 @@ beforeEach(() => {
   Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
   useRemoteLanesStore.setState({ hosts: mixedRemoteHosts() })
   prepareHostSettings(machine)
+  useMachineCataloguesStore.setState({ catalogues: {} })
   invoke.mockReset().mockImplementation(async (channel, hostId, section, repositoryId) => {
     if (channel === 'hosts:settingsRead') return mockSettingsRead(hostId, section, repositoryId)
     if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
@@ -40,6 +42,7 @@ beforeEach(() => {
       return [
         { id: 'claude-sonnet-4-5', name: 'Host model', provider: 'anthropic', reasoning: true },
       ]
+    if (channel === 'hosts:providers') return []
     return undefined
   })
   vi.mocked(promptChoice).mockReset().mockResolvedValue(undefined)
