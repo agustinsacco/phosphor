@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, SettingsNotice, TextInput } from '@/components/form'
 import { WEB_ACCESS_PROVIDERS } from '@shared/web-access'
 import { ConfigFileEditor, piConfigFile } from '../../ConfigFileEditor'
+import { SectionStatusNotice } from '../sectionStatus'
 import type { WebAccessSource } from './webAccessSource'
 
 /**
@@ -21,11 +22,10 @@ export function WebAccessView({ source }: { source: WebAccessSource }): React.JS
         ones you have keys for. Values support <span className="font-mono">$ENV_VAR</span>{' '}
         interpolation. Changes apply to new sessions.
       </p>
-      {notice && (
-        <div className="mt-4">
-          <SettingsNotice {...notice} />
-        </div>
-      )}
+      <div className="mt-4 empty:hidden">
+        <SectionStatusNotice status={source.status} title="Could not read web-search.json" />
+        {notice && <SettingsNotice {...notice} />}
+      </div>
       {malformed && (
         <div className="mt-4">
           <SettingsNotice

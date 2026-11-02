@@ -1,7 +1,8 @@
 import { TooltipButton } from '@/components/Tooltip'
-import { Button, SettingsNotice } from '@/components/form'
+import { Button } from '@/components/form'
 import { TerminalView } from '@/features/terminal/TerminalView'
 import { useSettingsUiStore } from '../../settingsUiStore'
+import { SectionStatusNotice } from '../sectionStatus'
 import type { ProviderAccountsSource } from './accountsModel'
 import { ProviderList } from './ProviderList'
 
@@ -27,16 +28,12 @@ export function ProviderAccounts({
       </p>
       {status === 'loading' ? (
         <div className="text-text-secondary mt-4 text-base">Checking…</div>
-      ) : typeof status === 'object' ? (
-        <div className="mt-4">
-          <SettingsNotice
-            tone="danger"
-            title={status.error}
-            action={{ label: 'Try again', onClick: status.retry }}
-          />
-        </div>
-      ) : (
+      ) : status === 'ready' ? (
         <ProviderList source={source} />
+      ) : (
+        <div className="mt-4">
+          <SectionStatusNotice status={status} title="Could not read this machine’s providers" />
+        </div>
       )}
       {source.error && <p className="text-danger mt-3 text-base">{source.error}</p>}
       <div className="mt-5 flex items-center gap-4">

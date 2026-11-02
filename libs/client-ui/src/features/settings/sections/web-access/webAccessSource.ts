@@ -1,8 +1,10 @@
 import type { SettingsNoticeProps } from '@/components/form'
 import type { WebAccessKey } from '@shared/web-access'
+import type { SectionStatus } from '../sectionStatus'
 
 /** pi-web-access's `web-search.json` on one machine: which keys are set, by name only. */
 export interface WebAccessSource {
+  status: SectionStatus
   caps: {
     /** The raw file can be opened here, and shows the key values: This Mac only. */
     rawEditor: boolean
@@ -13,8 +15,8 @@ export interface WebAccessSource {
   malformed: boolean
   /** Where the file is, when the machine says. */
   path: string | null
-  /** The one notice above the fields: a failed read, or a Host too old to report keys. */
-  notice: SettingsNoticeProps | null
+  /** A Host too old to report keys. */
+  notice?: SettingsNoticeProps
   busy: boolean
   /** Set a key's value, or clear it with null. */
   set(key: WebAccessKey, value: string | null): void

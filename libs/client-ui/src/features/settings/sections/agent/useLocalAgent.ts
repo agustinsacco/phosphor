@@ -11,7 +11,8 @@ import { localInstructions } from '../../instructions/instructionsSource'
 import { useSettingsUiStore } from '../../settingsUiStore'
 import { useAccount } from '../../useAccount'
 import { useLocalAgentPrefs } from './useLocalPrefs'
-import { modelChoices, type AgentSource, type AgentValues, type SectionStatus } from './source'
+import type { SectionStatus } from '../sectionStatus'
+import { modelChoices, type AgentSource, type AgentValues } from './source'
 
 type Scoped = { global: AgentValues; project: AgentValues | null }
 const ALL_FIELDS = Object.keys(AGENT_FIELDS) as AgentFieldKey[]

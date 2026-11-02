@@ -117,7 +117,7 @@ it('recovers a failed context budget read and rolls back a failed save (regressi
     return local(channel)
   })
   await showHostSettings(root, 'local', 'agent')
-  const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Try again')
+  const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
   expect(retry).toBeTruthy()
   failRead = false
   await act(async () => retry!.click())

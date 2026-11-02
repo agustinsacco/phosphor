@@ -43,8 +43,8 @@ export function useHostPackages(): PackageSource {
   }, [machine.id, packages])
   return {
     caps: HOST_CAPS,
+    status: packages ? 'ready' : 'loading',
     packages: packages?.map(item) ?? null,
-    failure: null,
     folder: repositoryId !== undefined,
     latest: {},
     claudeCli: null,

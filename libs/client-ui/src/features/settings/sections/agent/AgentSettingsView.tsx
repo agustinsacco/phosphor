@@ -1,4 +1,5 @@
 import { Row, SaveStatus, SectionTitle, SettingsNotice, Toggle } from '@/components/form'
+import { SectionStatusNotice } from '../sectionStatus'
 import { AGENT_GROUP_FIELDS, AGENT_GROUPS, AGENT_ROW_TEXT } from './agentFields'
 import { AgentDirectives } from './AgentDirectives'
 import { AgentFieldRow } from './AgentFieldRow'
@@ -23,14 +24,8 @@ export function AgentSettingsView({ source }: { source: AgentSource }): React.JS
       </p>
       {notice && <SettingsNotice {...notice} />}
       {save && <SaveStatus state={save} />}
-      {status === 'loading' ? null : typeof status === 'object' ? (
-        <SettingsNotice
-          tone="danger"
-          title="Could not read the agent settings."
-          body={status.error}
-          action={{ label: 'Try again', onClick: status.retry }}
-        />
-      ) : (
+      <SectionStatusNotice status={status} title="Could not read the agent settings." />
+      {status === 'ready' && (
         <>
           <Group id="lanes">
             <fieldset disabled={blocked} className="contents">

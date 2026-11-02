@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { SectionStatus } from '../sectionStatus'
 
 export const PACKAGE_CONTENT_KINDS = [
   ['skills', 'Skills'],
@@ -39,10 +40,9 @@ export interface PackageCaps {
 /** The Extensions page's data and actions on one machine. */
 export interface PackageSource {
   caps: PackageCaps
+  status: SectionStatus
   /** Null while the first read is in flight. */
   packages: readonly PackageItem[] | null
-  /** A failed read, with its retry. */
-  failure: { error: string; retry: () => void } | null
   /** Whether a folder is in scope, so its packages are listed too. */
   folder: boolean
   /** The registry's latest version per spec, when `versionCheck`. */

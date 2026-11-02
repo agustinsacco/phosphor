@@ -1,6 +1,6 @@
-import { SettingsNotice } from '@/components/form'
 import { JobOutput } from '../../JobOutput'
 import type { ClaudeAccountsSource } from '../accounts/accountsModel'
+import { SectionStatusNotice } from '../sectionStatus'
 import { ClaudeAccountsView } from './ClaudeAccountsView'
 import { ClaudeHealth, ClaudeProof, ClaudeTroubleshooting } from './ClaudeHealth'
 
@@ -24,15 +24,9 @@ export function ClaudeProviderView({
         models appear in the model picker under the <span className="font-mono">pi-claude-cli</span>{' '}
         provider.
       </p>
-      {typeof status === 'object' && (
-        <div className="mt-4">
-          <SettingsNotice
-            tone="danger"
-            title={status.error}
-            action={{ label: 'Try again', onClick: status.retry }}
-          />
-        </div>
-      )}
+      <div className="mt-4 empty:hidden">
+        <SectionStatusNotice status={status} title="Could not read the Claude accounts" />
+      </div>
       <ClaudeHealth
         health={health}
         reviewed={reviewed}
