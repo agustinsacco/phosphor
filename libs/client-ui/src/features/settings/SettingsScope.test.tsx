@@ -6,6 +6,7 @@ import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
 import { mockSettingsPatch, mockSettingsRead } from '@/dev/mockMachineSettings'
 import { mixedRemoteHosts } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { prepareHostSettings, showHostSettings } from './__fixtures__/hostSettingsSurface'
 import { useSettingsUiStore } from './settingsUiStore'
@@ -24,6 +25,8 @@ const invoke = vi.fn()
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
+  useSessionsStore.setState({ activeSessionId: null, live: {} })
+  useSettingsUiStore.setState({ folder: null })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('phosphor', { invoke, platform: 'darwin', onAccountChanged: () => () => {} })
   useRemoteLanesStore.setState({ hosts: mixedRemoteHosts() })
@@ -122,4 +125,48 @@ it('scopes This Mac’s Agent from the scope line, with no switch of its own', a
     'select[aria-label="Configuration folder"]',
   )!
   expect([...folder.options].map((o) => o.textContent)).toEqual(['app', 'site'])
+})
+
+it('chooses the active workspace’s folder for Folder on This Mac when it is listed', async () => {
+  useWorkspacesStore.setState({ homePath: '/work/site' })
+  await showHostSettings(root, 'local', 'agent')
+  await act(async () => radio('Folder').click())
+  expect(useSettingsUiStore.getState().folder).toBe('/work/site')
+  const folder = scopeLine().querySelector<HTMLSelectElement>(
+    'select[aria-label="Configuration folder"]',
+  )!
+  expect([...folder.options].map((o) => o.textContent)).toEqual(['app', 'site'])
+})
+
+it('chooses the active lane’s folder for Folder on its Host', async () => {
+  const hosts = mixedRemoteHosts()
+  const host = hosts[machine.id]!
+  const lane = { ...host.lanes[0]!, laneId: 'lane-in-site', repositoryId: '0000000000000002' }
+  host.repositories = [
+    ...host.repositories,
+    { id: '0000000000000002', name: 'Site', path: '/remote/site' },
+  ]
+  host.lanes = [...host.lanes, lane]
+  useRemoteLanesStore.setState({ hosts })
+  useSessionsStore.setState({
+    activeSessionId: 'remote',
+    live: {
+      remote: {
+        sessionId: 'remote',
+        workspacePath: `host:${machine.id}/lane:lane-in-site`,
+        target: { kind: 'remote', hostId: machine.id },
+        laneId: 'lane-in-site',
+      },
+    } as never,
+  })
+  await showHostSettings(root, machine.id, 'agent')
+  await act(async () => radio('Folder').click())
+  expect(useSettingsUiStore.getState().folder).toBe('0000000000000002')
+})
+
+it('lists This Mac’s extension items for the scope line’s folder, as the Extensions page does', async () => {
+  useSettingsUiStore.setState({ folder: '/work/site' })
+  await showHostSettings(root, 'local', 'extensions')
+  expect(calls('packages:list').length).toBeGreaterThan(0)
+  expect(calls('packages:list').map(([, workspace]) => workspace)).not.toContain('/work/app')
 })
