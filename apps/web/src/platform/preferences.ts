@@ -43,16 +43,37 @@ function worktreeRecord(value: unknown): WorktreePrefs {
   return { auto: value.auto, branchPrefix: value.branchPrefix }
 }
 
-function restoreLanes(prefs: AppPrefs, storage: PreferenceStorage | undefined): void {
+/** Restore the stored lane and branch prefs into `prefs`, and the setters that store them. */
+function lanePreferences(prefs: AppPrefs, storage: PreferenceStorage | undefined) {
   try {
     const text = storage?.getItem(LANES_KEY)
-    if (!text || text.length > LANES_MAX_CHARS) return
-    const saved: unknown = JSON.parse(text)
-    if (!record(saved)) return
-    if (saved.lanes !== undefined) prefs.lanes = laneRecord(saved.lanes)
-    if (saved.worktrees !== undefined) prefs.worktrees = worktreeRecord(saved.worktrees)
+    const saved: unknown = text && text.length <= LANES_MAX_CHARS ? JSON.parse(text) : null
+    if (record(saved) && saved.lanes !== undefined) prefs.lanes = laneRecord(saved.lanes)
+    if (record(saved) && saved.worktrees !== undefined)
+      prefs.worktrees = worktreeRecord(saved.worktrees)
   } catch {
     /* Storage may be denied or hold an older shape; defaults still work. */
+  }
+  const save = () => {
+    // Persist the normalized, allowlisted records only, never a caller-supplied object.
+    try {
+      storage?.setItem(
+        LANES_KEY,
+        JSON.stringify({ lanes: prefs.lanes, worktrees: prefs.worktrees }),
+      )
+    } catch {
+      /* Memory-only fallback. */
+    }
+  }
+  return {
+    lanes(value: LanePrefs) {
+      prefs.lanes = laneRecord(value)
+      save()
+    },
+    worktrees(value: WorktreePrefs) {
+      prefs.worktrees = worktreeRecord(value)
+      save()
+    },
   }
 }
 
@@ -75,19 +96,8 @@ export function createBrowserPreferences(storage?: PreferenceStorage) {
   } catch {
     /* Storage may be denied; preferences still work in memory. */
   }
-  restoreLanes(prefs, storage)
-  const saveLanes = () => {
-    // Persist the normalized, allowlisted records only, never a caller-supplied object.
-    try {
-      storage?.setItem(
-        LANES_KEY,
-        JSON.stringify({ lanes: prefs.lanes, worktrees: prefs.worktrees }),
-      )
-    } catch {
-      /* Memory-only fallback. */
-    }
-  }
   return {
+    ...lanePreferences(prefs, storage),
     get: () => structuredClone(prefs),
     theme(theme: ThemePreference) {
       if (!['light', 'dark', 'system'].includes(theme)) throw new Error('Invalid theme.')
@@ -132,14 +142,6 @@ export function createBrowserPreferences(storage?: PreferenceStorage) {
         recent: value.recent.slice(0, 8),
         groupMode: value.groupMode,
       }
-    },
-    lanes(value: LanePrefs) {
-      prefs.lanes = laneRecord(value)
-      saveLanes()
-    },
-    worktrees(value: WorktreePrefs) {
-      prefs.worktrees = worktreeRecord(value)
-      saveLanes()
     },
     clearOwner() {
       prefs.modelPicks = structuredClone(DEFAULT_APP_PREFS.modelPicks)

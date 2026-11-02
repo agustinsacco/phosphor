@@ -84,6 +84,16 @@ function laneHandlers(lanes: RemoteLanes) {
     'pi:listLiveSessions': () => lanes.list(1),
   } satisfies Partial<BrowserHandlers>
 }
+/** Device preferences this browser keeps (preferences.ts): validated, allowlisted, small. */
+function preferenceHandlers(prefs: ReturnType<typeof createBrowserPreferences>) {
+  return {
+    'app:setTheme': prefs.theme,
+    'app:setFontPrefs': prefs.fonts,
+    'app:setModelPicks': prefs.models,
+    'app:setLanePrefs': prefs.lanes,
+    'app:setWorktreePrefs': prefs.worktrees,
+  } satisfies Partial<BrowserHandlers>
+}
 /** Cross-tab delivery cannot prevent local logout. */
 function signOut(control: BrowserControl, broadcast: () => void) {
   const result = control.signOut()
@@ -185,11 +195,7 @@ export function createBrowserHandlers(ports: {
     'app:writeDraftBlob': drafts.writeBlob,
     'app:readDraftBlob': drafts.readBlob,
     'app:sweepDrafts': drafts.sweep,
-    'app:setTheme': prefs.theme,
-    'app:setFontPrefs': prefs.fonts,
-    'app:setModelPicks': prefs.models,
-    'app:setLanePrefs': prefs.lanes,
-    'app:setWorktreePrefs': prefs.worktrees,
+    ...preferenceHandlers(prefs),
     'app:resumeTarget': () => ({ kind: 'none' }),
     'app:openExternal': (value) => {
       const url = new URL(value)
