@@ -21,29 +21,48 @@ export function runner(command: string, cwd: string, timeout = NETWORK_MS): Run 
     new Promise((resolve, reject) => {
       const child = spawn(command, args, {
         cwd,
-        timeout,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1' },
       })
+      const failed = (why: string) => new Error(`${command} ${args[0] ?? ''} failed: ${why}`)
+      let timedOut = false
+      const timer = setTimeout(() => {
+        timedOut = true
+        child.kill()
+      }, timeout)
       let out = ''
       let err = ''
       child.stdout.setEncoding('utf8').on('data', (chunk: string) => (out += chunk))
       child.stderr.setEncoding('utf8').on('data', (chunk: string) => (err += chunk))
-      child.on('error', reject)
-      child.on('close', (code) => {
+      child.on('error', (error: NodeJS.ErrnoException) => {
+        clearTimeout(timer)
+        reject(
+          error.code === 'ENOENT'
+            ? new Error(`${command} is not installed, or not on PATH.`)
+            : failed(error.message),
+        )
+      })
+      child.on('close', (code, signal) => {
+        clearTimeout(timer)
         if (code === 0) resolve(out)
-        else
-          reject(new Error(`${command} ${args[0] ?? ''} failed: ${err.trim() || `exit ${code}`}`))
+        else if (timedOut) reject(failed(`no answer within ${timeout / 1000} seconds`))
+        else reject(failed(err.trim() || (signal ? `stopped by ${signal}` : `exit ${code}`)))
       })
       child.stdin.on('error', () => undefined)
       child.stdin.end(input ?? '')
     })
 }
 
-export interface Lease {
-  version: 1
-  /** This lane: the host and session, so two lanes on one host are two holders. */
+/** Who claims the lease: this lane's session on this host, run by this process. */
+export interface Claimant {
+  /** The host and session, so two lanes on one host are two holders. */
   holder: string
   host: string
+  /** One session can run in two processes; only one of them holds the lease. */
+  pid: number
+}
+
+export interface Lease extends Claimant {
+  version: 1
   epoch: number
   expires: string
 }
@@ -55,6 +74,8 @@ export interface ReleaseState {
   memory: string
   ledger: string[]
 }
+
+const FILES = ['lease.json', 'ledger.jsonl', 'memory.md'] as const
 
 function parseLease(text: string): Lease | null {
   try {
@@ -72,20 +93,33 @@ function parseLease(text: string): Lease | null {
   }
 }
 
-/** Read the ref straight from origin. A missing file reads as empty. */
+/**
+ * Read the ref straight from origin. A file the commit lacks reads as empty;
+ * a file it has but that cannot be read fails the read, so a passing glitch
+ * never looks like a free lease or empty memory.
+ */
 export async function readState(git: Run, local: string): Promise<ReleaseState> {
   if (!(await git(['ls-remote', 'origin', RELEASE_REF])).trim())
     return { sha: null, lease: null, memory: '', ledger: [] }
   await git(['fetch', '--quiet', '--no-tags', 'origin', `+${RELEASE_REF}:${local}`])
   const sha = (await git(['rev-parse', '--verify', `${local}^{commit}`])).trim()
-  const file = (name: string) => git(['cat-file', 'blob', `${sha}:${name}`]).catch(() => '')
-  const [lease, memory, ledger] = await Promise.all([
-    file('lease.json'),
-    file('memory.md'),
-    file('ledger.jsonl'),
-  ])
-  return { sha, lease: parseLease(lease), memory, ledger: ledger.split('\n').filter(Boolean) }
+  const listed = new Set((await git(['ls-tree', '--name-only', sha])).split('\n'))
+  const [lease, ledger, memory] = await Promise.all(
+    FILES.map((name) => (listed.has(name) ? git(['cat-file', 'blob', `${sha}:${name}`]) : '')),
+  )
+  return {
+    sha,
+    lease: parseLease(lease ?? ''),
+    memory: memory ?? '',
+    ledger: (ledger ?? '').split('\n').filter(Boolean),
+  }
 }
+
+/**
+ * git's own lease check (`stale info`), or the server losing the same race
+ * between its check and its update: the ref is no longer what this writer read.
+ */
+const LOST_RACE = /\(stale info\)|cannot lock ref|failed to update ref/
 
 /**
  * Replace the ref only if it is still `seen`. Returns the new commit, or null
@@ -140,9 +174,8 @@ export async function writeState(
     ])
     return commit
   } catch (error) {
-    // git's lease check: the ref is no longer what this writer read. Any other
-    // refusal (permissions, a server hook) is a problem to report, not a loss.
-    if (/\(stale info\)/.test(String(error))) return null
+    // Any other refusal (permissions, a server hook) is a problem to report, not a loss.
+    if (LOST_RACE.test(String(error))) return null
     throw error
   }
 }
@@ -156,26 +189,57 @@ export interface Claim {
   state: ReleaseState
 }
 
+/** No signal is sent: this only asks whether the process exists. */
+function alive(pid: unknown): boolean {
+  if (!Number.isSafeInteger(pid) || (pid as number) <= 0) return false
+  try {
+    process.kill(pid as number, 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH'
+  }
+}
+
+const held = (lease: Lease | null, me: Claimant): lease is Lease =>
+  lease?.holder === me.holder && lease.pid === me.pid
+
+/** This session's own lease, left by a process on this host that has since exited. */
+const restarted = (lease: Lease | null, me: Claimant): boolean =>
+  !!lease &&
+  lease.holder === me.holder &&
+  lease.host === me.host &&
+  lease.pid !== me.pid &&
+  !alive(lease.pid)
+
+function claimEvent(lease: Lease | null, me: Claimant, now: number, epoch: number): string {
+  const lapsed = !lease || Date.parse(lease.expires) <= now
+  return restarted(lease, me)
+    ? `${me.host} took the lease back after a restart (epoch ${epoch})`
+    : lapsed
+      ? `${me.host} took the lease (epoch ${epoch})`
+      : `${me.host} took the lease over from ${lease.host} (epoch ${epoch})`
+}
+
 /**
  * Acquire, renew or (with `takeover`) seize the lease. Renewal writes only
- * when the lease is older than LEASE_RENEW_MS; a refused write reads as
- * standby until the next attempt reads the ref again.
+ * when the lease is older than LEASE_RENEW_MS. A lost race reads origin again,
+ * so the standby it returns names the lane that won.
  */
 export async function claimLease(
   git: Run,
   local: string,
-  me: { holder: string; host: string },
+  me: Claimant,
   now: number,
   takeover = false,
 ): Promise<Claim> {
   const state = await readState(git, local)
   const lease = state.lease
-  const mine = lease?.holder === me.holder
+  const mine = held(lease, me)
   const lapsed = !lease || Date.parse(lease.expires) <= now
-  if (!mine && !lapsed && !takeover) return { role: 'standby', state }
+  if (!mine && !lapsed && !takeover && !restarted(lease, me)) return { role: 'standby', state }
   if (mine && !lapsed && Date.parse(lease.expires) - now > LEASE_TTL_MS - LEASE_RENEW_MS)
     return { role: 'active', state }
-  const epoch = mine ? lease.epoch : (lease?.epoch ?? 0) + 1
+  const epoch = mine ? lease.epoch : (state.lease?.epoch ?? 0) + 1
   const next: Lease = {
     version: 1,
     ...me,
@@ -184,45 +248,31 @@ export async function claimLease(
   }
   const ledger = mine
     ? state.ledger
-    : [
-        ...state.ledger,
-        ledgerEvent(
-          now,
-          lapsed
-            ? `${me.host} took the lease (epoch ${epoch})`
-            : `${me.host} took the lease over from ${lease?.host} (epoch ${epoch})`,
-        ),
-      ]
+    : [...state.ledger, ledgerEvent(now, claimEvent(lease, me, now, epoch))]
   const sha = await writeState(git, state.sha, { ...state, lease: next, ledger })
   return sha
     ? { role: 'active', state: { sha, lease: next, memory: state.memory, ledger } }
-    : { role: 'standby', state }
+    : { role: 'standby', state: await readState(git, local) }
 }
 
-/** True when this lane holds an unexpired lease of this epoch on origin right now. */
-export async function holdsLease(
-  git: Run,
-  local: string,
-  holder: string,
-  epoch: number,
-  now: number,
-): Promise<boolean> {
-  const { lease } = await readState(git, local)
-  return lease?.holder === holder && lease.epoch === epoch && Date.parse(lease.expires) > now
-}
-
-/** Write memory or an event under a lease this lane holds; renews it on the way. */
+/**
+ * Write memory or an event, renewing on the way, only while this process
+ * holds an unexpired lease of this epoch on origin. Retries once after
+ * losing a race to another write.
+ */
 export async function recordState(
   git: Run,
   local: string,
-  holder: string,
+  me: Claimant,
+  epoch: number,
   now: number,
   change: { memory?: string; event?: string },
 ): Promise<'ok' | 'not-holder'> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const state = await readState(git, local)
     const lease = state.lease
-    if (lease?.holder !== holder || Date.parse(lease.expires) <= now) return 'not-holder'
+    if (!held(lease, me) || lease.epoch !== epoch || Date.parse(lease.expires) <= now)
+      return 'not-holder'
     const next = {
       lease: { ...lease, expires: new Date(now + LEASE_TTL_MS).toISOString() },
       memory: change.memory ?? state.memory,
@@ -234,9 +284,9 @@ export async function recordState(
 }
 
 /** Let another host take over at once: expire this lane's lease, keep the memory. */
-export async function releaseLease(git: Run, local: string, holder: string, now: number) {
+export async function releaseLease(git: Run, local: string, me: Claimant, now: number) {
   const state = await readState(git, local)
-  if (state.lease?.holder !== holder) return
+  if (!held(state.lease, me)) return
   const lease = { ...state.lease, expires: new Date(now).toISOString() }
   const ledger = [...state.ledger, ledgerEvent(now, `${lease.host} released the lease`)]
   await writeState(git, state.sha, { ...state, lease, ledger })

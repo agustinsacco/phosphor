@@ -155,6 +155,38 @@ export function queueChanges(before: readonly string[], after: readonly string[]
   ]
 }
 
+/**
+ * Refuse a pull request whose reviewed commit is no longer its head, or that
+ * touches the policy. Judged by local git on the commit itself, renames and
+ * deletions included, rather than by a listing of whatever the head is now.
+ */
+export async function checkPolicyUntouched(
+  git: Run,
+  local: string,
+  pr: number,
+  head: string,
+  base: string,
+): Promise<void> {
+  const pull = `${local}-pull`
+  const tracking = `refs/remotes/origin/${base}`
+  await git([
+    'fetch',
+    '--quiet',
+    '--no-tags',
+    'origin',
+    `+refs/pull/${pr}/head:${pull}`,
+    `+refs/heads/${base}:${tracking}`,
+  ])
+  const fetched = (await git(['rev-parse', '--verify', `${pull}^{commit}`])).trim()
+  if (fetched !== head)
+    throw new Error(
+      `Not merged: #${pr}'s head is now ${fetched.slice(0, 7)}, not the ${head.slice(0, 7)} you reviewed. Review it again.`,
+    )
+  const files = await git(['diff', '--no-renames', '--name-only', `${tracking}...${pull}`])
+  if (files.split('\n').some((file) => file.trim() === POLICY_PATH))
+    throw new Error(`Not merged: #${pr} changes ${POLICY_PATH}. Ask the user.`)
+}
+
 export function mergeArgs(pr: number, head: string, policy: Policy): string[] {
   return ['pr', 'merge', String(pr), `--${policy.merge}`, '--match-head-commit', head]
 }
