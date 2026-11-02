@@ -105,15 +105,23 @@ sequenceDiagram
   participant D as Desktop main
   participant H as Host
   participant P as pi on Host
-  D->>H: Create lane (repository id, model, request id)
+  D->>H: Create lane (repository id, model, first prompt, request id)
   H->>H: Validate, persist receipt, admit repository
+  H-->>D: Pending: queued, branching
   H->>P: Start through shared session runtime
-  H-->>D: Lane identity and receipt
-  D->>H: Open stream, acquire control, send prompt
-  H->>P: Dispatch with current fence
+  H-->>D: Pending: starting, prompting
+  H->>P: First prompt, at fence 1
+  H-->>D: Lane identity and receipt, prompted
+  D->>H: Open stream
   P-->>H: Events and saved session
   H-->>D: Ordered events, summary and attention
 ```
+
+A Host that announces `laneStart` takes the first prompt with the creation, finds
+a free name for a new branch itself, and reports each phase while it works. Its
+lane creations do not wait for one another. With an older Host, Desktop creates the
+lane first, then acquires control and sends the prompt.
+[Starting a lane](remote-protocol.md#starting-a-lane) has the rules.
 
 The Host retains the transcript and stable lane identity. Desktop keeps remote
 projections in memory. Reconnection hydrates from a snapshot and cursor before

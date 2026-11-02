@@ -44,7 +44,7 @@ unowned lane acquires control and raises the fence before pi events. Every
 viewer sees control changes at the same stream position. Disconnecting does
 not release control.
 A request id deduplicates one action. Receipts are pending, done, failed,
-rejected or unknown. Unknown means the outcome is uncertain, not permission to
+rejected or unknown; a `lane.create`'s pending receipts may name its phase. Unknown means the outcome is uncertain, not permission to
 repeat the action with a new id. A pi command unanswered after 30 seconds becomes
 unknown; a later completion cannot replace it or send another terminal receipt.
 
@@ -108,6 +108,32 @@ resumes with one reset snapshot.
 loopback transport, fake Host and reusable conformance suite. Production
 sources cannot import it; a boundary test enforces this rule. Crypto is
 injected into the fake, and the tests verify real Ed25519 proofs.
+
+## Starting a lane
+
+`lane.create` names an active repository, a worktree request or `null`, and
+optionally a name, model, thinking level and the lane's first `prompt`
+(`LaneOp` in `libs/shared/src/host-protocol/operations.ts`). A Host that announces
+`laneStart`:
+
+- Runs creations side by side, and beside other machine operations. Only
+  worktree work in one repository takes turns.
+- Reports progress to the creating socket on unrecorded `pending` receipts whose
+  `phase` is `queued`, `branching`, `starting` or `prompting`
+  (`LANE_CREATE_PHASES`), in that order, each at most once and only when reached.
+  None follow the terminal receipt. A status read or a retry returns the stored
+  `pending` receipt, without a phase.
+- Sends `prompt` to the new lane's pi as soon as it is attached, before any
+  operation queued on the lane, and answers `done` with `data: { prompted }`.
+  `true` means pi accepted the prompt; `false` means it surely never ran and the
+  client may send it as a normal `prompt` op. A `done` receipt without `data`
+  means the outcome is uncertain: the client does not send the prompt again.
+- With `worktree.fresh`, tries `<branch>-2` through `<branch>-5` itself before
+  refusing `branch-exists`; the created lane's summary names the branch it got.
+
+A Host without `laneStart` ignores `prompt` and answers `done` without `data`, so
+the client sends the first prompt itself, and refuses the first taken fresh
+branch name. [Creating lanes](host.md#creating-lanes) owns the Host side.
 
 ## Lane pins and markers
 
@@ -190,6 +216,12 @@ rather than send an op the Host would forbid.
 The additive `laneMarks` boolean in `ready` says the Host keeps lane pins and
 markers ([Lane pins and markers](#lane-pins-and-markers)). Clients project it as
 `HostConnectionView.laneMarks`.
+
+The additive `laneStart` boolean in `ready` says the Host starts a lane in one
+round trip ([Starting a lane](#starting-a-lane)). Clients project it as
+`HostConnectionView.laneStart`, and their unsettled creations as
+`HostConnectionView.laneStarts`: repository, requested branch and last phase,
+never the prompt ([Desktop routing](remote-desktop.md#machine-context-and-lane-creation)).
 
 ### Machine configuration operations
 

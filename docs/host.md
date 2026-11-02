@@ -1343,6 +1343,40 @@ command pipeline. The client's start composer always asks for a fresh worktree,
 branched from the lane's first message; it has no toggle to run in the
 repository's own checkout.
 
+Creations do not wait for each other or for other machine operations. A
+`lane.create` leaves the machine queue as soon as it starts, so repository,
+routine, login and machine-task operations, and other creations, run while pi
+boots. Only worktree work takes turns: preparing a worktree (branch ref, exclude
+file, `git worktree add`) and undoing one hold an in-process lock per repository
+root (`lanes/repository-lock.ts`), so two creations in one repository never race
+git while their pi boots overlap. A lane in place only reads git and never waits.
+Creations in flight still count against the machine queue's 32 slots until their
+work, including any rollback, settles. Capacity is checked before any folder work
+and again when the lane row is stored, so a creation that loses a race to the
+lane cap stops its pi and undoes its folder, then answers `too-many-requests`.
+
+While a creation runs, the creating connection receives unrecorded pending
+receipts naming its phase: `queued` when it waits for its repository's lock,
+`branching` when the worktree work starts, `starting` before pi spawns, and
+`prompting` before the first prompt is sent. They go to that connection only,
+never to the store, and stop at the terminal receipt (including the deadline's
+`unknown`) and at close. A failed delivery never changes the creation.
+
+A `lane.create` may carry the lane's first `prompt`, at most the size of a
+`prompt` op's message. Once pi is attached and control fence 1 and the summary
+are published, the Host sends it as a `prompt` under the creation's request id,
+through the same runtime path as a client's `prompt` op: the context budget sync,
+lane reload, title fallback, first-prompt projection and auto-naming all run as
+for any first prompt. The created lane's queue is still held, so the prompt
+reaches pi before any operation queued on the new lane. The `done` receipt then
+carries `data: { prompted: true }` when pi accepted it, or `{ prompted: false }`
+when it surely never ran: no live session, refused, or pi answered an error.
+When the call itself fails, pi may still have the prompt, so the receipt carries
+no `data`, and a client of a `laneStart` Host must not send it again. The lane is
+created and returned either way. Without a prompt the receipt is unchanged. A
+creation that passed its deadline still sends its prompt when the lane comes up.
+Every `ready` frame carries `laneStart: true`.
+
 A folder in no git repository has no worktrees. When git answers "not a git
 repository" for it, a worktree request runs the lane in the folder itself,
 unbranched, as This Mac does when it hides its "new branch" toggle; the branch
@@ -1371,12 +1405,18 @@ containment check and the spawn; the Host trusts the owner's repository folders.
 
 `lane.create` with `worktree.fresh: true` requests new-only branch creation. The
 Host checks for an existing ref before repository writes, then atomically creates
-the ref with `git update-ref` against an absent value. An existing or racing ref
-returns `branch-exists`; it never reuses that branch. Older Hosts that ignore the
-additive `fresh` field can reuse an existing branch when no lane or checked-out
-worktree excludes it.
-Desktop's bounded name retries are owned by
-[remote creation](remote-desktop.md#machine-context-and-lane-creation).
+the ref with `git update-ref` against an absent value; it never reuses a branch.
+An existing or racing ref, or the default branch's name, makes the Host try
+`<branch>-2` through `<branch>-5` in order, under the same repository lock. Each
+candidate cuts the requested name so its folder name stays within 100 characters
+and drops trailing dashes, dots and slashes before the suffix; a candidate that
+is still not a valid branch is skipped (`lanes/create-folder.ts`). Only when every
+name is taken does it return `branch-exists`. The lane stores the branch it
+actually created. Without `fresh`, the requested branch is used as is. Older Hosts
+that ignore the additive `fresh` field can reuse an existing branch when no lane
+or checked-out worktree excludes it, and older Hosts without `laneStart` return
+`branch-exists` on the first taken name; clients' retries for those Hosts are owned
+by [remote creation](remote-desktop.md#machine-context-and-lane-creation).
 
 A provider id is at most 64 characters; a model id is at most 128. A model alone
 uses pi's provider selection. A provider alone does not change that selection.
