@@ -1,4 +1,8 @@
-import { isLaneBranchName, type LaneCreatePhase } from '@phosphor/shared/host-protocol'
+import {
+  isLaneBranchName,
+  LANE_FOLDER_MAX,
+  type LaneCreatePhase,
+} from '@phosphor/shared/host-protocol'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { RepositoryLocks } from './repository-lock'
 import { LaneFolderError, laneFolderSlug, prepareLaneFolder, type LaneFolder } from './worktree'
@@ -17,7 +21,7 @@ export function freshBranchCandidates(branch: string): string[] {
   const names: string[] = []
   for (const n of FRESH_BRANCH_SUFFIXES) {
     const suffix = `-${n}`
-    const name = `${branch.slice(0, 100 - suffix.length).replace(/[-./]+$/, '')}${suffix}`
+    const name = `${branch.slice(0, LANE_FOLDER_MAX - suffix.length).replace(/[-./]+$/, '')}${suffix}`
     if (isLaneBranchName(name) && laneFolderSlug(name) !== null && !names.includes(name))
       names.push(name)
   }

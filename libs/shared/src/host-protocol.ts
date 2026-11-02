@@ -55,6 +55,6 @@ export {
   type RejectCode,
 } from './host-protocol/operations'
 export type { ClientFrame, ClientFrameParse, FrameSocket, HostFrame } from './host-protocol/frames'
-export { isLaneBranchName, utf8Length } from './host-protocol/primitives'
+export { isLaneBranchName, LANE_FOLDER_MAX, utf8Length } from './host-protocol/primitives'
 export { parseClientFrame } from './host-protocol/client'
 export { parseHostFrame } from './host-protocol/host'
