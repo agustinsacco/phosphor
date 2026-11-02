@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import clsx from 'clsx'
-import { exposureSummary, type McpResolvedServer } from '@shared/mcp'
+import { exposureSummary, mcpUsesOAuth, type McpResolvedServer } from '@shared/mcp'
 import { Button } from '@/components/form'
 import { TooltipButton, TooltipLabel, TooltipSummary } from '@/components/Tooltip'
 import { ChevronIcon } from '@/components/icons'
@@ -14,11 +14,7 @@ import { ExposureEditor, useToolVisibility } from './ExposureEditor'
 import { LaneConnectorStatus } from './LaneConnectorStatus'
 
 export function usesOAuth(server: McpResolvedServer): boolean {
-  return (
-    Boolean(server.config.url) &&
-    !server.config.auth &&
-    !Object.keys(server.config.headers ?? {}).some((name) => name.toLowerCase() === 'authorization')
-  )
+  return mcpUsesOAuth(server.config)
 }
 
 function endpoint(server: McpResolvedServer): string {

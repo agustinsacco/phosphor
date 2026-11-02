@@ -151,6 +151,35 @@ describe('machine settings boundaries', () => {
     expect(JSON.stringify(result)).not.toContain('PRIVATE_TOKEN')
   })
 
+  it('keeps whether a connector signs in with OAuth or is overridden, and leaves both out when an older Host does', () => {
+    const read = (server: Record<string, unknown>) =>
+      parseMachineSettings({
+        section: 'connectors',
+        revision,
+        connectors: {
+          trusted: true,
+          malformed: false,
+          legacy: false,
+          servers: [
+            {
+              name: 'docs',
+              scope: 'global',
+              transport: 'https',
+              enabled: true,
+              exposure: 'codemode',
+              ...server,
+            },
+          ],
+        },
+      })?.connectors?.servers[0]
+    expect(read({ oauth: false, overridden: true })).toMatchObject({
+      oauth: false,
+      overridden: true,
+    })
+    expect(read({ oauth: 'yes', overridden: false })).not.toHaveProperty('oauth')
+    expect(read({ oauth: 'yes', overridden: false })).not.toHaveProperty('overridden')
+    expect(read({})).not.toHaveProperty('oauth')
+  })
   it('projects reviewed response fields, not secrets or raw configuration', () => {
     const result = parseMachineSettings({
       section: 'connectors',

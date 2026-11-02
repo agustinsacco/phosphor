@@ -81,6 +81,18 @@ export function isMcpOverride(config: McpServerConfig): boolean {
   return config.command === undefined && config.url === undefined && config.type === undefined
 }
 
+/**
+ * Whether pi signs in to this server with MCP OAuth: a remote server with no
+ * provider token (`auth`) and no Authorization header of its own.
+ */
+export function mcpUsesOAuth(config: Pick<McpServerConfig, 'url' | 'auth' | 'headers'>): boolean {
+  return (
+    Boolean(config.url) &&
+    !config.auth &&
+    !Object.keys(config.headers ?? {}).some((name) => name.toLowerCase() === 'authorization')
+  )
+}
+
 /** A server after pi's resolution of the two files. */
 export interface McpResolvedServer {
   name: string
