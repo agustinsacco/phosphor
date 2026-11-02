@@ -589,7 +589,9 @@ supervisor question. The extension flattens message whitespace.
 
 **Save snapshot** explicitly retains the displayed inspection window in
 Artifacts. It includes native session/run/child identities, read time, reported
-state and truncation, with all captured text preserved literally. It is not a
+state and truncation, with all captured text preserved literally. A Host lane's
+window knows only its handle, so its save names no session and the Host's pi
+stamps its own. It is not a
 full transcript or live state. The bundled artifact extension owns the save:
 `/phosphor-save-subagent-snapshot` appends a non-context entry through Pi and
 returns a correlated receipt. Existing sessions without the command need a Pi

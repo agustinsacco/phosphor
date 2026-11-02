@@ -385,8 +385,11 @@ branch's versions.
 
 The explicit subagent **Save snapshot** action uses the extension command
 `phosphor-save-subagent-snapshot`, not a model turn. It validates a bounded,
-URI-encoded inspection against the native session ID and uses `pi.appendEntry`
-to save `phosphor-saved-artifact`. These plain custom entries never enter model
+URI-encoded inspection, stamps the ID of the session that runs the command and
+uses `pi.appendEntry` to save `phosphor-saved-artifact`. A caller that names a
+source session (This Mac does) is refused for any other. A Host lane's window
+knows only its handle, so it names none and instead checks the receipt, which
+must rebuild exactly around the session ID it reports. These plain custom entries never enter model
 context on their own. The extension reconstructs them alongside tool results,
 including in the pre-compaction artifact index. Main indexes them in the same
 branch-aware blob/catalogue store; index format 2 rebuilds older indexes when

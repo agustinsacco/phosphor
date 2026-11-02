@@ -6,7 +6,7 @@ import { useArtifactsStore } from '@/stores/artifacts'
 import { SNAPSHOT_COMMAND } from '@phosphor/pi-extensions/subagent-snapshot'
 import type { SubagentInspection } from './subagentInspect'
 import type { SubagentTarget } from './subagentView'
-import { saveSubagentSnapshot } from './subagentSnapshot'
+import { saveFromPane } from './subagentSnapshot'
 import { steerSubagent } from './subagentSteer'
 
 export function SubagentActions({
@@ -44,16 +44,8 @@ export function SubagentActions({
     const signal = controller.current!.signal
     try {
       if (save) {
-        if (!meta?.sessionId) throw new Error('Session identity is not available yet.')
-        const id = await saveSubagentSnapshot(
-          sessionId,
-          { sourceSessionId: meta.sessionId, ...target, readAt, inspection },
-          signal,
-        )
+        const id = await saveFromPane(sessionId, meta, { ...target, readAt, inspection }, signal)
         if (!signal.aborted) setSaved(id)
-        // Make the existing artifact index catch up even though no model turn ended.
-        if (meta.sessionFile)
-          void window.phosphor.invoke('artifacts:forSession', meta.sessionFile).catch(() => {})
       } else {
         await steerSubagent(sessionId, target, message)
         if (!signal.aborted) {

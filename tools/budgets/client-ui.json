@@ -45,7 +45,7 @@
     "src/features/chat/MessageList.tsx::MessageList[1]": 453,
     "src/features/chat/MessageList.tsx::MessageList[1]/attachScroller[1]": 87,
     "src/features/chat/SessionMenu.tsx::SessionMenu[1]": 117,
-    "src/features/chat/SubagentActions.tsx::SubagentActions[1]": 145,
+    "src/features/chat/SubagentActions.tsx::SubagentActions[1]": 137,
     "src/features/chat/SubagentJournal.tsx::SubagentJournal[1]": 133,
     "src/features/chat/SubagentPanel.tsx::file": 503,
     "src/features/chat/SubagentPanel.tsx::SubagentPanel[1]": 435,
