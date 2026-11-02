@@ -196,11 +196,22 @@ package sources are hidden and read-only, not offered as guessed mutations.
 The field at the top of the sidebar takes focus on open; Cmd/Ctrl+F returns to
 it from anywhere in settings.
 
-- **Index.** A hand-written list of every row and heading
-  (`settingsIndex.ts`), with keybindings taken from the Keybindings tab's own
-  tables. Entries carry synonyms ("dark mode" finds Theme). Tabs whose package
-  is not installed are left out. `settingsQuery.test.ts` checks the index
-  against the tab sources in both directions, so renaming a row without
+- **Index.** A hand-written list of every row and heading, kept as data with
+  one module per section (`features/settings/search/rows/`) and assembled in
+  order as `SETTINGS_INDEX` (`settingsIndex.ts`). Keybindings come from the
+  Keybindings tab's own tables. Entries carry synonyms ("dark mode" finds
+  Theme). Tabs whose package is not installed are left out.
+- **Machines.** A machine section's row is indexed on the machines its section
+  has (`local`, `host` in `TABS`), unless the row names its own (`on`). Agent,
+  Accounts, Extensions, MCP Connectors and Advanced still mark their rows
+  This Mac's own (`LOCAL_ONLY`), because a Host renders its own panels for
+  them; a Host finds those sections by their headings only, with synonyms for
+  what each Host panel shows. A row a shared view renders drops the override and
+  is found on every machine.
+- **Checked.** `settingsQuery.test.ts` reads the section views (`tabs/`,
+  `sections/` and `components/`, recursively) and any data module a section
+  declares, such as a field table whose `title:` entries the view renders. It
+  checks the index against them in both directions, so renaming a row without
   updating the index fails CI.
 - **Query.** The model picker's grammar (`parseQuery`): words AND together
   across title, section, tab and synonyms, `"quoted phrases"` stay whole,

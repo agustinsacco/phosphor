@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DESKTOP_PLATFORM } from '@/platform/Platform'
 import {
@@ -8,8 +8,10 @@ import {
   TABS,
   installedExtensionTabs,
   platformIndex,
+  rowOnMachine,
   visibleSections,
 } from './settingsIndex'
+import { LOCAL_ONLY, type SettingEntry } from './search/settingEntry'
 import { highlightPattern, searchSettings } from './settingsQuery'
 import type { SettingsTab } from './settingsUiStore'
 
@@ -99,92 +101,164 @@ describe('highlightPattern', () => {
   })
 })
 
+describe('rowOnMachine', () => {
+  const row = (tab: SettingsTab, on?: SettingEntry['on']): SettingEntry => ({
+    tab,
+    title: 'Row',
+    ...(on ? { on } : {}),
+  })
+
+  it("defaults a machine row to its section's machines", () => {
+    // Agent is on both machines, Workspaces on This Mac only, Folders on Hosts only.
+    expect([rowOnMachine(row('agent'), 'local'), rowOnMachine(row('agent'), 'host')]).toEqual([
+      true,
+      true,
+    ])
+    expect(rowOnMachine(row('workspaces'), 'host')).toBe(false)
+    expect(rowOnMachine(row('folders'), 'local')).toBe(false)
+    expect(rowOnMachine(row('subagents'), 'local')).toBe(true)
+  })
+
+  it('narrows a row to the machines it names', () => {
+    expect(rowOnMachine(row('agent', LOCAL_ONLY), 'local')).toBe(true)
+    expect(rowOnMachine(row('agent', LOCAL_ONLY), 'host')).toBe(false)
+    expect(rowOnMachine(row('agent', { host: true }), 'local')).toBe(false)
+  })
+
+  it('keeps device rows everywhere and machine rows off when no machine is chosen', () => {
+    expect(rowOnMachine(row('appearance', { host: true }), 'local')).toBe(true)
+    expect(rowOnMachine(row('appearance'), null)).toBe(true)
+    expect(rowOnMachine(row('agent'), null)).toBe(false)
+  })
+
+  it("indexes only This Mac's own Agent rows on This Mac, and only the heading on a Host", () => {
+    const agent = (machine: 'local' | 'host'): string[] =>
+      platformIndex(DESKTOP_PLATFORM, machine)
+        .filter((entry) => entry.tab === 'agent' && !entry.section)
+        .map((entry) => entry.title)
+    expect(agent('local')).toContain('Context budget')
+    expect(agent('host')).toEqual(['Agent defaults'])
+  })
+})
+
 /**
- * The index is hand-written, so this keeps it honest against the tab sources
- * in both directions: every literal row title and heading a tab renders is
- * findable, and every indexed title is still rendered.
+ * The index is hand-written, so this keeps it honest against the section
+ * sources in both directions: every literal row title and heading a section
+ * renders is findable, and every indexed title is still rendered.
  */
-describe('SETTINGS_INDEX against the tab sources', () => {
+describe('SETTINGS_INDEX against the section sources', () => {
+  /** Scanned recursively for `.tsx` views, by path under features/settings. */
+  const SCANNED = ['tabs', 'sections', 'components']
+  /**
+   * The section each scanned view renders. A file under `sections/<tab>/`
+   * belongs to that tab unless it is listed here.
+   */
   const FILE_TABS: Record<string, SettingsTab> = {
-    AboutTab: 'about',
-    AccountTab: 'account',
-    AccountsTab: 'accounts',
-    AdvancedTab: 'advanced',
-    AgentTab: 'agent',
-    AppearanceTab: 'appearance',
-    ClaudeAccountPanel: 'claude-provider',
-    ClaudeProviderTab: 'claude-provider',
-    ComputerUseTab: 'computer-use',
-    ConnectorsTab: 'connectors',
-    ContextBudgetSection: 'agent',
-    DirectivesSection: 'agent',
-    DirectiveToggles: 'agent',
-    ExtensionsTab: 'extensions',
-    InstallAppTab: 'install',
-    KeybindingsTab: 'keybindings',
-    MaintenanceSection: 'advanced',
-    OptimizationTab: 'optimization',
-    SubagentsTab: 'subagents',
-    VoiceTab: 'voice',
-    WebAccessTab: 'web-access',
-    WorkspacesTab: 'workspaces',
-    WritingTab: 'writing',
+    'tabs/AboutTab.tsx': 'about',
+    'tabs/AccountTab.tsx': 'account',
+    'tabs/AccountsTab.tsx': 'accounts',
+    'tabs/AdvancedTab.tsx': 'advanced',
+    'tabs/AgentTab.tsx': 'agent',
+    'tabs/AppearanceTab.tsx': 'appearance',
+    'tabs/ClaudeAccountPanel.tsx': 'claude-provider',
+    'tabs/ClaudeProviderTab.tsx': 'claude-provider',
+    'tabs/ComputerUseTab.tsx': 'computer-use',
+    'tabs/ConnectorsTab.tsx': 'connectors',
+    'tabs/ContextBudgetSection.tsx': 'agent',
+    'tabs/DirectivesSection.tsx': 'agent',
+    'tabs/DirectiveToggles.tsx': 'agent',
+    'tabs/ExtensionsTab.tsx': 'extensions',
+    'tabs/InstallAppTab.tsx': 'install',
+    'tabs/KeybindingsTab.tsx': 'keybindings',
+    'tabs/MaintenanceSection.tsx': 'advanced',
+    'tabs/OptimizationTab.tsx': 'optimization',
+    'tabs/SubagentsTab.tsx': 'subagents',
+    'tabs/VoiceTab.tsx': 'voice',
+    'tabs/WebAccessTab.tsx': 'web-access',
+    'tabs/WorkspacesTab.tsx': 'workspaces',
+    'tabs/WritingTab.tsx': 'writing',
   }
-  const dir = resolve(import.meta.dirname, 'tabs')
-  const files = readdirSync(dir).filter((f) => f.endsWith('.tsx') && !f.includes('.test.'))
-  const sources = new Map(
-    files.map((f) => {
-      const source = readFileSync(resolve(dir, f), 'utf8').replaceAll('&apos;', "'")
-      // Appearance renders these exact shared rows in Desktop and the browser.
-      const shared =
-        f === 'AppearanceTab.tsx' && source.includes('<AppearancePreferences />')
-          ? readFileSync(resolve(dir, '../AppearancePreferences.tsx'), 'utf8')
-          : ''
-      return [f.replace('.tsx', ''), source + shared]
-    }),
+  /**
+   * Files outside the scan whose titles a section renders: a shared row
+   * component, or a data module (a field table) whose `title: '…'` entries the
+   * section's view renders.
+   */
+  const SECTION_DATA: Partial<Record<SettingsTab, readonly string[]>> = {
+    // Appearance renders these exact shared rows in Desktop and the browser.
+    appearance: ['AppearancePreferences.tsx'],
+  }
+
+  const root = import.meta.dirname
+  const tabIds = new Set<string>([...TABS, ...EXTENSION_TABS].map((t) => t.id))
+  const read = (path: string): string =>
+    readFileSync(resolve(root, path), 'utf8').replaceAll('&apos;', "'")
+  const scanned = SCANNED.filter((dir) => existsSync(resolve(root, dir))).flatMap((dir) =>
+    readdirSync(resolve(root, dir), { recursive: true, encoding: 'utf8' })
+      .filter((file) => file.endsWith('.tsx') && !file.includes('.test.'))
+      .map((file) => `${dir}/${file.split(sep).join('/')}`),
   )
+  const tabOf = (path: string): SettingsTab | undefined => {
+    const folder = /^sections\/([^/]+)\//.exec(path)?.[1]
+    return FILE_TABS[path] ?? (folder && tabIds.has(folder) ? (folder as SettingsTab) : undefined)
+  }
   const tabLabels = new Set([...TABS, ...EXTENSION_TABS].map((t) => t.label))
-  const literals = (source: string): string[] =>
+  const literals = (source: string, data: boolean): string[] =>
     [
       ...source.matchAll(/<Row\s+title="([^"]+)"/g),
       ...source.matchAll(/<SectionTitle(?:\s+small)?>\s*([^<{]+?)\s*<\/SectionTitle>/g),
       ...source.matchAll(/<h[34][^>]*>\s*([^<{]+?)\s*<\/h[34]>/g),
+      ...(data ? source.matchAll(/\btitle:\s*(?:'([^']+)'|"([^"]+)")/g) : []),
     ]
-      .map((match) => match[1]!.replace(/\s+/g, ' '))
+      .map((match) => (match[1] ?? match[2]!).replace(/\s+/g, ' '))
       .filter((text) => !tabLabels.has(text))
+  /** Every file a section renders from, with the titles it renders literally. */
+  const sources = [
+    ...scanned.map((path) => {
+      const text = read(path)
+      return { path, tab: tabOf(path), text, titles: literals(text, false) }
+    }),
+    ...Object.entries(SECTION_DATA).flatMap(([tab, paths]) =>
+      paths.map((path) => {
+        const text = read(path)
+        return { path, tab: tab as SettingsTab, text, titles: literals(text, true) }
+      }),
+    ),
+  ]
+  /** The Host section headings, which the Host's own panels render. */
+  const hostHeading = (entry: SettingEntry): boolean =>
+    !!entry.on?.host && !entry.on.local && entry.section === undefined
 
-  it('maps every tab source file to its tab', () => {
-    expect(Object.keys(FILE_TABS).sort()).toEqual([...sources.keys()].sort())
+  it('maps every source that renders a title to its section', () => {
+    const unmapped = sources.filter((s) => s.titles.length > 0 && !s.tab).map((s) => s.path)
+    expect(unmapped).toEqual([])
+    const listed = [...Object.keys(FILE_TABS), ...Object.values(SECTION_DATA).flat()]
+    expect(listed.filter((path) => !existsSync(resolve(root, path)))).toEqual([])
   })
 
   it('indexes every literal row title and heading', () => {
-    const missing = [...sources].flatMap(([file, source]) =>
-      literals(source)
-        .filter(
-          (text) =>
-            !SETTINGS_INDEX.some((e) => e.tab === FILE_TABS[file] && text.startsWith(e.title)),
-        )
-        .map((text) => `${file}: ${text}`),
+    const missing = sources.flatMap(({ path, tab, titles }) =>
+      titles
+        .filter((text) => !SETTINGS_INDEX.some((e) => e.tab === tab && text.startsWith(e.title)))
+        .map((text) => `${path}: ${text}`),
     )
     expect(missing).toEqual([])
   })
 
-  it('indexes only titles the tabs still render', () => {
+  it('indexes only titles the sections still render', () => {
     const stale = SETTINGS_INDEX.filter((entry) => {
-      if (entry.tab === 'keybindings' || entry.machine === 'host') return false
-      const files = Object.keys(FILE_TABS).filter((file) => FILE_TABS[file] === entry.tab)
-      return !files.some((file) => sources.get(file)?.includes(entry.title))
+      if (entry.tab === 'keybindings' || hostHeading(entry)) return false
+      return !sources.some((s) => s.tab === entry.tab && s.text.includes(entry.title))
     }).map((entry) => `${entry.tab}: ${entry.title}`)
     expect(stale).toEqual([])
   })
 
   it('indexes each Host section by the heading its panel renders', () => {
-    const machines = resolve(import.meta.dirname, '../machines')
+    const machines = resolve(root, '../machines')
     const panels = readdirSync(machines)
       .filter((f) => /^(Machine\w+Settings|HostConnectorSections)\.tsx$/.test(f))
       .map((f) => readFileSync(resolve(machines, f), 'utf8'))
       .join('\n')
-    const hostEntries = SETTINGS_INDEX.filter((entry) => entry.machine === 'host')
+    const hostEntries = SETTINGS_INDEX.filter(hostHeading)
     expect(hostEntries.map((entry) => entry.tab)).toEqual(
       TABS.filter((tab) => tab.host).map((tab) => tab.id),
     )
@@ -192,8 +266,11 @@ describe('SETTINGS_INDEX against the tab sources', () => {
       expect(panels, entry.title).toContain(`font-semibold">${entry.title}</h2>`)
   })
 
-  it('has unique titles within each section', () => {
-    const keys = SETTINGS_INDEX.map((e) => `${e.machine}/${e.tab}/${e.section}/${e.title}`)
+  it('has unique titles within each section on each machine', () => {
+    const keys = SETTINGS_INDEX.map(
+      (e) =>
+        `${rowOnMachine(e, 'local')}/${rowOnMachine(e, 'host')}/${e.tab}/${e.section}/${e.title}`,
+    )
     expect(new Set(keys).size).toBe(keys.length)
   })
 })
