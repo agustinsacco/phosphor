@@ -1,7 +1,12 @@
 import { catalogueModels } from './catalogue'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
-import { pickTitleModel, titleAttempts, type TitleAttempt, type TitleModel } from './session-naming'
+import {
+  pickTitleModel,
+  titleAttempts,
+  type TitleAttempt,
+  type TitleModel,
+} from '@phosphor/session-runtime/pi/title-policy'
 
 /** Learned only from successful title runs; owned for one app launch. */
 export interface TitleMemory {

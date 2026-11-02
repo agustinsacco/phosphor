@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { planTitleRun, rememberTitleFailures, type TitleMemory } from './title-plan'
-import { CLAUDE_TITLE_FALLBACK, type TitleAttempt } from './session-naming'
+import { CLAUDE_TITLE_FALLBACK, type TitleAttempt } from '@phosphor/session-runtime/pi/title-policy'
 
 const state = vi.hoisted(() => ({ catalogue: vi.fn(), packages: vi.fn(), paths: vi.fn() }))
 vi.mock('./catalogue', () => ({ catalogueModels: state.catalogue }))

@@ -8,7 +8,7 @@ import {
   titleAttempts,
   titlePrompt,
   type TitleAttempt,
-} from './session-naming'
+} from '@phosphor/session-runtime/pi/title-policy'
 import { modelKey, planTitleRun, rememberTitleFailures, type TitleMemory } from './title-plan'
 import { claudeAccountEnv, primaryAccount } from '../claude/accounts'
 import { claudeOneShotEnv, claudeProviderSpawnEnv, usesClaudeCliProvider } from './provider-detect'

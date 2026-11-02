@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import * as desktop from '../../../../apps/desktop/electron/pi/session-naming'
-import * as host from '../../../../apps/host/src/lanes/title-policy'
+import * as policy from './title-policy'
 
-// This cross-app freeze deliberately exercises the original public entries.
-const entries = [
-  ['Desktop session-naming', desktop],
-  ['Host title-policy', host],
-] as const
 const model = { provider: 'pi-claude-cli', id: 'claude-haiku-5-5' }
 const fallback = { provider: 'pi-claude-cli', id: 'claude-haiku-4-5' }
 const baseArgs = [
@@ -75,7 +69,7 @@ const attemptCases = [
   },
 ]
 
-describe.each(entries)('%s characterization', (_name, policy) => {
+describe('title policy characterization', () => {
   it('pins fallback identity and exact argv, including empty versus null extensions', () => {
     expect(policy.CLAUDE_TITLE_FALLBACK).toEqual(fallback)
     expect(policy.titleArgs()).toEqual(baseArgs)

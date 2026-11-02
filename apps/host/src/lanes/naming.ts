@@ -10,7 +10,7 @@ import {
   titlePrompt,
   type TitleModel,
   type TitleCandidate,
-} from './title-policy'
+} from '@phosphor/session-runtime/pi/title-policy'
 
 export type NamingOutcome =
   | 'applied'

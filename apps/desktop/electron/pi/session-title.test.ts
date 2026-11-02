@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { generateSessionTitle } from './session-title'
 import { PiUnavailableError } from './invoker'
-import type { TitleAttempt } from './session-naming'
+import type { TitleAttempt } from '@phosphor/session-runtime/pi/title-policy'
 
 const state = vi.hoisted(() => ({
   invoker: vi.fn(),
