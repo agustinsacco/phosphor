@@ -24,7 +24,7 @@ export function freshBranchCandidates(branch: string): string[] {
   return names
 }
 
-/** A fresh branch whose name exists retries under the next free candidate. */
+/** A fresh branch whose name or worktree folder exists retries under the next candidate. */
 async function prepareWorktree(
   root: string,
   worktree: WorktreeRequest,
@@ -36,7 +36,7 @@ async function prepareWorktree(
     try {
       return await prepareLaneFolder({ root, worktree: { branch, fresh: true }, log })
     } catch (error) {
-      if (!(error instanceof LaneFolderError && error.code === 'branch-exists')) throw error
+      if (!(error instanceof LaneFolderError && error.code !== undefined)) throw error
       refusal = error
     }
   }

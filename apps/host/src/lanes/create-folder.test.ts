@@ -38,7 +38,7 @@ it('cuts a long base so every candidate still has a worktree folder', () => {
     expect(isLaneBranchName(name)).toBe(true)
     expect(laneFolderSlug(name)).not.toBeNull()
   }
-  // The cut lands after the dot, which is stripped rather than kept before the suffix.
+  // The cut lands before the dot, so the dot and the 'b' after it are both dropped.
   expect(names[0]).toBe(`team/${'a'.repeat(93)}-2`)
 })
 
