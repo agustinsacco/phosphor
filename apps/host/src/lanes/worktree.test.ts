@@ -563,7 +563,7 @@ it('fresh refuses an unregistered leaf before reserving any ref and leaves it un
   const spy = vi.spyOn(exec, 'git')
   await expect(
     prepareLaneFolder({ root, worktree: { branch: 'occupied-leaf', fresh: true } }),
-  ).rejects.toEqual(new LaneFolderError('A worktree folder for that branch already exists.'))
+  ).rejects.toMatchObject({ code: 'folder-exists', message: /worktree folder .* exists/ })
   expect(spy.mock.calls.some(([, args]) => args[0] === 'update-ref')).toBe(false)
   expect(await run(['for-each-ref', 'refs/heads/occupied-leaf'])).toBe('')
   expect(readFileSync(join(path, 'kept'), 'utf8')).toBe('keep this folder')

@@ -1351,9 +1351,11 @@ file, `git worktree add`) and undoing one hold an in-process lock per repository
 root (`lanes/repository-lock.ts`), so two creations in one repository never race
 git while their pi boots overlap. A lane in place only reads git and never waits.
 Creations in flight still count against the machine queue's 32 slots until their
-work, including any rollback, settles. Capacity is checked before any folder work
-and again when the lane row is stored, so a creation that loses a race to the
-lane cap stops its pi and undoes its folder, then answers `too-many-requests`.
+work, including any rollback, settles. Capacity is checked before any folder work,
+counting creations whose lane row is not stored yet, and again when the row is
+stored, so a creation that loses a race to the lane cap stops its pi and undoes
+its folder, then answers `too-many-requests`. A repository with a creation in
+flight counts as live, so removing it answers `busy` until the creation settles.
 
 While a creation runs, the creating connection receives unrecorded pending
 receipts naming its phase: `queued` when it waits for its repository's lock,
@@ -1373,8 +1375,12 @@ carries `data: { prompted: true }` when pi accepted it, or `{ prompted: false }`
 when it surely never ran: no live session, refused, or pi answered an error.
 When the call itself fails, pi may still have the prompt, so the receipt carries
 no `data`, and a client of a `laneStart` Host must not send it again. The lane is
-created and returned either way. Without a prompt the receipt is unchanged. A
-creation that passed its deadline still sends its prompt when the lane comes up.
+created and returned either way. Without a prompt the receipt is unchanged. The
+prompt is sent only while the creation is unanswered, the service is not closing,
+and the client's current grant still holds `sessions.control`; otherwise it is not
+sent and the receipt says `prompted: false`. A creation that passed its deadline
+therefore never starts a turn: its lane comes up idle, as before the prompt rode
+with the creation.
 Every `ready` frame carries `laneStart: true`.
 
 A folder in no git repository has no worktrees. When git answers "not a git
@@ -1406,12 +1412,14 @@ containment check and the spawn; the Host trusts the owner's repository folders.
 `lane.create` with `worktree.fresh: true` requests new-only branch creation. The
 Host checks for an existing ref before repository writes, then atomically creates
 the ref with `git update-ref` against an absent value; it never reuses a branch.
-An existing or racing ref, or the default branch's name, makes the Host try
-`<branch>-2` through `<branch>-5` in order, under the same repository lock. Each
+An existing or racing ref, the default branch's name, or a worktree folder already
+at that branch's path makes the Host try `<branch>-2` through `<branch>-5` in
+order, under the same repository lock. Each
 candidate cuts the requested name so its folder name stays within 100 characters
 and drops trailing dashes, dots and slashes before the suffix; a candidate that
 is still not a valid branch is skipped (`lanes/create-folder.ts`). Only when every
-name is taken does it return `branch-exists`. The lane stores the branch it
+name is taken does it refuse: `branch-exists` when the last one's ref exists, or a
+failure naming the occupied folder when only its folder does. The lane stores the branch it
 actually created. Without `fresh`, the requested branch is used as is. Older Hosts
 that ignore the additive `fresh` field can reuse an existing branch when no lane
 or checked-out worktree excludes it, and older Hosts without `laneStart` return

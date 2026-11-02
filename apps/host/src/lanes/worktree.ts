@@ -18,7 +18,8 @@ import { defaultBranchRefs, resolveDefaultBranch } from './default-branch'
 export class LaneFolderError extends Error {
   constructor(
     message: string,
-    readonly code?: 'branch-exists',
+    /** A fresh branch may try its next name after either refusal. */
+    readonly code?: 'branch-exists' | 'folder-exists',
   ) {
     super(message)
   }
@@ -58,8 +59,8 @@ export async function prepareLaneFolder(input: {
     return { cwd: root, branch: isLaneBranchName(branch) ? branch : null, undo: async () => {} }
   }
   const { branch } = worktree
-  const refuse = (message: string): never => {
-    throw new LaneFolderError(message)
+  const refuse = (message: string, code?: LaneFolderError['code']): never => {
+    throw new LaneFolderError(message, code)
   }
   if (
     !isLaneBranchName(branch) ||
@@ -154,7 +155,7 @@ export async function prepareLaneFolder(input: {
     const checkLeafAbsent = () => {
       try {
         lstatSync(path)
-        refuse('A worktree folder for that branch already exists.')
+        refuse('A worktree folder for that branch already exists.', 'folder-exists')
       } catch (error) {
         if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
       }
