@@ -62,7 +62,7 @@ itself. If a local package is ever needed, point the output outside the repo.
 
 App-relative `build/` supplies platform icons, entitlements and the development
 tray. Builder copies the tray to `resources/routine-tray.png`, and the eight
-production TypeScript extension files to `resources/pi-ext` with six entrypoints.
+production TypeScript extension files to `resources/pi-ext` with seven entrypoints.
 Tests are excluded; extensions remain readable outside the asar by pi.
 Development sessions resolve extensions from `../../libs/pi-extensions` relative
 to the app. Packaged sessions still use `process.resourcesPath`.

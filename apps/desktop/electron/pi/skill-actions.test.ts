@@ -35,7 +35,7 @@ vi.mock('./invoker', async (importOriginal) => ({
   resolvePiInvoker: h.invoker,
 }))
 vi.mock('./catalogue', () => ({ invalidatePiCommands: h.invalidate }))
-vi.mock('./session-launch', () => ({ ensureDesktopArtifactSkill: h.restore }))
+vi.mock('./session-launch', () => ({ ensureDesktopBundledSkills: h.restore }))
 vi.mock('./skills', () => h.skills)
 vi.mock('node:fs/promises', () => ({ writeFile: h.write }))
 

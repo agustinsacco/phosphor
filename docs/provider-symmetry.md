@@ -13,7 +13,7 @@ The provider's half of the contract is pi-claude-cli's
 Phosphor's is [cli-providers.md](cli-providers.md). This file does not repeat
 them. It says how they add up.
 
-**Why it matters.** Everything Phosphor adds to a session (directives, the six
+**Why it matters.** Everything Phosphor adds to a session (directives, the seven
 bundled extensions, the context budget, thought rows) reaches Claude only
 because Claude goes through the same path as every other provider. When a piece
 leaves that path, nothing errors: the Claude session quietly runs without an
@@ -36,7 +36,7 @@ changes.
 | Context budget                                                                                                      | `libs/shared/src/context-budget.ts`, which never reads the provider                                        | `libs/shared/src/context-budget.test.ts`, `libs/pi-extensions/pi-ext/context-budget.test.ts`                          |
 | Thinking level, and which levels a model offers                                                                     | pi. The provider sends the request pi's own Anthropic provider would (provider 0.10.0+)                    | `libs/shared/src/thinking.test.ts`; `tests/thinking-config.test.ts`, `tests/live-thinking.test.ts`                    |
 | Model catalogue and context windows                                                                                 | pi's catalogue, not Claude Code's picker                                                                   | [extensions.md](extensions.md#updating-the-cli-does-not-add-new-models)                                               |
-| Bundled extensions                                                                                                  | Phosphor loads the same six into every session                                                             | `bundledExtensions()` in `libs/session-runtime/src/bundled-extensions.ts`                                             |
+| Bundled extensions                                                                                                  | Phosphor loads the same seven into every session                                                           | `bundledExtensions()` in `libs/session-runtime/src/bundled-extensions.ts`                                             |
 | Transcript rendering: tool rows, thought rows, find                                                                 | One Phosphor code path for every provider                                                                  | `libs/client-ui/src/features/chat/items/activityGroupRows.test.tsx`                                                   |
 | Sub-agents: the `subagent` tool, its streamed progress, the `subagent-async` widget, the completion message         | `pi-subagents`, inside pi. Claude Code's own `Agent`/`Task` tools are off with the rest of its tools       | `libs/client-ui/src/features/chat/subagentRuns.test.ts`; the e2e `delegate` scenario ([chat.md](chat.md#sub-agents))  |
 

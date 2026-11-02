@@ -49,24 +49,25 @@ The [Web client](web-client.md) contract covers the compact PWA, shared renderer
 
 ## The surfaces
 
-| File                         | Covers                                                                |
-| ---------------------------- | --------------------------------------------------------------------- |
-| [ui-shell.md](ui-shell.md)   | Window chrome, top bar, sidebar, the pane system, theming             |
-| [chat.md](chat.md)           | Transcript rendering, composer, tool cards, find, context meter       |
-| [files.md](files.md)         | File management, transfers, clipboard, search in files, the editor    |
-| [terminal.md](terminal.md)   | PTY panes, clipboard, scrollback, per-session ownership               |
-| [routines.md](routines.md)   | Local and Host schedules, run history, catch-up and unattended access |
-| [lanes.md](lanes.md)         | The lane row, PR status, naming, search, delete, reclaim              |
-| [worktrees.md](worktrees.md) | Git worktree lifecycle and the branch control                         |
-| [settings.md](settings.md)   | The shared Settings surface, its sections and what each one writes    |
-| [feedback.md](feedback.md)   | In-app rating and feedback, filed as a labelled GitHub issue          |
-| [voice.md](voice.md)         | Dictation with a local speech model: download, processes, privacy     |
+| File                                     | Covers                                                                |
+| ---------------------------------------- | --------------------------------------------------------------------- |
+| [ui-shell.md](ui-shell.md)               | Window chrome, top bar, sidebar, the pane system, theming             |
+| [chat.md](chat.md)                       | Transcript rendering, composer, tool cards, find, context meter       |
+| [files.md](files.md)                     | File management, transfers, clipboard, search in files, the editor    |
+| [terminal.md](terminal.md)               | PTY panes, clipboard, scrollback, per-session ownership               |
+| [routines.md](routines.md)               | Local and Host schedules, run history, catch-up and unattended access |
+| [lanes.md](lanes.md)                     | The lane row, PR status, naming, search, delete, reclaim              |
+| [release-manager.md](release-manager.md) | The release lane: setup, lease, passes, tools, alerts, keep-alive     |
+| [worktrees.md](worktrees.md)             | Git worktree lifecycle and the branch control                         |
+| [settings.md](settings.md)               | The shared Settings surface, its sections and what each one writes    |
+| [feedback.md](feedback.md)               | In-app rating and feedback, filed as a labelled GitHub issue          |
+| [voice.md](voice.md)                     | Dictation with a local speech model: download, processes, privacy     |
 
 ## What Phosphor talks to
 
 | File                                         | Covers                                                               |
 | -------------------------------------------- | -------------------------------------------------------------------- |
-| [extensions.md](extensions.md)               | pi packages, the six bundled extensions, the status channel          |
+| [extensions.md](extensions.md)               | pi packages, the seven bundled extensions, the status channel        |
 | [mcp.md](mcp.md)                             | MCP servers and connectors through pi's built-in MCP                 |
 | [cli-providers.md](cli-providers.md)         | Running sessions on the Claude Code CLI                              |
 | [provider-symmetry.md](provider-symmetry.md) | What native and Claude sessions share, how they differ, how to check |

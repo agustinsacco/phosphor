@@ -6,7 +6,7 @@
 // DIR defaults to apps/host/dist. SHA, the source commit stamped into the
 // version, defaults to git's HEAD. The build fails, leaving DIR as it was,
 // when the bundle reaches Electron, a native Desktop module or another app,
-// imports anything but a Node builtin, or lacks one of the six extensions.
+// imports anything but a Node builtin, or lacks one of the seven extensions.
 // It replaces DIR only when DIR is empty or an earlier build (output.mjs).
 // The stages: build-bundle.mjs, build-resources.mjs, then build-info.mjs.
 import { dirname, join, relative, resolve } from 'node:path'

@@ -273,7 +273,7 @@ patchWebSearchConfig` (`pi-config-handlers.ts`).
 
 ## Bundled extensions (Phosphor's own)
 
-Separate from packages the user installs, Phosphor ships **six** TypeScript
+Separate from packages the user installs, Phosphor ships **seven** TypeScript
 extensions in `libs/pi-extensions/pi-ext/`, loaded into **every** session via
 `pi --mode rpc -e <path>` (`bundledExtensions()` in
 `libs/session-runtime/src/bundled-extensions.ts`, called by `apps/desktop/electron/pi/session-runtime.ts`). They are the only Phosphor code with a
@@ -284,17 +284,19 @@ files and adjacent tests together. Development resolves the resource root at
 `libs/pi-extensions`; packaged apps still read `resources/pi-ext`, outside the
 asar. The builder copies the same non-test TypeScript inventory, including
 `context-budget.ts`, `context-files.ts`, `global-context.ts`, `message-ledger.ts` and `swarm.ts` imported by `context-breakdown.ts`,
-`artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, and the optional gate.
+`artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, the `release-*.ts`
+helpers imported by `release-manager.ts`, and the optional gate.
 Optional Python helpers remain in the source tree, not the shipped resource filter.
 
-| File                   | Why it must run inside pi                                                                    |
-| ---------------------- | -------------------------------------------------------------------------------------------- |
-| `artifacts.ts`         | registers the artifact tools (see below)                                                     |
-| `context-breakdown.ts` | measures context composition — the parts are only visible in-process                         |
-| `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout                       |
-| `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread                   |
-| `headroom.ts`          | compresses large tool results through a local Headroom proxy at the moment they are produced |
-| `lane-reload.ts`       | reloads the lane between turns so MCP config changes apply ([mcp.md](mcp.md))                |
+| File                   | Why it must run inside pi                                                                                       |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `artifacts.ts`         | registers the artifact tools (see below)                                                                        |
+| `context-breakdown.ts` | measures context composition — the parts are only visible in-process                                            |
+| `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout                                          |
+| `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread                                      |
+| `headroom.ts`          | compresses large tool results through a local Headroom proxy at the moment they are produced                    |
+| `lane-reload.ts`       | reloads the lane between turns so MCP config changes apply ([mcp.md](mcp.md))                                   |
+| `release-manager.ts`   | release mode: the lease, the GitHub poll, passes and the merge tools ([release-manager.md](release-manager.md)) |
 
 ### The artifact tools, and what each one costs
 
@@ -604,18 +606,19 @@ See [remote artifacts](remote-desktop.md#remote-artifacts) for the wire limits.
 
 Bundled extensions and provider packages talk to Phosphor's UI the same way:
 `ctx.ui.setStatus(key, text)` → pi's extension-UI request → the per-session map
-in `stores/extensionUi.ts`. Seven keys are load-bearing, and the key strings are
+in `stores/extensionUi.ts`. Eight keys are load-bearing, and the key strings are
 **case-sensitive literals on both sides**; nothing fails to compile when they
 disagree.
 
-| Key                          | Emitter                                          | Consumer                                                                                                                   |
-| ---------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `phosphor-swarm`             | `libs/pi-extensions/pi-ext/swarm.ts`             | Composer pill (four looks), outline and lane-title badge; versioned native authorization state, never activity             |
-| `phosphor-context-breakdown` | `libs/pi-extensions/pi-ext/context-breakdown.ts` | `chat/composer/contextBreakdown.ts` → ContextMeter, context-file checkboxes, the composer's per-lane MCP tool counts       |
-| `phosphor-reload`            | `libs/pi-extensions/pi-ext/lane-reload.ts`       | `libs/session-runtime/src/pi/lane-reload.ts` (main), JSON `{ token, outcome }`; hidden from the status strip               |
-| `phosphor-headroom`          | `libs/pi-extensions/pi-ext/headroom.ts`          | `chat/composer/headroomStatus.ts` → ContextMeter (Optimization section)                                                    |
-| `claude-rate-limit`          | `@saccolabs/pi-claude-cli` ≥ 0.4.5               | `chat/composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `libs/shared/src/claude-limits.ts` → account routing in main |
-| `claude-subagents`           | `@saccolabs/pi-claude-cli` ≥ 0.4.13              | `chat/subagentStatus.ts` → the status strip's agent chip, for sessions recorded before 0.9.0 (see below)                   |
+| Key                          | Emitter                                          | Consumer                                                                                                                                                        |
+| ---------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `phosphor-swarm`             | `libs/pi-extensions/pi-ext/swarm.ts`             | Composer pill (four looks), outline and lane-title badge; versioned native authorization state, never activity                                                  |
+| `phosphor-context-breakdown` | `libs/pi-extensions/pi-ext/context-breakdown.ts` | `chat/composer/contextBreakdown.ts` → ContextMeter, context-file checkboxes, the composer's per-lane MCP tool counts                                            |
+| `phosphor-reload`            | `libs/pi-extensions/pi-ext/lane-reload.ts`       | `libs/session-runtime/src/pi/lane-reload.ts` (main), JSON `{ token, outcome }`; hidden from the status strip                                                    |
+| `phosphor-headroom`          | `libs/pi-extensions/pi-ext/headroom.ts`          | `chat/composer/headroomStatus.ts` → ContextMeter (Optimization section)                                                                                         |
+| `phosphor-release`           | `libs/pi-extensions/pi-ext/release-manager.ts`   | `ReleaseSwitch.tsx`, the Host's quiet _finished_ and keep-alive, This Mac's settled notice; versioned JSON in `release-status.ts`, hidden from the status strip |
+| `claude-rate-limit`          | `@saccolabs/pi-claude-cli` ≥ 0.4.5               | `chat/composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `libs/shared/src/claude-limits.ts` → account routing in main                                      |
+| `claude-subagents`           | `@saccolabs/pi-claude-cli` ≥ 0.4.13              | `chat/subagentStatus.ts` → the status strip's agent chip, for sessions recorded before 0.9.0 (see below)                                                        |
 
 | `mcp-inspection` | Native pi MCP `[inspection-v1]` | `libs/session-runtime/src/pi/mcp-lane.ts`: versioned `{requestId, operation, server}` replies; hidden from the status strip |
 

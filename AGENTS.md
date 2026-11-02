@@ -60,7 +60,10 @@ appear on your screen.
 5. **Every session is independent.** No cross-session manager, no fleet hub, no
    orchestrator, no reclamation of idle subprocesses. That layer was removed on
    2026-09-03 for maintenance cost; do not grow it back (cost:
-   [known-issues.md](docs/known-issues.md) S11). Routines run their own sessions
+   [known-issues.md](docs/known-issues.md) S11). The release manager is one lane
+   that talks to others only through GitHub; the Host keeps it running, the one
+   exception to resuming on the next message ([release-manager.md](docs/release-manager.md)).
+   Routines run their own sessions
    through main's runtime ([routines.md](docs/routines.md)). The session service in
    `libs/session-runtime/src/pi/` owns startup, admission, per-owner path locks
    and deletion; Desktop (`apps/desktop/electron/pi/session-runtime.ts`) and the
@@ -144,7 +147,7 @@ Read the linked doc before touching any of these.
 - Every interactive session shares one provider-blind context budget
   (`sessionContextBudget`, default 200k); in-run cap changes wait for `turn_end`
   ([cli-providers.md](docs/cli-providers.md#one-context-budget)).
-- Six bundled extensions run inside pi. `worktree-paths.ts` refuses tool calls that
+- Seven bundled extensions run inside pi. `worktree-paths.ts` refuses tool calls that
   escape a worktree; its four conditions are narrow on purpose. `tool-name-guard.ts`
   rewrites malformed tool names before pi persists them
   ([extensions.md](docs/extensions.md)).

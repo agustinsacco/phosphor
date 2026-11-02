@@ -46,7 +46,7 @@ function write(path: string, text: string) {
 /** Every entry under `at`, folders included, sorted. */
 const tree = (at: string) => readdirSync(at, { recursive: true, encoding: 'utf8' }).sort()
 
-/** A root whose pi-ext holds the six extensions and `extra`, and whose skills hold one skill. */
+/** A root whose pi-ext holds the seven extensions and `extra`, and whose skills hold one skill. */
 function root(extra: Record<string, string> = {}): string {
   const at = join(dir, 'root')
   const ext = 'root/libs/pi-extensions/pi-ext'
@@ -179,7 +179,7 @@ describe('stageResources', () => {
 })
 
 describe('bundledExtensionFiles', () => {
-  it("reads the six extensions from the repository's library", async () => {
+  it("reads the seven extensions from the repository's library", async () => {
     expect(await bundledExtensionFiles(REPO)).toEqual([...BUNDLED_EXTENSION_FILES])
   })
 

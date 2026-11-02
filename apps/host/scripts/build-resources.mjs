@@ -1,6 +1,6 @@
 // What the Host carries beside its bundle: node-pty for the target when a
 // folder is given, pi's bundled extensions with Desktop's filter, and the
-// skills, copied whole. The build fails when pi-ext lacks one of the six.
+// skills, copied whole. The build fails when pi-ext lacks one of the seven.
 import { cpSync, existsSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { build } from 'esbuild'
@@ -41,7 +41,7 @@ export async function stageResources(stage, { root, native, target }) {
   if (missing.length > 0) throw new Error(`pi-ext lacks ${missing.join(', ')}`)
 }
 
-/** The six extensions, read from the library under `root` rather than restated here. */
+/** The seven extensions, read from the library under `root` rather than restated here. */
 export async function bundledExtensionFiles(root) {
   const listing = await build({
     absWorkingDir: root,

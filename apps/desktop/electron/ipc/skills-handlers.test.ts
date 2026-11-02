@@ -39,7 +39,7 @@ vi.mock('node:fs/promises', () => ({ writeFile: h.write }))
 vi.mock('../pi/health', () => ({ cachedPiHealth: h.health }))
 vi.mock('../pi/shell-env', () => ({ piProcessEnv: h.env }))
 vi.mock('../pi/catalogue', () => ({ invalidatePiCommands: h.invalidate }))
-vi.mock('../pi/session-launch', () => ({ ensureDesktopArtifactSkill: h.restore }))
+vi.mock('../pi/session-launch', () => ({ ensureDesktopBundledSkills: h.restore }))
 vi.mock('../pi/skills', () => h.skills)
 
 function invoke<C extends IpcInvokeChannel>(channel: C, ...args: IpcInvokeMap[C]['args']) {
