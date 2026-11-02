@@ -13,10 +13,7 @@ import { createLaneProjection } from './projection'
 import type { LaneRead } from './lane-reads'
 import type { createHostConnection, LaneFrame } from './connection'
 import {
-  createFailure,
-  laneCreateOp,
-  startedPrompt,
-  openFailure,
+  createAndOpen,
   laneOperation,
   receiptResponse,
   REMOTE_UNAVAILABLE,
@@ -397,14 +394,10 @@ export function createRemoteLanes(ports: {
     },
     async create(window: RemoteWindow, hostId: string, input: RemoteLaneCreate) {
       const laneStart = ports.connection(hostId)?.snapshot().laneStart === true
-      const op = laneCreateOp(input, laneStart)
-      const result = await mutate(hostId, undefined, op).catch(createFailure(laneStart))
-      if (typeof result === 'string') throw new Error(result)
-      if (result.status !== 'done' || !result.laneId)
-        throw new Error('Lane creation not confirmed.')
-      const prompted = startedPrompt(op, result)
-      const info = await open(window, hostId, result.laneId).catch(openFailure(prompted))
-      return { ...info, ...(prompted === undefined ? {} : { prompted }) }
+      return createAndOpen(input, laneStart, {
+        mutate: (op) => mutate(hostId, undefined, op),
+        open: (laneId) => open(window, hostId, laneId),
+      })
     },
     async action(
       hostId: string,

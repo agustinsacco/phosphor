@@ -62,6 +62,28 @@ export const openFailure =
     throw prompted ? new Error('lane-started-unopened') : error
   }
 
+/**
+ * Create a lane, then open it. The first prompt rides along only to a `laneStart`
+ * Host; the result says `prompted` when the Host answered whether it ran it.
+ * Only fixed texts are thrown, so no Host detail or cause crosses IPC.
+ */
+export async function createAndOpen<T extends object>(
+  input: RemoteLaneCreate,
+  laneStart: boolean,
+  host: {
+    mutate: (op: LaneOp) => Promise<CommandResult>
+    open: (laneId: string) => Promise<T>
+  },
+): Promise<T & { prompted?: boolean }> {
+  const op = laneCreateOp(input, laneStart)
+  const result = await host.mutate(op).catch(createFailure(laneStart))
+  if (typeof result === 'string') throw new Error(result)
+  if (result.status !== 'done' || !result.laneId) throw new Error(CREATE_UNCONFIRMED)
+  const prompted = startedPrompt(op, result)
+  const info = await host.open(result.laneId).catch(openFailure(prompted))
+  return { ...info, ...(prompted === undefined ? {} : { prompted }) }
+}
+
 /** The receipt when it succeeded; otherwise thrown, as `createFailureText` reads it. */
 export function settledReceipt(op: LaneOp, result: CommandResult, machine: string): CommandResult {
   if (
