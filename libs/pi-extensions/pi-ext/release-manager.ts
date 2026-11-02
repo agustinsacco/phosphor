@@ -11,6 +11,7 @@ import {
   LEASE_RENEW_MS,
   releaseLease,
   runner,
+  type Claimant,
   type ReleaseState,
   type Run,
 } from './release-lease'
@@ -97,7 +98,11 @@ export function savedRelease(branch: unknown[], sessionId: string): boolean {
 
 const unbound: Run = () => Promise.reject(new Error('Release mode has no session yet.'))
 const sessionOf = (lane: Lane) => lane.ctx?.sessionManager.getSessionId() ?? ''
-const holder = (lane: Lane) => `${hostname()}/${sessionOf(lane)}`
+const claimant = (lane: Lane): Claimant => ({
+  holder: `${hostname()}/${sessionOf(lane)}`,
+  host: hostname(),
+  pid: process.pid,
+})
 const localRef = (lane: Lane) =>
   `refs/phosphor-release/${sessionOf(lane).replace(/[^\w.-]/g, '_') || 'session'}`
 const plain = (error: unknown) => (error instanceof Error ? error.message : String(error))
@@ -157,9 +162,8 @@ function exclusive<T>(lane: Lane, work: () => Promise<T>): Promise<T> {
 }
 
 async function claim(lane: Lane, takeover = false): Promise<void> {
-  const me = { holder: holder(lane), host: hostname() }
   const result = await exclusive(lane, () =>
-    claimLease(lane.git, localRef(lane), me, lane.now(), takeover),
+    claimLease(lane.git, localRef(lane), claimant(lane), lane.now(), takeover),
   )
   lane.lastClaim = lane.now()
   if (lane.enabled) setRole(lane, result.role, result.state)
@@ -241,7 +245,7 @@ async function switchOff(lane: Lane): Promise<void> {
   // Hand over now, rather than make a standby wait for the lease to lapse.
   if (held)
     await exclusive(lane, () =>
-      releaseLease(lane.git, localRef(lane), holder(lane), lane.now()),
+      releaseLease(lane.git, localRef(lane), claimant(lane), lane.now()),
     ).catch(() => undefined)
 }
 
@@ -264,6 +268,8 @@ async function command(lane: Lane, args: string, ctx: ReleaseContext): Promise<v
   }
   if (word === 'takeover') await claim(lane, true)
   start(lane)
+  if (word === 'takeover' && lane.role !== 'active')
+    throw new Error('Another lane took the release lease first. Try the takeover again.')
 }
 
 function restore(lane: Lane, ctx: ReleaseContext): void {
@@ -286,7 +292,7 @@ function registerTools(lane: Lane): void {
     git: (args, input) => lane.git(args, input),
     gh: (args, input) => lane.gh(args, input),
     local: () => localRef(lane),
-    holder: () => holder(lane),
+    claimant: () => claimant(lane),
     epoch: () => (lane.role === 'active' ? lane.state?.lease?.epoch : undefined),
     policy: () => lane.policy,
     exclusive: (work) => exclusive(lane, work),

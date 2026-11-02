@@ -1,6 +1,6 @@
 import { Type } from 'typebox'
-import { holdsLease, MEMORY_MAX, recordState, type Run } from './release-lease'
-import { mergeArgs, POLICY_PATH, type Policy } from './release-github'
+import { MEMORY_MAX, recordState, type Claimant, type Run } from './release-lease'
+import { checkPolicyUntouched, mergeArgs, type Policy } from './release-github'
 import { ANSWER_MESSAGE } from './release-prompt'
 
 /** Registered inactive; the model sees them only while this lane holds the lease. */
@@ -12,7 +12,8 @@ export interface ReleaseRuntime {
   gh: Run
   /** Where this lane fetches the release ref. */
   local(): string
-  holder(): string
+  /** This lane's session on this host, in this process. */
+  claimant(): Claimant
   /** The epoch this lane holds, or undefined when it is not active. */
   epoch(): number | undefined
   policy(): Policy
@@ -59,28 +60,31 @@ async function merge(runtime: ReleaseRuntime, pr: number, head: string) {
   if (!/^[0-9a-f]{40}$/.test(head)) throw new Error('head must be a full commit SHA.')
   const epoch = heldEpoch(runtime)
   return runtime.exclusive(async () => {
-    const held = await holdsLease(
-      runtime.git,
+    const { git } = runtime
+    await checkPolicyUntouched(git, runtime.local(), pr, head, runtime.policy().base)
+    // Renew the lease by compare-and-swap last, so nobody can take it between
+    // this check and the merge without this write being refused.
+    const renewed = await recordState(
+      git,
       runtime.local(),
-      runtime.holder(),
+      runtime.claimant(),
       epoch,
       runtime.now(),
+      {},
     )
-    if (!held) {
+    if (renewed !== 'ok') {
       runtime.lost()
       throw new Error(
         'Not merged: another lane holds the release lease. Change nothing on GitHub and end the pass.',
       )
     }
-    const files = await runtime.gh(['pr', 'diff', String(pr), '--name-only'])
-    if (files.split('\n').some((file) => file.trim() === POLICY_PATH))
-      throw new Error(`Not merged: #${pr} changes ${POLICY_PATH}. Ask the user.`)
     const output = await runtime.gh(mergeArgs(pr, head, runtime.policy()))
     const event = `merged #${pr} at ${head.slice(0, 7)}`
     // The merge happened; a ledger line that fails to save must not hide it.
-    await recordState(runtime.git, runtime.local(), runtime.holder(), runtime.now(), {
-      event,
-    }).catch(() => 'not-holder')
+    const change = { event }
+    await recordState(git, runtime.local(), runtime.claimant(), epoch, runtime.now(), change).catch(
+      () => 'not-holder',
+    )
     return text(`${event}. ${output.trim()}`.trim(), { pr, head })
   })
 }
@@ -90,7 +94,7 @@ function registerMerge(pi: ToolsApi, runtime: ReleaseRuntime): void {
     name: 'release_merge',
     label: 'Release merge',
     description:
-      'Merge a reviewed pull request. Checks on origin that this lane still holds the release lease, refuses a change to the release policy, and merges only if the head is still the commit you reviewed.',
+      'Merge a reviewed pull request. Refuses unless the head is still the commit you reviewed and it leaves the release policy alone, renews the release lease on origin, then merges that exact commit.',
     promptSnippet: 'Merge a reviewed pull request under the release lease',
     defaultActive: false,
     parameters: Type.Object({
@@ -117,9 +121,9 @@ function registerMemory(pi: ToolsApi, runtime: ReleaseRuntime): void {
       if (params.memory === undefined && !params.event) throw new Error('Give memory or event.')
       if ((params.memory?.length ?? 0) > MEMORY_MAX)
         throw new Error(`Memory is limited to ${MEMORY_MAX} characters. Summarize it.`)
-      heldEpoch(runtime)
+      const epoch = heldEpoch(runtime)
       const result = await runtime.exclusive(() =>
-        recordState(runtime.git, runtime.local(), runtime.holder(), runtime.now(), params),
+        recordState(runtime.git, runtime.local(), runtime.claimant(), epoch, runtime.now(), params),
       )
       if (result !== 'ok') {
         runtime.lost()
