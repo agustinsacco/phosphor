@@ -95,6 +95,10 @@ describe('StartingChat for a Host lane', () => {
     act(() => useRemoteLanesStore.setState({ hosts: host('branching') }))
     act(() => useRemoteLanesStore.setState({ hosts: host('starting') }))
     expect(slow()).toBeNull()
+    // Once the Host has answered, the line moves on rather than back to the start.
+    const answered = { ...mockRemoteHosts[MOCK_HOST_ID]!, laneStarts: [] }
+    act(() => useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: answered } }))
+    expect(phase()).toBe('Opening the lane…')
     vi.useRealTimers()
   })
 })
