@@ -7,6 +7,7 @@ import { homeDraftKey } from '@/stores/drafts'
 import { connectingTo, hostPending, machineLabel } from '@/stores/remoteLanes'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { StartComposer, type StartTarget } from './StartComposer'
 import { useRemoteStart } from './useRemoteStart'
 
@@ -35,11 +36,13 @@ function RemoteStartComposer({
   const field = useRef<HTMLTextAreaElement>(null)
   const target = useHostStart(hostId, draftKey)
   const input = textareaRef ?? field
-  // Back from a failed start: the echo held the screen, so put the cursor back in the draft.
-  const failed = useRef(target.warning !== null)
+  // Back from a failed start: the echo held the screen, so put the cursor back in the draft, once.
+  const failed = useRef(useHomeSubmissionsStore.getState().warnings[draftKey]?.returnTo === hostId)
   useEffect(() => {
-    if (failed.current) input.current?.focus()
-  }, [input])
+    if (!failed.current) return
+    input.current?.focus()
+    useHomeSubmissionsStore.getState().settle(draftKey)
+  }, [input, draftKey])
   return (
     <StartComposer
       target={target}

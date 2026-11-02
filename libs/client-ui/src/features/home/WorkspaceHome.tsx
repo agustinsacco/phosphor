@@ -13,10 +13,15 @@ import { useSessionsStore } from '@/stores/sessions'
 import { prefetchTrunk } from '@/features/sessions/startChat'
 import { projectName } from '@/lib/path'
 import { homeDraftKey } from '@/stores/drafts'
+import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 
 /** Local workbench and shared remote creation, with independent dashboard and composer targets. */
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
-  const [composerMachine, setComposerMachine] = useComposerMachine()
+  // A failed Host start the echo stood in for reopens that Host's composer.
+  const [returnTo] = useState(
+    () => useHomeSubmissionsStore.getState().warnings[homeDraftKey(workspacePath)]?.returnTo,
+  )
+  const [composerMachine, setComposerMachine] = useComposerMachine(returnTo)
   const target = useRemoteComposer((s) => s.target)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const filter = useRemoteLanesStore((s) => s.filter)
