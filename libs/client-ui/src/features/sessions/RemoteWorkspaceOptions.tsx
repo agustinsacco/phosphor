@@ -3,7 +3,6 @@ import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { MoreIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
-import type { HostConnectionView } from '@shared/ipc'
 import type { RemoteLaneGroup } from './groupRemoteLanes'
 import { RemoteFolderMenuRows } from './RemoteFolderMenuRows'
 import { RemoteRepositoryRemoval } from './RemoteRepositoryRemoval'
@@ -12,8 +11,8 @@ import { RemoteRepositoryRemoval } from './RemoteRepositoryRemoval'
 export function RemoteWorkspaceOptions({
   hostId,
   group,
-  host,
-  ready,
+  canSelect,
+  selecting,
   collapsed,
   className,
   onCollapse,
@@ -21,21 +20,18 @@ export function RemoteWorkspaceOptions({
 }: {
   hostId: string
   group: RemoteLaneGroup
-  host: HostConnectionView | undefined
-  ready: boolean
+  canSelect: boolean
+  /** This group has the selection: "Select all lanes" becomes "Clear selection". */
+  selecting: boolean
   collapsed: boolean
   className: string
   onCollapse: (collapsed: boolean) => void
-  onSelect: (mode: 'all' | 'merged') => void
+  onSelect: (mode: LaneSelectMode) => void
 }): React.JSX.Element {
   const [menu, setMenu] = useState(false)
   const [adding, setAdding] = useState(false)
   const [removing, setRemoving] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
-  const canSelect =
-    ready &&
-    !!host?.capabilities.includes('workspaces.write') &&
-    host.capabilities.includes('sessions.control')
   return (
     <>
       {adding && <HostFolderBrowser hostId={hostId} onClose={() => setAdding(false)} />}
@@ -72,6 +68,7 @@ export function RemoteWorkspaceOptions({
           />
           <LaneSelectionRows
             canSelect={canSelect}
+            selecting={selecting}
             collapsed={collapsed}
             onCollapse={onCollapse}
             onSelect={onSelect}
@@ -83,23 +80,32 @@ export function RemoteWorkspaceOptions({
   )
 }
 
+export type LaneSelectMode = 'all' | 'merged' | 'clear'
+const SELECT_LABELS: Record<LaneSelectMode, string> = {
+  all: 'Select all lanes',
+  merged: 'Select merged lanes',
+  clear: 'Clear selection',
+}
+
 /** Select lanes for bulk delete, and collapse: the group's own rows under the folder rows. */
 function LaneSelectionRows({
   canSelect,
+  selecting,
   collapsed,
   onCollapse,
   onSelect,
   onDone,
 }: {
   canSelect: boolean
+  selecting: boolean
   collapsed: boolean
   onCollapse: (collapsed: boolean) => void
-  onSelect: (mode: 'all' | 'merged') => void
+  onSelect: (mode: LaneSelectMode) => void
   onDone: () => void
 }): React.JSX.Element {
   return (
     <>
-      {(['all', 'merged'] as const).map((mode) => (
+      {([selecting ? 'clear' : 'all', 'merged'] as const).map((mode) => (
         <MenuRow
           key={mode}
           active={false}
@@ -110,7 +116,7 @@ function LaneSelectionRows({
             onSelect(mode)
           }}
         >
-          {mode === 'all' ? 'Select all lanes' : 'Select merged lanes'}
+          {SELECT_LABELS[mode]}
         </MenuRow>
       ))}
       <MenuRow
