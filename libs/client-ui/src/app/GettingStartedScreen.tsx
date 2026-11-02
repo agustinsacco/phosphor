@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { PiPackageEntry } from '@shared/models'
 import { Button } from '@/components/form'
-import { CatalogueCards } from '@/features/settings/CatalogueCards'
+import { StandardPackages } from '@/features/settings/sections/extensions/StandardPackages'
 import { usePackageJob } from '@/features/settings/usePackageJob'
 import { JobOutput } from '@/features/settings/JobOutput'
 
@@ -10,7 +11,7 @@ import { JobOutput } from '@/features/settings/JobOutput'
  * again later via Settings → Extensions / Agent.
  */
 export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.JSX.Element {
-  const [installedSpecs, setInstalledSpecs] = useState<string[]>([])
+  const [installed, setInstalled] = useState<PiPackageEntry[]>([])
   const [claudeDetected, setClaudeDetected] = useState<boolean | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -19,7 +20,7 @@ export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.
         window.phosphor.invoke('packages:list'),
         window.phosphor.invoke('packages:detect'),
       ])
-      setInstalledSpecs(list.map((entry) => entry.spec))
+      setInstalled(list)
       setClaudeDetected(detect.claude)
     } catch {
       // Recommendations are best-effort on a machine that just got pi.
@@ -51,9 +52,9 @@ export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.
 
         <h2 className="mt-6 text-lg font-semibold">Recommended extensions</h2>
         <div className="mt-2.5">
-          <CatalogueCards
-            installedSpecs={installedSpecs}
-            claudeDetected={claudeDetected}
+          <StandardPackages
+            packages={installed}
+            claudeCli={claudeDetected}
             busy={job.running}
             onInstall={(spec) =>
               void job.start(() =>

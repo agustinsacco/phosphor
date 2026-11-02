@@ -1,4 +1,4 @@
-import { HOST_DEFAULT_PACKAGES } from '@shared/host-default-packages'
+import { HEADLESS_STANDARD_PACKAGES } from '@shared/standard-packages'
 import type { MachineSettings } from '@shared/machine-settings'
 import { Button } from '@/components/form'
 import { Card, StatusPill } from './MachineUi'
@@ -20,7 +20,7 @@ export function HostDefaultPackages({
         installed. Packages run with full access as the Host user.
       </p>
       <ul className="divide-border divide-y">
-        {HOST_DEFAULT_PACKAGES.map((entry) => {
+        {HEADLESS_STANDARD_PACKAGES.map((entry) => {
           const pkg = resources.packages.find((p) => p.name === entry.name && p.scope === 'global')
           return (
             <li key={entry.name} className="flex flex-wrap items-center gap-3 py-3">

@@ -214,7 +214,7 @@ it('offers a headless-safe extension catalogue and existing multiple-account con
   await render('extensions')
   expect(container.textContent).toContain('Standard Host extensions')
   expect(container.textContent).toContain('computer use is not installed')
-  expect(button('Install Swarm subagents').disabled).toBe(false)
+  expect(button('Install Subagents').disabled).toBe(false)
   expect(button('Install Web access').disabled).toBe(false)
   await render('accounts')
   expect(button('Add account').disabled).toBe(false)

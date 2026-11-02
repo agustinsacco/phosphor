@@ -1,5 +1,8 @@
 import { join } from 'node:path'
-import { HOST_DEFAULT_PACKAGES } from '@phosphor/shared/host-default-packages'
+import {
+  HEADLESS_STANDARD_PACKAGES,
+  standardPackageState,
+} from '@phosphor/shared/standard-packages'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { buildPiEnvironment } from '../machine/environment'
 import { loadHostConfig } from '../config/load'
@@ -47,18 +50,20 @@ export async function installDefaultPackages(context: DefaultPackageContext): Pr
   })
   const agentDir = env.PI_CODING_AGENT_DIR ?? join(context.home, '.pi', 'agent')
   const installed = await (context.packages ?? listPackages)(undefined, agentDir)
-  const missing = HOST_DEFAULT_PACKAGES.filter(
-    (entry) => !installed.some((pkg) => pkg.name === entry.name && pkg.installed),
+  const missing = HEADLESS_STANDARD_PACKAGES.filter(
+    (entry) => standardPackageState(entry.name, installed) !== 'installed',
   )
   if (!missing.length) return
   const terminal = context.setupTerminal ?? setupTerminal(env, context.signal, context.json ? 2 : 1)
   if (
     !(await terminal.confirm(
-      'Install the standard Host extensions (Claude provider, swarm subagents and web access)?',
+      `Install the standard Host extensions (${HEADLESS_STANDARD_PACKAGES.map((e) => e.title).join(', ')})?`,
       'These pi packages run with full access as your user. Computer use is not installed.',
     ))
   ) {
-    context.print('Host extensions skipped. Install them later in Machine Settings → Extensions.')
+    context.print(
+      'Host extensions skipped. Install them later in Settings → Extensions on this Host.',
+    )
     return
   }
   for (const entry of missing) {

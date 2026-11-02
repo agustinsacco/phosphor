@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { PiPackageEntry } from '@shared/models'
 import { useSettingsWorkspace } from '../SettingsMachineScope'
 import { Button } from '@/components/form'
-import { CatalogueCards } from '../CatalogueCards'
+import { StandardPackages } from '../sections/extensions/StandardPackages'
 import { JobOutput } from '../JobOutput'
 import { usePackageJob } from '../usePackageJob'
 import { isNewerVersion } from '@shared/version'
@@ -62,7 +62,6 @@ export function ExtensionsTab(): React.JSX.Element {
     )
   }
 
-  const specs = (entries ?? []).map((e) => e.spec)
   const byScope = (scope: 'global' | 'project'): PiPackageEntry[] =>
     (entries ?? []).filter((e) => e.scope === scope)
 
@@ -76,9 +75,9 @@ export function ExtensionsTab(): React.JSX.Element {
 
       <h3 className="mt-5 text-lg font-semibold">Recommended</h3>
       <div className="mt-2.5">
-        <CatalogueCards
-          installedSpecs={specs}
-          claudeDetected={claudeDetected}
+        <StandardPackages
+          packages={entries ?? []}
+          claudeCli={claudeDetected}
           busy={job.running}
           onInstall={(spec) => runAction('install', spec, 'global')}
         />
