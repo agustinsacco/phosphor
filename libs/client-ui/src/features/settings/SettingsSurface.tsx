@@ -52,12 +52,12 @@ export function SettingsSurface({
   const inputRef = useRef<HTMLInputElement>(null)
   const onKeyDown = useSearchShortcut(rootRef, inputRef)
   const panelRef = usePanelFollowsTab(`${machine?.id}/${effectiveTab}`, listing, query)
-
   const go = guardHostDrafts(kind === 'host' ? (machine?.id ?? null) : null)
 
   return (
     <div
       ref={rootRef}
+      data-testid="settings-surface"
       onKeyDown={onKeyDown}
       className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden md:flex-row"
     >

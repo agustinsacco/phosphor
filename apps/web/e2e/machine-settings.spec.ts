@@ -1,6 +1,7 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { test, expect } from './fixture'
 
+/** The Host's Machines entry opens the shared Settings page, scoped to that Host. */
 async function openSettings(page: Page, origin: string, name: string) {
   await page.goto(`${origin}/pages/machines`)
   await page.getByRole('button', { name: /Synthetic Host/ }).click()
@@ -8,12 +9,20 @@ async function openSettings(page: Page, origin: string, name: string) {
     .getByRole('navigation', { name: 'Machine views' })
     .getByRole('button', { name: 'Machine settings', exact: true })
     .click()
-  const settings = page.getByTestId('machine-settings')
+  await expect(page).toHaveURL(/\/pages\/settings\/[^/]+$/)
+  const settings = page.getByTestId('settings-surface')
+  await expect(settings.getByTestId('settings-machine-scope')).toContainText(
+    'Configuring Synthetic Host',
+  )
+  await section(settings, name)
+  return settings
+}
+
+async function section(settings: Locator, name: string) {
   await settings
-    .getByRole('navigation', { name: 'Machine settings', exact: true })
+    .getByRole('navigation', { name: 'Settings sections', exact: true })
     .getByRole('button', { name, exact: true })
     .click()
-  return settings
 }
 
 test('browser Host settings load only after explicit configuration access', async ({
@@ -33,10 +42,7 @@ test('browser Host settings load only after explicit configuration access', asyn
   await page.getByRole('button', { name: 'Enable for Synthetic Host', exact: true }).click()
   await expect(settings.getByRole('heading', { name: 'Accounts', exact: true })).toBeVisible()
   expect(stack.state.grants).toBeGreaterThan(grantsBefore)
-  await settings
-    .getByRole('navigation', { name: 'Machine settings', exact: true })
-    .getByRole('button', { name: 'Agent', exact: true })
-    .click()
+  await section(settings, 'Agent')
   await expect(settings.getByRole('heading', { name: 'Agent defaults', exact: true })).toBeVisible()
   // An edit saves itself, as Desktop's settings do, and says where it landed.
   const retry = settings.getByRole('combobox', { name: 'Enable automatic retry', exact: true })

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
-import { captures, openMachineSettings } from './fixtures/remote-ui'
+import { captures, openMachineSettings, openSettingsSection } from './fixtures/remote-ui'
 import {
   addPrivateConnector,
   addPrivateAccount,
@@ -37,10 +37,7 @@ test('machine settings save only on bee1, preserve revisions and never read back
     expect(after.connectionToken).toBe(before.connectionToken)
     await captures(h, test.info(), 'machine-settings-agent')
 
-    await settings
-      .getByRole('navigation', { name: 'Machine settings', exact: true })
-      .getByRole('button', { name: 'MCP Connectors', exact: true })
-      .click()
+    await openSettingsSection(settings, 'MCP Connectors')
     await addPrivateConnector(h, settings)
     await expect(settings.locator('[data-connector="private-tools"]')).toContainText('Not verified')
     const globalMcp = JSON.parse(await readFile(join(h.agent, 'mcp.json'), 'utf8'))
@@ -57,8 +54,10 @@ test('machine settings save only on bee1, preserve revisions and never read back
     ).not.toContain('HOST_ONLY_MCP_SECRET')
 
     const repository = after.repositories.find((repo) => repo.path === h.repo)!
+    // The folder scope lives in the scope line: Folder, then which one.
+    await settings.getByRole('radio', { name: 'Folder', exact: true }).click()
     await settings
-      .getByRole('combobox', { name: 'Host configuration scope', exact: true })
+      .getByRole('combobox', { name: 'Configuration folder', exact: true })
       .selectOption(repository.id)
     await expect(settings).toContainText('This folder is not trusted')
     await settings.getByRole('button', { name: 'Disable in this folder', exact: true }).click()

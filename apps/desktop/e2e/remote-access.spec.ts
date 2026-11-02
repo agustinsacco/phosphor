@@ -130,8 +130,8 @@ test('Provider login and error remedies target bee1, Settings configures bee1 an
       })
     }
 
-    await h.page.getByRole('button', { name: 'Settings', exact: true }).click()
-    const settings = h.page.getByRole('dialog', { name: 'Settings', exact: true })
+    // openMachineSettings left bee1's Settings open: the same dialog the sidebar opens.
+    const settings = machineSettings
     await settings.getByRole('button', { name: 'Accounts', exact: true }).click()
     await expect(settings.getByTestId('settings-machine-scope')).toContainText('Configuring bee1')
     await expect(settings.getByRole('heading', { name: 'Accounts', exact: true })).toBeVisible()
