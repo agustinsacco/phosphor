@@ -38,8 +38,12 @@ export function parseReceipt(v: unknown): Receipt | null {
   const requestId = v.requestId
   switch (v.status) {
     case 'pending':
-      if (v.phase !== undefined && !member(v.phase, LANE_CREATE_PHASES)) return null
-      return { requestId, status: v.status, ...(v.phase !== undefined ? { phase: v.phase } : {}) }
+      // Progress only: a phase this client does not know is dropped, not refused.
+      return {
+        requestId,
+        status: v.status,
+        ...(member(v.phase, LANE_CREATE_PHASES) ? { phase: v.phase } : {}),
+      }
     case 'unknown':
       return { requestId, status: v.status }
     case 'done':

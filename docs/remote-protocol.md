@@ -122,14 +122,18 @@ optionally a name, model, thinking level and the lane's first `prompt`
   `phase` is `queued`, `branching`, `starting` or `prompting`
   (`LANE_CREATE_PHASES`), in that order, each at most once and only when reached.
   None follow the terminal receipt. A status read or a retry returns the stored
-  `pending` receipt, without a phase.
+  `pending` receipt, without a phase. Phases go to every creating client, which
+  is safe for each one shipped: clients settle a request only on a non-`pending`
+  receipt, and a client drops a phase it does not know rather than the frame.
 - Sends `prompt` to the new lane's pi as soon as it is attached, before any
   operation queued on the lane, and answers `done` with `data: { prompted }`.
   `true` means pi accepted the prompt; `false` means it surely never ran and the
-  client may send it as a normal `prompt` op. A `done` receipt without `data`
+  client may send it as a normal `prompt` op. The Host never sends it after the
+  deadline's `unknown`, while closing, or once the client's grant no longer holds
+  `sessions.control`. A `done` receipt without `data`
   means the outcome is uncertain: the client does not send the prompt again.
-- With `worktree.fresh`, tries `<branch>-2` through `<branch>-5` itself before
-  refusing `branch-exists`; the created lane's summary names the branch it got.
+- With `worktree.fresh`, tries `<branch>-2` through `<branch>-5` itself when a
+  name's ref or worktree folder is taken, before refusing; the created lane's summary names the branch it got.
 
 A Host without `laneStart` ignores `prompt` and answers `done` without `data`, so
 the client sends the first prompt itself, and refuses the first taken fresh
