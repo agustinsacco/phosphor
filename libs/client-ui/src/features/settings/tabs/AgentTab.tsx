@@ -44,12 +44,22 @@ export function AgentTab(): React.JSX.Element {
     setSaving(true)
     try {
       await window.phosphor.invoke('pi:patchAgentSettings', scope, workspaceArg, partial)
+      // Nested groups merge one level, as main writes them.
+      const merge = (file: Record<string, unknown>): Record<string, unknown> => {
+        const next = { ...file }
+        for (const [key, value] of Object.entries(partial))
+          next[key] =
+            value && typeof value === 'object'
+              ? { ...(file[key] as Record<string, unknown> | undefined), ...value }
+              : value
+        return next
+      }
       setScoped((s) =>
         s === null
           ? s
           : scope === 'global'
-            ? { ...s, global: { ...s.global, ...partial } }
-            : { ...s, project: { ...(s.project ?? {}), ...partial } },
+            ? { ...s, global: merge(s.global) }
+            : { ...s, project: merge(s.project ?? {}) },
       )
       useExtensionUiStore.getState().pushToast('Saved — applies to newly started sessions', 'info')
     } catch (error) {
