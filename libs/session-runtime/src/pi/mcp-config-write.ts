@@ -93,7 +93,8 @@ export async function removeMcpServer(
  * Turn a server on or off in the file that decides it: the project file for a
  * server it defines or overrides, the global file otherwise. `true` is pi's
  * default and removes the key, except in an override, where an absent key
- * would mean "inherit" rather than "on".
+ * would mean "inherit" rather than "on". A project file without the entry gets
+ * an override, which switches the global server in that folder only.
  */
 export async function setMcpServerEnabled(
   scope: McpScope,
@@ -104,8 +105,9 @@ export async function setMcpServerEnabled(
 ): Promise<void> {
   await mutateFile(scope, workspacePath, dirs, (servers) => {
     const existing = servers[name]
-    if (!existing) throw new Error(`No MCP server "${name}" in this file.`)
-    if (!enabled || isMcpOverride(existing)) existing.enabled = enabled
+    if (!existing && scope === 'project') servers[name] = { enabled }
+    else if (!existing) throw new Error(`No MCP server "${name}" in this file.`)
+    else if (!enabled || isMcpOverride(existing)) existing.enabled = enabled
     else delete existing.enabled
   })
 }
