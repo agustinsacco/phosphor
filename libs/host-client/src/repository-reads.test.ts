@@ -104,3 +104,27 @@ it('refuses unavailable and unconfigured machines before sending', async () => {
   }
   expect(call).not.toHaveBeenCalled()
 })
+it('names a too-large or failed repository list with fixed text, never Host text', async () => {
+  const failed = (code: string) => ({
+    type: 'result' as const,
+    id: 'read',
+    ok: false as const,
+    error: { code, message: '/private detail' },
+  })
+  call.mockResolvedValueOnce(failed('too-large') as Extract<HostFrame, { type: 'result' }>)
+  await expect(reads.list('host', repositoryId)).rejects.toThrow(
+    new Error('Too many files to list: the Host stops at 20,000.'),
+  )
+  call.mockResolvedValueOnce(failed('internal') as Extract<HostFrame, { type: 'result' }>)
+  await expect(reads.list('host', repositoryId)).rejects.toThrow(
+    new Error("The Host couldn't list this folder."),
+  )
+  call.mockResolvedValueOnce(failed('bad-request') as Extract<HostFrame, { type: 'result' }>)
+  await expect(reads.list('host', repositoryId)).rejects.toThrow(
+    new Error('Not available on remote lanes yet.'),
+  )
+  call.mockResolvedValueOnce(failed('internal') as Extract<HostFrame, { type: 'result' }>)
+  await expect(reads.read('host', repositoryId, 'README.md')).rejects.toThrow(
+    new Error('Not available on remote lanes yet.'),
+  )
+})

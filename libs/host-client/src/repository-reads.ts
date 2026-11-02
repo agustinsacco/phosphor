@@ -1,4 +1,5 @@
 import {
+  fileListFailure,
   parseFileParams,
   parseFileResult,
   type FileRead,
@@ -35,15 +36,19 @@ export function repositoryReads(
       c.snapshot().capabilities.includes('workspaces.read') &&
       c.snapshot().repositories.some((r) => r.id === repositoryId)
     if (!available()) throw new Error(REMOTE_UNAVAILABLE)
+    // A failed list names its cause in fixed text; every other failure is "unavailable".
+    let failure = REMOTE_UNAVAILABLE
     try {
       const reply = await c.call(method, params)
+      if (available() && !reply.ok && method === 'files.list')
+        failure = fileListFailure(reply.error.code) ?? REMOTE_UNAVAILABLE
       if (!available() || !reply.ok) throw new Error(REMOTE_UNAVAILABLE)
       if (method === 'github.prs') return { prs: parseRepoPrs(reply.data) }
       const parsed = parseFileResult(method, reply.data)
       if (!parsed) throw new Error(REMOTE_UNAVAILABLE)
       return parsed
     } catch {
-      throw new Error(REMOTE_UNAVAILABLE)
+      throw new Error(failure)
     }
   }
   return {

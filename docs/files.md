@@ -30,7 +30,11 @@ Uncertain saves keep edits and disable both Save and Cmd/Ctrl+S until Reload fil
 reads the file again. Reload file discards the edited buffer.
 Files uses a nested tree and the same row and icon controls as the local explorer.
 An empty tree says "No files yet". A failed git status does not hide the file
-list, and configured non-git folders can be browsed. Changes lists git status and
+list, and configured non-git folders can be browsed: the Host skips the hidden,
+dependency and build folders This Mac's Go to file skips and lists at most 20,000
+files ([Host](host.md#machine-features)). A list that is too big or that the Host
+could not read says so ("Too many files to list: the Host stops at 20,000." or
+"The Host couldn't list this folder."). Changes lists git status and
 shows an inline read-only Monaco diff against HEAD. Binary and oversized files use
 placeholders. The pane refreshes on focused lane summary changes, reconnects and its
 Refresh button, never a local filesystem watcher. Dirty buffers are not reloaded.

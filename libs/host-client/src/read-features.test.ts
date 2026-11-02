@@ -2,7 +2,13 @@ import { expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { FILE_LIMITS } from '@phosphor/shared/host-protocol-files'
 import { MACHINE_LIMITS } from '@phosphor/shared/host-protocol-machine'
-import { readFeature, READ_CHANNELS, routeRemoteRead, type ReadLane } from './read-features'
+import {
+  HostReadFailure,
+  readFeature,
+  READ_CHANNELS,
+  routeRemoteRead,
+  type ReadLane,
+} from './read-features'
 
 const root = `host:${randomUUID()}/0123456789abcdef`
 function lane(data: unknown): ReadLane {
@@ -202,4 +208,48 @@ it('accepts the exact createSkillsFeature skills.list data envelope and rejects 
   })
   for (const data of [[skill], null, {}, { skills: null }, { skills: {} }])
     await expect(readFeature('skills:list', [root], lane(data))).rejects.toThrow()
+})
+it('names a Host file list over the cap with fixed text, and nothing else', async () => {
+  const failing = (message: string) => {
+    const port = lane(null)
+    port.call = vi.fn(async () => {
+      throw new Error(message)
+    })
+    return port
+  }
+  await expect(readFeature('fs:listFiles', [root], failing('too-large'))).rejects.toThrow(
+    new Error('Too many files to list: the Host stops at 20,000.'),
+  )
+  await expect(readFeature('fs:listFiles', [root], failing('/private output'))).rejects.toThrow(
+    new Error('Not available on remote lanes yet.'),
+  )
+  await expect(readFeature('git:statusMap', [root], failing('too-large'))).rejects.toThrow(
+    new Error('Not available on remote lanes yet.'),
+  )
+})
+
+it('names a Host that could not list the folder, from the code alone', async () => {
+  const failing = (code: string) => {
+    const port = lane(null)
+    port.call = vi.fn(async () => {
+      throw new HostReadFailure(code)
+    })
+    return port
+  }
+  await expect(readFeature('fs:listFiles', [root], failing('internal'))).rejects.toThrow(
+    new Error("The Host couldn't list this folder."),
+  )
+  await expect(readFeature('fs:listFiles', [root], failing('too-large'))).rejects.toThrow(
+    new Error('Too many files to list: the Host stops at 20,000.'),
+  )
+  for (const code of ['bad-request', 'unknown-lane', 'unsupported'])
+    await expect(readFeature('fs:listFiles', [root], failing(code))).rejects.toThrow(
+      new Error('Not available on remote lanes yet.'),
+    )
+  await expect(readFeature('fs:readFile', [`${root}/a`], failing('internal'))).rejects.toThrow(
+    new Error('Not available on remote lanes yet.'),
+  )
+  // The failure's own message is fixed text, for callers that show it as is.
+  expect(new HostReadFailure('internal').message).toBe('Not available on remote lanes yet.')
+  expect(new HostReadFailure('too-large').message).toBe('too-large')
 })

@@ -22,6 +22,7 @@ import {
 } from './lane-ops'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { WriteLane } from './ports'
+import { HostReadFailure } from './read-features'
 
 type Connection = ReturnType<typeof createHostConnection>
 export interface RemoteWindow {
@@ -310,8 +311,7 @@ export function createRemoteLanes(ports: {
       !c.snapshot().capabilities.includes(capability)
     )
       throw new Error(REMOTE_UNAVAILABLE)
-    if (!result.ok)
-      throw new Error(result.error.code === 'too-large' ? 'too-large' : REMOTE_UNAVAILABLE)
+    if (!result.ok) throw new HostReadFailure(result.error.code)
     return result.data
   }
   return {

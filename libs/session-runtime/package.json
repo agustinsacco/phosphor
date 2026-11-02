@@ -267,6 +267,10 @@
     "./skills/share-bundle": {
       "types": "./src/skills/share-bundle.ts",
       "default": "./src/skills/share-bundle.ts"
+    },
+    "./files/walk": {
+      "types": "./src/files/walk.ts",
+      "default": "./src/files/walk.ts"
     }
   },
   "nx": {

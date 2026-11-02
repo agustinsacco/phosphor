@@ -1,6 +1,24 @@
 import { isUuid } from './control-api'
+import { ipcErrorText } from './errors'
 
 export const FILE_LIMITS = { entries: 20_000, textBytes: 2 * 1024 * 1024, pathChars: 4096 } as const
+
+/** A Host file list over FILE_LIMITS.entries (a git list; a walk stops there instead). */
+export const FILE_LIST_TOO_LARGE = `Too many files to list: the Host stops at ${FILE_LIMITS.entries.toLocaleString('en-US')}.`
+/** A Host that answered `internal` for a file list. */
+export const FILE_LIST_FAILED = "The Host couldn't list this folder."
+/**
+ * The fixed text a client shows for a failed file list's Host code, or null for
+ * "unavailable". The Host's own message never crosses IPC.
+ */
+export function fileListFailure(code: string): string | null {
+  return code === 'too-large' ? FILE_LIST_TOO_LARGE : code === 'internal' ? FILE_LIST_FAILED : null
+}
+/** The fixed list text an IPC rejection carries, or `fallback` for anything else. */
+export function fileListErrorText(error: unknown, fallback: string): string {
+  const text = ipcErrorText(error)
+  return text === FILE_LIST_TOO_LARGE || text === FILE_LIST_FAILED ? text : fallback
+}
 export const FILE_METHODS = [
   'files.list',
   'files.read',

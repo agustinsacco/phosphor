@@ -183,7 +183,12 @@ Skills; This Mac shows them in Settings.
 ## Remote read panes
 
 Remote Files and Changes require `workspaces.read` in the Host's ready frame.
-Files lists tracked and untracked non-ignored paths. Controllers with
+Files lists tracked and untracked non-ignored paths; a folder outside git lists
+through the Host's bounded walk ([Host](host.md#machine-features)). A file list
+the Host refuses names why in fixed text: `too-large` reads "Too many files to
+list: the Host stops at 20,000." and `internal` reads "The Host couldn't list
+this folder."; any other failure keeps "Not available on remote lanes yet."
+Host text never reaches the pane. Controllers with
 `workspaces.write` and `sessions.control` can edit text, create files and folders,
 rename, copy, move and trash entries inside the lane. Saves compare the SHA-256
 revision read by the editor; conflicts preserve edits and require a refresh.
@@ -511,9 +516,16 @@ and fork are refused
 with the fixed unavailable hint. The top bar's Session options work on a Host
 lane for its controller (compaction, auto-retry, queue modes). Other viewers see
 a mode change on their next lane snapshot. pi reports no auto-retry state, so
-that toggle shows what this window last set, not the Host's value. Export HTML
-needs no lane control, only a grant with `sessions.control`: the Host exports
-and this device saves the file ([chat](chat.md)). Continue waits for the remote receipt and echo;
+that toggle shows what this window last set, not the Host's value. pi saves each
+option as its default on the machine it runs on, so a change also applies to
+that Host's later lanes, as a model or thinking change does. Export HTML needs
+no lane control, only a grant with `sessions.control`: the Host exports and this
+device saves the file ([chat](chat.md)). The Subagents button keeps its active
+count, and its pane shows the fixed unavailable hint. Inspecting, steering and
+stopping a run are extension-command prompts: fenced lane ops that would take
+control of a lane nobody controls, and inspection repeats every 5 seconds while
+a run is active. The Coordination log reads pi's `get_entries`, which no lane op
+carries. Continue waits for the remote receipt and echo;
 it never inserts an optimistic duplicate. Error cards do not inspect This Mac's
 AWS profile. Lane and machine switches reset visible selections or show loading
 or refusal while the new target loads.

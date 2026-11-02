@@ -565,6 +565,9 @@ line, and the reply opens with the question. The original question notice
 remains available. A recorded reply does not prove the child acted on it.
 The view describes evidence at read time, not current liveness.
 
+On a Host lane the top-bar button keeps its count, but the pane shows "Not
+available on remote lanes yet." ([Remote Desktop](remote-desktop.md#remote-lane-surface-isolation)).
+
 **Stop run** is available on a root inspection when the session advertises the
 extension's Stop command. It asks for confirmation, rechecks that the exact
 root is still active in this session, and calls `/subagents-stop <full-id>`.

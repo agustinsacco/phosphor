@@ -5,6 +5,7 @@ import { RemoteFileTree } from './RemoteFileTree'
 import { releaseFileModel } from './MonacoEditor'
 import { useEffect, useState } from 'react'
 import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { fileListErrorText } from '@shared/host-protocol-files'
 
 /** Machine repository previews never mount the local editor or disk watcher. */
 export function MachineFilesPane({ hostId }: { hostId: string }): React.JSX.Element {
@@ -20,7 +21,7 @@ function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
   const [binary, setBinary] = useState(false)
   const [preview, setPreview] = useState('')
   const [path, setPath] = useState('')
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const ready = host?.state === 'ready' && host.capabilities.includes('workspaces.read')
   const repository = host?.repositories.find((r) => r.id === repositoryId)
   useEffect(() => {
@@ -32,7 +33,7 @@ function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
     setLoading(Boolean(ready && repository))
     setFiles([])
     setPath('')
-    setError(false)
+    setError(null)
     if (ready && repository)
       void window.phosphor.invoke('hosts:repositoryFiles', hostId, repository.id).then(
         (result) => {
@@ -41,10 +42,10 @@ function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
             setFiles(result)
           }
         },
-        () => {
+        (failure: unknown) => {
           if (current) {
             setLoading(false)
-            setError(true)
+            setError(fileListErrorText(failure, REMOTE_UNAVAILABLE))
           }
         },
       )
@@ -56,7 +57,7 @@ function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
     let current = true
     setPreview('')
     setReading(Boolean(ready && repository && path))
-    setError(false)
+    setError(null)
     if (ready && repository && path)
       void window.phosphor.invoke('hosts:repositoryFile', hostId, repository.id, path).then(
         (result) => {
@@ -69,7 +70,7 @@ function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
         () => {
           if (current) {
             setReading(false)
-            setError(true)
+            setError(REMOTE_UNAVAILABLE)
           }
         },
       )
@@ -102,7 +103,7 @@ function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
         ))}
       </select>
       {error ? (
-        <p role="alert">{REMOTE_UNAVAILABLE}</p>
+        <p role="alert">{error}</p>
       ) : (
         <ListDetail
           listLabel="Repository files"

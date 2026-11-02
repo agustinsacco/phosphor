@@ -1,5 +1,6 @@
-import { opendir, realpath, stat } from 'node:fs/promises'
+import { access, constants, realpath, stat } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
+import { walkFiles } from '@phosphor/session-runtime/files/walk'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import { FILE_LIMITS, isFilePath, type FileRead } from '@phosphor/shared/host-protocol-files'
 import type { CallErrorCode } from '@phosphor/shared/host-protocol'
@@ -100,27 +101,24 @@ export async function listedPaths(root: string, path = '.'): Promise<string[]> {
   await validateList(files, (file) => checkedPath(root, file, true))
   return files
 }
-/** Non-git configured folders still have a bounded file browser. */
+/** Entries one walk may read, ignored and skipped ones included: ten per listed file. */
+const WALK_ENTRIES = FILE_LIMITS.entries * 10
+/**
+ * A configured folder without git lists as Desktop's file finder does: the first
+ * 20,000 files past dependency, build and cache files and folders and hidden
+ * folders, links left out, within an entry budget. A name no file path can carry is left out too. Every
+ * listed path is then checked as a git list is, so a folder swapped for a link
+ * mid-walk refuses the list rather than naming what lies outside.
+ */
 export async function filePaths(root: string): Promise<string[]> {
   try {
     await safeGit(root, ['rev-parse', '--is-inside-work-tree'])
   } catch {
-    const pending = [''],
-      files: string[] = []
-    let visited = 0
-    while (pending.length) {
-      const path = pending.shift() ?? ''
-      if (++visited > FILE_LIMITS.entries) throw new FileFailure('too-large')
-      if (path) await checkedPath(root, path)
-      for await (const entry of await opendir(join(root, path))) {
-        if (entry.name.toLowerCase() === '.git') continue
-        const relative = path ? `${path}/${entry.name}` : entry.name
-        await checkedPath(root, relative)
-        if (entry.isDirectory()) pending.push(relative)
-        else if (entry.isFile()) files.push(relative)
-        if (pending.length + files.length > FILE_LIMITS.entries) throw new FileFailure('too-large')
-      }
-    }
+    // The walk skips folders it cannot read; a root it cannot read is a failure.
+    await access(root, constants.R_OK | constants.X_OK)
+    const walked = await walkFiles(root, FILE_LIMITS.entries, { entries: WALK_ENTRIES })
+    const files = walked.files.filter(isFilePath)
+    await validateList(files, (file) => checkedPath(root, file, true))
     return files.sort()
   }
   return listedPaths(root)
