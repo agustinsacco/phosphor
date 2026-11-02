@@ -1,6 +1,7 @@
 import { SettingsNotice, type SettingsNoticeAction } from '@/components/form'
+import { Spinner } from '@/components/icons'
+import { WaitingNote } from '@/components/Waiting'
 import { CopyCommand } from '@/features/machines/MachineControls'
-import { Skeleton, Spinner } from '@/features/machines/MachineUi'
 import { useMachinesStore } from '@/stores/machines'
 import { errorText } from '@shared/errors'
 import { useSettingsUiStore } from '../settingsUiStore'
@@ -34,16 +35,7 @@ export function HostGate({ children }: { children: React.ReactNode }): React.JSX
       {status.kind === 'notice' ? (
         <GateNotice notice={status} host={host} />
       ) : status.kind === 'loading' ? (
-        <div
-          role="status"
-          aria-label="Loading machine settings"
-          className="space-y-4 rounded-lg py-4"
-        >
-          <Skeleton className="h-5 w-40" />
-          {[0, 1, 2].map((row) => (
-            <Skeleton key={row} className="h-12 w-full" />
-          ))}
-        </div>
+        <WaitingNote className="py-4">Loading machine settings…</WaitingNote>
       ) : (
         <>
           {!terminals && (

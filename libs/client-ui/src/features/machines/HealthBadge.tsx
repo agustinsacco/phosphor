@@ -3,13 +3,13 @@ import { useRef, useState } from 'react'
 import { PopupMenu } from '@/components/PopupMenu'
 import { TooltipButton, tooltipProps } from '@/components/Tooltip'
 import { Button } from '@/components/form'
-import { CheckIcon, ChevronDownIcon, RefreshIcon, WarningIcon } from '@/components/icons'
+import { CheckIcon, ChevronDownIcon, RefreshIcon, Spinner, WarningIcon } from '@/components/icons'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { healthSummary, type HealthStep, type StepTone } from './healthCheck'
 import { startHealthCheck, useMachineHealthStore } from './healthStore'
 import { relativeTime } from './machinePresentation'
-import { Spinner, StatusDot } from './MachineUi'
+import { StatusDot } from './MachineUi'
 
 const BADGE: Record<StepTone, string> = {
   ok: 'text-success',
@@ -48,7 +48,7 @@ export function HealthBadge({
         className="border-border hover:bg-bg-secondary flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-sm font-medium transition-colors"
       >
         {summary.tone === 'running' ? (
-          <Spinner size={11} />
+          <Spinner className="text-text-tertiary" />
         ) : (
           <StatusDot tone={summary.tone} pulse={summary.tone === 'pending'} />
         )}
@@ -166,7 +166,7 @@ function StepRow({ step }: { step: HealthStep }): React.JSX.Element {
     >
       <span className="flex w-4 shrink-0 justify-center">
         {step.tone === 'running' ? (
-          <Spinner size={11} />
+          <Spinner className="text-text-tertiary" />
         ) : step.tone === 'ok' ? (
           <CheckIcon size={12} className="text-success" />
         ) : step.tone === 'warn' || step.tone === 'error' ? (

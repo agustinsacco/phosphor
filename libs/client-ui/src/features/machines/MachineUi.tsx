@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { CheckIcon, ReloadIcon, Spinner as ActivitySpinner, WarningIcon } from '@/components/icons'
+import { CheckIcon, Spinner, WarningIcon } from '@/components/icons'
 import { tooltipProps } from '@/components/Tooltip'
 import { CopyCommand } from './MachineControls'
 import type { ReadinessCheck } from './machinePresentation'
@@ -63,21 +63,13 @@ export function Card({
   title,
   aside,
   children,
-  className,
-  label,
 }: {
   title: string
   aside?: React.ReactNode
   children: React.ReactNode
-  className?: string
-  /** Accessible name when it differs from the title. */
-  label?: string
 }): React.JSX.Element {
   return (
-    <section
-      aria-label={label ?? title}
-      className={clsx('bg-surface border-border rounded-lg border', className)}
-    >
+    <section aria-label={title} className="bg-surface border-border rounded-lg border">
       <header className="border-border flex min-h-10 items-center justify-between gap-3 border-b px-4 py-2">
         <h3 className="text-text-tertiary font-mono text-xs font-semibold uppercase tracking-wider">
           {title}
@@ -96,14 +88,6 @@ export function Skeleton({ className }: { className?: string }): React.JSX.Eleme
       aria-hidden
       className={clsx('bg-chip block h-3 rounded motion-safe:animate-pulse', className)}
     />
-  )
-}
-
-export function Spinner({ size = 12, label }: { size?: number; label?: string }) {
-  return (
-    <span role={label ? 'status' : undefined} aria-label={label} className="inline-flex">
-      <ReloadIcon size={size} className="text-text-tertiary motion-safe:animate-spin" />
-    </span>
   )
 }
 
@@ -127,7 +111,7 @@ export function CheckRow({ check }: { check: ReadinessCheck }): React.JSX.Elemen
       <div className="flex items-center gap-2.5">
         <span className="flex w-4 shrink-0 justify-center">
           {check.loading ? (
-            <ActivitySpinner className="text-text-tertiary" />
+            <Spinner className="text-text-tertiary" />
           ) : check.ok ? (
             <span aria-label="Passed">
               <CheckIcon size={13} className="text-success" />

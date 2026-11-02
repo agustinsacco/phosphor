@@ -1,7 +1,7 @@
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { machineReachability } from '../machineReachability'
 import { useClaudeReadiness } from '../machineOverview'
-import { CheckIcon, ReloadIcon } from '@/components/icons'
+import { CheckIcon, Spinner } from '@/components/icons'
 import { useEffect, useState } from 'react'
 import { type MachineView } from '@shared/control-api'
 import { useMachinesStore } from '@/stores/machines'
@@ -47,11 +47,7 @@ export function OnlineAndProviders({
       <section className="space-y-3" aria-label="Online">
         <h2 className="text-xl font-semibold">{added.label} added</h2>
         <p role="status" className="flex items-center gap-2 font-medium">
-          {online ? (
-            <CheckIcon size={18} className="text-success" />
-          ) : (
-            <ReloadIcon size={18} className="text-accent animate-spin" />
-          )}
+          {online ? <CheckIcon size={18} className="text-success" /> : <Spinner />}
           {online ? `${added.label} is online` : reachability.detail}
         </p>
         {reachability.command && <CopyCommand command={reachability.command} />}
