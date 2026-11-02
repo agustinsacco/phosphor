@@ -159,13 +159,13 @@ it('Host start composer shares the placeholder and locks with a reason until it 
   expect(field.value).toBe('Host task')
 })
 
-it('Host start composer keeps the machine picker, then Repository, then the isolate toggle', async () => {
+it('Host start composer keeps the machine picker, then Repository, and no isolate toggle', async () => {
   await render(host())
   const picker = el.querySelector('[aria-label=Machine]')!
   const repository = el.querySelector('[aria-label=Repository]')!
-  const isolate = el.querySelector('input[type=checkbox]')!
   expect(follows(picker, repository)).toBe(true)
-  expect(follows(repository, isolate)).toBe(true)
+  // Every Host lane gets a worktree; there is nothing to opt out of.
+  expect(el.querySelector('input[type=checkbox]')).toBeNull()
   expect(repository.textContent).toContain('Demo repository')
 })
 

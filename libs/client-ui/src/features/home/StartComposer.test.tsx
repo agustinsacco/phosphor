@@ -96,9 +96,10 @@ function structure(): string[] {
   const submit = [...el.querySelectorAll('button')].find((b) =>
     /^Start /.test(b.getAttribute('aria-label') ?? ''),
   )!
+  const isolate = el.querySelector('input[type=checkbox]')
   const marks: [string, Element][] = [
     ['machine', el.querySelector('[aria-label=Machine]')!],
-    ['isolate', el.querySelector('input[type=checkbox]')!],
+    ...(isolate ? [['isolate', isolate] as [string, Element]] : []),
     ['input', field],
     ['submit', submit],
   ]
@@ -113,13 +114,14 @@ function structure(): string[] {
   ]
 }
 
+// A Host lane always gets a worktree, so only This Mac offers the isolate toggle.
 it('renders the Host start composer with the same structure and submit label as This Mac', async () => {
   await render(
     <LocalHomeComposer workspacePath="/ws" textareaRef={createRef()} machinePicker={machine} />,
   )
   const local = structure()
   await render(<RemoteStartView hostId={MOCK_HOST_ID} machinePicker={machine} />)
-  expect(structure()).toEqual(local)
+  expect(structure()).toEqual(local.filter((mark) => mark !== 'isolate'))
   expect(local).toEqual([
     'machine',
     'isolate',

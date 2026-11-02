@@ -1339,7 +1339,9 @@ fence 1. Creation still returns `done` if its initial control publication fails;
 it tries the summary and the next lane operation republishes control first.
 An unexpected projection error after attachment returns `unknown`, not `failed`.
 The API adapter dispatches `lane.create` to this service through the durable
-command pipeline.
+command pipeline. The client's start composer always asks for a fresh worktree,
+branched from the lane's first message; it has no toggle to run in the
+repository's own checkout.
 
 A folder in no git repository has no worktrees. When git answers "not a git
 repository" for it, a worktree request runs the lane in the folder itself,

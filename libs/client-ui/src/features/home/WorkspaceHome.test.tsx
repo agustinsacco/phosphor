@@ -108,14 +108,14 @@ it('down and capability-lost composer targets stay remote on submit', async () =
 })
 
 it.each([true, false])(
-  'repository plus opens the composer and applies worktree preference %s at send',
-  async (isolate) => {
+  'repository plus opens the composer and starts a worktree lane whatever the local preference (%s)',
+  async (preferWorktree) => {
     const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
     host.capabilities.push('skills.read')
     host.repositories.push({ id: 'second', name: 'Second repository', path: '/not-local' })
     useMachinesStore.setState({ remoteEnabled: true })
     useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host }, filter: 'local' })
-    useWorktreesStore.setState({ preferWorktree: isolate })
+    useWorktreesStore.setState({ preferWorktree })
     useMachineCataloguesStore.setState({
       catalogues: {
         [machineCatalogueKey(MOCK_HOST_ID)]: {
@@ -141,7 +141,7 @@ it.each([true, false])(
         provider: 'p',
         model: 'm',
         thinkingLevel: 'off',
-        ...(isolate ? { worktree: { branch: 'phosphor/keep-my-draft', fresh: true } } : {}),
+        worktree: { branch: 'phosphor/keep-my-draft', fresh: true },
       },
       'Keep my draft',
       [],

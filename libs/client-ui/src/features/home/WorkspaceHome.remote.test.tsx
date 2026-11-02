@@ -156,7 +156,7 @@ async function send(): Promise<void> {
 const model = () => el.querySelector('[data-testid=home-composer]')?.textContent
 
 it.each([true, false])(
-  'keeps Home catalogue while Skills overlays and submits worktree preference %s',
+  'keeps Home catalogue while Skills overlays and submits a worktree whatever the local preference (%s)',
   async (preferWorktree) => {
     useWorktreesStore.setState({ preferWorktree, branchPrefix: 'phosphor/' })
     await render()
@@ -174,7 +174,7 @@ it.each([true, false])(
       model: 'model',
       provider: 'p',
       thinkingLevel: 'off',
-      ...(preferWorktree ? { worktree: { branch: 'phosphor/first-prompt', fresh: true } } : {}),
+      worktree: { branch: 'phosphor/first-prompt', fresh: true },
     })
   },
 )
