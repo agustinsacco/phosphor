@@ -66,6 +66,9 @@ export async function confirmSettingsNavigation(hostId: string): Promise<boolean
   current.discard()
   return true
 }
+/** The Host whose settings draft is unsaved or still saving, if any. */
+export const unsavedDraftHost = (): string | null => (guard?.dirty ? guard.hostId : null)
+
 /**
  * Runs `next` once this Host's unsaved draft may be left (`confirmSettingsNavigation`);
  * null runs it at once. A failed prompt stays put, which keeps the draft.

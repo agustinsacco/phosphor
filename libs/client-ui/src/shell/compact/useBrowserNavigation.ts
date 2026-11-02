@@ -7,6 +7,10 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { locationMachine, type Location } from '@/navigation/location'
 import { useDefaultNewMachine } from './useDefaultNewMachine'
+import {
+  guardHostDrafts,
+  unsavedDraftHost,
+} from '@/features/settings/machine/machineSettingsDrafts'
 
 export function useBrowserNavigation() {
   const [history] = useState(() => createHistoryNavigation(window))
@@ -21,7 +25,12 @@ export function useBrowserNavigation() {
   const pending = !remoteEnabled || filter !== expectedFilter || page !== expectedPage
   const navigate = useCallback(
     (next: Location) => {
-      history.navigate(next)
+      // Leaving the Settings page asks about an unsaved Host draft first, as closing Desktop's does.
+      const current = history.getSnapshot()
+      const leaving = current.to === 'page' && current.page === 'settings'
+      const staying = next.to === 'page' && next.page === 'settings'
+      if (leaving && !staying) guardHostDrafts(unsavedDraftHost())(() => history.navigate(next))
+      else history.navigate(next)
     },
     [history],
   )
