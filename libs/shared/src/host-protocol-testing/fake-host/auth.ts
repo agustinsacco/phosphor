@@ -134,6 +134,7 @@ export function ready(state: FakeHostState, c: Connection, grant: GrantPayload, 
       runtimeEpoch: state.epoch,
       capabilities: [...caps],
     },
+    laneStart: true,
     proof: encodeBase64url(
       options.sign(
         grantUtf8(helloProofMessage(options.expectations.hostId, state.epoch, challenge)),

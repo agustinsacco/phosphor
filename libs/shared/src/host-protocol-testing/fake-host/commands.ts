@@ -24,7 +24,16 @@ export function command(state: FakeHostState, c: Connection, f: Command, mayCont
       rejectStored(state, stored, created.code)
       return
     }
-    stored.receipt = { requestId: f.requestId, status: 'done', laneId: created, fence: 1 }
+    // A first prompt runs as the new lane's first turn, as a prompt op would.
+    const prompted = f.op.prompt === undefined ? undefined : state.lanes.get(created)
+    if (prompted) turn(state, send, prompted)
+    stored.receipt = {
+      requestId: f.requestId,
+      status: 'done',
+      laneId: created,
+      fence: 1,
+      ...(prompted ? { data: { prompted: true } } : {}),
+    }
     deliver(state, f.requestId, stored)
     return
   }

@@ -206,6 +206,7 @@ describe('authentication through createFakeHost', () => {
           runtimeEpoch: 'epoch-1',
           capabilities: ['sessions.read'],
         },
+        laneStart: true,
         proof: encodeBase64url(new Uint8Array(64).fill(9)),
         connectionId: 'epoch-2',
         grantExpiresAt: new Date((SECONDS + 300) * 1000).toISOString(),
