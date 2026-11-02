@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SKILL_SHARE_LIMITS, type SkillBundle } from '@phosphor/shared/host-protocol-skill-share'
-import { installSkillBundle, readSkillBundle, SkillShareError } from './share-bundle'
+import {
+  installSkillBundle,
+  readSkillBundle,
+  resolvesElsewhere,
+  SkillShareError,
+} from './share-bundle'
 
 let dir: string
 beforeEach(async () => {
@@ -154,5 +159,20 @@ describe('installSkillBundle after a crash', () => {
       `.phosphor-share-${UUID}`,
       'demo',
     ])
+  })
+})
+
+describe('resolvesElsewhere', () => {
+  it('is false only for a file inside the folder an install would replace', async () => {
+    await mkdir(join(dir, 'demo'))
+    await writeFile(join(dir, 'demo', 'SKILL.md'), 'x')
+    await writeFile(join(dir, 'loose.md'), 'x')
+    await symlink(join(dir, 'demo'), join(dir, 'linked'))
+    expect(await resolvesElsewhere(dir, 'demo', join(dir, 'demo', 'SKILL.md'))).toBe(false)
+    expect(await resolvesElsewhere(dir, 'demo', join(dir, 'linked', 'SKILL.md'))).toBe(false)
+    expect(await resolvesElsewhere(dir, 'demo', join(dir, 'loose.md'))).toBe(true)
+    expect(await resolvesElsewhere(dir, 'demo', join(dir, 'demo'))).toBe(true)
+    expect(await resolvesElsewhere(dir, 'demo', undefined)).toBe(true)
+    expect(await resolvesElsewhere(dir, 'gone', join(dir, 'loose.md'))).toBe(true)
   })
 })

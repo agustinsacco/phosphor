@@ -6,8 +6,9 @@
 import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, mkdir, open, readdir, realpath, rename, rm } from 'node:fs/promises'
-import { dirname, join, relative, sep } from 'node:path'
+import { dirname, isAbsolute, join, relative, sep } from 'node:path'
 import {
+  isSkippedSkillFolder,
   isShareablePath,
   isShareableSkillName,
   SKILL_SHARE_LIMITS,
@@ -24,9 +25,6 @@ export class SkillShareError extends Error {
     super(message)
   }
 }
-
-/** Folders a skill bundle never carries: VCS and dependency trees, dot folders. */
-const skippedFolder = (name: string) => name.startsWith('.') || name === 'node_modules'
 
 async function readFileBytes(path: string, left: number): Promise<Buffer> {
   const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
@@ -77,10 +75,30 @@ export async function readSkillBundle(dir: string, name: string): Promise<SkillB
       files.push({ path: rel, data: bytes.toString('base64') })
     }
     for (const entry of entries)
-      if (entry.isDirectory() && !skippedFolder(entry.name)) await walk(join(folder, entry.name))
+      if (entry.isDirectory() && !isSkippedSkillFolder(entry.name))
+        await walk(join(folder, entry.name))
   }
   await walk(root)
   return { name, files }
+}
+
+/**
+ * Whether a skill the machine already resolves for `name`, from `file`, comes from somewhere
+ * other than `<root>/<name>`: then an install there would not replace it. A skill whose file
+ * is unknown or unreadable counts as elsewhere.
+ */
+export async function resolvesElsewhere(
+  root: string,
+  name: string,
+  file: string | undefined,
+): Promise<boolean> {
+  if (!file) return true
+  try {
+    const rel = relative(await realpath(join(root, name)), await realpath(file))
+    return rel === '' || rel.startsWith('..') || isAbsolute(rel)
+  } catch {
+    return true
+  }
 }
 
 const code = (error: unknown) =>

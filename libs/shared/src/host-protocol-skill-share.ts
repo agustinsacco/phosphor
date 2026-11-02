@@ -25,8 +25,17 @@ export interface SkillBundle {
 export type SkillInstallResult =
   { status: 'installed'; replaced: boolean } | { status: 'conflict'; replaceable: boolean }
 
+/** Provenance sidecar name. Dot-prefixed: skill discovery ignores dotfiles. */
+export const SKILL_SIDECAR = '.phosphor-skill.json'
+/** Sidecar name written by pre-rename (pidex) installs; still read, never written. */
+export const LEGACY_SKILL_SIDECAR = '.pidex-skill.json'
 /** Provenance sidecars belong to the machine that installed the skill; they never travel. */
-const SIDECARS = new Set(['.phosphor-skill.json', '.pidex-skill.json'])
+const SIDECARS = new Set([SKILL_SIDECAR, LEGACY_SKILL_SIDECAR])
+
+/** Folders no skill bundle walk enters, as pi's own discovery skips them. */
+export function isSkippedSkillFolder(name: string): boolean {
+  return name.startsWith('.') || name === 'node_modules'
+}
 
 export function isShareableSkillName(v: unknown): v is string {
   return typeof v === 'string' && v.length <= 64 && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(v)
