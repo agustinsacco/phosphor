@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { usePlatform } from '@/platform/Platform'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSettingsWorkspace } from '../../SettingsMachineScope'
 import { installedExtensionTabs, type EXTENSION_TABS, type MachineKind } from '../../settingsIndex'
 import { useSettingsUiStore, type SettingsMachine } from '../../settingsUiStore'
 import { SETTINGS_SECTIONS } from '../registry'
@@ -28,18 +27,19 @@ export function useExtensionTabs(machine: SettingsMachine | null): ExtensionTabs
 }
 
 /**
- * This Mac's packages, read again whenever the tab changes: installing from
- * Extensions shows the package's own item without reopening Settings.
+ * This Mac's packages in the scope line's folder, as the Extensions page lists
+ * them, read again whenever the tab changes: installing from Extensions shows
+ * the package's own item without reopening Settings.
  */
 function useLocalPackageTabs(enabled: boolean): ExtensionTabs {
   const tab = useSettingsUiStore((s) => s.tab)
-  const workspace = useSettingsWorkspace()
+  const folder = useSettingsUiStore((s) => s.folder)
   const [tabs, setTabs] = useState<ExtensionTabs>(() => installedExtensionTabs([]))
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
     window.phosphor
-      .invoke('packages:list', workspace ?? undefined)
+      .invoke('packages:list', folder ?? undefined)
       .then((entries) => {
         if (!cancelled) setTabs(installedExtensionTabs(entries))
       })
@@ -49,7 +49,7 @@ function useLocalPackageTabs(enabled: boolean): ExtensionTabs {
     return () => {
       cancelled = true
     }
-  }, [enabled, tab, workspace])
+  }, [enabled, tab, folder])
   return tabs
 }
 

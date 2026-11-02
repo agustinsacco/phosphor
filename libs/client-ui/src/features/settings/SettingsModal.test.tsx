@@ -202,7 +202,7 @@ it('follows This Mac in the switcher while a Host lane is still active', async (
   await act(async () => root.render(<SettingsModal />))
   expect(document.body.textContent).toContain('Local account controls')
   expect(document.body.textContent).not.toContain('Remote settings are not available here.')
-  expect(invoke).toHaveBeenCalledWith('packages:list', '/Users/me/phosphor-home')
+  expect(invoke).toHaveBeenCalledWith('packages:list', undefined)
   expect(invoke).not.toHaveBeenCalledWith('packages:list', remotePath)
 })
 
