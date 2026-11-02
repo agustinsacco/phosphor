@@ -176,6 +176,10 @@
       "types": "./src/mcp-write-policy.ts",
       "default": "./src/mcp-write-policy.ts"
     },
+    "./subscription-providers": {
+      "types": "./src/subscription-providers.ts",
+      "default": "./src/subscription-providers.ts"
+    },
     "./models": {
       "types": "./src/models.ts",
       "default": "./src/models.ts"
