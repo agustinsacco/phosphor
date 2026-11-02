@@ -34,16 +34,13 @@ vi.mock('../pi/session-runtime', () => ({
     create: async () => (await import('../pi/session-launch')).prepareDesktopSessionLaunch(),
   },
 }))
-vi.mock('../pi/print-mode', () => ({ runPrintMode: h.print }))
+vi.mock('@phosphor/session-runtime/pi/print-mode', () => ({ runPrintMode: h.print }))
 vi.mock('../pi/catalogue', () => ({ catalogueModels: async () => [] }))
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: async () => [] }))
 vi.mock('@phosphor/session-runtime/pi/agent-settings', () => ({
   readAgentSettings: async () => ({ defaultProvider: 'openai' }),
 }))
 vi.mock('../claude/accounts', () => ({ claudeAccountEnv: () => ({}), primaryAccount: vi.fn() }))
-vi.mock('../store', () => ({
-  getLanePrefs: () => ({ nameMinWords: 2, nameMaxWords: 5, nameMaxLength: 60 }),
-}))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 
 const call = (channel: string, ...args: unknown[]) => h.handlers.get(channel)!({}, ...args)
