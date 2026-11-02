@@ -1,5 +1,5 @@
 import type { ChatItem, CustomItem } from './chatItems'
-import { SUBAGENT_SLASH_RESULT_TYPE } from './subagentRuns'
+import { SUBAGENT_SLASH_RESULT_TYPE } from '@phosphor/shared/subagent-evidence'
 
 /** Presentation-only replacement. Pi's original entries remain untouched. */
 export function appendCustomItem(items: ChatItem[], item: CustomItem): void {

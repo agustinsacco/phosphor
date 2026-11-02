@@ -6,8 +6,9 @@ import { useArtifactsStore } from '@/stores/artifacts'
 import { SNAPSHOT_COMMAND } from '@phosphor/pi-extensions/subagent-snapshot'
 import type { SubagentInspection } from './subagentInspect'
 import type { SubagentTarget } from './subagentView'
-import { saveSubagentSnapshot } from './subagentSnapshot'
+import { saveFromPane } from './subagentSnapshot'
 import { steerSubagent } from './subagentSteer'
+import { useSubagentCommands } from './subagentCommands'
 
 export function SubagentActions({
   sessionId,
@@ -23,9 +24,7 @@ export function SubagentActions({
   active: boolean
 }): React.JSX.Element {
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
-  const commands = useChatStore((s) => s.sessions[sessionId]?.commands)
-  const supported = (name: string): boolean =>
-    !!commands?.some((c) => c.name === name && c.source === 'extension')
+  const { supported, blocked } = useSubagentCommands(sessionId)
   const messageId = useId()
   const [steering, setSteering] = useState(false)
   const [message, setMessage] = useState('')
@@ -44,16 +43,8 @@ export function SubagentActions({
     const signal = controller.current!.signal
     try {
       if (save) {
-        if (!meta?.sessionId) throw new Error('Session identity is not available yet.')
-        const id = await saveSubagentSnapshot(
-          sessionId,
-          { sourceSessionId: meta.sessionId, ...target, readAt, inspection },
-          signal,
-        )
+        const id = await saveFromPane(sessionId, meta, { ...target, readAt, inspection }, signal)
         if (!signal.aborted) setSaved(id)
-        // Make the existing artifact index catch up even though no model turn ended.
-        if (meta.sessionFile)
-          void window.phosphor.invoke('artifacts:forSession', meta.sessionFile).catch(() => {})
       } else {
         await steerSubagent(sessionId, target, message)
         if (!signal.aborted) {
@@ -83,9 +74,9 @@ export function SubagentActions({
       )}
       <div className="flex flex-wrap gap-2">
         <Button
-          disabled={pending || !meta?.sessionId || !supported(SNAPSHOT_COMMAND)}
+          disabled={pending || !!blocked || !meta?.sessionId || !supported(SNAPSHOT_COMMAND)}
           onClick={() => void act(true)}
-          title="Save this bounded preview, not a full transcript"
+          title={blocked ?? 'Save this bounded preview, not a full transcript'}
         >
           Save snapshot
         </Button>
@@ -101,7 +92,8 @@ export function SubagentActions({
         )}
         {active && (
           <Button
-            disabled={pending || !supported('subagents-steer')}
+            disabled={pending || !!blocked || !supported('subagents-steer')}
+            title={blocked}
             onClick={() => setSteering(!steering)}
           >
             Steer…

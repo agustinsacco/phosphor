@@ -88,6 +88,7 @@ const OBSERVATIONS = new Set<RpcCommand['type']>([
   'get_session_stats',
   'get_available_models',
   'get_commands',
+  'get_entries',
   'export_html',
 ])
 /** Leaves the session as it was: a reconnect need not wait for it, nor it for one. */

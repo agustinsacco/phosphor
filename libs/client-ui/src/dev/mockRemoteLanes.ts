@@ -82,6 +82,38 @@ export function mockRemoteLaneMarks(laneId: unknown, change: LaneMarksChange): v
   for (const listener of listeners) listener()
 }
 
+/** One lane's channels, answered as the harness Host would. `mock:remoteLanes` turns lanes on. */
+export function mockRemoteLaneInvoke(channel: string, args: unknown[]): Promise<unknown> {
+  const lanes = localStorage.getItem('mock:remoteLanes') === '1'
+  switch (channel) {
+    case 'hosts:openLane':
+    case 'hosts:createLane':
+      if (!lanes)
+        return Promise.reject(new Error('Remote lanes are not available in the browser harness.'))
+      return Promise.resolve({
+        ...mockRemoteInfo,
+        target: { kind: 'remote', hostId: String(args[0]) },
+        laneId: typeof args[1] === 'string' ? args[1] : mockRemoteInfo.laneId,
+        workspacePath: `host:${String(args[0])}/0000000000000001`,
+      })
+    case 'hosts:setLaneMarks':
+      mockRemoteLaneMarks(args[1], args[2] as LaneMarksChange)
+      return Promise.resolve(undefined)
+    case 'hosts:deleteLane':
+      return Promise.resolve({ branchKept: false })
+    case 'hosts:exportLaneHtml':
+      return Promise.resolve({ html: '<!doctype html><title>Mock lane</title>' })
+    case 'hosts:subagentHistory':
+      return Promise.resolve({ entries: [], leafId: null })
+    case 'hosts:subagentInspect':
+      return Promise.resolve(null)
+    default:
+      // Focus, stop, resume, control and read marks. Release applies with lanes off too.
+      if (lanes || channel === 'hosts:releaseControl') mockRemoteAction(channel)
+      return Promise.resolve(undefined)
+  }
+}
+
 /** The harness Host's snapshot. It keeps lane pins and markers, as a current Host does. */
 export function mockRemoteSnapshot(): HostsSnapshot {
   const hosts = structuredClone(mockRemoteHosts)

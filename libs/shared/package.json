@@ -208,6 +208,14 @@
       "types": "./src/skillsCatalog.ts",
       "default": "./src/skillsCatalog.ts"
     },
+    "./subagent-evidence": {
+      "types": "./src/subagent-evidence.ts",
+      "default": "./src/subagent-evidence.ts"
+    },
+    "./subagent-inspect": {
+      "types": "./src/subagent-inspect.ts",
+      "default": "./src/subagent-inspect.ts"
+    },
     "./text-search": {
       "types": "./src/text-search.ts",
       "default": "./src/text-search.ts"

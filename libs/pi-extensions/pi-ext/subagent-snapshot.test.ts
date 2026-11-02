@@ -10,7 +10,12 @@ beforeEach(() => {
 afterEach(() => rmSync(directory, { recursive: true, force: true }))
 import artifactsExtension, { artifactsBeforeCompaction } from './artifacts'
 import { ARTIFACT_ENTRY_TYPE } from './artifact-store'
-import { SNAPSHOT_COMMAND, snapshotContent, type InspectionSnapshot } from './subagent-snapshot'
+import {
+  SNAPSHOT_COMMAND,
+  snapshotContent,
+  snapshotReceiptMatches,
+  type InspectionSnapshot,
+} from './subagent-snapshot'
 
 const snapshot: InspectionSnapshot = {
   sourceSessionId: 'native',
@@ -121,4 +126,32 @@ it('captures content verbatim and never invents missing counters or an outcome',
   )
   expect(content).toContain('Reported run state: unavailable')
   expect(content).not.toMatch(/tokens|accepted|0 tools/)
+})
+
+it('stamps the session that runs the save when a Host lane names no source', async () => {
+  const h = harness()
+  const { sourceSessionId: _source, ...unnamed } = snapshot
+  await h.commands
+    .get(SNAPSHOT_COMMAND)!
+    .handler(`request ${encodeURIComponent(JSON.stringify(unnamed))}`, h.ctx)
+  const a = JSON.parse(h.widgets[0]![0]!.split('PHOSPHOR_SUBAGENT_SAVE:')[1]!).artifact
+  expect(a.content).toBe(snapshotContent(snapshot, 'native'))
+})
+it('matches a receipt only to exactly the snapshot it saved', () => {
+  const { sourceSessionId: _source, ...unnamed } = snapshot
+  const saved = snapshotContent(snapshot, 'native')
+  expect(snapshotReceiptMatches(snapshot, saved)).toBe(true)
+  expect(snapshotReceiptMatches(unnamed, saved)).toBe(true)
+  expect(snapshotReceiptMatches({ ...snapshot, sourceSessionId: 'other' }, saved)).toBe(false)
+  for (const content of [
+    saved.replace('CHANGES_REQUESTED', 'APPROVED'),
+    saved.replace('Session: native', 'Session: other'),
+    saved.replace('Session: native', 'Session:'),
+    null,
+  ]) {
+    expect(snapshotReceiptMatches(snapshot, content)).toBe(false)
+    if (content?.includes('Session: other')) continue
+    expect(snapshotReceiptMatches(unnamed, content)).toBe(false)
+  }
+  expect(snapshotReceiptMatches(unnamed, snapshotContent(unnamed, 'pi-on-the-host'))).toBe(true)
 })

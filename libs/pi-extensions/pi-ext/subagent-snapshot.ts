@@ -5,7 +5,11 @@ export const SNAPSHOT_PREFIX = 'PHOSPHOR_SUBAGENT_SAVE:'
 export const SNAPSHOT_LIMIT = 100_000
 
 export interface InspectionSnapshot {
-  sourceSessionId: string
+  /**
+   * pi's id for the inspected session. A Host lane's window knows only its own handle
+   * and omits it: the session that runs the save command is then the source.
+   */
+  sourceSessionId?: string
   runId: string
   childId?: string
   readAt: string
@@ -31,7 +35,8 @@ const literal = (text: string): string => {
 export function snapshotContent(value: unknown, sessionId: string): string {
   if (!value || typeof value !== 'object') throw new Error('Invalid snapshot.')
   const s = value as InspectionSnapshot
-  if (s.sourceSessionId !== sessionId) throw new Error('Snapshot belongs to another session.')
+  if (s.sourceSessionId !== undefined && s.sourceSessionId !== sessionId)
+    throw new Error('Snapshot belongs to another session.')
   if (!validTargetId(s.runId) || (s.childId !== undefined && !validTargetId(s.childId)))
     throw new Error('Invalid snapshot target.')
   if (typeof s.readAt !== 'string' || !Number.isFinite(Date.parse(s.readAt)))
@@ -72,4 +77,20 @@ export function snapshotContent(value: unknown, sessionId: string): string {
     .join('\n\n')
   if (content.length > SNAPSHOT_LIMIT) throw new Error('Formatted snapshot is too large.')
   return content
+}
+
+/**
+ * Whether a save receipt holds exactly this snapshot. Without a named source, the
+ * receipt names the session that saved it, and the whole content is rebuilt around
+ * that name: a wrong name can only fail the match.
+ */
+export function snapshotReceiptMatches(snapshot: InspectionSnapshot, content: unknown): boolean {
+  if (typeof content !== 'string') return false
+  const session = snapshot.sourceSessionId ?? /^Session: (\S+)$/m.exec(content)?.[1]
+  if (session === undefined) return false
+  try {
+    return content === snapshotContent(snapshot, session)
+  } catch {
+    return false
+  }
 }

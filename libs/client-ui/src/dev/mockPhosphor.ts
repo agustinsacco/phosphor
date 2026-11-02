@@ -1,13 +1,10 @@
 import {
-  mockRemoteAction,
-  mockRemoteLaneMarks,
+  mockRemoteLaneInvoke,
   onMockRemoteChanged,
   mockRemoteSnapshot,
   mixedRemoteHosts,
-  mockRemoteInfo,
 } from './mockRemoteLanes'
 import type { MachineView } from '@shared/control-api'
-import type { LaneMarksChange } from '@shared/host-protocol-lane-marks'
 import { mockMachineSettingsInvoke } from './mockMachineSettings'
 import { mockSkillShareInvoke } from './mockSkillShare'
 import { mockInstructionsInvoke } from './mockInstructions'
@@ -1516,32 +1513,18 @@ export function installMockPhosphor(): void {
             : {}
         case 'hosts:openLane':
         case 'hosts:createLane':
-          if (localStorage.getItem('mock:remoteLanes') === '1')
-            return Promise.resolve({
-              ...mockRemoteInfo,
-              target: { kind: 'remote', hostId: String(args[0]) },
-              laneId: typeof args[1] === 'string' ? args[1] : mockRemoteInfo.laneId,
-              workspacePath: `host:${String(args[0])}/0000000000000001`,
-            })
-          return Promise.reject(new Error('Remote lanes are not available in the browser harness.'))
         case 'hosts:setFocusedLane':
         case 'hosts:stopLane':
         case 'hosts:resumeLane':
         case 'hosts:takeControl':
         case 'hosts:markRead':
-          if (localStorage.getItem('mock:remoteLanes') === '1') mockRemoteAction(channel)
-          return Promise.resolve(undefined as never)
-        // R1/R2 mock (B)
         case 'hosts:releaseControl':
-          mockRemoteAction(channel)
-          return Promise.resolve(undefined)
         case 'hosts:setLaneMarks':
-          mockRemoteLaneMarks(args[1], args[2] as LaneMarksChange)
-          return Promise.resolve(undefined)
         case 'hosts:deleteLane':
-          return Promise.resolve({ branchKept: false })
         case 'hosts:exportLaneHtml':
-          return Promise.resolve({ html: '<!doctype html><title>Mock lane</title>' })
+        case 'hosts:subagentHistory':
+        case 'hosts:subagentInspect':
+          return mockRemoteLaneInvoke(channel, args) as never
         case 'hosts:removeRepository':
         case 'hosts:orderRepositories':
         case 'hosts:createFolder':

@@ -10,7 +10,7 @@ import type { LiveSessionInfo, SessionPush } from '@phosphor/shared/models'
 import type { ExtensionUIResponse, RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import type { RemoteLaneCreate } from '@phosphor/shared/ipc'
 import { createLaneProjection } from './projection'
-import { exportLaneHtml } from './lane-export'
+import type { LaneRead } from './lane-reads'
 import type { createHostConnection, LaneFrame } from './connection'
 import {
   createFailureText,
@@ -417,9 +417,10 @@ export function createRemoteLanes(ports: {
         type === 'lane.markRead' ? { type, upTo: summary?.attention ?? 0 } : { type },
       )
     },
-    exportHtml(windowId: number, id: string) {
+    /** A read of a lane this window opened, answered by its Host; the reads are in lane-reads. */
+    onLane<T>(windowId: number, id: string, read: LaneRead<T>): Promise<T> {
       const h = owned(windowId, id)
-      return exportLaneHtml(connection(h.hostId), h.laneId)
+      return read(connection(h.hostId), h.laneId)
     },
     async command(windowId: number, id: string, command: RpcCommand): Promise<RpcResponse> {
       const h = owned(windowId, id)

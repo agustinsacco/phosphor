@@ -95,3 +95,27 @@ it('cancels pending saves and does not consume another lane’s receipt', async 
   await result
   expect(useArtifactsStore.getState().bySession.lane).toBeUndefined()
 })
+it('saves from a Host lane, whose window names no source, for the session that ran it', async () => {
+  const { sourceSessionId: _source, ...unnamed } = snapshot
+  for (const [content, outcome] of [
+    [snapshotContent(unnamed, 'pi-on-the-host'), 'saved'],
+    [snapshotContent({ ...unnamed, readAt: '2026-10-12T10:00:00Z' }, 'pi-on-the-host'), 'refused'],
+  ] as const) {
+    piCommand.mockImplementation(async (_id, c) => {
+      if (c.type === 'get_commands')
+        return {
+          success: true,
+          data: { commands: [{ name: SNAPSHOT_COMMAND, source: 'extension' }] },
+        }
+      const [, requestId, payload] = c.message.split(' ')
+      expect(JSON.parse(decodeURIComponent(payload))).toEqual(unnamed)
+      const artifact = { id: 'subagent-host', type: 'markdown', version: 1, content }
+      publish('lane', { requestId, artifact })
+      publish('lane')
+      return { success: true }
+    })
+    const saving = saveSubagentSnapshot('lane', unnamed, new AbortController().signal)
+    if (outcome === 'saved') await expect(saving).resolves.toBe('subagent-host')
+    else await expect(saving).rejects.toThrow('did not match')
+  }
+})

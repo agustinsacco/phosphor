@@ -20,6 +20,9 @@ import type { Location } from '@/navigation/location'
 const TerminalPane = lazy(() =>
   import('@/features/terminal/TerminalPane').then((m) => ({ default: m.TerminalPane })),
 )
+const SubagentPanel = lazy(() =>
+  import('@/features/chat/SubagentPanel').then((m) => ({ default: m.SubagentPanel })),
+)
 const ArtifactsPane = lazy(() =>
   import('@/features/artifacts/RemoteArtifactsPane').then((m) => ({
     default: m.RemoteArtifactsPane,
@@ -110,7 +113,6 @@ function LanePanes({
   session: { phosphorId: string; workspacePath: string }
 }): React.JSX.Element {
   const pane = location.pane ?? 'chat'
-  const placement = SCREENS[pane].compact
   // A phone switches panes from the lane menu in its header (CompactLaneHeader), which
   // also carries the lane's controls; wider browsers keep tabs and Desktop's control row.
   const tabs = usePlatform().formFactor !== 'compact'
@@ -143,9 +145,7 @@ function LanePanes({
             </p>
           }
         >
-          {typeof placement === 'object' ? (
-            <p className="p-4">{placement.notYet}</p>
-          ) : pane === 'chat' ? (
+          {pane === 'chat' ? (
             <ChatView
               key={session.phosphorId}
               sessionId={session.phosphorId}
@@ -160,6 +160,8 @@ function LanePanes({
             />
           ) : pane === 'artifacts' ? (
             <ArtifactsPane sessionId={session.phosphorId} workspacePath={session.workspacePath} />
+          ) : pane === 'subagents' ? (
+            <SubagentPanel sessionId={session.phosphorId} />
           ) : pane === 'terminal' && terminal ? (
             <TerminalPane sessionId={session.phosphorId} workspacePath={session.workspacePath} />
           ) : pane === 'terminal' ? (

@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { useChatStore } from '@/stores/chat'
 import { useLayoutStore } from '@/stores/layout'
+import { useSessionsStore } from '@/stores/sessions'
+import { hostResourceKey } from '@shared/remote-host'
+import type { LiveSessionInfo } from '@shared/models'
 import { validTargetId } from '@phosphor/pi-extensions/subagent-snapshot'
 import type { FleetNode, FleetSnapshot } from './subagentRuns'
 
@@ -34,9 +37,32 @@ export function openForegroundSubagent(sessionId: string, toolCallId: string): v
   useLayoutStore.getState().setRightPane('subagents', sessionId)
 }
 
+/**
+ * Where a session's view preference is kept: pi's durable session id on This Mac. A Host
+ * lane's window knows only a handle that changes with every open, so the lane's own key
+ * stands in, as it does for Composer drafts.
+ */
+const viewKey = (
+  entry: Pick<LiveSessionInfo, 'target' | 'laneId'> | undefined,
+  piSession: string | undefined,
+): string | undefined =>
+  entry?.target?.kind === 'remote' && entry.laneId
+    ? hostResourceKey(entry.target, 'session', entry.laneId)
+    : piSession
+export function useSubagentViewKey(sessionId: string): string | undefined {
+  const entry = useSessionsStore((s) => s.live[sessionId])
+  return viewKey(
+    entry,
+    useChatStore((s) => s.sessions[sessionId]?.meta?.sessionId),
+  )
+}
+
 /** All entry points open the same session pane; explicit links select an exact run. */
 export function openSubagents(sessionId: string, runId?: string, childId?: string): void {
-  const identity = useChatStore.getState().sessions[sessionId]?.meta?.sessionId
+  const identity = viewKey(
+    useSessionsStore.getState().live[sessionId],
+    useChatStore.getState().sessions[sessionId]?.meta?.sessionId,
+  )
   if (runId) {
     if (identity) saveSubagentView(identity, { view: 'live', target: { runId, childId } })
     useSubagentNavigation.setState((s) => ({
@@ -65,7 +91,7 @@ export function loadSubagentView(sessionId: string): SubagentView {
   }
 }
 
-/** UI preferences only. Bounded, keyed by Pi's durable session ID, with no cached liveness. */
+/** UI preferences only. Bounded, keyed by a durable session key, with no cached liveness. */
 export function saveSubagentView(sessionId: string, value: SubagentView): void {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}')

@@ -1,6 +1,11 @@
 import type { IpcInvokeMap } from '@phosphor/shared/ipc'
 import type { WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { laneMarks } from '@phosphor/host-client/lane-marks'
+import {
+  exportLaneHtml,
+  laneSubagentHistory,
+  laneSubagentInspect,
+} from '@phosphor/host-client/lane-reads'
 import { remoteSkillShare } from '@phosphor/host-client/skill-share'
 import type { RemoteLanes, RemoteWindow } from '@phosphor/host-client/remote-lanes'
 import type { BrowserControl } from './control'
@@ -67,6 +72,18 @@ function settingsHandlers(settings: () => ReturnType<typeof createBrowserSetting
     'hosts:claudeAccount': (...args) => settings().moveAccount(...args),
   } satisfies Partial<BrowserHandlers>
 }
+/** Lanes this tab opened, by handle: pi commands and the Host's reads. The tab is window 1. */
+function laneHandlers(lanes: RemoteLanes) {
+  return {
+    'hosts:exportLaneHtml': (id) => lanes.onLane(1, id, exportLaneHtml),
+    'hosts:subagentHistory': (id) => lanes.onLane(1, id, laneSubagentHistory),
+    'hosts:subagentInspect': (id, request) => lanes.onLane(1, id, laneSubagentInspect(request)),
+    'pi:command': (id, command) => lanes.command(1, id, command),
+    'pi:extensionUiResponse': (id, response) => lanes.respond(1, id, response),
+    'pi:disposeSession': (id) => lanes.dispose(1, id),
+    'pi:listLiveSessions': () => lanes.list(1),
+  } satisfies Partial<BrowserHandlers>
+}
 /** Cross-tab delivery cannot prevent local logout. */
 function signOut(control: BrowserControl, broadcast: () => void) {
   const result = control.signOut()
@@ -129,13 +146,9 @@ export function createBrowserHandlers(ports: {
     'hosts:takeControl': (host, lane) => lanes.action(host, lane, 'control.take'),
     'hosts:releaseControl': (host, lane) => lanes.action(host, lane, 'control.release'),
     'hosts:markRead': (host, lane) => lanes.action(host, lane, 'lane.markRead'),
-    'hosts:exportLaneHtml': (id) => lanes.exportHtml(1, id),
+    ...laneHandlers(lanes),
     'hosts:setLaneMarks': marks.set,
     'hosts:deleteLane': (host, lane, options) => resources.folders.deleteLane(host, lane, options),
-    'pi:command': (id, command) => lanes.command(1, id, command),
-    'pi:extensionUiResponse': (id, response) => lanes.respond(1, id, response),
-    'pi:disposeSession': (id) => lanes.dispose(1, id),
-    'pi:listLiveSessions': () => lanes.list(1),
     'fs:listFiles': (key) => read('fs:listFiles', [key]),
     'fs:readFile': (key) => read('fs:readFile', [key]),
     'git:statusMap': (key) => read('git:statusMap', [key]),

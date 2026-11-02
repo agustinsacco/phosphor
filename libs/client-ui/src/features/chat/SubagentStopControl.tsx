@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Button } from '@/components/form'
-import { useChatStore } from '@/stores/chat'
 import { errorText } from '@shared/errors'
 import { stopSubagent } from './subagentStop'
+import { useSubagentCommands } from './subagentCommands'
 
 /** The extension owns the stop and its persisted receipt. Never optimistically mark a run stopped. */
 export function SubagentStop({
@@ -12,11 +12,7 @@ export function SubagentStop({
   sessionId: string
   runId: string
 }): React.JSX.Element {
-  const supported = useChatStore((s) =>
-    s.sessions[sessionId]?.commands.some(
-      (c) => c.name === 'subagents-stop' && c.source === 'extension',
-    ),
-  )
+  const { supported, blocked } = useSubagentCommands(sessionId)
   const [confirming, setConfirming] = useState(false)
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<string>()
@@ -53,7 +49,7 @@ export function SubagentStop({
             Stop this entire background run? Partial changes remain, and stopped runs cannot resume.
           </p>
           <div className="flex gap-2">
-            <Button variant="danger" disabled={pending} onClick={() => void stop()}>
+            <Button variant="danger" disabled={pending || !!blocked} onClick={() => void stop()}>
               Stop this run
             </Button>
             <Button disabled={pending} onClick={() => setConfirming(false)}>
@@ -63,8 +59,13 @@ export function SubagentStop({
         </>
       ) : (
         <Button
-          disabled={!supported}
-          title={supported ? undefined : 'This session does not advertise the Stop command.'}
+          disabled={!!blocked || !supported('subagents-stop')}
+          title={
+            blocked ??
+            (supported('subagents-stop')
+              ? undefined
+              : 'This session does not advertise the Stop command.')
+          }
           onClick={() => setConfirming(true)}
         >
           Stop run…

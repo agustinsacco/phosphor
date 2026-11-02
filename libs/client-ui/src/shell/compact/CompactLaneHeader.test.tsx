@@ -101,6 +101,15 @@ it('names a pane other than Chat and switches panes from the lane menu', () => {
   expect(sheet()).toBeNull()
 })
 
+it('lists Subagents in the lane menu, as Desktop offers its pane (regression)', () => {
+  render()
+  act(() => button(/^Lane menu/)!.click())
+  const panes = sheet()!.querySelector('nav[aria-label="Lane panes"]')!
+  expect([...panes.querySelectorAll('button')].map((b) => b.textContent)).toContain('Subagents')
+  act(() => button('Subagents')!.click())
+  expect(navigate).toHaveBeenCalledWith({ ...location, pane: 'subagents' })
+})
+
 it('offers Take control to a reader and closes once the Host confirms', async () => {
   render()
   act(() => button(/^Lane menu/)!.click())

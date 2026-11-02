@@ -60,6 +60,10 @@
       "types": "./src/lane-marks.ts",
       "default": "./src/lane-marks.ts"
     },
+    "./lane-reads": {
+      "types": "./src/lane-reads.ts",
+      "default": "./src/lane-reads.ts"
+    },
     "./settings": {
       "types": "./src/settings.ts",
       "default": "./src/settings.ts"

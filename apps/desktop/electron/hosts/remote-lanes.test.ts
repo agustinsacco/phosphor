@@ -10,7 +10,7 @@ import {
 import type { GrantPayload } from '@shared/host-grant'
 import type { SessionPush } from '@shared/models'
 import { createHostConnection } from './connection'
-import { createRemoteLanes } from './remote-lanes'
+import { createRemoteLanes, exportLaneHtml } from './remote-lanes'
 import { createHostAttention } from './attention'
 import { REMOTE_UNAVAILABLE, UNKNOWN_OUTCOME } from './lane-ops'
 
@@ -411,7 +411,7 @@ it('routes prompts and queries, names rejecting controllers, and publishes takeo
   await drain()
   await accepted
   const stats = t.lanes.command(1, info.sessionId, { type: 'get_session_stats' })
-  const exported = t.lanes.exportHtml(1, info.sessionId)
+  const exported = t.lanes.onLane(1, info.sessionId, exportLaneHtml)
   await drain()
   expect(await stats).toMatchObject({ success: true, data: { sessionId: info.sessionId } })
   expect(await exported).toEqual({ html: expect.stringMatching(/^<html>/) })

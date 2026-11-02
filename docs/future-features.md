@@ -15,7 +15,6 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 | Chat and lanes  | Fork, clone, rewind/tree editing, the Session tree, Make routine, local rules/MCP controls, worktree Merge into main                               |
 | Files           | Content search, rich previews/quick look, external imports, open-in-app, per-file Revert in Changes, and a truncation flag on Host file lists      |
 | Skills          | Catalogue install, upload, export to a file, discovery and in-place edits                                                                          |
-| Subagents       | The Subagents pane: inspecting, steering and stopping runs, and the Coordination log. A read-only Agents list needs no new lane op                 |
 | Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync |
 | Artifacts       | Revision-aware writes from an artifact into a remote workspace                                                                                     |
 | Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                               |

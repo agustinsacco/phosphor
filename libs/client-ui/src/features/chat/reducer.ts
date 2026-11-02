@@ -29,7 +29,7 @@ import type {
   UserItem,
 } from './chatItems'
 import { emptyChatSession, newItemId } from './chatItems'
-import { isSubagentNotice } from './subagentRuns'
+import { isSubagentNotice } from '@phosphor/shared/subagent-evidence'
 import { appendCustomItem } from './subagentReceipts'
 import { matchesUserEcho } from './userEcho'
 import {

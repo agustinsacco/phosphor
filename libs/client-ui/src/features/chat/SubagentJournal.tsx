@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/form'
 import { errorText } from '@shared/errors'
 import { recordedReply, subagentHistory } from './subagentHistory'
-import { SUBAGENT_SUPERVISOR_REPLY_TYPE } from './subagentRuns'
+import { readSubagentEntries } from './subagentReads'
+import { SUBAGENT_SUPERVISOR_REPLY_TYPE } from '@phosphor/shared/subagent-evidence'
 import { SubagentText } from './SubagentText'
 import { newestWork, taskPreview, workTime } from './subagentPresentation'
 import { SubagentNoticeItem } from './items/SubagentNotice'
@@ -23,13 +24,9 @@ export function SubagentJournal({
     let cancelled = false
     setHistory(undefined)
     setError(undefined)
-    void window.phosphor
-      .piCommand(sessionId, { type: 'get_entries' })
-      .then((reply) => {
-        if (cancelled) return
-        if (!reply.success) throw new Error(reply.error ?? 'Recorded history is unavailable.')
-        if (!reply.data) throw new Error('Recorded history is unavailable.')
-        setHistory(subagentHistory(reply.data.entries, reply.data.leafId))
+    readSubagentEntries(sessionId)
+      .then((read) => {
+        if (!cancelled) setHistory(subagentHistory(read.entries, read.leafId))
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(errorText(err))

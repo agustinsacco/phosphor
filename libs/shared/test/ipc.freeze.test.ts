@@ -155,6 +155,8 @@ const expectedEntries = [
   ['hosts:skills', 'machine'],
   ['hosts:snapshot', 'app'],
   ['hosts:stopLane', 'app'],
+  ['hosts:subagentHistory', 'app'],
+  ['hosts:subagentInspect', 'app'],
   ['hosts:tailscaleStatus', 'app'],
   ['hosts:takeControl', 'app'],
   ['hosts:traffic', 'app'],

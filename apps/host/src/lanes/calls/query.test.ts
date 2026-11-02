@@ -393,3 +393,145 @@ describe('lane.exportHtml', () => {
     expect(await code(ID)).toBe('unknown-lane')
   })
 })
+
+describe('lane.subagentHistory', () => {
+  const ID = { laneId: lane.laneId }
+  const call = {
+    type: 'message',
+    id: 'call',
+    parentId: 'user',
+    message: {
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'private reasoning' },
+        { type: 'toolCall', id: 't', name: 'subagent', arguments: { agent: 'worker' } },
+      ],
+    },
+  }
+  const entries = [
+    { type: 'message', id: 'user', parentId: null, message: { role: 'user', content: 'go' } },
+    call,
+    { type: 'message', id: 'other', parentId: 'user', message: { role: 'user', content: 'x' } },
+  ]
+  const answer = (data: unknown): RpcResponse => ({
+    type: 'response',
+    command: 'get_entries',
+    success: true,
+    data: data as { entries: unknown[]; leafId: string | null },
+  })
+
+  it('is a read that sends the active branch subagent evidence, not the session file', async () => {
+    const { options, command } = fixture()
+    command.mockResolvedValue(answer({ entries, leafId: 'call' }))
+    expect(laneQueryCapability('lane.subagentHistory')).toBe('sessions.read')
+    expect(await resolveLaneQuery(options, 'lane.subagentHistory', ID)).toEqual({
+      ok: true,
+      data: {
+        entries: [
+          {
+            ...call,
+            parentId: null,
+            message: { role: 'assistant', content: [call.message.content[1]] },
+          },
+        ],
+        leafId: 'call',
+      },
+    })
+    expect(command).toHaveBeenCalledWith('runtime-id', { type: 'get_entries' })
+  })
+
+  it('refuses a stopped lane, a malformed answer, an unknown leaf and an oversized result', async () => {
+    const { options, command } = fixture()
+    const code = async () =>
+      (
+        (await resolveLaneQuery(options, 'lane.subagentHistory', ID)) as {
+          error?: { code: string }
+        }
+      ).error?.code
+    for (const data of [{ entries: 'x', leafId: null }, { entries: [], leafId: 1 }, null]) {
+      command.mockResolvedValueOnce(answer(data))
+      expect(await code()).toBe('internal')
+    }
+    command.mockResolvedValueOnce(answer({ entries, leafId: 'missing' }))
+    expect(await code()).toBe('internal')
+    const big = {
+      ...call,
+      message: {
+        role: 'toolResult',
+        toolName: 'subagent',
+        toolCallId: 't',
+        content: [{ type: 'text', text: 'x'.repeat(HOST_LIMITS.outboundFrameBytes / 2) }],
+      },
+    }
+    command.mockResolvedValueOnce(answer({ entries: [entries[0], big], leafId: 'call' }))
+    expect(await code()).toBe('too-large')
+    options.live.sessionFor = () => null
+    expect(await code()).toBe('lane-stopped')
+  })
+})
+
+describe('lane.subagentInspect', () => {
+  const requestId = '2f1c7a3e-9b2d-4c1a-8e5f-0a1b2c3d4e5f'
+  const params = { laneId: lane.laneId, requestId, runId: 'run-1', childId: 'step:0' }
+  const listing = (source: string): RpcResponse => ({
+    type: 'response',
+    command: 'get_commands',
+    success: true,
+    data: { commands: [{ name: 'subagents-inspect-rpc', source }] },
+  })
+  const sent: RpcResponse = { type: 'response', command: 'prompt', success: true }
+  const code = async (options: LaneQueryOptions, value: unknown) =>
+    (
+      (await resolveLaneQuery(options, 'lane.subagentInspect', value)) as {
+        error?: { code: string }
+      }
+    ).error?.code
+
+  it('is a read that sends only the Host-built command, once pi lists it', async () => {
+    const { options, command } = fixture()
+    command.mockResolvedValueOnce(listing('extension')).mockResolvedValueOnce(sent)
+    expect(laneQueryCapability('lane.subagentInspect')).toBe('sessions.read')
+    expect(await resolveLaneQuery(options, 'lane.subagentInspect', params)).toEqual({
+      ok: true,
+      data: null,
+    })
+    expect(command.mock.calls).toEqual([
+      ['runtime-id', { type: 'get_commands' }],
+      [
+        'runtime-id',
+        { type: 'prompt', message: `/subagents-inspect-rpc ${requestId} run-1 step:0 --lines 100` },
+      ],
+    ])
+  })
+
+  it('never lets a request or a missing command reach pi as a prompt', async () => {
+    const { options, command } = fixture()
+    for (const value of [
+      { ...params, laneId: 'lane' },
+      { ...params, requestId: 'a b' },
+      { ...params, runId: 'run --lines 9999' },
+      { ...params, childId: '--json' },
+      { laneId: lane.laneId, runId: 'run-1' },
+    ])
+      expect(await code(options, value)).toBe('bad-request')
+    expect(command).not.toHaveBeenCalled()
+    for (const source of ['prompt', 'skill']) {
+      command.mockResolvedValueOnce(listing(source))
+      expect(await code(options, params)).toBe('unsupported')
+    }
+    command.mockResolvedValueOnce({ ...listing('extension'), success: false, error: 'no' })
+    expect(await code(options, params)).toBe('internal')
+    expect(command.mock.calls.every(([, c]) => c.type === 'get_commands')).toBe(true)
+  })
+
+  it('refuses a removed or stopped lane and reports a failed send', async () => {
+    const { options, command } = fixture()
+    command.mockResolvedValueOnce(listing('extension'))
+    command.mockResolvedValueOnce({ ...sent, success: false, error: 'busy' })
+    expect(await code(options, params)).toBe('internal')
+    options.live.sessionFor = () => null
+    expect(await code(options, params)).toBe('lane-stopped')
+    options.store.getLane = () => ({ ...lane, removedAt: '2026-01-02T00:00:00.000Z' })
+    expect(await code(options, params)).toBe('unknown-lane')
+  })
+})

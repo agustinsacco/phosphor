@@ -1,11 +1,17 @@
 import { hostLaneReceipt } from '../receipt'
 import { isUuid } from '@phosphor/shared/control-api'
-import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
+import { HOST_LIMITS, utf8Length } from '@phosphor/shared/host-protocol'
+import { subagentEvidence } from '@phosphor/shared/subagent-evidence'
+import {
+  parseSubagentInspectRequest,
+  subagentInspectPrompt,
+  SUBAGENT_INSPECT_COMMAND,
+} from '@phosphor/shared/subagent-inspect'
 import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { HostRuntime } from '../../session/runtime'
 import type { createLiveLanes } from '../live'
-import { piMessages, piState } from '../pi-results'
+import { advertisesExtensionCommand, piMessages, piState } from '../pi-results'
 import { ExportTooLarge } from '../../session/html-export'
 import type { SnapshotResult } from '../projection-host'
 import type { CallOutcome } from '../service'
@@ -21,9 +27,12 @@ const queries = new Map<string, RpcCommand>([
   ['lane.stats', { type: 'get_session_stats' }],
   ['lane.models', { type: 'get_available_models' }],
   ['lane.commands', { type: 'get_commands' }],
+  ['lane.subagentHistory', { type: 'get_entries' }],
 ])
 /** Not a pi query: the Host exports to its own file and returns the document. */
 const EXPORT = 'lane.exportHtml'
+/** A read by extension command. As a call it needs no fence, so it never takes control. */
+const INSPECT = 'lane.subagentInspect'
 const failure = (code: Extract<CallOutcome, { ok: false }>['error']['code']): CallOutcome => ({
   ok: false,
   error: { code, message: 'the lane query could not complete' },
@@ -35,6 +44,8 @@ function shape(method: string, data: unknown): boolean {
     return piMessages(data.messages) !== null
   if (method === 'lane.models') return Array.isArray(data.models)
   if (method === 'lane.commands') return Array.isArray(data.commands)
+  if (method === 'lane.subagentHistory')
+    return Array.isArray(data.entries) && (data.leafId === null || typeof data.leafId === 'string')
   const tokens = data.tokens
   return (
     [
@@ -71,7 +82,9 @@ export function laneQueryCapability(method: string): HostCapability | null {
   // skills catalogue), tool definitions and the whole session tree. So it needs
   // the grant's control capability, though not control of the lane.
   if (method === EXPORT) return 'sessions.control'
-  return method === 'host.repositories' || queries.has(method) ? 'sessions.read' : null
+  return method === 'host.repositories' || method === INSPECT || queries.has(method)
+    ? 'sessions.read'
+    : null
 }
 
 export function stoppedQuery(
@@ -128,6 +141,11 @@ export async function requestLiveQuery(
       if (!messages) return failure('internal')
       return receipt(messages)
     }
+    if (method === 'lane.subagentHistory' && record(response.data))
+      return subagentHistory(
+        response.data.entries as unknown[],
+        response.data.leafId as string | null,
+      )
     return { ok: true, data: response.data }
   } catch {
     return failure('internal')
@@ -135,23 +153,69 @@ export async function requestLiveQuery(
 }
 
 /** Leaves room in the result frame for its envelope and JSON escaping of the document. */
-const EXPORT_MAX_BYTES = HOST_LIMITS.outboundFrameBytes / 2
+const RESULT_MAX_BYTES = HOST_LIMITS.outboundFrameBytes / 2
 
-async function exportHtml(
-  options: Pick<LaneQueryOptions, 'runtime' | 'store' | 'live'>,
+/** The session's subagent records on its active branch, never the whole file. */
+function subagentHistory(entries: unknown[], leafId: string | null): CallOutcome {
+  const evidence = subagentEvidence(entries, leafId)
+  return utf8Length(JSON.stringify(evidence)) > RESULT_MAX_BYTES
+    ? failure('too-large')
+    : { ok: true, data: evidence }
+}
+
+/** The pi session of the running lane a call names, or its refusal. */
+function liveSession(
+  options: Pick<LaneQueryOptions, 'store' | 'live'>,
   params: unknown,
-): Promise<CallOutcome> {
+): string | CallOutcome {
   if (!record(params)) return failure('bad-request')
   const laneId = params.laneId
   if (typeof laneId !== 'string' || !isUuid(laneId)) return failure('bad-request')
   const lane = options.store.getLane(laneId)
   if (!lane || lane.removedAt !== null) return failure('unknown-lane')
-  const sessionId = options.live.sessionFor(laneId)
-  if (sessionId === null) return failure('lane-stopped')
+  return options.live.sessionFor(laneId) ?? failure('lane-stopped')
+}
+
+/**
+ * pi-subagents answers on the lane's `subagent-inspect` widget, which every viewer's
+ * stream carries, as This Mac's window receives it. Only the Host-built command reaches
+ * pi, and only while pi lists it: otherwise pi would send the text to the model.
+ */
+async function subagentInspect(
+  options: Pick<LaneQueryOptions, 'runtime' | 'store' | 'live'>,
+  params: unknown,
+): Promise<CallOutcome> {
+  const request = parseSubagentInspectRequest(params)
+  if (!request) return failure('bad-request')
+  const sessionId = liveSession(options, params)
+  if (typeof sessionId !== 'string') return sessionId
+  try {
+    const listed = await withinDeadline(
+      options.runtime.command(sessionId, { type: 'get_commands' }),
+    )
+    if (!listed?.success) return failure('internal')
+    if (!advertisesExtensionCommand(listed.data, SUBAGENT_INSPECT_COMMAND))
+      return failure('unsupported')
+    const message = subagentInspectPrompt(request)
+    const sent = await withinDeadline(
+      options.runtime.command(sessionId, { type: 'prompt', message }),
+    )
+    return sent?.success ? { ok: true, data: null } : failure('internal')
+  } catch {
+    return failure('internal')
+  }
+}
+
+async function exportHtml(
+  options: Pick<LaneQueryOptions, 'runtime' | 'store' | 'live'>,
+  params: unknown,
+): Promise<CallOutcome> {
+  const sessionId = liveSession(options, params)
+  if (typeof sessionId !== 'string') return sessionId
   if (!options.runtime.exportHtml) return failure('unsupported')
   // A late answer still removes its folder.
   try {
-    const html = await withinDeadline(options.runtime.exportHtml(sessionId, EXPORT_MAX_BYTES))
+    const html = await withinDeadline(options.runtime.exportHtml(sessionId, RESULT_MAX_BYTES))
     return html === null ? failure('internal') : { ok: true, data: { html } }
   } catch (error) {
     return failure(error instanceof ExportTooLarge ? 'too-large' : 'internal')
@@ -164,6 +228,7 @@ export async function resolveLaneQuery(
   params: unknown,
 ): Promise<CallOutcome> {
   if (method === EXPORT) return exportHtml(options, params)
+  if (method === INSPECT) return subagentInspect(options, params)
   const command = queries.get(method)
   if (method !== 'host.repositories' && !command) return failure('unsupported')
   if (!record(params)) return failure('bad-request')

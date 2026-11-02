@@ -30,9 +30,7 @@ vi.mock('@/features/artifacts/ArtifactsPane', () => ({
   },
 }))
 vi.mock('@/features/chat/SubagentPanel', () => ({
-  SubagentPanel: () => {
-    throw new Error('Local Subagents mounted')
-  },
+  SubagentPanel: ({ sessionId }: { sessionId: string }) => <p>Subagents of {sessionId}</p>,
 }))
 
 it('never mounts local pane contents for a remote handle', () => {
@@ -52,7 +50,7 @@ it('never mounts local pane contents for a remote handle', () => {
   const container = document.createElement('div')
   const root = createRoot(container)
   try {
-    for (const pane of ['files', 'changes', 'terminal', 'artifacts', 'subagents'] as const) {
+    for (const pane of ['files', 'changes', 'terminal', 'artifacts'] as const) {
       act(() => {
         useLayoutStore.getState().setRightPane(pane, mockRemoteInfo.sessionId)
         root.render(
@@ -66,6 +64,39 @@ it('never mounts local pane contents for a remote handle', () => {
     }
   } finally {
     act(() => root.unmount())
+  }
+})
+
+it('opens the Subagents pane on a Host lane, as on This Mac, even while it reconnects (regression)', async () => {
+  const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+  const { mockRemoteHosts, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  useSessionsStore.setState({
+    live: {
+      [mockRemoteInfo.sessionId]: { ...mockRemoteInfo, phosphorId: mockRemoteInfo.sessionId },
+    },
+  })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    useLayoutStore.getState().setRightPane('subagents', mockRemoteInfo.sessionId)
+    // The list comes from the transcript this window already holds; only reads need the Host.
+    for (const state of ['ready', 'down'] as const) {
+      const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID])!
+      act(() => useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: { ...host, state } } }))
+      act(() =>
+        root.render(
+          <RightPane
+            sessionId={mockRemoteInfo.sessionId}
+            workspacePath={mockRemoteInfo.workspacePath}
+          />,
+        ),
+      )
+      expect(container.textContent).toBe(`Subagents of ${mockRemoteInfo.sessionId}`)
+    }
+  } finally {
+    act(() => root.unmount())
+    useRemoteLanesStore.setState({ hosts: {} })
   }
 })
 

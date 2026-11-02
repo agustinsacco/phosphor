@@ -30,7 +30,13 @@ import {
 import { artifactLibrary } from '../artifacts/artifact-sync'
 import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
 import { routeRemoteRead } from '../hosts/read-features'
-import { createRemoteLanes, type RemoteLanes } from '../hosts/remote-lanes'
+import {
+  createRemoteLanes,
+  exportLaneHtml,
+  laneSubagentHistory,
+  laneSubagentInspect,
+  type RemoteLanes,
+} from '../hosts/remote-lanes'
 import { createRemoteTerminals } from '@phosphor/host-client/terminals/terminals'
 import { createRemoteRoutines } from '../hosts/routines'
 import { createHostAttention, readHostReceipt } from '../hosts/attention'
@@ -75,6 +81,19 @@ function registerManagementHandlers(
   )
   handle('hosts:setLaneMarks', (_event, hostId, laneId, change) =>
     marks.set(hostId, laneId, change),
+  )
+}
+
+/** Reads of a lane this window opened, named by the window's handle for it. */
+function registerLaneReadHandlers(): void {
+  handle('hosts:exportLaneHtml', (event, sessionId) =>
+    remoteLanes().onLane(event.sender.id, sessionId, exportLaneHtml),
+  )
+  handle('hosts:subagentHistory', (event, sessionId) =>
+    remoteLanes().onLane(event.sender.id, sessionId, laneSubagentHistory),
+  )
+  handle('hosts:subagentInspect', (event, sessionId, request) =>
+    remoteLanes().onLane(event.sender.id, sessionId, laneSubagentInspect(request)),
   )
 }
 
@@ -293,9 +312,7 @@ export function registerHostsHandlers(): void {
   handle('hosts:markRead', (_event, hostId, laneId) =>
     remoteLanes().action(hostId, laneId, 'lane.markRead'),
   )
-  handle('hosts:exportLaneHtml', (event, sessionId) =>
-    remoteLanes().exportHtml(event.sender.id, sessionId),
-  )
+  registerLaneReadHandlers()
   handle('hosts:setFocusedLane', (event, target) => {
     window(event)
     remoteLanes().setFocused(event.sender.id, target)
