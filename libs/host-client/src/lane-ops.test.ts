@@ -9,6 +9,8 @@ import {
   sendToLane,
   startedPrompt,
   openFailure,
+  settledReceipt,
+  createFailureText,
   UNKNOWN_OUTCOME,
 } from './lane-ops'
 
@@ -120,6 +122,19 @@ describe('laneOperation', () => {
 })
 
 describe('lane.create with a first prompt', () => {
+  it('reports a taken fresh branch as exhausted when the Host already tried the next names', () => {
+    const op = laneCreateOp({ repositoryId: 'repo', worktree: { branch: 'b', fresh: true } }, true)
+    const taken: CommandResult = { requestId: 'r', status: 'rejected', code: 'branch-exists' }
+    const refusal = (() => {
+      try {
+        settledReceipt(op, taken, 'Mac')
+      } catch (error) {
+        return error
+      }
+    })()
+    expect(createFailureText(refusal, true)).toBe('branch-name-exhausted')
+    expect(createFailureText(refusal, false)).toBe('branch-exists')
+  })
   it('names an unopened lane whose prompt the Host ran, and passes other failures on', () => {
     const cause = new Error('snapshot timed out')
     expect(() => openFailure(true)(cause)).toThrow('lane-started-unopened')
