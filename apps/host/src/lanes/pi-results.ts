@@ -40,3 +40,11 @@ function state(value: unknown): value is RpcSessionState {
 export function piState(data: unknown): RpcSessionState | null {
   return state(data) ? data : null
 }
+/** pi's get_commands answer lists `name` as an extension command, which runs without a model turn. */
+export function advertisesExtensionCommand(data: unknown, name: string): boolean {
+  return (
+    record(data) &&
+    Array.isArray(data.commands) &&
+    data.commands.some((c) => record(c) && c.name === name && c.source === 'extension')
+  )
+}

@@ -1,4 +1,5 @@
 import type { HostRuntime } from '../../session/runtime'
+import { advertisesExtensionCommand } from '../pi-results'
 import type { Binding, RuntimeLaneState } from './state'
 import { firstPrompt, recordManualName } from './naming'
 import { guardModelChange, replaceProviderProcess, finishModelSelection } from './model-switch'
@@ -17,22 +18,9 @@ async function titlesLane(
 ): Promise<boolean> {
   if (!message.startsWith('/')) return true
   if (binding.namingConsidered && context.options.store.getLane(laneId)?.title) return true
-  const name = message.slice(1).split(/\s/, 1)[0]
+  const name = message.slice(1).split(/\s/, 1)[0] ?? ''
   const response = await context.options.runtime.command(sessionId, { type: 'get_commands' })
-  const data: unknown = response.success ? response.data : undefined
-  const listed: unknown[] =
-    typeof data === 'object' && data !== null && 'commands' in data && Array.isArray(data.commands)
-      ? data.commands
-      : []
-  return !listed.some(
-    (c) =>
-      typeof c === 'object' &&
-      c !== null &&
-      'name' in c &&
-      c.name === name &&
-      'source' in c &&
-      c.source === 'extension',
-  )
+  return !(response.success && advertisesExtensionCommand(response.data, name))
 }
 
 export async function command(

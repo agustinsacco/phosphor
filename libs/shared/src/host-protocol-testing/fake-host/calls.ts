@@ -46,16 +46,18 @@ export function laneRead(state: FakeHostState, method: string, laneId: string, l
             ? { html: `<html>${l.messages.length} messages</html>` }
             : method === 'lane.subagentHistory'
               ? { entries: [], leafId: null }
-              : {
-                  sessionId: laneId,
-                  userMessages: 0,
-                  assistantMessages: l.messages.length,
-                  toolCalls: 0,
-                  toolResults: 0,
-                  totalMessages: l.messages.length,
-                  tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-                  cost: 0,
-                }
+              : method === 'lane.subagentInspect'
+                ? null
+                : {
+                    sessionId: laneId,
+                    userMessages: 0,
+                    assistantMessages: l.messages.length,
+                    toolCalls: 0,
+                    toolResults: 0,
+                    totalMessages: l.messages.length,
+                    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+                    cost: 0,
+                  }
 }
 
 function answerLater(state: FakeHostState, c: Connection, id: string, data: unknown) {

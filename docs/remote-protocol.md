@@ -76,6 +76,24 @@ lanes only, takes only the lane id and answers `{ html }` within the command
 deadline; the Host picks where pi writes and removes the file
 ([Host](host.md#session-commands)).
 
+Two `sessions.read` calls on running lanes serve the Subagents pane, so a viewer
+needs no control:
+
+- `lane.subagentHistory` takes the lane id and answers `{ entries, leafId }`:
+  only the active branch's subagent calls (text dropped), subagent results and
+  supervisor notices, re-chained root to leaf (`subagentEvidence` in
+  `@phosphor/shared/subagent-evidence`). It is refused `too-large` above half an
+  outbound frame. The session file never crosses the wire.
+- `lane.subagentInspect` takes the lane id plus `requestId`, `runId` and an
+  optional `childId` (`@phosphor/shared/subagent-inspect`): pi-subagents' request
+  id form, and run ids that stay one argument and are never a flag. The Host
+  sends pi only the `/subagents-inspect-rpc` prompt it builds from them, and only
+  while pi lists that command as an extension's, so the text never reaches a
+  model; otherwise it is refused `unsupported`. It answers `null`. The view
+  arrives as the lane's `subagent-inspect` widget, which every viewer's stream
+  carries. As a call it carries no fence, so polling a run never takes control
+  of the lane, as a `prompt` op would.
+
 `HOST_LIMITS` caps inbound frames at 8 MiB, outbound frames at 16 MiB,
 subscriptions at 64 per socket, pending commands and in-flight calls at 32 per
 socket, and receipt interest at 64 ids. Excess commands are rejected without
