@@ -11,7 +11,7 @@ import {
 import { AuthRefused, AuthUnavailable, createGoTrue, type AuthSession, type GoTrue } from './gotrue'
 import { accessToken, refresh, revoke, settled, signOut } from './session-refresh'
 import type { Vault } from './vault'
-import { deferred, session, USER } from './__fixtures__/fakes'
+import { deferred, flush, session, USER } from './__fixtures__/fakes'
 
 function setup() {
   const state = createAccountRuntimeState()
@@ -24,8 +24,8 @@ function setup() {
     storage: () => ({ ok: true, kind: 'test' }),
     savedMode: () => 'keyring',
     readProfile: () => USER,
-    readToken: vi.fn(() => 'refresh-0'),
-    save: vi.fn(() => true),
+    readToken: vi.fn(async () => 'refresh-0'),
+    save: vi.fn(async () => true),
     clear: vi.fn(),
   }
   const ports: AccountPorts = {
@@ -47,13 +47,14 @@ describe('session refresh and revocation', () => {
     auth.refresh.mockReturnValueOnce(refreshed.promise)
     const first = refresh(state, ports)
     expect(refresh(state, ports)).toBe(first)
+    await flush()
     expect(auth.refresh.mock.calls).toEqual([['refresh-0']])
     const fresh = session(1)
     refreshed.resolve(fresh)
     expect(await first).toBe(fresh)
     expect(state.refreshing).toBeNull()
     expect(state.session).toBe(fresh)
-    expect(vault.save).toHaveBeenCalledWith(USER, 'refresh-1')
+    expect(vault.save).toHaveBeenCalledWith(USER, 'refresh-1', expect.any(Function))
   })
 
   it('revokes a late refresh and includes that new revoke in the bounded drain', async () => {
@@ -64,6 +65,7 @@ describe('session refresh and revocation', () => {
     auth.revoke.mockReturnValueOnce(revoked.promise)
     loadAccount(state, ports)
     const token = accessToken(state, ports, now)
+    await flush()
     expect(await signOut(state, ports, now)).toEqual({ status: 'signed-out' })
     const drain = settled(state, 2_000)
     expect(await settled(state, 5)).toBe(false)
@@ -104,10 +106,10 @@ describe('session refresh and revocation', () => {
     const { state, ports, auth, vault, now } = setup()
     expect(await accessToken(state, ports, now)).toBeNull()
     loadAccount(state, ports)
-    keep(state, ports, session(1, now() + EARLY_MS + 1))
+    await keep(state, ports, session(1, now() + EARLY_MS + 1), state.generation)
     expect(await accessToken(state, ports, now)).toBe('access-1')
     expect(auth.refresh).not.toHaveBeenCalled()
-    keep(state, ports, session(1, now() + EARLY_MS))
+    await keep(state, ports, session(1, now() + EARLY_MS), state.generation)
     auth.refresh.mockResolvedValueOnce(session(2))
     expect(await accessToken(state, ports, now)).toBe('access-2')
     expect(auth.refresh.mock.calls).toEqual([['refresh-1']])
@@ -117,7 +119,7 @@ describe('session refresh and revocation', () => {
   it('revokes a held usable token even while another refresh owns a possible late token', async () => {
     const { state, ports, auth, now } = setup()
     loadAccount(state, ports)
-    keep(state, ports, session(1, now() + EARLY_MS / 2))
+    await keep(state, ports, session(1, now() + EARLY_MS / 2), state.generation)
     const refreshed = deferred<AuthSession>()
     auth.refresh.mockReturnValueOnce(refreshed.promise)
     const token = accessToken(state, ports, now)
@@ -167,6 +169,102 @@ describe('session refresh and revocation', () => {
     expect(vault.save).not.toHaveBeenCalled()
     expect(vault.clear).toHaveBeenCalledOnce()
     expect(state.inFlight.size).toBe(0)
+  })
+
+  it('stays signed out when a sign-out lands while the saved token waits on the keychain', async () => {
+    const { state, ports, auth, vault, now } = setup()
+    loadAccount(state, ports)
+    const prompt = deferred<string>()
+    vi.mocked(vault.readToken).mockReturnValueOnce(prompt.promise)
+    const token = accessToken(state, ports, now)
+    const out = signOut(state, ports, now)
+    prompt.reject(new Error('keychain denied'))
+    expect(await token).toBeNull()
+    expect(await out).toEqual({ status: 'signed-out' })
+    // No second forget: the sign-out's plain result stands, without a storage error.
+    expect(state.current).toEqual({ status: 'signed-out' })
+    expect(vault.clear).toHaveBeenCalledOnce()
+    // The refresh gave up, so sign-out revoked with its own read.
+    expect(auth.refresh.mock.calls.map(([value]) => value)).toEqual(['refresh-0'])
+    expect(auth.revoke.mock.calls.map(([value]) => value)).toEqual(['access-1'])
+  })
+
+  it('revokes exactly once when a sign-out lands while a refresh waits on the keychain', async () => {
+    const { state, ports, auth, vault, now } = setup()
+    loadAccount(state, ports)
+    const refreshPrompt = deferred<string>()
+    vi.mocked(vault.readToken).mockReturnValueOnce(refreshPrompt.promise)
+    const token = accessToken(state, ports, now)
+    // The refresh is still reading the vault, so sign-out must revoke itself.
+    const out = signOut(state, ports, now)
+    refreshPrompt.resolve('refresh-0')
+    expect(await token).toBeNull()
+    expect(await out).toEqual({ status: 'signed-out' })
+    expect(auth.refresh.mock.calls.map(([value]) => value)).toEqual(['refresh-0'])
+    expect(auth.revoke.mock.calls.map(([value]) => value)).toEqual(['access-1'])
+  })
+
+  it('still signs out when the vault throws instead of rejecting', async () => {
+    const { state, ports, auth, vault, now } = setup()
+    loadAccount(state, ports)
+    vi.mocked(vault.readToken).mockImplementationOnce(() => {
+      throw new Error('vault broke')
+    })
+    expect(await signOut(state, ports, now)).toEqual({ status: 'signed-out' })
+    expect(vault.clear).toHaveBeenCalledOnce()
+    expect(auth.revoke).not.toHaveBeenCalled()
+  })
+
+  it('drops a refresh whose sign-out landed during the save, leaving its revoke to sign-out', async () => {
+    const { state, ports, auth, vault, now } = setup()
+    loadAccount(state, ports)
+    const saving = deferred<boolean>()
+    vi.mocked(vault.save).mockReturnValueOnce(saving.promise)
+    const token = accessToken(state, ports, now)
+    await flush()
+    expect(state.session?.accessToken).toBe('access-1')
+    await signOut(state, ports, now)
+    saving.resolve(false)
+    expect(await token).toBeNull()
+    expect(state.current).toEqual({ status: 'signed-out' })
+    expect(auth.revoke.mock.calls.map(([value]) => value)).toEqual(['access-1'])
+  })
+
+  it('reads the saved token before sign-out deletes it, and revokes once the keychain answers', async () => {
+    const { state, ports, auth, vault, now } = setup()
+    loadAccount(state, ports)
+    const prompt = deferred<string>()
+    const order: string[] = []
+    vi.mocked(vault.readToken).mockImplementationOnce(() => {
+      order.push('read')
+      return prompt.promise
+    })
+    vi.mocked(vault.clear).mockImplementationOnce(() => void order.push('clear'))
+    const out = signOut(state, ports, now)
+    // Signed out at once, files gone, while the keychain is still asking.
+    expect(state.current).toEqual({ status: 'signed-out' })
+    expect(order).toEqual(['read', 'clear'])
+    await flush()
+    expect(auth.refresh).not.toHaveBeenCalled()
+    prompt.resolve('refresh-0')
+    expect(await out).toEqual({ status: 'signed-out' })
+    expect(auth.refresh.mock.calls.map(([value]) => value)).toEqual(['refresh-0'])
+    expect(auth.revoke.mock.calls.map(([value]) => value)).toEqual(['access-1'])
+  })
+
+  it('starts the revoke bound after the keychain answers, not before', async () => {
+    const { state, ports: base, auth, vault, now } = setup()
+    const ports: AccountPorts = { ...base, revokeMs: 20 }
+    loadAccount(state, ports)
+    const prompt = deferred<string>()
+    vi.mocked(vault.readToken).mockReturnValueOnce(prompt.promise)
+    const out = signOut(state, ports, now)
+    await new Promise((resolve) => setTimeout(resolve, 60)) // the person reads the prompt
+    prompt.resolve('refresh-0')
+    await out
+    const [, signal] = auth.refresh.mock.calls[0]!
+    expect(signal?.aborted).toBe(false)
+    expect(auth.revoke.mock.calls.map(([value]) => value)).toEqual(['access-1'])
   })
 
   it('drains rejected tracked work and catches revoke failures without logging exception text', async () => {

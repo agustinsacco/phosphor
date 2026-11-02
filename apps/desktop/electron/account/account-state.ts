@@ -16,6 +16,12 @@ export interface AccountRuntimeState {
   trace: string
   signing: { promise: Promise<AccountState>; abort: AbortController } | null
   refreshing: Promise<AuthSession | null> | null
+  /**
+   * Refreshes holding a token and waiting on Supabase. Each one revokes what it
+   * gets back if a sign-out landed meanwhile. A refresh still reading the vault
+   * (maybe behind a Keychain prompt) is not counted: it gives up on sign-out.
+   */
+  refreshesAtSupabase: number
   /** Requests to Supabase in flight, each bounded by REQUEST_MS or REVOKE_MS. */
   readonly inFlight: Set<Promise<unknown>>
 }
@@ -28,6 +34,7 @@ export function createAccountRuntimeState(): AccountRuntimeState {
     trace: '',
     signing: null,
     refreshing: null,
+    refreshesAtSupabase: 0,
     inFlight: new Set(),
   }
 }
@@ -110,12 +117,26 @@ export function forget(
   return signedOut(state, ports, error)
 }
 
-/** Keep a fresh session; false when it lives in memory only. */
-export function keep(state: AccountRuntimeState, ports: AccountPorts, fresh: AuthSession): boolean {
+/**
+ * Keep a fresh session; false when it lives in memory only.
+ *
+ * The session is held at once, so a sign-out during the save revokes it. The
+ * save itself may wait on a Keychain prompt; it writes nothing once
+ * `generation` has moved past `gen`, and the caller re-checks before using
+ * the answer.
+ */
+export async function keep(
+  state: AccountRuntimeState,
+  ports: AccountPorts,
+  fresh: AuthSession,
+  gen: number,
+): Promise<boolean> {
   state.session = fresh
+  const current = (): boolean => gen === state.generation
   try {
-    return ports.vault.save(fresh.user, fresh.refreshToken)
+    return await ports.vault.save(fresh.user, fresh.refreshToken, current)
   } catch (problem) {
+    if (!current()) return false
     // The token on disk may be the one just consumed; do not leave it behind.
     event(state, ports, 'could not save the sign-in', { reason: reasonClass(problem) })
     try {

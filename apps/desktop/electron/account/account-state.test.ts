@@ -21,8 +21,8 @@ function setup() {
     storage: vi.fn<Vault['storage']>(() => ({ ok: true, kind: 'test' })),
     savedMode: vi.fn<Vault['savedMode']>(() => 'keyring'),
     readProfile: vi.fn<Vault['readProfile']>(() => USER),
-    readToken: vi.fn<Vault['readToken']>(() => 'refresh-0'),
-    save: vi.fn<Vault['save']>(() => true),
+    readToken: vi.fn<Vault['readToken']>(async () => 'refresh-0'),
+    save: vi.fn<Vault['save']>(async () => true),
     clear: vi.fn<Vault['clear']>(),
   }
   const ports: AccountPorts = {
@@ -47,9 +47,9 @@ describe('AccountRuntimeState', () => {
     expect(other.inFlight).not.toBe(state.inFlight)
   })
 
-  it('increments generation and discards the held session before clearing or notifying', () => {
+  it('increments generation and discards the held session before clearing or notifying', async () => {
     const { state, ports, vault } = setup()
-    keep(state, ports, session(1))
+    await keep(state, ports, session(1), state.generation)
     vault.clear.mockImplementation(() => {
       expect(state.generation).toBe(1)
       expect(state.session).toBeNull()
@@ -61,9 +61,9 @@ describe('AccountRuntimeState', () => {
     expect(ports.onChange).toHaveBeenCalledTimes(2)
   })
 
-  it('reports clear failures while still invalidating the session', () => {
+  it('reports clear failures while still invalidating the session', async () => {
     const { state, ports, vault } = setup()
-    keep(state, ports, session(1))
+    await keep(state, ports, session(1), state.generation)
     vault.clear.mockImplementation(() => {
       throw new Error('profile busy')
     })
@@ -78,26 +78,45 @@ describe('AccountRuntimeState', () => {
     )
   })
 
-  it('retains memory-only sessions when storage is disabled or saving and clearing both fail', () => {
+  it('retains memory-only sessions when storage is disabled or saving and clearing both fail', async () => {
     const { state, ports, vault } = setup()
-    vault.save.mockReturnValueOnce(false)
+    vault.save.mockResolvedValueOnce(false)
     const first = session(1)
-    expect(keep(state, ports, first)).toBe(false)
+    expect(await keep(state, ports, first, state.generation)).toBe(false)
     expect(state.session).toBe(first)
     expect(vault.clear).not.toHaveBeenCalled()
-    vault.save.mockImplementation(() => {
-      throw new Error('refresh-secret')
-    })
+    vault.save.mockRejectedValue(new Error('refresh-secret'))
     vault.clear.mockImplementation(() => {
       throw new Error('access-secret')
     })
     const second = session(2)
-    expect(keep(state, ports, second)).toBe(false)
+    expect(await keep(state, ports, second, state.generation)).toBe(false)
     expect(state.session).toBe(second)
     expect(vault.clear).toHaveBeenCalledOnce()
     expect(ports.log).toHaveBeenCalledExactlyOnceWith(
       'could not save the sign-in {"trace":"","reason":"Error"}',
     )
+  })
+
+  it('writes nothing and reports nothing when a sign-out lands while the keychain is busy', async () => {
+    const { state, ports, vault } = setup()
+    const answer = deferred<boolean>()
+    let current: (() => boolean) | undefined
+    vault.save.mockImplementation((_user, _token, stillCurrent) => {
+      current = stillCurrent
+      return answer.promise
+    })
+    const fresh = session(1)
+    const kept = keep(state, ports, fresh, state.generation)
+    // Held at once, so a sign-out during the prompt finds it and revokes it.
+    expect(state.session).toBe(fresh)
+    expect(current?.()).toBe(true)
+    forget(state, ports)
+    expect(current?.()).toBe(false)
+    answer.reject(new Error('keychain denied'))
+    expect(await kept).toBe(false)
+    expect(vault.clear).toHaveBeenCalledOnce()
+    expect(ports.log).not.toHaveBeenCalled()
   })
 
   it('loads a profile without reading credentials, and forgets when there is no profile', () => {

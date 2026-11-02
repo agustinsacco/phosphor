@@ -364,6 +364,11 @@ session file exists and a signed-in request needs a token.
   can read, because no keyring is running." Unsafe files are refused and removed.
   A successful refresh with a keyring saves it encrypted and removes the plain
   file. Sign-out removes both token files, the profile and the cached avatar.
+  Every keychain call uses `safeStorage`'s async API, so a macOS Keychain prompt
+  never holds the main process: the window opens and Quit works while the prompt
+  waits. A sign-out during the prompt still wins: the files go at once, a
+  save that answers late writes nothing, and the token read before the prompt
+  is used only to revoke.
 - **Sign-out always works here** and tells Supabase when it can. A sign-out or
   cancel wins over anything still in flight: a session that arrives late is
   revoked, not kept. The screen shows signed out at once, while the revocation

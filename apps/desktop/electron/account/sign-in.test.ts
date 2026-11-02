@@ -18,10 +18,10 @@ function setup(browser = fakeBrowser()) {
     storage: () => ({ ok: true, kind: 'test' }),
     savedMode: () => null,
     readProfile: () => null,
-    readToken: () => {
+    readToken: async () => {
       throw new Error('no token')
     },
-    save: vi.fn(() => true),
+    save: vi.fn(async () => true),
     clear: vi.fn(),
   }
   const ports: AccountPorts = {
@@ -58,7 +58,7 @@ describe('signIn', () => {
     exchanged.resolve(session(1))
     expect(await flow).toEqual({ status: 'signed-in', user: USER, remembered: true })
     expect((await browser.pages[0]!).body).toContain('Signed in as @octo')
-    expect(vault.save).toHaveBeenCalledWith(USER, 'refresh-1')
+    expect(vault.save).toHaveBeenCalledWith(USER, 'refresh-1', expect.any(Function))
     expect(state.signing).toBeNull()
     expect(browser.opened).toHaveLength(1)
     expect(await signIn(state, ports)).toBe(state.current)
@@ -78,6 +78,26 @@ describe('signIn', () => {
     expect(await flow).toEqual({ status: 'signed-out' })
     expect(auth.revoke).toHaveBeenCalledWith('access-1', expect.any(AbortSignal))
     expect(vault.save).not.toHaveBeenCalled()
+  })
+
+  it('revokes, and never shows signed in, when cancelled while the save waits on the keychain', async () => {
+    const { state, ports, auth, browser, vault } = setup()
+    const saving = deferred<boolean>()
+    vi.mocked(vault.save).mockReturnValueOnce(saving.promise)
+    const flow = signIn(state, ports)
+    await vi.waitFor(() => expect(vault.save).toHaveBeenCalledOnce())
+    const current = vi.mocked(vault.save).mock.calls[0]![2]!
+    expect(current()).toBe(true)
+    cancel(state, ports)
+    expect(current()).toBe(false)
+    saving.resolve(false)
+    expect(await flow).toEqual({ status: 'signed-out' })
+    expect(state.session).toBeNull()
+    expect((await browser.pages[0]!).body).toContain('Sign-in cancelled')
+    expect(auth.revoke).toHaveBeenCalledWith('access-1', expect.any(AbortSignal))
+    expect(ports.onChange).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'signed-in' }),
+    )
   })
 
   it('does not let an old cancelled flow clear the next sign-in or borrow its trace', async () => {

@@ -65,10 +65,10 @@ function setup(options: Options = {}) {
 }
 
 /** A vault holding a remembered sign-in from an earlier run. */
-function remembered() {
+async function remembered() {
   const cipher = fakeCipher()
   const vault = createVault(join(root, 'account'), cipher.cipher)
-  vault.save(USER, 'refresh-0')
+  await vault.save(USER, 'refresh-0')
   cipher.state.decrypts = 0
   return { vault, cipher }
 }
@@ -90,7 +90,7 @@ describe('signing in', () => {
     expect(code).toBe('valid-code-1')
     expect(createHash('sha256').update(verifier).digest('base64url')).toBe(challenge)
     expect(vault.readProfile()).toEqual(USER)
-    expect(vault.readToken(USER.id)).toBe('refresh-1')
+    expect(await vault.readToken(USER.id)).toBe('refresh-1')
     const page = await browser.pages[0]!
     expect(page.body).toContain('Signed in as @octo')
   })
@@ -223,8 +223,8 @@ describe('signing in', () => {
 })
 
 describe('a remembered session', () => {
-  it('loads at startup from the profile alone: no network, no keychain', () => {
-    const { vault, cipher } = remembered()
+  it('loads at startup from the profile alone: no network, no keychain', async () => {
+    const { vault, cipher } = await remembered()
     const { account, ports } = setup({ vault })
     expect(account.load()).toEqual({ status: 'signed-in', user: USER, remembered: true })
     expect(ports.auth.refresh).not.toHaveBeenCalled()
@@ -234,7 +234,7 @@ describe('a remembered session', () => {
   })
 
   it('refreshes once for concurrent callers and keeps the rotated token', async () => {
-    const { vault, cipher } = remembered()
+    const { vault, cipher } = await remembered()
     const gate = deferred<AuthSession>()
     const ports = auth({ refresh: vi.fn(() => gate.promise) })
     const { account } = setup({ vault, auth: ports })
@@ -244,7 +244,7 @@ describe('a remembered session', () => {
     expect(await Promise.all(tokens)).toEqual(['access-1', 'access-1', 'access-1'])
     expect(ports.refresh).toHaveBeenCalledTimes(1)
     expect(ports.refresh.mock.calls[0]![0]).toBe('refresh-0')
-    expect(vault.readToken(USER.id)).toBe('refresh-1')
+    expect(await vault.readToken(USER.id)).toBe('refresh-1')
     expect(cipher.state.decrypts).toBe(2) // the read for the refresh, and the check above
   })
 
@@ -263,7 +263,7 @@ describe('a remembered session', () => {
   })
 
   it('ends when Supabase refuses the refresh', async () => {
-    const { vault } = remembered()
+    const { vault } = await remembered()
     const refresh = vi.fn(async () => {
       throw new AuthRefused(400, 'refresh_token_already_used', 'Invalid Refresh Token')
     })
@@ -278,7 +278,7 @@ describe('a remembered session', () => {
   })
 
   it('survives Supabase being unreachable', async () => {
-    const { vault } = remembered()
+    const { vault } = await remembered()
     const refresh = vi.fn(async () => {
       throw new AuthUnavailable('Supabase did not answer: fetch failed')
     })
@@ -286,11 +286,11 @@ describe('a remembered session', () => {
     account.load()
     await expect(account.accessToken()).rejects.toBeInstanceOf(AuthUnavailable)
     expect(account.state()).toMatchObject({ status: 'signed-in', remembered: true })
-    expect(vault.readToken(USER.id)).toBe('refresh-0')
+    expect(await vault.readToken(USER.id)).toBe('refresh-0')
   })
 
   it('ends when the saved token cannot be read', async () => {
-    const { vault, cipher } = remembered()
+    const { vault, cipher } = await remembered()
     cipher.state.storage = { ok: false, reason: 'no keyring' }
     const { account, ports } = setup({ vault })
     account.load()
@@ -305,7 +305,7 @@ describe('a remembered session', () => {
 
 describe('signing out', () => {
   it('wins over a refresh in flight: the late session is revoked, never kept', async () => {
-    const { vault } = remembered()
+    const { vault } = await remembered()
     const gate = deferred<AuthSession>()
     const ports = auth({ refresh: vi.fn(() => gate.promise) })
     const { account, states } = setup({ vault, auth: ports })
@@ -327,7 +327,7 @@ describe('signing out', () => {
   })
 
   it('revokes a refresh that landed just before it, and hands that token to nobody', async () => {
-    const { vault } = remembered()
+    const { vault } = await remembered()
     let loaded = false
     let out: Promise<AccountState> | null = null
     const made = setup({
@@ -349,7 +349,7 @@ describe('signing out', () => {
   })
 
   it('refreshes to revoke a just-landed session whose access token is too short-lived', async () => {
-    const { vault } = remembered()
+    const { vault } = await remembered()
     const start = 1_000_000
     let clock = start
     let loaded = false
@@ -411,7 +411,7 @@ describe('signing out', () => {
   })
 
   it('after a restart, refreshes once to get a token to revoke with', async () => {
-    const { vault } = remembered()
+    const { vault } = await remembered()
     const { account, ports } = setup({ vault })
     account.load()
     await account.signOut()
@@ -476,7 +476,7 @@ describe('quitting', () => {
   })
 
   it("waits for a sign-out's refresh and revoke, though the person already sees signed out", async () => {
-    const { vault } = remembered()
+    const { vault } = await remembered()
     const refreshed = deferred<AuthSession>()
     const revoked = deferred<void>()
     const ports = auth({
@@ -498,7 +498,7 @@ describe('quitting', () => {
   })
 
   it('waits for the revoke a late refresh leads to', async () => {
-    const { vault } = remembered()
+    const { vault } = await remembered()
     const refreshed = deferred<AuthSession>()
     const revoked = deferred<void>()
     const ports = auth({

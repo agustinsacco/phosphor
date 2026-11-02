@@ -69,7 +69,15 @@ async function run(
       void revoke(state, ports, fresh.accessToken)
       return state.current
     }
-    const remembered = keep(state, ports, fresh)
+    const remembered = await keep(state, ports, fresh, gen)
+    if (!live()) {
+      // Cancelled or signed out while the save waited on the keychain. Neither
+      // revokes a session that is still signing in, so this side does.
+      if (state.session === fresh) state.session = null
+      listener.finish(CANCELLED)
+      void revoke(state, ports, fresh.accessToken)
+      return state.current
+    }
     listener.finish({
       title: 'Signed in to Phosphor',
       message: `Signed in as ${label(fresh.user)}. You can close this tab.`,
