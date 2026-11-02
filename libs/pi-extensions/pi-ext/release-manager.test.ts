@@ -1,7 +1,7 @@
 import { hostname } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { releaseOrigin, type ReleaseOrigin } from '../test/__fixtures__/release-origin'
-import { LEASE_RENEW_MS, readState, runner, type Run } from './release-lease'
+import { claimLease, LEASE_RENEW_MS, readState, runner, type Run } from './release-lease'
 import releaseManager, { savedRelease, SWEEP_MS, WATCH_MS } from './release-manager'
 import { RELEASE_SECTION } from './release-prompt'
 import { parseReleaseStatus, RELEASE_COMMAND, RELEASE_STATUS_KEY } from './release-status'
@@ -40,7 +40,7 @@ async function tick(ms = WATCH_MS) {
   await settle()
 }
 
-function lane(sessionId: string, branch: unknown[] = []) {
+function lane(sessionId: string, branch: unknown[] = [], wrap = (git: Run) => git) {
   const handlers = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>()
   const tools = new Map<string, { execute: (...args: unknown[]) => Promise<unknown> }>()
   let active = ['read', 'bash']
@@ -72,7 +72,7 @@ function lane(sessionId: string, branch: unknown[] = []) {
   releaseManager(
     pi,
     () => clock,
-    (command, cwd) => track(command === 'gh' ? gh : runner(command, cwd)),
+    (command, cwd) => track(command === 'gh' ? gh : wrap(runner(command, cwd))),
   )
   const emit = (name: string, event: unknown = {}) =>
     handlers.get(name)?.map((fn) => fn(event, ctx))[0]
@@ -193,6 +193,26 @@ describe('release mode', () => {
     await tick(LEASE_RENEW_MS)
     expect(a.status()).toMatchObject({ role: 'standby', epoch: 2 })
     expect(a.active()).toEqual(['read', 'bash'])
+  })
+
+  it('says so, and names the winner, when a takeover loses a race', async () => {
+    origin = await releaseOrigin()
+    const a = lane('one')
+    await a.command('on')
+    let race = false
+    const stark = { holder: 'stark/x', host: 'stark', pid: process.pid }
+    const b = lane('two', [], (git) => async (args, input) => {
+      if (race && args[0] === 'push') {
+        race = false
+        await claimLease(origin.git, 'refs/test/s', stark, clock, true)
+      }
+      return git(args, input)
+    })
+    await b.command('on')
+    race = true
+    await expect(b.command('takeover')).rejects.toThrow(/took the release lease first/)
+    await settle()
+    expect(b.status()).toMatchObject({ role: 'standby', holder: 'stark', epoch: 2 })
   })
 
   it('keeps release runs quiet unless a person joins or the pass is flagged', async () => {
