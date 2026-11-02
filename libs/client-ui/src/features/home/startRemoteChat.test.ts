@@ -242,8 +242,26 @@ describe('a Host that takes the first prompt with the creation', () => {
     expect(accepted).toHaveBeenCalledOnce()
   })
 
+  it('tries the next name when main says this Host left that to the client', async () => {
+    invoke.mockImplementation(async (channel, _host, input) => {
+      if (channel === 'hosts:createLane' && input.worktree.branch === 'phosphor/fix-bug')
+        throw new Error('branch-exists')
+      return channel === 'hosts:createLane'
+        ? { ...mockRemoteInfo, prompted: true }
+        : mockRemoteHosts
+    })
+    await startRemoteChat(
+      MOCK_HOST_ID,
+      { ...input, worktree: { branch: 'phosphor/fix-bug', fresh: true } },
+      'Fix bug',
+      [],
+      accepted,
+    )
+    expect(invoke.mock.calls.filter(([c]) => c === 'hosts:createLane')).toHaveLength(2)
+  })
+
   it('leaves free-name retries to the Host', async () => {
-    invoke.mockRejectedValue(new Error('branch-exists'))
+    invoke.mockRejectedValue(new Error('branch-name-exhausted'))
     await expect(
       startRemoteChat(
         MOCK_HOST_ID,
