@@ -96,6 +96,17 @@ describe('portable session admission', () => {
     expect(h.registry.list()).toEqual([])
   })
 
+  it("reads a routine-owned session's entries: the Subagents pane only observes it", async () => {
+    const h = fixture()
+    const live = await h.service.create({ workspacePath: '/repo' })
+    vi.mocked(h.serviceRuntime.routines.owns).mockReturnValue(true)
+    h.clients[0]!.request.mockClear()
+    await expect(h.service.command(live.sessionId, { type: 'get_entries' })).resolves.toMatchObject(
+      { success: true },
+    )
+    expect(h.clients[0]!.request).toHaveBeenCalledWith({ type: 'get_entries' })
+  })
+
   it('checks resolved provider and current budget before dispatch, not just at startup', async () => {
     const h = fixture()
     const live = await h.service.create({ workspacePath: '/repo' })
