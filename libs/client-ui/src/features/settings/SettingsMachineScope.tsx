@@ -77,24 +77,3 @@ export function useSettingsMachine(fallback?: string): {
     find(chosen) ?? find(host) ?? find('local') ?? find(fallback) ?? choices[0] ?? null
   return { choices, machine }
 }
-
-/** The words of the scope line: which machine a machine section configures (see SettingsScopeLine). */
-export function SettingsMachineScope({
-  machine,
-}: {
-  machine: SettingsMachineChoice
-}): React.JSX.Element {
-  return (
-    <p
-      className="text-text min-w-0 grow basis-64 text-base font-medium"
-      data-testid="settings-machine-scope"
-    >
-      Configuring {machine.label}
-      <span className="text-text-secondary font-normal">
-        {machine.id === 'local'
-          ? `. These settings stay on ${localMachineLabel()}.`
-          : '. Credentials stay on this Host; nothing syncs to another machine.'}
-      </span>
-    </p>
-  )
-}
