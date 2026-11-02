@@ -1,7 +1,39 @@
 import type { HostRuntime } from '../../session/runtime'
-import type { RuntimeLaneState } from './state'
+import type { Binding, RuntimeLaneState } from './state'
 import { firstPrompt, recordManualName } from './naming'
 import { guardModelChange, replaceProviderProcess, finishModelSelection } from './model-switch'
+
+/**
+ * pi runs an extension command (`/phosphor-swarm on`, `/subagents-inspect-rpc …`) without a
+ * model turn, so it never titles or names a lane. A prompt template or skill is a user turn.
+ * Asked only while the lane still waits for its first prompt.
+ */
+async function titlesLane(
+  context: RuntimeLaneState,
+  sessionId: string,
+  binding: Binding,
+  laneId: string,
+  message: string,
+): Promise<boolean> {
+  if (!message.startsWith('/')) return true
+  if (binding.namingConsidered && context.options.store.getLane(laneId)?.title) return true
+  const name = message.slice(1).split(/\s/, 1)[0]
+  const response = await context.options.runtime.command(sessionId, { type: 'get_commands' })
+  const data: unknown = response.success ? response.data : undefined
+  const listed: unknown[] =
+    typeof data === 'object' && data !== null && 'commands' in data && Array.isArray(data.commands)
+      ? data.commands
+      : []
+  return !listed.some(
+    (c) =>
+      typeof c === 'object' &&
+      c !== null &&
+      'name' in c &&
+      c.name === name &&
+      'source' in c &&
+      c.source === 'extension',
+  )
+}
 
 export async function command(
   context: RuntimeLaneState,
@@ -41,7 +73,12 @@ export async function command(
       const refusal = await replaceProviderProcess(context, args[0], binding, binding.laneId)
       if (refusal) return refusal
     }
-    if (response.success && args[1].type === 'prompt' && binding?.laneId)
+    if (
+      response.success &&
+      args[1].type === 'prompt' &&
+      binding?.laneId &&
+      (await titlesLane(context, args[0], binding, binding.laneId, args[1].message))
+    )
       firstPrompt(context, args[0], binding, binding.laneId, args[1].message)
     if (response.success && args[1].type === 'set_session_name' && binding)
       recordManualName(context, binding, args[1].name)
