@@ -16,6 +16,15 @@ export interface AgentModelChoice {
   label: string
 }
 
+/** A catalogue's models as choices. */
+export const modelChoices = (
+  models: readonly { provider: string; id: string; name: string }[],
+): AgentModelChoice[] =>
+  models.map((m) => ({
+    value: JSON.stringify([m.provider, m.id]),
+    label: `${m.name} · ${m.provider}`,
+  }))
+
 export interface AgentCaps {
   /** A set value can be cleared back to what it inherits (a Host whose read says so). */
   clear: boolean

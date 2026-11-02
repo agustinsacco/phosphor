@@ -14,7 +14,7 @@ import { hostInstructions } from '../../instructions/instructionsSource'
 import { useHostSection } from '../../machine/HostSection'
 import { useMachineAgentDraft } from '../../machine/machineSettingsDrafts'
 import { needsServiceRestart, type AgentPatch } from '../../machine/machineAgentPatch'
-import type { AgentSource } from './source'
+import { modelChoices, type AgentSource } from './source'
 
 const ALL_FIELDS = Object.keys(AGENT_FIELDS) as AgentFieldKey[]
 const THINKING_ONLY: AgentFieldKey[] = ['defaultThinkingLevel']
@@ -59,14 +59,7 @@ function useHostCatalogue(hostId: string): Pick<AgentSource, 'models' | 'catalog
       live = false
     }
   }, [hostId, attempt])
-  const choices = useMemo(
-    () =>
-      models?.map((m) => ({
-        value: JSON.stringify([m.provider, m.id]),
-        label: `${m.name} · ${m.provider}`,
-      })) ?? null,
-    [models],
-  )
+  const choices = useMemo(() => (models ? modelChoices(models) : null), [models])
   return failed
     ? { models: [], catalogue: { failed: true, retry: () => setAttempt((n) => n + 1) } }
     : { models: choices }

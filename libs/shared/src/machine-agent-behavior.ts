@@ -41,45 +41,26 @@ export interface AgentField {
  * The bounds are the Host validator's (below), so a value one machine saves
  * is never refused or dropped by another.
  */
+/** A whole number from 0 to `max`, moving by `step`. */
+const int = <G extends 'compaction' | 'retry', F extends string>(
+  group: G,
+  field: F,
+  max: number,
+  step: number,
+  piDefault: number,
+) => ({ path: [group, field] as const, kind: 'int' as const, min: 0, max, step, piDefault })
+
 export const AGENT_FIELDS = {
   defaultThinkingLevel: { path: ['defaultThinkingLevel'], kind: 'thinking', piDefault: 'medium' },
   hideThinkingBlock: { path: ['hideThinkingBlock'], kind: 'bool', piDefault: false },
   steeringMode: { path: ['steeringMode'], kind: 'mode', piDefault: 'one-at-a-time' },
   followUpMode: { path: ['followUpMode'], kind: 'mode', piDefault: 'one-at-a-time' },
   'compaction.enabled': { path: ['compaction', 'enabled'], kind: 'bool', piDefault: true },
-  'compaction.reserveTokens': {
-    path: ['compaction', 'reserveTokens'],
-    kind: 'int',
-    min: 0,
-    max: 1_000_000,
-    step: 1024,
-    piDefault: 16384,
-  },
-  'compaction.keepRecentTokens': {
-    path: ['compaction', 'keepRecentTokens'],
-    kind: 'int',
-    min: 0,
-    max: 1_000_000,
-    step: 1024,
-    piDefault: 20000,
-  },
+  'compaction.reserveTokens': int('compaction', 'reserveTokens', 1_000_000, 1024, 16384),
+  'compaction.keepRecentTokens': int('compaction', 'keepRecentTokens', 1_000_000, 1024, 20000),
   'retry.enabled': { path: ['retry', 'enabled'], kind: 'bool', piDefault: true },
-  'retry.maxRetries': {
-    path: ['retry', 'maxRetries'],
-    kind: 'int',
-    min: 0,
-    max: 100,
-    step: 1,
-    piDefault: 3,
-  },
-  'retry.baseDelayMs': {
-    path: ['retry', 'baseDelayMs'],
-    kind: 'int',
-    min: 0,
-    max: 1_000_000,
-    step: 250,
-    piDefault: 2000,
-  },
+  'retry.maxRetries': int('retry', 'maxRetries', 100, 1, 3),
+  'retry.baseDelayMs': int('retry', 'baseDelayMs', 1_000_000, 250, 2000),
 } as const satisfies Record<string, AgentField>
 export type AgentFieldKey = keyof typeof AGENT_FIELDS
 

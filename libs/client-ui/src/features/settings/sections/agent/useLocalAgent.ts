@@ -11,7 +11,7 @@ import { localInstructions } from '../../instructions/instructionsSource'
 import { useSettingsUiStore } from '../../settingsUiStore'
 import { useAccount } from '../../useAccount'
 import { useLocalAgentPrefs } from './useLocalPrefs'
-import type { AgentSource, AgentValues, SectionStatus } from './source'
+import { modelChoices, type AgentSource, type AgentValues, type SectionStatus } from './source'
 
 type Scoped = { global: AgentValues; project: AgentValues | null }
 const ALL_FIELDS = Object.keys(AGENT_FIELDS) as AgentFieldKey[]
@@ -181,14 +181,7 @@ function useLocalCatalogue(): Pick<AgentSource, 'models' | 'catalogue'> {
   useEffect(() => {
     void useModelCatalogueStore.getState().hydrate()
   }, [])
-  const choices = useMemo(
-    () =>
-      models.map((m) => ({
-        value: JSON.stringify([m.provider, m.id]),
-        label: `${m.name} · ${m.provider}`,
-      })),
-    [models],
-  )
+  const choices = useMemo(() => modelChoices(models), [models])
   if (status === 'error')
     return {
       models: choices,
