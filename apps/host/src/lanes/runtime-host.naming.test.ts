@@ -198,7 +198,20 @@ describe('runtime lane binding', () => {
       data:
         cmd.type === 'get_available_models'
           ? { models: [] }
-          : { ...state, model: { provider: 'test', id: 'lane-model' } },
+          : {
+              ...state,
+              model: {
+                provider: 'test',
+                id: 'lane-model',
+                name: 'Test',
+                api: 'test',
+                reasoning: false,
+                input: ['text'],
+                contextWindow: 200000,
+                maxTokens: 4096,
+                cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+              },
+            },
     }))
     await s.binding.command(session.sessionId, { type: 'prompt', message: 'private prompt' })
     await vi.waitFor(() => expect(nameLane).toHaveBeenCalledTimes(1))

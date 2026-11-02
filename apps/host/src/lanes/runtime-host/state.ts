@@ -1,7 +1,7 @@
 import type { SessionPush } from '@phosphor/shared/models'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { HostRuntime } from '../../session/runtime'
-import type { createLaneNamer } from '../naming'
+import type { LaneNamingJob } from '../naming'
 import type { createLiveLanes } from '../live'
 import type { HostStore } from '../store'
 
@@ -21,9 +21,10 @@ export type Binding = {
 
 export type RuntimeLaneOptions = {
   runtime: Pick<HostRuntime, 'start' | 'stop' | 'command' | 'extensionUiResponse'>
-  store: Pick<HostStore, 'getLane' | 'updateLane' | 'bindSessionFile'>
+  store: Pick<HostStore, 'getLane' | 'listLanes' | 'updateLane' | 'bindSessionFile'>
   live: ReturnType<typeof createLiveLanes>
-  nameLane?: (...args: Parameters<ReturnType<typeof createLaneNamer>>) => void
+  /** Absent: this runtime never names lanes. `enabled` is read at each lane's first prompt. */
+  nameLane?: ((job: LaneNamingJob) => void) & { enabled?: () => boolean }
   log: RuntimeLog
 }
 export type RuntimeLaneState = {

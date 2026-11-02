@@ -1,19 +1,24 @@
-import { titleCandidates, type NamingOutcome } from '../naming'
+import { titleCandidates, type NamingFailure, type NamingOutcome } from '../naming'
 import { promptTitle } from '../live'
 import { piState } from '../pi-results'
 import type { Binding, RuntimeLaneOptions, RuntimeLaneState } from './state'
 
 type NameLane = NonNullable<RuntimeLaneOptions['nameLane']>
-type Outcome = (outcome: NamingOutcome) => void
+type Outcome = (outcome: NamingOutcome, failure?: NamingFailure) => void
+
+/** The prompt lists at most 40 existing names; the newest siblings matter most. */
+const MAX_SIBLING_TITLES = 40
 
 function reportOnce(context: RuntimeLaneState, laneId: string): Outcome {
   const started = Date.now()
   let reported = false
-  return (outcome) => {
+  return (outcome, failure) => {
     if (reported) return
     reported = true
     try {
-      context.options.log('host', 'lane.naming', { laneId, outcome, ms: Date.now() - started })
+      // Fixed tokens only: never the prompt, the title or the provider's output.
+      const fields = { laneId, outcome, ...failure, ms: Date.now() - started }
+      context.options.log('host', 'lane.naming', fields)
     } catch {
       /* Diagnostics cannot fail a prompt. */
     }
@@ -36,6 +41,10 @@ export function firstPrompt(
   if (options.nameLane && !binding.namingConsidered) {
     binding.namingConsidered = true
     const outcome = reportOnce(context, laneId)
+    if (options.nameLane.enabled?.() === false) {
+      outcome('skipped-disabled')
+      return
+    }
     if (!binding.namingEligible) {
       outcome('skipped-not-eligible')
       return
@@ -80,8 +89,10 @@ async function lookupNaming(
   if (state.sessionName) return outcome('skipped-not-eligible')
   nameLane({
     outcome,
+    sessionId,
     cwd: options.store.getLane(laneId)?.cwd ?? '',
     message,
+    existingNames: siblingTitles(context, laneId),
     model: state.model,
     models:
       modelsResponse.type === 'response' &&
@@ -92,6 +103,18 @@ async function lookupNaming(
     current,
     apply: (title) => applyGeneratedTitle(context, sessionId, binding, laneId, current, title),
   })
+}
+
+/** The titles of the repository's other lanes, newest first, as Desktop passes its repo's. */
+function siblingTitles(context: RuntimeLaneState, laneId: string): string[] {
+  const { store } = context.options
+  const repositoryId = store.getLane(laneId)?.repositoryId
+  return store
+    .listLanes()
+    .filter((lane) => lane.repositoryId === repositoryId && lane.laneId !== laneId)
+    .flatMap((lane) => (lane.title ? [lane.title] : []))
+    .reverse()
+    .slice(0, MAX_SIBLING_TITLES)
 }
 
 export async function applyGeneratedTitle(

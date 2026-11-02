@@ -53,7 +53,7 @@ import { createHostLog, hostLogDirectory } from '../machine/log'
 import { createHostRuntime, type HostRuntime } from '../session/runtime'
 import { hostLivePolicy } from '../config/live-policy'
 import { createHostLiveLanes } from '../lanes/live-host'
-import { createLaneNamer } from '../lanes/naming'
+import { createLaneNamer, hostLaneNaming } from '../lanes/naming'
 import { createRuntimeLanes } from '../lanes/runtime-host'
 import { createLaneCommands } from '../lanes/commands'
 import { createLaneCalls } from '../lanes/calls'
@@ -298,7 +298,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           changed: () => activeTopic.routinesChanged(),
           now: context.now,
         })
-        nameLane = config.config.autoNameLanes === false ? undefined : createLaneNamer(machine)
+        nameLane = createLaneNamer(machine, hostLaneNaming(config, runtime, claudeAccounts))
         const binding = createRuntimeLanes({
           runtime,
           store,
