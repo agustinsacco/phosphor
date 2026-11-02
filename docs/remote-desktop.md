@@ -223,7 +223,10 @@ skill folder into another machine's global skills folder (`<agent dir>/skills/<n
 the two copies are not linked afterwards. A line under the skill's path says which
 other machines already have a global skill of that name, from `pi:commands` for
 This Mac and `hosts:skills` for each ready Host. Offline or unreadable machines are
-never reported as lacking it.
+never reported as lacking it. Opening Share reads every machine again, and a
+finished copy reads its target again even if the popover has closed. A Host's read
+also replaces its Skills page's list, so a copied skill shows there without a
+reconnect.
 
 The popover lists This Mac (in Desktop) and each Host announcing `skills.read`.
 A Host takes a copy only while ready with `machine.configure`; otherwise its row
@@ -240,13 +243,20 @@ because replacing the folder would not replace it.
 in total, base64) through the renderer, so Desktop and the browser share the flow.
 `'local'` is This Mac: export accepts only a folder the last `skills:list` reported,
 and install probes pi's global commands without touching the Skills page's
-known-folder registry. Any other machine is a Host id, routed through
+known-folder registry. If pi is missing or does not answer that probe, nothing is
+copied. Any other machine is a Host id, routed through
 `libs/host-client/src/skill-share.ts`, which gates the read on `skills.read` and
 the write on `machine.configure` before and after the call. Bundles never carry
 symbolic links, dot folders, `node_modules` or provenance sidecars. Writes stage
 in a private folder and rename into place
 (`libs/session-runtime/src/skills/share-bundle.ts`), so a target never holds half
-a skill. An unconfirmed write is reported, never retried. The browser has no
+a skill. Replace first moves the old folder aside as
+`.phosphor-replaced-<name>-<uuid>`. Each install sweeps leftovers more than ten
+minutes old by ctime: staging is removed, and an aside folder goes back to
+`<name>` if nothing took its place. Otherwise it is deleted. A Host call that times
+out or loses its connection is reported as unconfirmed for a write and unreadable
+for a read. An offline Host says it is not connected. An unconfirmed write is
+never retried. The browser has no
 `'local'`.
 Unsupported panes retain the not-available state. Remote attachments require a
 ready Host with `workspaces.write` and `sessions.control` and the current controller.

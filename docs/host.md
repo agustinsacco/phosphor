@@ -1672,7 +1672,9 @@ never a caller path, and answers `{status: 'installed', replaced}` or
 `{status: 'conflict', replaceable}`. A same-named folder there is replaced only
 with `overwrite`. A same-named skill that pi resolves from anywhere else is never
 replaceable. Calls serialize with at most four waiting. Authority is checked before
-the call and again after pi resolves the existing skills, before any write.
+the call and again after pi resolves the existing skills, before any write. The
+shadowing check (`resolvesElsewhere`) and the crash-leftover sweep live in
+`libs/session-runtime/src/skills/share-bundle.ts` and are shared with Desktop.
 
 The registered `artifacts.read` feature indexes an admitted lane's session file on
 request under `hostStateDirectory()/artifacts`. `artifacts.list {laneId?}` returns
