@@ -6,7 +6,7 @@ import { PopupMenu } from '@/components/PopupMenu'
 import { RefreshIcon, Spinner } from '@/components/icons'
 import { formatCost, formatTokens } from '@/lib/format'
 import { hasNoPricing } from './pricing'
-import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import {
   CONTEXT_BREAKDOWN_STATUS_KEY,
@@ -46,6 +46,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   const machine = useMachinesStore((s) =>
     target?.kind === 'remote' ? s.machines.find((m) => m.id === target.hostId)?.label : undefined,
   )
+  const openSettings = useOpenSettings()
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
   const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
   const catalogueWindow = useChatStore(
@@ -238,9 +239,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
                     <TooltipButton
                       onClick={() => {
                         setOpen(false)
-                        const settingsUi = useSettingsUiStore.getState()
-                        settingsUi.setTab('advanced')
-                        settingsUi.setOpen(true)
+                        openSettings('local', 'advanced')
                       }}
                       tooltip={{
                         label: 'Add model pricing',

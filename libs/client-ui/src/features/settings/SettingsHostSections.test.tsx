@@ -1,19 +1,29 @@
 // @vitest-environment jsdom
-import React, { act } from 'react'
+import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { MachineSettings } from './MachineSettings'
+import { prepareHostSettings, showHostSettings } from './__fixtures__/hostSettingsSurface'
+import { useSettingsUiStore, type SettingsTab } from './settingsUiStore'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useMachinesStore } from '@/stores/machines'
 import { mixedRemoteHosts } from '@/dev/mockRemoteLanes'
 import { mockSettingsRead, mockSettingsPatch } from '@/dev/mockMachineSettings'
 import { promptChoice } from '@/stores/prompt'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { COMPACT_PLATFORM, PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
+import { COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 vi.mock('@/stores/prompt', () => ({
   promptChoice: vi.fn(async () => undefined),
   promptText: vi.fn(),
 }))
+vi.hoisted(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: () => ({
+      matches: false,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }),
+  })
+})
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 const machine = { id: '11111111-1111-4111-8111-111111111111', label: 'bee1' }
 const invoke = vi.fn()
@@ -22,7 +32,7 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
   useRemoteLanesStore.setState({ hosts: mixedRemoteHosts() })
-  useMachinesStore.setState({ view: { kind: 'machine', id: machine.id, settings: 'agent' } })
+  prepareHostSettings(machine)
   invoke.mockReset().mockImplementation(async (channel, hostId, section, repositoryId) => {
     if (channel === 'hosts:settingsRead') return mockSettingsRead(hostId, section, repositoryId)
     if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
@@ -50,17 +60,13 @@ function button(text: string) {
   if (!value) throw new Error(`Missing ${text}`)
   return value
 }
-async function render(section: Parameters<typeof MachineSettings>[0]['section']) {
-  await act(async () => {
-    root.render(<MachineSettings machine={machine} section={section} />)
-  })
-}
+const render = (tab: SettingsTab) => showHostSettings(root, machine.id, tab)
 it('shows explicit configuration authority instead of borrowing local settings or lane control', async () => {
   const hosts = mixedRemoteHosts()
   hosts[machine.id]!.capabilities = ['sessions.read', 'sessions.control']
   useRemoteLanesStore.setState({ hosts })
-  await render('providers')
-  expect(container.textContent).toContain('Configuring bee1, not this computer')
+  await render('accounts')
+  expect(container.textContent).toContain('Configuring bee1')
   expect(container.textContent).toContain('Configuration access is not enabled')
   expect(invoke).not.toHaveBeenCalled()
   vi.mocked(promptChoice).mockResolvedValue('enable')
@@ -78,7 +84,7 @@ it('distinguishes old and offline Hosts without presenting credentials as empty'
   const hosts = mixedRemoteHosts()
   hosts[machine.id]!.configurationSupported = false
   useRemoteLanesStore.setState({ hosts })
-  await render('providers')
+  await render('accounts')
   expect(container.textContent).toContain('Update the Host')
   expect(invoke).not.toHaveBeenCalled()
   hosts[machine.id]!.state = 'down'
@@ -127,7 +133,7 @@ it('saves a committed Host policy edit on its own, says so, and leaves without a
     button('Accounts').click()
   })
   expect(promptChoice).not.toHaveBeenCalled()
-  expect(useMachinesStore.getState().view).toMatchObject({ settings: 'providers', id: machine.id })
+  expect(useSettingsUiStore.getState()).toMatchObject({ tab: 'accounts', machine: machine.id })
 })
 it('refuses an invalid context budget in place instead of sending it', async () => {
   await render('agent')
@@ -202,17 +208,17 @@ it('keeps older Host model defaults usable without offering unsupported behavior
   ).toBe(false)
 })
 it('offers a headless-safe extension catalogue and existing multiple-account controls', async () => {
-  await render('resources')
+  await render('extensions')
   expect(container.textContent).toContain('Standard Host extensions')
   expect(container.textContent).toContain('computer use is not installed')
   expect(button('Install Swarm subagents').disabled).toBe(false)
   expect(button('Install Web access').disabled).toBe(false)
-  await render('providers')
+  await render('accounts')
   expect(button('Add account').disabled).toBe(false)
   expect(container.textContent).toContain('work@bee1.example')
 })
 it('keeps provider credentials separated by Host and makes usage unavailable, not zero', async () => {
-  await render('providers')
+  await render('accounts')
   expect(container.textContent).toContain('dev@bee1.example')
   expect(container.textContent).not.toContain('dev@bee5.example')
   await act(async () => {
@@ -227,13 +233,7 @@ it.each([COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM])(
     const hosts = mixedRemoteHosts()
     hosts[machine.id]!.capabilities = ['sessions.read', 'sessions.control']
     useRemoteLanesStore.setState({ hosts })
-    await act(async () => {
-      root.render(
-        <PlatformProvider value={platform}>
-          <MachineSettings machine={machine} section="providers" />
-        </PlatformProvider>,
-      )
-    })
+    await showHostSettings(root, machine.id, 'accounts', platform)
     expect(container.textContent).not.toContain('available in Phosphor Desktop')
     vi.mocked(promptChoice).mockResolvedValue('enable')
     await act(async () => {

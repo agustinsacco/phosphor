@@ -1,8 +1,6 @@
-import { useMachinesStore } from '@/stores/machines'
 import type { MachineView } from '@shared/control-api'
 import { errorText } from '@shared/errors'
 import { useState } from 'react'
-import { confirmSettingsNavigation } from '@/features/settings/machine/machineSettingsDrafts'
 import { useHostSettings } from '@/features/settings/machine/useHostSettings'
 
 import type { MachineSettingsTab } from './MachineSettings'
@@ -35,11 +33,6 @@ export function useMachineSettingsController(
       if (alive.current) setAccessBusy(false)
     }
   }
-  const select = async (next: MachineSettingsTab) => {
-    if (next !== section && !(await confirmSettingsNavigation(machine.id))) return
-    setError(null)
-    useMachinesStore.getState().show({ kind: 'machine', id: machine.id, settings: next })
-  }
   return {
     machine,
     section,
@@ -52,7 +45,6 @@ export function useMachineSettingsController(
     ...programs,
     accessBusy,
     access,
-    select,
   }
 }
 export type MachineSettingsController = ReturnType<typeof useMachineSettingsController>

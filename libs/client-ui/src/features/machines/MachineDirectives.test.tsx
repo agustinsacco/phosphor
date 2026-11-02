@@ -3,9 +3,11 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
-import { MachineSettings } from './MachineSettings'
+import {
+  prepareHostSettings,
+  showHostSettings,
+} from '@/features/settings/__fixtures__/hostSettingsSurface'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useMachinesStore } from '@/stores/machines'
 import { mixedRemoteHosts } from '@/dev/mockRemoteLanes'
 import { mockSettingsRead, mockSettingsPatch } from '@/dev/mockMachineSettings'
 import { promptChoice } from '@/stores/prompt'
@@ -13,6 +15,16 @@ vi.mock('@/stores/prompt', () => ({
   promptChoice: vi.fn(async () => undefined),
   promptText: vi.fn(),
 }))
+vi.hoisted(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: () => ({
+      matches: false,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }),
+  })
+})
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('@/features/settings/instructions/EditInstructions', () => ({
   EditInstructions: ({ source }: { source: { key: string; machine: string } }) => (
@@ -28,7 +40,7 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
   useRemoteLanesStore.setState({ hosts: mixedRemoteHosts() })
-  useMachinesStore.setState({ view: { kind: 'machine', id: machine.id, settings: 'agent' } })
+  prepareHostSettings(machine)
   invoke.mockReset().mockImplementation(async (channel, hostId, section, repositoryId) => {
     if (channel === 'hosts:settingsRead') {
       const read = mockSettingsRead(hostId, section, repositoryId)
@@ -51,9 +63,7 @@ afterEach(() => {
 })
 const button = (text: string) =>
   [...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === text)!
-async function render() {
-  await act(async () => root.render(<MachineSettings machine={machine} section="agent" />))
-}
+const render = () => showHostSettings(root, machine.id, 'agent')
 
 it("saves a Host's directive switches as Host config, merged with what it has", async () => {
   await render()

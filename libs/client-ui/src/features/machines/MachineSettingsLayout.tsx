@@ -1,35 +1,10 @@
 import { Button } from '@/components/form'
-import { TooltipButton } from '@/components/Tooltip'
 import { errorText } from '@shared/errors'
 import { CopyCommand } from './MachineControls'
 
 import { ConfiguredMachineSettings } from './MachineConfiguredSettings'
-import { HOST_SECTIONS } from '@/features/settings/settingsIndex'
 import type { MachineSettingsController } from './useMachineSettingsController'
 type ControllerProps = { controller: MachineSettingsController }
-
-export function MachineSettingsNavigation({ controller }: ControllerProps): React.JSX.Element {
-  const { machine, section, settings, starting, select } = controller
-  return (
-    <nav
-      aria-label="Machine settings"
-      className="flex gap-1 overflow-x-auto md:w-40 md:shrink-0 md:flex-col"
-    >
-      {HOST_SECTIONS.map(({ key, label: title }) => (
-        <TooltipButton
-          key={key}
-          tooltip={`${title} on ${machine.label}`}
-          aria-current={key === section ? 'page' : undefined}
-          className={`shrink-0 rounded-md px-3 py-2 text-left text-base transition-colors ${key === section ? 'bg-surface-raised text-text' : 'text-text-secondary hover:bg-bg-secondary'}`}
-          disabled={settings.saving || starting}
-          onClick={() => void select(key)}
-        >
-          {title}
-        </TooltipButton>
-      ))}
-    </nav>
-  )
-}
 
 export function MachineSettingsGate({ controller }: ControllerProps): React.JSX.Element {
   const { machine, settings, connection, allowed, accessBusy, access, setError } = controller

@@ -6,7 +6,7 @@ import { Button } from '@/components/form'
 import { CheckIcon, WarningIcon } from '@/components/icons'
 import { Spinner } from '@/features/machines/MachineUi'
 import { formatBytes } from '@/lib/format'
-import { useMachinesStore } from '@/stores/machines'
+import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import {
   rereadSkillNames,
   shareMachineLabel,
@@ -165,6 +165,7 @@ function MachineList({
   onCopy: (target: string) => void
   onClose: () => void
 }): React.JSX.Element {
+  const openSettings = useOpenSettings()
   return (
     <>
       <div className="text-text text-base font-medium">Copy {name} to…</div>
@@ -195,9 +196,7 @@ function MachineList({
                   size="sm"
                   onClick={() => {
                     onClose()
-                    useMachinesStore
-                      .getState()
-                      .show({ kind: 'machine', id: machine.id, settings: 'resources' })
+                    openSettings(machine.id, 'extensions')
                   }}
                 >
                   Settings

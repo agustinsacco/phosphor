@@ -2,7 +2,7 @@ import { CheckIcon, WarningIcon, ReloadIcon } from '@/components/icons'
 import { useEffect, useRef, useState } from 'react'
 import type { TailscaleCode, TailscaleStatus } from '@shared/tailscale-status'
 import { useAccount } from '@/features/settings/useAccount'
-import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { Button } from '@/components/form'
 
 export const TAILSCALE_FIXES: Record<TailscaleCode, string> = {
@@ -16,6 +16,7 @@ export const TAILSCALE_FIXES: Record<TailscaleCode, string> = {
 }
 export function BeforeYouStart(): React.JSX.Element {
   const { view } = useAccount()
+  const openSettings = useOpenSettings()
   const signedIn = view?.account.status === 'signed-in'
   const [status, setStatus] = useState<TailscaleStatus | null>(null)
   const [busy, setBusy] = useState(false)
@@ -55,13 +56,7 @@ export function BeforeYouStart(): React.JSX.Element {
             : 'Sign in with GitHub in Settings → Phosphor account before approving a machine.'}
         </p>
         {!signedIn && (
-          <Button
-            className="ml-6"
-            onClick={() => {
-              useSettingsUiStore.getState().setTab('account')
-              useSettingsUiStore.getState().setOpen(true)
-            }}
-          >
+          <Button className="ml-6" onClick={() => openSettings(null, 'account')}>
             Open Settings
           </Button>
         )}

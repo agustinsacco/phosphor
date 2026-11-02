@@ -7,6 +7,7 @@ import type { ResolvedSkill } from '@shared/skills'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSkillsStore } from '@/stores/skills'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { SkillMachines, SkillShareActions } from './SkillShare'
 import { useSkillPresenceStore } from './skillPresence'
 
@@ -161,13 +162,14 @@ it('reports a failed write, keeps the read step, and retries only when asked', a
   expect(text()).toContain('Added on studio')
 })
 
-it('opens machine settings for a Host that needs configuration access', async () => {
+it('opens Settings on the Host’s Extensions for a Host that needs configuration access', async () => {
+  useSettingsUiStore.setState({ open: false, tab: 'appearance', machine: null })
   await render()
   await act(async () => button('Settings').click())
-  expect(useMachinesStore.getState().view).toEqual({
-    kind: 'machine',
-    id: B,
-    settings: 'resources',
+  expect(useSettingsUiStore.getState()).toMatchObject({
+    open: true,
+    tab: 'extensions',
+    machine: B,
   })
 })
 

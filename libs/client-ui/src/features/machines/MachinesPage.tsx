@@ -18,8 +18,7 @@ import { LocalMachineDetail, useThisComputer } from './LocalMachine'
 import { HostGuide, HostSetup } from './MachineControls'
 import { MachineDetail } from './MachineDetail'
 import { MachineFilesButton } from './MachineFilesButton'
-import { MachineSettings } from './MachineSettings'
-import { confirmSettingsNavigation } from '@/features/settings/machine/machineSettingsDrafts'
+import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { MachineList } from './MachineList'
 import { machineHeadline } from './machineReachability'
 import { LOCAL_MACHINE } from './machinePresentation'
@@ -72,14 +71,10 @@ export function MachinesPage(): React.JSX.Element {
   const machine = state.machines.find((entry) => entry.id === selected)
   const local = selected === LOCAL_MACHINE
   const now = state.nowMs || Date.now()
-  const back = async (): Promise<void> => {
-    try {
-      if (selected && !(await confirmSettingsNavigation(selected))) return
-      state.show({ kind: 'list' })
-      setError(null)
-    } catch {
-      if (live.current) setError('Could not leave settings. Try again.')
-    }
+  const openSettings = useOpenSettings()
+  const back = (): void => {
+    state.show({ kind: 'list' })
+    setError(null)
   }
   async function remove(): Promise<void> {
     if (!removing || busy) return
@@ -98,7 +93,7 @@ export function MachinesPage(): React.JSX.Element {
       }
       if (result.ok || result.error.code === 'not-found') {
         setRemoving(null)
-        await back()
+        back()
         setNotice(result.ok ? 'Machine removed.' : 'That machine was already removed.')
         await state.refresh()
       } else setError(controlMessage(result.error.code))
@@ -112,11 +107,7 @@ export function MachinesPage(): React.JSX.Element {
     <PageShell
       title={
         selected ? (
-          <TooltipButton
-            aria-label="Back to machines"
-            className="machine-page-back"
-            onClick={() => void back()}
-          >
+          <TooltipButton aria-label="Back to machines" className="machine-page-back" onClick={back}>
             ← Machines
           </TooltipButton>
         ) : (
@@ -229,45 +220,21 @@ export function MachinesPage(): React.JSX.Element {
                 <nav aria-label="Machine views" className="border-border flex gap-5 border-b">
                   <TooltipButton
                     tooltip="Machine readiness and diagnostics"
-                    aria-current={
-                      state.view.kind === 'machine' && !state.view.settings ? 'page' : undefined
-                    }
+                    aria-current="page"
                     className="machine-view-tab text-base"
-                    onClick={() => {
-                      void confirmSettingsNavigation(machine.id)
-                        .then((allowed) => {
-                          if (allowed) state.show({ kind: 'machine', id: machine.id })
-                        })
-                        .catch(() => setError('Could not leave settings. Try again.'))
-                    }}
                   >
                     Overview
                   </TooltipButton>
                   <TooltipButton
-                    tooltip={`Configure ${machine.label}`}
+                    tooltip={`Configure ${machine.label} in Settings`}
                     aria-label="Machine settings"
-                    aria-current={
-                      state.view.kind === 'machine' && state.view.settings ? 'page' : undefined
-                    }
                     className="machine-view-tab text-base"
-                    onClick={() => {
-                      if (state.view.kind === 'machine' && state.view.settings) return
-                      state.show({ kind: 'machine', id: machine.id, settings: 'providers' })
-                    }}
+                    onClick={() => openSettings(machine.id, 'accounts')}
                   >
                     Settings
                   </TooltipButton>
                   <MachineFilesButton machine={machine} />
                 </nav>
-              }
-              settings={
-                state.view.kind === 'machine' && state.view.settings ? (
-                  <MachineSettings
-                    key={machine.id}
-                    machine={machine}
-                    section={state.view.settings}
-                  />
-                ) : undefined
               }
               onRemove={() => {
                 setError(null)
@@ -283,7 +250,7 @@ export function MachinesPage(): React.JSX.Element {
                     : 'This machine is no longer in your account.'
                   : 'Sign in again to see this machine.'}
               </span>
-              <Button onClick={() => void back()}>All machines</Button>
+              <Button onClick={back}>All machines</Button>
             </div>
           )}
         </div>

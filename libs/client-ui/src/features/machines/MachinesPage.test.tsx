@@ -7,6 +7,7 @@ import { MachinesPage } from './MachinesPage'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
 import { MACHINE, LOOKUP } from './__fixtures__/control'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 
 const originalRefresh = useMachinesStore.getState().refresh
 let root: Root
@@ -409,3 +410,18 @@ it.each([
     }
   },
 )
+
+it('opens the shared Settings on the selected Host instead of an in-page copy', async () => {
+  useSettingsUiStore.setState({ open: false, tab: 'appearance', machine: null })
+  useMachinesStore.setState({ view: { kind: 'machine', id: MACHINE.id } })
+  await render()
+  const settings = container.querySelector<HTMLButtonElement>('[aria-label="Machine settings"]')
+  await act(async () => settings?.click())
+  expect(useSettingsUiStore.getState()).toMatchObject({
+    open: true,
+    tab: 'accounts',
+    machine: MACHINE.id,
+  })
+  expect(useMachinesStore.getState().view).toEqual({ kind: 'machine', id: MACHINE.id })
+  expect(container.querySelector('[data-testid="machine-detail"]')).not.toBeNull()
+})

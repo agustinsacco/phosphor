@@ -18,7 +18,7 @@ import {
   relativeTime,
 } from './machinePresentation'
 import { machineHeadline } from './machineReachability'
-import { confirmSettingsNavigation } from '@/features/settings/machine/machineSettingsDrafts'
+import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { Card, CheckRow, Fact, Facts, Spinner, type CheckItem } from './MachineUi'
 import { MachineTerminal } from './MachineTerminal'
 import { OnThisMachine } from './OnThisMachine'
@@ -32,14 +32,12 @@ export function MachineDetail({
   offset,
   onRemove,
   navigation,
-  settings,
 }: {
   machine: MachineView
   now: number
   offset: number
   onRemove: () => void
   navigation?: React.ReactNode
-  settings?: React.ReactNode
 }): React.JSX.Element {
   const connection = useRemoteLanesStore((s) => s.hosts[machine.id])
   const [refresh, setRefresh] = useState(0)
@@ -54,6 +52,7 @@ export function MachineDetail({
     }
   }, [])
   const claude = useClaudeReadiness(machine.id, refresh)
+  const openSettings = useOpenSettings()
   const corrected = now + offset
   const headline = machineHeadline(machine, connection, corrected)
   const freshness = readinessFreshness(machine, now, offset)
@@ -117,136 +116,122 @@ export function MachineDetail({
         reconnecting={reconnecting}
         onCheck={() => void checkAgain()}
         onReconnect={() => void reconnect()}
-        onUpdate={() =>
-          void confirmSettingsNavigation(machine.id).then((go) => {
-            if (go)
-              useMachinesStore
-                .getState()
-                .show({ kind: 'machine', id: machine.id, settings: 'advanced' })
-          })
-        }
+        onUpdate={() => openSettings(machine.id, 'advanced')}
       />
       {navigation}
-      {settings ?? (
-        <>
-          {!machine.lastSeenAt && (
-            <section
-              aria-label="Finish setup"
-              className="border-border bg-bg-secondary space-y-3 rounded-lg border p-4"
-            >
-              <div className="flex items-center gap-2">
-                <Spinner size={13} />
-                <h2 className="text-lg font-semibold">
-                  Waiting for {machine.label} to finish setup
-                </h2>
-              </div>
-              <p className="text-text-secondary text-base">
-                This page updates on its own once {machine.label} checks in. If setup stopped, run
-                it again on {machine.label}; it resumes where it left off.
-              </p>
-              <CopyCommand command="phosphor setup" />
-              <Troubleshooting />
-            </section>
-          )}
-          {offlineLong && (
-            <section
-              aria-label="Offline"
-              className="border-border space-y-3 rounded-lg border p-4 text-base"
-            >
-              <p className="text-text-secondary">
-                Offline for more than a day. Check the service on {machine.label}.
-              </p>
-              <CopyCommand command={HOST_SERVICE_STATUS} />
-            </section>
-          )}
-
-          {/* Two stacks, not a row-by-row grid: a tall Readiness card leaves no hole beside it. */}
-          <div className="grid items-start gap-4 lg:grid-cols-2">
-            <div className="space-y-4">
-              <Card
-                title="Readiness"
-                aside={
-                  checking ? (
-                    <>
-                      <Spinner size={10} /> Checking
-                    </>
-                  ) : (
-                    // The report rides each heartbeat; "checked" is when this computer last asked.
-                    <span role="status">
-                      {[
-                        machine.lastSeenAt
-                          ? `Reported ${relativeTime(machine.lastSeenAt, corrected)}`
-                          : 'Not reported yet',
-                        checkedAt
-                          ? `checked ${relativeTime(new Date(checkedAt).toISOString(), Date.now())}`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </span>
-                  )
-                }
-              >
-                <CheckRow check={connectionCheck} />
-                {freshness === 'none' ? (
-                  <p className="text-text-secondary py-1.5 text-base">
-                    {machine.label} reports pi, Claude and Tailscale once it first connects.
-                  </p>
-                ) : (
-                  <>
-                    {freshness === 'stale' && machine.lastSeenAt && (
-                      <p className="text-text-tertiary py-1 text-sm">
-                        As last reported, {relativeTime(machine.lastSeenAt, corrected)}. It may have
-                        changed since.
-                      </p>
-                    )}
-                    {reported.map((check) => (
-                      <CheckRow key={check.name} check={check} />
-                    ))}
-                  </>
-                )}
-              </Card>
-              {connection && (
-                <Card title="On this machine">
-                  <OnThisMachine hostId={machine.id} />
-                </Card>
-              )}
-            </div>
-            <div className="space-y-4">
-              <Card title="Providers">
-                <ProviderSignIn
-                  key={machine.id}
-                  hostId={machine.id}
-                  refresh={refresh}
-                  onConfigure={
-                    connection?.configurationSupported
-                      ? () =>
-                          useMachinesStore
-                            .getState()
-                            .show({ kind: 'machine', id: machine.id, settings: 'providers' })
-                      : undefined
-                  }
-                />
-              </Card>
-              <MachineDetailFacts machine={machine} version={version} />
-            </div>
-          </div>
-          {connection && <MachineTerminal hostId={machine.id} label={machine.label} />}
-
+      <>
+        {!machine.lastSeenAt && (
           <section
-            aria-label="Remove machine"
-            className="border-border flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3"
+            aria-label="Finish setup"
+            className="border-border bg-bg-secondary space-y-3 rounded-lg border p-4"
           >
-            <p className="text-text-secondary min-w-0 flex-1 text-base">
-              Remove this machine from your account. Lanes, routines and files stay on the machine
-              and return when you add it again.
+            <div className="flex items-center gap-2">
+              <Spinner size={13} />
+              <h2 className="text-lg font-semibold">Waiting for {machine.label} to finish setup</h2>
+            </div>
+            <p className="text-text-secondary text-base">
+              This page updates on its own once {machine.label} checks in. If setup stopped, run it
+              again on {machine.label}; it resumes where it left off.
             </p>
-            <Button size="sm" variant="danger" onClick={onRemove}>
-              Remove machine
-            </Button>
+            <CopyCommand command="phosphor setup" />
+            <Troubleshooting />
           </section>
-        </>
-      )}
+        )}
+        {offlineLong && (
+          <section
+            aria-label="Offline"
+            className="border-border space-y-3 rounded-lg border p-4 text-base"
+          >
+            <p className="text-text-secondary">
+              Offline for more than a day. Check the service on {machine.label}.
+            </p>
+            <CopyCommand command={HOST_SERVICE_STATUS} />
+          </section>
+        )}
+
+        {/* Two stacks, not a row-by-row grid: a tall Readiness card leaves no hole beside it. */}
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <div className="space-y-4">
+            <Card
+              title="Readiness"
+              aside={
+                checking ? (
+                  <>
+                    <Spinner size={10} /> Checking
+                  </>
+                ) : (
+                  // The report rides each heartbeat; "checked" is when this computer last asked.
+                  <span role="status">
+                    {[
+                      machine.lastSeenAt
+                        ? `Reported ${relativeTime(machine.lastSeenAt, corrected)}`
+                        : 'Not reported yet',
+                      checkedAt
+                        ? `checked ${relativeTime(new Date(checkedAt).toISOString(), Date.now())}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                )
+              }
+            >
+              <CheckRow check={connectionCheck} />
+              {freshness === 'none' ? (
+                <p className="text-text-secondary py-1.5 text-base">
+                  {machine.label} reports pi, Claude and Tailscale once it first connects.
+                </p>
+              ) : (
+                <>
+                  {freshness === 'stale' && machine.lastSeenAt && (
+                    <p className="text-text-tertiary py-1 text-sm">
+                      As last reported, {relativeTime(machine.lastSeenAt, corrected)}. It may have
+                      changed since.
+                    </p>
+                  )}
+                  {reported.map((check) => (
+                    <CheckRow key={check.name} check={check} />
+                  ))}
+                </>
+              )}
+            </Card>
+            {connection && (
+              <Card title="On this machine">
+                <OnThisMachine hostId={machine.id} />
+              </Card>
+            )}
+          </div>
+          <div className="space-y-4">
+            <Card title="Providers">
+              <ProviderSignIn
+                key={machine.id}
+                hostId={machine.id}
+                refresh={refresh}
+                onConfigure={
+                  connection?.configurationSupported
+                    ? () => openSettings(machine.id, 'accounts')
+                    : undefined
+                }
+              />
+            </Card>
+            <MachineDetailFacts machine={machine} version={version} />
+          </div>
+        </div>
+        {connection && <MachineTerminal hostId={machine.id} label={machine.label} />}
+
+        <section
+          aria-label="Remove machine"
+          className="border-border flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3"
+        >
+          <p className="text-text-secondary min-w-0 flex-1 text-base">
+            Remove this machine from your account. Lanes, routines and files stay on the machine and
+            return when you add it again.
+          </p>
+          <Button size="sm" variant="danger" onClick={onRemove}>
+            Remove machine
+          </Button>
+        </section>
+      </>
     </div>
   )
 }

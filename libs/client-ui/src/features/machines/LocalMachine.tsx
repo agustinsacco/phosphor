@@ -2,7 +2,7 @@ import { usePlatform } from '@/platform/Platform'
 import { useEffect, useState } from 'react'
 import type { ClaudeStatus, PiHealth, SubscriptionProviderStatus } from '@shared/models'
 import { Button } from '@/components/form'
-import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { useSessionsStore } from '@/stores/sessions'
 import { Card, CheckRow, Fact, Facts, Skeleton, StatusPill, type CheckItem } from './MachineUi'
 import { MachineTerminal } from './MachineTerminal'
@@ -82,16 +82,11 @@ export function localChecks(computer: Computer): CheckItem[] {
   ]
 }
 
-export function openProviderSettings(): void {
-  useSettingsUiStore.getState().setTab('accounts')
-  useSettingsUiStore.getState().setOpen(true)
-  useSettingsUiStore.getState().setMachine('local')
-}
-
 export function LocalMachineDetail({ computer }: { computer: Computer }): React.JSX.Element {
   const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
   const checks = localChecks(computer)
   const label = localMachineLabel(window.phosphor.platform)
+  const openSettings = useOpenSettings()
   return (
     <div data-testid="machine-detail" className="space-y-4">
       <header className="flex flex-wrap items-center gap-3">
@@ -129,7 +124,7 @@ export function LocalMachineDetail({ computer }: { computer: Computer }): React.
         <Card
           title="Providers"
           aside={
-            <Button size="xs" onClick={openProviderSettings}>
+            <Button size="xs" onClick={() => openSettings('local', 'accounts')}>
               Provider sign-ins
             </Button>
           }
