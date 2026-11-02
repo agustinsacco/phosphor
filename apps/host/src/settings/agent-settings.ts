@@ -1,9 +1,9 @@
 import { join } from 'node:path'
 import { projectAgentBehavior } from '@phosphor/shared/machine-agent-behavior'
 import { normalizeAgentDirectives } from '@phosphor/shared/models'
-import { machineRecord } from '@phosphor/shared/host-protocol-machine'
 import type { MachineSettings, MachineSettingsPatch } from '@phosphor/shared/machine-settings'
 import { readMcpConfigs } from '@phosphor/session-runtime/pi/mcp-config'
+import { AGENT_NESTED_KEYS, mergeAgentPatch } from '@phosphor/session-runtime/pi/agent-settings'
 import { validateHostConfig } from '../config/schema'
 import type { SettingsContext } from './context'
 import {
@@ -77,22 +77,8 @@ export async function changeAgentSettings(
     if (state.revision('agent', cwd) !== input.revision)
       throw new SettingsFailure('bad-request', 'Settings changed. Reload before saving.')
     const file = settingsFile(path, HOST_FILE_POLICY)
-    const next = { ...file.raw, ...patch }
-    if (patch.agentDirectives)
-      next.agentDirectives = {
-        ...(machineRecord(file.raw.agentDirectives) ? file.raw.agentDirectives : {}),
-        ...patch.agentDirectives,
-      }
-    for (const key of ['compaction', 'retry'] as const) {
-      if (patch[key]) {
-        if (file.raw[key] !== undefined && !machineRecord(file.raw[key]))
-          throw new SettingsFailure(
-            'bad-request',
-            `Invalid ${key} settings. Nothing was overwritten.`,
-          )
-        next[key] = { ...(machineRecord(file.raw[key]) ? file.raw[key] : {}), ...patch[key] }
-      }
-    }
+    // Directive switches merge into the Host's own, as compaction/retry do into pi's.
+    const next = mergeAgentPatch(file.raw, patch, policy ? ['agentDirectives'] : AGENT_NESTED_KEYS)
     if (policy && !validateHostConfig(next).ok)
       throw new SettingsFailure('bad-request', 'Invalid Host policy.')
     await saveSettingsFile(path, next, file.revision, commitAllowed, HOST_FILE_POLICY)

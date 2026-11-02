@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { piAgentDir, webSearchConfigPath } from './pi-paths'
 import { type CatalogueModel } from './model-catalogue'
-import { type PiAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
+import { mergeAgentPatch, type PiAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { readJsonFile, type JsonFileRead } from '@phosphor/session-runtime/pi/json-config'
 import {
   DESKTOP_FILE_POLICY,
@@ -153,21 +153,9 @@ export async function patchAgentSettings(
   const dir = scope === 'global' ? piAgentDir() : join(workspacePath ?? '', '.pi')
   const fix =
     ' and lose your existing settings — fix it in Settings → Advanced → pi settings.json, then try again.'
-  await patchConfigFile(join(dir, 'settings.json'), fix, (current) => {
-    const merged: Record<string, unknown> = { ...current, ...patch }
-    // Nested objects (compaction/retry) merge one level deep.
-    for (const key of ['compaction', 'retry'] as const) {
-      if (
-        patch[key] &&
-        typeof patch[key] === 'object' &&
-        current[key] &&
-        typeof current[key] === 'object'
-      ) {
-        merged[key] = { ...(current[key] as object), ...(patch[key] as object) }
-      }
-    }
-    return merged
-  })
+  await patchConfigFile(join(dir, 'settings.json'), fix, (current) =>
+    mergeAgentPatch(current, patch),
+  )
 }
 
 /** One selectable model, as recorded in pi's models.json. */
