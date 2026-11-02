@@ -1,25 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import clsx from 'clsx'
 import { Button, Row, SectionTitle } from '@/components/form'
 import { piInstallLocation, type PiHealth } from '@shared/models'
 import type { PiResources } from '@shared/models'
 import { ConfigFileEditor, piConfigFile } from '../ConfigFileEditor'
 import { MaintenanceSection } from './MaintenanceSection'
+import { SectionStatusNotice, useSectionLoad } from '../sections/sectionStatus'
 
 /** pi install health, discovered resources, and raw config file editing. */
 
 export function AdvancedTab(): React.JSX.Element {
-  const [health, setHealth] = useState<PiHealth | null>(null)
-  const [resources, setResources] = useState<PiResources | null>(null)
   const [editing, setEditing] = useState<'settings' | 'models' | null>(null)
-  useEffect(() => {
-    void window.phosphor.invoke('pi:health').then(setHealth)
-    void window.phosphor.invoke('pi:listResources').then(setResources)
-  }, [])
+  const { data, status } = useSectionLoad(() =>
+    Promise.all([window.phosphor.invoke('pi:health'), window.phosphor.invoke('pi:listResources')]),
+  )
+  const [health, resources]: [PiHealth | null, PiResources | null] = data ?? [null, null]
 
   return (
     <div>
       <SectionTitle>Advanced</SectionTitle>
+      <SectionStatusNotice status={status} title="Couldn’t check pi" />
 
       <Row
         title="pi health"
