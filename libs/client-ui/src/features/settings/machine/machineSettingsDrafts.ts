@@ -86,8 +86,8 @@ const fieldsFor = (state?: MachineAgentDefaults): Fields => ({
     state?.defaultProvider && state.defaultModel
       ? JSON.stringify([state.defaultProvider, state.defaultModel])
       : '',
-  thinking: state?.defaultThinkingLevel ?? 'medium',
-  budget: state?.contextBudget || '200k',
+  thinking: state?.defaultThinkingLevel ?? '',
+  budget: state?.contextBudget ?? '',
   naming: state?.autoNameLanes ?? true,
   behavior: projectAgentBehavior({ ...state }),
   directives: normalizeAgentDirectives(state?.agentDirectives),

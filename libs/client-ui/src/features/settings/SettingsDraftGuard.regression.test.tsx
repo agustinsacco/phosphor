@@ -55,7 +55,7 @@ afterEach(() => {
 
 async function leaveAnUnsavedDraft(): Promise<void> {
   const thinking = document.querySelector<HTMLSelectElement>(
-    '[aria-label="Default Host thinking"]',
+    '[aria-label="Default thinking level"]',
   )!
   await act(async () => {
     thinking.value = thinking.value === 'high' ? 'low' : 'high'

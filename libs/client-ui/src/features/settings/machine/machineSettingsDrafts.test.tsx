@@ -148,7 +148,7 @@ it('disables stale drafts rather than silently overwriting an external revision'
   expect(api.fields.budget).toBe('400k')
   expect(api.dirty).toBe(false)
 })
-it('normalizes an acknowledged default-budget reset and does not leave a false dirty form', async () => {
+it('adopts an acknowledged default-budget reset and does not leave a false dirty form', async () => {
   const host = fakeHost()
   act(() => root.render(<Draft id="draft-default" host={host} />))
   await act(async () => api.set('budget', ''))
@@ -156,7 +156,7 @@ it('normalizes an acknowledged default-budget reset and does not leave a false d
     { type: 'agent.patch', patch: { contextBudget: '' } },
     'r1',
   )
-  expect(api.fields.budget).toBe('200k')
+  expect(api.fields.budget).toBe('')
   expect(api.dirty).toBe(false)
 })
 it('lets navigation wait for a save in flight instead of refusing or asking', async () => {

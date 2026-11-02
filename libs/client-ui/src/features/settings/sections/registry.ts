@@ -3,7 +3,6 @@ import { AboutTab } from '../tabs/AboutTab'
 import { AccountTab } from '../tabs/AccountTab'
 import { AccountsTab } from '../tabs/AccountsTab'
 import { AdvancedTab } from '../tabs/AdvancedTab'
-import { AgentTab } from '../tabs/AgentTab'
 import { AppearanceTab } from '../tabs/AppearanceTab'
 import { ClaudeProviderTab } from '../tabs/ClaudeProviderTab'
 import { ComputerUseTab } from '../tabs/ComputerUseTab'
@@ -20,11 +19,11 @@ import { WritingTab } from '../tabs/WritingTab'
 import {
   HostAccountsSection,
   HostAdvancedSection,
-  HostAgentSection,
   HostConnectorsSection,
   HostExtensionsSection,
   HostFoldersSection,
 } from './hostSections'
+import { HostAgent, LocalAgent } from './agent'
 
 type View = () => React.JSX.Element
 
@@ -49,7 +48,7 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   account: { Device: AccountTab },
   install: { Device: InstallAppTab },
   about: { Device: AboutTab },
-  agent: { Local: AgentTab, Host: HostAgentSection, scoped: true },
+  agent: { Local: LocalAgent, Host: HostAgent, scoped: true },
   accounts: { Local: AccountsTab, Host: HostAccountsSection },
   extensions: { Local: ExtensionsTab, Host: HostExtensionsSection },
   'claude-provider': { Local: ClaudeProviderTab },

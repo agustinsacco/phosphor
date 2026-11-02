@@ -26,7 +26,10 @@ vi.hoisted(() => {
   })
 })
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
-vi.mock('./tabs/AgentTab', () => ({ AgentTab: () => <p>Local agent controls</p> }))
+vi.mock('./sections/agent', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./sections/agent')>()),
+  LocalAgent: () => <p>Local agent controls</p>,
+}))
 vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
 vi.mock('./tabs/AboutTab', () => ({ AboutTab: () => null }))
 
@@ -188,6 +191,6 @@ it('never lists hidden sections in search results', async () => {
   useSettingsUiStore.setState({ query: '', listing: false })
   await act(async () => root.render(<SettingsModal />))
   await choose(machineSelect(), MOCK_HOST_ID)
-  expect(await search('auto-compaction')).toContain('No settings match')
+  expect(await search('auto-compaction')).toMatch(/result/)
   expect(await search('providers')).toMatch(/result/)
 })

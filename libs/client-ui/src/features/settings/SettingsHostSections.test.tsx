@@ -109,14 +109,16 @@ function select(label: string, value: string) {
   field.value = value
   field.dispatchEvent(new Event('change', { bubbles: true }))
 }
+const toggle = (label: string) =>
+  container.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!.click()
 const patches = () => invoke.mock.calls.filter(([channel]) => channel === 'hosts:settingsPatch')
 const toasts = () => useExtensionUiStore.getState().toasts.map((t) => [t.kind, t.message])
 it('saves a committed Host policy edit on its own, says so, and leaves without asking', async () => {
   await render('agent')
   expect(invoke).toHaveBeenCalledWith('hosts:models', machine.id)
-  expect(container.textContent).toContain('Changes save automatically.')
+  expect(container.textContent).toContain('Changes save as you make them.')
   expect(container.textContent).not.toContain('Review Host policy')
-  const input = container.querySelector<HTMLInputElement>('[aria-label="Host context budget"]')!
+  const input = container.querySelector<HTMLInputElement>('[aria-label="Custom context budget"]')!
   typeInto(input, '100k')
   expect(patches()).toHaveLength(0)
   await act(async () => input.blur())
@@ -140,10 +142,10 @@ it('saves a committed Host policy edit on its own, says so, and leaves without a
 })
 it('refuses an invalid context budget in place instead of sending it', async () => {
   await render('agent')
-  const input = container.querySelector<HTMLInputElement>('[aria-label="Host context budget"]')!
+  const input = container.querySelector<HTMLInputElement>('[aria-label="Custom context budget"]')!
   typeInto(input, '77k')
   await act(async () => input.blur())
-  expect(container.textContent).toContain('Not saved: use a budget from 100k to 1M')
+  expect(container.textContent).toContain('Use a budget from 100k to 1M')
   expect(patches()).toHaveLength(0)
 })
 it('keeps a change the Host refused, says so, and retries on request', async () => {
@@ -154,7 +156,7 @@ it('keeps a change the Host refused, says so, and retries on request', async () 
     return normal(...args)
   })
   await render('agent')
-  await act(async () => select('Default Host thinking', 'high'))
+  await act(async () => select('Default thinking level', 'high'))
   expect(container.textContent).toContain('Some changes are not saved on bee1')
   expect(container.textContent).toContain('Host is busy')
   expect(toasts()).toContainEqual([
@@ -175,9 +177,9 @@ it('recovers a failed Host model catalogue without borrowing local models', asyn
     return normal(...args)
   })
   await render('agent')
-  expect(container.textContent).toContain('Could not read bee1’s model catalogue')
-  await act(async () => button('Retry bee1 model catalogue').click())
-  expect(container.textContent).not.toContain('Could not read bee1’s model catalogue')
+  expect(container.textContent).toContain('Could not read this machine’s model catalogue')
+  await act(async () => button('Retry model catalogue').click())
+  expect(container.textContent).not.toContain('Could not read this machine’s model catalogue')
   expect(container.textContent).toContain('Host model')
 })
 it('saves thinking and agent behavior on the Host even if its model is absent from the catalogue', async () => {
@@ -185,8 +187,8 @@ it('saves thinking and agent behavior on the Host even if its model is absent fr
   invoke.mockImplementation(async (...args) => (args[0] === 'hosts:models' ? [] : normal(...args)))
   await render('agent')
   // The demo Host keeps its state between tests: pick a level no other test saves.
-  await act(async () => select('Default Host thinking', 'low'))
-  await act(async () => select('Enable automatic compaction', 'false'))
+  await act(async () => select('Default thinking level', 'low'))
+  await act(async () => toggle('Auto-compaction'))
   expect(patches().map(([, host, patch]) => [host, patch.change])).toEqual([
     [machine.id, { type: 'agent.patch', patch: { defaultThinkingLevel: 'low' } }],
     [machine.id, { type: 'agent.patch', patch: { compaction: { enabled: false } } }],
@@ -205,9 +207,9 @@ it('keeps older Host model defaults usable without offering unsupported behavior
   })
   await render('agent')
   expect(container.textContent).toContain('Update this Host to configure compaction')
-  expect(container.querySelector('[aria-label="Enable automatic retry"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Retry on transient errors"]')).toBeNull()
   expect(
-    container.querySelector<HTMLSelectElement>('[aria-label="Default Host thinking"]')!.disabled,
+    container.querySelector<HTMLSelectElement>('[aria-label="Default thinking level"]')!.disabled,
   ).toBe(false)
 })
 it('offers a headless-safe extension catalogue and existing multiple-account controls', async () => {

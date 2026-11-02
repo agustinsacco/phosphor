@@ -5,8 +5,11 @@ import type { AgentDirectivePrefs } from '@shared/models'
 import { machineAgentModel } from './machineAgentModel'
 
 export type AgentDraftFields = {
+  /** `[provider, id]` as JSON; '' is none set, which clears a saved one. */
   model: string
-  thinking: ThinkingLevel
+  /** '' is none set: pi's default, or the machine's in folder scope. */
+  thinking: ThinkingLevel | ''
+  /** '' is the Host's default budget. */
   budget: string
   naming: boolean
   behavior: MachineAgentBehavior
@@ -20,24 +23,39 @@ const filled = (patch: AgentPatch): AgentPatch | null =>
   Object.keys(patch).length > 0 ? patch : null
 
 /**
+ * A behavior key's patch value: the draft's, with `null` for what it dropped
+ * (Reset), since the Host merges nested groups one level deep.
+ */
+function behaviorPatch(value: unknown, prior: unknown): unknown {
+  if (value === undefined) return null
+  if (typeof value !== 'object' || typeof prior !== 'object' || prior === null) return value
+  const group: Record<string, unknown> = { ...value }
+  for (const field of Object.keys(prior)) if (!(field in group)) group[field] = null
+  return group
+}
+
+/**
  * The next autosave for a draft: only fields that differ from what the Host
  * holds, or null when nothing savable differs. pi's settings go before Host
- * policy, because the Host refuses one patch that writes both files.
+ * policy, because the Host refuses one patch that writes both files. A field
+ * the draft cleared is sent as `null`, which only a Host whose read carries
+ * `agentClearSupported` is offered.
  */
 export function nextAgentPatch(
   fields: AgentDraftFields,
   base: AgentDraftFields,
 ): AgentPatch | null {
   const pi: AgentPatch = {}
-  const chosen = fields.model !== base.model ? machineAgentModel(fields.model) : null
-  if (chosen) {
-    pi.defaultProvider = chosen[0]
-    pi.defaultModel = chosen[1]
+  if (fields.model !== base.model) {
+    const chosen = machineAgentModel(fields.model)
+    if (chosen) [pi.defaultProvider, pi.defaultModel] = chosen
+    else if (fields.model === '') pi.defaultProvider = pi.defaultModel = null
   }
-  if (fields.thinking !== base.thinking) pi.defaultThinkingLevel = fields.thinking
+  if (fields.thinking !== base.thinking) pi.defaultThinkingLevel = fields.thinking || null
   for (const key of AGENT_BEHAVIOR_KEYS) {
     const value = fields.behavior[key]
-    if (value !== undefined && !same(value, base.behavior[key])) Object.assign(pi, { [key]: value })
+    if (!same(value, base.behavior[key]))
+      Object.assign(pi, { [key]: behaviorPatch(value, base.behavior[key]) })
   }
   if (Object.keys(pi).length > 0) return pi
   const policy: AgentPatch = {}
