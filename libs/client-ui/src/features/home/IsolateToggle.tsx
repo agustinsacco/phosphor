@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { TooltipLabel, tooltipProps } from '@/components/Tooltip'
 import { useWorktreesStore } from '@/stores/worktrees'
-import { usePlatform } from '@/platform/Platform'
 
 /**
  * Per-chat opt-out from branch isolation, next to the message it applies to.
@@ -12,6 +11,8 @@ import { usePlatform } from '@/platform/Platform'
  * than three flags, since all three answer "does my work get its own branch?".
  * It lives here because the answer is worth changing per message: a quick
  * question does not deserve a branch, and the composer is where you know that.
+ *
+ * This Mac only: a Host lane always gets a worktree, so its composer has no toggle.
  */
 export function IsolateToggle({
   checked,
@@ -20,18 +21,15 @@ export function IsolateToggle({
 }: {
   checked: boolean
   disabled: boolean
-  workspacePath?: string
+  workspacePath: string
 }): React.JSX.Element {
   const trunk = useStartPoint(workspacePath)
-  const { localLanes } = usePlatform()
   return (
     <TooltipLabel
       {...tooltipProps(
         checked
           ? {
-              label: workspacePath
-                ? `New worktree off ${trunk ?? 'main'}`
-                : 'New worktree off the default branch',
+              label: `New worktree off ${trunk ?? 'main'}`,
               description: 'Not the folder shown beside it',
             }
           : { label: 'Run in the open folder', description: 'On its current branch' },
@@ -45,10 +43,7 @@ export function IsolateToggle({
         type="checkbox"
         checked={checked}
         disabled={disabled}
-        onChange={(e) => {
-          if (localLanes) useWorktreesStore.getState().setPreferWorktree(e.target.checked)
-          else useWorktreesStore.setState({ preferWorktree: e.target.checked })
-        }}
+        onChange={(e) => useWorktreesStore.getState().setPreferWorktree(e.target.checked)}
         className="accent-[var(--px-accent)]"
       />
       {/*
@@ -70,11 +65,10 @@ export function IsolateToggle({
  * Read from `git:startPoint`, the same call `startChat` makes, so the label
  * and the behaviour cannot disagree.
  */
-function useStartPoint(workspacePath?: string): string | null {
+function useStartPoint(workspacePath: string): string | null {
   const [trunk, setTrunk] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
-    if (!workspacePath) return
     void window.phosphor
       .invoke('git:startPoint', workspacePath)
       .then((point) => {

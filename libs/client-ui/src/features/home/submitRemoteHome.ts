@@ -13,7 +13,6 @@ interface Submission {
   hostId: string
   draftKey: string
   input: RemoteLaneCreate
-  isolate: boolean
   /** Authorize delegation before the first prompt; the lane is never prompted without it. */
   swarm?: boolean
   text: string
@@ -40,7 +39,13 @@ function createWarning(code: string, machine: string): string {
   }
 }
 
-/** Claims outlive the view, but not an owner reset. Only a confirmed receipt spends a draft. */
+/**
+ * Claims outlive the view, but not an owner reset. Only a confirmed receipt spends a draft.
+ *
+ * Every Host lane asks for a fresh worktree: work never lands on the repository's
+ * main checkout, and every lane has a branch to open a PR from. The Host runs a
+ * folder outside git in place, unbranched.
+ */
 export async function submitRemoteHome(s: Submission): Promise<void> {
   const claims = useHomeSubmissionsStore.getState()
   if (!claims.begin(s.draftKey)) return
@@ -54,10 +59,7 @@ export async function submitRemoteHome(s: Submission): Promise<void> {
   try {
     await startRemoteChat(
       s.hostId,
-      {
-        ...s.input,
-        ...(s.isolate ? { worktree: { branch: remoteBranchName(s.text), fresh: true } } : {}),
-      },
+      { ...s.input, worktree: { branch: remoteBranchName(s.text), fresh: true } },
       s.text,
       s.attachments,
       () => {

@@ -7,7 +7,6 @@ import { homeDraftKey } from '@/stores/drafts'
 import { connectingTo, hostPending, machineLabel } from '@/stores/remoteLanes'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { IsolateToggle } from './IsolateToggle'
 import { StartComposer, type StartTarget } from './StartComposer'
 import { useRemoteStart } from './useRemoteStart'
 
@@ -137,7 +136,6 @@ function HostStartTargets({
             'Choose repository'}
         </span>
       </ChoiceMenu>
-      <IsolateToggle checked={c.isolate} disabled={c.busy} />
       {addingFolder && (
         <HostFolderBrowser
           hostId={hostId}

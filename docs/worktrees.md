@@ -102,7 +102,9 @@ branch at all?") and is worth answering per message: a quick question does not
 deserve one. Ticked (the default), a new chat branches off trunk even when the
 open workspace is itself a worktree, because a new chat means new work.
 Continuing on the branch you are looking at is the sidebar's "New session
-here".
+here". The checkbox is This Mac's only: a new Host lane always gets a fresh
+worktree off trunk ([Host](host.md#creating-lanes)), so it never runs on a main
+checkout and always has a branch to open a pull request from.
 
 ## Git display queries
 
