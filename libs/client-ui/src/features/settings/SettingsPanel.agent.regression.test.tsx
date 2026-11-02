@@ -3,7 +3,10 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
+import { mockSettingsPatch, mockSettingsRead } from '@/dev/mockMachineSettings'
+import { mixedRemoteHosts } from '@/dev/mockRemoteLanes'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { prepareHostSettings, showHostSettings } from './__fixtures__/hostSettingsSurface'
 import { useSettingsUiStore } from './settingsUiStore'
 
@@ -17,6 +20,8 @@ vi.hoisted(() => {
 })
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 
+const HOST = { id: '11111111-1111-4111-8111-111111111111', label: 'bee1' }
+const FOLDER = '0000000000000001'
 const invoke = vi.fn()
 let root: Root
 let container: HTMLDivElement
@@ -37,7 +42,8 @@ const local = (channel: string): unknown => {
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('phosphor', { invoke, platform: 'darwin', onAccountChanged: () => () => {} })
-  prepareHostSettings({ id: 'unused', label: 'unused' })
+  useRemoteLanesStore.setState({ hosts: mixedRemoteHosts() })
+  prepareHostSettings(HOST)
   useSettingsUiStore.setState({ folder: null })
   useExtensionUiStore.setState({ toasts: [] })
   invoke.mockReset().mockImplementation(async (channel: string) => local(channel))
@@ -69,4 +75,36 @@ it('keeps the other compaction values on screen after one is saved (regression A
     compaction: { enabled: false },
   })
   expect(reserve()).toBe('50000')
+})
+
+it('shows a Host folder inheriting its machine thinking level, and lets it pin medium over that (regression A15)', async () => {
+  invoke.mockImplementation(async (channel: string, hostId, section, repositoryId) => {
+    if (channel === 'hosts:models') return []
+    if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
+    if (channel !== 'hosts:settingsRead') return local(channel)
+    const read = mockSettingsRead(hostId, section, repositoryId)
+    // The machine thinks hard; the folder sets nothing of its own.
+    if (read.agent && repositoryId) delete read.agent.defaultThinkingLevel
+    else if (read.agent) read.agent.defaultThinkingLevel = 'high'
+    return read
+  })
+  useSettingsUiStore.setState({ folder: FOLDER })
+  await showHostSettings(root, HOST.id, 'agent')
+  const thinking = [...container.querySelectorAll('select')].find((s) =>
+    [...s.options].some((o) => o.value === 'xhigh'),
+  )!
+  expect(thinking.value).toBe('high')
+  await act(async () => {
+    thinking.value = 'medium'
+    thinking.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+  expect(invoke).toHaveBeenCalledWith(
+    'hosts:settingsPatch',
+    HOST.id,
+    expect.objectContaining({
+      repositoryId: FOLDER,
+      change: { type: 'agent.patch', patch: { defaultThinkingLevel: 'medium' } },
+    }),
+  )
 })
