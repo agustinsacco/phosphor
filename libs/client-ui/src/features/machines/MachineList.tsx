@@ -16,6 +16,8 @@ import {
   sortMachines,
 } from './machinePresentation'
 import { Skeleton, Spinner, StatusDot, StatusPill } from './MachineUi'
+import { hostTasks, taskCounts } from './machineTasks'
+import { MachineTasks, useLocalTasks } from './MachineTasks'
 
 const ROW =
   'hover:bg-bg-secondary focus-visible:bg-bg-secondary focus-visible:outline-accent grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-4 py-2.5 text-left transition-colors md:grid-cols-[minmax(0,1fr)_auto_auto]'
@@ -66,41 +68,47 @@ export function LocalMachineRow({
   onOpen: () => void
 }): React.JSX.Element {
   const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
+  const tasks = useLocalTasks()
   const label = localMachineLabel(window.phosphor.platform)
   const checks = localChecks(computer)
   const loading = checks.some((check) => check.loading)
   const problems = checks.filter((check) => !check.ok && !check.loading)
+  const meta = [
+    platformName(window.phosphor.platform),
+    computer.health?.ok ? `pi ${computer.health.version}` : null,
+    liveHere ? `${liveHere} live ${liveHere === 1 ? 'lane' : 'lanes'}` : null,
+    taskCounts(tasks),
+  ].filter(Boolean)
   return (
-    <TooltipButton
-      tooltip={`Open ${label}`}
-      data-testid="local-machine-row"
-      className={ROW}
-      onClick={onOpen}
-    >
-      <span className="min-w-0">
-        <span className="block truncate text-lg font-medium">{label}</span>
-        <span className="text-text-tertiary block truncate text-sm">
-          {platformName(window.phosphor.platform)}
-          {computer.health?.ok ? ` · pi ${computer.health.version}` : ''}
-          {liveHere ? ` · ${liveHere} live ${liveHere === 1 ? 'lane' : 'lanes'}` : ''}
+    <div>
+      <TooltipButton
+        tooltip={`Open ${label}`}
+        data-testid="local-machine-row"
+        className={ROW}
+        onClick={onOpen}
+      >
+        <span className="min-w-0">
+          <span className="block truncate text-lg font-medium">{label}</span>
+          <span className="text-text-tertiary block truncate text-sm">{meta.join(' · ')}</span>
         </span>
-      </span>
-      <ReadinessDots checks={checks} />
-      <span className={STATUS}>
-        {loading ? (
-          <StatusPill tone="pending">Checking…</StatusPill>
-        ) : problems.length ? (
-          <StatusPill tone="warn" hint={problems.map((p) => p.short).join(' · ')}>
-            {problems.length === 1
-              ? (problems[0]?.short ?? 'Needs attention')
-              : `${problems.length} issues`}
-          </StatusPill>
-        ) : (
-          <StatusPill tone="ok">Ready</StatusPill>
-        )}
-        <Chevron />
-      </span>
-    </TooltipButton>
+        <ReadinessDots checks={checks} />
+        <span className={STATUS}>
+          {loading ? (
+            <StatusPill tone="pending">Checking…</StatusPill>
+          ) : problems.length ? (
+            <StatusPill tone="warn" hint={problems.map((p) => p.short).join(' · ')}>
+              {problems.length === 1
+                ? (problems[0]?.short ?? 'Needs attention')
+                : `${problems.length} issues`}
+            </StatusPill>
+          ) : (
+            <StatusPill tone="ok">Ready</StatusPill>
+          )}
+          <Chevron />
+        </span>
+      </TooltipButton>
+      <MachineTasks machine="local" tasks={tasks} />
+    </div>
   )
 }
 
@@ -120,7 +128,9 @@ export function MachineRow({
   const headline = machineHeadline(machine, connection, corrected)
   const live = readinessFreshness(machine, now, offset) === 'live'
   const checks = readinessChecks(machine.readiness, machine.endpoint)
-  // Counts come with each heartbeat; an offline machine's are history.
+  // The live Host snapshot says what is running; heartbeat counts are the
+  // fallback, and an offline machine's are history.
+  const tasks = hostTasks(machine.id, connection)
   const lanes = live ? machine.lanes : null
   const meta = [
     machine.hostname !== machine.label ? machine.hostname : null,
@@ -128,33 +138,37 @@ export function MachineRow({
     connection?.hostVersion || machine.hostVersion
       ? `Host ${connection?.hostVersion || machine.hostVersion}`
       : null,
-    lanes && (lanes.running > 0 || lanes.waiting > 0)
-      ? `${lanes.running} running · ${lanes.waiting} waiting`
-      : null,
+    taskCounts(tasks) ??
+      (lanes && (lanes.running > 0 || lanes.waiting > 0)
+        ? `${lanes.running} running · ${lanes.waiting} waiting`
+        : null),
     machine.lastSeenAt && headline.tone !== 'ok'
       ? `last seen ${relativeTime(machine.lastSeenAt, corrected)}`
       : null,
   ].filter(Boolean)
   return (
-    <TooltipButton
-      tooltip={`Open ${machine.label}`}
-      data-testid="enrolled-machine-row"
-      data-status={machineStatus(machine, now, offset)}
-      className={ROW}
-      onClick={onOpen}
-    >
-      <span className="min-w-0">
-        <span className="block truncate text-lg font-medium">{machine.label}</span>
-        <span className="text-text-tertiary block truncate text-sm">{meta.join(' · ')}</span>
-      </span>
-      {live ? <ReadinessDots checks={checks} /> : <span className="hidden md:block" />}
-      <span className={STATUS}>
-        <StatusPill tone={headline.tone} hint={headline.detail}>
-          {headline.label}
-        </StatusPill>
-        <Chevron />
-      </span>
-    </TooltipButton>
+    <div>
+      <TooltipButton
+        tooltip={`Open ${machine.label}`}
+        data-testid="enrolled-machine-row"
+        data-status={machineStatus(machine, now, offset)}
+        className={ROW}
+        onClick={onOpen}
+      >
+        <span className="min-w-0">
+          <span className="block truncate text-lg font-medium">{machine.label}</span>
+          <span className="text-text-tertiary block truncate text-sm">{meta.join(' · ')}</span>
+        </span>
+        {live ? <ReadinessDots checks={checks} /> : <span className="hidden md:block" />}
+        <span className={STATUS}>
+          <StatusPill tone={headline.tone} hint={headline.detail}>
+            {headline.label}
+          </StatusPill>
+          <Chevron />
+        </span>
+      </TooltipButton>
+      <MachineTasks machine={machine.id} tasks={tasks} />
+    </div>
   )
 }
 

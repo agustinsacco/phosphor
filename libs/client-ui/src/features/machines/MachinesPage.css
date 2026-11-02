@@ -70,6 +70,40 @@
   background: var(--px-bg-secondary);
   color: var(--px-text);
 }
+/* Running lanes under a machine row, indented to read as that machine's. */
+.machine-tasks {
+  display: grid;
+  margin: -4px 16px 10px;
+  padding-left: 12px;
+  border-left: 1px solid var(--px-border);
+}
+.machine-task {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: var(--px-radius-sm);
+  font-size: 13px;
+  text-align: left;
+}
+.machine-task:hover,
+.machine-task:focus-visible {
+  background: var(--px-bg-secondary);
+}
+.machine-task-glyph {
+  display: grid;
+  width: 14px;
+  flex-shrink: 0;
+  place-items: center;
+}
+.machine-task-more {
+  padding: 4px 8px;
+  color: var(--px-text-secondary);
+  font-size: 12px;
+  text-align: left;
+}
 .machine-lane-preview {
   min-width: 0;
 }
