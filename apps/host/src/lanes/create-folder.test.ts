@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { isLaneBranchName } from '@phosphor/shared/host-protocol'
 import { freshBranchCandidates, prepareCreationFolder } from './create-folder'
 import { createRepositoryLocks } from './repository-lock'
-import { laneFolderSlug, prepareLaneFolder } from './worktree'
+import { LaneFolderError, laneFolderSlug, prepareLaneFolder } from './worktree'
 import type * as Worktree from './worktree'
 
 vi.mock('./worktree', async (importOriginal) => ({
@@ -87,4 +87,23 @@ it('never takes the lock for a lane in place', async () => {
   await prepareCreationFolder({ root: '/repo', worktree: null, locks, phase })
   expect(run).not.toHaveBeenCalled()
   expect(phase).not.toHaveBeenCalled()
+})
+
+it('moves a fresh branch to the next name when only its worktree folder is taken', async () => {
+  vi.mocked(prepareLaneFolder)
+    .mockRejectedValueOnce(
+      new LaneFolderError('A worktree folder for that branch already exists.', 'folder-exists'),
+    )
+    .mockResolvedValueOnce({ cwd: '/repo/feat-x-2', branch: 'feat-x-2', undo: async () => {} })
+  const folder = await prepareCreationFolder({
+    root: '/repo',
+    worktree: { branch: 'feat-x', fresh: true },
+    locks: createRepositoryLocks(),
+    phase: () => {},
+  })
+  expect(folder.branch).toBe('feat-x-2')
+  expect(vi.mocked(prepareLaneFolder).mock.calls.map(([input]) => input.worktree)).toEqual([
+    { branch: 'feat-x', fresh: true },
+    { branch: 'feat-x-2', fresh: true },
+  ])
 })
