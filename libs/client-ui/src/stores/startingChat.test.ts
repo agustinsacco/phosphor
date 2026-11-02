@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useStartingChatStore } from './startingChat'
+import { coversLane, useStartingChatStore } from './startingChat'
 
 const reset = (): void => useStartingChatStore.setState({ starting: null, draft: null })
 
@@ -60,5 +60,30 @@ describe('startingChat', () => {
     })
     useStartingChatStore.getState().begin({ workspacePath: '/repo', prompt: 'new' })
     expect(useStartingChatStore.getState().draft).toBeNull()
+  })
+})
+
+describe('a Host start', () => {
+  const remote = { hostId: 'h', repositoryId: 'r', draftKey: 'home:h' }
+  const lane = { sessionId: 's', laneId: 'l' }
+  it('ends only for the submission that began it', () => {
+    useStartingChatStore.getState().begin({ prompt: 'one', remote })
+    useStartingChatStore.getState().begin({ prompt: 'two', remote: { ...remote, draftKey: 'k2' } })
+    useStartingChatStore.getState().finish('home:h')
+    expect(useStartingChatStore.getState().starting?.prompt).toBe('two')
+    useStartingChatStore.getState().finish('k2')
+    expect(useStartingChatStore.getState().starting).toBeNull()
+  })
+
+  it('covers only its own adopted lane, by session or by Host lane', () => {
+    useStartingChatStore.getState().begin({ prompt: 'one', remote })
+    useStartingChatStore.getState().cover('other', 'r', lane)
+    expect(coversLane(useStartingChatStore.getState().starting, { sessionId: 's' })).toBe(false)
+    useStartingChatStore.getState().cover('h', 'r', lane)
+    const starting = useStartingChatStore.getState().starting
+    expect(coversLane(starting, { sessionId: 's' })).toBe(true)
+    expect(coversLane(starting, { hostId: 'h', laneId: 'l' })).toBe(true)
+    expect(coversLane(starting, { hostId: 'h', laneId: 'other' })).toBe(false)
+    expect(coversLane(null, { sessionId: 's' })).toBe(false)
   })
 })

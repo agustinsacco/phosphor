@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { FileMentionSource } from '@/features/chat/composer/useFileMentions'
 import { RemoteModelPicker } from '@/features/machines/RemoteModelPicker'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
@@ -34,10 +34,16 @@ function RemoteStartComposer({
 }: Props): React.JSX.Element {
   const field = useRef<HTMLTextAreaElement>(null)
   const target = useHostStart(hostId, draftKey)
+  const input = textareaRef ?? field
+  // Back from a failed start: the echo held the screen, so put the cursor back in the draft.
+  const failed = useRef(target.warning !== null)
+  useEffect(() => {
+    if (failed.current) input.current?.focus()
+  }, [input])
   return (
     <StartComposer
       target={target}
-      textareaRef={textareaRef ?? field}
+      textareaRef={input}
       machinePicker={
         machinePicker ?? <span className="start-composer-host">{machineLabel(hostId)}</span>
       }

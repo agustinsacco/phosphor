@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react'
 import { usePlatform } from '@/platform/Platform'
 import { useRemoteModel } from '@/features/machines/RemoteModelPicker'
 import type { PendingAttachment } from '@/features/chat/attachments'
@@ -23,14 +22,10 @@ export function useRemoteStart(hostId: string, draftKey: string) {
   const attachments = draft?.attachments ?? EMPTY_ATTACHMENTS
   const swarm = draft?.swarm ?? false
   const busy = useHomeSubmissionsStore((s) => !!s.pending[draftKey])
-  const [warning, setWarning] = useState<string | null>(null)
-  const mounted = useRef(false)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
+  // In the store, not local state: the composer that sent is replaced while it starts.
+  const warning = useHomeSubmissionsStore((s) => s.warnings[draftKey] ?? null)
+  const setWarning = (message: string | null) =>
+    useHomeSubmissionsStore.getState().warn(draftKey, message)
   const ready = host?.state === 'ready' && host.capabilities.includes('sessions.control')
   const canSend =
     ready && !!repositoryId && !!selection.model && (!!text.trim() || !!attachments.length)
@@ -52,9 +47,6 @@ export function useRemoteStart(hostId: string, draftKey: string) {
         provider: selection.model.provider,
         model: selection.model.id,
         thinkingLevel: selection.thinking,
-      },
-      onWarning: (message) => {
-        if (mounted.current) setWarning(message)
       },
     })
   }

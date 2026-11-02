@@ -71,7 +71,12 @@ export function StartComposer({
         {machinePicker}
         {t.targets}
       </div>
-      <fieldset disabled={t.locked} aria-busy={t.waiting ? true : undefined} className="min-w-0">
+      {/* Sending locks the field too: an edit made now would not be what was sent. */}
+      <fieldset
+        disabled={t.locked || t.busy}
+        aria-busy={t.waiting || t.busy ? true : undefined}
+        className="start-composer-field min-w-0"
+      >
         <ComposerInput
           workspacePath={t.workspacePath}
           remoteAttachments={t.remoteAttachments}

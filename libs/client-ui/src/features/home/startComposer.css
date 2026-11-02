@@ -19,6 +19,11 @@
   padding-inline: 0.5rem;
 }
 
+.start-composer-field[aria-busy='true'] {
+  opacity: 0.6;
+  transition: opacity 150ms ease-out;
+}
+
 .start-composer-note {
   margin-top: 0.5rem;
   padding-inline: 0.25rem;

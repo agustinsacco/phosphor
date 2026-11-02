@@ -14,6 +14,8 @@ import { CompactLane } from './CompactLane'
 import { CompactLaneHeader } from './CompactLaneHeader'
 import { CompactLanes } from './CompactLanes'
 import { CompactNew } from './CompactNew'
+import { StartingChat } from '@/features/home/StartingChat'
+import { coversLane, useStartingChatStore } from '@/stores/startingChat'
 import { CompactSettings } from './CompactSettings'
 
 export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Element {
@@ -93,6 +95,7 @@ function BrowserScreen({
 }): React.JSX.Element {
   const { location, navigate } = useNavigation()
   const machines = useMachinesStore((s) => s.machines)
+  const starting = useStartingChatStore((s) => s.starting)
   const loading = useMachinesStore((s) => s.loading || !s.remoteEnabled)
   const error = useMachinesStore((s) => s.error)
   if (machine && !loading && !error && !machines.some((item) => item.id === machine))
@@ -103,7 +106,9 @@ function BrowserScreen({
     )
   if (pending) return <WaitingPane title="Opening…" />
   if (location.to === 'lane')
-    return (
+    return starting && coversLane(starting, location.lane) ? (
+      <StartingChat starting={starting} />
+    ) : (
       <CompactLane
         key={
           'hostId' in location.lane
@@ -115,7 +120,13 @@ function BrowserScreen({
       />
     )
   if (location.to === 'new')
-    return machine ? <CompactNew key={machine} hostId={machine} /> : <ChooseMachine />
+    return !machine ? (
+      <ChooseMachine />
+    ) : starting?.remote?.hostId === machine ? (
+      <StartingChat starting={starting} />
+    ) : (
+      <CompactNew key={machine} hostId={machine} />
+    )
   if (location.to === 'page') {
     if (location.page === 'settings') return <CompactSettings machine={machine} />
     if (!machine && ['skills', 'routines'].includes(location.page)) return <ChooseMachine />

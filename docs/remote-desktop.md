@@ -136,16 +136,39 @@ that machine's configured repositories, not a local folder.
 
 The repository + opens that Host's home composer with the repository selected.
 Sidebar New under a Host filter uses its last-used available repository, or the
-first configured one. There is no New-lane modal. Submitting creates and opens
-the lane, acquires control if needed, then sends the prompt. Only a confirmed
-prompt clears the draft; failure keeps it.
+first configured one. There is no New-lane modal. Only a confirmed prompt clears
+the draft; failure keeps it.
+
+Submitting commits the send on screen at once, as on This Mac: the starting echo
+(`StartingChat`) replaces the composer with the message and one status line. The
+line names the machine and the step the Host reports on its pending `lane.create`
+receipts, which main keeps as `laneStarts` in the hosts snapshot (repository,
+requested branch and phase, never the prompt): waiting for the Host, waiting
+behind another creation, creating the branch, starting the session, sending the
+message. While the link is down it says it is reconnecting, and a step that runs
+past 12 seconds adds a line saying the machine is slow to answer and the draft is
+kept. The composer that comes back after a failure holds the draft, the reason
+(kept in `homeSubmissions` so it survives the remount) and the cursor. Both shells
+render the same echo: Desktop in place of Home, the browser in place of its new-lane
+page.
+
+A Host whose ready frame says `laneStart` takes a text-only first prompt with the
+creation and sends it as soon as pi is attached, so the lane opens already working
+with no control, snapshot or prompt round trips from the client. Its receipt says
+`{ prompted }`: false means the client opens the lane and sends the prompt itself,
+behind the echo; no answer at all means the client cannot know, so it opens the
+lane, never resends, and keeps the draft with a warning. Attachments need the lane
+to exist first, so a draft with attachments, like any draft to an older Host,
+opens the lane, acquires control if needed, uploads, then sends the prompt.
 
 Isolation follows This Mac's worktree preference and branch-naming rule. Generated
 Host branches trim only the slug to fit the 100-character flattened limit; an
-oversized prefix fails before sending. Desktop requests `worktree.fresh: true`,
-trying the base name once, then retrying only confirmed `branch-exists` refusals
-with `-2` through `-5`. Exhaustion shows “Couldn't find a free branch name on <machine>.” and keeps the
-draft. Unknown outcomes never trigger a branch retry. The Host's new-only guarantee
+oversized prefix fails before sending. Desktop requests `worktree.fresh: true`. A
+`laneStart` Host tries `-2` through `-5` itself, so its `branch-exists` refusal is
+final; for an older Host the client tries the base name once, then retries only
+confirmed `branch-exists` refusals with `-2` through `-5`. Exhaustion shows
+“Couldn't find a free branch name on <machine>.” and keeps the draft. Unknown
+outcomes never trigger a branch retry. The Host's new-only guarantee
 and older-Host compatibility are in [Creating lanes](host.md#creating-lanes).
 
 A creation that did not succeed crosses IPC as a fixed code, never the Host's text

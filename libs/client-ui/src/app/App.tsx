@@ -269,7 +269,7 @@ export function App(): React.JSX.Element {
             re-rendered for an empty folder ("Start your first session in
             hey-2") for a beat before the chat replaced it.
           */}
-            {activeSessionId ? (
+            {activeSessionId && starting?.remote?.sessionId !== activeSessionId ? (
               <MainWithPanes workspacePath={currentWorkspace} activeSessionId={activeSessionId} />
             ) : starting ? (
               <StartingChat starting={starting} />
