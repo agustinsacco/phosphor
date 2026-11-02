@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import type { SessionMeta, WorktreeInfo } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
+import { useLayoutStore } from '@/stores/layout'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
 import { useRepoPrRefresh } from '@/features/sessions/repoPrRefresh'
@@ -42,7 +43,8 @@ export function useLaneBoard(workspacePath: string): LaneBoardData {
   const prByRepo = usePullRequestsStore((s) => s.byRepo)
   const projectRoot = gitByCwd[workspacePath]?.mainRepoPath ?? workspacePath
 
-  useRepoPrRefresh([projectRoot])
+  const covered = useLayoutStore((s) => s.page !== null)
+  useRepoPrRefresh(covered ? [] : [projectRoot])
 
   const lanes = useMemo(() => {
     const out: SessionMeta[] = []

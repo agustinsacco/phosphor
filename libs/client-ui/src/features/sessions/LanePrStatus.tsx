@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { GhPullRequest } from '@shared/models'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
+import { TooltipButton } from '@/components/Tooltip'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, type RepoPullRequests } from '@/stores/pullRequests'
 import { useLanePullRequest } from './useLanePullRequest'
@@ -53,7 +54,7 @@ function LanePrPill({
   }
   return (
     <div className="titlebar-no-drag relative shrink-0">
-      <button
+      <TooltipButton
         ref={triggerRef}
         type="button"
         aria-label={chip ? `Pull request: ${chip.title}` : 'Pull request status unavailable'}
@@ -68,7 +69,7 @@ function LanePrPill({
         )}
       >
         {chip ? `${chip.label} ${chip.glyph}`.trim() : slice.loading ? 'PR …' : 'PR ?'}
-      </button>
+      </TooltipButton>
       {open && (
         <PopupMenu
           id={id}

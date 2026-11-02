@@ -23,6 +23,7 @@ vi.mock('@/features/workspaces/WorkspaceChip', () => ({ WorkspaceChip: () => nul
 vi.mock('@/features/worktrees/BranchControl', () => ({ BranchControl: () => null }))
 vi.mock('@/features/chat/SessionMenu', () => ({ SessionMenu: () => null }))
 vi.mock('@/features/chat/composer/SwarmSwitch', () => ({ SwarmBadge: () => null }))
+vi.mock('@/features/sessions/LanePrStatus', () => ({ LanePrStatus: () => null }))
 function Home(): React.JSX.Element {
   const files = useMachineHomeFiles()
   return (
