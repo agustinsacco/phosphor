@@ -79,11 +79,10 @@ function session({ registry }: SessionAdmission, id: string): LiveSession {
 }
 
 /**
- * Commands that leave the session as it was. An export only writes a copy of
- * the transcript, so a routine's lane can be exported, a connector reconnect
- * need not wait for one, and an export need not wait for a reconnect.
+ * What a routine's lane still allows a person: observation. An export only
+ * writes a copy of the transcript, so it observes too.
  */
-const READS = new Set<RpcCommand['type']>([
+const OBSERVATIONS = new Set<RpcCommand['type']>([
   'get_state',
   'get_messages',
   'get_session_stats',
@@ -91,19 +90,20 @@ const READS = new Set<RpcCommand['type']>([
   'get_commands',
   'export_html',
 ])
-const reads = (command: RpcCommand): boolean =>
-  READS.has(command.type) || command.type.startsWith('get_')
+/** Leaves the session as it was: a reconnect need not wait for it, nor it for one. */
+const observes = (command: RpcCommand): boolean =>
+  OBSERVATIONS.has(command.type) || command.type.startsWith('get_')
 
 function assertManualCommand(
   { routines, mcpBusy }: SessionAdmission,
   id: string,
   command: RpcCommand,
 ) {
-  if (mcpBusy.has(id) && !reads(command) && command.type !== 'abort')
+  if (mcpBusy.has(id) && !observes(command) && command.type !== 'abort')
     throw new Error(
       'This lane is reconnecting a connector. Wait for it to finish before sending new work.',
     )
-  if (routines.owns(id) && !READS.has(command.type)) {
+  if (routines.owns(id) && !OBSERVATIONS.has(command.type)) {
     throw new Error(
       'This lane is owned by a running routine. Cancel it from Routines before continuing manually.',
     )
@@ -165,7 +165,7 @@ async function command<Delivery>(
   const live = session(admission, id)
   if (command.type === 'get_messages') admission.routines.observe(id)
   assertManualCommand(admission, id, command)
-  const mutating = !reads(command)
+  const mutating = !observes(command)
   if (mutating) admission.mutating.set(id, (admission.mutating.get(id) ?? 0) + 1)
   try {
     return await runtime.withBudgetCompaction(id, command.type, () =>

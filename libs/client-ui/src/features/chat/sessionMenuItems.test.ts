@@ -47,7 +47,6 @@ it('shows the values pi reported', () => {
   const hints = sessionMenuItems({
     sessionId: 'x',
     meta,
-    remote: false,
     nativeFiles: true,
     controlHint: undefined,
   })

@@ -1,6 +1,6 @@
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { remoteControlHint } from '@/features/sessions/remoteLaneActions'
-import { exportAnySession } from '@/features/sessions/sessionActions'
+import { exportSession } from '@/features/sessions/sessionActions'
 import { piCallOk } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
 import { promptText } from '@/stores/prompt'
@@ -24,8 +24,6 @@ const QUEUE_MODE_HINT: Record<QueueMode, string> = {
 export interface SessionMenuState {
   sessionId: string
   meta: RpcSessionState | null | undefined
-  /** The session is a Host lane: the Host exports it and this device keeps the file. */
-  remote: boolean
   /** Save through the native dialog; otherwise the browser downloads the export. */
   nativeFiles: boolean
   /**
@@ -44,7 +42,6 @@ export interface SessionMenuState {
 export function sessionMenuItems({
   sessionId,
   meta,
-  remote,
   nativeFiles,
   controlHint,
 }: SessionMenuState): ContextMenuItem[] {
@@ -58,8 +55,8 @@ export function sessionMenuItems({
   return [
     {
       label: 'Export HTML…',
-      onClick: () =>
-        void exportAnySession(sessionId, meta?.sessionName || 'session', remote, nativeFiles),
+      // Any viewer: a Host lane's export needs no lane control.
+      onClick: () => void exportSession(sessionId, nativeFiles),
     },
     {
       label: 'Compact now…',
@@ -104,7 +101,7 @@ export function currentSessionMenuItems(
   const entry = useSessionsStore.getState().live[sessionId]
   const meta = useChatStore.getState().sessions[sessionId]?.meta
   if (entry?.target?.kind !== 'remote')
-    return sessionMenuItems({ sessionId, meta, remote: false, nativeFiles, controlHint: undefined })
+    return sessionMenuItems({ sessionId, meta, nativeFiles, controlHint: undefined })
   const host = useRemoteLanesStore.getState().hosts[entry.target.hostId]
   const lane = host?.lanes.find((item) => item.laneId === entry.laneId)
   const controlHint = remoteControlHint(
@@ -112,7 +109,7 @@ export function currentSessionMenuItems(
     !!host?.capabilities.includes('sessions.control'),
     lane?.control.controller?.self === true,
   )
-  return sessionMenuItems({ sessionId, meta, remote: true, nativeFiles, controlHint })
+  return sessionMenuItems({ sessionId, meta, nativeFiles, controlHint })
 }
 
 const nextMode = (mode: QueueMode): QueueMode => (mode === 'all' ? 'one-at-a-time' : 'all')

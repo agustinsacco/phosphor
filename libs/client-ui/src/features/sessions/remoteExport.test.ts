@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useChatStore } from '@/stores/chat'
-import { exportRemoteLaneHtml } from './sessionActions'
+import { useSessionsStore } from '@/stores/sessions'
+import { exportRemoteLaneHtml, exportSession } from './sessionActions'
 
 const invoke = vi.fn()
 beforeEach(() => {
@@ -69,4 +70,27 @@ it("shows the Host's refusal on the lane's chat", async () => {
   expect(useChatStore.getState().sessions.lane?.error).toBe(
     'Export failed: Resume the lane to export it.',
   )
+})
+
+it('exportSession names the file after the lane and asks its Host only for a Host lane', async () => {
+  const { mockRemoteInfo } = await import('@/dev/mockRemoteLanes')
+  answer({ 'app:saveDialog': null })
+  useChatStore
+    .getState()
+    .setMeta('lane', { sessionName: 'a/b' } as Parameters<
+      ReturnType<typeof useChatStore.getState>['setMeta']
+    >[1])
+  // This Mac: the same file name rules, so no path separator reaches the dialog.
+  await exportSession('lane', true)
+  expect(invoke).toHaveBeenLastCalledWith(
+    'app:saveDialog',
+    expect.objectContaining({ defaultPath: 'a-b.html' }),
+  )
+  useSessionsStore.setState({ live: { lane: { ...mockRemoteInfo, phosphorId: 'lane' } } })
+  answer({ 'hosts:exportLaneHtml': { html: '<h1>x</h1>' } })
+  URL.createObjectURL = vi.fn(() => 'blob:x')
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  await exportSession('lane', false)
+  expect(invoke).toHaveBeenLastCalledWith('hosts:exportLaneHtml', 'lane')
+  useSessionsStore.setState({ live: {} })
 })

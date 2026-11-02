@@ -23,7 +23,7 @@ import { Spinner } from '@/components/icons'
 import { StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
-import { exportAnySession, renameSession } from '@/features/sessions/sessionActions'
+import { exportSession, renameSession } from '@/features/sessions/sessionActions'
 import { usePlatform } from '@/platform/Platform'
 import { piCallAccepted, piCallOk } from '@/lib/rpc'
 import { formatShortcut } from '@/lib/shortcuts'
@@ -139,10 +139,7 @@ export function Composer({
       {
         name: 'export',
         description: 'Export this session as HTML',
-        run: () => {
-          const name = useChatStore.getState().sessions[sessionId]?.meta?.sessionName || 'session'
-          void exportAnySession(sessionId, name, remote, nativeFiles)
-        },
+        run: () => void exportSession(sessionId, nativeFiles),
       },
       {
         name: 'name',
@@ -150,7 +147,7 @@ export function Composer({
         run: () => void renameSession(sessionId),
       },
     ],
-    [sessionId, remote, nativeFiles],
+    [sessionId, nativeFiles],
   )
 
   const commandEntries = useMemo(

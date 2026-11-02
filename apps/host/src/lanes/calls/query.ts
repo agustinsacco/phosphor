@@ -94,6 +94,25 @@ export function stoppedQuery(
   }
 }
 
+/**
+ * The command deadline for a live read: the client stops waiting then, so the
+ * call's slot is freed too. Null when it passed; the work itself runs on.
+ */
+async function withinDeadline<T>(work: Promise<T>): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      work,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), HOST_LIMITS.commandAnswerMs)
+        timer.unref()
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function requestLiveQuery(
   options: Pick<LaneQueryOptions, 'runtime'>,
   method: string,
@@ -101,15 +120,8 @@ export async function requestLiveQuery(
   command: RpcCommand,
   receipt: ReceiptResult,
 ): Promise<CallOutcome> {
-  let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    const response = await Promise.race([
-      options.runtime.command(sessionId, command),
-      new Promise<null>((resolve) => {
-        timer = setTimeout(() => resolve(null), HOST_LIMITS.commandAnswerMs)
-        timer.unref()
-      }),
-    ])
+    const response = await withinDeadline(options.runtime.command(sessionId, command))
     if (!response?.success || !shape(method, response.data)) return failure('internal')
     if (method === 'lane.receipt' && record(response.data)) {
       const messages = piMessages(response.data.messages)
@@ -119,8 +131,6 @@ export async function requestLiveQuery(
     return { ok: true, data: response.data }
   } catch {
     return failure('internal')
-  } finally {
-    clearTimeout(timer)
   }
 }
 
@@ -139,22 +149,12 @@ async function exportHtml(
   const sessionId = options.live.sessionFor(laneId)
   if (sessionId === null) return failure('lane-stopped')
   if (!options.runtime.exportHtml) return failure('unsupported')
-  // Same deadline as a live read: the client stops waiting then, so the call's
-  // slot is freed too. A late answer still removes its folder.
-  let timer: ReturnType<typeof setTimeout> | undefined
+  // A late answer still removes its folder.
   try {
-    const html = await Promise.race([
-      options.runtime.exportHtml(sessionId, EXPORT_MAX_BYTES),
-      new Promise<null>((resolve) => {
-        timer = setTimeout(() => resolve(null), HOST_LIMITS.commandAnswerMs)
-        timer.unref()
-      }),
-    ])
+    const html = await withinDeadline(options.runtime.exportHtml(sessionId, EXPORT_MAX_BYTES))
     return html === null ? failure('internal') : { ok: true, data: { html } }
   } catch (error) {
     return failure(error instanceof ExportTooLarge ? 'too-large' : 'internal')
-  } finally {
-    clearTimeout(timer)
   }
 }
 
