@@ -34,9 +34,9 @@ interface Screen {
   component?: ComponentType<{ workspacePath: string }>
   scope: 'remote' | 'both'
   expanded: 'page' | 'pane' | 'modal' | 'sidebar' | 'home'
-  compact: 'page' | 'pane' | { notYet: string }
+  compact: 'page' | 'pane'
 }
-/** Every shared screen has a place in both shells, or an explicit platform gap. */
+/** Every shared screen has a place in both shells. */
 export const SCREENS = {
   lanes: {
     title: 'Lanes',
@@ -105,7 +105,7 @@ export const SCREENS = {
     title: 'Subagents',
     scope: 'both',
     expanded: 'pane',
-    compact: { notYet: 'Subagent inspection is not available on remote lanes yet.' },
+    compact: 'pane',
   },
   terminal: {
     icon: TerminalIcon,

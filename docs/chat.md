@@ -565,8 +565,13 @@ line, and the reply opens with the question. The original question notice
 remains available. A recorded reply does not prove the child acted on it.
 The view describes evidence at read time, not current liveness.
 
-On a Host lane the top-bar button keeps its count, but the pane shows "Not
-available on remote lanes yet." ([Remote Desktop](remote-desktop.md#remote-lane-surface-isolation)).
+A Host lane's pane works as on This Mac, on Desktop and in the browser. Its
+agent list is the transcript this window holds, so it stays while the Host
+reconnects. Inspection and the Coordination log ask the Host by `sessions.read`
+calls ([remote protocol](remote-protocol.md)), so a viewer reading a run never
+takes control. **Stop run**, **Steer…** and **Save snapshot** change the lane,
+so they belong to its controller, as the composer does: anyone else sees them
+disabled with "Take control first." ([Remote Desktop](remote-desktop.md#remote-lane-surface-isolation)).
 
 **Stop run** is available on a root inspection when the session advertises the
 extension's Stop command. It asks for confirmation, rechecks that the exact

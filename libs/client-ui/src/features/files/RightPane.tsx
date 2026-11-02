@@ -51,8 +51,8 @@ export const RightPane = memo(function RightPane({
         className="border-border bg-surface flex h-full flex-col overflow-hidden rounded-md border"
       >
         {remote && (
-          // Same card and headers as This Mac. Terminal and Artifacts bring their own
-          // header; Files/Changes and the fixed refusals add the machine chip.
+          // Same card and headers as This Mac. Terminal, Artifacts and Subagents bring
+          // their own header; Files/Changes and the fixed refusals add the machine chip.
           <RemotePaneBody
             pane={rightPane}
             sessionId={sessionId}
@@ -117,6 +117,9 @@ function RemotePaneBody({
         />
       </PaneShell>
     )
+  // The agent list is the transcript this window holds, so it stays while the Host
+  // reconnects; inspection and history ask the Host and report their own failures.
+  if (pane === 'subagents') return <SubagentPanel sessionId={sessionId} />
   if (ready && pane === 'artifacts')
     return <RemoteArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
   if (ready && pane === 'terminal' && terminal)

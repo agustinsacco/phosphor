@@ -9,7 +9,22 @@ import {
   file,
   captures,
   pane,
+  type RemoteFixture,
 } from './fixtures/remote-ui'
+
+/** A Host lane's Subagents pane, its Coordination log read from that lane's own Host. */
+async function subagents(h: RemoteFixture) {
+  await pane(h, 'Subagents')
+  const panel = h.page.getByRole('region', { name: 'Subagents', exact: true })
+  await expect(
+    panel.getByText('No agents in this conversation yet.', { exact: true }),
+  ).toBeVisible()
+  await panel.getByRole('button', { name: 'Coordination log', exact: true }).click()
+  await expect(panel.getByText(/^No recorded coordination on this branch\./)).toBeVisible()
+  await expect(panel.getByRole('alert')).toHaveCount(0)
+  await panel.getByRole('button', { name: 'Agents', exact: true }).click()
+  await expect(h.page.locator('.monaco-editor')).toHaveCount(0)
+}
 
 // parity fix: remote artifacts + tool rows
 test('Every lane surface refreshes A→B→A', async ({ browserName: _browserName }, info) => {
@@ -45,13 +60,12 @@ test('Every lane surface refreshes A→B→A', async ({ browserName: _browserNam
       await file(h, 'remote.txt')
       await expect(h.page.locator('.monaco-editor')).toContainText(marker)
       await expect(h.page.locator('.monaco-editor')).not.toContainText(previous)
-      for (const name of ['Terminal', 'Subagents']) {
-        await pane(h, name)
-        await expect(
-          h.page.getByText('Not available on remote lanes yet.', { exact: true }),
-        ).toBeVisible()
-        await expect(h.page.locator('.monaco-editor')).toHaveCount(0)
-      }
+      await pane(h, 'Terminal')
+      await expect(
+        h.page.getByText('Not available on remote lanes yet.', { exact: true }),
+      ).toBeVisible()
+      await expect(h.page.locator('.monaco-editor')).toHaveCount(0)
+      await subagents(h)
       await pane(h, 'Artifacts')
       await expect(h.page.getByText('No artifacts yet', { exact: true })).toBeVisible()
     }
@@ -169,13 +183,12 @@ test('Remote Files, Changes, controls, model and error surfaces refresh A→B→
         await expect(h.page.getByRole('treeitem', { name: /^deleted\.txt/ })).toBeVisible()
         await expect(h.page.getByText('HOST_A_ONLY provider error', { exact: false })).toBeVisible()
       }
-      for (const name of ['Terminal', 'Subagents']) {
-        await pane(h, name)
-        await expect(
-          h.page.getByText('Not available on remote lanes yet.', { exact: true }),
-        ).toBeVisible()
-        await expect(h.page.locator('.monaco-editor')).toHaveCount(0)
-      }
+      await pane(h, 'Terminal')
+      await expect(
+        h.page.getByText('Not available on remote lanes yet.', { exact: true }),
+      ).toBeVisible()
+      await expect(h.page.locator('.monaco-editor')).toHaveCount(0)
+      await subagents(h)
       const ownModel = title === 'HOST_B_ONLY lane' ? 'HOST_B_ONLY Reasoner' : 'HOST_A_ONLY Fast'
       const previousModel =
         title === 'HOST_B_ONLY lane' ? 'HOST_A_ONLY Fast' : 'HOST_B_ONLY Reasoner'

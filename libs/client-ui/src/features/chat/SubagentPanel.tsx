@@ -13,6 +13,7 @@ import { useSubagentInspection } from './useSubagentInspection'
 import {
   loadSubagentView,
   saveSubagentView,
+  useSubagentViewKey,
   selectedFleetNode,
   useSubagentNavigation,
   type SubagentTarget,
@@ -43,7 +44,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
   const work = useCurrentWork(sessionId)
   const [foregroundId, setForegroundId] = useState<string>()
   const foreground = foregroundId ? work.tools[foregroundId] : undefined
-  const identity = useChatStore((s) => s.sessions[sessionId]?.meta?.sessionId)
+  const viewKey = useSubagentViewKey(sessionId)
   const diskPath = useChatStore((s) => s.sessions[sessionId]?.meta?.sessionFile)
   const revision = useSubagentNavigation((s) => (s.sessionId === sessionId ? s.revision : 0))
   const covered = useLayoutStore((s) => s.page !== null)
@@ -98,14 +99,14 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
       useSubagentNavigation.setState({ toolCallId: undefined })
       return
     }
-    if (identity && request.sessionId === sessionId && request.runId) {
-      saveSubagentView(identity, {
+    if (viewKey && request.sessionId === sessionId && request.runId) {
+      saveSubagentView(viewKey, {
         view: 'live',
         target: { runId: request.runId, childId: request.childId },
       })
       useSubagentNavigation.setState({ runId: undefined, childId: undefined })
     }
-    const saved = identity ? loadSubagentView(identity) : { view: 'live' as const }
+    const saved = viewKey ? loadSubagentView(viewKey) : { view: 'live' as const }
     setView(saved.view)
     const wanted = saved.target
     void (async () => {
@@ -129,16 +130,16 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
       } catch (error) {
         if (!cancelled && selection === selectionRevision.current) setRestoreError(errorText(error))
       } finally {
-        if (!cancelled) setRestored(identity)
+        if (!cancelled) setRestored(viewKey)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [sessionId, identity, diskPath, revision])
+  }, [sessionId, viewKey, diskPath, revision])
   useEffect(() => {
-    if (identity && restored === identity) saveSubagentView(identity, { view, target })
-  }, [identity, restored, view, target])
+    if (viewKey && restored === viewKey) saveSubagentView(viewKey, { view, target })
+  }, [viewKey, restored, view, target])
   // An "Inspect run" link names the run. A single-agent run's activity lives
   // in its one step, so the same agent is selected either way, including when
   // only its launch remains (after a restart) and the saved target is the step.
@@ -278,22 +279,17 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
           className="border-border flex shrink-0 gap-2 border-b px-3 py-2"
           aria-label="Subagent views"
         >
-          <Button
-            size="sm"
-            className="text-text-secondary aria-pressed:bg-bg-secondary aria-pressed:text-text"
-            aria-pressed={view === 'live'}
-            onClick={() => setView('live')}
-          >
-            Agents
-          </Button>
-          <Button
-            size="sm"
-            className="text-text-secondary aria-pressed:bg-bg-secondary aria-pressed:text-text"
-            aria-pressed={view === 'history'}
-            onClick={() => setView('history')}
-          >
-            Coordination log
-          </Button>
+          {VIEWS.map(([id, label]) => (
+            <Button
+              key={id}
+              size="sm"
+              className="text-text-secondary aria-pressed:bg-bg-secondary aria-pressed:text-text"
+              aria-pressed={view === id}
+              onClick={() => setView(id)}
+            >
+              {label}
+            </Button>
+          ))}
         </div>
         {restoreError && (
           <p role="status" className="text-text-secondary px-3 py-2 text-sm">
@@ -472,6 +468,10 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
   )
 }
 
+const VIEWS = [
+  ['live', 'Agents'],
+  ['history', 'Coordination log'],
+] as const
 type NavItem = { entry: WorkEntry } | { group: { id: string; label: string }; entries: WorkEntry[] }
 const isCurrent = (entry: WorkEntry): boolean =>
   entry.active > 0 || entry.state === 'status unavailable'

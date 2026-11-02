@@ -40,11 +40,11 @@ describe('Location codec', () => {
     ).toThrow()
     expect(() => encodeLocation({ to: 'new', machine: '/path' })).toThrow()
   })
-  it('declares a place or explicit refusal in both shells', () => {
+  it('declares a place in both shells', () => {
     for (const screen of Object.values(SCREENS)) {
       expect(screen.title).toBeTruthy()
       expect(screen.expanded).toBeTruthy()
-      expect(typeof screen.compact === 'string' || screen.compact.notYet.length > 0).toBe(true)
+      expect(['page', 'pane']).toContain(screen.compact)
     }
     // Host shells reach the browser over the Host connection.
     expect(SCREENS.terminal.compact).toBe('pane')

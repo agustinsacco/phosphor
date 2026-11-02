@@ -8,6 +8,7 @@ import type { SubagentInspection } from './subagentInspect'
 import type { SubagentTarget } from './subagentView'
 import { saveFromPane } from './subagentSnapshot'
 import { steerSubagent } from './subagentSteer'
+import { useSubagentCommands } from './subagentCommands'
 
 export function SubagentActions({
   sessionId,
@@ -23,9 +24,7 @@ export function SubagentActions({
   active: boolean
 }): React.JSX.Element {
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
-  const commands = useChatStore((s) => s.sessions[sessionId]?.commands)
-  const supported = (name: string): boolean =>
-    !!commands?.some((c) => c.name === name && c.source === 'extension')
+  const { supported, blocked } = useSubagentCommands(sessionId)
   const messageId = useId()
   const [steering, setSteering] = useState(false)
   const [message, setMessage] = useState('')
@@ -75,9 +74,9 @@ export function SubagentActions({
       )}
       <div className="flex flex-wrap gap-2">
         <Button
-          disabled={pending || !meta?.sessionId || !supported(SNAPSHOT_COMMAND)}
+          disabled={pending || !!blocked || !meta?.sessionId || !supported(SNAPSHOT_COMMAND)}
           onClick={() => void act(true)}
-          title="Save this bounded preview, not a full transcript"
+          title={blocked ?? 'Save this bounded preview, not a full transcript'}
         >
           Save snapshot
         </Button>
@@ -93,7 +92,8 @@ export function SubagentActions({
         )}
         {active && (
           <Button
-            disabled={pending || !supported('subagents-steer')}
+            disabled={pending || !!blocked || !supported('subagents-steer')}
+            title={blocked}
             onClick={() => setSteering(!steering)}
           >
             Steer…

@@ -104,7 +104,7 @@ editors or pane controls. Desktop retains its native sidebar and local workbench
 Below 900px a lane has one header bar: Back to its Host's lanes, then the lane
 title with "Host · controller" under it (and the pane, when not Chat). The title
 opens the lane menu, a bottom sheet (`ActionSheet`) that switches Chat, Files,
-Changes, Artifacts and Terminal, then the lane's Session options (the same
+Changes, Artifacts, Subagents and Terminal, then the lane's Session options (the same
 list as Desktop's top bar, [chat](chat.md)), then its shared actions, the same
 list as every Host lane row's menu without Open (see below), then New lane on
 that Host. A confirmed action closes the sheet; a refusal stays to say why.

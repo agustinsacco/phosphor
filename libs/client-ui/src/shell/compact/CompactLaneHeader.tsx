@@ -23,7 +23,14 @@ import { connectionLabel, machineLabel, useRemoteLanesStore } from '@/stores/rem
 type LaneLocation = Extract<Location, { to: 'lane' }>
 
 /** The panes a phone can show for a remote lane, in the order the menu lists them. */
-export const COMPACT_LANE_PANES = ['chat', 'files', 'changes', 'artifacts', 'terminal'] as const
+export const COMPACT_LANE_PANES = [
+  'chat',
+  'files',
+  'changes',
+  'artifacts',
+  'subagents',
+  'terminal',
+] as const
 
 /**
  * A phone's lane header: Back, then the lane title as the one button that opens

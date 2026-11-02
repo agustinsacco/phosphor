@@ -521,12 +521,14 @@ that toggle shows what this window last set, not the Host's value. pi saves each
 option as its default on the machine it runs on, so a change also applies to
 that Host's later lanes, as a model or thinking change does. Export HTML needs
 no lane control, only a grant with `sessions.control`: the Host exports and this
-device saves the file ([chat](chat.md)). The Subagents button keeps its active
-count, and its pane shows the fixed unavailable hint. Inspecting, steering and
-stopping a run are extension-command prompts: fenced lane ops that would take
-control of a lane nobody controls, and inspection repeats every 5 seconds while
-a run is active. The Coordination log reads pi's `get_entries`, which no lane op
-carries. Continue waits for the remote receipt and echo;
+device saves the file ([chat](chat.md)). The Subagents button and pane work as on
+This Mac. Inspection, which repeats every 5 seconds while a run is active, is
+the `lane.subagentInspect` call and the Coordination log is
+`lane.subagentHistory` ([remote protocol](remote-protocol.md)): `sessions.read`
+calls with no fence, so reading never takes control. Stop run, Steer… and Save
+snapshot are extension-command prompts, fenced lane ops like the composer's, so
+only the controller is offered them; anyone else sees "Take control first."
+Continue waits for the remote receipt and echo;
 it never inserts an optimistic duplicate. Error cards do not inspect This Mac's
 AWS profile. Lane and machine switches reset visible selections or show loading
 or refusal while the new target loads.
