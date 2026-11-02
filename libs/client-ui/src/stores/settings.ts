@@ -5,6 +5,7 @@ import { useLanePrefsStore } from './lanePrefs'
 import { useContextBudgetStore } from './contextBudgetPref'
 import { useContextFilesPrefStore } from './contextFilesPref'
 import { useWritingStore } from './writing'
+import { useWorktreesStore } from './worktrees'
 
 interface SettingsState {
   theme: ThemePreference
@@ -81,6 +82,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
       // Lane prefs live in their own leaf store (no DOM dependency); this is
       // the one prefs round-trip, so it fills them too.
       useLanePrefsStore.getState().applyLanePrefs(prefs.lanes)
+      // The browser has no other prefs read, and its branch prefix names its Host lanes' branches.
+      useWorktreesStore.getState().applyPrefs(prefs.worktrees)
       useContextBudgetStore.getState().applyContextBudget(prefs.contextBudget)
       useContextFilesPrefStore.getState().apply(prefs.contextFiles)
       useWritingStore.getState().apply(prefs.writing)

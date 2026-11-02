@@ -221,10 +221,10 @@ Signed-out windows have no machine switcher or remote groups.
   for a project folder, **Remove from sidebar** (behind a second click that
   says files stay on disk). For a sandbox it holds Rename sandbox and Delete
   sandbox (the latter behind a second click) instead. A project folder is only
-  ever _forgotten_, here or from Settings → Workspaces; renaming is offered
+  ever _forgotten_, here or from Settings → Folders; renaming is offered
   for a sandbox because the folder is Phosphor's own. Rename closes the
   sandbox's running chats first and says so in the prompt; see
-  [settings.md](settings.md#workspaces) for what a rename moves and what
+  [settings.md](settings.md#folders) for what a rename moves and what
   removing a project does.
 - **Loading states per group**: never attempted → skeleton rows; partly
   scanned → the rows we have plus `loading N more folders…`; errored →

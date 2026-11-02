@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, NumberField, Row, SectionTitle, Toggle } from '@/components/form'
+import { Button, NumberField, Row, SectionTitle, SettingsNotice, Toggle } from '@/components/form'
 import { DEFAULT_MAINTENANCE_PREFS } from '@shared/models'
 import type { MaintenancePrefs, MaintenanceReport, ReclaimHoldReason } from '@shared/models'
 import { workspaceName } from '@/lib/path'
+import { ipcErrorText } from '@shared/errors'
 
 /** Bytes as a short human string. `null` means the platform could not measure. */
 export function formatBytes(bytes: number | null): string {
@@ -59,6 +60,53 @@ export function heldSummary(reports: MaintenanceReport[], minAgeHours: number): 
     .join(', ')
 }
 
+/** Maintenance prefs and the latest sweep report, with the actions that change them. */
+function useMaintenance() {
+  const [prefs, setPrefs] = useState<MaintenancePrefs>(DEFAULT_MAINTENANCE_PREFS)
+  const [reports, setReports] = useState<MaintenanceReport[] | null>(null)
+  const [busy, setBusy] = useState<'scan' | 'run' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // Prefs and the scan load together, so Rescan also recovers prefs that failed to load.
+  const scan = useCallback(async () => {
+    setBusy('scan')
+    setError(null)
+    const [loaded, scanned] = await Promise.allSettled([
+      window.phosphor.invoke('app:getPrefs'),
+      window.phosphor.invoke('maintenance:scan'),
+    ])
+    if (loaded.status === 'fulfilled') setPrefs(loaded.value.maintenance)
+    if (scanned.status === 'fulfilled') setReports(scanned.value)
+    const failed = [loaded, scanned].flatMap((r) => (r.status === 'rejected' ? [r.reason] : []))
+    if (failed.length) setError(failed.map(ipcErrorText).join(' · '))
+    setBusy(null)
+  }, [])
+
+  useEffect(() => {
+    void scan()
+  }, [scan])
+
+  const save = (next: MaintenancePrefs): void => {
+    setPrefs(next)
+    window.phosphor
+      .invoke('maintenance:setPrefs', next)
+      .catch((reason: unknown) => setError(ipcErrorText(reason)))
+  }
+
+  const reclaim = async (): Promise<void> => {
+    setBusy('run')
+    setError(null)
+    try {
+      setReports(await window.phosphor.invoke('maintenance:run'))
+    } catch (reason) {
+      setError(ipcErrorText(reason))
+    } finally {
+      setBusy(null)
+    }
+  }
+  return { prefs, reports, busy, error, scan, save, reclaim }
+}
+
 /**
  * Storage reclamation, in Settings → Advanced.
  *
@@ -71,49 +119,20 @@ export function heldSummary(reports: MaintenanceReport[], minAgeHours: number): 
  * rest — tens of gigabytes across six other repos on one install.
  */
 export function MaintenanceSection(): React.JSX.Element {
-  const [prefs, setPrefs] = useState<MaintenancePrefs>(DEFAULT_MAINTENANCE_PREFS)
-  const [reports, setReports] = useState<MaintenanceReport[] | null>(null)
-  const [busy, setBusy] = useState<'scan' | 'run' | null>(null)
-
-  useEffect(() => {
-    void window.phosphor.invoke('app:getPrefs').then((p) => setPrefs(p.maintenance))
-  }, [])
-
-  const scan = useCallback(async () => {
-    setBusy('scan')
-    try {
-      setReports(await window.phosphor.invoke('maintenance:scan'))
-    } finally {
-      setBusy(null)
-    }
-  }, [])
-
-  useEffect(() => {
-    void scan()
-  }, [scan])
-
-  const save = (next: MaintenancePrefs): void => {
-    setPrefs(next)
-    void window.phosphor.invoke('maintenance:setPrefs', next)
-  }
-
-  const reclaim = async (): Promise<void> => {
-    setBusy('run')
-    try {
-      setReports(await window.phosphor.invoke('maintenance:run'))
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const report = reports ? combineReports(reports) : null
-  const candidates = report?.candidates ?? 0
-  const withCandidates = (reports ?? []).filter((r) => r.candidates.length > 0)
-  const held = reports ? heldSummary(reports, prefs.minAgeHours) : ''
+  const maintenance = useMaintenance()
+  const { prefs, busy, error, scan, save } = maintenance
 
   return (
     <div>
       <SectionTitle small>Maintenance</SectionTitle>
+      {error && (
+        <SettingsNotice
+          tone="danger"
+          title="Maintenance failed"
+          body={error}
+          action={{ label: 'Retry', onClick: () => void scan(), disabled: busy !== null }}
+        />
+      )}
 
       <Row
         title="Reclaim dead lanes"
@@ -157,6 +176,24 @@ export function MaintenanceSection(): React.JSX.Element {
         />
       </Row>
 
+      <SweepReport maintenance={maintenance} />
+    </div>
+  )
+}
+
+/** The latest sweep: what it found, what it reclaimed, and Rescan / Reclaim now. */
+function SweepReport({
+  maintenance,
+}: {
+  maintenance: ReturnType<typeof useMaintenance>
+}): React.JSX.Element {
+  const { prefs, reports, busy, scan, reclaim } = maintenance
+  const report = reports ? combineReports(reports) : null
+  const candidates = report?.candidates ?? 0
+  const withCandidates = (reports ?? []).filter((r) => r.candidates.length > 0)
+  const held = reports ? heldSummary(reports, prefs.minAgeHours) : ''
+  return (
+    <>
       <Row
         title={
           report
@@ -204,6 +241,6 @@ export function MaintenanceSection(): React.JSX.Element {
       {report && report.errors.length > 0 && (
         <p className="text-danger mt-2 font-mono text-sm">{report.errors[0]}</p>
       )}
-    </div>
+    </>
   )
 }

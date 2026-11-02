@@ -4,7 +4,7 @@ import type { MachineSettingsTab } from './machine/HostSection'
 import type { SettingsTab } from './settingsUiStore'
 import type { SettingEntry } from './search/settingEntry'
 import { ACCOUNTS_HOST_HEADING, ACCOUNTS_ROWS } from './search/rows/accounts'
-import { ADVANCED_HOST_HEADING, ADVANCED_ROWS } from './search/rows/advanced'
+import { ADVANCED_ROWS } from './search/rows/advanced'
 import { AGENT_ROWS } from './search/rows/agent'
 import { CONNECTORS_HOST_HEADING, CONNECTORS_ROWS } from './search/rows/connectors'
 import {
@@ -22,9 +22,9 @@ import {
   WEB_ACCESS_ROWS,
 } from './search/rows/extensions'
 import { FOLDERS_ROWS } from './search/rows/folders'
+import { LANES_ROWS } from './search/rows/lanes'
 import { OPTIMIZATION_ROWS } from './search/rows/optimization'
 import { VOICE_ROWS } from './search/rows/voice'
-import { WORKSPACES_ROWS } from './search/rows/workspaces'
 
 /** A Platform flag a section or row needs. Never the form factor. */
 export type SettingsCapability = Exclude<keyof Platform, 'formFactor'>
@@ -68,6 +68,8 @@ const machineSection = (
 export const TABS: SettingsSection[] = [
   device('appearance', 'Appearance'),
   device('writing', 'Writing', ['writingAssist']),
+  device('lanes', 'Lanes'),
+  device('voice', 'Voice', ['localVoice']),
   device('keybindings', 'Keybindings', ['appShortcuts']),
   device('account', 'Phosphor account'),
   device('install', 'App installation', ['installableApp']),
@@ -76,10 +78,8 @@ export const TABS: SettingsSection[] = [
   machineSection('accounts', 'Accounts', { local: true, host: 'providers' }),
   machineSection('extensions', 'Extensions', { local: true, host: 'resources' }),
   machineSection('connectors', 'MCP Connectors', { local: true, host: 'connectors' }),
-  machineSection('workspaces', 'Workspaces', { local: true }),
-  machineSection('folders', 'Folders', { host: 'folders' }),
+  machineSection('folders', 'Folders', { local: true, host: 'folders' }),
   machineSection('optimization', 'Optimization', { local: true }),
-  machineSection('voice', 'Voice', { local: true }),
   machineSection('advanced', 'Advanced', { local: true, host: 'advanced' }),
 ]
 
@@ -167,6 +167,8 @@ export function visibleSections(
 export const SETTINGS_INDEX: SettingEntry[] = [
   ...APPEARANCE_ROWS,
   ...WRITING_ROWS,
+  ...LANES_ROWS,
+  ...VOICE_ROWS,
   ...AGENT_ROWS,
   ...ACCOUNTS_ROWS,
   ...EXTENSIONS_ROWS,
@@ -174,9 +176,8 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ...WEB_ACCESS_ROWS,
   ...SUBAGENTS_ROWS,
   ...CONNECTORS_ROWS,
-  ...WORKSPACES_ROWS,
+  ...FOLDERS_ROWS,
   ...OPTIMIZATION_ROWS,
-  ...VOICE_ROWS,
   ...ADVANCED_ROWS,
   ...ACCOUNT_ROWS,
   ...INSTALL_ROWS,
@@ -184,8 +185,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   // The Host's own panels, by their headings, until shared views render the rows above.
   ...ACCOUNTS_HOST_HEADING,
   ...CONNECTORS_HOST_HEADING,
-  ...FOLDERS_ROWS,
-  ...ADVANCED_HOST_HEADING,
   ...KEYBINDING_ROWS,
 ]
 

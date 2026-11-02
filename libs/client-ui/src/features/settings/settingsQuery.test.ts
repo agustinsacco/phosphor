@@ -110,13 +110,13 @@ describe('rowOnMachine', () => {
   })
 
   it("defaults a machine row to its section's machines", () => {
-    // Agent is on both machines, Workspaces on This Mac only, Folders on Hosts only.
+    // Agent and Folders are on both machines, Optimization on This Mac only.
     expect([rowOnMachine(row('agent'), 'local'), rowOnMachine(row('agent'), 'host')]).toEqual([
       true,
       true,
     ])
-    expect(rowOnMachine(row('workspaces'), 'host')).toBe(false)
-    expect(rowOnMachine(row('folders'), 'local')).toBe(false)
+    expect(rowOnMachine(row('optimization'), 'host')).toBe(false)
+    expect(rowOnMachine(row('folders'), 'local')).toBe(true)
     expect(rowOnMachine(row('subagents'), 'local')).toBe(true)
   })
 
@@ -158,17 +158,14 @@ describe('SETTINGS_INDEX against the section sources', () => {
     'tabs/AboutTab.tsx': 'about',
     'tabs/AccountTab.tsx': 'account',
     'tabs/AccountsTab.tsx': 'accounts',
-    'tabs/AdvancedTab.tsx': 'advanced',
     'tabs/AppearanceTab.tsx': 'appearance',
     'tabs/ClaudeAccountPanel.tsx': 'claude-provider',
     'tabs/ClaudeProviderTab.tsx': 'claude-provider',
     'tabs/ConnectorsTab.tsx': 'connectors',
     'tabs/InstallAppTab.tsx': 'install',
     'tabs/KeybindingsTab.tsx': 'keybindings',
-    'tabs/MaintenanceSection.tsx': 'advanced',
     'tabs/OptimizationTab.tsx': 'optimization',
     'tabs/VoiceTab.tsx': 'voice',
-    'tabs/WorkspacesTab.tsx': 'workspaces',
     'tabs/WritingTab.tsx': 'writing',
   }
   /**
@@ -219,9 +216,14 @@ describe('SETTINGS_INDEX against the section sources', () => {
       }),
     ),
   ]
+  /** Sections whose one view renders on every machine: their Host-only rows are rows, not headings. */
+  const SHARED_VIEWS = new Set<SettingsTab>(['agent', 'extensions', 'folders', 'advanced'])
   /** The Host section headings, which the Host's own panels render. */
   const hostHeading = (entry: SettingEntry): boolean =>
-    !!entry.on?.host && !entry.on.local && entry.section === undefined
+    !!entry.on?.host &&
+    !entry.on.local &&
+    entry.section === undefined &&
+    !SHARED_VIEWS.has(entry.tab)
 
   it('maps every source that renders a title to its section', () => {
     const unmapped = sources.filter((s) => s.titles.length > 0 && !s.tab).map((s) => s.path)
@@ -254,10 +256,8 @@ describe('SETTINGS_INDEX against the section sources', () => {
       .map((f) => readFileSync(resolve(machines, f), 'utf8'))
       .join('\n')
     const hostEntries = SETTINGS_INDEX.filter(hostHeading)
-    // A section whose shared view renders on a Host is indexed by its own rows instead.
-    const shared = new Set<SettingsTab>(['agent', 'extensions'])
     expect(hostEntries.map((entry) => entry.tab)).toEqual(
-      TABS.filter((tab) => tab.host && !shared.has(tab.id)).map((tab) => tab.id),
+      TABS.filter((tab) => tab.host && !SHARED_VIEWS.has(tab.id)).map((tab) => tab.id),
     )
     for (const entry of hostEntries)
       expect(panels, entry.title).toContain(`font-semibold">${entry.title}</h2>`)

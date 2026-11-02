@@ -32,7 +32,10 @@ vi.mock('./sections/extensions', async (importOriginal) => ({
   LocalExtensions: () => <p>Local machine controls</p>,
 }))
 vi.mock('./tabs/ConnectorsTab', () => ({ ConnectorsTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/AdvancedTab', () => ({ AdvancedTab: () => <p>Local machine controls</p> }))
+vi.mock('./sections/advanced', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAdvanced: () => <p>Local machine controls</p>,
+}))
 vi.mock('./tabs/AboutTab', () => ({ AboutTab: () => null }))
 
 const invoke = vi.fn(async (channel: string): Promise<unknown> =>
@@ -73,15 +76,14 @@ const navLabels = (): string[] =>
     (b) => b.textContent ?? '',
   )
 
-const DEVICE_TABS = ['Appearance', 'Writing', 'Keybindings', 'About']
+const DEVICE_TABS = ['Appearance', 'Writing', 'Lanes', 'Voice', 'Keybindings', 'About']
 const THIS_MAC_TABS = [
   'Agent',
   'Accounts',
   'Extensions',
   'MCP Connectors',
-  'Workspaces',
+  'Folders',
   'Optimization',
-  'Voice',
   'Advanced',
 ]
 

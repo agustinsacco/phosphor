@@ -4,6 +4,7 @@ import {
   parseFolderList,
   parseDeleteLaneResult,
   isRepositoryId,
+  FOLDER_CHANGES_FORBIDDEN,
   FOLDER_EXISTS,
   HOST_TOO_OLD,
 } from '@phosphor/shared/host-protocol-repositories'
@@ -46,7 +47,9 @@ function refusal(code: string | undefined, op: LaneOp): string {
       ? FOLDER_EXISTS
       : code === 'unsupported'
         ? HOST_TOO_OLD
-        : 'The remote change was not confirmed.'
+        : code === 'forbidden' && op.type.startsWith('host.repositories.')
+          ? FOLDER_CHANGES_FORBIDDEN
+          : 'The remote change was not confirmed.'
 }
 
 /** Folder browsing and repository changes on a Host, shared by Desktop and the browser. */

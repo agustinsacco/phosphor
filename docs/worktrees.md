@@ -34,7 +34,7 @@ your main checkout.
   remote-tracking ref: freshest trunk, main checkout untouched. `--no-track`
   goes with it, or the branch would read as "behind trunk" forever.
 - **The branch prefix is configurable, and one flag governs isolation.**
-  `phosphor/` by default (Settings → Workspaces, empty allowed). The composer's
+  `phosphor/` by default (Settings → Lanes, empty allowed). The composer's
   "new branch" checkbox, the branch popup's "worktree" checkbox and the
   settings toggle are one persisted preference, so three surfaces asking "does
   my work get its own branch?" cannot disagree.

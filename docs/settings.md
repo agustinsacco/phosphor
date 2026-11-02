@@ -17,27 +17,28 @@ needs. The surface lists only sections the platform supports, and search
 (`SETTINGS_INDEX`) honours the same filter, down to single rows. Nothing branches on
 the form factor.
 
-| Section          | Scope             | Needs                 | Desktop | Browser | What it is                                                                                                      | Writes                                                  |
-| ---------------- | ----------------- | --------------------- | ------- | ------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Appearance       | device            | (rows below)          | yes     | yes     | Theme, UI scale, per-surface font sizes, mono font                                                              | Phosphor prefs (electron-store; browser storage)        |
-| Writing          | device            | `writingAssist`       | yes     | no      | Spellcheck switch, autocomplete, learned prompts                                                                | Phosphor prefs; `<userData>/writing/prompts.jsonl`      |
-| Keybindings      | device            | `appShortcuts`        | yes     | no      | Static reference sheet                                                                                          | nothing                                                 |
-| Phosphor account | device            | none                  | yes     | yes     | The signed-in GitHub account and Sign out (or Sign in)                                                          | `account:*`                                             |
-| App installation | device            | `installableApp`      | no      | yes     | Install Phosphor, and the in-app attention note                                                                 | nothing                                                 |
-| About            | device            | rows need `appInfo`   | yes     | yes     | Versions, update check, pi drift warning, font licenses                                                         | nothing                                                 |
-| Agent            | machine, This Mac | `localLanes`          | yes     | no      | pi's agent defaults, per machine or folder                                                                      | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
-| Accounts         | machine, This Mac | `localLanes`          | yes     | no      | Subscription logins pi can drive                                                                                | pi's provider auth                                      |
-| Extensions       | machine, both     | a machine             | yes     | yes     | pi package management, one view on every machine ([below](#extensions))                                         | shells out to `pi install` / `remove` / `update`        |
-| ↳ Claude Code    | machine, This Mac | `localLanes`, package | yes     | no      | The `pi-claude-cli` provider: health, accounts, pi context ownership                                            | Phosphor prefs + the package's own config               |
-| ↳ Web access     | machine, both     | package               | yes     | yes     | The `pi-web-access` provider: search, fetch, PDF                                                                | `web-search.json`                                       |
-| ↳ Subagents      | machine, both     | installed package     | yes     | yes     | Delegation guide, profile precedence, configuration ownership                                                   | This Mac: global Pi settings in the raw editor          |
-| ↳ Computer use   | machine, both     | package               | yes     | yes     | Info page for `@injaneity/pi-computer-use`                                                                      | nothing (read-only)                                     |
-| MCP Connectors   | machine, This Mac | `localLanes`          | yes     | no      | pi's built-in MCP: curated OAuth catalog + custom servers                                                       | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`           |
-| Workspaces       | machine, This Mac | `localLanes`          | yes     | no      | Lane naming/markers, new-session branching, recents, sandboxes                                                  | Phosphor prefs; layout reset clears localStorage        |
-| Optimization     | machine, This Mac | `localLanes`          | yes     | no      | Headroom tool-result compression + the Advisor                                                                  | Phosphor prefs; `headroom:*` lifecycle in main          |
-| Voice            | machine, This Mac | `localLanes`          | yes     | no      | Dictation on/off and which local speech model                                                                   | Phosphor prefs; model files in `<userData>/voice/`      |
-| Advanced         | machine, This Mac | `localLanes`          | yes     | no      | pi health, raw config editors, maintenance, discovered resources                                                | the pi files it edits; maintenance prefs                |
-| Host sections    | machine, a Host   | `machineSettings`     | yes     | yes     | Agent, Accounts, Extensions, MCP Connectors, Folders and Advanced in one list ([below](#host-machine-settings)) | the Host, through `hosts:settings*`                     |
+| Section          | Scope             | Needs                 | Desktop | Browser | What it is                                                                                                      | Writes                                                    |
+| ---------------- | ----------------- | --------------------- | ------- | ------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Appearance       | device            | (rows below)          | yes     | yes     | Theme, UI scale, per-surface font sizes, mono font                                                              | Phosphor prefs (electron-store; browser storage)          |
+| Writing          | device            | `writingAssist`       | yes     | no      | Spellcheck switch, autocomplete, learned prompts                                                                | Phosphor prefs; `<userData>/writing/prompts.jsonl`        |
+| Lanes            | device            | none                  | yes     | yes     | Lane markers, PR status, branch prefix and slug length; the worktree switch needs `localLanes`                  | Phosphor prefs (browser storage in the browser)           |
+| Voice            | device            | `localVoice`          | yes     | no      | Dictation on/off and which local speech model                                                                   | Phosphor prefs; model files in `<userData>/voice/`        |
+| Keybindings      | device            | `appShortcuts`        | yes     | no      | Static reference sheet                                                                                          | nothing                                                   |
+| Phosphor account | device            | none                  | yes     | yes     | The signed-in GitHub account and Sign out (or Sign in)                                                          | `account:*`                                               |
+| App installation | device            | `installableApp`      | no      | yes     | Install Phosphor, and the in-app attention note                                                                 | nothing                                                   |
+| About            | device            | rows need `appInfo`   | yes     | yes     | Versions, update check, pi drift warning, font licenses                                                         | nothing                                                   |
+| Agent            | machine, This Mac | `localLanes`          | yes     | no      | pi's agent defaults, per machine or folder                                                                      | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json`   |
+| Accounts         | machine, This Mac | `localLanes`          | yes     | no      | Subscription logins pi can drive                                                                                | pi's provider auth                                        |
+| Extensions       | machine, both     | a machine             | yes     | yes     | pi package management, one view on every machine ([below](#extensions))                                         | shells out to `pi install` / `remove` / `update`          |
+| ↳ Claude Code    | machine, This Mac | `localLanes`, package | yes     | no      | The `pi-claude-cli` provider: health, accounts, pi context ownership                                            | Phosphor prefs + the package's own config                 |
+| ↳ Web access     | machine, both     | package               | yes     | yes     | The `pi-web-access` provider: search, fetch, PDF                                                                | `web-search.json`                                         |
+| ↳ Subagents      | machine, both     | installed package     | yes     | yes     | Delegation guide, profile precedence, configuration ownership                                                   | This Mac: global Pi settings in the raw editor            |
+| ↳ Computer use   | machine, both     | package               | yes     | yes     | Info page for `@injaneity/pi-computer-use`                                                                      | nothing (read-only)                                       |
+| MCP Connectors   | machine, This Mac | `localLanes`          | yes     | no      | pi's built-in MCP: curated OAuth catalog + custom servers                                                       | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`             |
+| Folders          | machine, both     | per machine           | yes     | yes     | This Mac: recent folders and sandboxes; a Host: registered folders and trust                                    | recents (This Mac); the Host, through `hosts:*Repository` |
+| Optimization     | machine, This Mac | `localLanes`          | yes     | no      | Headroom tool-result compression + the Advisor                                                                  | Phosphor prefs; `headroom:*` lifecycle in main            |
+| Advanced         | machine, both     | per machine           | yes     | yes     | pi health, PATH and agent dir; This Mac: raw editors, maintenance, resources; a Host: update and runtime        | the pi files it edits; maintenance prefs                  |
+| Host sections    | machine, a Host   | `machineSettings`     | yes     | yes     | Agent, Accounts, Extensions, MCP Connectors, Folders and Advanced in one list ([below](#host-machine-settings)) | the Host, through `hosts:settings*`                       |
 
 Appearance rows: UI scale needs `pageZoom` (native page zoom) and Terminal font size
 needs `terminal`. Without `savedFontPrefs` the section says that font changes last
@@ -83,9 +84,10 @@ browser page is entered.
 
 Machine sections are one list (`TABS` in `settingsIndex.ts`). A concern both kinds of
 machine have is one section with one id, label and place: Agent, Accounts, Extensions,
-MCP Connectors and Advanced. Each section says whether This Mac has it and which Host
-settings section renders it on a Host; a machine lists only its own (Workspaces,
-Optimization and Voice are This Mac's, Folders is a Host's). So switching machines
+MCP Connectors, Folders and Advanced. Each section says whether This Mac has it and which Host
+settings section renders it on a Host; a machine lists only its own (Optimization is
+This Mac's). Lanes and Voice are device sections: how this client shows lanes and names
+their branches, and its dictation, whichever machine runs the lane. So switching machines
 keeps the open concern, an extension item the other machine does not list opens its
 Extensions, and anything else opens the machine's first section. Search lists a
 section's rows only on the machine that renders them.
@@ -158,8 +160,8 @@ section as alerts.
 | Accounts       | Host provider status, supported private CLI sign-in, separate Claude provider/CLI installation, isolated Claude accounts, routing, usage and associated lanes                       |
 | Extensions     | The shared Extensions view ([below](#extensions)): headless recommendations, the packages for the machine and the folder in scope, reviewed npm install/repair/update/remove        |
 | MCP Connectors | pi's global or registered-folder MCP configuration, curated/custom connectors, enablement, private authentication and explicitly reviewed status checks                             |
-| Folders        | Existing Host browse/register/unregister controls and an explicit pi trust review, subject to the Host's repository-change policy                                                   |
-| Advanced       | Pause and update (the Host's own signed `phosphor update`), read-only Host paths, platform and environment-name diagnostics, never values or a raw-JSON editor                      |
+| Folders        | The shared Folders view: browse/register/unregister and an explicit pi trust review, subject to the Host's repository-change policy, which a refusal names                          |
+| Advanced       | The shared Advanced view: Pause and update (the Host's own signed `phosphor update`), its pi, read-only Host paths, PATH and environment names, never values or a raw-JSON editor   |
 
 Claude uses the same account routing, cooldowns and transcript bindings as
 Desktop. Credentials stay in the Host's Claude credential store. Reauthentication
@@ -294,11 +296,13 @@ it from anywhere in settings.
 - **Machines.** A machine section's row is indexed on the machines its section
   has (`local`, `host` in `TABS`), unless the row names its own (`on`). Agent's
   rows come from its field table (`sections/agent/agentFields.ts`) and are found
-  on every machine. Accounts, Extensions, MCP Connectors and Advanced still mark their rows
+  on every machine. Accounts and MCP Connectors still mark their rows
   This Mac's own (`LOCAL_ONLY`), because a Host renders its own panels for
   them; a Host finds those sections by their headings only, with synonyms for
   what each Host panel shows. A row a shared view renders drops the override and
-  is found on every machine.
+  is found on every machine: Extensions, Folders and Advanced do, and a block only one
+  machine has names it (`LOCAL_ONLY`, or `{ host: true }` for a Host's update
+  and runtime).
 - **Checked.** `settingsQuery.test.ts` reads the section views (`tabs/`,
   `sections/` and `components/`, recursively) and any data module a section
   declares, such as a field table whose `title:` entries the view renders. It
@@ -670,20 +674,36 @@ so connectors are not configuration for a package.
   migration card instead.
 - All of it is specified in [mcp.md](mcp.md).
 
-## Workspaces
+## Lanes
 
-- **Naming and markers**: auto-naming on/off (titles are always 2-5 words and at
-  most 60 characters), the branch-slug cap, the lane marker mode, and whether
-  lanes show their PR status (`LanePrefs`). Every number is clamped in both
-  the renderer and main, and the branch-length row previews a real slug. See
-  [lanes.md](lanes.md#preferences).
-- **New sessions**: whether a chat gets its own branch and worktree, and the
-  branch prefix (`WorktreePrefs`). Same switch as the "worktree" checkbox in
-  the branch menu.
-- **Workspaces**: the recent list, one row per folder, offering exactly two
-  things: **Reset layout** (drops every localStorage key for that path, so a
-  wedged split is recoverable) and **Remove**, which forgets the folder and
-  touches nothing on disk. Remove is the same action as the sidebar kebab's
+A device section: how this client shows lanes and names their branches, for
+every machine's lanes it starts or lists. It is the same whichever machine
+Configure chooses, and the browser keeps it
+([web client](web-client.md#memory-and-offline-behavior)).
+
+- **Lane markers** (Auto, Manual or Off) and **PR status on lanes**
+  (`LanePrefs`). See [lanes.md](lanes.md#preferences).
+- **New lanes**: the **Branch prefix** (`WorktreePrefs.branchPrefix`) and the
+  **Branch name length** (the slug cap, clamped in the renderer and main; the row
+  previews a real slug). A Host lane's branch uses both, as This Mac's does. With
+  local lanes, **Give each chat its own branch** is the same switch as the
+  "worktree" checkbox in the branch menu; Host lanes always get their own
+  worktree, so the browser has no such row.
+
+Titles are always 2-5 words and at most 60 characters. Automatic naming is the
+machine's, under Agent.
+
+## Folders
+
+The folders a machine runs lanes in, as one view on every machine
+(`sections/folders/`: a `FolderSource` from `useLocalFolders` or `useHostFolders`).
+Removing a folder from either list asks first (`confirmFolderRemoval`) and never
+touches files.
+
+- **This Mac**: its recent folders. **Add folder** opens the native picker, as
+  the sidebar does; the folder opens on the home screen and joins the list.
+  **Remove** forgets the folder and touches nothing on
+  disk. Remove is the same action as the sidebar kebab's
   **Remove from sidebar**: it closes the project's idle chats and lanes (a
   live chat would otherwise hold its group in the sidebar; transcripts stay
   and reopen from disk), refuses while one of them is mid-turn, steps the home
@@ -691,7 +711,13 @@ so connectors are not configuration for a package.
   it, so the next launch does not reopen and re-add it. Reordering lives in
   the sidebar, on each workspace group's kebab, where you can see the order
   you are changing.
-- **Sandboxes**: the scratch folders behind "No folder", listed apart from
+- **A Host**: its registered folders, the only folders its lanes run in.
+  **Add folder** browses the Host's own folders; **Unregister** and **Review
+  project trust** (pi's trust prompt in a private Host terminal) are per row.
+  Changing folders needs the `workspaces.write` capability; without it the list
+  is read only. A Host whose config turns off `allowRepositoryChanges` refuses
+  the change, and the refusal says so.
+- **Sandboxes** (This Mac only): the scratch folders behind "No folder", listed apart from
   recents. Each is minted under a random `adjective-noun` name and shows its
   item count and last use. **Rename** changes the folder on disk and moves its
   chats with it — a sandbox IS its path, so the rename re-points recents, the
@@ -737,6 +763,9 @@ installs anything. Every action is a button.
 
 ## Voice
 
+A device section, listed where the client can dictate with a local speech model
+(`localVoice`: Desktop, not the browser). Dictation works in a Host lane's composer
+as in This Mac's, so Voice shows whichever machine Configure chooses.
 Voice input on or off, and the model (Moonshine Tiny or Base, English only).
 Turning it on downloads the model and turning it off deletes it; the tab
 shows progress, readiness or the failure with Retry. Behaviour, download and
@@ -744,23 +773,33 @@ privacy rules are in [voice.md](voice.md).
 
 ## Advanced
 
-- **pi health**: resolved binary path, version, and the minimum version
-  Phosphor supports. `pi:health` also reports the PATH pi runs with (the login
-  shell's) and pi's agent directory (`PiHealth.path`, `PiHealth.agentDir`); a
-  Host's Advanced read carries the same facts for its pi as additive
-  `advanced.pi { version, path, agentDir }`.
-- **Raw file editors** (Monaco JSON) for `~/.pi/agent/settings.json` and
-  `models.json`, with a "restart sessions to apply" note. The escape hatch the
+One view on every machine (`sections/advanced/`: an `AdvancedSource` from
+`useLocalAdvanced` or `useHostAdvanced`). Each block renders when its machine
+reports its data. A failed load says why and offers **Retry**, as do Maintenance
+and the raw editor.
+
+- **pi health**, on both: where pi is installed and its version; on This Mac also
+  the minimum version Phosphor supports. Then **pi agent directory** and the
+  **Executable search path** pi runs with (`PiHealth.path`, `PiHealth.agentDir`;
+  the login shell's PATH on This Mac). A Host reports its pi as additive
+  `advanced.pi { version, path, agentDir }`; a Host without it shows **Update this
+  Host to see its pi** and its agent directory and PATH only.
+- **Host updates**, a Host only: **Pause and update** runs the Host's own signed
+  `phosphor update` as a reviewed task, and needs Host terminal access. Beside it
+  the Host version, platform and config path, and **Environment availability**:
+  each allowlisted variable's name and whether it reaches pi, never its value.
+- **Raw file editors**, This Mac only (Monaco JSON) for `~/.pi/agent/settings.json`
+  and `models.json`, with a "restart sessions to apply" note. The escape hatch the
   Agent tab points at when a file is too broken to edit structurally.
-- **Maintenance**: a periodic sweep for worktrees whose branch already landed.
-  It always _measures_ ("N of M worktrees reclaimable") and only deletes once
-  "Delete automatically" is on. Interval (≥15 min) and a grace period (a merged
-  lane is kept this long after its last use) are configurable. See
+- **Maintenance**, This Mac only: a periodic sweep for worktrees whose branch
+  already landed. It always _measures_ ("N of M worktrees reclaimable") and only
+  deletes once "Delete automatically" is on. Interval (≥15 min) and a grace period
+  (a merged lane is kept this long after its last use) are configurable. See
   [lanes.md](lanes.md#reclaiming-lanes-automatically).
-- **Local pi resources**: a read-only listing of the loose extensions, prompts
-  and themes pi discovered. Packages are the Extensions tab; skills have their
-  own page ([ui-shell.md](ui-shell.md#global-surfaces)). `auth.json` is never
-  read or displayed.
+- **Local pi resources**, This Mac only: a read-only listing of the loose
+  extensions, prompts and themes pi discovered. Packages are the Extensions tab;
+  skills have their own page ([ui-shell.md](ui-shell.md#global-surfaces)).
+  `auth.json` is never read or displayed.
 
 ## Keybindings
 

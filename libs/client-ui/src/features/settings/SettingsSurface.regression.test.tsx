@@ -149,8 +149,9 @@ it('selects a Host and renders its Accounts section behind the configuration gat
     'Folders',
     'Advanced',
   ])
-  for (const local of ['Workspaces', 'Optimization', 'Voice'])
-    expect(navLabels()).not.toContain(local)
+  expect(navLabels()).not.toContain('Optimization')
+  // Lane display, branch naming and dictation are this device's, whichever machine runs the lane.
+  expect(navLabels()).toEqual(expect.arrayContaining(['Lanes', 'Voice']))
   await openSection('Accounts')
   expect(document.body.textContent).toContain('Configuring Studio')
   expect(document.body.textContent).toContain('Configuration access is not enabled')
@@ -170,10 +171,11 @@ it('renders the shared surface on the browser settings page with device and Host
       'Agent',
       'Accounts',
       'MCP Connectors',
+      'Lanes',
+      'Folders',
     ]),
   )
-  for (const hidden of ['Writing', 'Keybindings', 'Workspaces', 'Voice'])
-    expect(labels).not.toContain(hidden)
+  for (const hidden of ['Writing', 'Keybindings', 'Voice']) expect(labels).not.toContain(hidden)
   expect([...(machineSelect()?.options ?? [])].map((o) => o.value)).not.toContain('local')
   expect(document.body.textContent).not.toContain('available in Desktop')
   await openSection('Phosphor account')
