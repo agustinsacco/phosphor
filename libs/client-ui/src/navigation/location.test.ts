@@ -48,5 +48,6 @@ describe('Location codec', () => {
     }
     // Host shells reach the browser over the Host connection.
     expect(SCREENS.terminal.compact).toBe('pane')
+    expect(SCREENS.subagents.compact).toBe('pane')
   })
 })

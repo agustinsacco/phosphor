@@ -26,3 +26,26 @@ it('bounds retained preferences and rejects malformed stored targets', () => {
   localStorage.setItem('phosphor-subagent-view-v1', 'broken')
   expect(loadSubagentView('bad')).toEqual({ view: 'live' })
 })
+it("keeps a Host lane's view under the lane, since every open gives its window a new handle (regression)", async () => {
+  const { useSessionsStore } = await import('@/stores/sessions')
+  const { useChatStore } = await import('@/stores/chat')
+  const { useLayoutStore } = await import('@/stores/layout')
+  const { mockRemoteInfo } = await import('@/dev/mockRemoteLanes')
+  const { hostResourceKey } = await import('@shared/remote-host')
+  const { openSubagents } = await import('./subagentView')
+  const open = (handle: string): void => {
+    useSessionsStore.setState({
+      live: { [handle]: { ...mockRemoteInfo, phosphorId: handle } },
+    })
+    // On a Host lane the window's pi state names the handle, never pi's session.
+    useChatStore.getState().ensure(handle)
+    useChatStore.getState().setMeta(handle, { sessionId: handle } as never)
+  }
+  open('remote-0000000000000001')
+  openSubagents('remote-0000000000000001', 'run-1')
+  open('remote-0000000000000002')
+  const key = hostResourceKey(mockRemoteInfo.target!, 'session', mockRemoteInfo.laneId!)
+  expect(loadSubagentView(key)).toEqual({ view: 'live', target: { runId: 'run-1' } })
+  expect(loadSubagentView('remote-0000000000000001')).toEqual({ view: 'live' })
+  useLayoutStore.getState().setRightPane(null)
+})
