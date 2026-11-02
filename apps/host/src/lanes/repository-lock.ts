@@ -1,3 +1,5 @@
+import { createKeyedLock } from '@phosphor/session-runtime/pi/session-path-lock'
+
 /**
  * Serializes git folder work (worktree add and its undo, branch refs, the exclude
  * file) per repository root inside this process. Lane creations in one repository
@@ -9,27 +11,17 @@ export interface RepositoryLocks {
 }
 
 export function createRepositoryLocks(): RepositoryLocks {
-  const tails = new Map<string, Promise<unknown>>()
+  const lock = createKeyedLock()
   return {
-    async run(root, work, waiting) {
-      const previous = tails.get(root)
-      if (previous && waiting) {
+    run(root, work, waiting) {
+      if (waiting && lock.busy(root)) {
         try {
           waiting()
         } catch {
           // A progress report cannot take or skip the lock.
         }
       }
-      const current = (async () => {
-        await previous?.catch(() => undefined)
-        return work()
-      })()
-      tails.set(root, current)
-      try {
-        return await current
-      } finally {
-        if (tails.get(root) === current) tails.delete(root)
-      }
+      return lock.run(root, work)
     },
   }
 }

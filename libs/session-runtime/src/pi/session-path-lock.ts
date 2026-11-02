@@ -10,9 +10,35 @@ export function sessionPathKey(path: string): string {
   }
 }
 
+/**
+ * Runs work per key in submission order, inside this process only. Work on one key
+ * waits for the earlier work to settle, whether it succeeded or failed; different
+ * keys never wait for each other. The one home for a promise-chain lock.
+ */
+export function createKeyedLock() {
+  const tails = new Map<string, Promise<unknown>>()
+  return {
+    /** Whether `run(key, …)` would wait now. */
+    busy: (key: string) => tails.has(key),
+    async run<T>(key: string, work: () => Promise<T>): Promise<T> {
+      const previous = tails.get(key)
+      const current = (async () => {
+        await previous?.catch(() => undefined)
+        return work()
+      })()
+      tails.set(key, current)
+      try {
+        return await current
+      } finally {
+        if (tails.get(key) === current) tails.delete(key)
+      }
+    },
+  }
+}
+
 /** One lock domain per process owner, shared by every create and delete entry point. */
 export function createSessionPathRuntime() {
-  const operations = new Map<string, Promise<unknown>>()
+  const operations = createKeyedLock()
   const opening = new Map<string, Set<AbortController>>()
 
   /** Register before queueing so deletion also cancels not-yet-started resumes. */
@@ -42,18 +68,7 @@ export function createSessionPathRuntime() {
 
   /** Serialize opens and deletes of one transcript, not unrelated lanes. */
   async function withSessionPath<T>(path: string, run: () => Promise<T>): Promise<T> {
-    const key = sessionPathKey(path)
-    const previous = operations.get(key)
-    const operation = (async () => {
-      await previous?.catch(() => undefined)
-      return run()
-    })()
-    operations.set(key, operation)
-    try {
-      return await operation
-    } finally {
-      if (operations.get(key) === operation) operations.delete(key)
-    }
+    return operations.run(sessionPathKey(path), run)
   }
   return { openSessionPath, cancelSessionOpens, withSessionPath }
 }

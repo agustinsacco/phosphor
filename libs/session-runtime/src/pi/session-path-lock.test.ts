@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { createSessionPathRuntime } from './session-path-lock'
+import { createKeyedLock, createSessionPathRuntime } from './session-path-lock'
 
 it('keeps lock and cancellation domains independent between owners and paths', async () => {
   const a = createSessionPathRuntime()
@@ -46,4 +46,21 @@ it('cancels active and queued opens, then admits a later operation after rejecti
   expect(queued).not.toHaveBeenCalled()
   expect(await paths.withSessionPath('/session', async () => 'delete')).toBe('delete')
   expect(await paths.openSessionPath('/session', async () => 'new')).toBe('new')
+})
+
+it('runs one key in order past a failure, and frees the key once it is idle', async () => {
+  const lock = createKeyedLock()
+  const order: string[] = []
+  const failing = lock.run('a', async () => {
+    order.push('first')
+    throw new Error('boom')
+  })
+  const next = lock.run('a', async () => order.push('second'))
+  const other = lock.run('b', async () => order.push('other'))
+  expect(lock.busy('a')).toBe(true)
+  await expect(failing).rejects.toThrow('boom')
+  await Promise.all([next, other])
+  expect(order).toEqual(['first', 'other', 'second'])
+  expect(lock.busy('a')).toBe(false)
+  expect(lock.busy('b')).toBe(false)
 })
