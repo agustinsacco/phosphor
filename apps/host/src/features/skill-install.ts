@@ -1,7 +1,9 @@
-import { realpath } from 'node:fs/promises'
-import { join, relative, isAbsolute } from 'node:path'
 import { parseSkillInstallParams } from '@phosphor/shared/host-protocol-skill-share'
-import { installSkillBundle, SkillShareError } from '@phosphor/session-runtime/skills/share-bundle'
+import {
+  installSkillBundle,
+  resolvesElsewhere,
+  SkillShareError,
+} from '@phosphor/session-runtime/skills/share-bundle'
 import type { FeatureContext, FeatureOutcome, HostFeature } from './feature'
 import { FeatureFailure, featureError, type MachinePorts } from './machine'
 import { resolveSkills } from './skills'
@@ -9,16 +11,6 @@ import { resolveSkills } from './skills'
 const forbidden: FeatureOutcome = {
   ok: false,
   error: { code: 'forbidden', message: 'Configuration access is not granted.' },
-}
-
-/** Is the skill pi resolves for this name the folder an install would replace? */
-async function inFolder(file: string, folder: string): Promise<boolean> {
-  try {
-    const rel = relative(await realpath(folder), await realpath(file))
-    return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)
-  } catch {
-    return false
-  }
 }
 
 /**
@@ -38,8 +30,8 @@ export function createSkillInstallFeature(
     const { bundle, overwrite } = parsed
     try {
       const same = (await resolveSkills(context, ports)).find((s) => s.skill.name === bundle.name)
-      const folder = join(ports.skillsRoot, bundle.name)
-      const elsewhere = same !== undefined && !(await inFolder(same.file, folder))
+      const elsewhere =
+        same !== undefined && (await resolvesElsewhere(ports.skillsRoot, bundle.name, same.file))
       if (!authorized()) return forbidden
       const data = await installSkillBundle({
         root: ports.skillsRoot,

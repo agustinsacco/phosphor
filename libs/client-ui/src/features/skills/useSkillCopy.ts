@@ -53,13 +53,14 @@ export function useSkillCopy(skill: Pick<ResolvedSkill, 'name' | 'dir'>, source:
         const size = sizeOf(bundle)
         setCopy({ step: 'writing', target, overwrite, ...size })
         const result = await window.phosphor.invoke('hosts:skillInstall', target, bundle, overwrite)
+        // The target changed even if this panel has gone: its lists must say so.
+        if (result.status === 'installed') void loadSkillNames(target, true)
         if (!live()) return
         if (result.status === 'conflict') {
           setCopy({ step: 'conflict', target, replaceable: result.replaceable, bundle })
           return
         }
         setCopy({ step: 'done', target, replaced: result.replaced, ...size })
-        void loadSkillNames(target, true)
       } catch (cause) {
         if (live()) setCopy({ step: 'failed', target, read: !bundle, message: errorText(cause) })
       }

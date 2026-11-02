@@ -6,6 +6,7 @@ import type { HostConnectionView } from '@shared/ipc'
 import type { ResolvedSkill } from '@shared/skills'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useSkillsStore } from '@/stores/skills'
 import { SkillMachines, SkillShareActions } from './SkillShare'
 import { useSkillPresenceStore } from './skillPresence'
 
@@ -43,6 +44,7 @@ let invoke: Mock<(channel: string, ...args: unknown[]) => Promise<unknown>>
 
 beforeEach(() => {
   useSkillPresenceStore.setState({ byKey: {} })
+  useSkillsStore.setState({ byWorkspace: {} })
   useMachinesStore.setState({
     machines: [
       { id: A, label: 'studio' },
@@ -110,7 +112,10 @@ it('shows which machines have the name and why others cannot take a copy', async
   expect(text()).toContain('Not connected')
   expect(button('Copy demo to tower').disabled).toBe(true)
   // A down Host is never listed: only connected ones are asked.
-  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:skills')).toHaveLength(2)
+  const asked = invoke.mock.calls.flatMap(([channel, id]) =>
+    channel === 'hosts:skills' ? [id] : [],
+  )
+  expect(new Set(asked)).toEqual(new Set([A, B]))
 })
 
 it('asks before replacing, then writes the bundle it already read', async () => {
@@ -164,4 +169,34 @@ it('opens machine settings for a Host that needs configuration access', async ()
     id: B,
     settings: 'resources',
   })
+})
+
+const reads = (machine: string) =>
+  invoke.mock.calls.filter(([channel, id]) => channel === 'hosts:skills' && id === machine).length
+
+it('shows a copied skill on the target Host’s Skills page without a reconnect', async () => {
+  await render()
+  await act(async () => button('Copy demo to studio').click())
+  expect(text()).toContain('Added on studio')
+  const page = useSkillsStore.getState().byWorkspace[`host:${A}/machine`]
+  expect(page?.skills.map((s) => s.name)).toEqual(['demo'])
+})
+
+it('reads every machine again each time Share opens', async () => {
+  await render()
+  const opened = reads(A)
+  await act(async () => button('Share').click())
+  await act(async () => button('Share').click())
+  expect(reads(A)).toBe(opened + 1)
+})
+
+it('refreshes the target after a write that ends once the page has gone', async () => {
+  let finish!: (value: unknown) => void
+  install.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)))
+  await render()
+  await act(async () => button('Copy demo to studio').click())
+  const before = reads(A)
+  act(() => root.render(null))
+  await act(async () => finish({ status: 'installed', replaced: false }))
+  expect(reads(A)).toBe(before + 1)
 })

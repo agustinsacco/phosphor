@@ -4,11 +4,13 @@ import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { piAgentDir } from '../pi-paths'
 import { writeZipStore, type ZipEntry } from '../zip'
 import type { SkillFileEntry, SkillProvenance } from '@shared/skills'
+import {
+  isSkippedSkillFolder,
+  LEGACY_SKILL_SIDECAR,
+  SKILL_SIDECAR,
+} from '@shared/host-protocol-skill-share'
 
-/** Provenance sidecar name. Dot-prefixed: skill discovery ignores dotfiles. */
-export const SKILL_SIDECAR = '.phosphor-skill.json'
-/** Sidecar name written by pre-rename (pidex) installs; still read, never written. */
-export const LEGACY_SKILL_SIDECAR = '.pidex-skill.json'
+export { LEGACY_SKILL_SIDECAR, SKILL_SIDECAR }
 
 export const MAX_BUNDLE_FILES = 500
 export const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
@@ -114,8 +116,7 @@ export async function walkBundle(
   }
   for (const entry of sorted) {
     if (budget.left <= 0) break
-    if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules')
-      continue
+    if (!entry.isDirectory() || isSkippedSkillFolder(entry.name)) continue
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name
     files.push(...(await walkBundle(dir, rel, budget)))
   }

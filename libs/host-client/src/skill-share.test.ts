@@ -16,7 +16,9 @@ let connected: typeof c | undefined
 const share = remoteSkillShare(() => connected)
 const bundle = { name: 'demo', files: [{ path: 'SKILL.md', data: btoa('hi') }] }
 const ok = (data: unknown): Result => ({ type: 'result', id: 'x', ok: true, data })
-const fail = (code: 'forbidden' | 'too-large' | 'unsupported' | 'bad-request'): Result => ({
+const fail = (
+  code: 'forbidden' | 'too-large' | 'unsupported' | 'bad-request' | 'internal',
+): Result => ({
   type: 'result',
   id: 'x',
   ok: false,
@@ -41,9 +43,9 @@ it('exports only a validated bundle with the requested name', async () => {
   expect(await share.export('host', 'demo')).toEqual(bundle)
   expect(call).toHaveBeenCalledWith('skills.export', { name: 'demo' })
   call.mockResolvedValueOnce(ok({ ...bundle, name: 'other' }))
-  await expect(share.export('host', 'demo')).rejects.toThrow('Not available')
+  await expect(share.export('host', 'demo')).rejects.toThrow(SKILL_SHARE_ERRORS.unreadable)
   call.mockResolvedValueOnce(ok({ ...bundle, files: [{ path: '../x', data: '' }] }))
-  await expect(share.export('host', 'demo')).rejects.toThrow('Not available')
+  await expect(share.export('host', 'demo')).rejects.toThrow(SKILL_SHARE_ERRORS.unreadable)
   await expect(share.export('host', '../demo')).rejects.toThrow(SKILL_SHARE_ERRORS.refused)
 })
 
@@ -87,3 +89,22 @@ it.each(['capability', 'connection', 'incarnation', 'throws', 'malformed'] as co
     expect(call).toHaveBeenCalledTimes(1)
   },
 )
+
+// The real connection never rejects a call: a timeout, a closed socket or a full queue all
+// resolve as `internal`. For an install that is a write in doubt, never "not available".
+it('reports a resolved internal failure of an install as unconfirmed', async () => {
+  call.mockResolvedValueOnce(fail('internal'))
+  await expect(share.install('host', bundle, false)).rejects.toThrow(SKILL_SHARE_ERRORS.unconfirmed)
+  expect(call).toHaveBeenCalledTimes(1)
+  call.mockResolvedValueOnce(fail('internal'))
+  await expect(share.export('host', 'demo')).rejects.toThrow(SKILL_SHARE_ERRORS.unreadable)
+})
+
+it('says a machine is offline instead of asking for configuration access', async () => {
+  view = { ...view, state: 'reconnecting' }
+  await expect(share.install('host', bundle, false)).rejects.toThrow(SKILL_SHARE_ERRORS.offline)
+  await expect(share.export('host', 'demo')).rejects.toThrow(SKILL_SHARE_ERRORS.offline)
+  connected = undefined
+  await expect(share.install('host', bundle, false)).rejects.toThrow(SKILL_SHARE_ERRORS.offline)
+  expect(call).not.toHaveBeenCalled()
+})

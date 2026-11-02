@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SKILL_SHARE_LIMITS, type SkillBundle } from '@phosphor/shared/host-protocol-skill-share'
-import { installSkillBundle, readSkillBundle, SkillShareError } from './share-bundle'
+import {
+  installSkillBundle,
+  readSkillBundle,
+  resolvesElsewhere,
+  SkillShareError,
+} from './share-bundle'
 
 let dir: string
 beforeEach(async () => {
@@ -106,5 +111,68 @@ describe('installSkillBundle', () => {
     const bad = { name: 'demo', files: [{ path: '../escape', data: '' }] }
     await expect(install({ bundle: bad })).rejects.toBeInstanceOf(SkillShareError)
     expect(await readdir(root())).toEqual([])
+  })
+})
+
+describe('installSkillBundle after a crash', () => {
+  const UUID = '0b6c1a52-7e8f-4d1a-9c3b-2f4e5d6a7b8c'
+  const leftover = async (name: string) => {
+    await mkdir(join(dir, name), { recursive: true })
+    await writeFile(join(dir, name, 'SKILL.md'), name)
+  }
+  const later = (ms: number) => () => Date.now() + ms
+
+  it('restores a replaced skill a crash left aside and removes old staging', async () => {
+    await leftover(`.phosphor-replaced-demo-${UUID}`)
+    await leftover(`.phosphor-replaced-other-${UUID}`)
+    await leftover(`.phosphor-share-${UUID}`)
+    await mkdir(join(dir, 'other'))
+    await writeFile(join(dir, 'other', 'SKILL.md'), 'current')
+    const third: SkillBundle = { name: 'third', files: [{ path: 'SKILL.md', data: b64('x') }] }
+    await installSkillBundle({
+      root: dir,
+      bundle: third,
+      overwrite: false,
+      elsewhere: false,
+      now: later(3_600_000),
+    })
+    // The crashed replace of demo is undone; other's newer copy wins over its old one.
+    expect(await readFile(join(dir, 'demo', 'SKILL.md'), 'utf8')).toBe(
+      `.phosphor-replaced-demo-${UUID}`,
+    )
+    expect(await readFile(join(dir, 'other', 'SKILL.md'), 'utf8')).toBe('current')
+    expect((await readdir(dir)).sort()).toEqual(['demo', 'other', 'third'])
+  })
+
+  it('leaves a recent install in progress alone', async () => {
+    await leftover(`.phosphor-share-${UUID}`)
+    await leftover(`.phosphor-replaced-gone-${UUID}`)
+    await installSkillBundle({
+      root: dir,
+      bundle: bundle(),
+      overwrite: false,
+      elsewhere: false,
+      now: later(60_000),
+    })
+    expect((await readdir(dir)).sort()).toEqual([
+      `.phosphor-replaced-gone-${UUID}`,
+      `.phosphor-share-${UUID}`,
+      'demo',
+    ])
+  })
+})
+
+describe('resolvesElsewhere', () => {
+  it('is false only for a file inside the folder an install would replace', async () => {
+    await mkdir(join(dir, 'demo'))
+    await writeFile(join(dir, 'demo', 'SKILL.md'), 'x')
+    await writeFile(join(dir, 'loose.md'), 'x')
+    await symlink(join(dir, 'demo'), join(dir, 'linked'))
+    expect(await resolvesElsewhere(dir, 'demo', join(dir, 'demo', 'SKILL.md'))).toBe(false)
+    expect(await resolvesElsewhere(dir, 'demo', join(dir, 'linked', 'SKILL.md'))).toBe(false)
+    expect(await resolvesElsewhere(dir, 'demo', join(dir, 'loose.md'))).toBe(true)
+    expect(await resolvesElsewhere(dir, 'demo', join(dir, 'demo'))).toBe(true)
+    expect(await resolvesElsewhere(dir, 'demo', undefined)).toBe(true)
+    expect(await resolvesElsewhere(dir, 'gone', join(dir, 'loose.md'))).toBe(true)
   })
 })

@@ -1,6 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { invalidateCommandCaches, probeCommandsCached, type CommandProbeOptions } from './commands'
+import {
+  invalidateCommandCaches,
+  probeCommandsCached,
+  requireCommands,
+  type CommandProbeOptions,
+} from './commands'
 import type { RpcSlashCommand } from '@shared/rpc'
+
+const rpc = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('./desktop-rpc-client', () => ({
+  PiRpcClient: class {
+    spawn() {}
+    request = rpc.request
+    async dispose() {}
+  },
+}))
 
 const ANSWER: RpcSlashCommand[] = [{ name: 'one', source: 'extension' }]
 
@@ -80,5 +94,17 @@ describe('probeCommandsCached', () => {
     expect(await a).toBe(ANSWER)
     expect(await b).toBe(ANSWER)
     expect(probe).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Skill sharing decides whether a copy would be shadowed from this answer; an empty list
+// because pi could not answer must not read as "no skills".
+describe('requireCommands', () => {
+  it('fails when pi is missing or does not answer, and returns a real answer', async () => {
+    await expect(requireCommands({})).rejects.toThrow()
+    rpc.request.mockResolvedValueOnce({ success: false, error: 'boom' })
+    await expect(requireCommands(options())).rejects.toThrow()
+    rpc.request.mockResolvedValueOnce({ success: true, data: { commands: ANSWER } })
+    expect(await requireCommands(options())).toBe(ANSWER)
   })
 })

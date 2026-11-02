@@ -6,8 +6,9 @@
 import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, mkdir, open, readdir, realpath, rename, rm } from 'node:fs/promises'
-import { dirname, join, relative, sep } from 'node:path'
+import { dirname, isAbsolute, join, relative, sep } from 'node:path'
 import {
+  isSkippedSkillFolder,
   isShareablePath,
   isShareableSkillName,
   SKILL_SHARE_LIMITS,
@@ -24,9 +25,6 @@ export class SkillShareError extends Error {
     super(message)
   }
 }
-
-/** Folders a skill bundle never carries: VCS and dependency trees, dot folders. */
-const skippedFolder = (name: string) => name.startsWith('.') || name === 'node_modules'
 
 async function readFileBytes(path: string, left: number): Promise<Buffer> {
   const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
@@ -77,10 +75,30 @@ export async function readSkillBundle(dir: string, name: string): Promise<SkillB
       files.push({ path: rel, data: bytes.toString('base64') })
     }
     for (const entry of entries)
-      if (entry.isDirectory() && !skippedFolder(entry.name)) await walk(join(folder, entry.name))
+      if (entry.isDirectory() && !isSkippedSkillFolder(entry.name))
+        await walk(join(folder, entry.name))
   }
   await walk(root)
   return { name, files }
+}
+
+/**
+ * Whether a skill the machine already resolves for `name`, from `file`, comes from somewhere
+ * other than `<root>/<name>`: then an install there would not replace it. A skill whose file
+ * is unknown or unreadable counts as elsewhere.
+ */
+export async function resolvesElsewhere(
+  root: string,
+  name: string,
+  file: string | undefined,
+): Promise<boolean> {
+  if (!file) return true
+  try {
+    const rel = relative(await realpath(join(root, name)), await realpath(file))
+    return rel === '' || rel.startsWith('..') || isAbsolute(rel)
+  } catch {
+    return true
+  }
 }
 
 const code = (error: unknown) =>
@@ -98,7 +116,7 @@ async function existing(target: string): Promise<'none' | 'folder' | 'other'> {
 }
 
 async function stage(root: string, bundle: SkillBundle): Promise<string> {
-  const staging = join(root, `.phosphor-share-${randomUUID()}`)
+  const staging = join(root, `${STAGING}${randomUUID()}`)
   await mkdir(staging)
   try {
     for (const file of bundle.files) {
@@ -123,6 +141,36 @@ async function stage(root: string, bundle: SkillBundle): Promise<string> {
   }
 }
 
+const STAGING = '.phosphor-share-'
+const ASIDE = '.phosphor-replaced-'
+/** A leftover younger than this may belong to an install still running in another process. */
+const LEFTOVER_AGE_MS = 10 * 60_000
+const UUID_SUFFIX = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+/**
+ * Undo what a crashed install left in `root`: staging is removed, and a skill moved aside for
+ * a replace goes back when nothing took its place (otherwise the aside copy is removed).
+ * Best-effort: a sweep never fails an install.
+ */
+async function sweepLeftovers(root: string, now: number): Promise<void> {
+  const names = await readdir(root).catch(() => [] as string[])
+  for (const entry of names) {
+    if (!entry.startsWith(STAGING) && !entry.startsWith(ASIDE)) continue
+    const path = join(root, entry)
+    try {
+      const info = await lstat(path)
+      // ctime, not mtime: renaming a folder aside changes its ctime only.
+      if (!info.isDirectory() || now - info.ctimeMs < LEFTOVER_AGE_MS) continue
+      const name = entry.startsWith(ASIDE) ? entry.slice(ASIDE.length).replace(UUID_SUFFIX, '') : ''
+      if (isShareableSkillName(name) && (await existing(join(root, name))) === 'none')
+        await rename(path, join(root, name))
+      else await rm(path, { recursive: true, force: true })
+    } catch {
+      // Left for the next install.
+    }
+  }
+}
+
 /**
  * Install a parsed bundle as `<root>/<name>`. `elsewhere` reports that the machine already
  * resolves a skill with this name from some other place (a package, another folder): that
@@ -133,17 +181,20 @@ export async function installSkillBundle(options: {
   bundle: SkillBundle
   overwrite: boolean
   elsewhere: boolean
+  /** Tests only: the clock leftovers are aged against. */
+  now?: () => number
 }): Promise<SkillInstallResult> {
   const { bundle } = options
   if (!isShareableSkillName(bundle.name)) throw new SkillShareError('invalid', 'Invalid name.')
   await mkdir(options.root, { recursive: true })
   const root = await realpath(options.root)
+  await sweepLeftovers(root, (options.now ?? Date.now)())
   const target = join(root, bundle.name)
   const before = await existing(target)
   if (options.elsewhere || before === 'other') return { status: 'conflict', replaceable: false }
   if (before === 'folder' && !options.overwrite) return { status: 'conflict', replaceable: true }
   const staging = await stage(root, bundle)
-  const aside = join(root, `.phosphor-replaced-${randomUUID()}`)
+  const aside = join(root, `${ASIDE}${bundle.name}-${randomUUID()}`)
   try {
     if (before === 'folder') await rename(target, aside)
     try {
@@ -157,6 +208,7 @@ export async function installSkillBundle(options: {
   } finally {
     await rm(staging, { recursive: true, force: true })
   }
-  if (before === 'folder') await rm(aside, { recursive: true, force: true })
+  // The copy is in place; an aside folder that will not go is swept by a later install.
+  if (before === 'folder') await rm(aside, { recursive: true, force: true }).catch(() => undefined)
   return { status: 'installed', replaced: before === 'folder' }
 }

@@ -6,6 +6,7 @@ import {
   createSkillAction,
   deleteSkillAction,
   exportSkill,
+  installSharedSkill,
   installSkillAction,
   listSkills,
   pickSkillImport,
@@ -240,6 +241,15 @@ describe('skill archive actions', () => {
     expect(await pickSkillImport(async () => null)).toBeNull()
     expect(h.skills.previewSkillImport).not.toHaveBeenCalled()
     expect(h.write).not.toHaveBeenCalled()
+    expect(h.invalidate).not.toHaveBeenCalled()
+  })
+})
+
+describe('installSharedSkill', () => {
+  it('copies nothing when pi cannot say which skills this Mac already loads', async () => {
+    h.invoker.mockRejectedValue(new PiUnavailableError('missing'))
+    const bundle = { name: 'demo', files: [{ path: 'SKILL.md', data: btoa('hi') }] }
+    await expect(installSharedSkill(bundle, false)).rejects.toThrow('nothing was copied')
     expect(h.invalidate).not.toHaveBeenCalled()
   })
 })

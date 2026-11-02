@@ -16,17 +16,30 @@ type Connection = (
 
 export const SKILL_SHARE_ERRORS = {
   configure: 'Enable configuration access on this machine to add skills to it.',
+  offline: 'This machine is not connected.',
   unconfirmed:
     'The machine did not confirm the copy. Check its Skills page before trying again; nothing was retried.',
-  tooLarge: 'This skill is too large to share (200 files and 4 MB at most).',
+  unreadable: 'The machine could not read this skill. Try again.',
+  tooLarge: 'This skill is too large to share (200 files, 2 MiB each and 4 MiB in total).',
   outdated: 'Update this machine’s Host to share skills with it.',
   refused: 'The machine refused this skill.',
 } as const
 
+/** The fixed text for a Host's refusal. `internal` covers timeouts and closed connections. */
+function refusal(code: string, install: boolean): string {
+  if (code === 'too-large') return SKILL_SHARE_ERRORS.tooLarge
+  if (code === 'unsupported') return SKILL_SHARE_ERRORS.outdated
+  if (code === 'bad-request') return SKILL_SHARE_ERRORS.refused
+  if (code === 'forbidden') return install ? SKILL_SHARE_ERRORS.configure : REMOTE_UNAVAILABLE
+  return install ? SKILL_SHARE_ERRORS.unconfirmed : SKILL_SHARE_ERRORS.unreadable
+}
+
 /**
  * Skill sharing over one Host connection, shared by Desktop and the browser. Reads need
  * `skills.read`; installs need `machine.configure`. A replaced connection or a lost capability
- * fails closed, and an install whose reply is in doubt is never retried.
+ * fails closed, and an install whose reply is in doubt is never retried. The connection resolves
+ * rather than rejects a call that times out or loses its socket, as `internal`: for an install
+ * that is a write in doubt.
  */
 export function remoteSkillShare(connection: Connection) {
   async function call(hostId: string, capability: HostCapability, method: string, params: unknown) {
@@ -39,34 +52,25 @@ export function remoteSkillShare(connection: Connection) {
       c.snapshot().state === 'ready' &&
       c.snapshot().capabilities.includes(capability)
     const install = capability === 'machine.configure'
-    if (!c || !ready()) throw new Error(install ? SKILL_SHARE_ERRORS.configure : REMOTE_UNAVAILABLE)
+    if (!c || c.snapshot().state !== 'ready') throw new Error(SKILL_SHARE_ERRORS.offline)
+    if (!ready()) throw new Error(install ? SKILL_SHARE_ERRORS.configure : REMOTE_UNAVAILABLE)
+    const doubt = install ? SKILL_SHARE_ERRORS.unconfirmed : SKILL_SHARE_ERRORS.unreadable
     let result: Awaited<ReturnType<typeof c.call>>
     try {
       result = await c.call(method, params)
     } catch {
-      throw new Error(install ? SKILL_SHARE_ERRORS.unconfirmed : REMOTE_UNAVAILABLE)
+      throw new Error(doubt)
     }
-    if (!ready()) throw new Error(install ? SKILL_SHARE_ERRORS.unconfirmed : REMOTE_UNAVAILABLE)
+    if (!ready()) throw new Error(doubt)
     if (result.ok) return result.data
-    const code = result.error.code
-    throw new Error(
-      code === 'too-large'
-        ? SKILL_SHARE_ERRORS.tooLarge
-        : code === 'unsupported'
-          ? SKILL_SHARE_ERRORS.outdated
-          : code === 'forbidden' && install
-            ? SKILL_SHARE_ERRORS.configure
-            : code === 'bad-request'
-              ? SKILL_SHARE_ERRORS.refused
-              : REMOTE_UNAVAILABLE,
-    )
+    throw new Error(refusal(result.error.code, install))
   }
   return {
     async export(hostId: string, name: string): Promise<SkillBundle> {
       const params = parseMachineParams('skills.export', { name })
       if (!params) throw new Error(SKILL_SHARE_ERRORS.refused)
       const bundle = parseSkillBundle(await call(hostId, 'skills.read', 'skills.export', params))
-      if (!bundle || bundle.name !== name) throw new Error(REMOTE_UNAVAILABLE)
+      if (!bundle || bundle.name !== name) throw new Error(SKILL_SHARE_ERRORS.unreadable)
       return bundle
     },
     async install(
