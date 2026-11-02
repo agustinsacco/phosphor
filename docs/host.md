@@ -497,24 +497,24 @@ variable directly names the config file.
   `chmod` to run.
 - **Pinned paths.** Every path is absolute and normalized. `~` is not expanded.
 
-| Field                    | Meaning                                                                                                                                                                             |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `version`                | Required, exactly `1`.                                                                                                                                                              |
-| `autoNameLanes`          | Optional boolean, default `true`. Enables Host-generated lane names.                                                                                                                |
-| `agentDirectives`        | Optional object of booleans `machineAwareness`, `worktreeGuard`, `laneCharter` and `subagentPolicy`, each default `true`. Read at each lane start, so edits need no restart.        |
-| `allowRepositoryChanges` | Optional boolean, default `true`. Allows home-relative folder browsing and repository registration/removal.                                                                         |
-| `api.webOrigin`          | Optional exact browser origin or `null` to disable. Defaults to `https://phosphor-app.saccolabs.com` only with the canonical production control origin; otherwise disabled.         |
-| `api.port`               | Optional integer from 1024 to 65535, default 47615. Loopback and Tailscale Serve port.                                                                                              |
-| `hostId`                 | Optional. Defaults to the short hostname, made to fit the HostHello identifier pattern.                                                                                             |
-| `pi.executable`          | What `command -v pi` prints.                                                                                                                                                        |
-| `pi.node`                | The node that runs pi. Required when `pi.executable` resolves to a Node script, as an npm-installed pi does.                                                                        |
-| `resourceRoot`           | Holds `pi-ext/` and `skills/`. Defaults to the running bundle's own folder.                                                                                                         |
-| `repositories`           | 0 to 64 folders that sessions may run in. Never `/`. Add folders from Desktop, the web client or `setup --repository PATH --replace`.                                               |
-| `contextBudget`          | Desktop's grammar; `""` or absent is the 200k default. A value Desktop would quietly replace with the default, such as `77k`, is an error.                                          |
-| `environment.pass`       | Up to 64 more variable names for pi. Names only, never values. Naming `PATH` or a hook below is an error.                                                                           |
-| `environment.path`       | Up to 32 more PATH folders.                                                                                                                                                         |
-| `control.url`            | Optional bare origin. Defaults to `https://phosphor.saccolabs.com`. HTTPS, or HTTP only on localhost, 127.0.0.1 or ::1. No credentials, path, query or fragment. Ports are 1-65535. |
-| `accounts`               | `null` or absent: accounts are unavailable on a Host.                                                                                                                               |
+| Field                    | Meaning                                                                                                                                                                                                                |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`                | Required, exactly `1`.                                                                                                                                                                                                 |
+| `autoNameLanes`          | Optional boolean, default `true`. Enables Host-generated lane names.                                                                                                                                                   |
+| `agentDirectives`        | Optional object of booleans `machineAwareness`, `worktreeGuard`, `laneCharter` and `subagentPolicy`, each default `true`. Read at each lane start, so edits need no restart.                                           |
+| `allowRepositoryChanges` | Optional boolean, default `true`. Allows home-relative folder browsing and repository registration/removal.                                                                                                            |
+| `api.webOrigin`          | Optional exact browser origin or `null` to disable. Defaults to `https://phosphor-app.saccolabs.com` only with the canonical production control origin; otherwise disabled.                                            |
+| `api.port`               | Optional integer from 1024 to 65535, default 47615. Loopback and Tailscale Serve port.                                                                                                                                 |
+| `hostId`                 | Optional. Defaults to the short hostname, made to fit the HostHello identifier pattern.                                                                                                                                |
+| `pi.executable`          | What `command -v pi` prints.                                                                                                                                                                                           |
+| `pi.node`                | The node that runs pi. Required when `pi.executable` resolves to a Node script, as an npm-installed pi does.                                                                                                           |
+| `resourceRoot`           | Holds `pi-ext/` and `skills/`. Defaults to the running bundle's own folder.                                                                                                                                            |
+| `repositories`           | 0 to 64 folders that sessions may run in. Never `/`. Add folders from Desktop, the web client or `setup --repository PATH --replace`.                                                                                  |
+| `contextBudget`          | Desktop's grammar; `""` or absent is the 200k default. A value Desktop would quietly replace with the default, such as `77k`, is an error. Read at each lane start, prompt and settled turn, so edits need no restart. |
+| `environment.pass`       | Up to 64 more variable names for pi. Names only, never values. Naming `PATH` or a hook below is an error.                                                                                                              |
+| `environment.path`       | Up to 32 more PATH folders.                                                                                                                                                                                            |
+| `control.url`            | Optional bare origin. Defaults to `https://phosphor.saccolabs.com`. HTTPS, or HTTP only on localhost, 127.0.0.1 or ::1. No credentials, path, query or fragment. Ports are 1-65535.                                    |
+| `accounts`               | `null` or absent: accounts are unavailable on a Host.                                                                                                                                                                  |
 
 ## Machine identity
 
@@ -710,9 +710,11 @@ lane grants retain their existing capabilities.
 `apps/host/src/settings/` owns revision-checked reads, patches, connector checks,
 fixed-purpose setup programs and explicit Claude account moves. pi remains the
 owner of provider credentials, MCP, packages and model/thinking defaults. Host
-config owns context budget, automatic naming and the directive switches. Policy
-edits require an explicit service restart, except the directive switches, which
-each lane start reads; no setting silently restarts lanes or the service. Global
+config owns context budget, automatic naming and the directive switches. Each
+lane start reads the context budget and the directive switches, and each prompt
+and settled turn rereads the budget, so those apply without a restart. A config
+that cannot be read keeps the last valid values. Automatic naming
+needs an explicit service restart; no setting silently restarts lanes or the service. Global
 files use the Host's pi agent directory, including the global instructions file
 (the `instructions` section), which is never written through a symlink. Folder scope resolves a registered repository
 id, verifies its realpath identity, and applies only when pi trusts that folder.
@@ -1264,7 +1266,8 @@ a lane service. It logs only `lanes.unavailable` with a fixed reason token.
   `<resourceRoot>/pi-ext/` and leads its own process group.
 - **Fixed policy.** The config's `agentDirectives` switches, re-read at each lane
   start, with no per-project overrides; pi's own settings for the default provider, and pi's packages for
-  the Claude gate; the config's context budget and every CLAUDE.md / AGENTS.md pi
+  the Claude gate; the config's context budget, re-read at each lane start, prompt
+  and settled turn; and every CLAUDE.md / AGENTS.md pi
   finds. There are no Desktop account overlays, Headroom or recents. `run` supplies
   routine ownership guards for manual commands, resume, stop and deletion. Only
   the idle context-budget fallback pauses for routine-owned sessions; native

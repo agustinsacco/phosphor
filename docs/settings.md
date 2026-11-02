@@ -145,7 +145,7 @@ the fields that differ, against the latest revision, one at a time; an edit made
 while one is in flight follows it. Host policy and pi defaults are separate
 commits, not an atomic multi-file save. A toast says where each save landed
 ("Saved on \<Host\> — applies to new lanes", or "— applies after the Host
-service restarts" for policy), replacing the previous one; the section shows
+service restarts" for automatic naming), replacing the previous one; the section shows
 "Saving on \<Host\>…" meanwhile. An invalid context budget or a half-filled
 custom model is flagged in place and not sent. Edits preserve unrelated settings.
 
