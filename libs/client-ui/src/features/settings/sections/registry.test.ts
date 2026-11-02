@@ -26,6 +26,6 @@ describe('the section registry', () => {
     const scoped = Object.entries(SETTINGS_SECTIONS)
       .filter(([, views]) => views.scoped)
       .map(([id]) => id)
-    expect(scoped).toEqual(['agent', 'connectors'])
+    expect(scoped).toEqual(['agent', 'extensions', 'connectors'])
   })
 })

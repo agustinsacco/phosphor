@@ -6,15 +6,11 @@ import { AdvancedTab } from '../tabs/AdvancedTab'
 import { AgentTab } from '../tabs/AgentTab'
 import { AppearanceTab } from '../tabs/AppearanceTab'
 import { ClaudeProviderTab } from '../tabs/ClaudeProviderTab'
-import { ComputerUseTab } from '../tabs/ComputerUseTab'
 import { ConnectorsTab } from '../tabs/ConnectorsTab'
-import { ExtensionsTab } from '../tabs/ExtensionsTab'
 import { InstallAppTab } from '../tabs/InstallAppTab'
 import { KeybindingsTab } from '../tabs/KeybindingsTab'
 import { OptimizationTab } from '../tabs/OptimizationTab'
-import { SubagentsTab } from '../tabs/SubagentsTab'
 import { VoiceTab } from '../tabs/VoiceTab'
-import { WebAccessTab } from '../tabs/WebAccessTab'
 import { WorkspacesTab } from '../tabs/WorkspacesTab'
 import { WritingTab } from '../tabs/WritingTab'
 import {
@@ -22,9 +18,12 @@ import {
   HostAdvancedSection,
   HostAgentSection,
   HostConnectorsSection,
-  HostExtensionsSection,
   HostFoldersSection,
 } from './hostSections'
+import { HostComputerUse, LocalComputerUse } from './computer-use'
+import { HostExtensions, LocalExtensions } from './extensions'
+import { HostSubagents, LocalSubagents } from './subagents'
+import { HostWebAccess, LocalWebAccess } from './web-access'
 
 type View = () => React.JSX.Element
 
@@ -51,11 +50,11 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   about: { Device: AboutTab },
   agent: { Local: AgentTab, Host: HostAgentSection, scoped: true },
   accounts: { Local: AccountsTab, Host: HostAccountsSection },
-  extensions: { Local: ExtensionsTab, Host: HostExtensionsSection },
+  extensions: { Local: LocalExtensions, Host: HostExtensions, scoped: true },
   'claude-provider': { Local: ClaudeProviderTab },
-  'web-access': { Local: WebAccessTab },
-  'computer-use': { Local: ComputerUseTab },
-  subagents: { Local: SubagentsTab },
+  'web-access': { Local: LocalWebAccess, Host: HostWebAccess },
+  'computer-use': { Local: LocalComputerUse, Host: HostComputerUse },
+  subagents: { Local: LocalSubagents, Host: HostSubagents },
   connectors: { Local: ConnectorsTab, Host: HostConnectorsSection, scoped: true },
   workspaces: { Local: WorkspacesTab },
   folders: { Host: HostFoldersSection },

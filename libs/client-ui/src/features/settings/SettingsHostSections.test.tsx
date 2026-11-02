@@ -212,10 +212,13 @@ it('keeps older Host model defaults usable without offering unsupported behavior
 })
 it('offers a headless-safe extension catalogue and existing multiple-account controls', async () => {
   await render('extensions')
-  expect(container.textContent).toContain('Standard Host extensions')
-  expect(container.textContent).toContain('computer use is not installed')
-  expect(button('Install Swarm subagents').disabled).toBe(false)
-  expect(button('Install Web access').disabled).toBe(false)
+  const add = (title: string) =>
+    container.querySelector<HTMLButtonElement>(`button[aria-label="Add ${title}"]`)
+  expect(container.textContent).toContain('Recommended')
+  expect(add('Subagents')?.disabled).toBe(false)
+  expect(add('Web access')?.disabled).toBe(false)
+  // Computer use needs a desktop session: a Host never offers it.
+  expect(add('Computer use')).toBeNull()
   await render('accounts')
   expect(button('Add account').disabled).toBe(false)
   expect(container.textContent).toContain('work@bee1.example')

@@ -157,11 +157,11 @@ are terminals:
 5. Install and start the user service unless it is already installed and running.
 6. Enable the Tailscale Serve route, keeping an existing correct route, and show its address.
 7. With approval, install the standard headless-safe pi packages: the Claude Code
-   provider (`@saccolabs/pi-claude-cli`), Swarm subagents (`pi-subagents`) and web
-   access (`pi-web-access`). Already installed packages, pins and resource filters
+   provider (`@saccolabs/pi-claude-cli`), Subagents (`pi-subagents`) and Web
+   access (`pi-web-access`), the `headless` entries of `STANDARD_PACKAGES`. Already installed packages, pins and resource filters
    are left alone; missing installations retain their configured spec on repair.
    Computer use is not included. A declined install can be completed later from
-   Machine Settings → Extensions, or by rerunning setup.
+   Settings → Extensions on that Host, or by rerunning setup.
 8. Offer Claude setup if needed: Anthropic's installer for missing Claude Code,
    `pi install npm:@saccolabs/pi-claude-cli` for a missing or outdated provider,
    and interactive `claude` sign-in when needed. Each command needs approval.

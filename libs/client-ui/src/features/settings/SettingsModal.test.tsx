@@ -23,20 +23,33 @@ vi.hoisted(() => {
     }),
   })
 })
+vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('./tabs/AppearanceTab', () => ({ AppearanceTab: () => <p>Appearance</p> }))
 vi.mock('./tabs/AgentTab', () => ({ AgentTab: () => <p>Local agent controls</p> }))
 vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
-vi.mock('./tabs/ExtensionsTab', () => ({ ExtensionsTab: () => <p>Local machine controls</p> }))
+vi.mock('./sections/extensions', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalExtensions: () => <p>Local machine controls</p>,
+}))
 vi.mock('./tabs/ClaudeProviderTab', () => ({
   ClaudeProviderTab: () => <p>Local machine controls</p>,
 }))
-vi.mock('./tabs/WebAccessTab', () => ({ WebAccessTab: () => <p>Local machine controls</p> }))
+vi.mock('./sections/web-access', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalWebAccess: () => <p>Local machine controls</p>,
+}))
 vi.mock('./tabs/WorkspacesTab', () => ({ WorkspacesTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/OptimizationTab', () => ({ OptimizationTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/AdvancedTab', () => ({ AdvancedTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/ConnectorsTab', () => ({ ConnectorsTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/ComputerUseTab', () => ({ ComputerUseTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/SubagentsTab', () => ({ SubagentsTab: () => <p>Local machine controls</p> }))
+vi.mock('./sections/computer-use', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalComputerUse: () => <p>Local machine controls</p>,
+}))
+vi.mock('./sections/subagents', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalSubagents: () => <p>Local machine controls</p>,
+}))
 vi.mock('./tabs/AboutTab', () => ({ AboutTab: () => null }))
 let root: Root
 let container: HTMLDivElement
@@ -87,8 +100,9 @@ it('lists MCP Connectors as its own section, after the packages nested under Ext
   const nav = [...document.querySelectorAll('nav[aria-label="Settings sections"] button')]
   const rows = nav.map((b) => `${b.hasAttribute('data-nested') ? '↳ ' : ''}${b.textContent}`)
   const at = rows.indexOf('Extensions')
-  expect(rows.slice(at, at + 4)).toEqual([
+  expect(rows.slice(at, at + 5)).toEqual([
     'Extensions',
+    '↳ Claude Code',
     '↳ Web access',
     'MCP Connectors',
     'Workspaces',

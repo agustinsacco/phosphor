@@ -1,17 +1,10 @@
-import { LOCAL_ONLY, onHost, section, type SettingEntry } from '../settingEntry'
+import { section, type SettingEntry } from '../settingEntry'
 
-/** Extensions: This Mac's rows, until a view every machine shares renders them. */
-export const EXTENSIONS_ROWS: SettingEntry[] = [
-  ...section(
-    'extensions',
-    null,
-    [
-      ['Recommended', 'packages catalogue'],
-      ['Add a package', 'install npm git'],
-    ],
-    LOCAL_ONLY,
-  ),
-]
+/** Extensions: the packages view every machine shares. */
+export const EXTENSIONS_ROWS: SettingEntry[] = section('extensions', null, [
+  ['Recommended', 'packages catalogue'],
+  ['Add a package', 'install npm git'],
+])
 
 /** The extension pages nested under Extensions. */
 export const CLAUDE_PROVIDER_ROWS: SettingEntry[] = section('claude-provider', null, [
@@ -46,9 +39,3 @@ export const SUBAGENTS_ROWS: SettingEntry[] = [
     'artifacts sessions lifecycle history acceptance',
   ]),
 ]
-
-/** The Host's Extensions panel, by the heading it renders. */
-export const EXTENSIONS_HOST_HEADING: SettingEntry[] = onHost('extensions', [
-  'Extensions',
-  'Host skills packages',
-])

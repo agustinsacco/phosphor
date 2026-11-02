@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { Button, Row, SectionTitle } from '@/components/form'
-import { ConfigFileEditor, piConfigFile } from '../ConfigFileEditor'
-import { useSettingsUiStore } from '../settingsUiStore'
+import { ConfigFileEditor, piConfigFile } from '../../ConfigFileEditor'
+import { useSettingsUiStore } from '../../settingsUiStore'
 
-/** Configuration belongs to Pi and its extension, never to a second runner. */
-export function SubagentsTab(): React.JSX.Element {
-  const [editing, setEditing] = useState(false)
+/**
+ * Settings → Subagents: a guide to pi-subagents. Configuration belongs to Pi
+ * and its extension, never to a second runner. `rawEditor`: Pi's global
+ * settings open in the raw editor here (This Mac; a Host has no raw editors).
+ */
+export function SubagentsView({ rawEditor }: { rawEditor: boolean }): React.JSX.Element {
   return (
     <div className="max-w-2xl text-base">
       <SectionTitle>Subagents</SectionTitle>
@@ -16,33 +19,7 @@ export function SubagentsTab(): React.JSX.Element {
       </p>
 
       <SectionTitle small>How delegation works</SectionTitle>
-      <ol className="border-border divide-border divide-y rounded-lg border px-3">
-        {[
-          ['Delegate', 'The parent gives a specialist a bounded task and chooses its context.'],
-          [
-            'Work',
-            'Foreground work streams into the tool row. Background work reports back later.',
-          ],
-          [
-            'Coordinate',
-            'A child can ask its parent for guidance. That is not automatically a question for you.',
-          ],
-          [
-            'Review',
-            'A finished run is evidence, not acceptance. The parent verifies it before claiming success.',
-          ],
-        ].map(([title, body], index) => (
-          <li key={title} className="flex gap-3 py-3">
-            <span aria-hidden="true" className="text-text-tertiary font-mono">
-              0{index + 1}
-            </span>
-            <div>
-              <strong className="font-medium">{title}</strong>
-              <p className="text-text-secondary">{body}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <DelegationSteps />
 
       <SectionTitle small>Profiles and precedence</SectionTitle>
       <p className="text-text-secondary">
@@ -74,12 +51,37 @@ export function SubagentsTab(): React.JSX.Element {
         isolated worktrees for independent writers and keep one writer per working directory.
       </p>
 
+      <ConfigurationSources rawEditor={rawEditor} />
+      <SectionTitle small>Results and storage</SectionTitle>
+      <p className="text-text-secondary">
+        Child sessions, outputs and run artifacts are owned by the extension. Their paths appear
+        with results; they can contain prompts, code and tool output. Keep the evidence you need
+        before applying retention policies. Stopping a parent turn is not proof that detached
+        children stopped. Resolve delegated work before restarting or deleting its lane.
+      </p>
+      <a
+        className="text-text-secondary mt-4 inline-block underline underline-offset-2 hover:text-text"
+        href="https://github.com/nicobailon/pi-subagents#readme"
+        target="_blank"
+        rel="noopener noreferrer"
+        data-tooltip="Open link"
+      >
+        Package documentation
+      </a>
+    </div>
+  )
+}
+
+function ConfigurationSources({ rawEditor }: { rawEditor: boolean }): React.JSX.Element {
+  const [editing, setEditing] = useState(false)
+  return (
+    <>
       <SectionTitle small>Configuration sources</SectionTitle>
       <Row
         title="Pi settings"
         description="Global defaults live under subagents in Pi settings. Project .pi/settings.json can override them. Restart sessions after editing."
       >
-        <Button onClick={() => setEditing(true)}>Edit global settings…</Button>
+        {rawEditor && <Button onClick={() => setEditing(true)}>Edit global settings…</Button>}
       </Row>
       <p className="mt-2 text-text-secondary">
         For example, merge this into the existing <code>subagents</code> object to change the worker
@@ -109,25 +111,40 @@ export function SubagentsTab(): React.JSX.Element {
         </Button>
       </Row>
 
-      <SectionTitle small>Results and storage</SectionTitle>
-      <p className="text-text-secondary">
-        Child sessions, outputs and run artifacts are owned by the extension. Their paths appear
-        with results; they can contain prompts, code and tool output. Keep the evidence you need
-        before applying retention policies. Stopping a parent turn is not proof that detached
-        children stopped. Resolve delegated work before restarting or deleting its lane.
-      </p>
-      <a
-        className="text-text-secondary mt-4 inline-block underline underline-offset-2 hover:text-text"
-        href="https://github.com/nicobailon/pi-subagents#readme"
-        target="_blank"
-        rel="noopener noreferrer"
-        data-tooltip="Open link"
-      >
-        Package documentation
-      </a>
       {editing && (
         <ConfigFileEditor source={piConfigFile('settings')} onClose={() => setEditing(false)} />
       )}
-    </div>
+    </>
+  )
+}
+
+const DELEGATION_STEPS = [
+  ['Delegate', 'The parent gives a specialist a bounded task and chooses its context.'],
+  ['Work', 'Foreground work streams into the tool row. Background work reports back later.'],
+  [
+    'Coordinate',
+    'A child can ask its parent for guidance. That is not automatically a question for you.',
+  ],
+  [
+    'Review',
+    'A finished run is evidence, not acceptance. The parent verifies it before claiming success.',
+  ],
+] as const
+
+function DelegationSteps(): React.JSX.Element {
+  return (
+    <ol className="border-border divide-border divide-y rounded-lg border px-3">
+      {DELEGATION_STEPS.map(([title, body], index) => (
+        <li key={title} className="flex gap-3 py-3">
+          <span aria-hidden="true" className="text-text-tertiary font-mono">
+            0{index + 1}
+          </span>
+          <div>
+            <strong className="font-medium">{title}</strong>
+            <p className="text-text-secondary">{body}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
   )
 }

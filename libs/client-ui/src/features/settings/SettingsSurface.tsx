@@ -1,23 +1,18 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { useFindTarget } from '@/components/search/findTargets'
 import { FeedbackButton } from '@/features/feedback/FeedbackButton'
 import { guardHostDrafts } from './machine/machineSettingsDrafts'
 import { usePlatform } from '@/platform/Platform'
-import {
-  installedExtensionTabs,
-  platformIndex,
-  resolveTab,
-  visibleSections,
-  type EXTENSION_TABS,
-} from './settingsIndex'
+import { platformIndex, resolveTab, visibleSections } from './settingsIndex'
 import { highlightPattern } from './settingsQuery'
 import { revealSetting, usePaintMatches } from './settingsHighlight'
 import { SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './SettingsSearch'
-import { useSettingsMachine, useSettingsWorkspace } from './SettingsMachineScope'
+import { useSettingsMachine } from './SettingsMachineScope'
 import { NoMachineNotice } from './machine/NoMachineNotice'
 import { SettingsNav } from './SettingsNav'
 import { SettingsPanel } from './SettingsPanel'
+import { useExtensionTabs } from './sections/extensions/useExtensionTabs'
 import { useSettingsUiStore, type SettingsMachine, type SettingsTab } from './settingsUiStore'
 
 /**
@@ -40,7 +35,7 @@ export function SettingsSurface({
   const tab = useSettingsUiStore((s) => s.tab)
   const { choices, machine } = useSettingsMachine(fallbackMachine)
   const kind = machine ? (machine.id === 'local' ? 'local' : 'host') : null
-  const extensionTabs = useExtensionTabs(kind === 'local')
+  const extensionTabs = useExtensionTabs(machine?.id ?? null)
   const sections = useMemo(() => visibleSections(platform, kind), [platform, kind])
   const listed = useMemo(() => [...sections, ...extensionTabs], [sections, extensionTabs])
   const available = useMemo(() => new Set(listed.map((t) => t.id)), [listed])
@@ -127,33 +122,6 @@ function usePanelFollowsTab(
   const paintPattern = useMemo(() => (listing ? null : highlightPattern(query)), [listing, query])
   usePaintMatches(panelRef, paintPattern)
   return panelRef
-}
-
-/**
- * This Mac's installed extension tabs, read again whenever the tab changes:
- * installing from the Extensions tab should show the package's own tab
- * without reopening Settings. Hosts list none.
- */
-function useExtensionTabs(local: boolean): typeof EXTENSION_TABS {
-  const tab = useSettingsUiStore((s) => s.tab)
-  const workspace = useSettingsWorkspace()
-  const [tabs, setTabs] = useState<typeof EXTENSION_TABS>([])
-  useEffect(() => {
-    if (!local) return
-    let cancelled = false
-    void window.phosphor
-      .invoke('packages:list', workspace ?? undefined)
-      .then((entries) => {
-        if (!cancelled) setTabs(installedExtensionTabs(entries))
-      })
-      .catch(() => {
-        if (!cancelled) setTabs([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [local, tab, workspace])
-  return local ? tabs : []
 }
 
 /**

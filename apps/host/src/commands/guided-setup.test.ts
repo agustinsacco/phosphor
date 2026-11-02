@@ -296,8 +296,9 @@ it('sets up headless extensions and Claude with approval, then skips completed w
   expect(signedIn).toBe(true)
   expect(run.mock.calls.map(([file, args]) => [file, ...args])).toEqual([
     [process.execPath, machine.pi, 'install', 'npm:@saccolabs/pi-claude-cli'],
-    [process.execPath, machine.pi, 'install', 'npm:pi-subagents'],
+    // In the order of the shared standard packages.
     [process.execPath, machine.pi, 'install', 'npm:pi-web-access'],
+    [process.execPath, machine.pi, 'install', 'npm:pi-subagents'],
     ['curl', '-fsSL', 'https://claude.ai/install.sh', '-o', expect.stringMatching(/\/install.sh$/)],
     ['/bin/bash', expect.stringMatching(/\/install.sh$/)],
     [join(context.home, '.local/bin/claude')],

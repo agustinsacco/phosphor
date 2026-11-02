@@ -5430,8 +5430,12 @@ test('extensions tab installs and removes a package through pi CLI (stubbed)', a
     await expect(page.getByText('e2e-added-pack', { exact: true })).toBeVisible()
     await expect(page.getByText('v9.9.9-stub')).toBeVisible()
 
-    // Remove round-trips the same way.
+    // Remove asks first, then round-trips the same way.
     await page.getByRole('button', { name: 'Remove', exact: true }).click()
+    await page
+      .getByRole('dialog', { name: 'Remove npm:e2e-added-pack?', exact: true })
+      .getByRole('button', { name: 'Remove', exact: true })
+      .click()
     await expect(page.getByText('Removed npm:e2e-added-pack')).toBeVisible()
     await expect(page.getByText('e2e-added-pack', { exact: true })).toHaveCount(0)
   } finally {

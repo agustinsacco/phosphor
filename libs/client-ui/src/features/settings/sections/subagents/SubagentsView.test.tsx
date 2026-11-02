@@ -2,10 +2,10 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { describe, expect, it, vi } from 'vitest'
-import { useSettingsUiStore } from '../settingsUiStore'
-import { SubagentsTab } from './SubagentsTab'
+import { useSettingsUiStore } from '../../settingsUiStore'
+import { HostSubagents, LocalSubagents } from './index'
 
-vi.mock('../ConfigFileEditor', () => ({
+vi.mock('../../ConfigFileEditor', () => ({
   piConfigFile: (name: string) => ({ key: name }),
   ConfigFileEditor: ({ source }: { source: { key: string } }) => <div data-editor={source.key} />,
 }))
@@ -17,7 +17,7 @@ describe('Subagents settings', () => {
     const container = document.createElement('div')
     const root = createRoot(container)
     try {
-      await act(async () => root.render(<SubagentsTab />))
+      await act(async () => root.render(<LocalSubagents />))
       expect(container.textContent).toContain('Pi owns execution')
       expect(container.textContent).toContain('not acceptance')
       expect(container.textContent).toContain('Neither is a security sandbox')
@@ -30,6 +30,19 @@ describe('Subagents settings', () => {
         tab: 'agent',
         reveal: { title: 'Sub-agent policy' },
       })
+    } finally {
+      act(() => root.unmount())
+    }
+  })
+
+  it('keeps the guide on a Host but offers no raw editor there', async () => {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    try {
+      await act(async () => root.render(<HostSubagents />))
+      expect(container.textContent).toContain('Pi owns execution')
+      expect(container.textContent).toContain('Pi settings')
+      expect(container.textContent).not.toContain('Edit global settings…')
     } finally {
       act(() => root.unmount())
     }
