@@ -232,3 +232,14 @@ across versions.
 **Risks.** Trust lets a repository's config start local commands, so it must
 stay an explicit, per-folder choice. Deleting the wrong keychain entry signs a
 person out of something else.
+
+## Host Claude Code: versions and Test provider
+
+A Host's Claude Code page shows whether the provider and the CLI are installed,
+and installs them as reviewed tasks. It does not yet show their versions, offer
+in-place updates, or run the one-click **Test provider** proof that This Mac
+runs. Each needs an additive Host contract: an optional
+`providers.claudeVersions` sibling (never new keys in `MachineClaude`, which old
+clients parse strictly), and a `claude.test` machine task gated on a Host
+capability. Until then the page hides them (`caps.versions` and `caps.proof`
+are false on a Host).

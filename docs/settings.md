@@ -28,7 +28,7 @@ the form factor.
 | Agent            | machine, This Mac | `localLanes`          | yes     | no      | pi's agent defaults, global or per project                                                                      | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
 | Accounts         | machine, This Mac | `localLanes`          | yes     | no      | Subscription logins pi can drive                                                                                | pi's provider auth                                      |
 | Extensions       | machine, This Mac | `localLanes`          | yes     | no      | pi package management                                                                                           | shells out to `pi install` / `remove` / `update`        |
-| ↳ Claude Code    | machine, This Mac | `localLanes`, package | yes     | no      | The `pi-claude-cli` provider: health, accounts, pi context ownership                                            | Phosphor prefs + the package's own config               |
+| ↳ Claude Code    | machine, This Mac | `localLanes`          | yes     | no      | The `pi-claude-cli` provider on every machine: health and Install, accounts, routing                            | Phosphor prefs + the package's own config               |
 | ↳ Web access     | machine, This Mac | `localLanes`, package | yes     | no      | The `pi-web-access` provider: search, fetch, PDF                                                                | `web-search.json`                                       |
 | ↳ Subagents      | machine, This Mac | `localLanes`, package | yes     | no      | Delegation guide, profile precedence, configuration ownership                                                   | global Pi settings through the shared raw editor        |
 | ↳ Computer use   | machine, This Mac | `localLanes`, package | yes     | no      | Info page for `@injaneity/pi-computer-use`                                                                      | nothing (read-only)                                     |
@@ -47,7 +47,9 @@ Send feedback sits in the navigation's footer when the platform has `feedback`
 ([feedback.md](feedback.md)).
 
 MCP Connectors is top level and always present on This Mac, since MCP is built into
-pi rather than added by a package. Subagents requires an installed package. The
+pi rather than added by a package. Claude Code is listed under Extensions on every
+machine, installed or not (`always` in `EXTENSION_TABS`), because its page is where
+the provider is installed. Subagents requires an installed package. The
 existing provider tabs also show for declared packages so their health/configuration
 screens remain reachable during setup. The package list is re-read on every open and
 tab change, so a fresh install gets its tab without a restart, and a tab whose package
@@ -150,7 +152,8 @@ section as alerts.
 | Section        | Owner and behavior                                                                                                                                                                  |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Agent          | pi model/thinking, compaction, retry, thinking visibility and message delivery; separate Host context-budget, automatic-naming and directive policy; the Host's global instructions |
-| Accounts       | Host provider status, supported private CLI sign-in, separate Claude provider/CLI installation, isolated Claude accounts, routing, usage and associated lanes                       |
+| Accounts       | Host provider status and private-terminal sign-in; a link row to Claude Code                                                                                                        |
+| ↳ Claude Code  | The provider and CLI with reviewed installs, isolated Claude accounts, routing, usage and the saved and running lanes on each account                                               |
 | Extensions     | Headless-safe default catalogue, package inventory/resource counts and reviewed npm install/repair/update/remove; the machine-filtered Skills page remains read-only                |
 | MCP Connectors | pi's global or registered-folder MCP configuration, curated/custom connectors, enablement, private authentication and explicitly reviewed status checks                             |
 | Folders        | Existing Host browse/register/unregister controls and an explicit pi trust review, subject to the Host's repository-change policy                                                   |
@@ -402,9 +405,11 @@ project scope, an empty field's placeholder names what it inherits.
 
 ## Accounts
 
-The subscription routes are distinct (`SUBSCRIPTION_PROVIDERS` in
-`libs/session-runtime/src/pi/provider-auth.ts` is the registry, shared with the
-Host's `phosphor providers`):
+One view on every machine (`sections/accounts/`: `ProviderAccounts` over
+`useLocalProviders` on This Mac and `useHostProviders` on a Host). The
+subscription routes are distinct (`SUBSCRIPTION_PROVIDERS` in
+`libs/shared/src/subscription-providers.ts` is the catalogue, shared with the
+Host's `phosphor providers` and joined onto a Host's rows in the client):
 
 | Account        | Route                                                                      | Requirement                   |
 | -------------- | -------------------------------------------------------------------------- | ----------------------------- |
@@ -418,8 +423,16 @@ separate route from Claude Code subscription sessions, and the tab says it
 bills extra usage. xAI, OpenRouter and Radius sign-ins draw on a credit
 balance, not an included allowance.
 
-- One row per provider pi can sign into, showing ready / not ready from
-  `pi auth check --json`, and a Sign in button that drives pi's TUI off-screen.
+- One row per provider pi can sign into, grouped by what signing in spends (a
+  plan you already pay for, billed per token, then other providers, such as a
+  Host's API-key default), each with what it requires and its caveat. Every row
+  says **Signed in**, **Not signed in** or **Could not verify** (the check could
+  not run), from `pi auth check --json`; Claude accounts use the same words.
+- Sign-in differs by machine (`caps.signIn`). On This Mac, Sign in drives pi's TUI
+  off-screen. On a Host it opens a private terminal there (`HostProgramDialog`,
+  "Provider sign-in on …"), where you type `/login <id>`, and a Host never says
+  whose account a provider holds. The Machines page lists the same rows read-only
+  and links here.
 - That off-screen pi runs in an empty folder under userData (`pi-sign-in`)
   with `--no-approve --no-extensions`, because any startup dialog swallows the
   typed `/login`. Home is not neutral: pi treats its cwd as a project, and
@@ -437,8 +450,9 @@ balance, not an included allowance.
   _changes_, not when `pi auth check` first reports ready: the old credential
   already answers ready a second after pi prints the URL.
 
-This tab is pi's own `auth`. The **Claude
-Code** provider keeps its own set of logins under Extensions → Claude Code.
+This section is pi's own `auth`. The **Claude Code** provider keeps its own set
+of logins under Extensions → Claude Code, and Accounts ends with one link row to
+that page.
 
 ### Phosphor account
 
@@ -538,12 +552,18 @@ package; the other tabs preserve their declared-package setup behavior:
 ### Claude Code (`pi-claude-cli`)
 
 Routes model calls through the Claude Code CLI, billing your Claude Pro/Max
-plan; its models appear in the picker under the `pi-claude-cli` provider. In
-order: **Health** (package present, CLI binary found, both versions, update
-rows), **Accounts**, pi context ownership guidance (Claude sessions follow
+plan; its models appear in the picker under the `pi-claude-cli` provider. One
+page on every machine where Claude can run (`sections/claude-provider/`:
+`ClaudeProviderView` over `useLocalClaudeAccounts` or `useHostClaudeAccounts`),
+listed whether or not the package is installed. In order: **Health** (package
+and CLI, each with **Install provider** / **Update provider** when it is missing
+or too old; on This Mac also both versions and update rows; on a Host
+**Install Claude Code** for a missing CLI, as a reviewed task), **Accounts**,
+pi context ownership guidance (Claude sessions follow
 the Agent tab's compaction settings and context budget), **Prove it end to end** (one tiny
 print-mode prompt through the CLI, the login and the extension at once, because
-"installed" and "working" are different claims), and **When it fails**. See
+"installed" and "working" are different claims; This Mac only), and **When it
+fails**. See
 [cli-providers.md](cli-providers.md).
 
 - **Accounts** keeps several Claude logins and routes one to each new session
@@ -552,14 +572,25 @@ print-mode prompt through the CLI, the login and the extension at once, because
   **spending overage credits**. A running session keeps its account: the
   credential is fixed at spawn. The context popover names the account a lane
   is spending and shows that account's own plan usage.
-- Each account row **opens** onto its usage windows (read under that
-  account's own CLI config dir, so they cannot show another account's
-  numbers) and the live sessions spending it. A session there can be restarted on the same account or moved
-  to another; both respawn it from its session file, which is the only way an
-  account can change.
-- Removing an account signs it out, so main refuses it while live sessions are
-  spending that account ("Stop or move this account’s live sessions before
-  removing it."), as a Host does for its active lanes.
+- Routing and the pinned account are radios on every machine. **Refresh usage**
+  re-reads every account's cooldowns (`claude.refreshUsage` on a Host).
+- An account row shows its sign-in state (Signed in / Not signed in / Could not
+  verify), its lane count and its 5-hour use. It **opens** onto its usage
+  windows (read under that account's own CLI config dir, so they cannot show
+  another account's numbers; a Host shows its last reading, and **Check again**
+  asks its CLI) and its lanes: the live sessions on This Mac, the saved and
+  running lanes on a Host, with **Open lane**. No reading yet says so and never
+  draws a meter. A lane can be restarted on the same account or moved to another,
+  after a confirmation; both respawn it from its session file, which is the only
+  way an account can change. Move targets follow one rule everywhere (`moveTargets`
+  in `lib/claudeGateway.ts`, also used by the composer's account switcher): every
+  other account not reported signed out, held ones last.
+- **Remove** asks first ("Sign out and remove"), and is disabled while lanes on
+  the account are running. Removing signs the account out, so the machine
+  refuses it while live sessions use it ("Stop or move this account’s live
+  sessions before removing it."); the refusal shows under the list.
+- On a Host, adding or re-authenticating an account opens a private terminal
+  there; a Host holds at most 16 accounts.
 
 ### Web access (`pi-web-access`)
 

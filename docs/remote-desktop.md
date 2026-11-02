@@ -360,7 +360,7 @@ restart. Only a ready connection advances to Providers, after a short pause.
 Further recovery stays in the collapsed Stuck? disclosure.
 
 **Providers** reads the Host's provider readiness and opens the machine page,
-whose Providers card has Sign in. The terminal fallback on the Host is
+whose Providers card links to Settings → Accounts, where Sign in runs. The terminal fallback on the Host is
 `phosphor providers login PROVIDER`. Provider credentials stay on the Host.
 In a terminal, guided `phosphor setup` offers to install Claude Code and the
 Claude provider and runs `claude` login when signed out
@@ -483,7 +483,8 @@ The separate Overview keeps reachability, readiness, reconnect and diagnostics.
 The [settings contract](settings.md#host-machine-settings) owns the sections,
 review steps, scope, drafts and application timing. Desktop (and the browser, see
 [web client](web-client.md#configuration-access-and-lane-deletion)) asks separately
-for signed configuration access; old Hosts retain their Readiness sign-in route.
+for signed configuration access; for an old Host, the Providers card shows the
+`phosphor providers login` command instead.
 No remote failure mounts a local editor, synchronizes auth or queues a write.
 
 `libs/host-client/src/settings.ts`, shared with the browser, validates the requested

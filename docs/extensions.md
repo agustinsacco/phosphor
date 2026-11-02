@@ -100,12 +100,13 @@ which greys the card and says why when the binary is missing.
 
 **Per-extension tabs.** Curated extensions get real config UIs, registered in
 `EXTENSION_TABS` (`settingsIndex.ts`) and shown **only while their package is
-present**. They render nested under the Extensions entry, since they configure
-an installed package; a stale sub-tab falls back to the Extensions list.
+present**, except Claude Code, which is listed on every machine (`always`) because
+its page installs the provider. They render nested under the Extensions entry,
+since they configure a package; a stale sub-tab falls back to the Extensions list.
 
 | Tab          | Package                      | Contents                                                                                                                       |
 | ------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Claude Code  | `@saccolabs/pi-claude-cli`   | health card (package / `claude` binary / account), tested-version warning, **Test provider** one-click proof, failure playbook |
+| Claude Code  | `@saccolabs/pi-claude-cli`   | health with Install, Claude accounts and routing, tested-version warning, **Test provider** proof (This Mac), failure playbook |
 | Web access   | `pi-web-access`              | seven common search-provider keys (password fields, `$ENV_VAR` support), raw JSON editor                                       |
 | Subagents    | `pi-subagents`               | delegation guide, profile precedence, configuration sources, raw Pi settings and lane directives                               |
 | Computer use | `@injaneity/pi-computer-use` | what the tools do and the OS accessibility permissions macOS will not grant silently                                           |

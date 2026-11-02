@@ -597,8 +597,10 @@ on Linux. The Claude Code row names the missing part (provider missing or
 outdated, Claude Code missing, signed out); older Hosts keep the single status.
 
 Providers lists the connected Host's providers, signed-in first. Not signed in
-is neutral, not a warning, because most people use one or two. Supporting Hosts
-link to **Settings → Accounts**, rather than duplicating authentication controls.
+is neutral, not a warning, because most people use one or two. The rows are
+Settings → Accounts' own (`ProviderList`), read-only. Supporting Hosts link to
+**Settings → Accounts** rather than duplicating authentication controls; older
+ones show the `phosphor providers login` command.
 The detail's **Settings** tab opens Settings itself, scoped to that Host (the dialog
 on Desktop, `/pages/settings/<host>` in the browser); the page holds no copy of the
 Host's settings. [The settings contract](settings.md#host-machine-settings) owns their

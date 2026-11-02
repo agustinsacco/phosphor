@@ -579,7 +579,7 @@ function AccountRouting({
       summary={
         held
           ? account.mode === 'specific'
-            ? 'Out of plan allowance, and routing is pinned here — Settings → Claude Code.'
+            ? 'Out of plan allowance, and routing is pinned here — Settings → Extensions → Claude Code.'
             : account.alternative
               ? `Out of plan allowance. New sessions go to ${account.alternative.label}.`
               : 'Out of plan allowance, and every other account is too.'
