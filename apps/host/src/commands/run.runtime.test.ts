@@ -6,7 +6,7 @@ import { fakeMachine, EXTENSIONS_ROOT } from '../__fixtures__/machine'
 import { buildPiEnvironment } from '../machine/environment'
 import { identityDirectory } from '../control/identity'
 import { createShutdown, type Drainable } from '../shutdown'
-import { readdirSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { inspectHost } from './doctor'
 import { runHost, type RunContext } from './run'
 import type * as Runtime from '../session/runtime'
@@ -31,6 +31,7 @@ const hooks = vi.hoisted(
     epoch: string
     connected?: (id: string) => boolean
     dialogs?: 'cancel' | 'forward'
+    contextBudget?: () => string
     skillsConfigPath?: string
   } => ({ machine: null, order: [], lanes: undefined, epoch: '' }),
 )
@@ -77,6 +78,7 @@ vi.mock('../session/runtime', async (original) => {
     ...module,
     createHostRuntime: (...args: Parameters<typeof module.createHostRuntime>) => {
       hooks.dialogs = args[1]?.dialogs
+      hooks.contextBudget = args[1]?.contextBudget
       const runtime = module.createHostRuntime(...args)
       return {
         ...runtime,
@@ -219,6 +221,13 @@ const RUN_CAPABILITIES = [
   'artifacts.read',
 ] as const
 
+/** What the runtime's budget reader returns once Settings saves `budget` to the config. */
+function budgetAfterSave(configPath: string, budget: string): string | undefined {
+  const saved = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>
+  writeFileSync(configPath, JSON.stringify({ ...saved, contextBudget: budget }), { mode: 0o600 })
+  return hooks.contextBudget?.()
+}
+
 describe('run lane composition', () => {
   it.each([
     { available: false, second: false },
@@ -300,6 +309,7 @@ describe('run lane composition', () => {
             '0123456789abcdef',
           )
           expect(hooks.dialogs).toBe('forward')
+          expect(budgetAfterSave(control.context.configPath, '150k')).toBe('150k')
           // A custom --config must reach the machine reads, not the default path.
           expect(hooks.skillsConfigPath).toBe(control.context.configPath)
           expect(hooks.lanes?.epoch).toBe(hooks.epoch)

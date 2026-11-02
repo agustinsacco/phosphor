@@ -45,6 +45,14 @@ it('reads the context budget at each call, so the next lane sees a saved change'
   expect(read()).toBe('150k')
 })
 
+it('keeps the last valid budget when the config becomes unreadable', async () => {
+  await writeFile(configPath, config({ contextBudget: '150k' }), { mode: 0o600 })
+  const read = hostContextBudget(configPath, { contextBudget: '300k' })
+  expect(read()).toBe('150k')
+  await writeFile(configPath, '{"version":')
+  expect(read()).toBe('150k')
+})
+
 it('keeps the budget it started with when the config is unreadable or invalid', async () => {
   const read = hostContextBudget(configPath, { contextBudget: '300k' })
   await writeFile(configPath, '{"version":', { mode: 0o600 })
