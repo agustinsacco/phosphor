@@ -1,5 +1,6 @@
 import { machineReachability } from '@/features/machines/machineReachability'
 import type { MachineView } from '@shared/control-api'
+import { localMachineLabel } from '@/lib/localMachine'
 import { isUnseen } from './unseen'
 import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -89,7 +90,7 @@ export function MachineLabelLine({ id }: { id: string }): React.JSX.Element {
       <div className="text-text-secondary flex items-center gap-2 text-sm font-medium">
         <MachineGlyph local={id === 'local'} />
         <span className="min-w-0 flex-1 truncate">
-          {id === 'local' ? 'This Mac' : machineLabel(id)}
+          {id === 'local' ? localMachineLabel() : machineLabel(id)}
         </span>
         <MachineDot state={id === 'local' ? 'ready' : host?.state} />
       </div>
@@ -284,7 +285,7 @@ function EnabledMachineSwitcher({ onScope }: { onScope: MachineScopeChange }): R
           <span className="flex items-center gap-1.5">
             <MachineDot state={state} />
             <span className="truncate font-medium">
-              {id === 'local' ? 'This Mac' : machineLabel(id)}
+              {id === 'local' ? localMachineLabel() : machineLabel(id)}
             </span>
           </span>
           <span className="text-text-tertiary block truncate text-sm">{detailFor(id)}</span>
@@ -341,7 +342,7 @@ function EnabledMachineSwitcher({ onScope }: { onScope: MachineScopeChange }): R
         )}
         <span className="min-w-0 truncate font-medium">
           {selected === 'local'
-            ? 'This Mac'
+            ? localMachineLabel()
             : selected === 'all'
               ? 'All machines'
               : machineLabel(selected)}

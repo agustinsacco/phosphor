@@ -1,5 +1,6 @@
 import type { ChatSessionState } from '@/features/chat/chatItems'
 import { laneReceipt } from './laneReceipt'
+import { localMachineLabel } from '@/lib/localMachine'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore, type Toast } from '@/stores/extensionUi'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
@@ -103,7 +104,7 @@ export function noticeLaneSettled(
     startedAt,
     settledAt,
   })
-  const receipt = { facts, machine: 'This Mac', at: new Date(settledAt).toISOString() }
+  const receipt = { facts, machine: localMachineLabel(), at: new Date(settledAt).toISOString() }
   const outcome = laneOutcome(items)
   if (outcome.kind === 'error') {
     notifyLane(sessionId, {

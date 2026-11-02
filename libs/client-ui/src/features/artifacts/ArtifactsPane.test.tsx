@@ -81,7 +81,7 @@ it.each(['repo-a', 'repo-b'])(
   },
 )
 
-it('remote artifact workspace write is disabled, while downloads are explicitly on This Mac', async () => {
+it('remote artifact workspace write is disabled, while downloads are explicitly on the local machine', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   const invoke = vi.fn().mockResolvedValue(null)
   vi.stubGlobal('phosphor', { invoke })
@@ -101,7 +101,7 @@ it('remote artifact workspace write is disabled, while downloads are explicitly 
       '[data-tooltip="Not available on remote lanes yet."]',
     )
     expect(unavailable?.disabled).toBe(true)
-    expect(container.querySelector('[data-tooltip="Save source to This Mac…"]')).not.toBeNull()
+    expect(container.querySelector('[data-tooltip="Save source to This computer…"]')).not.toBeNull()
     await act(async () => unavailable?.click())
     expect(invoke).not.toHaveBeenCalled()
   } finally {

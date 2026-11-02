@@ -6,7 +6,7 @@ import { CloseIcon, SearchIcon } from '@/components/icons'
 import { useEscapeKey } from '@/components/Modal'
 import { Highlighted } from '@/components/search/Highlighted'
 import { useMatchCursor } from '@/components/search/useFind'
-import type { SettingEntry } from './settingsIndex'
+import type { SettingEntry } from './search/settingEntry'
 import { searchSettings, type SettingsResultGroup } from './settingsQuery'
 import { useSettingsUiStore, type SettingsTab } from './settingsUiStore'
 

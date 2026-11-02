@@ -6,7 +6,8 @@ import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { useSessionsStore } from '@/stores/sessions'
 import { Card, CheckRow, Fact, Facts, Skeleton, StatusPill, type CheckItem } from './MachineUi'
 import { MachineTerminal } from './MachineTerminal'
-import { localMachineLabel, PI_INSTALL, platformName } from './machinePresentation'
+import { PI_INSTALL, platformName } from './machinePresentation'
+import { localMachineLabel } from '@/lib/localMachine'
 
 /** Each read is `undefined` until it settles; a settled read can still be empty. */
 export interface Computer {
@@ -85,7 +86,7 @@ export function localChecks(computer: Computer): CheckItem[] {
 export function LocalMachineDetail({ computer }: { computer: Computer }): React.JSX.Element {
   const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
   const checks = localChecks(computer)
-  const label = localMachineLabel(window.phosphor.platform)
+  const label = localMachineLabel()
   const openSettings = useOpenSettings()
   return (
     <div data-testid="machine-detail" className="space-y-4">

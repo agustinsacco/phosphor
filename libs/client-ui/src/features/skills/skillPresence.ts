@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { create } from 'zustand'
 import type { HostConnectionView } from '@shared/ipc'
 import { usePlatform } from '@/platform/Platform'
+import { localMachineLabel } from '@/lib/localMachine'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useMachinesStore } from '@/stores/machines'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -82,7 +83,7 @@ export const sourceMachine = (workspacePath: string): string =>
   workspacePath.startsWith('host:') ? (workspacePath.slice(5).split('/')[0] ?? '') : 'local'
 
 export const shareMachineLabel = (machine: string): string =>
-  machine === 'local' ? 'This Mac' : machineLabel(machine)
+  machine === 'local' ? localMachineLabel() : machineLabel(machine)
 
 /** Every other machine with a Skills page: This Mac where there is one, and Hosts with skills.read. */
 export function useShareMachines(source: string): ShareMachine[] {
@@ -91,7 +92,7 @@ export function useShareMachines(source: string): ShareMachine[] {
   const directory = useMachinesStore((s) => s.machines)
   return useMemo(() => {
     const local: ShareMachine[] = localLanes
-      ? [{ id: 'local', label: 'This Mac', readable: true }]
+      ? [{ id: 'local', label: localMachineLabel(), readable: true }]
       : []
     const remote = Object.entries(hosts)
       .filter(([, host]) => host.capabilities.includes('skills.read'))

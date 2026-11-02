@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { LOCAL_MACHINE_LABEL } from './fixtures/local-machine'
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
@@ -10,6 +11,10 @@ import {
   pane,
   sidebarHost,
 } from './fixtures/remote-ui'
+
+// A Host artifact downloads to the machine running the app, which its actions name.
+const SAVE_SOURCE = `Save source to ${LOCAL_MACHINE_LABEL}…`
+const EXPORT_PDF = `Export preview to PDF (${LOCAL_MACHINE_LABEL} Downloads)`
 
 test('Browse, add and remove folders on bee1', async ({ browserName: _browserName }, info) => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
@@ -82,9 +87,7 @@ test('Remote artifacts and Skills are useful read-only pages', async ({
     await chat.press('Enter')
     await pane(h, 'Artifacts')
     await expect(h.page.getByText('HOST_A_ONLY card', { exact: true }).first()).toBeVisible()
-    await expect(
-      h.page.getByRole('button', { name: 'Save source to This Mac…', exact: true }),
-    ).toBeVisible()
+    await expect(h.page.getByRole('button', { name: SAVE_SOURCE, exact: true })).toBeVisible()
     await expect(
       h.page
         .getByTestId('right-pane')
@@ -108,11 +111,9 @@ test('Remote artifacts and Skills are useful read-only pages', async ({
       },
       { source: savedPath, downloads: h.root },
     )
-    await h.page.getByRole('button', { name: 'Save source to This Mac…', exact: true }).click()
+    await h.page.getByRole('button', { name: SAVE_SOURCE, exact: true }).click()
     await expect.poll(() => readFile(savedPath, 'utf8')).toContain('HOST_A_ONLY version 1')
-    await h.page
-      .getByRole('button', { name: 'Export preview to PDF (This Mac Downloads)', exact: true })
-      .click()
+    await h.page.getByRole('button', { name: EXPORT_PDF, exact: true }).click()
     await expect(h.page.getByText(/PDF saved to Downloads/)).toBeVisible()
     await chat.fill('artifact version two')
     await chat.press('Enter')
