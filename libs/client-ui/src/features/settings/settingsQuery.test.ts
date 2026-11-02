@@ -1,7 +1,15 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { EXTENSION_TABS, SETTINGS_INDEX, TABS, installedExtensionTabs } from './settingsIndex'
+import { DESKTOP_PLATFORM } from '@/platform/Platform'
+import {
+  EXTENSION_TABS,
+  SETTINGS_INDEX,
+  TABS,
+  installedExtensionTabs,
+  platformIndex,
+  visibleSections,
+} from './settingsIndex'
 import { highlightPattern, searchSettings } from './settingsQuery'
 import type { SettingsTab } from './settingsUiStore'
 
@@ -60,6 +68,15 @@ describe('searchSettings', () => {
     expect(installedExtensionTabs([{ ...pkg, installed: true }]).map((tab) => tab.id)).toEqual([
       'subagents',
     ])
+  })
+
+  it('never offers raw config editors a Host does not have (regression D5)', () => {
+    const hostTabs = new Set(visibleSections(DESKTOP_PLATFORM, 'host').map((tab) => tab.id))
+    const hostIndex = platformIndex(DESKTOP_PLATFORM, 'host')
+    expect(searchSettings('models json', hostTabs, hostIndex)).toEqual([])
+    expect(searchSettings('settings json', hostTabs, hostIndex)).toEqual([])
+    const updates = searchSettings('host updates', hostTabs, hostIndex)
+    expect(updates.map((group) => group.tab)).toEqual(['advanced'])
   })
 
   it('finds nothing for an empty or all-negated query', () => {
