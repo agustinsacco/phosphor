@@ -1,7 +1,7 @@
 import type { PiPackageEntry } from '@shared/models'
 import { formatShortcut } from '@/lib/shortcuts'
 import type { Platform } from '@/platform/Platform'
-import type { MachineSettingsTab } from '@/features/machines/MachineSettings'
+import type { MachineSettingsTab } from './machine/HostSection'
 import type { SettingsTab } from './settingsUiStore'
 import { keybindingGroups } from './tabs/KeybindingsTab'
 
@@ -61,11 +61,6 @@ export const TABS: SettingsSection[] = [
   machineSection('voice', 'Voice', { local: true }),
   machineSection('advanced', 'Advanced', { local: true, host: 'advanced' }),
 ]
-
-/** A Host's sections in navigation order, keyed by the Host's own section. */
-export const HOST_SECTIONS = TABS.flatMap((tab) =>
-  tab.host ? [{ key: tab.host, label: tab.label }] : [],
-)
 
 /**
  * Curated extensions contribute a tab only while their package is present.

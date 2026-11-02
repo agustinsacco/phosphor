@@ -27,8 +27,8 @@ export function MachineAgentSettings({
       <div>
         <h2 className="text-2xl font-semibold">Agent defaults</h2>
         <p className="text-text-secondary mt-1 text-base">
-          Starting choices for new lanes on {label}. Explicit lane choices take precedence. Changes
-          save automatically.
+          Starting choices for new lanes. Explicit lane choices take precedence. Changes save
+          automatically.
         </p>
       </div>
       {repositoryId && settings.data?.projectTrusted === false && (

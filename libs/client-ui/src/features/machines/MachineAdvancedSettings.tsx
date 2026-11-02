@@ -49,8 +49,7 @@ export function MachineAdvancedSettings({
       <div>
         <h2 className="text-2xl font-semibold">Advanced</h2>
         <p className="text-text-secondary mt-1 text-base">
-          Host updates and read-only execution diagnostics from {label}. Secret values are never
-          returned.
+          Host updates and read-only execution diagnostics. Secret values are never returned.
         </p>
       </div>
       <HostUpdateCard label={label} programs={programs} />

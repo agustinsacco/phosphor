@@ -27,7 +27,7 @@ export function MachineFolderSettings({
         <div>
           <h2 className="text-2xl font-semibold">Folders</h2>
           <p className="text-text-secondary mt-1 text-base">
-            Folders registered on {label}. These are Host paths, never this computer’s files.
+            Folders registered on this Host. These are Host paths, never this computer’s files.
           </p>
         </div>
         <Button

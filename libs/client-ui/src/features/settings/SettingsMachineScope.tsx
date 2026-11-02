@@ -77,7 +77,7 @@ export function useSettingsMachine(fallback?: string): {
   return { choices, machine }
 }
 
-/** The one line that says which machine a machine section configures. */
+/** The words of the scope line: which machine a machine section configures (see SettingsScopeLine). */
 export function SettingsMachineScope({
   machine,
 }: {
@@ -85,7 +85,7 @@ export function SettingsMachineScope({
 }): React.JSX.Element {
   return (
     <p
-      className="border-border bg-bg-secondary text-text mb-5 rounded-lg border px-3 py-2 text-base font-medium"
+      className="text-text min-w-0 grow basis-64 text-base font-medium"
       data-testid="settings-machine-scope"
     >
       Configuring {machine.label}

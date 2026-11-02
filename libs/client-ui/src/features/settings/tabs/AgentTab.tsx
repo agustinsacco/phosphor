@@ -1,7 +1,6 @@
 import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { useSettingsWorkspace } from '../SettingsMachineScope'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { Row, SectionTitle, NumberField, TextField, Toggle } from '@/components/form'
 import type { ConfigFileHealth } from '@shared/models'
@@ -13,8 +12,9 @@ import { errorText } from '@shared/errors'
 /** Agent defaults written into pi's own settings.json (global or per project). */
 
 export function AgentTab(): React.JSX.Element {
-  const currentWorkspace = useSettingsWorkspace()
-  const [scope, setScope] = useState<'global' | 'project'>('global')
+  // The scope line's folder scope: null edits the global file, a folder its project override.
+  const folder = useSettingsUiStore((s) => s.folder)
+  const scope: 'global' | 'project' = folder ? 'project' : 'global'
   const [scoped, setScoped] = useState<{
     global: Record<string, unknown>
     project: Record<string, unknown> | null
@@ -22,15 +22,13 @@ export function AgentTab(): React.JSX.Element {
   const [health, setHealth] = useState<ConfigFileHealth | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const workspaceArg = scope === 'project' ? (currentWorkspace ?? undefined) : undefined
+  const workspaceArg = folder ?? undefined
 
   const reload = useCallback((): void => {
     // Unmerged per-scope reads: the editor must show what each file actually
     // contains, or a project override would silently absorb inherited global
     // values on the next edit.
-    void window.phosphor
-      .invoke('pi:agentSettingsScoped', currentWorkspace ?? undefined)
-      .then(setScoped)
+    void window.phosphor.invoke('pi:agentSettingsScoped', workspaceArg).then(setScoped)
     void window.phosphor.invoke('pi:checkAgentSettings', workspaceArg).then((result) => {
       setHealth(
         scope === 'global'
@@ -38,7 +36,7 @@ export function AgentTab(): React.JSX.Element {
           : (result.project ?? { exists: false, malformed: false }),
       )
     })
-  }, [currentWorkspace, workspaceArg, scope])
+  }, [workspaceArg, scope])
 
   useEffect(() => reload(), [reload])
 
@@ -106,41 +104,6 @@ export function AgentTab(): React.JSX.Element {
           </TooltipButton>
         </div>
       )}
-
-      {/* Scope stays enabled even when a file is broken, so you can inspect
-          the other scope. */}
-      <Row
-        title="Scope"
-        description="Global (~/.pi/agent) or an override for this workspace (.pi/settings.json)."
-      >
-        <div
-          className="border-border flex overflow-hidden rounded-lg border"
-          role="group"
-          aria-label="Settings scope"
-        >
-          {(
-            [
-              { value: 'global', label: 'Global' },
-              { value: 'project', label: 'Project' },
-            ] as const
-          ).map(({ value, label }) => (
-            <TooltipButton
-              key={value}
-              aria-pressed={scope === value}
-              disabled={value === 'project' && !currentWorkspace}
-              onClick={() => setScope(value)}
-              className={clsx(
-                'px-3 py-1.5 text-base font-medium transition-colors disabled:opacity-40',
-                scope === value
-                  ? 'bg-accent text-accent-text'
-                  : 'text-text-secondary hover:text-text',
-              )}
-            >
-              {label}
-            </TooltipButton>
-          ))}
-        </div>
-      </Row>
 
       <fieldset
         disabled={blocked}

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useFindTarget } from '@/components/search/findTargets'
 import { FeedbackButton } from '@/features/feedback/FeedbackButton'
-import { confirmSettingsNavigation } from '@/features/settings/machine/machineSettingsDrafts'
+import { guardHostDrafts } from './machine/machineSettingsDrafts'
 import { usePlatform } from '@/platform/Platform'
 import {
   installedExtensionTabs,
@@ -102,19 +102,6 @@ export function SettingsSurface({
       </div>
     </div>
   )
-}
-
-/**
- * Leaving a Host section asks about its unsaved draft first, as the Machines
- * page does. A failed prompt stays put, which keeps the draft.
- */
-function guardHostDrafts(hostId: string | null): (next: () => void) => void {
-  return (next) => {
-    if (!hostId) return next()
-    confirmSettingsNavigation(hostId)
-      .then((ok) => ok && next())
-      .catch(() => undefined)
-  }
 }
 
 /**

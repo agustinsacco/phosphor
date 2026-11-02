@@ -24,7 +24,7 @@ export function MachineProviderSettings({
       <div>
         <h2 className="text-2xl font-semibold">Accounts</h2>
         <p className="text-text-secondary mt-1 text-base">
-          Accounts that run models on {label}. Credentials stay on that machine.
+          Accounts that run models. Credentials stay on the machine that holds them.
         </p>
       </div>
       <ClaudeSetup {...{ hostId, label, settings, programs, state, busy }} />

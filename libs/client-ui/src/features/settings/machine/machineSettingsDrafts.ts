@@ -66,6 +66,18 @@ export async function confirmSettingsNavigation(hostId: string): Promise<boolean
   current.discard()
   return true
 }
+/**
+ * Runs `next` once this Host's unsaved draft may be left (`confirmSettingsNavigation`);
+ * null runs it at once. A failed prompt stays put, which keeps the draft.
+ */
+export function guardHostDrafts(hostId: string | null): (next: () => void) => void {
+  return (next) => {
+    if (!hostId) return next()
+    confirmSettingsNavigation(hostId)
+      .then((ok) => ok && next())
+      .catch(() => undefined)
+  }
+}
 const fieldsFor = (state?: MachineAgentDefaults): Fields => ({
   model:
     state?.defaultProvider && state.defaultModel

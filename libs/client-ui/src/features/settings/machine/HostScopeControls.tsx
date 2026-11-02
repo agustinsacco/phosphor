@@ -1,0 +1,38 @@
+import { useMemo } from 'react'
+import { Button } from '@/components/form'
+import { useHostSection } from './HostSection'
+import { guardHostDrafts } from './machineSettingsDrafts'
+import { ScopeRow } from './ScopeRow'
+
+/** A Host's folders are its registered repositories; a change asks about an unsaved draft first. */
+export function HostScopeRow(): React.JSX.Element {
+  const { machine, connection, settings, starting } = useHostSection()
+  const repositories = connection?.repositories
+  const folders = useMemo(
+    () => (repositories ?? []).map((repo) => ({ value: repo.id, label: repo.name })),
+    [repositories],
+  )
+  return (
+    <ScopeRow
+      folders={folders}
+      disabled={settings.saving || starting}
+      guard={guardHostDrafts(machine.id)}
+    />
+  )
+}
+
+/** Reads the Host's settings again. Only once there is a grant to read with. */
+export function HostRefresh(): React.JSX.Element | null {
+  const { machine, settings, starting, allowed } = useHostSection()
+  if (!allowed) return null
+  return (
+    <Button
+      size="xs"
+      className="ml-auto"
+      disabled={settings.loading || settings.saving || starting}
+      onClick={() => guardHostDrafts(machine.id)(() => void settings.refresh())}
+    >
+      {settings.loading ? 'Reading Host settings…' : 'Refresh'}
+    </Button>
+  )
+}

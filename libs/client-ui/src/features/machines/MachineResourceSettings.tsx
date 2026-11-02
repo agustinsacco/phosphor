@@ -27,7 +27,7 @@ export function MachineResourceSettings({
         <div>
           <h2 className="text-2xl font-semibold">Extensions</h2>
           <p className="text-text-secondary mt-1 text-base">
-            Installed on {label}, not this computer. New lanes load package changes.
+            Packages installed for pi. New lanes load package changes.
           </p>
         </div>
         <Button

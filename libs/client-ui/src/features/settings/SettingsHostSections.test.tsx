@@ -85,14 +85,17 @@ it('distinguishes old and offline Hosts without presenting credentials as empty'
   hosts[machine.id]!.configurationSupported = false
   useRemoteLanesStore.setState({ hosts })
   await render('accounts')
-  expect(container.textContent).toContain('Update the Host')
+  expect(container.textContent).toContain('Update this Host')
   expect(invoke).not.toHaveBeenCalled()
   hosts[machine.id]!.state = 'down'
   await act(async () => {
     useRemoteLanesStore.setState({ hosts: structuredClone(hosts) })
   })
-  expect(container.textContent).toContain('Connect to bee1 first')
+  // The control plane has never seen bee1 check in: the Machines page's words, and its fix.
+  expect(container.textContent).toContain('bee1 has never connected.')
+  expect(container.textContent).toContain('phosphor setup')
   expect(container.textContent).toContain('Nothing is queued')
+  expect(button('Reconnect').disabled).toBe(false)
 })
 function typeInto(input: HTMLInputElement, value: string) {
   act(() => {
