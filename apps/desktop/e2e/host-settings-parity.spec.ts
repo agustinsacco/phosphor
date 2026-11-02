@@ -38,17 +38,16 @@ test('Host agent behavior edits ordinary umask configuration without touching lo
     expect(await h.page.evaluate(() => window.phosphor.invoke('pi:agentSettings'))).toEqual(local)
     await captures(h, test.info(), 'host-agent-behavior-parity')
     await openSettingsSection(settings, 'Extensions')
+    await expect(settings.getByRole('heading', { name: 'Recommended', exact: true })).toBeVisible()
+    await expect(settings.getByRole('button', { name: 'Add Subagents', exact: true })).toBeEnabled()
     await expect(
-      settings.getByRole('heading', { name: 'Standard Host extensions', exact: true }),
-    ).toBeVisible()
-    await expect(
-      settings.getByRole('button', { name: 'Install Swarm subagents', exact: true }),
+      settings.getByRole('button', { name: 'Add Web access', exact: true }),
     ).toBeEnabled()
+    // Computer use needs a desktop session: a Host never offers it.
     await expect(
-      settings.getByRole('button', { name: 'Install Web access', exact: true }),
-    ).toBeEnabled()
-    await expect(settings).toContainText('computer use is not installed')
-    await settings.getByRole('button', { name: 'Install Swarm subagents', exact: true }).click()
+      settings.getByRole('button', { name: 'Add Computer use', exact: true }),
+    ).toHaveCount(0)
+    await settings.getByRole('button', { name: 'Add Subagents', exact: true }).click()
     const review = h.page.getByRole('dialog').filter({ hasText: 'pi install npm:pi-subagents' })
     await expect(review).toContainText('pi install npm:pi-subagents')
     await review.getByRole('button', { name: 'Cancel', exact: true }).click()

@@ -27,11 +27,11 @@ the form factor.
 | About            | device            | rows need `appInfo`   | yes     | yes     | Versions, update check, pi drift warning, font licenses                                                         | nothing                                                 |
 | Agent            | machine, This Mac | `localLanes`          | yes     | no      | pi's agent defaults, global or per project                                                                      | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
 | Accounts         | machine, This Mac | `localLanes`          | yes     | no      | Subscription logins pi can drive                                                                                | pi's provider auth                                      |
-| Extensions       | machine, This Mac | `localLanes`          | yes     | no      | pi package management                                                                                           | shells out to `pi install` / `remove` / `update`        |
+| Extensions       | machine, both     | a machine             | yes     | yes     | pi package management, one view on every machine ([below](#extensions))                                         | shells out to `pi install` / `remove` / `update`        |
 | ↳ Claude Code    | machine, This Mac | `localLanes`, package | yes     | no      | The `pi-claude-cli` provider: health, accounts, pi context ownership                                            | Phosphor prefs + the package's own config               |
-| ↳ Web access     | machine, This Mac | `localLanes`, package | yes     | no      | The `pi-web-access` provider: search, fetch, PDF                                                                | `web-search.json`                                       |
-| ↳ Subagents      | machine, This Mac | `localLanes`, package | yes     | no      | Delegation guide, profile precedence, configuration ownership                                                   | global Pi settings through the shared raw editor        |
-| ↳ Computer use   | machine, This Mac | `localLanes`, package | yes     | no      | Info page for `@injaneity/pi-computer-use`                                                                      | nothing (read-only)                                     |
+| ↳ Web access     | machine, both     | package               | yes     | yes     | The `pi-web-access` provider: search, fetch, PDF                                                                | `web-search.json`                                       |
+| ↳ Subagents      | machine, both     | installed package     | yes     | yes     | Delegation guide, profile precedence, configuration ownership                                                   | This Mac: global Pi settings in the raw editor          |
+| ↳ Computer use   | machine, both     | package               | yes     | yes     | Info page for `@injaneity/pi-computer-use`                                                                      | nothing (read-only)                                     |
 | MCP Connectors   | machine, This Mac | `localLanes`          | yes     | no      | pi's built-in MCP: curated OAuth catalog + custom servers                                                       | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`           |
 | Workspaces       | machine, This Mac | `localLanes`          | yes     | no      | Lane naming/markers, new-session branching, recents, sandboxes                                                  | Phosphor prefs; layout reset clears localStorage        |
 | Optimization     | machine, This Mac | `localLanes`          | yes     | no      | Headroom tool-result compression + the Advisor                                                                  | Phosphor prefs; `headroom:*` lifecycle in main          |
@@ -47,10 +47,15 @@ Send feedback sits in the navigation's footer when the platform has `feedback`
 ([feedback.md](feedback.md)).
 
 MCP Connectors is top level and always present on This Mac, since MCP is built into
-pi rather than added by a package. Subagents requires an installed package. The
-existing provider tabs also show for declared packages so their health/configuration
-screens remain reachable during setup. The package list is re-read on every open and
-tab change, so a fresh install gets its tab without a restart, and a tab whose package
+pi rather than added by a package. The items nested under Extensions follow the
+chosen machine (`useExtensionTabs`): an item is listed when the section registry has
+a view for that kind of machine and it is listed everywhere (`always`: Claude Code,
+whose page offers Install) or its package is there. On This Mac a declared package
+counts, so its health and setup screens stay reachable during setup; Subagents needs
+it installed. On a Host the package must be installed. This Mac's package list is
+re-read on every open and tab change; a Host's is read once per connection while
+configuration access is granted, and again whenever its Extensions page reads after
+a task. So a fresh install gets its item without a restart, and an item whose package
 vanished falls back to Extensions.
 
 Phosphor's prefs live in electron-store. pi's config stays in pi's files. The
@@ -80,8 +85,8 @@ Machine sections are one list (`TABS` in `settingsIndex.ts`). A concern both kin
 machine have is one section with one id, label and place: Agent, Accounts, Extensions,
 MCP Connectors and Advanced. Each section says whether This Mac has it and which Host
 settings section renders it on a Host; a machine lists only its own (Workspaces,
-Optimization, Voice and the extension tabs are This Mac's, Folders is a Host's). So
-switching machines keeps the open concern, an extension tab opens the Host's
+Optimization and Voice are This Mac's, Folders is a Host's). So switching machines
+keeps the open concern, an extension item the other machine does not list opens its
 Extensions, and anything else opens the machine's first section. Search lists a
 section's rows only on the machine that renders them.
 
@@ -151,7 +156,7 @@ section as alerts.
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Agent          | pi model/thinking, compaction, retry, thinking visibility and message delivery; separate Host context-budget, automatic-naming and directive policy; the Host's global instructions |
 | Accounts       | Host provider status, supported private CLI sign-in, separate Claude provider/CLI installation, isolated Claude accounts, routing, usage and associated lanes                       |
-| Extensions     | Headless-safe default catalogue, package inventory/resource counts and reviewed npm install/repair/update/remove; the machine-filtered Skills page remains read-only                |
+| Extensions     | The shared Extensions view ([below](#extensions)): headless recommendations, the packages for the machine and the folder in scope, reviewed npm install/repair/update/remove        |
 | MCP Connectors | pi's global or registered-folder MCP configuration, curated/custom connectors, enablement, private authentication and explicitly reviewed status checks                             |
 | Folders        | Existing Host browse/register/unregister controls and an explicit pi trust review, subject to the Host's repository-change policy                                                   |
 | Advanced       | Pause and update (the Host's own signed `phosphor update`), read-only Host paths, platform and environment-name diagnostics, never values or a raw-JSON editor                      |
@@ -202,10 +207,10 @@ blocks it until it is discarded. Section, machine, scope and Refresh controls, c
 the dialog and leaving the browser page wait for a save in flight, and ask before
 discarding a refused draft.
 
-The standard Host extensions are the Claude Code provider, Swarm subagents and
-web access, offered with consent during guided setup. Missing packages have
-one-click reviewed install/repair actions; computer use is not provisioned on
-headless Hosts. Existing pins and resource filters are shown, not silently reset.
+The standard Host extensions are the headless standard packages (the Claude Code
+provider, Subagents and Web access), offered with consent during guided setup.
+Computer use is not provisioned on Hosts. Existing pins and resource filters are
+shown, not silently reset.
 
 Agent defaults include compaction/retry parameters, thinking visibility and
 steering/follow-up delivery. The same pi settings apply to native and Claude
@@ -508,32 +513,54 @@ liveness rules. An E2E profile writes only to its own log folder.
 
 ## Extensions
 
-pi package management: extensions, skills, prompts and themes. Reads come from
-pi's settings files and install dirs; every mutation shells out to pi's own
-package manager (`pi install` / `pi remove` / `pi update`) with the output
-streamed into the tab, so a failure is legible rather than a silent no-op.
+pi package management: extensions, skills, prompts and themes, in one view on every
+machine (`sections/extensions/`: `PackagesView` over a `PackageSource`, with
+`useLocalPackages` for This Mac and `useHostPackages` for a Host). Extensions is
+**scoped**: with a folder chosen in the scope line, its packages are listed below the
+machine's. Reads come from pi's settings files and install dirs; every action runs
+pi's own package manager (`pi install` / `pi remove` / `pi update`) on that machine.
 
-- A **Recommended** catalogue of curated packages, then Installed lists by
-  scope (global, this workspace). Each row shows version, a `vX available`
-  chip when the registry says so, and what the package contributes, by name:
-  its skills (with a "View in Skills" jump), prompt commands, extensions and
-  themes. The registry lookup never blocks the local listing.
+- **Recommended**: the standard packages (`STANDARD_PACKAGES`,
+  `@phosphor/shared/standard-packages`), the one list This Mac, a Host and guided
+  Host setup share. A card says **Added** when the package is installed, offers
+  **Repair** when pi's settings name it but it is missing, and **Add** otherwise
+  (`standardPackageState`, matched by package name, so pinned versions and a Host's
+  redacted specs still match). A Host offers only the `headless` ones: computer use
+  needs a desktop session. The Claude Code card says when the `claude` CLI is not on
+  PATH (This Mac).
+- **Installed** lists, for the machine and for the folder in scope. Each row shows
+  the version, a `vX available` chip when the machine checks the registry, and what
+  the package contributes: by name on This Mac (skills with a **View in Skills**
+  jump, prompt commands, extensions, themes), as counts from a Host. View in Skills
+  closes Settings and opens the Skills page on that machine (`openSkillsOn`). A
+  declared but missing package is labelled "installs on next session start" and
+  offers **Repair installation**. A "filtered" row has settings-level resource filters.
+- **Add a package** by spec, plus **Update all** where the machine supports it.
+  Packages run with full system access, and the view says so. **Remove** always
+  asks first.
 - Contents come from the install dir (`libs/session-runtime/src/pi/package-resources.ts`).
   A `pi` manifest lists folders and globs, not resources, so each entry is
   expanded the way pi expands it (`"skills": ["./skills"]` is every bundle in
   that folder) and `!pattern` exclusions are applied. A kind the manifest
   omits is empty even if the folder exists, because pi will not load it.
-  Settings-level filters (the object form) are not applied; the row says
-  "filtered" instead.
-- Add a package by spec (`npm:pkg`, `git:github.com/user/repo`, or an absolute
-  path), plus Update all. Packages run with full system access, and the tab
-  says so.
-- A declared-but-not-installed package is labelled "installs on next session
-  start". pi installs at session start, never on its own.
 
-Four packages contribute a nested tab. Package discovery uses the active
-workspace, including project packages. The Subagents guide requires an installed
-package; the other tabs preserve their declared-package setup behavior:
+The machines differ only in the source's capabilities:
+
+| Capability     | This Mac                                            | A Host                                                   |
+| -------------- | --------------------------------------------------- | -------------------------------------------------------- |
+| `anySource`    | npm, `git:` or an absolute path                     | npm only                                                 |
+| `projectScope` | installs into the folder in scope, or the machine   | the whole machine; folder packages are listed, read-only |
+| `updateAll`    | `pi update --extensions`                            | none                                                     |
+| `versionCheck` | registry lookup, never blocking the listing; Update | none: Update is always offered on an installed package   |
+| `headless`     | every recommended package                           | the headless ones                                        |
+
+This Mac runs an action at once and streams its output under the view. A Host runs
+each action as a reviewed task (`package.install` / `update` / `remove`) in a
+private terminal on the Host, which needs the Host's `terminal` capability; the
+review asks before anything runs, and the section reads again when the task ends.
+
+Four packages contribute an item nested under Extensions
+([which are listed](#sections-and-capabilities)):
 
 ### Claude Code (`pi-claude-cli`)
 
@@ -564,28 +591,33 @@ print-mode prompt through the CLI, the login and the extension at once, because
 ### Web access (`pi-web-access`)
 
 Search, fetching and PDF extraction for sessions, written to the package's
-`web-search.json`. Common search providers get first-class fields
+`web-search.json` on the machine (`sections/web-access/`: `WebAccessView` over a
+`WebAccessSource`). Common search providers get first-class fields
 (`WEB_ACCESS_PROVIDERS`, `libs/shared/src/web-access.ts`); the rest stay
-reachable through the raw file. The file holds API keys, so the tab's read
-(`pi:webSearchConfig`) returns only the names of configured keys, never their
-values; a key is set or replaced by value, and cleared. **Edit raw JSON…** is the
-explicit way to see the file's contents. Every save of the file, from a field or
-the raw editor, writes it 0600 and makes an existing file 0600.
+reachable through the file itself. The file holds API keys, so both machines report
+only which keys are configured, never their values: This Mac through
+`pi:webSearchConfig`, a Host through its `resources` read (`webAccess`). A key is set
+or replaced by value, and cleared (on a Host, the `webAccess.key` change). **Edit raw
+JSON…** is This Mac's explicit way to see the file's contents; a Host has no raw
+editor. A Host whose read lacks `webAccess` shows "Update this Host" and no fields. A
+malformed file makes the fields read-only. Every save of the file writes it 0600.
 
 ### Subagents (`pi-subagents`)
 
 A searchable guide to parent/child responsibilities, foreground and background
 work, source precedence, context, permissions and results. Configuration stays
 with its owner: Pi settings for defaults and profile overrides, Markdown for
-agents, extension `config.json` for runtime limits, and Phosphor's Agent tab
-for delegation directives. The global settings button reuses the raw editor;
-it does not rewrite profiles or extension runtime configuration. The tab does
-not launch work and is not proof that a particular session loaded the package.
+agents, extension `config.json` for runtime limits, and the Agent section for
+delegation directives. On This Mac the global settings button opens the raw
+editor; a Host shows the guide without it. The page does not launch work and is not
+proof that a particular session loaded the package.
 
 ### Computer use (`@injaneity/pi-computer-use`)
 
 Read-only: what the package adds (observe windows, search UI elements, click,
-type, scroll) and the accessibility permissions it needs.
+type, scroll) and the accessibility permissions it needs. A Host never offers the
+package, so it lists this item only when the package is installed there; the page
+then says that permissions are granted at the Host's own console.
 
 ## MCP Connectors
 
