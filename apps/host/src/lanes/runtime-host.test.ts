@@ -306,7 +306,7 @@ it('does not stop a deleting lane after authority expires while reading pi state
   expect(s.runtime.stop).not.toHaveBeenCalled()
 })
 
-it('fresh branch conflicts produce a fixed rejection before a row or process exists', async () => {
+function commitBase() {
   execFileSync(
     'git',
     [
@@ -321,10 +321,9 @@ it('fresh branch conflicts produce a fixed rejection before a row or process exi
     ],
     { cwd: machine.repository },
   )
-  execFileSync('git', ['branch', 'occupied'], { cwd: machine.repository })
-  const s = setup()
-  const receipts: Receipt[] = []
-  const commands = createLaneCommands({
+}
+function laneCommands(s: ReturnType<typeof setup>, receipts: Receipt[]) {
+  return createLaneCommands({
     store,
     ...s.binding,
     runtime: s.binding,
@@ -336,14 +335,22 @@ it('fresh branch conflicts produce a fixed rejection before a row or process exi
     now: Date.now,
     log: s.log,
   })
-  await commands.submit(
-    { id: randomUUID(), label: 'Client', caps: ['sessions.control'] },
-    {
-      type: 'command',
-      requestId: randomUUID(),
-      op: { type: 'lane.create', repositoryId, worktree: { branch: 'occupied', fresh: true } },
-    },
-  )
+}
+const creator = { id: randomUUID(), label: 'Client', caps: ['sessions.control' as const] }
+const createFrame = (fields: { worktree?: { branch: string; fresh?: true }; prompt?: string }) => ({
+  type: 'command' as const,
+  requestId: randomUUID(),
+  op: { type: 'lane.create' as const, repositoryId, worktree: null, ...fields },
+})
+
+it('fresh branch conflicts produce a fixed rejection once every free name is taken', async () => {
+  commitBase()
+  for (const name of ['occupied', 'occupied-2', 'occupied-3', 'occupied-4', 'occupied-5'])
+    execFileSync('git', ['branch', name], { cwd: machine.repository })
+  const s = setup()
+  const receipts: Receipt[] = []
+  const commands = laneCommands(s, receipts)
+  await commands.submit(creator, createFrame({ worktree: { branch: 'occupied', fresh: true } }))
   expect(receipts.at(-1)).toMatchObject({ status: 'rejected', code: 'branch-exists' })
   expect(s.runtime.start).not.toHaveBeenCalled()
   expect(store.listLanes()).toHaveLength(0)
@@ -353,5 +360,53 @@ it('fresh branch conflicts produce a fixed rejection before a row or process exi
     expect.objectContaining({ code: 'branch-exists' }),
   )
   expect(JSON.stringify(s.log.mock.calls)).not.toContain('occupied')
-  commands.close()
+  await commands.close()
+})
+
+it('creates a fresh branch under the first free suffixed name and stores that name', async () => {
+  commitBase()
+  execFileSync('git', ['branch', 'taken'], { cwd: machine.repository })
+  const s = setup()
+  const receipts: Receipt[] = []
+  const commands = laneCommands(s, receipts)
+  await commands.submit(creator, createFrame({ worktree: { branch: 'taken', fresh: true } }))
+  const done = receipts.at(-1)
+  if (done?.status !== 'done' || !done.laneId) throw new Error('expected a created lane')
+  expect(done.data).toBeUndefined()
+  expect(store.getLane(done.laneId)).toMatchObject({ branch: 'taken-2', worktree: true })
+  expect(
+    execFileSync('git', ['branch', '--list', 'taken*'], {
+      cwd: machine.repository,
+      encoding: 'utf8',
+    }),
+  ).toContain('taken-2')
+  await commands.close()
+})
+
+it('sends the first prompt through the lane runtime, so first-prompt hooks run', async () => {
+  const s = setup([], vi.fn())
+  const receipts: Receipt[] = []
+  const commands = laneCommands(s, receipts)
+  const firstPrompt = vi.spyOn(live, 'firstPrompt')
+  const frame = createFrame({ prompt: 'Fix the login page' })
+  await commands.submit(creator, frame)
+  const done = receipts.at(-1)
+  if (done?.status !== 'done' || !done.laneId) throw new Error('expected a created lane')
+  expect(done.data).toEqual({ prompted: true })
+  expect(s.runtime.command).toHaveBeenCalledWith(expect.any(String), {
+    type: 'prompt',
+    message: 'Fix the login page',
+    id: frame.requestId,
+  })
+  expect(firstPrompt).toHaveBeenCalledWith(done.laneId, 'Fix the login page')
+  expect(store.getLane(done.laneId)?.title).toBe('Fix the login page')
+  // Auto-naming considered the lane; this fixture's pi reports no model to name with.
+  await vi.waitFor(() =>
+    expect(s.log).toHaveBeenCalledWith(
+      'host',
+      'lane.naming',
+      expect.objectContaining({ laneId: done.laneId, outcome: 'skipped-no-model' }),
+    ),
+  )
+  await commands.close()
 })

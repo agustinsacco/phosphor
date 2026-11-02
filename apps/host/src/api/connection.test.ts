@@ -190,9 +190,12 @@ describe('connection boundary', () => {
       capabilities: ['sessions.read', 'machine.configure'],
     })
   })
-  it('advertises Host-synced lane marks to every client', async () => {
+  it('advertises Host-synced lane marks and Host-started lanes to every client', async () => {
     const c = await auth()
-    expect(c.frames.find((frame) => frame.type === 'ready')).toMatchObject({ laneMarks: true })
+    expect(c.frames.find((frame) => frame.type === 'ready')).toMatchObject({
+      laneMarks: true,
+      laneStart: true,
+    })
   })
   it('revokes configuration authority on renewal and reports the effective capabilities', async () => {
     const renew = vi.fn()

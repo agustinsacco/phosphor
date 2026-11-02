@@ -109,38 +109,31 @@ describe('lane.create', () => {
     expect(f.last(request.requestId)).toMatchObject({ code: 'too-many-requests' })
     expect(f.ports.sessions.stop).toHaveBeenCalledWith('new-session')
   })
-  it('keeps same-branch creation serialized beyond the deadline until rollback settles', async () => {
-    let owned = false
-    const undo = vi.fn(async () => {
-      expect(owned).toBe(true)
-      owned = false
-    })
-    const folder = vi.spyOn(folders, 'prepareLaneFolder').mockImplementation(async () => {
-      expect(owned).toBe(false)
-      owned = true
-      return { cwd: f.lane.cwd, branch: 'same', undo }
-    })
+  it('lets a second worktree creation prepare its folder while the first boots pi', async () => {
+    const undo = vi.fn(async () => {})
+    const folder = vi.spyOn(folders, 'prepareLaneFolder').mockImplementation(async (input) => ({
+      cwd: f.lane.cwd,
+      branch: input.worktree?.branch ?? null,
+      undo,
+    }))
     const gate = deferred<{ sessionId: string; sessionFile: null }>()
     const entered = deferred<void>()
     vi.mocked(f.ports.sessions.start).mockImplementationOnce(() => {
       entered.release()
       return gate.promise
     })
-    const first = create({ worktree: { branch: 'same' } })
+    const first = create({ worktree: { branch: 'one' } })
     const a = f.service.submit(f.one, first)
     await entered.promise
     await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
     expect(f.last(first.requestId)?.status).toBe('unknown')
-    const second = create({ worktree: { branch: 'same' } })
-    const b = f.service.submit(f.two, second)
-    await vi.advanceTimersByTimeAsync(0)
-    expect(folder).toHaveBeenCalledTimes(1)
-    expect(f.ports.sessions.start).toHaveBeenCalledTimes(1)
-    gate.reject(new Error('start failed'))
-    await Promise.all([a, b])
-    expect(undo).toHaveBeenCalledTimes(1)
-    expect(owned).toBe(true)
+    const second = create({ worktree: { branch: 'two' } })
+    await f.service.submit(f.two, second)
+    expect(folder).toHaveBeenCalledTimes(2)
     expect(f.last(second.requestId)?.status).toBe('done')
+    gate.reject(new Error('start failed'))
+    await a
+    expect(undo).toHaveBeenCalledTimes(1)
     expect(f.receipts(first.requestId)).toHaveLength(1)
   })
   it('publishes and attaches a late success while keeping only the unknown receipt', async () => {
@@ -327,7 +320,7 @@ describe('lane.create', () => {
     expect(f.events).toEqual([])
     expect(f.last(take.requestId)).toMatchObject({ status: 'rejected', code: 'unknown-lane' })
   })
-  it('serializes two creates and reports unknown at the answer deadline without a late receipt', async () => {
+  it('boots two creates side by side and reports unknown at the deadline without a late receipt', async () => {
     vi.spyOn(folders, 'prepareLaneFolder').mockResolvedValue({
       cwd: f.lane.cwd,
       branch: null,
@@ -342,14 +335,14 @@ describe('lane.create', () => {
     const first = create()
     const second = create()
     const a = f.service.submit(f.one, first)
-    const b = f.service.submit(f.two, second)
     await entered.promise
-    await vi.advanceTimersByTimeAsync(0)
-    expect(f.ports.sessions.start).toHaveBeenCalledTimes(1)
+    await f.service.submit(f.two, second)
+    expect(f.ports.sessions.start).toHaveBeenCalledTimes(2)
+    expect(f.last(second.requestId)?.status).toBe('done')
+    expect(f.last(first.requestId)).toBeUndefined()
     gate.release({ sessionId: 'first', sessionFile: null })
     await a
-    await b
-    expect(f.ports.sessions.start).toHaveBeenCalledTimes(2)
+    expect(f.last(first.requestId)?.status).toBe('done')
     const late = deferred<{ sessionId: string; sessionFile: null }>()
     const lateEntered = deferred<void>()
     vi.mocked(f.ports.sessions.start).mockImplementationOnce(() => {
@@ -365,6 +358,99 @@ describe('lane.create', () => {
     await running
     await vi.advanceTimersByTimeAsync(0)
     expect(f.receipts(request.requestId)).toHaveLength(1)
+  })
+})
+
+describe('lane.create phases and first prompt', () => {
+  const connected = () => ({ ...f.one, connectionId: 'connection' })
+  const create = (fields: Partial<Extract<LaneOp, { type: 'lane.create' }>>): LaneCommandFrame => ({
+    type: 'command',
+    requestId: randomUUID(),
+    op: { type: 'lane.create', repositoryId: f.lane.repositoryId, worktree: null, ...fields },
+  })
+  const connections: (string | undefined)[] = []
+  beforeEach(() => {
+    connections.length = 0
+    f.ports.deliver = (clientId, receipt, connectionId) => {
+      f.sent.push({ clientId, receipt })
+      connections.push(connectionId)
+    }
+    vi.mocked(f.ports.sessions.attach).mockImplementation(async (laneId, sessionId) => {
+      f.sessions.set(laneId, sessionId)
+    })
+  })
+
+  it('reports phases to the connection, then a recorded done receipt with prompted', async () => {
+    vi.spyOn(folders, 'prepareLaneFolder').mockResolvedValue({
+      cwd: f.lane.cwd,
+      branch: 'feature',
+      undo: async () => {},
+    })
+    f.command.mockResolvedValueOnce(f.success)
+    const request = create({ worktree: { branch: 'feature' }, prompt: 'hello' })
+    await f.service.submit(connected(), request)
+    const receipts = f.receipts(request.requestId)
+    expect(receipts.map((r) => (r.status === 'pending' ? r.phase : r.status))).toEqual([
+      'branching',
+      'starting',
+      'prompting',
+      'done',
+    ])
+    expect(connections).toEqual(['connection', 'connection', 'connection', undefined])
+    expect(receipts.at(-1)).toMatchObject({ fence: 1, data: { prompted: true } })
+    expect(f.store.getReceipt(request.requestId, f.one.id)).toMatchObject({
+      status: 'done',
+      data: { prompted: true },
+    })
+  })
+
+  it('reports nothing after the deadline answered unknown', async () => {
+    const folder = deferred<void>()
+    vi.spyOn(folders, 'prepareLaneFolder').mockImplementation(async () => {
+      await folder.promise
+      return { cwd: f.lane.cwd, branch: 'feature', undo: async () => {} }
+    })
+    const request = create({ worktree: { branch: 'feature' }, prompt: 'hello' })
+    const running = f.service.submit(connected(), request)
+    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    f.command.mockResolvedValueOnce(f.success)
+    folder.release()
+    await running
+    expect(f.receipts(request.requestId)).toEqual([
+      { requestId: request.requestId, status: 'pending', phase: 'branching' },
+      { requestId: request.requestId, status: 'unknown' },
+    ])
+    expect(f.command).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends the first prompt before a lane op queued behind the creation', async () => {
+    const attached = deferred<void>()
+    const entered = deferred<string>()
+    vi.mocked(f.ports.sessions.attach).mockImplementationOnce(async (laneId, sessionId) => {
+      entered.release(laneId)
+      await attached.promise
+      f.sessions.set(laneId, sessionId)
+    })
+    const request = create({ prompt: 'first' })
+    const creating = f.service.submit(f.one, request)
+    const laneId = await entered.promise
+    const second = f.frame({ type: 'prompt', message: 'second' }, 1, laneId)
+    const queued = f.service.submit(f.one, second)
+    attached.release()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(f.command.mock.calls.map(([, command]) => command)).toEqual([
+      { type: 'prompt', message: 'first', id: request.requestId },
+    ])
+    f.finish(0)
+    await creating
+    await vi.advanceTimersByTimeAsync(0)
+    f.finish(1)
+    await queued
+    expect(f.command.mock.calls.map(([, command]) => command)).toEqual([
+      { type: 'prompt', message: 'first', id: request.requestId },
+      { type: 'prompt', message: 'second', id: second.requestId },
+    ])
+    expect(f.last(request.requestId)).toMatchObject({ status: 'done', data: { prompted: true } })
   })
 })
 

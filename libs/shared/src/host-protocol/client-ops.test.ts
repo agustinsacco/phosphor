@@ -117,6 +117,9 @@ describe('command ops through the public entry', () => {
       expect(command({ ...minimal, thinkingLevel })).toStrictEqual(
         accepted({ ...minimal, thinkingLevel }),
       )
+    expect(command({ ...minimal, prompt: 'Fix the login page' })).toStrictEqual(
+      accepted({ ...minimal, prompt: 'Fix the login page' }),
+    )
   })
 
   it('refuses lane.create field by field', () => {
@@ -131,6 +134,8 @@ describe('command ops through the public entry', () => {
       { provider: 'p'.repeat(201) },
       { model: '' },
       { thinkingLevel: 'auto' },
+      { prompt: '' },
+      { prompt: 1 },
     ])
       expect(command({ ...minimal, ...patch }), JSON.stringify(patch)).toStrictEqual(
         refused('bad-request'),

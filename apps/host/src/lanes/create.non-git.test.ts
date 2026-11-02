@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import * as exec from '@phosphor/session-runtime/git/git-exec'
 import { createLane, type LaneSessions } from './create'
+import { createRepositoryLocks } from './repository-lock'
 import { HostStore, type StoredLane } from './store'
 import { gitTracksFolder, LaneFolderError } from './worktree'
 
@@ -31,7 +32,7 @@ afterEach(() => {
 })
 const create = () =>
   createLane(
-    { sessions, store, log: () => {} },
+    { sessions, store, log: () => {}, folders: createRepositoryLocks() },
     {
       root: folder,
       op: {

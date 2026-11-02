@@ -54,13 +54,16 @@ describe('a timed-out creation keeps the machine queue', () => {
     })
     f.ports.routines = { execute: routine }
     const client: LaneCommandClient = { ...f.one, caps: routines }
+    const pauseAll = () => ({
+      type: 'command' as const,
+      requestId: randomUUID(),
+      op: { type: 'routine.pauseAll' as const },
+    })
     const request = create()
     const creating = f.service.submit(client, request)
-    const queued = f.service.submit(client, {
-      type: 'command',
-      requestId: randomUUID(),
-      op: { type: 'routine.pauseAll' },
-    })
+    // The routine runs while the creation boots pi.
+    await f.service.submit(client, pauseAll())
+    expect(order).toEqual(['routine'])
     let settled = false
     void creating.then(() => (settled = true))
     await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
@@ -71,20 +74,22 @@ describe('a timed-out creation keeps the machine queue', () => {
       message: 'lane.command',
       data: expect.objectContaining({ requestId: request.requestId, reason: 'deadline' }),
     })
-    const busy = {
-      type: 'command' as const,
-      requestId: randomUUID(),
-      op: { type: 'routine.pauseAll' as const },
-    }
+    // The unsettled creation still counts: one more op fits, a second does not.
+    const stalled = deferred<null>()
+    routine.mockImplementationOnce(() => stalled.promise)
+    const fits = f.service.submit(client, pauseAll())
+    const busy = pauseAll()
     await f.service.submit(client, busy)
     expect(f.last(busy.requestId)).toMatchObject({ status: 'rejected', code: 'busy' })
+    stalled.release(null)
+    await fits
     start.reject(new Error('start failed'))
     await vi.advanceTimersByTimeAsync(0)
-    expect(order).toEqual(['undo'])
+    expect(order).toEqual(['routine', 'undo'])
     expect(settled).toBe(false)
     undone.release()
-    await Promise.all([creating, queued])
-    expect(order).toEqual(['undo', 'undone', 'routine'])
+    await creating
+    expect(order).toEqual(['routine', 'undo', 'undone'])
     expect(f.receipts(request.requestId)).toHaveLength(1)
     expect(f.logs.filter((entry) => entry.message === 'lane.command_late')).toHaveLength(1)
   })
@@ -188,9 +193,11 @@ describe('creation refusals and failures keep their receipts and cleanup', () =>
   })
 
   it('answers an existing branch as branch-exists without starting a session', async () => {
-    vi.spyOn(folders, 'prepareLaneFolder').mockRejectedValueOnce(
-      new folders.LaneFolderError('That branch already exists.', 'branch-exists'),
-    )
+    const prepare = vi
+      .spyOn(folders, 'prepareLaneFolder')
+      .mockRejectedValue(
+        new folders.LaneFolderError('That branch already exists.', 'branch-exists'),
+      )
     const request = create({ worktree: { branch: 'taken', fresh: true } })
     await f.service.submit(f.one, request)
     expect(f.last(request.requestId)).toEqual({
@@ -198,6 +205,7 @@ describe('creation refusals and failures keep their receipts and cleanup', () =>
       status: 'rejected',
       code: 'branch-exists',
     })
+    expect(prepare).toHaveBeenCalledTimes(5)
     expect(f.ports.sessions.start).not.toHaveBeenCalled()
     expect(f.logs.filter((entry) => entry.message === 'lane.command_error')).toEqual([])
   })
