@@ -726,7 +726,9 @@ separate private-file requirements. World-writable files/directories, foreign
 owners, hard links and final symlinks are refused. Commits read bounded regular
 files, preserve unrelated fields (including nested compaction/retry settings),
 check the revision and current authorization, and atomically rename an exclusive
-0600 temporary file. Folder agent editors show only that folder's overrides,
+0600 temporary file. This is the one pi config writer
+(`libs/session-runtime/src/pi/settings-file.ts`); the Host runs it with
+`HOST_FILE_POLICY` (no links, 0600, 64 KiB) and Desktop with its own. Folder agent editors show only that folder's overrides,
 not a merged copy of machine defaults. Repository management
 shares their process-local lock. This is not a cross-process compare-and-swap.
 A lost response can mean the edit applied; clients must inspect rather than replay
@@ -758,6 +760,9 @@ Connector checks are separately reviewed because `pi mcp list --json` may start
 configured stdio code. Only reviewed state/tool counts are returned, cached for
 at most sixty seconds and invalidated by edits/authentication. Folder MCP cannot
 contain secret-bearing headers, environment values or OAuth client secrets.
+Web access keys (`web-search.json`, where the Host's pi environment puts it) are
+written one at a time by `webAccess.key` and read back as names only; the file is
+saved 0600 like the rest of the Host's config.
 Credentials, raw source URLs and authentication callback URLs never enter control
 or metadata traffic logs. Advanced diagnostics expose names and paths, not values.
 

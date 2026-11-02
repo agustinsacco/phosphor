@@ -173,7 +173,9 @@ and folder trust all require explicit review. Trust is never silently approved.
 
 Global MCP may hold secrets. Folder MCP cannot contain environment values,
 headers or OAuth client secrets; put these in a machine connector and override
-its enablement in the folder. Inherited connectors are not silently replaced or
+its enablement in the folder. This Mac's connector writes apply the same rule,
+and both machines write only https or loopback http URLs without credentials
+([mcp.md](mcp.md#rules)); existing files keep loading. Inherited connectors are not silently replaced or
 removed. A check runs `pi mcp list --json`; its reviewed status/tool counts expire
 after 60 seconds and are invalidated by configuration or authentication changes.
 Signing in never automatically executes a connector check.
@@ -187,6 +189,10 @@ commits, not an atomic multi-file save. A toast says where each save landed
 service restarts" for automatic naming), replacing the previous one; the section shows
 "Saving on \<Host\>…" meanwhile. An invalid context budget or a half-filled
 custom model is flagged in place and not sent. Edits preserve unrelated settings.
+A Host whose Agent read carries `agentClearSupported` accepts `null` in a patch
+to clear a value (the Host deletes the key); This Mac clears by sending
+`undefined` to `pi:patchAgentSettings`. Both save through one merge
+(`mergeAgentPatch`), so a cleared value is never written as `null`.
 
 A change the Host refuses stays as a non-secret draft keyed by Host/folder, with
 an error toast and a **Try again** / **Discard changes** banner; it is not
@@ -384,6 +390,11 @@ project scope, an empty field's placeholder names what it inherits.
 - If the target file is not valid JSON, editing is **disabled** rather than
   best-effort, and the banner routes to Advanced to repair it by hand. Main
   never overwrites a config it could not parse.
+- Saves use the Host's writer (`libs/session-runtime/src/pi/settings-file.ts`):
+  locked per file, atomically replaced, and refused when the file changed since
+  it was read. This Mac's policy (`DESKTOP_FILE_POLICY`) saves through a dotfile
+  symlink, so the link survives, and keeps each file's mode. `settings.json`,
+  `models.json`, `mcp.json` and their raw editors all write through it.
 - pi settings apply to **new** sessions. The context budget is the live-session
   exception described above.
 
@@ -544,12 +555,20 @@ print-mode prompt through the CLI, the login and the extension at once, because
   numbers) and the live sessions spending it. A session there can be restarted on the same account or moved
   to another; both respawn it from its session file, which is the only way an
   account can change.
+- Removing an account signs it out, so main refuses it while live sessions are
+  spending that account ("Stop or move this account’s live sessions before
+  removing it."), as a Host does for its active lanes.
 
 ### Web access (`pi-web-access`)
 
 Search, fetching and PDF extraction for sessions, written to the package's
-`web-search.json`. Common search providers get first-class fields; the rest
-stay reachable through the raw file.
+`web-search.json`. Common search providers get first-class fields
+(`WEB_ACCESS_PROVIDERS`, `libs/shared/src/web-access.ts`); the rest stay
+reachable through the raw file. The file holds API keys, so the tab's read
+(`pi:webSearchConfig`) returns only the names of configured keys, never their
+values; a key is set or replaced by value, and cleared. **Edit raw JSON…** is the
+explicit way to see the file's contents. Every save of the file, from a field or
+the raw editor, writes it 0600 and makes an existing file 0600.
 
 ### Subagents (`pi-subagents`)
 
@@ -658,7 +677,10 @@ privacy rules are in [voice.md](voice.md).
 ## Advanced
 
 - **pi health**: resolved binary path, version, and the minimum version
-  Phosphor supports.
+  Phosphor supports. `pi:health` also reports the PATH pi runs with (the login
+  shell's) and pi's agent directory (`PiHealth.path`, `PiHealth.agentDir`); a
+  Host's Advanced read carries the same facts for its pi as additive
+  `advanced.pi { version, path, agentDir }`.
 - **Raw file editors** (Monaco JSON) for `~/.pi/agent/settings.json` and
   `models.json`, with a "restart sessions to apply" note. The escape hatch the
   Agent tab points at when a file is too broken to edit structurally.

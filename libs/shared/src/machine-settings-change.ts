@@ -3,10 +3,12 @@ import { MCP_SERVER_NAME } from './mcp'
 import { isValidContextBudgetValue } from './context-budget'
 import { text, keys, isMachineAccountId } from './machine-settings-fields'
 import { validMcpConfig } from './machine-settings-mcp'
+import { mcpSecretProblem } from './mcp-write-policy'
 import type { MachineSettingsPatch } from './machine-settings'
-import { AGENT_BEHAVIOR_KEYS, validAgentBehavior } from './machine-agent-behavior'
+import { AGENT_BEHAVIOR_KEYS, validAgentBehaviorPatch } from './machine-agent-behavior'
 import { AGENT_DIRECTIVE_KEYS } from './models/directives'
 import { isGlobalInstructionsText } from './global-instructions'
+import { isWebAccessKey, isWebAccessKeyValue } from './web-access'
 
 type Scope = Pick<MachineSettingsPatch, 'section' | 'repositoryId'>
 
@@ -66,18 +68,23 @@ function validAgentPatch(c: Record<string, unknown>, read: Scope): boolean {
   )
     return false
   const p = c.patch
+  // `null` clears a key (agentClearSupported); a Host deletes it, never writing null.
   const valid = Object.entries(p).every(([key, value]) =>
     AGENT_BEHAVIOR_KEYS.includes(key as (typeof AGENT_BEHAVIOR_KEYS)[number])
-      ? validAgentBehavior(key, value)
-      : key === 'contextBudget'
-        ? typeof value === 'string' && (value === '' || isValidContextBudgetValue(value))
-        : key === 'autoNameLanes'
-          ? typeof value === 'boolean'
-          : key === 'agentDirectives'
-            ? validDirectives(value)
-            : key === 'defaultThinkingLevel'
-              ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(String(value))
-              : text(value, 200),
+      ? validAgentBehaviorPatch(key, value)
+      : value === null
+        ? true
+        : key === 'contextBudget'
+          ? typeof value === 'string' && (value === '' || isValidContextBudgetValue(value))
+          : key === 'autoNameLanes'
+            ? typeof value === 'boolean'
+            : key === 'agentDirectives'
+              ? validDirectives(value)
+              : key === 'defaultThinkingLevel'
+                ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(
+                    String(value),
+                  )
+                : text(value, 200),
   )
   return (
     valid &&
@@ -132,8 +139,7 @@ function validConnectorChange(c: Record<string, unknown>, read: Scope): boolean 
         MCP_SERVER_NAME.test(c.name) &&
         !c.name.startsWith('-') &&
         validMcpConfig(c.config) &&
-        (!read.repositoryId ||
-          (!c.config.headers && !c.config.env && !c.config.oauth?.clientSecret)) &&
+        !mcpSecretProblem(c.config, read.repositoryId ? 'project' : 'global') &&
         (c.approveCode === undefined || c.approveCode === true) &&
         (typeof c.config.command !== 'string' || c.approveCode === true)
       break
@@ -141,11 +147,24 @@ function validConnectorChange(c: Record<string, unknown>, read: Scope): boolean 
   return valid
 }
 
+/** One key of the Host's own `web-search.json`: machine-wide, never a folder. */
+function validWebAccessChange(c: Record<string, unknown>, read: Scope): boolean {
+  return (
+    c.type === 'webAccess.key' &&
+    read.section === 'resources' &&
+    !read.repositoryId &&
+    keys(c, ['type', 'key', 'value']) &&
+    isWebAccessKey(c.key) &&
+    (c.value === null || isWebAccessKeyValue(c.value))
+  )
+}
+
 export function validSettingsChange(c: Record<string, unknown>, read: Scope): boolean {
   return (
     validClaudeChange(c, read) ||
     validAgentPatch(c, read) ||
     validConnectorChange(c, read) ||
-    validInstructionsChange(c, read)
+    validInstructionsChange(c, read) ||
+    validWebAccessChange(c, read)
   )
 }

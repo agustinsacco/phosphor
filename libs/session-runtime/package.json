@@ -52,6 +52,10 @@
       "types": "./src/pi/mcp-lane.ts",
       "default": "./src/pi/mcp-lane.ts"
     },
+    "./pi/mcp-config-write": {
+      "types": "./src/pi/mcp-config-write.ts",
+      "default": "./src/pi/mcp-config-write.ts"
+    },
     "./pi/mcp-config": {
       "types": "./src/pi/mcp-config.ts",
       "default": "./src/pi/mcp-config.ts"
@@ -231,6 +235,10 @@
     "./artifacts/artifact-library": {
       "types": "./src/artifacts/artifact-library.ts",
       "default": "./src/artifacts/artifact-library.ts"
+    },
+    "./pi/settings-file": {
+      "types": "./src/pi/settings-file.ts",
+      "default": "./src/pi/settings-file.ts"
     },
     "./pi/session-fold": {
       "types": "./src/pi/session-fold.ts",

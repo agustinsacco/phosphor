@@ -248,8 +248,12 @@ from synthetic install-event tests.
 
 Composer drafts and image blobs are bounded, owner-scoped memory, including
 canonical remote-session tuple keys. Reloading does not restore those drafts.
-The adapter persists only the theme preference, never credentials, transcripts
-or draft contents. Browser font changes last until reload. Owner loss also clears
+The adapter persists only the theme preference and the device's lane and branch
+prefs (`app:setLanePrefs` / `app:setWorktreePrefs`, browser-local: the shared
+`LanePrefs` fields, the worktree switch and a branch prefix of at most 64
+characters), each normalized to its allowlisted fields and read back only when
+small, never credentials, transcripts or draft contents. Those prefs apply to
+every Host's lanes started from this browser. Browser font changes last until reload. Owner loss also clears
 remembered creation targets/model choices and resets browser isolation. Unsupported
 native file attachments are rejected.
 

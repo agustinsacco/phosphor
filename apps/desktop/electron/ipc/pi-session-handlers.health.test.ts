@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { delimiter } from 'node:path'
 import { MIN_PI_VERSION } from '@shared/models'
+import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 
 const h = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
@@ -57,6 +59,7 @@ beforeEach(async () => {
   h.binary = '/first/pi'
   h.version.mockResolvedValue({ stdout: MIN_PI_VERSION, stderr: '' })
   h.print.mockResolvedValue({ stdout: 'Fix Login Bug', error: undefined })
+  h.environment.mockResolvedValue({ PATH: '/shell/bin' })
   h.handlers.clear()
   ;(await import('./pi-session-handlers')).registerPiSessionHandlers()
 })
@@ -69,8 +72,19 @@ it('reports the stub script and minimum version without probing pi', async () =>
     binaryPath: '/stub.cjs',
     version: MIN_PI_VERSION,
     minVersion: MIN_PI_VERSION,
+    path: expect.any(Array),
+    agentDir: piAgentDir(),
   })
   expect(h.version).not.toHaveBeenCalled()
+})
+
+it('reports the PATH pi runs with and its agent directory', async () => {
+  h.environment.mockResolvedValue({ PATH: ['/shell/bin', '/usr/bin'].join(delimiter) })
+  expect(await call('pi:health')).toMatchObject({
+    ok: true,
+    path: ['/shell/bin', '/usr/bin'],
+    agentDir: piAgentDir(),
+  })
 })
 
 it('retries unhealthy health IPC probes instead of caching failures', async () => {

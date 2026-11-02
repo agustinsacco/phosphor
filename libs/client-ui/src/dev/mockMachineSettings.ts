@@ -1,10 +1,13 @@
 import type {
+  MachineAgentDefaults,
+  MachineAgentPatch,
   MachineSettings,
   MachineSettingsPatch,
   MachineSettingsSection,
 } from '@shared/machine-settings'
 import { parseSettingsPatch } from '@shared/machine-settings'
 import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
+import { WEB_ACCESS_KEYS } from '@shared/web-access'
 const states = new Map<string, { revision: number; values: Map<string, MachineSettings> }>()
 /** Machine-keyed demo state, never a local-machine read or persistent credential store. */
 export function mockSettingsRead(
@@ -24,7 +27,7 @@ export function mockSettingsRead(
     value = {
       section,
       revision: '',
-      ...(section === 'agent' ? { agentBehaviorSupported: true } : {}),
+      ...(section === 'agent' ? { agentBehaviorSupported: true, agentClearSupported: true } : {}),
       ...(repositoryId ? { repositoryId } : {}),
       [section]: samples[section],
     }
@@ -42,7 +45,16 @@ export function mockSettingsPatch(hostId: string, patch: MachineSettingsPatch): 
   if (current.revision !== input.revision)
     throw new Error('Settings changed. Reload before saving.')
   const change = input.change
-  if (current.agent && change.type === 'agent.patch') Object.assign(current.agent, change.patch)
+  if (current.agent && change.type === 'agent.patch') applyAgentPatch(current.agent, change.patch)
+  const webAccess = current.resources?.webAccess
+  if (webAccess && change.type === 'webAccess.key') {
+    // Demo state keeps key names only, as a Host's read does.
+    const others = webAccess.configured.filter((key) => key !== change.key)
+    webAccess.configured = WEB_ACCESS_KEYS.filter(
+      (key) => others.includes(key) || (key === change.key && change.value !== null),
+    )
+    webAccess.exists = true
+  }
   if (current.instructions && change.type === 'instructions.write')
     Object.assign(current.instructions, { content: change.content, exists: true })
   if (current.providers) {
@@ -79,6 +91,24 @@ export function mockSettingsPatch(hostId: string, patch: MachineSettingsPatch): 
   state.revision++
   state.values.set(`${input.section}/${input.repositoryId ?? ''}`, current)
   return mockSettingsRead(hostId, input.section, input.repositoryId)
+}
+/** As a Host saves it: nested groups merge one level, and `null` deletes. */
+function applyAgentPatch(agent: MachineAgentDefaults, patch: MachineAgentPatch): void {
+  const target = agent as unknown as Record<string, unknown>
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) delete target[key]
+    else if (typeof value === 'object') {
+      const group: Record<string, unknown> = {
+        ...(target[key] as Record<string, unknown> | undefined),
+        ...value,
+      }
+      for (const [field, set] of Object.entries(group)) if (set === null) delete group[field]
+      target[key] = group
+    } else target[key] = value
+  }
+  // A cleared policy key reads back as the Host's default.
+  agent.contextBudget ??= ''
+  agent.autoNameLanes ??= true
 }
 export function mockSettingsCheck(hostId: string, repositoryId?: string): MachineSettings {
   const value = mockSettingsRead(hostId, 'connectors', repositoryId)
@@ -133,6 +163,7 @@ function mockSettingsSamples(hostId: string, repositoryId?: string) {
           scope: 'global',
         },
       ],
+      webAccess: { configured: ['braveApiKey'], exists: true, malformed: false },
     },
     advanced: {
       platform: 'linux',
@@ -141,6 +172,11 @@ function mockSettingsSamples(hostId: string, repositoryId?: string) {
       piAgentDir: `/home/${tag}/.pi/agent`,
       path: [`/home/${tag}/.local/bin`, '/usr/bin', '/bin'],
       environment: [{ name: 'EXAMPLE_API_KEY', available: false, passed: false }],
+      pi: {
+        version: '1.2.0',
+        path: `/home/${tag}/.local/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js`,
+        agentDir: `/home/${tag}/.pi/agent`,
+      },
     },
   }
   return samples

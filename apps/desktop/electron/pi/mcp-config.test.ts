@@ -226,3 +226,46 @@ describe('writes', () => {
     expect(await read(project)).toEqual({ mcpServers: { docs: { enabled: true } } })
   })
 })
+
+describe('the MCP write policy on This Mac', () => {
+  const project = (): string => join(workspace, '.pi', 'mcp.json')
+  it('refuses secrets in a folder’s mcp.json, which is often committed', async () => {
+    for (const config of [
+      { url: 'https://d.test/mcp', headers: { Authorization: 'Bearer private' } },
+      { command: 'node', env: { TOKEN: 'private' } },
+      { url: 'https://d.test/mcp', oauth: { clientId: 'id', clientSecret: 'private' } },
+    ])
+      await expect(upsertMcpServer('project', workspace, 'docs', config, dirs)).rejects.toThrow(
+        /machine connector/,
+      )
+    await expect(readFile(project(), 'utf8')).rejects.toThrow()
+    await upsertMcpServer(
+      'global',
+      undefined,
+      'docs',
+      { url: 'https://d.test/mcp', headers: { Authorization: 'Bearer ok' } },
+      dirs,
+    )
+    await upsertMcpServer(
+      'project',
+      workspace,
+      'tools',
+      { url: 'https://d.test/mcp', oauth: { clientId: 'public' } },
+      dirs,
+    )
+  })
+  it('writes https, or http on loopback only, and never credentials in the URL', async () => {
+    for (const url of ['http://public.example/mcp', 'https://user:secret@d.test/mcp'])
+      await expect(upsertMcpServer('global', undefined, 'docs', { url }, dirs)).rejects.toThrow(
+        /https/,
+      )
+    await upsertMcpServer('global', undefined, 'local', { url: 'http://127.0.0.1:7/mcp' }, dirs)
+    await upsertMcpServer('global', undefined, 'named', { url: 'http://localhost:7/mcp' }, dirs)
+  })
+  it('keeps loading existing entries the policy would not write', async () => {
+    await write(join(dirs.piAgent, 'mcp.json'), {
+      mcpServers: { legacy: { url: 'http://public.example/mcp' } },
+    })
+    expect((await readMcpConfigs(undefined, dirs)).servers.map((s) => s.name)).toEqual(['legacy'])
+  })
+})

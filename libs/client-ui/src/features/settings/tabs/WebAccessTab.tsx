@@ -4,34 +4,18 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { Button } from '@/components/form'
 import { ConfigFileEditor, piConfigFile } from '../ConfigFileEditor'
 import { errorText } from '@shared/errors'
-
-/**
- * Search providers surfaced as first-class fields. pi-web-access supports
- * many more (see its README); everything else is reachable via the raw
- * editor. Keys verified against pi-web-access 0.24.0.
- */
-const PROVIDERS: Array<{ key: string; label: string; hint: string }> = [
-  { key: 'braveApiKey', label: 'Brave Search', hint: 'BSA_…' },
-  { key: 'tavilyApiKey', label: 'Tavily', hint: 'tvly-…' },
-  { key: 'exaApiKey', label: 'Exa', hint: 'exa-…' },
-  { key: 'jinaApiKey', label: 'Jina Reader', hint: 'jina_…' },
-  { key: 'kagiApiKey', label: 'Kagi', hint: '' },
-  { key: 'serperApiKey', label: 'Serper', hint: '' },
-  { key: 'openaiApiKey', label: 'OpenAI (search + summaries)', hint: 'sk-…' },
-]
+import {
+  WEB_ACCESS_PROVIDERS,
+  type WebAccessConfigState,
+  type WebAccessKey,
+} from '@shared/web-access'
 
 /**
  * Settings → Web access: config for the pi-web-access package
  * (web-search.json). Shown only while the package is present.
  */
 export function WebAccessTab(): React.JSX.Element {
-  const [state, setState] = useState<{
-    path: string
-    exists: boolean
-    malformed: boolean
-    error?: string
-    config: Record<string, unknown>
-  } | null>(null)
+  const [state, setState] = useState<WebAccessConfigState | null>(null)
   const [rawEdit, setRawEdit] = useState(false)
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -52,10 +36,8 @@ export function WebAccessTab(): React.JSX.Element {
     }
   }
 
-  const configured = (key: string): boolean => {
-    const value = state?.config[key]
-    return typeof value === 'string' && value.length > 0
-  }
+  // Main reports which keys are set, never their values.
+  const configured = (key: WebAccessKey): boolean => state?.configured.includes(key) === true
 
   return (
     <div className="max-w-2xl">
@@ -80,7 +62,7 @@ export function WebAccessTab(): React.JSX.Element {
 
       <h3 className="mt-5 text-lg font-semibold">Search providers</h3>
       <div className="border-border mt-2 divide-y rounded-lg border">
-        {PROVIDERS.map((provider) => (
+        {WEB_ACCESS_PROVIDERS.map((provider) => (
           <ProviderRow
             key={provider.key}
             label={provider.label}

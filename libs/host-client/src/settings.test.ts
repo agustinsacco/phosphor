@@ -96,4 +96,45 @@ describe('Host machine settings boundary', () => {
     f.fake.send.mockResolvedValue({ status: 'unknown' })
     await expect(f.api.moveAccount('bee1', 'lane', 'default')).rejects.toThrow('not confirmed')
   })
+  it('sends a null clear to a Host and projects agentClearSupported', async () => {
+    const f = fixture()
+    f.fake.call.mockResolvedValue({
+      ok: true,
+      data: { ...data, agentClearSupported: true },
+    } as never)
+    const change = { type: 'agent.patch' as const, patch: { hideThinkingBlock: null } }
+    const result = await f.api.patch('bee1', { section: 'agent', revision, change })
+    expect(f.fake.call).toHaveBeenCalledWith('machine.settings.patch', {
+      section: 'agent',
+      revision,
+      change,
+    })
+    expect(result.agentClearSupported).toBe(true)
+  })
+  it('projects Host Web access as key names, never values', async () => {
+    const f = fixture()
+    f.fake.call.mockResolvedValue({
+      ok: true,
+      data: {
+        section: 'resources',
+        revision,
+        resources: {
+          packages: [],
+          webAccess: {
+            configured: ['braveApiKey'],
+            exists: true,
+            malformed: false,
+            braveApiKey: 'BSA_SECRET',
+          },
+        },
+      },
+    } as never)
+    const result = await f.api.read('bee1', 'resources')
+    expect(result.resources?.webAccess).toEqual({
+      configured: ['braveApiKey'],
+      exists: true,
+      malformed: false,
+    })
+    expect(JSON.stringify(result)).not.toContain('BSA_SECRET')
+  })
 })

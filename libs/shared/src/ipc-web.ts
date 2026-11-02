@@ -123,18 +123,14 @@ export const IPC_WEB = {
   'app:setLaneMarkers': unsupported(
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),
-  'app:setLanePrefs': unsupported(
-    'Native settings, local paths and persistent session data are unavailable in the browser.',
-  ),
+  'app:setLanePrefs': browser,
   'app:setModelPicks': browser,
   'app:setLastSession': unsupported(
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),
   'app:resumeTarget': browser,
   'app:setFontPrefs': browser,
-  'app:setWorktreePrefs': unsupported(
-    'Native settings, local paths and persistent session data are unavailable in the browser.',
-  ),
+  'app:setWorktreePrefs': browser,
   'app:setAgentDirectives': unsupported(
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),

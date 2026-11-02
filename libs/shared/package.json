@@ -168,6 +168,14 @@
       "types": "./src/mcp.ts",
       "default": "./src/mcp.ts"
     },
+    "./web-access": {
+      "types": "./src/web-access.ts",
+      "default": "./src/web-access.ts"
+    },
+    "./mcp-write-policy": {
+      "types": "./src/mcp-write-policy.ts",
+      "default": "./src/mcp-write-policy.ts"
+    },
     "./models": {
       "types": "./src/models.ts",
       "default": "./src/models.ts"

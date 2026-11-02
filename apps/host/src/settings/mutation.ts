@@ -1,11 +1,12 @@
 import type { MachineSettings } from '@phosphor/shared/machine-settings'
 import { parseSettingsPatch } from '@phosphor/shared/machine-settings'
 import { type SettingsContext, settingsHash } from './context'
-import { SettingsFailure } from './files'
+import { SettingsFailure } from '@phosphor/session-runtime/pi/settings-file'
 import { changeAgentSettings } from './agent-settings'
 import { changeConnectorSettings } from './connector-settings'
 import { changeProviderSettings } from './provider-settings'
 import { writeInstructionsSettings } from './instructions-settings'
+import { changeWebAccessSettings } from './web-access-settings'
 import type { SettingsSnapshot } from './snapshot'
 
 export async function applySettings(
@@ -49,6 +50,9 @@ export async function applySettings(
     case 'instructions.write':
       // Checked against the file's own revision again just before the rename.
       await writeInstructionsSettings(state, change.content, input.revision, authorized)
+      break
+    case 'webAccess.key':
+      await changeWebAccessSettings(state, change, input.revision, commitAllowed)
       break
     default:
       await changeConnectorSettings(state, change, before, cwd, input.revision, commitAllowed)

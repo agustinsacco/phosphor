@@ -4,18 +4,23 @@ import { isMachinePackageSpec } from '@phosphor/shared/machine-settings'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { validateHostConfig } from '../config/schema'
 import { HOST_VERSION } from '../version'
-import { type SettingsContext, settingsHash } from './context'
-import { settingsFile, SettingsFailure } from './files'
+import type { SettingsContext } from './context'
+import {
+  settingsFile,
+  SettingsFailure,
+  HOST_FILE_POLICY,
+} from '@phosphor/session-runtime/pi/settings-file'
 import { readProviderSettings } from './provider-settings'
 import { readAgentSettings } from './agent-settings'
 import { readConnectorSettings } from './connector-settings'
 import { readInstructionsSettings } from './instructions-settings'
+import { readWebAccessSettings } from './web-access-settings'
 
 async function readResources(state: SettingsContext, cwd?: string) {
   const packages = await listPackages(cwd, state.agentDir)
   return {
-    revision: settingsHash(packages.map((p) => [p.spec, p.version, p.installed])),
     resources: {
+      webAccess: readWebAccessSettings(state),
       packages: packages.map((p) => ({
         spec: p.kind === 'npm' && isMachinePackageSpec(p.spec) ? p.spec : 'Source managed on Host',
         name: /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i.test(p.name) ? p.name : 'External package',
@@ -36,7 +41,7 @@ async function readResources(state: SettingsContext, cwd?: string) {
 
 function readAdvanced(state: SettingsContext) {
   const { options } = state
-  const config = validateHostConfig(settingsFile(options.configPath).raw)
+  const config = validateHostConfig(settingsFile(options.configPath, HOST_FILE_POLICY).raw)
   if (!config.ok) throw new SettingsFailure('bad-request', 'Host config is invalid.')
   const names = config.config.environment?.pass ?? []
   return {
@@ -51,6 +56,12 @@ function readAdvanced(state: SettingsContext) {
         available: options.context.env[name] !== undefined,
         passed: options.env[name] !== undefined,
       })),
+      pi: {
+        ...(options.pi.version ? { version: options.pi.version } : {}),
+        // Where pi is installed: its script when node runs it, else pi itself.
+        path: options.pi.prefixArgs[0] ?? options.pi.binaryPath,
+        agentDir: state.agentDir,
+      },
     },
   }
 }

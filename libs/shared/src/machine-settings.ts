@@ -2,6 +2,7 @@ import type { AgentDirectivePrefs, ClaudeRoutingMode, ClaudeUsageSnapshot } from
 import type { GlobalInstructions } from './global-instructions'
 import type { ThinkingLevel } from './rpc'
 import type { MachineAgentBehavior } from './machine-agent-behavior'
+import type { WebAccessKey } from './web-access'
 import { machineRecord, type MachineClaude, type MachineProvider } from './host-protocol-machine'
 import { MCP_SERVER_NAME, type McpServerConfig } from './mcp'
 import { text, keys, repositoryId } from './machine-settings-fields'
@@ -37,9 +38,19 @@ export interface MachineAgentDefaults extends MachineAgentBehavior {
   /** The generated blocks the Host appends at lane start. Absent from Hosts that predate them. */
   agentDirectives?: AgentDirectivePrefs
 }
-/** Only the keys sent change; directive switches merge into the Host's own. */
-export type MachineAgentPatch = Partial<Omit<MachineAgentDefaults, 'agentDirectives'>> & {
-  agentDirectives?: Partial<AgentDirectivePrefs>
+/** Each key may be `null`: the Host deletes it, so it inherits again. */
+type Clearable<T> = { [K in keyof T]?: T[K] | null }
+/**
+ * Only the keys sent change; nested groups and directive switches merge into
+ * the Host's own. `null` clears a key or nested field, on a Host whose read
+ * carries `agentClearSupported`; older Hosts refuse it.
+ */
+export type MachineAgentPatch = Clearable<
+  Omit<MachineAgentDefaults, 'agentDirectives' | 'compaction' | 'retry'>
+> & {
+  compaction?: Clearable<NonNullable<MachineAgentBehavior['compaction']>> | null
+  retry?: Clearable<NonNullable<MachineAgentBehavior['retry']>> | null
+  agentDirectives?: Partial<AgentDirectivePrefs> | null
 }
 export type MachineSettings = {
   section: MachineSettingsSection
@@ -72,6 +83,8 @@ export type MachineSettings = {
   }
   projectTrusted?: boolean
   agentBehaviorSupported?: boolean
+  /** `agent.patch` accepts `null` to clear a key. Absent from Hosts that predate it. */
+  agentClearSupported?: true
   agent?: MachineAgentDefaults
   resources?: {
     packages: {
@@ -83,6 +96,11 @@ export type MachineSettings = {
       filtered?: boolean
       contents?: { extensions: number; skills: number; prompts: number; themes: number }
     }[]
+    /**
+     * pi-web-access's provider keys in the Host's `web-search.json`: which are
+     * configured, by name. Values never leave the Host. Absent from Hosts that predate it.
+     */
+    webAccess?: { configured: WebAccessKey[]; exists: boolean; malformed: boolean }
   }
   /** pi's global context file in the Host's agent directory; `revision` is the file's. */
   instructions?: GlobalInstructions
@@ -93,6 +111,11 @@ export type MachineSettings = {
     piAgentDir: string
     path: string[]
     environment: { name: string; available: boolean; passed: boolean }[]
+    /**
+     * The pi the Host runs: its version, where it is installed and its agent
+     * folder. Absent from Hosts that predate it.
+     */
+    pi?: { version?: string; path: string; agentDir: string }
   }
 }
 export type MachineSettingsChange =
@@ -106,6 +129,8 @@ export type MachineSettingsChange =
   | { type: 'mcp.remove'; name: string }
   | { type: 'mcp.enabled'; name: string; enabled: boolean }
   | { type: 'instructions.write'; content: string }
+  /** Set one Web access key (`resources`, machine-wide), or clear it with `null`. */
+  | { type: 'webAccess.key'; key: WebAccessKey; value: string | null }
 export interface MachineSettingsPatch {
   section: MachineSettingsSection
   repositoryId?: string
