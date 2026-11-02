@@ -60,6 +60,6 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   lanes: { Device: LanesSection },
   folders: { Local: LocalFolders, Host: HostFolders },
   optimization: { Local: OptimizationTab },
-  voice: { Local: VoiceTab },
+  voice: { Device: VoiceTab },
   advanced: { Local: AdvancedTab, Host: HostAdvancedSection },
 }

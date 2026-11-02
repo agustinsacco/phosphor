@@ -70,6 +70,7 @@ export const TABS: SettingsSection[] = [
   device('appearance', 'Appearance'),
   device('writing', 'Writing', ['writingAssist']),
   device('lanes', 'Lanes'),
+  device('voice', 'Voice', ['localVoice']),
   device('keybindings', 'Keybindings', ['appShortcuts']),
   device('account', 'Phosphor account'),
   device('install', 'App installation', ['installableApp']),
@@ -80,7 +81,6 @@ export const TABS: SettingsSection[] = [
   machineSection('connectors', 'MCP Connectors', { local: true, host: 'connectors' }),
   machineSection('folders', 'Folders', { local: true, host: 'folders' }),
   machineSection('optimization', 'Optimization', { local: true }),
-  machineSection('voice', 'Voice', { local: true }),
   machineSection('advanced', 'Advanced', { local: true, host: 'advanced' }),
 ]
 
@@ -156,6 +156,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ...APPEARANCE_ROWS,
   ...WRITING_ROWS,
   ...LANES_ROWS,
+  ...VOICE_ROWS,
   ...AGENT_ROWS,
   ...ACCOUNTS_ROWS,
   ...EXTENSIONS_ROWS,
@@ -165,7 +166,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ...CONNECTORS_ROWS,
   ...FOLDERS_ROWS,
   ...OPTIMIZATION_ROWS,
-  ...VOICE_ROWS,
   ...ADVANCED_ROWS,
   ...ACCOUNT_ROWS,
   ...INSTALL_ROWS,

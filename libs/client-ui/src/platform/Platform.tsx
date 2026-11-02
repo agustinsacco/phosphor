@@ -27,6 +27,8 @@ export interface Platform {
   installableApp: boolean
   /** A sign-in waiting on the system browser can be cancelled from here. */
   cancelSignIn: boolean
+  /** Dictation runs on this device with a local speech model (Settings → Voice). */
+  localVoice: boolean
 }
 export const DESKTOP_PLATFORM: Platform = Object.freeze({
   formFactor: 'expanded',
@@ -45,6 +47,7 @@ export const DESKTOP_PLATFORM: Platform = Object.freeze({
   feedback: true,
   installableApp: false,
   cancelSignIn: true,
+  localVoice: true,
 })
 export const COMPACT_PLATFORM: Platform = Object.freeze({
   formFactor: 'compact',
@@ -65,6 +68,7 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   feedback: false,
   installableApp: true,
   cancelSignIn: false,
+  localVoice: false,
 })
 /** A wide browser changes presentation, never its authority or native capabilities. */
 export const WIDE_BROWSER_PLATFORM: Platform = Object.freeze({

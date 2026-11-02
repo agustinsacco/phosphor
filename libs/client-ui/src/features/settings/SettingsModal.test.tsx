@@ -140,7 +140,6 @@ it.each([
   'connectors',
   'optimization',
   'advanced',
-  'voice',
   'folders',
   'claude-provider',
   'web-access',

@@ -146,9 +146,9 @@ it('selects a Host and renders its Accounts section behind the configuration gat
     'Folders',
     'Advanced',
   ])
-  for (const local of ['Optimization', 'Voice']) expect(navLabels()).not.toContain(local)
-  // How this device shows lanes and names their branches applies to every machine's lanes.
-  expect(navLabels()).toContain('Lanes')
+  expect(navLabels()).not.toContain('Optimization')
+  // Lane display, branch naming and dictation are this device's, whichever machine runs the lane.
+  expect(navLabels()).toEqual(expect.arrayContaining(['Lanes', 'Voice']))
   await openSection('Accounts')
   expect(document.body.textContent).toContain('Configuring Studio')
   expect(document.body.textContent).toContain('Configuration access is not enabled')
