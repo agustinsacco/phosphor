@@ -48,6 +48,16 @@ export function startedPrompt(op: LaneOp, result: CommandResult): boolean | unde
   return typeof prompted === 'boolean' ? prompted : undefined
 }
 
+/**
+ * Opening a created lane failed. When the Host already ran its first prompt, the
+ * lane is working, and the caller must not send the prompt again.
+ */
+export const openFailure =
+  (prompted: boolean | undefined) =>
+  (error: unknown): never => {
+    throw prompted ? new Error('lane-started-unopened') : error
+  }
+
 /** The receipt when it succeeded; otherwise thrown, as `createFailureText` reads it. */
 export function settledReceipt(op: LaneOp, result: CommandResult, machine: string): CommandResult {
   if (

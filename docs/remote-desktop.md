@@ -142,7 +142,8 @@ the draft; failure keeps it.
 Submitting commits the send on screen at once, as on This Mac: the starting echo
 (`StartingChat`) replaces the composer with the message and one status line. The
 line names the machine and the step the Host reports on its pending `lane.create`
-receipts, which main keeps as `laneStarts` in the hosts snapshot (repository,
+receipts, which the connection owner (Desktop's main, the PWA's in-page Host
+bridge) keeps as `laneStarts` in the hosts snapshot (repository,
 requested branch and phase, never the prompt): waiting for the Host, waiting
 behind another creation, creating the branch, starting the session, sending the
 message. While the link is down it says it is reconnecting, and a step that runs
@@ -157,11 +158,14 @@ page.
 A Host whose ready frame says `laneStart` takes a text-only first prompt with the
 creation and sends it as soon as pi is attached, so the lane opens already working
 with no control, snapshot or prompt round trips from the client. Its receipt says
-`{ prompted }`: false means the client opens the lane and sends the prompt itself,
-behind the echo; no answer at all means the client cannot know, so it opens the
-lane, never resends, and keeps the draft with a warning. Attachments need the lane
-to exist first, so a draft with attachments, like any draft to an older Host,
-opens the lane, acquires control if needed, uploads, then sends the prompt.
+`{ prompted }`: true spends the draft at once, even when the lane then fails to
+open here (the warning points to the sidebar, and nothing is sent again); false
+means the client opens the lane and sends the prompt itself, with the echo still
+covering the opened lane until the prompt is in; no answer at all means the client
+cannot know, so it opens the lane, never resends, and keeps the draft with a
+warning. Attachments and Swarm need the lane to exist first, so a draft with
+either, like any draft to an older Host, opens the lane, acquires control if
+needed, turns Swarm on, uploads, then sends the prompt.
 
 Isolation follows This Mac's worktree preference and branch-naming rule. Generated
 Host branches trim only the slug to fit the 100-character flattened limit; an

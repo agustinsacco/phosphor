@@ -4,7 +4,7 @@ import { startRemoteChat } from './startRemoteChat'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useStartingChatStore } from '@/stores/startingChat'
-import { PROMPT_UNCONFIRMED } from './remoteStartCodes'
+import { LANE_STARTED_UNOPENED, PROMPT_UNCONFIRMED } from './remoteStartCodes'
 const { adopt, pi, control, swarm } = vi.hoisted(() => ({
   adopt: vi.fn(),
   pi: vi.fn(),
@@ -181,6 +181,15 @@ describe('a Host that takes the first prompt with the creation', () => {
     ).rejects.toThrow('open')
     expect(accepted).toHaveBeenCalledOnce()
     expect(pi).not.toHaveBeenCalled()
+  })
+
+  it('spends the draft when main reports the Host ran the prompt but the lane did not open', async () => {
+    invoke.mockRejectedValueOnce(new Error(LANE_STARTED_UNOPENED))
+    await expect(
+      startRemoteChat(MOCK_HOST_ID, input, 'First prompt', [], accepted),
+    ).rejects.toThrow(LANE_STARTED_UNOPENED)
+    expect(accepted).toHaveBeenCalledOnce()
+    expect(adopt).not.toHaveBeenCalled()
   })
 
   it('sends the prompt itself, behind the echo, when the Host says it could not', async () => {

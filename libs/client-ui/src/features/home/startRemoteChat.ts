@@ -13,7 +13,7 @@ import { useRemoteLanesStore, canControlSession, adoptRemoteLane } from '@/store
 import { piCallOk } from '@/lib/rpc'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { requestSwarm } from '@/lib/swarm'
-import { PROMPT_UNCONFIRMED } from './remoteStartCodes'
+import { LANE_STARTED_UNOPENED, PROMPT_UNCONFIRMED } from './remoteStartCodes'
 
 /**
  * Only a definitive fresh-branch refusal may retry. Uncertain receipts keep the draft.
@@ -53,7 +53,11 @@ export async function startRemoteChat(
     }
     throw new Error('branch-name-exhausted')
   }
-  const info = await create()
+  const info = await create().catch((error: unknown) => {
+    // The Host ran the prompt but main could not open the lane: the draft is spent.
+    if (ipcErrorText(error) === LANE_STARTED_UNOPENED) accepted()
+    throw error
+  })
   if (input.model && input.provider)
     rememberRemoteModel(hostId, { id: input.model, provider: input.provider })
   const laneId = info.laneId
@@ -65,14 +69,16 @@ export async function startRemoteChat(
     await adoptRemoteLane(info, nav)
     throw new Error(PROMPT_UNCONFIRMED)
   }
+  // The Host ran it: the draft is spent whatever opening the lane here does.
+  if (prompted) accepted()
   // Until this lane's first prompt is in, the echo stands in for its empty transcript.
-  if (!prompted)
+  else
     useStartingChatStore
       .getState()
       .cover(hostId, input.repositoryId, { sessionId: info.sessionId, laneId })
   await adoptRemoteLane(info, nav)
-  if (!prompted)
-    await sendFirstPrompt(hostId, { sessionId: info.sessionId, laneId }, text, attachments, swarm)
+  if (prompted) return
+  await sendFirstPrompt(hostId, { sessionId: info.sessionId, laneId }, text, attachments, swarm)
   accepted()
 }
 

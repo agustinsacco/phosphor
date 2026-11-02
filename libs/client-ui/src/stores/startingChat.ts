@@ -98,8 +98,13 @@ export const useStartingChatStore = create<StartingChatState>((set) => ({
 
   // Clearing `draft` here as well: a new send supersedes whatever the last
   // failed one left behind, and leaving it would re-inject old text the
-  // moment this send finishes.
-  begin: (chat) => set({ starting: { ...chat, phase: 'branching' }, draft: null }),
+  // moment this send finishes. A Host start keeps it: its own draft lives in
+  // the drafts store, and the parked one still waits for its workspace.
+  begin: (chat) =>
+    set((s) => ({
+      starting: { ...chat, phase: 'branching' },
+      draft: chat.remote ? s.draft : null,
+    })),
 
   setPhase: (phase) => set((s) => (s.starting ? { starting: { ...s.starting, phase } } : s)),
 

@@ -16,6 +16,7 @@ import {
   createFailureText,
   laneCreateOp,
   startedPrompt,
+  openFailure,
   laneOperation,
   receiptResponse,
   REMOTE_UNAVAILABLE,
@@ -402,7 +403,7 @@ export function createRemoteLanes(ports: {
       if (result.status !== 'done' || !result.laneId)
         throw new Error('Lane creation not confirmed.')
       const prompted = startedPrompt(op, result)
-      const info = await open(window, hostId, result.laneId)
+      const info = await open(window, hostId, result.laneId).catch(openFailure(prompted))
       return { ...info, ...(prompted === undefined ? {} : { prompted }) }
     },
     async action(
