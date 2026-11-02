@@ -60,7 +60,7 @@ the Home ledger and the context meter's Cost row.
 
 `LanePrefs.prStatus` (default **on**) decides whether the chip renders at all,
 and a chip only renders once there is something to say: a known PR, or a
-confirmed absence on a worktree lane. Settings → Workspaces → "PR status on
+confirmed absence on a worktree lane. Settings → Lanes → "PR status on
 lanes".
 
 **Delegated work keeps a live lane working.** The sidebar activity treatment
@@ -120,7 +120,7 @@ does.
 `LanePrefs.markers`: `auto` derives for everyone, `manual` respects choices
 and derives nothing, `off` removes the column and reclaims its width. `off`
 wins over explicit choices. This preference is the feature gate, available in
-Settings → Workspaces → Lane markers. Turning it off also hides the picker;
+Settings → Lanes → Lane markers. Turning it off also hides the picker;
 existing choices are kept for when markers are enabled again.
 
 Click a saved lane's marker (including its empty placeholder), or right-click
@@ -307,11 +307,17 @@ Two constraints on the one-shot, both silent when broken:
 
 ## Preferences
 
-`LanePrefs` in `AppPrefs.lanes`, edited in Settings → Workspaces.
+`LanePrefs` in `AppPrefs.lanes`, edited in Settings → Lanes, a device section: it
+shows whichever machine Configure chooses, and the browser keeps it too
+(browser-local, [web client](web-client.md#memory-and-offline-behavior)). The
+prefix and slug length name a Host lane's branch as they do This Mac's, and
+markers and PR status apply to every machine's rows. Automatic naming is the
+machine's, under Settings → Agent.
 
 | pref                  | default | reaches                              |
 | --------------------- | ------- | ------------------------------------ |
 | `markers`             | `auto`  | the sidebar row                      |
+| `prStatus`            | `true`  | the row's PR chip                    |
 | `autoName`            | `true`  | both naming passes                   |
 | `branchSlugMaxLength` | 40      | `slugifyTitle`, so branch and folder |
 
