@@ -15,6 +15,7 @@ import { highlightPattern } from './settingsQuery'
 import { revealSetting, usePaintMatches } from './settingsHighlight'
 import { SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './SettingsSearch'
 import { useSettingsMachine, useSettingsWorkspace } from './SettingsMachineScope'
+import { NoMachineNotice } from './machine/NoMachineNotice'
 import { SettingsNav } from './SettingsNav'
 import { SettingsPanel } from './SettingsPanel'
 import { useSettingsUiStore, type SettingsMachine, type SettingsTab } from './settingsUiStore'
@@ -84,6 +85,7 @@ export function SettingsSurface({
             go(() => useSettingsUiStore.getState().setMachine(next))
           }
         />
+        {!machine && <NoMachineNotice />}
         {platform.feedback && (
           <div className="border-border mt-auto border-t px-2 pt-3" data-testid="settings-footer">
             <FeedbackButton />
