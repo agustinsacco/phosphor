@@ -2,6 +2,7 @@ import type { AgentDirectivePrefs, ClaudeRoutingMode, ClaudeUsageSnapshot } from
 import type { GlobalInstructions } from './global-instructions'
 import type { ThinkingLevel } from './rpc'
 import type { MachineAgentBehavior } from './machine-agent-behavior'
+import type { WebAccessKey } from './web-access'
 import { machineRecord, type MachineClaude, type MachineProvider } from './host-protocol-machine'
 import { MCP_SERVER_NAME, type McpServerConfig } from './mcp'
 import { text, keys, repositoryId } from './machine-settings-fields'
@@ -95,6 +96,11 @@ export type MachineSettings = {
       filtered?: boolean
       contents?: { extensions: number; skills: number; prompts: number; themes: number }
     }[]
+    /**
+     * pi-web-access's provider keys in the Host's `web-search.json`: which are
+     * configured, by name. Values never leave the Host. Absent from Hosts that predate it.
+     */
+    webAccess?: { configured: WebAccessKey[]; exists: boolean; malformed: boolean }
   }
   /** pi's global context file in the Host's agent directory; `revision` is the file's. */
   instructions?: GlobalInstructions
@@ -118,6 +124,8 @@ export type MachineSettingsChange =
   | { type: 'mcp.remove'; name: string }
   | { type: 'mcp.enabled'; name: string; enabled: boolean }
   | { type: 'instructions.write'; content: string }
+  /** Set one Web access key (`resources`, machine-wide), or clear it with `null`. */
+  | { type: 'webAccess.key'; key: WebAccessKey; value: string | null }
 export interface MachineSettingsPatch {
   section: MachineSettingsSection
   repositoryId?: string

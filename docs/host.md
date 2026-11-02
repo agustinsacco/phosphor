@@ -760,6 +760,9 @@ Connector checks are separately reviewed because `pi mcp list --json` may start
 configured stdio code. Only reviewed state/tool counts are returned, cached for
 at most sixty seconds and invalidated by edits/authentication. Folder MCP cannot
 contain secret-bearing headers, environment values or OAuth client secrets.
+Web access keys (`web-search.json`, where the Host's pi environment puts it) are
+written one at a time by `webAccess.key` and read back as names only; the file is
+saved 0600 like the rest of the Host's config.
 Credentials, raw source URLs and authentication callback URLs never enter control
 or metadata traffic logs. Advanced diagnostics expose names and paths, not values.
 

@@ -8,6 +8,7 @@ import type { MachineSettingsPatch } from './machine-settings'
 import { AGENT_BEHAVIOR_KEYS, validAgentBehaviorPatch } from './machine-agent-behavior'
 import { AGENT_DIRECTIVE_KEYS } from './models/directives'
 import { isGlobalInstructionsText } from './global-instructions'
+import { isWebAccessKey, isWebAccessKeyValue } from './web-access'
 
 type Scope = Pick<MachineSettingsPatch, 'section' | 'repositoryId'>
 
@@ -146,11 +147,24 @@ function validConnectorChange(c: Record<string, unknown>, read: Scope): boolean 
   return valid
 }
 
+/** One key of the Host's own `web-search.json`: machine-wide, never a folder. */
+function validWebAccessChange(c: Record<string, unknown>, read: Scope): boolean {
+  return (
+    c.type === 'webAccess.key' &&
+    read.section === 'resources' &&
+    !read.repositoryId &&
+    keys(c, ['type', 'key', 'value']) &&
+    isWebAccessKey(c.key) &&
+    (c.value === null || isWebAccessKeyValue(c.value))
+  )
+}
+
 export function validSettingsChange(c: Record<string, unknown>, read: Scope): boolean {
   return (
     validClaudeChange(c, read) ||
     validAgentPatch(c, read) ||
     validConnectorChange(c, read) ||
-    validInstructionsChange(c, read)
+    validInstructionsChange(c, read) ||
+    validWebAccessChange(c, read)
   )
 }

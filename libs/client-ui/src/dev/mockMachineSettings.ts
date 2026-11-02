@@ -7,6 +7,7 @@ import type {
 } from '@shared/machine-settings'
 import { parseSettingsPatch } from '@shared/machine-settings'
 import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
+import { WEB_ACCESS_KEYS } from '@shared/web-access'
 const states = new Map<string, { revision: number; values: Map<string, MachineSettings> }>()
 /** Machine-keyed demo state, never a local-machine read or persistent credential store. */
 export function mockSettingsRead(
@@ -45,6 +46,15 @@ export function mockSettingsPatch(hostId: string, patch: MachineSettingsPatch): 
     throw new Error('Settings changed. Reload before saving.')
   const change = input.change
   if (current.agent && change.type === 'agent.patch') applyAgentPatch(current.agent, change.patch)
+  const webAccess = current.resources?.webAccess
+  if (webAccess && change.type === 'webAccess.key') {
+    // Demo state keeps key names only, as a Host's read does.
+    const others = webAccess.configured.filter((key) => key !== change.key)
+    webAccess.configured = WEB_ACCESS_KEYS.filter(
+      (key) => others.includes(key) || (key === change.key && change.value !== null),
+    )
+    webAccess.exists = true
+  }
   if (current.instructions && change.type === 'instructions.write')
     Object.assign(current.instructions, { content: change.content, exists: true })
   if (current.providers) {
@@ -153,6 +163,7 @@ function mockSettingsSamples(hostId: string, repositoryId?: string) {
           scope: 'global',
         },
       ],
+      webAccess: { configured: ['braveApiKey'], exists: true, malformed: false },
     },
     advanced: {
       platform: 'linux',

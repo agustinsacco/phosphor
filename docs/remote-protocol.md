@@ -232,6 +232,16 @@ flag is present. Resource responses may
 include reviewed package content counts and a resource-filter indicator; older
 responses without these fields remain valid.
 
+Resource reads also carry additive `webAccess { configured, exists, malformed }`:
+the names of the pi-web-access provider keys set in the Host's `web-search.json`
+(`WEB_ACCESS_KEYS`, `libs/shared/src/web-access.ts`), never their values. The
+`resources` change `webAccess.key { key, value | null }` sets one allowlisted key
+to one bounded line of text, or deletes it; it is machine-wide (no
+`repositoryId`) and preserves every other key. The `resources` revision hashes
+pi's `settings.json` files and `web-search.json`, and both the snapshot and the
+commit check that same revision. Older Hosts omit `webAccess` and refuse the
+change.
+
 Configuration calls serialize through a bounded eight-entry service queue.
 File commits recheck the current revision and live authority immediately before
 an atomic rename. Losing configuration authority advances an admission epoch;

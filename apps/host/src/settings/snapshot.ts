@@ -4,7 +4,7 @@ import { isMachinePackageSpec } from '@phosphor/shared/machine-settings'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { validateHostConfig } from '../config/schema'
 import { HOST_VERSION } from '../version'
-import { type SettingsContext, settingsHash } from './context'
+import type { SettingsContext } from './context'
 import {
   settingsFile,
   SettingsFailure,
@@ -14,12 +14,13 @@ import { readProviderSettings } from './provider-settings'
 import { readAgentSettings } from './agent-settings'
 import { readConnectorSettings } from './connector-settings'
 import { readInstructionsSettings } from './instructions-settings'
+import { readWebAccessSettings } from './web-access-settings'
 
 async function readResources(state: SettingsContext, cwd?: string) {
   const packages = await listPackages(cwd, state.agentDir)
   return {
-    revision: settingsHash(packages.map((p) => [p.spec, p.version, p.installed])),
     resources: {
+      webAccess: readWebAccessSettings(state),
       packages: packages.map((p) => ({
         spec: p.kind === 'npm' && isMachinePackageSpec(p.spec) ? p.spec : 'Source managed on Host',
         name: /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i.test(p.name) ? p.name : 'External package',

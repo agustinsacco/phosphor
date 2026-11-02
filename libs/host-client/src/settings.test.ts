@@ -111,4 +111,30 @@ describe('Host machine settings boundary', () => {
     })
     expect(result.agentClearSupported).toBe(true)
   })
+  it('projects Host Web access as key names, never values', async () => {
+    const f = fixture()
+    f.fake.call.mockResolvedValue({
+      ok: true,
+      data: {
+        section: 'resources',
+        revision,
+        resources: {
+          packages: [],
+          webAccess: {
+            configured: ['braveApiKey'],
+            exists: true,
+            malformed: false,
+            braveApiKey: 'BSA_SECRET',
+          },
+        },
+      },
+    } as never)
+    const result = await f.api.read('bee1', 'resources')
+    expect(result.resources?.webAccess).toEqual({
+      configured: ['braveApiKey'],
+      exists: true,
+      malformed: false,
+    })
+    expect(JSON.stringify(result)).not.toContain('BSA_SECRET')
+  })
 })

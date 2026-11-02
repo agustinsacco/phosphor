@@ -11,6 +11,7 @@ import type { ThinkingLevel } from './rpc'
 import { projectAgentBehavior } from './machine-agent-behavior'
 import { normalizeAgentDirectives } from './models/directives'
 import { parseGlobalInstructions } from './global-instructions'
+import { WEB_ACCESS_KEYS } from './web-access'
 const text = (v: unknown, max = 512): v is string =>
   typeof v === 'string' && v.length <= max && !v.includes('\0')
 const list = (v: unknown, limit: number): v is unknown[] => Array.isArray(v) && v.length <= limit
@@ -291,7 +292,22 @@ function parseResources(
       ...(parsePackageContents(p.contents) ? { contents: parsePackageContents(p.contents)! } : {}),
     })
   }
-  return { ...base, resources: { packages } }
+  const webAccess = parseWebAccess(r.webAccess)
+  return { ...base, resources: { packages, ...(webAccess ? { webAccess } : {}) } }
+}
+/** Names only: anything that is not an allowlisted key name is dropped, as is a bad shape. */
+function parseWebAccess(
+  value: unknown,
+): NonNullable<MachineSettings['resources']>['webAccess'] | undefined {
+  if (
+    !machineRecord(value) ||
+    typeof value.exists !== 'boolean' ||
+    typeof value.malformed !== 'boolean' ||
+    !list(value.configured, 64)
+  )
+    return undefined
+  const configured = WEB_ACCESS_KEYS.filter((key) => (value.configured as unknown[]).includes(key))
+  return { configured, exists: value.exists, malformed: value.malformed }
 }
 function parseAdvanced(
   value: Record<string, unknown>,
