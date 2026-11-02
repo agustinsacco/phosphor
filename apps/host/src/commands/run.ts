@@ -52,10 +52,9 @@ import { inspectHost } from './doctor'
 import { createHostLog, hostLogDirectory } from '../machine/log'
 import { createHostRuntime, type HostRuntime } from '../session/runtime'
 import { hostDirectives } from '../config/directives'
-import { createLiveLanes } from '../lanes/live'
+import { createHostLiveLanes } from '../lanes/live-host'
 import { createLaneNamer } from '../lanes/naming'
 import { createRuntimeLanes } from '../lanes/runtime-host'
-import { createUnattachedSnapshots } from '../lanes/transcript'
 import { createLaneCommands } from '../lanes/commands'
 import { createLaneCalls } from '../lanes/calls'
 import type { LaneService } from '../lanes/service'
@@ -104,7 +103,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
   let activeLog: ReturnType<typeof createHostLog> | undefined
   let runtime: HostRuntime | undefined
   let runtimeDrain: ReturnType<HostRuntime['drain']> | undefined
-  let live: ReturnType<typeof createLiveLanes> | undefined
+  let live: ReturnType<typeof createHostLiveLanes>['live'] | undefined
   let commands: ReturnType<typeof createLaneCommands> | undefined
   let terminals: HostTerminals | undefined
   let lanes: LaneService | undefined
@@ -280,22 +279,16 @@ async function runHostCommand(context: RunContext): Promise<number> {
           context.env.PI_CODING_AGENT_DIR ?? join(context.home, '.pi', 'agent'),
         )
         runtime.life.to('ready')
-        let unattached: ReturnType<typeof createUnattachedSnapshots> = () => null
-        live = createLiveLanes({
+        const hosted = createHostLiveLanes({
           epoch,
           store,
           runtime,
           now: context.now ?? Date.now,
-          log: (event, fields) => log.write('host', event, fields),
-          unattached: (id) => unattached(id),
-        })
-        unattached = createUnattachedSnapshots({
-          store,
-          summary: live.summaryFor,
-          cursor: live.streams.cursor,
+          log: log.write,
           sessionsRoot: piSessionsRoot(context.env, context.home),
-          log: (event, fields) => log.write('host', event, fields),
         })
+        live = hosted.live
+        const { unattached } = hosted
         const activeTopic = live.lanesTopic
         routines = createHostRoutines({
           directory: hostStateDirectory(context.env, context.home),

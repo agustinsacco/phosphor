@@ -7,6 +7,7 @@ import { homeDraftKey } from '@/stores/drafts'
 import { connectingTo, hostPending, machineLabel } from '@/stores/remoteLanes'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { NoGitNote } from './IsolateToggle'
 import { StartComposer, type StartTarget } from './StartComposer'
 import { useRemoteStart } from './useRemoteStart'
 
@@ -136,6 +137,7 @@ function HostStartTargets({
             'Choose repository'}
         </span>
       </ChoiceMenu>
+      {!c.canBranch && <NoGitNote />}
       {addingFolder && (
         <HostFolderBrowser
           hostId={hostId}

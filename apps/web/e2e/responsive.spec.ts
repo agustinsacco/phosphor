@@ -91,8 +91,15 @@ test('browser creation rejects file uploads before mutation and offers no isolat
   ).setFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('synthetic') })
   await expect(page.getByRole('alert')).toContainText('Only images can be attached in this browser')
   await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeDisabled()
-  // Every Host lane gets a worktree; there is nothing to opt out of.
-  await expect(page.locator('.remote-start input[type="checkbox"]')).toHaveCount(0)
+  const checkbox = page.locator('.remote-start input[type="checkbox"]')
+  // The first folder is not a git repository: no branch, the lane runs in it.
+  await expect(page.getByText('no git · runs in folder', { exact: true })).toBeVisible()
+  await expect(checkbox).toHaveCount(0)
+  await page.getByRole('button', { name: 'Repository', exact: true }).click()
+  await page.getByRole('option', { name: 'other', exact: true }).click()
+  // A git repository: every Host lane gets a worktree, so nothing to opt out of.
+  await expect(page.getByText('no git · runs in folder', { exact: true })).toHaveCount(0)
+  await expect(checkbox).toHaveCount(0)
   await page.getByRole('button', { name: 'Repository', exact: true }).click()
   // The Host's folder dialog is the same one Desktop opens; looking does not mutate.
   await page.getByRole('option', { name: /^Add folder on/ }).click()

@@ -111,6 +111,18 @@ describe('lane list frames through the public entry', () => {
       expect(lanes({ repositories })).toStrictEqual(REFUSED)
   })
 
+  it('carries whether git tracks a repository, and leaves it absent when unknown', () => {
+    const repository = { id: REPO, name: 'r', path: '/r' }
+    const parsed = (fields: object) => {
+      const result = lanes({ repositories: [{ ...repository, ...fields }] })
+      return result.ok && result.value.type === 'lanes' ? result.value.repositories[0] : null
+    }
+    expect(parsed({ git: false })).toStrictEqual({ ...repository, git: false })
+    expect(parsed({ git: true })).toStrictEqual({ ...repository, git: true })
+    expect(parsed({})).toStrictEqual(repository)
+    expect(lanes({ repositories: [{ ...repository, git: 'no' }] })).toStrictEqual(REFUSED)
+  })
+
   it('takes a lanes cursor from seq 0 but delta, routines and attention cursors from seq 1', () => {
     expect(lanes({ cursor: { epoch: EPOCH, seq: 0 } }).ok).toBe(true)
     expect(delta({ cursor: { epoch: EPOCH, seq: 0 } })).toStrictEqual(REFUSED)
