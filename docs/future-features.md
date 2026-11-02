@@ -221,7 +221,7 @@ question uses, and show the decision it replaces. After the migration, offer
 to delete the adapter's credential-store entries for the servers that moved.
 
 **Touches.** `apps/desktop/electron/pi/mcp-config.ts` (`projectTrust` reads the
-same store), `features/settings/tabs/ConnectorsTab.tsx`,
+same store), `features/settings/sections/connectors/useLocalConnectors.ts`,
 `features/connectors/MigrationCard.tsx`, and a main-side credential-store
 helper.
 
@@ -232,3 +232,28 @@ across versions.
 **Risks.** Trust lets a repository's config start local commands, so it must
 stay an explicit, per-folder choice. Deleting the wrong keychain entry signs a
 person out of something else.
+
+## Host MCP connector extras
+
+**Problem.** A Host's MCP Connectors share This Mac's view but not all of its
+controls. They have no per-server test or tool names, no exposure or per-tool
+rules, no edit in place, and no lane status (`caps.inspect` and `caps.edit` are
+off for a Host, `useHostConnectors.ts`). A Host check is the reviewed aggregate
+`pi mcp list --json`, and changing an entry means removing and adding it again.
+
+**Proposed design.** Additive, granted settings contracts, one per feature:
+`hosts:settingsCheck` with a server `name` and tool names in the result; an
+`mcp.exposure` change carrying exposure and per-tool rules; `mcp.upsert` with
+`replace: true`, which asks to approve a command connector's code again. Each
+turns its capability on for Hosts that advertise it, and older Hosts keep
+today's controls.
+
+**Touches.** `libs/shared/src/machine-settings*.ts`, `apps/host/src/settings/`
+(`connector-settings.ts`, `connector-check.ts`), `libs/shared/src/ipc/` hosts map,
+`libs/host-client/src/settings.ts`, and the Host adapter.
+
+**Open questions.** Whether a per-server check may start only that server's
+command, and how long a lane reconnect may hold a Host lane.
+
+**Risks.** Every extra check or replace is another way for a grant holder to
+start code as the Host user, so each stays an explicit, reviewed step.

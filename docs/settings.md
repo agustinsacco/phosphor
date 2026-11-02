@@ -178,7 +178,8 @@ and both machines write only https or loopback http URLs without credentials
 ([mcp.md](mcp.md#rules)); existing files keep loading. Inherited connectors are not silently replaced or
 removed. A check runs `pi mcp list --json`; its reviewed status/tool counts expire
 after 60 seconds and are invalidated by configuration or authentication changes.
-Signing in never automatically executes a connector check.
+Signing in never automatically executes a connector check. MCP Connectors is one
+shared view on every machine ([below](#mcp-connectors)).
 
 A Host's Agent defaults save themselves, as This Mac's Agent tab does: a select or checkbox
 when it changes, a text or number field on blur or Enter. Each save sends only
@@ -285,8 +286,9 @@ it from anywhere in settings.
   Keybindings tab's own tables. Entries carry synonyms ("dark mode" finds
   Theme). Tabs whose package is not installed are left out.
 - **Machines.** A machine section's row is indexed on the machines its section
-  has (`local`, `host` in `TABS`), unless the row names its own (`on`). Agent,
-  Accounts, Extensions, MCP Connectors and Advanced still mark their rows
+  has (`local`, `host` in `TABS`), unless the row names its own (`on`). MCP
+  Connectors' rows are shared, except This Mac's Config files. Agent,
+  Accounts, Extensions and Advanced still mark their rows
   This Mac's own (`LOCAL_ONLY`), because a Host renders its own panels for
   them; a Host finds those sections by their headings only, with synonyms for
   what each Host panel shows. A row a shared view renders drops the override and
@@ -592,16 +594,27 @@ type, scroll) and the accessibility permissions it needs.
 Top level, right after Extensions and its package tabs: MCP is built into pi,
 so connectors are not configuration for a package.
 
-- **Connected**: every server pi resolves from its global and project
-  `mcp.json`, with its state from `pi mcp list` (**Check again**), Sign in,
-  enabled, exposure, Edit and Remove. Signing in runs `pi mcp login`; Phosphor
-  holds no tokens and only writes `mcp.json`.
+One view on every machine (`sections/connectors/ConnectorsView.tsx`), scoped by the
+scope line: **Machine** is the machine's `mcp.json`, **Folder** the chosen folder's
+`.pi/mcp.json`, where a machine connector can only be switched on or off.
+
+- **Connected**: every server pi resolves in that scope, with one status vocabulary
+  (**Up · N tools**, **Needs sign-in**, **Down**, **Not checked**, …), an
+  **Enabled** switch, Sign in and Sign out for OAuth servers, and Remove, which
+  asks first and signs an OAuth server out before removing it. **Refresh & test
+  all** rereads and checks. Signing in runs `pi mcp login`; Phosphor holds no
+  tokens and only writes `mcp.json`.
 - **Add a connector**: the curated OAuth catalog (Linear, Notion, Braintrust,
-  Datadog, Supabase, Questrade, Fellow, Slack). Add writes the entry and
-  starts the sign-in itself.
-- **Advanced**: both config files and the raw JSON editor, for repair.
-- While pi-mcp-adapter or its config is still present, the tab shows only the
-  migration card instead.
+  Datadog, Supabase, Questrade, Fellow, Slack), minus what is configured. Add
+  writes the entry; on This Mac it also starts the sign-in.
+- **Add custom server…**: a remote URL with an optional Authorization header
+  (Machine scope only), or a command with one argument per line.
+- **This Mac only** (`caps`): per-server **Test**, tools and tool visibility,
+  lane status, Edit, and **Advanced** with both config files and the raw JSON
+  editor. While pi-mcp-adapter or its config is still present, This Mac shows
+  only the migration card.
+- **A Host** confirms every check and every command connector first, never
+  checks on its own, and runs sign-in in a private Host terminal.
 - All of it is specified in [mcp.md](mcp.md).
 
 ## Workspaces
