@@ -1,9 +1,14 @@
 import { TooltipButton } from '@/components/Tooltip'
 import type { LoginFlowState } from '@shared/models'
 import { Button } from '@/components/form'
-import { Spinner } from '@/components/icons'
-import type { ProviderAccountsSource, ProviderRow as Row } from './accountsModel'
-import { SignInPill } from './SignInPill'
+import { CopyButton } from '@/components/CopyButton'
+import { LoginStep, ReopenSignIn } from '../claude-provider/ClaudeLoginProgress'
+import clsx from 'clsx'
+import {
+  SIGN_IN_LABEL,
+  type ProviderAccountsSource,
+  type ProviderRow as Row,
+} from './accountsModel'
 
 const GROUPS = [
   { billing: 'subscription', title: 'Use a plan you already pay for' },
@@ -120,43 +125,54 @@ function ProviderRow({
 /** The middle of an in-app sign-in: what pi is doing, and what the user must do. */
 function ProviderLoginProgress({ flow }: { flow: LoginFlowState }): React.JSX.Element | null {
   if (flow.phase === 'starting')
-    return (
-      <div className="text-text-secondary mt-3 flex items-center gap-2 text-sm">
-        <Spinner />
-        Starting pi’s sign-in…
-      </div>
-    )
+    return <LoginStep className="mt-3">Starting pi’s sign-in…</LoginStep>
   if (flow.phase !== 'awaiting-browser') return null
   return (
     <div className="border-border bg-surface-raised mt-3 rounded-md border p-3">
-      <div className="text-text-secondary flex items-center gap-2 text-sm">
-        <Spinner />
-        Waiting for you to finish in your browser.
-      </div>
+      <LoginStep>Waiting for you to finish in your browser.</LoginStep>
       {flow.userCode && (
+        // The device code is the step people miss: the browser page asks for it.
         <div className="mt-2.5">
-          {/* The device code is the step people miss: the browser page asks for
-              it, and it is nowhere else on screen. */}
           <p className="text-text-tertiary text-sm">Enter this code on the page:</p>
           <div className="mt-1 flex items-center gap-2">
             <code className="border-border bg-surface rounded border px-2 py-1 font-mono text-base tracking-widest">
               {flow.userCode}
             </code>
-            <TooltipButton
-              onClick={() => void navigator.clipboard.writeText(flow.userCode ?? '')}
-              className="text-text-secondary hover:text-text text-sm"
-            >
-              Copy
-            </TooltipButton>
+            <CopyButton text={flow.userCode} label="Copy" size="sm" />
           </div>
         </div>
       )}
-      <TooltipButton
-        onClick={() => void window.phosphor.invoke('app:openExternal', flow.url)}
-        className="text-accent mt-2.5 block text-sm hover:underline"
-      >
-        Browser didn’t open? Open the sign-in page again
-      </TooltipButton>
+      <ReopenSignIn url={flow.url} />
     </div>
+  )
+}
+
+const PILL = {
+  ready: 'bg-success/15 text-success',
+  not_ready: 'bg-warning/15 text-warning',
+  unknown: 'bg-bg-secondary text-text-secondary',
+} as const
+
+/**
+ * Signed in, not signed in, or could not verify: one word set for pi providers
+ * and Claude accounts on every machine. "Could not verify" is never read as
+ * signed out.
+ */
+export function SignInPill({
+  state,
+  reason,
+}: {
+  state: keyof typeof SIGN_IN_LABEL
+  /** Why it could not be verified. */
+  reason?: string
+}): React.JSX.Element {
+  return (
+    <span
+      data-sign-in={state}
+      data-tooltip={reason}
+      className={clsx('shrink-0 rounded-full px-2 py-0.5 text-sm font-normal', PILL[state])}
+    >
+      {SIGN_IN_LABEL[state]}
+    </span>
   )
 }

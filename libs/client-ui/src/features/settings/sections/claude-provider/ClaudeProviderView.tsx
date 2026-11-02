@@ -49,11 +49,11 @@ export function ClaudeProviderView({
         Claude sessions to the same context budget as every other provider. Use the Agent section
         and the session menu for compaction settings.
       </p>
-      {caps.proof && (
+      {source.proof && (
         <ClaudeProof
-          job={source.proof}
+          job={source.proof.job}
           disabled={health.cli !== 'installed'}
-          onTest={source.test}
+          onTest={source.proof.test}
         />
       )}
       <ClaudeTroubleshooting reviewed={reviewed} />

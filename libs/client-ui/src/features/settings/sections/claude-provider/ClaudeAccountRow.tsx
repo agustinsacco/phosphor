@@ -3,7 +3,7 @@ import { TooltipButton } from '@/components/Tooltip'
 import { ChevronIcon } from '@/components/icons'
 import { usageTextClass, windowResetLabel } from '@/lib/claudeUsage'
 import { signInState, type ClaudeAccountModel } from '../accounts/accountsModel'
-import { SignInPill } from '../accounts/SignInPill'
+import { SignInPill } from '../accounts/ProviderList'
 
 const laneCount = (count: number, live: boolean): string => {
   const noun = live ? 'live session' : 'lane'
@@ -11,12 +11,8 @@ const laneCount = (count: number, live: boolean): string => {
 }
 
 /**
- * One account: identity, quota, order and its actions; opened, that account's
- * own usage and the lanes spending it (`children`).
- *
- * The disclosure is what makes this a gateway rather than a list. Usage is
- * per credential, so the numbers sit under the account they belong to, and
- * the lanes billing it sit under the same fold.
+ * One account: identity, quota, order and its actions; opened, its own usage
+ * and the lanes spending it (`children`), since usage is per credential.
  */
 export function ClaudeAccountRow({
   account,

@@ -25,13 +25,8 @@ type DetailsSource = Pick<
 >
 
 /**
- * One account's own numbers and its own lanes: the body of an opened account
- * row.
- *
- * Usage is per account, so it renders per account, and it is read only when a
- * row opens: a live reading is a `claude -p /usage` spawn, and reading every
- * account on page open would spawn one CLI per login for numbers nobody asked
- * to see. "Check again" asks the machine for a fresh one.
+ * An opened account row: its own usage and lanes. Usage is read only when a row
+ * opens, because a live reading is a `claude -p /usage` spawn per account.
  */
 export function ClaudeAccountDetails({
   account,
@@ -63,43 +58,30 @@ export function ClaudeAccountDetails({
         <div className="text-text-secondary flex items-center gap-2 text-sm">
           <Spinner /> Checking this account&apos;s usage…
         </div>
-      ) : state === null ? (
-        // No reading is not zero: say so, and never draw a meter for it.
-        <p className="text-text-secondary flex flex-wrap items-center gap-2 text-sm">
-          No usage reading yet. <CheckAgain onCheck={() => void read(true)} />
-        </p>
       ) : (
-        <UsageWindows state={state} onCheck={() => void read(true)} />
+        <>
+          <UsageWindows state={state} />
+          <TooltipButton
+            onClick={() => void read(true)}
+            className="text-text-secondary hover:text-text text-sm"
+            tooltip="Read this account's usage from the Claude CLI again"
+          >
+            Check again
+          </TooltipButton>
+        </>
       )}
       <LaneList account={account} source={source} />
     </div>
   )
 }
 
-function CheckAgain({ onCheck }: { onCheck: () => void }): React.JSX.Element {
-  return (
-    <TooltipButton
-      onClick={onCheck}
-      className="text-text-secondary hover:text-text text-sm"
-      tooltip="Read this account's usage from the Claude CLI again"
-    >
-      Check again
-    </TooltipButton>
-  )
-}
-
-function UsageWindows({
-  state,
-  onCheck,
-}: {
-  state: ClaudeUsageSnapshotResult
-  onCheck: () => void
-}): React.JSX.Element {
-  const check = <CheckAgain onCheck={onCheck} />
+/** The windows, or why there are none. No reading is not zero: it never draws a meter. */
+function UsageWindows({ state }: { state: ClaudeUsageSnapshotResult | null }): React.JSX.Element {
+  if (state === null) return <p className="text-text-secondary text-sm">No usage reading yet.</p>
   if (!state.ok || state.snapshot.windows.length === 0)
     return (
-      <p className="text-text-secondary flex flex-wrap items-center gap-2 text-sm">
-        {usageUnavailableReason(state.ok ? 'no-usage' : state.error)} {check}
+      <p className="text-text-secondary text-sm">
+        {usageUnavailableReason(state.ok ? 'no-usage' : state.error)}
       </p>
     )
   return (
@@ -137,7 +119,6 @@ function UsageWindows({
           </pre>
         </details>
       )}
-      {check}
     </div>
   )
 }
@@ -183,19 +164,14 @@ function LaneList({
 /** Ask before a restart or a move: both respawn the lane, and the next turn re-reads it. */
 async function confirmMove(
   lane: ClaudeAccountLane,
-  target: { id: string; label: string; held: boolean },
+  target: MoveTarget,
   restart: boolean,
 ): Promise<boolean> {
+  const label = restart ? 'Restart this lane' : `Move to ${target.label} and restart`
   const choice = await promptChoice({
     title: `${restart ? 'Restart' : 'Move'} ${lane.title}?`,
     message: `This stops and resumes the lane on ${target.label}${target.held ? ' (also held by quota)' : ''}. Work in flight may be interrupted, and the next turn re-reads the whole thread, which costs tokens. No prompt is sent.`,
-    choices: [
-      {
-        value: 'move',
-        label: restart ? 'Restart this lane' : `Move to ${target.label} and restart`,
-        primary: true,
-      },
-    ],
+    choices: [{ value: 'move', label, primary: true }],
   })
   return choice === 'move'
 }

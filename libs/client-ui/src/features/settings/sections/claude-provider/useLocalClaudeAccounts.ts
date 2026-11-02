@@ -74,6 +74,9 @@ function useLocalClaudeState() {
   return { state, setState, error, refresh }
 }
 
+const newer = (latest: string | null, current: string | undefined): string | null =>
+  latest !== null && current !== undefined && isNewerVersion(latest, current) ? latest : null
+
 function healthOf({ pkg, status, latest, cliLatest }: LocalClaudeState): ClaudeHealthModel {
   // Main refuses a Claude session on a copy this old, so the row must not read
   // as healthy beside it. Same rule as the refusal (provider-detect.ts).
@@ -91,17 +94,11 @@ function healthOf({ pkg, status, latest, cliLatest }: LocalClaudeState): ClaudeH
               ? 'outdated'
               : 'installed',
     ...(pkg ? { package: { name: pkg.name, version: pkg.version, scope: pkg.scope } } : {}),
-    providerLatest:
-      latest !== null && pkg?.version !== undefined && isNewerVersion(latest, pkg.version)
-        ? latest
-        : null,
+    providerLatest: newer(latest, pkg?.version),
     cli: status === null ? 'checking' : status.binary.found ? 'installed' : 'missing',
     cliVersion,
     cliPath: status?.binary.path,
-    cliLatest:
-      cliLatest !== null && cliVersion !== undefined && isNewerVersion(cliLatest, cliVersion)
-        ? cliLatest
-        : null,
+    cliLatest: newer(cliLatest, cliVersion),
   }
 }
 
@@ -130,25 +127,20 @@ function useLiveLanes(): Record<string, ClaudeAccountLane[]> {
       }),
     ),
   )
-  const places = useSessionsStore(
-    useShallow((s) => ids.flatMap((id) => [s.live[id]?.workspacePath, !!s.live[id]?.diskPath])),
-  )
+  const live = useSessionsStore((s) => s.live)
+  const laneOf = (id: string): ClaudeAccountLane => {
+    const folder = live[id]?.workspacePath
+    return {
+      id,
+      title: titles[ids.indexOf(id)] ?? 'Untitled session',
+      active: true,
+      ...(folder ? { folder: basename(folder) } : {}),
+      // No session file means no turn has ended: a restart would lose the lane.
+      resumable: Boolean(live[id]?.diskPath),
+    }
+  }
   return Object.fromEntries(
-    Object.entries(sessions).map(([accountId, sessionIds]) => [
-      accountId,
-      sessionIds.map((id) => {
-        const at = ids.indexOf(id)
-        const folder = places[at * 2] as string | undefined
-        return {
-          id,
-          title: titles[at] ?? 'Untitled session',
-          active: true,
-          ...(folder ? { folder: basename(folder) } : {}),
-          // No session file means no turn has ended: a restart would lose the lane.
-          resumable: places[at * 2 + 1] === true,
-        }
-      }),
-    ]),
+    Object.entries(sessions).map(([accountId, sessionIds]) => [accountId, sessionIds.map(laneOf)]),
   )
 }
 
@@ -194,14 +186,16 @@ function usePackageActions(pkg: PiPackageEntry | null | undefined, after: () => 
     )
   return {
     jobs: [providerJob, cliJob],
-    proof,
+    proof: {
+      job: proof,
+      test: () => void proof.start(() => window.phosphor.invoke('packages:testClaudeProvider')),
+    },
     running: providerJob.running || cliJob.running,
     install: () => run('install'),
     update: (what: ClaudeInstallable) =>
       what === 'cli'
         ? void cliJob.start(() => window.phosphor.invoke('packages:updateClaudeCli'))
         : run('update'),
-    test: () => void proof.start(() => window.phosphor.invoke('packages:testClaudeProvider')),
   }
 }
 
@@ -249,7 +243,7 @@ export function useLocalClaudeAccounts(): ClaudeAccountsSource {
   const prefs = state.accounts?.prefs
   return {
     status: error ? { error, retry: after } : state.accounts === null ? 'loading' : 'ready',
-    caps: { signIn: 'in-app', install: 'package', versions: true, proof: true, lanes: 'live' },
+    caps: { signIn: 'in-app', install: 'package', lanes: 'live' },
     health,
     ...packages,
     accounts: accountsOf(state.accounts, lanes),
@@ -271,7 +265,10 @@ export function useLocalClaudeAccounts(): ClaudeAccountsSource {
       }),
     usage: readUsage,
     moveLane: async (laneId, accountId) => void (await moveSessionToAccount(laneId, accountId)),
-    submitCode: async (code) => void (await window.phosphor.invoke('claude:submitCode', code)),
+    submitCode: (code) =>
+      void window.phosphor
+        .invoke('claude:submitCode', code)
+        .catch((caught: unknown) => setLogin({ phase: 'error', message: errorText(caught) })),
     cancelLogin: () => {
       void window.phosphor.invoke('claude:cancelLogin').catch(() => undefined)
       setLogin(null)

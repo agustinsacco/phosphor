@@ -12,7 +12,6 @@ import type { ClaudeHealthModel } from './ClaudeHealth'
 
 /** The Host's account bound (`MachineSettings.providers.accounts` is capped on the wire). */
 const HOST_ACCOUNT_LIMIT = 16
-const IDLE_JOB = { running: false, output: '', exitCode: null }
 
 const accountOf = (account: MachineAccount): ClaudeAccountModel => ({
   id: account.id,
@@ -69,10 +68,9 @@ export function useHostClaudeAccounts(): ClaudeAccountsSource {
     programs.task({ task: what === 'cli' ? 'claude.installCli' : 'claude.installProvider' })
   return {
     status: state ? 'ready' : 'loading',
-    caps: { signIn: 'terminal', install: 'task', versions: false, proof: false, lanes: 'saved' },
+    caps: { signIn: 'terminal', install: 'task', lanes: 'saved' },
     health,
     jobs: [],
-    proof: IDLE_JOB,
     accounts,
     mode: state?.mode ?? 'ordered',
     pinnedId: state?.pinnedId,
@@ -101,6 +99,5 @@ export function useHostClaudeAccounts(): ClaudeAccountsSource {
     install,
     // A Host installs the newest provider and CLI, so an update is an install.
     update: install,
-    test: () => undefined,
   }
 }

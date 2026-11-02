@@ -5,7 +5,6 @@ import { Button } from '@/components/form'
 import { Spinner } from '@/components/icons'
 import { useAsyncAction } from '@/components/useAsyncAction'
 import { promptChoice } from '@/stores/prompt'
-import { errorText } from '@shared/errors'
 import {
   primaryAccountId,
   type ClaudeAccountModel,
@@ -45,11 +44,8 @@ async function confirmRemove(account: ClaudeAccountModel): Promise<boolean> {
 }
 
 /**
- * Claude logins, in routing order, and the rule that picks between them.
- *
- * Each account keeps its own credential, so they sit side by side. Two things
- * the page has to be honest about: the account is fixed when a session
- * STARTS, and the "out of quota" marks come from a cached `/usage` reading.
+ * Claude logins, in routing order, and the rule that picks between them. The
+ * account is fixed when a session STARTS; "out of quota" is a cached reading.
  */
 export function ClaudeAccountsView({
   source,
@@ -159,18 +155,7 @@ function AccountsIntro({ terminal }: { terminal: boolean }): React.JSX.Element {
 
 /** Add an account (or cancel the sign-in under way), refresh usage, and the paste-code step. */
 function AccountsToolbar({ source }: { source: ClaudeAccountsSource }): React.JSX.Element {
-  const [code, setCode] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const { login, busy } = source
-  const submit = async (): Promise<void> => {
-    if (!code.trim() || !source.submitCode) return
-    try {
-      await source.submitCode(code.trim())
-      setCode('')
-    } catch (caught) {
-      setError(errorText(caught))
-    }
-  }
   return (
     <>
       <div className="mt-2.5 flex items-center gap-3">
@@ -186,11 +171,7 @@ function AccountsToolbar({ source }: { source: ClaudeAccountsSource }): React.JS
             variant="secondary"
             disabled={busy || source.addBlocked !== null}
             tooltip={source.addBlocked ?? undefined}
-            onClick={() => {
-              setCode('')
-              setError(null)
-              source.add()
-            }}
+            onClick={source.add}
           >
             Add account
           </Button>
@@ -203,13 +184,7 @@ function AccountsToolbar({ source }: { source: ClaudeAccountsSource }): React.JS
           Refresh usage
         </TooltipButton>
       </div>
-      <ClaudeLoginProgress
-        code={code}
-        login={login}
-        onCode={setCode}
-        onSubmit={() => void submit()}
-      />
-      {error && <p className="text-danger mt-3 text-sm">{error}</p>}
+      <ClaudeLoginProgress login={login} onSubmit={source.submitCode} />
     </>
   )
 }
