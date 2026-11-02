@@ -39,12 +39,15 @@ async function attemptRefresh(
   if (state.current.status !== 'signed-in') return null
   let token: string
   try {
-    token = state.session?.refreshToken ?? ports.vault.readToken(state.current.user.id)
+    // The vault read can wait on a Keychain prompt; a sign-out may land meanwhile.
+    token = state.session?.refreshToken ?? (await ports.vault.readToken(state.current.user.id))
   } catch (problem) {
+    if (gen !== state.generation) return null
     event(state, ports, 'session.refresh.failed', { reason: 'storage' })
     forget(state, ports, `The saved sign-in could not be read (${reason(problem)}). Sign in again.`)
     return null
   }
+  if (gen !== state.generation) return null
   let fresh: AuthSession
   try {
     fresh = await track(state, ports.auth.refresh(token))
@@ -65,7 +68,9 @@ async function attemptRefresh(
   // Landed: no longer in flight. From here the session is held, so a
   // sign-out (even one this set() triggers) revokes it, not this refresh.
   state.refreshing = null
-  const remembered = keep(state, ports, fresh)
+  const remembered = await keep(state, ports, fresh, gen)
+  // A sign-out during the save held this session and revoked it.
+  if (gen !== state.generation) return null
   event(state, ports, 'session.refresh.succeeded', userFields(fresh.user))
   setAccountState(state, ports, { status: 'signed-in', user: fresh.user, remembered })
   return fresh
@@ -96,14 +101,14 @@ export async function signOut(
     state.signing = null
   }
   const held = state.session
-  let token = held?.refreshToken ?? null
-  if (was.status === 'signed-in' && !token) {
-    try {
-      token = ports.vault.readToken(was.user.id)
-    } catch {
-      // Nothing to revoke with; the local copy goes regardless.
-    }
-  }
+  const token = held?.refreshToken ?? null
+  // Started before forget() deletes the files: readToken reads them before it
+  // first yields, and only the decrypt (maybe a Keychain prompt) runs later.
+  // Nothing to revoke with when it fails; the local copy goes regardless.
+  const saved =
+    was.status === 'signed-in' && !token
+      ? ports.vault.readToken(was.user.id).catch(() => null)
+      : Promise.resolve(token)
   const refreshInFlight = state.refreshing !== null
   const result = forget(state, ports)
   if (was.status !== 'signed-in') return result
@@ -116,13 +121,16 @@ export async function signOut(
   const revokeMs = ports.revokeMs ?? REVOKE_MS
   const usable = held && held.expiresAt - now() > revokeMs ? held.accessToken : null
   if (!usable && refreshInFlight) return result
-  const signal = AbortSignal.timeout(revokeMs)
   await track(
     state,
     (async () => {
       try {
         let access = usable
-        if (!access && token) access = (await ports.auth.refresh(token, signal)).accessToken
+        const refreshToken = access ? null : await saved
+        // Bounded from here: time spent on a Keychain prompt is not Supabase's.
+        const signal = AbortSignal.timeout(revokeMs)
+        if (!access && refreshToken)
+          access = (await ports.auth.refresh(refreshToken, signal)).accessToken
         if (access) await ports.auth.revoke(access, signal)
       } catch (problem) {
         event(state, ports, 'signed out here; the server session was not revoked', {

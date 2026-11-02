@@ -73,6 +73,12 @@ still returns a single path.
 | W3  | Lane disk sizes report "unknown" (`du` has no Windows equivalent wired in)                                                                                                                                   | `apps/desktop/electron/maintenance/sweep.ts`                                                                        |
 | W4  | The installer is unsigned: SmartScreen shows "unknown publisher" on first install until `WIN_CERT_PFX` is configured in the release workflow                                                                 | `.github/workflows/release-continuous.yml`                                                                          |
 
+## macOS
+
+| #   | Issue                                                                                                                                                                                                                                                                                                                                                                               | Where                                                           |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| K1  | A signed-in ad-hoc build asks for the "Phosphor Safe Storage" Keychain item again after every update, even after Always Allow. The pinned designated requirement does not help here: the login keychain also matches the item's partition list, which for code without a Team ID is the per-build `cdhash`. Phosphor keeps working while the prompt is open. A Developer ID ends it | `apps/desktop/scripts/adhoc-sign-mac.mjs`, `MAC_CERT_P12` in CI |
+
 ## Losing an in-flight turn
 
 **T3: no interruption recovery marker.** Pi persists a turn only when it ends.

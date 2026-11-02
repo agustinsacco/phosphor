@@ -129,10 +129,10 @@ describe.runIf(STACK)('sign-in against a real Supabase Auth with a fake GitHub',
     })
     const restarted = await second.accessToken()
     expect(await whoIs(restarted!)).toEqual({ status: 200, id })
-    expect(vault.readToken(id)).not.toBe(refreshedToken)
+    expect(await vault.readToken(id)).not.toBe(refreshedToken)
 
     // Sign-out revokes the session Supabase-side: its refresh token is dead.
-    const saved = vault.readToken(id)
+    const saved = await vault.readToken(id)
     expect(await second.signOut()).toEqual({ status: 'signed-out' })
     expect(readdirSync(join(dir, 'account'))).toEqual([])
     await expect(auth.refresh(saved)).rejects.toMatchObject({

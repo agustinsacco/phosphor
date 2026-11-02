@@ -42,13 +42,13 @@ describe('accountView', () => {
   })
 })
 
-it('discloses plain files and never touches the cipher while building any view', () => {
+it('discloses plain files and never touches the cipher while building any view', async () => {
   const root = mkdtempSync(join(tmpdir(), 'phx-view-'))
   try {
     for (const kind of ['keychain', 'file']) {
       const { cipher } = fakeCipher({ ok: true, kind })
       const vault = createVault(join(root, kind), cipher, 'linux')
-      vault.save(USER, randomBytes(32).toString('base64url'))
+      await vault.save(USER, randomBytes(32).toString('base64url'))
       const storage = vi.spyOn(cipher, 'storage')
       const encrypt = vi.spyOn(cipher, 'encrypt')
       const decrypt = vi.spyOn(cipher, 'decrypt')
