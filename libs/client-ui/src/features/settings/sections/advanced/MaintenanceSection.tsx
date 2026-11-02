@@ -119,11 +119,8 @@ function useMaintenance() {
  * rest — tens of gigabytes across six other repos on one install.
  */
 export function MaintenanceSection(): React.JSX.Element {
-  const { prefs, reports, busy, error, scan, save, reclaim } = useMaintenance()
-  const report = reports ? combineReports(reports) : null
-  const candidates = report?.candidates ?? 0
-  const withCandidates = (reports ?? []).filter((r) => r.candidates.length > 0)
-  const held = reports ? heldSummary(reports, prefs.minAgeHours) : ''
+  const maintenance = useMaintenance()
+  const { prefs, busy, error, scan, save } = maintenance
 
   return (
     <div>
@@ -179,6 +176,24 @@ export function MaintenanceSection(): React.JSX.Element {
         />
       </Row>
 
+      <SweepReport maintenance={maintenance} />
+    </div>
+  )
+}
+
+/** The latest sweep: what it found, what it reclaimed, and Rescan / Reclaim now. */
+function SweepReport({
+  maintenance,
+}: {
+  maintenance: ReturnType<typeof useMaintenance>
+}): React.JSX.Element {
+  const { prefs, reports, busy, scan, reclaim } = maintenance
+  const report = reports ? combineReports(reports) : null
+  const candidates = report?.candidates ?? 0
+  const withCandidates = (reports ?? []).filter((r) => r.candidates.length > 0)
+  const held = reports ? heldSummary(reports, prefs.minAgeHours) : ''
+  return (
+    <>
       <Row
         title={
           report
@@ -226,6 +241,6 @@ export function MaintenanceSection(): React.JSX.Element {
       {report && report.errors.length > 0 && (
         <p className="text-danger mt-2 font-mono text-sm">{report.errors[0]}</p>
       )}
-    </div>
+    </>
   )
 }

@@ -184,7 +184,6 @@
     "src/features/settings/tabs/ContextBudgetSection.tsx::ContextBudgetSection[1]": 123,
     "src/features/settings/tabs/DirectivesSection.tsx::DirectivesSection[1]": 192,
     "src/features/settings/tabs/ExtensionsTab.tsx::ExtensionsTab[1]": 148,
-    "src/features/settings/tabs/MaintenanceSection.tsx::MaintenanceSection[1]": 111,
     "src/features/settings/tabs/OptimizationTab.tsx::OptimizationTab[1]": 116,
     "src/features/settings/tabs/OptimizationTab.tsx::HeadroomManager[1]": 87,
     "src/features/settings/tabs/SubagentsTab.tsx::SubagentsTab[1]": 127,

@@ -1,6 +1,5 @@
 import { MachineConnectorSettings } from '@/features/machines/MachineConnectorSettings'
 import {
-  MachineAdvancedSettings,
   MachineAgentSettings,
   MachineResourceSettings,
 } from '@/features/machines/MachineExecutionSettings'
@@ -59,9 +58,4 @@ export function HostConnectorsSection(): React.JSX.Element {
       repositoryId={repositoryId}
     />
   )
-}
-
-export function HostAdvancedSection(): React.JSX.Element {
-  const { machine, settings, programs } = useHostSection()
-  return <MachineAdvancedSettings label={machine.label} settings={settings} programs={programs} />
 }

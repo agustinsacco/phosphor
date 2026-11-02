@@ -28,7 +28,10 @@ vi.mock('./tabs/AgentTab', () => ({ AgentTab: () => <p>Local agent controls</p> 
 vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
 vi.mock('./tabs/ExtensionsTab', () => ({ ExtensionsTab: () => <p>Local extension controls</p> }))
 vi.mock('./tabs/ConnectorsTab', () => ({ ConnectorsTab: () => <p>Local connector controls</p> }))
-vi.mock('./tabs/AdvancedTab', () => ({ AdvancedTab: () => <p>Local advanced controls</p> }))
+vi.mock('./sections/advanced', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAdvanced: () => <p>Local advanced controls</p>,
+}))
 vi.mock('./tabs/AboutTab', () => ({ AboutTab: () => null }))
 
 const invoke = vi.fn(async (channel: string, ...args: unknown[]): Promise<unknown> => {

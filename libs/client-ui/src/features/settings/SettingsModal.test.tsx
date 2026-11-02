@@ -23,6 +23,7 @@ vi.hoisted(() => {
     }),
   })
 })
+vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('./tabs/AppearanceTab', () => ({ AppearanceTab: () => <p>Appearance</p> }))
 vi.mock('./tabs/AgentTab', () => ({ AgentTab: () => <p>Local agent controls</p> }))
 vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
@@ -36,7 +37,10 @@ vi.mock('./sections/folders', async (importOriginal) => ({
   LocalFolders: () => <p>Local machine controls</p>,
 }))
 vi.mock('./tabs/OptimizationTab', () => ({ OptimizationTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/AdvancedTab', () => ({ AdvancedTab: () => <p>Local machine controls</p> }))
+vi.mock('./sections/advanced', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAdvanced: () => <p>Local machine controls</p>,
+}))
 vi.mock('./tabs/ConnectorsTab', () => ({ ConnectorsTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/ComputerUseTab', () => ({ ComputerUseTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/SubagentsTab', () => ({ SubagentsTab: () => <p>Local machine controls</p> }))

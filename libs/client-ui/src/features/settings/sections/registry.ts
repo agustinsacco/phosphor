@@ -2,7 +2,6 @@ import type { SettingsTab } from '../settingsUiStore'
 import { AboutTab } from '../tabs/AboutTab'
 import { AccountTab } from '../tabs/AccountTab'
 import { AccountsTab } from '../tabs/AccountsTab'
-import { AdvancedTab } from '../tabs/AdvancedTab'
 import { AgentTab } from '../tabs/AgentTab'
 import { AppearanceTab } from '../tabs/AppearanceTab'
 import { ClaudeProviderTab } from '../tabs/ClaudeProviderTab'
@@ -18,11 +17,11 @@ import { WebAccessTab } from '../tabs/WebAccessTab'
 import { WritingTab } from '../tabs/WritingTab'
 import {
   HostAccountsSection,
-  HostAdvancedSection,
   HostAgentSection,
   HostConnectorsSection,
   HostExtensionsSection,
 } from './hostSections'
+import { HostAdvanced, LocalAdvanced } from './advanced'
 import { HostFolders, LocalFolders } from './folders'
 import { LanesSection } from './lanes/LanesSection'
 
@@ -61,5 +60,5 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   folders: { Local: LocalFolders, Host: HostFolders },
   optimization: { Local: OptimizationTab },
   voice: { Device: VoiceTab },
-  advanced: { Local: AdvancedTab, Host: HostAdvancedSection },
+  advanced: { Local: LocalAdvanced, Host: HostAdvanced },
 }
