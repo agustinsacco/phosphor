@@ -49,6 +49,7 @@ export function reconcileHostManager(
       if (machine)
         state.cached[id] = {
           ...view,
+          laneStarts: [],
           state:
             machineStatus(machine, Date.now(), state.offset) === 'up' ? 'reconnecting' : 'down',
         }

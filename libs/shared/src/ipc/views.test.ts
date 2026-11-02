@@ -14,7 +14,12 @@ import type {
 } from '../ipc'
 import type { LaneReceipt } from '../lane-receipt'
 import type { HostCapability } from '../remote-host'
-import type { RepositorySummary, LaneSummary, StreamCursor } from '../host-protocol'
+import type {
+  LaneCreatePhase,
+  RepositorySummary,
+  LaneSummary,
+  StreamCursor,
+} from '../host-protocol'
 import type { ControlErrorCode } from '../control-api'
 
 export type BaselineDesktopControlErrorCode = ControlErrorCode | 'signed-out' | 'offline'
@@ -74,6 +79,8 @@ export interface BaselineHostConnectionView {
   configurationSupported?: boolean
   machineShell?: boolean
   laneMarks?: boolean
+  laneStart?: boolean
+  laneStarts?: { repositoryId: string; branch: string | null; phase?: LaneCreatePhase }[]
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: BaselineHostLaneView[]
@@ -121,6 +128,7 @@ export interface BaselineRemoteLaneCreate {
   provider?: string
   model?: string
   thinkingLevel?: string
+  prompt?: string
 }
 
 /** An attention event from any Host, for in-app and OS notifications (49). */

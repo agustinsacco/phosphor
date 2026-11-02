@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 import type { LaneOp } from '@phosphor/shared/host-protocol'
 import type { CommandResult } from './connection'
 import { BASH_UNCONFIRMED } from '@phosphor/shared/remote-host'
-import { laneOperation, receiptResponse, sendToLane, UNKNOWN_OUTCOME } from './lane-ops'
+import {
+  laneCreateOp,
+  laneOperation,
+  receiptResponse,
+  sendToLane,
+  startedPrompt,
+  UNKNOWN_OUTCOME,
+} from './lane-ops'
 
 const LANE = 'f83d7d13-9111-43bf-847b-87b9db21e7d8'
 const stopped: CommandResult = { requestId: 'r1', status: 'rejected', code: 'lane-stopped' }
@@ -108,5 +115,38 @@ describe('laneOperation', () => {
       success: false,
       error: expect.stringContaining('Updating the Host may help'),
     })
+  })
+})
+
+describe('lane.create with a first prompt', () => {
+  const input = { repositoryId: 'repo', prompt: 'Fix it', model: 'm' }
+  it('sends the prompt only to a Host that takes it', () => {
+    expect(laneCreateOp(input, true)).toEqual({
+      type: 'lane.create',
+      repositoryId: 'repo',
+      model: 'm',
+      worktree: null,
+      prompt: 'Fix it',
+    })
+    expect(laneCreateOp(input, false)).toEqual({
+      type: 'lane.create',
+      repositoryId: 'repo',
+      model: 'm',
+      worktree: null,
+    })
+  })
+  it('reads the Host answer, and says so when it gave none', () => {
+    const op = laneCreateOp(input, true)
+    const done = (data?: unknown): CommandResult => ({
+      requestId: 'r',
+      status: 'done',
+      laneId: 'lane',
+      ...(data === undefined ? {} : { data }),
+    })
+    expect(startedPrompt(op, done({ prompted: true }))).toBe(true)
+    expect(startedPrompt(op, done({ prompted: false }))).toBe(false)
+    expect(startedPrompt(op, done())).toBeUndefined()
+    expect(startedPrompt(op, done({ prompted: 'yes' }))).toBeUndefined()
+    expect(startedPrompt(laneCreateOp(input, false), done())).toBe(false)
   })
 })
