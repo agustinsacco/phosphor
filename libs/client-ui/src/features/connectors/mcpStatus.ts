@@ -1,16 +1,15 @@
 /**
- * Per-server MCP state for Settings → Connectors, read from
- * `pi mcp list --json` (`mcp:list`). That command connects every enabled
- * server once and says what happened, so a row's badge is a fresh answer to
- * "is this up?", not a guess from a session's history.
+ * One connector's status, in the words Settings → Connectors uses on every
+ * machine: pi's state from a check (This Mac's per-server inspection, a Host's
+ * reviewed `pi mcp list`), or why there is none.
  */
-import type { McpServerReport, McpServerState } from '@shared/mcp'
+import type { McpServerState } from '@shared/mcp'
 
-/** Human label for a row badge. */
-export function stateLabel(report: Pick<McpServerReport, 'state' | 'tools'>): string {
-  switch (report.state) {
+/** Human label for a state pi reported, with the tool count it found. */
+export function stateLabel(state: McpServerState, tools = 0): string {
+  switch (state) {
     case 'connected':
-      return `Up · ${String(report.tools.length)} tool${report.tools.length === 1 ? '' : 's'}`
+      return `Up · ${String(tools)} tool${tools === 1 ? '' : 's'}`
     case 'needs-auth':
       return 'Needs sign-in'
     case 'failed':
@@ -22,6 +21,27 @@ export function stateLabel(report: Pick<McpServerReport, 'state' | 'tools'>): st
       return 'Connecting'
     case 'disabled':
       return 'Disabled'
+  }
+}
+
+/**
+ * A row's status: Disabled, the last state pi reported (kept while a new check
+ * runs), or Checking…, Check failed or Not checked. A failed check says
+ * nothing about the server, so it never reads as Down.
+ */
+export function connectorStatus(
+  enabled: boolean,
+  status: { state?: McpServerState; tools?: number; checking?: boolean; failed?: boolean },
+): { state?: McpServerState; label: string } {
+  if (!enabled) return { state: 'disabled', label: 'Disabled' }
+  const state = status.failed ? undefined : status.state
+  if (state)
+    return {
+      state,
+      label: `${stateLabel(state, status.tools)}${status.checking ? ' · checking…' : ''}`,
+    }
+  return {
+    label: status.checking ? 'Checking…' : status.failed ? 'Check failed' : 'Not checked',
   }
 }
 

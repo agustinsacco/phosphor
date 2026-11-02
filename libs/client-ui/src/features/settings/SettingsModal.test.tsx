@@ -34,7 +34,10 @@ vi.mock('./tabs/WebAccessTab', () => ({ WebAccessTab: () => <p>Local machine con
 vi.mock('./tabs/WorkspacesTab', () => ({ WorkspacesTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/OptimizationTab', () => ({ OptimizationTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/AdvancedTab', () => ({ AdvancedTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/ConnectorsTab', () => ({ ConnectorsTab: () => <p>Local machine controls</p> }))
+vi.mock('./sections/connectors', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalConnectors: () => <p>Local machine controls</p>,
+}))
 vi.mock('./tabs/ComputerUseTab', () => ({ ComputerUseTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/SubagentsTab', () => ({ SubagentsTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/AboutTab', () => ({ AboutTab: () => null }))

@@ -163,7 +163,6 @@ describe('SETTINGS_INDEX against the section sources', () => {
     'tabs/ClaudeAccountPanel.tsx': 'claude-provider',
     'tabs/ClaudeProviderTab.tsx': 'claude-provider',
     'tabs/ComputerUseTab.tsx': 'computer-use',
-    'tabs/ConnectorsTab.tsx': 'connectors',
     'tabs/ContextBudgetSection.tsx': 'agent',
     'tabs/DirectivesSection.tsx': 'agent',
     'tabs/DirectiveToggles.tsx': 'agent',
@@ -255,12 +254,12 @@ describe('SETTINGS_INDEX against the section sources', () => {
   it('indexes each Host section by the heading its panel renders', () => {
     const machines = resolve(root, '../machines')
     const panels = readdirSync(machines)
-      .filter((f) => /^(Machine\w+Settings|HostConnectorSections)\.tsx$/.test(f))
+      .filter((f) => /^Machine\w+Settings\.tsx$/.test(f))
       .map((f) => readFileSync(resolve(machines, f), 'utf8'))
       .join('\n')
     const hostEntries = SETTINGS_INDEX.filter(hostHeading)
     expect(hostEntries.map((entry) => entry.tab)).toEqual(
-      TABS.filter((tab) => tab.host).map((tab) => tab.id),
+      TABS.filter((tab) => tab.host && tab.id !== 'connectors').map((tab) => tab.id),
     )
     for (const entry of hostEntries)
       expect(panels, entry.title).toContain(`font-semibold">${entry.title}</h2>`)

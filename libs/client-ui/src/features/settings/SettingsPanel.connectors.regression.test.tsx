@@ -33,6 +33,7 @@ vi.hoisted(() => {
   })
 })
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/features/terminal/TerminalView', () => ({ TerminalView: () => null }))
 
 const machine = { id: '11111111-1111-4111-8111-111111111111', label: 'bee1' }
 let root: Root, container: HTMLDivElement
@@ -58,6 +59,7 @@ beforeEach(() => {
   exits = []
   useRemoteLanesStore.setState({ hosts: mixedRemoteHosts() })
   useConnectorsStore.setState({ flows: {} })
+  useSettingsUiStore.setState({ folder: null })
   prepareHostSettings(machine)
   vi.mocked(promptChoice).mockReset().mockResolvedValue(undefined)
   container = document.createElement('div')
@@ -254,7 +256,7 @@ describe('a Host', () => {
     ])
     expect(changes()).toEqual([])
     await act(async () => ptyExit(1))
-    await click(button('Done'))
+    await click(button('Done', document.body))
     expect(changes()).toEqual([])
     expect(container.textContent).toContain('docs was not removed')
     await click(button('Remove', row('docs')))

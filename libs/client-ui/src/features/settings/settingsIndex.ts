@@ -6,7 +6,7 @@ import type { SettingEntry } from './search/settingEntry'
 import { ACCOUNTS_HOST_HEADING, ACCOUNTS_ROWS } from './search/rows/accounts'
 import { ADVANCED_HOST_HEADING, ADVANCED_ROWS } from './search/rows/advanced'
 import { AGENT_HOST_HEADING, AGENT_ROWS } from './search/rows/agent'
-import { CONNECTORS_HOST_HEADING, CONNECTORS_ROWS } from './search/rows/connectors'
+import { CONNECTORS_ROWS } from './search/rows/connectors'
 import {
   ABOUT_ROWS,
   ACCOUNT_ROWS,
@@ -173,7 +173,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ...AGENT_HOST_HEADING,
   ...ACCOUNTS_HOST_HEADING,
   ...EXTENSIONS_HOST_HEADING,
-  ...CONNECTORS_HOST_HEADING,
   ...FOLDERS_ROWS,
   ...ADVANCED_HOST_HEADING,
   ...KEYBINDING_ROWS,

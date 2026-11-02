@@ -5,11 +5,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import {
   createFakePhosphor,
   installFakePhosphor,
-} from '../../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
+} from '../../../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import type { McpCheckResult } from '@shared/mcp-inspection'
-import { ConnectorsTab } from './ConnectorsTab'
+import { LocalConnectors } from '.'
 
-vi.mock('../SettingsMachineScope', () => ({ useSettingsWorkspace: () => '/workspace' }))
+vi.mock('../../SettingsMachineScope', () => ({ useSettingsWorkspace: () => '/workspace' }))
 vi.mock('@/features/files/MonacoEditor', () => ({ MonacoEditor: () => null }))
 
 let root: Root | undefined
@@ -44,7 +44,7 @@ async function renderPendingCheck(result?: McpCheckResult) {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  await act(async () => root!.render(<ConnectorsTab />))
+  await act(async () => root!.render(<LocalConnectors />))
   return container.querySelector<HTMLElement>('[data-testid="connector-linear"]')!
 }
 
@@ -103,7 +103,7 @@ it('keeps the last known state visible while a new check runs, and says when it 
   document.body.appendChild(container)
   root = createRoot(container)
   try {
-    await act(async () => root!.render(<ConnectorsTab />))
+    await act(async () => root!.render(<LocalConnectors />))
     await act(async () => vi.advanceTimersByTimeAsync(100))
     const row = container.querySelector<HTMLElement>('[data-testid="connector-linear"]')!
     expect(row.textContent).toContain('Up · 1 tool · checking…')

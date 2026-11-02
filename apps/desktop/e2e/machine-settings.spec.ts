@@ -39,7 +39,7 @@ test('machine settings save only on bee1, preserve revisions and never read back
 
     await openSettingsSection(settings, 'MCP Connectors')
     await addPrivateConnector(h, settings)
-    await expect(settings.locator('[data-connector="private-tools"]')).toContainText('Not verified')
+    await expect(settings.locator('[data-connector="private-tools"]')).toContainText('Not checked')
     const globalMcp = JSON.parse(await readFile(join(h.agent, 'mcp.json'), 'utf8'))
     expect(globalMcp.mcpServers['private-tools'].headers.Authorization).toBe(
       'Bearer HOST_ONLY_MCP_SECRET',
@@ -60,7 +60,10 @@ test('machine settings save only on bee1, preserve revisions and never read back
       .getByRole('combobox', { name: 'Configuration folder', exact: true })
       .selectOption(repository.id)
     await expect(settings).toContainText('This folder is not trusted')
-    await settings.getByRole('button', { name: 'Disable in this folder', exact: true }).click()
+    await settings
+      .locator('[data-connector="private-tools"]')
+      .getByRole('switch', { name: 'Enabled in this folder', exact: true })
+      .click()
     await expect
       .poll(
         async () =>

@@ -3,9 +3,9 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { useConnectorsStore } from '@/stores/connectors'
-import { ConnectorsTab } from './ConnectorsTab'
+import { LocalConnectors } from '.'
 
-vi.mock('../SettingsMachineScope', () => ({ useSettingsWorkspace: () => '/workspace' }))
+vi.mock('../../SettingsMachineScope', () => ({ useSettingsWorkspace: () => '/workspace' }))
 vi.mock('@/features/files/MonacoEditor', () => ({ MonacoEditor: () => null }))
 
 const invoke = vi.fn(async (channel: string) => {
@@ -36,7 +36,7 @@ beforeEach(async () => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  await act(async () => root.render(<ConnectorsTab />))
+  await act(async () => root.render(<LocalConnectors />))
 })
 
 afterEach(() => {
@@ -65,7 +65,7 @@ const connectors = [
   { id: 'google-drive', placeholder: 'client secret', required: true },
 ]
 
-describe('ConnectorsTab client secrets', () => {
+describe('LocalConnectors client secrets', () => {
   it.each(connectors)(
     'masks the $id secret but leaves the client ID as text',
     ({ id, placeholder }) => {
@@ -110,7 +110,8 @@ describe('ConnectorsTab client secrets', () => {
           }),
         }),
       )
-      expect(invoke).toHaveBeenCalledWith('mcp:authorize', id, '/workspace')
+      // Machine scope: the connector is in the global file, so sign-in names no folder.
+      expect(invoke).toHaveBeenCalledWith('mcp:authorize', id, undefined)
       expect(invoke.mock.calls.map(([channel]) => channel)).toEqual([
         'mcp:readConfigs',
         'packages:list',

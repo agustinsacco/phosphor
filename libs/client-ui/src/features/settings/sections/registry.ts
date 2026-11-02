@@ -7,7 +7,6 @@ import { AgentTab } from '../tabs/AgentTab'
 import { AppearanceTab } from '../tabs/AppearanceTab'
 import { ClaudeProviderTab } from '../tabs/ClaudeProviderTab'
 import { ComputerUseTab } from '../tabs/ComputerUseTab'
-import { ConnectorsTab } from '../tabs/ConnectorsTab'
 import { ExtensionsTab } from '../tabs/ExtensionsTab'
 import { InstallAppTab } from '../tabs/InstallAppTab'
 import { KeybindingsTab } from '../tabs/KeybindingsTab'
@@ -21,10 +20,10 @@ import {
   HostAccountsSection,
   HostAdvancedSection,
   HostAgentSection,
-  HostConnectorsSection,
   HostExtensionsSection,
   HostFoldersSection,
 } from './hostSections'
+import { HostConnectors, LocalConnectors } from './connectors'
 
 type View = () => React.JSX.Element
 
@@ -56,7 +55,7 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   'web-access': { Local: WebAccessTab },
   'computer-use': { Local: ComputerUseTab },
   subagents: { Local: SubagentsTab },
-  connectors: { Local: ConnectorsTab, Host: HostConnectorsSection, scoped: true },
+  connectors: { Local: LocalConnectors, Host: HostConnectors, scoped: true },
   workspaces: { Local: WorkspacesTab },
   folders: { Host: HostFoldersSection },
   optimization: { Local: OptimizationTab },
