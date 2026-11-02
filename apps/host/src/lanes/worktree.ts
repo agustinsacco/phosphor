@@ -66,9 +66,7 @@ export async function prepareLaneFolder(input: {
     (await optional(['check-ref-format', '--branch', branch])) !== branch
   )
     refuse('That branch name is not valid.')
-  const slug = branch.replaceAll('/', '-')
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(slug) || slug.includes('..'))
-    refuse('That branch name is not valid.')
+  const slug = laneFolderSlug(branch) ?? refuse('That branch name is not valid.')
   let created = false
   let worktreeCreated = false
   let madeBranch = false
@@ -226,6 +224,12 @@ export async function prepareLaneFolder(input: {
     if (error instanceof LaneFolderError) throw error
     throw new LaneFolderError('The worktree could not be created.')
   }
+}
+
+/** The worktree folder name for a branch, or null when the branch cannot have one. */
+export function laneFolderSlug(branch: string): string | null {
+  const slug = branch.replaceAll('/', '-')
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(slug) && !slug.includes('..') ? slug : null
 }
 
 function directory(path: string): void {
