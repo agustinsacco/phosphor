@@ -2,10 +2,14 @@ import type * as ChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { createLaneNamer, type LaneNamingJob } from './naming'
+import { createLaneNamer, hostLaneNaming, type LaneNamingJob } from './naming'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
 import { promptTitle } from './live'
+import { DEFAULT_CLAUDE_ACCOUNT_PREFS } from '@phosphor/shared/models'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }))
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: vi.fn(async () => []) }))
@@ -403,4 +407,29 @@ it('asks for a title unlike its sibling lanes and dedupes the reply against them
   children[0]?.stdout.write('Named')
   children[0]?.emit('close', 0)
   await vi.waitFor(() => expect(job.apply).toHaveBeenCalledWith('Named 2'))
+})
+
+it('reads automatic naming live and resolves the routed account for each session', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'host-naming-'))
+  const path = join(dir, 'config.json')
+  const base = { version: 1, pi: { executable: '/usr/bin/pi' }, repositories: ['/srv'] } as const
+  try {
+    writeFileSync(path, JSON.stringify(base), { mode: 0o600 })
+    const second = { id: 'second', label: 'Second', credentialDir: '/accounts/second' }
+    const ports = hostLaneNaming(
+      { path, config: base },
+      { accountForSession: (id) => (id === 'routed' ? 'second' : id === 'gone' ? 'x' : undefined) },
+      { loadAccounts: async () => ({ ...DEFAULT_CLAUDE_ACCOUNT_PREFS, accounts: [second] }) },
+    )
+    expect(ports.enabled?.()).toBe(true)
+    writeFileSync(path, JSON.stringify({ ...base, autoNameLanes: false }))
+    expect(ports.enabled?.()).toBe(false)
+    expect(await ports.accountEnv?.('routed')).toEqual({
+      CLAUDE_SECURESTORAGE_CONFIG_DIR: '/accounts/second',
+    })
+    expect(await ports.accountEnv?.('unrouted')).toEqual({})
+    await expect(ports.accountEnv?.('gone')).rejects.toThrow()
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

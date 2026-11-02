@@ -235,6 +235,25 @@ describe('runtime lane binding', () => {
     expect(JSON.stringify(s.log.mock.calls)).not.toContain('private prompt')
   })
 
+  it('skips a lane whose first prompt arrives while automatic naming is off', async () => {
+    const nameLane = Object.assign(
+      vi.fn<NonNullable<Parameters<typeof createRuntimeLanes>[0]['nameLane']>>(),
+      { enabled: () => false },
+    )
+    const s = setup([], nameLane)
+    const session = await s.binding.sessions.start({ repository: machine.repository })
+    const lane = s.saved()
+    await s.binding.sessions.attach(lane.laneId, session.sessionId)
+    await s.binding.command(session.sessionId, { type: 'prompt', message: 'Fallback only' })
+    expect(nameLane).not.toHaveBeenCalled()
+    expect(store.getLane(lane.laneId)?.title).toBe('Fallback only')
+    expect(s.log).toHaveBeenCalledWith('host', 'lane.naming', {
+      laneId: lane.laneId,
+      outcome: 'skipped-disabled',
+      ms: expect.any(Number),
+    })
+  })
+
   it('keeps naming disabled when not configured', async () => {
     const s = setup()
     const session = await s.binding.sessions.start({ repository: machine.repository })
