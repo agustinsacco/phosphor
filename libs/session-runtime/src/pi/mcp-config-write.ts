@@ -7,6 +7,7 @@ import {
   type McpServerConfig,
 } from '@phosphor/shared/mcp'
 import { machineRecord } from '@phosphor/shared/host-protocol-machine'
+import { mcpWriteProblem } from '@phosphor/shared/mcp-write-policy'
 import { mcpConfigPaths, serverProblem, type McpDirs } from './mcp-config'
 import {
   DESKTOP_FILE_POLICY,
@@ -67,7 +68,7 @@ export async function upsertMcpServer(
   config: McpServerConfig,
   dirs?: McpDirs,
 ): Promise<void> {
-  const problem = serverProblem(name, config, scope)
+  const problem = serverProblem(name, config, scope) ?? mcpWriteProblem(config, scope)
   if (problem) throw new Error(problem)
   if (typeof config.url === 'string' && typeof config.command === 'string') {
     throw new Error('An MCP server needs exactly one of `url` or `command`.')

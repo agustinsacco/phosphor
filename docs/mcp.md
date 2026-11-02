@@ -442,6 +442,16 @@ prompts) and its `mcp` / `mcpScript` tools go with the package.
   `apps/desktop/electron/pi/mcp-config.ts` only.
 - Malformed files are surfaced, never overwritten by structured writes. The raw
   JSON editor covers repair and refuses to save invalid JSON.
+- **One write policy on every machine** (`libs/shared/src/mcp-write-policy.ts`).
+  A connector URL, and an OAuth callback or metadata URL, must be https, or http
+  to `localhost`, `127.0.0.1` or `[::1]`, with no user name or password in it
+  (`mcpUrlProblem`). A folder's `.pi/mcp.json` lives in the repository and is
+  often committed, so a folder connector cannot hold `headers`, `env` or
+  `oauth.clientSecret` (`mcpSecretProblem`): add it as a machine connector and
+  switch it on in the folder. This Mac's structured writes (`upsertMcpServer`)
+  and a Host's `mcp.upsert` validator both apply it. It applies on write only:
+  existing entries keep loading by pi's own rules, and the raw editor stays the
+  escape hatch.
 - Structured mutations preserve unknown keys, top-level and per server.
 - Exactly one of `url` / `command` per server.
 
@@ -449,7 +459,8 @@ prompts) and its `mcp` / `mcpScript` tools go with the package.
 
 - Types: `libs/shared/src/mcp.ts`.
 - Main: `apps/desktop/electron/pi/mcp-config.ts` (the two files, resolution,
-  trust; injectable dirs for hermetic tests), `mcp-migration.ts` (the adapter
+  trust; injectable dirs for hermetic tests; it re-exports the writes in
+  `libs/session-runtime/src/pi/mcp-config-write.ts`), `mcp-migration.ts` (the adapter
   migration: `mcp-translation.ts` holds the per-entry rules and
   `mcp-migration-plan.ts` the plan), `mcp-cli.ts` (`pi mcp list / login / logout`), `mcp-actions.ts`
   (working directory, environment and admission for those commands),

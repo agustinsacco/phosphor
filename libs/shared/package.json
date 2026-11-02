@@ -168,6 +168,10 @@
       "types": "./src/mcp.ts",
       "default": "./src/mcp.ts"
     },
+    "./mcp-write-policy": {
+      "types": "./src/mcp-write-policy.ts",
+      "default": "./src/mcp-write-policy.ts"
+    },
     "./models": {
       "types": "./src/models.ts",
       "default": "./src/models.ts"

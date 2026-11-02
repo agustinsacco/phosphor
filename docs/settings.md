@@ -142,7 +142,9 @@ and folder trust all require explicit review. Trust is never silently approved.
 
 Global MCP may hold secrets. Folder MCP cannot contain environment values,
 headers or OAuth client secrets; put these in a machine connector and override
-its enablement in the folder. Inherited connectors are not silently replaced or
+its enablement in the folder. This Mac's connector writes apply the same rule,
+and both machines write only https or loopback http URLs without credentials
+([mcp.md](mcp.md#rules)); existing files keep loading. Inherited connectors are not silently replaced or
 removed. A check runs `pi mcp list --json`; its reviewed status/tool counts expire
 after 60 seconds and are invalidated by configuration or authentication changes.
 Signing in never automatically executes a connector check.

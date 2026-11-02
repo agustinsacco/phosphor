@@ -3,6 +3,7 @@ import { MCP_SERVER_NAME } from './mcp'
 import { isValidContextBudgetValue } from './context-budget'
 import { text, keys, isMachineAccountId } from './machine-settings-fields'
 import { validMcpConfig } from './machine-settings-mcp'
+import { mcpSecretProblem } from './mcp-write-policy'
 import type { MachineSettingsPatch } from './machine-settings'
 import { AGENT_BEHAVIOR_KEYS, validAgentBehaviorPatch } from './machine-agent-behavior'
 import { AGENT_DIRECTIVE_KEYS } from './models/directives'
@@ -137,8 +138,7 @@ function validConnectorChange(c: Record<string, unknown>, read: Scope): boolean 
         MCP_SERVER_NAME.test(c.name) &&
         !c.name.startsWith('-') &&
         validMcpConfig(c.config) &&
-        (!read.repositoryId ||
-          (!c.config.headers && !c.config.env && !c.config.oauth?.clientSecret)) &&
+        !mcpSecretProblem(c.config, read.repositoryId ? 'project' : 'global') &&
         (c.approveCode === undefined || c.approveCode === true) &&
         (typeof c.config.command !== 'string' || c.approveCode === true)
       break

@@ -1,21 +1,10 @@
 import { machineRecord } from './host-protocol-machine'
 import { isMcpExposure, type McpServerConfig } from './mcp'
 import { text, keys, boundedString } from './machine-settings-fields'
+import { mcpUrlProblem } from './mcp-write-policy'
 
-function privateHttpUrl(v: unknown): boolean {
-  if (!text(v, 8192)) return false
-  try {
-    const url = new URL(v)
-    return (
-      !url.username &&
-      !url.password &&
-      (url.protocol === 'https:' ||
-        (url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))
-    )
-  } catch {
-    return false
-  }
-}
+/** The shared URL rule (https, or loopback http; no userinfo), bounded for the protocol. */
+const privateHttpUrl = (v: unknown): boolean => text(v, 8192) && !mcpUrlProblem(v)
 /** Reviewed settings only. No opaque options that might introduce another code path. */
 export function validMcpConfig(v: unknown): v is McpServerConfig {
   if (
