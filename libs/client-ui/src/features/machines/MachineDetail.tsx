@@ -1,224 +1,121 @@
+import clsx from 'clsx'
+import { Fragment } from 'react'
+import type { MachineView } from '@shared/control-api'
 import { CopyButton } from '@/components/CopyButton'
 import { Button } from '@/components/form'
+import { Spinner } from '@/components/icons'
 import { TooltipSummary } from '@/components/Tooltip'
-import { useMachinesStore } from '@/stores/machines'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { machineStatus, type MachineView } from '@shared/control-api'
-import { useEffect, useRef, useState } from 'react'
-import { useClaudeReadiness } from './ClaudeReadiness'
-import { CopyCommand } from './MachineControls'
+import { CopyCommand, Troubleshooting } from './MachineControls'
 import { MachineDetailHeader } from './MachineDetailHeader'
-import {
-  HOST_RUN,
-  HOST_SERVICE_INSTALL,
-  HOST_SERVICE_STATUS,
-  platformName,
-  readinessChecks,
-  readinessFreshness,
-  relativeTime,
-} from './machinePresentation'
-import { machineHeadline } from './machineReachability'
-import { useOpenSettings } from '@/features/settings/useOpenSettings'
-import { Card, CheckRow, Fact, Facts, Spinner, type CheckItem } from './MachineUi'
+import { useHostOverview, type MachineOverview } from './machineOverview'
+import { HOST_SERVICE_STATUS, relativeTime } from './machinePresentation'
+import { Card, CheckRow } from './MachineUi'
 import { MachineTerminal } from './MachineTerminal'
 import { OnThisMachine } from './OnThisMachine'
 import { MachineProviders } from './MachineProviders'
 
-const DAY_MS = 86_400_000
-
+/** One detail for any machine, This Mac or a Host. What a machine lacks is not drawn. */
 export function MachineDetail({
-  machine,
-  now,
-  offset,
-  onRemove,
+  overview,
   navigation,
+  onRemove,
 }: {
-  machine: MachineView
-  now: number
-  offset: number
-  onRemove: () => void
+  overview: MachineOverview
   navigation?: React.ReactNode
+  /** Offered for an enrolled Host. */
+  onRemove?: () => void
 }): React.JSX.Element {
-  const connection = useRemoteLanesStore((s) => s.hosts[machine.id])
-  const [refresh, setRefresh] = useState(0)
-  const [checking, setChecking] = useState(false)
-  const [checkedAt, setCheckedAt] = useState<number | null>(null)
-  const [reconnecting, setReconnecting] = useState(false)
-  const live = useRef(true)
-  useEffect(() => {
-    live.current = true
-    return () => {
-      live.current = false
-    }
-  }, [])
-  const claude = useClaudeReadiness(machine.id, refresh)
-  const openSettings = useOpenSettings()
-  const corrected = now + offset
-  const headline = machineHeadline(machine, connection, corrected)
-  const freshness = readinessFreshness(machine, now, offset)
-  const version = connection?.hostVersion || machine.hostVersion
-  const offlineLong =
-    !!machine.lastSeenAt &&
-    machineStatus(machine, now, offset) === 'down' &&
-    corrected - Date.parse(machine.lastSeenAt) > DAY_MS
-
-  async function checkAgain(): Promise<void> {
-    setChecking(true)
-    try {
-      await useMachinesStore.getState().refresh()
-    } finally {
-      if (live.current) {
-        setRefresh((n) => n + 1)
-        setChecking(false)
-        setCheckedAt(Date.now())
-      }
-    }
-  }
-  async function reconnect(): Promise<void> {
-    setReconnecting(true)
-    try {
-      await window.phosphor.invoke('hosts:reconnect', machine.id)
-    } catch {
-      /* The connection status says what happened. */
-    } finally {
-      if (live.current) setReconnecting(false)
-    }
-  }
-
-  const connectionCheck: CheckItem = {
-    name: 'Connection',
-    ok: headline.ok,
-    // Waiting and connecting are progress, not failures: the setup panel holds the one command.
-    loading: headline.tone === 'pending',
-    loadingText: headline.label,
-    short: headline.label,
-    detail: headline.detail,
-    command: headline.command,
-  }
-  const reported: CheckItem[] = readinessChecks(machine.readiness, machine.endpoint).map(
-    (check) => {
-      // An offline machine's last report is history: shown, but not a list of fixes.
-      if (freshness === 'stale') return { ...check, muted: !check.ok }
-      if (check.name !== 'Claude Code') return check
-      if (claude.loading) return { ...check, loading: true }
-      return claude.check ?? check
-    },
-  )
-
+  const { id, label, check, note } = overview
+  const stamp = [
+    overview.reported,
+    check.at ? `checked ${relativeTime(new Date(check.at).toISOString(), Date.now())}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   return (
     <div data-testid="machine-detail" className="space-y-4">
-      <MachineDetailHeader
-        machine={machine}
-        headline={headline}
-        version={version}
-        now={corrected}
-        checking={checking}
-        reconnecting={reconnecting}
-        onCheck={() => void checkAgain()}
-        onReconnect={() => void reconnect()}
-        onUpdate={() => openSettings(machine.id, 'advanced')}
-      />
+      <MachineDetailHeader overview={overview} />
       {navigation}
-      <>
-        {!machine.lastSeenAt && (
-          <section
-            aria-label="Finish setup"
-            className="border-border bg-bg-secondary space-y-3 rounded-lg border p-4"
-          >
-            <div className="flex items-center gap-2">
-              <Spinner size={13} />
-              <h2 className="text-lg font-semibold">Waiting for {machine.label} to finish setup</h2>
-            </div>
-            <p className="text-text-secondary text-base">
-              This page updates on its own once {machine.label} checks in. If setup stopped, run it
-              again on {machine.label}; it resumes where it left off.
-            </p>
-            <CopyCommand command="phosphor setup" />
-            <Troubleshooting />
-          </section>
-        )}
-        {offlineLong && (
-          <section
-            aria-label="Offline"
-            className="border-border space-y-3 rounded-lg border p-4 text-base"
-          >
-            <p className="text-text-secondary">
-              Offline for more than a day. Check the service on {machine.label}.
-            </p>
-            <CopyCommand command={HOST_SERVICE_STATUS} />
-          </section>
-        )}
+      {overview.notice === 'setup' && (
+        <section
+          aria-label="Finish setup"
+          className="border-border bg-bg-secondary space-y-3 rounded-lg border p-4"
+        >
+          <div className="flex items-center gap-2">
+            <Spinner className="text-text-tertiary" />
+            <h2 className="text-lg font-semibold">Waiting for {label} to finish setup</h2>
+          </div>
+          <p className="text-text-secondary text-base">
+            This page updates on its own once {label} checks in. If setup stopped, run it again on{' '}
+            {label}; it resumes where it left off.
+          </p>
+          <CopyCommand command="phosphor setup" />
+          <Troubleshooting />
+        </section>
+      )}
+      {overview.notice === 'offline' && (
+        <section
+          aria-label="Offline"
+          className="border-border space-y-3 rounded-lg border p-4 text-base"
+        >
+          <p className="text-text-secondary">
+            Offline for more than a day. Check the service on {label}.
+          </p>
+          <CopyCommand command={HOST_SERVICE_STATUS} />
+        </section>
+      )}
 
-        {/* Two stacks, not a row-by-row grid: a tall Readiness card leaves no hole beside it. */}
-        <div className="grid items-start gap-4 lg:grid-cols-2">
-          <div className="space-y-4">
-            <Card
-              title="Readiness"
-              aside={
-                checking ? (
-                  <>
-                    <Spinner size={10} /> Checking
-                  </>
-                ) : (
-                  // The report rides each heartbeat; "checked" is when this computer last asked.
-                  <span role="status">
-                    {[
-                      machine.lastSeenAt
-                        ? `Reported ${relativeTime(machine.lastSeenAt, corrected)}`
-                        : 'Not reported yet',
-                      checkedAt
-                        ? `checked ${relativeTime(new Date(checkedAt).toISOString(), Date.now())}`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </span>
-                )
-              }
-            >
-              <CheckRow check={connectionCheck} />
-              {freshness === 'none' ? (
-                <p className="text-text-secondary py-1.5 text-base">
-                  {machine.label} reports pi, Claude and Tailscale once it first connects.
-                </p>
-              ) : (
+      {/* Two stacks, not a row-by-row grid: a tall Readiness card leaves no hole beside it. */}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          <Card
+            title="Readiness"
+            aside={
+              check.busy ? (
                 <>
-                  {freshness === 'stale' && machine.lastSeenAt && (
-                    <p className="text-text-tertiary py-1 text-sm">
-                      As last reported, {relativeTime(machine.lastSeenAt, corrected)}. It may have
-                      changed since.
-                    </p>
-                  )}
-                  {reported.map((check) => (
-                    <CheckRow key={check.name} check={check} />
-                  ))}
+                  <Spinner className="text-text-tertiary" /> Checking
                 </>
-              )}
-            </Card>
-            {connection && (
-              <Card title="On this machine">
-                <OnThisMachine hostId={machine.id} />
-              </Card>
+              ) : (
+                stamp && <span role="status">{stamp}</span>
+              )
+            }
+          >
+            {overview.checks.map((item) => (
+              <CheckRow key={item.name} check={item} />
+            ))}
+            {note && (
+              <p
+                role={note.alert ? 'alert' : undefined}
+                className={clsx(
+                  'py-1.5 text-base',
+                  note.alert ? 'text-danger' : 'text-text-secondary',
+                )}
+              >
+                {note.text}
+              </p>
             )}
-          </div>
-          <div className="space-y-4">
-            <Card title="Providers">
-              <MachineProviders
-                key={machine.id}
-                hostId={machine.id}
-                refresh={refresh}
-                onConfigure={
-                  connection?.configurationSupported
-                    ? () => openSettings(machine.id, 'accounts')
-                    : undefined
-                }
-              />
+          </Card>
+          {overview.machine && overview.connected && (
+            <Card title="On this machine">
+              <OnThisMachine hostId={id} />
             </Card>
-            <MachineDetailFacts machine={machine} version={version} />
-          </div>
+          )}
         </div>
-        {connection && <MachineTerminal hostId={machine.id} label={machine.label} />}
+        <div className="space-y-4">
+          <Card title="Providers">
+            <MachineProviders
+              key={id}
+              hostId={id}
+              refresh={check.round}
+              onConfigure={overview.configure}
+            />
+          </Card>
+          <MachineFacts facts={overview.facts} />
+        </div>
+      </div>
+      {overview.connected && <MachineTerminal hostId={id} label={label} />}
 
+      {onRemove && (
         <section
           aria-label="Remove machine"
           className="border-border flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3"
@@ -231,58 +128,50 @@ export function MachineDetail({
             Remove machine
           </Button>
         </section>
-      </>
+      )}
     </div>
   )
 }
 
-function Troubleshooting(): React.JSX.Element {
-  return (
-    <details className="text-text-secondary space-y-2 text-base">
-      <TooltipSummary className="cursor-pointer">Troubleshooting</TooltipSummary>
-      <p className="pt-2">Check the Host service:</p>
-      <CopyCommand command={HOST_SERVICE_STATUS} />
-      <p>If no service is installed, install it:</p>
-      <CopyCommand command={HOST_SERVICE_INSTALL} />
-      <p>To watch it run in the foreground:</p>
-      <CopyCommand command={HOST_RUN} />
-    </details>
-  )
-}
-
-function MachineDetailFacts({
+/** A Host's detail, read from its directory entry and live connection. */
+export function HostMachineDetail({
   machine,
-  version,
+  now,
+  offset,
+  ...rest
 }: {
   machine: MachineView
-  version: string | null | undefined
+  now: number
+  offset: number
+  navigation?: React.ReactNode
+  onRemove: () => void
 }): React.JSX.Element {
+  return <MachineDetail overview={useHostOverview(machine, now, offset)} {...rest} />
+}
+
+function MachineFacts({ facts }: { facts: MachineOverview['facts'] }): React.JSX.Element {
   return (
     <details className="machine-facts">
-      <TooltipSummary>Connection & identity</TooltipSummary>
-      <Card title="Details">
-        <Facts>
-          <Fact label="Hostname">{machine.hostname}</Fact>
-          <Fact label="Platform">
-            {platformName(machine.platform)} {machine.arch}
-          </Fact>
-          <Fact label="Host version">{version ?? 'Not reported'}</Fact>
-          <Fact label="Enrolled">{new Date(machine.enrolledAt).toLocaleDateString()}</Fact>
-          <Fact label="Address">{machine.endpoint ?? 'Not published'}</Fact>
-          <Fact label="Fingerprint">
-            <span className="flex items-center gap-1">
-              <code className="truncate font-mono text-sm">{machine.keyFingerprint}</code>
-              <CopyButton size="icon" text={machine.keyFingerprint} title="Copy fingerprint" />
-            </span>
-          </Fact>
-          <Fact label="Machine id">
-            <span className="flex items-center gap-1">
-              <code className="truncate font-mono text-sm">{machine.id}</code>
-              <CopyButton size="icon" text={machine.id} title="Copy machine id" />
-            </span>
-          </Fact>
-        </Facts>
-      </Card>
+      <TooltipSummary>Details</TooltipSummary>
+      <div className="bg-surface border-border rounded-lg border px-4 py-3">
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 text-base">
+          {facts.map(({ label, value, copy }) => (
+            <Fragment key={label}>
+              <dt className="text-text-tertiary">{label}</dt>
+              <dd className="min-w-0 truncate">
+                {copy ? (
+                  <span className="flex items-center gap-1">
+                    <code className="truncate font-mono text-sm">{value}</code>
+                    <CopyButton size="icon" text={value} title={`Copy ${label.toLowerCase()}`} />
+                  </span>
+                ) : (
+                  value
+                )}
+              </dd>
+            </Fragment>
+          ))}
+        </dl>
+      </div>
     </details>
   )
 }

@@ -4,8 +4,9 @@ import {
   type MachineView,
   type Readiness,
 } from '@shared/control-api'
+import type { IpcInvokeMap } from '@shared/ipc'
+import type { ClaudeStatus, PiHealth } from '@shared/models'
 
-export const LOCAL_MACHINE = 'this-computer'
 export const HOST_GUIDE = 'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md'
 export const HOST_INSTALL =
   'curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh && export PATH="$HOME/.local/bin:$PATH" && phosphor setup'
@@ -13,6 +14,11 @@ export const HOST_RUN = 'phosphor run'
 export const HOST_SERVICE_INSTALL = 'phosphor service install'
 export const HOST_SERVICE_STATUS = 'phosphor service status'
 export const PI_INSTALL = 'npm install -g @earendil-works/pi-coding-agent'
+/**
+ * The one fix for a missing or outdated Claude Code on any machine: its
+ * Settings page installs the provider and the CLI, or says how.
+ */
+export const CLAUDE_SETUP = 'Set it up in Settings → Extensions → Claude Code.'
 export function platformName(platform: string): string {
   return { darwin: 'macOS', linux: 'Linux', win32: 'Windows' }[platform] ?? platform
 }
@@ -43,6 +49,12 @@ export interface ReadinessCheck {
   short: string
   detail: string
   command?: string
+  /** Still being read; shows a spinner instead of a verdict. */
+  loading?: boolean
+  /** What the row says while loading, when not "Checking…". */
+  loadingText?: string
+  /** Not applicable or not reported: neither passing nor failing. */
+  muted?: boolean
 }
 
 /**
@@ -96,16 +108,14 @@ export function readinessChecks(
           : claude === 'signed-out'
             ? 'Sign in to Claude Code on this machine.'
             : claude === 'missing'
-              ? 'Install Claude Code on this machine.'
+              ? `Claude Code is missing. ${CLAUDE_SETUP}`
               : 'Not reported yet. Check the Host on this machine.',
       command:
         claude === 'signed-out'
           ? 'phosphor providers login claude'
-          : claude === 'missing'
-            ? 'npm install -g @anthropic-ai/claude-code'
-            : claude === 'unknown'
-              ? 'phosphor doctor'
-              : undefined,
+          : claude === 'unknown'
+            ? 'phosphor doctor'
+            : undefined,
     },
     {
       name: 'Tailscale',
@@ -137,6 +147,85 @@ export function readinessChecks(
     },
   ]
 }
+/** A Host's live Claude Code detail, which names the missing part. */
+export function claudeReadiness(
+  detail: NonNullable<IpcInvokeMap['hosts:claude']['result']>,
+): ReadinessCheck {
+  const name = 'Claude Code'
+  if (detail.provider !== 'ok')
+    return {
+      name,
+      ok: false,
+      short: `Claude Code provider ${detail.provider}`,
+      detail: `Claude Code provider ${detail.provider}. ${CLAUDE_SETUP}`,
+    }
+  if (detail.cli !== 'ok')
+    return {
+      name,
+      ok: false,
+      short: 'Claude Code missing',
+      detail: `Claude Code is missing. ${CLAUDE_SETUP}`,
+    }
+  return {
+    name,
+    ok: detail.auth === 'ok',
+    short: `Claude Code ${detail.auth}`,
+    detail:
+      detail.auth === 'ok'
+        ? 'Signed in and ready'
+        : detail.auth === 'signed-out'
+          ? 'Sign in to Claude Code on this machine.'
+          : 'Claude Code sign-in status is unknown. Run phosphor setup on this machine.',
+    command:
+      detail.auth === 'ok'
+        ? undefined
+        : detail.auth === 'signed-out'
+          ? 'phosphor providers login claude'
+          : 'phosphor setup',
+  }
+}
+
+/** This computer's pi and Claude Code. Each read is `undefined` until it settles. */
+export function localChecks(
+  health: PiHealth | null | undefined,
+  claude: ClaudeStatus | null | undefined,
+  failed: boolean,
+): ReadinessCheck[] {
+  return [
+    {
+      name: 'pi',
+      ok: health?.ok === true,
+      loading: health === undefined && !failed,
+      short: health ? (health.ok ? `pi ${health.version}` : 'pi unavailable') : 'Not checked',
+      detail: health
+        ? health.ok
+          ? `Ready · ${health.version}`
+          : (health.reason ?? 'Install pi to run lanes.')
+        : 'Could not check pi.',
+      command: health && !health.ok ? PI_INSTALL : undefined,
+    },
+    {
+      name: 'Claude Code',
+      ok: claude?.binary.found === true && claude.auth.loggedIn === true,
+      loading: claude === undefined && !failed,
+      short: !claude
+        ? 'Not checked'
+        : !claude.binary.found
+          ? 'Claude Code missing'
+          : claude.auth.loggedIn
+            ? 'Signed in'
+            : 'Claude Code signed out',
+      detail: !claude
+        ? 'Could not check Claude Code.'
+        : !claude.binary.found
+          ? `Claude Code is missing. ${CLAUDE_SETUP}`
+          : claude.auth.loggedIn
+            ? 'Signed in and ready'
+            : 'Sign in under Settings → Extensions → Claude Code.',
+    },
+  ]
+}
+
 export function formatCode(input: string): string {
   const canonical = normalizeUserCode(input)
   if (canonical) return `${canonical.slice(0, 4)}-${canonical.slice(4)}`

@@ -2,10 +2,9 @@ import { machineStatus, type MachineView } from '@shared/control-api'
 import { errorText } from '@shared/errors'
 import type { HostCapability } from '@shared/remote-host'
 import type { DesktopControlErrorCode, HostsSnapshot, IpcInvokeMap } from '@shared/ipc'
-import { claudeReadiness } from './ClaudeReadiness'
 import { controlMessage } from './controlMessages'
 import { machineHeadline, type Tone } from './machineReachability'
-import { relativeTime } from './machinePresentation'
+import { claudeReadiness, relativeTime } from './machinePresentation'
 import { TAILSCALE_FIXES } from './onboarding/BeforeYouStart'
 
 /**

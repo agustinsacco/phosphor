@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { Button } from '@/components/form'
 import { TooltipSummary } from '@/components/Tooltip'
-import { HOST_GUIDE, HOST_INSTALL } from './machinePresentation'
+import {
+  HOST_GUIDE,
+  HOST_INSTALL,
+  HOST_RUN,
+  HOST_SERVICE_INSTALL,
+  HOST_SERVICE_STATUS,
+} from './machinePresentation'
 
 export function CopyCommand({ command }: { command: string }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
@@ -64,5 +70,28 @@ export function HostSetup({ collapsed = false }: { collapsed?: boolean }): React
         set PHOSPHOR_NO_MODIFY_PATH=1 in the installer's environment.
       </p>
     </div>
+  )
+}
+
+/** The Host service commands in the order to try them, closed until asked for. */
+export function Troubleshooting({
+  summary = 'Troubleshooting',
+  children,
+}: {
+  summary?: string
+  /** What to check first, before the commands. */
+  children?: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <details className="text-text-secondary space-y-2 text-base">
+      <TooltipSummary className="cursor-pointer">{summary}</TooltipSummary>
+      {children}
+      <p>1. Check the Host service.</p>
+      <CopyCommand command={HOST_SERVICE_STATUS} />
+      <p>2. If no service is installed, install it.</p>
+      <CopyCommand command={HOST_SERVICE_INSTALL} />
+      <p>3. For debugging, run the Host in the foreground.</p>
+      <CopyCommand command={HOST_RUN} />
+    </details>
   )
 }

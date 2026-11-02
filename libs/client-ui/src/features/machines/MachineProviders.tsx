@@ -6,7 +6,7 @@ import { Skeleton } from './MachineUi'
 import { useMachineProviders } from './useMachineProviders'
 
 /**
- * A Host's pi providers on its Machines page: Settings → Accounts' rows, read
+ * A machine's pi providers on the Machines page: Settings → Accounts' rows, read
  * only. Sign-in opens that page; a Host too old for it gets the CLI command.
  */
 export function MachineProviders({

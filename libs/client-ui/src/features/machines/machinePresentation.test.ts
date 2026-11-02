@@ -46,11 +46,7 @@ it('gives problem-only readiness and actionable fixes, including unknown reports
     readinessChecks({ pi: 'missing', claude: 'missing', tailscale: 'stopped' }).map(
       (check) => check.command,
     ),
-  ).toEqual([
-    'npm install -g @earendil-works/pi-coding-agent',
-    'npm install -g @anthropic-ai/claude-code',
-    'sudo tailscale up',
-  ])
+  ).toEqual(['npm install -g @earendil-works/pi-coding-agent', undefined, 'sudo tailscale up'])
   expect(
     readinessChecks(null).every((check) => !check.ok && check.command === 'phosphor doctor'),
   ).toBe(true)

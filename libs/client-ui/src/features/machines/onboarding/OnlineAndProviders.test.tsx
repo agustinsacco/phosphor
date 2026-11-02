@@ -6,12 +6,27 @@ import { OnlineAndProviders } from './OnlineAndProviders'
 import { MACHINE } from '../__fixtures__/control'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
+import type { HostCapability } from '@shared/remote-host'
+
+const readyHost = (capabilities: HostCapability[]) => ({
+  [MACHINE.id]: {
+    connectionToken: 'test-connection',
+    state: 'ready' as const,
+    capabilities,
+    repositories: [],
+    lanes: [],
+  },
+})
 
 it('follows directory online state and reads provider readiness without owning sign-in', async () => {
-  const invoke = vi.fn(async () => [
-    { id: 'anthropic', name: 'Anthropic', status: 'ready' },
-    { id: 'openai', name: 'OpenAI', status: 'not_ready' },
-  ])
+  const invoke = vi.fn(async (channel: string) =>
+    channel === 'hosts:providers'
+      ? [
+          { id: 'anthropic', name: 'Anthropic', status: 'ready' },
+          { id: 'openai', name: 'OpenAI', status: 'not_ready' },
+        ]
+      : null,
+  )
   vi.stubGlobal('phosphor', { invoke })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   useRemoteLanesStore.setState({ hosts: {} })
@@ -40,35 +55,25 @@ it('follows directory online state and reads provider readiness without owning s
         machines: [{ ...MACHINE, lastSeenAt: new Date(now).toISOString(), state: 'running' }],
       }),
     )
-    await act(async () =>
-      useRemoteLanesStore.setState({
-        hosts: {
-          [MACHINE.id]: {
-            connectionToken: 'test-connection',
-            state: 'ready',
-            capabilities: [],
-            repositories: [],
-            lanes: [],
-          },
-        },
-      }),
-    )
+    await act(async () => useRemoteLanesStore.setState({ hosts: readyHost([]) }))
     expect(container.textContent).toContain('bee1 is online')
     await act(async () => useMachinesStore.setState({ nowMs: now + 600000 }))
     await act(async () => useRemoteLanesStore.setState({ hosts: {} }))
     expect(container.textContent).toContain('not reachable')
+    await act(async () => useRemoteLanesStore.setState({ hosts: readyHost(['skills.read']) }))
     await render(true)
     expect(invoke).toHaveBeenCalledWith('hosts:providers', MACHINE.id)
-    expect(container.textContent).toContain('Anthropic: Ready')
-    expect(container.textContent).toContain('OpenAI: Sign-in needed')
+    const row = (id: string) => container.querySelector(`[data-provider=${id}]`)?.textContent
+    expect(row('anthropic')).toContain('Signed in')
+    expect(row('openai')).toContain('Not signed in')
     expect(container.textContent).toContain('phosphor providers login PROVIDER')
     await act(async () =>
       Array.from(container.querySelectorAll('button'))
-        .find((b) => b.textContent === 'Open machine Readiness')
+        .find((b) => b.textContent === 'Open machine')
         ?.click(),
     )
     expect(open).toHaveBeenCalledOnce()
-    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:providers')).toHaveLength(1)
   } finally {
     act(() => root.unmount())
     useMachinesStore.setState({ machines: [] })
