@@ -60,6 +60,27 @@ export function IsolateToggle({
 }
 
 /**
+ * In a Host composer, for a folder git does not track. Host lanes otherwise always
+ * get a worktree, which needs a repository, so this one runs in the folder.
+ */
+export function NoGitNote(): React.JSX.Element {
+  return (
+    <span
+      {...tooltipProps({
+        label: 'Runs in this folder',
+        description: 'New branches need a git repository here',
+      })}
+      className="text-text-tertiary px-1.5 py-1 text-base"
+    >
+      <span aria-hidden="true">no git · runs in folder</span>
+      <span className="sr-only">
+        Not a git repository, so the lane runs in this folder without a new branch.
+      </span>
+    </span>
+  )
+}
+
+/**
  * The trunk a new chat's branch will start from, or null while unknown.
  *
  * Read from `git:startPoint`, the same call `startChat` makes, so the label

@@ -15,8 +15,12 @@ export function useRemoteStart(hostId: string, draftKey: string) {
   const { nativeFiles } = usePlatform()
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const remembered = useRemoteComposer((s) => s.repositories[hostId])
-  const repositoryId =
-    host?.repositories.find((r) => r.id === remembered)?.id ?? host?.repositories[0]?.id ?? ''
+  const repository =
+    host?.repositories.find((r) => r.id === remembered) ?? host?.repositories[0] ?? null
+  const repositoryId = repository?.id ?? ''
+  // Only a Host that says git does not track the folder gets no worktree request;
+  // an older or unsure Host is asked for one, and runs the lane in place if it must.
+  const canBranch = repository?.git !== false
   const selection = useRemoteModel(hostId)
   const draft = useDraftsStore((s) => s.drafts[draftKey])
   const text = draft?.text ?? ''
@@ -46,6 +50,7 @@ export function useRemoteStart(hostId: string, draftKey: string) {
       draftKey,
       text: text.trim(),
       attachments,
+      branch: canBranch,
       swarm,
       input: {
         repositoryId,
@@ -66,6 +71,7 @@ export function useRemoteStart(hostId: string, draftKey: string) {
     attachments,
     swarm,
     busy,
+    canBranch,
     warning,
     setWarning,
     ready,

@@ -179,6 +179,33 @@ it.each([true, false])(
   },
 )
 
+it.each([false, true, undefined])(
+  'asks a Host for a worktree unless git is known absent, then says so (git=%s)',
+  async (git) => {
+    useWorktreesStore.setState({ preferWorktree: true, branchPrefix: 'phosphor/' })
+    const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+    const repository = { ...host.repositories[0]!, ...(git === undefined ? {} : { git }) }
+    useRemoteLanesStore.setState({
+      hosts: {
+        ...useRemoteLanesStore.getState().hosts,
+        [MOCK_HOST_ID]: { ...host, repositories: [repository] },
+      },
+    })
+    await render()
+    expect(el.querySelector('input[type=checkbox]')).toBeNull()
+    expect(el.textContent?.includes('no git · runs in folder')).toBe(git === false)
+    await send()
+    expect(invoke).toHaveBeenCalledWith('hosts:createLane', MOCK_HOST_ID, {
+      repositoryId: repository.id,
+      model: 'model',
+      provider: 'p',
+      thinkingLevel: 'off',
+      ...(git === false ? {} : { worktree: { branch: 'phosphor/first-prompt', fresh: true } }),
+    })
+    expect(useWorktreesStore.getState().preferWorktree).toBe(true)
+  },
+)
+
 it.each(['none', 'text', 'attachment'] as const)(
   'clears accepted content after persistence debounce, preserving newer edits=%s',
   async (edit) => {

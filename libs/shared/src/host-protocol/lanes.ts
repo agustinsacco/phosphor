@@ -14,6 +14,12 @@ export interface RepositorySummary {
   readonly name: string
   /** Absolute on the Host. Display and scoping only, never an identity. */
   readonly path: string
+  /**
+   * False when git answers that the folder is in no repository, so a lane there
+   * cannot get its own branch. Absent while unknown and from older Hosts: clients
+   * then offer "new branch" and the Host runs the lane in place if it must.
+   */
+  readonly git?: boolean
 }
 
 export interface LaneController {
