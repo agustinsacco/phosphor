@@ -9,6 +9,8 @@ export interface LaneSelect {
   /** The row's group has an active selection. */
   selecting: boolean
   onToggle: (shiftKey: boolean) => void
+  /** Why this lane cannot be selected; shown instead of a working box. */
+  blocked?: string
 }
 
 /**
@@ -36,23 +38,25 @@ export function SelectableIndicator({
 }
 
 function SelectBox({ select }: { select: LaneSelect }): React.JSX.Element {
-  const { title, selected, selecting } = select
+  const { title, selected, selecting, blocked } = select
   return (
     <span
       role="checkbox"
       aria-checked={selected}
+      aria-disabled={blocked ? true : undefined}
       aria-label={`Select ${title}`}
       tabIndex={-1}
       onClick={(event) => {
         event.stopPropagation()
-        select.onToggle(event.shiftKey)
+        if (!blocked) select.onToggle(event.shiftKey)
       }}
       className={clsx(
         'grid size-5 shrink-0 place-items-center rounded-[4px] border text-2xs',
         selected ? 'bg-accent border-accent text-accent-text' : 'border-border-strong bg-surface',
+        blocked && 'cursor-not-allowed opacity-40',
         !selected && !selecting && 'hidden group-hover:grid',
       )}
-      data-tooltip={`Select ${title}`}
+      data-tooltip={blocked ?? `Select ${title}`}
     >
       {selected ? '✓' : ''}
     </span>
@@ -62,7 +66,9 @@ function SelectBox({ select }: { select: LaneSelect }): React.JSX.Element {
 /**
  * The bulk bar: only in select mode, so it costs no pixels the rest of the
  * time. It floats over the list rather than adding a permanent toolbar row;
- * `className` places it in the list that owns the selection.
+ * `className` places it in the list that owns the selection. Select mode can
+ * hold nothing yet ("Select merged lanes" with none merged), so Delete waits
+ * for a lane.
  */
 export function LaneBulkBar({
   count,
@@ -89,7 +95,7 @@ export function LaneBulkBar({
       <span className="flex-1" />
       <TooltipButton
         onClick={onDelete}
-        disabled={running}
+        disabled={running || count === 0}
         className="bg-danger rounded-md px-2.5 py-1 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
       >
         {running ? 'Delete in progress' : 'Delete…'}
