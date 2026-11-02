@@ -596,10 +596,9 @@ outdated, Claude Code missing, signed out); older Hosts keep the single status.
 Providers lists the connected Host's providers, signed-in first. Not signed in
 is neutral, not a warning, because most people use one or two. Supporting Hosts
 link to **Settings → Accounts**, rather than duplicating authentication controls.
-The same sections open from Settings → Configure → \<Host\>. The Machines page's
-Settings has its own target banner, explicit configuration-access request and
-Agent, Accounts, Extensions, MCP Connectors, Folders and Advanced sections, the
-same list Settings shows for that Host. [The settings contract](settings.md#host-machine-settings) owns their
+The detail's **Settings** tab opens Settings itself, scoped to that Host (the dialog
+on Desktop, `/pages/settings/<host>` in the browser); the page holds no copy of the
+Host's settings. [The settings contract](settings.md#host-machine-settings) owns their
 review, authority, drafts and timing. Advanced's only action is **Pause and
 update**, a confirmed Host update ([host.md](host.md#updating)); otherwise it is
 read-only, with no shared local/remote raw editor and no automatic service restart.

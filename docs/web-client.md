@@ -31,7 +31,8 @@ remote cleanup completed or revoke previously issued grants immediately.
 ### Configuration access and lane deletion
 
 A Host's machine settings (**Settings → Configure → \<Host\>**, or **Machines → a Host →
-Settings**) are the same shared sections as Desktop's. A signed-in
+Settings**, which goes to `/pages/settings/<host>`) are the same shared sections as
+Desktop's, on the same Settings page. A signed-in
 browser page holds configuration authority for a Host only after an explicit
 per-page opt-in: **Enable configuration access** in Settings, or **Switch account**
 in a Host lane's usage popover, confirmed in the same dialog, calls
@@ -152,7 +153,10 @@ The Settings page frames Desktop's `SettingsSurface`: the same search field, sec
 navigation and sections, listed by platform capability
 ([settings](settings.md#sections-and-capabilities)). The browser shows Appearance,
 Phosphor account, App installation and About, then **Configure** with the Host
-machine settings of each known Host; it lists no This Mac sections.
+machine settings of each known Host; it lists no This Mac sections. With no Host to
+configure, a **No machine to configure** notice links to Machines. Leaving the page
+while a Host's settings draft is unsaved asks first, as closing Desktop's dialog does;
+the browser's Back button is not intercepted.
 
 ### One lane row, list and menu
 

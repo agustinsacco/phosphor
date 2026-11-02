@@ -84,13 +84,33 @@ switching machines keeps the open concern, an extension tab opens the Host's
 Extensions, and anything else opens the machine's first section. Search lists a
 section's rows only on the machine that renders them.
 
-Every machine section opens under a one-line scope, **Configuring \<machine\>**.
+Every machine section opens under one **scope line** (`SettingsScopeLine`):
+**Configuring \<machine\>**, then the section's scope controls. It is the only place
+a section names its machine. Agent and MCP Connectors are **scoped**: the line offers
+**Machine** or **Folder** (a radio group, "Configuration scope") and, for a folder,
+which one ("Configuration folder"). On This Mac a folder is the settings workspace or
+a recent workspace; on a Host it is one of that Host's registered folders. The choice
+is `settingsUiStore.folder` (null is the whole machine); it resets when the dialog
+opens, when the browser page is entered and when another machine is chosen. Views
+read it and never render a scope switch of their own. A Host's line also holds
+**Refresh**, once configuration access is granted.
+
 This Mac's sections mount only while This Mac is chosen, so choosing it always shows
 its controls, even while a Host lane is the active lane; they then use This Mac's home
 workspace, never the Host lane's folder. While a Host is chosen none of This Mac's
-controls mount and This Mac's packages are not read. A Host's sections render inline
-through the same controller and gate as the Machines page (below). Leaving a Host
-section with an unsaved draft asks first, as the Machines page does.
+controls mount and This Mac's packages are not read. A Host's sections render behind
+the Host gate ([below](#host-machine-settings)). A section change, a machine change, a
+scope change, Refresh, closing the dialog and leaving the browser's Settings page all
+wait for a Host save in flight and ask before dropping a refused draft.
+
+A browser that knows no machine it can configure lists only device sections, with a
+**No machine to configure** notice and **Open Machines** below the navigation.
+
+Every link into Settings goes through `useOpenSettings()(machine, tab)`
+(`openSettings(navigate, machine, tab)` outside React): Desktop opens the dialog on
+that section and machine, the browser navigates to `/pages/settings/<machine>`. The
+Machines page, a machine's provider and update links, Skills sharing, the composer's
+context links, onboarding and the MCP migration notice all use it.
 
 A remote lane's context meter uses the Host-reported effective window, preferring
 the live context extension value over the stats poll. It labels the budget with
@@ -99,10 +119,9 @@ the machine name. This Mac's Context budget preference never caps that meter.
 ## Host machine settings
 
 A Host's machine settings open from Settings (**Configure → \<Host\>**) and from
-**Machines → a Host → Settings**. Both use `useMachineSettingsController` and
-`MachineSettingsGate`; the Machines page adds its own navigation (built from the same
-`HOST_SECTIONS` list, so it shows the same labels in the same order) and a target banner
-naming the execution machine. Nothing copies settings or credentials between
+**Machines → a Host → Settings**, which opens the same Settings scoped to that Host:
+the dialog on Desktop, `/pages/settings/<host>` in the browser. There is no second
+copy on the Machines page. Nothing copies settings or credentials between
 machines, falls back to This Mac, or queues writes while disconnected. Overview
 continues to own reachability, reconnect, readiness, traffic logging and removal.
 Desktop and the browser/mobile client show the same page. The browser's
@@ -115,6 +134,17 @@ Desktop asks once per Host and account and remembers the answer until sign-out
 ([remote access](remote-access.md#connect-and-authorize)).
 Older Hosts show an upgrade explanation instead of unsupported controls. Offline
 and failed reads are unavailable states, not empty settings.
+
+The **Host gate** (`HostGate`, built on the pure `hostSettingsStatus()`) shows one
+notice until the section can render. Each connection state uses the Machines page's
+reachability words (`machineReachability`) and fix command, plus the link's last
+error: Host offline, not reachable yet or not reachable offer **Reconnect**;
+Connecting… offers nothing; an identity mismatch says to remove and re-add the Host;
+an incompatible Host says to update it; signed out offers **Open Phosphor account**.
+A ready Host without the settings API asks for `phosphor update`; one without the
+grant offers **Enable configuration access**. Then the section loads (a skeleton),
+or its read failed (an alert with **Retry**). Save and program errors show above the
+section as alerts.
 
 | Section        | Owner and behavior                                                                                                                                                                  |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -160,8 +190,9 @@ custom model is flagged in place and not sent. Edits preserve unrelated settings
 A change the Host refuses stays as a non-secret draft keyed by Host/folder, with
 an error toast and a **Try again** / **Discard changes** banner; it is not
 resent until asked, nor after a remount or reconnect. A changed server revision
-blocks it until it is discarded. Tab, scope, back and refresh controls wait for
-a save in flight, and ask before discarding a refused draft.
+blocks it until it is discarded. Section, machine, scope and Refresh controls, closing
+the dialog and leaving the browser page wait for a save in flight, and ask before
+discarding a refused draft.
 
 The standard Host extensions are the Claude Code provider, Swarm subagents and
 web access, offered with consent during guided setup. Missing packages have
@@ -189,6 +220,50 @@ config (`agentDirectives`), which each lane start reads, so a save needs no rest
 and running lanes keep the prompt they started with. There are no per-folder Host
 directives. A Host without the section asks to be updated. Source URLs and non-allowlisted
 package sources are hidden and read-only, not offered as guessed mutations.
+
+## How a settings section is built
+
+Everything lives under `libs/client-ui/src/features/settings/`.
+
+- **The registry.** `sections/registry.ts` maps each section id to its views:
+  `Device` for a device section, `Local` for This Mac, `Host` for a Host, and
+  `scoped` when the scope line offers a folder. `SettingsPanel` renders `Device`
+  alone, `Local` under the scope line, and `Host` inside `HostSectionProvider` ›
+  `HostGate`. Nothing else in Settings branches on the kind of machine. A test keeps
+  the registry in step with the navigation (`settingsIndex.ts`): a section lists on a
+  machine exactly when it has that machine's view.
+- **The machine frame.** `machine/` holds the scope line (`SettingsScopeLine`,
+  `ScopeRow`, `HostScopeRow`, `HostRefresh`), the gate (`HostGate`,
+  `hostSettingsStatus`) and the Host plumbing: `useHostSettings`,
+  `useHostSettingsSnapshot`, `useMachinePrograms`, `machineProgramActions`,
+  `HostProgramDialog`, `settingsAccess`, `machineSettingsDrafts` and the Agent draft
+  helpers. `useHostSection()` gives a Host view its machine, settings read
+  (`settings`), folder (`repositoryId`), programs, grant and refresh;
+  `HostSectionProvider` owns the private-program dialog.
+- **One view per section.** A shared section lives in `sections/<section>/`: a
+  presentational `<Section>View.tsx` that takes a `source` prop; `source.ts`, its
+  `<Section>Source` type; and one adapter hook per machine, `useLocal<Section>` and
+  `useHost<Section>`. `index.tsx` exports `Local<Section>` and `Host<Section>`, each of
+  which calls exactly one adapter. Leaves several sections use live in
+  `features/settings/components/`. Until a section has its shared view, its `Host`
+  entry wraps the Host's own view (`sections/hostSections.tsx`).
+- **The source contract.** A source carries `status` (`'loading'`, `'ready'` or an
+  error with `retry`), one `notice` slot (`SettingsNoticeProps`: an untrusted
+  folder, a malformed file, "Update this Host"), at most five typed capability flags
+  (`caps`), a `save` state for `SaveStatus` (immediate on This Mac, draft and revision
+  on a Host), and its data and actions, typed on `@phosphor/shared/machine-settings*`
+  wherever a Host type exists. A Host too old for a feature is detected by the
+  missing field, never by a flag. A difference in the client, not the machine, is a
+  `Platform` capability, never the form factor.
+- **Primitives.** `components/form/`: `Row` (its title names the control inside it),
+  `Toggle`, `NumberField` (commits on blur or Enter, clamped; a half-typed value is
+  never saved), `TextField`, `Select` (native, so pickers and the `combobox` role
+  work everywhere), `Segmented` (a radio group: one tab stop, arrow keys, Home and
+  End), `SettingsNotice` (tone `info`, `warning` or `danger`, the last announced as an
+  alert; a title, a body and one action), `SourceBadge` (Set here, Inherited from
+  machine, pi default) and `SaveStatus` (idle, saving, saved, error with Try again and
+  Discard, refused). Shared section views use these, not a raw `<select>`, a raw
+  checkbox or `MachineUi.Card`.
 
 ## Search
 
@@ -265,8 +340,8 @@ nothing leaves the machine.
 
 ## Agent
 
-Writes pi's own `settings.json`. A **Scope** switch picks global
-(`~/.pi/agent`) or the current workspace (`<ws>/.pi/settings.json`). Each scope
+Writes pi's own `settings.json`. The scope line's **Machine** writes the global file
+(`~/.pi/agent`); **Folder** writes that workspace's override (`<ws>/.pi/settings.json`). Each scope
 is read **unmerged**: the editor shows what that file actually contains, so a
 project edit never bakes inherited global values into the project file. In
 project scope, an empty field's placeholder names what it inherits.
