@@ -138,17 +138,20 @@ export function Toggle({
   on,
   onChange,
   disabled = false,
+  label,
 }: {
   on: boolean
   onChange: (on: boolean) => void
   /** Renders dimmed and refuses the click — a switch that cannot move must look it. */
   disabled?: boolean
+  /** The switch's name outside a Row. */
+  label?: string
 }): React.JSX.Element {
-  const label = useRowLabel()
+  const rowLabel = useRowLabel()
   return (
     <TooltipButton
-      aria-label={label}
-      tooltip={label}
+      aria-label={label ?? rowLabel}
+      tooltip={label ?? rowLabel}
       role="switch"
       aria-checked={on}
       aria-disabled={disabled}

@@ -50,7 +50,10 @@ vi.mock('./sections/advanced', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   LocalAdvanced: () => <p>Local machine controls</p>,
 }))
-vi.mock('./tabs/ConnectorsTab', () => ({ ConnectorsTab: () => <p>Local machine controls</p> }))
+vi.mock('./sections/connectors', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalConnectors: () => <p>Local machine controls</p>,
+}))
 vi.mock('./sections/computer-use', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   LocalComputerUse: () => <p>Local machine controls</p>,

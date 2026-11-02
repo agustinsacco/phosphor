@@ -6,7 +6,7 @@ import type { SettingEntry } from './search/settingEntry'
 import { ACCOUNTS_HOST_HEADING, ACCOUNTS_ROWS } from './search/rows/accounts'
 import { ADVANCED_ROWS } from './search/rows/advanced'
 import { AGENT_ROWS } from './search/rows/agent'
-import { CONNECTORS_HOST_HEADING, CONNECTORS_ROWS } from './search/rows/connectors'
+import { CONNECTORS_ROWS } from './search/rows/connectors'
 import {
   ABOUT_ROWS,
   ACCOUNT_ROWS,
@@ -184,7 +184,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ...ABOUT_ROWS,
   // The Host's own panels, by their headings, until shared views render the rows above.
   ...ACCOUNTS_HOST_HEADING,
-  ...CONNECTORS_HOST_HEADING,
   ...KEYBINDING_ROWS,
 ]
 

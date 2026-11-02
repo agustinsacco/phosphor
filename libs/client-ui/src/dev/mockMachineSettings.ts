@@ -7,6 +7,7 @@ import type {
 } from '@shared/machine-settings'
 import { parseSettingsPatch } from '@shared/machine-settings'
 import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
+import { mcpUsesOAuth } from '@shared/mcp'
 import { WEB_ACCESS_KEYS } from '@shared/web-access'
 const states = new Map<string, { revision: number; values: Map<string, MachineSettings> }>()
 /** Machine-keyed demo state, never a local-machine read or persistent credential store. */
@@ -77,6 +78,7 @@ export function mockSettingsPatch(hostId: string, patch: MachineSettingsPatch): 
         transport: change.config.command ? 'stdio' : 'https',
         enabled: change.config.enabled !== false,
         exposure: change.config.exposure ?? 'codemode',
+        ...(change.config.url ? { oauth: mcpUsesOAuth(change.config) } : {}),
       })
     if (change.type === 'mcp.remove')
       current.connectors.servers = current.connectors.servers.filter(
@@ -136,6 +138,7 @@ function mockSettingsSamples(hostId: string, repositoryId?: string) {
           transport: 'https',
           enabled: true,
           exposure: 'codemode',
+          oauth: true,
         },
       ],
     },

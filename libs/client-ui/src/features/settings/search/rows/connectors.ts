@@ -1,21 +1,10 @@
-import { LOCAL_ONLY, onHost, section, type SettingEntry } from '../settingEntry'
+import { LOCAL_ONLY, section, type SettingEntry } from '../settingEntry'
 
-/** MCP Connectors: This Mac's rows, until a view every machine shares renders them. */
+/** MCP Connectors, on every machine; the raw files only where they exist (This Mac). */
 export const CONNECTORS_ROWS: SettingEntry[] = [
-  ...section(
-    'connectors',
-    null,
-    [
-      ['Connected', 'mcp servers'],
-      ['Add a connector', 'mcp server oauth url'],
-      ['Config files', 'mcp.json'],
-    ],
-    LOCAL_ONLY,
-  ),
+  ...section('connectors', null, [
+    ['Connected', 'mcp servers sign in sign out enabled remove'],
+    ['Add a connector', 'mcp server oauth url catalogue custom authorization'],
+  ]),
+  ...section('connectors', null, [['Config files', 'mcp.json']], LOCAL_ONLY),
 ]
-
-/** The Host's MCP Connectors panel, by the heading it renders. */
-export const CONNECTORS_HOST_HEADING: SettingEntry[] = onHost('connectors', [
-  'MCP Connectors',
-  'Host mcp servers',
-])

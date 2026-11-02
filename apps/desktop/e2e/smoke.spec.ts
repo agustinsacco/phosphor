@@ -3058,20 +3058,16 @@ test('Connectors: resolved rows, enabled toggle, add custom server', async () =>
       timeout: 10_000,
     })
 
-    // The seeded global server resolves into the list, and `pi mcp list`
-    // reports its state. It is in the "Connected" section, which renders
-    // BEFORE the catalog — so the first checkbox in the dialog is its own
-    // enabled toggle. Scoped to the dialog: the home composer behind it has
-    // checkboxes of its own.
+    // The seeded global server resolves into the list at Machine scope, and
+    // `pi mcp list` reports its state.
     const linear = page.getByTestId('connector-linear')
     await expect(linear.getByText('https://mcp.linear.app/mcp')).toBeVisible()
     await expect(linear.getByText('Needs sign-in')).toBeVisible({ timeout: 20_000 })
     await expect(linear.getByText('exposure: codemode')).toBeVisible()
 
-    // Turning it off writes pi's `"enabled": false`. Plain click: the checkbox
-    // is controlled and only re-renders after the IPC round trip, which
-    // uncheck()'s immediate post-click assertion would race.
-    await page.getByRole('dialog').getByRole('checkbox').first().click()
+    // Turning it off writes pi's `"enabled": false`. Plain click: the switch
+    // is controlled and only re-renders after the IPC round trip.
+    await linear.getByRole('switch', { name: 'Enabled', exact: true }).click()
     await expect
       .poll(async () => {
         const raw = await readFile(join(soloAgentDir, 'mcp.json'), 'utf8')
@@ -3080,12 +3076,14 @@ test('Connectors: resolved rows, enabled toggle, add custom server', async () =>
       .toBe(false)
     await expect(linear.getByText('Disabled')).toBeVisible()
 
-    // Add a project-scoped stdio server → workspace/.pi/mcp.json is written.
+    // Folder scope, then a stdio server → workspace/.pi/mcp.json is written,
+    // one argument per line.
+    await page.getByRole('radio', { name: 'Folder', exact: true }).click()
     await page.getByRole('button', { name: 'Add custom server…' }).click()
     await page.getByPlaceholder('server name (e.g. linear)').fill('local-tools')
-    await page.getByRole('radio', { name: 'Local command' }).check()
-    await page.getByPlaceholder('npx some-mcp-server --flag').fill('npx local-tools-mcp')
-    await page.getByRole('radio', { name: /This project/ }).check()
+    await page.getByRole('radio', { name: 'Local command' }).click()
+    await page.getByRole('textbox', { name: 'Command', exact: true }).fill('npx')
+    await page.getByRole('textbox', { name: 'Arguments', exact: true }).fill('local-tools-mcp')
     await page.getByRole('button', { name: 'Save', exact: true }).click()
 
     await expect

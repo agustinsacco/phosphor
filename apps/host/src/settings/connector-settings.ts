@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import type { MachineSettings, MachineSettingsChange } from '@phosphor/shared/machine-settings'
 import { machineRecord } from '@phosphor/shared/host-protocol-machine'
-import { mcpNamespace } from '@phosphor/shared/mcp'
+import { mcpNamespace, mcpUsesOAuth } from '@phosphor/shared/mcp'
 import { readMcpConfigs, serverProblem } from '@phosphor/session-runtime/pi/mcp-config'
 import type { SettingsContext } from './context'
 import {
@@ -33,6 +33,8 @@ export async function readConnectorSettings(
         transport: server.config.url ? 'https' : 'stdio',
         enabled: server.config.enabled !== false,
         exposure: server.config.exposure ?? 'codemode',
+        ...(server.config.url ? { oauth: mcpUsesOAuth(server.config) } : {}),
+        ...(server.overridden ? { overridden: true as const } : {}),
         ...(checked?.servers.get(server.name) ?? {}),
       })),
       ...(configs.projectTrust?.trusted === false

@@ -4,16 +4,16 @@ import { AccountTab } from '../tabs/AccountTab'
 import { AccountsTab } from '../tabs/AccountsTab'
 import { AppearanceTab } from '../tabs/AppearanceTab'
 import { ClaudeProviderTab } from '../tabs/ClaudeProviderTab'
-import { ConnectorsTab } from '../tabs/ConnectorsTab'
 import { InstallAppTab } from '../tabs/InstallAppTab'
 import { KeybindingsTab } from '../tabs/KeybindingsTab'
 import { OptimizationTab } from '../tabs/OptimizationTab'
 import { VoiceTab } from '../tabs/VoiceTab'
 import { WritingTab } from '../tabs/WritingTab'
-import { HostAccountsSection, HostConnectorsSection } from './hostSections'
+import { HostAccountsSection } from './hostSections'
 import { HostAdvanced, LocalAdvanced } from './advanced'
 import { HostAgent, LocalAgent } from './agent'
 import { HostComputerUse, LocalComputerUse } from './computer-use'
+import { HostConnectors, LocalConnectors } from './connectors'
 import { HostExtensions, LocalExtensions } from './extensions'
 import { HostFolders, LocalFolders } from './folders'
 import { LanesSection } from './lanes/LanesSection'
@@ -50,7 +50,7 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   'web-access': { Local: LocalWebAccess, Host: HostWebAccess },
   'computer-use': { Local: LocalComputerUse, Host: HostComputerUse },
   subagents: { Local: LocalSubagents, Host: HostSubagents },
-  connectors: { Local: ConnectorsTab, Host: HostConnectorsSection, scoped: true },
+  connectors: { Local: LocalConnectors, Host: HostConnectors, scoped: true },
   lanes: { Device: LanesSection },
   folders: { Local: LocalFolders, Host: HostFolders },
   optimization: { Local: OptimizationTab },

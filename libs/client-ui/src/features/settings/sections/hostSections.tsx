@@ -1,4 +1,3 @@
-import { MachineConnectorSettings } from '@/features/machines/MachineConnectorSettings'
 import { MachineProviderSettings } from '@/features/machines/MachineProviderSettings'
 import { useHostSection } from '../machine/HostSection'
 
@@ -19,14 +18,3 @@ export function HostAccountsSection(): React.JSX.Element {
   )
 }
 
-export function HostConnectorsSection(): React.JSX.Element {
-  const { machine, settings, programs, repositoryId } = useHostSection()
-  return (
-    <MachineConnectorSettings
-      label={machine.label}
-      settings={settings}
-      programs={programs}
-      repositoryId={repositoryId}
-    />
-  )
-}

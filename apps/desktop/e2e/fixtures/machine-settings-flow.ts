@@ -5,19 +5,18 @@ import { captures } from './remote-ui'
 type Host = Awaited<ReturnType<typeof remoteHostFixture>>
 
 export async function addPrivateConnector(h: Host, settings: Locator): Promise<void> {
-  await settings.getByRole('button', { name: 'Add connector', exact: true }).click()
-  const add = h.page.getByRole('dialog', { name: 'Add connector on bee1', exact: true })
-  await add
-    .getByRole('combobox', { name: 'Connector catalogue', exact: true })
-    .selectOption('custom')
-  await add.getByRole('textbox', { name: 'Server name', exact: true }).fill('private-tools')
-  await add
+  await settings.getByRole('button', { name: 'Add custom server…', exact: true }).click()
+  const name = settings.getByRole('textbox', { name: 'Server name', exact: true })
+  await name.fill('private-tools')
+  await settings
     .getByRole('textbox', { name: 'Server URL', exact: true })
     .fill('https://example.invalid/mcp')
-  await add.getByLabel('Authorization header', { exact: true }).fill('Bearer HOST_ONLY_MCP_SECRET')
-  await add.getByRole('button', { name: 'Review and add', exact: true }).click()
+  await settings
+    .getByLabel('Authorization header', { exact: true })
+    .fill('Bearer HOST_ONLY_MCP_SECRET')
+  await settings.getByRole('button', { name: 'Save', exact: true }).click()
   await h.page.getByRole('button', { name: 'Save on this Host', exact: true }).click()
-  await expect(add).toBeHidden()
+  await expect(name).toBeHidden()
 }
 
 export async function addPrivateAccount(h: Host, settings: Locator, email: string): Promise<void> {

@@ -232,6 +232,13 @@ flag is present. Resource responses may
 include reviewed package content counts and a resource-filter indicator; older
 responses without these fields remain valid.
 
+Connector reads carry each server's name, scope, transport, enabled state and
+exposure, never its URL, command, headers or environment. Two fields are additive:
+`oauth` (pi signs in to the server with MCP OAuth, as `mcpUsesOAuth` in
+`libs/shared/src/mcp.ts` decides) and `overridden: true` (the folder's file
+overrides a global server). Older Hosts leave both out; clients then offer Sign in
+on every https connector.
+
 Resource reads also carry additive `webAccess { configured, exists, malformed }`:
 the names of the pi-web-access provider keys set in the Host's `web-search.json`
 (`WEB_ACCESS_KEYS`, `libs/shared/src/web-access.ts`), never their values. The

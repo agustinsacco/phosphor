@@ -161,7 +161,6 @@ describe('SETTINGS_INDEX against the section sources', () => {
     'tabs/AppearanceTab.tsx': 'appearance',
     'tabs/ClaudeAccountPanel.tsx': 'claude-provider',
     'tabs/ClaudeProviderTab.tsx': 'claude-provider',
-    'tabs/ConnectorsTab.tsx': 'connectors',
     'tabs/InstallAppTab.tsx': 'install',
     'tabs/KeybindingsTab.tsx': 'keybindings',
     'tabs/OptimizationTab.tsx': 'optimization',
@@ -217,7 +216,13 @@ describe('SETTINGS_INDEX against the section sources', () => {
     ),
   ]
   /** Sections whose one view renders on every machine: their Host-only rows are rows, not headings. */
-  const SHARED_VIEWS = new Set<SettingsTab>(['agent', 'extensions', 'folders', 'advanced'])
+  const SHARED_VIEWS = new Set<SettingsTab>([
+    'agent',
+    'extensions',
+    'connectors',
+    'folders',
+    'advanced',
+  ])
   /** The Host section headings, which the Host's own panels render. */
   const hostHeading = (entry: SettingEntry): boolean =>
     !!entry.on?.host &&
@@ -252,7 +257,7 @@ describe('SETTINGS_INDEX against the section sources', () => {
   it('indexes each Host section by the heading its panel renders', () => {
     const machines = resolve(root, '../machines')
     const panels = readdirSync(machines)
-      .filter((f) => /^(Machine\w+Settings|HostConnectorSections)\.tsx$/.test(f))
+      .filter((f) => /^Machine\w+Settings\.tsx$/.test(f))
       .map((f) => readFileSync(resolve(machines, f), 'utf8'))
       .join('\n')
     const hostEntries = SETTINGS_INDEX.filter(hostHeading)

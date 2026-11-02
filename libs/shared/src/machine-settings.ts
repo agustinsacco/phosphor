@@ -79,6 +79,10 @@ export type MachineSettings = {
       exposure: string
       state?: string
       tools?: number
+      /** pi signs in to it with MCP OAuth (`mcpUsesOAuth`). Older Hosts leave it out. */
+      oauth?: boolean
+      /** A global server the folder's file overrides (enabled, exposure). Older Hosts leave it out. */
+      overridden?: true
     }[]
     checkedAt?: number
     inactiveNames?: string[]

@@ -188,6 +188,8 @@ function parseConnectors(
         ? { state: s.state }
         : {}),
       ...(number(s.tools) && s.tools <= 10000 ? { tools: s.tools } : {}),
+      ...(typeof s.oauth === 'boolean' ? { oauth: s.oauth } : {}),
+      ...(s.overridden === true ? { overridden: true as const } : {}),
     })
   }
   return {
