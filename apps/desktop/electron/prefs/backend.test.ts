@@ -85,4 +85,18 @@ describe('preference backend', () => {
     expect(state.stores[1]?.data).not.toHaveProperty('remoteClients')
     expect(JSON.stringify(state.stores[1]?.data)).not.toContain(user)
   })
+
+  it('keeps remembered settings access cleaned and main-only beside remote identities', async () => {
+    const backend = await import('./backend')
+    const user = randomUUID()
+    const host = randomUUID()
+    expect(backend.getConfigureHosts()).toEqual({})
+    backend.setConfigureHosts({ [user]: [host, 'bad'], invalid: [host] })
+    expect(backend.getConfigureHosts()).toEqual({ [user]: [host] })
+    expect(state.stores.map(({ name }) => name)).toEqual(['remote-clients'])
+    state.stores[0]!.data.configureHosts = { [user]: 'not-a-list' }
+    expect(backend.getConfigureHosts()).toEqual({})
+    backend.prefs()
+    expect(JSON.stringify(state.stores[1]?.data)).not.toContain(host)
+  })
 })

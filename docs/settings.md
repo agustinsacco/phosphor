@@ -105,6 +105,8 @@ configuration access lasts only while the page is open
 
 Configuration requires an explicit **Enable configuration access** action and a
 signed `machine.configure` grant. Normal lane control does not imply this grant.
+Desktop asks once per Host and account and remembers the answer until sign-out
+([remote access](remote-access.md#connect-and-authorize)).
 Older Hosts show an upgrade explanation instead of unsupported controls. Offline
 and failed reads are unavailable states, not empty settings.
 

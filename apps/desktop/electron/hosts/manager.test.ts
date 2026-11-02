@@ -285,6 +285,7 @@ function registrationManager(recovery = false) {
   const grants = createGrants({
     control: { grant },
     clients,
+    configured: { has: () => false, set: () => {} },
     present: (id) => t.manager.present(id),
   })
   const t = setup(2, {

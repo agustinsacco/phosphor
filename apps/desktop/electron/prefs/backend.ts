@@ -1,6 +1,7 @@
 import Store from 'electron-store'
 import { DEFAULT_APP_PREFS, type AppPrefs } from '@shared/models'
 import { cleanClients, type RemoteClients } from '../hosts/client-id'
+import { cleanConfigureHosts, type ConfigureHosts } from '../hosts/configure-hosts'
 import { migrateRenamedPrefs, type RawPrefs } from '../prefs-migrations'
 
 export type PrefsGetter = () => Store<AppPrefs>
@@ -29,11 +30,12 @@ export function prefs(): Store<AppPrefs> {
 }
 
 // Separate main-only store: account ids must not enter renderer preferences.
-let remoteStore: Store<{ remoteClients: RemoteClients }> | null = null
+type RemotePrefs = { remoteClients: RemoteClients; configureHosts: ConfigureHosts }
+let remoteStore: Store<RemotePrefs> | null = null
 function remotePrefs() {
-  remoteStore ??= new Store<{ remoteClients: RemoteClients }>({
+  remoteStore ??= new Store<RemotePrefs>({
     name: 'remote-clients',
-    defaults: { remoteClients: {} },
+    defaults: { remoteClients: {}, configureHosts: {} },
   })
   return remoteStore
 }
@@ -41,3 +43,7 @@ export const getRemoteClients = (): RemoteClients =>
   cleanClients(remotePrefs().get('remoteClients'))
 export const setRemoteClients = (clients: RemoteClients): void =>
   remotePrefs().set('remoteClients', cleanClients(clients))
+export const getConfigureHosts = (): ConfigureHosts =>
+  cleanConfigureHosts(remotePrefs().get('configureHosts'))
+export const setConfigureHosts = (hosts: ConfigureHosts): void =>
+  remotePrefs().set('configureHosts', cleanConfigureHosts(hosts))

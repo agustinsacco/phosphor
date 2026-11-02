@@ -11,8 +11,9 @@ import { hostname } from 'node:os'
 import { accountUserId, onAccountChange } from '../account'
 import { broadcast } from '../broadcast'
 import { log } from '../debug-log'
-import { getRemoteClients, setRemoteClients } from '../store'
+import { getConfigureHosts, getRemoteClients, setConfigureHosts, setRemoteClients } from '../store'
 import { createClientIds } from '../hosts/client-id'
+import { createConfigureHosts } from '../hosts/configure-hosts'
 import { createGrants } from '../hosts/grants'
 import { createHostConnection } from '../hosts/connection'
 import { createHostManager } from '../hosts/manager'
@@ -87,7 +88,17 @@ export function registerHostsHandlers(): void {
     hostname,
     control,
   })
-  const grants = createGrants({ control, clients, present: (id) => manager.present(id) })
+  const configured = createConfigureHosts({
+    user: accountUserId,
+    read: getConfigureHosts,
+    write: setConfigureHosts,
+  })
+  const grants = createGrants({
+    control,
+    clients,
+    configured,
+    present: (id) => manager.present(id),
+  })
   const manager = createHostManager({
     testEndpoint,
     user: accountUserId,

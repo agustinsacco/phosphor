@@ -4,6 +4,8 @@ import { controlFailure } from '../control/client'
 import { createClientIds, cleanClients, type RemoteClients } from './client-id'
 import { createGrants } from './grants'
 
+const NONE = { has: () => false, set: () => {} }
+
 function setup() {
   let user: string | null = randomUUID(),
     clients: RemoteClients = {},
@@ -29,7 +31,12 @@ function setup() {
     host: { id: hostId, endpoint: 'https://test.ts.net', publicKey: '' },
   }
   const grant = vi.fn(async () => reply)
-  const grants = createGrants({ clients: ids, present: () => present, control: { grant } })
+  const grants = createGrants({
+    clients: ids,
+    present: () => present,
+    control: { grant },
+    configured: NONE,
+  })
   return {
     ids,
     grants,
@@ -88,7 +95,12 @@ it('re-registers a revoked id once, refuses a second 404, and never retries a re
     .mockResolvedValueOnce(controlFailure('not-found'))
     .mockResolvedValueOnce(t.reply)
     .mockResolvedValue(controlFailure('not-found'))
-  const grants = createGrants({ control: { grant }, clients: t.ids, present: () => true })
+  const grants = createGrants({
+    control: { grant },
+    clients: t.ids,
+    present: () => true,
+    configured: NONE,
+  })
   await grants.grantFor(t.hostId)
   expect(t.registerClient).toHaveBeenCalledTimes(2)
   grants.clear(t.hostId)
@@ -101,7 +113,12 @@ it('re-registers a revoked id once, refuses a second 404, and never retries a re
 it('a second refusal stops and account-disabled is not repaired with registration', async () => {
   const t = setup()
   const grant = vi.fn().mockResolvedValue(controlFailure('not-found'))
-  const grants = createGrants({ control: { grant }, clients: t.ids, present: () => true })
+  const grants = createGrants({
+    control: { grant },
+    clients: t.ids,
+    present: () => true,
+    configured: NONE,
+  })
   await expect(grants.grantFor(t.hostId)).rejects.toThrow('grant-refused')
   expect(grant).toHaveBeenCalledTimes(2)
   grant.mockResolvedValue(controlFailure('forbidden'))
@@ -125,7 +142,12 @@ it('does not retain a grant that finishes after a host cache clear', async () =>
         answer = resolve
       }),
   )
-  const grants = createGrants({ control: { grant }, clients: t.ids, present: () => true })
+  const grants = createGrants({
+    control: { grant },
+    clients: t.ids,
+    present: () => true,
+    configured: NONE,
+  })
   const flight = grants.grantFor(t.hostId)
   for (let i = 0; i < 10; i++) await Promise.resolve()
   grants.clear(t.hostId)
@@ -140,6 +162,7 @@ it('invalidates the grant at exactly the renewal margin', async () => {
     control: { grant: t.grant },
     clients: t.ids,
     present: () => true,
+    configured: NONE,
     now: () => now,
   })
   await grants.grantFor(t.hostId)

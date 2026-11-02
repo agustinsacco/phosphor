@@ -64,9 +64,13 @@ The Host authenticates that grant and proves its enrolled identity to Desktop.
 Effective capabilities are the intersection of the grant and the Host's features.
 [Machine Settings](settings.md#host-machine-settings) requires a separate explicit
 configuration-access request, from Desktop or a browser page; lane control alone
-never grants `machine.configure`. The opt-in is per Host and held only in the
-client's memory; sign-out forgets it. A browser page's opt-in also ends when the
-page closes ([web client](web-client.md#configuration-access-and-lane-deletion)).
+never grants `machine.configure`. The opt-in is per Host. Desktop remembers it per
+signed-in account in its main-only `remote-clients` store
+(`apps/desktop/electron/hosts/configure-hosts.ts`), so it survives a restart; another
+account never sees it and an explicit sign-out forgets every remembered opt-in. Each
+five-minute grant for an opted-in Host then carries `configure`. A browser page holds
+its opt-in only in memory, and it ends when the page closes
+([web client](web-client.md#configuration-access-and-lane-deletion)).
 Settings travel directly to the selected Host, with no local fallback, automatic
 cross-machine configuration/auth synchronization or offline mutation queue.
 
