@@ -170,9 +170,10 @@ needed, turns Swarm on, uploads, then sends the prompt.
 Isolation follows This Mac's worktree preference and branch-naming rule. Generated
 Host branches trim only the slug to fit the 100-character flattened limit; an
 oversized prefix fails before sending. Desktop requests `worktree.fresh: true`. A
-`laneStart` Host tries `-2` through `-5` itself, so its `branch-exists` refusal is
-final; for an older Host the client tries the base name once, then retries only
-confirmed `branch-exists` refusals with `-2` through `-5`. Exhaustion shows
+`laneStart` Host tries `-2` through `-5` itself, so main, which decides from its live
+connection rather than the window's copy, answers its `branch-exists` refusal as
+`branch-name-exhausted`; for an older Host main passes `branch-exists` on, and the
+client retries only that refusal with `-2` through `-5`. Exhaustion shows
 “Couldn't find a free branch name on <machine>.” and keeps the draft. Unknown
 outcomes never trigger a branch retry. The Host's new-only guarantee
 and older-Host compatibility are in [Creating lanes](host.md#creating-lanes).
