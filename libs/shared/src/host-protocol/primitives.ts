@@ -56,6 +56,12 @@ export function readJson(s: string, limit: number): Parsed<Record<string, unknow
   }
 }
 
+/**
+ * The longest worktree folder a Host lane gets: its branch with `/` flattened to
+ * `-`. Generated branch names, the client's and the Host's fresh retries, fit it.
+ */
+export const LANE_FOLDER_MAX = 100
+
 /** Wire guard for a git branch. Non-ASCII is refused; git checks it again on the Host. */
 export function isLaneBranchName(v: unknown): v is string {
   return (

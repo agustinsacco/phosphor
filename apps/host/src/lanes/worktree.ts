@@ -10,7 +10,7 @@ import {
   realpathSync,
 } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { isLaneBranchName } from '@phosphor/shared/host-protocol'
+import { isLaneBranchName, LANE_FOLDER_MAX } from '@phosphor/shared/host-protocol'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { defaultBranchRefs, resolveDefaultBranch } from './default-branch'
@@ -230,7 +230,11 @@ export async function prepareLaneFolder(input: {
 /** The worktree folder name for a branch, or null when the branch cannot have one. */
 export function laneFolderSlug(branch: string): string | null {
   const slug = branch.replaceAll('/', '-')
-  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(slug) && !slug.includes('..') ? slug : null
+  return slug.length <= LANE_FOLDER_MAX &&
+    /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(slug) &&
+    !slug.includes('..')
+    ? slug
+    : null
 }
 
 function directory(path: string): void {
