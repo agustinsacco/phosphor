@@ -2,7 +2,11 @@ import { TooltipButton } from '@/components/Tooltip'
 import { createContext, useContext, useEffect, useState } from 'react'
 import clsx from 'clsx'
 
+/** A Row's title: the accessible name of the one control inside it. */
 const RowLabel = createContext<string | undefined>(undefined)
+
+/** The enclosing Row's title, for a control that names itself after its row. */
+export const useRowLabel = (): string | undefined => useContext(RowLabel)
 
 /**
  * Small form primitives shared by the settings tabs: labelled rows, a switch,
@@ -140,7 +144,7 @@ export function Toggle({
   /** Renders dimmed and refuses the click — a switch that cannot move must look it. */
   disabled?: boolean
 }): React.JSX.Element {
-  const label = useContext(RowLabel)
+  const label = useRowLabel()
   return (
     <TooltipButton
       aria-label={label}
@@ -166,6 +170,11 @@ export function Toggle({
   )
 }
 
+/**
+ * A number that commits on blur or Enter, never per keystroke: a half-typed
+ * value is neither clamped nor saved. Empty or unparseable input restores the
+ * saved value; the committed value is clamped to `min`..`max`.
+ */
 export function NumberField({
   value,
   onChange,
@@ -181,17 +190,29 @@ export function NumberField({
   step: number
   suffix?: string
 }): React.JSX.Element {
+  const label = useRowLabel()
+  const [draft, setDraft] = useState(String(value))
+  useEffect(() => setDraft(String(value)), [value])
+  const commit = (): void => {
+    const typed = Number(draft)
+    if (draft.trim() === '' || Number.isNaN(typed)) return setDraft(String(value))
+    const next = Math.min(max, Math.max(min, typed))
+    setDraft(String(next))
+    if (next !== value) onChange(next)
+  }
   return (
     <span className="flex items-center gap-1.5">
       <input
         type="number"
-        value={value}
+        aria-label={label}
+        value={draft}
         min={min}
         max={max}
         step={step}
-        onChange={(e) => {
-          const v = Number(e.target.value)
-          if (!Number.isNaN(v)) onChange(Math.min(max, Math.max(min, v)))
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
         }}
         className="border-border bg-surface text-text w-24 rounded-lg border px-2.5 py-1.5 text-right text-base outline-none"
       />
@@ -209,10 +230,12 @@ export function TextField({
   placeholder?: string
   onCommit: (value: string) => void
 }): React.JSX.Element {
+  const label = useRowLabel()
   const [value, setValue] = useState(defaultValue)
   useEffect(() => setValue(defaultValue), [defaultValue])
   return (
     <input
+      aria-label={label}
       value={value}
       placeholder={placeholder}
       onChange={(e) => setValue(e.target.value)}

@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { NumberField, Row } from './form'
+import { NumberField, Row } from './fields'
 
 let root: Root
 let container: HTMLDivElement
