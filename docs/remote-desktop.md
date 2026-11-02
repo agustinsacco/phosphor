@@ -420,6 +420,7 @@ the machine, repository and isolation row above a two-row input, **Start lane**,
 a hints line and one note line. `useLocalStart` and the Host target in
 `RemoteStartView` supply only what differs. On a Host, `@` lists the chosen
 repository's files through `hosts:repositoryFiles` (with `workspaces.read`).
+The repository picker wears This Mac's folder chip (`workspaces/folderChip.tsx`).
 The Host has no command list or context-file preference before a lane exists,
 so a new Host lane offers no `/` menu or Rules readout; inside a Host lane `/`
 lists the lane's own commands. The Swarm switch records its choice on the draft,
