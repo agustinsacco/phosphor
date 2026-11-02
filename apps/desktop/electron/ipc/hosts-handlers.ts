@@ -282,6 +282,9 @@ export function registerHostsHandlers(): void {
   handle('hosts:markRead', (_event, hostId, laneId) =>
     remoteLanes().action(hostId, laneId, 'lane.markRead'),
   )
+  handle('hosts:exportLaneHtml', (event, sessionId) =>
+    remoteLanes().exportHtml(event.sender.id, sessionId),
+  )
   handle('hosts:setFocusedLane', (event, target) => {
     window(event)
     remoteLanes().setFocused(event.sender.id, target)

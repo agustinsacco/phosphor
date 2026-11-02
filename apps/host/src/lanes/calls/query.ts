@@ -6,6 +6,7 @@ import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { HostRuntime } from '../../session/runtime'
 import type { createLiveLanes } from '../live'
 import { piMessages, piState } from '../pi-results'
+import { ExportTooLarge } from '../../session/html-export'
 import type { SnapshotResult } from '../projection-host'
 import type { CallOutcome } from '../service'
 import type { HostStore } from '../store'
@@ -21,6 +22,8 @@ const queries = new Map<string, RpcCommand>([
   ['lane.models', { type: 'get_available_models' }],
   ['lane.commands', { type: 'get_commands' }],
 ])
+/** Not a pi query: the Host exports to its own file and returns the document. */
+const EXPORT = 'lane.exportHtml'
 const failure = (code: Extract<CallOutcome, { ok: false }>['error']['code']): CallOutcome => ({
   ok: false,
   error: { code, message: 'the lane query could not complete' },
@@ -53,7 +56,10 @@ export interface LaneQueryOptions {
   store: Pick<HostStore, 'listRepositories' | 'getLane'>
   live: Pick<ReturnType<typeof createLiveLanes>, 'sessionFor'> &
     Partial<Pick<ReturnType<typeof createLiveLanes>, 'receiptTiming'>>
-  runtime: { command(...args: Parameters<HostRuntime['command']>): Promise<RpcResponse> }
+  runtime: {
+    command(...args: Parameters<HostRuntime['command']>): Promise<RpcResponse>
+    exportHtml?: HostRuntime['exportHtml']
+  }
   unattached(laneId: string): SnapshotResult | null
   now(): number
   log: RuntimeLog
@@ -61,6 +67,10 @@ export interface LaneQueryOptions {
 type ReceiptResult = (messages: Parameters<typeof hostLaneReceipt>[0]) => CallOutcome
 
 export function laneQueryCapability(method: string): HostCapability | null {
+  // An export carries more than lane.messages: pi's system prompt (context files,
+  // skills catalogue), tool definitions and the whole session tree. So it needs
+  // the grant's control capability, though not control of the lane.
+  if (method === EXPORT) return 'sessions.control'
   return method === 'host.repositories' || queries.has(method) ? 'sessions.read' : null
 }
 
@@ -84,6 +94,25 @@ export function stoppedQuery(
   }
 }
 
+/**
+ * The command deadline for a live read: the client stops waiting then, so the
+ * call's slot is freed too. Null when it passed; the work itself runs on.
+ */
+async function withinDeadline<T>(work: Promise<T>): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      work,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), HOST_LIMITS.commandAnswerMs)
+        timer.unref()
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function requestLiveQuery(
   options: Pick<LaneQueryOptions, 'runtime'>,
   method: string,
@@ -91,15 +120,8 @@ export async function requestLiveQuery(
   command: RpcCommand,
   receipt: ReceiptResult,
 ): Promise<CallOutcome> {
-  let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    const response = await Promise.race([
-      options.runtime.command(sessionId, command),
-      new Promise<null>((resolve) => {
-        timer = setTimeout(() => resolve(null), HOST_LIMITS.commandAnswerMs)
-        timer.unref()
-      }),
-    ])
+    const response = await withinDeadline(options.runtime.command(sessionId, command))
     if (!response?.success || !shape(method, response.data)) return failure('internal')
     if (method === 'lane.receipt' && record(response.data)) {
       const messages = piMessages(response.data.messages)
@@ -109,8 +131,30 @@ export async function requestLiveQuery(
     return { ok: true, data: response.data }
   } catch {
     return failure('internal')
-  } finally {
-    clearTimeout(timer)
+  }
+}
+
+/** Leaves room in the result frame for its envelope and JSON escaping of the document. */
+const EXPORT_MAX_BYTES = HOST_LIMITS.outboundFrameBytes / 2
+
+async function exportHtml(
+  options: Pick<LaneQueryOptions, 'runtime' | 'store' | 'live'>,
+  params: unknown,
+): Promise<CallOutcome> {
+  if (!record(params)) return failure('bad-request')
+  const laneId = params.laneId
+  if (typeof laneId !== 'string' || !isUuid(laneId)) return failure('bad-request')
+  const lane = options.store.getLane(laneId)
+  if (!lane || lane.removedAt !== null) return failure('unknown-lane')
+  const sessionId = options.live.sessionFor(laneId)
+  if (sessionId === null) return failure('lane-stopped')
+  if (!options.runtime.exportHtml) return failure('unsupported')
+  // A late answer still removes its folder.
+  try {
+    const html = await withinDeadline(options.runtime.exportHtml(sessionId, EXPORT_MAX_BYTES))
+    return html === null ? failure('internal') : { ok: true, data: { html } }
+  } catch (error) {
+    return failure(error instanceof ExportTooLarge ? 'too-large' : 'internal')
   }
 }
 
@@ -119,6 +163,7 @@ export async function resolveLaneQuery(
   method: string,
   params: unknown,
 ): Promise<CallOutcome> {
+  if (method === EXPORT) return exportHtml(options, params)
   const command = queries.get(method)
   if (method !== 'host.repositories' && !command) return failure('unsupported')
   if (!record(params)) return failure('bad-request')

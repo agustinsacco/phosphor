@@ -175,13 +175,13 @@ it.each([false, true])(
   },
 )
 
-it("This Mac's lanes list the same Session options; only export needs the lane on this machine", () => {
+it("This Mac's lanes and a controlled Host lane list the same, all enabled Session options", () => {
   host(true)
   const local = sessionOptions(DESKTOP_PLATFORM, LOCAL)
   const remote = sessionOptions(DESKTOP_PLATFORM, HOST_LANE)
   expect(remote.map((row) => row.label)).toEqual(local.map((row) => row.label))
   expect(local.filter((row) => row.disabled)).toEqual([])
-  expect(remote.filter((row) => row.disabled).map((row) => row.label)).toEqual(['Export HTML…'])
+  expect(remote.filter((row) => row.disabled)).toEqual([])
 })
 
 it('Settings differs between clients only by the capabilities each declares', () => {

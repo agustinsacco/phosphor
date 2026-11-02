@@ -411,8 +411,10 @@ it('routes prompts and queries, names rejecting controllers, and publishes takeo
   await drain()
   await accepted
   const stats = t.lanes.command(1, info.sessionId, { type: 'get_session_stats' })
+  const exported = t.lanes.exportHtml(1, info.sessionId)
   await drain()
   expect(await stats).toMatchObject({ success: true, data: { sessionId: info.sessionId } })
+  expect(await exported).toEqual({ html: expect.stringMatching(/^<html>/) })
   second.close()
   t.c.close()
   t.host.stop()

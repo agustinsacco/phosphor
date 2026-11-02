@@ -68,6 +68,14 @@ command as unconfirmed, not failed, with a Stop that sends `abort_bash`. Its
 output reaches viewers with the lane's next snapshot. Commands that move pi to another session file
 (fork, clone, new and switch session) stay refused.
 
+`lane.exportHtml` is a call, not a command: a viewer need not control the lane,
+but its grant needs `sessions.control`, because the export carries more than
+`lane.messages`: pi's system prompt (context files, the skills catalogue with
+Host paths), tool definitions and the whole session tree. It exports running
+lanes only, takes only the lane id and answers `{ html }` within the command
+deadline; the Host picks where pi writes and removes the file
+([Host](host.md#session-commands)).
+
 `HOST_LIMITS` caps inbound frames at 8 MiB, outbound frames at 16 MiB,
 subscriptions at 64 per socket, pending commands and in-flight calls at 32 per
 socket, and receipt interest at 64 ids. Excess commands are rejected without

@@ -1540,6 +1540,8 @@ export function installMockPhosphor(): void {
           return Promise.resolve(undefined)
         case 'hosts:deleteLane':
           return Promise.resolve({ branchKept: false })
+        case 'hosts:exportLaneHtml':
+          return Promise.resolve({ html: '<!doctype html><title>Mock lane</title>' })
         case 'hosts:removeRepository':
         case 'hosts:orderRepositories':
         case 'hosts:createFolder':

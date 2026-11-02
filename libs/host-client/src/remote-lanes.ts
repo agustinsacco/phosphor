@@ -10,6 +10,7 @@ import type { LiveSessionInfo, SessionPush } from '@phosphor/shared/models'
 import type { ExtensionUIResponse, RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import type { RemoteLaneCreate } from '@phosphor/shared/ipc'
 import { createLaneProjection } from './projection'
+import { exportLaneHtml } from './lane-export'
 import type { createHostConnection, LaneFrame } from './connection'
 import {
   createFailureText,
@@ -415,6 +416,10 @@ export function createRemoteLanes(ports: {
         laneId,
         type === 'lane.markRead' ? { type, upTo: summary?.attention ?? 0 } : { type },
       )
+    },
+    exportHtml(windowId: number, id: string) {
+      const h = owned(windowId, id)
+      return exportLaneHtml(connection(h.hostId), h.laneId)
     },
     async command(windowId: number, id: string, command: RpcCommand): Promise<RpcResponse> {
       const h = owned(windowId, id)

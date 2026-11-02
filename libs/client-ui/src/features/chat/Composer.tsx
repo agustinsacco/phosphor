@@ -23,7 +23,8 @@ import { Spinner } from '@/components/icons'
 import { StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
-import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
+import { exportSession, renameSession } from '@/features/sessions/sessionActions'
+import { usePlatform } from '@/platform/Platform'
 import { piCallAccepted, piCallOk } from '@/lib/rpc'
 import { formatShortcut } from '@/lib/shortcuts'
 import {
@@ -127,6 +128,7 @@ export function Composer({
     textareaRef.current?.focus()
   }, [prefill, sessionId, setText, setImages])
 
+  const { nativeFiles } = usePlatform()
   const nativeCommands = useMemo<NativeCommand[]>(
     () => [
       {
@@ -134,22 +136,18 @@ export function Composer({
         description: 'Compact conversation context now',
         run: () => void runCompact(sessionId),
       },
-      ...(!remote
-        ? [
-            {
-              name: 'export',
-              description: 'Export this session as HTML',
-              run: () => void exportSessionHtml(sessionId),
-            },
-          ]
-        : []),
+      {
+        name: 'export',
+        description: 'Export this session as HTML',
+        run: () => void exportSession(sessionId, nativeFiles),
+      },
       {
         name: 'name',
         description: 'Rename this session',
         run: () => void renameSession(sessionId),
       },
     ],
-    [sessionId, remote],
+    [sessionId, nativeFiles],
   )
 
   const commandEntries = useMemo(

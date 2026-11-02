@@ -16,6 +16,8 @@ export function call(state: FakeHostState, c: Connection, f: Call) {
   const error = (code: CallErrorCode) =>
     send(state, c, { type: 'result', id: f.id, ok: false, error: { code, message: code } })
   if (!authorized(state, c, 'sessions.read')) error('forbidden')
+  else if (f.method === 'lane.exportHtml' && !authorized(state, c, 'sessions.control'))
+    error('forbidden')
   else if (!HOST_CALL_METHODS.some((m) => m === f.method)) error('unsupported')
   else if (f.method === 'host.repositories')
     send(state, c, { type: 'result', id: f.id, ok: true, data: state.repositories })
@@ -40,16 +42,18 @@ export function laneRead(state: FakeHostState, method: string, laneId: string, l
         ? { models: [] }
         : method === 'lane.commands'
           ? { commands: [] }
-          : {
-              sessionId: laneId,
-              userMessages: 0,
-              assistantMessages: l.messages.length,
-              toolCalls: 0,
-              toolResults: 0,
-              totalMessages: l.messages.length,
-              tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-              cost: 0,
-            }
+          : method === 'lane.exportHtml'
+            ? { html: `<html>${l.messages.length} messages</html>` }
+            : {
+                sessionId: laneId,
+                userMessages: 0,
+                assistantMessages: l.messages.length,
+                toolCalls: 0,
+                toolResults: 0,
+                totalMessages: l.messages.length,
+                tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+                cost: 0,
+              }
 }
 
 function answerLater(state: FakeHostState, c: Connection, id: string, data: unknown) {

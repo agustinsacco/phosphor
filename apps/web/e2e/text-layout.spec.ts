@@ -48,13 +48,14 @@ test('a menu row keeps its whole label beside a long hint', async ({ stack, page
   await expect(page.getByTestId('remote-model-picker')).toBeVisible()
   await page.goto(`${stack.origin}/lanes/${stack.hostId}/${stack.laneId}/chat`)
   await page.getByRole('button', { name: 'Session options', exact: true }).click()
-  // A Host lane's Export carries the longest hint in the list.
+  // A Host lane this window does not control hints why on every control row.
   const row = page
     .getByTestId('context-menu')
     .getByRole('button')
-    .filter({ hasText: 'Not available on remote lanes yet.' })
+    .filter({ hasText: 'Compact now…' })
   const label = row.locator('span').first()
-  await expect(label).toHaveText('Export HTML…')
+  await expect(label).toHaveText('Compact now…')
+  await expect(row.locator('span').nth(1)).not.toBeEmpty()
   const clipped = (el: Element) => el.clientWidth === 0 || el.scrollWidth > el.clientWidth + 1
   expect(await label.evaluate(clipped)).toBe(false)
   expect(await row.locator('span').nth(1).evaluate(clipped)).toBe(false)

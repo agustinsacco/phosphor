@@ -1,10 +1,10 @@
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { remoteControlHint } from '@/features/sessions/remoteLaneActions'
-import { exportSessionHtml } from '@/features/sessions/sessionActions'
+import { exportSession } from '@/features/sessions/sessionActions'
 import { piCallOk } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
 import { promptText } from '@/stores/prompt'
-import { REMOTE_UNAVAILABLE, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import type { QueueMode, RpcSessionState } from '@shared/rpc'
 
@@ -24,8 +24,8 @@ const QUEUE_MODE_HINT: Record<QueueMode, string> = {
 export interface SessionMenuState {
   sessionId: string
   meta: RpcSessionState | null | undefined
-  /** The session is a Host lane: pi runs on that Host, so Export (a This Mac save) is off. */
-  remote: boolean
+  /** Save through the native dialog; otherwise the browser downloads the export. */
+  nativeFiles: boolean
   /**
    * Why this client may not send the session commands, or undefined when it
    * may. Host lanes fence them to the controller (`remoteControlHint`).
@@ -42,7 +42,7 @@ export interface SessionMenuState {
 export function sessionMenuItems({
   sessionId,
   meta,
-  remote,
+  nativeFiles,
   controlHint,
 }: SessionMenuState): ContextMenuItem[] {
   const blocked = controlHint !== undefined
@@ -55,9 +55,8 @@ export function sessionMenuItems({
   return [
     {
       label: 'Export HTML…',
-      disabled: remote,
-      hint: remote ? REMOTE_UNAVAILABLE : undefined,
-      onClick: () => void exportSessionHtml(sessionId, meta?.sessionName ?? 'session'),
+      // Any viewer: a Host lane's export needs no lane control.
+      onClick: () => void exportSession(sessionId, nativeFiles),
     },
     {
       label: 'Compact now…',
@@ -95,11 +94,14 @@ export function sessionMenuItems({
 }
 
 /** The session's options as they stand now, read from the stores at call time. */
-export function currentSessionMenuItems(sessionId: string): ContextMenuItem[] {
+export function currentSessionMenuItems(
+  sessionId: string,
+  nativeFiles: boolean,
+): ContextMenuItem[] {
   const entry = useSessionsStore.getState().live[sessionId]
   const meta = useChatStore.getState().sessions[sessionId]?.meta
   if (entry?.target?.kind !== 'remote')
-    return sessionMenuItems({ sessionId, meta, remote: false, controlHint: undefined })
+    return sessionMenuItems({ sessionId, meta, nativeFiles, controlHint: undefined })
   const host = useRemoteLanesStore.getState().hosts[entry.target.hostId]
   const lane = host?.lanes.find((item) => item.laneId === entry.laneId)
   const controlHint = remoteControlHint(
@@ -107,7 +109,7 @@ export function currentSessionMenuItems(sessionId: string): ContextMenuItem[] {
     !!host?.capabilities.includes('sessions.control'),
     lane?.control.controller?.self === true,
   )
-  return sessionMenuItems({ sessionId, meta, remote: true, controlHint })
+  return sessionMenuItems({ sessionId, meta, nativeFiles, controlHint })
 }
 
 const nextMode = (mode: QueueMode): QueueMode => (mode === 'all' ? 'one-at-a-time' : 'all')

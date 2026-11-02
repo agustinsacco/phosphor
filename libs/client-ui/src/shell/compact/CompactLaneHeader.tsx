@@ -6,6 +6,7 @@ import { Button } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import { ChevronDownIcon, ChevronIcon, PlusIcon } from '@/components/icons'
 import { currentSessionMenuItems, SESSION_OPTIONS } from '@/features/chat/sessionMenuItems'
+import { usePlatform } from '@/platform/Platform'
 import {
   useRemoteLaneActions,
   useRemoteLaneSession,
@@ -240,10 +241,11 @@ function SessionOptionsGroup({
 }): React.JSX.Element {
   // Subscribed so the hints follow the session; the items read the stores themselves.
   useChatStore((s) => s.sessions[sessionId]?.meta)
+  const { nativeFiles } = usePlatform()
   return (
     <div role="group" aria-label={SESSION_OPTIONS} className="action-sheet-group">
       <p className="action-sheet-label">Session</p>
-      {currentSessionMenuItems(sessionId).map((item) => (
+      {currentSessionMenuItems(sessionId, nativeFiles).map((item) => (
         <ActionSheetItem
           key={item.label}
           disabled={item.disabled}

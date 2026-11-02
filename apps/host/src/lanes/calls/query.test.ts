@@ -10,6 +10,7 @@ import {
   stoppedQuery,
   type LaneQueryOptions,
 } from './query'
+import { ExportTooLarge } from '../../session/html-export'
 
 const lane: StoredLane = {
   laneId: '00000000-0000-4000-8000-000000000001',
@@ -337,4 +338,58 @@ it('stoppedQuery avoids unnecessary reads and preserves snapshot error distincti
     throw new Error('/private/snapshot')
   })
   expect(stoppedQuery({ unattached }, 'lane.messages', lane.laneId, receipt)).toEqual(internal)
+})
+
+describe('lane.exportHtml', () => {
+  const ID = { laneId: lane.laneId }
+  it('gives up at the command deadline instead of holding the call slot', async () => {
+    vi.useFakeTimers()
+    try {
+      const { options } = fixture()
+      options.runtime.exportHtml = vi.fn(() => new Promise<string>(() => {}))
+      const pending = resolveLaneQuery(options, 'lane.exportHtml', ID)
+      await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+      await expect(pending).resolves.toMatchObject({ ok: false, error: { code: 'internal' } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('needs sessions.control and returns the Host-exported document of a running lane', async () => {
+    const { options, command } = fixture()
+    const exportHtml = vi.fn(async () => '<html>lane</html>')
+    options.runtime.exportHtml = exportHtml
+    expect(laneQueryCapability('lane.exportHtml')).toBe('sessions.control')
+    expect(await resolveLaneQuery(options, 'lane.exportHtml', ID)).toEqual({
+      ok: true,
+      data: { html: '<html>lane</html>' },
+    })
+    expect(exportHtml).toHaveBeenCalledWith('runtime-id', HOST_LIMITS.outboundFrameBytes / 2)
+    expect(command).not.toHaveBeenCalled()
+  })
+
+  it('refuses bad params, unknown, stopped and failed exports with their codes', async () => {
+    const { options } = fixture()
+    const code = async (params: unknown) =>
+      ((await resolveLaneQuery(options, 'lane.exportHtml', params)) as { error?: { code: string } })
+        .error?.code
+    expect(await code(ID)).toBe('unsupported')
+    options.runtime.exportHtml = vi.fn(async () => {
+      throw new ExportTooLarge('big')
+    })
+    expect(await code(ID)).toBe('too-large')
+    options.runtime.exportHtml = vi.fn(async () => {
+      throw new Error('/secret/path')
+    })
+    expect(await resolveLaneQuery(options, 'lane.exportHtml', ID)).toEqual({
+      ok: false,
+      error: { code: 'internal', message: 'the lane query could not complete' },
+    })
+    expect(await code({ laneId: 'bad' })).toBe('bad-request')
+    expect(await code(null)).toBe('bad-request')
+    options.live.sessionFor = () => null
+    expect(await code(ID)).toBe('lane-stopped')
+    options.store.getLane = () => null
+    expect(await code(ID)).toBe('unknown-lane')
+  })
 })
