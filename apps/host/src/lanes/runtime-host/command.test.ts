@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionPush } from '@phosphor/shared/models'
-import type { RpcCommand, RpcSessionState } from '@phosphor/shared/rpc'
+import type { RpcCommand, RpcSessionState, RpcSlashCommand } from '@phosphor/shared/rpc'
 import { fakeMachine, type FakeMachine } from '../../__fixtures__/machine'
 import type { HostRuntime, Delivery } from '../../session/runtime'
 import type { RuntimeLaneState, RuntimeLaneOptions } from './state'
@@ -208,3 +208,53 @@ it.each([
     expect(changed).toHaveBeenCalled()
   },
 )
+
+describe('slash prompts and the lane title', () => {
+  const commands: RpcSlashCommand[] = [
+    { name: 'phosphor-swarm', source: 'extension' },
+    { name: 'review', source: 'prompt' },
+  ]
+  async function withCommands() {
+    const nameLane = vi.fn()
+    const s = setup([], nameLane)
+    const session = await start(s.context, {})
+    const lane = s.saved()
+    await attach(s.context, lane.laneId, session.sessionId)
+    const original = s.runtime.command.getMockImplementation()!
+    s.runtime.command.mockImplementation(async (id, cmd) =>
+      cmd.type === 'get_commands'
+        ? { type: 'response', command: 'get_commands', success: true, data: { commands } }
+        : cmd.type === 'get_state'
+          ? {
+              type: 'response',
+              command: 'get_state',
+              success: true,
+              data: { ...state, model: { provider: 'p', id: 'm' } as RpcSessionState['model'] },
+            }
+          : original(id, cmd),
+    )
+    const binding = s.context.bindings.get(session.sessionId)!
+    return { ...s, nameLane, binding, laneId: lane.laneId, sessionId: session.sessionId }
+  }
+  it('never titles or names a lane from an extension command: it runs no model turn', async () => {
+    const s = await withCommands()
+    expect(s.binding.namingEligible).toBe(true)
+    await command(s.context, s.sessionId, { type: 'prompt', message: '/phosphor-swarm on' })
+    expect(store.getLane(s.laneId)?.title).toBeNull()
+    expect(live.summaryFor(s.laneId)?.title).toBeNull()
+    expect(s.binding.namingConsidered).toBeFalsy()
+    await command(s.context, s.sessionId, { type: 'prompt', message: 'Fix the build' })
+    expect(store.getLane(s.laneId)?.title).toBe('Fix the build')
+    await vi.waitFor(() =>
+      expect(s.nameLane).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Fix the build' }),
+      ),
+    )
+    expect(s.nameLane).toHaveBeenCalledOnce()
+  })
+  it('still titles a lane from a prompt template, which pi expands into a user turn', async () => {
+    const s = await withCommands()
+    await command(s.context, s.sessionId, { type: 'prompt', message: '/review the parser' })
+    expect(store.getLane(s.laneId)?.title).toBe('/review the parser')
+  })
+})
