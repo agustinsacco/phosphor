@@ -6,12 +6,12 @@ import {
   isFleetActive,
   parseFleetWidget,
   SUBAGENT_ASYNC_WIDGET_KEY,
-  SUBAGENT_SUPERVISOR_REQUEST_TYPE,
   subagentCall,
   subagentRun,
   type FleetNode,
   type FleetSnapshot,
 } from './subagentRuns'
+import { SUBAGENT_SUPERVISOR_REQUEST_TYPE } from '@phosphor/shared/subagent-evidence'
 import { toolDetails, tryParseArgs } from './tools/toolSummaries'
 import { distinctTitles, isSoloLaunch } from './subagentPresentation'
 

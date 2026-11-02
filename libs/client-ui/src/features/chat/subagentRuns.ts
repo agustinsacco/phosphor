@@ -32,7 +32,6 @@ import {
   SUBAGENT_STEERING_NOTICE_TYPE,
   SUBAGENT_SUPERVISOR_REQUEST_TYPE,
   SUBAGENT_SUPERVISOR_REPLY_TYPE,
-  SUBAGENT_SLASH_RESULT_TYPE,
   isSubagentNotice,
 } from '@phosphor/shared/subagent-evidence'
 
@@ -41,16 +40,6 @@ export const SUBAGENTS_ENABLE_TOOL = 'subagents_enable'
 export const SUBAGENT_ASYNC_WIDGET_KEY = 'subagent-async'
 /** Replies to `/subagents-inspect-rpc`, correlated by request id. Never rendered. */
 export const SUBAGENT_INSPECT_WIDGET_KEY = 'subagent-inspect'
-export {
-  SUBAGENT_NOTIFY_TYPE,
-  SUBAGENT_CHILD_NOTIFY_TYPE,
-  SUBAGENT_CONTROL_NOTICE_TYPE,
-  SUBAGENT_STEERING_NOTICE_TYPE,
-  SUBAGENT_SUPERVISOR_REQUEST_TYPE,
-  SUBAGENT_SUPERVISOR_REPLY_TYPE,
-  SUBAGENT_SLASH_RESULT_TYPE,
-  isSubagentNotice,
-}
 
 const ASYNC_WIDGET_PREFIX = 'PI_SUBAGENT_ASYNC_JSON:'
 const ASYNC_SNAPSHOT_KIND = 'pi-subagents.async-status-snapshot'
