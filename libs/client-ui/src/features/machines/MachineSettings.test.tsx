@@ -124,7 +124,7 @@ it('saves a committed Host policy edit on its own, says so, and leaves without a
   expect(promptChoice).not.toHaveBeenCalled()
   expect(toasts()).toContainEqual(['info', 'Saved on bee1 — applies to new lanes'])
   await act(async () => {
-    button('Providers').click()
+    button('Accounts').click()
   })
   expect(promptChoice).not.toHaveBeenCalled()
   expect(useMachinesStore.getState().view).toMatchObject({ settings: 'providers', id: machine.id })

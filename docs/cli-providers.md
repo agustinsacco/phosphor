@@ -216,7 +216,7 @@ A Host refuses a Claude spawn on invalid account metadata rather than silently
 billing the default credential. Concurrent round-robin starts serialize cursor
 selection within their execution machine.
 
-The Host's accounts are managed in **Machines → Host → Settings → Providers**.
+The Host's accounts are managed in **Machines → Host → Settings → Accounts**.
 A Claude lane's usage popover has **Switch account** on This Mac and on a Host:
 one component (`AccountSwitcher.tsx`) with the same target rule (`claudeGateway.ts`).
 On a Host it needs lane control, asks for settings access if the client lacks it,

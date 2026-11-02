@@ -154,7 +154,7 @@ describe('SETTINGS_INDEX against the tab sources', () => {
 
   it('indexes only titles the tabs still render', () => {
     const stale = SETTINGS_INDEX.filter((entry) => {
-      if (entry.tab === 'keybindings' || entry.tab.startsWith('host-')) return false
+      if (entry.tab === 'keybindings' || entry.machine === 'host') return false
       const files = Object.keys(FILE_TABS).filter((file) => FILE_TABS[file] === entry.tab)
       return !files.some((file) => sources.get(file)?.includes(entry.title))
     }).map((entry) => `${entry.tab}: ${entry.title}`)
@@ -167,16 +167,16 @@ describe('SETTINGS_INDEX against the tab sources', () => {
       .filter((f) => /^(Machine\w+Settings|HostConnectorSections)\.tsx$/.test(f))
       .map((f) => readFileSync(resolve(machines, f), 'utf8'))
       .join('\n')
-    const hostEntries = SETTINGS_INDEX.filter((entry) => entry.tab.startsWith('host-'))
-    expect(hostEntries.map((entry) => entry.title)).toEqual(
-      TABS.filter((tab) => tab.machine === 'host').map((tab) => tab.label),
+    const hostEntries = SETTINGS_INDEX.filter((entry) => entry.machine === 'host')
+    expect(hostEntries.map((entry) => entry.tab)).toEqual(
+      TABS.filter((tab) => tab.host).map((tab) => tab.id),
     )
     for (const entry of hostEntries)
       expect(panels, entry.title).toContain(`font-semibold">${entry.title}</h2>`)
   })
 
   it('has unique titles within each section', () => {
-    const keys = SETTINGS_INDEX.map((e) => `${e.tab}/${e.section}/${e.title}`)
+    const keys = SETTINGS_INDEX.map((e) => `${e.machine}/${e.tab}/${e.section}/${e.title}`)
     expect(new Set(keys).size).toBe(keys.length)
   })
 })

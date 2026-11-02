@@ -17,7 +17,7 @@ test('machine settings save only on bee1, preserve revisions and never read back
   try {
     await h.signIn()
     const localBefore = await h.page.evaluate(() => window.phosphor.invoke('pi:agentSettings'))
-    const settings = await openMachineSettings(h, 'Agent defaults')
+    const settings = await openMachineSettings(h, 'Agent', 'Agent defaults')
     const before = (await h.page.evaluate(() => window.phosphor.invoke('hosts:snapshot')))[
       h.hostId
     ]!
@@ -39,7 +39,7 @@ test('machine settings save only on bee1, preserve revisions and never read back
 
     await settings
       .getByRole('navigation', { name: 'Machine settings', exact: true })
-      .getByRole('button', { name: 'Connectors', exact: true })
+      .getByRole('button', { name: 'MCP Connectors', exact: true })
       .click()
     await addPrivateConnector(h, settings)
     await expect(settings.locator('[data-connector="private-tools"]')).toContainText('Not verified')

@@ -22,7 +22,7 @@ test('Host agent behavior edits ordinary umask configuration without touching lo
     await chmod(file, 0o664)
     await h.signIn()
     const local = await h.page.evaluate(() => window.phosphor.invoke('pi:agentSettings'))
-    const settings = await openMachineSettings(h, 'Agent defaults')
+    const settings = await openMachineSettings(h, 'Agent', 'Agent defaults')
     await settings
       .getByRole('combobox', { name: 'Enable automatic compaction', exact: true })
       .selectOption('false')
@@ -39,7 +39,7 @@ test('Host agent behavior edits ordinary umask configuration without touching lo
     await captures(h, test.info(), 'host-agent-behavior-parity')
     await settings
       .getByRole('navigation', { name: 'Machine settings', exact: true })
-      .getByRole('button', { name: 'Skills & extensions', exact: true })
+      .getByRole('button', { name: 'Extensions', exact: true })
       .click()
     await expect(
       settings.getByRole('heading', { name: 'Standard Host extensions', exact: true }),

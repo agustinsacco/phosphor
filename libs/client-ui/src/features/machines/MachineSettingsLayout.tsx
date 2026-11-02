@@ -4,7 +4,7 @@ import { errorText } from '@shared/errors'
 import { CopyCommand } from './MachineControls'
 
 import { ConfiguredMachineSettings } from './MachineConfiguredSettings'
-import { MACHINE_SETTINGS_TABS } from './machineSettingsTabs'
+import { HOST_SECTIONS } from '@/features/settings/settingsIndex'
 import type { MachineSettingsController } from './useMachineSettingsController'
 type ControllerProps = { controller: MachineSettingsController }
 
@@ -15,7 +15,7 @@ export function MachineSettingsNavigation({ controller }: ControllerProps): Reac
       aria-label="Machine settings"
       className="flex gap-1 overflow-x-auto md:w-40 md:shrink-0 md:flex-col"
     >
-      {MACHINE_SETTINGS_TABS.map(([key, title]) => (
+      {HOST_SECTIONS.map(({ key, label: title }) => (
         <TooltipButton
           key={key}
           tooltip={`${title} on ${machine.label}`}

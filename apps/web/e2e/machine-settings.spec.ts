@@ -23,19 +23,19 @@ test('browser Host settings load only after explicit configuration access', asyn
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
-  let settings = await openSettings(page, stack.origin, 'Providers')
+  let settings = await openSettings(page, stack.origin, 'Accounts')
   // Lane access alone never configures the Host: nothing loads before the opt-in.
   await expect(settings).toContainText('Configuration access is not enabled')
   await expect(settings).not.toContainText('available in Phosphor Desktop')
-  await expect(settings.getByRole('heading', { name: 'Providers', exact: true })).toHaveCount(0)
+  await expect(settings.getByRole('heading', { name: 'Accounts', exact: true })).toHaveCount(0)
   const grantsBefore = stack.state.grants
   await settings.getByRole('button', { name: 'Enable configuration access', exact: true }).click()
   await page.getByRole('button', { name: 'Enable for Synthetic Host', exact: true }).click()
-  await expect(settings.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible()
+  await expect(settings.getByRole('heading', { name: 'Accounts', exact: true })).toBeVisible()
   expect(stack.state.grants).toBeGreaterThan(grantsBefore)
   await settings
     .getByRole('navigation', { name: 'Machine settings', exact: true })
-    .getByRole('button', { name: 'Agent defaults', exact: true })
+    .getByRole('button', { name: 'Agent', exact: true })
     .click()
   await expect(settings.getByRole('heading', { name: 'Agent defaults', exact: true })).toBeVisible()
   // An edit saves itself, as Desktop's settings do, and says where it landed.
@@ -55,6 +55,6 @@ test('browser Host settings load only after explicit configuration access', asyn
     })
   }
   // The opt-in lives in this page's memory only: a new document (page.goto) starts without it.
-  settings = await openSettings(page, stack.origin, 'Providers')
+  settings = await openSettings(page, stack.origin, 'Accounts')
   await expect(settings).toContainText('Configuration access is not enabled')
 })

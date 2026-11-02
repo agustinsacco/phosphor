@@ -58,9 +58,7 @@ export async function installDefaultPackages(context: DefaultPackageContext): Pr
       'These pi packages run with full access as your user. Computer use is not installed.',
     ))
   ) {
-    context.print(
-      'Host extensions skipped. Install them later in Machine Settings → Skills & extensions.',
-    )
+    context.print('Host extensions skipped. Install them later in Machine Settings → Extensions.')
     return
   }
   for (const entry of missing) {

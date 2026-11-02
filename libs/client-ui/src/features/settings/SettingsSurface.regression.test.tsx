@@ -134,14 +134,21 @@ it('selects This Mac and renders its Agent tab while a Host lane is active', asy
   expect(document.body.textContent).not.toContain('Remote settings are not available here.')
 })
 
-it('selects a Host and renders its Providers section behind the configuration gate', async () => {
+it('selects a Host and renders its Accounts section behind the configuration gate', async () => {
   await act(async () => root.render(<SettingsModal />))
   await choose(machineSelect(), MOCK_HOST_ID)
-  expect(navLabels()).toEqual(
-    expect.arrayContaining(['Providers', 'Agent defaults', 'Skills & extensions']),
-  )
-  expect(navLabels()).not.toContain('Accounts')
-  await openSection('Providers')
+  // The concerns both machines have keep This Mac's names and order; This Mac's own drop out.
+  expect(navLabels().slice(-6)).toEqual([
+    'Agent',
+    'Accounts',
+    'Extensions',
+    'MCP Connectors',
+    'Folders',
+    'Advanced',
+  ])
+  for (const local of ['Workspaces', 'Optimization', 'Voice'])
+    expect(navLabels()).not.toContain(local)
+  await openSection('Accounts')
   expect(document.body.textContent).toContain('Configuring Studio')
   expect(document.body.textContent).toContain('Configuration access is not enabled')
   expect(document.body.textContent).not.toContain('Local account controls')
@@ -157,11 +164,12 @@ it('renders the shared surface on the browser settings page with device and Host
       'Phosphor account',
       'App installation',
       'About',
-      'Providers',
-      'Agent defaults',
+      'Agent',
+      'Accounts',
+      'MCP Connectors',
     ]),
   )
-  for (const hidden of ['Writing', 'Keybindings', 'Agent', 'Accounts', 'MCP Connectors'])
+  for (const hidden of ['Writing', 'Keybindings', 'Workspaces', 'Voice'])
     expect(labels).not.toContain(hidden)
   expect([...(machineSelect()?.options ?? [])].map((o) => o.value)).not.toContain('local')
   expect(document.body.textContent).not.toContain('available in Desktop')

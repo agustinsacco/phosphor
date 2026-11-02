@@ -10,7 +10,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useMachinesStore } from '@/stores/machines'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
-import { isThisMacTab } from './settingsIndex'
+import { findSection } from './settingsIndex'
 import type { MachineView } from '@shared/control-api'
 import { useFeedbackStore } from '@/features/feedback/feedbackStore'
 vi.hoisted(() => {
@@ -198,7 +198,9 @@ it.each([
   'web-access',
   'subagents',
   'computer-use',
-] as const)('marks %s as This Mac policy', (tab) => expect(isThisMacTab(tab)).toBe(true))
+] as const)('marks %s as This Mac policy', (tab) =>
+  expect(findSection(tab)).toMatchObject({ scope: 'machine', local: true }),
+)
 
 it('opens on a selected Machines detail without an active remote lane', async () => {
   useLayoutStore.setState({ page: 'machines' })
@@ -222,6 +224,28 @@ it('refreshes scope from This Mac to a Host and back while Settings is open', as
   await act(async () => useRemoteLanesStore.setState({ filter: 'local' }))
   expect(document.body.textContent).toContain('Local account controls')
   expect(document.body.textContent).toContain('Configuring This Mac')
+})
+
+const selectedSections = (): string[] =>
+  [
+    ...document.querySelectorAll('nav[aria-label="Settings sections"] button[aria-current="page"]'),
+  ].map((b) => b.textContent ?? '')
+
+it.each([
+  ['claude-provider', 'Extensions'],
+  ['workspaces', 'Agent'],
+] as const)('opens %s on a Host as its %s section', async (tab, onHost) => {
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'packages:list' ? [{ spec: 'npm:pi-claude-cli', installed: true }] : undefined,
+  )
+  useSettingsUiStore.setState({ tab })
+  await act(async () => root.render(<SettingsModal />))
+  expect(selectedSections()).toEqual(
+    tab === 'workspaces' ? ['Workspaces'] : ['Extensions', 'Claude Code'],
+  )
+  await act(async () => useRemoteLanesStore.setState({ filter: 'test-host' }))
+  expect(document.body.textContent).toContain('Configuring Test Host')
+  expect(selectedSections()).toEqual([onHost])
 })
 
 it('refreshes scope on a Mac lane to Host lane to Mac lane switch', async () => {

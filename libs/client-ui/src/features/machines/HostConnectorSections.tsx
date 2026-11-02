@@ -149,7 +149,7 @@ export function HostConnectorHeading({
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-semibold">Connectors</h2>
+          <h2 className="text-2xl font-semibold">MCP Connectors</h2>
           <p className="text-text-secondary mt-1 text-base">
             MCP tools for agents on {label}. Nothing is imported from this computer.
           </p>

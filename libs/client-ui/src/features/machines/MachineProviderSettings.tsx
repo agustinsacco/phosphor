@@ -29,7 +29,7 @@ export function MachineProviderSettings({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-2xl font-semibold">Providers</h2>
+        <h2 className="text-2xl font-semibold">Accounts</h2>
         <p className="text-text-secondary mt-1 text-base">
           Accounts that run models on {label}. Credentials stay on that machine.
         </p>

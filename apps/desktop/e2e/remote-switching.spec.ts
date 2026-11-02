@@ -198,9 +198,9 @@ test('Settings follows the switcher to This Mac and back to bee1 from a bee1 lan
     const settings = h.page.getByRole('dialog', { name: 'Settings', exact: true })
     const scope = settings.getByTestId('settings-machine-scope')
     for (const [machine, section] of [
-      ['bee1', 'Providers'],
+      ['bee1', 'Accounts'],
       ['This Mac', 'Accounts'],
-      ['bee1', 'Providers'],
+      ['bee1', 'Accounts'],
     ] as const) {
       await selectMachine(h, machine)
       await h.page.getByRole('button', { name: 'Settings', exact: true }).click()
