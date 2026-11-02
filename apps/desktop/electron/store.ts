@@ -37,7 +37,12 @@ import {
 import { normalizeWritingPrefs, type WritingPrefs } from '@shared/writing'
 
 export { realPathOrNull } from './prefs/workspaces'
-export { getRemoteClients, setRemoteClients } from './prefs/backend'
+export {
+  getConfigureHosts,
+  getRemoteClients,
+  setConfigureHosts,
+  setRemoteClients,
+} from './prefs/backend'
 
 /**
  * Clamp the janitor's numbers on read. Prefs are user-editable JSON, and these

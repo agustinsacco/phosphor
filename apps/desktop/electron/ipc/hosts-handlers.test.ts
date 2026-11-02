@@ -13,7 +13,12 @@ vi.mock('electron', () => ({ app: { once: vi.fn() }, BrowserWindow: {}, Notifica
 vi.mock('../account', () => ({ accountUserId: vi.fn(), onAccountChange: vi.fn() }))
 vi.mock('../broadcast', () => ({ broadcast: vi.fn() }))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
-vi.mock('../store', () => ({ getRemoteClients: vi.fn(), setRemoteClients: vi.fn() }))
+vi.mock('../store', () => ({
+  getRemoteClients: vi.fn(),
+  setRemoteClients: vi.fn(),
+  getConfigureHosts: vi.fn(),
+  setConfigureHosts: vi.fn(),
+}))
 vi.mock('../hosts/client-id', () => ({ createClientIds: () => ({}) }))
 vi.mock('../hosts/grants', () => ({ createGrants: () => ({}) }))
 vi.mock('../hosts/connection', () => ({ createHostConnection: vi.fn() }))
