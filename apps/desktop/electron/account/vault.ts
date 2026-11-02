@@ -90,7 +90,9 @@ export function createVault(
   log: (message: string) => void = () => {},
   uid: () => number | undefined = () => process.getuid?.(),
 ): Vault {
-  let known: Storage = { ok: false, reason: 'not checked yet' }
+  // Shown only for a sign-in that could not be remembered; a save that failed
+  // before its storage check still reads the way it always did.
+  let known: Storage = { ok: false, reason: 'the sign-in could not be saved' }
   const checked: Cipher = {
     storage: async () => (known = await cipher.storage()),
     encrypt: (text) => cipher.encrypt(text),

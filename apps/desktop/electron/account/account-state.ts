@@ -16,6 +16,12 @@ export interface AccountRuntimeState {
   trace: string
   signing: { promise: Promise<AccountState>; abort: AbortController } | null
   refreshing: Promise<AuthSession | null> | null
+  /**
+   * Refreshes holding a token and waiting on Supabase. Each one revokes what it
+   * gets back if a sign-out landed meanwhile. A refresh still reading the vault
+   * (maybe behind a Keychain prompt) is not counted: it gives up on sign-out.
+   */
+  refreshesAtSupabase: number
   /** Requests to Supabase in flight, each bounded by REQUEST_MS or REVOKE_MS. */
   readonly inFlight: Set<Promise<unknown>>
 }
@@ -28,6 +34,7 @@ export function createAccountRuntimeState(): AccountRuntimeState {
     trace: '',
     signing: null,
     refreshing: null,
+    refreshesAtSupabase: 0,
     inFlight: new Set(),
   }
 }

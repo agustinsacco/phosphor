@@ -49,6 +49,7 @@ async function attemptRefresh(
   }
   if (gen !== state.generation) return null
   let fresh: AuthSession
+  state.refreshesAtSupabase++
   try {
     fresh = await track(state, ports.auth.refresh(token))
   } catch (problem) {
@@ -60,6 +61,8 @@ async function attemptRefresh(
       return null
     }
     throw problem
+  } finally {
+    state.refreshesAtSupabase--
   }
   if (gen !== state.generation) {
     void revoke(state, ports, fresh.accessToken)
@@ -105,11 +108,17 @@ export async function signOut(
   // Started before forget() deletes the files: readToken reads them before it
   // first yields, and only the decrypt (maybe a Keychain prompt) runs later.
   // Nothing to revoke with when it fails; the local copy goes regardless.
-  const saved =
-    was.status === 'signed-in' && !token
-      ? ports.vault.readToken(was.user.id).catch(() => null)
-      : Promise.resolve(token)
-  const refreshInFlight = state.refreshing !== null
+  let saved: Promise<string | null> = Promise.resolve(token)
+  if (was.status === 'signed-in' && !token) {
+    try {
+      saved = ports.vault.readToken(was.user.id).catch(() => null)
+    } catch {
+      saved = Promise.resolve(null)
+    }
+  }
+  // Only a refresh already at Supabase revokes for us. One still reading the
+  // vault sees the new generation and stops, so this side revokes then.
+  const refreshInFlight = state.refreshesAtSupabase > 0
   const result = forget(state, ports)
   if (was.status !== 'signed-in') return result
   // Someone always revokes. A session this side holds, including one a

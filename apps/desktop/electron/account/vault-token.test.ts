@@ -198,6 +198,23 @@ describe.skipIf(process.platform === 'win32')('readVaultToken', () => {
       new VaultUnreadable('no secure storage is available'),
     )
   })
+
+  it('with only a plain token and no usable storage, reports why and keeps a safe file', async () => {
+    seed({ 'profile.json': PROFILE, 'session.txt': token() })
+    const off = vault({ ok: false, reason: 'the system keyring is unavailable' })
+    await expect(readVaultToken(off.context, USER.id)).rejects.toThrow(
+      new VaultUnreadable('the system keyring is unavailable'),
+    )
+    expect(listed()).toEqual(['profile.json', 'session.txt'])
+    // The file is read before the storage check (sign-out may delete it next),
+    // so an unsafe one is removed here as on any other read.
+    chmodSync(file('session.txt'), 0o644)
+    await expect(readVaultToken(off.context, USER.id)).rejects.toThrow(
+      new VaultUnreadable('the system keyring is unavailable'),
+    )
+    expect(listed()).toEqual(['profile.json'])
+    expect(off.log.mock.calls).toEqual([['removed an unsafe or unreadable sign-in file']])
+  })
 })
 
 describe.skipIf(process.platform === 'win32')('saveVaultToken', () => {

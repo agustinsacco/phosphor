@@ -184,7 +184,35 @@ describe('session refresh and revocation', () => {
     // No second forget: the sign-out's plain result stands, without a storage error.
     expect(state.current).toEqual({ status: 'signed-out' })
     expect(vault.clear).toHaveBeenCalledOnce()
-    expect(auth.refresh).not.toHaveBeenCalled()
+    // The refresh gave up, so sign-out revoked with its own read.
+    expect(auth.refresh.mock.calls.map(([value]) => value)).toEqual(['refresh-0'])
+    expect(auth.revoke.mock.calls.map(([value]) => value)).toEqual(['access-1'])
+  })
+
+  it('revokes exactly once when a sign-out lands while a refresh waits on the keychain', async () => {
+    const { state, ports, auth, vault, now } = setup()
+    loadAccount(state, ports)
+    const refreshPrompt = deferred<string>()
+    vi.mocked(vault.readToken).mockReturnValueOnce(refreshPrompt.promise)
+    const token = accessToken(state, ports, now)
+    // The refresh is still reading the vault, so sign-out must revoke itself.
+    const out = signOut(state, ports, now)
+    refreshPrompt.resolve('refresh-0')
+    expect(await token).toBeNull()
+    expect(await out).toEqual({ status: 'signed-out' })
+    expect(auth.refresh.mock.calls.map(([value]) => value)).toEqual(['refresh-0'])
+    expect(auth.revoke.mock.calls.map(([value]) => value)).toEqual(['access-1'])
+  })
+
+  it('still signs out when the vault throws instead of rejecting', async () => {
+    const { state, ports, auth, vault, now } = setup()
+    loadAccount(state, ports)
+    vi.mocked(vault.readToken).mockImplementationOnce(() => {
+      throw new Error('vault broke')
+    })
+    expect(await signOut(state, ports, now)).toEqual({ status: 'signed-out' })
+    expect(vault.clear).toHaveBeenCalledOnce()
+    expect(auth.revoke).not.toHaveBeenCalled()
   })
 
   it('drops a refresh whose sign-out landed during the save, leaving its revoke to sign-out', async () => {

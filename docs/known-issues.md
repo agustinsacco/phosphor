@@ -79,6 +79,12 @@ still returns a single path.
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | K1  | A signed-in ad-hoc build asks for the "Phosphor Safe Storage" Keychain item again after every update, even after Always Allow. The pinned designated requirement does not help here: the login keychain also matches the item's partition list, which for code without a Team ID is the per-build `cdhash`. Phosphor keeps working while the prompt is open. A Developer ID ends it | `apps/desktop/scripts/adhoc-sign-mac.mjs`, `MAC_CERT_P12` in CI |
 
+## Linux
+
+| #   | Issue                                                                                                                                                                                                                                                                                       | Where                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| L1  | With both `session.bin` and `session.txt` left behind (a keyring that went away) and no keyring running, sign-out removes both locally but does not revoke the session on Supabase: the plain file is read only after the encrypted one fails to decrypt, by which time sign-out deleted it | `apps/desktop/electron/account/vault-token.ts` `readVaultToken` |
+
 ## Losing an in-flight turn
 
 **T3: no interruption recovery marker.** Pi persists a turn only when it ends.
