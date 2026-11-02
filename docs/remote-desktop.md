@@ -170,9 +170,10 @@ warning. Attachments and Swarm need the lane to exist first, so a draft with
 either, like any draft to an older Host, opens the lane, acquires control if
 needed, turns Swarm on, uploads, then sends the prompt.
 
-Isolation follows This Mac's worktree preference and branch-naming rule. Generated
-Host branches trim only the slug to fit the 100-character flattened limit; an
-oversized prefix fails before sending. Desktop requests `worktree.fresh: true`. A
+Every Host lane asks for a fresh worktree (`worktree.fresh: true`), named by This
+Mac's branch-naming rule; a folder outside git runs in place. Generated Host
+branches trim only the slug to fit the 100-character flattened limit
+(`LANE_FOLDER_MAX`); an oversized prefix fails before sending. A
 `laneStart` Host tries `-2` through `-5` itself, so main, which decides from its live
 connection rather than the window's copy, answers its `branch-exists` refusal as
 `branch-name-exhausted`; for an older Host main passes `branch-exists` on, and the
