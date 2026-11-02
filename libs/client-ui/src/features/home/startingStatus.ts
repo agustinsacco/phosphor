@@ -48,7 +48,11 @@ export function useStartingStatus(starting: StartingChat): { label: string; slow
   const [slowLabel, setSlowLabel] = useState<string | null>(null)
   useEffect(() => {
     const timer = setTimeout(() => setSlowLabel(label), SLOW_START_MS)
-    return () => clearTimeout(timer)
+    // A step that comes back later starts its own wait, not the old one's.
+    return () => {
+      clearTimeout(timer)
+      setSlowLabel(null)
+    }
   }, [label])
   if (slowLabel !== label) return { label, slow: null }
   return {
