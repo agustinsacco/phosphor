@@ -16,7 +16,7 @@ import {
   sortMachines,
 } from './machinePresentation'
 import { Skeleton, Spinner, StatusDot, StatusPill } from './MachineUi'
-import { hostTasks, taskCounts } from './machineTasks'
+import { hostTasks, taskCounts } from './runningTasks'
 import { MachineTasks, useLocalTasks } from './MachineTasks'
 
 const ROW =

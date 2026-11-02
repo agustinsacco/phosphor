@@ -7,7 +7,7 @@ import { useNavigation } from '@/navigation/Navigation'
 import { useChatStore, type ChatSession } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSessionsStore } from '@/stores/sessions'
-import { orderTasks, type MachineTask } from './machineTasks'
+import { orderTasks, type MachineTask } from './runningTasks'
 import { StatusDot } from './MachineUi'
 
 const TASKS_SHOWN = 3

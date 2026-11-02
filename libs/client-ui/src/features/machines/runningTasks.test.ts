@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
-import { hostTasks, taskCounts } from './machineTasks'
+import { hostTasks, taskCounts } from './runningTasks'
 
 const lane = (laneId: string, activity: HostLaneView['activity'], title: string | null = laneId) =>
   ({
