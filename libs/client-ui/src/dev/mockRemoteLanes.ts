@@ -105,6 +105,8 @@ export function mockRemoteLaneInvoke(channel: string, args: unknown[]): Promise<
       return Promise.resolve({ html: '<!doctype html><title>Mock lane</title>' })
     case 'hosts:subagentHistory':
       return Promise.resolve({ entries: [], leafId: null })
+    case 'hosts:subagentInspect':
+      return Promise.resolve(null)
     default:
       // Focus, stop, resume, control and read marks. Release applies with lanes off too.
       if (lanes || channel === 'hosts:releaseControl') mockRemoteAction(channel)

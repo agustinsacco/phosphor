@@ -33,6 +33,7 @@ export const IPC_SCOPE = {
   'hosts:markRead': 'app',
   'hosts:exportLaneHtml': 'app',
   'hosts:subagentHistory': 'app',
+  'hosts:subagentInspect': 'app',
   'hosts:deleteLane': 'app',
   'hosts:listFolders': 'app',
   'hosts:addRepository': 'app',

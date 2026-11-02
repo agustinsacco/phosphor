@@ -10,6 +10,7 @@ import type {
   MachineTaskOp,
 } from '../machine-settings'
 import type { ProviderLoginOp } from '../host-protocol-providers'
+import type { SubagentInspectRequest } from '../subagent-inspect'
 import type { ClaudeUsageSnapshotResult, LiveSessionInfo } from '../models'
 import type { HostsSnapshot, TrafficPage, RemoteLaneCreate } from './views'
 
@@ -97,6 +98,11 @@ export interface HostsInvokeMap {
   'hosts:subagentHistory': {
     args: [sessionId: string]
     result: { entries: unknown[]; leafId: string | null }
+  }
+  /** A lane this window opened: its Host asks pi-subagents for one run, answered on the lane's widget. */
+  'hosts:subagentInspect': {
+    args: [sessionId: string, request: SubagentInspectRequest]
+    result: null
   }
   'hosts:deleteLane': {
     args: [

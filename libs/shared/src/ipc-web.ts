@@ -49,6 +49,7 @@ export const IPC_WEB = {
   'hosts:markRead': remote,
   'hosts:exportLaneHtml': remote,
   'hosts:subagentHistory': remote,
+  'hosts:subagentInspect': remote,
   'hosts:deleteLane': remote,
   'hosts:listFolders': remote,
   'hosts:addRepository': remote,

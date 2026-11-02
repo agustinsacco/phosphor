@@ -1,4 +1,5 @@
 import type { CallErrorCode, HostFrame } from '@phosphor/shared/host-protocol'
+import { parseSubagentInspectRequest } from '@phosphor/shared/subagent-inspect'
 
 type Result = Extract<HostFrame, { type: 'result' }>
 type Caller = { call(method: string, params: unknown): Promise<Result> }
@@ -9,10 +10,10 @@ export type LaneRead<T> = (c: Caller, laneId: string) => Promise<T>
 async function callLane(
   c: Caller,
   method: string,
-  laneId: string,
+  params: { laneId: string },
   refusals: Partial<Record<CallErrorCode, string>>,
 ): Promise<unknown> {
-  const result = await c.call(method, { laneId })
+  const result = await c.call(method, params)
   if (!result.ok) throw new Error(refusals[result.error.code] ?? result.error.message)
   return result.data
 }
@@ -26,7 +27,7 @@ const EXPORT_REFUSALS: Partial<Record<CallErrorCode, string>> = {
 
 /** The Host exports to its own file and returns the document; no path crosses the wire. */
 export async function exportLaneHtml(c: Caller, laneId: string): Promise<{ html: string }> {
-  const data = await callLane(c, 'lane.exportHtml', laneId, EXPORT_REFUSALS)
+  const data = await callLane(c, 'lane.exportHtml', { laneId }, EXPORT_REFUSALS)
   if (
     typeof data !== 'object' ||
     data === null ||
@@ -48,7 +49,7 @@ export async function laneSubagentHistory(
   c: Caller,
   laneId: string,
 ): Promise<{ entries: unknown[]; leafId: string | null }> {
-  const data = await callLane(c, 'lane.subagentHistory', laneId, HISTORY_REFUSALS)
+  const data = await callLane(c, 'lane.subagentHistory', { laneId }, HISTORY_REFUSALS)
   if (
     typeof data !== 'object' ||
     data === null ||
@@ -60,3 +61,21 @@ export async function laneSubagentHistory(
     throw new Error('The Host sent no subagent history.')
   return { entries: data.entries as unknown[], leafId: data.leafId }
 }
+
+const INSPECT_REFUSALS: Partial<Record<CallErrorCode, string>> = {
+  unsupported: 'This Host cannot inspect subagents. Update the Host and check pi-subagents there.',
+  'lane-stopped': 'Resume the lane to inspect its subagents.',
+}
+
+/**
+ * One run's bounded view, as a read that never takes control of the lane. The view
+ * itself arrives on the lane's `subagent-inspect` widget, not in this result.
+ */
+export const laneSubagentInspect =
+  (value: unknown): LaneRead<null> =>
+  async (c, laneId) => {
+    const request = parseSubagentInspectRequest(value)
+    if (!request) throw new Error('Invalid subagent inspection request.')
+    await callLane(c, 'lane.subagentInspect', { ...request, laneId }, INSPECT_REFUSALS)
+    return null
+  }

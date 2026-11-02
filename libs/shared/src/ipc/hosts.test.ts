@@ -13,6 +13,7 @@ import type {
   MachineTaskOp,
 } from '../machine-settings'
 import type { ProviderLoginOp } from '../host-protocol-providers'
+import type { SubagentInspectRequest } from '../subagent-inspect'
 export interface BaselineHostsInvokeMap {
   'hosts:tailscaleStatus': { args: []; result: TailscaleStatus }
 
@@ -115,6 +116,11 @@ export interface BaselineHostsInvokeMap {
   'hosts:subagentHistory': {
     args: [sessionId: string]
     result: { entries: unknown[]; leafId: string | null }
+  }
+
+  'hosts:subagentInspect': {
+    args: [sessionId: string, request: SubagentInspectRequest]
+    result: null
   }
 
   'hosts:deleteLane': {

@@ -34,6 +34,7 @@ import {
   createRemoteLanes,
   exportLaneHtml,
   laneSubagentHistory,
+  laneSubagentInspect,
   type RemoteLanes,
 } from '../hosts/remote-lanes'
 import { createRemoteTerminals } from '@phosphor/host-client/terminals/terminals'
@@ -90,6 +91,9 @@ function registerLaneReadHandlers(): void {
   )
   handle('hosts:subagentHistory', (event, sessionId) =>
     remoteLanes().onLane(event.sender.id, sessionId, laneSubagentHistory),
+  )
+  handle('hosts:subagentInspect', (event, sessionId, request) =>
+    remoteLanes().onLane(event.sender.id, sessionId, laneSubagentInspect(request)),
   )
 }
 

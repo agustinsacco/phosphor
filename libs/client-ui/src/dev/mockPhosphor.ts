@@ -1523,6 +1523,7 @@ export function installMockPhosphor(): void {
         case 'hosts:deleteLane':
         case 'hosts:exportLaneHtml':
         case 'hosts:subagentHistory':
+        case 'hosts:subagentInspect':
           return mockRemoteLaneInvoke(channel, args) as never
         case 'hosts:removeRepository':
         case 'hosts:orderRepositories':
