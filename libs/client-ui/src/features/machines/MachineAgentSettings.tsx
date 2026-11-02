@@ -1,8 +1,11 @@
 import { Button } from '@/components/form'
-import type { HostSettingsState } from './useHostSettings'
+import type { HostSettingsState } from '@/features/settings/machine/useHostSettings'
 
 import { MachineHostPolicy, MachineModelDefaults } from './MachineAgentSections'
-import { useMachineAgentSettings, type MachineAgentController } from './useMachineAgentSettings'
+import {
+  useMachineAgentSettings,
+  type MachineAgentController,
+} from '@/features/settings/machine/useMachineAgentSettings'
 import { MachineAgentBehavior } from './MachineAgentBehavior'
 import { Spinner } from './MachineUi'
 import { MachineDirectives } from './MachineDirectives'

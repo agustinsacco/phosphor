@@ -1,10 +1,19 @@
 import type { MachineView } from '@shared/control-api'
+import type { ProviderLoginOp } from '@shared/host-protocol-providers'
+import type { MachineTaskOp } from '@shared/machine-settings'
 import { errorText } from '@shared/errors'
 import { useEffect, useRef, useState } from 'react'
-import type { MachinePrograms } from './MachineProviderSettings'
 
 import { loginHostProgram, runHostTask } from './machineProgramActions'
 import type { HostSettingsState } from './useHostSettings'
+
+/** A Host section's way to run a private program (sign-in) or a reviewed task on that Host. */
+export interface MachinePrograms {
+  login(provider: string, account?: Pick<ProviderLoginOp, 'accountId' | 'addAccount'>): void
+  task(op: Omit<MachineTaskOp, 'type'>): void
+  busy: boolean
+  available: boolean
+}
 export function useMachinePrograms(
   machine: Pick<MachineView, 'id' | 'label'>,
   settings: HostSettingsState,

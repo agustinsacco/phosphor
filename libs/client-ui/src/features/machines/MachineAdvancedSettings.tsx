@@ -1,7 +1,7 @@
 import { Button } from '@/components/form'
 import { Card, Fact, Facts, StatusPill } from './MachineUi'
-import type { MachinePrograms } from './MachineProviderSettings'
-import type { HostSettingsState } from './useHostSettings'
+import type { MachinePrograms } from '@/features/settings/machine/useMachinePrograms'
+import type { HostSettingsState } from '@/features/settings/machine/useHostSettings'
 
 /** The Host's own signed update; the confirmation and terminal are `runHostTask`'s. */
 function HostUpdateCard({

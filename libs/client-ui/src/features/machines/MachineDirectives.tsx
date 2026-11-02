@@ -5,7 +5,7 @@ import { EditInstructions } from '@/features/settings/instructions/EditInstructi
 import { hostInstructions } from '@/features/settings/instructions/instructionsSource'
 import type { MachineContext } from '@shared/machine-prompt'
 import { Card } from './MachineUi'
-import type { MachineAgentController } from './useMachineAgentSettings'
+import type { MachineAgentController } from '@/features/settings/machine/useMachineAgentSettings'
 
 /**
  * A Host's own instructions file and its directive switches. Both are the

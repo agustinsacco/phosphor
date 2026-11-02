@@ -4,7 +4,7 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useState } from 'react'
 import type { HostConnectionView } from '@shared/ipc'
 import { HostFolderBrowser } from './HostFolderBrowser'
-import type { MachinePrograms } from './MachineProviderSettings'
+import type { MachinePrograms } from '@/features/settings/machine/useMachinePrograms'
 import { Card } from './MachineUi'
 
 import type { Dispatch, SetStateAction } from 'react'

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/form'
 import { TooltipSummary } from '@/components/Tooltip'
-import { machineAgentModel } from './machineAgentModel'
-import type { MachineAgentController } from './useMachineAgentSettings'
+import { machineAgentModel } from '@/features/settings/machine/machineAgentModel'
+import type { MachineAgentController } from '@/features/settings/machine/useMachineAgentSettings'
 
 const partsOf = (model: string): [string, string] =>
   machineAgentModel(model) ?? (['', ''] as [string, string])

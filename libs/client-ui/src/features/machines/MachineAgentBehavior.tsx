@@ -1,7 +1,7 @@
 import type { MachineAgentBehavior as Behavior } from '@shared/machine-agent-behavior'
 import { Card } from './MachineUi'
 import { BehaviorDelivery, BehaviorPolicy, BehaviorToggle } from './HostBehaviorFields'
-import type { MachineAgentController } from './useMachineAgentSettings'
+import type { MachineAgentController } from '@/features/settings/machine/useMachineAgentSettings'
 
 export function MachineAgentBehavior({
   controller,

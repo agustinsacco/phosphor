@@ -1,8 +1,8 @@
 import { Button } from '@/components/form'
 import type { MachineSettings } from '@shared/machine-settings'
-import type { MachinePrograms } from './MachineProviderSettings'
+import type { MachinePrograms } from '@/features/settings/machine/useMachinePrograms'
 import { Card, StatusPill } from './MachineUi'
-import type { HostSettingsState } from './useHostSettings'
+import type { HostSettingsState } from '@/features/settings/machine/useHostSettings'
 export interface ProviderSectionProps {
   hostId: string
   label: string

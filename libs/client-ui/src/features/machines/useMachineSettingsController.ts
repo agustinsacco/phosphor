@@ -2,12 +2,12 @@ import { useMachinesStore } from '@/stores/machines'
 import type { MachineView } from '@shared/control-api'
 import { errorText } from '@shared/errors'
 import { useState } from 'react'
-import { confirmSettingsNavigation } from './machineSettingsDrafts'
-import { useHostSettings } from './useHostSettings'
+import { confirmSettingsNavigation } from '@/features/settings/machine/machineSettingsDrafts'
+import { useHostSettings } from '@/features/settings/machine/useHostSettings'
 
 import type { MachineSettingsTab } from './MachineSettings'
-import { useMachinePrograms } from './useMachinePrograms'
-import { confirmSettingsAccess } from './settingsAccess'
+import { useMachinePrograms } from '@/features/settings/machine/useMachinePrograms'
+import { confirmSettingsAccess } from '@/features/settings/machine/settingsAccess'
 export function useMachineSettingsController(
   machine: Pick<MachineView, 'id' | 'label'>,
   section: MachineSettingsTab,

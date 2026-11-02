@@ -3,7 +3,7 @@ import { isValidContextBudgetValue } from '@shared/context-budget'
 import type { ThinkingLevel } from '@shared/rpc'
 import { Card, Skeleton } from './MachineUi'
 
-import type { MachineAgentController } from './useMachineAgentSettings'
+import type { MachineAgentController } from '@/features/settings/machine/useMachineAgentSettings'
 import { HostCustomModel } from './HostCustomModel'
 export function MachineModelDefaults({
   controller,

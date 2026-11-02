@@ -3,7 +3,7 @@ import type { MachineProvider } from '@shared/host-protocol-machine'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { machineCatalogueKey, useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
-import { hostModelUnavailability, type ModelChoice } from './remoteModel'
+import { hostModelUnavailability, type ModelChoice } from '@/features/machines/remoteModel'
 
 const NO_PROVIDERS: readonly MachineProvider[] = []
 

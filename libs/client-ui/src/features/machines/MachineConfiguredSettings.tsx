@@ -1,5 +1,5 @@
 import { Button } from '@/components/form'
-import { confirmSettingsNavigation } from './machineSettingsDrafts'
+import { confirmSettingsNavigation } from '@/features/settings/machine/machineSettingsDrafts'
 import { Skeleton, Spinner } from './MachineUi'
 
 import { MachineSettingsPanels } from './MachineSettingsPanels'

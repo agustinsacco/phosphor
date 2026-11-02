@@ -18,7 +18,7 @@ import {
   relativeTime,
 } from './machinePresentation'
 import { machineHeadline } from './machineReachability'
-import { confirmSettingsNavigation } from './machineSettingsDrafts'
+import { confirmSettingsNavigation } from '@/features/settings/machine/machineSettingsDrafts'
 import { Card, CheckRow, Fact, Facts, Spinner, type CheckItem } from './MachineUi'
 import { MachineTerminal } from './MachineTerminal'
 import { OnThisMachine } from './OnThisMachine'

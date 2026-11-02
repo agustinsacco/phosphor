@@ -4,8 +4,9 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { promptChoice } from '@/stores/prompt'
 import { mockSettingsRead } from '@/dev/mockMachineSettings'
-import { MachineProviderSettings, type MachinePrograms } from './MachineProviderSettings'
-import type { HostSettingsState } from './useHostSettings'
+import type { MachinePrograms } from '@/features/settings/machine/useMachinePrograms'
+import { MachineProviderSettings } from './MachineProviderSettings'
+import type { HostSettingsState } from '@/features/settings/machine/useHostSettings'
 
 vi.mock('@/stores/prompt', () => ({ promptChoice: vi.fn(async () => undefined) }))
 let root: Root, container: HTMLDivElement

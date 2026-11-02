@@ -3,9 +3,9 @@ import { promptChoice } from '@/stores/prompt'
 import type { MachineSettings } from '@shared/machine-settings'
 import type { McpServerConfig } from '@shared/mcp'
 import type { Dispatch, SetStateAction } from 'react'
-import type { MachinePrograms } from './MachineProviderSettings'
+import type { MachinePrograms } from '@/features/settings/machine/useMachinePrograms'
 import { StatusPill } from './MachineUi'
-import type { HostSettingsState } from './useHostSettings'
+import type { HostSettingsState } from '@/features/settings/machine/useHostSettings'
 type ConnectorState = NonNullable<MachineSettings['connectors']>
 interface ConnectorProps {
   label: string

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
   createFakePhosphor,
   installFakePhosphor,
-} from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
+} from '../../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import { DESKTOP_PLATFORM, PlatformProvider, type Platform } from '@/platform/Platform'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import type {

@@ -1,9 +1,9 @@
 import { Button } from '@/components/form'
 import { openMachinePage } from '@/stores/machinePages'
 import { promptText } from '@/stores/prompt'
-import type { MachinePrograms } from './MachineProviderSettings'
+import type { MachinePrograms } from '@/features/settings/machine/useMachinePrograms'
 import { Card, StatusPill } from './MachineUi'
-import type { HostSettingsState } from './useHostSettings'
+import type { HostSettingsState } from '@/features/settings/machine/useHostSettings'
 
 import type { MachineSettings } from '@shared/machine-settings'
 import { HostDefaultPackages } from './HostDefaultPackages'

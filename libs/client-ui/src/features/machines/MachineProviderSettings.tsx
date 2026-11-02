@@ -1,16 +1,9 @@
-import type { ProviderLoginOp } from '@shared/host-protocol-providers'
-import type { MachineTaskOp } from '@shared/machine-settings'
 import { useState } from 'react'
 import { ClaudeAccounts } from './MachineClaudeAccounts'
 import { ClaudeSetup, OtherProviders } from './MachineProviderSections'
-import type { HostSettingsState } from './useHostSettings'
+import type { HostSettingsState } from '@/features/settings/machine/useHostSettings'
+import type { MachinePrograms } from '@/features/settings/machine/useMachinePrograms'
 
-export interface MachinePrograms {
-  login(provider: string, account?: Pick<ProviderLoginOp, 'accountId' | 'addAccount'>): void
-  task(op: Omit<MachineTaskOp, 'type'>): void
-  busy: boolean
-  available: boolean
-}
 export function MachineProviderSettings({
   hostId,
   label,

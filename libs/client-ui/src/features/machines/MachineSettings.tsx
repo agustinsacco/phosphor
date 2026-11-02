@@ -1,6 +1,6 @@
 import type { MachineView } from '@shared/control-api'
 import type { MachineSettingsSection } from '@shared/machine-settings'
-import { HostProgramDialog } from './HostProgramDialog'
+import { HostProgramDialog } from '@/features/settings/machine/HostProgramDialog'
 import { MachineSettingsGate, MachineSettingsNavigation } from './MachineSettingsLayout'
 import {
   useMachineSettingsController,

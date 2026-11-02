@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { AddHostConnector } from './AddHostConnector'
 import { HostConnectorHeading, HostConnectorRow, saveHostConnector } from './HostConnectorSections'
-import type { MachinePrograms } from './MachineProviderSettings'
+import type { MachinePrograms } from '@/features/settings/machine/useMachinePrograms'
 import { Card } from './MachineUi'
-import type { HostSettingsState } from './useHostSettings'
+import type { HostSettingsState } from '@/features/settings/machine/useHostSettings'
 export function MachineConnectorSettings({
   label,
   settings,

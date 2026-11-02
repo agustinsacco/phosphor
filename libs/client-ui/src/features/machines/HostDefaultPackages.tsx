@@ -2,7 +2,7 @@ import { HOST_DEFAULT_PACKAGES } from '@shared/host-default-packages'
 import type { MachineSettings } from '@shared/machine-settings'
 import { Button } from '@/components/form'
 import { Card, StatusPill } from './MachineUi'
-import type { MachinePrograms } from './MachineProviderSettings'
+import type { MachinePrograms } from '@/features/settings/machine/useMachinePrograms'
 
 export function HostDefaultPackages({
   resources,

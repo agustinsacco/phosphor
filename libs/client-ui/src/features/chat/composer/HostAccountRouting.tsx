@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react'
-import { confirmSettingsAccess } from '@/features/machines/settingsAccess'
+import { confirmSettingsAccess } from '@/features/settings/machine/settingsAccess'
 import { machineMoveTargets } from '@/lib/claudeGateway'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'

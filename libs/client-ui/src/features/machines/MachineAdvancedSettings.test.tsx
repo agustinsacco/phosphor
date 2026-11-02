@@ -4,8 +4,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { mockSettingsRead } from '@/dev/mockMachineSettings'
 import { MachineAdvancedSettings } from './MachineAdvancedSettings'
-import type { MachinePrograms } from './MachineProviderSettings'
-import type { HostSettingsState } from './useHostSettings'
+import type { MachinePrograms } from '@/features/settings/machine/useMachinePrograms'
+import type { HostSettingsState } from '@/features/settings/machine/useHostSettings'
 
 let root: Root, container: HTMLDivElement
 let programs: MachinePrograms
