@@ -111,6 +111,28 @@ afterEach(async () => {
   vi.useRealTimers()
 })
 
+describe('lane.create with a first prompt through createFakeHost', () => {
+  it('runs the prompt as the first turn and answers prompted', async () => {
+    const { viewer } = harness()
+    const a = await viewer()
+    a.command(1, create, null, null)
+    a.command(2, { ...create, prompt: 'Hello' }, null, null)
+    await flush()
+    const done = a.frames.flatMap((f) => (f.type === 'receipt' ? [f.receipt] : []))
+    expect(done).toEqual([
+      { requestId: rid(1), status: 'done', laneId: expect.any(String), fence: 1 },
+      {
+        requestId: rid(2),
+        status: 'done',
+        laneId: expect.any(String),
+        fence: 1,
+        data: { prompted: true },
+      },
+    ])
+    expect(a.frames.some((f) => f.type === 'ready' && f.laneStart === true)).toBe(true)
+  })
+})
+
 describe('command admission through createFakeHost', () => {
   it('deduplicates before the caps, and leaves cap refusals unstored', async () => {
     const { host, viewer } = harness({
