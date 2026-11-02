@@ -98,6 +98,18 @@ function setName(session, name) {
   appendEntry(session, 'session_info', { name })
 }
 
+/** pi's get_entries: the file's entries after its header, the last of them the leaf. */
+function entries(session) {
+  const all = existsSync(session.sessionFile)
+    ? readFileSync(session.sessionFile, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .slice(1)
+        .map((line) => JSON.parse(line))
+    : []
+  return { entries: all, leafId: all.at(-1)?.id ?? null }
+}
+
 /** pi's clone: a new file with this one's entries, which pi then writes instead. */
 function clone(session) {
   const entries = existsSync(session.sessionFile)
@@ -112,4 +124,4 @@ function clone(session) {
   )
 }
 
-module.exports = { createSession, persist, setName, clone, setModel }
+module.exports = { createSession, persist, setName, clone, setModel, entries }

@@ -202,6 +202,7 @@ const handlers = {
   get_available_models: (ctx, cmd) => ctx.respond(cmd, { models: ctx.models }),
   get_session_stats: getSessionStats,
   get_messages: (ctx, cmd) => ctx.respond(cmd, { messages: ctx.session.messages }),
+  get_entries: (ctx, cmd) => ctx.respond(cmd, persistence.entries(ctx.session)),
   get_last_assistant_text: (ctx, cmd) => {
     const last = ctx.session.messages.findLast((m) => m.role === 'assistant')
     return ctx.respond(cmd, {

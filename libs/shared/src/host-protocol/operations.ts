@@ -149,6 +149,7 @@ export const HOST_CALL_METHODS = [
   'lane.models',
   'lane.commands',
   'lane.exportHtml',
+  'lane.subagentHistory',
 ] as const
 export type HostCallMethod = (typeof HOST_CALL_METHODS)[number]
 

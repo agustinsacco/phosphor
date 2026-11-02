@@ -274,4 +274,39 @@ describe('runtime lane binding', () => {
     expect(receipts.at(-1)).toMatchObject({ status: 'done' })
     expect(live.sessionFor(laneId)).toBeNull()
   })
+  it("reads a running lane's subagent history from its pi, and refuses a stopped one", async () => {
+    const { commands, calls, client, receipts, binding } = boot()
+    await commands.submit(client, {
+      type: 'command',
+      requestId: randomUUID(),
+      op: { type: 'lane.create', repositoryId, worktree: null },
+    })
+    const receipt = receipts.at(-1)
+    if (receipt?.status !== 'done' || !receipt.laneId) throw new Error('lane not created')
+    const laneId = receipt.laneId
+    const sessionId = live.sessionFor(laneId)
+    if (!sessionId) throw new Error('missing session')
+    await binding.command(sessionId, { type: 'prompt', message: 'hello' })
+    const answered = async () => {
+      const read = await calls.call('lane.messages', { laneId })
+      return read.ok && (read.data as { messages: unknown[] }).messages.length === 2
+    }
+    for (let i = 0; i < 300 && !(await answered()); i++) await sleep(10)
+    // The turn's entries reach the reader, which keeps no plain message.
+    expect(await calls.call('lane.subagentHistory', { laneId })).toEqual({
+      ok: true,
+      data: { entries: [], leafId: null },
+    })
+    await commands.submit(client, {
+      type: 'command',
+      requestId: randomUUID(),
+      laneId,
+      fence: 1,
+      op: { type: 'lane.stop' },
+    })
+    expect(await calls.call('lane.subagentHistory', { laneId })).toMatchObject({
+      ok: false,
+      error: { code: 'lane-stopped' },
+    })
+  })
 })

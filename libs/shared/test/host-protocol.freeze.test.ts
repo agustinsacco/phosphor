@@ -326,6 +326,7 @@ describe('Host API constants and op lists', () => {
       'lane.models',
       'lane.commands',
       'lane.exportHtml',
+      'lane.subagentHistory',
     ])
     expect(FILE_METHODS).toStrictEqual([
       'files.list',

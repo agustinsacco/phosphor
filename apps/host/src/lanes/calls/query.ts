@@ -1,6 +1,7 @@
 import { hostLaneReceipt } from '../receipt'
 import { isUuid } from '@phosphor/shared/control-api'
-import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
+import { HOST_LIMITS, utf8Length } from '@phosphor/shared/host-protocol'
+import { subagentEvidence } from '@phosphor/shared/subagent-evidence'
 import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { HostRuntime } from '../../session/runtime'
@@ -21,6 +22,7 @@ const queries = new Map<string, RpcCommand>([
   ['lane.stats', { type: 'get_session_stats' }],
   ['lane.models', { type: 'get_available_models' }],
   ['lane.commands', { type: 'get_commands' }],
+  ['lane.subagentHistory', { type: 'get_entries' }],
 ])
 /** Not a pi query: the Host exports to its own file and returns the document. */
 const EXPORT = 'lane.exportHtml'
@@ -35,6 +37,8 @@ function shape(method: string, data: unknown): boolean {
     return piMessages(data.messages) !== null
   if (method === 'lane.models') return Array.isArray(data.models)
   if (method === 'lane.commands') return Array.isArray(data.commands)
+  if (method === 'lane.subagentHistory')
+    return Array.isArray(data.entries) && (data.leafId === null || typeof data.leafId === 'string')
   const tokens = data.tokens
   return (
     [
@@ -128,6 +132,11 @@ export async function requestLiveQuery(
       if (!messages) return failure('internal')
       return receipt(messages)
     }
+    if (method === 'lane.subagentHistory' && record(response.data))
+      return subagentHistory(
+        response.data.entries as unknown[],
+        response.data.leafId as string | null,
+      )
     return { ok: true, data: response.data }
   } catch {
     return failure('internal')
@@ -135,7 +144,15 @@ export async function requestLiveQuery(
 }
 
 /** Leaves room in the result frame for its envelope and JSON escaping of the document. */
-const EXPORT_MAX_BYTES = HOST_LIMITS.outboundFrameBytes / 2
+const RESULT_MAX_BYTES = HOST_LIMITS.outboundFrameBytes / 2
+
+/** The session's subagent records on its active branch, never the whole file. */
+function subagentHistory(entries: unknown[], leafId: string | null): CallOutcome {
+  const evidence = subagentEvidence(entries, leafId)
+  return utf8Length(JSON.stringify(evidence)) > RESULT_MAX_BYTES
+    ? failure('too-large')
+    : { ok: true, data: evidence }
+}
 
 async function exportHtml(
   options: Pick<LaneQueryOptions, 'runtime' | 'store' | 'live'>,
@@ -151,7 +168,7 @@ async function exportHtml(
   if (!options.runtime.exportHtml) return failure('unsupported')
   // A late answer still removes its folder.
   try {
-    const html = await withinDeadline(options.runtime.exportHtml(sessionId, EXPORT_MAX_BYTES))
+    const html = await withinDeadline(options.runtime.exportHtml(sessionId, RESULT_MAX_BYTES))
     return html === null ? failure('internal') : { ok: true, data: { html } }
   } catch (error) {
     return failure(error instanceof ExportTooLarge ? 'too-large' : 'internal')

@@ -182,3 +182,18 @@ it('handles notifications, budget commands and dialogs without model turns', () 
     { type: 'compaction_end', reason: 'manual', aborted: false },
   ])
 })
+
+it("answers get_entries as pi does: the file's entries after its header, the last the leaf", () => {
+  const h = fixture()
+  h.send('get_entries')
+  expect(h.trace.at(-1)).toMatchObject({ data: { entries: [], leafId: null } })
+  persist(h.session, { role: 'user', content: 'hello' })
+  persist(h.session, { role: 'assistant', content: [{ text: 'ok' }] })
+  h.send('get_entries')
+  const { data } = h.trace.at(-1) as {
+    data: { entries: { type: string; message: unknown }[]; leafId: string }
+  }
+  expect(data.entries.map((entry) => entry.type)).toEqual(['message', 'message'])
+  expect(data.entries.map((entry) => entry.message)).toEqual(h.session.messages)
+  expect(data.leafId).toBe(h.session.lastEntryId)
+})

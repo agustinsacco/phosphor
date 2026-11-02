@@ -63,6 +63,7 @@ describe('host-protocol operation declarations', () => {
       'lane.models',
       'lane.commands',
       'lane.exportHtml',
+      'lane.subagentHistory',
     ])
     expectTypeOf<LanePiOpType>().toEqualTypeOf<(typeof LANE_PI_OPS)[number]>()
     expectTypeOf<HostCallMethod>().toEqualTypeOf<(typeof HOST_CALL_METHODS)[number]>()

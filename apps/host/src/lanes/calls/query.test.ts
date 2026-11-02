@@ -393,3 +393,79 @@ describe('lane.exportHtml', () => {
     expect(await code(ID)).toBe('unknown-lane')
   })
 })
+
+describe('lane.subagentHistory', () => {
+  const ID = { laneId: lane.laneId }
+  const call = {
+    type: 'message',
+    id: 'call',
+    parentId: 'user',
+    message: {
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'private reasoning' },
+        { type: 'toolCall', id: 't', name: 'subagent', arguments: { agent: 'worker' } },
+      ],
+    },
+  }
+  const entries = [
+    { type: 'message', id: 'user', parentId: null, message: { role: 'user', content: 'go' } },
+    call,
+    { type: 'message', id: 'other', parentId: 'user', message: { role: 'user', content: 'x' } },
+  ]
+  const answer = (data: unknown): RpcResponse => ({
+    type: 'response',
+    command: 'get_entries',
+    success: true,
+    data: data as { entries: unknown[]; leafId: string | null },
+  })
+
+  it('is a read that sends the active branch subagent evidence, not the session file', async () => {
+    const { options, command } = fixture()
+    command.mockResolvedValue(answer({ entries, leafId: 'call' }))
+    expect(laneQueryCapability('lane.subagentHistory')).toBe('sessions.read')
+    expect(await resolveLaneQuery(options, 'lane.subagentHistory', ID)).toEqual({
+      ok: true,
+      data: {
+        entries: [
+          {
+            ...call,
+            parentId: null,
+            message: { role: 'assistant', content: [call.message.content[1]] },
+          },
+        ],
+        leafId: 'call',
+      },
+    })
+    expect(command).toHaveBeenCalledWith('runtime-id', { type: 'get_entries' })
+  })
+
+  it('refuses a stopped lane, a malformed answer, an unknown leaf and an oversized result', async () => {
+    const { options, command } = fixture()
+    const code = async () =>
+      (
+        (await resolveLaneQuery(options, 'lane.subagentHistory', ID)) as {
+          error?: { code: string }
+        }
+      ).error?.code
+    for (const data of [{ entries: 'x', leafId: null }, { entries: [], leafId: 1 }, null]) {
+      command.mockResolvedValueOnce(answer(data))
+      expect(await code()).toBe('internal')
+    }
+    command.mockResolvedValueOnce(answer({ entries, leafId: 'missing' }))
+    expect(await code()).toBe('internal')
+    const big = {
+      ...call,
+      message: {
+        role: 'toolResult',
+        toolName: 'subagent',
+        toolCallId: 't',
+        content: [{ type: 'text', text: 'x'.repeat(HOST_LIMITS.outboundFrameBytes / 2) }],
+      },
+    }
+    command.mockResolvedValueOnce(answer({ entries: [entries[0], big], leafId: 'call' }))
+    expect(await code()).toBe('too-large')
+    options.live.sessionFor = () => null
+    expect(await code()).toBe('lane-stopped')
+  })
+})
