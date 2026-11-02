@@ -29,11 +29,10 @@ function cipher(): Cipher {
   if (!keychainOff(app.isPackaged, process.env)) {
     return safeStorageCipher(safeStorage, process.platform)
   }
-  const refuse = (): never => {
-    throw new Error('the keychain is off for this test run')
-  }
+  const refuse = (): Promise<never> =>
+    Promise.reject(new Error('the keychain is off for this test run'))
   return {
-    storage: () => ({ ok: false, reason: 'the keychain is off for this test run' }),
+    storage: async () => ({ ok: false, reason: 'the keychain is off for this test run' }),
     encrypt: refuse,
     decrypt: refuse,
   }

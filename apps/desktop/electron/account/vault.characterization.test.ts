@@ -22,7 +22,7 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createVault, VaultUnreadable, type Storage } from './vault'
-import { fakeCipher, USER } from './__fixtures__/fakes'
+import { fakeCipher, fakeSeal, USER } from './__fixtures__/fakes'
 
 // Real files, but every call is recorded and any one can be failed on demand.
 vi.mock('node:fs', async (original) => {
@@ -83,7 +83,7 @@ const UNSAFE_REMOVED = 'removed an unsafe or unreadable sign-in file'
 const DEAD_ENCRYPTED = 'removed an unreadable encrypted sign-in; no keyring is running'
 
 const encryptedFor = (userId: string, refreshToken: string) =>
-  fakeCipher().cipher.encrypt(JSON.stringify({ v: 1, userId, refreshToken }))
+  fakeSeal(JSON.stringify({ v: 1, userId, refreshToken }))
 
 const fsError = (code?: string) =>
   Object.assign(new Error(`fake ${code ?? 'failure'}`), code ? { code } : {})
@@ -97,9 +97,10 @@ function failRm(failures: Record<string, string | undefined>): void {
   })
 }
 
-function thrown(act: () => unknown): unknown {
+/** What `act` throws or rejects with. */
+async function thrown(act: () => unknown): Promise<unknown> {
   try {
-    act()
+    await act()
   } catch (error) {
     return error
   }
@@ -107,8 +108,8 @@ function thrown(act: () => unknown): unknown {
 }
 
 /** The message of a VaultUnreadable, failing on any other error. */
-function refusal(act: () => unknown): string {
-  const error = thrown(act)
+async function refusal(act: () => unknown): Promise<string> {
+  const error = await thrown(act)
   expect(error).toBeInstanceOf(VaultUnreadable)
   return (error as VaultUnreadable).message
 }
@@ -161,24 +162,24 @@ function fileEvents(): string[] {
 }
 
 describe.skipIf(process.platform === 'win32')('Linux-only plain fallback', () => {
-  it('writes a plain token only on Linux; elsewhere a file cipher saves nothing and clears', () => {
+  it('writes a plain token only on Linux; elsewhere a file cipher saves nothing and clears', async () => {
     for (const platform of ['darwin', 'win32', 'freebsd', 'android'] as const) {
       seed({ 'session.bin': 'x', 'session.txt': 'x', 'profile.json': 'x', 'avatar.json': 'x' })
       const log = vi.fn()
       const { cipher } = fakeCipher({ ok: true, kind: 'file' })
-      expect(createVault(dir, cipher, platform, log).save(USER, token())).toBe(false)
+      expect(await createVault(dir, cipher, platform, log).save(USER, token())).toBe(false)
       expect(listed()).toEqual([])
       expect(writeFileSync).not.toHaveBeenCalled()
       expect(log.mock.calls).toEqual([[LINUX_PLAIN]])
     }
     reset()
     const secret = token()
-    expect(linux().vault.save(USER, secret)).toBe(true)
+    expect(await linux().vault.save(USER, secret)).toBe(true)
     expect(listed()).toEqual(['profile.json', 'session.txt'])
     expect(readFileSync(file('session.txt'), 'utf8')).toBe(secret)
   })
 
-  it('off Linux, removes a copied plain token on savedMode, readToken and save only', () => {
+  it('off Linux, removes a copied plain token on savedMode, readToken and save only', async () => {
     const { cipher } = fakeCipher()
     const storage = vi.spyOn(cipher, 'storage')
     const log = vi.fn()
@@ -188,14 +189,14 @@ describe.skipIf(process.platform === 'win32')('Linux-only plain fallback', () =>
     expect(vault.savedMode()).toBeNull()
     expect(listed()).toEqual([])
     copy()
-    expect(refusal(() => vault.readToken(USER.id))).toBe('the saved sign-in is missing')
+    expect(await refusal(() => vault.readToken(USER.id))).toBe('the saved sign-in is missing')
     expect(listed()).toEqual([])
     expect(storage).not.toHaveBeenCalled()
     copy()
     expect(vault.readProfile()).toBeNull()
     expect(listed()).toEqual(['session.txt'])
     expect(log.mock.calls).toEqual([[LINUX_PLAIN], [LINUX_PLAIN]])
-    expect(vault.save(USER, token())).toBe(true)
+    expect(await vault.save(USER, token())).toBe(true)
     expect(listed()).toEqual(['profile.json', 'session.bin'])
     expect(log.mock.calls).toEqual([[LINUX_PLAIN], [LINUX_PLAIN], [LINUX_PLAIN]])
     copy()
@@ -204,7 +205,7 @@ describe.skipIf(process.platform === 'win32')('Linux-only plain fallback', () =>
     expect(log).toHaveBeenCalledTimes(3)
   })
 
-  it('on Linux, savedMode prefers a plain file by lstat alone, never asking the cipher', () => {
+  it('on Linux, savedMode prefers a plain file by lstat alone, never asking the cipher', async () => {
     const { vault, cipher } = linux({ ok: true, kind: 'gnome_libsecret' })
     const storage = vi.spyOn(cipher, 'storage')
     const decrypt = vi.spyOn(cipher, 'decrypt')
@@ -218,24 +219,27 @@ describe.skipIf(process.platform === 'win32')('Linux-only plain fallback', () =>
     expect(openSync).not.toHaveBeenCalled()
   })
 
-  it('reports unavailable storage before opening or reading either token', () => {
+  it('reports unavailable storage before opening the plain token or decrypting the other', async () => {
     seedPlain(token())
     writeFileSync(file('session.bin'), encryptedFor(USER.id, token()))
     clearFs()
-    const { vault } = linux({ ok: false, reason: 'the system keyring is unavailable' })
-    expect(refusal(() => vault.readToken(USER.id))).toBe('the system keyring is unavailable')
+    const { vault, state } = linux({ ok: false, reason: 'the system keyring is unavailable' })
+    expect(await refusal(() => vault.readToken(USER.id))).toBe('the system keyring is unavailable')
     expect(listed()).toEqual(['profile.json', 'session.bin', 'session.txt'])
     expect(openSync).not.toHaveBeenCalled()
-    expect(readFileSync).not.toHaveBeenCalled()
+    // The encrypted bytes are read before the storage check, so a sign-out can
+    // delete the files straight after asking; they are never decrypted here.
+    expect(vi.mocked(readFileSync).mock.calls.map(([path]) => path)).toEqual([file('session.bin')])
+    expect(state.decrypts).toBe(0)
     expect(rmSync).not.toHaveBeenCalled()
   })
 })
 
 describe.skipIf(process.platform === 'win32')('plain token descriptor checks', () => {
-  it('opens once, read-only, no-follow and non-blocking, and reads only that descriptor', () => {
+  it('opens once, read-only, no-follow and non-blocking, and reads only that descriptor', async () => {
     const secret = token()
     seedPlain(secret)
-    expect(linux().vault.readToken(USER.id)).toBe(secret)
+    expect(await linux().vault.readToken(USER.id)).toBe(secret)
     expect(vi.mocked(openSync).mock.calls).toEqual([
       [file('session.txt'), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK],
     ])
@@ -248,18 +252,21 @@ describe.skipIf(process.platform === 'win32')('plain token descriptor checks', (
     expect(vi.mocked(readFileSync).mock.calls.map(([path]) => path)).toEqual([file('profile.json')])
   })
 
-  it.each([0o600, 0o400, 0o700])('accepts a plain token only its owner can reach (%o)', (mode) => {
-    const secret = token()
-    seedPlain(secret, mode)
-    expect(linux().vault.readToken(USER.id)).toBe(secret)
-  })
+  it.each([0o600, 0o400, 0o700])(
+    'accepts a plain token only its owner can reach (%o)',
+    async (mode) => {
+      const secret = token()
+      seedPlain(secret, mode)
+      expect(await linux().vault.readToken(USER.id)).toBe(secret)
+    },
+  )
 
   it.each([0o640, 0o604, 0o660, 0o620, 0o602, 0o610, 0o601])(
     'refuses any group or other bit (%o) before reading, and removes the file',
-    (mode) => {
+    async (mode) => {
       seedPlain(token(), mode)
       const { vault, log } = linux()
-      expect(refusal(() => vault.readToken(USER.id))).toBe(
+      expect(await refusal(() => vault.readToken(USER.id))).toBe(
         'the saved sign-in file could not be read',
       )
       expect(readSync).not.toHaveBeenCalled()
@@ -269,11 +276,11 @@ describe.skipIf(process.platform === 'win32')('plain token descriptor checks', (
     },
   )
 
-  it('refuses an unknown or different owner before reading', () => {
+  it('refuses an unknown or different owner before reading', async () => {
     for (const uid of [() => undefined, () => (owner ?? 0) + 1]) {
       seedPlain(token())
       const { vault, log } = linux({ ok: true, kind: 'file' }, uid)
-      expect(refusal(() => vault.readToken(USER.id))).toBe(
+      expect(await refusal(() => vault.readToken(USER.id))).toBe(
         'the saved sign-in file could not be read',
       )
       expect(fstatSync).toHaveBeenCalledOnce()
@@ -283,7 +290,7 @@ describe.skipIf(process.platform === 'win32')('plain token descriptor checks', (
     }
   })
 
-  it('refuses a link without following it, and a directory, removing either', () => {
+  it('refuses a link without following it, and a directory, removing either', async () => {
     const secret = token()
     seedPlain(secret)
     real.rmSync(file('session.txt'))
@@ -291,7 +298,9 @@ describe.skipIf(process.platform === 'win32')('plain token descriptor checks', (
     symlinkSync(join(root, 'target'), file('session.txt'))
     clearFs()
     let { vault, log } = linux()
-    expect(refusal(() => vault.readToken(USER.id))).toBe('the saved sign-in file could not be read')
+    expect(await refusal(() => vault.readToken(USER.id))).toBe(
+      'the saved sign-in file could not be read',
+    )
     expect(fstatSync).not.toHaveBeenCalled()
     expect(readSync).not.toHaveBeenCalled()
     expect(listed()).toEqual(['profile.json'])
@@ -301,7 +310,9 @@ describe.skipIf(process.platform === 'win32')('plain token descriptor checks', (
     mkdirSync(file('session.txt'))
     clearFs()
     ;({ vault, log } = linux())
-    expect(refusal(() => vault.readToken(USER.id))).toBe('the saved sign-in file could not be read')
+    expect(await refusal(() => vault.readToken(USER.id))).toBe(
+      'the saved sign-in file could not be read',
+    )
     expect(readSync).not.toHaveBeenCalled()
     expect(vi.mocked(rmdirSync).mock.calls).toEqual([[file('session.txt')]])
     expect(listed()).toEqual(['profile.json'])
@@ -309,20 +320,22 @@ describe.skipIf(process.platform === 'win32')('plain token descriptor checks', (
     expect(closeSync).toHaveBeenCalledOnce()
   })
 
-  it('accepts exactly 4096 bytes and refuses one more before reading', () => {
+  it('accepts exactly 4096 bytes and refuses one more before reading', async () => {
     const boundary = 'a'.repeat(4096)
     seedPlain(boundary)
-    expect(linux().vault.readToken(USER.id)).toBe(boundary)
+    expect(await linux().vault.readToken(USER.id)).toBe(boundary)
     reset()
     seedPlain('a'.repeat(4097))
     const { vault, log } = linux()
-    expect(refusal(() => vault.readToken(USER.id))).toBe('the saved sign-in file could not be read')
+    expect(await refusal(() => vault.readToken(USER.id))).toBe(
+      'the saved sign-in file could not be read',
+    )
     expect(readSync).not.toHaveBeenCalled()
     expect(listed()).toEqual(['profile.json'])
     expect(log.mock.calls).toEqual([[UNSAFE_REMOVED]])
   })
 
-  it('reads at most 4097 bytes from a descriptor that grew after fstat, and refuses it', () => {
+  it('reads at most 4097 bytes from a descriptor that grew after fstat, and refuses it', async () => {
     seedPlain('a'.repeat(5000))
     vi.mocked(fstatSync).mockImplementationOnce((fd) => {
       const stat = real.fstatSync(fd)
@@ -330,30 +343,34 @@ describe.skipIf(process.platform === 'win32')('plain token descriptor checks', (
       return stat
     })
     const { vault, log } = linux()
-    expect(refusal(() => vault.readToken(USER.id))).toBe('the saved sign-in file could not be read')
+    expect(await refusal(() => vault.readToken(USER.id))).toBe(
+      'the saved sign-in file could not be read',
+    )
     const yielded = vi.mocked(readSync).mock.results.map(({ value }) => value as number)
     expect(yielded.reduce((sum, count) => sum + count, 0)).toBe(4097)
     expect(listed()).toEqual(['profile.json'])
     expect(log.mock.calls).toEqual([[UNSAFE_REMOVED]])
   })
 
-  it('measures the decoded token: 4096 bytes that are not UTF-8 are refused', () => {
+  it('measures the decoded token: 4096 bytes that are not UTF-8 are refused', async () => {
     seedPlain(Buffer.alloc(4096, 0xff))
     const { vault, log } = linux()
-    expect(refusal(() => vault.readToken(USER.id))).toBe('the saved sign-in file could not be read')
+    expect(await refusal(() => vault.readToken(USER.id))).toBe(
+      'the saved sign-in file could not be read',
+    )
     expect(readSync).toHaveBeenCalled()
     expect(listed()).toEqual(['profile.json'])
     expect(log.mock.calls).toEqual([[UNSAFE_REMOVED]])
   })
 
-  it('binds the plain token to the saved profile, after reading it', () => {
+  it('binds the plain token to the saved profile, after reading it', async () => {
     const profiles = [null, '{', JSON.stringify({ v: 1, user: { ...USER, id: 'someone-else' } })]
     for (const profile of profiles) {
       seedPlain(token())
       if (profile === null) real.rmSync(file('profile.json'))
       else real.writeFileSync(file('profile.json'), profile)
       const { vault, log } = linux()
-      expect(refusal(() => vault.readToken(USER.id))).toBe(
+      expect(await refusal(() => vault.readToken(USER.id))).toBe(
         'the saved sign-in file could not be read',
       )
       expect(readSync).toHaveBeenCalled()
@@ -363,7 +380,7 @@ describe.skipIf(process.platform === 'win32')('plain token descriptor checks', (
     }
     seedPlain(token())
     const { vault } = linux()
-    expect(refusal(() => vault.readToken('someone-else'))).toBe(
+    expect(await refusal(() => vault.readToken('someone-else'))).toBe(
       'the saved sign-in file could not be read',
     )
     expect(listed()).toEqual(['profile.json'])
@@ -371,13 +388,13 @@ describe.skipIf(process.platform === 'win32')('plain token descriptor checks', (
 })
 
 describe.skipIf(process.platform === 'win32')('encrypted preference and no downgrade', () => {
-  it('on Linux, a readable encrypted token wins over a plain one, which is removed', () => {
+  it('on Linux, a readable encrypted token wins over a plain one, which is removed', async () => {
     for (const kind of ['gnome_libsecret', 'file']) {
       const secret = token()
       seedPlain(token())
       seed({ 'session.bin': encryptedFor(USER.id, secret) })
       const { vault, state, log } = linux({ ok: true, kind })
-      expect(vault.readToken(USER.id)).toBe(secret)
+      expect(await vault.readToken(USER.id)).toBe(secret)
       expect(listed()).toEqual(['profile.json', 'session.bin'])
       expect(state.decrypts).toBe(1)
       expect(openSync).not.toHaveBeenCalled()
@@ -386,7 +403,7 @@ describe.skipIf(process.platform === 'win32')('encrypted preference and no downg
     }
   })
 
-  it('with a keyring, an unreadable, foreign or damaged encrypted token is an error', () => {
+  it('with a keyring, an unreadable, foreign or damaged encrypted token is an error', async () => {
     const cases = [
       [Buffer.from('junk'), 'the saved sign-in could not be decrypted'],
       [encryptedFor('someone-else', token()), 'the saved sign-in belongs to someone else'],
@@ -396,7 +413,7 @@ describe.skipIf(process.platform === 'win32')('encrypted preference and no downg
       seedPlain(token())
       seed({ 'session.bin': encrypted })
       const { vault, log } = linux({ ok: true, kind: 'kwallet6' })
-      expect(refusal(() => vault.readToken(USER.id))).toBe(message)
+      expect(await refusal(() => vault.readToken(USER.id))).toBe(message)
       expect(listed()).toEqual(['profile.json', 'session.bin', 'session.txt'])
       expect(openSync).not.toHaveBeenCalled()
       expect(rmSync).not.toHaveBeenCalled()
@@ -405,7 +422,7 @@ describe.skipIf(process.platform === 'win32')('encrypted preference and no downg
     }
   })
 
-  it('without a keyring, a dead or foreign encrypted token is removed and the plain one read', () => {
+  it('without a keyring, a dead or foreign encrypted token is removed and the plain one read', async () => {
     const dead = [
       Buffer.from('junk'),
       encryptedFor('someone-else', token()),
@@ -416,23 +433,23 @@ describe.skipIf(process.platform === 'win32')('encrypted preference and no downg
       seedPlain(plain)
       seed({ 'session.bin': encrypted })
       const { vault, log } = linux()
-      expect(vault.readToken(USER.id)).toBe(plain)
+      expect(await vault.readToken(USER.id)).toBe(plain)
       expect(listed()).toEqual(['profile.json', 'session.txt'])
       expect(log.mock.calls).toEqual([[DEAD_ENCRYPTED]])
       reset()
     }
     seed({ 'profile.json': PROFILE, 'session.bin': 'junk' })
     const { vault, log } = linux()
-    expect(refusal(() => vault.readToken(USER.id))).toBe('the saved sign-in is missing')
+    expect(await refusal(() => vault.readToken(USER.id))).toBe('the saved sign-in is missing')
     expect(listed()).toEqual(['profile.json'])
     expect(log.mock.calls).toEqual([[DEAD_ENCRYPTED]])
   })
 
-  it('refuses to replace a readable encrypted token with a plain file, changing nothing', () => {
+  it('refuses to replace a readable encrypted token with a plain file, changing nothing', async () => {
     const encrypted = encryptedFor(USER.id, token())
     seed({ 'profile.json': PROFILE, 'session.bin': encrypted })
     const { vault, log } = linux()
-    expect(refusal(() => vault.save(USER, token()))).toBe(
+    expect(await refusal(() => vault.save(USER, token()))).toBe(
       'refused to replace a readable encrypted sign-in with a file',
     )
     expect(listed()).toEqual(['profile.json', 'session.bin'])
@@ -442,12 +459,12 @@ describe.skipIf(process.platform === 'win32')('encrypted preference and no downg
     expect(log).not.toHaveBeenCalled()
   })
 
-  it('replaces a foreign or dead encrypted token with the plain file, saying so', () => {
+  it('replaces a foreign or dead encrypted token with the plain file, saying so', async () => {
     for (const encrypted of [encryptedFor('someone-else', token()), Buffer.from('junk')]) {
       seed({ 'session.bin': encrypted })
       const secret = token()
       const { vault, log } = linux()
-      expect(vault.save(USER, secret)).toBe(true)
+      expect(await vault.save(USER, secret)).toBe(true)
       expect(listed()).toEqual(['profile.json', 'session.txt'])
       expect(readFileSync(file('session.txt'), 'utf8')).toBe(secret)
       expect(log.mock.calls).toEqual([[DEAD_ENCRYPTED]])
@@ -455,23 +472,25 @@ describe.skipIf(process.platform === 'win32')('encrypted preference and no downg
     }
   })
 
-  it('checks the plain token size, in UTF-8 bytes, before any file changes', () => {
+  it('checks the plain token size, in UTF-8 bytes, before any file changes', async () => {
     seed({ 'profile.json': PROFILE, 'session.bin': encryptedFor(USER.id, token()) })
     const { vault } = linux()
     for (const bad of ['', 'é'.repeat(2049)]) {
-      expect(refusal(() => vault.save(USER, bad))).toBe('the sign-in token is too large or empty')
+      expect(await refusal(() => vault.save(USER, bad))).toBe(
+        'the sign-in token is too large or empty',
+      )
       expect(writeFileSync).not.toHaveBeenCalled()
       expect(rmSync).not.toHaveBeenCalled()
     }
     real.rmSync(file('session.bin'))
     const boundary = 'é'.repeat(2048)
-    expect(vault.save(USER, boundary)).toBe(true)
-    expect(vault.readToken(USER.id)).toBe(boundary)
+    expect(await vault.save(USER, boundary)).toBe(true)
+    expect(await vault.readToken(USER.id)).toBe(boundary)
   })
 
-  it('writes the credential before the profile, and drops the other credential between', () => {
+  it('writes the credential before the profile, and drops the other credential between', async () => {
     seedPlain(token())
-    linux({ ok: true, kind: 'gnome_libsecret' }).vault.save(USER, token())
+    await linux({ ok: true, kind: 'gnome_libsecret' }).vault.save(USER, token())
     expect(fileEvents()).toEqual([
       'write session.bin.tmp',
       'rename session.bin.tmp session.bin',
@@ -493,7 +512,7 @@ describe.skipIf(process.platform === 'win32')('encrypted preference and no downg
     ])
     reset()
     seed({ 'session.bin': 'junk' })
-    linux().vault.save(USER, token())
+    await linux().vault.save(USER, token())
     expect(fileEvents()).toEqual([
       'rm session.bin',
       'write session.txt.tmp',
@@ -512,7 +531,7 @@ describe.skipIf(process.platform === 'win32')('cleanup errors and credential-fir
     'avatar.json': 'x',
   }
 
-  it('clears the credentials first, then the profile and the avatar, forcing each', () => {
+  it('clears the credentials first, then the profile and the avatar, forcing each', async () => {
     seed(everything)
     linux().vault.clear()
     expect(vi.mocked(rmSync).mock.calls).toEqual(
@@ -524,10 +543,10 @@ describe.skipIf(process.platform === 'win32')('cleanup errors and credential-fir
     expect(listed()).toEqual([])
   })
 
-  it('tries every file and reports each that would not go, by code', () => {
+  it('tries every file and reports each that would not go, by code', async () => {
     seed(everything)
     failRm({ 'session.bin': 'EACCES', 'profile.json': undefined })
-    const error = thrown(() => linux().vault.clear())
+    const error = await thrown(() => linux().vault.clear())
     expect(error).not.toBeInstanceOf(VaultUnreadable)
     expect((error as Error).message).toBe(
       'could not delete session.bin (EACCES) and profile.json (error)',
@@ -536,18 +555,18 @@ describe.skipIf(process.platform === 'win32')('cleanup errors and credential-fir
     expect(listed()).toEqual(['profile.json', 'session.bin'])
   })
 
-  it('a save without storage clears, and throws when the clear fails', () => {
+  it('a save without storage clears, and throws when the clear fails', async () => {
     seed(everything)
     failRm({ 'session.txt': 'EPERM' })
     const { vault } = linux({ ok: false, reason: 'no keyring' })
-    expect((thrown(() => vault.save(USER, token())) as Error).message).toBe(
+    expect(((await thrown(() => vault.save(USER, token()))) as Error).message).toBe(
       'could not delete session.txt (EPERM)',
     )
     expect(listed()).toEqual(['session.txt'])
     expect(writeFileSync).not.toHaveBeenCalled()
   })
 
-  it('a failed write removes its temp file, keeps the old credential and writes no profile', () => {
+  it('a failed write removes its temp file, keeps the old credential and writes no profile', async () => {
     const old = token()
     for (const fail of ['rename', 'write'] as const) {
       seedPlain(old)
@@ -556,7 +575,7 @@ describe.skipIf(process.platform === 'win32')('cleanup errors and credential-fir
         throw fsError('EXDEV')
       })
       const { vault } = linux({ ok: true, kind: 'gnome_libsecret' })
-      expect(thrown(() => vault.save({ ...USER, name: 'New' }, token()))).toMatchObject({
+      expect(await thrown(() => vault.save({ ...USER, name: 'New' }, token()))).toMatchObject({
         code: 'EXDEV',
       })
       expect(listed()).toEqual(['profile.json', 'session.txt'])
@@ -568,11 +587,11 @@ describe.skipIf(process.platform === 'win32')('cleanup errors and credential-fir
     }
   })
 
-  it('reports a refused plain file that will not go, and still closes its descriptor', () => {
+  it('reports a refused plain file that will not go, and still closes its descriptor', async () => {
     seedPlain(token(), 0o644)
     failRm({ 'session.txt': 'EBUSY' })
     const { vault, log } = linux()
-    expect(refusal(() => vault.readToken(USER.id))).toBe(
+    expect(await refusal(() => vault.readToken(USER.id))).toBe(
       'the unsafe sign-in file could not be removed',
     )
     expect(vi.mocked(rmdirSync).mock.calls).toEqual([[file('session.txt')]])
@@ -581,11 +600,11 @@ describe.skipIf(process.platform === 'win32')('cleanup errors and credential-fir
     expect(listed()).toEqual(['profile.json', 'session.txt'])
   })
 
-  it('surfaces the file error when cleanup beside an encrypted token fails', () => {
+  it('surfaces the file error when cleanup beside an encrypted token fails', async () => {
     seedPlain(token())
     seed({ 'session.bin': encryptedFor(USER.id, token()) })
     failRm({ 'session.txt': 'EBUSY' })
-    expect(thrown(() => linux().vault.readToken(USER.id))).toMatchObject({ code: 'EBUSY' })
+    expect(await thrown(() => linux().vault.readToken(USER.id))).toMatchObject({ code: 'EBUSY' })
     expect(listed()).toEqual(['profile.json', 'session.bin', 'session.txt'])
     reset()
 
@@ -593,7 +612,7 @@ describe.skipIf(process.platform === 'win32')('cleanup errors and credential-fir
     seed({ 'session.bin': 'junk' })
     failRm({ 'session.bin': 'EACCES' })
     let { vault, log } = linux()
-    expect(thrown(() => vault.readToken(USER.id))).toMatchObject({ code: 'EACCES' })
+    expect(await thrown(() => vault.readToken(USER.id))).toMatchObject({ code: 'EACCES' })
     expect(openSync).not.toHaveBeenCalled()
     expect(log).not.toHaveBeenCalled()
     reset()
@@ -601,7 +620,7 @@ describe.skipIf(process.platform === 'win32')('cleanup errors and credential-fir
     seed({ 'session.bin': 'junk' })
     failRm({ 'session.bin': 'EACCES' })
     ;({ vault, log } = linux())
-    expect(thrown(() => vault.save(USER, token()))).toMatchObject({ code: 'EACCES' })
+    expect(await thrown(() => vault.save(USER, token()))).toMatchObject({ code: 'EACCES' })
     expect(writeFileSync).not.toHaveBeenCalled()
     expect(log).not.toHaveBeenCalled()
     expect(listed()).toEqual(['session.bin'])

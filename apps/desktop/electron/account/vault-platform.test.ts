@@ -3,7 +3,7 @@ import { fstatSync, lstatSync, readFileSync, readSync, rmSync, writeFileSync } f
 import type * as FileSystem from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { createVault, safeStorageCipher } from './vault'
-import { fakeCipher, USER } from './__fixtures__/fakes'
+import { fakeCipher, fakeSeal, USER } from './__fixtures__/fakes'
 
 // These boundary tests use no filesystem, even on Windows.
 vi.mock('node:fs', async (original) => ({
@@ -52,7 +52,7 @@ function descriptor(regular: boolean) {
 }
 
 describe('platform storage boundary', () => {
-  it('never selects or writes a plain file off Linux, even with basic_text or no backend', () => {
+  it('never selects or writes a plain file off Linux, even with basic_text or no backend', async () => {
     const token = randomBytes(32).toString('base64url')
     for (const platform of ['darwin', 'win32'] as const) {
       for (const available of [false, true]) {
@@ -60,16 +60,19 @@ describe('platform storage boundary', () => {
           vi.mocked(writeFileSync).mockClear()
           const cipher = safeStorageCipher(
             {
-              isEncryptionAvailable: () => available,
+              isAsyncEncryptionAvailable: async () => available,
               getSelectedStorageBackend: () => backend,
-              encryptString: (text) => Buffer.from(text),
-              decryptString: (data) => data.toString(),
+              encryptStringAsync: async (text) => Buffer.from(text),
+              decryptStringAsync: async (data) => ({
+                result: data.toString(),
+                shouldReEncrypt: false,
+              }),
             },
             platform,
           )
-          const storage = cipher.storage()
+          const storage = await cipher.storage()
           expect(storage.ok && storage.kind === 'file').toBe(false)
-          expect(createVault('unused', cipher, platform).save(USER, token)).toBe(available)
+          expect(await createVault('unused', cipher, platform).save(USER, token)).toBe(available)
           const paths = vi.mocked(writeFileSync).mock.calls.map(([path]) => String(path))
           expect(paths.every((path) => !path.includes('session.txt'))).toBe(true)
           expect(paths.length).toBe(available ? 2 : 0)
@@ -79,7 +82,7 @@ describe('platform storage boundary', () => {
   })
   it.each(['darwin', 'win32'] as const)(
     'refuses a file-mode cipher on %s: saves nothing and clears every file',
-    (platform) => {
+    async (platform) => {
       vi.mocked(lstatSync)
         .mockReset()
         .mockImplementation(() => {
@@ -88,7 +91,7 @@ describe('platform storage boundary', () => {
       vi.mocked(writeFileSync).mockClear()
       vi.mocked(rmSync).mockClear()
       const vault = createVault('unused', fakeCipher({ ok: true, kind: 'file' }).cipher, platform)
-      expect(vault.save(USER, randomBytes(32).toString('base64url'))).toBe(false)
+      expect(await vault.save(USER, randomBytes(32).toString('base64url'))).toBe(false)
       expect(writeFileSync).not.toHaveBeenCalled()
       const removed = vi.mocked(rmSync).mock.calls.map(([path]) => String(path))
       expect(removed.some((path) => path.endsWith('session.txt'))).toBe(true)
@@ -97,19 +100,17 @@ describe('platform storage boundary', () => {
   )
   it.each(['darwin', 'win32'] as const)(
     'ignores and removes copied plain tokens on %s, preserving encrypted tokens',
-    (platform) => {
+    async (platform) => {
       const { cipher } = fakeCipher()
       const secret = randomBytes(32).toString('base64url')
-      const encrypted = cipher.encrypt(
-        JSON.stringify({ v: 1, userId: USER.id, refreshToken: secret }),
-      )
+      const encrypted = fakeSeal(JSON.stringify({ v: 1, userId: USER.id, refreshToken: secret }))
       vi.mocked(lstatSync).mockReset().mockReturnValue(descriptor(true))
       vi.mocked(readFileSync).mockReset().mockReturnValue(Buffer.from(encrypted))
       vi.mocked(rmSync).mockClear()
       const log = vi.fn()
       const vault = createVault('unused', cipher, platform, log)
       expect(vault.savedMode()).toBe('keyring')
-      expect(vault.readToken(USER.id)).toBe(secret)
+      expect(await vault.readToken(USER.id)).toBe(secret)
       expect(
         vi.mocked(readFileSync).mock.calls.every(([path]) => String(path).endsWith('session.bin')),
       ).toBe(true)
@@ -128,11 +129,11 @@ describe('platform storage boundary', () => {
       })
       vi.mocked(readSync).mockClear()
       expect(vault.savedMode()).toBeNull()
-      expect(() => vault.readToken(USER.id)).toThrow(/missing/)
+      await expect(vault.readToken(USER.id)).rejects.toThrow(/missing/)
       expect(readSync).not.toHaveBeenCalled()
     },
   )
-  it('refuses missing uid and non-regular descriptors before reading any content', () => {
+  it('refuses missing uid and non-regular descriptors before reading any content', async () => {
     for (const missingUid of [false, true]) {
       const stat = descriptor(missingUid)
       vi.mocked(lstatSync).mockImplementation((path) => {
@@ -148,7 +149,7 @@ describe('platform storage boundary', () => {
         () => {},
         () => (missingUid ? undefined : 0),
       )
-      expect(() => vault.readToken(USER.id)).toThrow(/could not be read/)
+      await expect(vault.readToken(USER.id)).rejects.toThrow(/could not be read/)
       expect(readSync).not.toHaveBeenCalled()
     }
   })

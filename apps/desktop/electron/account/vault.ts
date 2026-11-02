@@ -21,36 +21,52 @@ export { VaultUnreadable, type Cipher, type Storage } from './vault-token'
  */
 
 export interface Vault {
+  /**
+   * What the last keychain check found, without starting another one: the
+   * view is built synchronously and must never wait on a Keychain prompt.
+   */
   storage(): Storage
   /** Never touches the keychain. On Linux, plain storage wins when both files exist. */
   savedMode(): 'keyring' | 'file' | null
   readProfile(): AccountUser | null
-  /** Throws VaultUnreadable when the token is missing, foreign or unreadable. */
-  readToken(userId: string): string
-  /** False when storage is disabled: nothing is written then. */
-  save(user: AccountUser, refreshToken: string): boolean
+  /**
+   * Rejects with VaultUnreadable when the token is missing, foreign or
+   * unreadable. Reads the files before it first yields, so the caller may
+   * clear the vault straight after calling.
+   */
+  readToken(userId: string): Promise<string>
+  /**
+   * False when storage is disabled, or when `current()` is false once the
+   * keychain answers: nothing is written then.
+   */
+  save(user: AccountUser, refreshToken: string, current?: () => boolean): Promise<boolean>
   /** Throws, after trying every file, when any could not be deleted. */
   clear(): void
 }
 
 /** Electron's safeStorage, structurally, so this file never imports electron. */
 export interface SafeStorageLike {
-  isEncryptionAvailable(): boolean
+  isAsyncEncryptionAvailable(): Promise<boolean>
   getSelectedStorageBackend?(): string
-  encryptString(text: string): Buffer
-  decryptString(data: Buffer): string
+  encryptStringAsync(text: string): Promise<Buffer>
+  decryptStringAsync(data: Buffer): Promise<{ result: string; shouldReEncrypt: boolean }>
 }
 
 /**
  * On Linux, safeStorage "encrypts" with a hard-coded key when no keyring is
  * running (backend basic_text), so availability alone is not enough there.
+ *
+ * Only the async API: it never blocks the main process, even while macOS
+ * shows a Keychain prompt, and it reads tokens the sync API wrote. Electron 46
+ * removes the sync API. `shouldReEncrypt` is ignored: every refresh saves a
+ * newly encrypted token anyway.
  */
 export function safeStorageCipher(api: SafeStorageLike, platform: NodeJS.Platform): Cipher {
+  const available = (): Promise<boolean> => api.isAsyncEncryptionAvailable().catch(() => false)
   return {
-    storage() {
+    async storage() {
       if (platform !== 'linux') {
-        if (!api.isEncryptionAvailable())
-          return { ok: false, reason: 'no secure storage is available' }
+        if (!(await available())) return { ok: false, reason: 'no secure storage is available' }
         return { ok: true, kind: platform === 'darwin' ? 'keychain' : 'dpapi' }
       }
       const backend = api.getSelectedStorageBackend?.() ?? 'unknown'
@@ -58,12 +74,11 @@ export function safeStorageCipher(api: SafeStorageLike, platform: NodeJS.Platfor
       if (backend === 'basic_text') return { ok: true, kind: 'file' }
       const keyring = ['gnome_libsecret', 'kwallet', 'kwallet5', 'kwallet6'].includes(backend)
       if (!keyring) return { ok: false, reason: 'the system keyring could not be identified' }
-      if (!api.isEncryptionAvailable())
-        return { ok: false, reason: 'the system keyring is unavailable' }
+      if (!(await available())) return { ok: false, reason: 'the system keyring is unavailable' }
       return { ok: true, kind: backend }
     },
-    encrypt: (text) => api.encryptString(text),
-    decrypt: (data) => api.decryptString(data),
+    encrypt: (text) => api.encryptStringAsync(text),
+    decrypt: async (data) => (await api.decryptStringAsync(data)).result,
   }
 }
 
@@ -75,13 +90,21 @@ export function createVault(
   log: (message: string) => void = () => {},
   uid: () => number | undefined = () => process.getuid?.(),
 ): Vault {
-  const context: VaultContext = { paths: vaultPaths(dir), cipher, platform, log, uid }
+  // Shown only for a sign-in that could not be remembered; a save that failed
+  // before its storage check still reads the way it always did.
+  let known: Storage = { ok: false, reason: 'the sign-in could not be saved' }
+  const checked: Cipher = {
+    storage: async () => (known = await cipher.storage()),
+    encrypt: (text) => cipher.encrypt(text),
+    decrypt: (data) => cipher.decrypt(data),
+  }
+  const context: VaultContext = { paths: vaultPaths(dir), cipher: checked, platform, log, uid }
   return {
-    storage: () => cipher.storage(),
+    storage: () => known,
     savedMode: () => savedTokenMode(context),
     readProfile: () => readVaultProfile(context),
     readToken: (userId) => readVaultToken(context, userId),
-    save: (user, refreshToken) => saveVaultToken(context, user, refreshToken),
+    save: (user, refreshToken, current) => saveVaultToken(context, user, refreshToken, current),
     clear: () => clearVaultFiles(context),
   }
 }

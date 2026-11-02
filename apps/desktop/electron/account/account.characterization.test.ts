@@ -3,7 +3,7 @@ import { createAccount, type AccountPorts, type AccountState } from './account'
 import { AuthUnavailable, type AuthSession, type GoTrue } from './gotrue'
 import type { CallbackListener } from './loopback'
 import type { Vault } from './vault'
-import { deferred, session, USER } from './__fixtures__/fakes'
+import { deferred, flush, session, USER } from './__fixtures__/fakes'
 
 const { listen } = vi.hoisted(() => ({ listen: vi.fn() }))
 vi.mock('./loopback', () => ({ listenForCallback: listen }))
@@ -28,8 +28,8 @@ function setup(overrides: Partial<AccountPorts> = {}) {
     storage: vi.fn<Vault['storage']>(() => ({ ok: true, kind: 'test' })),
     savedMode: vi.fn<Vault['savedMode']>(() => 'keyring'),
     readProfile: vi.fn<Vault['readProfile']>(() => USER),
-    readToken: vi.fn<Vault['readToken']>(() => 'refresh-0'),
-    save: vi.fn<Vault['save']>(() => true),
+    readToken: vi.fn<Vault['readToken']>(async () => 'refresh-0'),
+    save: vi.fn<Vault['save']>(async () => true),
     clear: vi.fn<Vault['clear']>(),
   }
   const onChange = vi.fn<AccountPorts['onChange']>()
@@ -95,10 +95,12 @@ describe('account lifecycle characterization through createAccount', () => {
     auth.refresh.mockReturnValueOnce(refreshed.promise)
     account.load()
     const tokens = [account.accessToken(), account.accessToken(), account.accessToken()]
+    // The saved token is decrypted asynchronously (a Keychain prompt never blocks main).
+    await flush()
     expect(auth.refresh.mock.calls).toEqual([['refresh-0']])
     refreshed.resolve(session(2))
     expect(await Promise.all(tokens)).toEqual(['access-2', 'access-2', 'access-2'])
-    expect(vault.save.mock.calls).toEqual([[USER, 'refresh-2']])
+    expect(vault.save.mock.calls).toEqual([[USER, 'refresh-2', expect.any(Function)]])
     expect(account.state()).toEqual({ status: 'signed-in', user: USER, remembered: true })
   })
 
@@ -165,6 +167,7 @@ describe('account lifecycle characterization through createAccount', () => {
     auth.revoke.mockReturnValueOnce(revoked.promise)
     account.load()
     const token = account.accessToken()
+    await flush() // until the refresh reaches Supabase
     await account.signOut()
     const drain = account.settled(2_000)
     expect(await account.settled(5)).toBe(false)

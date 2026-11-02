@@ -12,14 +12,36 @@ export function session(tag: string | number, expiresAt = Date.now() + 3_600_000
   return { accessToken: `access-${tag}`, refreshToken: `refresh-${tag}`, expiresAt, user: USER }
 }
 
-/** Reversible, visibly not plaintext, and counts decrypts (keychain reads). */
+/** Encrypts like fakeCipher, synchronously: for tests that build sealed files by hand. */
+export const fakeSeal = (text: string): Buffer =>
+  Buffer.from(`enc:${Buffer.from(text).toString('base64')}`)
+
+/**
+ * Reversible, visibly not plaintext, and counts decrypts (keychain reads).
+ * Async like safeStorage's async API; set `gate` to hold every keychain call
+ * until the test resolves it, the way an unanswered Keychain prompt does.
+ */
 export function fakeCipher(storage: Storage = { ok: true, kind: 'test' }) {
-  const state = { storage, decrypts: 0 }
+  const state: { storage: Storage; decrypts: number; gate: Promise<void> | null } = {
+    storage,
+    decrypts: 0,
+    gate: null,
+  }
+  const wait = async (): Promise<void> => {
+    if (state.gate) await state.gate
+  }
   const cipher: Cipher = {
-    storage: () => state.storage,
-    encrypt: (text) => Buffer.from(`enc:${Buffer.from(text).toString('base64')}`),
-    decrypt: (data) => {
+    storage: async () => {
+      await wait()
+      return state.storage
+    },
+    encrypt: async (text) => {
+      await wait()
+      return fakeSeal(text)
+    },
+    decrypt: async (data) => {
       state.decrypts++
+      await wait()
       const raw = data.toString()
       if (!raw.startsWith('enc:')) throw new Error('not ours')
       return Buffer.from(raw.slice(4), 'base64').toString()
@@ -27,6 +49,9 @@ export function fakeCipher(storage: Storage = { ok: true, kind: 'test' }) {
   }
   return { cipher, state }
 }
+
+/** Lets queued promise callbacks run, the way the event loop does between ticks. */
+export const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
 export interface Deferred<T> {
   promise: Promise<T>
