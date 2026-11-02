@@ -1,12 +1,21 @@
 import type { PiPackageEntry } from '@shared/models'
 import { formatShortcut } from '@/lib/shortcuts'
 import type { Platform } from '@/platform/Platform'
-import { MACHINE_SETTINGS_TABS } from '@/features/machines/machineSettingsTabs'
+import type { MachineSettingsTab } from '@/features/machines/MachineSettings'
 import type { SettingsTab } from './settingsUiStore'
 import { keybindingGroups } from './tabs/KeybindingsTab'
 
 /** A Platform flag a section or row needs. Never the form factor. */
 export type SettingsCapability = Exclude<keyof Platform, 'formFactor'>
+
+/** The kinds of machine Configure can choose. */
+export type MachineKind = 'local' | 'host'
+
+/** What the platform needs before it lists any of that kind of machine's sections. */
+const MACHINE_REQUIRES: Record<MachineKind, readonly SettingsCapability[]> = {
+  local: ['localLanes'],
+  host: ['machineSettings'],
+}
 
 /** One entry in the Settings section navigation. */
 export interface SettingsSection {
@@ -14,8 +23,11 @@ export interface SettingsSection {
   label: string
   /** Device sections configure this client; machine sections the machine chosen in Configure. */
   scope: 'device' | 'machine'
-  /** Machine sections only: This Mac's own tabs, or the Host machine settings. */
-  machine?: 'local' | 'host'
+  /** Machine sections: This Mac has this concern. */
+  local?: boolean
+  /** Machine sections: Hosts have this concern, under this Host settings section. */
+  host?: MachineSettingsTab
+  /** Device sections: the capabilities this platform needs to list it. */
   requires: readonly SettingsCapability[]
 }
 
@@ -24,13 +36,12 @@ const device = (
   label: string,
   requires: SettingsCapability[] = [],
 ): SettingsSection => ({ id, label, scope: 'device', requires })
-const thisMac = (id: SettingsTab, label: string): SettingsSection => ({
-  id,
-  label,
-  scope: 'machine',
-  machine: 'local',
-  requires: ['localLanes'],
-})
+/** One concern on every machine that has it: the same id, label and place for each. */
+const machineSection = (
+  id: SettingsTab,
+  label: string,
+  on: { local?: true; host?: MachineSettingsTab },
+): SettingsSection => ({ id, label, scope: 'machine', ...on, requires: [] })
 
 /** Every top-level section, device sections first, in navigation order. */
 export const TABS: SettingsSection[] = [
@@ -40,22 +51,21 @@ export const TABS: SettingsSection[] = [
   device('account', 'Phosphor account'),
   device('install', 'App installation', ['installableApp']),
   device('about', 'About'),
-  thisMac('agent', 'Agent'),
-  thisMac('accounts', 'Accounts'),
-  thisMac('extensions', 'Extensions'),
-  thisMac('connectors', 'MCP Connectors'),
-  thisMac('workspaces', 'Workspaces'),
-  thisMac('optimization', 'Optimization'),
-  thisMac('voice', 'Voice'),
-  thisMac('advanced', 'Advanced'),
-  ...MACHINE_SETTINGS_TABS.map<SettingsSection>(([key, label]) => ({
-    id: `host-${key}`,
-    label,
-    scope: 'machine',
-    machine: 'host',
-    requires: ['machineSettings'],
-  })),
+  machineSection('agent', 'Agent', { local: true, host: 'agent' }),
+  machineSection('accounts', 'Accounts', { local: true, host: 'providers' }),
+  machineSection('extensions', 'Extensions', { local: true, host: 'resources' }),
+  machineSection('connectors', 'MCP Connectors', { local: true, host: 'connectors' }),
+  machineSection('workspaces', 'Workspaces', { local: true }),
+  machineSection('folders', 'Folders', { host: 'folders' }),
+  machineSection('optimization', 'Optimization', { local: true }),
+  machineSection('voice', 'Voice', { local: true }),
+  machineSection('advanced', 'Advanced', { local: true, host: 'advanced' }),
 ]
+
+/** A Host's sections in navigation order, keyed by the Host's own section. */
+export const HOST_SECTIONS = TABS.flatMap((tab) =>
+  tab.host ? [{ key: tab.host, label: tab.label }] : [],
+)
 
 /**
  * Curated extensions contribute a tab only while their package is present.
@@ -65,11 +75,17 @@ export const TABS: SettingsSection[] = [
 export const EXTENSION_TABS: Array<
   SettingsSection & { packageMatch: string; requiresInstalled?: boolean }
 > = [
-  { ...thisMac('claude-provider', 'Claude Code'), packageMatch: 'pi-claude-cli' },
-  { ...thisMac('web-access', 'Web access'), packageMatch: 'pi-web-access' },
-  { ...thisMac('computer-use', 'Computer use'), packageMatch: '@injaneity/pi-computer-use' },
   {
-    ...thisMac('subagents', 'Subagents'),
+    ...machineSection('claude-provider', 'Claude Code', { local: true }),
+    packageMatch: 'pi-claude-cli',
+  },
+  { ...machineSection('web-access', 'Web access', { local: true }), packageMatch: 'pi-web-access' },
+  {
+    ...machineSection('computer-use', 'Computer use', { local: true }),
+    packageMatch: '@injaneity/pi-computer-use',
+  },
+  {
+    ...machineSection('subagents', 'Subagents', { local: true }),
     packageMatch: 'pi-subagents',
     requiresInstalled: true,
   },
@@ -85,11 +101,18 @@ export function installedExtensionTabs(entries: PiPackageEntry[]): typeof EXTENS
   )
 }
 
-export const tabLabel = (id: SettingsTab): string =>
-  [...TABS, ...EXTENSION_TABS].find((t) => t.id === id)?.label ?? id
+/** The section with this id, top-level or an extension tab. */
+export const findSection = (id: SettingsTab): SettingsSection | undefined =>
+  [...TABS, ...EXTENSION_TABS].find((t) => t.id === id)
+
+export const tabLabel = (id: SettingsTab): string => findSection(id)?.label ?? id
 
 export const supports = (platform: Platform, requires: readonly SettingsCapability[]): boolean =>
   requires.every((capability) => platform[capability])
+
+/** Whether this kind of machine has this section. */
+export const onMachine = (section: SettingsSection, kind: MachineKind): boolean =>
+  kind === 'local' ? section.local === true : section.host !== undefined
 
 /**
  * The top-level sections this platform lists for the chosen machine kind: every
@@ -97,39 +120,20 @@ export const supports = (platform: Platform, requires: readonly SettingsCapabili
  */
 export function visibleSections(
   platform: Platform,
-  machine: 'local' | 'host' | null,
+  machine: MachineKind | null,
 ): SettingsSection[] {
-  return TABS.filter(
-    (tab) =>
-      supports(platform, tab.requires) && (tab.scope === 'device' || tab.machine === machine),
+  return TABS.filter((tab) =>
+    tab.scope === 'device'
+      ? supports(platform, tab.requires)
+      : !!machine && onMachine(tab, machine) && supports(platform, MACHINE_REQUIRES[machine]),
   )
-}
-
-/** This Mac's machine tabs, including the extension tabs nested under Extensions. */
-export function isThisMacTab(id: SettingsTab): boolean {
-  return [...TABS, ...EXTENSION_TABS].some((t) => t.id === id && t.machine === 'local')
-}
-
-export function isHostTab(id: SettingsTab): boolean {
-  return TABS.some((t) => t.id === id && t.machine === 'host')
-}
-
-/** The same concern on the other kind of machine, so switching machines keeps your place. */
-const COUNTERPARTS: Array<[local: SettingsTab, host: SettingsTab]> = [
-  ['accounts', 'host-providers'],
-  ['agent', 'host-agent'],
-  ['connectors', 'host-connectors'],
-  ['extensions', 'host-resources'],
-  ['advanced', 'host-advanced'],
-]
-export function counterpartTab(id: SettingsTab): SettingsTab | null {
-  const pair = COUNTERPARTS.find(([local, host]) => local === id || host === id)
-  return pair ? (pair[0] === id ? pair[1] : pair[0]) : null
 }
 
 /** One searchable place in settings. */
 export interface SettingEntry {
   tab: SettingsTab
+  /** Rendered on this kind of machine only; unset for device rows. */
+  machine?: MachineKind
   /** A row the platform only renders with this capability. */
   requires?: SettingsCapability
   /** Exactly as the tab renders it: the result jumps to this text. */
@@ -146,20 +150,28 @@ type Rows = Array<
   string | [title: string, keywords: string] | [title: string, keywords: string, SettingsCapability]
 >
 
-/** A heading and the rows under it. `heading: null` for rows under the tab's own title. */
+/**
+ * A heading and the rows under it. `heading: null` for rows under the tab's own
+ * title. A machine section's rows are This Mac's own until its view is shared.
+ */
 function section(
   tab: SettingsTab,
   heading: string | [title: string, keywords: string] | null,
   rows: Rows = [],
+  machine: MachineKind | undefined = findSection(tab)?.scope === 'machine' ? 'local' : undefined,
 ): SettingEntry[] {
   const [title, keywords] = typeof heading === 'string' ? [heading, undefined] : (heading ?? [])
-  const entries: SettingEntry[] = title ? [{ tab, title, keywords }] : []
+  const entries: SettingEntry[] = title ? [{ tab, machine, title, keywords }] : []
   for (const row of rows) {
     const [rowTitle, rowKeywords, requires] = typeof row === 'string' ? [row] : row
-    entries.push({ tab, title: rowTitle, section: title, keywords: rowKeywords, requires })
+    entries.push({ tab, machine, title: rowTitle, section: title, keywords: rowKeywords, requires })
   }
   return entries
 }
+
+/** A Host section, findable by the heading its panel renders. */
+const onHost = (tab: SettingsTab, heading: [title: string, keywords: string]): SettingEntry[] =>
+  section(tab, heading, [], 'host')
 
 /**
  * Every setting, in the order the tabs show them. Titles must match the
@@ -307,12 +319,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     ['Platform', 'os macos linux windows', 'appInfo'],
     ['Runtime', 'electron node chrome', 'appInfo'],
   ]),
-  ...section('host-providers', ['Providers', 'Host sign in login claude codex openai']),
-  ...section('host-connectors', ['Connectors', 'Host mcp servers']),
-  ...section('host-agent', ['Agent defaults', 'Host default model thinking']),
-  ...section('host-folders', ['Folders', 'Host repositories projects']),
-  ...section('host-resources', ['Skills & extensions', 'Host packages']),
-  ...section('host-advanced', ['Advanced', 'Host pi settings models json']),
+  ...onHost('agent', ['Agent defaults', 'Host default model thinking']),
+  ...onHost('accounts', ['Accounts', 'Host providers sign in login claude codex openai']),
+  ...onHost('extensions', ['Extensions', 'Host skills packages']),
+  ...onHost('connectors', ['MCP Connectors', 'Host mcp servers']),
+  ...onHost('folders', ['Folders', 'Host repositories projects']),
+  ...onHost('advanced', ['Advanced', 'Host pi settings models json']),
   ...keybindingGroups().flatMap(({ title, bindings }) =>
     section('keybindings', title).concat(
       bindings.map<SettingEntry>(([parts, action]) => ({
@@ -326,24 +338,31 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ),
 ]
 
-/** The index rows this platform renders; sections are filtered by the caller's `available`. */
-export function platformIndex(platform: Platform): SettingEntry[] {
-  return SETTINGS_INDEX.filter((entry) => !entry.requires || platform[entry.requires])
+/**
+ * The index rows this platform renders on this kind of machine; sections are
+ * filtered by the caller's `available`.
+ */
+export function platformIndex(platform: Platform, machine: MachineKind | null): SettingEntry[] {
+  return SETTINGS_INDEX.filter(
+    (entry) =>
+      (!entry.requires || platform[entry.requires]) &&
+      (!entry.machine || entry.machine === machine),
+  )
 }
 
 /**
  * The tab to show when `tab` is not listed (another machine kind, a removed
  * package, a capability this platform lacks): its parent Extensions entry, the
- * same concern on the other machine, that machine's first section, then the first.
+ * machine's first section, then the first. Every machine names a shared concern
+ * by the same id, so switching machines keeps it open without a lookup.
  */
 export function resolveTab(tab: SettingsTab, listed: readonly SettingsSection[]): SettingsTab {
-  const has = (id: SettingsTab | null): id is SettingsTab =>
-    !!id && listed.some((section) => section.id === id)
+  const has = (id: SettingsTab): boolean => listed.some((section) => section.id === id)
   if (has(tab)) return tab
   if (EXTENSION_TABS.some((t) => t.id === tab) && has('extensions')) return 'extensions'
-  const counterpart = counterpartTab(tab)
-  if (has(counterpart)) return counterpart
-  const machineScoped = [...TABS, ...EXTENSION_TABS].find((t) => t.id === tab)?.scope === 'machine'
   const firstMachine = listed.find((section) => section.scope === 'machine')
-  return (machineScoped && firstMachine ? firstMachine : listed[0])?.id ?? 'appearance'
+  return (
+    (findSection(tab)?.scope === 'machine' && firstMachine ? firstMachine : listed[0])?.id ??
+    'appearance'
+  )
 }

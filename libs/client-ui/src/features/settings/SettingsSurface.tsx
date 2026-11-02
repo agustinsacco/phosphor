@@ -43,7 +43,7 @@ export function SettingsSurface({
   const sections = useMemo(() => visibleSections(platform, kind), [platform, kind])
   const listed = useMemo(() => [...sections, ...extensionTabs], [sections, extensionTabs])
   const available = useMemo(() => new Set(listed.map((t) => t.id)), [listed])
-  const index = useMemo(() => platformIndex(platform), [platform])
+  const index = useMemo(() => platformIndex(platform, kind), [platform, kind])
   const search = useSettingsSearch(available, index)
   const { query, listing, counts } = search
   const effectiveTab = resolveTab(tab, listed)

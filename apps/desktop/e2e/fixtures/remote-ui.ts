@@ -3,7 +3,12 @@ import type { remoteHostFixture } from './remote-host'
 
 export type RemoteFixture = Awaited<ReturnType<typeof remoteHostFixture>>
 
-export async function openMachineSettings(h: RemoteFixture, section = 'Providers') {
+/** Opens a Host section from the Machines page by its nav label; `heading` is what its panel shows. */
+export async function openMachineSettings(
+  h: RemoteFixture,
+  section = 'Accounts',
+  heading = section,
+) {
   if (!(await h.page.getByTestId('machines-page').isVisible()))
     await h.page.getByRole('button', { name: 'Machines', exact: true }).click()
   await expect(h.page.getByTestId('machines-page')).toBeVisible()
@@ -31,17 +36,17 @@ export async function openMachineSettings(h: RemoteFixture, section = 'Providers
   }
   await settings
     .getByRole('navigation', { name: 'Machine settings', exact: true })
-    .getByRole('button', { name: 'Providers', exact: true })
+    .getByRole('button', { name: 'Accounts', exact: true })
     .click()
-  await expect(settings.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible({
+  await expect(settings.getByRole('heading', { name: 'Accounts', exact: true })).toBeVisible({
     timeout: 30_000,
   })
-  if (section !== 'Providers')
+  if (section !== 'Accounts')
     await settings
       .getByRole('navigation', { name: 'Machine settings', exact: true })
       .getByRole('button', { name: section, exact: true })
       .click()
-  await expect(settings.getByRole('heading', { name: section, exact: true })).toBeVisible()
+  await expect(settings.getByRole('heading', { name: heading, exact: true })).toBeVisible()
   return settings
 }
 

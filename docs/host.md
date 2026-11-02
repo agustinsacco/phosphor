@@ -161,7 +161,7 @@ are terminals:
    access (`pi-web-access`). Already installed packages, pins and resource filters
    are left alone; missing installations retain their configured spec on repair.
    Computer use is not included. A declined install can be completed later from
-   Machine Settings → Skills & extensions, or by rerunning setup.
+   Machine Settings → Extensions, or by rerunning setup.
 8. Offer Claude setup if needed: Anthropic's installer for missing Claude Code,
    `pi install npm:@saccolabs/pi-claude-cli` for a missing or outdated provider,
    and interactive `claude` sign-in when needed. Each command needs approval.

@@ -1,9 +1,6 @@
 import { create } from 'zustand'
-import type { MachineSettingsTab } from '@/features/machines/MachineSettings'
 
-/** A Host machine settings section, rendered for a Host chosen in Settings. */
-export type HostSettingsTab = `host-${MachineSettingsTab}`
-
+/** A section id. A concern both kinds of machine have keeps one id on both. */
 export type SettingsTab =
   | 'appearance'
   | 'writing'
@@ -16,6 +13,7 @@ export type SettingsTab =
   | 'subagents'
   | 'connectors'
   | 'workspaces'
+  | 'folders'
   | 'optimization'
   | 'voice'
   | 'advanced'
@@ -23,7 +21,6 @@ export type SettingsTab =
   | 'account'
   | 'install'
   | 'about'
-  | HostSettingsTab
 
 /** The machine Settings configures: This Mac or a Host id. */
 export type SettingsMachine = 'local' | (string & {})

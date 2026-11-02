@@ -1,8 +1,8 @@
 import { MachineSettingsBody, type MachineSettingsTab } from '@/features/machines/MachineSettings'
 import { useMachineSettingsController } from '@/features/machines/useMachineSettingsController'
-import { isHostTab, isThisMacTab } from './settingsIndex'
+import { findSection } from './settingsIndex'
 import { SettingsMachineScope, type SettingsMachineChoice } from './SettingsMachineScope'
-import type { HostSettingsTab, SettingsTab } from './settingsUiStore'
+import type { SettingsTab } from './settingsUiStore'
 import { AppearanceTab } from './tabs/AppearanceTab'
 import { WritingTab } from './tabs/WritingTab'
 import { AgentTab } from './tabs/AgentTab'
@@ -46,8 +46,9 @@ const THIS_MAC_TABS: Partial<Record<SettingsTab, () => React.JSX.Element>> = {
 }
 
 /**
- * The open section. Machine sections render only for the machine they belong
- * to, under the scope line: This Mac's tabs never mount while a Host is chosen.
+ * The open section. A machine section renders for the machine chosen in
+ * Configure, under the scope line: This Mac's own view, or the Host's section
+ * for the same concern. This Mac's tabs never mount while a Host is chosen.
  */
 export function SettingsPanel({
   tab,
@@ -56,35 +57,36 @@ export function SettingsPanel({
   tab: SettingsTab
   machine: SettingsMachineChoice | null
 }): React.JSX.Element | null {
-  if (isHostTab(tab))
-    return machine && machine.id !== 'local' ? (
-      <>
-        <SettingsMachineScope machine={machine} />
-        <HostSettingsSection key={machine.id} machine={machine} tab={tab as HostSettingsTab} />
-      </>
-    ) : null
-  if (isThisMacTab(tab)) {
-    const Tab = THIS_MAC_TABS[tab]
-    return machine?.id === 'local' && Tab ? (
-      <>
-        <SettingsMachineScope machine={machine} />
-        <Tab />
-      </>
-    ) : null
+  const section = findSection(tab)
+  if (section?.scope !== 'machine') {
+    const Tab = DEVICE_TABS[tab]
+    return Tab ? <Tab /> : null
   }
-  const Tab = DEVICE_TABS[tab]
-  return Tab ? <Tab /> : null
+  if (!machine) return null
+  const Tab = machine.id === 'local' ? THIS_MAC_TABS[tab] : undefined
+  const body = Tab ? (
+    <Tab />
+  ) : machine.id !== 'local' && section.host ? (
+    <HostSettingsSection key={machine.id} machine={machine} section={section.host} />
+  ) : null
+  return (
+    body && (
+      <>
+        <SettingsMachineScope machine={machine} />
+        {body}
+      </>
+    )
+  )
 }
 
 /** One Host machine settings section through the shared controller and gate. */
 function HostSettingsSection({
   machine,
-  tab,
+  section,
 }: {
   machine: SettingsMachineChoice
-  tab: HostSettingsTab
+  section: MachineSettingsTab
 }): React.JSX.Element {
-  const section = tab.slice('host-'.length) as MachineSettingsTab
   const controller = useMachineSettingsController(machine, section)
   return (
     <div data-testid="settings-host-section">

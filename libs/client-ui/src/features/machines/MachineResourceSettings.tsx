@@ -25,7 +25,7 @@ export function MachineResourceSettings({
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-semibold">Skills & extensions</h2>
+          <h2 className="text-2xl font-semibold">Extensions</h2>
           <p className="text-text-secondary mt-1 text-base">
             Installed on {label}, not this computer. New lanes load package changes.
           </p>

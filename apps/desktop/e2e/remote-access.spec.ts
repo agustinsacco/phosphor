@@ -132,9 +132,9 @@ test('Provider login and error remedies target bee1, Settings configures bee1 an
 
     await h.page.getByRole('button', { name: 'Settings', exact: true }).click()
     const settings = h.page.getByRole('dialog', { name: 'Settings', exact: true })
-    await settings.getByRole('button', { name: 'Providers', exact: true }).click()
+    await settings.getByRole('button', { name: 'Accounts', exact: true }).click()
     await expect(settings.getByTestId('settings-machine-scope')).toContainText('Configuring bee1')
-    await expect(settings.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible()
+    await expect(settings.getByRole('heading', { name: 'Accounts', exact: true })).toBeVisible()
     await settings
       .getByRole('combobox', { name: 'Configure', exact: true })
       .selectOption({ label: 'This Mac' })

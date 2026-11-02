@@ -37,7 +37,7 @@ the form factor.
 | Optimization     | machine, This Mac | `localLanes`          | yes     | no      | Headroom tool-result compression + the Advisor                                                                  | Phosphor prefs; `headroom:*` lifecycle in main          |
 | Voice            | machine, This Mac | `localLanes`          | yes     | no      | Dictation on/off and which local speech model                                                                   | Phosphor prefs; model files in `<userData>/voice/`      |
 | Advanced         | machine, This Mac | `localLanes`          | yes     | no      | pi health, raw config editors, maintenance, discovered resources                                                | the pi files it edits; maintenance prefs                |
-| Host sections    | machine, a Host   | `machineSettings`     | yes     | yes     | Providers, Connectors, Agent defaults, Folders, Skills & extensions, Advanced ([below](#host-machine-settings)) | the Host, through `hosts:settings*`                     |
+| Host sections    | machine, a Host   | `machineSettings`     | yes     | yes     | Agent, Accounts, Extensions, MCP Connectors, Folders and Advanced in one list ([below](#host-machine-settings)) | the Host, through `hosts:settings*`                     |
 
 Appearance rows: UI scale needs `pageZoom` (native page zoom) and Terminal font size
 needs `terminal`. Without `savedFontPrefs` the section says that font changes last
@@ -73,10 +73,16 @@ the active Host lane, else a Host chosen in the machine switcher. Choosing This 
 the switcher wins over an active Host lane. Without a Settings Host the default is
 This Mac when present, else the browser page's machine, else the first Host. The
 choice lives in `settingsUiStore.machine` and resets each time the dialog opens or the
-browser page is entered. Switching machines keeps the same concern where both have one
-(Accounts and Providers, Agent and Agent defaults, MCP Connectors and Connectors,
-Extensions and Skills & extensions, Advanced and Advanced), otherwise it opens the
-machine's first section.
+browser page is entered.
+
+Machine sections are one list (`TABS` in `settingsIndex.ts`). A concern both kinds of
+machine have is one section with one id, label and place: Agent, Accounts, Extensions,
+MCP Connectors and Advanced. Each section says whether This Mac has it and which Host
+settings section renders it on a Host; a machine lists only its own (Workspaces,
+Optimization, Voice and the extension tabs are This Mac's, Folders is a Host's). So
+switching machines keeps the open concern, an extension tab opens the Host's
+Extensions, and anything else opens the machine's first section. Search lists a
+section's rows only on the machine that renders them.
 
 Every machine section opens under a one-line scope, **Configuring \<machine\>**.
 This Mac's sections mount only while This Mac is chosen, so choosing it always shows
@@ -94,9 +100,9 @@ the machine name. This Mac's Context budget preference never caps that meter.
 
 A Host's machine settings open from Settings (**Configure → \<Host\>**) and from
 **Machines → a Host → Settings**. Both use `useMachineSettingsController` and
-`MachineSettingsGate`; the Machines page adds its own section list and a target banner
-naming the execution machine, while Settings lists the same sections in its own
-navigation. Nothing copies settings or credentials between
+`MachineSettingsGate`; the Machines page adds its own navigation (built from the same
+`HOST_SECTIONS` list, so it shows the same labels in the same order) and a target banner
+naming the execution machine. Nothing copies settings or credentials between
 machines, falls back to This Mac, or queues writes while disconnected. Overview
 continues to own reachability, reconnect, readiness, traffic logging and removal.
 Desktop and the browser/mobile client show the same page. The browser's
@@ -110,14 +116,14 @@ Desktop asks once per Host and account and remembers the answer until sign-out
 Older Hosts show an upgrade explanation instead of unsupported controls. Offline
 and failed reads are unavailable states, not empty settings.
 
-| Section             | Owner and behavior                                                                                                                                                                  |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Providers           | Host provider status, supported private CLI sign-in, separate Claude provider/CLI installation, isolated Claude accounts, routing, usage and associated lanes                       |
-| Connectors          | pi's global or registered-folder MCP configuration, curated/custom connectors, enablement, private authentication and explicitly reviewed status checks                             |
-| Agent defaults      | pi model/thinking, compaction, retry, thinking visibility and message delivery; separate Host context-budget, automatic-naming and directive policy; the Host's global instructions |
-| Folders             | Existing Host browse/register/unregister controls and an explicit pi trust review, subject to the Host's repository-change policy                                                   |
-| Skills & extensions | Headless-safe default catalogue, package inventory/resource counts and reviewed npm install/repair/update/remove; the machine-filtered Skills page remains read-only                |
-| Advanced            | Pause and update (the Host's own signed `phosphor update`), read-only Host paths, platform and environment-name diagnostics, never values or a raw-JSON editor                      |
+| Section        | Owner and behavior                                                                                                                                                                  |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent          | pi model/thinking, compaction, retry, thinking visibility and message delivery; separate Host context-budget, automatic-naming and directive policy; the Host's global instructions |
+| Accounts       | Host provider status, supported private CLI sign-in, separate Claude provider/CLI installation, isolated Claude accounts, routing, usage and associated lanes                       |
+| Extensions     | Headless-safe default catalogue, package inventory/resource counts and reviewed npm install/repair/update/remove; the machine-filtered Skills page remains read-only                |
+| MCP Connectors | pi's global or registered-folder MCP configuration, curated/custom connectors, enablement, private authentication and explicitly reviewed status checks                             |
+| Folders        | Existing Host browse/register/unregister controls and an explicit pi trust review, subject to the Host's repository-change policy                                                   |
+| Advanced       | Pause and update (the Host's own signed `phosphor update`), read-only Host paths, platform and environment-name diagnostics, never values or a raw-JSON editor                      |
 
 Claude uses the same account routing, cooldowns and transcript bindings as
 Desktop. Credentials stay in the Host's Claude credential store. Reauthentication
@@ -141,7 +147,7 @@ removed. A check runs `pi mcp list --json`; its reviewed status/tool counts expi
 after 60 seconds and are invalidated by configuration or authentication changes.
 Signing in never automatically executes a connector check.
 
-Agent defaults save themselves, as This Mac's Agent tab does: a select or checkbox
+A Host's Agent defaults save themselves, as This Mac's Agent tab does: a select or checkbox
 when it changes, a text or number field on blur or Enter. Each save sends only
 the fields that differ, against the latest revision, one at a time; an edit made
 while one is in flight follows it. Host policy and pi defaults are separate
