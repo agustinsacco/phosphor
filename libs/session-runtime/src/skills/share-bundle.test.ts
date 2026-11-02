@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -111,23 +111,26 @@ describe('installSkillBundle', () => {
 
 describe('installSkillBundle after a crash', () => {
   const UUID = '0b6c1a52-7e8f-4d1a-9c3b-2f4e5d6a7b8c'
-  const leftover = async (name: string, ageMs: number) => {
-    const path = join(dir, name)
-    await mkdir(path, { recursive: true })
-    await writeFile(join(path, 'SKILL.md'), name)
-    const when = new Date(Date.now() - ageMs)
-    await utimes(path, when, when)
-    return path
+  const leftover = async (name: string) => {
+    await mkdir(join(dir, name), { recursive: true })
+    await writeFile(join(dir, name, 'SKILL.md'), name)
   }
+  const later = (ms: number) => () => Date.now() + ms
 
   it('restores a replaced skill a crash left aside and removes old staging', async () => {
-    await leftover(`.phosphor-replaced-demo-${UUID}`, 3_600_000)
-    await leftover(`.phosphor-replaced-other-${UUID}`, 3_600_000)
-    await leftover(`.phosphor-share-${UUID}`, 3_600_000)
+    await leftover(`.phosphor-replaced-demo-${UUID}`)
+    await leftover(`.phosphor-replaced-other-${UUID}`)
+    await leftover(`.phosphor-share-${UUID}`)
     await mkdir(join(dir, 'other'))
     await writeFile(join(dir, 'other', 'SKILL.md'), 'current')
     const third: SkillBundle = { name: 'third', files: [{ path: 'SKILL.md', data: b64('x') }] }
-    await installSkillBundle({ root: dir, bundle: third, overwrite: false, elsewhere: false })
+    await installSkillBundle({
+      root: dir,
+      bundle: third,
+      overwrite: false,
+      elsewhere: false,
+      now: later(3_600_000),
+    })
     // The crashed replace of demo is undone; other's newer copy wins over its old one.
     expect(await readFile(join(dir, 'demo', 'SKILL.md'), 'utf8')).toBe(
       `.phosphor-replaced-demo-${UUID}`,
@@ -137,9 +140,15 @@ describe('installSkillBundle after a crash', () => {
   })
 
   it('leaves a recent install in progress alone', async () => {
-    await leftover(`.phosphor-share-${UUID}`, 1_000)
-    await leftover(`.phosphor-replaced-gone-${UUID}`, 1_000)
-    await installSkillBundle({ root: dir, bundle: bundle(), overwrite: false, elsewhere: false })
+    await leftover(`.phosphor-share-${UUID}`)
+    await leftover(`.phosphor-replaced-gone-${UUID}`)
+    await installSkillBundle({
+      root: dir,
+      bundle: bundle(),
+      overwrite: false,
+      elsewhere: false,
+      now: later(60_000),
+    })
     expect((await readdir(dir)).sort()).toEqual([
       `.phosphor-replaced-gone-${UUID}`,
       `.phosphor-share-${UUID}`,

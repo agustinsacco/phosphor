@@ -98,7 +98,7 @@ async function existing(target: string): Promise<'none' | 'folder' | 'other'> {
 }
 
 async function stage(root: string, bundle: SkillBundle): Promise<string> {
-  const staging = join(root, `.phosphor-share-${randomUUID()}`)
+  const staging = join(root, `${STAGING}${randomUUID()}`)
   await mkdir(staging)
   try {
     for (const file of bundle.files) {
@@ -123,6 +123,36 @@ async function stage(root: string, bundle: SkillBundle): Promise<string> {
   }
 }
 
+const STAGING = '.phosphor-share-'
+const ASIDE = '.phosphor-replaced-'
+/** A leftover younger than this may belong to an install still running in another process. */
+const LEFTOVER_AGE_MS = 10 * 60_000
+const UUID_SUFFIX = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+/**
+ * Undo what a crashed install left in `root`: staging is removed, and a skill moved aside for
+ * a replace goes back when nothing took its place (otherwise the aside copy is removed).
+ * Best-effort: a sweep never fails an install.
+ */
+async function sweepLeftovers(root: string, now: number): Promise<void> {
+  const names = await readdir(root).catch(() => [] as string[])
+  for (const entry of names) {
+    if (!entry.startsWith(STAGING) && !entry.startsWith(ASIDE)) continue
+    const path = join(root, entry)
+    try {
+      const info = await lstat(path)
+      // ctime, not mtime: renaming a folder aside changes its ctime only.
+      if (!info.isDirectory() || now - info.ctimeMs < LEFTOVER_AGE_MS) continue
+      const name = entry.startsWith(ASIDE) ? entry.slice(ASIDE.length).replace(UUID_SUFFIX, '') : ''
+      if (isShareableSkillName(name) && (await existing(join(root, name))) === 'none')
+        await rename(path, join(root, name))
+      else await rm(path, { recursive: true, force: true })
+    } catch {
+      // Left for the next install.
+    }
+  }
+}
+
 /**
  * Install a parsed bundle as `<root>/<name>`. `elsewhere` reports that the machine already
  * resolves a skill with this name from some other place (a package, another folder): that
@@ -133,17 +163,20 @@ export async function installSkillBundle(options: {
   bundle: SkillBundle
   overwrite: boolean
   elsewhere: boolean
+  /** Tests only: the clock leftovers are aged against. */
+  now?: () => number
 }): Promise<SkillInstallResult> {
   const { bundle } = options
   if (!isShareableSkillName(bundle.name)) throw new SkillShareError('invalid', 'Invalid name.')
   await mkdir(options.root, { recursive: true })
   const root = await realpath(options.root)
+  await sweepLeftovers(root, (options.now ?? Date.now)())
   const target = join(root, bundle.name)
   const before = await existing(target)
   if (options.elsewhere || before === 'other') return { status: 'conflict', replaceable: false }
   if (before === 'folder' && !options.overwrite) return { status: 'conflict', replaceable: true }
   const staging = await stage(root, bundle)
-  const aside = join(root, `.phosphor-replaced-${randomUUID()}`)
+  const aside = join(root, `${ASIDE}${bundle.name}-${randomUUID()}`)
   try {
     if (before === 'folder') await rename(target, aside)
     try {
@@ -157,6 +190,7 @@ export async function installSkillBundle(options: {
   } finally {
     await rm(staging, { recursive: true, force: true })
   }
-  if (before === 'folder') await rm(aside, { recursive: true, force: true })
+  // The copy is in place; an aside folder that will not go is swept by a later install.
+  if (before === 'folder') await rm(aside, { recursive: true, force: true }).catch(() => undefined)
   return { status: 'installed', replaced: before === 'folder' }
 }
