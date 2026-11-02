@@ -4,121 +4,76 @@ import { remotePrKey } from '@shared/host-protocol-github'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { pullRequestFor, usePullRequestsStore } from '@/stores/pullRequests'
 import { useSessionsStore } from '@/stores/sessions'
-import { Button } from '@/components/form'
 import { BulkDeleteModal } from './BulkDeleteModal'
 import { lanesOwningWorktree, type LanePreflight, type PreflightSummary } from './deletePreflight'
 import { canDeleteRemoteLane, deleteRemoteLanes, remoteLaneKey } from './deleteRemoteLanes'
-import { RemoteLanePresentation, useRemoteLaneTitle } from './RemoteLanePresentation'
+import { LaneBulkBar } from './LaneSelect'
+import { clearLaneSelection, useSelectedKeys, useSelectionOwner } from './laneSelection'
 
+/**
+ * A Host folder's bulk delete: the shared bulk bar and confirm over the lanes
+ * selected in this group's rows. Selection itself is `laneSelection.ts`, the
+ * same as This Mac's.
+ */
 export function RemoteBulkDelete({
   hostId,
+  selectionKey,
   lanes,
-  mode,
-  onClose,
 }: {
   hostId: string
+  /** This group's key in `laneSelection.ts`. */
+  selectionKey: string
   lanes: HostLaneView[]
-  mode: 'all' | 'merged'
-  onClose: () => void
-}): React.JSX.Element {
-  const prState = usePullRequestsStore((s) => s.byRepo)
-  const prFor = (lane: HostLaneView) =>
-    pullRequestFor({ byRepo: prState }, remotePrKey(hostId, lane.repositoryId), lane.branch)
-  const [selected, setSelected] = useState(
-    () =>
-      new Set(
-        lanes
-          .filter(
-            (lane) =>
-              canDeleteRemoteLane(hostId, lane) &&
-              (mode === 'all' || prFor(lane)?.state === 'MERGED'),
-          )
-          .map((l) => l.laneId),
-      ),
-  )
+}): React.JSX.Element | null {
   const [confirming, setConfirming] = useState(false)
+  const owner = useSelectionOwner([selectionKey], confirming)
+  const keys = useSelectedKeys(owner)
   const running = useSessionsStore((s) => s.bulkDelete?.running ?? false)
-  const chosen = lanes.filter((l) => selected.has(l.laneId) && canDeleteRemoteLane(hostId, l))
-  const summary = preflight(hostId, chosen)
+  if (owner === null) return null
+  const chosen = lanes.filter((l) => keys.includes(l.laneId) && canDeleteRemoteLane(hostId, l))
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 px-2 py-2" data-testid="remote-bulk-bar">
-        <span className="text-sm">{chosen.length} selected</span>
-        <Button size="xs" disabled={!chosen.length || running} onClick={() => setConfirming(true)}>
-          Delete…
-        </Button>
-        <Button size="xs" onClick={onClose}>
-          Cancel
-        </Button>
-        <p className="text-text-tertiary w-full text-xs">
-          Only lanes you control can be selected. Dirty worktrees are kept by the Host.
-        </p>
-      </div>
-      {lanes.map((lane) => (
-        <SelectableLane
-          key={lane.laneId}
-          hostId={hostId}
-          lane={lane}
-          selected={selected.has(lane.laneId)}
-          disabled={running || !canDeleteRemoteLane(hostId, lane)}
-          onToggle={() =>
-            setSelected((previous) => {
-              const next = new Set(previous)
-              if (next.has(lane.laneId)) next.delete(lane.laneId)
-              else next.add(lane.laneId)
-              return next
-            })
-          }
-        />
-      ))}
+      <LaneBulkBar
+        count={chosen.length}
+        running={running}
+        className="sticky bottom-2 mx-2 mt-1"
+        onDelete={() => setConfirming(true)}
+        onCancel={clearLaneSelection}
+      />
       {confirming && (
         <BulkDeleteModal
           remote
-          summary={summary}
+          summary={preflight(hostId, chosen)}
           onCancel={() => setConfirming(false)}
           onConfirm={(options) => {
+            setConfirming(false)
+            clearLaneSelection()
             void deleteRemoteLanes(hostId, chosen, options)
-            onClose()
           }}
         />
       )}
     </>
   )
 }
-function SelectableLane({
-  hostId,
-  lane,
-  selected,
-  disabled,
-  onToggle,
-}: {
-  hostId: string
-  lane: HostLaneView
-  selected: boolean
-  disabled: boolean
-  onToggle: () => void
-}): React.JSX.Element {
-  const title = useRemoteLaneTitle(lane, hostId)
-  return (
-    <RemoteLanePresentation
-      hostId={hostId}
-      lane={lane}
-      title={title}
-      disabled={disabled}
-      onClick={onToggle}
-      marker={
-        <span
-          role="checkbox"
-          aria-label={`Select ${title}`}
-          aria-checked={selected}
-          className="border-border text-accent grid h-4 w-4 shrink-0 place-items-center rounded border text-xs"
-        >
-          {selected ? '✓' : ''}
-        </span>
-      }
-    />
-  )
+
+/** The lanes "Select all" or "Select merged" picks in a group: those this client may delete. */
+export function selectableLanes(
+  hostId: string,
+  lanes: HostLaneView[],
+  mode: 'all' | 'merged',
+): string[] {
+  const prs = usePullRequestsStore.getState()
+  return lanes
+    .filter(
+      (lane) =>
+        canDeleteRemoteLane(hostId, lane) &&
+        (mode === 'all' ||
+          pullRequestFor(prs, remotePrKey(hostId, lane.repositoryId), lane.branch)?.state ===
+            'MERGED'),
+    )
+    .map((lane) => lane.laneId)
 }
+
 function preflight(hostId: string, lanes: HostLaneView[]): PreflightSummary {
   const prs = usePullRequestsStore.getState()
   const owners = lanesOwningWorktree(

@@ -6,7 +6,8 @@ import { useId } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { REMOTE_NOT_READY } from '@/stores/remoteLanes'
-import { LaneRow, SessionIndicator, SubtitleSegments } from './SidebarPrimitives'
+import { LaneRow, SubtitleSegments } from './SidebarPrimitives'
+import { SelectableIndicator, type LaneSelect } from './LaneSelect'
 import { LaneMarker } from './LaneMarker'
 import { PinIcon } from '@/components/icons'
 import { remoteLanePresentation, remoteLaneTitle } from './remoteLaneView'
@@ -40,6 +41,8 @@ type RemoteLanePresentationProps = Omit<React.ComponentProps<typeof LaneRow>, 'c
   /** The lane's folder, for rows that mix folders (the Pinned section). */
   workspaceName?: string
   marker?: React.ReactNode
+  /** The row's box in its folder's bulk-delete selection. */
+  select?: LaneSelect
 }
 
 /** The Host lane row's surface; `RemoteLaneRow` supplies its handlers, menu and marker. */
@@ -52,6 +55,7 @@ export function RemoteLanePresentation({
   pinned = false,
   workspaceName,
   marker,
+  select,
   ...props
 }: RemoteLanePresentationProps): React.JSX.Element {
   const { pr, confirmedNoPr } = useRemotePr(hostId, lane)
@@ -86,7 +90,7 @@ export function RemoteLanePresentation({
         className={active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
         {...props}
       >
-        <SessionIndicator state={view.indicator} />
+        <SelectableIndicator state={view.indicator} select={select} />
         {marker ?? <LaneMarker marker="" />}
         <span className="min-w-0 flex-1">
           <span className="text-text block truncate text-lg font-medium leading-5">{title}</span>

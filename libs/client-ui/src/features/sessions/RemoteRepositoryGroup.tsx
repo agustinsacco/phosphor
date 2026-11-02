@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import clsx from 'clsx'
 import { SearchIcon, PlusIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
@@ -12,8 +12,17 @@ import {
 } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import type { HostLaneView } from '@shared/ipc'
-import { RemoteBulkDelete } from './RemoteBulkDelete'
-import { RemoteWorkspaceOptions } from './RemoteWorkspaceOptions'
+import { RemoteBulkDelete, selectableLanes } from './RemoteBulkDelete'
+import { canDeleteRemoteLane } from './deleteRemoteLanes'
+import {
+  clearLaneSelection,
+  selectLanes,
+  toggleLane,
+  useLaneSelection,
+  useSelectedKeys,
+} from './laneSelection'
+import { TAKE_CONTROL_FIRST } from './remoteLaneActions'
+import { RemoteWorkspaceOptions, type LaneSelectMode } from './RemoteWorkspaceOptions'
 import { RemoteLaneRow } from './RemoteLaneRow'
 import { useRemotePullRequests } from './remotePullRequests'
 import type { RemoteLaneGroup } from './groupRemoteLanes'
@@ -44,9 +53,14 @@ export function RemoteRepositoryGroup({
   const [collapsed, setCollapsed] = useState(false)
   useRemotePullRequests(hostId, repositoryId, !collapsed && available)
   const search = useGroupSearch(lanes)
-  const [selection, setSelection] = useState<'all' | 'merged' | null>(null)
   const ready = !!host && canReadHost(host) && host.state === 'ready'
-  useLaneReveal(remoteLaneGroupKey(hostId, repositoryId), () => {
+  const groupKey = remoteLaneGroupKey(hostId, repositoryId)
+  const canSelect =
+    ready &&
+    host.capabilities.includes('workspaces.write') &&
+    host.capabilities.includes('sessions.control')
+  const selection = useFolderSelection(hostId, groupKey, canSelect, search.visible)
+  useLaneReveal(groupKey, () => {
     setCollapsed(false)
     search.clear()
   })
@@ -72,12 +86,15 @@ export function RemoteRepositoryGroup({
           <RemoteWorkspaceOptions
             hostId={hostId}
             group={group}
-            host={host}
-            ready={ready}
+            canSelect={canSelect}
+            selecting={selection.selecting}
             collapsed={collapsed}
             className={controlClass}
             onCollapse={setCollapsed}
-            onSelect={setSelection}
+            onSelect={(mode) => {
+              if (mode !== 'clear') setCollapsed(false)
+              selection.select(mode)
+            }}
           />
         )}
         {available && <NewLaneButton hostId={hostId} group={group} className={controlClass} />}
@@ -94,12 +111,44 @@ export function RemoteRepositoryGroup({
           lanes={search.visible}
           ready={ready}
           query={search.query}
-          selection={selection}
-          onSelectionClose={() => setSelection(null)}
+          select={selection.rows}
         />
       )}
+      <RemoteBulkDelete hostId={hostId} selectionKey={selection.key} lanes={lanes} />
     </section>
   )
+}
+
+interface FolderRowsSelection {
+  group: string
+  selecting: boolean
+  selected: readonly string[]
+  /** The lanes a shift range spans: those this client may delete, as the search shows them. */
+  order: string[]
+}
+
+/**
+ * This folder's hold on the one lane selection. A folder can show in two lists
+ * at once (Desktop's sidebar and Host home), so each list keys its own, as each
+ * of This Mac's lists would.
+ */
+function useFolderSelection(
+  hostId: string,
+  groupKey: string,
+  canSelect: boolean,
+  visible: HostLaneView[],
+) {
+  const key = `${groupKey}@${useId()}`
+  const selecting = useLaneSelection((s) => s.group === key)
+  const selected = useSelectedKeys(key)
+  const rows: FolderRowsSelection | undefined = canSelect
+    ? { group: key, selecting, selected, order: selectableLanes(hostId, visible, 'all') }
+    : undefined
+  const select = (mode: LaneSelectMode): void => {
+    if (mode === 'clear') clearLaneSelection()
+    else selectLanes(key, selectableLanes(hostId, visible, mode))
+  }
+  return { key, selecting, rows, select }
 }
 
 function headerControlClass(density: RemoteLaneDensity): string {
@@ -193,50 +242,46 @@ function useGroupSearch(lanes: HostLaneView[]) {
   }
 }
 
-/** The group's rows, or its bulk-delete selection over the lanes the search shows. */
+/** The group's rows; with `select`, each row carries its box in this group's selection. */
 function GroupLanes({
   hostId,
   lanes,
   ready,
   query,
-  selection,
-  onSelectionClose,
+  select,
 }: {
   hostId: string
   lanes: HostLaneView[]
   ready: boolean
   query: string
-  selection: 'all' | 'merged' | null
-  onSelectionClose: () => void
+  select?: FolderRowsSelection
 }): React.JSX.Element {
   const active = useSessionsStore((s) =>
     s.activeSessionId ? s.live[s.activeSessionId] : undefined,
   )
   return (
     <div className={!ready ? 'opacity-50' : undefined}>
-      {selection ? (
-        <RemoteBulkDelete
-          key={selection}
+      {lanes.map((lane) => (
+        <RemoteLaneRow
+          key={lane.laneId}
           hostId={hostId}
-          lanes={lanes}
-          mode={selection}
-          onClose={onSelectionClose}
-        />
-      ) : (
-        lanes.map((lane) => (
-          <RemoteLaneRow
-            key={lane.laneId}
-            hostId={hostId}
-            lane={lane}
-            ready={ready}
-            active={
-              active?.target?.kind === 'remote' &&
-              active.target.hostId === hostId &&
-              active.laneId === lane.laneId
+          lane={lane}
+          ready={ready}
+          active={
+            active?.target?.kind === 'remote' &&
+            active.target.hostId === hostId &&
+            active.laneId === lane.laneId
+          }
+          select={
+            select && {
+              selected: select.selected.includes(lane.laneId),
+              selecting: select.selecting,
+              blocked: canDeleteRemoteLane(hostId, lane) ? undefined : TAKE_CONTROL_FIRST,
+              onToggle: (shiftKey) => toggleLane(select.group, select.order, lane.laneId, shiftKey),
             }
-          />
-        ))
-      )}
+          }
+        />
+      ))}
       {!lanes.length && (
         <p className="text-text-tertiary px-2 py-2 text-sm">
           {query ? `No lanes match “${query}”` : 'No lanes yet'}

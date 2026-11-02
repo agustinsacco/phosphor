@@ -24,9 +24,14 @@ The lane header reports the connection state. The composer and panes disable
 while disconnected and recover when the Host snapshot is ready. See
 [Remote Desktop](remote-desktop.md#machine-context-and-lane-creation).
 
-Remote repository menus offer **Select all lanes** and **Select merged lanes**.
-Selection follows the visible search results and includes only lanes controlled by
-this client. The shared confirmation and non-blocking progress surface apply;
+Host lanes are selected the way This Mac's are (see
+[Deleting lanes](#deleting-lanes) below): the same row box, shift ranges, bulk bar
+and Escape. Remote repository menus offer **Select all lanes**, which turns into
+**Clear selection**, and **Select merged lanes**, which can enter select mode with
+nothing chosen. Selection follows the visible search results and includes only
+lanes controlled by this client; a lane another device holds shows a disabled box
+that says “Take control first.” The shared confirmation and non-blocking progress
+surface apply;
 Stop finishes the current deletion before cancelling the remainder. Every command
 rechecks connection, capabilities and control, never takes over implicitly, and
 is never retried on an uncertain result. Failures are reported per lane while
@@ -458,12 +463,17 @@ Late bootstrap responses cannot recreate deleted renderer state. On reload,
 main supplies known file identities; history replay does not block access to
 an unresponsive lane's Delete action.
 
-Selection is scoped to **one group**, which is one repo. A destructive confirm
-spanning two repos is how you delete the wrong branch. The Pinned list mixes
-projects and is not selectable.
+Selection is scoped to **one group**, which is one repo, on This Mac and on
+every Host: `laneSelection.ts` holds one selection at a time, so selecting in
+another group starts over. A destructive confirm spanning two repos is how you
+delete the wrong branch. The Pinned list mixes projects and is not selectable.
+A Host folder shown in two lists at once keeps a selection to the list that made
+it.
 
 The checkbox replaces the indicator dot in the same gutter, so entering select
-mode shifts nothing. "Select all lanes" lives in the workspace `⋯` menu.
+mode shifts nothing (`SelectableIndicator` in `LaneSelect.tsx`, on both lists).
+"Select all lanes" lives in the workspace `⋯` menu. The bulk bar
+(`LaneBulkBar`) shows only in select mode.
 
 Deleting is three resources, and all three default on. The branch default is
 safe because an unmerged branch is never deleted:
