@@ -1,8 +1,8 @@
 /**
- * Settings → Computer use: info for the @injaneity/pi-computer-use package.
- * Shown only while the package is present.
+ * Settings → Computer use: what the @injaneity/pi-computer-use package adds,
+ * and the permissions it needs. Listed only while the package is present.
  */
-export function ComputerUseTab(): React.JSX.Element {
+export function ComputerUseView({ onHost }: { onHost: boolean }): React.JSX.Element {
   return (
     <div className="max-w-2xl">
       <h2 className="text-xl font-semibold">Computer use</h2>
@@ -14,9 +14,10 @@ export function ComputerUseTab(): React.JSX.Element {
       </p>
       <div className="mt-4 rounded-lg border border-border bg-bg-secondary/50 px-3.5 py-3 text-base">
         <p className="text-text-secondary">
-          This extension requires platform-level accessibility permissions. On macOS, grant
-          Accessibility and Screen Recording access to the helper when prompted. See the package
-          docs for full setup instructions.
+          {onHost
+            ? 'This extension needs a desktop session and platform-level accessibility permissions on the Host. Nobody sees a permission prompt from here: grant Accessibility and Screen Recording at the Host’s own console. Hosts do not offer this package; it is listed because it is installed.'
+            : 'This extension requires platform-level accessibility permissions. On macOS, grant Accessibility and Screen Recording access to the helper when prompted.'}{' '}
+          See the package docs for full setup instructions.
         </p>
       </div>
       <div className="mt-3 text-sm text-text-tertiary">

@@ -17,7 +17,6 @@ import {
 } from './search/rows/device'
 import {
   CLAUDE_PROVIDER_ROWS,
-  EXTENSIONS_HOST_HEADING,
   EXTENSIONS_ROWS,
   SUBAGENTS_ROWS,
   WEB_ACCESS_ROWS,
@@ -90,31 +89,44 @@ export const TABS: SettingsSection[] = [
  * configuration for an installed package, not top-level settings.
  */
 export const EXTENSION_TABS: Array<
-  SettingsSection & { packageMatch: string; requiresInstalled?: boolean }
+  SettingsSection & {
+    packageMatch: string
+    requiresInstalled?: boolean
+    /** Listed on every machine that has a view for it, installed or not: its page offers Install. */
+    always?: true
+  }
 > = [
   {
     ...machineSection('claude-provider', 'Claude Code', { local: true }),
     packageMatch: 'pi-claude-cli',
+    always: true,
   },
-  { ...machineSection('web-access', 'Web access', { local: true }), packageMatch: 'pi-web-access' },
   {
-    ...machineSection('computer-use', 'Computer use', { local: true }),
+    ...machineSection('web-access', 'Web access', { local: true, host: 'resources' }),
+    packageMatch: 'pi-web-access',
+  },
+  {
+    ...machineSection('computer-use', 'Computer use', { local: true, host: 'resources' }),
     packageMatch: '@injaneity/pi-computer-use',
   },
   {
-    ...machineSection('subagents', 'Subagents', { local: true }),
+    ...machineSection('subagents', 'Subagents', { local: true, host: 'resources' }),
     packageMatch: 'pi-subagents',
     requiresInstalled: true,
   },
 ]
 
-export function installedExtensionTabs(entries: PiPackageEntry[]): typeof EXTENSION_TABS {
-  return EXTENSION_TABS.filter((tab) =>
-    // Existing health/config tabs also help repair declared but absent packages.
-    entries.some(
-      (entry) =>
-        (!tab.requiresInstalled || entry.installed) && entry.spec.includes(tab.packageMatch),
-    ),
+export function installedExtensionTabs(
+  entries: readonly Pick<PiPackageEntry, 'spec' | 'installed'>[],
+): typeof EXTENSION_TABS {
+  return EXTENSION_TABS.filter(
+    (tab) =>
+      tab.always === true ||
+      // Existing health/config tabs also help repair declared but absent packages.
+      entries.some(
+        (entry) =>
+          (!tab.requiresInstalled || entry.installed) && entry.spec.includes(tab.packageMatch),
+      ),
   )
 }
 
@@ -172,7 +184,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   // The Host's own panels, by their headings, until shared views render the rows above.
   ...AGENT_HOST_HEADING,
   ...ACCOUNTS_HOST_HEADING,
-  ...EXTENSIONS_HOST_HEADING,
   ...CONNECTORS_HOST_HEADING,
   ...FOLDERS_ROWS,
   ...ADVANCED_HOST_HEADING,

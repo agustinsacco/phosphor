@@ -4,8 +4,8 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type { PiPackageEntry } from '@shared/models'
 import { useLayoutStore } from '@/stores/layout'
-import { useSettingsUiStore } from '../settingsUiStore'
-import { ExtensionsTab } from './ExtensionsTab'
+import { useSettingsUiStore } from '../../settingsUiStore'
+import { LocalExtensions } from './index'
 
 beforeAll(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -63,11 +63,11 @@ async function render(): Promise<void> {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  await act(async () => root!.render(<ExtensionsTab />))
+  await act(async () => root!.render(<LocalExtensions />))
   await vi.waitFor(() => expect(document.querySelector('dl')).not.toBeNull())
 }
 
-describe('ExtensionsTab', () => {
+describe('LocalExtensions', () => {
   it('lists what each package contributes, by name', async () => {
     await render()
     const rows = [...document.querySelectorAll('dl > div')].map((row) => row.textContent)

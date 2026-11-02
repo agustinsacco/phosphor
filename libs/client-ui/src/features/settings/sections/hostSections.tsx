@@ -3,7 +3,6 @@ import {
   MachineAdvancedSettings,
   MachineAgentSettings,
   MachineFolderSettings,
-  MachineResourceSettings,
 } from '@/features/machines/MachineExecutionSettings'
 import { MachineProviderSettings } from '@/features/machines/MachineProviderSettings'
 import { useHostSection } from '../machine/HostSection'
@@ -30,18 +29,6 @@ export function HostAccountsSection(): React.JSX.Element {
   const { machine, settings, programs } = useHostSection()
   return (
     <MachineProviderSettings
-      hostId={machine.id}
-      label={machine.label}
-      settings={settings}
-      programs={programs}
-    />
-  )
-}
-
-export function HostExtensionsSection(): React.JSX.Element {
-  const { machine, settings, programs } = useHostSection()
-  return (
-    <MachineResourceSettings
       hostId={machine.id}
       label={machine.label}
       settings={settings}

@@ -61,13 +61,14 @@ describe('searchSettings', () => {
     const pkg = { spec: 'npm:pi-subagents', installed: false } as Parameters<
       typeof installedExtensionTabs
     >[0][number]
-    expect(installedExtensionTabs([pkg])).toEqual([])
+    expect(installedExtensionTabs([pkg]).map((tab) => tab.id)).toEqual(['claude-provider'])
     expect(
       installedExtensionTabs([{ ...pkg, spec: 'npm:@saccolabs/pi-claude-cli' }]).map(
         (tab) => tab.id,
       ),
     ).toEqual(['claude-provider'])
     expect(installedExtensionTabs([{ ...pkg, installed: true }]).map((tab) => tab.id)).toEqual([
+      'claude-provider',
       'subagents',
     ])
   })
@@ -162,19 +163,15 @@ describe('SETTINGS_INDEX against the section sources', () => {
     'tabs/AppearanceTab.tsx': 'appearance',
     'tabs/ClaudeAccountPanel.tsx': 'claude-provider',
     'tabs/ClaudeProviderTab.tsx': 'claude-provider',
-    'tabs/ComputerUseTab.tsx': 'computer-use',
     'tabs/ConnectorsTab.tsx': 'connectors',
     'tabs/ContextBudgetSection.tsx': 'agent',
     'tabs/DirectivesSection.tsx': 'agent',
     'tabs/DirectiveToggles.tsx': 'agent',
-    'tabs/ExtensionsTab.tsx': 'extensions',
     'tabs/InstallAppTab.tsx': 'install',
     'tabs/KeybindingsTab.tsx': 'keybindings',
     'tabs/MaintenanceSection.tsx': 'advanced',
     'tabs/OptimizationTab.tsx': 'optimization',
-    'tabs/SubagentsTab.tsx': 'subagents',
     'tabs/VoiceTab.tsx': 'voice',
-    'tabs/WebAccessTab.tsx': 'web-access',
     'tabs/WorkspacesTab.tsx': 'workspaces',
     'tabs/WritingTab.tsx': 'writing',
   }
@@ -259,8 +256,10 @@ describe('SETTINGS_INDEX against the section sources', () => {
       .map((f) => readFileSync(resolve(machines, f), 'utf8'))
       .join('\n')
     const hostEntries = SETTINGS_INDEX.filter(hostHeading)
+    // A section whose shared view renders on a Host is indexed by its own rows instead.
+    const shared = new Set<SettingsTab>(['extensions'])
     expect(hostEntries.map((entry) => entry.tab)).toEqual(
-      TABS.filter((tab) => tab.host).map((tab) => tab.id),
+      TABS.filter((tab) => tab.host && !shared.has(tab.id)).map((tab) => tab.id),
     )
     for (const entry of hostEntries)
       expect(panels, entry.title).toContain(`font-semibold">${entry.title}</h2>`)
