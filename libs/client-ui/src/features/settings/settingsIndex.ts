@@ -5,7 +5,7 @@ import type { SettingsTab } from './settingsUiStore'
 import type { SettingEntry } from './search/settingEntry'
 import { ACCOUNTS_HOST_HEADING, ACCOUNTS_ROWS } from './search/rows/accounts'
 import { ADVANCED_HOST_HEADING, ADVANCED_ROWS } from './search/rows/advanced'
-import { AGENT_HOST_HEADING, AGENT_ROWS } from './search/rows/agent'
+import { AGENT_ROWS } from './search/rows/agent'
 import { CONNECTORS_HOST_HEADING, CONNECTORS_ROWS } from './search/rows/connectors'
 import {
   ABOUT_ROWS,
@@ -182,7 +182,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ...INSTALL_ROWS,
   ...ABOUT_ROWS,
   // The Host's own panels, by their headings, until shared views render the rows above.
-  ...AGENT_HOST_HEADING,
   ...ACCOUNTS_HOST_HEADING,
   ...CONNECTORS_HOST_HEADING,
   ...FOLDERS_ROWS,

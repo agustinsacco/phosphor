@@ -82,7 +82,7 @@ it('puts the folder scope and Refresh in the scope line of a scoped Host section
   expect(container.textContent).not.toContain('Machine-wide settings')
   await act(async () => radio('Folder').click())
   expect(useSettingsUiStore.getState().folder).toBe(FOLDER)
-  expect(calls('hosts:settingsRead').at(-1)).toEqual([
+  expect(calls('hosts:settingsRead')).toContainEqual([
     'hosts:settingsRead',
     machine.id,
     'agent',

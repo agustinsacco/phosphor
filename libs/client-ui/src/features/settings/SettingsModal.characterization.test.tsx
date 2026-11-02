@@ -22,7 +22,10 @@ vi.hoisted(() => {
   })
 })
 vi.mock('./tabs/AppearanceTab', () => ({ AppearanceTab: () => <p>Appearance</p> }))
-vi.mock('./tabs/AgentTab', () => ({ AgentTab: () => <p>Local agent controls</p> }))
+vi.mock('./sections/agent', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAgent: () => <p>Local agent controls</p>,
+}))
 vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
 vi.mock('./sections/extensions', async (importOriginal) => ({
   ...(await importOriginal<object>()),

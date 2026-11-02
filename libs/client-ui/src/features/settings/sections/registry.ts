@@ -3,7 +3,6 @@ import { AboutTab } from '../tabs/AboutTab'
 import { AccountTab } from '../tabs/AccountTab'
 import { AccountsTab } from '../tabs/AccountsTab'
 import { AdvancedTab } from '../tabs/AdvancedTab'
-import { AgentTab } from '../tabs/AgentTab'
 import { AppearanceTab } from '../tabs/AppearanceTab'
 import { ClaudeProviderTab } from '../tabs/ClaudeProviderTab'
 import { ConnectorsTab } from '../tabs/ConnectorsTab'
@@ -16,10 +15,10 @@ import { WritingTab } from '../tabs/WritingTab'
 import {
   HostAccountsSection,
   HostAdvancedSection,
-  HostAgentSection,
   HostConnectorsSection,
   HostFoldersSection,
 } from './hostSections'
+import { HostAgent, LocalAgent } from './agent'
 import { HostComputerUse, LocalComputerUse } from './computer-use'
 import { HostExtensions, LocalExtensions } from './extensions'
 import { HostSubagents, LocalSubagents } from './subagents'
@@ -48,7 +47,7 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   account: { Device: AccountTab },
   install: { Device: InstallAppTab },
   about: { Device: AboutTab },
-  agent: { Local: AgentTab, Host: HostAgentSection, scoped: true },
+  agent: { Local: LocalAgent, Host: HostAgent, scoped: true },
   accounts: { Local: AccountsTab, Host: HostAccountsSection },
   extensions: { Local: LocalExtensions, Host: HostExtensions, scoped: true },
   'claude-provider': { Local: ClaudeProviderTab },

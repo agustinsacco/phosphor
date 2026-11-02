@@ -25,7 +25,7 @@ the form factor.
 | Phosphor account | device            | none                  | yes     | yes     | The signed-in GitHub account and Sign out (or Sign in)                                                          | `account:*`                                             |
 | App installation | device            | `installableApp`      | no      | yes     | Install Phosphor, and the in-app attention note                                                                 | nothing                                                 |
 | About            | device            | rows need `appInfo`   | yes     | yes     | Versions, update check, pi drift warning, font licenses                                                         | nothing                                                 |
-| Agent            | machine, This Mac | `localLanes`          | yes     | no      | pi's agent defaults, global or per project                                                                      | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
+| Agent            | machine, This Mac | `localLanes`          | yes     | no      | pi's agent defaults, per machine or folder                                                                      | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
 | Accounts         | machine, This Mac | `localLanes`          | yes     | no      | Subscription logins pi can drive                                                                                | pi's provider auth                                      |
 | Extensions       | machine, both     | a machine             | yes     | yes     | pi package management, one view on every machine ([below](#extensions))                                         | shells out to `pi install` / `remove` / `update`        |
 | ↳ Claude Code    | machine, This Mac | `localLanes`, package | yes     | no      | The `pi-claude-cli` provider: health, accounts, pi context ownership                                            | Phosphor prefs + the package's own config               |
@@ -185,15 +185,15 @@ removed. A check runs `pi mcp list --json`; its reviewed status/tool counts expi
 after 60 seconds and are invalidated by configuration or authentication changes.
 Signing in never automatically executes a connector check.
 
-A Host's Agent defaults save themselves, as This Mac's Agent tab does: a select or checkbox
+A Host's Agent defaults save themselves, as This Mac's do: a select or switch
 when it changes, a text or number field on blur or Enter. Each save sends only
 the fields that differ, against the latest revision, one at a time; an edit made
 while one is in flight follows it. Host policy and pi defaults are separate
 commits, not an atomic multi-file save. A toast says where each save landed
 ("Saved on \<Host\> — applies to new lanes", or, for automatic naming on a Host
 whose read lacks `namingLive`, "— applies after the Host service restarts"),
-replacing the previous one; the section shows
-"Saving on \<Host\>…" meanwhile. An invalid context budget or a half-filled
+replacing the previous one; the section's save line shows "Saving…"
+meanwhile. An invalid context budget or a half-filled
 custom model is flagged in place and not sent. Edits preserve unrelated settings.
 A Host whose Agent read carries `agentClearSupported` accepts `null` in a patch
 to clear a value (the Host deletes the key); This Mac clears by sending
@@ -212,12 +212,14 @@ provider, Subagents and Web access), offered with consent during guided setup.
 Computer use is not provisioned on Hosts. Existing pins and resource filters are
 shown, not silently reset.
 
-Agent defaults include compaction/retry parameters, thinking visibility and
-steering/follow-up delivery. The same pi settings apply to native and Claude
-providers. A failed model catalogue can be retried; configured custom model ids
-and thinking-only changes do not require a catalogue match. Folder editors show
-their own overrides, not materialized machine defaults. Unknown nested settings
-are retained on save.
+A Host's Agent section is the same view as This Mac's ([Agent](#agent)). The
+same pi settings apply to native and Claude providers. A failed model catalogue
+can be retried; a custom model and thinking-only changes need no catalogue match.
+In folder scope the Host adapter makes a second, machine-scope read, so unset
+values show what the folder inherits; the folder's file still holds only its own
+overrides. Unknown nested settings are retained on save. A Host whose read lacks
+`agentBehaviorSupported` or `agentDirectives` hides those rows and shows one
+"Update this Host" notice.
 
 New lanes read pi defaults and resources; existing lanes are not silently
 restarted. Folder editors keep saved values visible before trust, clearly marked
@@ -225,10 +227,10 @@ inactive; the runtime applies folder configuration only after pi trusts it. Host
 (context budget, automatic naming, directive switches) applies to the next lane without
 a restart; only an older Host without `namingLive` needs a service restart for naming.
 
-The **Instructions and directives** card (`MachineDirectives.tsx`) opens the Host's
+**Instructions and directives** opens the Host's
 own [global instructions](chat.md#global-instructions) in the same editor as This
 Mac's, read and saved through the `instructions` settings section. Its four directive
-switches and **What gets sent** preview match This Mac's, with the Host's label in
+switches and **What gets sent** preview are This Mac's, with the Host's label in
 the machine block; they save on change, like the rest of the page, as Host
 config (`agentDirectives`), which each lane start reads, so a save needs no restart
 and running lanes keep the prompt they started with. There are no per-folder Host
@@ -290,8 +292,9 @@ it from anywhere in settings.
   Keybindings tab's own tables. Entries carry synonyms ("dark mode" finds
   Theme). Tabs whose package is not installed are left out.
 - **Machines.** A machine section's row is indexed on the machines its section
-  has (`local`, `host` in `TABS`), unless the row names its own (`on`). Agent,
-  Accounts, Extensions, MCP Connectors and Advanced still mark their rows
+  has (`local`, `host` in `TABS`), unless the row names its own (`on`). Agent's
+  rows come from its field table (`sections/agent/agentFields.ts`) and are found
+  on every machine. Accounts, Extensions, MCP Connectors and Advanced still mark their rows
   This Mac's own (`LOCAL_ONLY`), because a Host renders its own panels for
   them; a Host finds those sections by their headings only, with synonyms for
   what each Host panel shows. A row a shared view renders drops the override and
@@ -365,44 +368,75 @@ nothing leaves the machine.
 
 ## Agent
 
-Writes pi's own `settings.json`. The scope line's **Machine** writes the global file
-(`~/.pi/agent`); **Folder** writes that workspace's override (`<ws>/.pi/settings.json`). Each scope
-is read **unmerged**: the editor shows what that file actually contains, so a
-project edit never bakes inherited global values into the project file. In
-project scope, an empty field's placeholder names what it inherits.
+One view on every machine (`sections/agent/AgentSettingsView.tsx`), fed by This
+Mac's adapter (`useLocalAgent`) or a Host's (`useHostAgent`). It writes pi's own
+`settings.json`: the scope line's **Machine** writes the machine's global file
+(`~/.pi/agent`); **Folder** writes that folder's override (`<ws>/.pi/settings.json`
+on This Mac, a registered folder on a Host). Each scope is read **unmerged**, so a
+folder edit never bakes inherited machine values into its file. Each field's
+place, control, bounds, step and pi default come from one table,
+`AGENT_FIELDS` in `@phosphor/shared/machine-agent-behavior`, which the Host's
+validator reads too; titles and descriptions are in `sections/agent/agentFields.ts`.
 
-- **Default model** and **default provider** are free text, not pickers: pi
-  accepts any id its config knows, including a custom `models.json` or a local
-  endpoint no catalogue would list.
-- Default thinking level (off · minimal · low · medium · high · xhigh · max);
-  `hideThinkingBlock`.
-- Steering / follow-up delivery ("all" vs "one-at-a-time").
-- Compaction (enabled, reserveTokens, keepRecentTokens) and retry (enabled,
-  maxRetries, baseDelayMs). Compaction applies to every provider, including
-  Claude Code; switching models does not override the user's choice.
-- **Context budget**: a This Mac target for interactive sessions on every
-  provider, Claude Code included (default 200k; 400k; model maximum; or
-  custom, 100k–1M). Bare numbers are thousands: `500` means 500k, previewed
-  beside the field. This unscoped Phosphor pref stays editable even when pi's
-  settings file is broken. pi uses the capped window between tool cycles, including live
-  sessions. Smaller windows retain pi's native limit. See
-  [One context budget](cli-providers.md#one-context-budget).
-- **Directives**: what Phosphor appends to This Mac's lane system prompts, global
-  or per project, shown composed before it is sent (**What gets sent**). A prompt
-  you cannot read is one you cannot debug. The four blocks are switches, with no
-  free-text field. **Global instructions → Edit instructions** opens This Mac's
-  [global instructions](chat.md#global-instructions) file. Text from the retired
-  "Your own text" field that could not move into it is listed with a copy button
-  until dismissed.
-- If the target file is not valid JSON, editing is **disabled** rather than
-  best-effort, and the banner routes to Advanced to repair it by hand. Main
-  never overwrites a config it could not parse.
-- Saves use the Host's writer (`libs/session-runtime/src/pi/settings-file.ts`):
+Every row shows the value this scope sets, else the machine's (folder scope),
+else pi's own default, with a badge that says which: **Set here**, **Inherited
+from machine** or **pi default**. **Reset** clears a value set here, so it inherits
+again: This Mac sends `undefined`; a Host sends `null`, and only a Host whose read
+carries `agentClearSupported` offers it.
+
+The groups, in order:
+
+- **New lanes.** **Default model** is a catalogue choice from the machine's own
+  catalogue (This Mac's `modelCatalogue`, a Host's `hosts:models`); a saved model
+  the catalogue lacks stays listed. **Custom model** takes any provider id and
+  model id pair the machine has configured, including a custom `models.json` or a
+  local endpoint no catalogue lists; it saves once both are filled. Default
+  thinking level (off · minimal · low · medium · high · xhigh · max). **Name new
+  lanes automatically**: `LanePrefs.autoName` on This Mac, the Host's
+  `autoNameLanes`. A Host whose read lacks `namingLive` says a change applies
+  after its service restarts.
+- **Behaviour.** Hide thinking blocks; steering and follow-up delivery (one at a
+  time, or all).
+- **Compaction.** Auto-compaction, the context budget, reserve tokens and keep
+  recent tokens (0–1,000,000, in steps of 1024). Compaction applies to every
+  provider, including Claude Code. The **context budget** is one picker on every
+  machine (default 200k; 400k; model maximum; or custom, 100k–1M, where a bare
+  `500` means 500k, previewed beside the field). This Mac keeps it as a
+  Phosphor pref, and a failed save puts the old value back with an error; a
+  Host keeps it in its config. It reaches running lanes at their next safe
+  boundary on both. See [One context budget](cli-providers.md#one-context-budget).
+- **Retry.** Retry on transient errors; max retries (0–100); base delay
+  (0–1,000,000 ms, in steps of 250).
+- **Instructions and directives.** What Phosphor appends to lane system prompts,
+  shown composed before it is sent (**What gets sent**). A prompt you cannot read
+  is one you cannot debug. The four blocks are switches, with no free-text field.
+  **Global instructions → Edit instructions** opens the machine's
+  [global instructions](chat.md#global-instructions) file. On This Mac, text from
+  the retired "Your own text" field that could not move into it is listed with a
+  copy button until dismissed.
+
+The context budget, automatic naming and global instructions are machine-wide,
+so folder scope hides them and says so. Directives follow the scope line too:
+on This Mac a folder keeps its own switches (**Clear this folder's override**
+returns it to the machine's); a Host has no per-folder directives.
+
+One notice slot sits under the heading. On This Mac: a target file that is not
+valid JSON disables editing rather than editing best-effort, and routes to
+Advanced to repair it by hand (main never overwrites a config it could not
+parse); a folder pi does not trust is named, since pi ignores its settings until
+trusted (the trust answer comes from `mcp:readConfigs`). On a Host: an untrusted
+folder, or "Update this Host".
+
+This Mac saves each edit at once; a Host saves through its draft and revision
+engine ([above](#host-machine-settings)). One save line shows either. A failed
+read shows an error with **Try again**.
+
+- This Mac's saves use the Host's writer (`libs/session-runtime/src/pi/settings-file.ts`):
   locked per file, atomically replaced, and refused when the file changed since
   it was read. This Mac's policy (`DESKTOP_FILE_POLICY`) saves through a dotfile
   symlink, so the link survives, and keeps each file's mode. `settings.json`,
   `models.json`, `mcp.json` and their raw editors all write through it.
-- pi settings apply to **new** sessions. The context budget is the live-session
+- pi settings apply to **new** lanes. The context budget is the live-session
   exception described above.
 
 ## Accounts

@@ -19,6 +19,83 @@ export const AGENT_BEHAVIOR_FIELDS: Record<'compaction' | 'retry', readonly stri
   compaction: ['enabled', 'reserveTokens', 'keepRecentTokens'],
   retry: ['enabled', 'maxRetries', 'baseDelayMs'],
 }
+/** Where an Agent setting lives in pi's settings.json: a key, or a nested group's field. */
+export type AgentFieldPath =
+  | readonly [key: 'defaultThinkingLevel' | 'hideThinkingBlock' | 'steeringMode' | 'followUpMode']
+  | readonly [group: 'compaction' | 'retry', field: string]
+
+/** One Agent setting both machines edit: its place, its control and pi's own default. */
+export interface AgentField {
+  path: AgentFieldPath
+  kind: 'bool' | 'int' | 'mode' | 'thinking'
+  /** Whole numbers only: the bounds a Host accepts, with the step the field moves by. */
+  min?: number
+  max?: number
+  step?: number
+  /** What pi uses when no settings file sets it (pi `dist/core/settings-defaults.js`). */
+  piDefault: boolean | number | string
+}
+
+/**
+ * The single source for the Agent section's pi settings, on every machine.
+ * The bounds are the Host validator's (below), so a value one machine saves
+ * is never refused or dropped by another.
+ */
+/** A whole number from 0 to `max`, moving by `step`. */
+const int = <G extends 'compaction' | 'retry', F extends string>(
+  group: G,
+  field: F,
+  max: number,
+  step: number,
+  piDefault: number,
+) => ({ path: [group, field] as const, kind: 'int' as const, min: 0, max, step, piDefault })
+
+export const AGENT_FIELDS = {
+  defaultThinkingLevel: { path: ['defaultThinkingLevel'], kind: 'thinking', piDefault: 'medium' },
+  hideThinkingBlock: { path: ['hideThinkingBlock'], kind: 'bool', piDefault: false },
+  steeringMode: { path: ['steeringMode'], kind: 'mode', piDefault: 'one-at-a-time' },
+  followUpMode: { path: ['followUpMode'], kind: 'mode', piDefault: 'one-at-a-time' },
+  'compaction.enabled': { path: ['compaction', 'enabled'], kind: 'bool', piDefault: true },
+  'compaction.reserveTokens': int('compaction', 'reserveTokens', 1_000_000, 1024, 16384),
+  'compaction.keepRecentTokens': int('compaction', 'keepRecentTokens', 1_000_000, 1024, 20000),
+  'retry.enabled': { path: ['retry', 'enabled'], kind: 'bool', piDefault: true },
+  'retry.maxRetries': int('retry', 'maxRetries', 100, 1, 3),
+  'retry.baseDelayMs': int('retry', 'baseDelayMs', 1_000_000, 250, 2000),
+} as const satisfies Record<string, AgentField>
+export type AgentFieldKey = keyof typeof AGENT_FIELDS
+
+/** The value at `path`, if the settings set it. */
+export function agentFieldValue(settings: Record<string, unknown>, path: AgentFieldPath): unknown {
+  const [key, field] = path
+  const value = settings[key]
+  if (field === undefined) return value
+  return machineRecord(value) ? value[field] : undefined
+}
+
+/**
+ * `settings` with `path` set to `value`, or cleared when `value` is undefined.
+ * A nested group merges one level and is dropped once empty, as both
+ * machines write it.
+ */
+export function withAgentField(
+  settings: Record<string, unknown>,
+  path: AgentFieldPath,
+  value: unknown,
+): Record<string, unknown> {
+  const [key, field] = path
+  const next = { ...settings }
+  if (field !== undefined) {
+    const group = { ...(machineRecord(settings[key]) ? settings[key] : {}), [field]: value }
+    if (value === undefined) delete group[field]
+    value = Object.keys(group).length > 0 ? group : undefined
+  }
+  if (value === undefined) delete next[key]
+  else next[key] = value
+  return next
+}
+
+const intBounds = (key: string, field: string): AgentField | undefined =>
+  (AGENT_FIELDS as Record<string, AgentField>)[`${key}.${field}`]
 const nestedFields = (key: string): readonly string[] =>
   key === 'compaction' || key === 'retry' ? AGENT_BEHAVIOR_FIELDS[key] : []
 export function validAgentBehavior(key: string, value: unknown): boolean {
@@ -36,8 +113,8 @@ export function validAgentBehavior(key: string, value: unknown): boolean {
           ? typeof v === 'boolean'
           : typeof v === 'number' &&
             Number.isSafeInteger(v) &&
-            v >= 0 &&
-            v <= (field === 'maxRetries' ? 100 : 1_000_000)),
+            v >= (intBounds(key, field)?.min ?? 0) &&
+            v <= (intBounds(key, field)?.max ?? 0)),
     )
   )
 }

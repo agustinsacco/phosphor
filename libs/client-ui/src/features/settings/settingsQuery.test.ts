@@ -132,13 +132,13 @@ describe('rowOnMachine', () => {
     expect(rowOnMachine(row('agent'), null)).toBe(false)
   })
 
-  it("indexes only This Mac's own Agent rows on This Mac, and only the heading on a Host", () => {
+  it('indexes the same Agent rows on This Mac and on a Host', () => {
     const agent = (machine: 'local' | 'host'): string[] =>
       platformIndex(DESKTOP_PLATFORM, machine)
-        .filter((entry) => entry.tab === 'agent' && !entry.section)
+        .filter((entry) => entry.tab === 'agent')
         .map((entry) => entry.title)
     expect(agent('local')).toContain('Context budget')
-    expect(agent('host')).toEqual(['Agent defaults'])
+    expect(agent('host')).toEqual(agent('local'))
   })
 })
 
@@ -159,14 +159,10 @@ describe('SETTINGS_INDEX against the section sources', () => {
     'tabs/AccountTab.tsx': 'account',
     'tabs/AccountsTab.tsx': 'accounts',
     'tabs/AdvancedTab.tsx': 'advanced',
-    'tabs/AgentTab.tsx': 'agent',
     'tabs/AppearanceTab.tsx': 'appearance',
     'tabs/ClaudeAccountPanel.tsx': 'claude-provider',
     'tabs/ClaudeProviderTab.tsx': 'claude-provider',
     'tabs/ConnectorsTab.tsx': 'connectors',
-    'tabs/ContextBudgetSection.tsx': 'agent',
-    'tabs/DirectivesSection.tsx': 'agent',
-    'tabs/DirectiveToggles.tsx': 'agent',
     'tabs/InstallAppTab.tsx': 'install',
     'tabs/KeybindingsTab.tsx': 'keybindings',
     'tabs/MaintenanceSection.tsx': 'advanced',
@@ -183,6 +179,8 @@ describe('SETTINGS_INDEX against the section sources', () => {
   const SECTION_DATA: Partial<Record<SettingsTab, readonly string[]>> = {
     // Appearance renders these exact shared rows in Desktop and the browser.
     appearance: ['AppearancePreferences.tsx'],
+    // The Agent view renders its rows from this field table on every machine.
+    agent: ['sections/agent/agentFields.ts'],
   }
 
   const root = import.meta.dirname
@@ -257,7 +255,7 @@ describe('SETTINGS_INDEX against the section sources', () => {
       .join('\n')
     const hostEntries = SETTINGS_INDEX.filter(hostHeading)
     // A section whose shared view renders on a Host is indexed by its own rows instead.
-    const shared = new Set<SettingsTab>(['extensions'])
+    const shared = new Set<SettingsTab>(['agent', 'extensions'])
     expect(hostEntries.map((entry) => entry.tab)).toEqual(
       TABS.filter((tab) => tab.host && !shared.has(tab.id)).map((tab) => tab.id),
     )

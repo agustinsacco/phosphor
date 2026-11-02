@@ -41,7 +41,18 @@ it('keeps pi settings and Host policy in separate patches, pi first', () => {
 
 it('never sends an incomplete custom model', () => {
   expect(nextAgentPatch({ ...base, model: JSON.stringify(['openai', '']) }, base)).toBeNull()
-  expect(nextAgentPatch({ ...base, model: '' }, base)).toBeNull()
+})
+
+it('clears what a draft reset, as null, and only the group fields it dropped', () => {
+  expect(nextAgentPatch({ ...base, model: '' }, base)).toEqual({
+    defaultProvider: null,
+    defaultModel: null,
+  })
+  expect(nextAgentPatch({ ...base, thinking: '' }, base)).toEqual({ defaultThinkingLevel: null })
+  expect(
+    nextAgentPatch({ ...base, behavior: { compaction: { reserveTokens: 16384 } } }, base),
+  ).toEqual({ compaction: { reserveTokens: 16384, enabled: null } })
+  expect(nextAgentPatch({ ...base, behavior: {} }, base)).toEqual({ compaction: null })
 })
 
 it('adopts the Host’s values for what it acknowledged but keeps an edit made in flight', () => {
