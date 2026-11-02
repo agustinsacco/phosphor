@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { DEFAULT_AGENT_DIRECTIVES } from '@phosphor/shared/models'
-import { hostContextBudget, hostDirectives } from './live-policy'
+import { hostAutoNameLanes, hostContextBudget, hostDirectives } from './live-policy'
 
 let dir: string
 let configPath: string
@@ -60,4 +60,16 @@ it('keeps the budget it started with when the config is unreadable or invalid', 
   await writeFile(configPath, config({ contextBudget: '77k' }))
   expect(read()).toBe('300k')
   expect(hostContextBudget(join(dir, 'missing.json'), {})()).toBe('')
+})
+
+it('reads automatic naming at each call, so the next lane sees a saved change', async () => {
+  await writeFile(configPath, config(), { mode: 0o600 })
+  const read = hostAutoNameLanes(configPath, {})
+  expect(read()).toBe(true)
+  await writeFile(configPath, config({ autoNameLanes: false }))
+  expect(read()).toBe(false)
+  await writeFile(configPath, '{"version":')
+  expect(read()).toBe(false)
+  await writeFile(configPath, config({ autoNameLanes: true }))
+  expect(read()).toBe(true)
 })

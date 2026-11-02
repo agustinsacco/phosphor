@@ -145,6 +145,7 @@ function mockSettingsSamples(hostId: string, repositoryId?: string) {
       defaultThinkingLevel: 'medium',
       contextBudget: '200k',
       autoNameLanes: true,
+      namingLive: true,
       agentDirectives: { ...DEFAULT_AGENT_DIRECTIVES },
     },
     instructions: {

@@ -185,8 +185,9 @@ when it changes, a text or number field on blur or Enter. Each save sends only
 the fields that differ, against the latest revision, one at a time; an edit made
 while one is in flight follows it. Host policy and pi defaults are separate
 commits, not an atomic multi-file save. A toast says where each save landed
-("Saved on \<Host\> — applies to new lanes", or "— applies after the Host
-service restarts" for automatic naming), replacing the previous one; the section shows
+("Saved on \<Host\> — applies to new lanes", or, for automatic naming on a Host
+whose read lacks `namingLive`, "— applies after the Host service restarts"),
+replacing the previous one; the section shows
 "Saving on \<Host\>…" meanwhile. An invalid context budget or a half-filled
 custom model is flagged in place and not sent. Edits preserve unrelated settings.
 A Host whose Agent read carries `agentClearSupported` accepts `null` in a patch
@@ -216,7 +217,8 @@ are retained on save.
 New lanes read pi defaults and resources; existing lanes are not silently
 restarted. Folder editors keep saved values visible before trust, clearly marked
 inactive; the runtime applies folder configuration only after pi trusts it. Host policy
-changes require an explicit Host service restart, except the directive switches.
+(context budget, automatic naming, directive switches) applies to the next lane without
+a restart; only an older Host without `namingLive` needs a service restart for naming.
 
 The **Instructions and directives** card (`MachineDirectives.tsx`) opens the Host's
 own [global instructions](chat.md#global-instructions) in the same editor as This
@@ -604,8 +606,8 @@ so connectors are not configuration for a package.
 
 ## Workspaces
 
-- **Naming and markers**: auto-naming on/off, the word range and character cap
-  for generated titles, the branch-slug cap, the lane marker mode, and whether
+- **Naming and markers**: auto-naming on/off (titles are always 2-5 words and at
+  most 60 characters), the branch-slug cap, the lane marker mode, and whether
   lanes show their PR status (`LanePrefs`). Every number is clamped in both
   the renderer and main, and the branch-length row previews a real slug. See
   [lanes.md](lanes.md#preferences).

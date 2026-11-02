@@ -29,6 +29,8 @@ describe('machine-owned settings service', () => {
     expect(saved.agent).toMatchObject({
       defaultProvider: 'pi-claude-cli',
       defaultModel: 'saved-model',
+      // Automatic naming is read at each lane's first prompt: no restart notice.
+      namingLive: true,
     })
   })
   it('hides existing npm URL credentials at the Host boundary, before wire projection', async () => {

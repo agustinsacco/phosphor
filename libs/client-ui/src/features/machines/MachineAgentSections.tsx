@@ -142,8 +142,9 @@ export function MachineHostPolicy({
           Automatically name new lanes
         </label>
         <p className="text-text-tertiary text-sm">
-          The context budget applies to the next lane without a restart. Automatic naming applies
-          after you restart the service on {label}; saving never restarts it or stops lanes.
+          {controller.state?.namingLive
+            ? 'The context budget and automatic naming apply to the next lane without a restart.'
+            : `The context budget applies to the next lane without a restart. Automatic naming applies after you restart the service on ${label}; saving never restarts it or stops lanes.`}
         </p>
       </div>
     </Card>

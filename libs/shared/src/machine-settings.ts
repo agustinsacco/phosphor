@@ -35,6 +35,11 @@ export interface MachineAgentDefaults extends MachineAgentBehavior {
   defaultThinkingLevel?: ThinkingLevel
   contextBudget: string
   autoNameLanes: boolean
+  /**
+   * The Host reads `autoNameLanes` at each lane's first prompt. Absent from
+   * Hosts that bind it at boot, where a change needs a service restart.
+   */
+  namingLive?: true
   /** The generated blocks the Host appends at lane start. Absent from Hosts that predate them. */
   agentDirectives?: AgentDirectivePrefs
 }
@@ -46,7 +51,7 @@ type Clearable<T> = { [K in keyof T]?: T[K] | null }
  * carries `agentClearSupported`; older Hosts refuse it.
  */
 export type MachineAgentPatch = Clearable<
-  Omit<MachineAgentDefaults, 'agentDirectives' | 'compaction' | 'retry'>
+  Omit<MachineAgentDefaults, 'agentDirectives' | 'compaction' | 'retry' | 'namingLive'>
 > & {
   compaction?: Clearable<NonNullable<MachineAgentBehavior['compaction']>> | null
   retry?: Clearable<NonNullable<MachineAgentBehavior['retry']>> | null

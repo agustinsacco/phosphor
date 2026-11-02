@@ -47,6 +47,12 @@ describe('Host machine settings boundary', () => {
     expect(await f.api.read('bee1', 'agent')).toEqual(data)
     expect(f.fake.call).toHaveBeenCalledWith('machine.settings.read', { section: 'agent' })
   })
+  it('projects the additive namingLive flag of a Host that names lanes live', async () => {
+    const f = fixture()
+    const live = { ...data, agent: { ...data.agent, namingLive: true } }
+    f.fake.call.mockResolvedValue({ ok: true, data: live } as never)
+    expect(await f.api.read('bee1', 'agent')).toEqual(live)
+  })
   it.each(['replaced', 'reconnected', 'revoked'] as const)(
     'does not publish a %s connection’s late result',
     async (kind) => {

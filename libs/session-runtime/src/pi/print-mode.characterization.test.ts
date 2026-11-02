@@ -4,14 +4,12 @@ import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runPrintMode } from '../../../../apps/desktop/electron/pi/print-mode'
-import { printTitle } from '../../../../apps/host/src/lanes/naming'
 
 vi.mock('node:child_process', async (original) => {
   const actual = await original<typeof ChildProcessModule>()
   return { ...actual, spawn: vi.fn(actual.spawn) }
 })
 
-const machine = { pi: { binaryPath: process.execPath, prefixArgs: [] }, env: {} }
 let child: ChildProcess & { stdout: PassThrough; stderr: PassThrough }
 
 beforeEach(() => {
@@ -33,31 +31,26 @@ afterEach(() => {
 
 const desktop = (timeoutMs = 5_000, signal?: AbortSignal) =>
   runPrintMode(process.execPath, [], { cwd: process.cwd(), env: {}, timeoutMs, signal })
-const host = (timeoutMs = 5_000, signal?: AbortSignal) =>
-  printTitle(machine, process.cwd(), [], timeoutMs, signal)
 
 describe('original print transport contracts', () => {
-  it.each(['Desktop', 'Host'])('%s completes a real child only after stdin EOF', async (entry) => {
+  it('Desktop completes a real child only after stdin EOF', async () => {
     const actual = await vi.importActual<typeof ChildProcessModule>('node:child_process')
     vi.mocked(spawn).mockImplementationOnce(actual.spawn)
     const args = [
       '-e',
       "process.stdin.resume(); process.stdin.on('end', () => process.stdout.write('EOF title\\n'))",
     ]
-    const result =
-      entry === 'Desktop'
-        ? await runPrintMode(process.execPath, args, {
-            cwd: process.cwd(),
-            env: {},
-            timeoutMs: 5_000,
-          })
-        : await printTitle(machine, process.cwd(), args, 5_000)
-    expect(result).toEqual(entry === 'Desktop' ? { stdout: 'EOF title\n' } : 'EOF title')
+    const result = await runPrintMode(process.execPath, args, {
+      cwd: process.cwd(),
+      env: {},
+      timeoutMs: 5_000,
+    })
+    expect(result).toEqual({ stdout: 'EOF title\n' })
     expect(spawn).toHaveBeenCalledWith(
       process.execPath,
       args,
       expect.objectContaining({
-        stdio: ['ignore', 'pipe', entry === 'Desktop' ? 'pipe' : 'ignore'],
+        stdio: ['ignore', 'pipe', 'pipe'],
       }),
     )
   })
@@ -70,16 +63,8 @@ describe('original print transport contracts', () => {
     expect(await pending).toEqual({ stdout: 'partial', error: 'timed out after 25ms' })
   })
 
-  it('Host rejects partial stdout on timeout', async () => {
-    vi.useFakeTimers()
-    const pending = host(25)
-    child.stdout.write('partial')
-    await vi.advanceTimersByTimeAsync(25)
-    expect(await pending).toBeNull()
-  })
-
-  it.each(['Desktop', 'Host'])('%s drains final stdout after exit, before close', async (entry) => {
-    const pending = entry === 'Desktop' ? desktop() : host()
+  it('Desktop drains final stdout after exit, before close', async () => {
+    const pending = desktop()
     let settled = false
     void pending.then(() => {
       settled = true
@@ -89,20 +74,17 @@ describe('original print transport contracts', () => {
     expect(settled).toBe(false)
     child.stdout.write('Final title\n')
     child.emit('close', 0)
-    expect(await pending).toEqual(entry === 'Desktop' ? { stdout: 'Final title\n' } : 'Final title')
+    expect(await pending).toEqual({ stdout: 'Final title\n' })
   })
 
-  it.skipIf(process.platform === 'win32').each(['Desktop', 'Host'])(
-    '%s cancellation kills its process group',
-    async (entry) => {
+  it.skipIf(process.platform === 'win32')(
+    'Desktop cancellation kills its process group',
+    async () => {
       const controller = new AbortController()
-      const pending =
-        entry === 'Desktop' ? desktop(5_000, controller.signal) : host(5_000, controller.signal)
+      const pending = desktop(5_000, controller.signal)
       child.stdout.write('partial')
       controller.abort()
-      expect(await pending).toEqual(
-        entry === 'Desktop' ? { stdout: 'partial', error: 'aborted' } : null,
-      )
+      expect(await pending).toEqual({ stdout: 'partial', error: 'aborted' })
       expect(process.kill).toHaveBeenCalledWith(-7654321, 'SIGKILL')
     },
   )
