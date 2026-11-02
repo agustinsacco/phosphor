@@ -64,7 +64,8 @@ to its bottom.
 ## Machine scope
 
 Device sections come first, then **Configure** (a selector of machines) and the
-chosen machine's sections. Configure lists **This Mac** when the client has local
+chosen machine's sections. Configure lists **This Mac** (the local machine's
+platform label, This PC or This computer off macOS) when the client has local
 lanes (`localLanes`) and every known Host (the machines directory and the connected
 Hosts) when it can configure one (`machineSettings`).
 

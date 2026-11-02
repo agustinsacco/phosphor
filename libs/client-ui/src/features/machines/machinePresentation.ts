@@ -45,11 +45,6 @@ export interface ReadinessCheck {
   command?: string
 }
 
-/** Who the local row is: the machine's own word, never a repeated badge. */
-export function localMachineLabel(platform: string): string {
-  return platform === 'darwin' ? 'This Mac' : platform === 'win32' ? 'This PC' : 'This computer'
-}
-
 /**
  * How far a machine's readiness can be trusted. A machine that never sent a
  * heartbeat has none; one that is offline has only what it last reported.

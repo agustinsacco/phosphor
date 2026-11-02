@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { LOCAL_MACHINE_LABEL } from './fixtures/local-machine'
 import { randomUUID } from 'node:crypto'
 import { remoteHostFixture } from './fixtures/remote-host'
 
@@ -7,7 +8,7 @@ test('Desktop streams a real Host lane, reads Files and becomes a viewer on cont
   try {
     await h.signIn()
     const switcher = h.page.getByRole('button', { name: 'Machine filter', exact: true })
-    await expect(switcher).toContainText('This Mac')
+    await expect(switcher).toContainText(LOCAL_MACHINE_LABEL)
     await switcher.click()
     await h.page.getByRole('option').filter({ hasText: 'bee1' }).click()
     const sidebar = h.page.getByRole('region', { name: 'bee1', exact: true })

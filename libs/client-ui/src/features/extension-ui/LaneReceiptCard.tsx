@@ -1,5 +1,6 @@
 import { receiptDurationLabel } from '@shared/lane-receipt'
 import { stripAnsi } from '@shared/ansi'
+import { localMachineLabel } from '@/lib/localMachine'
 import { useMachinesStore } from '@/stores/machines'
 import { TooltipButton } from '@/components/Tooltip'
 import { useExtensionUiStore, type Toast } from '@/stores/extensionUi'
@@ -59,7 +60,7 @@ export function LaneReceiptCard({
       >
         <span className="text-text-secondary flex items-center justify-between text-xs">
           <span className="border-border rounded border px-1.5 py-0.5">
-            {receipt?.machine ?? 'This Mac'}
+            {receipt?.machine ?? localMachineLabel()}
             {platform
               ? ` · ${platform === 'darwin' ? 'macOS' : platform === 'linux' ? 'Linux' : platform}`
               : ''}

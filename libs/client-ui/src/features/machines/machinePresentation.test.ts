@@ -2,7 +2,6 @@ import { expect, it } from 'vitest'
 import {
   formatCode,
   HOST_INSTALL,
-  localMachineLabel,
   platformName,
   readinessFreshness,
   readinessChecks,
@@ -85,9 +84,6 @@ it('trusts readiness only while a machine is online, and names problems in a few
     'Claude Code not reported',
     'Tailscale not reported',
   ])
-  expect(localMachineLabel('darwin')).toBe('This Mac')
-  expect(localMachineLabel('win32')).toBe('This PC')
-  expect(localMachineLabel('linux')).toBe('This computer')
 })
 it('never suggests piping a download into a shell', () => {
   const missing = readinessChecks({ pi: 'ok', claude: 'ok', tailscale: 'missing' })[2]

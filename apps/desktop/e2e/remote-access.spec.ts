@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { LOCAL_MACHINE_LABEL } from './fixtures/local-machine'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import {
   openRemote,
@@ -17,7 +18,7 @@ test('Background attention and sign-out preserve machine boundaries', async () =
     await openRemote(h)
     await takeControl(h)
     await h.page.getByRole('button', { name: 'Machine filter', exact: true }).click()
-    await h.page.getByRole('option').filter({ hasText: 'This Mac' }).click()
+    await h.page.getByRole('option').filter({ hasText: LOCAL_MACHINE_LABEL }).click()
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
     await h.page.getByPlaceholder('Describe a task or ask a question').fill('LOCAL_ONLY task')
     await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()
@@ -137,11 +138,11 @@ test('Provider login and error remedies target bee1, Settings configures bee1 an
     await expect(settings.getByRole('heading', { name: 'Accounts', exact: true })).toBeVisible()
     await settings
       .getByRole('combobox', { name: 'Configure', exact: true })
-      .selectOption({ label: 'This Mac' })
+      .selectOption({ label: LOCAL_MACHINE_LABEL })
     for (const tab of ['Accounts', 'Agent', 'Extensions', 'Advanced']) {
       await settings.getByRole('button', { name: tab, exact: true }).click()
       await expect(settings.getByTestId('settings-machine-scope')).toContainText(
-        'Configuring This Mac',
+        `Configuring ${LOCAL_MACHINE_LABEL}`,
       )
     }
     await expect(settings).not.toContainText('Remote settings are not available here.')
@@ -176,7 +177,7 @@ test('A Mac lane notice returns from bee1 and closes the global page', async () 
     await expect(notice).toBeVisible()
     await notice.click()
     await expect(h.page.getByRole('button', { name: 'Machine filter', exact: true })).toContainText(
-      'This Mac',
+      LOCAL_MACHINE_LABEL,
     )
     await expect(h.page.getByRole('textbox', { name: 'Chat message', exact: true })).toBeVisible()
     await expect(

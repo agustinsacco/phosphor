@@ -1,4 +1,5 @@
 import { usePlatform } from '@/platform/Platform'
+import { localMachineLabel } from '@/lib/localMachine'
 import clsx from 'clsx'
 import { machineStatus, type MachineView } from '@shared/control-api'
 import { TooltipButton, tooltipProps } from '@/components/Tooltip'
@@ -8,7 +9,6 @@ import { localChecks, type Computer } from './LocalMachine'
 import { machineHeadline } from './machineReachability'
 import {
   LOCAL_MACHINE,
-  localMachineLabel,
   platformName,
   readinessChecks,
   readinessFreshness,
@@ -69,7 +69,7 @@ export function LocalMachineRow({
 }): React.JSX.Element {
   const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
   const tasks = useLocalTasks()
-  const label = localMachineLabel(window.phosphor.platform)
+  const label = localMachineLabel()
   const checks = localChecks(computer)
   const loading = checks.some((check) => check.loading)
   const problems = checks.filter((check) => !check.ok && !check.loading)

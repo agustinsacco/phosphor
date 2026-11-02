@@ -7,7 +7,7 @@ import { useSettingsWorkspace } from '../SettingsMachineScope'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useAccount } from '../useAccount'
 import { errorText } from '@shared/errors'
-import { localMachineLabel } from '@/features/machines/machinePresentation'
+import { localMachineLabel } from '@/lib/localMachine'
 import { EditInstructions } from '../instructions/EditInstructions'
 import { localInstructions } from '../instructions/instructionsSource'
 import { DirectiveToggles } from './DirectiveToggles'
@@ -35,7 +35,7 @@ export function DirectivesSection(): React.JSX.Element {
   const [byProject, setByProject] = useState<Record<string, AgentDirectivePrefs>>({})
   const [retired, setRetired] = useState<Record<string, string>>({})
   const [editing, setEditing] = useState(false)
-  const machine = localMachineLabel(window.phosphor.platform)
+  const machine = localMachineLabel()
   const source = useMemo(() => localInstructions(machine), [machine])
 
   const reload = useCallback((): void => {
