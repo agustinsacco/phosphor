@@ -188,3 +188,46 @@ describe('machine settings boundaries', () => {
     ).toBeNull()
   })
 })
+
+describe('agent.patch null clears (agentClearSupported)', () => {
+  const agent = (p: unknown, extra = {}) => patch({ type: 'agent.patch', patch: p }, 'agent', extra)
+  it('accepts null for every allowlisted key and nested behavior field', () => {
+    for (const p of [
+      { defaultModel: null, defaultProvider: null, defaultThinkingLevel: null },
+      { hideThinkingBlock: null, steeringMode: null, followUpMode: null },
+      { compaction: null, retry: null },
+      { compaction: { enabled: null, reserveTokens: 1024 }, retry: { maxRetries: null } },
+      { contextBudget: null, autoNameLanes: null, agentDirectives: null },
+    ])
+      expect(agent(p)).toMatchObject({ change: { patch: p } })
+    expect(agent({ steeringMode: null }, { repositoryId })).toBeTruthy()
+  })
+  it('refuses null for unknown keys and fields, and policy keys with a folder', () => {
+    for (const p of [
+      { environment: null },
+      { compaction: { model: null } },
+      { retry: { unknown: null } },
+      { agentDirectives: { awareness: null } },
+    ])
+      expect(agent(p)).toBeNull()
+    for (const p of [{ contextBudget: null }, { autoNameLanes: null }, { agentDirectives: null }])
+      expect(agent(p, { repositoryId })).toBeNull()
+  })
+  it('reads agentClearSupported back, and never nulls into values', () => {
+    const result = parseMachineSettings({
+      section: 'agent',
+      revision,
+      agentClearSupported: true,
+      agent: { contextBudget: '', autoNameLanes: true, hideThinkingBlock: null },
+    })
+    expect(result?.agentClearSupported).toBe(true)
+    expect(result?.agent).not.toHaveProperty('hideThinkingBlock')
+    expect(
+      parseMachineSettings({
+        section: 'agent',
+        revision,
+        agent: { contextBudget: '', autoNameLanes: true },
+      }),
+    ).not.toHaveProperty('agentClearSupported')
+  })
+})

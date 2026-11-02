@@ -96,4 +96,19 @@ describe('Host machine settings boundary', () => {
     f.fake.send.mockResolvedValue({ status: 'unknown' })
     await expect(f.api.moveAccount('bee1', 'lane', 'default')).rejects.toThrow('not confirmed')
   })
+  it('sends a null clear to a Host and projects agentClearSupported', async () => {
+    const f = fixture()
+    f.fake.call.mockResolvedValue({
+      ok: true,
+      data: { ...data, agentClearSupported: true },
+    } as never)
+    const change = { type: 'agent.patch' as const, patch: { hideThinkingBlock: null } }
+    const result = await f.api.patch('bee1', { section: 'agent', revision, change })
+    expect(f.fake.call).toHaveBeenCalledWith('machine.settings.patch', {
+      section: 'agent',
+      revision,
+      change,
+    })
+    expect(result.agentClearSupported).toBe(true)
+  })
 })
