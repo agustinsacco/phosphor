@@ -34,11 +34,18 @@ export interface MachineAgentDefaults extends MachineAgentBehavior {
   defaultThinkingLevel?: ThinkingLevel
   contextBudget: string
   autoNameLanes: boolean
+  /**
+   * The Host reads `autoNameLanes` at each lane's first prompt. Absent from
+   * Hosts that bind it at boot, where a change needs a service restart.
+   */
+  namingLive?: true
   /** The generated blocks the Host appends at lane start. Absent from Hosts that predate them. */
   agentDirectives?: AgentDirectivePrefs
 }
 /** Only the keys sent change; directive switches merge into the Host's own. */
-export type MachineAgentPatch = Partial<Omit<MachineAgentDefaults, 'agentDirectives'>> & {
+export type MachineAgentPatch = Partial<
+  Omit<MachineAgentDefaults, 'agentDirectives' | 'namingLive'>
+> & {
   agentDirectives?: Partial<AgentDirectivePrefs>
 }
 export type MachineSettings = {

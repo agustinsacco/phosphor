@@ -8,6 +8,7 @@ import {
   type TitleFailure,
 } from '@phosphor/session-runtime/pi/title-run'
 import { claudeAccountEnv } from '@phosphor/session-runtime/claude/routing'
+import { hostAutoNameLanes } from '../config/live-policy'
 import type { HostConfigV1 } from '../config/schema'
 import type { HostClaudeAccounts } from '../providers/accounts'
 import type { HostMachine, HostRuntime } from '../session/runtime'
@@ -61,7 +62,7 @@ export function hostLaneNaming(
   accounts: Pick<HostClaudeAccounts, 'loadAccounts'> | undefined,
 ): LaneNamingPorts {
   return {
-    enabled: () => config.config.autoNameLanes !== false,
+    enabled: hostAutoNameLanes(config.path, config.config),
     accountEnv: async (sessionId) => {
       const id = runtime.accountForSession(sessionId)
       if (!id) return {}

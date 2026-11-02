@@ -77,7 +77,9 @@ export function rebaseAgentFields(
 }
 
 /**
- * Host policy that only takes effect after a service restart. The context
- * budget and directive switches share its file but are read at each lane start.
+ * Host policy that only takes effect after a service restart: automatic
+ * naming on a Host whose read lacks `namingLive` (it binds the switch at boot).
+ * The context budget and directive switches are read at each lane start.
  */
-export const needsServiceRestart = (patch: AgentPatch): boolean => 'autoNameLanes' in patch
+export const needsServiceRestart = (patch: AgentPatch, namingLive: true | undefined): boolean =>
+  !namingLive && 'autoNameLanes' in patch

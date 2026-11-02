@@ -7,6 +7,7 @@ import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
 import { promptTitle } from './live'
 import { DEFAULT_CLAUDE_ACCOUNT_PREFS } from '@phosphor/shared/models'
+import type { HostConfigV1 } from '../config/schema'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -412,10 +413,14 @@ it('asks for a title unlike its sibling lanes and dedupes the reply against them
 it('reads automatic naming live and resolves the routed account for each session', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'host-naming-'))
   const path = join(dir, 'config.json')
-  const base = { version: 1, pi: { executable: '/usr/bin/pi' }, repositories: ['/srv'] } as const
+  const base: HostConfigV1 = {
+    version: 1,
+    pi: { executable: '/usr/bin/pi' },
+    repositories: ['/srv'],
+  }
   try {
     writeFileSync(path, JSON.stringify(base), { mode: 0o600 })
-    const second = { id: 'second', label: 'Second', credentialDir: '/accounts/second' }
+    const second = { id: 'second', label: 'Second', credentialDir: '/accounts/second', addedAt: 1 }
     const ports = hostLaneNaming(
       { path, config: base },
       { accountForSession: (id) => (id === 'routed' ? 'second' : id === 'gone' ? 'x' : undefined) },

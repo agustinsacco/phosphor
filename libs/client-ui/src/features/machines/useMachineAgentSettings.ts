@@ -8,7 +8,12 @@ import type { HostSettingsState } from './useHostSettings'
 
 /** One "Saved" notice at a time: a run of edits replaces it rather than stacking cards. */
 let savedToast = 0
-function announceSave(label: string, patch: AgentPatch, saved: boolean): void {
+function announceSave(
+  label: string,
+  patch: AgentPatch,
+  saved: boolean,
+  namingLive: true | undefined,
+): void {
   const toasts = useExtensionUiStore.getState()
   if (savedToast) toasts.dismissToast(savedToast)
   savedToast = 0
@@ -17,7 +22,7 @@ function announceSave(label: string, patch: AgentPatch, saved: boolean): void {
     return
   }
   savedToast = toasts.pushToast(
-    needsServiceRestart(patch)
+    needsServiceRestart(patch, namingLive)
       ? `Saved on ${label} — applies after the Host service restarts`
       : `Saved on ${label} — applies to new lanes`,
     'info',
@@ -35,7 +40,7 @@ export function useMachineAgentSettings(
   const [catalogueFailed, setCatalogueFailed] = useState(false)
   const [catalogueAttempt, setCatalogueAttempt] = useState(0)
   const draft = useMachineAgentDraft(hostId, repositoryId, settings, (patch, saved) =>
-    announceSave(label, patch, saved),
+    announceSave(label, patch, saved, settings.data?.agent?.namingLive),
   )
   const { model, thinking, budget, naming } = draft.fields
   useEffect(() => {

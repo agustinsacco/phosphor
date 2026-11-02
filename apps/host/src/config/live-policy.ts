@@ -46,6 +46,19 @@ export function hostContextBudget(
   return () => read().contextBudget ?? ''
 }
 
+/**
+ * Whether new lanes are named automatically, as the config holds it now. Read
+ * at each lane's first prompt, so the switch in Settings applies to the next
+ * lane without a service restart. An unreadable config keeps the last valid value.
+ */
+export function hostAutoNameLanes(
+  configPath: string,
+  started: Pick<HostConfigV1, 'autoNameLanes'>,
+): () => boolean {
+  const read = lastValidConfig(configPath, started)
+  return () => read().autoNameLanes !== false
+}
+
 /** The runtime's per-lane readers of the Host config's policy. */
 export function hostLivePolicy(configPath: string, started: HostConfigV1) {
   return {
