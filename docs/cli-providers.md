@@ -250,7 +250,7 @@ failure. Cooldowns guide future starts, not automatic mid-turn switching; when
 all readings are held, the shared selector treats those cached readings as
 advisory rather than refusing every start.
 
-Settings → **Accounts** (`tabs/AccountsTab.tsx`) lists the providers pi can
+Settings → **Accounts** (`sections/accounts/`) lists the providers pi can
 sign into: `openai-codex`, `anthropic`, `github-copilot`, `kimi-for-coding` as
 subscriptions, then `xai`, `openrouter`, `radius` as per-token balances. Each
 row is a button, a browser tab, and a flip to "Signed in".

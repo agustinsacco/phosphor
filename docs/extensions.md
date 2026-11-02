@@ -273,7 +273,7 @@ patchWebSearchConfig` (`pi-config-handlers.ts`).
 - UI (under `libs/client-ui/src/features/settings/`): `sections/extensions/`
   (`PackagesView`, `PackageRow`, `StandardPackages`, `useLocalPackages`,
   `useHostPackages`, `useExtensionTabs`, `openSkillsOn`), `sections/web-access/`,
-  `sections/subagents/`, `sections/computer-use/`, `tabs/ClaudeProviderTab.tsx`,
+  `sections/subagents/`, `sections/computer-use/`, `sections/claude-provider/`,
   `usePackageJob.ts`, `JobOutput.tsx`; `app/PiMissingScreen.tsx`,
   `app/GettingStartedScreen.tsx`. The standard packages are
   `libs/shared/src/standard-packages.ts`. Mock cases in
