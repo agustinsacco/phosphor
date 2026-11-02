@@ -256,8 +256,16 @@ the keyboard route.
 ## Naming
 
 A local lane is named once, after its first turn ends, by a one-shot `pi -p` call
-(`apps/desktop/electron/pi/session-naming.ts`). The title flows to the branch as well as the
-session, so the sidebar group, the branch chip and the title agree.
+(`apps/desktop/electron/pi/session-title.ts`). The title flows to the branch as well as the
+session, so the sidebar group, the branch chip and the title agree. Desktop and
+the Host share one policy (`libs/session-runtime/src/pi/title-policy.ts`: argv,
+attempts, model pick, prompt, sanitizing, dedupe) and one runner
+(`libs/session-runtime/src/pi/title-run.ts`) on `runPrintMode`; each injects its
+env, catalogue and limits ([host.md](host.md#remote-lane-names-and-lifecycle)).
+
+A title is 2-5 words and at most 60 characters on every machine; neither is a
+preference. The prompt lists up to 40 existing titles in the repository, worktrees
+included, and a reply that still collides gets a numeric suffix (`dedupeTitle`).
 
 Two naming passes never run for one session: `startChat` owns naming for the
 chats it creates and suppresses the session store's own pass.
@@ -293,30 +301,30 @@ Two constraints on the one-shot, both silent when broken:
 - pi-claude-cli ≥ 0.7.0 parks its CLI process after a turn, which holds pi's
   event loop open, so a naming run would print its title and then not exit for
   ten minutes. The naming env passes `claudeOneShotEnv()`
-  (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`). `runPrintMode` also keeps whatever stdout
-  arrived before a timeout, so a slow exit cannot throw away a finished title.
+  (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`) through `titleRunEnv`, which also pins
+  `PI_CLAUDE_CLI_CONTEXT=pi` as sessions do. `runPrintMode` also keeps whatever
+  stdout arrived before a timeout, so a slow exit cannot throw away a finished title.
 
 ## Preferences
 
 `LanePrefs` in `AppPrefs.lanes`, edited in Settings → Workspaces.
 
-| pref                            | default | reaches                                  |
-| ------------------------------- | ------- | ---------------------------------------- |
-| `markers`                       | `auto`  | the sidebar row                          |
-| `autoName`                      | `true`  | both naming passes                       |
-| `nameMinWords` / `nameMaxWords` | 2 / 5   | the naming prompt                        |
-| `nameMaxLength`                 | 60      | `sanitizeTitle`, after the model replies |
-| `branchSlugMaxLength`           | 40      | `slugifyTitle`, so branch and folder     |
+| pref                  | default | reaches                              |
+| --------------------- | ------- | ------------------------------------ |
+| `markers`             | `auto`  | the sidebar row                      |
+| `autoName`            | `true`  | both naming passes                   |
+| `branchSlugMaxLength` | 40      | `slugifyTitle`, so branch and folder |
 
 The branch **prefix** is separate, in `WorktreePrefs.branchPrefix`, beside the
 switch that decides whether a chat gets a branch at all. `WorktreePrefs`
 decides _whether_ a lane gets a branch; `LanePrefs` decides what it _looks
 like_. Worktrees off still names sessions.
 
-**Every number is clamped twice**, in the renderer and in main. These values
-reach a prompt, a git ref and a filesystem path, and the settings UI reads back
-the value it just wrote, so an out-of-range entry must be corrected locally too.
-`nameMaxWords` can never fall below `nameMinWords`.
+**The slug length is clamped twice**, in the renderer and in main. It reaches a
+git ref and a filesystem path, and the settings UI reads back the value it just
+wrote, so an out-of-range entry must be corrected locally too. Stored prefs from
+older builds may still hold `nameMinWords`, `nameMaxWords` and `nameMaxLength`;
+`normalizeLanePrefs` drops them.
 
 `LanePrefs` lives in its own leaf store (`stores/lanePrefs.ts`), not in
 `stores/settings.ts`, which calls `window.matchMedia` at creation and would
