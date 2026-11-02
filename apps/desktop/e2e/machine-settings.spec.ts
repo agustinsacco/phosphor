@@ -29,7 +29,7 @@ test('machine settings save only on bee1, preserve revisions and never read back
       .poll(async () => JSON.parse(await readFile(h.config, 'utf8')).contextBudget)
       .toBe('100k')
     await expect(h.page.getByTestId('toast-stack')).toContainText(
-      'Saved on bee1 — applies after the Host service restarts',
+      'Saved on bee1 — applies to new lanes',
     )
     await expect(budget).toBeEnabled()
     const after = (await h.page.evaluate(() => window.phosphor.invoke('hosts:snapshot')))[h.hostId]!

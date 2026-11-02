@@ -98,6 +98,15 @@ it('reads the directive toggles at each lane start, all on without a reader', ()
   laneCharter = false
   expect(startup.policy.preferences().agentDirectives.laneCharter).toBe(false)
 })
+it('reads the context budget at each lane start and settled turn, the machine value without a reader', () => {
+  let budget = '300k'
+  const { startup } = setup({ contextBudget: () => budget })
+  const service = vi.mocked(createSessionService).mock.calls[0]![0]
+  expect(startup.budget.read()).toBe('300k')
+  budget = '150k'
+  expect(startup.budget.read()).toBe('150k')
+  expect(service.readBudget()).toBe('150k')
+})
 it('uses machine-only executable/environment and canonical workspace confinement', async () => {
   vi.stubEnv('UNTRUSTED_INHERITED', 'not forwarded')
   const { state, startup } = setup()

@@ -51,7 +51,7 @@ import { reconcile } from '../lanes/reconcile'
 import { inspectHost } from './doctor'
 import { createHostLog, hostLogDirectory } from '../machine/log'
 import { createHostRuntime, type HostRuntime } from '../session/runtime'
-import { hostDirectives } from '../config/directives'
+import { hostLivePolicy } from '../config/live-policy'
 import { createLiveLanes } from '../lanes/live'
 import { createLaneNamer } from '../lanes/naming'
 import { createRuntimeLanes } from '../lanes/runtime-host'
@@ -265,7 +265,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           { ...machine, log },
           {
             claudeAccounts,
-            agentDirectives: hostDirectives(config.path, config.config),
+            ...hostLivePolicy(config.path, config.config),
             dialogs: 'forward',
             trashTranscript: trash.move,
             routines: routineOwnership(async (id) => {

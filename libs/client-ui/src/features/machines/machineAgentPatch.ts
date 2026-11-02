@@ -77,8 +77,7 @@ export function rebaseAgentFields(
 }
 
 /**
- * Host policy that only takes effect after a service restart. The directive
- * switches share its file but are read at each lane start.
+ * Host policy that only takes effect after a service restart. The context
+ * budget and directive switches share its file but are read at each lane start.
  */
-export const isPolicyPatch = (patch: AgentPatch): boolean =>
-  'contextBudget' in patch || 'autoNameLanes' in patch
+export const needsServiceRestart = (patch: AgentPatch): boolean => 'autoNameLanes' in patch

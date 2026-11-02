@@ -62,7 +62,7 @@ export function wireRuntimeStartup(state: RuntimeState) {
     },
     budget: {
       watch: budget.watchContextBudget,
-      read: () => machine.contextBudget,
+      read: () => options.contextBudget?.() ?? machine.contextBudget,
       paused: (id) => options.routines?.owns(id) ?? false,
     },
     accounts,
@@ -121,7 +121,7 @@ export function wireRuntimeService(
     },
     isStub: () => false,
     packages: (cwd) => listPackages(cwd, state.agentDir),
-    readBudget: () => machine.contextBudget,
+    readBudget: () => options.contextBudget?.() ?? machine.contextBudget,
     withBudgetCompaction: budget.withBudgetCompaction,
     forgetAccount: () => {},
     routines: options.routines ?? NO_ROUTINES,

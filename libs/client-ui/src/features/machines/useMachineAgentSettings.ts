@@ -3,7 +3,7 @@ import type { ThinkingLevel } from '@shared/rpc'
 import { useEffect, useState } from 'react'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useMachineAgentDraft } from './machineSettingsDrafts'
-import { isPolicyPatch, type AgentPatch } from './machineAgentPatch'
+import { needsServiceRestart, type AgentPatch } from './machineAgentPatch'
 import type { HostSettingsState } from './useHostSettings'
 
 /** One "Saved" notice at a time: a run of edits replaces it rather than stacking cards. */
@@ -17,7 +17,7 @@ function announceSave(label: string, patch: AgentPatch, saved: boolean): void {
     return
   }
   savedToast = toasts.pushToast(
-    isPolicyPatch(patch)
+    needsServiceRestart(patch)
       ? `Saved on ${label} — applies after the Host service restarts`
       : `Saved on ${label} — applies to new lanes`,
     'info',

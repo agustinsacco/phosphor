@@ -13,7 +13,7 @@ import type { MachineAgentController } from './useMachineAgentSettings'
  *
  * The instructions reach running lanes at their next message. The switches
  * autosave as Host configuration read when a lane starts, so they need no
- * service restart, unlike the policy below them.
+ * service restart, like the context budget below them.
  */
 export function MachineDirectives({
   controller,

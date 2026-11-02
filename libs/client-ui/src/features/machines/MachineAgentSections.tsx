@@ -101,7 +101,7 @@ export function MachineHostPolicy({
     setBudget(next)
   }
   return (
-    <Card title="Host policy" aside="Requires a Host service restart">
+    <Card title="Host policy">
       <div className="space-y-4">
         <label className="block text-base">
           Context budget
@@ -142,9 +142,8 @@ export function MachineHostPolicy({
           Automatically name new lanes
         </label>
         <p className="text-text-tertiary text-sm">
-          Saving does not restart the service or stop lanes. Restart the service on {label} when
-          running work can stop to apply saved Host policy. Model defaults above do not need a
-          restart.
+          The context budget applies to the next lane without a restart. Automatic naming applies
+          after you restart the service on {label}; saving never restarts it or stops lanes.
         </p>
       </div>
     </Card>
