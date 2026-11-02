@@ -535,7 +535,14 @@ Connected, Connecting…, Waiting for setup, Not reachable, Tailscale stopped,
 Update needed, Access refused, Identity mismatch, Stopping or Offline. No surface
 pairs two verdicts such as "Online · Not reachable yet". A never-connected or
 offline Host shows no readiness dots or lane counts, because those are only as
-fresh as its last heartbeat. The page subtitle sums the fleet in words
+fresh as its last heartbeat. Under each row, indented, are that machine's
+running lanes (`MachineTasks`): lanes working now and lanes waiting on you,
+questions first, each with its title, branch and Working or Needs input. Up
+to three show; the rest are a link to that machine's lanes. A row opens its lane.
+This computer's come from live sessions (a streaming turn or an open dialog). A
+Host's come from its live snapshot, and only while it is connected, so the
+subtitle's "N running · N need you" is current; heartbeat lane counts are the
+fallback. The page subtitle sums the fleet in words
 ("4 Hosts · 1 connected · 2 need attention · 1 offline").
 The whole row opens a stable detail view; live updates do not reset selection.
 Signed out, only this computer is listed, with an optional GitHub sign-in panel.
