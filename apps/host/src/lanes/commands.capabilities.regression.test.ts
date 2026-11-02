@@ -222,6 +222,15 @@ const FAMILIES: Family[] = [
     ran: () => f.command.mock.calls.length,
   },
   {
+    // A `!command` runs through pi, not a pty: a Host without node-pty, which
+    // never advertises `terminal`, still runs it for a controller.
+    name: 'bash',
+    scope: 'lane',
+    caps: CONTROL,
+    op: () => ({ type: 'bash', command: 'x' }),
+    ran: () => f.command.mock.calls.length,
+  },
+  {
     name: 'extension_ui_response',
     scope: 'lane',
     caps: CONTROL,

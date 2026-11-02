@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
-import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { canControlSession } from '@/stores/remoteLanes'
+import { useCanControlSession } from '@/features/sessions/useCanControlSession'
 import { TooltipButton } from '@/components/Tooltip'
 import { iconButtonClass } from '@/components/ComposerButtons'
 import { piCallOk } from '@/lib/rpc'
@@ -25,12 +26,12 @@ function busy(session: ChatSession | undefined): boolean {
  */
 export function ContinueButton({ sessionId }: { sessionId: string }): React.JSX.Element {
   const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
-  useRemoteLanesStore((s) => s.hosts)
+  const controlling = useCanControlSession(sessionId)
   const sending = useRef(false)
   const [pending, setPending] = useState(false)
   const chatBusy = useChatStore((s) => busy(s.sessions[sessionId]))
 
-  const disabled = chatBusy || pending || (remote && !canControlSession(sessionId))
+  const disabled = chatBusy || pending || !controlling
   const send = async (): Promise<void> => {
     const chat = useChatStore.getState()
     // Read again at click time: the optimistic bubble locks out a second click

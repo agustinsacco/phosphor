@@ -83,7 +83,7 @@ export const MessageItemView = memo(function MessageItemView({
           return <PendingReply />
 
         case 'bash':
-          return <BashExecution item={row.item} />
+          return <BashExecution item={row.item} sessionId={sessionId} />
         case 'divider':
           return <Divider item={row.item} />
         case 'custom':

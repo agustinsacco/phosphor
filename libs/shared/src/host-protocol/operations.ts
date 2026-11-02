@@ -22,8 +22,26 @@ export const LANE_PI_OPS = [
   'set_thinking_level',
   'compact',
   'set_session_name',
+  'clear_queue',
+  'set_steering_mode',
+  'set_follow_up_mode',
+  'set_auto_compaction',
+  'set_auto_retry',
+  'bash',
+  'abort_bash',
 ] as const
 export type LanePiOpType = (typeof LANE_PI_OPS)[number]
+const PI_OPS: ReadonlySet<string> = new Set(LANE_PI_OPS)
+/**
+ * A command or op whose type is in LANE_PI_OPS. The client forwards exactly
+ * these to a Host and the Host passes exactly these to pi, so a new pi command
+ * is allowed in one place.
+ */
+export function isLanePiOp<T extends { type: string }>(
+  v: T,
+): v is Extract<T, { type: LanePiOpType }> {
+  return PI_OPS.has(v.type)
+}
 /** pi's own command shapes, without pi's correlation id (the Host assigns it). */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 export type LanePiOp = DistributiveOmit<Extract<RpcCommand, { type: LanePiOpType }>, 'id'>

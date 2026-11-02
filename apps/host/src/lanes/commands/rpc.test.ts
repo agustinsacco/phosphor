@@ -67,6 +67,13 @@ describe('toPiCommand', () => {
       { type: 'set_thinking_level', level: 'off' },
       { type: 'compact' },
       { type: 'set_session_name', name: 'x' },
+      { type: 'clear_queue' },
+      { type: 'set_steering_mode', mode: 'all' },
+      { type: 'set_follow_up_mode', mode: 'one-at-a-time' },
+      { type: 'set_auto_compaction', enabled: false },
+      { type: 'set_auto_retry', enabled: true },
+      { type: 'bash', command: 'ls' },
+      { type: 'abort_bash' },
     ]
     expect(ops.map((op) => op.type)).toEqual([...LANE_PI_OPS])
     for (const op of ops) expect(toPiCommand(op, 'id')).toEqual({ ...op, id: 'id' })

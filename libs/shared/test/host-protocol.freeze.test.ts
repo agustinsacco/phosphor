@@ -343,6 +343,13 @@ describe('Host API constants and op lists', () => {
       'set_thinking_level',
       'compact',
       'set_session_name',
+      'clear_queue',
+      'set_steering_mode',
+      'set_follow_up_mode',
+      'set_auto_compaction',
+      'set_auto_retry',
+      'bash',
+      'abort_bash',
     ])
     expect(ROUTINE_OPS).toStrictEqual([
       'routine.save',
@@ -377,9 +384,17 @@ describe('Host API constants and op lists', () => {
       reply: { kind: 'receipt', requestId: REQUEST_ID, code },
     })
     const command = (op: unknown) => client({ ...CLIENT_FRAMES.command.fenced, op })
-    for (const type of ['freeze.unknown', 'Prompt', 'constructor', 'bash', 'get_state', 'fork'])
+    for (const type of [
+      'freeze.unknown',
+      'Prompt',
+      'constructor',
+      'new_session',
+      'get_state',
+      'fork',
+    ])
       expect(command({ type }), type).toStrictEqual(reply('unsupported'))
     expect(command({ type: 'prompt' })).toStrictEqual(reply('bad-request'))
+    expect(command({ type: 'bash' })).toStrictEqual(reply('bad-request'))
   })
 
   it('holds literal baselines that a snapshot update cannot rewrite', () => {

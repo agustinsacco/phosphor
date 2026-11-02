@@ -3,6 +3,7 @@ const { randomUUID } = require('node:crypto')
 const { existsSync, writeFileSync } = require('node:fs')
 const { join } = require('node:path')
 const persistence = require('./persistence.cjs')
+const { laneMarker } = require('./tools.cjs')
 
 /** Run `then` once `file` exists, after writing `file`.held to say it waits. */
 function holdUntil(file, then) {
@@ -208,6 +209,15 @@ const handlers = {
     })
   },
   set_auto_retry: (ctx, cmd) => ctx.respond(cmd, { enabled: cmd.enabled }),
+  // pi's RPC `bash` (a composer `!command`) runs in pi's cwd: the answer names the
+  // checkout it ran in, so a test can tell the Host's shell from This Mac's.
+  bash: (ctx, cmd) =>
+    ctx.respond(cmd, {
+      output: `${laneMarker(process.cwd())} shell: ${cmd.command}\n`,
+      exitCode: 0,
+      cancelled: false,
+      truncated: false,
+    }),
 }
 
 function enqueue(ctx, cmd, mode) {

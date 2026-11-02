@@ -237,7 +237,7 @@ describe('host-protocol client parsers', () => {
         ok: false,
         reply: { kind: 'receipt', code: 'bad-request' },
       })
-    expect(command({ type: 'bash' })).toMatchObject({ ok: false, reply: { code: 'unsupported' } })
+    expect(command({ type: 'fork' })).toMatchObject({ ok: false, reply: { code: 'unsupported' } })
     for (const fields of [{ laneId: 'bad' }, { fence: 0 }, { fence: 1.5 }, { trace: 'bad' }])
       expect(command({ type: 'abort' }, fields).ok).toBe(false)
     expect(command({ type: 'abort', ignored: 'secret' })).toMatchObject({

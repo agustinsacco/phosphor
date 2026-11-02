@@ -389,7 +389,7 @@ it('routes prompts and queries, names rejecting controllers, and publishes takeo
   const prompt = t.lanes.command(1, info.sessionId, { type: 'prompt', message: 'Next' })
   await drain()
   expect(await prompt).toMatchObject({ success: true })
-  expect(await t.lanes.command(1, info.sessionId, { type: 'bash', command: 'no' })).toMatchObject({
+  expect(await t.lanes.command(1, info.sessionId, { type: 'new_session' })).toMatchObject({
     success: false,
     error: REMOTE_UNAVAILABLE,
   })

@@ -194,3 +194,17 @@ describe('runtime command orchestration', () => {
     })
   })
 })
+
+it.each([
+  { type: 'set_steering_mode', mode: 'one-at-a-time' },
+  { type: 'set_follow_up_mode', mode: 'all' },
+  { type: 'set_auto_compaction', enabled: false },
+] satisfies RpcCommand[])(
+  'refreshes the lane projection after $type, so its next snapshot and lane.state carry it',
+  async (cmd) => {
+    const s = await attached()
+    const changed = vi.spyOn(s.binding.attachment!, 'stateChanged')
+    expect(await command(s.context, s.sessionId, cmd)).toMatchObject({ success: true })
+    expect(changed).toHaveBeenCalled()
+  },
+)

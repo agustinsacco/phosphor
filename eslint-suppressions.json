@@ -1,9 +1,4 @@
 {
-  "libs/client-ui/src/features/chat/Composer.tsx": {
-    "phosphor/no-raw-pi-command": {
-      "count": 1
-    }
-  },
   "libs/client-ui/src/features/chat/SubagentJournal.tsx": {
     "phosphor/no-raw-pi-command": {
       "count": 1

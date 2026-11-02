@@ -191,21 +191,23 @@ it.each([
   },
 )
 
-it.each(['!pwd', '!!pwd'])(
-  'refuses remote shell input %s before clearing the draft',
-  async (text) => {
-    useDraftsStore.setState({ drafts: { [key]: { text, attachments: [] } } })
-    const pi = vi.spyOn(window.phosphor, 'piCommand')
-    await draw()
-    await send()
-    expect(pi.mock.calls.some(([, op]) => op.type === 'bash' || op.type === 'prompt')).toBe(false)
-    expect(useDraftsStore.getState().get(key).text).toBe(text)
-    expect(useChatStore.getState().sessions[mockRemoteInfo.sessionId]?.error).toBe(
-      'Not available on remote lanes yet.',
-    )
-    expect(container.textContent).not.toContain('runs in your shell')
-  },
-)
+it.each([
+  ['!pwd', false],
+  ['!!pwd', true],
+])('runs remote shell input %s on the Host, as a bash command', async (text, exclude) => {
+  useDraftsStore.setState({ drafts: { [key]: { text, attachments: [] } } })
+  const pi = vi.spyOn(window.phosphor, 'piCommand')
+  await draw()
+  expect(container.textContent).toContain("runs in the Host's shell")
+  await send()
+  expect(pi).toHaveBeenCalledWith(mockRemoteInfo.sessionId, {
+    type: 'bash',
+    command: 'pwd',
+    excludeFromContext: exclude,
+  })
+  expect(pi.mock.calls.some(([, op]) => op.type === 'prompt')).toBe(false)
+  expect(useChatStore.getState().sessions[mockRemoteInfo.sessionId]?.error).toBeFalsy()
+})
 
 it.each([
   ['mac', 'bee-a', 'mac'],

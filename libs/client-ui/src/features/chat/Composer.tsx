@@ -1,4 +1,4 @@
-import { useRemoteLanesStore, canControlSession, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, canControlSession } from '@/stores/remoteLanes'
 import { HostWaitNote, useRemoteLock } from '@/features/machines/HostWaitNote'
 import { hostResourceKey } from '@shared/remote-host'
 import { TooltipButton } from '@/components/Tooltip'
@@ -39,6 +39,7 @@ import { refreshSessionCommands, useSessionsStore } from '@/stores/sessions'
 import { useWritingStore } from '@/stores/writing'
 import { ipcErrorText } from '@shared/errors'
 import { createReceiptGuard, withDraftIds } from './receiptGuard'
+import { runShellCommand } from './composer/runShellCommand'
 
 export function Composer({
   sessionId,
@@ -172,56 +173,13 @@ export function Composer({
 
       const chat = useChatStore.getState()
 
-      if (remote && message.startsWith('!')) {
-        chat.setError(sessionId, REMOTE_UNAVAILABLE)
-        return
-      }
-
       // `!command` / `!!command` → RPC bash execution.
       if (message.startsWith('!') && !isStreaming) {
         const exclude = message.startsWith('!!')
         const shellCommand = message.slice(exclude ? 2 : 1).trim()
         if (!shellCommand) return
         useDraftsStore.getState().clear(draftKey)
-        const itemId = chat.addBashItem(sessionId, {
-          command: shellCommand,
-          output: '',
-          exitCode: null,
-          running: true,
-          truncated: false,
-          excludeFromContext: exclude,
-        })
-        try {
-          // Deliberately raw rather than `piCall` (AGENTS.md fact 3): a failed
-          // `!command` belongs in the bash item's own output next to the
-          // command that produced it, not on the session-wide error surface.
-          const response = await window.phosphor.piCommand(sessionId, {
-            type: 'bash',
-            command: shellCommand,
-            excludeFromContext: exclude,
-          })
-          if (response.success && response.data) {
-            chat.updateBashItem(sessionId, itemId, {
-              output: response.data.output,
-              exitCode: response.data.exitCode,
-              running: false,
-              truncated: response.data.truncated,
-              fullOutputPath: response.data.fullOutputPath,
-            })
-          } else if (!response.success) {
-            chat.updateBashItem(sessionId, itemId, {
-              output: response.error,
-              exitCode: -1,
-              running: false,
-            })
-          }
-        } catch (error) {
-          chat.updateBashItem(sessionId, itemId, {
-            output: ipcErrorText(error),
-            exitCode: -1,
-            running: false,
-          })
-        }
+        await runShellCommand(sessionId, shellCommand, exclude)
         return
       }
 
@@ -516,10 +474,11 @@ export function Composer({
             the line over to explain itself; an empty field lends its right
             end to the cheat sheet that used to crowd the placeholder. */}
         <div className="text-text-tertiary @container flex min-h-6 flex-wrap items-center gap-x-3 gap-y-0.5 px-2 pt-1.5 text-sm">
-          {!remote && text.startsWith('!') ? (
+          {text.startsWith('!') ? (
             <span className="text-text-secondary">
-              <span className="font-mono">!cmd</span> runs in your shell and enters context on the
-              next prompt · <span className="font-mono">!!cmd</span> keeps the output out of context
+              <span className="font-mono">!cmd</span> runs in {remote ? "the Host's" : 'your'} shell
+              and enters context on the next prompt · <span className="font-mono">!!cmd</span> keeps
+              the output out of context
             </span>
           ) : (
             <>

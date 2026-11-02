@@ -84,6 +84,13 @@ The composer is one small field with several ways in.
   so it sits after the work the agent finished first. Each chip has a ✕ that
   undoes just that entry. pi has no per-entry command, so `composer/queueActions.ts` drains with
   `clear_queue` (pi 0.84.4+; refused on older pi) and re-queues the survivors.
+  On a Host lane the controller does the same through the Host, and `!cmd`
+  runs in the Host's shell.
+- A `!cmd` shows as a bash item (`composer/runShellCommand.ts`). While it runs,
+  whoever may command the lane sees **Stop**, which sends `abort_bash` (pi's
+  abort does not stop a shell). A Host lane's command that outlasts the Host's
+  deadline shows as unconfirmed, not failed, and keeps Stop
+  ([remote desktop](remote-desktop.md)).
 - `@` → fuzzy file search across the workspace (gitignore-aware), inserts a
   path reference.
 - **Dictation:** with voice input on (Settings → Voice), a microphone beside

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { LaneOp } from '@phosphor/shared/host-protocol'
 import type { CommandResult } from './connection'
-import { receiptResponse, sendToLane } from './lane-ops'
+import { BASH_UNCONFIRMED } from '@phosphor/shared/remote-host'
+import { laneOperation, receiptResponse, sendToLane, UNKNOWN_OUTCOME } from './lane-ops'
 
 const LANE = 'f83d7d13-9111-43bf-847b-87b9db21e7d8'
 const stopped: CommandResult = { requestId: 'r1', status: 'rejected', code: 'lane-stopped' }
@@ -62,11 +63,50 @@ describe('sendToLane', () => {
 })
 
 describe('receiptResponse', () => {
+  // A `!command` that outlives the Host's deadline is not a failure: it may still run.
+  it('reports an unconfirmed shell command as possibly still running, not failed', () => {
+    const unknown: CommandResult = { requestId: 'r', status: 'unknown' } as CommandResult
+    expect(receiptResponse('bash', unknown, 'bee1')).toMatchObject({
+      success: false,
+      error: `bee1: ${BASH_UNCONFIRMED}`,
+    })
+    expect(receiptResponse('prompt', unknown, 'bee1')).toMatchObject({ error: UNKNOWN_OUTCOME })
+  })
+
   // "bee1: lane-stopped" left the user retrying a composer that could never send.
   it('tells the user to resume a stopped lane', () => {
     expect(receiptResponse('steer', stopped, 'bee1')).toMatchObject({
       success: false,
       error: 'bee1: this lane is stopped. Press Resume at the top of the lane, then send again.',
+    })
+  })
+})
+
+describe('laneOperation', () => {
+  it('forwards the session options, queue clear and shell commands a Host accepts', () => {
+    for (const command of [
+      { type: 'clear_queue' },
+      { type: 'set_steering_mode', mode: 'all' },
+      { type: 'set_follow_up_mode', mode: 'one-at-a-time' },
+      { type: 'set_auto_compaction', enabled: false },
+      { type: 'set_auto_retry', enabled: true },
+      { type: 'bash', command: 'ls', excludeFromContext: true },
+      { type: 'abort_bash' },
+    ] as const)
+      expect(laneOperation({ ...command, id: 'x' })).toEqual(command)
+  })
+
+  it('still refuses commands that move pi to another session file', () => {
+    for (const type of ['fork', 'clone', 'new_session'] as const)
+      expect(laneOperation({ type } as never)).toBeNull()
+  })
+
+  it('tells the user to update an older Host that refuses an op as unsupported', () => {
+    expect(
+      receiptResponse('bash', { requestId: 'r', status: 'rejected', code: 'unsupported' }, 'bee1'),
+    ).toMatchObject({
+      success: false,
+      error: expect.stringContaining('Updating the Host may help'),
     })
   })
 })

@@ -1,10 +1,36 @@
 import clsx from 'clsx'
+import { TooltipButton } from '@/components/Tooltip'
+import { piCallOk } from '@/lib/rpc'
+import { useCanControlSession } from '@/features/sessions/useCanControlSession'
 import type { BashItem } from '../reducer'
 import { SEGMENT } from '../transcriptFind'
 
-/** A `!`/`!!` bash execution the user ran from the composer. */
+/**
+ * Stop for a running `!command`, or one a Host could not confirm (it may still
+ * be running there). pi's `abort` does not stop a shell; `abort_bash` does, and
+ * is harmless when nothing runs. Only whoever may command the lane sees it.
+ */
+function StopShell({ sessionId }: { sessionId: string }): React.JSX.Element | null {
+  if (!useCanControlSession(sessionId)) return null
+  return (
+    <TooltipButton
+      onClick={() => void piCallOk(sessionId, { type: 'abort_bash' })}
+      title="Stop this command"
+      className="text-text-tertiary hover:text-text rounded px-1.5 py-px text-sm hover:underline"
+    >
+      Stop
+    </TooltipButton>
+  )
+}
 
-export function BashExecution({ item }: { item: BashItem }): React.JSX.Element {
+/** A `!`/`!!` bash execution the user ran from the composer. */
+export function BashExecution({
+  item,
+  sessionId,
+}: {
+  item: BashItem
+  sessionId: string
+}): React.JSX.Element {
   return (
     <div className="border-border bg-surface overflow-hidden rounded-lg border">
       <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
@@ -20,8 +46,11 @@ export function BashExecution({ item }: { item: BashItem }): React.JSX.Element {
               not sent to model
             </span>
           )}
+          {(item.running || item.unconfirmed) && <StopShell sessionId={sessionId} />}
           {item.running ? (
             <span className="text-text-tertiary text-sm">running…</span>
+          ) : item.unconfirmed ? (
+            <span className="text-warning text-sm">unconfirmed</span>
           ) : (
             <span
               className={clsx(

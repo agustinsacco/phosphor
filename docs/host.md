@@ -657,7 +657,9 @@ Corrupt lane and repository rows are skipped on reads and logged only by count;
 reads do not repair or delete them.
 
 Finished receipts are kept for 24 hours from completion, with at most 10000
-finished rows. After that lifetime a finished request id can be admitted as new.
+finished rows. A receipt keeps its result data, so a `!cmd`'s output (up to the
+receipt-data cap) sits in the Host's database for that long, readable only by
+the client that sent it. After that lifetime a finished request id can be admitted as new.
 Unfinished requests survive pruning; at 10000 unfinished rows the store refuses
 new requests as busy. Receipt reads never reveal another client's request. A
 rejected receipt keeps its historic controller and fence, but computes that

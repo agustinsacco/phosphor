@@ -25,13 +25,15 @@ const CALL_REPLY = {
 describe('command and call frames through the public entry', () => {
   it('refuses an invalid request id bare, before looking at the op', () => {
     for (const requestId of [undefined, null, 1, '', 'bad', REQUEST.replace('4000', '4ABC')])
-      for (const op of [{ type: 'abort' }, { type: 'bash' }, null])
+      for (const op of [{ type: 'abort' }, { type: 'new_session' }, null])
         expect(client({ type: 'command', requestId, op })).toStrictEqual(FRAME)
   })
 
   it('replies to a refused command with its own request id', () => {
     const frame = { type: 'command', requestId: OTHER }
-    expect(client({ ...frame, op: { type: 'bash' } })).toStrictEqual(receipt('unsupported', OTHER))
+    expect(client({ ...frame, op: { type: 'new_session' } })).toStrictEqual(
+      receipt('unsupported', OTHER),
+    )
     expect(client({ ...frame, op: { type: 'abort' }, fence: 0 })).toStrictEqual(
       receipt('bad-request', OTHER),
     )

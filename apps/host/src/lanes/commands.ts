@@ -53,6 +53,9 @@ function capabilityFor(
     return routineRequiresControl(routine) ? ['routines', 'sessions.control'] : ['routines']
   if (parseProviderLoginOp(op) || parseTerminalOp(op)) return ['terminal', 'sessions.control']
   const write = op.type.startsWith('files.') ? ports.writes?.capabilityFor(op.type) : null
+  // Everything else, pi ops included, needs control. A `!command` (`bash`) too:
+  // pi runs the shell itself, as it would for a prompt asking the agent to, and
+  // `terminal` is the pty feature, which a Host without node-pty never offers.
   return write ? [write, 'sessions.control'] : ['sessions.control']
 }
 

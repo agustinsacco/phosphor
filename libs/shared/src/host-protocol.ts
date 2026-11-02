@@ -40,6 +40,7 @@ export {
   HOST_CALL_METHODS,
   LANE_PI_OPS,
   UNFENCED_OPS,
+  isLanePiOp,
   type CallError,
   type CallErrorCode,
   type FailureCode,

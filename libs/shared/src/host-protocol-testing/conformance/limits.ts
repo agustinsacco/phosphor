@@ -9,7 +9,7 @@ async function malformedInput({ h, replace, flush, expect, auth, receipts }: Con
     JSON.stringify({
       type: 'command',
       requestId,
-      op: { type: 'bash', command: 'not allowed' },
+      op: { type: 'new_session' },
     }),
   )
   await flush()

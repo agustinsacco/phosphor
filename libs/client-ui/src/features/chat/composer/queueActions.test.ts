@@ -123,18 +123,22 @@ describe('unqueueMessage', () => {
   })
 })
 
-it('remote queue removal refuses before clear_queue and before local pi health diagnosis', async () => {
+it("remote queue removal drains on the Host and never diagnoses this machine's pi", async () => {
   const { useSessionsStore } = await import('@/stores/sessions')
   const { mockRemoteInfo } = await import('@/dev/mockRemoteLanes')
   const invoke = vi.fn(),
-    piCommand = vi.fn()
+    piCommand = vi.fn(async () => ({ success: false, error: 'bee1: not streaming' }))
   vi.stubGlobal('window', { phosphor: { invoke, piCommand } })
   useSessionsStore.setState({ live: { remote: { ...mockRemoteInfo, phosphorId: 'remote' } } })
   useChatStore.getState().ensure('remote')
   await unqueueMessage('remote', 'steer', 0, 'draft')
-  expect(piCommand).not.toHaveBeenCalled()
+  expect(piCommand).toHaveBeenCalledWith('remote', { type: 'clear_queue' })
   expect(invoke).not.toHaveBeenCalled()
-  expect(useChatStore.getState().sessions.remote?.error).toBe('Not available on remote lanes yet.')
+  const error = useChatStore.getState().sessions.remote?.error
+  expect(error).toMatch(/not streaming/)
+  expect(error).not.toMatch(/needs pi|this machine/)
+  // A Host failure can be an unconfirmed outcome, so it never promises the queue is intact.
+  expect(error).not.toMatch(/unchanged/)
   useSessionsStore.setState({ live: {} })
   vi.unstubAllGlobals()
 })

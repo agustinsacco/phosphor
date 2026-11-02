@@ -91,6 +91,10 @@ it('dispatches reads, retry, naming, known and unknown model selection and think
   expect(h.trace.at(-1)).toMatchObject({ data: { levels: ['off'] } })
   h.send('get_available_models')
   expect(h.trace.at(-1)).toMatchObject({ data: { models: [{ id: 'reasoner' }] } })
+  h.send('bash', { command: 'echo hi' })
+  expect(h.trace.at(-1)).toMatchObject({
+    data: { output: expect.stringMatching(/^HOST_[AB]_ONLY shell: echo hi\n$/), exitCode: 0 },
+  })
   h.send('unsupported')
   expect(h.trace.at(-1)).toMatchObject({ error: 'unsupported in fake' })
 })
