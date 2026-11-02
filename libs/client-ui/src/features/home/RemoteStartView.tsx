@@ -3,6 +3,7 @@ import type { FileMentionSource } from '@/features/chat/composer/useFileMentions
 import { RemoteModelPicker } from '@/features/machines/RemoteModelPicker'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
+import { FOLDER_CHIP_CLASS, FolderIcon } from '@/features/workspaces/folderChip'
 import { homeDraftKey } from '@/stores/drafts'
 import { connectingTo, hostPending, machineLabel } from '@/stores/remoteLanes'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
@@ -114,6 +115,7 @@ function HostStartTargets({
         label="Repository"
         value={c.repositoryId}
         placement="above"
+        triggerClassName={FOLDER_CHIP_CLASS}
         choices={[
           ...(c.host?.repositories ?? []).map((repo) => ({
             value: repo.id,
@@ -131,7 +133,8 @@ function HostStartTargets({
           else c.setRepository(id)
         }}
       >
-        <span className="truncate">
+        <FolderIcon />
+        <span className="max-w-40 truncate">
           {c.host?.repositories.find((repo) => repo.id === c.repositoryId)?.name ??
             'Choose repository'}
         </span>
