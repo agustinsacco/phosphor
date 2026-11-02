@@ -14,16 +14,18 @@ export const AGENT_BEHAVIOR_KEYS = [
   'compaction',
   'retry',
 ] as const
+/** The reviewed fields of each nested group; anything else in the file stays on disk. */
+export const AGENT_BEHAVIOR_FIELDS: Record<'compaction' | 'retry', readonly string[]> = {
+  compaction: ['enabled', 'reserveTokens', 'keepRecentTokens'],
+  retry: ['enabled', 'maxRetries', 'baseDelayMs'],
+}
+const nestedFields = (key: string): readonly string[] =>
+  key === 'compaction' || key === 'retry' ? AGENT_BEHAVIOR_FIELDS[key] : []
 export function validAgentBehavior(key: string, value: unknown): boolean {
   if (key === 'hideThinkingBlock') return typeof value === 'boolean'
   if (key === 'steeringMode' || key === 'followUpMode')
     return value === 'all' || value === 'one-at-a-time'
-  const fields =
-    key === 'compaction'
-      ? ['enabled', 'reserveTokens', 'keepRecentTokens']
-      : key === 'retry'
-        ? ['enabled', 'maxRetries', 'baseDelayMs']
-        : []
+  const fields = nestedFields(key)
   return (
     fields.length > 0 &&
     machineRecord(value) &&
@@ -46,10 +48,7 @@ export function projectAgentBehavior(raw: Record<string, unknown>): MachineAgent
     const value = raw[key]
     if (key === 'compaction' || key === 'retry') {
       if (!machineRecord(value)) continue
-      const fields =
-        key === 'compaction'
-          ? ['enabled', 'reserveTokens', 'keepRecentTokens']
-          : ['enabled', 'maxRetries', 'baseDelayMs']
+      const fields = AGENT_BEHAVIOR_FIELDS[key]
       const projected = Object.fromEntries(
         fields.filter((field) => value[field] !== undefined).map((field) => [field, value[field]]),
       )
@@ -57,4 +56,19 @@ export function projectAgentBehavior(raw: Record<string, unknown>): MachineAgent
     } else if (validAgentBehavior(key, value)) result[key] = value
   }
   return result as MachineAgentBehavior
+}
+
+/**
+ * A patch value for a behavior key: valid, or `null` to clear it. In a nested
+ * group a field may be `null` too; it must still be a reviewed field.
+ */
+export function validAgentBehaviorPatch(key: string, value: unknown): boolean {
+  if (value === null) return true
+  const fields = nestedFields(key)
+  if (!fields.length || !machineRecord(value)) return validAgentBehavior(key, value)
+  const set = Object.entries(value).filter(([, v]) => v !== null)
+  return (
+    Object.keys(value).every((field) => fields.includes(field)) &&
+    validAgentBehavior(key, Object.fromEntries(set))
+  )
 }

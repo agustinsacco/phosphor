@@ -2,7 +2,11 @@
 import React, { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { MachineSettings, MachineSettingsChange } from '@shared/machine-settings'
+import type {
+  MachineAgentDefaults,
+  MachineSettings,
+  MachineSettingsChange,
+} from '@shared/machine-settings'
 import { confirmSettingsNavigation, useMachineAgentDraft } from './machineSettingsDrafts'
 import { promptChoice } from '@/stores/prompt'
 import { normalizeAgentDirectives } from '@shared/models'
@@ -25,7 +29,8 @@ function fakeHost(initial = data('r1')) {
       const n = Number(host.current.revision.slice(1)) + 1
       // Directive switches merge into what the Host holds, as on the real Host.
       const { agentDirectives, ...patch } = change.patch
-      const agent = { ...host.current.agent!, ...patch }
+      // These drafts never send a null clear.
+      const agent = { ...host.current.agent!, ...patch } as MachineAgentDefaults
       if (agentDirectives)
         agent.agentDirectives = normalizeAgentDirectives({
           ...agent.agentDirectives,

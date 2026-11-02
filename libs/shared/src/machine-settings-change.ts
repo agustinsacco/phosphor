@@ -4,7 +4,7 @@ import { isValidContextBudgetValue } from './context-budget'
 import { text, keys, isMachineAccountId } from './machine-settings-fields'
 import { validMcpConfig } from './machine-settings-mcp'
 import type { MachineSettingsPatch } from './machine-settings'
-import { AGENT_BEHAVIOR_KEYS, validAgentBehavior } from './machine-agent-behavior'
+import { AGENT_BEHAVIOR_KEYS, validAgentBehaviorPatch } from './machine-agent-behavior'
 import { AGENT_DIRECTIVE_KEYS } from './models/directives'
 import { isGlobalInstructionsText } from './global-instructions'
 
@@ -66,18 +66,23 @@ function validAgentPatch(c: Record<string, unknown>, read: Scope): boolean {
   )
     return false
   const p = c.patch
+  // `null` clears a key (agentClearSupported); a Host deletes it, never writing null.
   const valid = Object.entries(p).every(([key, value]) =>
     AGENT_BEHAVIOR_KEYS.includes(key as (typeof AGENT_BEHAVIOR_KEYS)[number])
-      ? validAgentBehavior(key, value)
-      : key === 'contextBudget'
-        ? typeof value === 'string' && (value === '' || isValidContextBudgetValue(value))
-        : key === 'autoNameLanes'
-          ? typeof value === 'boolean'
-          : key === 'agentDirectives'
-            ? validDirectives(value)
-            : key === 'defaultThinkingLevel'
-              ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(String(value))
-              : text(value, 200),
+      ? validAgentBehaviorPatch(key, value)
+      : value === null
+        ? true
+        : key === 'contextBudget'
+          ? typeof value === 'string' && (value === '' || isValidContextBudgetValue(value))
+          : key === 'autoNameLanes'
+            ? typeof value === 'boolean'
+            : key === 'agentDirectives'
+              ? validDirectives(value)
+              : key === 'defaultThinkingLevel'
+                ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(
+                    String(value),
+                  )
+                : text(value, 200),
   )
   return (
     valid &&

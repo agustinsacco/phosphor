@@ -37,9 +37,19 @@ export interface MachineAgentDefaults extends MachineAgentBehavior {
   /** The generated blocks the Host appends at lane start. Absent from Hosts that predate them. */
   agentDirectives?: AgentDirectivePrefs
 }
-/** Only the keys sent change; directive switches merge into the Host's own. */
-export type MachineAgentPatch = Partial<Omit<MachineAgentDefaults, 'agentDirectives'>> & {
-  agentDirectives?: Partial<AgentDirectivePrefs>
+/** Each key may be `null`: the Host deletes it, so it inherits again. */
+type Clearable<T> = { [K in keyof T]?: T[K] | null }
+/**
+ * Only the keys sent change; nested groups and directive switches merge into
+ * the Host's own. `null` clears a key or nested field, on a Host whose read
+ * carries `agentClearSupported`; older Hosts refuse it.
+ */
+export type MachineAgentPatch = Clearable<
+  Omit<MachineAgentDefaults, 'agentDirectives' | 'compaction' | 'retry'>
+> & {
+  compaction?: Clearable<NonNullable<MachineAgentBehavior['compaction']>> | null
+  retry?: Clearable<NonNullable<MachineAgentBehavior['retry']>> | null
+  agentDirectives?: Partial<AgentDirectivePrefs> | null
 }
 export type MachineSettings = {
   section: MachineSettingsSection
@@ -72,6 +82,8 @@ export type MachineSettings = {
   }
   projectTrusted?: boolean
   agentBehaviorSupported?: boolean
+  /** `agent.patch` accepts `null` to clear a key. Absent from Hosts that predate it. */
+  agentClearSupported?: true
   agent?: MachineAgentDefaults
   resources?: {
     packages: {

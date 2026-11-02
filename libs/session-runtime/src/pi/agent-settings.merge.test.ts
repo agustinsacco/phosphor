@@ -52,4 +52,22 @@ describe('mergeAgentPatch', () => {
     expect(current).toEqual({ compaction: { enabled: true } })
     expect(patch).toEqual({ compaction: { reserveTokens: 1 } })
   })
+
+  it('deletes keys and nested fields set to null or undefined, dropping an emptied group', () => {
+    const current = {
+      theme: 'dark',
+      defaultModel: 'opus',
+      compaction: { enabled: false, reserveTokens: 4096 },
+      retry: { maxRetries: 2 },
+    }
+    expect(
+      mergeAgentPatch(current, {
+        defaultModel: null,
+        theme: undefined,
+        compaction: { enabled: null },
+        retry: { maxRetries: undefined },
+      }),
+    ).toEqual({ compaction: { reserveTokens: 4096 } })
+    expect(mergeAgentPatch(current, { compaction: null })).not.toHaveProperty('compaction')
+  })
 })

@@ -156,6 +156,10 @@ commits, not an atomic multi-file save. A toast says where each save landed
 service restarts" for automatic naming), replacing the previous one; the section shows
 "Saving on \<Host\>…" meanwhile. An invalid context budget or a half-filled
 custom model is flagged in place and not sent. Edits preserve unrelated settings.
+A Host whose Agent read carries `agentClearSupported` accepts `null` in a patch
+to clear a value (the Host deletes the key); This Mac clears by sending
+`undefined` to `pi:patchAgentSettings`. Both save through one merge
+(`mergeAgentPatch`), so a cleared value is never written as `null`.
 
 A change the Host refuses stays as a non-secret draft keyed by Host/folder, with
 an error toast and a **Try again** / **Discard changes** banner; it is not

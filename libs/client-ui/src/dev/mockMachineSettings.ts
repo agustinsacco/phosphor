@@ -1,4 +1,6 @@
 import type {
+  MachineAgentDefaults,
+  MachineAgentPatch,
   MachineSettings,
   MachineSettingsPatch,
   MachineSettingsSection,
@@ -24,7 +26,7 @@ export function mockSettingsRead(
     value = {
       section,
       revision: '',
-      ...(section === 'agent' ? { agentBehaviorSupported: true } : {}),
+      ...(section === 'agent' ? { agentBehaviorSupported: true, agentClearSupported: true } : {}),
       ...(repositoryId ? { repositoryId } : {}),
       [section]: samples[section],
     }
@@ -42,7 +44,7 @@ export function mockSettingsPatch(hostId: string, patch: MachineSettingsPatch): 
   if (current.revision !== input.revision)
     throw new Error('Settings changed. Reload before saving.')
   const change = input.change
-  if (current.agent && change.type === 'agent.patch') Object.assign(current.agent, change.patch)
+  if (current.agent && change.type === 'agent.patch') applyAgentPatch(current.agent, change.patch)
   if (current.instructions && change.type === 'instructions.write')
     Object.assign(current.instructions, { content: change.content, exists: true })
   if (current.providers) {
@@ -79,6 +81,24 @@ export function mockSettingsPatch(hostId: string, patch: MachineSettingsPatch): 
   state.revision++
   state.values.set(`${input.section}/${input.repositoryId ?? ''}`, current)
   return mockSettingsRead(hostId, input.section, input.repositoryId)
+}
+/** As a Host saves it: nested groups merge one level, and `null` deletes. */
+function applyAgentPatch(agent: MachineAgentDefaults, patch: MachineAgentPatch): void {
+  const target = agent as unknown as Record<string, unknown>
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) delete target[key]
+    else if (typeof value === 'object') {
+      const group: Record<string, unknown> = {
+        ...(target[key] as Record<string, unknown> | undefined),
+        ...value,
+      }
+      for (const [field, set] of Object.entries(group)) if (set === null) delete group[field]
+      target[key] = group
+    } else target[key] = value
+  }
+  // A cleared policy key reads back as the Host's default.
+  agent.contextBudget ??= ''
+  agent.autoNameLanes ??= true
 }
 export function mockSettingsCheck(hostId: string, repositoryId?: string): MachineSettings {
   const value = mockSettingsRead(hostId, 'connectors', repositoryId)

@@ -66,8 +66,9 @@ export const AGENT_NESTED_KEYS = ['compaction', 'retry'] as const
 /**
  * Apply an editor's patch to a settings object, as Desktop and a Host both
  * save it. Top-level keys replace; each `nested` group merges one level deep,
- * so unknown fields inside it survive. A nested group on disk that is not an
- * object is refused rather than replaced.
+ * so unknown fields inside it survive. `null` or `undefined` deletes a key or
+ * a nested field (an emptied group goes too), so nothing is saved as `null`.
+ * A nested group on disk that is not an object is refused rather than replaced.
  */
 export function mergeAgentPatch(
   current: Record<string, unknown>,
@@ -76,6 +77,10 @@ export function mergeAgentPatch(
 ): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...current }
   for (const [key, value] of Object.entries(patch)) {
+    if (value === null || value === undefined) {
+      delete merged[key]
+      continue
+    }
     if (!nested.includes(key) || !machineRecord(value)) {
       merged[key] = value
       continue
@@ -83,7 +88,13 @@ export function mergeAgentPatch(
     const existing = current[key]
     if (existing !== undefined && !machineRecord(existing))
       throw new SettingsFailure('bad-request', `Invalid ${key} settings. Nothing was overwritten.`)
-    merged[key] = { ...existing, ...value }
+    const group: Record<string, unknown> = { ...existing }
+    for (const [field, set] of Object.entries(value)) {
+      if (set === null || set === undefined) delete group[field]
+      else group[field] = set
+    }
+    if (Object.keys(group).length) merged[key] = group
+    else delete merged[key]
   }
   return merged
 }

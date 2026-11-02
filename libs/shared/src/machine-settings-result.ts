@@ -220,6 +220,7 @@ function parseAgent(value: Record<string, unknown>, base: MachineSettings): Mach
     ...base,
     ...(typeof value.projectTrusted === 'boolean' ? { projectTrusted: value.projectTrusted } : {}),
     ...(value.agentBehaviorSupported === true ? { agentBehaviorSupported: true } : {}),
+    ...(value.agentClearSupported === true ? { agentClearSupported: true as const } : {}),
     agent: {
       ...projectAgentBehavior(a),
       ...(a.defaultProvider ? { defaultProvider: a.defaultProvider } : {}),

@@ -17,7 +17,12 @@ import {
 export async function readAgentSettings(
   state: SettingsContext,
   cwd?: string,
-): Promise<Pick<MachineSettings, 'agent' | 'projectTrusted' | 'agentBehaviorSupported'>> {
+): Promise<
+  Pick<
+    MachineSettings,
+    'agent' | 'projectTrusted' | 'agentBehaviorSupported' | 'agentClearSupported'
+  >
+> {
   const global = settingsFile(join(state.agentDir, 'settings.json'), HOST_FILE_POLICY).raw
   const configs = await readMcpConfigs(cwd, state.dirs)
   // This is an editor: show saved folder values even before trust. Runtime
@@ -30,6 +35,7 @@ export async function readAgentSettings(
     throw new SettingsFailure('bad-request', 'Host config is invalid. Nothing was overwritten.')
   return {
     agentBehaviorSupported: true,
+    agentClearSupported: true,
     ...(cwd ? { projectTrusted: configs.projectTrust?.trusted ?? false } : {}),
     agent: {
       ...projectAgentBehavior(effective),
