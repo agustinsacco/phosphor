@@ -5,12 +5,15 @@ import { usePlatform } from '@/platform/Platform'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useMachinesStore } from '@/stores/machines'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useSkillsStore } from '@/stores/skills'
 
 /**
  * Which machines already have a global skill of a given name. Each machine's names are read
  * once per connection: This Mac through `pi:commands` (no Skills page registry involved), a
  * Host through `hosts:skills`. A reconnect or capability change reads again; a failed read is
- * retried by the next caller and never kept.
+ * retried by the next caller and never kept. Opening Share and finishing a copy read again
+ * (`force`). A Host's list also replaces its Skills page's list, which is otherwise kept for
+ * the whole connection.
  */
 export interface SkillNames {
   status: 'loading' | 'ready' | 'error'
@@ -26,7 +29,7 @@ export function presenceKey(machine: string): string {
   return machine === 'local' ? 'local' : `${machine}:${machineReadGeneration(machine)}`
 }
 
-async function readNames(machine: string): Promise<string[]> {
+async function readNames(machine: string, key: string): Promise<string[]> {
   if (machine === 'local') {
     const { commands, error } = await window.phosphor.invoke('pi:commands')
     if (error) throw new Error(error)
@@ -34,7 +37,12 @@ async function readNames(machine: string): Promise<string[]> {
       c.source === 'skill' && c.sourceInfo?.scope === 'user' ? [c.name.replace(/^skill:/, '')] : [],
     )
   }
-  return (await window.phosphor.invoke('hosts:skills', machine)).skills.map((s) => s.name)
+  const result = await window.phosphor.invoke('hosts:skills', machine)
+  if (presenceKey(machine) === key)
+    useSkillsStore.setState((s) => ({
+      byWorkspace: { ...s.byWorkspace, [`host:${machine}/machine`]: result },
+    }))
+  return result.skills.map((s) => s.name)
 }
 
 /** Never rejects: the outcome is the store entry. */
@@ -48,11 +56,17 @@ export async function loadSkillNames(machine: string, force = false): Promise<vo
   const current = () => useSkillPresenceStore.getState().byKey[key] === entry
   put(entry)
   try {
-    const names = await readNames(machine)
+    const names = await readNames(machine, key)
     if (current()) put({ status: 'ready', names })
   } catch {
     if (current()) put({ status: 'error', names: NO_NAMES })
   }
+}
+
+/** Read again unless a read is already running: what opening Share wants. */
+export function rereadSkillNames(machine: string): Promise<void> {
+  const existing = useSkillPresenceStore.getState().byKey[presenceKey(machine)]
+  return loadSkillNames(machine, existing?.status !== 'loading')
 }
 
 export interface ShareMachine {

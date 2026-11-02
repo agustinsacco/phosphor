@@ -8,7 +8,7 @@ import { Spinner } from '@/features/machines/MachineUi'
 import { formatBytes } from '@/lib/format'
 import { useMachinesStore } from '@/stores/machines'
 import {
-  loadSkillNames,
+  rereadSkillNames,
   shareMachineLabel,
   sourceMachine,
   useShareMachines,
@@ -45,7 +45,7 @@ export function SkillShareActions({
     if (!open) {
       // A finished copy gives way to the machine list; one in flight or waiting stays.
       if (share.copy?.step === 'done' || share.copy?.step === 'failed') share.reset()
-      for (const machine of machines) if (machine.readable) void loadSkillNames(machine.id)
+      for (const machine of machines) if (machine.readable) void rereadSkillNames(machine.id)
     }
     setOpen(!open)
   }

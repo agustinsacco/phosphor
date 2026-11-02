@@ -112,7 +112,10 @@ it('shows which machines have the name and why others cannot take a copy', async
   expect(text()).toContain('Not connected')
   expect(button('Copy demo to tower').disabled).toBe(true)
   // A down Host is never listed: only connected ones are asked.
-  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:skills')).toHaveLength(2)
+  const asked = invoke.mock.calls.flatMap(([channel, id]) =>
+    channel === 'hosts:skills' ? [id] : [],
+  )
+  expect(new Set(asked)).toEqual(new Set([A, B]))
 })
 
 it('asks before replacing, then writes the bundle it already read', async () => {
@@ -181,10 +184,10 @@ it('shows a copied skill on the target Host’s Skills page without a reconnect'
 
 it('reads every machine again each time Share opens', async () => {
   await render()
-  expect(reads(A)).toBe(1)
+  const opened = reads(A)
   await act(async () => button('Share').click())
   await act(async () => button('Share').click())
-  expect(reads(A)).toBe(2)
+  expect(reads(A)).toBe(opened + 1)
 })
 
 it('refreshes the target after a write that ends once the page has gone', async () => {
