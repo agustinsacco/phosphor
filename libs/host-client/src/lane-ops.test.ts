@@ -8,6 +8,7 @@ import {
   receiptResponse,
   sendToLane,
   startedPrompt,
+  openFailure,
   UNKNOWN_OUTCOME,
 } from './lane-ops'
 
@@ -119,6 +120,12 @@ describe('laneOperation', () => {
 })
 
 describe('lane.create with a first prompt', () => {
+  it('names an unopened lane whose prompt the Host ran, and passes other failures on', () => {
+    const cause = new Error('snapshot timed out')
+    expect(() => openFailure(true)(cause)).toThrow('lane-started-unopened')
+    for (const prompted of [false, undefined])
+      expect(() => openFailure(prompted)(cause)).toThrow(cause)
+  })
   const input = { repositoryId: 'repo', prompt: 'Fix it', model: 'm' }
   it('sends the prompt only to a Host that takes it', () => {
     expect(laneCreateOp(input, true)).toEqual({

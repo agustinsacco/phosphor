@@ -8,7 +8,7 @@ import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { machineLabel } from '@/stores/remoteLanes'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { startRemoteChat } from './startRemoteChat'
-import { PROMPT_UNCONFIRMED } from './remoteStartCodes'
+import { LANE_STARTED_UNOPENED, PROMPT_UNCONFIRMED } from './remoteStartCodes'
 import { remoteBranchName } from './remoteBranchName'
 
 interface Submission {
@@ -30,6 +30,8 @@ function createWarning(code: string, machine: string): string {
       return 'Branch prefix is too long for a Host worktree. Shorten it in Settings.'
     case 'lane-create-failed':
       return `${machine} couldn't start this lane. Your draft is kept.`
+    case LANE_STARTED_UNOPENED:
+      return `${machine} started the lane with your message but it couldn't open here. Find it in the sidebar.`
     case PROMPT_UNCONFIRMED:
       return `${machine} started the lane but couldn't confirm it got your message. Check the lane before sending it again. Your draft is kept.`
     case 'lane-limit':
