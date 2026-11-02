@@ -188,6 +188,8 @@ export function createBrowserHandlers(ports: {
     'app:setTheme': prefs.theme,
     'app:setFontPrefs': prefs.fonts,
     'app:setModelPicks': prefs.models,
+    'app:setLanePrefs': prefs.lanes,
+    'app:setWorktreePrefs': prefs.worktrees,
     'app:resumeTarget': () => ({ kind: 'none' }),
     'app:openExternal': (value) => {
       const url = new URL(value)
