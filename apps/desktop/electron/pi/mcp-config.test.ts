@@ -225,6 +225,15 @@ describe('writes', () => {
     await setMcpServerEnabled('project', workspace, 'docs', true, dirs)
     expect(await read(project)).toEqual({ mcpServers: { docs: { enabled: true } } })
   })
+
+  it('switches a machine connector off in one folder with an override there (regression M3)', async () => {
+    await write(global(), { mcpServers: { docs: { url: 'https://d.test' } } })
+    await setMcpServerEnabled('project', workspace, 'docs', false, dirs)
+    expect(await read(join(workspace, '.pi', 'mcp.json'))).toEqual({
+      mcpServers: { docs: { enabled: false } },
+    })
+    expect(await read(global())).toEqual({ mcpServers: { docs: { url: 'https://d.test' } } })
+  })
 })
 
 describe('the MCP write policy on This Mac', () => {

@@ -124,9 +124,8 @@ describe('This Mac', () => {
     await show('/work')
     expect(calls('mcp:readConfigs').at(-1)).toEqual(['mcp:readConfigs', '/work'])
     await click(control('Enabled in this folder', row('linear')))
-    expect(calls('mcp:setEnabled')).toEqual([])
-    expect(calls('mcp:upsertServer')).toEqual([
-      ['mcp:upsertServer', 'project', '/work', 'linear', { enabled: false }],
+    expect(calls('mcp:setEnabled')).toEqual([
+      ['mcp:setEnabled', 'project', '/work', 'linear', false],
     ])
     expect(button('Remove', row('linear')).disabled).toBe(true)
   })
@@ -157,7 +156,7 @@ describe('This Mac', () => {
     await show()
     await click(button('Add custom server…'))
     type('Server name', 'local-tools')
-    act(() => control('Local command').click())
+    act(() => button('Local command').click())
     type('Command', 'npx')
     type('Arguments', '-y\n@vendor/server\n--root\n/path with space\n')
     await click(button('Save'))
