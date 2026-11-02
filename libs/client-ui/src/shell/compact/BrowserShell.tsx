@@ -9,6 +9,7 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { usePlatform } from '@/platform/Platform'
 import { locationMachine } from '@/navigation/location'
 import { LaneLocation } from '@/features/machines/LaneLocation'
+import { RemoteLanePrStatus } from '@/features/sessions/LanePrStatus'
 import { BrowserNavigation } from './BrowserNavigation'
 import { CompactLane } from './CompactLane'
 import { CompactLaneHeader } from './CompactLaneHeader'
@@ -74,6 +75,9 @@ function BrowserHeader({
         </Button>
       )}
       <strong>{title}</strong>
+      {location.to === 'lane' && 'laneId' in location.lane && (
+        <RemoteLanePrStatus hostId={location.lane.hostId} laneId={location.lane.laneId} />
+      )}
       {location.to === 'lane' && 'laneId' in location.lane && (
         <LaneLocation hostId={location.lane.hostId} laneId={location.lane.laneId} />
       )}

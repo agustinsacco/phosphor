@@ -26,7 +26,12 @@ export function ghAvailable(): Promise<boolean> {
     .then((env) => execFileAsync('gh', ['--version'], { timeout: 5_000, env }))
     .then(
       () => true,
-      () => false,
+      () => {
+        // A missing CLI may be installed while the app is running. Share only
+        // in-flight failures; keep successful availability cached.
+        availability = null
+        return false
+      },
     )
   return availability
 }

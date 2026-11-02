@@ -18,10 +18,12 @@ import { keyedSlice } from './keyedSlice'
 export interface RepoPullRequests {
   /** headRefName → PR from the last successful fetch. */
   byBranch: Record<string, GhPullRequest>
-  /** Epoch ms of the last completed refresh; 0 when never fetched. */
+  /** Epoch ms of the last successful app refresh (not upstream freshness); 0 when never fetched. */
   fetchedAt: number
   /** Only an untruncated successful listing can confirm a missing PR. */
   complete: boolean
+  /** Last app attempt failed; known PRs remain available. */
+  failed?: boolean
   /** Last attempt, including failures, for retry throttling. */
   attemptedAt: number
   /** A refresh is in flight — used to collapse concurrent triggers. */
@@ -34,9 +36,10 @@ const repos = keyedSlice<RepoPullRequests>({
   attemptedAt: 0,
   complete: false,
   loading: false,
+  failed: false,
 })
 
-/** How stale a repo's PR map may be before an event-driven refresh refetches. */
+/** Minimum interval between automatic app refresh attempts for a repo. */
 export const PR_STALE_MS = 60_000
 
 interface PullRequestsState {
@@ -69,13 +72,14 @@ export const usePullRequestsStore = create<PullRequestsState>((set, get) => ({
       byRepo: repos.patch(s.byRepo, repoPath, (r) => ({
         ...r,
         loading: true,
+        failed: false,
         attemptedAt: Date.now(),
       })),
     }))
     const pending = get().byRepo[repoPath]
     try {
       let available = repoPath.startsWith('host:') ? true : get().available
-      if (available === undefined) {
+      if (available === undefined || available === false) {
         available = await window.phosphor.invoke('gh:available')
         set({ available })
       }
@@ -84,15 +88,20 @@ export const usePullRequestsStore = create<PullRequestsState>((set, get) => ({
       set((s) => ({
         byRepo: repos.patch(s.byRepo, repoPath, (r) =>
           result
-            ? { ...r, ...result, fetchedAt: Date.now(), loading: false }
-            : { ...r, complete: false, loading: false },
+            ? { ...r, ...result, fetchedAt: Date.now(), loading: false, failed: false }
+            : { ...r, complete: false, loading: false, failed: true },
         ),
       }))
     } catch {
       if (get().byRepo[repoPath] !== pending) return
       // Keep known chips on IPC failure, but revoke any inferred absence.
       set((s) => ({
-        byRepo: repos.patch(s.byRepo, repoPath, (r) => ({ ...r, complete: false, loading: false })),
+        byRepo: repos.patch(s.byRepo, repoPath, (r) => ({
+          ...r,
+          complete: false,
+          loading: false,
+          failed: true,
+        })),
       }))
     }
   },

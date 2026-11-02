@@ -181,3 +181,12 @@ describe('refresh', () => {
     expect(invoke).not.toHaveBeenCalled()
   })
 })
+
+it('re-probes missing local gh on a later attempt so installation can recover without restart', async () => {
+  invoke.mockResolvedValueOnce(false)
+  await usePullRequestsStore.getState().refresh(REPO)
+  expect(repoPullRequests(usePullRequestsStore.getState(), REPO).failed).toBe(true)
+  await usePullRequestsStore.getState().refresh(REPO, { force: true })
+  expect(pullRequestFor(usePullRequestsStore.getState(), REPO, 'feat/a')?.number).toBe(412)
+  expect(repoPullRequests(usePullRequestsStore.getState(), REPO).failed).toBe(false)
+})

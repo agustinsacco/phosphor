@@ -210,7 +210,10 @@ Repository-wide `gh:prsForRepo` instead uses an opaque `host:<id>/repo:<reposito
 key and requires ready `workspaces.read`, not an active lane or control. The Host
 runs `gh` in its configured repository with its own credentials; the client's
 local `gh` is not required. Remote rows reuse the PR/check-state chips and safe
-links described in [Lanes](lanes.md).
+links described in [Lanes](lanes.md). The active lane's header joins through its
+Host repository id and branch even with its sidebar hidden. Shared visible-repo
+polling and manual app refresh do not bypass the Host's 60-second upstream cache;
+the details label app-refresh age rather than claiming fresh GitHub data.
 The live chat picker keeps the lane's full pi model list through `lane.models`,
 requiring `sessions.read`. Stopped lanes do not fall back to a machine catalogue.
 Skills requires `skills.read`. Remote Skills shows the installed list
