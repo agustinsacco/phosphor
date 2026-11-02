@@ -4,6 +4,7 @@ import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { installedExtensionTabs, type EXTENSION_TABS, type MachineKind } from '../../settingsIndex'
 import { useSettingsUiStore, type SettingsMachine } from '../../settingsUiStore'
+import { canConfigureHost } from '../../machine/useHostSettings'
 import { SETTINGS_SECTIONS } from '../registry'
 import { publishHostPackages, useHostExtensionPackages } from './hostExtensionPackages'
 
@@ -62,11 +63,7 @@ function useHostPackageTabs(hostId: string | null): ExtensionTabs {
   const connection = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
   const generation = useRemoteLanesStore(() => (hostId ? machineReadGeneration(hostId) : 0))
   const packages = useHostExtensionPackages((s) => (hostId ? s[hostId] : undefined))
-  const allowed =
-    supported &&
-    connection?.state === 'ready' &&
-    connection.configurationSupported === true &&
-    connection.capabilities.includes('machine.configure')
+  const allowed = canConfigureHost(supported, connection)
   // A layout effect: the navigation's read goes out before the open section's own.
   useLayoutEffect(() => {
     if (!hostId || !allowed) return

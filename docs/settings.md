@@ -255,9 +255,8 @@ Everything lives under `libs/client-ui/src/features/settings/`.
 - **The machine frame.** `machine/` holds the scope line (`SettingsScopeLine`,
   `ScopeRow`, `HostScopeRow`, `HostRefresh`), the gate (`HostGate`,
   `hostSettingsStatus`) and the Host plumbing: `useHostSettings`,
-  `useHostSettingsSnapshot`, `useMachinePrograms`, `machineProgramActions`,
-  `HostProgramDialog`, `settingsAccess`, `machineSettingsDrafts` and the Agent draft
-  helpers. `useHostSection()` gives a Host view its machine, settings read
+  `useMachinePrograms`, `machineProgramActions`, `HostProgramDialog`,
+  `settingsAccess`, `machineSettingsDrafts` and the Agent draft helpers. `useHostSection()` gives a Host view its machine, settings read
   (`settings`), folder (`repositoryId`), programs, grant and refresh;
   `HostSectionProvider` owns the private-program dialog.
 - **One view per section.** A shared section lives in `sections/<section>/`: a
