@@ -383,7 +383,7 @@ export function createHostConnection(ports: {
         }
         w.listener(f.type === 'snapshot' ? { ...f, reset } : f)
       } else if (f.type === 'subscribe-failed' && f.id === 'lanes') update({ lastError: f.code })
-    } else if (f.type === 'receipt' && f.receipt.status !== 'pending') {
+    } else if (f.type === 'receipt') {
       const receiptOp = requests.receipt(f.receipt)
       if (receiptOp && !receiptOp.startsWith('terminal.'))
         log('hosts', 'receipt', {
@@ -450,7 +450,7 @@ export function createHostConnection(ports: {
   }
   void connect()
   return {
-    snapshot: () => structuredClone(view),
+    snapshot: (): typeof view => structuredClone({ ...view, laneStarts: requests.laneStarts() }),
     incarnation: () => ({ generation, runtimeEpoch }),
     watchTerminal(
       terminalId: string,

@@ -40,6 +40,8 @@ export type {
   TrafficEntry,
   TrafficPage,
   RemoteLaneCreate,
+  RemoteLaneStarted,
+  LaneStartView,
   HostAttention,
 } from './ipc/views'
 export type { PhosphorApi, PhosphorPlatform } from './ipc/api'

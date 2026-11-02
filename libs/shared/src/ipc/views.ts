@@ -1,7 +1,13 @@
 import type { LaneReceipt } from '../lane-receipt'
 import type { HostCapability } from '../remote-host'
-import type { RepositorySummary, LaneSummary, StreamCursor } from '../host-protocol'
+import type {
+  LaneCreatePhase,
+  RepositorySummary,
+  LaneSummary,
+  StreamCursor,
+} from '../host-protocol'
 import type { ControlErrorCode } from '../control-api'
+import type { LiveSessionInfo } from '../models'
 
 export type DesktopControlErrorCode = ControlErrorCode | 'signed-out' | 'offline'
 
@@ -63,6 +69,10 @@ export interface HostConnectionView {
   machineShell?: boolean
   /** Host keeps lane pins and markers, so every client shows the same ones. */
   laneMarks?: boolean
+  /** Host takes a first prompt with `lane.create` and reports its phases. */
+  laneStart?: boolean
+  /** This client's `lane.create` commands still awaiting a receipt, oldest first. */
+  laneStarts?: LaneStartView[]
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: HostLaneView[]
@@ -102,6 +112,17 @@ export interface TrafficPage {
   gap: boolean
 }
 
+/**
+ * One lane creation in flight. `phase` is absent until the Host reports one,
+ * so a slow or older Host still shows the request as waiting. Never the prompt.
+ */
+export interface LaneStartView {
+  repositoryId: string
+  /** The requested branch; a fresh one may land with a `-2`…`-5` suffix. */
+  branch: string | null
+  phase?: LaneCreatePhase
+}
+
 /** A new lane on a Host (11). The Host picks the folder; never a path from here. */
 export interface RemoteLaneCreate {
   repositoryId: string
@@ -110,7 +131,12 @@ export interface RemoteLaneCreate {
   provider?: string
   model?: string
   thinkingLevel?: string
+  /** Sent with the creation only to a `laneStart` Host; otherwise ignored. */
+  prompt?: string
 }
+
+/** `prompted`: the Host already sent `RemoteLaneCreate.prompt` to the new lane. */
+export type RemoteLaneStarted = LiveSessionInfo & { prompted?: boolean }
 
 /** An attention event from any Host, for in-app and OS notifications (49). */
 export interface HostAttention {

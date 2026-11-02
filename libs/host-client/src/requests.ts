@@ -2,8 +2,10 @@ import {
   HOST_LIMITS,
   type ClientFrame,
   type HostFrame,
+  type LaneCreatePhase,
   type Receipt,
 } from '@phosphor/shared/host-protocol'
+import type { LaneStartView } from '@phosphor/shared/ipc'
 
 export type NotSent = {
   requestId: string
@@ -13,6 +15,30 @@ export type NotSent = {
 export type CommandResult = Receipt | NotSent
 type Command = Extract<ClientFrame, { type: 'command' }>
 type Result = Extract<HostFrame, { type: 'result' }>
+type Pending = { frame: Command; at: number; statusOnly: boolean }
+
+function failedCall(id: string, message: string): Result {
+  return { type: 'result', id, ok: false, error: { code: 'internal', message } }
+}
+
+/** Unsettled `lane.create` commands, without their prompt, for the hosts snapshot. */
+function laneStarts(
+  pending: ReadonlyMap<string, Pending>,
+  phases: ReadonlyMap<string, LaneCreatePhase>,
+): LaneStartView[] {
+  return [...pending].flatMap(([requestId, { frame, statusOnly }]) => {
+    const op = frame.op
+    if (op.type !== 'lane.create' || statusOnly) return []
+    const phase = phases.get(requestId)
+    return [
+      {
+        repositoryId: op.repositoryId,
+        branch: op.worktree?.branch ?? null,
+        ...(phase ? { phase } : {}),
+      },
+    ]
+  })
+}
 
 /** Receipts outlive a transport; read calls do not. Only replay-safe commands retry. */
 export function createRequests(ports: {
@@ -24,10 +50,8 @@ export function createRequests(ports: {
   changed: () => void
   transportFailed: () => void
 }) {
-  const pending = new Map<
-    string,
-    { frame: Command; at: number; statusOnly: boolean; resolve: (result: CommandResult) => void }
-  >()
+  const pending = new Map<string, Pending & { resolve: (result: CommandResult) => void }>()
+  const phases = new Map<string, LaneCreatePhase>()
   const expiries = new Map<string, ReturnType<typeof setTimeout>>()
   const calls = new Map<
     string,
@@ -60,12 +84,7 @@ export function createRequests(ports: {
     replay.length = 0
     for (const [id, call] of calls) {
       clearTimeout(call.timer)
-      call.resolve({
-        type: 'result',
-        id,
-        ok: false,
-        error: { code: 'internal', message: 'Connection closed.' },
-      })
+      call.resolve(failedCall(id, 'Connection closed.'))
     }
     calls.clear()
     if (code === 4400 || code === 1009) for (const p of pending.values()) p.statusOnly = true
@@ -76,6 +95,7 @@ export function createRequests(ports: {
       disconnect(0)
       for (const [requestId, p] of pending) p.resolve({ requestId, status: 'unknown' })
       pending.clear()
+      phases.clear()
       for (const timer of expiries.values()) clearTimeout(timer)
       expiries.clear()
     },
@@ -84,10 +104,12 @@ export function createRequests(ports: {
     },
     flushReplay,
     replaying: () => replay.length > 0,
+    laneStarts: () => laneStarts(pending, phases),
     full: () => pending.size >= HOST_LIMITS.pendingCommandsPerConnection,
     track(frame: Command, resolve: (result: CommandResult) => void) {
       const requestId = frame.requestId
       pending.set(requestId, { frame, at: ports.now(), statusOnly: false, resolve })
+      if (frame.op.type === 'lane.create') ports.changed()
       expiries.set(
         requestId,
         setTimeout(() => {
@@ -97,13 +119,22 @@ export function createRequests(ports: {
           p.statusOnly = true
           ports.write({ type: 'receipt-status', requestId })
           p.resolve({ requestId, status: 'unknown' })
+          if (p.frame.op.type === 'lane.create') ports.changed()
         }, 60000),
       )
     },
+    /** A `pending` receipt only moves a creation's phase; it never settles the command. */
     receipt(receipt: Receipt) {
-      const op = pending.get(receipt.requestId)?.frame.op.type
-      pending.get(receipt.requestId)?.resolve(receipt)
+      const p = pending.get(receipt.requestId)
+      const op = p?.frame.op.type
+      if (receipt.status === 'pending') {
+        if (op !== 'lane.create' || !receipt.phase || p?.statusOnly) return undefined
+        phases.set(receipt.requestId, receipt.phase)
+        return void ports.changed()
+      }
+      p?.resolve(receipt)
       pending.delete(receipt.requestId)
+      if (phases.delete(receipt.requestId) || op === 'lane.create') ports.changed()
       clearTimeout(expiries.get(receipt.requestId))
       expiries.delete(receipt.requestId)
       return op
@@ -123,21 +154,11 @@ export function createRequests(ports: {
       trace: string,
     ): Promise<Result> {
       if (calls.size >= HOST_LIMITS.pendingCommandsPerConnection || !ready)
-        return Promise.resolve({
-          type: 'result',
-          id,
-          ok: false,
-          error: { code: 'internal', message: 'Connection unavailable.' },
-        })
+        return Promise.resolve(failedCall(id, 'Connection unavailable.'))
       return new Promise((resolve) => {
         const timer = setTimeout(() => {
           calls.delete(id)
-          resolve({
-            type: 'result',
-            id,
-            ok: false,
-            error: { code: 'internal', message: 'Query timed out.' },
-          })
+          resolve(failedCall(id, 'Query timed out.'))
         }, 30000)
         calls.set(id, { resolve, timer })
         if (!ports.write({ type: 'call', id, method, params, trace })) ports.transportFailed()
