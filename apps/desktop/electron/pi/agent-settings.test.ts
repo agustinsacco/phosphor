@@ -113,7 +113,7 @@ describe('pi agent settings', () => {
       await expect(patchWebSearchConfig({ braveApiKey: 'x' })).rejects.toThrow(/will not overwrite/)
       expect(await readFile(path, 'utf8')).toBe(raw)
       expect(await readWebSearchConfig()).toMatchObject({
-        config: {},
+        configured: [],
         exists: true,
         malformed: true,
       })
@@ -183,7 +183,8 @@ describe('pi agent settings', () => {
     const expectedPath = join(dir, 'web-search.json')
 
     const empty = await readWebSearchConfig()
-    expect(empty).toMatchObject({ path: expectedPath, exists: false, malformed: false, config: {} })
+    expect(empty).toMatchObject({ path: expectedPath, exists: false, malformed: false })
+    expect(empty.configured).toEqual([])
 
     await patchWebSearchConfig({ braveApiKey: 'BSA_x', tavilyApiKey: 'tvly_y' })
     await patchWebSearchConfig({ tavilyApiKey: undefined, exaApiKey: '$EXA_API_KEY' })
@@ -191,7 +192,11 @@ describe('pi agent settings', () => {
     const read = await readWebSearchConfig()
     expect(read.exists).toBe(true)
     // undefined clears a key; other keys survive the merge.
-    expect(read.config).toEqual({ braveApiKey: 'BSA_x', exaApiKey: '$EXA_API_KEY' })
+    expect(JSON.parse(await readFile(expectedPath, 'utf8'))).toEqual({
+      braveApiKey: 'BSA_x',
+      exaApiKey: '$EXA_API_KEY',
+    })
+    expect(read.configured).toEqual(['braveApiKey', 'exaApiKey'])
   })
 
   it('web-search patch refuses to clobber a malformed file', async () => {

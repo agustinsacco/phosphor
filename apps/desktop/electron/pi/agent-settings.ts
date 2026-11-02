@@ -3,9 +3,11 @@ import { join } from 'node:path'
 import { piAgentDir, webSearchConfigPath } from './pi-paths'
 import { type CatalogueModel } from './model-catalogue'
 import { mergeAgentPatch, type PiAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
+import { configuredWebAccessKeys, type WebAccessConfigState } from '@phosphor/shared/web-access'
 import { readJsonFile, type JsonFileRead } from '@phosphor/session-runtime/pi/json-config'
 import {
   DESKTOP_FILE_POLICY,
+  privateFilePolicy,
   readSettingsBytes,
   saveSettingsFile,
   SettingsFailure,
@@ -52,6 +54,11 @@ function configFilePath(name: EditableConfigFile): string {
   return name === 'web-search' ? webSearchConfigPath() : join(piAgentDir(), `${name}.json`)
 }
 
+/** web-search.json holds API keys, so every save of it is 0600, through a link or not. */
+const WEB_SEARCH_POLICY = privateFilePolicy(DESKTOP_FILE_POLICY)
+const writePolicy = (name: EditableConfigFile) =>
+  name === 'web-search' ? WEB_SEARCH_POLICY : DESKTOP_FILE_POLICY
+
 /** Raw config file access for the raw editors. Never exposes auth.json. */
 export async function readConfigFile(
   name: EditableConfigFile,
@@ -68,10 +75,11 @@ export async function writeConfigFile(name: EditableConfigFile, content: string)
   // Must be valid JSON — refuse to write broken config.
   JSON.parse(content)
   const path = configFilePath(name)
+  const policy = writePolicy(name)
   await withSettingsFileLock(path, async () => {
     // The raw editor is how a malformed file gets fixed, so only its bytes are checked.
-    const { revision } = readSettingsBytes(path, DESKTOP_FILE_POLICY)
-    await writeSettingsText(path, content, revision, () => true, DESKTOP_FILE_POLICY)
+    const { revision } = readSettingsBytes(path, policy)
+    await writeSettingsText(path, content, revision, () => true, policy)
   })
 }
 
@@ -104,36 +112,29 @@ async function patchConfigFile(
 }
 
 /**
- * pi-web-access config (web-search.json): read with health, and merge-patch
- * with the same malformed-file guard as settings.json — a patch onto a
- * failed parse would drop every key the user had.
+ * pi-web-access config (web-search.json): its health and which provider keys
+ * are set, by name only. The values stay in main; the renderer never needs
+ * them to show "configured" or to replace one.
  */
-export async function readWebSearchConfig(): Promise<{
-  path: string
-  exists: boolean
-  malformed: boolean
-  error?: string
-  config: Record<string, unknown>
-}> {
+export async function readWebSearchConfig(): Promise<WebAccessConfigState> {
   const path = webSearchConfigPath()
   const read = await readJson(path)
   return {
     path,
     exists: read.exists,
     malformed: read.malformed,
-    error: read.error,
-    config: read.value,
+    ...(read.error ? { error: read.error } : {}),
+    configured: configuredWebAccessKeys(read.value),
   }
 }
 
+/** Merge-patch web-search.json, with settings.json's malformed-file guard; `undefined` clears. */
 export async function patchWebSearchConfig(patch: Record<string, unknown>): Promise<void> {
   await patchConfigFile(
     webSearchConfigPath(),
     ' — fix it via "Edit raw JSON" first.',
-    (current) => ({
-      ...current,
-      ...patch,
-    }),
+    (current) => ({ ...current, ...patch }),
+    WEB_SEARCH_POLICY,
   )
 }
 

@@ -472,8 +472,13 @@ print-mode prompt through the CLI, the login and the extension at once, because
 ### Web access (`pi-web-access`)
 
 Search, fetching and PDF extraction for sessions, written to the package's
-`web-search.json`. Common search providers get first-class fields; the rest
-stay reachable through the raw file.
+`web-search.json`. Common search providers get first-class fields
+(`WEB_ACCESS_PROVIDERS`, `libs/shared/src/web-access.ts`); the rest stay
+reachable through the raw file. The file holds API keys, so the tab's read
+(`pi:webSearchConfig`) returns only the names of configured keys, never their
+values; a key is set or replaced by value, and cleared. **Edit raw JSON…** is the
+explicit way to see the file's contents. Every save of the file, from a field or
+the raw editor, writes it 0600 and makes an existing file 0600.
 
 ### Subagents (`pi-subagents`)
 
