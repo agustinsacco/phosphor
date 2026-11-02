@@ -13,18 +13,21 @@ export const SLOW_START_MS = 12_000
  * has not reached the connection yet or its receipt is already in; an entry
  * without a phase means the Host has not answered yet. Both are honest waits,
  * not errors. The entry is matched by repository: a composer claims its draft, so
- * one window has at most one creation in flight per repository from it.
+ * one window has at most one creation in flight per repository from it. `answered`
+ * says an entry was seen and is gone: the Host is done and the lane is opening here.
  */
 export function startingLabel(
   starting: StartingChat,
   host: HostConnectionView | undefined,
   machine: string,
+  answered = false,
 ): string {
   const remote = starting.remote
   if (!remote) return starting.phase === 'branching' ? 'Creating branch…' : 'Starting session…'
   if (remote.sessionId) return 'Sending your message…'
   if (host?.state !== 'ready') return `Reconnecting to ${machine}…`
-  const start = host.laneStarts?.filter((s) => s.repositoryId === remote.repositoryId).at(-1)
+  const start = laneStartOf(starting, host)
+  if (!start && answered) return 'Opening the lane…'
   switch (start?.phase) {
     case 'queued':
       return `Waiting for ${machine} to finish starting another lane…`
@@ -39,12 +42,23 @@ export function startingLabel(
   }
 }
 
+function laneStartOf(starting: StartingChat, host: HostConnectionView | undefined) {
+  const repositoryId = starting.remote?.repositoryId
+  return host?.laneStarts?.filter((s) => s.repositoryId === repositoryId).at(-1)
+}
+
 /** The step label, and a second line once one step has outlasted `SLOW_START_MS`. */
 export function useStartingStatus(starting: StartingChat): { label: string; slow: string | null } {
   const hostId = starting.remote?.hostId
   const host = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
   const machine = hostId ? machineLabel(hostId) : ''
-  const label = startingLabel(starting, host, machine)
+  // The start whose creation has shown up in the snapshot; a new start has not yet.
+  const [seen, setSeen] = useState<StartingChat | null>(null)
+  const listed = Boolean(starting.remote && laneStartOf(starting, host))
+  useEffect(() => {
+    if (listed) setSeen(starting)
+  }, [listed, starting])
+  const label = startingLabel(starting, host, machine, seen === starting)
   const [slowLabel, setSlowLabel] = useState<string | null>(null)
   useEffect(() => {
     const timer = setTimeout(() => setSlowLabel(label), SLOW_START_MS)

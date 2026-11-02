@@ -146,9 +146,12 @@ receipts, which the connection owner (Desktop's main, the PWA's in-page Host
 bridge) keeps as `laneStarts` in the hosts snapshot (repository,
 requested branch and phase, never the prompt): waiting for the Host, waiting
 behind another creation, creating the branch, starting the session, sending the
-message. While the link is down it says it is reconnecting, and a step that runs
-past 12 seconds adds a line saying the machine is slow to answer and the draft is
-kept. The composer that comes back after a failure is that Host's, even when the
+message, then opening the lane once the Host has answered and its entry is gone.
+While the link is down it says it is reconnecting, and a step that runs past 12
+seconds adds a line saying the machine is slow to answer and the draft is kept; a
+step that comes back starts its own 12 seconds. A This Mac start shows the same
+second line, "This is taking longer than usual." The composer that comes back
+after a failure is that Host's, even when the
 machine picker on This Mac's Home chose it, and holds the draft, the reason (kept
 in `homeSubmissions` with the Host so it survives the remount) and, once, the
 cursor. Editing the draft clears the reason. Both shells
