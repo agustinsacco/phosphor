@@ -40,7 +40,7 @@ export async function settingsServiceFixture() {
     configPath,
     env,
     accounts,
-    pi: { binaryPath: '/usr/bin/pi', prefixArgs: [] },
+    pi: { binaryPath: '/usr/bin/node', prefixArgs: ['/opt/pi/cli.js'], version: '1.2.0' },
     authenticating: () => false,
     sessionFor: () => null,
   })

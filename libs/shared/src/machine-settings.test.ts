@@ -304,3 +304,34 @@ describe('Host Web access (resources.webAccess, webAccess.key)', () => {
     ).toEqual({ packages: [] })
   })
 })
+
+describe('Host Advanced pi health (advanced.pi)', () => {
+  const advanced = (extra: Record<string, unknown>) =>
+    parseMachineSettings({
+      section: 'advanced',
+      revision,
+      advanced: {
+        platform: 'linux',
+        hostVersion: '1.0.0',
+        configPath: '/c',
+        piAgentDir: '/a',
+        path: ['/usr/bin'],
+        environment: [],
+        ...extra,
+      },
+    })?.advanced
+  it('projects the optional pi version, location and agent folder', () => {
+    expect(
+      advanced({ pi: { version: '1.2.0', path: '/opt/pi', agentDir: '/a', extra: 1 } })?.pi,
+    ).toEqual({ version: '1.2.0', path: '/opt/pi', agentDir: '/a' })
+    expect(advanced({ pi: { path: '/opt/pi', agentDir: '/a' } })?.pi).toEqual({
+      path: '/opt/pi',
+      agentDir: '/a',
+    })
+  })
+  it('stays readable from older Hosts and drops a bad pi block', () => {
+    expect(advanced({})).toBeTruthy()
+    expect(advanced({})).not.toHaveProperty('pi')
+    expect(advanced({ pi: { path: 42, agentDir: '/a' } })).not.toHaveProperty('pi')
+  })
+})
