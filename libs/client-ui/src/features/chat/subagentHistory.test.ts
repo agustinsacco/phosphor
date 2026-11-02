@@ -5,6 +5,8 @@ import type { CustomItem, ToolState } from './chatItems'
 import { hydrateFromMessages, emptyChatSession, reduceChatEvent } from './reducer'
 import type { AgentMessage } from '@shared/rpc'
 import { hasDelegatedWork, parseFleetWidget, summarizeFleet } from './subagentRuns'
+import { subagentEvidence } from '@phosphor/shared/subagent-evidence'
+import { SUBAGENT_SESSION_ENTRIES } from '@shared/__fixtures__/subagent-session-entries'
 
 const ask = { type: 'custom_message', id: 'ask', parentId: null, ...request }
 const reply = {
@@ -212,5 +214,15 @@ describe('delegated lane activity', () => {
     expect(parseFleetWidget(many)?.runs).toHaveLength(200)
     expect(hasDelegatedWork(many)).toBe(true)
     expect(hasDelegatedWork(snapshot([{ id: 'future', state: 'unrecognized' }]))).toBe(true)
+  })
+})
+
+describe('history from a Host lane', () => {
+  it('reads the same history from the Host evidence as from the whole session', () => {
+    const evidence = subagentEvidence(SUBAGENT_SESSION_ENTRIES, 'done')
+    const whole = subagentHistory(SUBAGENT_SESSION_ENTRIES, 'done')
+    expect(whole.launches).toHaveLength(1)
+    expect(whole.items.map((i) => i.id)).toEqual(['ask', 'reply'])
+    expect(subagentHistory(evidence.entries, evidence.leafId)).toEqual(whole)
   })
 })

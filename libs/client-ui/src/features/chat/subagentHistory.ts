@@ -1,4 +1,4 @@
-import { sessionBranch } from '@shared/session-branch'
+import { subagentEvidence } from '@phosphor/shared/subagent-evidence'
 import type { ChatItem, CustomItem, ToolState } from './chatItems'
 import {
   isSubagentNotice,
@@ -59,7 +59,6 @@ export function recordedReply(
   }
 }
 
-type Entry = Record<string, unknown> & { id: string; parentId: string | null }
 const record = (v: unknown): Record<string, unknown> | undefined =>
   v !== null && typeof v === 'object' && !Array.isArray(v)
     ? (v as Record<string, unknown>)
@@ -76,19 +75,11 @@ export function subagentHistory(
   omittedLaunches: number
   runIds: Set<string>
 } {
-  const valid = entries.filter((e): e is Entry => {
-    const entry = record(e)
-    return (
-      typeof entry?.id === 'string' &&
-      (entry.parentId === null || typeof entry.parentId === 'string')
-    )
-  })
-  if (leafId !== null && !valid.some((e) => e.id === leafId))
-    throw new Error('The active history branch is unavailable.')
   const items: ChatItem[] = []
   const launches = new Map<string, RecordedLaunch>()
   const runIds = new Set<string>()
-  for (const entry of sessionBranch(valid, leafId)) {
+  // A Host lane sends this evidence already; reading it again changes nothing.
+  for (const entry of subagentEvidence(entries, leafId).entries) {
     const message = entry.type === 'message' ? record(entry.message) : entry
     if (message?.role === 'assistant' && Array.isArray(message.content)) {
       for (const value of message.content) {

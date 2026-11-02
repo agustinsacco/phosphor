@@ -1,0 +1,86 @@
+/** A session's entries as pi's `get_entries` returns them: one branch with subagent work, one without. */
+export const SUBAGENT_SESSION_ENTRIES = [
+  {
+    type: 'message',
+    id: 'user',
+    parentId: null,
+    timestamp: '2026-10-12T12:00:00Z',
+    message: { role: 'user', content: 'Review the parser', timestamp: 1791806400000 },
+  },
+  {
+    type: 'message',
+    id: 'call',
+    parentId: 'user',
+    timestamp: '2026-10-12T12:00:01Z',
+    message: {
+      role: 'assistant',
+      timestamp: 1791806401000,
+      content: [
+        { type: 'text', text: 'Delegating.' },
+        { type: 'toolCall', id: 't-read', name: 'read', arguments: { path: 'a.ts' } },
+        {
+          type: 'toolCall',
+          id: 't-sub',
+          name: 'subagent',
+          arguments: { agent: 'worker', task: 'Inspect only', async: true },
+        },
+      ],
+    },
+  },
+  {
+    type: 'message',
+    id: 'read-result',
+    parentId: 'call',
+    message: {
+      role: 'toolResult',
+      toolName: 'read',
+      toolCallId: 't-read',
+      content: [{ type: 'text', text: 'x'.repeat(4096) }],
+    },
+  },
+  {
+    type: 'message',
+    id: 'sub-result',
+    parentId: 'read-result',
+    message: {
+      role: 'toolResult',
+      timestamp: 1791806402000,
+      toolName: 'subagent',
+      toolCallId: 't-sub',
+      content: [{ type: 'text', text: 'Launched run-a' }],
+      details: { mode: 'single', asyncId: 'run-a', async: true },
+    },
+  },
+  {
+    type: 'custom_message',
+    id: 'ask',
+    parentId: 'sub-result',
+    customType: 'subagent_supervisor_request',
+    content: 'Which parser?',
+    display: true,
+    details: { requestId: 'question-a', runId: 'run-a', childIndex: 0 },
+  },
+  {
+    type: 'custom',
+    id: 'reply',
+    parentId: 'ask',
+    customType: 'subagent_supervisor_reply',
+    data: { requestId: 'question-a', runId: 'run-a', childIndex: 0, message: 'The shared one.' },
+  },
+  { type: 'compaction', id: 'compact', parentId: 'reply' },
+  {
+    type: 'message',
+    id: 'done',
+    parentId: 'compact',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'Done.' }] },
+  },
+  {
+    type: 'custom_message',
+    id: 'elsewhere',
+    parentId: 'sub-result',
+    customType: 'subagent-notify',
+    content: 'Another branch',
+    display: true,
+    details: { runId: 'run-b' },
+  },
+]

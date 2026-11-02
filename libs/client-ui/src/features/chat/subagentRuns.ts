@@ -25,18 +25,32 @@
  * did, never as an invented state.
  */
 
+import {
+  SUBAGENT_NOTIFY_TYPE,
+  SUBAGENT_CHILD_NOTIFY_TYPE,
+  SUBAGENT_CONTROL_NOTICE_TYPE,
+  SUBAGENT_STEERING_NOTICE_TYPE,
+  SUBAGENT_SUPERVISOR_REQUEST_TYPE,
+  SUBAGENT_SUPERVISOR_REPLY_TYPE,
+  SUBAGENT_SLASH_RESULT_TYPE,
+  isSubagentNotice,
+} from '@phosphor/shared/subagent-evidence'
+
 export const SUBAGENT_TOOL = 'subagent'
 export const SUBAGENTS_ENABLE_TOOL = 'subagents_enable'
 export const SUBAGENT_ASYNC_WIDGET_KEY = 'subagent-async'
 /** Replies to `/subagents-inspect-rpc`, correlated by request id. Never rendered. */
 export const SUBAGENT_INSPECT_WIDGET_KEY = 'subagent-inspect'
-export const SUBAGENT_NOTIFY_TYPE = 'subagent-notify'
-export const SUBAGENT_CHILD_NOTIFY_TYPE = 'subagent-incremental-child-notify'
-export const SUBAGENT_CONTROL_NOTICE_TYPE = 'subagent_control_notice'
-export const SUBAGENT_STEERING_NOTICE_TYPE = 'subagent_steering_notice'
-export const SUBAGENT_SUPERVISOR_REQUEST_TYPE = 'subagent_supervisor_request'
-export const SUBAGENT_SUPERVISOR_REPLY_TYPE = 'subagent_supervisor_reply'
-export const SUBAGENT_SLASH_RESULT_TYPE = 'subagent-slash-result'
+export {
+  SUBAGENT_NOTIFY_TYPE,
+  SUBAGENT_CHILD_NOTIFY_TYPE,
+  SUBAGENT_CONTROL_NOTICE_TYPE,
+  SUBAGENT_STEERING_NOTICE_TYPE,
+  SUBAGENT_SUPERVISOR_REQUEST_TYPE,
+  SUBAGENT_SUPERVISOR_REPLY_TYPE,
+  SUBAGENT_SLASH_RESULT_TYPE,
+  isSubagentNotice,
+}
 
 const ASYNC_WIDGET_PREFIX = 'PI_SUBAGENT_ASYNC_JSON:'
 const ASYNC_SNAPSHOT_KIND = 'pi-subagents.async-status-snapshot'
@@ -49,18 +63,6 @@ const str = (value: unknown): string | undefined =>
 const num = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined
 const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
-
-export function isSubagentNotice(customType: string | undefined): boolean {
-  return (
-    customType === SUBAGENT_NOTIFY_TYPE ||
-    customType === SUBAGENT_CHILD_NOTIFY_TYPE ||
-    customType === SUBAGENT_CONTROL_NOTICE_TYPE ||
-    customType === SUBAGENT_STEERING_NOTICE_TYPE ||
-    customType === SUBAGENT_SUPERVISOR_REQUEST_TYPE ||
-    customType === SUBAGENT_SUPERVISOR_REPLY_TYPE ||
-    customType === SUBAGENT_SLASH_RESULT_TYPE
-  )
-}
 
 // ---------- the call ----------
 
