@@ -179,6 +179,49 @@ describe('runtime lane binding', () => {
     },
   )
 
+  it('passes the repository sibling titles and logs a fixed failure reason only', async () => {
+    const nameLane = vi.fn<NonNullable<Parameters<typeof createRuntimeLanes>[0]['nameLane']>>()
+    const s = setup([], nameLane)
+    const sibling = store.ensureLane({
+      repositoryId,
+      cwd: machine.repository,
+      sessionFile: join(machine.dir, 'sibling.jsonl'),
+    })
+    store.updateLane(sibling.laneId, { title: 'Sibling Lane' })
+    const session = await s.binding.sessions.start({ repository: machine.repository })
+    const lane = s.saved()
+    await s.binding.sessions.attach(lane.laneId, session.sessionId)
+    s.runtime.command.mockImplementation(async (_id, cmd) => ({
+      type: 'response',
+      command: cmd.type,
+      success: true,
+      data:
+        cmd.type === 'get_available_models'
+          ? { models: [] }
+          : { ...state, model: { provider: 'test', id: 'lane-model' } },
+    }))
+    await s.binding.command(session.sessionId, { type: 'prompt', message: 'private prompt' })
+    await vi.waitFor(() => expect(nameLane).toHaveBeenCalledTimes(1))
+    const job = nameLane.mock.calls[0]?.[0]
+    expect(job?.sessionId).toBe(session.sessionId)
+    expect(job?.existingNames).toEqual(['Sibling Lane'])
+    job?.outcome?.('print-failed', { reason: 'exit', attempts: 3 })
+    expect(s.log.mock.calls.filter((c) => c[1] === 'lane.naming')).toEqual([
+      [
+        'host',
+        'lane.naming',
+        {
+          laneId: lane.laneId,
+          outcome: 'print-failed',
+          reason: 'exit',
+          attempts: 3,
+          ms: expect.any(Number),
+        },
+      ],
+    ])
+    expect(JSON.stringify(s.log.mock.calls)).not.toContain('private prompt')
+  })
+
   it('keeps naming disabled when not configured', async () => {
     const s = setup()
     const session = await s.binding.sessions.start({ repository: machine.repository })
