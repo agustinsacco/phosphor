@@ -72,7 +72,7 @@ describe('the Claude lane', () => {
     })
     expect(selected).toMatchObject({
       available: false,
-      reason: expect.stringContaining('Settings → Providers'),
+      reason: expect.stringContaining('Settings → Accounts'),
     })
     expect(selected).not.toMatchObject({
       reason: expect.stringContaining('phosphor providers login'),

@@ -84,7 +84,7 @@ export async function checkClaudeLane(
     return {
       available: false,
       reason: environment.env.CLAUDE_SECURESTORAGE_CONFIG_DIR
-        ? 'selected Claude account is not logged in: open Machines → this Host → Settings → Providers'
+        ? 'selected Claude account is not logged in: open Machines → this Host → Settings → Accounts'
         : 'claude is not logged in: phosphor providers login claude',
     }
   }
