@@ -86,4 +86,12 @@ describe('a Host start', () => {
     expect(coversLane(starting, { hostId: 'h', laneId: 'other' })).toBe(false)
     expect(coversLane(null, { sessionId: 's' })).toBe(false)
   })
+
+  it('leaves a This Mac draft that waits for its workspace to that workspace', () => {
+    const parked = { workspacePath: '/repo', text: 'hey!', attachments: [], message: 'boom' }
+    useStartingChatStore.getState().restore(parked)
+    useStartingChatStore.getState().begin({ prompt: 'to the Host', remote })
+    useStartingChatStore.getState().finish('home:h')
+    expect(useStartingChatStore.getState().draft).toEqual(parked)
+  })
 })

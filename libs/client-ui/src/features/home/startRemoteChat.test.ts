@@ -173,6 +173,16 @@ describe('a Host that takes the first prompt with the creation', () => {
     expect(accepted).toHaveBeenCalledOnce()
   })
 
+  it('clears the draft once the Host ran the prompt, even when opening the lane fails', async () => {
+    created(true)
+    adopt.mockRejectedValueOnce(new Error('open'))
+    await expect(
+      startRemoteChat(MOCK_HOST_ID, input, 'First prompt', [], accepted),
+    ).rejects.toThrow('open')
+    expect(accepted).toHaveBeenCalledOnce()
+    expect(pi).not.toHaveBeenCalled()
+  })
+
   it('sends the prompt itself, behind the echo, when the Host says it could not', async () => {
     created(false)
     useStartingChatStore.getState().begin({
