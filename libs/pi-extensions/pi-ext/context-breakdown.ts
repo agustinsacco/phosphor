@@ -29,6 +29,7 @@
 import contextBudget, { type BudgetApi } from './context-budget'
 import swarm from './swarm'
 import contextFiles, { contextFilesIn, type ContextFileInfo } from './context-files'
+import globalContext from './global-context'
 import { measureMessages, type LedgerEntry } from './message-ledger'
 
 export { entryChars, measureMessages } from './message-ledger'
@@ -164,8 +165,14 @@ export function contextEntriesOf(branch: SessionEntryLike[]): SessionEntryLike[]
   return kept
 }
 
+function toolList(raw: unknown): ToolLike[] {
+  return Array.isArray(raw) ? (raw as ToolLike[]) : []
+}
+
 export default function contextBreakdownExtension(pi: PiExtensionApi): void {
   contextBudget(pi)
+  // Before the filter: it must see the global file as it is now.
+  const live = globalContext(pi)
   // A toggle runs no turn, so publish from the command itself.
   const files = contextFiles(pi, (ctx) => {
     latestContext = ctx as ExtensionContext
@@ -183,7 +190,7 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
     if (typeof setStatus !== 'function') return
 
     const usage = ctx.getContextUsage?.()
-    const systemPrompt = ctx.getSystemPrompt?.() ?? ''
+    const systemPrompt = live.prompt(ctx.getSystemPrompt?.() ?? '') // global file as sent now
 
     // getAllTools() yields definitions (name + description + schema);
     // getActiveTools() yields the ACTIVE NAMES. Only the definitions carry
@@ -271,10 +278,7 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
     latestContext = ctx as ExtensionContext
     publish(latestContext)
   }
-  function registeredTools(): ToolLike[] {
-    const raw = pi.getAllTools?.() ?? []
-    return Array.isArray(raw) ? (raw as ToolLike[]) : []
-  }
+  const registeredTools = (): ToolLike[] => toolList(pi.getAllTools?.())
 
   // pi connects MCP servers after `session_start` and registers their tools
   // as each one answers, with no event for it. So for a while after a start,

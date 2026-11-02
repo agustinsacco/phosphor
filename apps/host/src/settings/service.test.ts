@@ -509,3 +509,83 @@ describe('machine-owned settings service', () => {
     await expect(readFile(join(f.agentDir, 'settings.json'))).rejects.toThrow()
   })
 })
+describe('Host global instructions and directive toggles', () => {
+  it('creates AGENTS.md, saves over the read revision and refuses a stale one', async () => {
+    const f = await fixture()
+    const empty = await f.read('instructions')
+    expect(empty.instructions).toMatchObject({
+      path: join(f.agentDir, 'AGENTS.md'),
+      content: '',
+      exists: false,
+    })
+    const write = (content: string, revision: string) =>
+      f.patch('instructions', { type: 'instructions.write', content }, revision)
+    const saved = await write('# Mine\n', empty.revision)
+    expect(saved.ok).toBe(true)
+    expect(await readFile(join(f.agentDir, 'AGENTS.md'), 'utf8')).toBe('# Mine\n')
+    const stale = await write('# Theirs\n', empty.revision)
+    expect(stale).toMatchObject({ ok: false, error: { code: 'bad-request' } })
+    expect(await readFile(join(f.agentDir, 'AGENTS.md'), 'utf8')).toBe('# Mine\n')
+  })
+
+  it('edits the file pi loads, and refuses a link instead of writing through it', async () => {
+    const f = await fixture()
+    await writeFile(join(f.agentDir, 'CLAUDE.md'), 'From Claude\n', { mode: 0o644 })
+    const read = await f.read('instructions')
+    expect(read.instructions).toMatchObject({ path: join(f.agentDir, 'CLAUDE.md'), exists: true })
+    const target = join(f.home, 'dotfiles.md')
+    await writeFile(target, 'linked\n', { mode: 0o644 })
+    await symlink(target, join(f.agentDir, 'AGENTS.md'))
+    const result = await f.settings.feature.call(
+      'machine.settings.read',
+      { section: 'instructions' },
+      () => true,
+    )
+    expect(result).toMatchObject({ ok: false, error: { code: 'bad-request' } })
+    expect(!result.ok && result.error.message).toContain('is a link')
+    expect(await readFile(target, 'utf8')).toBe('linked\n')
+  })
+
+  it('does not save once configuration access is revoked', async () => {
+    const f = await fixture()
+    const before = await f.read('instructions')
+    let calls = 0
+    const outcome = await f.patch(
+      'instructions',
+      { type: 'instructions.write', content: 'late\n' },
+      before.revision,
+      undefined,
+      () => ++calls < 4,
+    )
+    expect(outcome.ok).toBe(false)
+    await expect(readFile(join(f.agentDir, 'AGENTS.md'))).rejects.toThrow()
+  })
+
+  it('keeps directive toggles in the Host config, merged, and apart from pi settings', async () => {
+    const f = await fixture()
+    const before = await f.read('agent')
+    expect(before.agent?.agentDirectives).toEqual({
+      machineAwareness: true,
+      worktreeGuard: true,
+      laneCharter: true,
+      subagentPolicy: true,
+    })
+    const off = { type: 'agent.patch' as const, patch: { agentDirectives: { laneCharter: false } } }
+    expect((await f.patch('agent', off, before.revision)).ok).toBe(true)
+    const next = await f.read('agent')
+    const subagents = { agentDirectives: { subagentPolicy: false } }
+    expect(
+      (await f.patch('agent', { type: 'agent.patch', patch: subagents }, next.revision)).ok,
+    ).toBe(true)
+    expect(JSON.parse(await readFile(f.configPath, 'utf8')).agentDirectives).toEqual({
+      laneCharter: false,
+      subagentPolicy: false,
+    })
+    const mixed = await f.patch(
+      'agent',
+      { type: 'agent.patch', patch: { defaultModel: 'm', agentDirectives: { laneCharter: true } } },
+      (await f.read('agent')).revision,
+    )
+    expect(mixed).toMatchObject({ ok: false, error: { code: 'bad-request' } })
+  })
+})

@@ -108,14 +108,14 @@ signed `machine.configure` grant. Normal lane control does not imply this grant.
 Older Hosts show an upgrade explanation instead of unsupported controls. Offline
 and failed reads are unavailable states, not empty settings.
 
-| Section             | Owner and behavior                                                                                                                                                   |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Providers           | Host provider status, supported private CLI sign-in, separate Claude provider/CLI installation, isolated Claude accounts, routing, usage and associated lanes        |
-| Connectors          | pi's global or registered-folder MCP configuration, curated/custom connectors, enablement, private authentication and explicitly reviewed status checks              |
-| Agent defaults      | pi model/thinking, compaction, retry, thinking visibility and message delivery; separate Host context-budget and automatic-naming policy                             |
-| Folders             | Existing Host browse/register/unregister controls and an explicit pi trust review, subject to the Host's repository-change policy                                    |
-| Skills & extensions | Headless-safe default catalogue, package inventory/resource counts and reviewed npm install/repair/update/remove; the machine-filtered Skills page remains read-only |
-| Advanced            | Pause and update (the Host's own signed `phosphor update`), read-only Host paths, platform and environment-name diagnostics, never values or a raw-JSON editor       |
+| Section             | Owner and behavior                                                                                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Providers           | Host provider status, supported private CLI sign-in, separate Claude provider/CLI installation, isolated Claude accounts, routing, usage and associated lanes                       |
+| Connectors          | pi's global or registered-folder MCP configuration, curated/custom connectors, enablement, private authentication and explicitly reviewed status checks                             |
+| Agent defaults      | pi model/thinking, compaction, retry, thinking visibility and message delivery; separate Host context-budget, automatic-naming and directive policy; the Host's global instructions |
+| Folders             | Existing Host browse/register/unregister controls and an explicit pi trust review, subject to the Host's repository-change policy                                                   |
+| Skills & extensions | Headless-safe default catalogue, package inventory/resource counts and reviewed npm install/repair/update/remove; the machine-filtered Skills page remains read-only                |
+| Advanced            | Pause and update (the Host's own signed `phosphor update`), read-only Host paths, platform and environment-name diagnostics, never values or a raw-JSON editor                      |
 
 Claude uses the same account routing, cooldowns and transcript bindings as
 Desktop. Credentials stay in the Host's Claude credential store. Reauthentication
@@ -170,7 +170,16 @@ are retained on save.
 New lanes read pi defaults and resources; existing lanes are not silently
 restarted. Folder editors keep saved values visible before trust, clearly marked
 inactive; the runtime applies folder configuration only after pi trusts it. Host policy
-changes require an explicit Host service restart. Source URLs and non-allowlisted
+changes require an explicit Host service restart, except the directive switches.
+
+The **Instructions and directives** card (`MachineDirectives.tsx`) opens the Host's
+own [global instructions](chat.md#global-instructions) in the same editor as This
+Mac's, read and saved through the `instructions` settings section. Its four directive
+switches and **What gets sent** preview match This Mac's, with the Host's label in
+the machine block; they save on change, like the rest of the page, as Host
+config (`agentDirectives`), which each lane start reads, so a save needs no restart
+and running lanes keep the prompt they started with. There are no per-folder Host
+directives. A Host without the section asks to be updated. Source URLs and non-allowlisted
 package sources are hidden and read-only, not offered as guessed mutations.
 
 ## Search
@@ -271,8 +280,12 @@ project scope, an empty field's placeholder names what it inherits.
   sessions. Smaller windows retain pi's native limit. See
   [One context budget](cli-providers.md#one-context-budget).
 - **Directives**: what Phosphor appends to This Mac's lane system prompts, global
-  or per project, shown composed before it is sent. A prompt you cannot read is
-  one you cannot debug.
+  or per project, shown composed before it is sent (**What gets sent**). A prompt
+  you cannot read is one you cannot debug. The four blocks are switches, with no
+  free-text field. **Global instructions → Edit instructions** opens This Mac's
+  [global instructions](chat.md#global-instructions) file. Text from the retired
+  "Your own text" field that could not move into it is listed with a copy button
+  until dismissed.
 - If the target file is not valid JSON, editing is **disabled** rather than
   best-effort, and the banner routes to Advanced to repair it by hand. Main
   never overwrites a config it could not parse.

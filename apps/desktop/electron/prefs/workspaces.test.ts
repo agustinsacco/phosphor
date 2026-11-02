@@ -145,7 +145,8 @@ describe('workspace preferences', () => {
     s.set('collapsedWorkspaces', ['/old'])
     s.set('seenSessions', { '/sessions/old/lane.jsonl': 1 })
     s.set('laneMarkers', { '/sessions/old/lane.jsonl': 'x' })
-    s.set('agentDirectivesByProject', { '/old': { custom: 'instruction' } })
+    s.set('agentDirectivesByProject', { '/old': { laneCharter: false } })
+    s.set('retiredDirectives', { '/old': 'instruction', '': 'global' })
     s.set('rewoundSessions', { 'before.jsonl': 'after.jsonl' })
     const keys = ['home:/old', 'session:/sessions/old/lane.jsonl', '/old/bare', 'home:/old-sibling']
     s.set(
@@ -166,7 +167,8 @@ describe('workspace preferences', () => {
     expect(s.get('collapsedWorkspaces')).toEqual(['/new'])
     expect(s.get('seenSessions')).toEqual({ '/sessions/new/lane.jsonl': 1 })
     expect(s.get('laneMarkers')).toEqual({ '/sessions/new/lane.jsonl': 'x' })
-    expect(s.get('agentDirectivesByProject')).toEqual({ '/new': { custom: 'instruction' } })
+    expect(s.get('agentDirectivesByProject')).toEqual({ '/new': { laneCharter: false } })
+    expect(s.get('retiredDirectives')).toEqual({ '/new': 'instruction', '': 'global' })
     expect(s.get('rewoundSessions')).toEqual({ 'before.jsonl': 'after.jsonl' })
     expect(Object.keys(s.get('drafts'))).toEqual([
       'home:/new',

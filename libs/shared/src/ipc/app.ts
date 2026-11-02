@@ -87,6 +87,8 @@ export interface AppInvokeMap {
     args: [prefs: AgentDirectivePrefs | null, projectPath?: string]
     result: void
   }
+  /** Forget the retired "Your own text" Settings showed for copying. */
+  'app:clearRetiredDirectives': { args: []; result: void }
   'app:setContextBudget': { args: [value: string]; result: void }
   /**
    * Include or leave out one kind of context file. Always updates the

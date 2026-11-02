@@ -11,6 +11,11 @@ import {
 } from '../pi/agent-settings'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import {
+  readGlobalInstructions,
+  writeGlobalInstructions,
+} from '@phosphor/session-runtime/pi/global-instructions'
+import { piAgentDir } from '../pi/pi-paths'
+import {
   catalogueResult,
   piCommands,
   invalidateCatalogueModels,
@@ -36,6 +41,13 @@ export function registerPiConfigHandlers(): void {
   handle('pi:readConfigFile', (_event, name) => readConfigFile(name))
 
   handle('pi:writeConfigFile', (_event, name, content) => writeConfigFile(name, content))
+
+  // This Mac's own file: links are followed (dotfiles), and a save goes through them.
+  handle('pi:readInstructions', () => readGlobalInstructions(piAgentDir(), { followLinks: true }))
+
+  handle('pi:writeInstructions', (_event, content: string, revision: string) =>
+    writeGlobalInstructions(piAgentDir(), content, revision, { followLinks: true }),
+  )
 
   handle('pi:patchAgentSettings', async (_event, scope, workspacePath, patch) => {
     // Declaring a provider or a model in settings.json changes what pi will

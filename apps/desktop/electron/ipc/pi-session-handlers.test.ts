@@ -90,7 +90,7 @@ vi.mock('../store', () => ({
   getPrefs: () => ({
     contextBudget: '400k',
     agentDirectivesByProject: {},
-    agentDirectives: { worktreeGuard: false, laneCharter: false, subagentPolicy: true, custom: '' },
+    agentDirectives: { worktreeGuard: false, laneCharter: false, subagentPolicy: true },
   }),
   recordWorkspace: vi.fn(),
   getLanePrefs: () => ({ nameMinWords: 2, nameMaxWords: 5, nameMaxLength: 60 }),

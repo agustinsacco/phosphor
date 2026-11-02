@@ -10,16 +10,16 @@ and is deleted here. [Remote access](remote-access.md) owns what exists now.
 These operations are not implemented remotely. Their controls are hidden or
 refuse with the fixed unavailable hint; they never run against This Mac instead.
 
-| Surface         | Missing capability                                                                                                              |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Chat and lanes  | Fork, clone, rewind/tree editing, shell shortcuts, queued-message removal, local rules/MCP and Swarm controls, lane HTML export |
-| Files           | Content search, rich previews/quick look, external imports and open-in-app                                                      |
-| Skills          | Catalogue install, upload, export to a file, discovery and in-place edits                                                       |
-| Settings        | Raw configuration editors, project/non-npm package mutation, and cross-machine settings or authentication copying/sync          |
-| Artifacts       | Revision-aware writes from an artifact into a remote workspace                                                                  |
-| Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                            |
-| Clients         | Browser/PWA lane client, mobile delivery and Web Push                                                                           |
-| Portability     | Cross-machine lane migration, primitive copy/sync and sharing Desktop's local runtime                                           |
+| Surface         | Missing capability                                                                                                                                 |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chat and lanes  | Fork, clone, rewind/tree editing, shell shortcuts, queued-message removal, local rules/MCP controls, the Subagents pane, lane HTML export          |
+| Files           | Content search, rich previews/quick look, external imports and open-in-app                                                                         |
+| Skills          | Catalogue install, upload, export to a file, discovery and in-place edits                                                                          |
+| Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync |
+| Artifacts       | Revision-aware writes from an artifact into a remote workspace                                                                                     |
+| Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                               |
+| Clients         | Browser/PWA lane client, mobile delivery and Web Push                                                                                              |
+| Portability     | Cross-machine lane migration, primitive copy/sync and sharing Desktop's local runtime                                                              |
 
 ## PWA attention and Web Push
 

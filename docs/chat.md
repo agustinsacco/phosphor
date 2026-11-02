@@ -706,8 +706,10 @@ No new manager, scheduler or hard spawn budget is introduced.
 ## Agent directives
 
 Phosphor appends its directive blocks in this order: worktree guard, machine
-awareness, lane charter, sub-agent policy, then custom text. pi's own system
-prompt and project rules remain separate inputs. The blocks are composed once
+awareness, lane charter, sub-agent policy. Each is a switch with no free text;
+what the user writes for every lane is the machine's
+[global instructions](#global-instructions). pi's own system prompt and project
+rules remain separate inputs. The blocks are composed once
 for a process spawn; a resume that starts a new process uses current context and
 preferences. Reopening an already-live process does not replace its prompt.
 
@@ -725,6 +727,37 @@ runs. These are prompt instructions, not network authorization.
 
 The spawn log records `--append-system-prompt` but replaces its value with
 `[redacted]`; the composed prompt is not dumped into argv logs.
+
+### Global instructions
+
+The user's own instructions for every lane live in pi's global instructions
+file, not in Phosphor: the first of `AGENTS.override.md`, `AGENTS.md` and
+`CLAUDE.md` that pi finds in its agent directory (`~/.pi/agent`, or
+`PI_CODING_AGENT_DIR`). Terminal pi and routines read the same file. Each machine
+has its own; nothing copies or syncs it between This Mac and a Host.
+
+**Settings → Agent → Directives → Edit instructions** opens This Mac's file; a
+Host's opens from its Agent defaults ([settings.md](settings.md#host-machine-settings)).
+The editor is a full-window markdown editor with Edit and Preview tabs, **Save**
+and Cmd/Ctrl+S (`features/settings/instructions/`). Its header names the machine
+and the file, marked "created on save" when pi finds none; then it creates
+`AGENTS.md`. A save carries the revision it read, so a file changed elsewhere is
+refused with **Reload**, never overwritten. The file is capped at 256 KB because
+every request carries it. Closing over unsaved edits asks first; the backdrop
+never closes it. Phosphor never writes a repository's AGENTS.md or CLAUDE.md.
+
+A saved file reaches running lanes from their next model request, with no
+restart: the bundled context extension re-reads it in `context_with_system` and
+swaps it into pi's `project_context` section
+([extensions.md](extensions.md#bundled-extensions-phosphors-own)). A turn already
+streaming finishes with what it was sent. Lanes started before the extension
+had the swap pick the file up after one restart.
+
+The Settings field "Your own text" was retired into this file. On the first
+start with this version, This Mac's global text is appended once to its global
+instructions file. A project's text, and global text the file refused, is kept in
+`AppPrefs.retiredDirectives`; Settings lists it with a copy button until
+**Dismiss**.
 
 ## Context files
 
@@ -748,8 +781,9 @@ thousands of tokens on every request.
   Older extensions show **Scope unknown** rather than guessing. Before a lane
   reports its files (and on Home), the pane says file details are unavailable;
   a dimmed label with `none` means discovery found no matching file.
-  A checkbox still controls the entire filename category across both scopes,
-  not an individual file. The readout's count is enabled categories, not files.
+  A checkbox controls its filename category in the project scope, not an
+  individual file. The global file always stays: it is what the user wrote for
+  every lane ([Global instructions](#global-instructions)). The readout's count is enabled categories, not files.
 - **Routines** always send every context file, whatever the preference: an
   unattended run keeps the project's rules ([routines.md](routines.md)). A
   routine-owned lane refuses a toggle, like any other manual command, until

@@ -225,7 +225,7 @@ Failed checks exit 69 or 78 and write nothing. An unchanged existing valid confi
 validated and published atomically before enrollment and service setup.
 An invalid one is left untouched
 with safe errors and exit 78. `--replace` rewrites it, keeping `hostId`,
-`contextBudget`, `environment.pass`, `accounts`, `control`, `api.port`, `api.webOrigin` and `resourceRoot`
+`contextBudget`, `agentDirectives`, `environment.pass`, `accounts`, `control`, `api.port`, `api.webOrigin` and `resourceRoot`
 when the old config loads and validates. User-added PATH folders are also kept. Other settings are detected again;
 `autoNameLanes` and `allowRepositoryChanges` return to their default `true`.
 A broken old file is replaced with a note. A symlink is replaced, never written through.
@@ -501,6 +501,7 @@ variable directly names the config file.
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `version`                | Required, exactly `1`.                                                                                                                                                              |
 | `autoNameLanes`          | Optional boolean, default `true`. Enables Host-generated lane names.                                                                                                                |
+| `agentDirectives`        | Optional object of booleans `machineAwareness`, `worktreeGuard`, `laneCharter` and `subagentPolicy`, each default `true`. Read at each lane start, so edits need no restart.        |
 | `allowRepositoryChanges` | Optional boolean, default `true`. Allows home-relative folder browsing and repository registration/removal.                                                                         |
 | `api.webOrigin`          | Optional exact browser origin or `null` to disable. Defaults to `https://phosphor-app.saccolabs.com` only with the canonical production control origin; otherwise disabled.         |
 | `api.port`               | Optional integer from 1024 to 65535, default 47615. Loopback and Tailscale Serve port.                                                                                              |
@@ -707,9 +708,11 @@ lane grants retain their existing capabilities.
 `apps/host/src/settings/` owns revision-checked reads, patches, connector checks,
 fixed-purpose setup programs and explicit Claude account moves. pi remains the
 owner of provider credentials, MCP, packages and model/thinking defaults. Host
-config owns context budget and automatic naming. Policy edits require an explicit
-service restart; no setting silently restarts lanes or the service. Global files
-use the Host's pi agent directory. Folder scope resolves a registered repository
+config owns context budget, automatic naming and the directive switches. Policy
+edits require an explicit service restart, except the directive switches, which
+each lane start reads; no setting silently restarts lanes or the service. Global
+files use the Host's pi agent directory, including the global instructions file
+(the `instructions` section), which is never written through a symlink. Folder scope resolves a registered repository
 id, verifies its realpath identity, and applies only when pi trusts that folder.
 Registration itself is not trust or a filesystem sandbox.
 
@@ -1257,8 +1260,8 @@ a lane service. It logs only `lanes.unavailable` with a fixed reason token.
   with exactly the environment built above plus `PI_CLAUDE_CLI_CONTEXT=pi`:
   nothing the Host inherited reaches it. It loads the six extensions from
   `<resourceRoot>/pi-ext/` and leads its own process group.
-- **Fixed policy.** The default agent directives, with no per-project
-  overrides; pi's own settings for the default provider, and pi's packages for
+- **Fixed policy.** The config's `agentDirectives` switches, re-read at each lane
+  start, with no per-project overrides; pi's own settings for the default provider, and pi's packages for
   the Claude gate; the config's context budget and every CLAUDE.md / AGENTS.md pi
   finds. There are no Desktop account overlays, Headroom or recents. `run` supplies
   routine ownership guards for manual commands, resume, stop and deletion. Only

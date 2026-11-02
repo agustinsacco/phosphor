@@ -9,6 +9,7 @@ import { settingsFile, SettingsFailure } from './files'
 import { readProviderSettings } from './provider-settings'
 import { readAgentSettings } from './agent-settings'
 import { readConnectorSettings } from './connector-settings'
+import { readInstructionsSettings } from './instructions-settings'
 
 async function readResources(state: SettingsContext, cwd?: string) {
   const packages = await listPackages(cwd, state.agentDir)
@@ -74,6 +75,7 @@ export function createSettingsSnapshot(state: SettingsContext) {
       }
     if (section === 'agent') return { ...base, ...(await readAgentSettings(state, cwd)) }
     if (section === 'resources') return { ...base, ...(await readResources(state, cwd)) }
+    if (section === 'instructions') return { ...base, ...readInstructionsSettings(state) }
     return { ...base, ...readAdvanced(state) }
   }
 }

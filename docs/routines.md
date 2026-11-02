@@ -11,7 +11,7 @@ orchestrator. Interactive sessions remain independent.
 where to run, which model to use, and when. The name is optional in the editor
 and derives from the first instruction line. Choose code/PR or analysis/report
 intent; report intent suppresses Phosphor's automatic worktree PR charter.
-Project rules and custom directives still apply. The model field is the
+Project rules, the machine's global instructions and its directives still apply. The model field is the
 composer's searchable model menu (search, provider filters, starred and recent),
 not a flat list; a saved model the catalogue no longer lists stays selected and
 is flagged rather than silently replaced.

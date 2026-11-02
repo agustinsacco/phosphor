@@ -5,6 +5,7 @@ import { MachineHostPolicy, MachineModelDefaults } from './MachineAgentSections'
 import { useMachineAgentSettings, type MachineAgentController } from './useMachineAgentSettings'
 import { MachineAgentBehavior } from './MachineAgentBehavior'
 import { Spinner } from './MachineUi'
+import { MachineDirectives } from './MachineDirectives'
 export function MachineAgentSettings({
   hostId,
   label,
@@ -43,6 +44,14 @@ export function MachineAgentSettings({
           Update this Host to configure compaction, retry and message delivery.
         </p>
       )}
+      {!repositoryId &&
+        (controller.state.agentDirectives ? (
+          <MachineDirectives controller={controller} hostId={hostId} label={label} />
+        ) : (
+          <p className="text-text-secondary text-base">
+            Update this Host to edit its global instructions and directives.
+          </p>
+        ))}
       {!repositoryId && <MachineHostPolicy controller={controller} label={label} />}
     </div>
   )

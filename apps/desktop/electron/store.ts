@@ -17,6 +17,7 @@ import {
   DEFAULT_MAINTENANCE_PREFS,
   DEFAULT_MODEL_PICKS,
   type MaintenancePrefs,
+  normalizeAgentDirectives,
   normalizeLanePrefs,
   type LanePrefs,
   type AgentDirectivePrefs,
@@ -91,19 +92,17 @@ export function getPrefs(): AppPrefs {
     lanes: normalizeLanePrefs(s.get('lanes')),
     maintenance: normalizeMaintenancePrefs(s.get('maintenance')),
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
-    agentDirectives: {
-      ...DEFAULT_APP_PREFS.agentDirectives,
-      ...s.get('agentDirectives'),
-    },
+    agentDirectives: normalizeAgentDirectives(s.get('agentDirectives')),
     // Merged per entry, not passed through: a stored override predates any
     // directive block added later, and an absent key must mean "take the
     // default", never "off". Only the keys the user actually set win.
     agentDirectivesByProject: Object.fromEntries(
       Object.entries(s.get('agentDirectivesByProject') ?? {}).map(([path, directives]) => [
         path,
-        { ...DEFAULT_APP_PREFS.agentDirectives, ...directives },
+        normalizeAgentDirectives(directives),
       ]),
     ),
+    retiredDirectives: stringRecord(s.get('retiredDirectives')),
     worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
     headroom: { ...DEFAULT_APP_PREFS.headroom, ...s.get('headroom') },
     voice: normalizeVoicePrefs(s.get('voice')),
@@ -236,16 +235,31 @@ export function setAgentDirectives(
   projectPath?: string,
 ): void {
   if (!projectPath) {
-    if (directives) prefs().set('agentDirectives', directives)
+    if (directives) prefs().set('agentDirectives', normalizeAgentDirectives(directives))
     return
   }
   const byProject = { ...(prefs().get('agentDirectivesByProject') ?? {}) }
   if (directives) {
-    byProject[projectPath] = directives
+    byProject[projectPath] = normalizeAgentDirectives(directives)
   } else {
     delete byProject[projectPath]
   }
   prefs().set('agentDirectivesByProject', byProject)
+}
+
+/** The user has copied what they wanted out of the retired "Your own text". */
+export function clearRetiredDirectives(): void {
+  prefs().set('retiredDirectives', {})
+}
+
+/** User-editable JSON: only string values survive a read. */
+function stringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  )
 }
 
 export const setRecentWorkspaces = (recent: AppPrefs['recentWorkspaces']): void =>

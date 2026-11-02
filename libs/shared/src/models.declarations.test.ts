@@ -6,6 +6,7 @@ import type { HostTarget } from './remote-host'
 import type { ExtensionUIRequest, PiEvent } from './rpc'
 
 const publicExports = [
+  'AGENT_DIRECTIVE_KEYS',
   'AboutInfo',
   'AddWorktreeBranch',
   'AdvisorFinding',
@@ -101,6 +102,7 @@ const publicExports = [
   'WorktreeRecovery',
   'WorktreeRecreateSource',
   'clampUiScale',
+  'normalizeAgentDirectives',
   'normalizeLanePrefs',
   'piInstallLocation',
 ]

@@ -110,6 +110,8 @@ export const MACHINE_RESOURCE_ARGS: MachineResourcePolicies = {
   'pi:catalogueModels': 'none',
   'pi:readConfigFile': 'none',
   'pi:writeConfigFile': 'none',
+  'pi:readInstructions': 'none',
+  'pi:writeInstructions': 'none',
   'pi:webSearchConfig': 'none',
   'pi:patchWebSearchConfig': 'none',
   'pi:patchAgentSettings': [{ arg: 1, optional: true }],

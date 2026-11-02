@@ -26,7 +26,7 @@ const appRoot = resolve(import.meta.dirname, '../..')
 const root = resolve(appRoot, '../..')
 const library = join(root, 'libs/pi-extensions')
 // This is the existing unpacked production inventory, including the imported
-// budget and context-file helpers, the artifact store format the artifacts extension reads, and
+// budget, context-file and global-instructions helpers, the artifact store format the artifacts extension reads, and
 // the optional gate, and the dependency-free status/widget key vocabulary. Python helpers remain source-only as before.
 const shippedFiles = [
   'artifact-store.ts',
@@ -34,6 +34,7 @@ const shippedFiles = [
   'context-breakdown.ts',
   'context-budget.ts',
   'context-files.ts',
+  'global-context.ts',
   'headroom.ts',
   'lane-reload.ts',
   'message-ledger.ts',

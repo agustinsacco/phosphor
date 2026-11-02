@@ -63,6 +63,13 @@ export interface AppPrefs {
   agentDirectives: AgentDirectivePrefs
   /** Per-project override of the above, keyed by main-repo path. */
   agentDirectivesByProject: Record<string, AgentDirectivePrefs>
+  /**
+   * Free text Phosphor used to append to lanes ("Your own text"), which it no
+   * longer sends: the global text moved into pi's global AGENTS.md. Kept here,
+   * keyed by project path ('' for global text that could not be moved), until
+   * the user dismisses it in Settings → Agent → Global instructions.
+   */
+  retiredDirectives: Record<string, string>
   worktrees: WorktreePrefs
   /** Periodic reclamation of dead lanes and their disk. */
   maintenance: MaintenancePrefs
@@ -162,6 +169,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   fonts: DEFAULT_FONT_PREFS,
   agentDirectives: DEFAULT_AGENT_DIRECTIVES,
   agentDirectivesByProject: {},
+  retiredDirectives: {},
   worktrees: DEFAULT_WORKTREE_PREFS,
   maintenance: DEFAULT_MAINTENANCE_PREFS,
   headroom: DEFAULT_HEADROOM_PREFS,

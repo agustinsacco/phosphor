@@ -17,7 +17,7 @@ export interface StartTarget {
   setText: (text: string) => void
   attachments: PendingAttachment[]
   setAttachments: (attachments: PendingAttachment[]) => void
-  /** This Mac's folder: local attachments and the swarm switch need it. */
+  /** This Mac's folder: local attachments need it. */
   workspacePath?: string
   /** A Host takes attachments through its own upload. */
   remoteAttachments: boolean
@@ -55,8 +55,6 @@ const NO_SLASH: SlashMenu = {
   handleKeyDown: () => false,
   pick: () => undefined,
 }
-const NO_SWARM = { enabled: false, onChange: () => undefined }
-
 /** The one new-lane composer, for This Mac and every Host, at every width. */
 export function StartComposer({
   target: t,
@@ -90,7 +88,7 @@ export function StartComposer({
           slash={t.slash ?? NO_SLASH}
           commandStatus={t.commandStatus}
           commandError={t.commandError}
-          swarm={t.swarm ?? NO_SWARM}
+          swarm={t.swarm}
           modelPicker={t.modelPicker}
           actions={
             <SubmitIconButton

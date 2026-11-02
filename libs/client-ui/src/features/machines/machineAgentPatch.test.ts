@@ -5,6 +5,7 @@ import {
   rebaseAgentFields,
   type AgentDraftFields,
 } from './machineAgentPatch'
+import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
 
 const base: AgentDraftFields = {
   model: JSON.stringify(['anthropic', 'claude-sonnet-4-5']),
@@ -12,6 +13,7 @@ const base: AgentDraftFields = {
   budget: '200k',
   naming: true,
   behavior: { compaction: { enabled: true, reserveTokens: 16384 } },
+  directives: DEFAULT_AGENT_DIRECTIVES,
 }
 
 it('sends only what differs from the Host, and nothing for an unchanged draft', () => {
@@ -64,4 +66,13 @@ it('rebases agent behavior one setting at a time', () => {
   expect(nextAgentPatch(rebased, acknowledged)).toEqual({
     compaction: { enabled: false, reserveTokens: 16384 },
   })
+})
+
+it('saves directive switches as Host policy that needs no restart, and adopts them', () => {
+  const directives = { ...DEFAULT_AGENT_DIRECTIVES, laneCharter: false }
+  const patch = nextAgentPatch({ ...base, directives }, base)
+  expect(patch).toEqual({ agentDirectives: directives })
+  expect(isPolicyPatch(patch!)).toBe(false)
+  const sent = { ...base, directives }
+  expect(rebaseAgentFields(sent, sent, sent, patch!).directives).toEqual(directives)
 })

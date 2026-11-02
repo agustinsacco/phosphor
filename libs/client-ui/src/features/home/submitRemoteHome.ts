@@ -14,6 +14,8 @@ interface Submission {
   draftKey: string
   input: RemoteLaneCreate
   isolate: boolean
+  /** Authorize delegation before the first prompt; the lane is never prompted without it. */
+  swarm?: boolean
   text: string
   attachments: PendingAttachment[]
   onWarning: (message: string) => void
@@ -31,6 +33,8 @@ function createWarning(code: string, machine: string): string {
     case 'lane-limit':
       // The Host also sends too-many-requests for too many commands in flight.
       return `${machine} is at its lane limit or too busy. Try again, or delete a lane there.`
+    case 'swarm-failed':
+      return `${machine} couldn't turn on Swarm (it needs pi-subagents there), so the new lane got no first message. Your draft is kept.`
     default:
       return 'The Host could not confirm this. Check the lane before retrying. Your draft is kept.'
   }
@@ -60,6 +64,8 @@ export async function submitRemoteHome(s: Submission): Promise<void> {
         if (current() && useDraftsStore.getState().revisions[s.draftKey] === revision)
           useDraftsStore.getState().clear(s.draftKey)
       },
+      // Only an opted-in lane passes the flag, so the call stays what it was without one.
+      ...(s.swarm ? ([true] as const) : ([] as const)),
     )
   } catch (failure) {
     if (!current()) return

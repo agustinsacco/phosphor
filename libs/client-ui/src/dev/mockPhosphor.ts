@@ -10,6 +10,7 @@ import type { MachineView } from '@shared/control-api'
 import type { LaneMarksChange } from '@shared/host-protocol-lane-marks'
 import { mockMachineSettingsInvoke } from './mockMachineSettings'
 import { mockSkillShareInvoke } from './mockSkillShare'
+import { mockInstructionsInvoke } from './mockInstructions'
 import { mockSessionMaintenance } from './mockSessionMaintenance'
 /**
  * Dev-only mock of the preload API so the renderer can run in a plain
@@ -1019,10 +1020,11 @@ export function installMockPhosphor(): void {
               terminalFontSize: 12.5,
               monoFont: 'JetBrains Mono',
             },
-            // DirectivesSection reads both of these straight into state, so
+            // DirectivesSection reads these straight into state, so
             // omitting them made the whole section throw in the harness.
             agentDirectives: DEFAULT_APP_PREFS.agentDirectives,
             agentDirectivesByProject: {},
+            retiredDirectives: {},
             worktrees: DEFAULT_APP_PREFS.worktrees,
             contextBudget: localStorage.getItem('mock:contextBudget') ?? '',
             contextFiles: mockContextFiles(),
@@ -1056,6 +1058,7 @@ export function installMockPhosphor(): void {
         case 'app:setWorktreePrefs':
           return Promise.resolve(undefined)
         case 'app:setAgentDirectives':
+        case 'app:clearRetiredDirectives':
           return Promise.resolve(undefined)
         case 'app:selectFolder':
           return Promise.resolve('/Users/dev/projects/phosphor')
@@ -2400,6 +2403,9 @@ export function installMockPhosphor(): void {
         case 'pty:resize':
         case 'pty:kill':
           return Promise.resolve(undefined)
+        case 'pi:readInstructions':
+        case 'pi:writeInstructions':
+          return Promise.resolve().then(() => mockInstructionsInvoke(channel, args) as never)
         case 'pi:readConfigFile':
           return Promise.resolve({
             path: '/Users/dev/.pi/agent/settings.json',

@@ -36,9 +36,9 @@ const expectedDefaults = {
     worktreeGuard: true,
     laneCharter: true,
     subagentPolicy: true,
-    custom: '',
   },
   agentDirectivesByProject: {},
+  retiredDirectives: {},
   worktrees: {
     auto: true,
     branchPrefix: 'phosphor/',

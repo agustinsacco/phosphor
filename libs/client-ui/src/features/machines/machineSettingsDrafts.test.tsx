@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { MachineSettings, MachineSettingsChange } from '@shared/machine-settings'
 import { confirmSettingsNavigation, useMachineAgentDraft } from './machineSettingsDrafts'
 import { promptChoice } from '@/stores/prompt'
+import { normalizeAgentDirectives } from '@shared/models'
 vi.mock('@/stores/prompt', () => ({ promptChoice: vi.fn(async () => undefined) }))
 const data = (revision: string, budget = '200k'): MachineSettings => ({
   section: 'agent',
@@ -22,11 +23,15 @@ function fakeHost(initial = data('r1')) {
       if (host.held) await host.held
       if (host.refuse || revision !== host.current.revision) return null
       const n = Number(host.current.revision.slice(1)) + 1
-      host.current = {
-        ...host.current,
-        revision: `r${n}`,
-        agent: { ...host.current.agent!, ...change.patch },
-      }
+      // Directive switches merge into what the Host holds, as on the real Host.
+      const { agentDirectives, ...patch } = change.patch
+      const agent = { ...host.current.agent!, ...patch }
+      if (agentDirectives)
+        agent.agentDirectives = normalizeAgentDirectives({
+          ...agent.agentDirectives,
+          ...agentDirectives,
+        })
+      host.current = { ...host.current, revision: `r${n}`, agent }
       return host.current
     }),
   }

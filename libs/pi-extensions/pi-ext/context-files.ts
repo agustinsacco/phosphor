@@ -1,10 +1,13 @@
 /**
- * Leaves CLAUDE.md and/or AGENTS.md out of what a lane's model is sent.
+ * Leaves a repository's CLAUDE.md and/or AGENTS.md out of what a lane's model
+ * is sent.
  *
  * pi discovers these context files itself (agent dir, cwd and its parents) and
  * renders them into one `project_context` system-prompt section. A repo's
  * CLAUDE.md alone can be thousands of tokens on every request, so the composer
- * offers a per-lane opt-out.
+ * offers a per-lane opt-out. The user's global file in the agent directory is
+ * not a repository file: it carries the instructions written in Settings, so
+ * it is always sent (and kept current by global-context.ts).
  *
  * Request-local on purpose. The filter runs in `context_with_system`, which
  * fires before EVERY model request — including runs that start without a user
@@ -75,6 +78,22 @@ const HEADER = 'Project-specific instructions and guidelines:'
 const BOUNDARY = /(?<=\n<\/project_instructions>)\n\n(?=<project_instructions path="[^"\n]*">\n)/
 const BLOCK_PATH = /^<project_instructions path="([^"\n]*)">\n/
 
+/** pi's section around already rendered blocks. */
+export function renderProjectContext(blocks: readonly string[]): string {
+  return `${OPEN}${[HEADER, ...blocks].join('\n\n')}${CLOSE}`
+}
+
+/** pi's agent directory, resolved like pi: a custom, `~/` or relative path included. */
+export function globalAgentDir(
+  agentDir = process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent'),
+): string {
+  return resolve(agentDir.replace(/^~(?=$|[/\\])/, homedir()))
+}
+
+/** Whether a rendered block's file lives directly in the (resolved) agent directory. */
+export const isGlobalContextPath = (path: string, agentDir: string): boolean =>
+  dirname(resolve(path)) === agentDir
+
 export interface ContextBlock {
   path: string
   /** The whole rendered block, tags included. */
@@ -96,22 +115,24 @@ export function parseProjectContext(section: string): ContextBlock[] | null {
 }
 
 /**
- * The section without the disabled files: unchanged when nothing matches or
- * the shape is unknown, null when no file is left.
+ * The section without the disabled repository files: unchanged when nothing
+ * matches or the shape is unknown, null when no file is left. The global file
+ * in `agentDir` always stays.
  */
 export function filterProjectContext(
   section: string,
   off: ReadonlySet<ContextFileKind>,
+  agentDir = globalAgentDir(),
 ): string | null {
   const blocks = parseProjectContext(section)
   if (!blocks) return section
   const kept = blocks.filter((block) => {
     const kind = contextFileKind(block.path)
-    return !kind || !off.has(kind)
+    return !kind || !off.has(kind) || isGlobalContextPath(block.path, agentDir)
   })
   if (kept.length === blocks.length) return section
   if (kept.length === 0) return null
-  return `${OPEN}${[HEADER, ...kept.map((block) => block.text)].join('\n\n')}${CLOSE}`
+  return renderProjectContext(kept.map((block) => block.text))
 }
 
 /** The `project_context` section inside a fully rendered system prompt. */
@@ -138,6 +159,7 @@ interface SystemMessageLike {
 export function filterSystemMessages(
   messages: unknown[],
   off: ReadonlySet<ContextFileKind>,
+  agentDir = globalAgentDir(),
 ): boolean {
   let changed = false
   let leading = true
@@ -148,7 +170,7 @@ export function filterSystemMessages(
     leading = false
     const section = m.sections?.project_context
     if (typeof section !== 'string') continue
-    const next = filterProjectContext(section, off)
+    const next = filterProjectContext(section, off, agentDir)
     if (next === section) continue
     changed = true
     if (next !== null) m.sections!.project_context = next
@@ -164,6 +186,7 @@ export interface ContextFileInfo {
   scope: 'global' | 'project'
   /** ~4 characters per token, like the rest of the breakdown. */
   tokens: number
+  /** Always true for the global file: the toggles cover repository files only. */
   included: boolean
 }
 
@@ -171,23 +194,24 @@ export interface ContextFileInfo {
 export function contextFilesIn(
   systemPrompt: string,
   off: ReadonlySet<ContextFileKind>,
-  agentDir = process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent'),
+  agentDir?: string,
 ): ContextFileInfo[] {
   // Match pi's agent-directory discovery, including custom and ~/ paths.
   // Everything else is inherited from cwd/ancestors, not user-global config.
-  const globalDir = resolve(agentDir.replace(/^~(?=$|[/\\])/, homedir()))
+  const globalDir = globalAgentDir(agentDir)
   const section = projectContextOf(systemPrompt)
   const blocks = section ? parseProjectContext(section) : null
   const files: ContextFileInfo[] = []
   for (const block of blocks ?? []) {
     const kind = contextFileKind(block.path)
     if (!kind) continue
+    const scope = isGlobalContextPath(block.path, globalDir) ? 'global' : 'project'
     files.push({
       path: block.path,
       kind,
-      scope: dirname(resolve(block.path)) === globalDir ? 'global' : 'project',
+      scope,
       tokens: Math.ceil(block.text.length / 4),
-      included: !off.has(kind),
+      included: scope === 'global' || !off.has(kind),
     })
   }
   return files
@@ -221,6 +245,7 @@ export default function contextFiles(
   pi: ContextFilesApi,
   onChange: (ctx: unknown) => void = () => undefined,
   initial: string | undefined = process.env[CONTEXT_FILES_ENV],
+  agentDir: string = globalAgentDir(),
 ): { off: () => ReadonlySet<ContextFileKind> } {
   let off = new Set<ContextFileKind>()
   try {
@@ -247,7 +272,7 @@ export default function contextFiles(
   pi.on('context_with_system', (event) => {
     if (off.size === 0) return undefined
     const messages = (event as { messages?: unknown[] }).messages
-    if (!Array.isArray(messages) || !filterSystemMessages(messages, off)) return undefined
+    if (!Array.isArray(messages) || !filterSystemMessages(messages, off, agentDir)) return undefined
     return { messages }
   })
   return { off: () => off }

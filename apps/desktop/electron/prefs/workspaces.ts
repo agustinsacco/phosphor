@@ -89,6 +89,7 @@ export function repointStoredPaths(getStore: PrefsGetter, moves: readonly PathMo
   s.set('seenSessions', remapKeys(s.get('seenSessions') ?? {}))
   s.set('laneMarkers', remapKeys(s.get('laneMarkers') ?? {}))
   s.set('agentDirectivesByProject', remapKeys(s.get('agentDirectivesByProject') ?? {}))
+  s.set('retiredDirectives', remapKeys(s.get('retiredDirectives') ?? {}))
 
   // A draft is keyed by the surface it belongs to and separately records its
   // own workspace, so both sides need the rewrite or a sandbox's unsent

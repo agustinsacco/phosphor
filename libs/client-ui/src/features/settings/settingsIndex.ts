@@ -208,6 +208,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     'agent',
     ['Directives', 'system prompt instructions'],
     [
+      ['Global instructions', 'agents.md claude.md custom rules prompt edit markdown'],
       ['Worktree guard', 'branch checkout'],
       ['Machine awareness', 'host local remote tailscale machine prompt'],
       ['Lane charter', 'pull request pr'],

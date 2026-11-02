@@ -321,6 +321,7 @@ describe('setup existing config and permissions', () => {
     const kept = {
       hostId: 'local-id',
       contextBudget: '400k',
+      agentDirectives: { laneCharter: false },
       accounts: null,
       control: { url: 'https://example.com' },
       resourceRoot: dir,
