@@ -108,3 +108,29 @@ it('shows a Host folder inheriting its machine thinking level, and lets it pin m
     }),
   )
 })
+
+it('recovers a failed context budget read and rolls back a failed save (regression D2b)', async () => {
+  let failRead = true
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'app:getPrefs' && failRead) throw new Error('prefs unavailable')
+    if (channel === 'app:setContextBudget') throw new Error('disk full')
+    return local(channel)
+  })
+  await showHostSettings(root, 'local', 'agent')
+  const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Try again')
+  expect(retry).toBeTruthy()
+  failRead = false
+  await act(async () => retry!.click())
+  const radio = (title: string) =>
+    [...container.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((r) =>
+      r.textContent?.startsWith(title),
+    )!
+  expect(radio('Default: 200k tokens').getAttribute('aria-checked')).toBe('true')
+  await act(async () => radio('400k tokens').click())
+  expect(radio('400k tokens').getAttribute('aria-checked')).toBe('false')
+  expect(radio('Default: 200k tokens').getAttribute('aria-checked')).toBe('true')
+  expect(useExtensionUiStore.getState().toasts.map((t) => [t.kind, t.message])).toContainEqual([
+    'error',
+    'disk full',
+  ])
+})
