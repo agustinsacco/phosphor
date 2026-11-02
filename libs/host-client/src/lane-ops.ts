@@ -33,6 +33,10 @@ export function laneCreateOp(input: RemoteLaneCreate, laneStart: boolean): LaneO
   }
 }
 
+/** `createFailureText` for a `.catch`, so no Host detail or cause crosses IPC. */
+export const createFailure = (laneStart: boolean) => (error: unknown) =>
+  createFailureText(error, laneStart)
+
 /**
  * Whether the Host sent the creation's first prompt: true or false as its receipt
  * says, false when none was asked of it, and undefined when it was asked but did not
@@ -77,8 +81,10 @@ export function settledReceipt(op: LaneOp, result: CommandResult, machine: strin
  * IPC. A refusal, a failure or an unsent frame created nothing. Anything else, an
  * unknown receipt or a dropped connection, may have.
  */
-export function createFailureText(error: unknown): string {
-  if (error instanceof FreshBranchExists) return 'branch-exists'
+export function createFailureText(error: unknown, laneStart = false): string {
+  // A laneStart Host tried the next names itself; the client must not try more.
+  if (error instanceof FreshBranchExists)
+    return laneStart ? 'branch-name-exhausted' : 'branch-exists'
   if (!(error instanceof ReceiptFailure)) return CREATE_UNCONFIRMED
   const { result } = error
   if (result.status === 'rejected')

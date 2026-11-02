@@ -1167,11 +1167,11 @@ it.each(['incarnation', 'focus-cycle', 'removed-lane'] as const)(
   },
 )
 
-// Only a fresh branch-exists may retry. A definite refusal or failure says nothing was
-// created; only an outcome the Host never answered stays "not confirmed". Host text
-// (here a message that reads "branch-exists") never crosses IPC.
+// A fresh branch-exists from this laneStart Host means it tried -2…-5 already. A definite
+// refusal or failure says nothing was created; only an outcome the Host never answered
+// stays "not confirmed". Host text (here a message that reads "branch-exists") never crosses IPC.
 it.each([
-  ['rejected branch-exists', { status: 'rejected', code: 'branch-exists' }, 'branch-exists'],
+  ['taken branch', { status: 'rejected', code: 'branch-exists' }, 'branch-name-exhausted'],
   [
     'non-fresh branch-exists',
     { status: 'rejected', code: 'branch-exists' },

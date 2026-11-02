@@ -35,10 +35,10 @@ export async function startRemoteChat(
   if (host?.state !== 'ready' || !host.capabilities.includes('sessions.control')) throw new Error()
   const inline = host.laneStart === true && attachments.length === 0 && !swarm
   const nav = useSessionsStore.getState().claimNav()
-  // The Host already tries -2…-5 itself; a refusal from it means none was free.
-  const attempts = host.laneStart ? 1 : 5
+  // Main answers branch-exists only for a Host that left the next names to us; a
+  // laneStart Host tried -2…-5 itself, and main says branch-name-exhausted.
   const create = async () => {
-    for (let attempt = 1; attempt <= attempts; attempt++) {
+    for (let attempt = 1; attempt <= 5; attempt++) {
       try {
         return await window.phosphor.invoke('hosts:createLane', hostId, {
           ...input,
