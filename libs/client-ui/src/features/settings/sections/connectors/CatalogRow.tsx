@@ -10,6 +10,8 @@ import {
   type ConnectorSetup,
 } from '@/features/connectors/catalog'
 
+type Choice = Required<Omit<ConnectorChoice, 'variant'>> & { variant: string }
+
 /**
  * A catalog entry that is not configured yet: vetted URL behind one button.
  * Where the scope holds no secrets (a folder), the client secret is not asked
@@ -26,17 +28,18 @@ export function CatalogRow({
   disabled: boolean
   onAdd: (choice: ConnectorChoice) => void
 }): React.JSX.Element {
-  const [variant, setVariant] = useState(entry.variants?.options[0]?.id ?? '')
-  const [readOnly, setReadOnly] = useState(false)
-  const [clientId, setClientId] = useState('')
-  const [clientSecret, setClientSecret] = useState('')
-  const url = connectorUrl(entry, { variant, readOnly })
+  const [choice, setChoice] = useState<Choice>({
+    variant: entry.variants?.options[0]?.id ?? '',
+    readOnly: false,
+    clientId: '',
+    clientSecret: '',
+  })
+  const url = connectorUrl(entry, choice)
   const needsClientId = entry.authKind === 'preregistered'
   // A required client secret cannot live in a folder's file.
   const machineOnly = needsClientId && entry.secretRequired === true && !secrets
-  const missingCredential = credentialProblem(entry, machineOnly, clientId, clientSecret)
-  const hasOptions = Boolean(entry.variants || entry.readOnlyUrl || needsClientId || entry.setup)
-
+  const missingCredential = credentialProblem(entry, machineOnly, choice)
+  const { clientSecret: _secret, ...rest } = choice
   return (
     <div
       className="border-border bg-surface rounded-xl border"
@@ -49,9 +52,7 @@ export function CatalogRow({
           size="sm"
           className="shrink-0 whitespace-nowrap"
           // Slack and Google cannot be one click: they support no dynamic
-          // registration and need a registered client up front. Showing that as
-          // a disabled button beats letting `buildConnectorConfig` throw into
-          // the error banner.
+          // registration and need a registered client up front.
           disabled={disabled || Boolean(missingCredential)}
           tooltip={
             missingCredential
@@ -59,31 +60,21 @@ export function CatalogRow({
               : undefined
           }
           aria-description={
-            machineOnly
+            machineOnly || !missingCredential
               ? missingCredential
-              : missingCredential
-                ? `${entry.name} has no dynamic registration. Paste the client ${entry.secretRequired ? 'ID and secret' : 'ID'} of an app you registered.`
-                : undefined
+              : `${entry.name} has no dynamic registration. Paste the client ${entry.secretRequired ? 'ID and secret' : 'ID'} of an app you registered.`
           }
-          onClick={() =>
-            onAdd({ variant, readOnly, clientId, ...(secrets ? { clientSecret } : {}) })
-          }
+          onClick={() => onAdd(secrets ? choice : rest)}
         >
           Add
         </Button>
       </div>
-
-      {hasOptions && (
+      {(entry.variants || entry.readOnlyUrl || needsClientId || entry.setup) && (
         <CatalogOptions
           entry={entry}
-          variant={variant}
-          setVariant={setVariant}
-          readOnly={readOnly}
-          setReadOnly={setReadOnly}
-          clientId={clientId}
-          setClientId={setClientId}
-          clientSecret={secrets ? clientSecret : undefined}
-          setClientSecret={setClientSecret}
+          choice={choice}
+          secrets={secrets}
+          set={(patch) => setChoice((current) => ({ ...current, ...patch }))}
         />
       )}
     </div>
@@ -94,8 +85,7 @@ export function CatalogRow({
 function credentialProblem(
   entry: ConnectorEntry,
   machineOnly: boolean,
-  clientId: string,
-  clientSecret: string,
+  { clientId, clientSecret }: Choice,
 ): string | undefined {
   if (entry.authKind !== 'preregistered') return undefined
   if (machineOnly) return 'Switch to Machine scope to add it.'
@@ -132,27 +122,16 @@ function CatalogSummary({
 
 function CatalogOptions({
   entry,
-  variant,
-  setVariant,
-  readOnly,
-  setReadOnly,
-  clientId,
-  setClientId,
-  clientSecret,
-  setClientSecret,
+  choice,
+  secrets,
+  set,
 }: {
   entry: ConnectorEntry
-  variant: string
-  setVariant: (value: string) => void
-  readOnly: boolean
-  setReadOnly: (value: boolean) => void
-  clientId: string
-  setClientId: (value: string) => void
-  /** Asked for only where the scope may hold it. */
-  clientSecret: string | undefined
-  setClientSecret: (value: string) => void
+  choice: Choice
+  /** The client secret is asked for only where the scope may hold it. */
+  secrets: boolean
+  set: (patch: Partial<Choice>) => void
 }): React.JSX.Element {
-  const needsClientId = entry.authKind === 'preregistered'
   return (
     <div className="border-border text-text-secondary border-t px-3.5 py-2 text-sm">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -161,37 +140,38 @@ function CatalogOptions({
             {entry.variants.label}
             <Select
               label={entry.variants.label}
-              value={variant}
-              options={entry.variants.options.map((option) => ({
-                value: option.id,
-                label: option.label,
-              }))}
-              onChange={setVariant}
+              value={choice.variant}
+              options={entry.variants.options.map((o) => ({ value: o.id, label: o.label }))}
+              onChange={(variant) => set({ variant })}
               className="py-0.5"
             />
           </span>
         )}
         {entry.readOnlyUrl && (
           <span className="flex items-center gap-1.5">
-            <Toggle label="Read-only" on={readOnly} onChange={setReadOnly} />
+            <Toggle
+              label="Read-only"
+              on={choice.readOnly}
+              onChange={(readOnly) => set({ readOnly })}
+            />
             Read-only
           </span>
         )}
-        {needsClientId && (
+        {entry.authKind === 'preregistered' && (
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <TextInput
               size="sm"
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
+              value={choice.clientId}
+              onChange={(e) => set({ clientId: e.target.value })}
               placeholder="client ID"
               className="min-w-40 flex-1 font-mono"
             />
-            {clientSecret !== undefined && (
+            {secrets && (
               <TextInput
                 type="password"
                 size="sm"
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
+                value={choice.clientSecret}
+                onChange={(e) => set({ clientSecret: e.target.value })}
                 placeholder={entry.secretRequired ? 'client secret' : 'client secret (optional)'}
                 className="min-w-48 flex-1 font-mono"
               />

@@ -36,7 +36,7 @@ export interface ConnectorView {
   /** The folder's override decides whether it is on. */
   overridden: boolean
   /** A folder definition replaces a machine one with the same name. */
-  replacesGlobal: boolean
+  replacesGlobal?: boolean
   transport: 'https' | 'stdio'
   enabled: boolean
   /** pi signs in with MCP OAuth, so Sign in and Sign out apply. */

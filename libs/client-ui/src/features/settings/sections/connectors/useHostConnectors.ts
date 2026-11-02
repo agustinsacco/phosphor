@@ -16,7 +16,6 @@ function connectorView(server: HostServer, folder: boolean): ConnectorView {
     scope: server.scope,
     inherited: folder && server.scope === 'global',
     overridden: server.overridden === true,
-    replacesGlobal: false,
     transport: server.transport,
     enabled: server.enabled,
     // A Host too old to say offers sign-in on every https connector.
@@ -24,11 +23,8 @@ function connectorView(server: HostServer, folder: boolean): ConnectorView {
     exposure: server.exposure,
     // A Host never sends a URL, so a catalogue entry is known by its server name.
     entry: CONNECTORS.find((entry) => entry.serverName === server.name),
-    status: {
-      // The shared parser keeps only pi's states.
-      ...(server.state ? { state: server.state as McpServerState } : {}),
-      ...(server.tools !== undefined ? { tools: server.tools } : {}),
-    },
+    // The shared parser keeps only pi's states.
+    status: { state: server.state as McpServerState | undefined, tools: server.tools },
   }
 }
 

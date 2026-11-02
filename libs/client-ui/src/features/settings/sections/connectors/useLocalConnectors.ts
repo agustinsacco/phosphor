@@ -100,22 +100,12 @@ export function useLocalConnectors(): ConnectorsSource {
     [servers, folder, checks.checks, flows],
   )
 
-  const run = localRun({
-    scope,
-    workspacePath,
-    views,
-    setError,
-    refresh,
-    checks,
-  })
-
-  const notices = localNotices(configs)
-
+  const run = localRun({ scope, workspacePath, views, setError, refresh, checks })
   return {
     caps: { inspect: true, edit: true, rawFiles: true, reviewed: false },
     folder: folder !== null,
     servers: configs && !legacy ? views : null,
-    notices,
+    notices: localNotices(configs),
     error,
     locked: false,
     busy: false,
