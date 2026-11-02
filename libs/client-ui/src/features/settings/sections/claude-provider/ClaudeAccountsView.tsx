@@ -12,7 +12,7 @@ import {
 } from '../accounts/accountsModel'
 import { ClaudeAccountDetails } from './ClaudeAccountDetails'
 import { ClaudeAccountActions, ClaudeAccountRow } from './ClaudeAccountRow'
-import { ClaudeLoginProgress } from './ClaudeLoginProgress'
+import { SignInProgress } from '../../components/SignInProgress'
 
 const ROUTING_OPTIONS: { value: ClaudeRoutingMode; title: string; detail: string }[] = [
   {
@@ -184,7 +184,7 @@ function AccountsToolbar({ source }: { source: ClaudeAccountsSource }): React.JS
           Refresh usage
         </TooltipButton>
       </div>
-      <ClaudeLoginProgress login={login} onSubmit={source.submitCode} />
+      <SignInProgress flow={login} who="the Claude CLI" onSubmit={source.submitCode} />
     </>
   )
 }

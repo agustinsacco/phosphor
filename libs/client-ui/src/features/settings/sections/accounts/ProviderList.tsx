@@ -1,8 +1,7 @@
 import { TooltipButton } from '@/components/Tooltip'
 import type { LoginFlowState } from '@shared/models'
 import { Button } from '@/components/form'
-import { CopyButton } from '@/components/CopyButton'
-import { LoginStep, ReopenSignIn } from '../claude-provider/ClaudeLoginProgress'
+import { SignInProgress } from '../../components/SignInProgress'
 import clsx from 'clsx'
 import {
   SIGN_IN_LABEL,
@@ -117,32 +116,7 @@ function ProviderRow({
           </div>
         )}
       </div>
-      {flow && <ProviderLoginProgress flow={flow} />}
-    </div>
-  )
-}
-
-/** The middle of an in-app sign-in: what pi is doing, and what the user must do. */
-function ProviderLoginProgress({ flow }: { flow: LoginFlowState }): React.JSX.Element | null {
-  if (flow.phase === 'starting')
-    return <LoginStep className="mt-3">Starting pi’s sign-in…</LoginStep>
-  if (flow.phase !== 'awaiting-browser') return null
-  return (
-    <div className="border-border bg-surface-raised mt-3 rounded-md border p-3">
-      <LoginStep>Waiting for you to finish in your browser.</LoginStep>
-      {flow.userCode && (
-        // The device code is the step people miss: the browser page asks for it.
-        <div className="mt-2.5">
-          <p className="text-text-tertiary text-sm">Enter this code on the page:</p>
-          <div className="mt-1 flex items-center gap-2">
-            <code className="border-border bg-surface rounded border px-2 py-1 font-mono text-base tracking-widest">
-              {flow.userCode}
-            </code>
-            <CopyButton text={flow.userCode} label="Copy" size="sm" />
-          </div>
-        </div>
-      )}
-      <ReopenSignIn url={flow.url} />
+      <SignInProgress flow={flow} who="pi" />
     </div>
   )
 }
