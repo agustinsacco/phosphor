@@ -196,7 +196,7 @@ Rerun `phosphor setup` to resume. Ctrl-C keeps completed steps, including config
 and a pending enrollment request. Declining operator access exits 75 and prints
 `sudo tailscale set --operator=<user>`. Optional Claude setup may be skipped.
 Other providers remain separate: `phosphor providers login PROVIDER`, or Sign in
-in Desktop's machine Readiness.
+under Settings → Accounts for that Host in Desktop.
 
 Repositories may be empty. Add a folder later from Desktop or with
 `phosphor setup --repository PATH`. Repeat `--repository DIR` for up
@@ -1143,7 +1143,7 @@ cannot tell the new login from the earlier one (it never reads a credential), so
 it says that the earlier one is still there if the login did not finish. An
 unknown provider exits 64 and starts nothing.
 
-Desktop also starts this same login path from Machines Readiness. Its
+Desktop also starts this same login path from Settings → Accounts on the Host. Its
 `provider.login {provider}` command has a machine-scoped, owner-only receipt,
 no lane or fence, and requires `terminal` plus `sessions.control`. Both are
 checked at admission, when queued work starts, and after inspection before

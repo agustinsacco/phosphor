@@ -40,8 +40,9 @@ public tunnels and disabling TLS verification are not part of this transport.
    Tailscale Serve. In Desktop, choose I have a code, enter it, compare fingerprints
    and approve. No repository is required. Rerunning setup resumes completed steps;
    if Tailscale needs operator permission, run its printed sudo command and rerun setup.
-4. Once online, open the machine's Readiness and sign in to a provider there, or
-   run `phosphor providers login PROVIDER` on the Host. Credentials stay there.
+4. Once online, sign in to a provider under Settings → Accounts for that machine
+   (Provider settings on its Machines page), or run
+   `phosphor providers login PROVIDER` on the Host. Credentials stay there.
    Add a repository from Desktop or with `phosphor setup --repository DIR --replace`.
    `phosphor doctor` checks readiness; `phosphor accept --repository DIR` proves
    real sessions in a disposable repository. [Acceptance](host.md#accept) explains

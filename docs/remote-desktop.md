@@ -166,10 +166,10 @@ the machine, and the header holds its control buttons. A down Host's composer
 and panes show "Machine not connected. Wait for reconnection." Both recover
 from snapshots without reload.
 
-Machines detail keeps Readiness and adds On this machine: lanes, skills, routines
+A connected Host's Machines detail adds On this machine: lanes, skills, routines
 and artifacts, only for announced capabilities. Counts that fail to load say
-Unavailable, not zero. Links open the machine-filtered page. This Mac keeps its
-existing detail sections and uses its own lanes, Skills, Routines and Artifacts pages.
+Unavailable, not zero. Links open the machine-filtered page. This Mac's detail is
+the same view without it; it uses its own lanes, Skills, Routines and Artifacts pages.
 
 Skills follows the sidebar machine selection and has a switcher for This Mac plus
 machines announcing `skills.read`. Remote skills are not edited in place; they can
@@ -359,9 +359,13 @@ reachable from this computer (check Tailscale here and the tailnet), never a
 restart. Only a ready connection advances to Providers, after a short pause.
 Further recovery stays in the collapsed Stuck? disclosure.
 
-**Providers** reads the Host's provider readiness and opens the machine page,
-whose Providers card links to Settings → Accounts, where Sign in runs. The terminal fallback on the Host is
-`phosphor providers login PROVIDER`. Provider credentials stay on the Host.
+**Providers** shows the Host's Claude Code readiness row and its providers in
+Settings → Accounts' rows and words (Signed in, Not signed in, Could not verify).
+A missing Claude Code points at Settings → Extensions → Claude Code. **Provider
+settings** closes the dialog and opens Settings → Accounts on the Host, where Sign
+in runs; a Host too old for that shows `phosphor providers login PROVIDER` instead.
+Check readiness again re-reads both, and Open machine shows the machine page.
+Provider credentials stay on the Host.
 In a terminal, guided `phosphor setup` offers to install Claude Code and the
 Claude provider and runs `claude` login when signed out
 ([host.md](host.md#setup)).
@@ -460,7 +464,7 @@ choice.
 
 Remote row actions, title precedence, pins, markers and delete confirmations are
 owned by [Lanes](lanes.md#remote-lanes). Authentication remedies open that machine's
-Readiness page, never a local terminal. A ready Host without a usable signed-in
+Machines page, never a local terminal. A ready Host without a usable signed-in
 model offers Sign in on that machine, distinct from a disconnected refusal.
 Retry appears only for the last confirmed failed turn while idle and controlled.
 
@@ -508,7 +512,7 @@ when their admitted connection or configuration authority is lost; regranting
 access does not revive them. Desktop drops their private handles and pending input
 on authority loss. Cleanup kill remains allowed.
 
-Legacy Readiness sign-in still needs `terminal` plus `sessions.control`, with one
+Provider sign-in from Settings → Accounts needs `terminal` plus `sessions.control`, with one
 PTY per provider and two per Host. Its existing ten-disconnected-minute grace is
 preserved. See [provider login](host.md#providers-login).
 
