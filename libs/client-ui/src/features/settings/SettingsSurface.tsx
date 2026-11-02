@@ -9,7 +9,7 @@ import {
   platformIndex,
   resolveTab,
   visibleSections,
-  type EXTENSION_TABS,
+  EXTENSION_TABS,
 } from './settingsIndex'
 import { highlightPattern } from './settingsQuery'
 import { revealSetting, usePaintMatches } from './settingsHighlight'
@@ -132,7 +132,8 @@ function usePanelFollowsTab(
 /**
  * This Mac's installed extension tabs, read again whenever the tab changes:
  * installing from the Extensions tab should show the package's own tab
- * without reopening Settings. Hosts list none.
+ * without reopening Settings. A Host lists the tabs every machine lists
+ * (`always`) that it has a view for.
  */
 function useExtensionTabs(local: boolean): typeof EXTENSION_TABS {
   const tab = useSettingsUiStore((s) => s.tab)
@@ -147,13 +148,13 @@ function useExtensionTabs(local: boolean): typeof EXTENSION_TABS {
         if (!cancelled) setTabs(installedExtensionTabs(entries))
       })
       .catch(() => {
-        if (!cancelled) setTabs([])
+        if (!cancelled) setTabs(installedExtensionTabs([]))
       })
     return () => {
       cancelled = true
     }
   }, [local, tab, workspace])
-  return local ? tabs : []
+  return local ? tabs : EXTENSION_TABS.filter((t) => t.always === true && t.host !== undefined)
 }
 
 /**

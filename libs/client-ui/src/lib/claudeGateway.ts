@@ -17,8 +17,19 @@ export interface MoveTarget {
   held: boolean
 }
 
+/** An account as the move rule sees it, from either machine. */
+export interface MoveCandidate {
+  id: string
+  label: string
+  /** `null`: the sign-in could not be checked, which is not "signed out". */
+  signedIn: boolean | null
+  cooldownUntil: number | null
+}
+
 /**
- * Where this lane may go, best first.
+ * Where this lane may go, best first. The one rule for every machine and every
+ * surface that moves a lane: Settings and the composer's switcher, on This Mac
+ * and on a Host.
  *
  * A held account stays in the list rather than being hidden: cooldowns come
  * from a cached `/usage` reading, so "held" is as likely to be stale as it is
@@ -26,35 +37,36 @@ export interface MoveTarget {
  * does. It sorts last and the UI says so.
  */
 export function moveTargets(
-  views: ClaudeAccountView[],
+  accounts: readonly MoveCandidate[],
   currentAccountId: string | undefined,
   nowMs: number = Date.now(),
 ): MoveTarget[] {
-  return views
-    .filter((view) => view.account.id !== currentAccountId && view.auth.loggedIn !== false)
-    .map((view) => ({
-      id: view.account.id,
-      label: view.auth.email ?? view.account.email ?? view.account.label,
-      held: view.cooldownUntil !== null && view.cooldownUntil > nowMs,
+  return accounts
+    .filter((account) => account.id !== currentAccountId && account.signedIn !== false)
+    .map((account) => ({
+      id: account.id,
+      label: account.label,
+      held: account.cooldownUntil !== null && account.cooldownUntil > nowMs,
     }))
     .sort((a, b) => Number(a.held) - Number(b.held))
 }
 
-/**
- * The same rule for a Host lane, over the Host's account list. The lane's own
- * account is the one that lists it among its lanes.
- */
-export function machineMoveTargets(
-  accounts: MachineAccount[],
-  laneId: string,
-  nowMs: number = Date.now(),
-): MoveTarget[] {
-  return accounts
-    .filter((a) => a.loggedIn !== false && !a.lanes.some((lane) => lane.id === laneId))
-    .map((a) => ({
-      id: a.id,
-      label: a.email ?? a.label,
-      held: a.cooldownUntil !== null && a.cooldownUntil > nowMs,
-    }))
-    .sort((a, b) => Number(a.held) - Number(b.held))
-}
+/** This Mac's account, as the move rule sees it. */
+export const viewCandidate = (view: ClaudeAccountView): MoveCandidate => ({
+  id: view.account.id,
+  label: view.auth.email ?? view.account.email ?? view.account.label,
+  signedIn: view.auth.loggedIn ?? null,
+  cooldownUntil: view.cooldownUntil,
+})
+
+/** A Host's account, as the move rule sees it. */
+export const machineCandidate = (account: MachineAccount): MoveCandidate => ({
+  id: account.id,
+  label: account.email ?? account.label,
+  signedIn: account.loggedIn,
+  cooldownUntil: account.cooldownUntil,
+})
+
+/** The Host account a lane bills: the one that lists it among its lanes. */
+export const laneAccountId = (accounts: readonly MachineAccount[], laneId: string) =>
+  accounts.find((account) => account.lanes.some((lane) => lane.id === laneId))?.id

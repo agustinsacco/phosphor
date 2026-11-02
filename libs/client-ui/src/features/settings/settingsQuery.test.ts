@@ -61,13 +61,14 @@ describe('searchSettings', () => {
     const pkg = { spec: 'npm:pi-subagents', installed: false } as Parameters<
       typeof installedExtensionTabs
     >[0][number]
-    expect(installedExtensionTabs([pkg])).toEqual([])
+    expect(installedExtensionTabs([pkg]).map((tab) => tab.id)).toEqual(['claude-provider'])
     expect(
       installedExtensionTabs([{ ...pkg, spec: 'npm:@saccolabs/pi-claude-cli' }]).map(
         (tab) => tab.id,
       ),
     ).toEqual(['claude-provider'])
     expect(installedExtensionTabs([{ ...pkg, installed: true }]).map((tab) => tab.id)).toEqual([
+      'claude-provider',
       'subagents',
     ])
   })
@@ -156,12 +157,9 @@ describe('SETTINGS_INDEX against the section sources', () => {
   const FILE_TABS: Record<string, SettingsTab> = {
     'tabs/AboutTab.tsx': 'about',
     'tabs/AccountTab.tsx': 'account',
-    'tabs/AccountsTab.tsx': 'accounts',
     'tabs/AdvancedTab.tsx': 'advanced',
     'tabs/AgentTab.tsx': 'agent',
     'tabs/AppearanceTab.tsx': 'appearance',
-    'tabs/ClaudeAccountPanel.tsx': 'claude-provider',
-    'tabs/ClaudeProviderTab.tsx': 'claude-provider',
     'tabs/ComputerUseTab.tsx': 'computer-use',
     'tabs/ConnectorsTab.tsx': 'connectors',
     'tabs/ContextBudgetSection.tsx': 'agent',
@@ -260,7 +258,9 @@ describe('SETTINGS_INDEX against the section sources', () => {
       .join('\n')
     const hostEntries = SETTINGS_INDEX.filter(hostHeading)
     expect(hostEntries.map((entry) => entry.tab)).toEqual(
-      TABS.filter((tab) => tab.host).map((tab) => tab.id),
+      TABS.filter((tab) => tab.host)
+        .filter((tab) => tab.id !== 'accounts')
+        .map((tab) => tab.id),
     )
     for (const entry of hostEntries)
       expect(panels, entry.title).toContain(`font-semibold">${entry.title}</h2>`)

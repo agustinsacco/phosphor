@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { ClaudeAccountView } from '@shared/models'
-import { moveTargets } from './claudeGateway'
+import { moveTargets as moveTargetsOf, viewCandidate } from './claudeGateway'
+
+const moveTargets = (views: ClaudeAccountView[], current: string | undefined, now: number) =>
+  moveTargetsOf(views.map(viewCandidate), current, now)
 
 const NOW = 1_700_000_000_000
 

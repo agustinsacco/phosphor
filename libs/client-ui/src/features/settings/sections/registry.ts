@@ -1,11 +1,9 @@
 import type { SettingsTab } from '../settingsUiStore'
 import { AboutTab } from '../tabs/AboutTab'
 import { AccountTab } from '../tabs/AccountTab'
-import { AccountsTab } from '../tabs/AccountsTab'
 import { AdvancedTab } from '../tabs/AdvancedTab'
 import { AgentTab } from '../tabs/AgentTab'
 import { AppearanceTab } from '../tabs/AppearanceTab'
-import { ClaudeProviderTab } from '../tabs/ClaudeProviderTab'
 import { ComputerUseTab } from '../tabs/ComputerUseTab'
 import { ConnectorsTab } from '../tabs/ConnectorsTab'
 import { ExtensionsTab } from '../tabs/ExtensionsTab'
@@ -17,8 +15,9 @@ import { VoiceTab } from '../tabs/VoiceTab'
 import { WebAccessTab } from '../tabs/WebAccessTab'
 import { WorkspacesTab } from '../tabs/WorkspacesTab'
 import { WritingTab } from '../tabs/WritingTab'
+import { HostAccounts, LocalAccounts } from './accounts'
+import { HostClaudeProvider, LocalClaudeProvider } from './claude-provider'
 import {
-  HostAccountsSection,
   HostAdvancedSection,
   HostAgentSection,
   HostConnectorsSection,
@@ -50,9 +49,9 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   install: { Device: InstallAppTab },
   about: { Device: AboutTab },
   agent: { Local: AgentTab, Host: HostAgentSection, scoped: true },
-  accounts: { Local: AccountsTab, Host: HostAccountsSection },
+  accounts: { Local: LocalAccounts, Host: HostAccounts },
   extensions: { Local: ExtensionsTab, Host: HostExtensionsSection },
-  'claude-provider': { Local: ClaudeProviderTab },
+  'claude-provider': { Local: LocalClaudeProvider, Host: HostClaudeProvider },
   'web-access': { Local: WebAccessTab },
   'computer-use': { Local: ComputerUseTab },
   subagents: { Local: SubagentsTab },

@@ -216,18 +216,20 @@ it('offers a headless-safe extension catalogue and existing multiple-account con
   expect(container.textContent).toContain('computer use is not installed')
   expect(button('Install Swarm subagents').disabled).toBe(false)
   expect(button('Install Web access').disabled).toBe(false)
-  await render('accounts')
+  await render('claude-provider')
   expect(button('Add account').disabled).toBe(false)
   expect(container.textContent).toContain('work@bee1.example')
 })
 it('keeps provider credentials separated by Host and makes usage unavailable, not zero', async () => {
-  await render('accounts')
+  await render('claude-provider')
   expect(container.textContent).toContain('dev@bee1.example')
   expect(container.textContent).not.toContain('dev@bee5.example')
+  const row = container.querySelector('[data-account-id="default"]')!
   await act(async () => {
-    button('Usage & lanes').click()
+    row.querySelector<HTMLButtonElement>('button[aria-expanded]')!.click()
   })
-  expect(container.textContent).toContain('Unavailable is not zero')
+  expect(container.textContent).toContain('No usage reading yet')
+  expect(row.querySelector('.border-t')?.textContent).not.toContain('%')
   expect(invoke.mock.calls.every(([channel]) => channel.startsWith('hosts:'))).toBe(true)
 })
 it.each([COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM])(
@@ -246,3 +248,18 @@ it.each([COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM])(
     expect(invoke).toHaveBeenCalledWith('hosts:settingsAccess', machine.id)
   },
 )
+it("links a Host's Accounts to its Claude Code page under Extensions", async () => {
+  await render('accounts')
+  expect(button('Open Claude Code').disabled).toBe(false)
+  await act(async () => {
+    button('Open Claude Code').click()
+  })
+  expect(useSettingsUiStore.getState().tab).toBe('claude-provider')
+  const selected = [
+    ...container.querySelectorAll(
+      'nav[aria-label="Settings sections"] button[aria-current="page"]',
+    ),
+  ].map((b) => b.textContent)
+  expect(selected).toEqual(['Extensions', 'Claude Code'])
+  expect(container.textContent).toContain('work@bee1.example')
+})

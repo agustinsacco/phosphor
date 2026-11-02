@@ -3,7 +3,7 @@ import type { Platform } from '@/platform/Platform'
 import type { MachineSettingsTab } from './machine/HostSection'
 import type { SettingsTab } from './settingsUiStore'
 import type { SettingEntry } from './search/settingEntry'
-import { ACCOUNTS_HOST_HEADING, ACCOUNTS_ROWS } from './search/rows/accounts'
+import { ACCOUNTS_ROWS } from './search/rows/accounts'
 import { ADVANCED_HOST_HEADING, ADVANCED_ROWS } from './search/rows/advanced'
 import { AGENT_HOST_HEADING, AGENT_ROWS } from './search/rows/agent'
 import { CONNECTORS_HOST_HEADING, CONNECTORS_ROWS } from './search/rows/connectors'
@@ -90,11 +90,17 @@ export const TABS: SettingsSection[] = [
  * configuration for an installed package, not top-level settings.
  */
 export const EXTENSION_TABS: Array<
-  SettingsSection & { packageMatch: string; requiresInstalled?: boolean }
+  SettingsSection & {
+    packageMatch: string
+    requiresInstalled?: boolean
+    /** Listed on every machine that has a view for it, installed or not: its page offers Install. */
+    always?: true
+  }
 > = [
   {
-    ...machineSection('claude-provider', 'Claude Code', { local: true }),
+    ...machineSection('claude-provider', 'Claude Code', { local: true, host: 'providers' }),
     packageMatch: 'pi-claude-cli',
+    always: true,
   },
   { ...machineSection('web-access', 'Web access', { local: true }), packageMatch: 'pi-web-access' },
   {
@@ -109,12 +115,14 @@ export const EXTENSION_TABS: Array<
 ]
 
 export function installedExtensionTabs(entries: PiPackageEntry[]): typeof EXTENSION_TABS {
-  return EXTENSION_TABS.filter((tab) =>
-    // Existing health/config tabs also help repair declared but absent packages.
-    entries.some(
-      (entry) =>
-        (!tab.requiresInstalled || entry.installed) && entry.spec.includes(tab.packageMatch),
-    ),
+  return EXTENSION_TABS.filter(
+    (tab) =>
+      tab.always === true ||
+      // Existing health/config tabs also help repair declared but absent packages.
+      entries.some(
+        (entry) =>
+          (!tab.requiresInstalled || entry.installed) && entry.spec.includes(tab.packageMatch),
+      ),
   )
 }
 
@@ -171,7 +179,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ...ABOUT_ROWS,
   // The Host's own panels, by their headings, until shared views render the rows above.
   ...AGENT_HOST_HEADING,
-  ...ACCOUNTS_HOST_HEADING,
   ...EXTENSIONS_HOST_HEADING,
   ...CONNECTORS_HOST_HEADING,
   ...FOLDERS_ROWS,

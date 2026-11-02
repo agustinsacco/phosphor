@@ -26,7 +26,7 @@ import {
 import { HEADROOM_STATUS_KEY, parseHeadroomStatus } from './headroomStatus'
 import { assessBurn, burnSamples } from '@/lib/burnRate'
 import { compactReset, isClaudeCliModel, windowResetLabel } from '@/lib/claudeUsage'
-import { moveTargets } from '@/lib/claudeGateway'
+import { moveTargets, viewCandidate } from '@/lib/claudeGateway'
 import { AccountSwitcher } from './AccountSwitcher'
 import type {
   ClaudeSessionAccount,
@@ -564,7 +564,11 @@ function AccountRouting({
   const moveSessionToAccount = useSessionsStore((s) => s.moveSessionToAccount)
   const accountId = account?.id
   const load = useCallback(
-    async () => moveTargets((await window.phosphor.invoke('claude:accounts')).views, accountId),
+    async () =>
+      moveTargets(
+        (await window.phosphor.invoke('claude:accounts')).views.map(viewCandidate),
+        accountId,
+      ),
     [accountId],
   )
   if (!account || account.total < 2) return null

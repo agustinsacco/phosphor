@@ -25,10 +25,14 @@ vi.hoisted(() => {
 })
 vi.mock('./tabs/AppearanceTab', () => ({ AppearanceTab: () => <p>Appearance</p> }))
 vi.mock('./tabs/AgentTab', () => ({ AgentTab: () => <p>Local agent controls</p> }))
-vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
+vi.mock('./sections/accounts', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAccounts: () => <p>Local account controls</p>,
+}))
 vi.mock('./tabs/ExtensionsTab', () => ({ ExtensionsTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/ClaudeProviderTab', () => ({
-  ClaudeProviderTab: () => <p>Local machine controls</p>,
+vi.mock('./sections/claude-provider', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalClaudeProvider: () => <p>Local machine controls</p>,
 }))
 vi.mock('./tabs/WebAccessTab', () => ({ WebAccessTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/WorkspacesTab', () => ({ WorkspacesTab: () => <p>Local machine controls</p> }))
@@ -87,8 +91,9 @@ it('lists MCP Connectors as its own section, after the packages nested under Ext
   const nav = [...document.querySelectorAll('nav[aria-label="Settings sections"] button')]
   const rows = nav.map((b) => `${b.hasAttribute('data-nested') ? '↳ ' : ''}${b.textContent}`)
   const at = rows.indexOf('Extensions')
-  expect(rows.slice(at, at + 4)).toEqual([
+  expect(rows.slice(at, at + 5)).toEqual([
     'Extensions',
+    '↳ Claude Code',
     '↳ Web access',
     'MCP Connectors',
     'Workspaces',
@@ -232,7 +237,7 @@ const selectedSections = (): string[] =>
   ].map((b) => b.textContent ?? '')
 
 it.each([
-  ['claude-provider', 'Extensions'],
+  ['claude-provider', 'Claude Code'],
   ['workspaces', 'Agent'],
 ] as const)('opens %s on a Host as its %s section', async (tab, onHost) => {
   invoke.mockImplementation(async (channel: string) =>
@@ -245,7 +250,7 @@ it.each([
   )
   await act(async () => useRemoteLanesStore.setState({ filter: 'test-host' }))
   expect(document.body.textContent).toContain('Configuring Test Host')
-  expect(selectedSections()).toEqual([onHost])
+  expect(selectedSections()).toEqual(tab === 'workspaces' ? [onHost] : ['Extensions', onHost])
 })
 
 it('refreshes scope on a Mac lane to Host lane to Mac lane switch', async () => {

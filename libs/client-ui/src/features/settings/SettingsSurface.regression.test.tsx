@@ -27,7 +27,10 @@ vi.hoisted(() => {
 })
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('./tabs/AgentTab', () => ({ AgentTab: () => <p>Local agent controls</p> }))
-vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
+vi.mock('./sections/accounts', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAccounts: () => <p>Local account controls</p>,
+}))
 vi.mock('./tabs/AboutTab', () => ({ AboutTab: () => null }))
 
 const invoke = vi.fn(async (channel: string): Promise<unknown> =>
@@ -138,10 +141,11 @@ it('selects a Host and renders its Accounts section behind the configuration gat
   await act(async () => root.render(<SettingsModal />))
   await choose(machineSelect(), MOCK_HOST_ID)
   // The concerns both machines have keep This Mac's names and order; This Mac's own drop out.
-  expect(navLabels().slice(-6)).toEqual([
+  expect(navLabels().slice(-7)).toEqual([
     'Agent',
     'Accounts',
     'Extensions',
+    'Claude Code',
     'MCP Connectors',
     'Folders',
     'Advanced',
