@@ -1350,6 +1350,20 @@ name is not checked. Any other git failure (git missing, a timeout, an untrusted
 owner) fails the worktree step instead, so a lane never lands in a main checkout
 it was meant to branch from. Bare repositories count as repositories.
 
+Each repository in `host.repositories` and the lane snapshot carries `git`: false
+when git gives that same "not a git repository" answer, true inside a
+repository, absent until git first gives one of those answers. For `git: false`
+the client asks for no worktree and says the lane runs in the folder; absent
+still asks for one. The Host asks git at startup and caches the answers. A listing
+returns the cache and asks again in the background, at most every ten seconds
+unless a folder is new, eight folders at a time, with five seconds per answer.
+When an answer changes the Host republishes the lanes snapshot, so a later
+`git init` reaches clients shortly after the next listing (a reconnect or a
+repository change). An unknown answer keeps the last definite one, so a slow or
+missing git cannot flip the field. Older Hosts omit the field and older clients
+drop it. Only the Host's own runtime asks git; `createLiveLanes` without a
+probe lists repositories without the field.
+
 A failed creation logs `lane.command_error` with a token-shaped `code` when the
 error has one, such as `pi-state-unreadable` (pi answered `get_state` with a
 state the Host cannot read) or `pi-state-failed`, or with the folder error's fixed

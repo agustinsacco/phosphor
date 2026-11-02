@@ -3,11 +3,17 @@ import type { LiveOptions, LiveState } from './live/state'
 import { invalidSummary, promptTitle, summaryFor } from './live/summary'
 import { changed, publish } from './live/publication'
 import { attach, detach, push } from './live/attachments'
+import { createRepositoryGit } from './live/repository-git'
 
 export { promptTitle } from './live/summary'
 
 export function createLiveLanes(options: LiveOptions) {
   const limits = streamLimits(options.limits)
+  const git = createRepositoryGit({
+    probe: options.gitTracking,
+    changed: () => state.lanesTopic.repositoriesChanged(),
+  })
+  const repositories = () => git.annotate(options.store.listRepositories())
   const state: LiveState = {
     options,
     limits,
@@ -31,11 +37,13 @@ export function createLiveLanes(options: LiveOptions) {
       invalid: (laneId) => invalidSummary(state, laneId),
       log: options.log,
       list: () => ({
-        repositories: options.store.listRepositories(),
+        repositories: repositories(),
         lanes: options.store.listLanes().flatMap((lane) => summaryFor(state, lane.laneId) ?? []),
       }),
     }),
   }
+  // With a probe, ask git at startup so the first snapshot a client gets already says.
+  repositories()
   return {
     streams: state.streams,
     lanesTopic: state.lanesTopic,
@@ -53,6 +61,7 @@ export function createLiveLanes(options: LiveOptions) {
       const live = state.attached.get(laneId)
       return live && !live.exited ? live.sessionId : null
     },
+    repositories,
     receiptTiming: (laneId: string) => state.attached.get(laneId)?.receiptTiming,
     openDialogs: (laneId: string) =>
       state.attached

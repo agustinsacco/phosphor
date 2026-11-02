@@ -1,6 +1,6 @@
 import { expect, test as base } from '@playwright/test'
 import { createHash, generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -338,6 +338,7 @@ export async function browserFixture(production = false) {
       await mkdir(dir, { recursive: true, mode: 0o700 })
     await writeFile(join(repo, 'remote.txt'), 'HOST_A_ONLY synthetic file\n')
     await writeFile(join(second, 'remote.txt'), 'HOST_B_ONLY synthetic file\n')
+    execFileSync('git', ['init', '-q', second])
     await writeFile(
       join(root, 'bin/tailscale'),
       '#!/bin/sh\necho \'{"BackendState":"Stopped"}\'\n',

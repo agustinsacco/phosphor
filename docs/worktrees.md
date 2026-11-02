@@ -106,6 +106,12 @@ here". The checkbox is This Mac's only: a new Host lane always gets a fresh
 worktree off trunk ([Host](host.md#creating-lanes)), so it never runs on a main
 checkout and always has a branch to open a pull request from.
 
+A folder git does not track has no checkbox: This Mac hides it with the branch
+chip. A Host composer shows "no git · runs in folder" and asks for no worktree
+when the Host reports the folder as `git: false` ([Host](host.md)). The saved
+preference is untouched, so the box comes back ticked as before on a git
+repository.
+
 ## Git display queries
 
 `git:info` caches full display metadata for one second; sidebar summaries use

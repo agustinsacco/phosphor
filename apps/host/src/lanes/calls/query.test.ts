@@ -116,6 +116,15 @@ afterEach(() => {
 })
 
 describe('resolveLaneQuery', () => {
+  it('lists repositories through live lanes, which say whether git tracks each', async () => {
+    const { options } = fixture()
+    const listed = [{ id: '0123456789abcdef', name: 'notes', path: '/notes', git: false }]
+    options.live = { ...options.live, repositories: () => listed }
+    expect(await resolveLaneQuery(options, 'host.repositories', {})).toEqual({
+      ok: true,
+      data: listed,
+    })
+  })
   it('keeps the exact allowlist, parameter validation and removed lane checks', async () => {
     const { options, command } = fixture()
     for (const method of [
