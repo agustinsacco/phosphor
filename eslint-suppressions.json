@@ -1,14 +1,4 @@
 {
-  "libs/client-ui/src/features/chat/SubagentJournal.tsx": {
-    "phosphor/no-raw-pi-command": {
-      "count": 1
-    }
-  },
-  "libs/client-ui/src/features/chat/SubagentPanel.tsx": {
-    "phosphor/no-raw-pi-command": {
-      "count": 1
-    }
-  },
   "libs/client-ui/src/features/chat/composer/queueActions.ts": {
     "phosphor/no-raw-pi-command": {
       "count": 1
@@ -20,11 +10,6 @@
     }
   },
   "libs/client-ui/src/features/chat/subagentCommands.ts": {
-    "phosphor/no-raw-pi-command": {
-      "count": 1
-    }
-  },
-  "libs/client-ui/src/features/chat/subagentInspect.ts": {
     "phosphor/no-raw-pi-command": {
       "count": 1
     }

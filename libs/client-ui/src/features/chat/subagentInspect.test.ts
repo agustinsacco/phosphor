@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { useSessionsStore } from '@/stores/sessions'
+import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import { inspectSubagent } from './subagentInspect'
 
 const piCommand = vi.fn()
@@ -143,5 +145,36 @@ describe('read-only subagent inspection', () => {
     abort.abort()
     await result
     expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('inspection on a Host lane', () => {
+  it('resolves from the reply its Host streams under the window handle, without pi', async () => {
+    const lane = mockRemoteInfo.sessionId
+    useSessionsStore.setState({ live: { [lane]: { ...mockRemoteInfo, phosphorId: lane } } })
+    const invoke = vi.fn(async (_channel: string, id: string, sent: { requestId: string }) => {
+      publish(id, {
+        kind: 'pi-subagents.inspect-reply',
+        version: 1,
+        requestId: sent.requestId,
+        asyncId: 'run-a',
+        messages: [{ role: 'assistant', text: 'Working on the Host.' }],
+      })
+      publish(id)
+      return null
+    })
+    // @ts-expect-error only these preload methods are used
+    window.phosphor = { piCommand, invoke }
+    try {
+      const inspection = await inspectSubagent(lane, 'run-a', undefined, controller().signal)
+      expect(inspection.messages).toEqual([{ role: 'assistant', text: 'Working on the Host.' }])
+      expect(invoke).toHaveBeenCalledWith('hosts:subagentInspect', lane, {
+        requestId: expect.stringMatching(/^[\w-]{1,64}$/),
+        runId: 'run-a',
+      })
+      expect(piCommand).not.toHaveBeenCalled()
+    } finally {
+      useSessionsStore.setState({ live: {} })
+    }
   })
 })

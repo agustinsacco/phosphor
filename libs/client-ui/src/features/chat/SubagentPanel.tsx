@@ -18,6 +18,7 @@ import {
   type SubagentTarget,
 } from './subagentView'
 import { subagentHistory } from './subagentHistory'
+import { readSubagentEntries } from './subagentReads'
 import { SubagentActions } from './SubagentActions'
 import { SubagentJournal } from './SubagentJournal'
 import { SubagentStop } from './SubagentStopControl'
@@ -110,10 +111,9 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
     void (async () => {
       try {
         if (wanted) {
-          const reply = await window.phosphor.piCommand(sessionId, { type: 'get_entries' })
-          if (!reply.success || !reply.data)
-            throw new Error('Cannot validate the saved selection on this branch.')
-          const history = subagentHistory(reply.data.entries, reply.data.leafId)
+          const read = await readSubagentEntries(sessionId).catch(() => null)
+          if (!read) throw new Error('Cannot validate the saved selection on this branch.')
+          const history = subagentHistory(read.entries, read.leafId)
           const current = parseFleetWidget(
             useExtensionUiStore.getState().widgets[sessionId]?.[SUBAGENT_ASYNC_WIDGET_KEY]?.lines,
           )

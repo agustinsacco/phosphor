@@ -1,6 +1,7 @@
-import { requireSubagentCommand } from './subagentCommands'
+import { parseSubagentInspectRequest } from '@phosphor/shared/subagent-inspect'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { SUBAGENT_INSPECT_WIDGET_KEY } from './subagentRuns'
+import { inspectionSender } from './subagentReads'
 
 export interface SubagentInspection {
   label?: string
@@ -12,9 +13,63 @@ export interface SubagentInspection {
   truncated: boolean
 }
 
-const token = (id: string): boolean =>
-  id.length > 0 && id.length <= 256 && !/\s/.test(id) && !id.startsWith('--')
 const text = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined)
+
+function inspectedMessages(value: unknown): SubagentInspection['messages'] {
+  return (Array.isArray(value) ? value : []).slice(0, 200).flatMap((m: unknown) => {
+    if (!m || typeof m !== 'object' || !('text' in m) || typeof m.text !== 'string') return []
+    const record = m as Record<string, unknown>
+    const kind = text(record.kind)
+    const name = text(record.name)
+    return [
+      {
+        role: text(record.role) ?? 'message',
+        text: m.text,
+        ...(kind ? { kind } : {}),
+        ...(name ? { name } : {}),
+        ...(record.isError === true ? { isError: true } : {}),
+      },
+    ]
+  })
+}
+
+/** pi-subagents' reply as parsed JSON: every field is checked before use. */
+interface InspectReply {
+  requestId?: unknown
+  kind?: unknown
+  version?: unknown
+  error?: { message?: unknown }
+  asyncId?: unknown
+  childId?: unknown
+  label?: unknown
+  status?: unknown
+  task?: unknown
+  finalOutput?: unknown
+  messages?: unknown
+  truncated?: { task?: unknown; messages?: unknown; finalOutput?: unknown }
+}
+
+/** A correlated reply's inspection, or why it cannot be used. */
+function inspectionReply(
+  r: InspectReply,
+  runId: string,
+  childId?: string,
+): SubagentInspection | Error {
+  if (r.kind !== 'pi-subagents.inspect-reply' || r.version !== 1)
+    return new Error('Unsupported inspection reply version.')
+  if (r.error) return new Error(text(r.error.message) ?? 'Inspection unavailable.')
+  // Nested-run inspections return the nested canonical run ID, not the root.
+  if ((r.asyncId !== runId && r.asyncId !== childId) || r.childId !== childId)
+    return new Error('Inspection reply did not match the selected child.')
+  return {
+    label: text(r.label),
+    status: text(r.status),
+    task: text(r.task),
+    finalOutput: text(r.finalOutput),
+    messages: inspectedMessages(r.messages),
+    truncated: !!(r.truncated?.task || r.truncated?.messages || r.truncated?.finalOutput),
+  }
+}
 
 /** One bounded, session-owned request. Subscribe before send: the reply is immediately retracted. */
 export async function inspectSubagent(
@@ -23,18 +78,17 @@ export async function inspectSubagent(
   childId: string | undefined,
   signal: AbortSignal,
 ): Promise<SubagentInspection> {
-  if (!token(runId) || (childId !== undefined && !token(childId)))
-    throw new Error('Unsupported run identity.')
-  await requireSubagentCommand(sessionId, 'subagents-inspect-rpc')
+  const request = parseSubagentInspectRequest({ requestId: crypto.randomUUID(), runId, childId })
+  if (!request) throw new Error('Unsupported run identity.')
+  const send = await inspectionSender(sessionId)
   if (signal.aborted) throw new Error('Inspection cancelled.')
-  const requestId = crypto.randomUUID()
   return new Promise((resolve, reject) => {
-    const finish = (error?: Error, result?: SubagentInspection): void => {
+    const finish = (outcome: SubagentInspection | Error): void => {
       clearTimeout(timer)
       unsubscribe()
       signal.removeEventListener('abort', abort)
-      if (error) reject(error)
-      else resolve(result!)
+      if (outcome instanceof Error) reject(outcome)
+      else resolve(outcome)
     }
     const abort = (): void => finish(new Error('Inspection cancelled.'))
     const timer = setTimeout(() => finish(new Error('Inspection timed out. Try again.')), 10_000)
@@ -43,60 +97,15 @@ export async function inspectSubagent(
       const prefix = 'PI_SUBAGENT_INSPECT_JSON:'
       if (!line?.startsWith(prefix) || line.length > 70_000) return
       try {
-        const r = JSON.parse(line.slice(prefix.length))
-        if (!r || r.requestId !== requestId) return
-        if (r.kind !== 'pi-subagents.inspect-reply' || r.version !== 1) {
-          finish(new Error('Unsupported inspection reply version.'))
-          return
-        }
-        if (r.error) {
-          finish(new Error(text(r.error.message) ?? 'Inspection unavailable.'))
-          return
-        }
-        // Nested-run inspections return the nested canonical run ID, not the root.
-        if ((r.asyncId !== runId && r.asyncId !== childId) || r.childId !== childId) {
-          finish(new Error('Inspection reply did not match the selected child.'))
-          return
-        }
-        finish(undefined, {
-          label: text(r.label),
-          status: text(r.status),
-          task: text(r.task),
-          finalOutput: text(r.finalOutput),
-          messages: (Array.isArray(r.messages) ? r.messages : [])
-            .slice(0, 200)
-            .flatMap((m: unknown) => {
-              if (!m || typeof m !== 'object' || !('text' in m) || typeof m.text !== 'string')
-                return []
-              const record = m as Record<string, unknown>
-              const kind = text(record.kind)
-              const name = text(record.name)
-              return [
-                {
-                  role: text(record.role) ?? 'message',
-                  text: m.text,
-                  ...(kind ? { kind } : {}),
-                  ...(name ? { name } : {}),
-                  ...(record.isError === true ? { isError: true } : {}),
-                },
-              ]
-            }),
-          truncated: !!(r.truncated?.task || r.truncated?.messages || r.truncated?.finalOutput),
-        })
+        const r = JSON.parse(line.slice(prefix.length)) as InspectReply | null
+        if (r && r.requestId === request.requestId) finish(inspectionReply(r, runId, childId))
       } catch {
         finish(new Error('Invalid inspection reply.'))
       }
     })
     signal.addEventListener('abort', abort, { once: true })
-    // Only an advertised extension command is sent, never a model-authored command or file path.
-    void window.phosphor
-      .piCommand(sessionId, {
-        type: 'prompt',
-        message: `/subagents-inspect-rpc ${requestId} ${runId}${childId ? ` ${childId}` : ''} --lines 100`,
-      })
-      .then((reply) => {
-        if (!reply.success) finish(new Error(reply.error ?? 'Inspection command failed.'))
-      })
-      .catch((error: unknown) => finish(error instanceof Error ? error : new Error(String(error))))
+    send(request).catch((error: unknown) =>
+      finish(error instanceof Error ? error : new Error(String(error))),
+    )
   })
 }
