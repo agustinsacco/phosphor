@@ -1,6 +1,9 @@
+import { renameSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { releaseOrigin, type ReleaseOrigin } from '../test/__fixtures__/release-origin'
-import { claimLease, readState, MEMORY_MAX } from './release-lease'
+import { claimLease, readState, MEMORY_MAX, type Claimant, type Run } from './release-lease'
+import { POLICY_PATH } from './release-github'
 import { ANSWER_MESSAGE } from './release-prompt'
 import { registerReleaseTools, RELEASE_TOOLS, type ReleaseRuntime } from './release-tools'
 
@@ -14,27 +17,46 @@ type Execute = (
 
 const HEAD = 'a'.repeat(40)
 const T = Date.parse('2026-11-02T12:00:00Z')
+const bee: Claimant = { holder: 'bee2/one', host: 'bee2', pid: process.pid }
+const stark: Claimant = { holder: 'stark/two', host: 'stark', pid: process.pid }
 const origins: ReleaseOrigin[] = []
 afterEach(() => origins.splice(0).forEach((origin) => origin.cleanup()))
 
-async function fixture(options: { epoch?: number; files?: string } = {}) {
+interface Options {
+  epoch?: number
+  /** Runs once while the tool looks at the pull request, before anything merges. */
+  meanwhile?: (git: Run) => Promise<unknown>
+}
+
+async function fixture(options: Options = {}) {
   const origin = await releaseOrigin()
   origins.push(origin)
-  await claimLease(origin.git, 'refs/test/a', { holder: 'bee2/one', host: 'bee2' }, T)
+  await claimLease(origin.git, 'refs/test/a', bee, T)
   const tools = new Map<string, { execute: Execute; defaultActive?: boolean }>()
   const pi = {
     registerTool: (tool: Record<string, unknown>) =>
       void tools.set(tool.name as string, tool as never),
     sendMessage: vi.fn(),
   }
-  const gh = vi.fn(async (args: string[]) =>
-    args[1] === 'diff' ? (options.files ?? 'src/a.ts\n') : 'merged\n',
-  )
+  let meanwhile = options.meanwhile
+  const inspect = async () => {
+    const work = meanwhile
+    meanwhile = undefined
+    await work?.(origin.git)
+  }
+  const gh = vi.fn(async (args: string[]) => {
+    if (args[1] !== 'merge') await inspect()
+    return 'merged\n'
+  })
+  const git: Run = async (args, input) => {
+    if (args[0] === 'diff') await inspect()
+    return origin.git(args, input)
+  }
   const runtime: ReleaseRuntime = {
-    git: origin.git,
+    git,
     gh,
     local: () => 'refs/test/a',
-    holder: () => 'bee2/one',
+    claimant: () => bee,
     epoch: () => ('epoch' in options ? options.epoch : 1),
     policy: () => ({ base: 'main', merge: 'squash' }),
     exclusive: (work) => work(),
@@ -45,8 +67,11 @@ async function fixture(options: { epoch?: number; files?: string } = {}) {
   registerReleaseTools(pi, runtime)
   const run = (name: string, params: Record<string, unknown>, ctx?: unknown) =>
     tools.get(name)!.execute('call', params, undefined, undefined, ctx)
-  return { tools, pi, gh, runtime, run, git: origin.git }
+  return { tools, pi, gh, runtime, run, git: origin.git, pull: origin.pull }
 }
+
+const merged = (gh: ReturnType<typeof vi.fn>) =>
+  gh.mock.calls.some(([args]) => (args as string[])[1] === 'merge')
 
 describe('release tools', () => {
   it('registers every tool inactive', async () => {
@@ -57,36 +82,62 @@ describe('release tools', () => {
 
   it('merges the reviewed head under the lease and logs it', async () => {
     const f = await fixture()
-    const result = await f.run('release_merge', { pr: 12, head: HEAD })
-    expect(result.content[0]?.text).toContain('merged #12 at aaaaaaa')
+    const head = await f.pull(12)
+    const result = await f.run('release_merge', { pr: 12, head })
+    expect(result.content[0]?.text).toContain(`merged #12 at ${head.slice(0, 7)}`)
     expect(f.gh).toHaveBeenLastCalledWith([
       'pr',
       'merge',
       '12',
       '--squash',
       '--match-head-commit',
-      HEAD,
+      head,
     ])
     const state = await readState(f.git, 'refs/test/b')
-    expect(state.ledger.at(-1)).toContain('merged #12 at aaaaaaa')
+    expect(state.ledger.at(-1)).toContain(`merged #12 at ${head.slice(0, 7)}`)
   })
 
-  it('refuses without the lease, on a stale epoch, a short head or a policy change', async () => {
+  it('refuses without the lease, on a stale epoch or a short head', async () => {
     await expect(
       (await fixture({ epoch: undefined })).run('release_merge', { pr: 1, head: HEAD }),
     ).rejects.toThrow(/does not hold the release lease/)
     const stale = await fixture({ epoch: 7 })
-    await expect(stale.run('release_merge', { pr: 1, head: HEAD })).rejects.toThrow(
+    const head = await stale.pull(1)
+    await expect(stale.run('release_merge', { pr: 1, head })).rejects.toThrow(
       /another lane holds the release lease/,
     )
     expect(stale.runtime.lost).toHaveBeenCalled()
-    expect(stale.gh).not.toHaveBeenCalled()
-    const f = await fixture({ files: 'README.md\n.github/release-manager.md\n' })
-    await expect(f.run('release_merge', { pr: 1, head: 'abc123' })).rejects.toThrow(/full commit/)
-    await expect(f.run('release_merge', { pr: 1, head: HEAD })).rejects.toThrow(
-      /changes .github\/release-manager.md/,
+    expect(merged(stale.gh)).toBe(false)
+    await expect(stale.run('release_merge', { pr: 1, head: 'abc123' })).rejects.toThrow(
+      /full commit/,
     )
-    expect(f.gh).toHaveBeenCalledTimes(1)
+  })
+
+  it('judges the policy on the reviewed commit, renames and deletions included', async () => {
+    const f = await fixture()
+    const renamed = await f.pull(3, (work) =>
+      renameSync(join(work, POLICY_PATH), join(work, '.github/old-policy.md')),
+    )
+    await expect(f.run('release_merge', { pr: 3, head: renamed })).rejects.toThrow(
+      /changes \.github\/release-manager\.md/,
+    )
+    await f.pull(4)
+    await expect(f.run('release_merge', { pr: 4, head: HEAD })).rejects.toThrow(
+      /not the aaaaaaa you reviewed/,
+    )
+    expect(merged(f.gh)).toBe(false)
+  })
+
+  it('merges nothing when the lease changes hands while the pull request is checked', async () => {
+    const f = await fixture({
+      meanwhile: (git) => claimLease(git, 'refs/test/s', stark, T + 1000, true),
+    })
+    const head = await f.pull(5)
+    await expect(f.run('release_merge', { pr: 5, head })).rejects.toThrow(
+      /another lane holds the release lease/,
+    )
+    expect(f.runtime.lost).toHaveBeenCalled()
+    expect(merged(f.gh)).toBe(false)
   })
 
   it('saves memory and events on origin, within the limit', async () => {
@@ -99,6 +150,14 @@ describe('release tools', () => {
     await expect(f.run('release_memory', { memory: 'x'.repeat(MEMORY_MAX + 1) })).rejects.toThrow(
       /Summarize/,
     )
+  })
+
+  it('saves nothing, and drops to standby, once another lane holds the lease', async () => {
+    const f = await fixture()
+    await claimLease(f.git, 'refs/test/s', stark, T + 500, true)
+    await expect(f.run('release_memory', { memory: 'mine' })).rejects.toThrow(/no longer holds/)
+    expect(f.runtime.lost).toHaveBeenCalled()
+    expect((await readState(f.git, 'refs/test/b')).memory).toBe('')
   })
 
   it('asks without blocking, then delivers the answer or the default as a message', async () => {
