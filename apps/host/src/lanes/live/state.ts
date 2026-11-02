@@ -2,6 +2,7 @@ import type { LaneSummary } from '@phosphor/shared/host-protocol'
 import type { LaneProjection } from '@phosphor/session-runtime/lanes/projection'
 import type { createHostLaneProjection, SnapshotResult } from '../projection-host'
 import type { HostStore } from '../store'
+import type { GitProbe } from './repository-git'
 import type { LaneStreams, LanesTopic, StreamLimits } from '../stream'
 
 export type Attachment = {
@@ -32,6 +33,8 @@ export type LiveOptions = {
   ): void
   limits?: Partial<StreamLimits>
   unattached?(laneId: string): SnapshotResult | null
+  /** Asks git whether each repository is a checkout. Absent: the field stays out. */
+  gitTracking?: GitProbe
 }
 
 export type LiveState = {

@@ -88,7 +88,8 @@ test('Home composer sends only after controlled remote creation', async () => {
     await h.page.getByRole('option', { name: 'notes', exact: true }).click()
     await h.page.getByTestId('remote-thinking-picker').click()
     await h.page.getByRole('button', { name: 'High', exact: true }).click()
-    // No isolate toggle on a Host; `notes` is outside git, so the lane runs there unbranched.
+    // notes is not a git repository: no branch to offer, the lane runs in the folder.
+    await expect(h.page.getByText('no git · runs in folder', { exact: true })).toBeVisible()
     await expect(h.page.getByRole('checkbox')).toHaveCount(0)
     const draft = h.page.getByPlaceholder('Describe a task or ask a question')
     await draft.fill('PHX-home')

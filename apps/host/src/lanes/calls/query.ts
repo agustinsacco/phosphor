@@ -55,7 +55,7 @@ function shape(method: string, data: unknown): boolean {
 export interface LaneQueryOptions {
   store: Pick<HostStore, 'listRepositories' | 'getLane'>
   live: Pick<ReturnType<typeof createLiveLanes>, 'sessionFor'> &
-    Partial<Pick<ReturnType<typeof createLiveLanes>, 'receiptTiming'>>
+    Partial<Pick<ReturnType<typeof createLiveLanes>, 'receiptTiming' | 'repositories'>>
   runtime: {
     command(...args: Parameters<HostRuntime['command']>): Promise<RpcResponse>
     exportHtml?: HostRuntime['exportHtml']
@@ -167,7 +167,8 @@ export async function resolveLaneQuery(
   const command = queries.get(method)
   if (method !== 'host.repositories' && !command) return failure('unsupported')
   if (!record(params)) return failure('bad-request')
-  if (method === 'host.repositories') return { ok: true, data: options.store.listRepositories() }
+  if (method === 'host.repositories')
+    return { ok: true, data: options.live.repositories?.() ?? options.store.listRepositories() }
   if (!command) return failure('unsupported')
   const laneId = params.laneId
   if (typeof laneId !== 'string' || !isUuid(laneId)) return failure('bad-request')

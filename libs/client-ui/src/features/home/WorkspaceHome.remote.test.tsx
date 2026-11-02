@@ -180,7 +180,7 @@ it.each([true, false])(
 )
 
 it.each([false, true, undefined])(
-  'offers new branch on a Host folder only unless git is known absent (git=%s)',
+  'asks a Host for a worktree unless git is known absent, then says so (git=%s)',
   async (git) => {
     useWorktreesStore.setState({ preferWorktree: true, branchPrefix: 'phosphor/' })
     const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
@@ -192,8 +192,7 @@ it.each([false, true, undefined])(
       },
     })
     await render()
-    const toggle = el.querySelector('input[type=checkbox]')
-    expect(!!toggle).toBe(git !== false)
+    expect(el.querySelector('input[type=checkbox]')).toBeNull()
     expect(el.textContent?.includes('no git · runs in folder')).toBe(git === false)
     await send()
     expect(invoke).toHaveBeenCalledWith('hosts:createLane', MOCK_HOST_ID, {

@@ -15,6 +15,8 @@ interface Submission {
   input: RemoteLaneCreate
   /** Authorize delegation before the first prompt; the lane is never prompted without it. */
   swarm?: boolean
+  /** False when the Host says git does not track the folder: no worktree to ask for. */
+  branch: boolean
   text: string
   attachments: PendingAttachment[]
   onWarning: (message: string) => void
@@ -43,8 +45,8 @@ function createWarning(code: string, machine: string): string {
  * Claims outlive the view, but not an owner reset. Only a confirmed receipt spends a draft.
  *
  * Every Host lane asks for a fresh worktree: work never lands on the repository's
- * main checkout, and every lane has a branch to open a PR from. The Host runs a
- * folder outside git in place, unbranched.
+ * main checkout, and every lane has a branch to open a PR from. A folder the Host
+ * reports outside git asks for none; it runs in place, unbranched.
  */
 export async function submitRemoteHome(s: Submission): Promise<void> {
   const claims = useHomeSubmissionsStore.getState()
@@ -59,7 +61,9 @@ export async function submitRemoteHome(s: Submission): Promise<void> {
   try {
     await startRemoteChat(
       s.hostId,
-      { ...s.input, worktree: { branch: remoteBranchName(s.text), fresh: true } },
+      s.branch
+        ? { ...s.input, worktree: { branch: remoteBranchName(s.text), fresh: true } }
+        : s.input,
       s.text,
       s.attachments,
       () => {

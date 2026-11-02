@@ -95,8 +95,9 @@ function repository(v: unknown): RepositorySummary | null {
   return record(v) &&
     hex(v.id) &&
     text(v.name, HOST_LIMITS.outboundFrameBytes) &&
-    text(v.path, HOST_LIMITS.outboundFrameBytes)
-    ? { id: v.id, name: v.name, path: v.path }
+    text(v.path, HOST_LIMITS.outboundFrameBytes) &&
+    (v.git === undefined || typeof v.git === 'boolean')
+    ? { id: v.id, name: v.name, path: v.path, ...(v.git === undefined ? {} : { git: v.git }) }
     : null
 }
 
