@@ -324,7 +324,11 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ...onHost('extensions', ['Extensions', 'Host skills packages']),
   ...onHost('connectors', ['MCP Connectors', 'Host mcp servers']),
   ...onHost('folders', ['Folders', 'Host repositories projects']),
-  ...onHost('advanced', ['Advanced', 'Host pi settings models json']),
+  // A Host's Advanced has no raw editors: it shows updates, runtime, environment and PATH.
+  ...onHost('advanced', [
+    'Advanced',
+    'Host updates version runtime config agent directory environment path',
+  ]),
   ...keybindingGroups().flatMap(({ title, bindings }) =>
     section('keybindings', title).concat(
       bindings.map<SettingEntry>(([parts, action]) => ({
