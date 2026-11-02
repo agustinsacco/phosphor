@@ -67,13 +67,13 @@ const navLabels = (): string[] =>
     (b) => b.textContent ?? '',
   )
 
-const DEVICE_TABS = ['Appearance', 'Writing', 'Keybindings', 'About']
+const DEVICE_TABS = ['Appearance', 'Writing', 'Lanes', 'Keybindings', 'About']
 const THIS_MAC_TABS = [
   'Agent',
   'Accounts',
   'Extensions',
   'MCP Connectors',
-  'Workspaces',
+  'Folders',
   'Optimization',
   'Voice',
   'Advanced',

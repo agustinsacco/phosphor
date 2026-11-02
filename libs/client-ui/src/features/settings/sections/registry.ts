@@ -15,7 +15,6 @@ import { OptimizationTab } from '../tabs/OptimizationTab'
 import { SubagentsTab } from '../tabs/SubagentsTab'
 import { VoiceTab } from '../tabs/VoiceTab'
 import { WebAccessTab } from '../tabs/WebAccessTab'
-import { WorkspacesTab } from '../tabs/WorkspacesTab'
 import { WritingTab } from '../tabs/WritingTab'
 import {
   HostAccountsSection,
@@ -23,8 +22,9 @@ import {
   HostAgentSection,
   HostConnectorsSection,
   HostExtensionsSection,
-  HostFoldersSection,
 } from './hostSections'
+import { HostFolders, LocalFolders } from './folders'
+import { LanesSection } from './lanes/LanesSection'
 
 type View = () => React.JSX.Element
 
@@ -57,8 +57,8 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   'computer-use': { Local: ComputerUseTab },
   subagents: { Local: SubagentsTab },
   connectors: { Local: ConnectorsTab, Host: HostConnectorsSection, scoped: true },
-  workspaces: { Local: WorkspacesTab },
-  folders: { Host: HostFoldersSection },
+  lanes: { Device: LanesSection },
+  folders: { Local: LocalFolders, Host: HostFolders },
   optimization: { Local: OptimizationTab },
   voice: { Local: VoiceTab },
   advanced: { Local: AdvancedTab, Host: HostAdvancedSection },

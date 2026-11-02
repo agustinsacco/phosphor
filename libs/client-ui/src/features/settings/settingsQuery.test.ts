@@ -109,13 +109,13 @@ describe('rowOnMachine', () => {
   })
 
   it("defaults a machine row to its section's machines", () => {
-    // Agent is on both machines, Workspaces on This Mac only, Folders on Hosts only.
+    // Agent and Folders are on both machines, Optimization on This Mac only.
     expect([rowOnMachine(row('agent'), 'local'), rowOnMachine(row('agent'), 'host')]).toEqual([
       true,
       true,
     ])
-    expect(rowOnMachine(row('workspaces'), 'host')).toBe(false)
-    expect(rowOnMachine(row('folders'), 'local')).toBe(false)
+    expect(rowOnMachine(row('optimization'), 'host')).toBe(false)
+    expect(rowOnMachine(row('folders'), 'local')).toBe(true)
     expect(rowOnMachine(row('subagents'), 'local')).toBe(true)
   })
 
@@ -175,7 +175,6 @@ describe('SETTINGS_INDEX against the section sources', () => {
     'tabs/SubagentsTab.tsx': 'subagents',
     'tabs/VoiceTab.tsx': 'voice',
     'tabs/WebAccessTab.tsx': 'web-access',
-    'tabs/WorkspacesTab.tsx': 'workspaces',
     'tabs/WritingTab.tsx': 'writing',
   }
   /**
@@ -259,8 +258,9 @@ describe('SETTINGS_INDEX against the section sources', () => {
       .map((f) => readFileSync(resolve(machines, f), 'utf8'))
       .join('\n')
     const hostEntries = SETTINGS_INDEX.filter(hostHeading)
+    // Folders renders one shared view on every machine, so it has no Host heading.
     expect(hostEntries.map((entry) => entry.tab)).toEqual(
-      TABS.filter((tab) => tab.host).map((tab) => tab.id),
+      TABS.filter((tab) => tab.host && tab.id !== 'folders').map((tab) => tab.id),
     )
     for (const entry of hostEntries)
       expect(panels, entry.title).toContain(`font-semibold">${entry.title}</h2>`)

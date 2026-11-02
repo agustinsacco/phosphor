@@ -31,7 +31,10 @@ vi.mock('./tabs/ClaudeProviderTab', () => ({
   ClaudeProviderTab: () => <p>Local machine controls</p>,
 }))
 vi.mock('./tabs/WebAccessTab', () => ({ WebAccessTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/WorkspacesTab', () => ({ WorkspacesTab: () => <p>Local machine controls</p> }))
+vi.mock('./sections/folders', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalFolders: () => <p>Local machine controls</p>,
+}))
 vi.mock('./tabs/OptimizationTab', () => ({ OptimizationTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/AdvancedTab', () => ({ AdvancedTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/ConnectorsTab', () => ({ ConnectorsTab: () => <p>Local machine controls</p> }))
@@ -91,7 +94,7 @@ it('lists MCP Connectors as its own section, after the packages nested under Ext
     'Extensions',
     '↳ Web access',
     'MCP Connectors',
-    'Workspaces',
+    'Folders',
   ])
 })
 
@@ -138,7 +141,7 @@ it.each([
   'optimization',
   'advanced',
   'voice',
-  'workspaces',
+  'folders',
   'claude-provider',
   'web-access',
   'computer-use',
@@ -233,7 +236,7 @@ const selectedSections = (): string[] =>
 
 it.each([
   ['claude-provider', 'Extensions'],
-  ['workspaces', 'Agent'],
+  ['optimization', 'Agent'],
 ] as const)('opens %s on a Host as its %s section', async (tab, onHost) => {
   invoke.mockImplementation(async (channel: string) =>
     channel === 'packages:list' ? [{ spec: 'npm:pi-claude-cli', installed: true }] : undefined,
@@ -241,7 +244,7 @@ it.each([
   useSettingsUiStore.setState({ tab })
   await act(async () => root.render(<SettingsModal />))
   expect(selectedSections()).toEqual(
-    tab === 'workspaces' ? ['Workspaces'] : ['Extensions', 'Claude Code'],
+    tab === 'optimization' ? ['Optimization'] : ['Extensions', 'Claude Code'],
   )
   await act(async () => useRemoteLanesStore.setState({ filter: 'test-host' }))
   expect(document.body.textContent).toContain('Configuring Test Host')

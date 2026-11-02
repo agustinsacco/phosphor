@@ -12,7 +12,7 @@ export type SettingsTab =
   | 'computer-use'
   | 'subagents'
   | 'connectors'
-  | 'workspaces'
+  | 'lanes'
   | 'folders'
   | 'optimization'
   | 'voice'
