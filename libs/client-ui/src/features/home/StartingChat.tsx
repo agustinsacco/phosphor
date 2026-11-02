@@ -3,6 +3,7 @@ import { ChatImage } from '@/features/chat/ChatImage'
 import { UserText } from '@/features/chat/UserText'
 import { USER_BUBBLE_CLASS } from '@/features/chat/userBubble'
 import type { StartingChat as StartingChatState } from '@/stores/startingChat'
+import { useStartingStatus } from './startingStatus'
 
 /**
  * The chat you just sent, before it has a session behind it.
@@ -27,6 +28,7 @@ import type { StartingChat as StartingChatState } from '@/stores/startingChat'
  * transcript's virtualised list for the sake of one echo.
  */
 export function StartingChat({ starting }: { starting: StartingChatState }): React.JSX.Element {
+  const status = useStartingStatus(starting)
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto overflow-x-hidden pt-4">
@@ -55,13 +57,21 @@ export function StartingChat({ starting }: { starting: StartingChatState }): Rea
         worktree is created on disk, then a process is spawned — and an
         unlabelled spinner in a window that has otherwise gone quiet reads as
         a hang. This is the label `startLabel` always produced and never
-        showed anyone.
+        showed anyone. A Host lane names the machine and its step, and says
+        so when that step runs long, because a Host can be slow or away.
       */}
-      <div className="flex items-center justify-center gap-2 pb-8 pt-4">
-        <PhosphorLoader decorative />
-        <span className="text-text-secondary text-base" data-testid="starting-chat-phase">
-          {starting.phase === 'branching' ? 'Creating branch…' : 'Starting session…'}
-        </span>
+      <div role="status" className="flex flex-col items-center gap-1 px-6 pb-8 pt-4 text-center">
+        <div className="flex items-center justify-center gap-2">
+          <PhosphorLoader decorative />
+          <span className="text-text-secondary text-base" data-testid="starting-chat-phase">
+            {status.label}
+          </span>
+        </div>
+        {status.slow && (
+          <span className="text-text-tertiary text-sm" data-testid="starting-chat-slow">
+            {status.slow}
+          </span>
+        )}
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { useSkillsStore } from '@/stores/skills'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
+import { useStartingChatStore } from '@/stores/startingChat'
 import { useMachinesStore } from '@/stores/machines'
 
 let cleanup: Promise<void> = Promise.resolve()
@@ -23,7 +24,8 @@ export function clearCompactUi(): void {
   clearRoutineMemory()
   useMachineCataloguesStore.setState({ catalogues: {} })
   useSkillsStore.setState({ byWorkspace: {}, loading: {}, error: {}, selectedDir: null })
-  useHomeSubmissionsStore.setState({ pending: {} })
+  useHomeSubmissionsStore.setState({ pending: {}, warnings: {} })
+  useStartingChatStore.setState({ starting: null, draft: null })
   useExtensionUiStore.setState({ toasts: [] })
   useMachinesStore.setState({ view: { kind: 'list' }, adding: false })
   const sessions = Object.values(useSessionsStore.getState().live).filter(

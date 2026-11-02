@@ -10,6 +10,7 @@ import { usePullRequestsStore } from '@/stores/pullRequests'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
+import { useStartingChatStore } from '@/stores/startingChat'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { useDraftsStore, homeDraftKey } from '@/stores/drafts'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
@@ -87,7 +88,8 @@ beforeEach(() => {
     },
   })
   useMachineCataloguesStore.setState({ catalogues: {} })
-  useHomeSubmissionsStore.setState({ pending: {} })
+  useHomeSubmissionsStore.setState({ pending: {}, warnings: {} })
+  useStartingChatStore.setState({ starting: null, draft: null })
   useMachinePagesStore.setState({ skillsMachine: null })
   useDraftsStore.setState({ drafts: {}, revisions: {} })
   useDraftsStore.getState().setText(key, 'First prompt')
@@ -354,4 +356,32 @@ it.each([
   expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:createLane')).toHaveLength(1)
   expect(el.textContent).toContain(message)
   expect(receipt).not.toHaveBeenCalled()
+})
+
+// The echo replaces Home while a Host creates the lane, so the composer that sent is
+// gone when the answer comes back. Its replacement must still hold the draft and say why.
+it('stands in with the echo while the Host works, then hands the reason back to Home', async () => {
+  let fail: (error: Error) => void = () => undefined
+  const original = invoke.getMockImplementation()!
+  invoke.mockImplementation((channel, ...args) =>
+    channel === 'hosts:createLane'
+      ? new Promise((_resolve, reject) => {
+          fail = reject
+        })
+      : original(channel, ...args),
+  )
+  await render()
+  await send()
+  expect(useStartingChatStore.getState().starting).toMatchObject({
+    prompt: 'First prompt',
+    remote: { hostId: MOCK_HOST_ID, draftKey: key },
+  })
+  act(() => root.unmount())
+  root = createRoot(el)
+  await act(async () => fail(new Error('lane-create-failed')))
+  expect(useStartingChatStore.getState().starting).toBeNull()
+  expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
+  await render()
+  expect(el.textContent).toContain(`${MOCK_HOST_ID} couldn't start this lane. Your draft is kept.`)
+  expect(useDraftsStore.getState().drafts[key]?.text).toBe('First prompt')
 })
