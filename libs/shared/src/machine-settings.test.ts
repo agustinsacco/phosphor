@@ -258,3 +258,49 @@ describe('the Host protocol’s MCP write policy', () => {
     ).toBeNull()
   })
 })
+
+describe('Host Web access (resources.webAccess, webAccess.key)', () => {
+  const key = (change: unknown, extra = {}) => patch(change, 'resources', extra)
+  it('accepts one allowlisted key set to bounded text or null, machine-wide only', () => {
+    for (const value of ['BSA_x', '$BRAVE_API_KEY', null])
+      expect(key({ type: 'webAccess.key', key: 'braveApiKey', value })).toBeTruthy()
+    for (const change of [
+      { type: 'webAccess.key', key: 'searxngUrl', value: 'x' },
+      { type: 'webAccess.key', key: 'braveApiKey', value: '' },
+      { type: 'webAccess.key', key: 'braveApiKey', value: 'a\nb' },
+      { type: 'webAccess.key', key: 'braveApiKey', value: 'x'.repeat(4097) },
+      { type: 'webAccess.key', key: 'braveApiKey' },
+      { type: 'webAccess.key', key: 'braveApiKey', value: 'x', extra: true },
+    ])
+      expect(key(change)).toBeNull()
+    expect(
+      key({ type: 'webAccess.key', key: 'braveApiKey', value: 'x' }, { repositoryId }),
+    ).toBeNull()
+    expect(patch({ type: 'webAccess.key', key: 'braveApiKey', value: 'x' }, 'agent')).toBeNull()
+  })
+  it('reads back key names only, and drops anything else', () => {
+    const result = parseMachineSettings({
+      section: 'resources',
+      revision,
+      resources: {
+        packages: [],
+        webAccess: {
+          configured: ['braveApiKey', 'BSA_PRIVATE_VALUE', 'braveApiKey', 'exaApiKey'],
+          exists: true,
+          malformed: false,
+          braveApiKey: 'BSA_PRIVATE_VALUE',
+        },
+      },
+    })
+    expect(result?.resources?.webAccess).toEqual({
+      configured: ['braveApiKey', 'exaApiKey'],
+      exists: true,
+      malformed: false,
+    })
+    expect(JSON.stringify(result)).not.toContain('PRIVATE')
+    expect(
+      parseMachineSettings({ section: 'resources', revision, resources: { packages: [] } })
+        ?.resources,
+    ).toEqual({ packages: [] })
+  })
+})
