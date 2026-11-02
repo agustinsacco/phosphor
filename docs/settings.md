@@ -468,6 +468,9 @@ print-mode prompt through the CLI, the login and the extension at once, because
   numbers) and the live sessions spending it. A session there can be restarted on the same account or moved
   to another; both respawn it from its session file, which is the only way an
   account can change.
+- Removing an account signs it out, so main refuses it while live sessions are
+  spending that account ("Stop or move this account’s live sessions before
+  removing it."), as a Host does for its active lanes.
 
 ### Web access (`pi-web-access`)
 
