@@ -91,6 +91,10 @@ describe('StartingChat for a Host lane', () => {
       vi.advanceTimersByTime(1)
     })
     expect(slow()?.textContent).toContain(`${MOCK_HOST_ID} is slow to answer.`)
+    // A step that comes back starts a fresh wait instead of being slow at once.
+    act(() => useRemoteLanesStore.setState({ hosts: host('branching') }))
+    act(() => useRemoteLanesStore.setState({ hosts: host('starting') }))
+    expect(slow()).toBeNull()
     vi.useRealTimers()
   })
 })

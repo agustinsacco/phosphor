@@ -58,7 +58,7 @@ beforeEach(() => {
   host.capabilities.push('workspaces.read')
   useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
   useMachineCataloguesStore.setState({ catalogues: {} })
-  useHomeSubmissionsStore.setState({ pending: {} })
+  useHomeSubmissionsStore.setState({ pending: {}, warnings: {} })
   useStartingChatStore.setState({ starting: null, draft: null })
   useWorktreesStore.setState({ preferWorktree: true })
   clearDraftMemory()

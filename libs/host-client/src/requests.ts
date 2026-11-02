@@ -119,6 +119,7 @@ export function createRequests(ports: {
           p.statusOnly = true
           ports.write({ type: 'receipt-status', requestId })
           p.resolve({ requestId, status: 'unknown' })
+          phases.delete(requestId)
           if (p.frame.op.type === 'lane.create') ports.changed()
         }, 60000),
       )

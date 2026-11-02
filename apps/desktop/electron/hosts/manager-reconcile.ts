@@ -129,6 +129,7 @@ export function disableHostManager(state: HostManagerState, ports: HostManagerPo
   for (const [id, c] of state.connections) {
     state.cached[id] = {
       ...c.connection.snapshot(),
+      laneStarts: [],
       state: 'reconnecting',
       lastError: 'account-disabled',
     }
