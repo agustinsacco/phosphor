@@ -385,3 +385,46 @@ it('stands in with the echo while the Host works, then hands the reason back to 
   expect(el.textContent).toContain(`${MOCK_HOST_ID} couldn't start this lane. Your draft is kept.`)
   expect(useDraftsStore.getState().drafts[key]?.text).toBe('First prompt')
 })
+
+// On This Mac's Home the composer's machine picker can choose a Host. The echo then
+// replaces Home, so the Home that comes back must reopen that Host's composer.
+it('comes back from a failed start to the Host the picker chose, with its reason', async () => {
+  useRemoteLanesStore.setState({ filter: 'local' })
+  invoke.mockImplementation(async (channel) => {
+    if (channel === 'hosts:createLane') throw new Error('lane-create-failed')
+    if (channel === 'hosts:models') return [{ id: 'model', provider: 'p', name: 'Home model' }]
+    if (channel === 'hosts:providers') return [{ id: 'p', name: 'Provider', status: 'ready' }]
+    if (channel === 'hosts:snapshot') return useRemoteLanesStore.getState().hosts
+    if (channel === 'sessions:stats') return stats
+    if (channel === 'git:info') return { isRepo: false }
+    if (channel === 'app:userInfo') return { username: 'test' }
+    return null
+  })
+  await render()
+  await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Machine"]')!.click())
+  await act(async () =>
+    [...el.querySelectorAll<HTMLElement>('[role=option]')]
+      .find((o) => o.textContent?.startsWith(MOCK_HOST_ID))!
+      .click(),
+  )
+  act(() => root.unmount())
+  root = createRoot(el)
+  await act(async () => {
+    await expect(
+      import('./submitRemoteHome').then(({ submitRemoteHome }) =>
+        submitRemoteHome({
+          hostId: MOCK_HOST_ID,
+          draftKey: key,
+          text: 'First prompt',
+          attachments: [],
+          input: { repositoryId: mockRemoteHosts[MOCK_HOST_ID]!.repositories[0]!.id },
+        }),
+      ),
+    ).resolves.toBeUndefined()
+  })
+  await render()
+  expect(el.querySelector('[aria-label="Machine"]')?.textContent).toContain(MOCK_HOST_ID)
+  expect(el.textContent).toContain(`${MOCK_HOST_ID} couldn't start this lane. Your draft is kept.`)
+  await act(async () => useDraftsStore.getState().setText(key, 'First prompt, edited'))
+  expect(el.textContent).not.toContain("couldn't start this lane")
+})
