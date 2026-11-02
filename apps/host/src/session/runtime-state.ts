@@ -57,6 +57,8 @@ export interface RuntimeOptions {
   routines?: SessionServiceRuntime<Delivery>['routines']
   /** The generated directive blocks for the next lane; all on when absent. */
   agentDirectives?: () => AgentDirectivePrefs
+  /** The context budget for the next lane and each settled turn; the machine's when absent. */
+  contextBudget?: () => string
 }
 
 /** One process-local ownership domain, shared by every start, command and deletion. */
