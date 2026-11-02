@@ -183,8 +183,9 @@ copies ([Lanes](lanes.md#remote-lanes) owns their rules):
   titled with the lane.
 - The menu comes from `remoteLaneActions`, the same items and hints Desktop
   shows. Delete, Rename and Stop need control (“Take control first.”); Delete
-  also needs `workspaces.write`. Bulk delete goes through the shared
-  `RemoteBulkDelete`.
+  also needs `workspaces.write`. Rows carry This Mac's select box
+  (`LaneSelect.tsx`), and bulk delete is the shared bar and confirm
+  (`RemoteBulkDelete`).
 
 `RemoteWorkspacePage` composes the complete remote start page in both clients,
 and its input is `StartComposer`, the one new-lane composer This Mac uses too

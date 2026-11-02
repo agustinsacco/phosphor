@@ -6,6 +6,7 @@ import { useNavigation } from '@/navigation/Navigation'
 import { RemoteLanePresentation } from './RemoteLanePresentation'
 import { LaneMarker } from './LaneMarker'
 import { useRemoteLaneActions } from './useRemoteLaneActions'
+import type { LaneSelect } from './LaneSelect'
 export { remoteLaneTitle } from './remoteLaneView'
 
 /**
@@ -22,6 +23,7 @@ export function RemoteLaneRow({
   ready,
   active = false,
   workspaceName,
+  select,
 }: {
   hostId: string
   lane: HostLaneView
@@ -29,6 +31,8 @@ export function RemoteLaneRow({
   active?: boolean
   /** The lane's folder, shown where rows from several folders mix (Pinned). */
   workspaceName?: string
+  /** The row's box in its folder's bulk-delete selection; absent where rows mix folders. */
+  select?: Omit<LaneSelect, 'title'>
 }): React.JSX.Element {
   const { navigate } = useNavigation()
   const [renaming, setRenaming] = useState(false)
@@ -75,6 +79,7 @@ export function RemoteLaneRow({
           active={active}
           pinned={lane.pinned === true}
           workspaceName={workspaceName}
+          select={select && !actions.deletingInBulk ? { ...select, title } : undefined}
           marker={<LaneMarker marker={lane.marker ?? ''} onPick={actions.pickMarker} />}
           onClick={() => {
             if (ready) navigate({ to: 'lane', lane: { hostId, laneId: lane.laneId } })

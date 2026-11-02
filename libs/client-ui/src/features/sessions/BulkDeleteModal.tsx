@@ -105,7 +105,7 @@ export function BulkDeleteModal({
           >
             {summary.worktreeCount === 0
               ? 'No worktree here is used only by the selected lanes.'
-              : 'Deletes the working directory on disk. Not undoable.'}
+              : `Deletes the working directory ${remote ? 'on the Host, which keeps one with uncommitted changes' : 'on disk'}. Not undoable.`}
           </Option>
           <Option
             checked={deleteBranch && removeWorktree && summary.worktreeCount > 0}
