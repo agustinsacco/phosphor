@@ -11,7 +11,10 @@ import {
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { seedArtifactSkill } from './bundled-skills'
+import { seedBundledSkills, seedSkill } from './bundled-skills'
+
+const seedArtifactSkill = (root: string, agentDir: string, restore = false) =>
+  seedSkill(root, agentDir, 'visual-artifacts', restore)
 
 const resources = resolve(import.meta.dirname, '../../pi-extensions')
 let agent: string
@@ -60,4 +63,31 @@ it('a missing packaged resource leaves no receipt or partial skill and can be re
   expect(readdirSync(join(agent, '.phosphor-bundled-skills'))).toEqual([])
   seedArtifactSkill(resources, agent)
   expect(existsSync(join(agent, 'skills/visual-artifacts/SKILL.md'))).toBe(true)
+})
+
+it('seeds every bundled skill, each with its own receipt, and keeps going past a missing one', () => {
+  seedBundledSkills(resources, agent)
+  expect(readFileSync(join(agent, 'skills/release-setup/SKILL.md'), 'utf8')).toContain(
+    'name: release-setup',
+  )
+  expect(readdirSync(join(agent, '.phosphor-bundled-skills')).sort()).toEqual([
+    'release-setup',
+    'visual-artifacts',
+  ])
+  rmSync(join(agent, 'skills/release-setup'), { recursive: true })
+  seedBundledSkills(resources, agent)
+  expect(existsSync(join(agent, 'skills/release-setup'))).toBe(false)
+  const partial = mkdtempSync(join(tmpdir(), 'bundled-resources-'))
+  try {
+    mkdirSync(join(partial, 'skills/release-setup'), { recursive: true })
+    writeFileSync(join(partial, 'skills/release-setup/SKILL.md'), 'Release setup')
+    const fresh = mkdtempSync(join(tmpdir(), 'bundled-skills-'))
+    expect(() => seedBundledSkills(partial, fresh)).toThrow(
+      'Bundled visual-artifacts skill is missing',
+    )
+    expect(readFileSync(join(fresh, 'skills/release-setup/SKILL.md'), 'utf8')).toBe('Release setup')
+    rmSync(fresh, { recursive: true, force: true })
+  } finally {
+    rmSync(partial, { recursive: true, force: true })
+  }
 })

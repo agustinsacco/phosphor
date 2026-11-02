@@ -38,7 +38,7 @@ COPY libs/shared/src/ ./libs/shared/src/
 COPY libs/host-client/src/ ./libs/host-client/src/
 COPY libs/client-ui/src/ ./libs/client-ui/src/
 # These self-contained wire helpers are shared with the UI, not a pi runtime.
-COPY libs/pi-extensions/pi-ext/lane-reload.ts libs/pi-extensions/pi-ext/swarm.ts libs/pi-extensions/pi-ext/subagent-snapshot.ts ./libs/pi-extensions/pi-ext/
+COPY libs/pi-extensions/pi-ext/lane-reload.ts libs/pi-extensions/pi-ext/swarm.ts libs/pi-extensions/pi-ext/subagent-snapshot.ts libs/pi-extensions/pi-ext/release-status.ts ./libs/pi-extensions/pi-ext/
 COPY tsconfig.base.json ./
 ARG PHOSPHOR_BUILD_SHA=local
 RUN PHOSPHOR_BUILD_SHA="$PHOSPHOR_BUILD_SHA" npm run build --prefix apps/web

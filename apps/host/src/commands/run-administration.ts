@@ -26,6 +26,8 @@ import { createLaneTransferFeatures } from '../features/lane-transfer'
 import { hostTransferRuntime } from '../features/lane-transfer/runtime'
 import { checkReadiness, readinessPorts } from '../machine/readiness'
 import { hostUpdateProgram } from '../update/handoff'
+import { hostStateDirectory } from '../lanes/state-dir'
+import { createReleaseKeeper } from '../lanes/release-keeper'
 
 interface AdministrationOptions {
   context: RunContext
@@ -116,6 +118,15 @@ export function createRunAdministration(options: AdministrationOptions) {
     pi: options.pi,
     authenticating: () => providerLogins?.active() ?? false,
     sessionFor: options.live.sessionFor,
+  })
+  // Release lanes come back on their own: see docs/release-manager.md.
+  createReleaseKeeper({
+    directory: hostStateDirectory(context.env, context.home),
+    store: options.store,
+    live: options.live,
+    resumeLane: options.binding.resumeLane,
+    ready: () => options.runtime.life.state() === 'ready',
+    log: (event, fields) => options.log('host', event, fields),
   })
   return {
     providerLogins,

@@ -715,6 +715,18 @@ The context meter includes the short block's estimated size while applied. Pi's
 reported total still reflects its last measured request until the next model call.
 No new manager, scheduler or hard spawn budget is introduced.
 
+### Release switch
+
+In a lane whose checkout has `.github/release-manager.md`, the composer also shows
+a **Release** switch (`composer/ReleaseSwitch.tsx`) beside Swarm. It sends
+`/phosphor-release on` or `off` and, like Swarm, draws only Pi's acknowledged
+`phosphor-release` status: off, active (accent fill and dot) or standby (a
+`standby` tag while another lane holds the repository's lease). A problem reaching
+GitHub turns the dot amber, and the hint, which names the lease epoch or the
+holder's host, quotes the problem. The words carry the state, not the colour. Lanes in other
+repositories show no switch. What release mode does is
+[Release manager](release-manager.md).
+
 ## Branch transitions and recovery
 
 Clone, Rewind and opening existing history share identity, transcript and artifact
@@ -1190,6 +1202,10 @@ opens its Changes pane. Retry appears for errors and opens/focuses that lane's
 composer; it does not resend a prompt. Dismiss closes the notice. For a This Mac
 lane, or a Host lane already opened in this window, the existing card updates rather
 than stacking a new one. A Host lane never opened here can stack one card per event.
+
+A release lane's quiet run, a pass or an answer that no person started, posts no
+notice and no Host _finished_ alert; a failed one still does
+([Release manager](release-manager.md#telling-the-user)).
 
 This Mac lanes notify in-app only. Host attention can include facts from the
 [read-only receipt call](remote-protocol.md#lane-receipt-call); an older Host's

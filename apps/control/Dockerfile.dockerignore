@@ -27,6 +27,7 @@
 !libs/pi-extensions/pi-ext/lane-reload.ts
 !libs/pi-extensions/pi-ext/swarm.ts
 !libs/pi-extensions/pi-ext/subagent-snapshot.ts
+!libs/pi-extensions/pi-ext/release-status.ts
 !libs/host-client/
 !libs/host-client/package.json
 !libs/host-client/src/

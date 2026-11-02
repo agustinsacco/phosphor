@@ -11,6 +11,7 @@ import { FileMentionMenu } from './FileMentionMenu'
 import { CommandMenu } from './CommandMenu'
 import type { useSlashMenu } from './useSlashMenu'
 import { SwarmControl, SwarmSwitch, swarmLook, useSwarm } from './SwarmSwitch'
+import { ReleaseSwitch } from './ReleaseSwitch'
 import { useFileMentions, workspaceFileSource, type FileMentionSource } from './useFileMentions'
 
 interface ComposerInputProps extends Omit<ComposerFieldProps, 'onPasteFiles'> {
@@ -163,6 +164,7 @@ export function ComposerInput({
                   onToggle={() => swarm.onChange(!enabled)}
                 />
               ))}
+            {swarm && 'sessionId' in swarm && <ReleaseSwitch sessionId={swarm.sessionId} />}
             {scopeStatus}
           </div>
           <div className="composer-toolbar-end flex items-center justify-end gap-1.5">

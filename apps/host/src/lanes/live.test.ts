@@ -14,6 +14,7 @@ import { createLaneProjection } from '@phosphor/session-runtime/lanes/projection
 import { openStore } from './store'
 import { createLiveLanes } from './live'
 import { createSubscriptions } from './subscriptions'
+import { RELEASE_STATUS_KEY } from '@phosphor/pi-extensions/release-status'
 
 const epoch = '0123456789abcdef'
 const state: RpcSessionState = {
@@ -164,6 +165,65 @@ describe('live lane binding', () => {
       'finished',
       'finished',
     ])
+  })
+  it('ends a quiet release pass without an alert, but alerts for a person, a flag or a failure', async () => {
+    const s = await setup()
+    await s.live.attach(s.laneId, 'pi').ready
+    s.subscriptions.handle({ type: 'subscribe', topic: 'lanes', id: 'directory' })
+    await tick()
+    const release = (quiet: boolean) =>
+      s.live.push(s.laneId, {
+        kind: 'extension-ui',
+        request: {
+          type: 'extension_ui_request',
+          id: `release-${quiet}`,
+          method: 'setStatus',
+          statusKey: RELEASE_STATUS_KEY,
+          statusText: JSON.stringify({
+            version: 1,
+            available: true,
+            enabled: true,
+            role: 'active',
+            quiet,
+          }),
+        },
+      })
+    const run = (failed = false) => {
+      s.push({ type: 'agent_start' })
+      if (failed)
+        s.push({
+          type: 'message_end',
+          message: { role: 'assistant', content: [], stopReason: 'error' },
+        })
+      s.push({ type: 'agent_end', messages: [] })
+      s.push({ type: 'agent_settled', aborted: false })
+    }
+    release(true)
+    run()
+    release(false)
+    run()
+    release(true)
+    run(true)
+    await tick()
+    const kinds = s.frames.flatMap((frame) =>
+      frame.type === 'attention' ? [frame.event.kind] : [],
+    )
+    expect(kinds).toEqual(['finished', 'failed'])
+  })
+  it('hands every attached push to observers, whose failures cannot stop delivery', async () => {
+    const s = await setup()
+    await s.live.attach(s.laneId, 'pi').ready
+    const seen: string[] = []
+    const stop = s.live.observe((_laneId, push) => void seen.push(push.kind))
+    s.live.observe(() => {
+      throw new Error('observer bug')
+    })
+    s.push({ type: 'agent_start' })
+    s.live.push(s.laneId, { kind: 'exit', code: 1, signal: null, expected: false })
+    stop()
+    s.push({ type: 'agent_start' })
+    expect(seen).toEqual(['event', 'exit'])
+    expect(s.live.sessionFor(s.laneId)).toBeNull()
   })
   it('keeps only latest settled timing, preserves earliest start and forgets on detach', async () => {
     let now = 100

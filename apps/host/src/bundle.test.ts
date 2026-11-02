@@ -112,7 +112,7 @@ describe('the Host bundle', () => {
     expect(source).toContain('./native/node-pty/lib/index.js')
   })
 
-  it('carries the six extensions and their helpers, and no tests', () => {
+  it('carries the seven extensions and their helpers, and no tests', () => {
     const files = readdirSync(join(out, 'pi-ext'), { recursive: true, encoding: 'utf8' })
     for (const extension of BUNDLED_EXTENSION_FILES) expect(files).toContain(extension)
     expect(files.filter((file) => !statSync(join(out, 'pi-ext', file)).isDirectory())).toEqual(

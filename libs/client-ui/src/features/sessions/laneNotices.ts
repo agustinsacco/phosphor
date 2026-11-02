@@ -12,6 +12,7 @@ import type { HostAttention } from '@shared/ipc'
 import { laneMarker } from '@/lib/laneMarker'
 import { laneOutcome } from '@/lib/laneNotice'
 import { sessionTitle } from '@/lib/sessionTitle'
+import { quietReleaseRun, RELEASE_STATUS_KEY } from '@phosphor/pi-extensions/release-status'
 
 /**
  * Notices about a lane the user is not looking at: it came up, it was named,
@@ -189,5 +190,12 @@ export function noticeLaneSettled(
     settledAt,
   })
   const receipt = { facts, machine: localMachineLabel(), at: new Date(settledAt).toISOString() }
-  notifyLane(sessionId, { receipt, ...settledNotice(laneOutcome(items)) })
+  const outcome = laneOutcome(items)
+  // A release lane's routine pass ends silently; a failed run still announces itself.
+  if (
+    outcome.kind !== 'error' &&
+    quietReleaseRun(useExtensionUiStore.getState().statuses[sessionId]?.[RELEASE_STATUS_KEY])
+  )
+    return
+  notifyLane(sessionId, { receipt, ...settledNotice(outcome) })
 }

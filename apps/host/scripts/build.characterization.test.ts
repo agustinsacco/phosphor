@@ -73,6 +73,7 @@ const FIXTURE_FILES = [
   'pi-ext/helper-store.ts',
   'pi-ext/lane-reload.ts',
   'pi-ext/nested/deep.ts',
+  'pi-ext/release-manager.ts',
   'pi-ext/tool-name-guard.ts',
   'pi-ext/types.d.ts',
   'pi-ext/worktree-paths.ts',
