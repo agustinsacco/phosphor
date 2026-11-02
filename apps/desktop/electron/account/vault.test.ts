@@ -130,6 +130,27 @@ describe('safeStorageCipher', () => {
     }
   })
 
+  it('uses only the async API, so a Keychain prompt never blocks the main process', async () => {
+    // A synchronous safeStorage call waits on macOS's Keychain prompt with the
+    // main thread held: no window, no quit, for as long as the prompt is open.
+    const calls: string[] = []
+    const api = {
+      isAsyncEncryptionAvailable: async () => (calls.push('available'), true),
+      encryptStringAsync: async (text: string) => (calls.push('encrypt'), Buffer.from(text)),
+      decryptStringAsync: async (data: Buffer) => (
+        calls.push('decrypt'),
+        { result: data.toString(), shouldReEncrypt: false }
+      ),
+      isEncryptionAvailable: () => (calls.push('sync available'), true),
+      encryptString: (text: string) => (calls.push('sync encrypt'), Buffer.from(text)),
+      decryptString: (data: Buffer) => (calls.push('sync decrypt'), data.toString()),
+    }
+    const cipher = safeStorageCipher(api as unknown as SafeStorageLike, 'darwin')
+    expect(await cipher.storage()).toEqual({ ok: true, kind: 'keychain' })
+    expect(await cipher.decrypt(await cipher.encrypt('secret'))).toBe('secret')
+    expect(calls).toEqual(['available', 'encrypt', 'decrypt'])
+  })
+
   it('fails closed on a backend it cannot identify, never choosing the file', () => {
     for (const available of [true, false]) {
       for (const backend of ['unknown', 'unrecognised', 'Basic_Text', '', undefined]) {
