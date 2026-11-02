@@ -112,6 +112,11 @@ export interface BaselineHostsInvokeMap {
   /** A lane this window opened, exported by its Host as one HTML document. */
   'hosts:exportLaneHtml': { args: [sessionId: string]; result: { html: string } }
 
+  'hosts:subagentHistory': {
+    args: [sessionId: string]
+    result: { entries: unknown[]; leafId: string | null }
+  }
+
   'hosts:deleteLane': {
     args: [
       hostId: string,

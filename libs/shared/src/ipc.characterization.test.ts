@@ -95,6 +95,7 @@ const baselineScope = {
   'hosts:takeControl': 'app',
   'hosts:markRead': 'app',
   'hosts:exportLaneHtml': 'app',
+  'hosts:subagentHistory': 'app',
   'hosts:deleteLane': 'app',
   'hosts:listFolders': 'app',
   'hosts:addRepository': 'app',
