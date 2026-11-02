@@ -95,19 +95,19 @@ describe('title policy characterization', () => {
     )
   })
 
-  it('pins exact prompts, word-range grammar, and trimmed names', () => {
+  it('pins exact prompts and trimmed names', () => {
     expect(policy.titlePrompt('fix sidebar', [])).toBe(
       promptStart + '2-5 words ' + promptRule + '\nThe request:\nfix sidebar',
     )
-    expect(policy.titlePrompt('fix sidebar', ['  Auth Bug  ', ' '], { min: 1, max: 1 })).toBe(
+    expect(policy.titlePrompt('fix sidebar', ['  Auth Bug  ', ' '])).toBe(
       promptStart +
-        '1 word ' +
+        '2-5 words ' +
         promptRule +
         '\nExisting session names in this workspace (yours must not duplicate or be easily confused with any of them):\n- Auth Bug\n' +
         '\nThe request:\nfix sidebar',
     )
-    expect(policy.titlePrompt('hi', ['  '], { min: 3, max: 3 })).toBe(
-      promptStart + '3 words ' + promptRule + '\nThe request:\nhi',
+    expect(policy.titlePrompt('hi', ['  '])).toBe(
+      promptStart + '2-5 words ' + promptRule + '\nThe request:\nhi',
     )
   })
 
@@ -129,14 +129,13 @@ describe('title policy characterization', () => {
   })
 
   it.each([
-    ['Here is the name:\n\n“Sidebar   Resize Fix.”\n', 60, 'Sidebar Resize Fix'],
-    ['\n\t', 60, null],
-    ['""', 60, null],
-    ['A'.repeat(61), 60, 'A'.repeat(60)],
-    ['Something', 0, 'S'],
-    ['One Two', 4, 'One'],
-  ] as const)('sanitizes %j with cap %s', (stdout, cap, expected) => {
-    expect(policy.sanitizeTitle(stdout, cap)).toBe(expected)
+    ['Here is the name:\n\n“Sidebar   Resize Fix.”\n', 'Sidebar Resize Fix'],
+    ['\n\t', null],
+    ['""', null],
+    ['A'.repeat(61), 'A'.repeat(60)],
+    [`${'A'.repeat(59)} B`, 'A'.repeat(59)],
+  ] as const)('sanitizes %j at the fixed 60-character cap', (stdout, expected) => {
+    expect(policy.sanitizeTitle(stdout)).toBe(expected)
   })
 
   it('pins case-insensitive duplicate suffix order and exhaustion', () => {

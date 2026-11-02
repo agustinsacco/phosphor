@@ -176,26 +176,13 @@ describe('dedupeTitle', () => {
   })
 })
 
-describe('configurable naming length', () => {
-  it('asks for the configured word range', () => {
-    expect(titlePrompt('do a thing', [], { min: 3, max: 8 })).toContain('3-8 words')
-  })
-
-  it('says "1 word" rather than "1-1 words" when the range collapses', () => {
-    expect(titlePrompt('do a thing', [], { min: 1, max: 1 })).toContain('1 word ')
-    expect(titlePrompt('do a thing', [], { min: 1, max: 1 })).not.toContain('1-1')
-  })
-
-  it('defaults to 2-5 words when no range is passed', () => {
+describe('fixed naming length', () => {
+  it('always asks for 2-5 words', () => {
     expect(titlePrompt('do a thing', [])).toContain('2-5 words')
   })
 
-  it('caps the title at the configured length', () => {
-    expect(sanitizeTitle('A'.repeat(200), 20)).toHaveLength(20)
-  })
-
-  it('never produces an empty title from a zero cap', () => {
-    expect(sanitizeTitle('Something', 0)).toBe('S')
+  it('caps the title at 60 characters', () => {
+    expect(sanitizeTitle('A'.repeat(200))).toHaveLength(60)
   })
 })
 
@@ -222,13 +209,11 @@ describe('title-policy edge cases', () => {
     expect(prompt).toContain('\n- Title 39\n')
     expect(prompt).not.toContain('Title 40')
     expect(prompt.split('\nThe request:\n')[1]).toBe('x'.repeat(1200))
-    expect(titlePrompt('hi', [], { min: 3, max: 3 })).toContain('3 words ')
   })
 
   it('strips curly quotes and trims again after capping', () => {
     expect(sanitizeTitle('“Sidebar Fix.”')).toBe('Sidebar Fix')
-    expect(sanitizeTitle('One Two', 4)).toBe('One')
-    expect(sanitizeTitle('Something', -1)).toBe('S')
+    expect(sanitizeTitle(`${'a'.repeat(59)} b`)).toBe('a'.repeat(59))
   })
 
   it('trims existing names and returns the original title after all suffixes are taken', () => {

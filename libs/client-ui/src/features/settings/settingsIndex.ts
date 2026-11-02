@@ -268,8 +268,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ]),
   ...section('workspaces', 'Naming and markers', [
     ['Name sessions automatically', 'auto title rename'],
-    'Title length',
-    'Title character limit',
     ['Branch name length', 'slug git'],
     ['Lane markers', 'emoji icon'],
     ['PR status on lanes', 'github pull request checks'],

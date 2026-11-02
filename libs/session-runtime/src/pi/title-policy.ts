@@ -157,18 +157,12 @@ export function pickTitleModel(
   return best ? { provider: defaultProvider, id: best.model.id } : null
 }
 
-/**
- * The naming request sent to `pi -p` (see `titleArgs` for the flag set).
- *
- * The word range is a preference rather than a constant: "2-5 words" suits a
- * sidebar, but a user running one lane per ticket may want a longer, more
- * literal title, and the branch slug is capped separately anyway.
- */
-export function titlePrompt(
-  message: string,
-  existingNames: string[],
-  words: { min: number; max: number } = { min: 2, max: 5 },
-): string {
+/** Titles are 2-5 words and at most 60 characters on every machine (no per-user knobs). */
+const TITLE_WORDS = '2-5 words'
+const MAX_TITLE_LENGTH = 60
+
+/** The naming request sent to `pi -p` (see `titleArgs` for the flag set). */
+export function titlePrompt(message: string, existingNames: string[]): string {
   const names = existingNames
     .map((name) => name.trim())
     .filter(Boolean)
@@ -178,11 +172,7 @@ export function titlePrompt(
       ? `\nExisting session names in this workspace (yours must not duplicate or be easily confused with any of them):\n${names.map((n) => `- ${n}`).join('\n')}\n`
       : ''
   return (
-    'You name coding sessions. Reply with ONLY the name: a short capitalized phrase of ' +
-    // "of 1 word" rather than "of 1-1 words" when the range collapses.
-    (words.min === words.max
-      ? `${words.min} word${words.min === 1 ? '' : 's'} `
-      : `${words.min}-${words.max} words `) +
+    `You name coding sessions. Reply with ONLY the name: a short capitalized phrase of ${TITLE_WORDS} ` +
     'summarizing the request below. No quotes, no trailing period, no explanation.\n' +
     existing +
     '\nThe request:\n' +
@@ -197,7 +187,7 @@ export function titlePrompt(
  * ("Here is the name:"), the name is the tail, never the head. Strips
  * wrapping quotes and trailing periods, collapses whitespace, caps length.
  */
-export function sanitizeTitle(stdout: string, maxLength = 60): string | null {
+export function sanitizeTitle(stdout: string): string | null {
   const line = stdout
     .split('\n')
     .map((l) => l.trim())
@@ -208,7 +198,7 @@ export function sanitizeTitle(stdout: string, maxLength = 60): string | null {
     .replace(/^["'“”]+|["'“”.]+$/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, Math.max(1, maxLength))
+    .slice(0, MAX_TITLE_LENGTH)
     .trim()
   return cleaned.length > 0 ? cleaned : null
 }

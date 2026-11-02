@@ -70,46 +70,6 @@ export function WorkspacesTab(): React.JSX.Element {
           <Toggle on={lanes.autoName} onChange={(on) => setLanePrefs({ autoName: on })} />
         </Row>
         <Row
-          title="Title length"
-          description={
-            lanes.nameMinWords === lanes.nameMaxWords
-              ? `The namer is asked for exactly ${lanes.nameMinWords} word${lanes.nameMinWords === 1 ? '' : 's'}.`
-              : `The namer is asked for ${lanes.nameMinWords}-${lanes.nameMaxWords} words.`
-          }
-        >
-          <span className="flex items-center gap-2">
-            <NumberField
-              value={lanes.nameMinWords}
-              min={LANE_PREF_LIMITS.nameWords.min}
-              max={LANE_PREF_LIMITS.nameWords.max}
-              step={1}
-              onChange={(value) => setLanePrefs({ nameMinWords: value })}
-            />
-            <span className="text-text-tertiary text-sm">to</span>
-            <NumberField
-              value={lanes.nameMaxWords}
-              min={LANE_PREF_LIMITS.nameWords.min}
-              max={LANE_PREF_LIMITS.nameWords.max}
-              step={1}
-              onChange={(value) => setLanePrefs({ nameMaxWords: value })}
-              suffix="words"
-            />
-          </span>
-        </Row>
-        <Row
-          title="Title character limit"
-          description="A hard cap applied after the model replies, so a long-winded title cannot stretch the sidebar."
-        >
-          <NumberField
-            value={lanes.nameMaxLength}
-            min={LANE_PREF_LIMITS.nameMaxLength.min}
-            max={LANE_PREF_LIMITS.nameMaxLength.max}
-            step={4}
-            onChange={(value) => setLanePrefs({ nameMaxLength: value })}
-            suffix="chars"
-          />
-        </Row>
-        <Row
           title="Branch name length"
           description={`Capped separately from the title: a slug is read in git output and in a path. "${exampleSlug}"`}
         >
