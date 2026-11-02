@@ -33,16 +33,22 @@ export type CreationResult =
  * from cleanup under its lane id) until attachment and the first publications end.
  */
 export interface Creation {
+  /** The lane row exists, so the store's lane count already holds it. */
+  stored?: boolean
   hold?: { laneId: string; queue: LaneQueue }
   /** The receipt (or the deadline's unknown) is out: no phase follows it. */
   answered?: boolean
 }
 
-/** The repository root to create in, or the refusal recorded before any folder work. */
+/**
+ * The repository root to create in, or the refusal recorded before any folder work.
+ * Creations in flight whose lane is not stored yet count against the lane cap.
+ */
 export function validateCreate(
   store: Pick<HostStore, 'listRepositories' | 'listLanes' | 'limits'>,
   laneId: string | undefined,
   op: CreateOp,
+  inFlight = 0,
 ): { ok: true; root: string } | { ok: false; code: 'bad-request' | 'too-many-requests' } {
   const repository = store.listRepositories().find((entry) => entry.id === op.repositoryId)
   if (
@@ -54,7 +60,7 @@ export function validateCreate(
       (op.name.length > HOST_LIMITS.labelChars || normalizeLabel(op.name) !== op.name))
   )
     return { ok: false, code: 'bad-request' }
-  if (store.listLanes().length >= store.limits.lanesPerHost)
+  if (store.listLanes().length + inFlight >= store.limits.lanesPerHost)
     return { ok: false, code: 'too-many-requests' }
   return { ok: true, root: repository.path }
 }
@@ -62,6 +68,7 @@ export function validateCreate(
 export function holdCreatedLane(state: CommandState, creation: Creation, laneId: string): void {
   const queue = queueFor(state, laneId)
   queue.holds++
+  creation.stored = true
   creation.hold = { laneId, queue }
 }
 
@@ -145,7 +152,14 @@ export async function runCreation(
   state: CommandState,
   ports: CreatePorts,
   job: Job,
-  input: { op: CreateOp; root: string; creation: Creation; execute: ExecuteJob },
+  input: {
+    op: CreateOp
+    root: string
+    creation: Creation
+    execute: ExecuteJob
+    /** The client's current grant still holds the creation's capabilities. */
+    allowed: () => boolean
+  },
 ): Promise<CreationResult> {
   const { client, frame } = job
   const { op, root, creation } = input
@@ -170,6 +184,10 @@ export async function runCreation(
     if (!creation.hold) throw new Error('missing lane queue')
     publishCreated(state, ports, lane, creation.hold.queue)
     if (op.prompt === undefined) return { kind: 'created', lane }
+    // After the deadline's unknown, during shutdown, or once the grant no longer
+    // holds, nothing reaches pi; the client learns `false` or keeps its draft.
+    if (creation.answered || state.closing || !input.allowed())
+      return { kind: 'created', lane, prompted: false }
     // Still under the hold, so the prompt reaches pi before any queued lane op.
     phase('prompting')
     const target = { laneId: lane.laneId, requestId: frame.requestId }
@@ -233,12 +251,15 @@ export function executeCreate(
   ports: CreatePorts,
   job: Job,
   queue: LaneQueue,
-  input: { op: CreateOp; execute: ExecuteJob },
+  input: { op: CreateOp; execute: ExecuteJob; allowed: () => boolean },
 ): Execution | void {
-  const valid = validateCreate(ports.store, job.frame.laneId, input.op)
+  const unstored = [...state.creations.keys()].filter((c) => !c.stored).length
+  const valid = validateCreate(ports.store, job.frame.laneId, input.op, unstored)
   if (!valid.ok) return rejected(state, ports, job, valid.code, true)
   const creation: Creation = {}
+  state.creations.set(creation, input.op.repositoryId)
   const work = runCreation(state, ports, job, { ...input, root: valid.root, creation })
+  void work.finally(() => state.creations.delete(creation)).catch(() => {})
   const receiptPath = dispatch(state, ports, job, queue, () => work).then((result) => {
     creation.answered = true
     mapCreationReceipt(state, ports, job, result)

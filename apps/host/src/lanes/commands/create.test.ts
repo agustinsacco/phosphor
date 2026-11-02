@@ -185,6 +185,7 @@ describe('runCreation releases the hold on every path', () => {
       root: f.lane.cwd,
       creation,
       execute,
+      allowed: () => true,
     })
     return { result, creation, state }
   }
@@ -283,6 +284,7 @@ describe('executeCreate', () => {
       executeCreate(state, f.ports, current, queue, {
         op: create,
         execute: noJobs,
+        allowed: () => true,
       }),
     ).toBeUndefined()
     expect(f.last(current.frame.requestId)).toMatchObject({ code: 'bad-request' })
@@ -300,6 +302,7 @@ describe('executeCreate', () => {
     const execution = executeCreate(state, f.ports, current, queue, {
       op: create,
       execute: noJobs,
+      allowed: () => true,
     })
     if (!execution) throw new Error('expected an execution')
     expect(execution.detached).toBe(true)
@@ -372,6 +375,7 @@ describe('runCreation with a first prompt', () => {
       root: f.lane.cwd,
       creation: {},
       execute: noJobs,
+      allowed: () => true,
     })
     return { result, phases, current }
   }

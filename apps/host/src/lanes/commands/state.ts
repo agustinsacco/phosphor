@@ -113,6 +113,8 @@ export interface CommandState {
   readonly limit: number
   /** Lane creations take turns per repository only for their worktree work. */
   readonly folders: RepositoryLocks
+  /** Creations whose work has not settled, to the repository they create in. */
+  readonly creations: Map<{ stored?: boolean }, string>
   closing: boolean
   closed: boolean
   closePromise: Promise<void> | undefined
@@ -126,6 +128,7 @@ export function createCommandState(limit: number = LANE_QUEUE_LIMIT): CommandSta
     work: new Set(),
     limit,
     folders: createRepositoryLocks(),
+    creations: new Map(),
     closing: false,
     closed: false,
     closePromise: undefined,

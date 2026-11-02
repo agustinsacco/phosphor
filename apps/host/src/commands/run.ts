@@ -333,10 +333,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           configPath: config.path,
           uid: context.uid,
           store,
-          live: (id) =>
-            store
-              ?.listLanes()
-              .some((l) => l.repositoryId === id && live?.sessionFor(l.laneId) !== null) ?? false,
+          live: (id) => commands?.repositoryLive(id) ?? false,
           changed: (roots) => {
             activeRuntime.replaceRoots(roots)
             activeTopic.repositoriesChanged()
