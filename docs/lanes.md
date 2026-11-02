@@ -149,7 +149,7 @@ Two queries:
 
 - `ghPrForBranch` — one branch. Used by the top-bar branch popup.
 - `ghPrsForRepo`: a bounded repo listing, indexed by `headRefName`. Used by the
-  sidebar. **Never fan the single-branch query across the sidebar**; that is
+  sidebar, Home board and active-lane header. **Never fan the single-branch query across lanes**; that is
   8-20 subprocesses per refresh.
 
 Both queries resolve the repository from the supplied working directory, with
@@ -164,9 +164,14 @@ Home lane ready to merge.
 group is exactly one repo, because worktrees fold into their main checkout. A
 lane's PR is joined at render time through its cwd's branch.
 
-Refresh is event-driven (window focus, disk listing change), only for
-**expanded** groups, and coalesced inside `PR_STALE_MS`, so calling `refresh`
-from several triggers is free.
+One shared refresh clock checks relevant repositories about every 60 seconds:
+**visible expanded** groups, the visible Home board, and the active lane's own
+repository even when its group or sidebar is collapsed. Closed, unrelated
+workspaces are not polled. Lane activation, window focus/visibility resume,
+disk/Host summary changes and active-agent settlement request stale reads.
+Same-repo lane switches and concurrent consumers coalesce inside `PR_STALE_MS`;
+there is never one request per row. The clock pauses while the document is
+hidden and removes its timer/listeners when the last consumer leaves.
 
 Every `gh` failure is a normal state, not an error: not installed, not
 authenticated, no GitHub remote. A failed listing returns `null`, preserves
@@ -187,13 +192,33 @@ PR" there is wrong more often than right. A **confirmed** chip has no such
 restriction.
 
 Remote repository groups use the same PR store and chips, keyed by opaque
-Host/repository identity instead of a local path. Expanded groups refresh on Host
-summary changes and window focus. `github.prs` requires `workspaces.read`, resolves
+Host/repository identity instead of a local path. They share the same relevance
+clock, with Host summary changes also requesting stale refresh. `github.prs` requires `workspaces.read`, resolves
 only configured repository ids, and uses the Host's environment and `gh` login;
 GitHub credentials never reach the client. Reads are coalesced and throttled per
 repository for 60 seconds on both sides, including failures. A missing or older
 Host feature leaves PR status unavailable, never inferred absent. Desktop's local
 `gh` availability has no bearing on remote PRs.
+
+### Active-lane header
+
+After the lane title, a compact, keyboard-accessible PR button uses the same
+status mapping and colours as row chips. It is a real button, not the sidebar's
+non-tabbable link span, and respects the PR-status preference. Desktop keeps its
+44px bar; phone and wide browser headers reuse the same control. Its details
+show state, check counts, review decision and conflicts independently: green
+checks do not imply approval. Identity-only results label those details unavailable.
+Enter/Space opens details; Tab reaches Open on GitHub and Refresh; Escape closes
+and restores focus. Errors opening GitHub are visible and retryable.
+
+Refresh is an explicit forced **app** read. The details label elapsed time since
+the last successful app refresh and, on failure, the failed attempt, retaining
+known PR data. Loading and unavailable states are explicit. This is not an
+upstream freshness timestamp: a Host can reuse its 60-second repository cache,
+even for manual Refresh. A missing local `gh` probe is retried on a later attempt.
+Unavailable or truncated listings never imply “no PR”; confirmed absence keeps
+the existing complete-listing, known-branch, worktree-only rule. The listing
+remains capped at 100 recent PRs, with no history paging or webhook guarantee.
 
 ### The chip is one token carrying two signals
 

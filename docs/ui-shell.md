@@ -37,7 +37,7 @@ the app document, not to artifact iframe contents.
 
 One **full-width bar** (`libs/client-ui/src/app/TopBar.tsx`) above the sidebar, chat and
 pane columns: sidebar toggle, workspace chip, branch control
-([worktrees.md](worktrees.md)), session title, the pane switches (terminal,
+([worktrees.md](worktrees.md)), session title, the compact [PR status button](lanes.md#active-lane-header), the pane switches (terminal,
 files, changes, artifacts, subagents) and the Session options button. Host lanes
 show the same bar without the workspace chip and branch control. The terminal switch carries a
 tab count and a running-process dot; the artifacts switch appears once the

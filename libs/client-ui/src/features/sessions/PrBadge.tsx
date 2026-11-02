@@ -1,24 +1,6 @@
 import clsx from 'clsx'
 import type { GhPullRequest } from '@shared/models'
-import { prChip, noPrChip, type PrChipVariant } from './prChip'
-
-/**
- * Per-variant colours. `soft` grounds plus a tinted border, so the chip stays
- * legible on all three row grounds (sidebar, hover, active) without a fill
- * strong enough to compete with the lane title.
- */
-const VARIANTS: Record<PrChipVariant, string> = {
-  open: 'text-success bg-success/10 border-success/25',
-  approved: 'text-success bg-success/10 border-success/25',
-  failing: 'text-danger bg-danger-soft border-danger/30',
-  pending: 'text-warning bg-warning/10 border-warning/25',
-  blocked: 'text-warning bg-warning/10 border-warning/25',
-  conflict: 'text-danger bg-danger-soft border-danger/25',
-  draft: 'text-text-tertiary bg-chip border-transparent',
-  merged: 'text-merged bg-merged-soft border-merged/25',
-  closed: 'text-danger bg-danger-soft border-danger/25',
-  'no-pr': 'text-text-tertiary bg-chip border-transparent',
-}
+import { prChip, noPrChip, PR_CHIP_CLASSES } from './prChip'
 
 /**
  * The PR chip on a lane row, and the shortcut to the PR itself.
@@ -72,7 +54,7 @@ export function PrBadge({ pr }: { pr: GhPullRequest | null }): React.JSX.Element
         // off the OS preference and be wrong whenever the two disagree. No
         // other component in the renderer uses `dark:` either.
         pr && 'cursor-pointer hover:border-current hover:underline hover:underline-offset-2',
-        VARIANTS[chip.variant],
+        PR_CHIP_CLASSES[chip.variant],
       )}
     >
       {chip.label}

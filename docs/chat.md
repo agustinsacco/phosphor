@@ -816,6 +816,8 @@ The model · thinking chip lives on the right of the **composer footer**
 (`Composer.tsx`; attach and Swarm are on the left), the context meter and the
 [Rules · MCP readout](#context-files) in the status strip under it; the
 session's ⋮ menu is in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
+The title is followed by the shared [PR status button](lanes.md#active-lane-header),
+joined through this lane's own repository and branch, including on a Host.
 
 - **Model picker** (from `get_available_models`), grouped by **family** by
   default so every route to one model sits under one header, toggleable to

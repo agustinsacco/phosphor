@@ -29,6 +29,8 @@ import {
   useSavedConversation,
 } from './completionActions'
 import { PrBadge, openPullRequest } from './PrBadge'
+import { useRepoPrRefresh } from './repoPrRefresh'
+import { useLayoutStore } from '@/stores/layout'
 import { LaneMarker } from './LaneMarker'
 import { BulkDeleteModal } from './BulkDeleteModal'
 import { DeleteSessionModal, type DeleteSessionTarget } from './DeleteSessionModal'
@@ -478,15 +480,8 @@ export function Sidebar({
     collapsed?.[group.workspacePath] ??
     (group.anyScanned ? false : !group.paths.includes(workspacePath))
 
-  /**
-   * PR chips: one batched lookup per EXPANDED group, never one per lane.
-   *
-   * Event-driven rather than on a timer — window focus and the disk listing
-   * changing are the two moments a PR's state plausibly moved. The store
-   * coalesces anything inside `PR_STALE_MS`, so calling this from several
-   * triggers is free. A collapsed group is not fetched at all, matching the
-   * session-dir watchers: invisible means unwatched.
-   */
+  // The shared clock polls only visible, expanded groups plus active lanes.
+  const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
   const expandedRepoPaths = useMemo(
     () => groups.filter((group) => !isGroupCollapsed(group)).map((g) => g.workspacePath),
     // isGroupCollapsed closes over `collapsed` and `workspacePath`; both are
@@ -494,16 +489,12 @@ export function Sidebar({
     [groups, collapsed, workspacePath],
   )
 
-  useEffect(() => {
-    if (expandedRepoPaths.length === 0) return
-    const refreshAll = (): void => {
-      const store = usePullRequestsStore.getState()
-      for (const repoPath of expandedRepoPaths) void store.refresh(repoPath)
-    }
-    refreshAll()
-    window.addEventListener('focus', refreshAll)
-    return () => window.removeEventListener('focus', refreshAll)
-  }, [expandedRepoPaths])
+  useRepoPrRefresh(
+    sidebarVisible && (machineFilter === 'all' || machineFilter === 'local')
+      ? expandedRepoPaths
+      : [],
+    disk,
+  )
 
   /**
    * Toggle one lane, or extend a range with shift.

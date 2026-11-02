@@ -134,3 +134,21 @@ export function noPrChip(): PrChip {
     title: 'No pull request yet for this branch',
   }
 }
+
+/**
+ * Per-variant colours. `soft` grounds plus a tinted border, so the chip stays
+ * legible on all three row grounds (sidebar, hover, active) without a fill
+ * strong enough to compete with the lane title.
+ */
+export const PR_CHIP_CLASSES: Record<PrChipVariant, string> = {
+  open: 'text-success bg-success/10 border-success/25',
+  approved: 'text-success bg-success/10 border-success/25',
+  failing: 'text-danger bg-danger-soft border-danger/30',
+  pending: 'text-warning bg-warning/10 border-warning/25',
+  blocked: 'text-warning bg-warning/10 border-warning/25',
+  conflict: 'text-danger bg-danger-soft border-danger/25',
+  draft: 'text-text-tertiary bg-chip border-transparent',
+  merged: 'text-merged bg-merged-soft border-merged/25',
+  closed: 'text-danger bg-danger-soft border-danger/25',
+  'no-pr': 'text-text-tertiary bg-chip border-transparent',
+}

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import clsx from 'clsx'
 import type { SessionMeta, WorktreeInfo } from '@shared/models'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
+import { useRepoPrRefresh } from '@/features/sessions/repoPrRefresh'
 import { useWorktreesStore, repoWorktrees } from '@/stores/worktrees'
 import { hasDelegatedWork, SUBAGENT_ASYNC_WIDGET_KEY } from '@/features/chat/subagentRuns'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
@@ -41,10 +42,7 @@ export function useLaneBoard(workspacePath: string): LaneBoardData {
   const prByRepo = usePullRequestsStore((s) => s.byRepo)
   const projectRoot = gitByCwd[workspacePath]?.mainRepoPath ?? workspacePath
 
-  // The store collapses concurrent/recent calls, including the sidebar's.
-  useEffect(() => {
-    void usePullRequestsStore.getState().refresh(projectRoot)
-  }, [projectRoot])
+  useRepoPrRefresh([projectRoot])
 
   const lanes = useMemo(() => {
     const out: SessionMeta[] = []

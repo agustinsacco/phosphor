@@ -107,7 +107,11 @@ opens the lane menu, a bottom sheet (`ActionSheet`) that switches Chat, Files,
 Changes, Artifacts and Terminal, then the lane's Session options (the same
 list as Desktop's top bar, [chat](chat.md)), then its shared actions, the same
 list as every Host lane row's menu without Open (see below), then New lane on
-that Host. A confirmed action closes the sheet; a refusal stays to say why.
+that Host. Beside the title, the shared [PR status button](lanes.md#active-lane-header)
+opens status details and Refresh without opening the lane menu. Wide headers use
+the same control after the title. Both use this Host lane's repository identity,
+not the machine filter, and share repository refreshes with visible groups.
+A confirmed action closes the sheet; a refusal stays to say why.
 There is no drawer button, machine filter or pane tab strip inside a lane. A
 reader sees a Take control bar where the composer would be. Wider browsers keep
 the pane tabs, which end with the Session options button, and the control row
