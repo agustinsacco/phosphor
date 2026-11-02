@@ -1,6 +1,7 @@
 import { isLanePiOp, type LaneOp } from '@phosphor/shared/host-protocol'
 import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import { BASH_UNCONFIRMED } from '@phosphor/shared/remote-host'
+import type { RemoteLaneCreate } from '@phosphor/shared/ipc'
 import type { CommandResult } from './connection'
 
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
@@ -21,6 +22,46 @@ class ReceiptFailure extends Error {
 /** Only a definitive fresh-branch rejection authorizes a new create request. */
 class FreshBranchExists extends Error {}
 
+/** The `lane.create` op; the first prompt rides along only to a Host that takes it. */
+export function laneCreateOp(input: RemoteLaneCreate, laneStart: boolean): LaneOp {
+  const { prompt, ...rest } = input
+  return {
+    ...rest,
+    type: 'lane.create',
+    worktree: input.worktree ?? null,
+    ...(laneStart && prompt ? { prompt } : {}),
+  }
+}
+
+/** `createFailureText` for a `.catch`, so no Host detail or cause crosses IPC. */
+export const createFailure = (laneStart: boolean) => (error: unknown) =>
+  createFailureText(error, laneStart)
+
+/**
+ * Whether the Host sent the creation's first prompt: true or false as its receipt
+ * says, false when none was asked of it, and undefined when it was asked but did not
+ * say, so the caller can neither resend it safely nor assume it landed.
+ */
+export function startedPrompt(op: LaneOp, result: CommandResult): boolean | undefined {
+  if (op.type !== 'lane.create' || op.prompt === undefined) return false
+  const data: unknown = result.status === 'done' ? result.data : undefined
+  const prompted =
+    data !== null && typeof data === 'object'
+      ? (data as { prompted?: unknown }).prompted
+      : undefined
+  return typeof prompted === 'boolean' ? prompted : undefined
+}
+
+/**
+ * Opening a created lane failed. When the Host already ran its first prompt, the
+ * lane is working, and the caller must not send the prompt again.
+ */
+export const openFailure =
+  (prompted: boolean | undefined) =>
+  (error: unknown): never => {
+    throw prompted ? new Error('lane-started-unopened') : error
+  }
+
 /** The receipt when it succeeded; otherwise thrown, as `createFailureText` reads it. */
 export function settledReceipt(op: LaneOp, result: CommandResult, machine: string): CommandResult {
   if (
@@ -40,8 +81,10 @@ export function settledReceipt(op: LaneOp, result: CommandResult, machine: strin
  * IPC. A refusal, a failure or an unsent frame created nothing. Anything else, an
  * unknown receipt or a dropped connection, may have.
  */
-export function createFailureText(error: unknown): string {
-  if (error instanceof FreshBranchExists) return 'branch-exists'
+export function createFailureText(error: unknown, laneStart = false): string {
+  // A laneStart Host tried the next names itself; the client must not try more.
+  if (error instanceof FreshBranchExists)
+    return laneStart ? 'branch-name-exhausted' : 'branch-exists'
   if (!(error instanceof ReceiptFailure)) return CREATE_UNCONFIRMED
   const { result } = error
   if (result.status === 'rejected')

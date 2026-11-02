@@ -49,6 +49,7 @@ export function reconcileHostManager(
       if (machine)
         state.cached[id] = {
           ...view,
+          laneStarts: [],
           state:
             machineStatus(machine, Date.now(), state.offset) === 'up' ? 'reconnecting' : 'down',
         }
@@ -128,6 +129,7 @@ export function disableHostManager(state: HostManagerState, ports: HostManagerPo
   for (const [id, c] of state.connections) {
     state.cached[id] = {
       ...c.connection.snapshot(),
+      laneStarts: [],
       state: 'reconnecting',
       lastError: 'account-disabled',
     }

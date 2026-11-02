@@ -13,7 +13,10 @@ import { createLaneProjection } from './projection'
 import { exportLaneHtml } from './lane-export'
 import type { createHostConnection, LaneFrame } from './connection'
 import {
-  createFailureText,
+  createFailure,
+  laneCreateOp,
+  startedPrompt,
+  openFailure,
   laneOperation,
   receiptResponse,
   REMOTE_UNAVAILABLE,
@@ -393,16 +396,15 @@ export function createRemoteLanes(ports: {
       }
     },
     async create(window: RemoteWindow, hostId: string, input: RemoteLaneCreate) {
-      // Do not carry Host error details or causes across IPC.
-      const result = await mutate(hostId, undefined, {
-        ...input,
-        type: 'lane.create',
-        worktree: input.worktree ?? null,
-      }).catch(createFailureText)
+      const laneStart = ports.connection(hostId)?.snapshot().laneStart === true
+      const op = laneCreateOp(input, laneStart)
+      const result = await mutate(hostId, undefined, op).catch(createFailure(laneStart))
       if (typeof result === 'string') throw new Error(result)
       if (result.status !== 'done' || !result.laneId)
         throw new Error('Lane creation not confirmed.')
-      return open(window, hostId, result.laneId)
+      const prompted = startedPrompt(op, result)
+      const info = await open(window, hostId, result.laneId).catch(openFailure(prompted))
+      return { ...info, ...(prompted === undefined ? {} : { prompted }) }
     },
     async action(
       hostId: string,

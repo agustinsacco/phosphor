@@ -3,7 +3,7 @@ import { isUuid } from '../control-api'
 import { HOST_LIMITS } from './constants'
 import type { HostFrame } from './frames'
 import { parseLaneControl } from './host-lanes'
-import type { CallErrorCode, Receipt, RejectCode } from './operations'
+import { LANE_CREATE_PHASES, type CallErrorCode, type Receipt, type RejectCode } from './operations'
 import { frameId, integer, member, record, text, utf8Length } from './primitives'
 
 type Frame<T extends HostFrame['type']> = Extract<HostFrame, { type: T }>
@@ -38,6 +38,12 @@ export function parseReceipt(v: unknown): Receipt | null {
   const requestId = v.requestId
   switch (v.status) {
     case 'pending':
+      // Progress only: a phase this client does not know is dropped, not refused.
+      return {
+        requestId,
+        status: v.status,
+        ...(member(v.phase, LANE_CREATE_PHASES) ? { phase: v.phase } : {}),
+      }
     case 'unknown':
       return { requestId, status: v.status }
     case 'done':

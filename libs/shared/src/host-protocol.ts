@@ -38,6 +38,7 @@ export type {
 export {
   CAPABILITY_FOR,
   HOST_CALL_METHODS,
+  LANE_CREATE_PHASES,
   LANE_PI_OPS,
   UNFENCED_OPS,
   isLanePiOp,
@@ -46,6 +47,7 @@ export {
   type FailureCode,
   type HostCallMethod,
   type LaneOp,
+  type LaneCreatePhase,
   type LaneOpType,
   type LanePiOp,
   type LanePiOpType,
@@ -53,6 +55,6 @@ export {
   type RejectCode,
 } from './host-protocol/operations'
 export type { ClientFrame, ClientFrameParse, FrameSocket, HostFrame } from './host-protocol/frames'
-export { isLaneBranchName, utf8Length } from './host-protocol/primitives'
+export { isLaneBranchName, LANE_FOLDER_MAX, utf8Length } from './host-protocol/primitives'
 export { parseClientFrame } from './host-protocol/client'
 export { parseHostFrame } from './host-protocol/host'

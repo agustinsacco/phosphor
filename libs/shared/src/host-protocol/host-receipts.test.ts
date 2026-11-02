@@ -59,6 +59,19 @@ describe('receipts and call results through the public entry', () => {
       expect(receipt(fields), JSON.stringify(fields)).toStrictEqual(REFUSED)
   })
 
+  it('keeps a known pending lane.create phase and drops one it does not know', () => {
+    for (const phase of ['queued', 'branching', 'starting', 'prompting'])
+      expect(receipt({ status: 'pending', phase })).toStrictEqual(
+        accepted({ status: 'pending', phase }),
+      )
+    // A phase is progress only: a newer Host's phase never costs the connection.
+    for (const phase of ['booting', null, 1])
+      expect(receipt({ status: 'pending', phase })).toStrictEqual(accepted({ status: 'pending' }))
+    expect(receipt({ status: 'unknown', phase: 'queued' })).toStrictEqual(
+      accepted({ status: 'unknown' }),
+    )
+  })
+
   it('keeps done receipt data, fence and lane id only when present', () => {
     expect(receipt({ status: 'done' })).toStrictEqual(accepted({ status: 'done' }))
     const done = { status: 'done', data: { any: [1, 'x', null] }, fence: 9, laneId: LANE }

@@ -11,7 +11,7 @@ import type {
 } from '../machine-settings'
 import type { ProviderLoginOp } from '../host-protocol-providers'
 import type { ClaudeUsageSnapshotResult, LiveSessionInfo } from '../models'
-import type { HostsSnapshot, TrafficPage, RemoteLaneCreate } from './views'
+import type { HostsSnapshot, TrafficPage, RemoteLaneCreate, RemoteLaneStarted } from './views'
 
 export interface HostsInvokeMap {
   'hosts:tailscaleStatus': { args: []; result: TailscaleStatus }
@@ -86,7 +86,7 @@ export interface HostsInvokeMap {
    * pi:command, pi:extensionUiResponse, pi:disposeSession and pi:event:<id> main routes
    * to the Host. Disposing a handle unsubscribes; it never stops the lane. */
   'hosts:openLane': { args: [hostId: string, laneId: string]; result: LiveSessionInfo }
-  'hosts:createLane': { args: [hostId: string, input: RemoteLaneCreate]; result: LiveSessionInfo }
+  'hosts:createLane': { args: [hostId: string, input: RemoteLaneCreate]; result: RemoteLaneStarted }
   'hosts:stopLane': { args: [hostId: string, laneId: string]; result: void }
   'hosts:resumeLane': { args: [hostId: string, laneId: string]; result: void }
   'hosts:takeControl': { args: [hostId: string, laneId: string]; result: void }

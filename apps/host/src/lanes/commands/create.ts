@@ -1,10 +1,11 @@
 import { normalizeLabel } from '@phosphor/shared/control-api'
-import { HOST_LIMITS, type LaneOp } from '@phosphor/shared/host-protocol'
+import { HOST_LIMITS, type LaneCreatePhase, type LaneOp } from '@phosphor/shared/host-protocol'
 import { createLane } from '../create'
 import { LaneCapacityReached, type HostStore, type StoredLane } from '../store'
 import { LaneFolderError } from '../worktree'
+import { sendFirstPrompt, type FirstPromptPorts } from './create-prompt'
 import { dispatch, drain, publish, queueFor } from './queue'
-import { log, rejected, terminal, type ReceiptPorts } from './receipts'
+import { deliver, log, rejected, terminal, type ReceiptPorts } from './receipts'
 import type {
   Answer,
   CommandState,
@@ -17,10 +18,12 @@ import type {
 
 export type CreateOp = Extract<LaneOp, { type: 'lane.create' }>
 export type CreatePorts = ReceiptPorts &
+  FirstPromptPorts &
   Pick<LaneCommandPorts, 'store' | 'sessions' | 'publish' | 'summaryFor'>
 /** What the creation work settled to. The receipt path maps it once it is answered. */
 export type CreationResult =
-  | { kind: 'created'; lane: StoredLane }
+  /** `prompted` is the first prompt's outcome; see sendFirstPrompt. */
+  | { kind: 'created'; lane: StoredLane; prompted?: boolean }
   | { kind: 'capacity' }
   | { kind: 'branch-exists' }
   | { kind: 'failed'; error: { code: 'internal'; message: string } }
@@ -30,14 +33,22 @@ export type CreationResult =
  * from cleanup under its lane id) until attachment and the first publications end.
  */
 export interface Creation {
+  /** The lane row exists, so the store's lane count already holds it. */
+  stored?: boolean
   hold?: { laneId: string; queue: LaneQueue }
+  /** The receipt (or the deadline's unknown) is out: no phase follows it. */
+  answered?: boolean
 }
 
-/** The repository root to create in, or the refusal recorded before any folder work. */
+/**
+ * The repository root to create in, or the refusal recorded before any folder work.
+ * Creations in flight whose lane is not stored yet count against the lane cap.
+ */
 export function validateCreate(
   store: Pick<HostStore, 'listRepositories' | 'listLanes' | 'limits'>,
   laneId: string | undefined,
   op: CreateOp,
+  inFlight = 0,
 ): { ok: true; root: string } | { ok: false; code: 'bad-request' | 'too-many-requests' } {
   const repository = store.listRepositories().find((entry) => entry.id === op.repositoryId)
   if (
@@ -49,7 +60,7 @@ export function validateCreate(
       (op.name.length > HOST_LIMITS.labelChars || normalizeLabel(op.name) !== op.name))
   )
     return { ok: false, code: 'bad-request' }
-  if (store.listLanes().length >= store.limits.lanesPerHost)
+  if (store.listLanes().length + inFlight >= store.limits.lanesPerHost)
     return { ok: false, code: 'too-many-requests' }
   return { ok: true, root: repository.path }
 }
@@ -57,6 +68,7 @@ export function validateCreate(
 export function holdCreatedLane(state: CommandState, creation: Creation, laneId: string): void {
   const queue = queueFor(state, laneId)
   queue.holds++
+  creation.stored = true
   creation.hold = { laneId, queue }
 }
 
@@ -113,24 +125,56 @@ export function publishCreated(
   if (summary) publish(state, ports, lane.laneId, { kind: 'summary', summary }, queue)
 }
 
+/**
+ * Unrecorded pending receipts with the creation's phase, to the creating connection
+ * only. They stop at the terminal receipt and at close; delivery swallows failures.
+ */
+export function phaseReporter(
+  state: CommandState,
+  ports: Pick<LaneCommandPorts, 'deliver'>,
+  job: Job,
+  creation: Creation,
+): (phase: LaneCreatePhase) => void {
+  const { client, frame } = job
+  return (phase) => {
+    if (creation.answered || state.closing || state.closed || client.connectionId === undefined)
+      return
+    deliver(
+      ports,
+      client.id,
+      { requestId: frame.requestId, status: 'pending', phase },
+      client.connectionId,
+    )
+  }
+}
+
 export async function runCreation(
   state: CommandState,
   ports: CreatePorts,
   job: Job,
-  input: { op: CreateOp; root: string; creation: Creation; execute: ExecuteJob },
+  input: {
+    op: CreateOp
+    root: string
+    creation: Creation
+    execute: ExecuteJob
+    /** The client's current grant still holds the creation's capabilities. */
+    allowed: () => boolean
+  },
 ): Promise<CreationResult> {
   const { client, frame } = job
   const { op, root, creation } = input
+  const phase = phaseReporter(state, ports, job, creation)
   try {
     let lane: StoredLane
     try {
       lane = await createLane(
-        { ...ports, closed: () => state.closed },
+        { ...ports, folders: state.folders, closed: () => state.closed },
         {
           root,
           op,
           controller: { clientId: client.id, label: client.label },
           onStored: (laneId) => holdCreatedLane(state, creation, laneId),
+          phase,
         },
       )
     } catch (error) {
@@ -139,7 +183,15 @@ export async function runCreation(
     if (state.closed) return { kind: 'closed' }
     if (!creation.hold) throw new Error('missing lane queue')
     publishCreated(state, ports, lane, creation.hold.queue)
-    return { kind: 'created', lane }
+    if (op.prompt === undefined) return { kind: 'created', lane }
+    // After the deadline's unknown, during shutdown, or once the grant no longer
+    // holds, nothing reaches pi; the client learns `false` or keeps its draft.
+    if (creation.answered || state.closing || !input.allowed())
+      return { kind: 'created', lane, prompted: false }
+    // Still under the hold, so the prompt reaches pi before any queued lane op.
+    phase('prompting')
+    const target = { laneId: lane.laneId, requestId: frame.requestId }
+    return { kind: 'created', lane, prompted: await sendFirstPrompt(ports, target, op.prompt) }
   } finally {
     releaseCreatedLane(state, ports, input.execute, creation)
   }
@@ -173,7 +225,13 @@ export function mapCreationReceipt(
         state,
         ports,
         job,
-        { requestId, status: 'done', laneId: outcome.lane.laneId, fence: 1 },
+        {
+          requestId,
+          status: 'done',
+          laneId: outcome.lane.laneId,
+          fence: 1,
+          ...(outcome.prompted === undefined ? {} : { data: { prompted: outcome.prompted } }),
+        },
         true,
       )
     case 'closed':
@@ -183,23 +241,29 @@ export function mapCreationReceipt(
 }
 
 /**
- * lane.create on the machine queue. Its completion waits for both the receipt and
- * the work, so a timed-out creation still holds the queue until rollback settles.
+ * lane.create, detached from the machine queue: the next laneless op starts at
+ * dispatch, and only worktree work waits, per repository (state.folders). The
+ * completion still waits for both the receipt and the work, and the dispatched
+ * work counts against the queue's slots until its rollback settles.
  */
 export function executeCreate(
   state: CommandState,
   ports: CreatePorts,
   job: Job,
   queue: LaneQueue,
-  input: { op: CreateOp; execute: ExecuteJob },
+  input: { op: CreateOp; execute: ExecuteJob; allowed: () => boolean },
 ): Execution | void {
-  const valid = validateCreate(ports.store, job.frame.laneId, input.op)
+  const unstored = [...state.creations.keys()].filter((c) => !c.stored).length
+  const valid = validateCreate(ports.store, job.frame.laneId, input.op, unstored)
   if (!valid.ok) return rejected(state, ports, job, valid.code, true)
   const creation: Creation = {}
+  state.creations.set(creation, input.op.repositoryId)
   const work = runCreation(state, ports, job, { ...input, root: valid.root, creation })
-  const receiptPath = dispatch(state, ports, job, queue, () => work).then((result) =>
-    mapCreationReceipt(state, ports, job, result),
-  )
+  void work.finally(() => state.creations.delete(creation)).catch(() => {})
+  const receiptPath = dispatch(state, ports, job, queue, () => work).then((result) => {
+    creation.answered = true
+    mapCreationReceipt(state, ports, job, result)
+  })
   const completion = Promise.all([
     receiptPath,
     work.then(
@@ -207,5 +271,5 @@ export function executeCreate(
       () => {},
     ),
   ]).then(() => {})
-  return { completion, detached: false }
+  return { completion, detached: true }
 }

@@ -1,13 +1,16 @@
 import { useCallback, useState } from 'react'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 
-/** A picker override lasts until the sidebar machine changes, never until restart. */
-export function useComposerMachine(): [string, (machine: string) => void] {
+/**
+ * A picker override lasts until the sidebar machine changes, never until restart.
+ * `returnTo` is the first machine for a Home that comes back from a failed start.
+ */
+export function useComposerMachine(returnTo?: string): [string, (machine: string) => void] {
   const filter = useRemoteLanesStore((s) => s.filter)
-  const [selection, setSelection] = useState({
+  const [selection, setSelection] = useState(() => ({
     filter,
-    machine: filter === 'all' ? 'local' : filter,
-  })
+    machine: returnTo ?? (filter === 'all' ? 'local' : filter),
+  }))
   if (selection.filter !== filter) {
     setSelection({ filter, machine: filter === 'all' ? 'local' : filter })
   }

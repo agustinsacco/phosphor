@@ -1,9 +1,12 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { createLane, type LaneSessions } from './create'
+import { createRepositoryLocks } from './repository-lock'
 import { HostStore, type StoredLane } from './store'
-import { prepareLaneFolder } from './worktree'
+import { LaneFolderError, prepareLaneFolder } from './worktree'
+import type * as Worktree from './worktree'
 
-vi.mock('./worktree', () => ({
+vi.mock('./worktree', async (importOriginal) => ({
+  ...(await importOriginal<typeof Worktree>()),
   prepareLaneFolder: vi.fn(),
   gitTracksFolder: vi.fn(async () => true),
 }))
@@ -72,7 +75,7 @@ beforeEach(() => {
     return lane
   })
 })
-const ports = () => ({ sessions, store, log: () => {} })
+const ports = () => ({ sessions, store, log: () => {}, folders: createRepositoryLocks() })
 it('prepares, starts, stores with the creator, then attaches', async () => {
   expect(await createLane(ports(), { ...input, onStored: () => order.push('hold') })).toBe(lane)
   expect(order).toEqual(['folder', 'start', 'ensure', 'hold', 'attach'])
@@ -172,7 +175,7 @@ it('close after storing skips attach and store rollback, but stops and undoes', 
 
 it('a fresh branch refusal never creates a row or starts pi', async () => {
   vi.mocked(prepareLaneFolder).mockRejectedValue(
-    Object.assign(new Error('That branch already exists.'), { code: 'branch-exists' }),
+    new LaneFolderError('That branch already exists.', 'branch-exists'),
   )
   await expect(
     createLane(ports(), {
@@ -180,7 +183,116 @@ it('a fresh branch refusal never creates a row or starts pi', async () => {
       op: { ...input.op, worktree: { branch: 'feature', fresh: true } },
     }),
   ).rejects.toMatchObject({ code: 'branch-exists' })
+  expect(vi.mocked(prepareLaneFolder).mock.calls.map(([call]) => call.worktree?.branch)).toEqual([
+    'feature',
+    'feature-2',
+    'feature-3',
+    'feature-4',
+    'feature-5',
+  ])
   expect(sessions.start).not.toHaveBeenCalled()
   expect(store.ensureLane).not.toHaveBeenCalled()
   expect(undo).not.toHaveBeenCalled()
+})
+
+it('stores the free name a fresh branch was created under', async () => {
+  vi.mocked(prepareLaneFolder)
+    .mockRejectedValueOnce(new LaneFolderError('That branch already exists.', 'branch-exists'))
+    .mockRejectedValueOnce(new LaneFolderError('That branch already exists.', 'branch-exists'))
+    .mockImplementationOnce(async ({ worktree }) => ({
+      cwd: '/repo/worktree-3',
+      branch: worktree?.branch ?? null,
+      undo,
+    }))
+  await createLane(ports(), {
+    ...input,
+    op: { ...input.op, worktree: { branch: 'feature-', fresh: true } },
+  })
+  expect(vi.mocked(prepareLaneFolder).mock.calls.map(([call]) => call.worktree)).toEqual([
+    { branch: 'feature-', fresh: true },
+    { branch: 'feature-2', fresh: true },
+    { branch: 'feature-3', fresh: true },
+  ])
+  expect(store.ensureLane).toHaveBeenCalledWith(
+    expect.objectContaining({ branch: 'feature-3', cwd: '/repo/worktree-3', worktree: true }),
+    { controller: input.controller },
+  )
+})
+
+it('tries one name for an existing branch, and fails on any other folder refusal', async () => {
+  const taken = new LaneFolderError('That branch already exists.', 'branch-exists')
+  vi.mocked(prepareLaneFolder).mockRejectedValueOnce(taken)
+  await expect(createLane(ports(), input)).rejects.toBe(taken)
+  const invalid = new LaneFolderError('That branch name is not valid.')
+  vi.mocked(prepareLaneFolder).mockRejectedValueOnce(invalid)
+  await expect(
+    createLane(ports(), {
+      ...input,
+      op: { ...input.op, worktree: { branch: 'feature', fresh: true } },
+    }),
+  ).rejects.toBe(invalid)
+  expect(prepareLaneFolder).toHaveBeenCalledTimes(2)
+})
+
+it('reports branching then starting for a worktree, and only starting in place', async () => {
+  const phases: string[] = []
+  await createLane(ports(), { ...input, phase: (phase) => phases.push(phase) })
+  await createLane(ports(), {
+    ...input,
+    op: { ...input.op, worktree: null },
+    phase: (phase) => phases.push(phase),
+  })
+  expect(phases).toEqual(['branching', 'starting', 'starting'])
+})
+
+it('ignores a throwing phase report', async () => {
+  const phase = vi.fn(() => {
+    throw new Error('delivery')
+  })
+  expect(await createLane(ports(), { ...input, phase })).toBe(lane)
+  expect(phase).toHaveBeenCalledTimes(2)
+})
+
+it('takes turns per repository for worktree work and its undo, while pi boots overlap', async () => {
+  const folders = createRepositoryLocks()
+  const shared = { ...ports(), folders }
+  let releaseFolder = () => {}
+  const firstFolder = new Promise<void>((resolve) => (releaseFolder = resolve))
+  vi.mocked(prepareLaneFolder).mockImplementationOnce(async () => {
+    order.push('folder-1')
+    await firstFolder
+    return { cwd: '/repo/one', branch: 'one', undo }
+  })
+  vi.mocked(prepareLaneFolder).mockImplementationOnce(async () => {
+    order.push('folder-2')
+    return { cwd: '/repo/two', branch: 'two', undo }
+  })
+  let failBoots = (_error: Error) => {}
+  const boots = new Promise<{ sessionId: string; sessionFile: null }>(
+    (_resolve, reject) => (failBoots = reject),
+  )
+  vi.mocked(sessions.start).mockImplementation(async ({ repository }) => {
+    order.push(`start ${repository}`)
+    return boots
+  })
+  const phases: string[] = []
+  const first = createLane(shared, input)
+  const second = createLane(shared, { ...input, phase: (phase) => phases.push(phase) })
+  await vi.waitFor(() => expect(phases).toEqual(['queued']))
+  expect(order).toEqual(['folder-1'])
+  releaseFolder()
+  // Both boots are running before either settles; only the folder step waited.
+  await vi.waitFor(() =>
+    expect([...order].sort()).toEqual([
+      'folder-1',
+      'folder-2',
+      'start /repo/one',
+      'start /repo/two',
+    ]),
+  )
+  expect(phases).toEqual(['queued', 'branching', 'starting'])
+  failBoots(new Error('boot'))
+  await expect(first).rejects.toThrow('boot')
+  await expect(second).rejects.toThrow('boot')
+  expect(undo).toHaveBeenCalledTimes(2)
 })

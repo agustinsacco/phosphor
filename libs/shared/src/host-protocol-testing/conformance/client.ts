@@ -77,7 +77,8 @@ export async function create(ports: ClientPorts, c: ConformanceViewer) {
     op: { type: 'lane.create', repositoryId, worktree: null },
   })
   await flush(5)
-  const r = receipts(c, id)[0]
+  // A Host may report the creation's phases on pending receipts first.
+  const r = receipts(c, id).find((receipt) => receipt.status !== 'pending')
   expect(r?.status).toBe('done')
   if (!r || r.status !== 'done' || !r.laneId) throw new Error('No created lane')
   return r.laneId

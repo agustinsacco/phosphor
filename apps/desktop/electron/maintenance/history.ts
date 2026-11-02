@@ -1,6 +1,7 @@
 import Store from 'electron-store'
 import type { SessionMeta } from '@shared/models'
 import { sessionPathKey } from '../pi/session-path-lock'
+import { createKeyedLock } from '@phosphor/session-runtime/pi/session-path-lock'
 
 export interface RemovalRecord {
   id: string
@@ -50,7 +51,7 @@ export function saveRemoval(record: RemovalRecord): void {
   history().set('removals', records)
 }
 
-const operations = new Map<string, Promise<unknown>>()
+const operations = createKeyedLock()
 const intents = new Map<string, number>()
 export const workspaceGeneration = (path: string): number => intents.get(sessionPathKey(path)) ?? 0
 export function recordWorkspaceIntent(path: string): void {
@@ -58,16 +59,5 @@ export function recordWorkspaceIntent(path: string): void {
 }
 /** Serializes Desktop admission, completion, restore and checkout removal. */
 export async function withWorkspace<T>(path: string, run: () => Promise<T>): Promise<T> {
-  const key = sessionPathKey(path)
-  const previous = operations.get(key)
-  const operation = (async () => {
-    await previous?.catch(() => undefined)
-    return run()
-  })()
-  operations.set(key, operation)
-  try {
-    return await operation
-  } finally {
-    if (operations.get(key) === operation) operations.delete(key)
-  }
+  return operations.run(sessionPathKey(path), run)
 }

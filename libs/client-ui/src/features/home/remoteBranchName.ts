@@ -1,8 +1,9 @@
 import { normalizePrefix } from '@shared/branchName'
+import { LANE_FOLDER_MAX } from '@shared/host-protocol'
 import { newChatBranchName } from '@/features/sessions/startChat'
 import { useWorktreesStore } from '@/stores/worktrees'
 
-export const HOST_BRANCH_LIMIT = 100
+const HOST_BRANCH_LIMIT = LANE_FOLDER_MAX
 
 /** Host folders flatten slashes; This Mac has no corresponding 100-character cap. */
 export function remoteBranchName(prompt: string, attempt = 1): string {

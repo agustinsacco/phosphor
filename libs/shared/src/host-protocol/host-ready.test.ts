@@ -135,3 +135,14 @@ describe('lane marks support marker', () => {
     expect(ready({ laneMarks: true })).toMatchObject({ ok: true, value: { laneMarks: true } })
   })
 })
+
+describe('lane start support marker', () => {
+  it('carries the additive laneStart marker only as a boolean', () => {
+    expect(parseReadyFrame({ ...READY, laneStart: true })).toStrictEqual({
+      ...READY,
+      laneStart: true,
+    })
+    expect(parseReadyFrame({ ...READY, laneStart: 1 })).toBeNull()
+    expect(ready({ laneStart: true })).toMatchObject({ ok: true, value: { laneStart: true } })
+  })
+})

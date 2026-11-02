@@ -415,7 +415,7 @@ it('traces one viewer through auth, lane creation, a prompt turn, lane operation
   a.send({ type: 'call', id: 'state', method: 'lane.state', params: { laneId } })
   await flush()
   expect(a.trace()).toEqual(ONE_VIEWER)
-  expect(digest(a.texts)).toBe('3d19221d5e49afa8')
+  expect(digest(a.texts)).toBe('6a522e41a7a28bcf')
   expect(host.executions()).toBe(5)
   expect(a.closes).toEqual([])
 })
@@ -473,7 +473,7 @@ it('traces driver emits, ping and an interrupted receipt, then restart closes an
   await flush()
   expect(a.trace()).toEqual(RESTART_FIRST)
   expect(b.trace()).toEqual(RESTART_SECOND)
-  expect(digest([...a.texts, ...b.texts])).toBe('2c07e8ac4b8e8dd7')
+  expect(digest([...a.texts, ...b.texts])).toBe('317e8c05bad60389')
   expect(host.executions()).toBe(1)
 })
 
@@ -588,7 +588,7 @@ it('renews a grant in place and closes an expired grant only after the skew wind
   renewing.send({ type: 'auth', grant: grant(), challenge: CHALLENGE })
   await flush()
   expect([expiring.closes, expiring.trace(), renewing.closes, renewing.trace()]).toEqual(RENEWAL)
-  expect(digest([...expiring.texts, ...renewing.texts])).toBe('a3d8bb998deccab6')
+  expect(digest([...expiring.texts, ...renewing.texts])).toBe('bfd724df39d49184')
 })
 
 it('gives two viewers identical event order, serializes takeover and fences the old controller', async () => {
@@ -613,7 +613,7 @@ it('gives two viewers identical event order, serializes takeover and fences the 
   expect(events(a)).toEqual(events(b).slice(0, events(a).length))
   expect(a.trace()).toEqual(TWO_FIRST)
   expect(b.trace()).toEqual(TWO_SECOND)
-  expect(digest([...a.texts, ...b.texts])).toBe('52e441f22ff69817')
+  expect(digest([...a.texts, ...b.texts])).toBe('a894e7f879b8054b')
 })
 
 it('recovers one slow viewer with a single reset snapshot without slowing the other', async () => {

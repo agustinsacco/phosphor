@@ -139,7 +139,7 @@ export function createBrowserHosts(ports: HostPorts) {
       if (!up || !hostEndpoint(entry.machine.endpoint)) {
         if (entry.connection) entry.cached = entry.connection.snapshot()
         drop(hostId)
-        entry.cached = { ...entry.cached, state: up ? 'no-address' : 'down' }
+        entry.cached = { ...entry.cached, laneStarts: [], state: up ? 'no-address' : 'down' }
       } else if (!entry.connection) {
         const epoch = generation
         const active = () => !stopped && epoch === generation && entries.get(hostId) === entry

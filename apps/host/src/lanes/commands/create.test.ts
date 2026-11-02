@@ -13,6 +13,7 @@ import {
   executeCreate,
   holdCreatedLane,
   mapCreationReceipt,
+  phaseReporter,
   publishCreated,
   releaseCreatedLane,
   runCreation,
@@ -184,6 +185,7 @@ describe('runCreation releases the hold on every path', () => {
       root: f.lane.cwd,
       creation,
       execute,
+      allowed: () => true,
     })
     return { result, creation, state }
   }
@@ -248,6 +250,14 @@ describe('mapCreationReceipt', () => {
         { answered: true, value: { kind: 'created', lane: f.lane } },
         { status: 'done', laneId: f.lane.laneId, fence: 1 },
       ],
+      [
+        { answered: true, value: { kind: 'created', lane: f.lane, prompted: true } },
+        { status: 'done', laneId: f.lane.laneId, fence: 1, data: { prompted: true } },
+      ],
+      [
+        { answered: true, value: { kind: 'created', lane: f.lane, prompted: false } },
+        { status: 'done', laneId: f.lane.laneId, fence: 1, data: { prompted: false } },
+      ],
     ] as const
     for (const [answer, receipt] of cases) {
       const current = job()
@@ -274,6 +284,7 @@ describe('executeCreate', () => {
       executeCreate(state, f.ports, current, queue, {
         op: create,
         execute: noJobs,
+        allowed: () => true,
       }),
     ).toBeUndefined()
     expect(f.last(current.frame.requestId)).toMatchObject({ code: 'bad-request' })
@@ -291,9 +302,10 @@ describe('executeCreate', () => {
     const execution = executeCreate(state, f.ports, current, queue, {
       op: create,
       execute: noJobs,
+      allowed: () => true,
     })
     if (!execution) throw new Error('expected an execution')
-    expect(execution.detached).toBe(false)
+    expect(execution.detached).toBe(true)
     let completed = false
     void execution.completion.then(() => (completed = true))
     await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
@@ -308,5 +320,97 @@ describe('executeCreate', () => {
     expect(f.order).toEqual(['control', 'summary'])
     expect(f.receipts(current.frame.requestId)).toHaveLength(1)
     expect(queue.outstanding).toBe(0)
+  })
+})
+
+describe('phaseReporter', () => {
+  it('delivers unrecorded pending phases to the creating connection only', () => {
+    const state = createCommandState()
+    const deliver = vi.spyOn(f.ports, 'deliver')
+    const current = { ...job(), client: { ...f.one, connectionId: 'connection' } }
+    const creation: Creation = {}
+    const report = phaseReporter(state, f.ports, current, creation)
+    report('queued')
+    report('branching')
+    const { requestId } = current.frame
+    expect(deliver.mock.calls).toEqual([
+      [f.one.id, { requestId, status: 'pending', phase: 'queued' }, 'connection'],
+      [f.one.id, { requestId, status: 'pending', phase: 'branching' }, 'connection'],
+    ])
+    expect(f.store.getReceipt(requestId, f.one.id)).toBeNull()
+    creation.answered = true
+    report('starting')
+    expect(deliver).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops at close, skips a connectionless client and survives a throwing delivery', () => {
+    const state = createCommandState()
+    const deliver = vi.spyOn(f.ports, 'deliver').mockImplementation(() => {
+      throw new Error('socket')
+    })
+    phaseReporter(state, f.ports, job(), {})('starting')
+    expect(deliver).not.toHaveBeenCalled()
+    const current = { ...job(), client: { ...f.one, connectionId: 'connection' } }
+    const report = phaseReporter(state, f.ports, current, {})
+    expect(() => report('starting')).not.toThrow()
+    state.closing = true
+    report('prompting')
+    expect(deliver).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('runCreation with a first prompt', () => {
+  const answer = { type: 'response' as const, command: 'prompt' as const }
+  async function run(create: CreateOp) {
+    vi.mocked(f.ports.sessions.attach).mockImplementation(async (laneId, sessionId) => {
+      f.sessions.set(laneId, sessionId)
+    })
+    const phases: string[] = []
+    vi.spyOn(f.ports, 'deliver').mockImplementation((_client, receipt) => {
+      if (receipt.status === 'pending' && receipt.phase) phases.push(receipt.phase)
+    })
+    const current = { ...job(create), client: { ...f.one, connectionId: 'connection' } }
+    const result = await runCreation(createCommandState(), f.ports, current, {
+      op: create,
+      root: f.lane.cwd,
+      creation: {},
+      execute: noJobs,
+      allowed: () => true,
+    })
+    return { result, phases, current }
+  }
+
+  it('reports each phase, sends the prompt after publishing the lane, and answers prompted', async () => {
+    f.command.mockImplementationOnce(async () => {
+      f.order.push('prompt')
+      return { ...answer, success: true }
+    })
+    const { result, phases, current } = await run(
+      op({ worktree: { branch: 'feature' }, prompt: 'hello' }),
+    )
+    expect(result).toMatchObject({ kind: 'created', prompted: true })
+    expect(phases).toEqual(['branching', 'starting', 'prompting'])
+    expect(f.order).toEqual(['control', 'summary', 'prompt'])
+    expect(f.command).toHaveBeenCalledWith('new-session', {
+      type: 'prompt',
+      message: 'hello',
+      id: current.frame.requestId,
+    })
+  })
+
+  it('answers prompted false for a pi error, and leaves it out when the call throws', async () => {
+    f.command.mockResolvedValueOnce({ ...answer, success: false, error: 'no' })
+    expect((await run(op({ prompt: 'hello' }))).result).toMatchObject({ prompted: false })
+    f.command.mockRejectedValueOnce(new Error('exited'))
+    const thrown = await run(op({ prompt: 'hello' }))
+    expect(thrown.result).toMatchObject({ kind: 'created' })
+    expect(thrown.result).not.toHaveProperty('prompted', expect.anything())
+  })
+
+  it('sends nothing and reports no prompting phase without a prompt', async () => {
+    const { result, phases } = await run(op())
+    expect(result).toEqual({ kind: 'created', lane: expect.anything() })
+    expect(phases).toEqual(['starting'])
+    expect(f.command).not.toHaveBeenCalled()
   })
 })

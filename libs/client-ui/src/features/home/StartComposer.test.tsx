@@ -58,7 +58,7 @@ beforeEach(() => {
   host.capabilities.push('workspaces.read')
   useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
   useMachineCataloguesStore.setState({ catalogues: {} })
-  useHomeSubmissionsStore.setState({ pending: {} })
+  useHomeSubmissionsStore.setState({ pending: {}, warnings: {} })
   useStartingChatStore.setState({ starting: null, draft: null })
   useWorktreesStore.setState({ preferWorktree: true })
   clearDraftMemory()
@@ -156,4 +156,19 @@ it('offers no Host @ mentions without repository read access', async () => {
   await type('@host')
   expect(repositoryFiles).not.toHaveBeenCalled()
   expect(el.textContent).not.toContain('src/host-only.ts')
+})
+
+// Regression: after Enter on a Host composer only the send button spun. The field
+// stayed editable and looked idle, so an edit made then was silently not what was sent.
+it('locks and marks the Host field busy while its lane is being created', async () => {
+  await render(<RemoteStartView hostId={MOCK_HOST_ID} machinePicker={machine} />)
+  await type('Fix the flaky test')
+  const field = el.querySelector('textarea')!
+  expect(field.matches(':disabled')).toBe(false)
+  await act(async () =>
+    useHomeSubmissionsStore.setState({ pending: { [`home:host:${MOCK_HOST_ID}/machine`]: true } }),
+  )
+  expect(field.matches(':disabled')).toBe(true)
+  expect(field.closest('[aria-busy="true"]')).not.toBeNull()
+  expect(field.value).toBe('Fix the flaky test')
 })

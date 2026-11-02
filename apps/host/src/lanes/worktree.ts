@@ -10,7 +10,7 @@ import {
   realpathSync,
 } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { isLaneBranchName } from '@phosphor/shared/host-protocol'
+import { isLaneBranchName, LANE_FOLDER_MAX } from '@phosphor/shared/host-protocol'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { defaultBranchRefs, resolveDefaultBranch } from './default-branch'
@@ -18,7 +18,8 @@ import { defaultBranchRefs, resolveDefaultBranch } from './default-branch'
 export class LaneFolderError extends Error {
   constructor(
     message: string,
-    readonly code?: 'branch-exists',
+    /** A fresh branch may try its next name after either refusal. */
+    readonly code?: 'branch-exists' | 'folder-exists',
   ) {
     super(message)
   }
@@ -58,17 +59,15 @@ export async function prepareLaneFolder(input: {
     return { cwd: root, branch: isLaneBranchName(branch) ? branch : null, undo: async () => {} }
   }
   const { branch } = worktree
-  const refuse = (message: string): never => {
-    throw new LaneFolderError(message)
+  const refuse = (message: string, code?: LaneFolderError['code']): never => {
+    throw new LaneFolderError(message, code)
   }
   if (
     !isLaneBranchName(branch) ||
     (await optional(['check-ref-format', '--branch', branch])) !== branch
   )
     refuse('That branch name is not valid.')
-  const slug = branch.replaceAll('/', '-')
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(slug) || slug.includes('..'))
-    refuse('That branch name is not valid.')
+  const slug = laneFolderSlug(branch) ?? refuse('That branch name is not valid.')
   let created = false
   let worktreeCreated = false
   let madeBranch = false
@@ -156,7 +155,7 @@ export async function prepareLaneFolder(input: {
     const checkLeafAbsent = () => {
       try {
         lstatSync(path)
-        refuse('A worktree folder for that branch already exists.')
+        refuse('A worktree folder for that branch already exists.', 'folder-exists')
       } catch (error) {
         if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
       }
@@ -226,6 +225,16 @@ export async function prepareLaneFolder(input: {
     if (error instanceof LaneFolderError) throw error
     throw new LaneFolderError('The worktree could not be created.')
   }
+}
+
+/** The worktree folder name for a branch, or null when the branch cannot have one. */
+export function laneFolderSlug(branch: string): string | null {
+  const slug = branch.replaceAll('/', '-')
+  return slug.length <= LANE_FOLDER_MAX &&
+    /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(slug) &&
+    !slug.includes('..')
+    ? slug
+    : null
 }
 
 function directory(path: string): void {

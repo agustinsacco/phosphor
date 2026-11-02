@@ -18,6 +18,7 @@ import type { MachineTasks } from '../../settings/tasks'
 import type { HostRuntime } from '../../session/runtime'
 import type { HostTerminals } from '../../terminals/service'
 import type { LaneSessions } from '../create'
+import { createRepositoryLocks, type RepositoryLocks } from '../repository-lock'
 import type { HostStore, StoredLane } from '../store'
 
 export const LANE_QUEUE_LIMIT = 32
@@ -110,6 +111,10 @@ export interface CommandState {
   /** Runtime promises and completions that close() waits for, up to its grace. */
   readonly work: Set<Promise<unknown>>
   readonly limit: number
+  /** Lane creations take turns per repository only for their worktree work. */
+  readonly folders: RepositoryLocks
+  /** Creations whose work has not settled, to the repository they create in. */
+  readonly creations: Map<{ stored?: boolean }, string>
   closing: boolean
   closed: boolean
   closePromise: Promise<void> | undefined
@@ -122,6 +127,8 @@ export function createCommandState(limit: number = LANE_QUEUE_LIMIT): CommandSta
     queues: new Map(),
     work: new Set(),
     limit,
+    folders: createRepositoryLocks(),
+    creations: new Map(),
     closing: false,
     closed: false,
     closePromise: undefined,

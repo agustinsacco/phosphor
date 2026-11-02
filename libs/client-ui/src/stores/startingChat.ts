@@ -31,11 +31,37 @@ import type { PendingAttachment } from '@/features/chat/attachments'
  * any of this.
  */
 export interface StartingChat {
-  /** Folder the chat was composed against — where the greeting screen was. */
-  workspacePath: string
+  /** This Mac: folder the chat was composed against — where the greeting screen was. */
+  workspacePath?: string
   prompt: string
   images?: ImageContent[]
   phase: StartChatPhase
+  /**
+   * A Host lane. Its phases come from the hosts snapshot (`laneStarts`), and its
+   * draft never leaves the drafts store, so a failure only ends the echo.
+   */
+  remote?: RemoteStart
+}
+
+export interface RemoteStart {
+  hostId: string
+  repositoryId: string
+  draftKey: string
+  /** The adopted lane whose first prompt is still on its way from this client. */
+  sessionId?: string
+  laneId?: string
+}
+
+/** Whether the echo stands in for this lane, whose first prompt this client is still sending. */
+export function coversLane(
+  starting: StartingChat | null,
+  lane: { sessionId: string } | { hostId: string; laneId: string },
+): boolean {
+  const remote = starting?.remote
+  if (!remote?.sessionId) return false
+  return 'sessionId' in lane
+    ? lane.sessionId === remote.sessionId
+    : lane.hostId === remote.hostId && lane.laneId === remote.laneId
 }
 
 /** What the composer should be holding again after a failed start. */
@@ -53,8 +79,13 @@ interface StartingChatState {
   draft: ComposerDraft | null
   begin: (chat: Omit<StartingChat, 'phase'>) => void
   setPhase: (phase: StartChatPhase) => void
-  /** The session exists (or was abandoned): stop standing in for it. */
-  finish: () => void
+  /** Keep standing in for this adopted Host lane until its first prompt is sent. */
+  cover: (hostId: string, repositoryId: string, lane: { sessionId: string; laneId: string }) => void
+  /**
+   * The session exists (or was abandoned): stop standing in for it. A Host start
+   * passes its draft key, so it never ends a different start that replaced it.
+   */
+  finish: (draftKey?: string) => void
   /** The start failed: hand the message back to the composer with a reason. */
   restore: (draft: ComposerDraft) => void
   /** The composer has taken the draft back. */
@@ -67,12 +98,26 @@ export const useStartingChatStore = create<StartingChatState>((set) => ({
 
   // Clearing `draft` here as well: a new send supersedes whatever the last
   // failed one left behind, and leaving it would re-inject old text the
-  // moment this send finishes.
-  begin: (chat) => set({ starting: { ...chat, phase: 'branching' }, draft: null }),
+  // moment this send finishes. A Host start keeps it: its own draft lives in
+  // the drafts store, and the parked one still waits for its workspace.
+  begin: (chat) =>
+    set((s) => ({
+      starting: { ...chat, phase: 'branching' },
+      draft: chat.remote ? s.draft : null,
+    })),
 
   setPhase: (phase) => set((s) => (s.starting ? { starting: { ...s.starting, phase } } : s)),
 
-  finish: () => set({ starting: null }),
+  // By Host and repository: a newer start that replaced this one is never covered for it.
+  cover: (hostId, repositoryId, lane) =>
+    set((s) =>
+      s.starting?.remote?.hostId === hostId && s.starting.remote.repositoryId === repositoryId
+        ? { starting: { ...s.starting, remote: { ...s.starting.remote, ...lane } } }
+        : s,
+    ),
+
+  finish: (draftKey) =>
+    set((s) => (draftKey && s.starting?.remote?.draftKey !== draftKey ? s : { starting: null })),
 
   restore: (draft) => set({ starting: null, draft }),
 

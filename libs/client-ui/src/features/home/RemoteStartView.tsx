@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { FileMentionSource } from '@/features/chat/composer/useFileMentions'
 import { RemoteModelPicker } from '@/features/machines/RemoteModelPicker'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
@@ -7,6 +7,7 @@ import { homeDraftKey } from '@/stores/drafts'
 import { connectingTo, hostPending, machineLabel } from '@/stores/remoteLanes'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { StartComposer, type StartTarget } from './StartComposer'
 import { useRemoteStart } from './useRemoteStart'
 
@@ -34,10 +35,18 @@ function RemoteStartComposer({
 }: Props): React.JSX.Element {
   const field = useRef<HTMLTextAreaElement>(null)
   const target = useHostStart(hostId, draftKey)
+  const input = textareaRef ?? field
+  // Back from a failed start: the echo held the screen, so put the cursor back in the draft, once.
+  const failed = useRef(useHomeSubmissionsStore.getState().warnings[draftKey]?.returnTo === hostId)
+  useEffect(() => {
+    if (!failed.current) return
+    input.current?.focus()
+    useHomeSubmissionsStore.getState().settle(draftKey)
+  }, [input, draftKey])
   return (
     <StartComposer
       target={target}
-      textareaRef={textareaRef ?? field}
+      textareaRef={input}
       machinePicker={
         machinePicker ?? <span className="start-composer-host">{machineLabel(hostId)}</span>
       }

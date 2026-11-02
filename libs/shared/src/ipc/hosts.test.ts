@@ -1,5 +1,11 @@
 import { expectTypeOf, it } from 'vitest'
-import type { IpcInvokeMap, HostsSnapshot, TrafficPage, RemoteLaneCreate } from '../ipc'
+import type {
+  IpcInvokeMap,
+  HostsSnapshot,
+  TrafficPage,
+  RemoteLaneCreate,
+  RemoteLaneStarted,
+} from '../ipc'
 import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
 import type { MachineClaude, MachineModel, MachineProvider } from '../host-protocol-machine'
@@ -100,7 +106,7 @@ export interface BaselineHostsInvokeMap {
    * to the Host. Disposing a handle unsubscribes; it never stops the lane. */
   'hosts:openLane': { args: [hostId: string, laneId: string]; result: LiveSessionInfo }
 
-  'hosts:createLane': { args: [hostId: string, input: RemoteLaneCreate]; result: LiveSessionInfo }
+  'hosts:createLane': { args: [hostId: string, input: RemoteLaneCreate]; result: RemoteLaneStarted }
 
   'hosts:stopLane': { args: [hostId: string, laneId: string]; result: void }
 
