@@ -240,7 +240,9 @@ to one bounded line of text, or deletes it; it is machine-wide (no
 `repositoryId`) and preserves every other key. The `resources` revision hashes
 pi's `settings.json` files and `web-search.json`, and both the snapshot and the
 commit check that same revision. Older Hosts omit `webAccess` and refuse the
-change.
+change. Advanced reads carry additive `pi { version?, path, agentDir }`: the
+version the Host checked at start, where that pi is installed and its agent
+folder. Older Hosts omit it.
 
 Configuration calls serialize through a bounded eight-entry service queue.
 File commits recheck the current revision and live authority immediately before

@@ -590,7 +590,10 @@ privacy rules are in [voice.md](voice.md).
 ## Advanced
 
 - **pi health**: resolved binary path, version, and the minimum version
-  Phosphor supports.
+  Phosphor supports. `pi:health` also reports the PATH pi runs with (the login
+  shell's) and pi's agent directory (`PiHealth.path`, `PiHealth.agentDir`); a
+  Host's Advanced read carries the same facts for its pi as additive
+  `advanced.pi { version, path, agentDir }`.
 - **Raw file editors** (Monaco JSON) for `~/.pi/agent/settings.json` and
   `models.json`, with a "restart sessions to apply" note. The escape hatch the
   Agent tab points at when a file is too broken to edit structurally.

@@ -21,7 +21,8 @@ export interface MachineSettingsOptions {
   store: Pick<HostStore, 'listLanes' | 'listRepositories'>
   runtime: Pick<HostRuntime, 'accountForSession'>
   accounts: HostClaudeAccounts
-  pi: { binaryPath: string; prefixArgs: string[] }
+  /** How the Host starts pi; `version` is the one it checked at start. */
+  pi: { binaryPath: string; prefixArgs: string[]; version?: string }
   authenticating(): boolean
   sessionFor(laneId: string): string | null
 }

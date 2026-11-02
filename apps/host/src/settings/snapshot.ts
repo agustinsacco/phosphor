@@ -56,6 +56,12 @@ function readAdvanced(state: SettingsContext) {
         available: options.context.env[name] !== undefined,
         passed: options.env[name] !== undefined,
       })),
+      pi: {
+        ...(options.pi.version ? { version: options.pi.version } : {}),
+        // Where pi is installed: its script when node runs it, else pi itself.
+        path: options.pi.prefixArgs[0] ?? options.pi.binaryPath,
+        agentDir: state.agentDir,
+      },
     },
   }
 }

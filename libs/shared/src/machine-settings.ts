@@ -111,6 +111,11 @@ export type MachineSettings = {
     piAgentDir: string
     path: string[]
     environment: { name: string; available: boolean; passed: boolean }[]
+    /**
+     * The pi the Host runs: its version, where it is installed and its agent
+     * folder. Absent from Hosts that predate it.
+     */
+    pi?: { version?: string; path: string; agentDir: string }
   }
 }
 export type MachineSettingsChange =

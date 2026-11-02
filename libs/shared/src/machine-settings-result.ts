@@ -345,6 +345,23 @@ function parseAdvanced(
       piAgentDir: a.piAgentDir,
       path: a.path as string[],
       environment,
+      ...(parseAdvancedPi(a.pi) ? { pi: parseAdvancedPi(a.pi)! } : {}),
     },
+  }
+}
+function parseAdvancedPi(
+  value: unknown,
+): NonNullable<MachineSettings['advanced']>['pi'] | undefined {
+  if (
+    !machineRecord(value) ||
+    !text(value.path, 4096) ||
+    !text(value.agentDir, 4096) ||
+    !(value.version === undefined || text(value.version, 64))
+  )
+    return undefined
+  return {
+    ...(value.version ? { version: value.version } : {}),
+    path: value.path,
+    agentDir: value.agentDir,
   }
 }

@@ -987,6 +987,8 @@ export function installMockPhosphor(): void {
             version: MIN_PI_VERSION,
             binaryPath: '/mock/pi',
             minVersion: MIN_PI_VERSION,
+            path: ['/Users/dev/.local/bin', '/opt/homebrew/bin', '/usr/bin', '/bin'],
+            agentDir: '/Users/dev/.pi/agent',
           })
         case 'app:getPrefs':
           return Promise.resolve({

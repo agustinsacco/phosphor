@@ -172,6 +172,11 @@ function mockSettingsSamples(hostId: string, repositoryId?: string) {
       piAgentDir: `/home/${tag}/.pi/agent`,
       path: [`/home/${tag}/.local/bin`, '/usr/bin', '/bin'],
       environment: [{ name: 'EXAMPLE_API_KEY', available: false, passed: false }],
+      pi: {
+        version: '1.2.0',
+        path: `/home/${tag}/.local/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js`,
+        agentDir: `/home/${tag}/.pi/agent`,
+      },
     },
   }
   return samples
