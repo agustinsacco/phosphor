@@ -44,9 +44,9 @@ export interface CommandProbeOptions {
   env?: Record<string, string>
 }
 
-/** Ask a throwaway pi for the commands it resolves in `workspacePath`. */
-export async function probeCommands(options: CommandProbeOptions): Promise<RpcSlashCommand[]> {
-  if (!options.binaryPath && !options.prefixArgs) return []
+/** pi's answer, or null when there is no pi or pi did not answer successfully. */
+async function askCommands(options: CommandProbeOptions): Promise<RpcSlashCommand[] | null> {
+  if (!options.binaryPath && !options.prefixArgs) return null
   const client = new PiRpcClient({
     cwd: options.workspacePath ?? process.cwd(),
     ...(options.binaryPath ? { binaryPath: options.binaryPath } : {}),
@@ -60,11 +60,22 @@ export async function probeCommands(options: CommandProbeOptions): Promise<RpcSl
       client.request({ type: 'get_commands' }),
       RPC_TIMEOUT_MS,
     )) as RpcResponse<RpcResponseDataMap['get_commands']>
-    if (!response.success || !response.data) return []
-    return response.data.commands
+    return response.success && response.data ? response.data.commands : null
   } finally {
     await client.dispose()
   }
+}
+
+/** Ask a throwaway pi for the commands it resolves in `workspacePath`; none without pi. */
+export async function probeCommands(options: CommandProbeOptions): Promise<RpcSlashCommand[]> {
+  return (await askCommands(options)) ?? []
+}
+
+/** Like `probeCommands`, for decisions that must not mistake "pi did not answer" for "none". */
+export async function requireCommands(options: CommandProbeOptions): Promise<RpcSlashCommand[]> {
+  const commands = await askCommands(options)
+  if (!commands) throw new Error('pi did not list its commands.')
+  return commands
 }
 
 type Prober = (options: CommandProbeOptions) => Promise<RpcSlashCommand[]>

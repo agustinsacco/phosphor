@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises'
 import { invalidatePiCommands } from './catalogue'
-import { probeCommandsCached } from './commands'
+import { requireCommands } from './commands'
 import { installLocalSkill } from './skills/share'
 import { PiUnavailableError, resolvePiInvoker } from './invoker'
 import { ensureDesktopArtifactSkill } from './session-launch'
@@ -46,7 +46,9 @@ export async function listSkills(workspacePath?: string) {
  * fails copies nothing.
  */
 export async function installSharedSkill(bundle: unknown, overwrite: unknown) {
-  const commands = await probeCommandsCached(await probeOptions(), { fresh: true })
+  const commands = await requireCommands(await probeOptions()).catch(() => {
+    throw new Error('This Mac could not check its skills through pi, so nothing was copied.')
+  })
   const result = await installLocalSkill(bundle, overwrite, commands)
   if (result.status === 'installed') invalidatePiCommands()
   return result

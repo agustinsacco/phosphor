@@ -43,9 +43,9 @@ it('exports only a validated bundle with the requested name', async () => {
   expect(await share.export('host', 'demo')).toEqual(bundle)
   expect(call).toHaveBeenCalledWith('skills.export', { name: 'demo' })
   call.mockResolvedValueOnce(ok({ ...bundle, name: 'other' }))
-  await expect(share.export('host', 'demo')).rejects.toThrow('Not available')
+  await expect(share.export('host', 'demo')).rejects.toThrow(SKILL_SHARE_ERRORS.unreadable)
   call.mockResolvedValueOnce(ok({ ...bundle, files: [{ path: '../x', data: '' }] }))
-  await expect(share.export('host', 'demo')).rejects.toThrow('Not available')
+  await expect(share.export('host', 'demo')).rejects.toThrow(SKILL_SHARE_ERRORS.unreadable)
   await expect(share.export('host', '../demo')).rejects.toThrow(SKILL_SHARE_ERRORS.refused)
 })
 
