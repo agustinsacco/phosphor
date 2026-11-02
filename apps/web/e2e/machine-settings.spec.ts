@@ -45,13 +45,13 @@ test('browser Host settings load only after explicit configuration access', asyn
   await section(settings, 'Agent')
   await expect(settings.getByRole('heading', { name: 'Agent defaults', exact: true })).toBeVisible()
   // An edit saves itself, as Desktop's settings do, and says where it landed.
-  const retry = settings.getByRole('combobox', { name: 'Enable automatic retry', exact: true })
-  await retry.selectOption('false')
+  const retry = settings.getByRole('switch', { name: 'Retry on transient errors', exact: true })
+  await retry.click()
   await expect(page.getByTestId('toast-stack')).toContainText(
     'Saved on Synthetic Host — applies to new lanes',
   )
   await settings.getByRole('button', { name: 'Refresh', exact: true }).click()
-  await expect(retry).toHaveValue('false')
+  await expect(retry).toHaveAttribute('aria-checked', 'false')
   for (const width of [360, 1440]) {
     await page.setViewportSize({ width, height: 850 })
     expect(await settings.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)

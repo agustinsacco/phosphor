@@ -23,9 +23,7 @@ test('Host agent behavior edits ordinary umask configuration without touching lo
     await h.signIn()
     const local = await h.page.evaluate(() => window.phosphor.invoke('pi:agentSettings'))
     const settings = await openMachineSettings(h, 'Agent', 'Agent defaults')
-    await settings
-      .getByRole('combobox', { name: 'Enable automatic compaction', exact: true })
-      .selectOption('false')
+    await settings.getByRole('switch', { name: 'Auto-compaction', exact: true }).click()
     await expect
       .poll(async () => JSON.parse(await readFile(file, 'utf8')).compaction.enabled)
       .toBe(false)

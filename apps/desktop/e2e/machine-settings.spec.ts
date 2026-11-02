@@ -22,7 +22,7 @@ test('machine settings save only on bee1, preserve revisions and never read back
       h.hostId
     ]!
     expect(before.connectionToken).toBeTruthy()
-    const budget = settings.getByRole('textbox', { name: 'Host context budget', exact: true })
+    const budget = settings.getByRole('textbox', { name: 'Custom context budget', exact: true })
     await budget.fill('100k')
     await budget.press('Enter')
     await expect
