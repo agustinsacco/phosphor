@@ -458,12 +458,15 @@ Late bootstrap responses cannot recreate deleted renderer state. On reload,
 main supplies known file identities; history replay does not block access to
 an unresponsive lane's Delete action.
 
-Selection is scoped to **one group**, which is one repo. A destructive confirm
-spanning two repos is how you delete the wrong branch. The Pinned list mixes
-projects and is not selectable.
+Selection is scoped to **one group**, which is one repo: `laneSelection.ts`
+holds one selection at a time, so selecting in another group starts over. A
+destructive confirm spanning two repos is how you delete the wrong branch. The
+Pinned list mixes projects and is not selectable.
 
 The checkbox replaces the indicator dot in the same gutter, so entering select
-mode shifts nothing. "Select all lanes" lives in the workspace `⋯` menu.
+mode shifts nothing (`SelectableIndicator` in `LaneSelect.tsx`).
+"Select all lanes" lives in the workspace `⋯` menu. The bulk bar
+(`LaneBulkBar`) shows only in select mode.
 
 Deleting is three resources, and all three default on. The branch default is
 safe because an unmerged branch is never deleted:

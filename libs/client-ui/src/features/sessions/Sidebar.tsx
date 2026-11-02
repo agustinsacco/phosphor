@@ -33,6 +33,14 @@ import { useRepoPrRefresh } from './repoPrRefresh'
 import { useLayoutStore } from '@/stores/layout'
 import { LaneMarker } from './LaneMarker'
 import { BulkDeleteModal } from './BulkDeleteModal'
+import { LaneBulkBar, SelectableIndicator } from './LaneSelect'
+import {
+  clearLaneSelection,
+  selectLanes,
+  toggleLane,
+  useSelectedKeys,
+  useSelectionOwner,
+} from './laneSelection'
 import { DeleteSessionModal, type DeleteSessionTarget } from './DeleteSessionModal'
 import {
   classifyLane,
@@ -139,15 +147,6 @@ export function Sidebar({
   } | null>(null)
   /** Explicit collapse choices (prefs + this run); null until prefs load. */
   const [collapsed, setCollapsed] = useState<Record<string, boolean> | null>(null)
-  /**
-   * Multi-select, scoped to ONE workspace group.
-   *
-   * Never global: a group is exactly one repo (worktrees fold into their main
-   * checkout), and a destructive confirm spanning two repos is how you delete
-   * the wrong branch. Selecting inside a second group replaces the selection
-   * rather than extending it.
-   */
-  const [selection, setSelection] = useState<{ repoPath: string; paths: string[] } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<PreflightSummary | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DeleteSessionTarget | null>(null)
   /**
@@ -162,9 +161,6 @@ export function Sidebar({
   const [searchOpen, setSearchOpen] = useState<Record<string, boolean>>({})
   const [searchDraft, setSearchDraft] = useState<Record<string, string>>({})
   const [searchApplied, setSearchApplied] = useState<Record<string, string>>({})
-  /** Anchor for shift-click ranges. */
-  const rangeAnchor = useRef<string | null>(null)
-
   const [width, setWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
   /**
@@ -496,53 +492,12 @@ export function Sidebar({
     disk,
   )
 
-  /**
-   * Toggle one lane, or extend a range with shift.
-   *
-   * Selecting in a different group starts over rather than merging the two:
-   * see the `selection` comment. `paths` stays in group order so the confirm
-   * lists lanes the way the sidebar does.
-   *
-   * `visible` is the group's lanes AFTER any search filter, so a shift-range
-   * spans what the reader can see rather than sweeping in filtered-out lanes
-   * that a bulk delete would then take with it.
-   */
-  const toggleLaneSelection = (
-    group: GroupedSessions,
-    visible: SessionMeta[],
-    path: string,
-    shiftKey: boolean,
-  ): void => {
-    const order = visible.map((m) => m.path)
-    setSelection((current) => {
-      const base = current?.repoPath === group.workspacePath ? current.paths : []
-      const anchorPath = rangeAnchor.current
-      if (shiftKey && anchorPath && order.includes(anchorPath)) {
-        const from = order.indexOf(anchorPath)
-        const to = order.indexOf(path)
-        if (from !== -1 && to !== -1) {
-          const range = order.slice(Math.min(from, to), Math.max(from, to) + 1)
-          const merged = new Set([...base, ...range])
-          return { repoPath: group.workspacePath, paths: order.filter((p) => merged.has(p)) }
-        }
-      }
-      rangeAnchor.current = path
-      const next = new Set(base)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
-      const paths = order.filter((p) => next.has(p))
-      return paths.length ? { repoPath: group.workspacePath, paths } : null
-    })
-  }
-
-  const clearSelection = (): void => {
-    setSelection(null)
-    rangeAnchor.current = null
-  }
-
-  const selectWholeGroup = (group: GroupedSessions, visible: SessionMeta[]): void => {
-    setSelection({ repoPath: group.workspacePath, paths: visible.map((m) => m.path) })
-  }
+  /** Multi-select for bulk delete, one group at a time: see `laneSelection.ts`. */
+  const selectingGroup = useSelectionOwner(
+    groups.map((group) => group.workspacePath),
+    pendingDelete !== null,
+  )
+  const selectedPaths = useSelectedKeys(selectingGroup)
 
   /**
    * Build the confirm's preflight at click time rather than per render.
@@ -601,7 +556,7 @@ export function Sidebar({
   }
 
   const openBulkDelete = (): void => {
-    if (selection) setPendingDelete(buildLaneDelete(selection.paths))
+    if (selectedPaths.length) setPendingDelete(buildLaneDelete([...selectedPaths]))
   }
 
   /**
@@ -617,22 +572,6 @@ export function Sidebar({
     if (summary.worktreeCount > 0) setPendingDelete(summary)
     else setDeleteTarget({ title, path: meta.path, workspacePath: meta.cwd || workspacePath })
   }
-
-  /**
-   * Escape exits select mode.
-   *
-   * Deliberately NOT a window-level listener when a modal is up: the confirm
-   * is a `ModalOverlay`, whose depth-aware Escape must win, or one keypress
-   * would both close the dialog and drop the selection behind it.
-   */
-  useEffect(() => {
-    if (!selection || pendingDelete) return
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') clearSelection()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selection, pendingDelete])
 
   const toggleGroup = (group: GroupedSessions, wasCollapsed: boolean): void => {
     const next = { ...(collapsed ?? {}), [group.workspacePath]: !wasCollapsed }
@@ -873,7 +812,8 @@ export function Sidebar({
               const visible = terms.length
                 ? local.filter((meta) => laneMatches(laneHaystack(laneFields(meta)), terms))
                 : local
-              const selectingThis = selection?.repoPath === group.workspacePath
+              const selectingThis = selectingGroup === group.workspacePath
+              const visiblePaths = visible.map((m) => m.path)
               const shownTotal = local.length
               const shownCount = visible.length
               return (
@@ -940,8 +880,8 @@ export function Sidebar({
                           testId="workspace-group-select"
                           disabled={!selectingThis && visible.length < 2}
                           onClick={() => {
-                            if (selectingThis) clearSelection()
-                            else selectWholeGroup(group, visible)
+                            if (selectingThis) clearLaneSelection()
+                            else selectLanes(group.workspacePath, visiblePaths)
                             closeWorkspaceMenu()
                           }}
                         >
@@ -1104,12 +1044,10 @@ export function Sidebar({
                             <SessionRow
                               {...rowProps(meta)}
                               isPinned={false}
-                              selected={
-                                selection?.paths.includes(meta.path) === true && selectingThis
-                              }
+                              selected={selectingThis && selectedPaths.includes(meta.path)}
                               selecting={selectingThis}
                               onToggleSelect={(shiftKey) =>
-                                toggleLaneSelection(group, visible, meta.path, shiftKey)
+                                toggleLane(group.workspacePath, visiblePaths, meta.path, shiftKey)
                               }
                             />
                           ),
@@ -1200,27 +1138,14 @@ export function Sidebar({
 
       {/* Bulk bar: only in select mode, so it costs no pixels the rest of the
           time. Sits over the list rather than adding a permanent toolbar row. */}
-      {selection && selection.paths.length > 0 && (
-        <div
-          data-testid="bulk-bar"
-          className="bg-surface-raised border-border-strong absolute inset-x-2 bottom-2 z-20 flex items-center gap-2 rounded-lg border px-2.5 py-2 shadow-lg"
-        >
-          <span className="text-sm font-semibold">{selection.paths.length} selected</span>
-          <span className="flex-1" />
-          <TooltipButton
-            onClick={openBulkDelete}
-            disabled={bulkDeleteRunning}
-            className="bg-danger rounded-md px-2.5 py-1 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {bulkDeleteRunning ? 'Delete in progress' : 'Delete…'}
-          </TooltipButton>
-          <TooltipButton
-            onClick={clearSelection}
-            className="border-border text-text-secondary hover:text-text rounded-md border px-2.5 py-1 text-xs"
-          >
-            Cancel
-          </TooltipButton>
-        </div>
+      {selectingGroup !== null && (
+        <LaneBulkBar
+          count={selectedPaths.length}
+          running={bulkDeleteRunning}
+          className="absolute inset-x-2 bottom-2"
+          onDelete={openBulkDelete}
+          onCancel={clearLaneSelection}
+        />
       )}
 
       {deleteTarget && (
@@ -1240,7 +1165,7 @@ export function Sidebar({
             // Progress owns its own lane snapshot, so select mode can end as
             // soon as the non-blocking notification takes over.
             setPendingDelete(null)
-            clearSelection()
+            clearLaneSelection()
             void useSessionsStore.getState().deleteManySessions(workspacePath, lanes, options)
           }}
         />
@@ -1633,39 +1558,14 @@ function SessionRow({
 
   const body = (
     <>
-      {onToggleSelect && !deleting ? (
-        /* The checkbox replaces the indicator in the SAME gutter, so entering
-           select mode shifts nothing. Revealed on hover, or whenever the group
-           already has a selection — a permanent column would cost every row
-           20px forever for a rare action. */
-        <span
-          role="checkbox"
-          aria-checked={selected}
-          aria-label={`Select ${title}`}
-          tabIndex={-1}
-          onClick={(event) => {
-            event.stopPropagation()
-            onToggleSelect(event.shiftKey)
-          }}
-          className={clsx(
-            'grid size-5 shrink-0 place-items-center rounded-[4px] border text-2xs',
-            selected
-              ? 'bg-accent border-accent text-accent-text'
-              : 'border-border-strong bg-surface',
-            !selected && !selecting && 'hidden group-hover:grid',
-          )}
-          data-tooltip={`Select ${title}`}
-        >
-          {selected ? '✓' : ''}
-        </span>
-      ) : null}
-      <span
-        className={clsx(
-          onToggleSelect && !deleting && (selecting ? 'hidden' : 'group-hover:hidden'),
-        )}
-      >
-        <SessionIndicator state={indicatorState} />
-      </span>
+      <SelectableIndicator
+        state={indicatorState}
+        select={
+          onToggleSelect && !deleting
+            ? { title, selected, selecting, onToggle: onToggleSelect }
+            : undefined
+        }
+      />
       {markerMode !== 'off' && (
         <LaneMarker marker={marker} onPick={deleting ? undefined : () => setPickingMarker(true)} />
       )}
