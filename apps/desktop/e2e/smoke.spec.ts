@@ -5401,7 +5401,7 @@ test('extensions tab lists pi packages and reveals per-extension tabs', async ()
     // The declared-but-absent package is reported, not hidden.
     await expect(page.getByText('installs on next session start')).toBeVisible()
 
-    // Presence of pi-claude-cli in packages reveals its dedicated tab.
+    // Claude Code is listed under Extensions whether or not pi-claude-cli is installed.
     await page.getByRole('button', { name: 'Claude Code', exact: true }).click()
     await expect(page.getByText('Claude Code provider')).toBeVisible()
     await expect(page.getByText('Extension package')).toBeVisible()

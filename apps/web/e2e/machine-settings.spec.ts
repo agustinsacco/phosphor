@@ -42,6 +42,11 @@ test('browser Host settings load only after explicit configuration access', asyn
   await page.getByRole('button', { name: 'Enable for Synthetic Host', exact: true }).click()
   await expect(settings.getByRole('heading', { name: 'Accounts', exact: true })).toBeVisible()
   expect(stack.state.grants).toBeGreaterThan(grantsBefore)
+  // Claude Code is listed under Extensions on a Host too, with the same page.
+  await section(settings, 'Claude Code')
+  await expect(
+    settings.getByRole('heading', { name: 'Claude Code provider', exact: true }),
+  ).toBeVisible()
   await section(settings, 'Agent')
   await expect(settings.getByRole('heading', { name: 'Agent defaults', exact: true })).toBeVisible()
   // An edit saves itself, as Desktop's settings do, and says where it landed.
