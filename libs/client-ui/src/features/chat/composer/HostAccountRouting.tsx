@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { confirmSettingsAccess } from '@/features/settings/machine/settingsAccess'
-import { machineMoveTargets } from '@/lib/claudeGateway'
+import { laneAccountId, machineCandidate, moveTargets } from '@/lib/claudeGateway'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { AccountSwitcher } from './AccountSwitcher'
@@ -39,7 +39,8 @@ export function HostAccountRouting({
   const load = useCallback(async () => {
     if (!hostId || !laneId) return []
     const data = await window.phosphor.invoke('hosts:settingsRead', hostId, 'providers')
-    return machineMoveTargets(data.providers?.accounts ?? [], laneId)
+    const accounts = data.providers?.accounts ?? []
+    return moveTargets(accounts.map(machineCandidate), laneAccountId(accounts, laneId))
   }, [hostId, laneId])
 
   if (!hostId || !laneId || !host || supported.current !== true) return null

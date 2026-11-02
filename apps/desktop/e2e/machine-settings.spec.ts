@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import { captures, openMachineSettings, openSettingsSection } from './fixtures/remote-ui'
 import {
+  accountRow,
   addPrivateConnector,
   addPrivateAccount,
   createBillingLane,
@@ -93,6 +94,7 @@ test('private Claude accounts route new Host lanes and an explicit account move 
     await h.installClaudeProvider()
     await h.signIn()
     const settings = await openMachineSettings(h)
+    await openSettingsSection(settings, 'Claude Code')
     await expect(settings).toContainText('first@host.example')
     expect(
       (await h.page.evaluate(() => window.phosphor.invoke('hosts:snapshot')))[h.hostId]
@@ -101,17 +103,11 @@ test('private Claude accounts route new Host lanes and an explicit account move 
     await addPrivateAccount(h, settings, 'work@host.example')
     await addPrivateAccount(h, settings, 'backup@host.example')
     // Removing the CLI default proves doctor and startup really honor private accounts.
-    const first = settings
-      .locator('li')
-      .filter({ has: h.page.getByText('first@host.example', { exact: true }) })
-    await first.getByRole('button', { name: 'Remove account', exact: true }).click()
+    const first = accountRow(settings, 'first@host.example')
+    await first.getByRole('button', { name: 'Remove', exact: true }).click()
     await h.page.getByRole('button', { name: 'Sign out and remove', exact: true }).click()
-    await expect(
-      settings.getByRole('heading', { name: 'first@host.example', exact: true }),
-    ).toBeHidden()
-    await settings
-      .getByRole('combobox', { name: 'Claude account routing', exact: true })
-      .selectOption('specific')
+    await expect(first).toHaveCount(0)
+    await settings.getByRole('radio', { name: 'One account' }).check()
     const accounts = await h.page.evaluate(
       (hostId) => window.phosphor.invoke('hosts:settingsRead', hostId, 'providers'),
       h.hostId,
@@ -122,12 +118,13 @@ test('private Claude accounts route new Host lanes and an explicit account move 
     const backup = accounts.providers!.accounts.find(
       (account) => account.email === 'backup@host.example',
     )!
-    await settings
-      .getByRole('combobox', { name: 'Pinned Claude account', exact: true })
-      .selectOption(work.id)
-    await expect(
-      settings.getByRole('combobox', { name: 'Pinned Claude account', exact: true }),
-    ).toBeEnabled()
+    const pin = settings.getByRole('radio', {
+      name: `Use ${work.label} for new sessions`,
+      exact: true,
+    })
+    await pin.check()
+    await expect(pin).toBeChecked()
+    await expect(pin).toBeEnabled()
     const session = await createBillingLane(h)
     await expect
       .poll(() => billingHistory(h, session.sessionId))

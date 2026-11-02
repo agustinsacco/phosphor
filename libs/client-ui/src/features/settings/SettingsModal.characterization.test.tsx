@@ -26,7 +26,10 @@ vi.mock('./sections/agent', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   LocalAgent: () => <p>Local agent controls</p>,
 }))
-vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
+vi.mock('./sections/accounts', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAccounts: () => <p>Local account controls</p>,
+}))
 vi.mock('./sections/extensions', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   LocalExtensions: () => <p>Local machine controls</p>,

@@ -1,4 +1,4 @@
-import { section, type SettingEntry } from '../settingEntry'
+import { LOCAL_ONLY, section, type SettingEntry } from '../settingEntry'
 
 /** Extensions: the packages view every machine shares. */
 export const EXTENSIONS_ROWS: SettingEntry[] = section('extensions', null, [
@@ -6,14 +6,17 @@ export const EXTENSIONS_ROWS: SettingEntry[] = section('extensions', null, [
   ['Add a package', 'install npm git'],
 ])
 
-/** The extension pages nested under Extensions. */
-export const CLAUDE_PROVIDER_ROWS: SettingEntry[] = section('claude-provider', null, [
-  ['Health', 'claude cli version'],
-  ['Prove it end to end', 'test check'],
-  ['When it fails', 'troubleshoot error debug'],
-  ['Accounts', 'claude login sign in'],
-  ['Route new sessions', 'claude account'],
-])
+/** The extension pages nested under Extensions. Claude Code's are on every machine. */
+export const CLAUDE_PROVIDER_ROWS: SettingEntry[] = [
+  ...section('claude-provider', null, [
+    ['Health', 'claude cli version install'],
+    ['When it fails', 'troubleshoot error debug'],
+    ['Accounts', 'claude login sign in'],
+    ['Route new sessions', 'claude account'],
+  ]),
+  // A Host does not run the end-to-end test yet.
+  ...section('claude-provider', null, [['Prove it end to end', 'test check']], LOCAL_ONLY),
+]
 
 export const WEB_ACCESS_ROWS: SettingEntry[] = section('web-access', null, [
   ['Search providers', 'web fetch api key'],

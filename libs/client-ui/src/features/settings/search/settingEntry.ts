@@ -66,9 +66,3 @@ export function section(
   }
   return entries
 }
-
-/** A Host section, findable by the heading its Host panel renders. */
-export const onHost = (
-  tab: SettingsTab,
-  heading: [title: string, keywords: string],
-): SettingEntry[] => section(tab, heading, [], { host: true })

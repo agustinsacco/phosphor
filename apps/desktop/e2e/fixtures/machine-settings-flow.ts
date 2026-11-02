@@ -19,6 +19,11 @@ export async function addPrivateConnector(h: Host, settings: Locator): Promise<v
   await expect(name).toBeHidden()
 }
 
+/** One Claude account's row on the Claude Code page. */
+export function accountRow(settings: Locator, label: string): Locator {
+  return settings.locator('[data-account-id]').filter({ hasText: label })
+}
+
 export async function addPrivateAccount(h: Host, settings: Locator, email: string): Promise<void> {
   const add = settings.getByRole('button', { name: 'Add account', exact: true })
   await expect(add).toBeEnabled({ timeout: 30_000 })
@@ -43,9 +48,7 @@ export async function addPrivateAccount(h: Host, settings: Locator, email: strin
     contentType: 'application/json',
   })
   expect(verified.providers?.accounts.map((account) => account.email)).toContain(email)
-  await expect(settings.getByRole('heading', { name: email, exact: true })).toBeVisible({
-    timeout: 30_000,
-  })
+  await expect(accountRow(settings, email)).toBeVisible({ timeout: 30_000 })
 }
 
 export async function createBillingLane(h: Host) {
@@ -85,10 +88,8 @@ export async function moveBillingAccount(
   historyBeforeMove: string,
 ) {
   await settings.getByRole('button', { name: 'Refresh', exact: true }).click()
-  const workRow = settings
-    .locator('li')
-    .filter({ has: h.page.getByText('work@host.example', { exact: true }) })
-  await workRow.getByRole('button', { name: 'Usage & lanes', exact: true }).click()
+  const workRow = accountRow(settings, 'work@host.example')
+  await workRow.locator('button[aria-expanded="false"]').click()
   await expect(workRow).toContainText('Billing identity test')
   await captures(h, test.info(), 'machine-settings-claude-accounts')
   await workRow.getByRole('button', { name: 'Move to backup@host.example', exact: true }).click()

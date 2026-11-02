@@ -74,7 +74,7 @@ export function localChecks(computer: Computer): CheckItem[] {
             : 'Claude signed out',
       detail: claude
         ? !claude.binary.found
-          ? 'Install the Claude CLI under Settings → Extensions → Claude Code.'
+          ? 'Settings → Extensions → Claude Code shows how to install the Claude CLI.'
           : claude.auth.loggedIn
             ? 'Signed in'
             : 'Sign in under Settings → Accounts.'

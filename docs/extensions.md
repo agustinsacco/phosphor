@@ -108,7 +108,7 @@ a view for it and its package is present there, or it is listed everywhere
 
 | Tab          | Package                      | Contents                                                                                                                       |
 | ------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Claude Code  | `@saccolabs/pi-claude-cli`   | health card (package / `claude` binary / account), tested-version warning, **Test provider** one-click proof, failure playbook |
+| Claude Code  | `@saccolabs/pi-claude-cli`   | health with Install, Claude accounts and routing, tested-version warning, **Test provider** proof (This Mac), failure playbook |
 | Web access   | `pi-web-access`              | seven common search-provider keys (password fields, `$ENV_VAR` support), configured by name; This Mac's raw JSON editor        |
 | Subagents    | `pi-subagents`               | delegation guide, profile precedence, configuration sources, This Mac's raw Pi settings and lane directives                    |
 | Computer use | `@injaneity/pi-computer-use` | what the tools do and the OS accessibility permissions macOS will not grant silently                                           |

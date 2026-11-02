@@ -105,7 +105,7 @@ test('Provider login and error remedies target bee1, Settings configures bee1 an
     await expect(h.page.locator('.xterm')).toHaveCount(0)
     const machineSettings = await openMachineSettings(h)
     const provider = machineSettings.locator('[data-provider="openai-codex"]')
-    await expect(provider.locator('[data-tone]')).toHaveText('Not signed in')
+    await expect(provider.locator('[data-sign-in]')).toHaveText('Not signed in')
     if (await provider.getByRole('button', { name: 'Sign in', exact: true }).isEnabled()) {
       await provider.getByRole('button', { name: 'Sign in', exact: true }).click()
       const login = h.page.getByRole('dialog', { name: 'Provider sign-in on bee1', exact: true })
@@ -121,7 +121,7 @@ test('Provider login and error remedies target bee1, Settings configures bee1 an
       await expect(login).toContainText('Program exited')
       await login.getByRole('button', { name: 'Done', exact: true }).click()
       await expect(login).toBeHidden()
-      await expect(provider.locator('[data-tone]')).toHaveText('Ready')
+      await expect(provider.locator('[data-sign-in]')).toHaveText('Signed in')
     } else {
       await expect(machineSettings).toContainText('Native Host terminal support is unavailable')
       info.annotations.push({

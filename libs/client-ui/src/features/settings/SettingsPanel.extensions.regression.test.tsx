@@ -113,7 +113,8 @@ async function show(machineId: string, tab: Parameters<typeof showHostSettings>[
 
 it('test(E3): a Host lists the nested items of the packages it has installed', async () => {
   await show(machine.id, 'extensions')
-  expect(nested()).toEqual(['Web access', 'Subagents'])
+  // Claude Code is listed on every machine (`always`); the others follow the Host's packages.
+  expect(nested()).toEqual(['Claude Code', 'Web access', 'Subagents'])
   await act(async () => buttons('Web access')[0]!.click())
   await settle()
   expect(container.textContent).toContain('Search providers')

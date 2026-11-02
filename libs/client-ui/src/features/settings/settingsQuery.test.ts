@@ -157,10 +157,7 @@ describe('SETTINGS_INDEX against the section sources', () => {
   const FILE_TABS: Record<string, SettingsTab> = {
     'tabs/AboutTab.tsx': 'about',
     'tabs/AccountTab.tsx': 'account',
-    'tabs/AccountsTab.tsx': 'accounts',
     'tabs/AppearanceTab.tsx': 'appearance',
-    'tabs/ClaudeAccountPanel.tsx': 'claude-provider',
-    'tabs/ClaudeProviderTab.tsx': 'claude-provider',
     'tabs/InstallAppTab.tsx': 'install',
     'tabs/KeybindingsTab.tsx': 'keybindings',
     'tabs/OptimizationTab.tsx': 'optimization',
@@ -215,21 +212,6 @@ describe('SETTINGS_INDEX against the section sources', () => {
       }),
     ),
   ]
-  /** Sections whose one view renders on every machine: their Host-only rows are rows, not headings. */
-  const SHARED_VIEWS = new Set<SettingsTab>([
-    'agent',
-    'extensions',
-    'connectors',
-    'folders',
-    'advanced',
-  ])
-  /** The Host section headings, which the Host's own panels render. */
-  const hostHeading = (entry: SettingEntry): boolean =>
-    !!entry.on?.host &&
-    !entry.on.local &&
-    entry.section === undefined &&
-    !SHARED_VIEWS.has(entry.tab)
-
   it('maps every source that renders a title to its section', () => {
     const unmapped = sources.filter((s) => s.titles.length > 0 && !s.tab).map((s) => s.path)
     expect(unmapped).toEqual([])
@@ -248,24 +230,10 @@ describe('SETTINGS_INDEX against the section sources', () => {
 
   it('indexes only titles the sections still render', () => {
     const stale = SETTINGS_INDEX.filter((entry) => {
-      if (entry.tab === 'keybindings' || hostHeading(entry)) return false
+      if (entry.tab === 'keybindings') return false
       return !sources.some((s) => s.tab === entry.tab && s.text.includes(entry.title))
     }).map((entry) => `${entry.tab}: ${entry.title}`)
     expect(stale).toEqual([])
-  })
-
-  it('indexes each Host section by the heading its panel renders', () => {
-    const machines = resolve(root, '../machines')
-    const panels = readdirSync(machines)
-      .filter((f) => /^Machine\w+Settings\.tsx$/.test(f))
-      .map((f) => readFileSync(resolve(machines, f), 'utf8'))
-      .join('\n')
-    const hostEntries = SETTINGS_INDEX.filter(hostHeading)
-    expect(hostEntries.map((entry) => entry.tab)).toEqual(
-      TABS.filter((tab) => tab.host && !SHARED_VIEWS.has(tab.id)).map((tab) => tab.id),
-    )
-    for (const entry of hostEntries)
-      expect(panels, entry.title).toContain(`font-semibold">${entry.title}</h2>`)
   })
 
   it('has unique titles within each section on each machine', () => {

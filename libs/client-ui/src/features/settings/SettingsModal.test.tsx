@@ -29,13 +29,17 @@ vi.mock('./sections/agent', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   LocalAgent: () => <p>Local agent controls</p>,
 }))
-vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
+vi.mock('./sections/accounts', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAccounts: () => <p>Local account controls</p>,
+}))
 vi.mock('./sections/extensions', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   LocalExtensions: () => <p>Local machine controls</p>,
 }))
-vi.mock('./tabs/ClaudeProviderTab', () => ({
-  ClaudeProviderTab: () => <p>Local machine controls</p>,
+vi.mock('./sections/claude-provider', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalClaudeProvider: () => <p>Local machine controls</p>,
 }))
 vi.mock('./sections/web-access', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -257,7 +261,7 @@ const selectedSections = (): string[] =>
   ].map((b) => b.textContent ?? '')
 
 it.each([
-  ['claude-provider', 'Extensions'],
+  ['claude-provider', 'Claude Code'],
   ['optimization', 'Agent'],
 ] as const)('opens %s on a Host as its %s section', async (tab, onHost) => {
   invoke.mockImplementation(async (channel: string) =>
@@ -270,7 +274,7 @@ it.each([
   )
   await act(async () => useRemoteLanesStore.setState({ filter: 'test-host' }))
   expect(document.body.textContent).toContain('Configuring Test Host')
-  expect(selectedSections()).toEqual([onHost])
+  expect(selectedSections()).toEqual(tab === 'optimization' ? [onHost] : ['Extensions', onHost])
 })
 
 it('refreshes scope on a Mac lane to Host lane to Mac lane switch', async () => {

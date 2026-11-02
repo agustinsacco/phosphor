@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { SubscriptionProviderStatus } from '@shared/models'
+import { SUBSCRIPTION_PROVIDERS } from '@phosphor/shared/subscription-providers'
 import {
-  SUBSCRIPTION_PROVIDERS,
   authCheckArgs,
   parseAuthCheck,
   type AuthCheck,

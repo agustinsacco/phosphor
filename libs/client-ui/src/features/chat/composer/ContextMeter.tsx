@@ -26,7 +26,7 @@ import {
 import { HEADROOM_STATUS_KEY, parseHeadroomStatus } from './headroomStatus'
 import { assessBurn, burnSamples } from '@/lib/burnRate'
 import { compactReset, isClaudeCliModel, windowResetLabel } from '@/lib/claudeUsage'
-import { moveTargets } from '@/lib/claudeGateway'
+import { moveTargets, viewCandidate } from '@/lib/claudeGateway'
 import { AccountSwitcher } from './AccountSwitcher'
 import type {
   ClaudeSessionAccount,
@@ -564,7 +564,11 @@ function AccountRouting({
   const moveSessionToAccount = useSessionsStore((s) => s.moveSessionToAccount)
   const accountId = account?.id
   const load = useCallback(
-    async () => moveTargets((await window.phosphor.invoke('claude:accounts')).views, accountId),
+    async () =>
+      moveTargets(
+        (await window.phosphor.invoke('claude:accounts')).views.map(viewCandidate),
+        accountId,
+      ),
     [accountId],
   )
   if (!account || account.total < 2) return null
@@ -575,7 +579,7 @@ function AccountRouting({
       summary={
         held
           ? account.mode === 'specific'
-            ? 'Out of plan allowance, and routing is pinned here — Settings → Claude Code.'
+            ? 'Out of plan allowance, and routing is pinned here — Settings → Extensions → Claude Code.'
             : account.alternative
               ? `Out of plan allowance. New sessions go to ${account.alternative.label}.`
               : 'Out of plan allowance, and every other account is too.'

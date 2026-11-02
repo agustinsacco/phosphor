@@ -3,7 +3,7 @@ import type { Platform } from '@/platform/Platform'
 import type { MachineSettingsTab } from './machine/HostSection'
 import type { SettingsTab } from './settingsUiStore'
 import type { SettingEntry } from './search/settingEntry'
-import { ACCOUNTS_HOST_HEADING, ACCOUNTS_ROWS } from './search/rows/accounts'
+import { ACCOUNTS_ROWS } from './search/rows/accounts'
 import { ADVANCED_ROWS } from './search/rows/advanced'
 import { AGENT_ROWS } from './search/rows/agent'
 import { CONNECTORS_ROWS } from './search/rows/connectors'
@@ -97,7 +97,7 @@ export const EXTENSION_TABS: Array<
   }
 > = [
   {
-    ...machineSection('claude-provider', 'Claude Code', { local: true }),
+    ...machineSection('claude-provider', 'Claude Code', { local: true, host: 'providers' }),
     packageMatch: 'pi-claude-cli',
     always: true,
   },
@@ -182,8 +182,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ...ACCOUNT_ROWS,
   ...INSTALL_ROWS,
   ...ABOUT_ROWS,
-  // The Host's own panels, by their headings, until shared views render the rows above.
-  ...ACCOUNTS_HOST_HEADING,
   ...KEYBINDING_ROWS,
 ]
 

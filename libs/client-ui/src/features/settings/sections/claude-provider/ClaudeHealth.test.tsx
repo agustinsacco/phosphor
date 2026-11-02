@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeAll, beforeEach } from 'vite
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type { PiPackageEntry } from '@shared/models'
-import { ClaudeProviderTab } from './ClaudeProviderTab'
+import { LocalClaudeProvider } from '.'
 
 beforeAll(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -68,14 +68,14 @@ async function render(): Promise<void> {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  await act(async () => root!.render(<ClaudeProviderTab />))
+  await act(async () => root!.render(<LocalClaudeProvider />))
   await vi.waitFor(() => expect(document.body.textContent).toContain('/usr/local/bin/claude'))
 }
 
 const warning = (): Element | null =>
   document.querySelector('[data-testid="claude-provider-too-old"]')
 
-describe('ClaudeProviderTab', () => {
+describe('LocalClaudeProvider health', () => {
   it('flags an installed provider older than sessions accept', async () => {
     provider = entry({ version: '0.9.1' })
     await render()

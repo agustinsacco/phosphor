@@ -17,28 +17,28 @@ needs. The surface lists only sections the platform supports, and search
 (`SETTINGS_INDEX`) honours the same filter, down to single rows. Nothing branches on
 the form factor.
 
-| Section          | Scope             | Needs                 | Desktop | Browser | What it is                                                                                                      | Writes                                                    |
-| ---------------- | ----------------- | --------------------- | ------- | ------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Appearance       | device            | (rows below)          | yes     | yes     | Theme, UI scale, per-surface font sizes, mono font                                                              | Phosphor prefs (electron-store; browser storage)          |
-| Writing          | device            | `writingAssist`       | yes     | no      | Spellcheck switch, autocomplete, learned prompts                                                                | Phosphor prefs; `<userData>/writing/prompts.jsonl`        |
-| Lanes            | device            | none                  | yes     | yes     | Lane markers, PR status, branch prefix and slug length; the worktree switch needs `localLanes`                  | Phosphor prefs (browser storage in the browser)           |
-| Voice            | device            | `localVoice`          | yes     | no      | Dictation on/off and which local speech model                                                                   | Phosphor prefs; model files in `<userData>/voice/`        |
-| Keybindings      | device            | `appShortcuts`        | yes     | no      | Static reference sheet                                                                                          | nothing                                                   |
-| Phosphor account | device            | none                  | yes     | yes     | The signed-in GitHub account and Sign out (or Sign in)                                                          | `account:*`                                               |
-| App installation | device            | `installableApp`      | no      | yes     | Install Phosphor, and the in-app attention note                                                                 | nothing                                                   |
-| About            | device            | rows need `appInfo`   | yes     | yes     | Versions, update check, pi drift warning, font licenses                                                         | nothing                                                   |
-| Agent            | machine, This Mac | `localLanes`          | yes     | no      | pi's agent defaults, per machine or folder                                                                      | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json`   |
-| Accounts         | machine, This Mac | `localLanes`          | yes     | no      | Subscription logins pi can drive                                                                                | pi's provider auth                                        |
-| Extensions       | machine, both     | a machine             | yes     | yes     | pi package management, one view on every machine ([below](#extensions))                                         | shells out to `pi install` / `remove` / `update`          |
-| ↳ Claude Code    | machine, This Mac | `localLanes`, package | yes     | no      | The `pi-claude-cli` provider: health, accounts, pi context ownership                                            | Phosphor prefs + the package's own config                 |
-| ↳ Web access     | machine, both     | package               | yes     | yes     | The `pi-web-access` provider: search, fetch, PDF                                                                | `web-search.json`                                         |
-| ↳ Subagents      | machine, both     | installed package     | yes     | yes     | Delegation guide, profile precedence, configuration ownership                                                   | This Mac: global Pi settings in the raw editor            |
-| ↳ Computer use   | machine, both     | package               | yes     | yes     | Info page for `@injaneity/pi-computer-use`                                                                      | nothing (read-only)                                       |
-| MCP Connectors   | machine, This Mac | `localLanes`          | yes     | no      | pi's built-in MCP: curated OAuth catalog + custom servers                                                       | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`             |
-| Folders          | machine, both     | per machine           | yes     | yes     | This Mac: recent folders and sandboxes; a Host: registered folders and trust                                    | recents (This Mac); the Host, through `hosts:*Repository` |
-| Optimization     | machine, This Mac | `localLanes`          | yes     | no      | Headroom tool-result compression + the Advisor                                                                  | Phosphor prefs; `headroom:*` lifecycle in main            |
-| Advanced         | machine, both     | per machine           | yes     | yes     | pi health, PATH and agent dir; This Mac: raw editors, maintenance, resources; a Host: update and runtime        | the pi files it edits; maintenance prefs                  |
-| Host sections    | machine, a Host   | `machineSettings`     | yes     | yes     | Agent, Accounts, Extensions, MCP Connectors, Folders and Advanced in one list ([below](#host-machine-settings)) | the Host, through `hosts:settings*`                       |
+| Section          | Scope             | Needs               | Desktop | Browser | What it is                                                                                                      | Writes                                                                |
+| ---------------- | ----------------- | ------------------- | ------- | ------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Appearance       | device            | (rows below)        | yes     | yes     | Theme, UI scale, per-surface font sizes, mono font                                                              | Phosphor prefs (electron-store; browser storage)                      |
+| Writing          | device            | `writingAssist`     | yes     | no      | Spellcheck switch, autocomplete, learned prompts                                                                | Phosphor prefs; `<userData>/writing/prompts.jsonl`                    |
+| Lanes            | device            | none                | yes     | yes     | Lane markers, PR status, branch prefix and slug length; the worktree switch needs `localLanes`                  | Phosphor prefs (browser storage in the browser)                       |
+| Voice            | device            | `localVoice`        | yes     | no      | Dictation on/off and which local speech model                                                                   | Phosphor prefs; model files in `<userData>/voice/`                    |
+| Keybindings      | device            | `appShortcuts`      | yes     | no      | Static reference sheet                                                                                          | nothing                                                               |
+| Phosphor account | device            | none                | yes     | yes     | The signed-in GitHub account and Sign out (or Sign in)                                                          | `account:*`                                                           |
+| App installation | device            | `installableApp`    | no      | yes     | Install Phosphor, and the in-app attention note                                                                 | nothing                                                               |
+| About            | device            | rows need `appInfo` | yes     | yes     | Versions, update check, pi drift warning, font licenses                                                         | nothing                                                               |
+| Agent            | machine, both     | a machine           | yes     | yes     | pi's agent defaults, per machine or folder                                                                      | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json`; a Host's own |
+| Accounts         | machine, both     | a machine           | yes     | yes     | Subscription logins pi can drive, and a link to Claude Code                                                     | pi's provider auth; a Host signs in in a private terminal             |
+| Extensions       | machine, both     | a machine           | yes     | yes     | pi package management, one view on every machine ([below](#extensions))                                         | shells out to `pi install` / `remove` / `update`                      |
+| ↳ Claude Code    | machine, both     | a machine           | yes     | yes     | The `pi-claude-cli` provider on every machine: health and Install, accounts, routing                            | Phosphor prefs + the package's own config                             |
+| ↳ Web access     | machine, both     | package             | yes     | yes     | The `pi-web-access` provider: search, fetch, PDF                                                                | `web-search.json`                                                     |
+| ↳ Subagents      | machine, both     | installed package   | yes     | yes     | Delegation guide, profile precedence, configuration ownership                                                   | This Mac: global Pi settings in the raw editor                        |
+| ↳ Computer use   | machine, both     | package             | yes     | yes     | Info page for `@injaneity/pi-computer-use`                                                                      | nothing (read-only)                                                   |
+| MCP Connectors   | machine, both     | a machine           | yes     | yes     | pi's built-in MCP: curated OAuth catalog + custom servers, per machine or folder                                | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`; a Host's own           |
+| Folders          | machine, both     | per machine         | yes     | yes     | This Mac: recent folders and sandboxes; a Host: registered folders and trust                                    | recents (This Mac); the Host, through `hosts:*Repository`             |
+| Optimization     | machine, This Mac | `localLanes`        | yes     | no      | Headroom tool-result compression + the Advisor                                                                  | Phosphor prefs; `headroom:*` lifecycle in main                        |
+| Advanced         | machine, both     | per machine         | yes     | yes     | pi health, PATH and agent dir; This Mac: raw editors, maintenance, resources; a Host: update and runtime        | the pi files it edits; maintenance prefs                              |
+| Host sections    | machine, a Host   | `machineSettings`   | yes     | yes     | Agent, Accounts, Extensions, MCP Connectors, Folders and Advanced in one list ([below](#host-machine-settings)) | the Host, through `hosts:settings*`                                   |
 
 Appearance rows: UI scale needs `pageZoom` (native page zoom) and Terminal font size
 needs `terminal`. Without `savedFontPrefs` the section says that font changes last
@@ -157,7 +157,8 @@ section as alerts.
 | Section        | Owner and behavior                                                                                                                                                                  |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Agent          | pi model/thinking, compaction, retry, thinking visibility and message delivery; separate Host context-budget, automatic-naming and directive policy; the Host's global instructions |
-| Accounts       | Host provider status, supported private CLI sign-in, separate Claude provider/CLI installation, isolated Claude accounts, routing, usage and associated lanes                       |
+| Accounts       | Host provider status and private-terminal sign-in; a link row to Claude Code                                                                                                        |
+| ↳ Claude Code  | The provider and CLI with reviewed installs, isolated Claude accounts, routing, usage and the saved and running lanes on each account                                               |
 | Extensions     | The shared Extensions view ([below](#extensions)): headless recommendations, the packages for the machine and the folder in scope, reviewed npm install/repair/update/remove        |
 | MCP Connectors | pi's global or registered-folder MCP configuration, curated/custom connectors, enablement, private authentication and explicitly reviewed status checks                             |
 | Folders        | The shared Folders view: browse/register/unregister and an explicit pi trust review, subject to the Host's repository-change policy, which a refusal names                          |
@@ -295,16 +296,12 @@ it from anywhere in settings.
   Keybindings tab's own tables. Entries carry synonyms ("dark mode" finds
   Theme). Tabs whose package is not installed are left out.
 - **Machines.** A machine section's row is indexed on the machines its section
-  has (`local`, `host` in `TABS`), unless the row names its own (`on`). Agent's
-  rows come from its field table (`sections/agent/agentFields.ts`) and are found
-  on every machine. MCP Connectors' rows are shared, except This Mac's Config
-  files. Accounts still marks its rows
-  This Mac's own (`LOCAL_ONLY`), because a Host renders its own panels for
-  them; a Host finds those sections by their headings only, with synonyms for
-  what each Host panel shows. A row a shared view renders drops the override and
-  is found on every machine: Extensions, Folders and Advanced do, and a block only one
-  machine has names it (`LOCAL_ONLY`, or `{ host: true }` for a Host's update
-  and runtime).
+  has (`local`, `host` in `TABS`), unless the row names its own (`on`). Every
+  machine section has one shared view, so its rows are found on every machine
+  that lists it. Agent's rows come from its field table
+  (`sections/agent/agentFields.ts`). A block only one machine has names it:
+  `LOCAL_ONLY` for This Mac's raw files, maintenance, sandboxes and the Claude
+  Code proof, `{ host: true }` for a Host's update and runtime.
 - **Checked.** `settingsQuery.test.ts` reads the section views (`tabs/`,
   `sections/` and `components/`, recursively) and any data module a section
   declares, such as a field table whose `title:` entries the view renders. It
@@ -447,9 +444,11 @@ read shows an error with **Try again**.
 
 ## Accounts
 
-The subscription routes are distinct (`SUBSCRIPTION_PROVIDERS` in
-`libs/session-runtime/src/pi/provider-auth.ts` is the registry, shared with the
-Host's `phosphor providers`):
+One view on every machine (`sections/accounts/`: `ProviderAccounts` over
+`useLocalProviders` on This Mac and `useHostProviders` on a Host). The
+subscription routes are distinct (`SUBSCRIPTION_PROVIDERS` in
+`libs/shared/src/subscription-providers.ts` is the catalogue, shared with the
+Host's `phosphor providers` and joined onto a Host's rows in the client):
 
 | Account        | Route                                                                      | Requirement                   |
 | -------------- | -------------------------------------------------------------------------- | ----------------------------- |
@@ -463,8 +462,16 @@ separate route from Claude Code subscription sessions, and the tab says it
 bills extra usage. xAI, OpenRouter and Radius sign-ins draw on a credit
 balance, not an included allowance.
 
-- One row per provider pi can sign into, showing ready / not ready from
-  `pi auth check --json`, and a Sign in button that drives pi's TUI off-screen.
+- One row per provider pi can sign into, grouped by what signing in spends (a
+  plan you already pay for, billed per token, then other providers, such as a
+  Host's API-key default), each with what it requires and its caveat. Every row
+  says **Signed in**, **Not signed in** or **Could not verify** (the check could
+  not run), from `pi auth check --json`; Claude accounts use the same words.
+- Sign-in differs by machine (`caps.signIn`). On This Mac, Sign in drives pi's TUI
+  off-screen. On a Host it opens a private terminal there (`HostProgramDialog`,
+  "Provider sign-in on …"), where you type `/login <id>`, and a Host never says
+  whose account a provider holds. The Machines page lists the same rows read-only
+  and links here.
 - That off-screen pi runs in an empty folder under userData (`pi-sign-in`)
   with `--no-approve --no-extensions`, because any startup dialog swallows the
   typed `/login`. Home is not neutral: pi treats its cwd as a project, and
@@ -482,8 +489,9 @@ balance, not an included allowance.
   _changes_, not when `pi auth check` first reports ready: the old credential
   already answers ready a second after pi prints the URL.
 
-This tab is pi's own `auth`. The **Claude
-Code** provider keeps its own set of logins under Extensions → Claude Code.
+This section is pi's own `auth`. The **Claude Code** provider keeps its own set
+of logins under Extensions → Claude Code, and Accounts ends with one link row to
+that page.
 
 ### Phosphor account
 
@@ -605,12 +613,18 @@ Four packages contribute an item nested under Extensions
 ### Claude Code (`pi-claude-cli`)
 
 Routes model calls through the Claude Code CLI, billing your Claude Pro/Max
-plan; its models appear in the picker under the `pi-claude-cli` provider. In
-order: **Health** (package present, CLI binary found, both versions, update
-rows), **Accounts**, pi context ownership guidance (Claude sessions follow
+plan; its models appear in the picker under the `pi-claude-cli` provider. One
+page on every machine where Claude can run (`sections/claude-provider/`:
+`ClaudeProviderView` over `useLocalClaudeAccounts` or `useHostClaudeAccounts`),
+listed whether or not the package is installed. In order: **Health** (package
+and CLI, each with **Install provider** / **Update provider** when it is missing
+or too old; on This Mac also both versions and update rows; on a Host
+**Install Claude Code** for a missing CLI, as a reviewed task), **Accounts**,
+pi context ownership guidance (Claude sessions follow
 the Agent tab's compaction settings and context budget), **Prove it end to end** (one tiny
 print-mode prompt through the CLI, the login and the extension at once, because
-"installed" and "working" are different claims), and **When it fails**. See
+"installed" and "working" are different claims; This Mac only), and **When it
+fails**. See
 [cli-providers.md](cli-providers.md).
 
 - **Accounts** keeps several Claude logins and routes one to each new session
@@ -619,14 +633,25 @@ print-mode prompt through the CLI, the login and the extension at once, because
   **spending overage credits**. A running session keeps its account: the
   credential is fixed at spawn. The context popover names the account a lane
   is spending and shows that account's own plan usage.
-- Each account row **opens** onto its usage windows (read under that
-  account's own CLI config dir, so they cannot show another account's
-  numbers) and the live sessions spending it. A session there can be restarted on the same account or moved
-  to another; both respawn it from its session file, which is the only way an
-  account can change.
-- Removing an account signs it out, so main refuses it while live sessions are
-  spending that account ("Stop or move this account’s live sessions before
-  removing it."), as a Host does for its active lanes.
+- Routing and the pinned account are radios on every machine. **Refresh usage**
+  re-reads every account's cooldowns (`claude.refreshUsage` on a Host).
+- An account row shows its sign-in state (Signed in / Not signed in / Could not
+  verify), its lane count and its 5-hour use. It **opens** onto its usage
+  windows (read under that account's own CLI config dir, so they cannot show
+  another account's numbers; a Host shows its last reading, and **Check again**
+  asks its CLI) and its lanes: the live sessions on This Mac, the saved and
+  running lanes on a Host, with **Open lane**. No reading yet says so and never
+  draws a meter. A lane can be restarted on the same account or moved to another,
+  after a confirmation; both respawn it from its session file, which is the only
+  way an account can change. Move targets follow one rule everywhere (`moveTargets`
+  in `lib/claudeGateway.ts`, also used by the composer's account switcher): every
+  other account not reported signed out, held ones last.
+- **Remove** asks first ("Sign out and remove"), and is disabled while lanes on
+  the account are running. Removing signs the account out, so the machine
+  refuses it while live sessions use it ("Stop or move this account’s live
+  sessions before removing it."); the refusal shows under the list.
+- On a Host, adding or re-authenticating an account opens a private terminal
+  there; a Host holds at most 16 accounts.
 
 ### Web access (`pi-web-access`)
 
