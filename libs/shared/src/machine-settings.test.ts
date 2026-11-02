@@ -231,3 +231,30 @@ describe('agent.patch null clears (agentClearSupported)', () => {
     ).not.toHaveProperty('agentClearSupported')
   })
 })
+
+describe('the Host protocol’s MCP write policy', () => {
+  const upsert = (config: unknown, extra = {}) =>
+    patch({ type: 'mcp.upsert', name: 'docs', config, approveCode: true }, 'connectors', extra)
+  it('refuses headers, environment values and OAuth client secrets in folder scope', () => {
+    for (const config of [
+      { url: 'https://d.test/mcp', headers: { Authorization: 'Bearer private' } },
+      { command: 'node', env: { TOKEN: 'private' } },
+      { url: 'https://d.test/mcp', oauth: { clientId: 'id', clientSecret: 'private' } },
+    ]) {
+      expect(upsert(config, { repositoryId })).toBeNull()
+      expect(upsert(config)).toBeTruthy()
+    }
+    expect(
+      upsert({ url: 'https://d.test/mcp', oauth: { clientId: 'id' } }, { repositoryId }),
+    ).toBeTruthy()
+  })
+  it('allows http only on loopback, for servers and OAuth URLs', () => {
+    for (const url of ['http://localhost:1/mcp', 'http://127.0.0.1:1/mcp', 'http://[::1]:1/mcp'])
+      expect(upsert({ url })).toBeTruthy()
+    for (const url of ['http://10.0.0.1/mcp', 'https://u@d.test/mcp', 'ftp://d.test/mcp'])
+      expect(upsert({ url })).toBeNull()
+    expect(
+      upsert({ url: 'https://d.test/mcp', oauth: { callbackUrl: 'http://public.test/cb' } }),
+    ).toBeNull()
+  })
+})
