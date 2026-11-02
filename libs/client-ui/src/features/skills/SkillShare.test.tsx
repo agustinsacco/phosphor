@@ -154,7 +154,7 @@ it('reports a failed write, keeps the read step, and retries only when asked', a
   expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
     'The machine did not confirm the copy.',
   )
-  expect(text()).toContain('Read from This Mac')
+  expect(text()).toContain('Read from This computer')
   expect(install).toHaveBeenCalledTimes(1)
   await act(async () => button('Try again').click())
   expect(install).toHaveBeenCalledTimes(2)

@@ -93,20 +93,20 @@ it('lists New and the page links in order, then the machine scope, lanes and the
   expect(container.querySelectorAll('button[aria-label="Settings"]')).toHaveLength(1)
 })
 
-it('offers This Mac, each Host, All machines and Add machine in the machine scope', async () => {
+it('offers the local machine by its platform label, each Host, All machines and Add machine in the machine scope', async () => {
   await render()
   await act(async () => button('Machine filter').click())
   expect(
     [...document.querySelectorAll('[role=option]')].map((o) =>
-      o.textContent?.startsWith('This Mac')
-        ? 'This Mac'
+      o.textContent?.startsWith('This computer')
+        ? 'This computer'
         : o.textContent?.startsWith('All machines')
           ? 'All machines'
           : o.textContent?.startsWith(MOCK_HOST_ID)
             ? 'Host'
             : o.textContent,
     ),
-  ).toEqual(['This Mac', 'Host', 'All machines', '+ Add machine'])
+  ).toEqual(['This computer', 'Host', 'All machines', '+ Add machine'])
 })
 
 it('New opens home for This Mac and the scoped Host composer for a Host', async () => {

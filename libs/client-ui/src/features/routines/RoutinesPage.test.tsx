@@ -483,10 +483,10 @@ it('shows Host execution guidance without This Mac background controls', async (
   expect(container.querySelector('footer input')).toBeNull()
 })
 
-it('labels aggregate activity as This Mac and retains local background controls', async () => {
+it('labels aggregate activity as the local machine and retains local background controls', async () => {
   await renderHostWithLocalActivity()
   await act(async () => useMachinePagesStore.setState({ routinesMachine: 'all' }))
-  expect(container.textContent).toContain('This Mac activity')
+  expect(container.textContent).toContain('This computer activity')
   expect(container.querySelector('footer input')).not.toBeNull()
 })
 
@@ -502,14 +502,14 @@ it('clears local detail and its running state after a sidebar switch to a Host',
   expect(container.textContent).toContain('Remote task')
 })
 
-it('shows local load failures only on This Mac and labels them under All machines', async () => {
+it('shows local load failures only on the local machine and labels them under All machines', async () => {
   await renderHostWithLocalActivity()
   await act(async () => useRoutinesStore.setState({ error: 'Local failure' }))
   expect(container.textContent).not.toContain('Local failure')
   await act(async () => useMachinePagesStore.setState({ routinesMachine: 'local' }))
   expect(container.textContent).toContain('Local failure')
   await act(async () => useMachinePagesStore.setState({ routinesMachine: 'all' }))
-  expect(container.textContent).toContain('This Mac: Local failure')
+  expect(container.textContent).toContain('This computer: Local failure')
 })
 
 it('drops an action error from This Mac when the selection moves to a Host', async () => {

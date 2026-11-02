@@ -73,8 +73,8 @@ it('composer follows switcher, allows override, resets on switcher change and ne
   await act(async () => root.render(<WorkspaceHome workspacePath="/ws" />))
   expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('host-a')
   act(() => container.querySelector<HTMLButtonElement>('[aria-label=Machine]')!.click())
-  click('This Mac')
-  expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('This Mac')
+  click('This computer')
+  expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('This computer')
   act(() => openRemoteComposer('host-a', 'repo-a'))
   expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('host-a')
   act(() => useRemoteLanesStore.getState().setFilter('host-b'))
@@ -86,7 +86,7 @@ it('composer follows switcher, allows override, resets on switcher change and ne
   expect(useDraftsStore.getState().drafts[homeDraftKey('/ws')]?.text).toBe('Keep my draft')
   expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('host-b')
   act(() => useRemoteLanesStore.getState().setFilter('all'))
-  expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('This Mac')
+  expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('This computer')
 })
 
 it('down and capability-lost composer targets stay remote on submit', async () => {
