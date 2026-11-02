@@ -85,7 +85,7 @@ export async function submitRemoteHome(s: Submission): Promise<void> {
   } catch (failure) {
     if (!current()) return
     const message = createWarning(ipcErrorText(failure), machineLabel(s.hostId))
-    useHomeSubmissionsStore.getState().warn(s.draftKey, message)
+    useHomeSubmissionsStore.getState().warn(s.draftKey, message, s.hostId)
     useExtensionUiStore.getState().pushToast(message, 'warning')
   } finally {
     unsubscribe()

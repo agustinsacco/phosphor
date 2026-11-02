@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { usePlatform } from '@/platform/Platform'
 import { useRemoteModel } from '@/features/machines/RemoteModelPicker'
 import type { PendingAttachment } from '@/features/chat/attachments'
@@ -23,9 +24,17 @@ export function useRemoteStart(hostId: string, draftKey: string) {
   const swarm = draft?.swarm ?? false
   const busy = useHomeSubmissionsStore((s) => !!s.pending[draftKey])
   // In the store, not local state: the composer that sent is replaced while it starts.
-  const warning = useHomeSubmissionsStore((s) => s.warnings[draftKey] ?? null)
+  const warning = useHomeSubmissionsStore((s) => s.warnings[draftKey]?.message ?? null)
   const setWarning = (message: string | null) =>
     useHomeSubmissionsStore.getState().warn(draftKey, message)
+  // A failure's reason describes the draft that failed, not one edited since.
+  const failedText = useRef(text)
+  useEffect(() => {
+    if (failedText.current === text) return
+    failedText.current = text
+    if (useHomeSubmissionsStore.getState().warnings[draftKey])
+      useHomeSubmissionsStore.getState().warn(draftKey, null)
+  }, [text, draftKey])
   const ready = host?.state === 'ready' && host.capabilities.includes('sessions.control')
   const canSend =
     ready && !!repositoryId && !!selection.model && (!!text.trim() || !!attachments.length)

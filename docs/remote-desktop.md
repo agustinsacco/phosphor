@@ -147,8 +147,10 @@ requested branch and phase, never the prompt): waiting for the Host, waiting
 behind another creation, creating the branch, starting the session, sending the
 message. While the link is down it says it is reconnecting, and a step that runs
 past 12 seconds adds a line saying the machine is slow to answer and the draft is
-kept. The composer that comes back after a failure holds the draft, the reason
-(kept in `homeSubmissions` so it survives the remount) and the cursor. Both shells
+kept. The composer that comes back after a failure is that Host's, even when the
+machine picker on This Mac's Home chose it, and holds the draft, the reason (kept
+in `homeSubmissions` with the Host so it survives the remount) and, once, the
+cursor. Editing the draft clears the reason. Both shells
 render the same echo: Desktop in place of Home, the browser in place of its new-lane
 page.
 
