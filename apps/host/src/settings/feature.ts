@@ -2,7 +2,7 @@ import { parseSettingsRead } from '@phosphor/shared/machine-settings'
 import type { HostFeature } from '../features/feature'
 import type { SettingsContext } from './context'
 import type { SettingsSnapshot } from './snapshot'
-import { SettingsFailure } from './files'
+import { SettingsFailure } from '@phosphor/session-runtime/pi/settings-file'
 import { checkConnectors } from './connector-check'
 import { applySettings } from './mutation'
 

@@ -726,7 +726,9 @@ separate private-file requirements. World-writable files/directories, foreign
 owners, hard links and final symlinks are refused. Commits read bounded regular
 files, preserve unrelated fields (including nested compaction/retry settings),
 check the revision and current authorization, and atomically rename an exclusive
-0600 temporary file. Folder agent editors show only that folder's overrides,
+0600 temporary file. This is the one pi config writer
+(`libs/session-runtime/src/pi/settings-file.ts`); the Host runs it with
+`HOST_FILE_POLICY` (no links, 0600, 64 KiB) and Desktop with its own. Folder agent editors show only that folder's overrides,
 not a merged copy of machine defaults. Repository management
 shares their process-local lock. This is not a cross-process compare-and-swap.
 A lost response can mean the edit applied; clients must inspect rather than replay

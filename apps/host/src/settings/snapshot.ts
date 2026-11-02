@@ -5,7 +5,11 @@ import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { validateHostConfig } from '../config/schema'
 import { HOST_VERSION } from '../version'
 import { type SettingsContext, settingsHash } from './context'
-import { settingsFile, SettingsFailure } from './files'
+import {
+  settingsFile,
+  SettingsFailure,
+  HOST_FILE_POLICY,
+} from '@phosphor/session-runtime/pi/settings-file'
 import { readProviderSettings } from './provider-settings'
 import { readAgentSettings } from './agent-settings'
 import { readConnectorSettings } from './connector-settings'
@@ -36,7 +40,7 @@ async function readResources(state: SettingsContext, cwd?: string) {
 
 function readAdvanced(state: SettingsContext) {
   const { options } = state
-  const config = validateHostConfig(settingsFile(options.configPath).raw)
+  const config = validateHostConfig(settingsFile(options.configPath, HOST_FILE_POLICY).raw)
   if (!config.ok) throw new SettingsFailure('bad-request', 'Host config is invalid.')
   const names = config.config.environment?.pass ?? []
   return {

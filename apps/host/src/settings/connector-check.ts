@@ -2,7 +2,7 @@ import type { parseSettingsRead } from '@phosphor/shared/machine-settings'
 import { machineRecord } from '@phosphor/shared/host-protocol-machine'
 import { runMcpList } from '@phosphor/session-runtime/pi/mcp-inspection'
 import type { SettingsContext } from './context'
-import { SettingsFailure } from './files'
+import { SettingsFailure } from '@phosphor/session-runtime/pi/settings-file'
 
 function checkedServers(stdout: string) {
   let parsed: unknown

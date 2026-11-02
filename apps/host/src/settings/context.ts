@@ -6,7 +6,11 @@ import type { FeatureContext } from '../features/feature'
 import type { HostStore } from '../lanes/store'
 import type { HostRuntime } from '../session/runtime'
 import type { HostClaudeAccounts } from '../providers/accounts'
-import { settingsFile, SettingsFailure } from './files'
+import {
+  settingsFile,
+  SettingsFailure,
+  HOST_FILE_POLICY,
+} from '@phosphor/session-runtime/pi/settings-file'
 
 export interface MachineSettingsOptions {
   context: FeatureContext
@@ -78,7 +82,7 @@ export class SettingsContext {
 
   revision(section: MachineSettingsSection, cwd?: string) {
     return settingsHash([
-      ...this.files(section, cwd).map((path) => settingsFile(path).revision),
+      ...this.files(section, cwd).map((path) => settingsFile(path, HOST_FILE_POLICY).revision),
       ...(section === 'connectors'
         ? [
             existsSync(join(this.agentDir, 'mcp-adapter.json')),

@@ -6,20 +6,26 @@ import type { MachineSettings, MachineSettingsPatch } from '@phosphor/shared/mac
 import { readMcpConfigs } from '@phosphor/session-runtime/pi/mcp-config'
 import { validateHostConfig } from '../config/schema'
 import type { SettingsContext } from './context'
-import { saveSettingsFile, settingsFile, SettingsFailure, withSettingsFileLock } from './files'
+import {
+  saveSettingsFile,
+  settingsFile,
+  SettingsFailure,
+  withSettingsFileLock,
+  HOST_FILE_POLICY,
+} from '@phosphor/session-runtime/pi/settings-file'
 
 export async function readAgentSettings(
   state: SettingsContext,
   cwd?: string,
 ): Promise<Pick<MachineSettings, 'agent' | 'projectTrusted' | 'agentBehaviorSupported'>> {
-  const global = settingsFile(join(state.agentDir, 'settings.json')).raw
+  const global = settingsFile(join(state.agentDir, 'settings.json'), HOST_FILE_POLICY).raw
   const configs = await readMcpConfigs(cwd, state.dirs)
   // This is an editor: show saved folder values even before trust. Runtime
   // readAgentSettings separately excludes them until pi trusts the folder.
-  const project = cwd ? settingsFile(join(cwd, '.pi', 'settings.json')).raw : {}
+  const project = cwd ? settingsFile(join(cwd, '.pi', 'settings.json'), HOST_FILE_POLICY).raw : {}
   // Editors must never bake machine defaults into a folder's overrides.
   const effective = cwd ? project : global
-  const host = validateHostConfig(settingsFile(state.options.configPath).raw)
+  const host = validateHostConfig(settingsFile(state.options.configPath, HOST_FILE_POLICY).raw)
   if (!host.ok)
     throw new SettingsFailure('bad-request', 'Host config is invalid. Nothing was overwritten.')
   return {
@@ -70,7 +76,7 @@ export async function changeAgentSettings(
   await withSettingsFileLock(path, async () => {
     if (state.revision('agent', cwd) !== input.revision)
       throw new SettingsFailure('bad-request', 'Settings changed. Reload before saving.')
-    const file = settingsFile(path)
+    const file = settingsFile(path, HOST_FILE_POLICY)
     const next = { ...file.raw, ...patch }
     if (patch.agentDirectives)
       next.agentDirectives = {
@@ -89,6 +95,6 @@ export async function changeAgentSettings(
     }
     if (policy && !validateHostConfig(next).ok)
       throw new SettingsFailure('bad-request', 'Invalid Host policy.')
-    await saveSettingsFile(path, next, file.revision, commitAllowed)
+    await saveSettingsFile(path, next, file.revision, commitAllowed, HOST_FILE_POLICY)
   })
 }

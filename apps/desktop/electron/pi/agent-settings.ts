@@ -1,9 +1,19 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { piAgentDir, webSearchConfigPath } from './pi-paths'
 import { type CatalogueModel } from './model-catalogue'
 import { type PiAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { readJsonFile, type JsonFileRead } from '@phosphor/session-runtime/pi/json-config'
+import {
+  DESKTOP_FILE_POLICY,
+  readSettingsBytes,
+  saveSettingsFile,
+  SettingsFailure,
+  settingsFile,
+  withSettingsFileLock,
+  writeSettingsText,
+  type SettingsFilePolicy,
+} from '@phosphor/session-runtime/pi/settings-file'
 
 /** One settings file, read with health — see `json-config.ts`. */
 type ReadResult = JsonFileRead<PiAgentSettings>
@@ -58,8 +68,39 @@ export async function writeConfigFile(name: EditableConfigFile, content: string)
   // Must be valid JSON — refuse to write broken config.
   JSON.parse(content)
   const path = configFilePath(name)
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, content, 'utf8')
+  await withSettingsFileLock(path, async () => {
+    // The raw editor is how a malformed file gets fixed, so only its bytes are checked.
+    const { revision } = readSettingsBytes(path, DESKTOP_FILE_POLICY)
+    await writeSettingsText(path, content, revision, () => true, DESKTOP_FILE_POLICY)
+  })
+}
+
+/**
+ * Patch one pi config file through the shared writer, under its lock. A file
+ * that is present but holds no JSON object is never overwritten: merging onto
+ * a failed read would drop every key the user had.
+ */
+async function patchConfigFile(
+  path: string,
+  /** Completes "Phosphor will not overwrite it…". */
+  fix: string,
+  update: (current: Record<string, unknown>) => Record<string, unknown>,
+  policy: SettingsFilePolicy = DESKTOP_FILE_POLICY,
+): Promise<void> {
+  await withSettingsFileLock(path, async () => {
+    let file: { raw: Record<string, unknown>; revision: string }
+    try {
+      file = settingsFile(path, policy)
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      const problem =
+        error instanceof SettingsFailure && error.malformed ? 'is not valid JSON' : 'cannot be read'
+      throw new Error(`${path} ${problem} (${reason}). Phosphor will not overwrite it${fix}`, {
+        cause: error,
+      })
+    }
+    await saveSettingsFile(path, update(file.raw), file.revision, () => true, policy)
+  })
 }
 
 /**
@@ -86,17 +127,14 @@ export async function readWebSearchConfig(): Promise<{
 }
 
 export async function patchWebSearchConfig(patch: Record<string, unknown>): Promise<void> {
-  const path = webSearchConfigPath()
-  const read = await readJson(path)
-  if (read.malformed) {
-    throw new Error(
-      `${path} is not valid JSON (${read.error ?? 'parse error'}). ` +
-        'Phosphor will not overwrite it — fix it via "Edit raw JSON" first.',
-    )
-  }
-  const merged = { ...read.value, ...patch }
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, JSON.stringify(merged, null, 2) + '\n', 'utf8')
+  await patchConfigFile(
+    webSearchConfigPath(),
+    ' — fix it via "Edit raw JSON" first.',
+    (current) => ({
+      ...current,
+      ...patch,
+    }),
+  )
 }
 
 /**
@@ -113,32 +151,23 @@ export async function patchAgentSettings(
   patch: Record<string, unknown>,
 ): Promise<void> {
   const dir = scope === 'global' ? piAgentDir() : join(workspacePath ?? '', '.pi')
-  const path = join(dir, 'settings.json')
-  const read = await readJson(path)
-
-  if (read.malformed) {
-    throw new Error(
-      `${path} is not valid JSON (${read.error ?? 'parse error'}). ` +
-        'Phosphor will not overwrite it and lose your existing settings — ' +
-        'fix it in Settings → Advanced → pi settings.json, then try again.',
-    )
-  }
-
-  const current = read.value
-  const merged: Record<string, unknown> = { ...current, ...patch }
-  // Nested objects (compaction/retry) merge one level deep.
-  for (const key of ['compaction', 'retry'] as const) {
-    if (
-      patch[key] &&
-      typeof patch[key] === 'object' &&
-      current[key] &&
-      typeof current[key] === 'object'
-    ) {
-      merged[key] = { ...(current[key] as object), ...(patch[key] as object) }
+  const fix =
+    ' and lose your existing settings — fix it in Settings → Advanced → pi settings.json, then try again.'
+  await patchConfigFile(join(dir, 'settings.json'), fix, (current) => {
+    const merged: Record<string, unknown> = { ...current, ...patch }
+    // Nested objects (compaction/retry) merge one level deep.
+    for (const key of ['compaction', 'retry'] as const) {
+      if (
+        patch[key] &&
+        typeof patch[key] === 'object' &&
+        current[key] &&
+        typeof current[key] === 'object'
+      ) {
+        merged[key] = { ...(current[key] as object), ...(patch[key] as object) }
+      }
     }
-  }
-  await mkdir(dir, { recursive: true })
-  await writeFile(path, JSON.stringify(merged, null, 2) + '\n', 'utf8')
+    return merged
+  })
 }
 
 /** One selectable model, as recorded in pi's models.json. */

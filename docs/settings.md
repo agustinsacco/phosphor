@@ -297,6 +297,11 @@ project scope, an empty field's placeholder names what it inherits.
 - If the target file is not valid JSON, editing is **disabled** rather than
   best-effort, and the banner routes to Advanced to repair it by hand. Main
   never overwrites a config it could not parse.
+- Saves use the Host's writer (`libs/session-runtime/src/pi/settings-file.ts`):
+  locked per file, atomically replaced, and refused when the file changed since
+  it was read. This Mac's policy (`DESKTOP_FILE_POLICY`) saves through a dotfile
+  symlink, so the link survives, and keeps each file's mode. `settings.json`,
+  `models.json`, `mcp.json` and their raw editors all write through it.
 - pi settings apply to **new** sessions. The context budget is the live-session
   exception described above.
 

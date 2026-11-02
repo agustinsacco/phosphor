@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { setMcpExposure } from './mcp-config'
+import { setMcpExposure } from './mcp-config-write'
 
 let dir: string
 const dirs = () => ({ home: dir, piAgent: dir, xdgConfig: dir })
