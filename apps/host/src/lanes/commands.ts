@@ -91,6 +91,7 @@ function execute(
     return executeCreate(state, ports, job, queue, {
       op,
       execute: (next, nextQueue) => execute(state, ports, next, nextQueue),
+      allowed,
     })
   const admitted = admitLane(state, ports, job, queue)
   if (!admitted) return
@@ -117,5 +118,11 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     status: (clientId: string, requestId: string, connectionId?: string): void =>
       status(state, ports, clientId, requestId, connectionId),
     close: (): Promise<void> => close(state),
+    /** A live lane, or one still being created, keeps its repository from removal. */
+    repositoryLive: (repositoryId: string): boolean =>
+      [...state.creations.values()].includes(repositoryId) ||
+      ports.store
+        .listLanes()
+        .some((l) => l.repositoryId === repositoryId && ports.sessionFor(l.laneId) !== null),
   }
 }
