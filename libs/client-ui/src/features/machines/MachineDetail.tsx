@@ -22,7 +22,7 @@ import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { Card, CheckRow, Fact, Facts, Spinner, type CheckItem } from './MachineUi'
 import { MachineTerminal } from './MachineTerminal'
 import { OnThisMachine } from './OnThisMachine'
-import { ProviderSignIn } from './ProviderSignIn'
+import { MachineProviders } from './MachineProviders'
 
 const DAY_MS = 86_400_000
 
@@ -203,7 +203,7 @@ export function MachineDetail({
           </div>
           <div className="space-y-4">
             <Card title="Providers">
-              <ProviderSignIn
+              <MachineProviders
                 key={machine.id}
                 hostId={machine.id}
                 refresh={refresh}
