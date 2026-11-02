@@ -1,5 +1,4 @@
-import { useSessionsStore } from '@/stores/sessions'
-import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useCanControlSession } from '@/features/sessions/useCanControlSession'
 import { TAKE_CONTROL_FIRST } from '@/features/sessions/remoteLaneActions'
 import { TooltipButton } from '@/components/Tooltip'
 import { useChatStore } from '@/stores/chat'
@@ -45,9 +44,8 @@ function QueueChip({
   sessionId: string
   index: number
 }): React.JSX.Element {
-  // A Host lane's queue belongs to its controller; re-read when control moves.
-  const live = useSessionsStore((s) => s.live[sessionId])
-  const blocked = useRemoteLanesStore(() => live !== undefined && !canControlSession(sessionId))
+  // A Host lane's queue belongs to its controller.
+  const blocked = !useCanControlSession(sessionId)
   const steer = kind === 'steer'
   return (
     <div

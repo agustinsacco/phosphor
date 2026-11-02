@@ -94,9 +94,10 @@ async function unqueueFailureMessage(rejection: string | null, remote: boolean):
   const parts = [
     `Could not remove the queued message: ${rejection ?? 'clear_queue returned no queues'}.`,
   ]
-  if (rejection) parts.push('Your queued messages are unchanged.')
-  // A Host lane runs the Host's pi: this machine's version says nothing about it.
+  // A Host lane's failure may be an unconfirmed outcome, not a refusal, and it
+  // runs the Host's pi, so this machine's version says nothing about it either.
   if (remote) return parts.join(' ')
+  if (rejection) parts.push('Your queued messages are unchanged.')
 
   const installed = await window.phosphor
     .invoke('pi:health')

@@ -52,7 +52,8 @@ The pi commands a controller may send are `LANE_PI_OPS`: prompt, steer,
 follow-up, abort, abort-retry, model, thinking level, compact, session name,
 `clear_queue`, the steering and follow-up modes, auto-compaction, auto-retry,
 `bash` and `abort_bash`. The client (`laneOperation` in `libs/host-client`) and
-the Host (`toPiCommand`) list the same set; anything else is refused
+the Host (`toPiCommand`) both test `isLanePiOp`, so the list is written once;
+anything else is refused
 `unsupported`, which the client reports as "updating the Host may help".
 
 `bash` needs `sessions.control`, as a prompt does, and adds no authority beyond

@@ -1,4 +1,4 @@
-import type { LaneOp } from '@phosphor/shared/host-protocol'
+import { isLanePiOp, type LaneOp } from '@phosphor/shared/host-protocol'
 import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import { BASH_UNCONFIRMED } from '@phosphor/shared/remote-host'
 import type { CommandResult } from './connection'
@@ -51,28 +51,16 @@ export function createFailureText(error: unknown): string {
     : CREATE_UNCONFIRMED
 }
 
-/** The entire remote pi allowlist. Never forward arbitrary RPC to a Host. */
+/**
+ * The entire remote pi allowlist: LANE_PI_OPS as commands, and the reads as
+ * lane queries. Never forward arbitrary RPC to a Host.
+ */
 export function laneOperation(command: RpcCommand): LaneOp | string | null {
+  if (isLanePiOp(command)) {
+    const { id: _id, ...op } = command
+    return op
+  }
   switch (command.type) {
-    case 'prompt':
-    case 'steer':
-    case 'follow_up':
-    case 'abort':
-    case 'abort_retry':
-    case 'set_model':
-    case 'set_thinking_level':
-    case 'compact':
-    case 'set_session_name':
-    case 'clear_queue':
-    case 'set_steering_mode':
-    case 'set_follow_up_mode':
-    case 'set_auto_compaction':
-    case 'set_auto_retry':
-    case 'bash':
-    case 'abort_bash': {
-      const { id: _id, ...op } = command
-      return op
-    }
     case 'get_state':
       return 'lane.state'
     case 'get_messages':

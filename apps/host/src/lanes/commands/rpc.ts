@@ -1,4 +1,4 @@
-import type { LaneOp } from '@phosphor/shared/host-protocol'
+import { isLanePiOp, type LaneOp } from '@phosphor/shared/host-protocol'
 import type { RpcCommand } from '@phosphor/shared/rpc'
 import type { LaneAdmission } from './admission'
 import { handled, NOT_MATCHED, type Routed } from './routing'
@@ -11,29 +11,9 @@ type DialogResponse = Extract<LaneOp, { type: 'extension_ui_response' }>['respon
 /** A live lane's pi session and the fence the op was admitted at. */
 type PiTarget = { laneId: string; sessionId: string; fence: number | undefined }
 
-/** The Host-owned allowlist: only these lane ops reach pi, under the request id. */
+/** The Host-owned allowlist: only LANE_PI_OPS reach pi, under the request id. */
 export function toPiCommand(op: LaneOp, id: string): RpcCommand | null {
-  switch (op.type) {
-    case 'prompt':
-    case 'steer':
-    case 'follow_up':
-    case 'abort':
-    case 'abort_retry':
-    case 'set_model':
-    case 'set_thinking_level':
-    case 'compact':
-    case 'set_session_name':
-    case 'clear_queue':
-    case 'set_steering_mode':
-    case 'set_follow_up_mode':
-    case 'set_auto_compaction':
-    case 'set_auto_retry':
-    case 'bash':
-    case 'abort_bash':
-      return { ...op, id }
-    default:
-      return null
-  }
+  return isLanePiOp(op) ? { ...op, id } : null
 }
 
 /** Pi commands and dialog answers. Both are detached: the lane queue moves on at dispatch. */

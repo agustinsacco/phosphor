@@ -137,6 +137,8 @@ it("remote queue removal drains on the Host and never diagnoses this machine's p
   const error = useChatStore.getState().sessions.remote?.error
   expect(error).toMatch(/not streaming/)
   expect(error).not.toMatch(/needs pi|this machine/)
+  // A Host failure can be an unconfirmed outcome, so it never promises the queue is intact.
+  expect(error).not.toMatch(/unchanged/)
   useSessionsStore.setState({ live: {} })
   vi.unstubAllGlobals()
 })

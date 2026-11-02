@@ -51,11 +51,11 @@ function capabilityFor(
   const routine = parseRoutineOp(op)
   if (routine)
     return routineRequiresControl(routine) ? ['routines', 'sessions.control'] : ['routines']
-  // A `!command` is pi's own shell tool, so it needs only control, like a prompt
-  // that asks the agent to run it. `terminal` is the pty feature: a Host without
-  // node-pty never advertises it, and pi's shell does not use it.
   if (parseProviderLoginOp(op) || parseTerminalOp(op)) return ['terminal', 'sessions.control']
   const write = op.type.startsWith('files.') ? ports.writes?.capabilityFor(op.type) : null
+  // Everything else, pi ops included, needs control. A `!command` (`bash`) too:
+  // pi runs the shell itself, as it would for a prompt asking the agent to, and
+  // `terminal` is the pty feature, which a Host without node-pty never offers.
   return write ? [write, 'sessions.control'] : ['sessions.control']
 }
 

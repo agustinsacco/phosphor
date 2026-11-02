@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { TooltipButton } from '@/components/Tooltip'
 import { piCallOk } from '@/lib/rpc'
-import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useCanControlSession } from '@/features/sessions/useCanControlSession'
 import type { BashItem } from '../reducer'
 import { SEGMENT } from '../transcriptFind'
 
@@ -11,8 +11,7 @@ import { SEGMENT } from '../transcriptFind'
  * is harmless when nothing runs. Only whoever may command the lane sees it.
  */
 function StopShell({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const allowed = useRemoteLanesStore(() => canControlSession(sessionId))
-  if (!allowed) return null
+  if (!useCanControlSession(sessionId)) return null
   return (
     <TooltipButton
       onClick={() => void piCallOk(sessionId, { type: 'abort_bash' })}

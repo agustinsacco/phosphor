@@ -7,9 +7,10 @@ import { BASH_UNCONFIRMED } from '@shared/remote-host'
  * through pi's RPC `bash`, on This Mac or on the lane's Host, into one bash item.
  *
  * `piCallInline`, not `piCall`: a failed command belongs in its own item next
- * to the command, not on the session-wide error surface. A Host answers a command within its deadline or says it cannot
- * confirm it; a shell command can outlast that, so an unconfirmed one is shown
- * as such (not as a failure) and keeps its Stop control.
+ * to the command, not on the session-wide error surface. A Host answers a
+ * command within its deadline or says it cannot confirm it; a shell command can
+ * outlast that, so an unconfirmed one is shown as such (not as a failure) and
+ * keeps its Stop control.
  */
 export async function runShellCommand(
   sessionId: string,
