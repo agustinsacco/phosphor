@@ -365,7 +365,7 @@ it('disposed or replaced handle invalidates mapping and Host restart ends it', a
   await t.attach(id)
   t.setCurrent()
   t.bridge.reconcile()
-  expect(t.emit).toHaveBeenCalledWith(1, `pty:exit:${id}`, 0)
+  expect(t.emit).toHaveBeenCalledWith(1, `pty:exit:${id}`, -1)
   await expect(t.route('pty:write', id, 'input')).rejects.toThrow('Not available')
   t.connection.close()
   const r = await setup(),
@@ -373,7 +373,7 @@ it('disposed or replaced handle invalidates mapping and Host restart ends it', a
   await r.attach(rid)
   await r.reconnect(true)
   r.bridge.reconcile()
-  expect(r.emit).toHaveBeenCalledWith(1, `pty:exit:${rid}`, 0)
+  expect(r.emit).toHaveBeenCalledWith(1, `pty:exit:${rid}`, -1)
   await expect(r.route('pty:write', rid, 'input')).rejects.toThrow('Not available')
   r.connection.close()
 })
@@ -384,7 +384,7 @@ it('interrupted reset shows ended and refuses input', async () => {
   t.interrupt()
   await drain()
   await vi.advanceTimersByTimeAsync(0)
-  expect(t.emit).toHaveBeenCalledWith(1, `pty:exit:${id}`, 0)
+  expect(t.emit).toHaveBeenCalledWith(1, `pty:exit:${id}`, -1)
   await expect(t.route('pty:write', id, 'input')).rejects.toThrow('Read-only')
   t.connection.close()
 })
@@ -846,7 +846,11 @@ it.each(['terminal', 'sessions.control'] as const)(
   },
 )
 
-it('emits one Desktop completion for an exited sign-in reset followed by its exit frame', async () => {
+// A late subscriber gets the Host's real exit frame; a reset alone only proves the end, not success.
+it.each([
+  ['its exit frame reports the real code', 1, 1],
+  ['no exit frame reports unknown, never success', null, -1],
+])('emits one Desktop completion for an exited sign-in reset: %s', async (_, exitCode, code) => {
   const t = await setup()
   const pending = t.bridge.signIn(1, t.hostId, 'xai')
   await drain()
@@ -856,28 +860,15 @@ it('emits one Desktop completion for an exited sign-in reset followed by its exi
   await drain()
   const sub = t.frames.find((f) => f.type === 'subscribe' && f.topic === 'terminal')
   if (sub?.type !== 'subscribe') throw new Error('Missing subscription')
-  t.raw({
-    type: 'terminal.reset',
-    id: sub.id,
-    terminalId: t.terminalId,
-    epoch: '1111111111111111',
-    seq: 1,
-    data: '',
-    inputSeq: 0,
-    status: 'exited',
-  })
-  t.raw({
-    type: 'terminal.exit',
-    id: sub.id,
-    terminalId: t.terminalId,
-    epoch: '1111111111111111',
-    seq: 2,
-    exitCode: 0,
-  })
+  const frame = { id: sub.id, terminalId: t.terminalId, epoch: '1111111111111111' }
+  t.raw({ ...frame, type: 'terminal.reset', seq: 1, data: '', inputSeq: 0, status: 'exited' })
+  if (exitCode !== null) t.raw({ ...frame, type: 'terminal.exit', seq: 2, exitCode })
   await drain()
   expect(await attaching).toEqual({ scrollback: '' })
   await vi.advanceTimersByTimeAsync(1)
-  expect(t.emit.mock.calls.filter((c) => c[1] === `pty:exit:${ptyId}`)).toHaveLength(1)
+  expect(t.emit.mock.calls.filter((c) => c[1] === `pty:exit:${ptyId}`)).toEqual([
+    [1, `pty:exit:${ptyId}`, code],
+  ])
   t.connection.close()
 })
 

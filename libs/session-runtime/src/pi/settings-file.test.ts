@@ -17,6 +17,7 @@ import {
   HOST_FILE_POLICY as HOST,
   privateFilePolicy,
   saveSettingsFile,
+  SettingsFailure,
   settingsFile,
   withSettingsFileLock,
   writeSettingsText,
@@ -121,7 +122,8 @@ describe('private revision-checked settings files (Host policy)', () => {
     const target = join(dir, 'credentials.json')
     await writeFile(target, '{"secret":"private"}', { mode: 0o600 })
     await symlink(target, path)
-    expect(() => settingsFile(path, HOST)).toThrow()
+    expect(() => settingsFile(path, HOST)).toThrow(SettingsFailure)
+    expect(settingsFile(path, DESKTOP).raw).toEqual({ secret: 'private' })
     await rm(path)
     await writeFile(path, '{}', { mode: 0o666 })
     await chmod(path, 0o666)

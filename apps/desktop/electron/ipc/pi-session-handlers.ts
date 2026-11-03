@@ -16,8 +16,11 @@ import { log } from '../debug-log'
 export function registerPiSessionHandlers(): void {
   handle('pi:health', async () => {
     // Where pi looks, for Advanced: the PATH it runs with and its agent directory.
+    // A copy of Windows' environment keeps its key as `Path`.
+    const pathOf = (env: NodeJS.ProcessEnv) =>
+      env.PATH ?? Object.entries(env).find(([key]) => key.toUpperCase() === 'PATH')?.[1] ?? ''
     const where = (env: NodeJS.ProcessEnv) => ({
-      path: (env.PATH ?? '').split(delimiter).filter(Boolean),
+      path: pathOf(env).split(delimiter).filter(Boolean),
       agentDir: piAgentDir(),
     })
     if (piStubPath()) {

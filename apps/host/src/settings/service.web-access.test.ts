@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { chmod, readFile, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, stat, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   removeSettingsFixtures,
@@ -61,6 +61,17 @@ describe('Host Web access keys', () => {
     expect(cleared.ok).toBe(true)
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ searxngUrl: 'https://s.test' })
   })
+  // P35: the revision once hashed the package list while the commit check hashed files.
+  it("accepts a resources read's revision, with a package listed, at the next resources commit", async () => {
+    const f = await fixture()
+    await writeFile(join(f.agentDir, 'settings.json'), JSON.stringify({ packages: ['npm:keep'] }), {
+      mode: 0o600,
+    })
+    const before = await f.read('resources')
+    expect(before.resources?.packages.map((package_) => package_.spec)).toEqual(['npm:keep'])
+    const change = { type: 'webAccess.key' as const, key: 'braveApiKey' as const, value: 'x' }
+    expect((await f.patch('resources', change, before.revision)).ok).toBe(true)
+  })
   it('refuses a stale revision, a folder scope and a malformed file', async () => {
     const f = await fixture()
     const path = join(f.agentDir, 'web-search.json')
@@ -76,4 +87,27 @@ describe('Host Web access keys', () => {
     expect((await f.patch('resources', change, broken.revision)).ok).toBe(false)
     expect(await readFile(path, 'utf8')).toBe('{ broken')
   })
+  // A dotfile-managed link is common; the Host will not edit it, but Resources still loads.
+  it.each([
+    ['a link', (path: string) => symlink(join(path, '..', 'dotfile.json'), path)],
+    ['unreadable', (path: string) => writeFile(path, '{}', { mode: 0o000 })],
+    ['a directory', (path: string) => mkdir(path)],
+  ])(
+    'reads a web-search.json that is %s as malformed, never failing Resources',
+    async (_, make) => {
+      const f = await fixture()
+      const path = join(f.agentDir, 'web-search.json')
+      await writeFile(join(f.agentDir, 'dotfile.json'), '{"braveApiKey":"BSA_PRIVATE"}', {
+        mode: 0o600,
+      })
+      await make(path)
+      const reading = f.read('resources')
+      const malformed = { configured: [], exists: true, malformed: true }
+      await expect(reading).resolves.toMatchObject({ resources: { webAccess: malformed } })
+      const read = await reading
+      const change = { type: 'webAccess.key' as const, key: 'braveApiKey' as const, value: 'x' }
+      expect((await f.patch('resources', change, read.revision)).ok).toBe(false)
+      expect(JSON.stringify(read)).not.toContain('BSA_PRIVATE')
+    },
+  )
 })

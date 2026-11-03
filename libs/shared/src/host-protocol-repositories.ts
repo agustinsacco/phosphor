@@ -17,9 +17,12 @@ export type DeleteLaneOp = {
 /** Fixed refusals main passes to the renderer, which shows only these verbatim. */
 export const FOLDER_EXISTS = 'A folder with that name already exists.'
 export const HOST_TOO_OLD = 'Update the Host on this machine first: run phosphor update there.'
-/** The Host's config sets `allowRepositoryChanges: false` (or cannot be read): folders change there. */
+/**
+ * The Host answers `forbidden` when its config sets `allowRepositoryChanges: false`
+ * or cannot be read, and when the client's access is revoked during the change.
+ */
 export const FOLDER_CHANGES_FORBIDDEN =
-  'This Host does not accept folder changes from clients: its config turns off allowRepositoryChanges. Change its folders on the Host.'
+  "This Host refused the folder change: its config turns off allowRepositoryChanges or cannot be read, or this client's access was revoked. Change its folders on the Host."
 const FIXED_REFUSALS = [FOLDER_EXISTS, HOST_TOO_OLD, FOLDER_CHANGES_FORBIDDEN]
 /** The fixed refusal an error carries through IPC's wrapping, or null for any other error. */
 export function fixedRefusal(error: unknown): string | null {

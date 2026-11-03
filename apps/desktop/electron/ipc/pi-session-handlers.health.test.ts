@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
   binary: '/first/pi',
   version: vi.fn(async () => ({ stdout: '1.2.0', stderr: '' })),
   print: vi.fn(async () => ({ stdout: 'Fix Login Bug', error: undefined })),
-  environment: vi.fn(async () => ({ PATH: '/shell/bin' })),
+  environment: vi.fn(async (): Promise<NodeJS.ProcessEnv> => ({ PATH: '/shell/bin' })),
 }))
 vi.mock('electron', () => ({
   app: { isPackaged: false, getAppPath: () => '/repo/apps/desktop', getPath: () => '/data' },
@@ -82,6 +82,11 @@ it('reports the PATH pi runs with and its agent directory', async () => {
     path: ['/shell/bin', '/usr/bin'],
     agentDir: piAgentDir(),
   })
+})
+
+it("reports Windows' PATH, whose environment key is Path", async () => {
+  h.environment.mockResolvedValue({ Path: ['/pi/bin', '/windows'].join(delimiter) })
+  expect(await call('pi:health')).toMatchObject({ ok: true, path: ['/pi/bin', '/windows'] })
 })
 
 it('retries unhealthy health IPC probes instead of caching failures', async () => {
