@@ -204,7 +204,8 @@ Signing in never automatically executes a connector check. MCP Connectors is one
 shared view on every machine ([below](#mcp-connectors)).
 
 A Host's Agent defaults save themselves, as This Mac's do: a select or switch
-when it changes, a text or number field on blur or Enter. Each save sends only
+when it changes, a text field on blur or Enter, and a number field as typed once
+the value is in range (otherwise on blur or Enter). Each save sends only
 the fields that differ, against the latest revision, one at a time; an edit made
 while one is in flight follows it. Host policy and pi defaults are separate
 commits, not an atomic multi-file save. A toast says where each save landed
@@ -291,8 +292,10 @@ Everything lives under `libs/client-ui/src/features/settings/`.
   flag. A difference in the client, not the machine, is a `Platform` capability,
   never the form factor.
 - **Primitives.** `components/form/`: `Row` (its title names the control inside it),
-  `Toggle`, `NumberField` (commits on blur or Enter, clamped; a half-typed value is
-  never saved), `TextField`, `Select` (native, so pickers and the `combobox` role
+  `Toggle`, `NumberField` (a typed value applies at once when it lies within the
+  bounds, and is whole when the step is; anything else waits for blur or Enter,
+  then is rounded to a whole number when the step is one and clamped, so a
+  half-typed value is never saved), `TextField`, `Select` (native, so pickers and the `combobox` role
   work everywhere), `Segmented` (a radio group: one tab stop, arrow keys, Home and
   End), `SettingsNotice` (tone `info`, `warning` or `danger`, the last announced as an
   alert; a title, a body and one action), `SourceBadge` (Set here, Inherited from
