@@ -95,6 +95,11 @@ export interface ClaudeAccountsSource {
   refreshUsage: () => void
   /** One account's usage; `force` asks the CLI again. `null`: no reading yet, not zero. */
   usage: (id: string, force: boolean) => Promise<ClaudeUsageSnapshotResult | null>
+  /**
+   * A lane may move to any other account not known to be signed out
+   * (`signedIn !== false`), unverified ones included, as in the composer
+   * (`moveTargets`).
+   */
   moveLane: (laneId: string, accountId: string) => Promise<void>
   /** Why lanes cannot be restarted or moved from here, when they cannot. */
   moveBlocked?: string | null
