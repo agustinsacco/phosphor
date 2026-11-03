@@ -60,6 +60,17 @@ it('commits on Enter and clamps only the committed value', () => {
   expect(input.value).toBe('1024')
 })
 
+it('rounds a fractional value in a whole-number field when it is committed (regression R-C6)', () => {
+  const onChange = vi.fn()
+  const input = renderReserve(onChange)
+  input.focus()
+  type(input, '20480.5')
+  expect(onChange).not.toHaveBeenCalled()
+  act(() => input.blur())
+  expect(onChange).toHaveBeenCalledExactlyOnceWith(20481)
+  expect(input.value).toBe('20481')
+})
+
 it('restores the saved value when the field is left empty or unchanged', () => {
   const onChange = vi.fn()
   const input = renderReserve(onChange)
