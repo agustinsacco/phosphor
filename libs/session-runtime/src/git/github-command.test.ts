@@ -7,7 +7,7 @@ afterEach(() => vi.clearAllMocks())
 const run = () =>
   runGithubCommand(
     '/repo',
-    ['api', 'graphql'],
+    ['api', 'graphql', '--include'],
     { PATH: '/login/bin' },
     new AbortController().signal,
   )
@@ -27,6 +27,19 @@ it('keeps gh in the supplied machine environment and bounds the subprocess', asy
     env: { PATH: '/login/bin', GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' },
   })
   expect(exec.mock.calls[0]?.[2].signal).toBeInstanceOf(AbortSignal)
+})
+
+it('preserves ordinary JSON arrays from legacy gh pr list without stripping the opening bracket', async () => {
+  const stdout = JSON.stringify([{ number: 42, headRefName: 'lane' }])
+  exec.mockImplementation((_file, _args, _opts, cb) => cb(null, { stdout, stderr: '' }))
+  expect(
+    await runGithubCommand(
+      '/repo',
+      ['pr', 'list', '--json', 'number,headRefName'],
+      {},
+      new AbortController().signal,
+    ),
+  ).toEqual({ ok: true, stdout })
 })
 
 it('retains a rate-limit retry budget but never exposes stderr', async () => {
