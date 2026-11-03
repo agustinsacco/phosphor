@@ -176,9 +176,10 @@ export function Toggle({
 /**
  * A number that applies as it is typed once the value is one blur would keep:
  * within `min`..`max`, and whole when `step` is. Anything else waits for blur
- * or Enter, then is clamped, so a half-typed value is never clamped and saved.
- * Empty or unparseable input restores the saved value. Until it is left, the
- * typed text is kept, so a save that lands late cannot overwrite it.
+ * or Enter, then is rounded (when `step` is whole) and clamped, so a
+ * half-typed value is never clamped and saved. Empty or unparseable input
+ * restores the saved value. Until the field is left the typed text is kept,
+ * so a save that lands late cannot overwrite it.
  */
 export function NumberField({
   value,
@@ -205,9 +206,9 @@ export function NumberField({
     const typed = Number(text)
     return text.trim() === '' || Number.isNaN(typed) ? null : typed
   }
-  const settle = (typed: number): number => Math.min(max, Math.max(min, typed))
-  const fits = (typed: number): boolean =>
-    settle(typed) === typed && (!Number.isInteger(step) || Number.isInteger(typed))
+  const settle = (typed: number): number =>
+    Math.min(max, Math.max(min, Number.isInteger(step) ? Math.round(typed) : typed))
+  const fits = (typed: number): boolean => settle(typed) === typed
   const edit = (text: string): void => {
     edited.current = true
     setDraft(text)
