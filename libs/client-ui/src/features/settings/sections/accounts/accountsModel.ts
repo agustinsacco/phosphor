@@ -62,6 +62,8 @@ export interface ClaudeAccountLane {
 export interface ClaudeAccountModel {
   id: string
   label: string
+  /** What a move to this account calls it: the composer's name for it on this machine. */
+  moveLabel: string
   /** Email, plan and organization, as far as the machine knows them. */
   detail: string
   /** `null`: the machine could not verify the sign-in. */

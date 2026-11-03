@@ -16,6 +16,7 @@ const HOST_ACCOUNT_LIMIT = 16
 const accountOf = (account: MachineAccount): ClaudeAccountModel => ({
   id: account.id,
   label: account.label,
+  moveLabel: account.label,
   detail: accountDetail(
     account.email !== account.label ? account.email : undefined,
     account.plan,
