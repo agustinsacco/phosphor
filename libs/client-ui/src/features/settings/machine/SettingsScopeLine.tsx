@@ -25,7 +25,7 @@ export function SettingsScopeLine({
         Configuring {machine.label}
         <span className="text-text-secondary font-normal">
           {machine.id === 'local'
-            ? `. These settings stay on ${localMachineLabel()}.`
+            ? `. These settings stay on ${localMachineLabel().replace(/^This/, 'this')}.`
             : '. Credentials stay on this Host; nothing syncs to another machine.'}
         </span>
       </p>
