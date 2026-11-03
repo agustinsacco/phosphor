@@ -132,6 +132,15 @@ describe('rowOnMachine', () => {
     expect(rowOnMachine(row('agent'), null)).toBe(false)
   })
 
+  it('finds Other providers only on a Host, where it renders (regression R-U8)', () => {
+    const accounts = (machine: 'local' | 'host'): string[] =>
+      platformIndex(DESKTOP_PLATFORM, machine)
+        .filter((entry) => entry.tab === 'accounts')
+        .map((entry) => entry.title)
+    expect(accounts('local')).not.toContain('Other providers')
+    expect(accounts('host')).toContain('Other providers')
+  })
+
   it('indexes the same Agent rows on This Mac and on a Host', () => {
     const agent = (machine: 'local' | 'host'): string[] =>
       platformIndex(DESKTOP_PLATFORM, machine)
