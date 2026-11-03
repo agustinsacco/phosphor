@@ -1105,8 +1105,9 @@ composer; it does not resend a prompt. Dismiss closes the notice. For a This Mac
 lane, or a Host lane already opened in this window, the existing card updates rather
 than stacking a new one. A Host lane never opened here can stack one card per event.
 
-A release lane's quiet run, a pass or an answer that no person started, posts no
-notice and no Host _finished_ alert; a failed one still does
+In the lane holding the release lease, a run no person started (a pass, an
+answer, a sub-agent's report) is quiet: it posts no notice and no Host
+_finished_ alert; a failed one still does
 ([Release manager](release-manager.md#telling-the-user)).
 
 This Mac lanes notify in-app only. Host attention can include facts from the

@@ -83,9 +83,10 @@ read fails the read, so a passing glitch never looks like a free lease.
 
 While a lane holds the lease, the extension polls GitHub every 60 seconds
 without calling a model: open pull requests with their heads, drafts, labels,
-conflicts and check rollups, and the latest workflow runs on the base head. A
-pass starts only when that digest changes, on the lane's first poll, or every
-30 minutes while something is actionable. Each pass needs the lane idle, renews
+conflicts and check rollups, and the push runs on the base head. A pass starts
+only when that digest changes, on the lane's first poll after it takes the
+lease, or every 30 minutes while some pull request can move without anyone.
+Nothing can while the base branch's CI is red. Each pass needs the lane idle, renews
 the lease first, and arrives as a `phosphor-release-pass` message carrying the
 changes, the queue facts, the memory and the last ten ledger events.
 
@@ -95,7 +96,8 @@ queue from GitHub, moves each pull request one step, merges at most one, and
 never waits on CI inside a pass. It fixes CI failures and conflicts that the
 diff and the log explain on the PR branch in a worktree of its own; for logic it
 blocks the pull request (`rm:blocked`) and asks the user to resume that lane. A
-pull request whose description records its own review gets a check of only what
+pull request that waits on a person (a `human_only` path or an open
+`release_ask`) also carries `rm:blocked` while it waits. A pull request whose description records its own review gets a check of only what
 its lane could not see; one without gets a fresh reviewer.
 
 ## Tools and the fence
@@ -124,8 +126,10 @@ text passes, and it looks into `sh -c`, `eval`, `$(…)` and wrappers such as
 
 ## Telling the user
 
-- A routine pass ends quietly: `quiet` is set when a run starts from a pass or
-  an answer, and cleared by a person's prompt or `release_flag`. The Host
+- In the lane holding the lease, a run no person started (a pass, an answer, a
+  sub-agent's report) is quiet: `quiet` is set when such a run starts, and
+  cleared by a person's prompt or `release_flag`. A standby lane's runs are
+  never quiet. The Host
   withholds its _finished_ alert and This Mac its settled notice for a quiet
   run. _Failed_ still alerts.
 - A flagged pass (a revert, a takeover, a failed release) alerts as _finished_.

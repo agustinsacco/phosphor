@@ -20,8 +20,9 @@ export interface ReleaseStatus {
   /** Bumped by every change of holder. */
   epoch?: number
   /**
-   * The latest run is a release pass nobody needs to hear about. The Host
-   * withholds its finished alert and This Mac its notice for such runs.
+   * In the lane holding the lease, the latest run is one no person started (a
+   * pass, an answer, a sub-agent's report). The Host withholds its finished
+   * alert and This Mac its notice for such runs.
    */
   quiet: boolean
   /** The latest failure to reach GitHub or the lease, in plain words. */
