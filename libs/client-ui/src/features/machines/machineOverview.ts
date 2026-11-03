@@ -129,7 +129,9 @@ export function useLocalOverview(): MachineOverview | null {
   const { localLanes } = usePlatform()
   const reads = useLocalReads(localLanes)
   const tasks = useLocalTasks()
-  const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
+  const liveHere = useSessionsStore(
+    (s) => Object.values(s.live).filter((entry) => entry.target?.kind !== 'remote').length,
+  )
   const openSettings = useOpenSettings()
   if (!localLanes) return null
   const checks = localChecks(reads.health, reads.claude, reads.failed)
