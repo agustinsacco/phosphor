@@ -298,6 +298,13 @@ it('loads executable provider paths, never package display names, and reports ap
   await vi.waitFor(() => expect(outcome).toHaveBeenCalledExactlyOnceWith('applied'))
 })
 
+it('looks up the provider package in the Host agent directory', async () => {
+  const env = { PATH: '/test', PI_CODING_AGENT_DIR: '/host/agent' }
+  createLaneNamer({ ...machine, env })(job({ model: { provider: 'pi-claude-cli', id: 'claude' } }))
+  await vi.waitFor(() => expect(children).toHaveLength(1))
+  expect(listPackages).toHaveBeenCalledWith('/repo', '/host/agent')
+})
+
 it.each([
   ['stale', ['stale']],
   ['print-failed', ['print-failed', { reason: 'exit', attempts: 2 }]],
