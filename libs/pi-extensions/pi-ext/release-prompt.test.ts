@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MEMORY_MAX } from './release-lease'
 import { applyReleaseContext, passMessage, releasePrompt, RELEASE_SECTION } from './release-prompt'
 
 describe('release prompt', () => {
@@ -48,5 +49,15 @@ describe('release prompt', () => {
     expect(changed).toContain('e11\nnot json')
     expect(passMessage({ ...facts, reason: 'first' })).toContain('read the queue in full')
     expect(passMessage({ ...facts, reason: 'sweep', ledger: [] })).not.toContain('Recent events')
+  })
+
+  it('cuts memory past the limit short in the pass, and says how to keep it', () => {
+    const memory = `${'x'.repeat(MEMORY_MAX)}TAIL`
+    const facts = { pass: 1, epoch: 1, base: 'main', changes: [], queue: [], ledger: [] }
+    const text = passMessage({ ...facts, reason: 'sweep', memory })
+    expect(text).not.toContain('TAIL')
+    expect(text).toContain(
+      `Memory (only the first ${MEMORY_MAX} of ${MEMORY_MAX + 4} characters; save a summary with release_memory):`,
+    )
   })
 })
