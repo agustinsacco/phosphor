@@ -73,7 +73,7 @@ function InstalledPackages({ source }: { source: PackageSource }): React.JSX.Ele
             ) : listed.length === 0 ? (
               <div className="text-text-tertiary mt-2 text-base">none</div>
             ) : (
-              <div className="border-border mt-2 divide-y rounded-lg border">
+              <div className="border-border divide-border mt-2 divide-y rounded-lg border">
                 {listed.map((pkg) => (
                   <PackageRow key={`${pkg.scope}:${pkg.spec}`} pkg={pkg} source={source} />
                 ))}

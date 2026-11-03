@@ -135,7 +135,7 @@ function HealthRows({
   const { provider, cli } = health
   const fix = provider === 'missing' || provider === 'outdated'
   return (
-    <div className="border-border mt-2 divide-y rounded-lg border">
+    <div className="border-border divide-border mt-2 divide-y rounded-lg border">
       <StatusRow
         label="Extension package"
         ok={provider === 'installed'}

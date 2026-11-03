@@ -43,7 +43,7 @@ export function WebAccessView({ source }: { source: WebAccessSource }): React.JS
       {configured && (
         <>
           <h3 className="mt-5 text-lg font-semibold">Search providers</h3>
-          <div className="border-border mt-2 divide-y rounded-lg border">
+          <div className="border-border divide-border mt-2 divide-y rounded-lg border">
             {WEB_ACCESS_PROVIDERS.map((provider) => (
               <ProviderRow
                 key={provider.key}

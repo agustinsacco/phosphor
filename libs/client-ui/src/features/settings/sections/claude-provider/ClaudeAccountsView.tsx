@@ -72,7 +72,7 @@ export function ClaudeAccountsView({
   return (
     <>
       <AccountsIntro terminal={source.caps.signIn === 'terminal'} />
-      <div className="border-border mt-2 divide-y rounded-lg border">
+      <div className="border-border divide-border mt-2 divide-y rounded-lg border">
         {source.status === 'loading' ? (
           <div className="text-text-secondary flex items-center gap-2 px-3.5 py-2.5 text-base">
             <Spinner /> Reading the Claude logins…
@@ -201,7 +201,7 @@ function RoutingOptions({
   return (
     <>
       <h4 className="mt-5 text-base font-semibold">Route new sessions</h4>
-      <div className="border-border mt-2 divide-y rounded-lg border">
+      <div className="border-border divide-border mt-2 divide-y rounded-lg border">
         {ROUTING_OPTIONS.map((option) => (
           <TooltipLabel
             key={option.value}

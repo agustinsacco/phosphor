@@ -43,7 +43,7 @@ export function ProviderList({ source }: { source: ListSource }): React.JSX.Elem
             {'caption' in group && (
               <p className="text-text-tertiary mt-1 text-sm">{group.caption}</p>
             )}
-            <div className="border-border mt-2 divide-y rounded-lg border">
+            <div className="border-border divide-border mt-2 divide-y rounded-lg border">
               {rows.map((provider) => (
                 <ProviderRow
                   key={provider.id}

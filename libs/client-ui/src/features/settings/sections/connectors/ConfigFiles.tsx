@@ -45,7 +45,7 @@ export function ConfigFiles({
             A folder entry replaces the machine one with the same name; one with no command or url
             only turns it on or off, or changes its exposure.
           </p>
-          <div className="border-border mt-2 divide-y rounded-lg border">
+          <div className="border-border divide-border mt-2 divide-y rounded-lg border">
             {files.states.map((file) => (
               <div key={file.scope} className="flex items-center gap-2 px-3 py-1.5 text-base">
                 <span className="text-text-secondary w-20 shrink-0">
