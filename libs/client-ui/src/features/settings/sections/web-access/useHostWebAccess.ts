@@ -18,12 +18,13 @@ export function useHostWebAccess(): WebAccessSource {
         .pushToast(`Saved on ${machine.label} — applies to new lanes`, 'info')
   }
   return {
+    status: settings.data ? 'ready' : 'loading',
     caps: { rawEditor: false },
     configured: webAccess?.configured ?? null,
     malformed: webAccess?.malformed === true,
     path: null,
     notice: webAccess
-      ? null
+      ? undefined
       : {
           tone: 'info',
           title: 'Update this Host to configure Web access',

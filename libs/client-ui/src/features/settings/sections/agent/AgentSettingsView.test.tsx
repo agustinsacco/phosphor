@@ -153,7 +153,7 @@ it('keeps the restart note only on a Host that binds naming at boot', async () =
   )
 })
 
-it('saves a custom Host model pair from the disclosure, each id as it is left', async () => {
+it('saves a custom Host model pair from the disclosure once it is left', async () => {
   await showHostSettings(root, HOST.id, 'agent')
   const field = (title: string) => row(title).querySelector<HTMLInputElement>('input')!
   const type = async (title: string, value: string) => {
@@ -168,7 +168,7 @@ it('saves a custom Host model pair from the disclosure, each id as it is left', 
   await type('Provider id', 'openai')
   await type('Model id', 'gpt-5')
   await settle()
-  // The Host already has a model, so each id left completes a pair that saves.
+  // The last field left takes focus out of the disclosure, which saves the whole pair.
   expect(hostPatches().at(-1)).toEqual({ defaultProvider: 'openai', defaultModel: 'gpt-5' })
   expect(row('Default model').querySelector('select')!.value).toBe(
     JSON.stringify(['openai', 'gpt-5']),

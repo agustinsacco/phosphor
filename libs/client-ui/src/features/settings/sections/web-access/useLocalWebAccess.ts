@@ -37,18 +37,11 @@ export function useLocalWebAccess(): WebAccessSource {
   }
 
   return {
+    status: error ? { error, retry: () => void refresh() } : state ? 'ready' : 'loading',
     caps: { rawEditor: true },
     configured: state?.configured ?? null,
     malformed: state?.malformed === true,
     path: state?.path ?? null,
-    notice: error
-      ? {
-          tone: 'danger',
-          title: 'Could not read web-search.json',
-          body: error,
-          action: { label: 'Retry', onClick: () => void refresh() },
-        }
-      : null,
     busy,
     set: (key, value) => void set(key, value),
     refresh: () => void refresh(),

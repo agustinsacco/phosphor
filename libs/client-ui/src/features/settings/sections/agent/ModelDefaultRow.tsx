@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Row, Select, TextField, type SelectOption } from '@/components/form'
+import { Button, Row, Select, TextInput, type SelectOption } from '@/components/form'
 import { TooltipSummary } from '@/components/Tooltip'
 import { machineAgentModel } from '../../machine/machineAgentModel'
 import { AGENT_ROW_TEXT } from './agentFields'
@@ -56,7 +56,11 @@ export function ModelDefaultRow({ source }: { source: AgentSource }): React.JSX.
   )
 }
 
-/** A provider and model id pair; it saves once both are filled. */
+/**
+ * A provider and model id pair. It saves whole, once both ids are filled and
+ * the user presses Enter or Use, or leaves the disclosure: moving from one id
+ * to the other saves nothing, so no half-edited pair reaches the machine.
+ */
 function CustomModel({
   value,
   onChange,
@@ -66,17 +70,19 @@ function CustomModel({
 }): React.JSX.Element {
   const [parts, setParts] = useState(() => partsOf(value))
   useEffect(() => setParts(partsOf(value)), [value])
-  const complete = machineAgentModel(JSON.stringify(parts)) !== null
+  const json = JSON.stringify(parts.map((part) => part.trim()))
+  const complete = machineAgentModel(json) !== null
   const partial = !complete && parts.some((part) => part.trim())
-  const commit = (index: 0 | 1, text: string): void => {
-    const next: [string, string] = [...parts]
-    next[index] = text
-    setParts(next)
-    const json = JSON.stringify(next)
-    if (machineAgentModel(json) && json !== value) onChange(json)
+  const commit = (): void => {
+    if (complete && json !== value) onChange(json)
   }
   return (
-    <details className="text-text-secondary py-2 text-base">
+    <details
+      className="text-text-secondary py-2 text-base"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) commit()
+      }}
+    >
       <TooltipSummary>Custom model</TooltipSummary>
       <p className="mt-2">
         Any model configured on this machine, including one the catalogue does not list.
@@ -92,12 +98,22 @@ function CustomModel({
           title={AGENT_ROW_TEXT[row].title}
           description={AGENT_ROW_TEXT[row].description}
         >
-          <TextField
-            defaultValue={parts[index]!}
-            onCommit={(text) => commit(index as 0 | 1, text)}
+          <TextInput
+            aria-label={AGENT_ROW_TEXT[row].title}
+            value={parts[index]}
+            onChange={(event) =>
+              setParts(
+                index === 0 ? [event.target.value, parts[1]] : [parts[0], event.target.value],
+              )
+            }
+            onKeyDown={(event) => event.key === 'Enter' && commit()}
+            className="w-56"
           />
         </Row>
       ))}
+      <Button size="sm" disabled={!complete || json === value} onClick={commit}>
+        Use
+      </Button>
     </details>
   )
 }

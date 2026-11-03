@@ -11,8 +11,7 @@ import type {
   ClaudeInstallable,
   HealthJob,
 } from '../claude-provider/ClaudeHealth'
-
-export type SectionStatus = 'loading' | 'ready' | { error: string; retry: () => void }
+import type { SectionStatus } from '../sectionStatus'
 
 /** How one machine's accounts differ; everything else is the same on every machine. */
 export interface AccountsCaps {

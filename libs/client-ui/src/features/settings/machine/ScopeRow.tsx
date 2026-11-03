@@ -11,10 +11,13 @@ import { useSettingsUiStore } from '../settingsUiStore'
  */
 export function ScopeRow({
   folders,
+  preferred,
   disabled = false,
   guard = (apply) => apply(),
 }: {
   folders: readonly SelectOption[]
+  /** The active lane's folder: Folder picks it when listed, else the first. */
+  preferred?: string | null
   disabled?: boolean
   guard?: (apply: () => void) => void
 }): React.JSX.Element {
@@ -26,6 +29,7 @@ export function ScopeRow({
       : folders
   const choose = (next: string | null): void =>
     guard(() => useSettingsUiStore.getState().setFolder(next))
+  const first = options.find((option) => option.value === preferred) ?? options[0]
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="settings-scope-row">
       <Segmented
@@ -36,7 +40,7 @@ export function ScopeRow({
           { value: 'folder', label: 'Folder', disabled: options.length === 0 },
         ]}
         disabled={disabled}
-        onChange={(scope) => choose(scope === 'machine' ? null : (options[0]?.value ?? null))}
+        onChange={(scope) => choose(scope === 'machine' ? null : (first?.value ?? null))}
       />
       {folder !== null && (
         // Wraps instead of shrinking: WebKit keeps a select at its longest option's width.
@@ -65,5 +69,5 @@ export function LocalScopeRow(): React.JSX.Element {
       ...listed,
     ]
   }, [workspace, recents])
-  return <ScopeRow folders={folders} />
+  return <ScopeRow folders={folders} preferred={workspace} />
 }

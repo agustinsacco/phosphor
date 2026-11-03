@@ -117,7 +117,7 @@ it('recovers a failed context budget read and rolls back a failed save (regressi
     return local(channel)
   })
   await showHostSettings(root, 'local', 'agent')
-  const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Try again')
+  const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
   expect(retry).toBeTruthy()
   failRead = false
   await act(async () => retry!.click())
@@ -134,3 +134,51 @@ it('recovers a failed context budget read and rolls back a failed save (regressi
     'disk full',
   ])
 })
+
+it.each([
+  ['local', 'pi:patchAgentSettings'],
+  [HOST.id, 'hosts:settingsPatch'],
+])(
+  'saves a custom model only as the whole pair the user entered (regression A2, %s)',
+  async (machine, channel) => {
+    invoke.mockImplementation(async (name: string, hostId, section, repositoryId) => {
+      if (name === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
+      if (name === 'hosts:settingsRead') return mockSettingsRead(hostId, section, repositoryId)
+      if (name === 'pi:agentSettingsScoped')
+        return {
+          global: { defaultProvider: 'anthropic', defaultModel: 'claude-sonnet-4-5' },
+          project: null,
+        }
+      return local(name)
+    })
+    await showHostSettings(root, machine, 'agent')
+    const field = (title: string) => row(title).querySelector<HTMLInputElement>('input')!
+    const type = async (title: string, value: string) => {
+      const input = field(title)
+      await act(async () => {
+        input.focus()
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+          input,
+          value,
+        )
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    }
+    const models = () =>
+      invoke.mock.calls
+        .filter(([name]) => name === channel)
+        .map((call) => JSON.stringify(call.at(-1)))
+        .filter((patch) => patch.includes('defaultModel'))
+    await type('Provider id', 'openai')
+    // Moving on to the model id leaves the provider id, not the disclosure.
+    await type('Model id', 'gpt-5')
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(models()).toEqual([])
+    await act(async () => {
+      field('Model id').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(models()).toHaveLength(1)
+    expect(models()[0]).toContain('"defaultProvider":"openai","defaultModel":"gpt-5"')
+  },
+)

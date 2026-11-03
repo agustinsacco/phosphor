@@ -3,9 +3,7 @@ import type { AgentFieldKey } from '@shared/machine-agent-behavior'
 import type { MachineContext } from '@shared/machine-prompt'
 import type { AgentDirectivePrefs } from '@shared/models'
 import type { InstructionsSource } from '../../instructions/instructionsSource'
-
-/** A section's read: still loading, ready, or failed with a way to try again. */
-export type SectionStatus = 'loading' | 'ready' | { error: string; retry(): void }
+import type { SectionStatus } from '../sectionStatus'
 
 /** pi settings.json contents, as one scope's file holds them: never merged. */
 export type AgentValues = Record<string, unknown>

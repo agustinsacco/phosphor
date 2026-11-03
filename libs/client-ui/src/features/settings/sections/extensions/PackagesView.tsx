@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { TooltipButton } from '@/components/Tooltip'
-import { Button, Select, SettingsNotice, TextInput } from '@/components/form'
+import { Button, Select, TextInput } from '@/components/form'
 import { isMachinePackageSpec } from '@shared/machine-settings'
 import { StandardPackages } from './StandardPackages'
 import { PackageRow } from './PackageRow'
 import type { PackageSource } from './packageSource'
+import { SectionStatusNotice } from '../sectionStatus'
 
 /**
  * Settings → Extensions on every machine: pi packages (extensions, skills,
@@ -12,7 +13,7 @@ import type { PackageSource } from './packageSource'
  * own package manager there; its caps say what that machine allows.
  */
 export function PackagesView({ source }: { source: PackageSource }): React.JSX.Element {
-  const { caps, packages, failure, busy } = source
+  const { caps, packages, busy } = source
   return (
     <div className="max-w-2xl">
       <h2 className="text-xl font-semibold">Extensions</h2>
@@ -20,16 +21,12 @@ export function PackagesView({ source }: { source: PackageSource }): React.JSX.E
         pi packages — extensions, skills, prompts and themes. New sessions load package changes.
         Installs run through pi&apos;s own package manager.
       </p>
-      {failure && (
-        <div className="mt-4">
-          <SettingsNotice
-            tone="danger"
-            title="Could not read this machine’s packages"
-            body={failure.error}
-            action={{ label: 'Retry', onClick: failure.retry }}
-          />
-        </div>
-      )}
+      <div className="mt-4 empty:hidden">
+        <SectionStatusNotice
+          status={source.status}
+          title="Could not read this machine’s packages"
+        />
+      </div>
 
       <h3 className="mt-5 text-lg font-semibold">Recommended</h3>
       <div className="mt-2.5">

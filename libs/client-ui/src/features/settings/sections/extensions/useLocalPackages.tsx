@@ -88,8 +88,9 @@ export function useLocalPackages(folder: string | null): PackageSource {
 
   return {
     caps: LOCAL_CAPS,
+    status:
+      packages !== null ? 'ready' : error ? { error, retry: () => void refresh() } : 'loading',
     packages,
-    failure: error && packages === null ? { error, retry: () => void refresh() } : null,
     folder: folder !== null,
     latest,
     claudeCli,

@@ -34,8 +34,8 @@ export type SettingRows = Array<
 >
 
 /**
- * Rows only This Mac renders, in a section a Host also has. A section's rows
- * drop this once a view both machines share renders them.
+ * Rows only This Mac renders in a view both machines share: its raw files,
+ * maintenance, sandboxes and the Claude Code proof.
  */
 export const LOCAL_ONLY: RowMachines = { local: true }
 
