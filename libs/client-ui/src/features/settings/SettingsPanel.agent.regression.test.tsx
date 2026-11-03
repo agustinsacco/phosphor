@@ -248,7 +248,12 @@ it.each([
       if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
       if (channel !== 'hosts:settingsRead') return local(channel)
       const read = mockSettingsRead(hostId, section, repositoryId)
-      if (read.agent) delete read.agent[missing]
+      // The mock Host keeps earlier tests' saves: pin the pair, then drop one key.
+      Object.assign(read.agent!, {
+        defaultProvider: 'anthropic',
+        defaultModel: 'claude-sonnet-4-5',
+      })
+      delete read.agent![missing]
       return read
     })
     await showHostSettings(root, HOST.id, 'agent')

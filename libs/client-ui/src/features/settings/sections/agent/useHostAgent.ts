@@ -14,7 +14,7 @@ import { hostInstructions } from '../../instructions/instructionsSource'
 import { useHostSection } from '../../machine/HostSection'
 import { useMachineAgentDraft } from '../../machine/machineSettingsDrafts'
 import { needsServiceRestart, type AgentPatch } from '../../machine/machineAgentPatch'
-import { modelChoices, type AgentSource } from './source'
+import { modelChoices, modelValue, type AgentSource } from './source'
 
 const ALL_FIELDS = Object.keys(AGENT_FIELDS) as AgentFieldKey[]
 const THINKING_ONLY: AgentFieldKey[] = ['defaultThinkingLevel']
@@ -74,9 +74,7 @@ function useMachineScopeAgent(
 }
 
 const pair = (agent: MachineAgentDefaults | null): string =>
-  agent?.defaultProvider && agent.defaultModel
-    ? JSON.stringify([agent.defaultProvider, agent.defaultModel])
-    : ''
+  modelValue(agent?.defaultProvider, agent?.defaultModel)
 
 function hostNotice(
   folder: boolean,
