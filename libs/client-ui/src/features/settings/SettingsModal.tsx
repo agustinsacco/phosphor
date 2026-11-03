@@ -1,6 +1,7 @@
 import { TooltipButton } from '@/components/Tooltip'
 import { ModalOverlay } from '@/components/Modal'
 import { CloseIcon } from '@/components/icons'
+import { guardHostDrafts, unsavedDraftHost } from './machine/machineSettingsDrafts'
 import { useSettingsUiStore } from './settingsUiStore'
 import { SettingsSurface } from './SettingsSurface'
 
@@ -8,7 +9,9 @@ import { SettingsSurface } from './SettingsSurface'
 export function SettingsModal(): React.JSX.Element | null {
   const open = useSettingsUiStore((s) => s.open)
   if (!open) return null
-  const close = (): void => useSettingsUiStore.getState().setOpen(false)
+  // Closing asks about an unsaved Host draft first, as leaving its section does.
+  const close = (): void =>
+    guardHostDrafts(unsavedDraftHost())(() => useSettingsUiStore.getState().setOpen(false))
   return (
     <ModalOverlay onClose={close} z={40}>
       <div

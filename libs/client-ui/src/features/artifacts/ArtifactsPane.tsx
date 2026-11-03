@@ -1,4 +1,5 @@
 import { usePlatform } from '@/platform/Platform'
+import { localMachineLabel } from '@/lib/localMachine'
 import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
@@ -139,6 +140,8 @@ export function ArtifactWorkspace({
   const Shell = page ? PageArtifactShell : PaneShell
   const latest = artifact.versions[artifact.versions.length - 1]!
   const platform = usePlatform()
+  // A Host artifact downloads to this machine, so its actions name it.
+  const downloads = remote ? `${localMachineLabel()} Downloads` : 'Downloads'
   const [mode, setMode] = useState<ViewMode>('preview')
   const [exporting, setExporting] = useState(false)
   // The PDF prints the rendered preview, so the export reads this node for the
@@ -328,19 +331,13 @@ export function ArtifactWorkspace({
           {platform.nativeFiles && (
             <>
               <ActionIcon
-                title={remote ? 'Save source to This Mac…' : 'Save source to file…'}
+                title={remote ? `Save source to ${localMachineLabel()}…` : 'Save source to file…'}
                 onClick={() => void save()}
               >
                 <DownloadIcon />
               </ActionIcon>
               <ActionIcon
-                title={
-                  exporting
-                    ? 'Exporting PDF…'
-                    : remote
-                      ? 'Export preview to PDF (This Mac Downloads)'
-                      : 'Export preview to PDF (Downloads)'
-                }
+                title={exporting ? 'Exporting PDF…' : `Export preview to PDF (${downloads})`}
                 disabled={exporting}
                 onClick={() => void exportPdf()}
               >

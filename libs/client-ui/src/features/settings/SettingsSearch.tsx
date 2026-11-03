@@ -6,7 +6,7 @@ import { CloseIcon, SearchIcon } from '@/components/icons'
 import { useEscapeKey } from '@/components/Modal'
 import { Highlighted } from '@/components/search/Highlighted'
 import { useMatchCursor } from '@/components/search/useFind'
-import type { SettingEntry } from './settingsIndex'
+import type { SettingEntry } from './search/settingEntry'
 import { searchSettings, type SettingsResultGroup } from './settingsQuery'
 import { useSettingsUiStore, type SettingsTab } from './settingsUiStore'
 
@@ -60,7 +60,9 @@ export function useSettingsSearch(
 
   const choose = (index: number): void => {
     const entry = results[index]
-    if (entry) useSettingsUiStore.getState().openResult(entry.tab, entry.title)
+    if (!entry) return
+    if (entry.machineScope) useSettingsUiStore.getState().setFolder(null)
+    useSettingsUiStore.getState().openResult(entry.tab, entry.title)
   }
 
   return { query, listing, groups, results, counts, active, setActive, step, choose, listId }

@@ -17,6 +17,7 @@ import type {
   PiResources,
 } from '../models'
 import type { GlobalInstructions } from '../global-instructions'
+import type { WebAccessConfigState } from '../web-access'
 
 export interface PiInvokeMap {
   'pi:health': { args: []; result: PiHealth }
@@ -106,17 +107,8 @@ export interface PiInvokeMap {
     args: [content: string, revision: string]
     result: GlobalInstructions
   }
-  /** pi-web-access config (web-search.json), with file health for the tab. */
-  'pi:webSearchConfig': {
-    args: []
-    result: {
-      path: string
-      exists: boolean
-      malformed: boolean
-      error?: string
-      config: Record<string, unknown>
-    }
-  }
+  /** pi-web-access config (web-search.json): file health and configured key names, never values. */
+  'pi:webSearchConfig': { args: []; result: WebAccessConfigState }
   'pi:patchWebSearchConfig': { args: [patch: Record<string, unknown>]; result: void }
   'pi:patchAgentSettings': {
     args: [

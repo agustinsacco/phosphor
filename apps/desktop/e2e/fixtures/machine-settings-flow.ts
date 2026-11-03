@@ -5,19 +5,23 @@ import { captures } from './remote-ui'
 type Host = Awaited<ReturnType<typeof remoteHostFixture>>
 
 export async function addPrivateConnector(h: Host, settings: Locator): Promise<void> {
-  await settings.getByRole('button', { name: 'Add connector', exact: true }).click()
-  const add = h.page.getByRole('dialog', { name: 'Add connector on bee1', exact: true })
-  await add
-    .getByRole('combobox', { name: 'Connector catalogue', exact: true })
-    .selectOption('custom')
-  await add.getByRole('textbox', { name: 'Server name', exact: true }).fill('private-tools')
-  await add
+  await settings.getByRole('button', { name: 'Add custom server…', exact: true }).click()
+  const name = settings.getByRole('textbox', { name: 'Server name', exact: true })
+  await name.fill('private-tools')
+  await settings
     .getByRole('textbox', { name: 'Server URL', exact: true })
     .fill('https://example.invalid/mcp')
-  await add.getByLabel('Authorization header', { exact: true }).fill('Bearer HOST_ONLY_MCP_SECRET')
-  await add.getByRole('button', { name: 'Review and add', exact: true }).click()
+  await settings
+    .getByLabel('Authorization header', { exact: true })
+    .fill('Bearer HOST_ONLY_MCP_SECRET')
+  await settings.getByRole('button', { name: 'Save', exact: true }).click()
   await h.page.getByRole('button', { name: 'Save on this Host', exact: true }).click()
-  await expect(add).toBeHidden()
+  await expect(name).toBeHidden()
+}
+
+/** One Claude account's row on the Claude Code page. */
+export function accountRow(settings: Locator, label: string): Locator {
+  return settings.locator('[data-account-id]').filter({ hasText: label })
 }
 
 export async function addPrivateAccount(h: Host, settings: Locator, email: string): Promise<void> {
@@ -44,9 +48,7 @@ export async function addPrivateAccount(h: Host, settings: Locator, email: strin
     contentType: 'application/json',
   })
   expect(verified.providers?.accounts.map((account) => account.email)).toContain(email)
-  await expect(settings.getByRole('heading', { name: email, exact: true })).toBeVisible({
-    timeout: 30_000,
-  })
+  await expect(accountRow(settings, email)).toBeVisible({ timeout: 30_000 })
 }
 
 export async function createBillingLane(h: Host) {
@@ -86,10 +88,8 @@ export async function moveBillingAccount(
   historyBeforeMove: string,
 ) {
   await settings.getByRole('button', { name: 'Refresh', exact: true }).click()
-  const workRow = settings
-    .locator('li')
-    .filter({ has: h.page.getByText('work@host.example', { exact: true }) })
-  await workRow.getByRole('button', { name: 'Usage & lanes', exact: true }).click()
+  const workRow = accountRow(settings, 'work@host.example')
+  await workRow.locator('button[aria-expanded="false"]').click()
   await expect(workRow).toContainText('Billing identity test')
   await captures(h, test.info(), 'machine-settings-claude-accounts')
   await workRow.getByRole('button', { name: 'Move to backup@host.example', exact: true }).click()

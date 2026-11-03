@@ -10,6 +10,8 @@ import { useSessionsStore } from '@/stores/sessions'
 import { getActiveWorkspace } from '@/stores/workspaces'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { openSettings } from '@/features/settings/useOpenSettings'
+import { navigateDesktop } from '@/navigation/desktopNavigation'
 import { useChatUiStore } from '@/features/chat/uiState'
 import { openFindForFocus } from '@/components/search/findTargets'
 import { selectionSeed } from '@/components/search/useFind'
@@ -138,8 +140,7 @@ export function useGlobalShortcuts(enabled = true): void {
       // ⌘/ — the shortcut list itself, where every app that has one puts it.
       if (event.code === 'Slash') {
         event.preventDefault()
-        useSettingsUiStore.getState().setTab('keybindings')
-        useSettingsUiStore.getState().setOpen(true)
+        openSettings((next) => void navigateDesktop(next), null, 'keybindings')
         return
       }
 

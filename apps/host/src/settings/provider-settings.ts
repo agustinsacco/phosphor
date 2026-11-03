@@ -4,7 +4,7 @@ import { cooldownFromUsage, selectAccount } from '@phosphor/session-runtime/clau
 import { featureInspection } from '../features/machine'
 import { inspectClaude } from '../machine/claude'
 import { type SettingsContext, settingsHash } from './context'
-import { SettingsFailure } from './files'
+import { SettingsFailure } from '@phosphor/session-runtime/pi/settings-file'
 
 type AccountState = Awaited<ReturnType<SettingsContext['options']['accounts']['accountViews']>>
 type ProviderChange = Extract<MachineSettingsChange, { type: `claude.${string}` }>

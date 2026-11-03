@@ -1,99 +1,75 @@
 import { useId, useEffect, useRef, useState, type RefObject } from 'react'
-import type { MachineView } from '@shared/control-api'
 import { TooltipButton } from '@/components/Tooltip'
 import { MoreIcon } from '@/components/icons'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { useMachinesStore } from '@/stores/machines'
 import { MachineLabel } from './MachineLabel'
+import type { MachineOverview } from './machineOverview'
 import { StatusPill } from './MachineUi'
-import { platformName, relativeTime } from './machinePresentation'
-import type { machineHeadline } from './machineReachability'
 
 /** Identity first; maintenance is the same secondary menu at every viewport width. */
 export function MachineDetailHeader({
-  machine,
-  headline,
-  version,
-  now,
-  checking,
-  reconnecting,
-  onCheck,
-  onReconnect,
-  onUpdate,
+  overview,
 }: {
-  machine: MachineView
-  headline: ReturnType<typeof machineHeadline>
-  version?: string | null
-  now: number
-  checking: boolean
-  reconnecting: boolean
-  onCheck: () => void
-  onReconnect: () => void
-  /** Opens the Host's update control (Settings, Advanced). */
-  onUpdate?: () => void
+  overview: MachineOverview
 }): React.JSX.Element {
+  const { machine, headline } = overview
   return (
     <header className="machine-detail-header">
       <div className="machine-detail-identity">
-        <MachineLabel
-          machine={machine}
-          heading="h2"
-          onSaved={(updated) => {
-            useMachinesStore.setState((current) => ({
-              machines: current.machines.map((entry) =>
-                entry.id === updated.id ? updated : entry,
-              ),
-            }))
-            void useMachinesStore.getState().refresh()
-          }}
-        />
-        <MachineHeaderActions
-          endpoint={!!machine.endpoint}
-          checking={checking}
-          reconnecting={reconnecting}
-          onCheck={onCheck}
-          onReconnect={onReconnect}
-          onUpdate={onUpdate}
-        />
+        {machine ? (
+          <MachineLabel
+            machine={machine}
+            heading="h2"
+            onSaved={(updated) => {
+              useMachinesStore.setState((current) => ({
+                machines: current.machines.map((entry) =>
+                  entry.id === updated.id ? updated : entry,
+                ),
+              }))
+              void useMachinesStore.getState().refresh()
+            }}
+          />
+        ) : (
+          <h2 className="machine-name">{overview.label}</h2>
+        )}
+        <MachineHeaderActions overview={overview} />
       </div>
       <div className="machine-detail-metadata">
         <StatusPill tone={headline.tone} hint={headline.detail}>
           {headline.label}
         </StatusPill>
         <p>
-          {platformName(machine.platform)} {machine.arch}
-          {version ? ` · Host ${version}` : ''}
-          <span className="machine-detail-history">
-            {machine.hostname !== machine.label ? ` · ${machine.hostname}` : ''}
-            {machine.lastSeenAt
-              ? ` · Last heartbeat ${relativeTime(machine.lastSeenAt, now)}`
-              : ' · No heartbeat yet'}
-          </span>
+          {overview.about}
+          {overview.history && <span className="machine-detail-history">{overview.history}</span>}
         </p>
       </div>
     </header>
   )
 }
 
+/** Reconnect and Update Host… only where the machine has an address to use them on. */
 function MachineHeaderActions({
-  endpoint,
-  checking,
-  reconnecting,
-  onCheck,
-  onReconnect,
-  onUpdate,
+  overview: { check, reconnect, update },
 }: {
-  endpoint: boolean
-  checking: boolean
-  reconnecting: boolean
-  onCheck: () => void
-  onReconnect: () => void
-  onUpdate?: () => void
+  overview: MachineOverview
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const popupId = useId()
   useActionFocus(open, popupId, trigger)
+  const row = (label: string, run: () => void, disabled = false): React.JSX.Element => (
+    <MenuRow
+      active={false}
+      disabled={disabled}
+      onClick={() => {
+        setOpen(false)
+        run()
+      }}
+    >
+      {label}
+    </MenuRow>
+  )
   return (
     <div className="relative ml-auto">
       <TooltipButton
@@ -115,39 +91,10 @@ function MachineHeaderActions({
           onClose={() => setOpen(false)}
           className="absolute right-0 top-full mt-1 w-52 py-1"
         >
-          {endpoint && (
-            <MenuRow
-              active={false}
-              disabled={reconnecting}
-              onClick={() => {
-                setOpen(false)
-                onReconnect()
-              }}
-            >
-              {reconnecting ? 'Reconnecting…' : 'Reconnect'}
-            </MenuRow>
-          )}
-          <MenuRow
-            active={false}
-            disabled={checking}
-            onClick={() => {
-              setOpen(false)
-              onCheck()
-            }}
-          >
-            {checking ? 'Checking…' : 'Check again'}
-          </MenuRow>
-          {endpoint && onUpdate && (
-            <MenuRow
-              active={false}
-              onClick={() => {
-                setOpen(false)
-                onUpdate()
-              }}
-            >
-              Update Host…
-            </MenuRow>
-          )}
+          {reconnect &&
+            row(reconnect.busy ? 'Reconnecting…' : 'Reconnect', reconnect.run, reconnect.busy)}
+          {row(check.busy ? 'Checking…' : 'Check again', check.run, check.busy)}
+          {update && row('Update Host…', update)}
         </PopupMenu>
       )}
     </div>

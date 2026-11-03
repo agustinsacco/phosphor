@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { LOCAL_MACHINE_LABEL } from './fixtures/local-machine'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import {
   openRemote,
@@ -17,7 +18,7 @@ test('Background attention and sign-out preserve machine boundaries', async () =
     await openRemote(h)
     await takeControl(h)
     await h.page.getByRole('button', { name: 'Machine filter', exact: true }).click()
-    await h.page.getByRole('option').filter({ hasText: 'This Mac' }).click()
+    await h.page.getByRole('option').filter({ hasText: LOCAL_MACHINE_LABEL }).click()
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
     await h.page.getByPlaceholder('Describe a task or ask a question').fill('LOCAL_ONLY task')
     await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()
@@ -104,7 +105,7 @@ test('Provider login and error remedies target bee1, Settings configures bee1 an
     await expect(h.page.locator('.xterm')).toHaveCount(0)
     const machineSettings = await openMachineSettings(h)
     const provider = machineSettings.locator('[data-provider="openai-codex"]')
-    await expect(provider.locator('[data-tone]')).toHaveText('Not signed in')
+    await expect(provider.locator('[data-sign-in]')).toHaveText('Not signed in')
     if (await provider.getByRole('button', { name: 'Sign in', exact: true }).isEnabled()) {
       await provider.getByRole('button', { name: 'Sign in', exact: true }).click()
       const login = h.page.getByRole('dialog', { name: 'Provider sign-in on bee1', exact: true })
@@ -120,7 +121,7 @@ test('Provider login and error remedies target bee1, Settings configures bee1 an
       await expect(login).toContainText('Program exited')
       await login.getByRole('button', { name: 'Done', exact: true }).click()
       await expect(login).toBeHidden()
-      await expect(provider.locator('[data-tone]')).toHaveText('Ready')
+      await expect(provider.locator('[data-sign-in]')).toHaveText('Signed in')
     } else {
       await expect(machineSettings).toContainText('Native Host terminal support is unavailable')
       info.annotations.push({
@@ -130,18 +131,18 @@ test('Provider login and error remedies target bee1, Settings configures bee1 an
       })
     }
 
-    await h.page.getByRole('button', { name: 'Settings', exact: true }).click()
-    const settings = h.page.getByRole('dialog', { name: 'Settings', exact: true })
+    // openMachineSettings left bee1's Settings open: the same dialog the sidebar opens.
+    const settings = machineSettings
     await settings.getByRole('button', { name: 'Accounts', exact: true }).click()
     await expect(settings.getByTestId('settings-machine-scope')).toContainText('Configuring bee1')
     await expect(settings.getByRole('heading', { name: 'Accounts', exact: true })).toBeVisible()
     await settings
       .getByRole('combobox', { name: 'Configure', exact: true })
-      .selectOption({ label: 'This Mac' })
+      .selectOption({ label: LOCAL_MACHINE_LABEL })
     for (const tab of ['Accounts', 'Agent', 'Extensions', 'Advanced']) {
       await settings.getByRole('button', { name: tab, exact: true }).click()
       await expect(settings.getByTestId('settings-machine-scope')).toContainText(
-        'Configuring This Mac',
+        `Configuring ${LOCAL_MACHINE_LABEL}`,
       )
     }
     await expect(settings).not.toContainText('Remote settings are not available here.')
@@ -176,7 +177,7 @@ test('A Mac lane notice returns from bee1 and closes the global page', async () 
     await expect(notice).toBeVisible()
     await notice.click()
     await expect(h.page.getByRole('button', { name: 'Machine filter', exact: true })).toContainText(
-      'This Mac',
+      LOCAL_MACHINE_LABEL,
     )
     await expect(h.page.getByRole('textbox', { name: 'Chat message', exact: true })).toBeVisible()
     await expect(

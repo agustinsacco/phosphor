@@ -35,8 +35,11 @@ export async function navigateDesktop(location: Location): Promise<void> {
     return
   }
   if (location.to === 'page') {
-    if (location.page === 'settings') useSettingsUiStore.getState().setOpen(true)
-    else useLayoutStore.getState().setPage(location.page)
+    if (location.page === 'settings') {
+      // Opening resets the machine choice, so a named machine is chosen after it.
+      useSettingsUiStore.getState().setOpen(true)
+      if (location.machine) useSettingsUiStore.getState().setMachine(location.machine)
+    } else useLayoutStore.getState().setPage(location.page)
     return
   }
   // New on a Host opens that Host's composer, as the sidebar's New always has.

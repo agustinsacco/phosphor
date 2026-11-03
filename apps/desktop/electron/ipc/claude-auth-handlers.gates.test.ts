@@ -86,6 +86,7 @@ beforeEach(() => {
   state.accountUsageEnv.mockReturnValue(usageEnv)
   state.beginAddAccount.mockResolvedValue({ id: 'new', env: credentialEnv })
   state.finishAddAccount.mockResolvedValue(undefined)
+  state.spawnAccountSessions.mockReturnValue({})
   registerClaudeAuthHandlers()
 })
 afterEach(() => vi.unstubAllEnvs())
@@ -243,5 +244,16 @@ describe('Claude auth handler executable gate', () => {
     state.refreshCooldowns.mockRejectedValueOnce(error)
     await expect(invoke('claude:refreshAccountUsage')).rejects.toBe(error)
     expect(state.accountViews).toHaveBeenCalledTimes(2)
+  })
+
+  it('refuses to remove an account that live sessions are spending', async () => {
+    state.spawnAccountSessions.mockReturnValue({ stored: ['live-session'], other: ['s2'] })
+    await expect(invoke('claude:removeAccount', 'stored')).rejects.toThrow(
+      'Stop or move this account’s live sessions before removing it.',
+    )
+    expect(state.removeAccount).not.toHaveBeenCalled()
+    state.spawnAccountSessions.mockReturnValue({ other: ['s2'] })
+    await invoke('claude:removeAccount', 'stored')
+    expect(state.removeAccount).toHaveBeenCalledWith('stored', '/test/claude')
   })
 })

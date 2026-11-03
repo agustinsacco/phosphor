@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { EMPTY_RESOURCES } from '@phosphor/session-runtime/pi/package-resources'
 import type { PiPackageEntry } from '@phosphor/shared/models'
-import { HOST_DEFAULT_PACKAGES } from '@phosphor/shared/host-default-packages'
+import { HEADLESS_STANDARD_PACKAGES } from '@phosphor/shared/standard-packages'
 import { loadHostConfig } from '../config/load'
 import { installDefaultPackages } from './default-packages'
 vi.mock('../config/load', () => ({ loadHostConfig: vi.fn() }))
@@ -39,13 +39,13 @@ it('provisions all headless-safe defaults through the configured pi with explici
   expect(confirm).toHaveBeenCalledTimes(1)
   expect(packages).toHaveBeenCalledWith(undefined, '/private/pi')
   expect(run.mock.calls).toEqual(
-    HOST_DEFAULT_PACKAGES.map((p) => ['/trusted/node', ['/trusted/pi.js', 'install', p.spec]]),
+    HEADLESS_STANDARD_PACKAGES.map((p) => ['/trusted/node', ['/trusted/pi.js', 'install', p.spec]]),
   )
   expect(JSON.stringify(run.mock.calls)).not.toMatch(/computer-use|logout|auth/)
 })
 it('is idempotent and leaves installed package versions and resource filters alone', async () => {
   installed.push(
-    ...HOST_DEFAULT_PACKAGES.map((p) => ({
+    ...HEADLESS_STANDARD_PACKAGES.map((p) => ({
       name: p.name,
       spec: `${p.spec}@1.2.3`,
       scope: 'global' as const,
@@ -61,7 +61,7 @@ it('is idempotent and leaves installed package versions and resource filters alo
 })
 it('repairs a missing installation at its existing pinned version, without touching other packages', async () => {
   installed.push(
-    ...HOST_DEFAULT_PACKAGES.map((p) => ({
+    ...HEADLESS_STANDARD_PACKAGES.map((p) => ({
       name: p.name,
       spec: `${p.spec}@1.2.3`,
       scope: 'global' as const,

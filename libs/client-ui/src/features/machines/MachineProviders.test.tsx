@@ -1,0 +1,93 @@
+// @vitest-environment jsdom
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
+import { MachineProviders } from './MachineProviders'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+let root: Root, container: HTMLDivElement
+const invoke = vi.fn(async (channel: string): Promise<unknown> => {
+  if (channel === 'hosts:providers') return [{ id: 'xai', name: 'xAI', status: 'not_ready' }]
+})
+beforeEach(() => {
+  invoke.mockClear()
+  vi.stubGlobal('phosphor', { invoke })
+  useRemoteLanesStore.setState({
+    hosts: {
+      host: {
+        state: 'ready',
+        capabilities: ['terminal', 'sessions.control', 'skills.read'],
+        repositories: [],
+        lanes: [],
+        connectionToken: 'test-connection-1',
+      },
+    },
+  })
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+})
+afterEach(() => {
+  act(() => root.unmount())
+  container.remove()
+  vi.unstubAllGlobals()
+})
+async function render(onConfigure?: () => void) {
+  await act(async () => root.render(<MachineProviders hostId="host" onConfigure={onConfigure} />))
+}
+it("shows the Host's providers read-only, with Settings' rows and words", async () => {
+  const configure = vi.fn()
+  await render(configure)
+  const row = container.querySelector('[data-provider=xai]')!
+  expect(row.textContent).toContain('Not signed in')
+  expect(row.textContent).toContain('Requires an xAI account.')
+  expect(row.querySelector('button')).toBeNull()
+  const settings = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent === 'Provider settings',
+  )!
+  await act(async () => settings.click())
+  expect(configure).toHaveBeenCalledOnce()
+  expect(invoke.mock.calls.map(([channel]) => channel)).toEqual(['hosts:providers'])
+})
+it('keeps the CLI command for a Host that cannot be configured from here', async () => {
+  await render()
+  expect(container.textContent).toContain('phosphor providers login PROVIDER')
+})
+it('shows a retryable error instead of an empty list when the provider read fails', async () => {
+  let fail = true
+  const base = invoke.getMockImplementation()
+  onTestFinished(() => {
+    if (base) invoke.mockImplementation(base)
+  })
+  invoke.mockImplementation(async (channel: string): Promise<unknown> => {
+    if (channel !== 'hosts:providers') return undefined
+    if (fail) throw new Error('busy')
+    return [{ id: 'openai-codex', name: 'ChatGPT', status: 'ready' }]
+  })
+  await render()
+  expect(container.textContent).toContain("Could not load this machine's providers.")
+  fail = false
+  const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
+  await act(async () => retry?.click())
+  expect(container.textContent).not.toContain('Could not load')
+  expect(container.querySelector('[data-provider=openai-codex]')?.textContent).toContain(
+    'ChatGPTSigned in',
+  )
+})
+it('shows loading rows while the first read is in flight, and a hint when not connected', async () => {
+  let finish = (_: unknown) => {}
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+  )
+  await render()
+  expect(container.querySelector('[role=status]')?.getAttribute('aria-label')).toBe(
+    'Loading providers',
+  )
+  await act(async () => finish([{ id: 'xai', name: 'xAI', status: 'not_ready' }]))
+  expect(container.querySelector('[role=status]')).toBeNull()
+  useRemoteLanesStore.setState({ hosts: {} })
+  await render()
+  expect(container.textContent).toContain('Providers appear once this computer is connected')
+})

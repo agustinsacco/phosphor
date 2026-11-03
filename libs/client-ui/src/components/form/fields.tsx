@@ -1,0 +1,274 @@
+import { TooltipButton } from '@/components/Tooltip'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import clsx from 'clsx'
+
+/** A Row's title: the accessible name of the one control inside it. */
+const RowLabel = createContext<string | undefined>(undefined)
+
+/** The enclosing Row's title, for a control that names itself after its row. */
+export const useRowLabel = (): string | undefined => useContext(RowLabel)
+
+/**
+ * Small form primitives shared by the settings tabs: labelled rows, a switch,
+ * and numeric/text fields that commit on blur or Enter — plus the button and
+ * text-input shapes every surface in the app was re-typing by hand.
+ */
+
+/**
+ * The three button roles. `danger` keeps `text-white` rather than
+ * `text-accent-text`: the danger token is dark enough for white ink in both
+ * themes, which is not true of the amber accent (see docs/style-guide.md).
+ */
+const BUTTON_VARIANTS = {
+  primary: 'bg-accent hover:bg-accent-hover text-accent-text',
+  secondary: 'border-border hover:bg-bg-secondary border',
+  danger: 'bg-danger hover:bg-danger/90 text-white',
+} as const
+
+/**
+ * Padding, radius and type step together, so a size is self-contained. The
+ * call sites had drifted across nine paddings for the same job; these are the
+ * four that survived plus the one hero size the workspace picker needs.
+ */
+const BUTTON_SIZES = {
+  xs: 'rounded-md px-2 py-1 text-sm',
+  sm: 'rounded-md px-2.5 py-1 text-base',
+  md: 'rounded-md px-3 py-1.5 text-base',
+  lg: 'rounded-md px-4 py-2 text-lg',
+  xl: 'rounded-lg px-5 py-2.5 text-lg',
+} as const
+
+export function Button({
+  variant = 'secondary',
+  size = 'md',
+  className,
+  type = 'button',
+  ...props
+}: React.ComponentPropsWithRef<typeof TooltipButton> & {
+  variant?: keyof typeof BUTTON_VARIANTS
+  size?: keyof typeof BUTTON_SIZES
+}): React.JSX.Element {
+  return (
+    <TooltipButton
+      type={type}
+      {...props}
+      className={clsx(
+        BUTTON_VARIANTS[variant],
+        BUTTON_SIZES[size],
+        'font-medium transition-colors disabled:opacity-50',
+        className,
+      )}
+    />
+  )
+}
+
+const INPUT_SIZES = {
+  sm: 'rounded-md px-2 py-1 text-base',
+  md: 'rounded-md px-2.5 py-1.5 text-base',
+  lg: 'rounded-lg px-3 py-2 text-lg',
+} as const
+
+/**
+ * Bordered single-line field. Focus is one border step, not a ring — the same
+ * restraint the composer uses (`--px-border-focus` in the style guide).
+ */
+export function TextInput({
+  size = 'md',
+  className,
+  ...props
+}: Omit<React.ComponentPropsWithRef<'input'>, 'size'> & {
+  /** Shadows the native (character-count) `size` attribute, which nothing here uses. */
+  size?: keyof typeof INPUT_SIZES
+}): React.JSX.Element {
+  return (
+    <input
+      {...props}
+      className={clsx(
+        'border-border bg-surface text-text placeholder:text-text-tertiary border outline-none focus:border-[var(--px-border-strong)]',
+        INPUT_SIZES[size],
+        className,
+      )}
+    />
+  )
+}
+
+export function SectionTitle({
+  children,
+  small,
+}: {
+  children: React.ReactNode
+  small?: boolean
+}): React.JSX.Element {
+  return (
+    <h2 className={clsx('font-semibold', small ? 'mb-2 mt-6 text-lg' : 'mb-4 text-xl')}>
+      {children}
+    </h2>
+  )
+}
+
+export function Row({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description?: string
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div
+      data-setting-row
+      className="border-border flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b py-3 last:border-b-0"
+    >
+      {/* Basis, not width: the control drops below once the label would get narrower. */}
+      <div className="min-w-0 grow basis-64">
+        <div className="text-lg font-medium">{title}</div>
+        {description && (
+          <div className="text-text-tertiary mt-0.5 text-sm leading-snug">{description}</div>
+        )}
+      </div>
+      <RowLabel.Provider value={title}>
+        <div className="min-w-0 max-w-full shrink-0">{children}</div>
+      </RowLabel.Provider>
+    </div>
+  )
+}
+
+export function Toggle({
+  on,
+  onChange,
+  disabled = false,
+  label,
+}: {
+  on: boolean
+  onChange: (on: boolean) => void
+  /** Renders dimmed and refuses the click — a switch that cannot move must look it. */
+  disabled?: boolean
+  /** The switch's name outside a Row. */
+  label?: string
+}): React.JSX.Element {
+  const rowLabel = useRowLabel()
+  return (
+    <TooltipButton
+      aria-label={label ?? rowLabel}
+      tooltip={label ?? rowLabel}
+      role="switch"
+      aria-checked={on}
+      aria-disabled={disabled}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={clsx(
+        'relative h-[22px] w-10 rounded-full transition-colors',
+        on ? 'bg-accent' : 'bg-border-strong',
+        disabled && 'cursor-not-allowed opacity-40',
+      )}
+    >
+      <span
+        className={clsx(
+          'absolute top-[3px] h-4 w-4 rounded-full bg-white shadow transition-all',
+          on ? 'left-[21px]' : 'left-[3px]',
+        )}
+      />
+    </TooltipButton>
+  )
+}
+
+/**
+ * A number that applies as it is typed once the value is one blur would keep:
+ * within `min`..`max`, and whole when `step` is. Anything else waits for blur
+ * or Enter, then is rounded (when `step` is whole) and clamped, so a
+ * half-typed value is never clamped and saved. Empty or unparseable input
+ * restores the saved value. Until the field is left the typed text is kept,
+ * so a save that lands late cannot overwrite it.
+ */
+export function NumberField({
+  value,
+  onChange,
+  min,
+  max,
+  step,
+  suffix,
+}: {
+  value: number
+  onChange: (value: number) => void
+  min: number
+  max: number
+  step: number
+  suffix?: string
+}): React.JSX.Element {
+  const label = useRowLabel()
+  const [draft, setDraft] = useState(String(value))
+  const edited = useRef(false)
+  useEffect(() => {
+    if (!edited.current) setDraft(String(value))
+  }, [value])
+  const parse = (text: string): number | null => {
+    const typed = Number(text)
+    return text.trim() === '' || Number.isNaN(typed) ? null : typed
+  }
+  const settle = (typed: number): number =>
+    Math.min(max, Math.max(min, Number.isInteger(step) ? Math.round(typed) : typed))
+  const fits = (typed: number): boolean => settle(typed) === typed
+  const edit = (text: string): void => {
+    edited.current = true
+    setDraft(text)
+    const typed = parse(text)
+    if (typed !== null && fits(typed) && typed !== value) onChange(typed)
+  }
+  const commit = (): void => {
+    edited.current = false
+    const typed = parse(draft)
+    if (typed === null) return setDraft(String(value))
+    const next = settle(typed)
+    setDraft(String(next))
+    if (next !== value) onChange(next)
+  }
+  return (
+    <span className="flex items-center gap-1.5">
+      <input
+        type="number"
+        aria-label={label}
+        value={draft}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e) => edit(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        }}
+        className="border-border bg-surface text-text w-24 rounded-lg border px-2.5 py-1.5 text-right text-base outline-none"
+      />
+      {suffix && <span className="text-text-tertiary text-sm">{suffix}</span>}
+    </span>
+  )
+}
+
+export function TextField({
+  defaultValue,
+  placeholder,
+  onCommit,
+}: {
+  defaultValue: string
+  placeholder?: string
+  onCommit: (value: string) => void
+}): React.JSX.Element {
+  const label = useRowLabel()
+  const [value, setValue] = useState(defaultValue)
+  useEffect(() => setValue(defaultValue), [defaultValue])
+  return (
+    <input
+      aria-label={label}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => {
+        if (value !== defaultValue) onCommit(value.trim())
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+      }}
+      className="border-border bg-surface text-text placeholder:text-text-tertiary w-56 rounded-lg border px-2.5 py-1.5 text-base outline-none"
+    />
+  )
+}

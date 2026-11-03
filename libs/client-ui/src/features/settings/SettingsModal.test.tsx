@@ -23,20 +23,49 @@ vi.hoisted(() => {
     }),
   })
 })
+vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('./tabs/AppearanceTab', () => ({ AppearanceTab: () => <p>Appearance</p> }))
-vi.mock('./tabs/AgentTab', () => ({ AgentTab: () => <p>Local agent controls</p> }))
-vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
-vi.mock('./tabs/ExtensionsTab', () => ({ ExtensionsTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/ClaudeProviderTab', () => ({
-  ClaudeProviderTab: () => <p>Local machine controls</p>,
+vi.mock('./sections/agent', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAgent: () => <p>Local agent controls</p>,
 }))
-vi.mock('./tabs/WebAccessTab', () => ({ WebAccessTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/WorkspacesTab', () => ({ WorkspacesTab: () => <p>Local machine controls</p> }))
+vi.mock('./sections/accounts', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAccounts: () => <p>Local account controls</p>,
+}))
+vi.mock('./sections/extensions', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalExtensions: () => <p>Local machine controls</p>,
+}))
+vi.mock('./sections/claude-provider', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalClaudeProvider: () => <p>Local machine controls</p>,
+}))
+vi.mock('./sections/web-access', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalWebAccess: () => <p>Local machine controls</p>,
+}))
+vi.mock('./sections/folders', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalFolders: () => <p>Local machine controls</p>,
+}))
 vi.mock('./tabs/OptimizationTab', () => ({ OptimizationTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/AdvancedTab', () => ({ AdvancedTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/ConnectorsTab', () => ({ ConnectorsTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/ComputerUseTab', () => ({ ComputerUseTab: () => <p>Local machine controls</p> }))
-vi.mock('./tabs/SubagentsTab', () => ({ SubagentsTab: () => <p>Local machine controls</p> }))
+vi.mock('./sections/advanced', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAdvanced: () => <p>Local machine controls</p>,
+}))
+vi.mock('./sections/connectors', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalConnectors: () => <p>Local machine controls</p>,
+}))
+vi.mock('./sections/computer-use', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalComputerUse: () => <p>Local machine controls</p>,
+}))
+vi.mock('./sections/subagents', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalSubagents: () => <p>Local machine controls</p>,
+}))
 vi.mock('./tabs/AboutTab', () => ({ AboutTab: () => null }))
 let root: Root
 let container: HTMLDivElement
@@ -87,11 +116,12 @@ it('lists MCP Connectors as its own section, after the packages nested under Ext
   const nav = [...document.querySelectorAll('nav[aria-label="Settings sections"] button')]
   const rows = nav.map((b) => `${b.hasAttribute('data-nested') ? '↳ ' : ''}${b.textContent}`)
   const at = rows.indexOf('Extensions')
-  expect(rows.slice(at, at + 4)).toEqual([
+  expect(rows.slice(at, at + 5)).toEqual([
     'Extensions',
+    '↳ Claude Code',
     '↳ Web access',
     'MCP Connectors',
-    'Workspaces',
+    'Folders',
   ])
 })
 
@@ -137,8 +167,7 @@ it.each([
   'connectors',
   'optimization',
   'advanced',
-  'voice',
-  'workspaces',
+  'folders',
   'claude-provider',
   'web-access',
   'computer-use',
@@ -173,7 +202,7 @@ it('follows This Mac in the switcher while a Host lane is still active', async (
   await act(async () => root.render(<SettingsModal />))
   expect(document.body.textContent).toContain('Local account controls')
   expect(document.body.textContent).not.toContain('Remote settings are not available here.')
-  expect(invoke).toHaveBeenCalledWith('packages:list', '/Users/me/phosphor-home')
+  expect(invoke).toHaveBeenCalledWith('packages:list', undefined)
   expect(invoke).not.toHaveBeenCalledWith('packages:list', remotePath)
 })
 
@@ -232,8 +261,8 @@ const selectedSections = (): string[] =>
   ].map((b) => b.textContent ?? '')
 
 it.each([
-  ['claude-provider', 'Extensions'],
-  ['workspaces', 'Agent'],
+  ['claude-provider', 'Claude Code'],
+  ['optimization', 'Agent'],
 ] as const)('opens %s on a Host as its %s section', async (tab, onHost) => {
   invoke.mockImplementation(async (channel: string) =>
     channel === 'packages:list' ? [{ spec: 'npm:pi-claude-cli', installed: true }] : undefined,
@@ -241,11 +270,11 @@ it.each([
   useSettingsUiStore.setState({ tab })
   await act(async () => root.render(<SettingsModal />))
   expect(selectedSections()).toEqual(
-    tab === 'workspaces' ? ['Workspaces'] : ['Extensions', 'Claude Code'],
+    tab === 'optimization' ? ['Optimization'] : ['Extensions', 'Claude Code'],
   )
   await act(async () => useRemoteLanesStore.setState({ filter: 'test-host' }))
   expect(document.body.textContent).toContain('Configuring Test Host')
-  expect(selectedSections()).toEqual([onHost])
+  expect(selectedSections()).toEqual(tab === 'optimization' ? [onHost] : ['Extensions', onHost])
 })
 
 it('refreshes scope on a Mac lane to Host lane to Mac lane switch', async () => {

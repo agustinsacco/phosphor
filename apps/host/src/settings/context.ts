@@ -6,7 +6,13 @@ import type { FeatureContext } from '../features/feature'
 import type { HostStore } from '../lanes/store'
 import type { HostRuntime } from '../session/runtime'
 import type { HostClaudeAccounts } from '../providers/accounts'
-import { settingsFile, SettingsFailure } from './files'
+import { webSearchConfigPath } from '@phosphor/session-runtime/pi/pi-paths'
+import {
+  HOST_FILE_POLICY,
+  readSettingsBytes,
+  settingsFile,
+  SettingsFailure,
+} from '@phosphor/session-runtime/pi/settings-file'
 
 export interface MachineSettingsOptions {
   context: FeatureContext
@@ -15,7 +21,8 @@ export interface MachineSettingsOptions {
   store: Pick<HostStore, 'listLanes' | 'listRepositories'>
   runtime: Pick<HostRuntime, 'accountForSession'>
   accounts: HostClaudeAccounts
-  pi: { binaryPath: string; prefixArgs: string[] }
+  /** How the Host starts pi; `version` is the one it checked at start. */
+  pi: { binaryPath: string; prefixArgs: string[]; version?: string }
   authenticating(): boolean
   sessionFor(laneId: string): string | null
 }
@@ -73,12 +80,33 @@ export class SettingsContext {
         join(this.agentDir, 'settings.json'),
         ...(cwd ? [join(cwd, '.pi', 'mcp.json'), join(this.agentDir, 'trust.json')] : []),
       ]
+    // Packages are listed in pi's settings; Web access keys in pi-web-access's file.
+    // The snapshot and every commit check this same revision.
+    if (section === 'resources')
+      return [
+        join(this.agentDir, 'settings.json'),
+        ...(cwd ? [join(cwd, '.pi', 'settings.json')] : []),
+        webSearchConfigPath(this.options.env, this.options.context.home),
+      ]
     return []
   }
 
   revision(section: MachineSettingsSection, cwd?: string) {
+    // Resources must load beside a Web access file the Host will not edit, so
+    // its revision hashes bytes and marks such a file instead of failing.
+    const revision =
+      section === 'resources'
+        ? (path: string) => {
+            try {
+              return readSettingsBytes(path, HOST_FILE_POLICY).revision
+            } catch (error) {
+              if (error instanceof SettingsFailure) return 'refused'
+              throw error
+            }
+          }
+        : (path: string) => settingsFile(path, HOST_FILE_POLICY).revision
     return settingsHash([
-      ...this.files(section, cwd).map((path) => settingsFile(path).revision),
+      ...this.files(section, cwd).map(revision),
       ...(section === 'connectors'
         ? [
             existsSync(join(this.agentDir, 'mcp-adapter.json')),

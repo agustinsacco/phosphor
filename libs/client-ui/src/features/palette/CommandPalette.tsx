@@ -9,6 +9,8 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { openSettings } from '@/features/settings/useOpenSettings'
+import { navigateDesktop } from '@/navigation/desktopNavigation'
 import { useFeedbackStore } from '@/features/feedback/feedbackStore'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
 import { useChatUiStore } from '@/features/chat/uiState'
@@ -171,10 +173,7 @@ export function CommandPalette({
         id: 'keybindings',
         label: 'Keyboard shortcuts',
         hint: formatShortcut('mod', '/'),
-        run: () => {
-          useSettingsUiStore.getState().setTab('keybindings')
-          useSettingsUiStore.getState().setOpen(true)
-        },
+        run: () => openSettings((next) => void navigateDesktop(next), null, 'keybindings'),
       },
       {
         id: 'theme-light',

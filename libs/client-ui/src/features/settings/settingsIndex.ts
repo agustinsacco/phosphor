@@ -1,9 +1,30 @@
 import type { PiPackageEntry } from '@shared/models'
-import { formatShortcut } from '@/lib/shortcuts'
 import type { Platform } from '@/platform/Platform'
-import type { MachineSettingsTab } from '@/features/machines/MachineSettings'
+import type { MachineSettingsTab } from './machine/HostSection'
 import type { SettingsTab } from './settingsUiStore'
-import { keybindingGroups } from './tabs/KeybindingsTab'
+import type { SettingEntry } from './search/settingEntry'
+import { ACCOUNTS_ROWS } from './search/rows/accounts'
+import { ADVANCED_ROWS } from './search/rows/advanced'
+import { AGENT_ROWS } from './search/rows/agent'
+import { CONNECTORS_ROWS } from './search/rows/connectors'
+import {
+  ABOUT_ROWS,
+  ACCOUNT_ROWS,
+  APPEARANCE_ROWS,
+  INSTALL_ROWS,
+  KEYBINDING_ROWS,
+  WRITING_ROWS,
+} from './search/rows/device'
+import {
+  CLAUDE_PROVIDER_ROWS,
+  EXTENSIONS_ROWS,
+  SUBAGENTS_ROWS,
+  WEB_ACCESS_ROWS,
+} from './search/rows/extensions'
+import { FOLDERS_ROWS } from './search/rows/folders'
+import { LANES_ROWS } from './search/rows/lanes'
+import { OPTIMIZATION_ROWS } from './search/rows/optimization'
+import { VOICE_ROWS } from './search/rows/voice'
 
 /** A Platform flag a section or row needs. Never the form factor. */
 export type SettingsCapability = Exclude<keyof Platform, 'formFactor'>
@@ -47,6 +68,8 @@ const machineSection = (
 export const TABS: SettingsSection[] = [
   device('appearance', 'Appearance'),
   device('writing', 'Writing', ['writingAssist']),
+  device('lanes', 'Lanes'),
+  device('voice', 'Voice', ['localVoice']),
   device('keybindings', 'Keybindings', ['appShortcuts']),
   device('account', 'Phosphor account'),
   device('install', 'App installation', ['installableApp']),
@@ -55,17 +78,10 @@ export const TABS: SettingsSection[] = [
   machineSection('accounts', 'Accounts', { local: true, host: 'providers' }),
   machineSection('extensions', 'Extensions', { local: true, host: 'resources' }),
   machineSection('connectors', 'MCP Connectors', { local: true, host: 'connectors' }),
-  machineSection('workspaces', 'Workspaces', { local: true }),
-  machineSection('folders', 'Folders', { host: 'folders' }),
+  machineSection('folders', 'Folders', { local: true, host: 'folders' }),
   machineSection('optimization', 'Optimization', { local: true }),
-  machineSection('voice', 'Voice', { local: true }),
   machineSection('advanced', 'Advanced', { local: true, host: 'advanced' }),
 ]
-
-/** A Host's sections in navigation order, keyed by the Host's own section. */
-export const HOST_SECTIONS = TABS.flatMap((tab) =>
-  tab.host ? [{ key: tab.host, label: tab.label }] : [],
-)
 
 /**
  * Curated extensions contribute a tab only while their package is present.
@@ -73,31 +89,44 @@ export const HOST_SECTIONS = TABS.flatMap((tab) =>
  * configuration for an installed package, not top-level settings.
  */
 export const EXTENSION_TABS: Array<
-  SettingsSection & { packageMatch: string; requiresInstalled?: boolean }
+  SettingsSection & {
+    packageMatch: string
+    requiresInstalled?: boolean
+    /** Listed on every machine that has a view for it, installed or not: its page offers Install. */
+    always?: true
+  }
 > = [
   {
-    ...machineSection('claude-provider', 'Claude Code', { local: true }),
+    ...machineSection('claude-provider', 'Claude Code', { local: true, host: 'providers' }),
     packageMatch: 'pi-claude-cli',
+    always: true,
   },
-  { ...machineSection('web-access', 'Web access', { local: true }), packageMatch: 'pi-web-access' },
   {
-    ...machineSection('computer-use', 'Computer use', { local: true }),
+    ...machineSection('web-access', 'Web access', { local: true, host: 'resources' }),
+    packageMatch: 'pi-web-access',
+  },
+  {
+    ...machineSection('computer-use', 'Computer use', { local: true, host: 'resources' }),
     packageMatch: '@injaneity/pi-computer-use',
   },
   {
-    ...machineSection('subagents', 'Subagents', { local: true }),
+    ...machineSection('subagents', 'Subagents', { local: true, host: 'resources' }),
     packageMatch: 'pi-subagents',
     requiresInstalled: true,
   },
 ]
 
-export function installedExtensionTabs(entries: PiPackageEntry[]): typeof EXTENSION_TABS {
-  return EXTENSION_TABS.filter((tab) =>
-    // Existing health/config tabs also help repair declared but absent packages.
-    entries.some(
-      (entry) =>
-        (!tab.requiresInstalled || entry.installed) && entry.spec.includes(tab.packageMatch),
-    ),
+export function installedExtensionTabs(
+  entries: readonly Pick<PiPackageEntry, 'spec' | 'installed'>[],
+): typeof EXTENSION_TABS {
+  return EXTENSION_TABS.filter(
+    (tab) =>
+      tab.always === true ||
+      // Existing health/config tabs also help repair declared but absent packages.
+      entries.some(
+        (entry) =>
+          (!tab.requiresInstalled || entry.installed) && entry.spec.includes(tab.packageMatch),
+      ),
   )
 }
 
@@ -129,214 +158,44 @@ export function visibleSections(
   )
 }
 
-/** One searchable place in settings. */
-export interface SettingEntry {
-  tab: SettingsTab
-  /** Rendered on this kind of machine only; unset for device rows. */
-  machine?: MachineKind
-  /** A row the platform only renders with this capability. */
-  requires?: SettingsCapability
-  /** Exactly as the tab renders it: the result jumps to this text. */
-  title: string
-  /** The heading it sits under; unset for a heading itself. */
-  section?: string
-  /** Synonyms a reader might type. Matched, never shown. */
-  keywords?: string
-  /** Shown beside the result: a keybinding's keys. */
-  detail?: string
-}
-
-type Rows = Array<
-  string | [title: string, keywords: string] | [title: string, keywords: string, SettingsCapability]
->
-
 /**
- * A heading and the rows under it. `heading: null` for rows under the tab's own
- * title. A machine section's rows are This Mac's own until its view is shared.
- */
-function section(
-  tab: SettingsTab,
-  heading: string | [title: string, keywords: string] | null,
-  rows: Rows = [],
-  machine: MachineKind | undefined = findSection(tab)?.scope === 'machine' ? 'local' : undefined,
-): SettingEntry[] {
-  const [title, keywords] = typeof heading === 'string' ? [heading, undefined] : (heading ?? [])
-  const entries: SettingEntry[] = title ? [{ tab, machine, title, keywords }] : []
-  for (const row of rows) {
-    const [rowTitle, rowKeywords, requires] = typeof row === 'string' ? [row] : row
-    entries.push({ tab, machine, title: rowTitle, section: title, keywords: rowKeywords, requires })
-  }
-  return entries
-}
-
-/** A Host section, findable by the heading its panel renders. */
-const onHost = (tab: SettingsTab, heading: [title: string, keywords: string]): SettingEntry[] =>
-  section(tab, heading, [], 'host')
-
-/**
- * Every setting, in the order the tabs show them. Titles must match the
- * rendered text; `settingsQuery.test.ts` checks them against the tab sources
- * in both directions, so a renamed row fails CI rather than going unfindable.
+ * Every setting, in the order the sections show them. Each section's rows live
+ * in its own module under `search/rows/`. Titles must match the rendered text;
+ * `settingsQuery.test.ts` checks them against the section sources in both
+ * directions, so a renamed row fails CI rather than going unfindable.
  */
 export const SETTINGS_INDEX: SettingEntry[] = [
-  ...section('appearance', null, [
-    ['Theme', 'dark light mode colour color system'],
-    ['UI scale', 'zoom size interface', 'pageZoom'],
-    ['Chat font size', 'text transcript'],
-    ['Editor font size', 'monaco diff text'],
-    ['Terminal font size', 'shell text', 'terminal'],
-    ['Mono font', 'monospace typeface family code'],
-  ]),
-  ...section('writing', null, [
-    ['Check spelling', 'spellcheck typo misspelled dictionary correct'],
-    ['Autocomplete', 'suggestions predict next word ghost text complete'],
-    ['Learned prompts', 'history clear forget autocomplete'],
-  ]),
-  ...section('agent', 'Agent defaults', [
-    ['Scope', 'global project workspace override'],
-    ['Default model', 'llm'],
-    'Default provider',
-    ['Default thinking level', 'reasoning effort'],
-    ['Hide thinking blocks', 'reasoning collapse'],
-    ['Steering delivery', 'queue steer'],
-    ['Follow-up delivery', 'queue followup'],
-  ]),
-  ...section(
-    'agent',
-    ['Compaction', 'summarize context'],
-    [
-      ['Auto-compaction', 'summarize context window'],
-      ['Reserve tokens', 'headroom response'],
-      ['Keep recent tokens', 'verbatim'],
-    ],
-  ),
-  ...section('agent', ['Context budget', 'window limit tokens compaction 200k']),
-  ...section('agent', 'Auto-retry', [
-    ['Retry on transient errors', 'overloaded rate limit 5xx'],
-    ['Max retries', 'attempts'],
-    ['Base delay (ms)', 'backoff'],
-  ]),
-  ...section(
-    'agent',
-    ['Directives', 'system prompt instructions'],
-    [
-      ['Global instructions', 'agents.md claude.md custom rules prompt edit markdown'],
-      ['Worktree guard', 'branch checkout'],
-      ['Machine awareness', 'host local remote tailscale machine prompt'],
-      ['Lane charter', 'pull request pr'],
-      ['Sub-agent policy', 'subagent delegation'],
-    ],
-  ),
-  ...section('accounts', null, [
-    ['Use a plan you already pay for', 'subscription sign in login oauth'],
-    ['Billed per token', 'api key credit balance'],
-  ]),
-  ...section('extensions', null, [
-    ['Recommended', 'packages catalogue'],
-    ['Add a package', 'install npm git'],
-  ]),
-  ...section('claude-provider', null, [
-    ['Health', 'claude cli version'],
-    ['Prove it end to end', 'test check'],
-    ['When it fails', 'troubleshoot error debug'],
-    ['Accounts', 'claude login sign in'],
-    ['Route new sessions', 'claude account'],
-  ]),
-  ...section('web-access', null, [['Search providers', 'web fetch api key']]),
-  ...section('subagents', ['How delegation works', 'background foreground workflow parent child']),
-  ...section('subagents', [
-    'Profiles and precedence',
-    'scout worker reviewer oracle agents markdown',
-  ]),
-  ...section('subagents', ['Context and permissions', 'fresh fork sandbox safety tools']),
-  ...section(
-    'subagents',
-    ['Configuration sources', 'settings json overrides runtime timeout concurrency'],
-    [
-      ['Pi settings', 'defaultModel defaultProvider agentOverrides'],
-      ['Delegation policy', 'directives authorization'],
-    ],
-  ),
-  ...section('subagents', [
-    'Results and storage',
-    'artifacts sessions lifecycle history acceptance',
-  ]),
-  ...section('connectors', null, [
-    ['Connected', 'mcp servers'],
-    ['Add a connector', 'mcp server oauth url'],
-    ['Config files', 'mcp.json'],
-  ]),
-  ...section('workspaces', 'Naming and markers', [
-    ['Name sessions automatically', 'auto title rename'],
-    'Title length',
-    'Title character limit',
-    ['Branch name length', 'slug git'],
-    ['Lane markers', 'emoji icon'],
-    ['PR status on lanes', 'github pull request checks'],
-  ]),
-  ...section('workspaces', 'New sessions', [
-    ['Give each chat its own branch', 'worktree git'],
-    ['Branch prefix', 'git'],
-  ]),
-  ...section('workspaces', ['Workspaces', 'recent folders projects']),
-  ...section('workspaces', ['Sandboxes', 'scratch no folder']),
-  ...section('optimization', null, [
-    ['Compress tool results', 'headroom proxy tokens'],
-    ['Compress search & log output', 'headroom grep'],
-  ]),
-  ...section('optimization', ['Savings', 'tokens saved']),
-  ...section('optimization', ['Advisor', 'recommendations findings']),
-  ...section('voice', null, [
-    ['Voice input', 'dictation dictate microphone mic speech to text transcribe'],
-    ['Model', 'moonshine speech download'],
-  ]),
-  ...section('advanced', null, [
-    ['pi health', 'version install'],
-    ['pi settings.json', 'config edit raw'],
-    ['pi models.json', 'custom providers local endpoints'],
-  ]),
-  ...section(
-    'advanced',
-    ['Maintenance', 'cleanup disk worktrees'],
-    [
-      ['Reclaim dead lanes', 'worktrees merged sweep'],
-      ['Sweep every', 'interval'],
-      'Leave lanes alone for',
-      ['Delete automatically', 'remove'],
-    ],
-  ),
-  ...section('advanced', ['Local pi resources', 'prompts themes extensions']),
-  ...section('account', null, [
-    ['Signed in', 'github user sign out log out'],
-    ['Not signed in', 'github sign in login'],
-  ]),
-  ...section('install', null, [['Install', 'pwa home screen app']]),
-  ...section('install', ['Notifications', 'push alerts attention']),
-  ...section('about', null, [
-    ['Phosphor version', 'release', 'appInfo'],
-    ['Updates', 'upgrade release download', 'appInfo'],
-    ['pi version', 'pi health', 'appInfo'],
-    ['Platform', 'os macos linux windows', 'appInfo'],
-    ['Runtime', 'electron node chrome', 'appInfo'],
-  ]),
-  ...onHost('agent', ['Agent defaults', 'Host default model thinking']),
-  ...onHost('accounts', ['Accounts', 'Host providers sign in login claude codex openai']),
-  ...onHost('extensions', ['Extensions', 'Host skills packages']),
-  ...onHost('connectors', ['MCP Connectors', 'Host mcp servers']),
-  ...onHost('folders', ['Folders', 'Host repositories projects']),
-  ...onHost('advanced', ['Advanced', 'Host pi settings models json']),
-  ...keybindingGroups().flatMap(({ title, bindings }) =>
-    section('keybindings', title).concat(
-      bindings.map<SettingEntry>(([parts, action]) => ({
-        tab: 'keybindings',
-        title: action,
-        section: title,
-        keywords: 'shortcut hotkey key',
-        detail: formatShortcut(...parts),
-      })),
-    ),
-  ),
+  ...APPEARANCE_ROWS,
+  ...WRITING_ROWS,
+  ...LANES_ROWS,
+  ...VOICE_ROWS,
+  ...AGENT_ROWS,
+  ...ACCOUNTS_ROWS,
+  ...EXTENSIONS_ROWS,
+  ...CLAUDE_PROVIDER_ROWS,
+  ...WEB_ACCESS_ROWS,
+  ...SUBAGENTS_ROWS,
+  ...CONNECTORS_ROWS,
+  ...FOLDERS_ROWS,
+  ...OPTIMIZATION_ROWS,
+  ...ADVANCED_ROWS,
+  ...ACCOUNT_ROWS,
+  ...INSTALL_ROWS,
+  ...ABOUT_ROWS,
+  ...KEYBINDING_ROWS,
 ]
+
+/**
+ * Whether this kind of machine renders the row: its own `on`, else its
+ * section's flags. Device rows render whatever the machine, machine rows on none
+ * while no machine is chosen.
+ */
+export function rowOnMachine(entry: SettingEntry, machine: MachineKind | null): boolean {
+  const owner = findSection(entry.tab)
+  if (owner?.scope !== 'machine') return true
+  if (!machine) return false
+  return entry.on ? entry.on[machine] === true : onMachine(owner, machine)
+}
 
 /**
  * The index rows this platform renders on this kind of machine; sections are
@@ -344,9 +203,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
  */
 export function platformIndex(platform: Platform, machine: MachineKind | null): SettingEntry[] {
   return SETTINGS_INDEX.filter(
-    (entry) =>
-      (!entry.requires || platform[entry.requires]) &&
-      (!entry.machine || entry.machine === machine),
+    (entry) => (!entry.requires || platform[entry.requires]) && rowOnMachine(entry, machine),
   )
 }
 

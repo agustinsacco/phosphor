@@ -9,7 +9,6 @@ const state = vi.hoisted(() => ({
   account: vi.fn(),
   health: vi.fn(),
   stub: undefined as string | undefined,
-  prefs: { nameMinWords: 2, nameMaxWords: 5, nameMaxLength: 60 },
 }))
 vi.mock('./handle', () => ({
   handle: (name: string, callback: (...args: unknown[]) => unknown) =>
@@ -23,7 +22,7 @@ vi.mock('../pi/shell-env', () => ({
   piProcessEnv: async () => ({ PATH: '/pi/bin', PI_CLAUDE_CLI_KEEPALIVE_MS: '999' }),
 }))
 vi.mock('../pi/catalogue', () => ({ catalogueModels: state.catalogue }))
-vi.mock('../pi/print-mode', () => ({ runPrintMode: state.run }))
+vi.mock('@phosphor/session-runtime/pi/print-mode', () => ({ runPrintMode: state.run }))
 vi.mock('@phosphor/session-runtime/pi/agent-settings', () => ({
   readAgentSettings: state.settings,
 }))
@@ -36,7 +35,6 @@ vi.mock('../claude/accounts', () => ({
   claudeAccountEnv: (account: { credentialDir: string } | null) =>
     account ? { CLAUDE_SECURESTORAGE_CONFIG_DIR: account.credentialDir } : {},
 }))
-vi.mock('../store', () => ({ getLanePrefs: () => state.prefs }))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 
 const generate = (names: string[] = []) =>
@@ -52,7 +50,6 @@ beforeEach(async () => {
   vi.resetModules()
   vi.resetAllMocks()
   state.stub = undefined
-  state.prefs = { nameMinWords: 2, nameMaxWords: 5, nameMaxLength: 60 }
   state.health.mockResolvedValue({ ok: true, binaryPath: '/bin/pi', prefixArgs: ['entry.js'] })
   state.catalogue.mockResolvedValue([])
   state.settings.mockResolvedValue({ defaultProvider: 'vendor' })
@@ -77,7 +74,7 @@ it('waits four seconds for a cold catalogue then uses the default', async () => 
 })
 
 it('stops retries after a timeout with no stdout', async () => {
-  state.run.mockResolvedValue({ stdout: '', error: 'timed out after 30000ms' })
+  state.run.mockResolvedValue({ stdout: '', error: 'timed out after 30000ms', reason: 'timeout' })
   expect(await generate()).toBeNull()
   expect(state.run).toHaveBeenCalledTimes(1)
 })
@@ -117,12 +114,14 @@ it('learns an unusable picked model after the fallback succeeds', async () => {
   expect(args(3)).toContain('--no-extensions')
 })
 
-it('sanitizes, caps length then deduplicates and honors word preferences', async () => {
-  state.prefs = { nameMinWords: 3, nameMaxWords: 7, nameMaxLength: 9 }
-  state.run.mockResolvedValue({ stdout: 'Here is a title:\n"Fix Login Bug."\n' })
-  expect(await generate(['fix login', 'Fix Login 2'])).toBe('Fix Login 3')
-  expect(args(0).at(-1)).toContain('3-7 words')
-  expect(args(0).at(-1)).toContain('- fix login\n- Fix Login 2')
+it('sanitizes, caps at 60 characters, deduplicates and asks for 2-5 words', async () => {
+  state.run.mockResolvedValue({ stdout: `Here is a title:\n"Fix Login${' x'.repeat(40)}."\n` })
+  // The suffix fits inside the cap: the base is shortened and trimmed first (R-M4).
+  const title = await generate([`Fix Login${' x'.repeat(25)}`, 'Other'])
+  expect(title).toBe(`Fix Login${' x'.repeat(24)} 2`)
+  expect(String(title).length).toBeLessThanOrEqual(60)
+  expect(args(0).at(-1)).toContain('2-5 words')
+  expect(args(0).at(-1)).toContain('- Other')
 })
 
 it('carries invoker argv, Claude account, one-shot env and executable extension paths', async () => {

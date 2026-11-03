@@ -6,7 +6,7 @@ import {
   writeGlobalInstructions,
 } from '@phosphor/session-runtime/pi/global-instructions'
 import type { SettingsContext } from './context'
-import { SettingsFailure, withSettingsFileLock } from './files'
+import { SettingsFailure, withSettingsFileLock } from '@phosphor/session-runtime/pi/settings-file'
 
 /** As for every config file the Host edits: no links, owned, not world-writable. */
 const POLICY = { followLinks: false } as const

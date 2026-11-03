@@ -148,9 +148,9 @@
       "types": "./src/machine-settings-mcp.ts",
       "default": "./src/machine-settings-mcp.ts"
     },
-    "./host-default-packages": {
-      "types": "./src/host-default-packages.ts",
-      "default": "./src/host-default-packages.ts"
+    "./standard-packages": {
+      "types": "./src/standard-packages.ts",
+      "default": "./src/standard-packages.ts"
     },
     "./machine-agent-behavior": {
       "types": "./src/machine-agent-behavior.ts",
@@ -167,6 +167,18 @@
     "./mcp": {
       "types": "./src/mcp.ts",
       "default": "./src/mcp.ts"
+    },
+    "./web-access": {
+      "types": "./src/web-access.ts",
+      "default": "./src/web-access.ts"
+    },
+    "./mcp-write-policy": {
+      "types": "./src/mcp-write-policy.ts",
+      "default": "./src/mcp-write-policy.ts"
+    },
+    "./subscription-providers": {
+      "types": "./src/subscription-providers.ts",
+      "default": "./src/subscription-providers.ts"
     },
     "./models": {
       "types": "./src/models.ts",

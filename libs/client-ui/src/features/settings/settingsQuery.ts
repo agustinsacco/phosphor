@@ -1,6 +1,7 @@
 import { escapeRegExp } from '@shared/text-search'
 import { parseQuery, squash, tokenize } from '@/lib/modelSearch'
-import { SETTINGS_INDEX, tabLabel, type SettingEntry } from './settingsIndex'
+import type { SettingEntry } from './search/settingEntry'
+import { SETTINGS_INDEX, tabLabel } from './settingsIndex'
 import type { SettingsTab } from './settingsUiStore'
 
 /**

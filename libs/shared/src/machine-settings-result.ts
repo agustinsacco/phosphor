@@ -11,6 +11,7 @@ import type { ThinkingLevel } from './rpc'
 import { projectAgentBehavior } from './machine-agent-behavior'
 import { normalizeAgentDirectives } from './models/directives'
 import { parseGlobalInstructions } from './global-instructions'
+import { WEB_ACCESS_KEYS } from './web-access'
 const text = (v: unknown, max = 512): v is string =>
   typeof v === 'string' && v.length <= max && !v.includes('\0')
 const list = (v: unknown, limit: number): v is unknown[] => Array.isArray(v) && v.length <= limit
@@ -187,6 +188,8 @@ function parseConnectors(
         ? { state: s.state }
         : {}),
       ...(number(s.tools) && s.tools <= 10000 ? { tools: s.tools } : {}),
+      ...(typeof s.oauth === 'boolean' ? { oauth: s.oauth } : {}),
+      ...(s.overridden === true ? { overridden: true as const } : {}),
     })
   }
   return {
@@ -220,6 +223,7 @@ function parseAgent(value: Record<string, unknown>, base: MachineSettings): Mach
     ...base,
     ...(typeof value.projectTrusted === 'boolean' ? { projectTrusted: value.projectTrusted } : {}),
     ...(value.agentBehaviorSupported === true ? { agentBehaviorSupported: true } : {}),
+    ...(value.agentClearSupported === true ? { agentClearSupported: true as const } : {}),
     agent: {
       ...projectAgentBehavior(a),
       ...(a.defaultProvider ? { defaultProvider: a.defaultProvider } : {}),
@@ -229,6 +233,7 @@ function parseAgent(value: Record<string, unknown>, base: MachineSettings): Mach
         : {}),
       contextBudget: a.contextBudget,
       autoNameLanes: a.autoNameLanes,
+      ...(a.namingLive === true ? { namingLive: true } : {}),
       ...(machineRecord(a.agentDirectives)
         ? { agentDirectives: normalizeAgentDirectives(a.agentDirectives) }
         : {}),
@@ -290,7 +295,22 @@ function parseResources(
       ...(parsePackageContents(p.contents) ? { contents: parsePackageContents(p.contents)! } : {}),
     })
   }
-  return { ...base, resources: { packages } }
+  const webAccess = parseWebAccess(r.webAccess)
+  return { ...base, resources: { packages, ...(webAccess ? { webAccess } : {}) } }
+}
+/** Names only: anything that is not an allowlisted key name is dropped, as is a bad shape. */
+function parseWebAccess(
+  value: unknown,
+): NonNullable<MachineSettings['resources']>['webAccess'] | undefined {
+  if (
+    !machineRecord(value) ||
+    typeof value.exists !== 'boolean' ||
+    typeof value.malformed !== 'boolean' ||
+    !list(value.configured, 64)
+  )
+    return undefined
+  const configured = WEB_ACCESS_KEYS.filter((key) => (value.configured as unknown[]).includes(key))
+  return { configured, exists: value.exists, malformed: value.malformed }
 }
 function parseAdvanced(
   value: Record<string, unknown>,
@@ -328,6 +348,23 @@ function parseAdvanced(
       piAgentDir: a.piAgentDir,
       path: a.path as string[],
       environment,
+      ...(parseAdvancedPi(a.pi) ? { pi: parseAdvancedPi(a.pi)! } : {}),
     },
+  }
+}
+function parseAdvancedPi(
+  value: unknown,
+): NonNullable<MachineSettings['advanced']>['pi'] | undefined {
+  if (
+    !machineRecord(value) ||
+    !text(value.path, 4096) ||
+    !text(value.agentDir, 4096) ||
+    !(value.version === undefined || text(value.version, 64))
+  )
+    return undefined
+  return {
+    ...(value.version ? { version: value.version } : {}),
+    path: value.path,
+    agentDir: value.agentDir,
   }
 }

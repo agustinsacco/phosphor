@@ -157,11 +157,11 @@ are terminals:
 5. Install and start the user service unless it is already installed and running.
 6. Enable the Tailscale Serve route, keeping an existing correct route, and show its address.
 7. With approval, install the standard headless-safe pi packages: the Claude Code
-   provider (`@saccolabs/pi-claude-cli`), Swarm subagents (`pi-subagents`) and web
-   access (`pi-web-access`). Already installed packages, pins and resource filters
+   provider (`@saccolabs/pi-claude-cli`), Subagents (`pi-subagents`) and Web
+   access (`pi-web-access`), the `headless` entries of `STANDARD_PACKAGES`. Already installed packages, pins and resource filters
    are left alone; missing installations retain their configured spec on repair.
    Computer use is not included. A declined install can be completed later from
-   Machine Settings → Extensions, or by rerunning setup.
+   Settings → Extensions on that Host, or by rerunning setup.
 8. Offer Claude setup if needed: Anthropic's installer for missing Claude Code,
    `pi install npm:@saccolabs/pi-claude-cli` for a missing or outdated provider,
    and interactive `claude` sign-in when needed. Each command needs approval.
@@ -196,7 +196,7 @@ Rerun `phosphor setup` to resume. Ctrl-C keeps completed steps, including config
 and a pending enrollment request. Declining operator access exits 75 and prints
 `sudo tailscale set --operator=<user>`. Optional Claude setup may be skipped.
 Other providers remain separate: `phosphor providers login PROVIDER`, or Sign in
-in Desktop's machine Readiness.
+under Settings → Accounts for that Host in Desktop.
 
 Repositories may be empty. Add a folder later from Desktop or with
 `phosphor setup --repository PATH`. Repeat `--repository DIR` for up
@@ -500,7 +500,7 @@ variable directly names the config file.
 | Field                    | Meaning                                                                                                                                                                                                                |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `version`                | Required, exactly `1`.                                                                                                                                                                                                 |
-| `autoNameLanes`          | Optional boolean, default `true`. Enables Host-generated lane names.                                                                                                                                                   |
+| `autoNameLanes`          | Optional boolean, default `true`. Enables Host-generated lane names. Read at each lane's first prompt.                                                                                                                 |
 | `agentDirectives`        | Optional object of booleans `machineAwareness`, `worktreeGuard`, `laneCharter` and `subagentPolicy`, each default `true`. Read at each lane start, so edits need no restart.                                           |
 | `allowRepositoryChanges` | Optional boolean, default `true`. Allows home-relative folder browsing and repository registration/removal.                                                                                                            |
 | `api.webOrigin`          | Optional exact browser origin or `null` to disable. Defaults to `https://phosphor-app.saccolabs.com` only with the canonical production control origin; otherwise disabled.                                            |
@@ -711,10 +711,12 @@ lane grants retain their existing capabilities.
 fixed-purpose setup programs and explicit Claude account moves. pi remains the
 owner of provider credentials, MCP, packages and model/thinking defaults. Host
 config owns context budget, automatic naming and the directive switches. Each
-lane start reads the context budget and the directive switches, and each prompt
-and settled turn rereads the budget, so those apply without a restart. A config
-that cannot be read keeps the last valid values. Automatic naming
-needs an explicit service restart; no setting silently restarts lanes or the service. Global
+lane start reads the context budget and the directive switches, each lane's first
+prompt reads automatic naming, and each prompt and settled turn rereads the budget,
+so all of them apply without a restart (`config/live-policy.ts`). The agent read
+says so with `namingLive: true`; a client shows the restart notice for automatic
+naming only for an older Host whose read lacks it. A config that cannot be read
+keeps the last valid values. No setting silently restarts lanes or the service. Global
 files use the Host's pi agent directory, including the global instructions file
 (the `instructions` section), which is never written through a symlink. Folder scope resolves a registered repository
 id, verifies its realpath identity, and applies only when pi trusts that folder.
@@ -726,7 +728,9 @@ separate private-file requirements. World-writable files/directories, foreign
 owners, hard links and final symlinks are refused. Commits read bounded regular
 files, preserve unrelated fields (including nested compaction/retry settings),
 check the revision and current authorization, and atomically rename an exclusive
-0600 temporary file. Folder agent editors show only that folder's overrides,
+0600 temporary file. This is the one pi config writer
+(`libs/session-runtime/src/pi/settings-file.ts`); the Host runs it with
+`HOST_FILE_POLICY` (no links, 0600, 64 KiB) and Desktop with its own. Folder agent editors show only that folder's overrides,
 not a merged copy of machine defaults. Repository management
 shares their process-local lock. This is not a cross-process compare-and-swap.
 A lost response can mean the edit applied; clients must inspect rather than replay
@@ -758,6 +762,9 @@ Connector checks are separately reviewed because `pi mcp list --json` may start
 configured stdio code. Only reviewed state/tool counts are returned, cached for
 at most sixty seconds and invalidated by edits/authentication. Folder MCP cannot
 contain secret-bearing headers, environment values or OAuth client secrets.
+Web access keys (`web-search.json`, where the Host's pi environment puts it) are
+written one at a time by `webAccess.key` and read back as names only; the file is
+saved 0600 like the rest of the Host's config.
 Credentials, raw source URLs and authentication callback URLs never enter control
 or metadata traffic logs. Advanced diagnostics expose names and paths, not values.
 
@@ -1136,7 +1143,7 @@ cannot tell the new login from the earlier one (it never reads a credential), so
 it says that the earlier one is still there if the login did not finish. An
 unknown provider exits 64 and starts nothing.
 
-Desktop also starts this same login path from Machines Readiness. Its
+Desktop also starts this same login path from Settings → Accounts on the Host. Its
 `provider.login {provider}` command has a machine-scoped, owner-only receipt,
 no lane or fence, and requires `terminal` plus `sessions.control`. Both are
 checked at admission, when queued work starts, and after inspection before
@@ -1887,22 +1894,39 @@ change.
 An unnamed lane immediately uses its first accepted user message as its summary
 title: the first nonempty line, trimmed, at most 80 characters. The Host also
 names new lanes after the first accepted prompt. `autoNameLanes` is a boolean,
-default on. Naming failures stay out of chat. The Host logs `lane.naming` with
-`laneId`, a fixed outcome token and elapsed `ms`, never prompts, titles or output.
-Only one naming subprocess runs at a time, with at most 64 pending jobs. It uses
-the lane's provider and the cheapest eligible model in the same family and region,
-falling back to the lane model. Print mode has no stdin, tools, context files,
-skills or templates; thinking is off. Fast boot loads only the Claude provider's
-extension files when needed, resolved from the installed package with
-`resolvePackagePaths`. Empty resolution skips naming with
-`skipped-no-provider-package`. Print mode waits for stdout to close before
-accepting its result. Every run has a 30 second timeout, a 4 KiB output cap,
-and its own process group, killed on completion or failure. Host shutdown cancels
-the active naming group and discards queued naming work.
+default on, read from the config at each lane's first prompt; a lane whose first
+prompt arrives while it is off is not named. Naming failures stay out of chat. The
+Host logs `lane.naming` with `laneId`, a fixed outcome token and elapsed `ms`; a
+failed run adds a fixed `reason` token (`exit`, `timeout`, `overflow`, `spawn`,
+`aborted`, `empty`, or `setup` when the run could not start) and its `attempts`.
+It never logs prompts, titles or output.
+
+Naming uses the shared title policy and runner Desktop uses
+([lanes.md](lanes.md#naming)), with the Host's own inputs:
+
+- **Model.** The lane's provider and the cheapest eligible model in the same
+  family and region, from the lane's catalogue. The last attempt falls back to
+  the lane model, or to `claude-haiku-4-5` on the Claude CLI.
+- **Attempts.** A fast boot (`--no-extensions`, plus the Claude provider's own
+  extension files resolved with `resolvePackagePaths`), then a full boot, then
+  the fallback model. A timeout ends the run. A provider or model that needed
+  the retry is remembered until the Host stops.
+- **Env.** The Host's machine env, `PI_CLAUDE_CLI_CONTEXT=pi`, the one-shot
+  Claude env, and the env of the Claude account the lane's session was routed
+  to. A run never falls back to another account: if the routed account is gone,
+  naming fails with `setup`.
+- **Existing names.** The titles of the repository's other lanes, newest first,
+  at most 40, go in the prompt; a colliding reply gets a numeric suffix.
+- **Limits.** Only one naming subprocess runs at a time, with at most 64 pending
+  jobs. Print mode has no stdin, tools, context files, skills or templates;
+  thinking is off; stderr is ignored. It waits for stdout to close before
+  accepting its result. Every attempt has a 30 second timeout, a 4 KiB output
+  cap, and its own process group, killed on completion or failure. Host shutdown
+  cancels the active naming group and discards queued naming work.
 
 A generated name is applied through the live lane's runtime, never by writing
 pi's file. A manual rename, closed lane or changed incarnation cancels application.
-There is one naming attempt per new lane. A controller's `set_session_name`
+A lane is considered for naming once. A controller's `set_session_name`
 updates the stored summary and publishes the refreshed live name to viewers.
 Stop before the first saved prompt is refused with a fixed message. Once pi
 reports its session file, the Host records that identity before stopping. A

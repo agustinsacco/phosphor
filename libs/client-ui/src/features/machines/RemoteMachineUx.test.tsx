@@ -54,14 +54,14 @@ function button(text: string): HTMLButtonElement {
   if (!found) throw new Error(`Missing button ${text}`)
   return found
 }
-it('picker lists This Mac and only announced machines, preserving unavailable selection', () => {
+it('picker lists the local machine and only announced machines, preserving unavailable selection', () => {
   act(() =>
     root.render(<MachinePicker value="missing" capability="skills.read" onChange={() => {}} />),
   )
   expect(button('missing').textContent).toContain('unavailable')
   act(() => button('missing').click())
   expect([...container.querySelectorAll('[role=option]')].map((o) => o.textContent)).toEqual([
-    'This Mac',
+    'This computer',
     'missing (unavailable)',
   ])
   expect((container.querySelectorAll('[role=option]')[1] as HTMLButtonElement).disabled).toBe(true)

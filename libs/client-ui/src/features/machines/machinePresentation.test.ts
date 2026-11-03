@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest'
 import {
+  claudeReadiness,
   formatCode,
   HOST_INSTALL,
-  localMachineLabel,
   platformName,
   readinessFreshness,
   readinessChecks,
@@ -47,11 +47,7 @@ it('gives problem-only readiness and actionable fixes, including unknown reports
     readinessChecks({ pi: 'missing', claude: 'missing', tailscale: 'stopped' }).map(
       (check) => check.command,
     ),
-  ).toEqual([
-    'npm install -g @earendil-works/pi-coding-agent',
-    'npm install -g @anthropic-ai/claude-code',
-    'sudo tailscale up',
-  ])
+  ).toEqual(['npm install -g @earendil-works/pi-coding-agent', undefined, 'sudo tailscale up'])
   expect(
     readinessChecks(null).every((check) => !check.ok && check.command === 'phosphor doctor'),
   ).toBe(true)
@@ -85,9 +81,6 @@ it('trusts readiness only while a machine is online, and names problems in a few
     'Claude Code not reported',
     'Tailscale not reported',
   ])
-  expect(localMachineLabel('darwin')).toBe('This Mac')
-  expect(localMachineLabel('win32')).toBe('This PC')
-  expect(localMachineLabel('linux')).toBe('This computer')
 })
 it('never suggests piping a download into a shell', () => {
   const missing = readinessChecks({ pi: 'ok', claude: 'ok', tailscale: 'missing' })[2]
@@ -110,4 +103,21 @@ it('marks running Tailscale as unpublished until the Host has an endpoint withou
       (check) => check.name === 'Tailscale',
     ),
   ).toMatchObject({ ok: true, detail: 'Connected with HTTPS available' })
+})
+
+it('points a missing Claude Code at phosphor setup when the Host cannot open Settings', () => {
+  const [, configurable] = readinessChecks({ pi: 'ok', claude: 'missing', tailscale: 'ok' }, null)
+  expect(configurable?.detail).toContain('Settings → Extensions → Claude Code')
+  expect(configurable?.command).toBeUndefined()
+  const [, fixed] = readinessChecks({ pi: 'ok', claude: 'missing', tailscale: 'ok' }, null, false)
+  expect(fixed?.detail).not.toContain('Settings')
+  expect(fixed?.command).toBe('phosphor setup')
+  for (const detail of [
+    { provider: 'outdated', cli: 'ok', auth: 'ok' },
+    { provider: 'ok', cli: 'missing', auth: 'ok' },
+  ] as const) {
+    expect(claudeReadiness(detail).command).toBeUndefined()
+    expect(claudeReadiness(detail, false).command).toBe('phosphor setup')
+    expect(claudeReadiness(detail, false).detail).not.toContain('Settings')
+  }
 })

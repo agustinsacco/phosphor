@@ -31,7 +31,8 @@ remote cleanup completed or revoke previously issued grants immediately.
 ### Configuration access and lane deletion
 
 A Host's machine settings (**Settings → Configure → \<Host\>**, or **Machines → a Host →
-Settings**) are the same shared sections as Desktop's. A signed-in
+Settings**, which goes to `/pages/settings/<host>`) are the same shared sections as
+Desktop's, on the same Settings page. A signed-in
 browser page holds configuration authority for a Host only after an explicit
 per-page opt-in: **Enable configuration access** in Settings, or **Switch account**
 in a Host lane's usage popover, confirmed in the same dialog, calls
@@ -153,8 +154,13 @@ none (`appShortcuts`), and no Cancel while signing in (`cancelSignIn`).
 The Settings page frames Desktop's `SettingsSurface`: the same search field, section
 navigation and sections, listed by platform capability
 ([settings](settings.md#sections-and-capabilities)). The browser shows Appearance,
-Phosphor account, App installation and About, then **Configure** with the Host
-machine settings of each known Host; it lists no This Mac sections.
+Lanes, Phosphor account, App installation and About, then **Configure** with the Host
+machine settings of each known Host; it lists no This Mac sections. Lanes has no
+"own branch" switch there (it needs `localLanes`): a Host lane always gets its own
+worktree. Voice needs `localVoice`, which the browser lacks. With no Host to
+configure, a **No machine to configure** notice links to Machines. Leaving the page
+while a Host's settings draft is unsaved asks first, as closing Desktop's dialog does;
+the browser's Back button is not intercepted.
 
 ### One lane row, list and menu
 
@@ -247,8 +253,13 @@ from synthetic install-event tests.
 
 Composer drafts and image blobs are bounded, owner-scoped memory, including
 canonical remote-session tuple keys. Reloading does not restore those drafts.
-The adapter persists only the theme preference, never credentials, transcripts
-or draft contents. Browser font changes last until reload. Owner loss also clears
+The adapter persists only the theme preference and the device's lane and branch
+prefs (`app:setLanePrefs` / `app:setWorktreePrefs`, browser-local: the shared
+`LanePrefs` fields, the worktree switch and a branch prefix of at most 64
+characters, edited under Settings → Lanes and read back by the one prefs read
+at start), each normalized to its allowlisted fields and read back only when
+small, never credentials, transcripts or draft contents. Those prefs apply to
+every Host's lanes started from this browser. Browser font changes last until reload. Owner loss also clears
 remembered creation targets/model choices and resets browser isolation. Unsupported
 native file attachments are rejected.
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
+import { localMachineLabel } from '@/lib/localMachine'
 import { useMachinesStore } from '@/stores/machines'
 import { runHealthCheck, type HealthRun } from './healthCheck'
-import { localMachineLabel } from './machinePresentation'
 
 /** The last health check in this window. Never persisted; a new run replaces it. */
 export const useMachineHealthStore = create<{ run: HealthRun | null; running: boolean }>(() => ({
@@ -16,7 +16,7 @@ export async function startHealthCheck(): Promise<void> {
   try {
     await runHealthCheck({
       invoke: window.phosphor.invoke,
-      localLabel: localMachineLabel(window.phosphor.platform),
+      localLabel: localMachineLabel(),
       signedIn: useMachinesStore.getState().remoteEnabled,
       refreshDirectory: async () => {
         await useMachinesStore.getState().refresh()

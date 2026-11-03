@@ -40,8 +40,9 @@ public tunnels and disabling TLS verification are not part of this transport.
    Tailscale Serve. In Desktop, choose I have a code, enter it, compare fingerprints
    and approve. No repository is required. Rerunning setup resumes completed steps;
    if Tailscale needs operator permission, run its printed sudo command and rerun setup.
-4. Once online, open the machine's Readiness and sign in to a provider there, or
-   run `phosphor providers login PROVIDER` on the Host. Credentials stay there.
+4. Once online, sign in to a provider under Settings → Accounts for that machine
+   (Provider settings on its Machines page), or run
+   `phosphor providers login PROVIDER` on the Host. Credentials stay there.
    Add a repository from Desktop or with `phosphor setup --repository DIR --replace`.
    `phosphor doctor` checks readiness; `phosphor accept --repository DIR` proves
    real sessions in a disposable repository. [Acceptance](host.md#accept) explains
@@ -135,7 +136,7 @@ an action. Refresh or inspect the lane before deciding what to do next.
 | Attachments          | Upload documents to the Host before prompting; images use pi's image input                                                             | [Host attachments](host.md#attachments)                                        |
 | Terminal             | Watch lane shells; controllers create, type, resize and kill                                                                           | [Terminal](terminal.md#host-terminals)                                         |
 | Skills and models    | Read machine skills, provider readiness and model catalogue                                                                            | [Desktop machine context](remote-desktop.md#machine-context-and-lane-creation) |
-| Provider sign-in     | Use a private Host terminal from Machines Readiness                                                                                    | [Provider sign-in](remote-desktop.md#provider-sign-in)                         |
+| Provider sign-in     | Use a private Host terminal from Settings → Accounts or Extensions → Claude Code                                                       | [Provider sign-in](remote-desktop.md#provider-sign-in)                         |
 | Artifacts            | Read lane versions and the machine-tagged library; preview HTML in a local sandbox                                                     | [Remote artifacts](remote-desktop.md#remote-artifacts)                         |
 | Routines             | Create paused definitions, explicitly enable schedules, run, cancel and inspect history on the Host                                    | [Routines](routines.md#host-routines)                                          |
 | Attention            | Unread counters and machine-titled OS notifications                                                                                    | [Desktop connections](remote-desktop.md#desktop-host-connections)              |

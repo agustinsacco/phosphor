@@ -1,8 +1,11 @@
+import { delimiter } from 'node:path'
 import { handle } from './handle'
 import { remoteLanes } from './hosts-handlers'
 import { isRemoteHandle } from '../hosts/remote-lanes'
 import { desktopSessions } from '../pi/session-runtime'
 import { cachedPiHealth } from '../pi/health'
+import { piAgentDir } from '../pi/pi-paths'
+import { piProcessEnv } from '../pi/shell-env'
 import { piStubPath } from '../pi/stub'
 import { generateSessionTitle } from '../pi/session-title'
 import { MIN_PI_VERSION, type CreateSessionOptions } from '@shared/models'
@@ -12,12 +15,21 @@ import { log } from '../debug-log'
 /** pi subprocess lifecycle: health, session create/dispose, RPC passthrough. */
 export function registerPiSessionHandlers(): void {
   handle('pi:health', async () => {
+    // Where pi looks, for Advanced: the PATH it runs with and its agent directory.
+    // A copy of Windows' environment keeps its key as `Path`.
+    const pathOf = (env: NodeJS.ProcessEnv) =>
+      env.PATH ?? Object.entries(env).find(([key]) => key.toUpperCase() === 'PATH')?.[1] ?? ''
+    const where = (env: NodeJS.ProcessEnv) => ({
+      path: pathOf(env).split(delimiter).filter(Boolean),
+      agentDir: piAgentDir(),
+    })
     if (piStubPath()) {
       return {
         ok: true,
         binaryPath: piStubPath(),
         version: MIN_PI_VERSION,
         minVersion: MIN_PI_VERSION,
+        ...where(process.env),
       }
     }
     const health = await cachedPiHealth()
@@ -25,7 +37,7 @@ export function registerPiSessionHandlers(): void {
     // Windows launcher settled on (also asserted by the packaged-app smoke).
     const { message: _message, ...facts } = health
     log('pi', 'health', facts)
-    return health
+    return { ...health, ...where(await piProcessEnv()) }
   })
 
   handle('pi:createSession', (event, options: CreateSessionOptions) =>

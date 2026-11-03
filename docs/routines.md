@@ -214,7 +214,8 @@ The list and header count follow the page selection; the count includes only
 non-archived routines in that selection. A Host page shows no This Mac activity,
 load errors, footer or background controls. Host run history opens from each routine,
 not a mixed Activity feed. All machines explicitly labels local Activity and
-load errors as **This Mac**. An unavailable Host shows its refusal, never local data
+load errors with the local machine's label (**This Mac** on macOS, **This PC** or
+**This computer** elsewhere). An unavailable Host shows its refusal, never local data
 under a remote label. Changing the selection clears an action error shown for the
 previous machine.
 Remote editors and detail labels use the Host model catalogue. Changing the

@@ -12,7 +12,7 @@ export type SettingsTab =
   | 'computer-use'
   | 'subagents'
   | 'connectors'
-  | 'workspaces'
+  | 'lanes'
   | 'folders'
   | 'optimization'
   | 'voice'
@@ -30,6 +30,11 @@ interface SettingsUiState {
   tab: SettingsTab
   /** Chosen in the Configure selector; null follows the default (see useSettingsMachine). */
   machine: SettingsMachine | null
+  /**
+   * The folder a scoped section configures; null is the whole machine. A
+   * workspace path on This Mac, a repository id on a Host.
+   */
+  folder: string | null
   /** The search field. Its terms are painted in the open tab while set. */
   query: string
   /** Results are listed in place of the tab; false once one is opened or a tab is picked. */
@@ -41,11 +46,12 @@ interface SettingsUiState {
   reset: () => void
   setTab: (tab: SettingsTab) => void
   setMachine: (machine: SettingsMachine) => void
+  setFolder: (folder: string | null) => void
   setQuery: (query: string) => void
   openResult: (tab: SettingsTab, title: string) => void
 }
 
-const FRESH = { machine: null, query: '', listing: false, reveal: null } as const
+const FRESH = { machine: null, folder: null, query: '', listing: false, reveal: null } as const
 
 /**
  * Open/close state for the settings modal, and the shared surface's selection.
@@ -63,7 +69,12 @@ export const useSettingsUiStore = create<SettingsUiState>((set) => ({
   setOpen: (open) => set((s) => (s.open === open ? {} : { open, ...FRESH })),
   reset: () => set(FRESH),
   setTab: (tab) => set({ tab, listing: false, reveal: null }),
-  setMachine: (machine) => set({ machine, reveal: null }),
+  // A folder belongs to one machine: another machine starts on its machine scope.
+  setMachine: (machine) =>
+    set((s) =>
+      s.machine === machine ? { reveal: null } : { machine, folder: null, reveal: null },
+    ),
+  setFolder: (folder) => set({ folder }),
   setQuery: (query) => set({ query, listing: query.trim() !== '' }),
   openResult: (tab, title) => set({ tab, listing: false, reveal: { title } }),
 }))

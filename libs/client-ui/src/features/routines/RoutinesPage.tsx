@@ -1,4 +1,5 @@
 import { usePlatform } from '@/platform/Platform'
+import { localMachineLabel } from '@/lib/localMachine'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinePagesStore, pageMachine } from '@/stores/machinePages'
@@ -83,7 +84,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     machine === 'local'
       ? localError
       : machine === 'all' && localError
-        ? `This Mac: ${localError}`
+        ? `${localMachineLabel()}: ${localError}`
         : null
   const draft = useRoutinesStore((s) => s.draft)
   const draftMachine = machine === 'all' ? 'local' : machine
@@ -348,7 +349,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                   ...(platform.localLanes
                     ? [
                         { value: 'all', label: 'All machines' },
-                        { value: 'local', label: 'This Mac' },
+                        { value: 'local', label: localMachineLabel() },
                       ]
                     : []),
                   ...machines.map((m) => ({ value: m.id, label: m.label })),
@@ -357,7 +358,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                 {machine === 'all'
                   ? 'All machines'
                   : machine === 'local'
-                    ? 'This Mac'
+                    ? localMachineLabel()
                     : (machines.find((m) => m.id === machine)?.label ?? 'Machine')}
               </ChoiceMenu>
               <TextInput
@@ -473,7 +474,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                           </span>
                         </span>
                         <span className="text-text-tertiary text-sm">
-                          {r.machine?.label ?? 'This computer'}
+                          {r.machine?.label ?? localMachineLabel()}
                         </span>
                         <span className="shrink-0 text-right text-sm">
                           <span
@@ -504,7 +505,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                   heading={
                     <>
                       <h2 className="text-lg font-semibold">
-                        {machine === 'all' ? 'This Mac activity' : 'Activity'}
+                        {machine === 'all' ? `${localMachineLabel()} activity` : 'Activity'}
                       </h2>
                       <p className="text-text-tertiary text-sm">
                         Recent lanes from every routine. Open a routine for its full history.

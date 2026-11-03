@@ -1,23 +1,12 @@
-import { usePlatform } from '@/platform/Platform'
 import clsx from 'clsx'
-import { machineStatus, type MachineView } from '@shared/control-api'
+import type { MachineView } from '@shared/control-api'
+import { Spinner } from '@/components/icons'
 import { TooltipButton, tooltipProps } from '@/components/Tooltip'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSessionsStore } from '@/stores/sessions'
-import { localChecks, type Computer } from './LocalMachine'
-import { machineHeadline } from './machineReachability'
-import {
-  LOCAL_MACHINE,
-  localMachineLabel,
-  platformName,
-  readinessChecks,
-  readinessFreshness,
-  relativeTime,
-  sortMachines,
-} from './machinePresentation'
-import { Skeleton, Spinner, StatusDot, StatusPill } from './MachineUi'
-import { hostTasks, taskCounts } from './runningTasks'
-import { MachineTasks, useLocalTasks } from './MachineTasks'
+import { hostSummary, type MachineSummary } from './machineOverview'
+import { sortMachines, type ReadinessCheck } from './machinePresentation'
+import { Skeleton, StatusDot, StatusPill } from './MachineUi'
+import { MachineTasks } from './MachineTasks'
 
 const ROW =
   'hover:bg-bg-secondary focus-visible:bg-bg-secondary focus-visible:outline-accent grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-4 py-2.5 text-left transition-colors md:grid-cols-[minmax(0,1fr)_auto_auto]'
@@ -26,11 +15,7 @@ const ROW =
 const STATUS = 'flex w-44 shrink-0 items-center justify-end gap-3'
 
 /** Three tiny indicators instead of a wall of chips: green, or amber with the reason. */
-function ReadinessDots({
-  checks,
-}: {
-  checks: { name: string; ok: boolean; short: string; loading?: boolean }[]
-}): React.JSX.Element {
+function ReadinessDots({ checks }: { checks: ReadinessCheck[] }): React.JSX.Element {
   return (
     <span className="hidden items-center gap-3 md:flex">
       {checks.map((check) => (
@@ -44,7 +29,11 @@ function ReadinessDots({
             check.ok || check.loading ? 'text-text-secondary' : 'text-warning font-medium',
           )}
         >
-          {check.loading ? <Spinner size={9} /> : <StatusDot tone={check.ok ? 'ok' : 'warn'} />}
+          {check.loading ? (
+            <Spinner className="text-text-tertiary" />
+          ) : (
+            <StatusDot tone={check.ok ? 'ok' : 'warn'} />
+          )}
           {check.name === 'Claude Code' ? 'Claude' : check.name}
         </span>
       ))}
@@ -60,106 +49,31 @@ function Chevron(): React.JSX.Element {
   )
 }
 
-export function LocalMachineRow({
-  computer,
+/** One row for any machine: name and facts, readiness dots, one status, then its running lanes. */
+export function MachineRow({
+  summary,
   onOpen,
 }: {
-  computer: Computer
+  summary: MachineSummary
   onOpen: () => void
 }): React.JSX.Element {
-  const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
-  const tasks = useLocalTasks()
-  const label = localMachineLabel(window.phosphor.platform)
-  const checks = localChecks(computer)
-  const loading = checks.some((check) => check.loading)
-  const problems = checks.filter((check) => !check.ok && !check.loading)
-  const meta = [
-    platformName(window.phosphor.platform),
-    computer.health?.ok ? `pi ${computer.health.version}` : null,
-    liveHere ? `${liveHere} live ${liveHere === 1 ? 'lane' : 'lanes'}` : null,
-    taskCounts(tasks),
-  ].filter(Boolean)
+  const { label, headline, dots } = summary
   return (
     <div>
       <TooltipButton
         tooltip={`Open ${label}`}
-        data-testid="local-machine-row"
+        data-testid={summary.machine ? 'enrolled-machine-row' : 'local-machine-row'}
+        data-status={summary.status}
         className={ROW}
         onClick={onOpen}
       >
         <span className="min-w-0">
           <span className="block truncate text-lg font-medium">{label}</span>
-          <span className="text-text-tertiary block truncate text-sm">{meta.join(' · ')}</span>
+          <span className="text-text-tertiary block truncate text-sm">
+            {summary.meta.join(' · ')}
+          </span>
         </span>
-        <ReadinessDots checks={checks} />
-        <span className={STATUS}>
-          {loading ? (
-            <StatusPill tone="pending">Checking…</StatusPill>
-          ) : problems.length ? (
-            <StatusPill tone="warn" hint={problems.map((p) => p.short).join(' · ')}>
-              {problems.length === 1
-                ? (problems[0]?.short ?? 'Needs attention')
-                : `${problems.length} issues`}
-            </StatusPill>
-          ) : (
-            <StatusPill tone="ok">Ready</StatusPill>
-          )}
-          <Chevron />
-        </span>
-      </TooltipButton>
-      <MachineTasks machine="local" tasks={tasks} />
-    </div>
-  )
-}
-
-export function MachineRow({
-  machine,
-  now,
-  offset,
-  onOpen,
-}: {
-  machine: MachineView
-  now: number
-  offset: number
-  onOpen: () => void
-}): React.JSX.Element {
-  const connection = useRemoteLanesStore((s) => s.hosts[machine.id])
-  const corrected = now + offset
-  const headline = machineHeadline(machine, connection, corrected)
-  const live = readinessFreshness(machine, now, offset) === 'live'
-  const checks = readinessChecks(machine.readiness, machine.endpoint)
-  // The live Host snapshot says what is running; heartbeat counts are the
-  // fallback, and an offline machine's are history.
-  const tasks = hostTasks(machine.id, connection)
-  const lanes = live ? machine.lanes : null
-  const meta = [
-    machine.hostname !== machine.label ? machine.hostname : null,
-    `${platformName(machine.platform)} ${machine.arch}`,
-    connection?.hostVersion || machine.hostVersion
-      ? `Host ${connection?.hostVersion || machine.hostVersion}`
-      : null,
-    taskCounts(tasks) ??
-      (lanes && (lanes.running > 0 || lanes.waiting > 0)
-        ? `${lanes.running} running · ${lanes.waiting} waiting`
-        : null),
-    machine.lastSeenAt && headline.tone !== 'ok'
-      ? `last seen ${relativeTime(machine.lastSeenAt, corrected)}`
-      : null,
-  ].filter(Boolean)
-  return (
-    <div>
-      <TooltipButton
-        tooltip={`Open ${machine.label}`}
-        data-testid="enrolled-machine-row"
-        data-status={machineStatus(machine, now, offset)}
-        className={ROW}
-        onClick={onOpen}
-      >
-        <span className="min-w-0">
-          <span className="block truncate text-lg font-medium">{machine.label}</span>
-          <span className="text-text-tertiary block truncate text-sm">{meta.join(' · ')}</span>
-        </span>
-        {live ? <ReadinessDots checks={checks} /> : <span className="hidden md:block" />}
+        {dots ? <ReadinessDots checks={dots} /> : <span className="hidden md:block" />}
         <span className={STATUS}>
           <StatusPill tone={headline.tone} hint={headline.detail}>
             {headline.label}
@@ -167,7 +81,7 @@ export function MachineRow({
           <Chevron />
         </span>
       </TooltipButton>
-      <MachineTasks machine={machine.id} tasks={tasks} />
+      <MachineTasks machine={summary.id} tasks={summary.tasks} />
     </div>
   )
 }
@@ -197,7 +111,7 @@ function Group({
 }
 
 export function MachineList({
-  computer,
+  local,
   signedIn,
   machines,
   loading,
@@ -206,7 +120,7 @@ export function MachineList({
   onOpen,
   empty,
 }: {
-  computer: Computer
+  local: MachineSummary | null
   signedIn: boolean
   machines: readonly MachineView[]
   loading: boolean
@@ -216,14 +130,14 @@ export function MachineList({
   /** Shown under the Hosts group when there is nothing to list. */
   empty: React.ReactNode
 }): React.JSX.Element {
-  const { localLanes } = usePlatform()
+  const hosts = useRemoteLanesStore((s) => s.hosts)
   const sorted = sortMachines(machines, now, offset)
   const firstLoad = signedIn && loading && machines.length === 0
   return (
     <div className="space-y-6">
-      {localLanes && (
+      {local && (
         <Group title="This computer">
-          <LocalMachineRow computer={computer} onOpen={() => onOpen(LOCAL_MACHINE)} />
+          <MachineRow summary={local} onOpen={() => onOpen(local.id)} />
         </Group>
       )}
       {signedIn && (machines.length > 0 || firstLoad) ? (
@@ -232,7 +146,7 @@ export function MachineList({
           aside={
             loading && machines.length > 0 ? (
               <span className="text-text-tertiary flex items-center gap-1.5 text-sm">
-                <Spinner size={10} /> Updating
+                <Spinner className="text-text-tertiary" /> Updating
               </span>
             ) : undefined
           }
@@ -253,9 +167,7 @@ export function MachineList({
             sorted.map((machine) => (
               <MachineRow
                 key={machine.id}
-                machine={machine}
-                now={now}
-                offset={offset}
+                summary={hostSummary(machine, hosts[machine.id], now, offset)}
                 onOpen={() => onOpen(machine.id)}
               />
             ))

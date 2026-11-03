@@ -177,7 +177,7 @@ it('switches to machine-wide skills and shows that machines models/providers wit
   await act(async () => root.render(<SkillsPage workspacePath="/repo" />))
   Element.prototype.scrollIntoView = vi.fn()
   const picker = container.querySelector<HTMLButtonElement>('button[aria-label="Machine"]')
-  expect(picker?.textContent).toContain('This Mac')
+  expect(picker?.textContent).toContain('This computer')
   await act(async () => picker?.click())
   const hostOption = [...container.querySelectorAll<HTMLButtonElement>('[role=option]')].find((o) =>
     o.textContent?.includes(MOCK_HOST_ID),
@@ -285,7 +285,7 @@ it.each([
       root.render(<SkillsPage workspacePath="/repo" />)
     })
     if (id === 'local') {
-      expect(container.textContent).toContain('This Mac')
+      expect(container.textContent).toContain('This computer')
       expect(container.textContent).not.toContain('Not available on remote lanes yet.')
     } else {
       expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('bee1')

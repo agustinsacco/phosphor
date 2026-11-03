@@ -216,7 +216,8 @@ A Host refuses a Claude spawn on invalid account metadata rather than silently
 billing the default credential. Concurrent round-robin starts serialize cursor
 selection within their execution machine.
 
-The Host's accounts are managed in **Machines → Host → Settings → Accounts**.
+The Host's accounts are managed on the same page as This Mac's: Settings, configuring
+the Host, → **Extensions → Claude Code**, where sign-ins open a private terminal on the Host.
 A Claude lane's usage popover has **Switch account** on This Mac and on a Host:
 one component (`AccountSwitcher.tsx`) with the same target rule (`claudeGateway.ts`).
 On a Host it needs lane control, asks for settings access if the client lacks it,
@@ -249,7 +250,7 @@ failure. Cooldowns guide future starts, not automatic mid-turn switching; when
 all readings are held, the shared selector treats those cached readings as
 advisory rather than refusing every start.
 
-Settings → **Accounts** (`tabs/AccountsTab.tsx`) lists the providers pi can
+Settings → **Accounts** (`sections/accounts/`) lists the providers pi can
 sign into: `openai-codex`, `anthropic`, `github-copilot`, `kimi-for-coding` as
 subscriptions, then `xai`, `openrouter`, `radius` as per-token balances. Each
 row is a button, a browser tab, and a flip to "Signed in".
@@ -260,10 +261,10 @@ rendering into structured state. Two sign-in shapes are handled: device code
 (the user is shown a code) and loopback redirect (pi runs its own callback
 server, no code at all). `pi:loginTerminal` is the escape hatch for a provider
 whose prompts the driver does not recognise. The provider list is hand-curated
-in `libs/session-runtime/src/pi/provider-auth.ts`, each id verified against
+in `libs/shared/src/subscription-providers.ts`, each id verified against
 `pi auth check --provider`.
 
-Claude logins are a separate set, under Extensions → Claude Code
+Claude logins are a separate set, under Extensions → Claude Code on every machine
 ([settings.md](settings.md#claude-code-pi-claude-cli)), because they are
 config directories, not pi credentials.
 

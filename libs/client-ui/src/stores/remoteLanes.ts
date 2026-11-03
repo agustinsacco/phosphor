@@ -4,6 +4,7 @@ import {
   invalidateRemoteArtifactReads,
 } from '@/features/artifacts/remoteArtifactRefresh'
 import { create } from 'zustand'
+import { localMachineLabel } from '@/lib/localMachine'
 import type { HostConnectionView, HostsSnapshot } from '@shared/ipc'
 import type { LiveSessionInfo } from '@shared/models'
 import type { HostTarget } from '@shared/remote-host'
@@ -22,6 +23,7 @@ import {
 } from '@/features/sessions/laneReveal'
 
 const LOCAL: HostTarget = Object.freeze({ kind: 'local' })
+const laneRemoved = (machine = localMachineLabel()): string => `This lane was removed on ${machine}`
 export const REMOTE_NOT_READY = 'Machine not connected. Wait for reconnection.'
 
 export function connectionLabel(state: HostConnectionView['state'] | undefined): string {
@@ -197,8 +199,7 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     const host = hosts[remote.hostId]
     const label = machineLabel(remote.hostId)
     if (host?.state !== 'ready') return `${label} is offline`
-    if (!host.lanes.some((lane) => lane.laneId === remote.laneId))
-      return `This lane was removed on ${label}`
+    if (!host.lanes.some((lane) => lane.laneId === remote.laneId)) return laneRemoved(label)
     return undefined
   }
   try {
@@ -216,7 +217,7 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     const problemAfterOpen = unavailable()
     if (problemAfterOpen) throw new Error(problemAfterOpen)
     const entry = sessionId ? useSessionsStore.getState().live[sessionId] : undefined
-    if (!sessionId || !entry) throw new Error('This lane was removed on This Mac')
+    if (!sessionId || !entry) throw new Error(laneRemoved())
     stopWatching()
     alignLaneMachineFilter(remote?.hostId ?? 'local')
     useSessionsStore.getState().activate(sessionId)
@@ -247,8 +248,7 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
       }
     }
     if (!current()) return false
-    const message =
-      problem ?? (remote ? 'Could not open the remote lane.' : 'This lane was removed on This Mac')
+    const message = problem ?? (remote ? 'Could not open the remote lane.' : laneRemoved())
     useRemoteLanesStore.setState({ error: message })
     useExtensionUiStore.getState().pushToast(message, 'error')
     return false

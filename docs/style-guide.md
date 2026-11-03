@@ -160,7 +160,7 @@ Cool neutral greys. The accent is the only warm element on the page.
   green" are the two states the sidebar is scanned to tell apart, so rendering
   both in `--px-success` hides the one meaning _this lane is done_. Violet was
   the only hue unspoken for. A sixth semantic color needs that kind of reason.
-- **`bg-danger` + `text-white` is a standing exception** (`libs/client-ui/src/components/form.tsx`),
+- **`bg-danger` + `text-white` is a standing exception** (`libs/client-ui/src/components/form/fields.tsx`),
   3.1:1 in dark and below AA. Accepted because danger buttons are short, bold,
   and never the only signal. Don't copy it; don't "fix" it without changing
   `--px-danger` itself.

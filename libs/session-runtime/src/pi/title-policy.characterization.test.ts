@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import * as desktop from '../../../../apps/desktop/electron/pi/session-naming'
-import * as host from '../../../../apps/host/src/lanes/title-policy'
+import * as policy from './title-policy'
 
-// This cross-app freeze deliberately exercises the original public entries.
-const entries = [
-  ['Desktop session-naming', desktop],
-  ['Host title-policy', host],
-] as const
 const model = { provider: 'pi-claude-cli', id: 'claude-haiku-5-5' }
 const fallback = { provider: 'pi-claude-cli', id: 'claude-haiku-4-5' }
 const baseArgs = [
@@ -75,7 +69,7 @@ const attemptCases = [
   },
 ]
 
-describe.each(entries)('%s characterization', (_name, policy) => {
+describe('title policy characterization', () => {
   it('pins fallback identity and exact argv, including empty versus null extensions', () => {
     expect(policy.CLAUDE_TITLE_FALLBACK).toEqual(fallback)
     expect(policy.titleArgs()).toEqual(baseArgs)
@@ -101,19 +95,19 @@ describe.each(entries)('%s characterization', (_name, policy) => {
     )
   })
 
-  it('pins exact prompts, word-range grammar, and trimmed names', () => {
+  it('pins exact prompts and trimmed names', () => {
     expect(policy.titlePrompt('fix sidebar', [])).toBe(
       promptStart + '2-5 words ' + promptRule + '\nThe request:\nfix sidebar',
     )
-    expect(policy.titlePrompt('fix sidebar', ['  Auth Bug  ', ' '], { min: 1, max: 1 })).toBe(
+    expect(policy.titlePrompt('fix sidebar', ['  Auth Bug  ', ' '])).toBe(
       promptStart +
-        '1 word ' +
+        '2-5 words ' +
         promptRule +
         '\nExisting session names in this workspace (yours must not duplicate or be easily confused with any of them):\n- Auth Bug\n' +
         '\nThe request:\nfix sidebar',
     )
-    expect(policy.titlePrompt('hi', ['  '], { min: 3, max: 3 })).toBe(
-      promptStart + '3 words ' + promptRule + '\nThe request:\nhi',
+    expect(policy.titlePrompt('hi', ['  '])).toBe(
+      promptStart + '2-5 words ' + promptRule + '\nThe request:\nhi',
     )
   })
 
@@ -135,14 +129,13 @@ describe.each(entries)('%s characterization', (_name, policy) => {
   })
 
   it.each([
-    ['Here is the name:\n\n“Sidebar   Resize Fix.”\n', 60, 'Sidebar Resize Fix'],
-    ['\n\t', 60, null],
-    ['""', 60, null],
-    ['A'.repeat(61), 60, 'A'.repeat(60)],
-    ['Something', 0, 'S'],
-    ['One Two', 4, 'One'],
-  ] as const)('sanitizes %j with cap %s', (stdout, cap, expected) => {
-    expect(policy.sanitizeTitle(stdout, cap)).toBe(expected)
+    ['Here is the name:\n\n“Sidebar   Resize Fix.”\n', 'Sidebar Resize Fix'],
+    ['\n\t', null],
+    ['""', null],
+    ['A'.repeat(61), 'A'.repeat(60)],
+    [`${'A'.repeat(59)} B`, 'A'.repeat(59)],
+  ] as const)('sanitizes %j at the fixed 60-character cap', (stdout, expected) => {
+    expect(policy.sanitizeTitle(stdout)).toBe(expected)
   })
 
   it('pins case-insensitive duplicate suffix order and exhaustion', () => {

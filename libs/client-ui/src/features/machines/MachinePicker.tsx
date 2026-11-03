@@ -1,4 +1,5 @@
 import { usePlatform } from '@/platform/Platform'
+import { localMachineLabel } from '@/lib/localMachine'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { MachineGlyph } from '@/features/sessions/MachineSwitcher'
 import type { HostCapability } from '@shared/remote-host'
@@ -43,7 +44,7 @@ export function MachinePicker({
       onChange={onChange}
       choices={[
         ...(includeAll ? [{ value: '', label: 'All machines' }] : []),
-        ...(localLanes ? [{ value: 'local', label: 'This Mac' }] : []),
+        ...(localLanes ? [{ value: 'local', label: localMachineLabel() }] : []),
         ...(unavailable
           ? [{ value, label: `${machineLabel(value)} (unavailable)`, disabled: true }]
           : []),
@@ -56,7 +57,7 @@ export function MachinePicker({
       <MachineGlyph local={value === 'local'} />
       <span className="truncate">
         {value === 'local'
-          ? 'This Mac'
+          ? localMachineLabel()
           : includeAll && value === ''
             ? 'All machines'
             : machineLabel(value)}

@@ -2,10 +2,15 @@ import type * as ChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { printTitle, createLaneNamer } from './naming'
+import { createLaneNamer, hostLaneNaming, type LaneNamingJob } from './naming'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
 import { promptTitle } from './live'
+import { DEFAULT_CLAUDE_ACCOUNT_PREFS } from '@phosphor/shared/models'
+import type { HostConfigV1 } from '../config/schema'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }))
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: vi.fn(async () => []) }))
@@ -35,40 +40,67 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.useRealTimers()
 })
-it('ignores stdin, owns and kills its group on clean finish, with bounded output', async () => {
-  const run = printTitle(machine, '/repo', ['-p'])
+const job = (overrides: Partial<LaneNamingJob> = {}): LaneNamingJob => ({
+  sessionId: 'session-1',
+  cwd: '/repo',
+  message: 'first',
+  model: { provider: 'native', id: 'model' },
+  models: [],
+  existingNames: [],
+  current: () => true,
+  apply: vi.fn(async () => {}),
+  ...overrides,
+})
+it('ignores stdin, owns and kills its group on clean finish, and fails past 4 KiB', async () => {
+  const outcome = vi.fn()
+  const name = createLaneNamer(machine)
+  const first = job()
+  name(first)
+  await vi.waitFor(() => expect(children).toHaveLength(1))
   expect(spawn).toHaveBeenCalledWith(
     '/test/pi',
-    ['-p'],
+    expect.arrayContaining(['-p']),
     expect.objectContaining({ stdio: ['ignore', 'pipe', 'ignore'], detached: true }),
   )
   children[0]?.stdout.write('A short title\n')
   children[0]?.emit('close', 0)
-  expect(await run).toBe('A short title')
+  await vi.waitFor(() => expect(first.apply).toHaveBeenCalledWith('A short title'))
   expect(process.kill).toHaveBeenCalledWith(-7654321, 'SIGKILL')
-  const large = printTitle(machine, '/repo', [])
+  name(job({ outcome, model: { provider: 'native', id: 'large' } }))
+  await vi.waitFor(() => expect(children).toHaveLength(2))
   children[1]?.stdout.write('x'.repeat(4097))
-  children[1]?.emit('close', 0)
-  expect(await large).toBeNull()
-})
-it('times out and kills without returning partial output', async () => {
-  vi.useFakeTimers()
-  const run = printTitle(machine, '/repo', [], 25)
-  children[0]?.stdout.write('partial')
-  let settled = false
-  void run.then(() => {
-    settled = true
+  await vi.waitFor(() => expect(children).toHaveLength(3))
+  children[2]?.stdout.write('y'.repeat(4097))
+  await vi.waitFor(() => expect(outcome).toHaveBeenCalled())
+  expect(outcome).toHaveBeenCalledExactlyOnceWith('print-failed', {
+    reason: 'overflow',
+    attempts: 2,
   })
-  await vi.advanceTimersByTimeAsync(25)
-  expect(settled).toBe(true)
-  expect(await run).toBeNull()
+})
+it('times out after 30 s, kills the group and stops retrying', async () => {
+  vi.useFakeTimers()
+  const outcome = vi.fn()
+  const timedOut = job({ outcome })
+  createLaneNamer(machine)(timedOut)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(children).toHaveLength(1)
+  children[0]?.stdout.write('partial')
+  await vi.advanceTimersByTimeAsync(30_000)
+  expect(timedOut.apply).not.toHaveBeenCalled()
+  expect(outcome).toHaveBeenCalledExactlyOnceWith('print-timeout', {
+    reason: 'timeout',
+    attempts: 1,
+  })
   expect(process.kill).toHaveBeenCalledWith(-7654321, 'SIGKILL')
+  expect(children).toHaveLength(1)
 })
 it('serializes at one, bounds the queue, uses the lane provider, and skips stale work', async () => {
   const name = createLaneNamer(machine)
   const apply = vi.fn(async () => {})
   const job = {
     cwd: '/repo',
+    sessionId: 'session-1',
+    existingNames: [],
     message: 'first prompt',
     model: { provider: 'native', id: 'expensive' },
     models: [
@@ -110,6 +142,8 @@ it('runs at most 64 admitted jobs and never more than one print subprocess', asy
   const apply = vi.fn(async () => {})
   const job = {
     cwd: '/repo',
+    sessionId: 'session-1',
+    existingNames: [],
     message: 'first',
     model: { provider: 'native', id: 'model' },
     models: [],
@@ -131,6 +165,8 @@ it('cancels active naming and discards all queued and future work on shutdown', 
   const apply = vi.fn(async () => {})
   const job = {
     cwd: '/repo',
+    sessionId: 'session-1',
+    existingNames: [],
     message: 'first',
     model: { provider: 'native', id: 'model' },
     models: [],
@@ -177,6 +213,8 @@ it.skipIf(process.platform === 'win32')(
     try {
       name({
         cwd: process.cwd(),
+        sessionId: 'session-1',
+        existingNames: [],
         message: 'first',
         model: { provider: 'native', id: 'test' },
         models: [],
@@ -203,11 +241,13 @@ it.skipIf(process.platform === 'win32')(
 )
 
 it('waits for close when exit arrives before the final stdout data', async () => {
-  const run = printTitle(machine, '/repo', [])
+  const drained = job()
+  createLaneNamer(machine)(drained)
+  await vi.waitFor(() => expect(children).toHaveLength(1))
   children[0]?.emit('exit', 0)
   children[0]?.stdout.write('Drained title')
   children[0]?.emit('close', 0)
-  expect(await run).toBe('Drained title')
+  await vi.waitFor(() => expect(drained.apply).toHaveBeenCalledWith('Drained title'))
 })
 
 it('loads executable provider paths, never package display names, and reports applied', async () => {
@@ -233,6 +273,8 @@ it('loads executable provider paths, never package display names, and reports ap
   const apply = vi.fn(async () => {})
   createLaneNamer(machine)({
     cwd: '/repo',
+    sessionId: 'session-1',
+    existingNames: [],
     message: 'private prompt',
     model: { provider: 'pi-claude-cli', id: 'claude-test' },
     models: [],
@@ -256,38 +298,162 @@ it('loads executable provider paths, never package display names, and reports ap
   await vi.waitFor(() => expect(outcome).toHaveBeenCalledExactlyOnceWith('applied'))
 })
 
+it('looks up the provider package in the Host agent directory', async () => {
+  const env = { PATH: '/test', PI_CODING_AGENT_DIR: '/host/agent' }
+  createLaneNamer({ ...machine, env })(job({ model: { provider: 'pi-claude-cli', id: 'claude' } }))
+  await vi.waitFor(() => expect(children).toHaveLength(1))
+  expect(listPackages).toHaveBeenCalledWith('/repo', '/host/agent')
+})
+
 it.each([
-  'stale',
-  'skipped-no-provider-package',
-  'print-failed',
-  'print-timeout',
-  'set-failed',
-] as const)('reports %s without including private naming data', async (expected) => {
+  ['stale', ['stale']],
+  ['print-failed', ['print-failed', { reason: 'exit', attempts: 2 }]],
+  ['print-timeout', ['print-timeout', { reason: 'timeout', attempts: 1 }]],
+  ['set-failed', ['set-failed']],
+] as const)('reports %s without including private naming data', async (expected, reported) => {
   vi.useFakeTimers()
   const outcome = vi.fn()
   const apply = vi.fn(async () => {
     throw new Error('private failure')
   })
-  createLaneNamer(machine)({
-    cwd: '/private/repo',
-    message: 'private prompt',
-    model: {
-      provider: expected === 'skipped-no-provider-package' ? 'pi-claude-cli' : 'native',
-      id: 'model',
-    },
-    models: [],
-    current: () => expected !== 'stale',
-    apply,
-    outcome,
-  })
+  createLaneNamer(machine)(
+    job({
+      cwd: '/private/repo',
+      message: 'private prompt',
+      current: () => expected !== 'stale',
+      apply,
+      outcome,
+    }),
+  )
   await vi.advanceTimersByTimeAsync(0)
   if (expected === 'print-timeout') await vi.advanceTimersByTimeAsync(30_000)
-  if (expected === 'print-failed') children[0]?.emit('close', 1)
+  if (expected === 'print-failed') {
+    children[0]?.stdout.write('private output')
+    children[0]?.emit('close', 1)
+    await vi.advanceTimersByTimeAsync(0)
+    children[1]?.emit('close', 1)
+  }
   if (expected === 'set-failed') {
     children[0]?.stdout.write('Private title')
     children[0]?.emit('close', 0)
   }
   await vi.advanceTimersByTimeAsync(0)
-  expect(outcome).toHaveBeenCalledExactlyOnceWith(expected)
+  expect(outcome.mock.calls).toEqual([reported])
+  expect(JSON.stringify(outcome.mock.calls)).not.toMatch(/private/i)
   if (expected !== 'set-failed') expect(apply).not.toHaveBeenCalled()
+})
+
+const routedJob = (overrides: Partial<LaneNamingJob> = {}) => ({
+  sessionId: 'session-2',
+  cwd: '/repo',
+  message: 'private prompt',
+  model: { provider: 'native', id: 'chat-large' },
+  models: [
+    { provider: 'native', id: 'chat-large', cost: { input: 10, output: 20 } },
+    { provider: 'native', id: 'chat-small', cost: { input: 1, output: 2 } },
+  ],
+  existingNames: [],
+  current: () => true,
+  apply: vi.fn(async () => {}),
+  ...overrides,
+})
+
+it('names with the lane routed Claude account env and the provider spawn env', async () => {
+  const accountEnv = vi.fn(async () => ({ CLAUDE_SECURESTORAGE_CONFIG_DIR: '/accounts/second' }))
+  createLaneNamer(machine, { accountEnv })(routedJob())
+  await vi.waitFor(() => expect(children).toHaveLength(1))
+  expect(accountEnv).toHaveBeenCalledWith('session-2')
+  expect(spawn).toHaveBeenCalledWith(
+    '/test/pi',
+    expect.any(Array),
+    expect.objectContaining({
+      env: {
+        PATH: '/test',
+        PI_CLAUDE_CLI_CONTEXT: 'pi',
+        PI_CLAUDE_CLI_KEEPALIVE_MS: '0',
+        PI_CLAUDE_CLI_EPHEMERAL: '1',
+        CLAUDE_SECURESTORAGE_CONFIG_DIR: '/accounts/second',
+      },
+    }),
+  )
+})
+
+it('retries a failed fast boot with a full boot, then the fallback model', async () => {
+  const job = routedJob()
+  createLaneNamer(machine)(job)
+  await vi.waitFor(() => expect(children).toHaveLength(1))
+  children[0]?.emit('close', 1)
+  await vi.waitFor(() => expect(children).toHaveLength(2))
+  children[1]?.emit('close', 1)
+  await vi.waitFor(() => expect(children).toHaveLength(3))
+  children[2]?.stdout.write('Named')
+  children[2]?.emit('close', 0)
+  await vi.waitFor(() => expect(job.apply).toHaveBeenCalledWith('Named'))
+  const argv = vi.mocked(spawn).mock.calls.map((call) => call[1] as string[])
+  expect(argv[0]).toEqual(expect.arrayContaining(['--no-extensions', '--model', 'chat-small']))
+  expect(argv[1]).toEqual(expect.arrayContaining(['--model', 'chat-small']))
+  expect(argv[1]).not.toContain('--no-extensions')
+  expect(argv[2]).toEqual(expect.arrayContaining(['--model', 'chat-large']))
+  expect(argv[2]).not.toContain('--no-extensions')
+})
+
+it('reports a fixed failure reason and attempt count, never output', async () => {
+  const outcome = vi.fn()
+  createLaneNamer(machine)(routedJob({ outcome }))
+  for (let i = 0; i < 3; i++) {
+    await vi.waitFor(() => expect(children).toHaveLength(i + 1))
+    children[i]?.stdout.write('private output')
+    children[i]?.emit('close', 1)
+  }
+  await vi.waitFor(() => expect(outcome).toHaveBeenCalled())
+  expect(outcome).toHaveBeenCalledExactlyOnceWith('print-failed', { reason: 'exit', attempts: 3 })
+})
+
+it('asks for a title unlike its sibling lanes and dedupes the reply against them', async () => {
+  const job = routedJob({ existingNames: ['Named', 'Other Lane'] })
+  createLaneNamer(machine)(job)
+  await vi.waitFor(() => expect(children).toHaveLength(1))
+  expect(vi.mocked(spawn).mock.calls[0]?.[1]?.at(-1)).toContain('- Named\n- Other Lane')
+  children[0]?.stdout.write('Named')
+  children[0]?.emit('close', 0)
+  await vi.waitFor(() => expect(job.apply).toHaveBeenCalledWith('Named 2'))
+})
+
+it('keeps a deduplicated title within 60 characters', async () => {
+  const sibling = 'A'.repeat(60)
+  const job = routedJob({ existingNames: [sibling] })
+  createLaneNamer(machine)(job)
+  await vi.waitFor(() => expect(children).toHaveLength(1))
+  children[0]?.stdout.write(sibling)
+  children[0]?.emit('close', 0)
+  await vi.waitFor(() => expect(job.apply).toHaveBeenCalledWith(`${'A'.repeat(58)} 2`))
+})
+
+it('reads automatic naming live and resolves the routed account for each session', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'host-naming-'))
+  const path = join(dir, 'config.json')
+  const base: HostConfigV1 = {
+    version: 1,
+    pi: { executable: '/usr/bin/pi' },
+    repositories: ['/srv'],
+  }
+  try {
+    writeFileSync(path, JSON.stringify(base), { mode: 0o600 })
+    const second = { id: 'second', label: 'Second', credentialDir: '/accounts/second', addedAt: 1 }
+    const ports = hostLaneNaming(
+      { path, config: base },
+      { accountForSession: (id) => (id === 'routed' ? 'second' : id === 'gone' ? 'x' : undefined) },
+      { loadAccounts: async () => ({ ...DEFAULT_CLAUDE_ACCOUNT_PREFS, accounts: [second] }) },
+    )
+    expect(ports.enabled?.()).toBe(true)
+    writeFileSync(path, JSON.stringify({ ...base, autoNameLanes: false }))
+    expect(ports.enabled?.()).toBe(false)
+    expect(await ports.accountEnv?.('routed')).toEqual({
+      CLAUDE_SECURESTORAGE_CONFIG_DIR: '/accounts/second',
+    })
+    expect(await ports.accountEnv?.('unrouted')).toEqual({})
+    await expect(ports.accountEnv?.('gone')).rejects.toThrow()
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import { MachineDetailHeader } from './MachineDetailHeader'
 import { MACHINE } from './__fixtures__/control'
+import { hostSummary } from './machineOverview'
 
 it('moves keyboard focus into maintenance and restores it when Escape dismisses the popup', async () => {
   const element = document.createElement('div')
@@ -13,19 +14,20 @@ it('moves keyboard focus into maintenance and restores it when Escape dismisses 
     await act(async () =>
       root.render(
         <MachineDetailHeader
-          machine={{ ...MACHINE, endpoint: 'https://fixture.ts.net' }}
-          headline={{
-            label: 'Connected',
-            tone: 'ok',
-            detail: 'Ready',
-            ok: true,
-            short: 'Connected',
+          overview={{
+            ...hostSummary(
+              { ...MACHINE, endpoint: 'https://fixture.ts.net' },
+              undefined,
+              Date.now(),
+              0,
+            ),
+            about: 'Linux x64',
+            checks: [],
+            facts: [],
+            connected: true,
+            check: { busy: false, at: null, round: 0, run: vi.fn() },
+            reconnect: { busy: false, run: vi.fn() },
           }}
-          now={Date.now()}
-          checking={false}
-          reconnecting={false}
-          onCheck={vi.fn()}
-          onReconnect={vi.fn()}
         />,
       ),
     )

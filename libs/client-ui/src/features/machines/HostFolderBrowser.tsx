@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { IpcInvokeMap } from '@shared/ipc'
 import { ModalOverlay, ModalPanel, useEscapeKey } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
-import { FOLDER_EXISTS, HOST_TOO_OLD, isFolderName } from '@shared/host-protocol-repositories'
+import { fixedRefusal, HOST_TOO_OLD, isFolderName } from '@shared/host-protocol-repositories'
 import {
   useRemoteLanesStore,
   machineLabel,
@@ -104,11 +104,7 @@ export function HostFolderBrowser({
       await window.phosphor.invoke('hosts:createFolder', hostId, created)
       setPath(created)
     } catch (error) {
-      const message = error instanceof Error ? error.message : ''
-      setError(
-        [FOLDER_EXISTS, HOST_TOO_OLD].find((fixed) => message.includes(fixed)) ??
-          'The Host could not create this folder.',
-      )
+      setError(fixedRefusal(error) ?? 'The Host could not create this folder.')
     } finally {
       setBusy(false)
     }
@@ -120,8 +116,11 @@ export function HostFolderBrowser({
       const added = await window.phosphor.invoke('hosts:addRepository', hostId, listing.path)
       onAdded?.(added.repositoryId)
       onClose()
-    } catch {
-      setError('The Host could not add this folder. Check its configuration before retrying.')
+    } catch (error) {
+      setError(
+        fixedRefusal(error) ??
+          'The Host could not add this folder. Check its configuration before retrying.',
+      )
     } finally {
       setBusy(false)
     }

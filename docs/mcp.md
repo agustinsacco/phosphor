@@ -68,38 +68,80 @@ directly (`apps/desktop/electron/optimization/advisor.ts`).
 shows only the [migration card](#moving-from-pi-mcp-adapter). Everything below
 assumes it is gone.
 
-**One tab, one list.** A connector IS an MCP server, so catalog entries and
-custom servers share a list. Sections, in order:
+**One section on every machine.** This Mac, a Host on Desktop and a Host in the
+PWA render the same `ConnectorsView`
+(`libs/client-ui/src/features/settings/sections/connectors/`) over a
+`ConnectorsSource`: `useLocalConnectors` on This Mac, `useHostConnectors` on a
+Host. The machines differ only by four `caps`: `inspect` (per-server tests, tool
+lists, tool visibility, lane status), `edit` (replace an entry in place),
+`rawFiles` (the mcp.json editors) and `reviewed` (a remote trust boundary). This
+Mac has the first three; a Host has only `reviewed`.
 
-1. **Connected**: one card per server, as pi resolves the two files. The
-   header carries name, a scope badge (`global`, `project`,
-   `project · replaces global`, `global · project override`), the state from
-   the last independent check, the catalog summary and the endpoint or command.
-   **Test** checks this connector without affecting a lane. **Sign in** appears
-   only after a known OAuth `needs-auth` result, never merely while checking.
-   A check that itself fails (timeout, cancel, pi missing) reads **Check failed**,
-   never **Down**: it says nothing about the server. **Authorize…** then
-   preserves explicit OAuth sign-in/retry without claiming that authentication
-   is the connection problem.
+**Scope comes from the scope line.** The section is scoped: **Machine** shows
+the machine's `mcp.json` (This Mac's `~/.pi/agent/mcp.json`), and **Folder**
+shows that folder's resolution of both files, where every write lands in the
+folder's `.pi/mcp.json`. A machine connector seen from a folder is
+**inherited**: its **Enabled in this folder** switch writes an override there
+(`{ "enabled": false }`), and Edit and Remove ask you to switch to Machine scope.
+A folder never holds secrets (`mcpSecretProblem`), so in Folder scope the editor
+has no Authorization field and the catalogue asks for no client secret; an entry
+that needs one says **Switch to Machine scope to add it.**
+
+A connector IS an MCP server, so catalog entries and custom servers share a
+list. Sections, in order:
+
+1. **Connected**: one card per server. The header carries name, a scope badge
+   (`machine`, `folder`, `folder · replaces machine`, `machine · folder
+override`), the status, the catalog summary and, on This Mac, the endpoint or
+   command (a Host never sends URLs). Status reads the same on every machine
+   (`connectorStatus` in `features/connectors/mcpStatus.ts`): pi's state
+   (**Up · N tools**, **Needs sign-in**, **Down**, **Disconnected**,
+   **Connecting**), **Disabled**, or **Checking…**, **Check failed** or **Not
+   checked**. A check that itself fails (timeout, cancel, pi missing) reads
+   **Check failed**, never **Down**: it says nothing about the server.
+   **Sign in** and **Sign out** appear only for a server pi signs in to with
+   MCP OAuth (`mcpUsesOAuth` in `libs/shared/src/mcp.ts`: a URL with no
+   Authorization header and no provider `auth`). On This Mac, **Sign in** appears
+   after a known `needs-auth` result, never merely while checking, and
+   **Authorize…** after a failed check or flow. A Host cannot test one server, so
+   it offers Sign in on every OAuth server it has no state for.
+   The **Enabled** switch turns the server on or off in the scope's file.
+   **Remove** asks first; for an OAuth server it reads **Sign out and remove**
+   and signs the server out before removing it. **Edit** (`caps.edit`) reopens
+   the editor.
+   On This Mac, **Test** checks this connector without affecting a lane, and
    **Tools** always remains available, including before discovery; it shows
    names, descriptions, effective exposure and search across names/descriptions.
-   The sticky toolbar has **Refresh & test all**, **Cancel checks** and **Add
-   custom server…**. Refresh rereads configuration, not just connection state.
-   Connection details show test/discovery timestamps and credential mechanism.
-   A **Selected lane** disclosure appears for a local active lane in the same
-   workspace, with separate live tools and **Reconnect in lane**, but only when
-   that lane's pi supports native inspection (below).
+   The sticky toolbar has **Refresh & test all**, **Cancel checks** (This Mac)
+   and **Add custom server…**. Refresh rereads configuration, not just
+   connection state. Connection details show test/discovery timestamps and
+   credential mechanism. A **Selected lane** disclosure appears for a local
+   active lane in the same workspace, with separate live tools and **Reconnect
+   in lane**, but only when that lane's pi supports native inspection (below).
 2. **Add a connector**: the curated catalog, minus anything already
-   configured (matched on the URL without its query, not on the name).
-3. **Advanced** (collapsed): both files with their path, server count or
-   `malformed`, and the raw JSON editor. Repair tools, not daily controls.
+   configured (matched on the URL without its query, or, on a Host, which never
+   sends URLs, on the server name). Read-only endpoints are off by default on
+   every machine.
+3. **Advanced** (collapsed, `caps.rawFiles`): both files with their path,
+   server count or `malformed`, and the raw JSON editor. Repair tools, not
+   daily controls.
 
-The **editor** sets name, URL or command, exposure and scope (global, or this
-project when a workspace is open). Keys it does not show (`headers`, `oauth`,
-`env`, …) are kept as they were. The **enabled** checkbox writes the file that
-decides it: the project file for a server it defines or overrides, the global
-file otherwise. Turning a server back on removes the key, except in an
+The **editor** sets name, a remote URL or a local command with its arguments
+one per line (an argument may hold spaces), an optional **Authorization
+header** outside folder scope (never shown again), and exposure. It checks the
+write policy (`mcpWriteProblem`) before saving, through the pure
+`sections/connectors/serverForm.ts`. Keys it does not show (`oauth`, `env`, …)
+are kept as they were. Turning a server back on removes the key, except in an
 override, where an absent key would mean "inherit".
+
+**On a Host** (`caps.reviewed`) nothing starts code unasked. **Refresh & test
+all** asks before running `pi mcp list --json`, because it may start command
+connectors as the Host user; the page never checks on its own or after a
+sign-in. Saving a command connector asks you to trust its code and sends
+`approveCode`. Sign in and Sign out run `pi mcp login` / `logout` in a private
+Host terminal. Removing an OAuth server runs the sign-out program first and
+sends `mcp.remove` only once it exits 0; a failed or closed sign-out keeps the
+server and says so.
 
 **Tool visibility** edits the native default and ordered per-tool pattern rules.
 Each discovered tool also has an exact-rule selector; **Inherit rules** removes
@@ -191,9 +233,9 @@ inspection still works. Saved config changes retain the existing before-next-tur
 reload behavior described below.
 
 The shared inspection runner and parser live in `libs/session-runtime` and
-`libs/shared`. This restored workflow is Desktop-local. Host machine settings
-retain their existing revision-checked configuration, aggregate checks and
-login tasks; the PWA does not gain these new controls. These Desktop IPC channels
+`libs/shared`. This workflow is Desktop-local (`caps.inspect`). A Host's
+Connectors keep their revision-checked configuration, aggregate checks and
+login tasks; the PWA does not gain these controls. These Desktop IPC channels
 do not bypass Host settings authorization or route local credentials remotely.
 Adding full inspection to that separate Host surface requires its own granted
 settings contract, rather than forwarding Desktop IPC.
@@ -442,6 +484,16 @@ prompts) and its `mcp` / `mcpScript` tools go with the package.
   `apps/desktop/electron/pi/mcp-config.ts` only.
 - Malformed files are surfaced, never overwritten by structured writes. The raw
   JSON editor covers repair and refuses to save invalid JSON.
+- **One write policy on every machine** (`libs/shared/src/mcp-write-policy.ts`).
+  A connector URL, and an OAuth callback or metadata URL, must be https, or http
+  to `localhost`, `127.0.0.1` or `[::1]`, with no user name or password in it
+  (`mcpUrlProblem`). A folder's `.pi/mcp.json` lives in the repository and is
+  often committed, so a folder connector cannot hold `headers`, `env` or
+  `oauth.clientSecret` (`mcpSecretProblem`): add it as a machine connector and
+  switch it on in the folder. This Mac's structured writes (`upsertMcpServer`)
+  and a Host's `mcp.upsert` validator both apply it. It applies on write only:
+  existing entries keep loading by pi's own rules, and the raw editor stays the
+  escape hatch.
 - Structured mutations preserve unknown keys, top-level and per server.
 - Exactly one of `url` / `command` per server.
 
@@ -449,7 +501,8 @@ prompts) and its `mcp` / `mcpScript` tools go with the package.
 
 - Types: `libs/shared/src/mcp.ts`.
 - Main: `apps/desktop/electron/pi/mcp-config.ts` (the two files, resolution,
-  trust; injectable dirs for hermetic tests), `mcp-migration.ts` (the adapter
+  trust; injectable dirs for hermetic tests; it re-exports the writes in
+  `libs/session-runtime/src/pi/mcp-config-write.ts`), `mcp-migration.ts` (the adapter
   migration: `mcp-translation.ts` holds the per-entry rules and
   `mcp-migration-plan.ts` the plan), `mcp-cli.ts` (`pi mcp list / login / logout`), `mcp-actions.ts`
   (working directory, environment and admission for those commands),
@@ -460,9 +513,11 @@ prompts) and its `mcp` / `mcpScript` tools go with the package.
   `mcp:readFile / writeFile`, `mcp:list`, `mcp:authorize / cancelAuth / logout`,
   `mcp:migrationPlan / migrate` and the `mcp:authState` broadcast
   (`apps/desktop/electron/ipc/mcp-handlers.ts`).
-- Renderer: `libs/client-ui/src/features/settings/tabs/ConnectorsTab.tsx`,
+- Renderer: `libs/client-ui/src/features/settings/sections/connectors/`
+  (`ConnectorsView`, `ConfiguredRow`, `CatalogRow`, `ServerEditor`,
+  `serverForm.ts`, `source.ts`, `useLocalConnectors`, `useHostConnectors`),
   `libs/client-ui/src/features/connectors/` (`catalog.ts`, `mcpStatus.ts`,
-  `FlowCard.tsx`, `MigrationCard.tsx`, `ServerEditor.tsx`, `useMcpServers.ts`),
+  `FlowCard.tsx`, `MigrationCard.tsx`, `useMcpServers.ts`),
   `libs/client-ui/src/stores/connectors.ts`. Mock cases in
   `libs/client-ui/src/dev/mockPhosphor.ts`.
 - In pi: `libs/pi-extensions/pi-ext/context-breakdown.ts` (per-server counts),

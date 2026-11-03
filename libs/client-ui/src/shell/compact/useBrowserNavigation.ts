@@ -7,9 +7,27 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { locationMachine, type Location } from '@/navigation/location'
 import { useDefaultNewMachine } from './useDefaultNewMachine'
+import {
+  guardHostDrafts,
+  unsavedDraftHost,
+} from '@/features/settings/machine/machineSettingsDrafts'
+
+/** Leaving the Settings page asks about an unsaved Host draft first, as closing Desktop's does. */
+const draftToLeave = (from: Location, to: Location): string | null =>
+  from.to === 'page' && from.page === 'settings' && !(to.to === 'page' && to.page === 'settings')
+    ? unsavedDraftHost()
+    : null
 
 export function useBrowserNavigation() {
-  const [history] = useState(() => createHistoryNavigation(window))
+  const [history] = useState(() => {
+    // Back and Forward too: Settings stays until the draft may be left.
+    const history = createHistoryNavigation(window, (from, to) => {
+      const host = draftToLeave(from, to)
+      if (host) guardHostDrafts(host)(() => history.navigate(to))
+      return !!host
+    })
+    return history
+  })
   const applying = useRef(false)
   const location = useSyncExternalStore(history.subscribe, history.getSnapshot)
   const remoteEnabled = useMachinesStore((s) => s.remoteEnabled)
@@ -20,9 +38,8 @@ export function useBrowserNavigation() {
   const expectedPage = location.to === 'page' && location.page !== 'settings' ? location.page : null
   const pending = !remoteEnabled || filter !== expectedFilter || page !== expectedPage
   const navigate = useCallback(
-    (next: Location) => {
-      history.navigate(next)
-    },
+    (next: Location) =>
+      guardHostDrafts(draftToLeave(history.getSnapshot(), next))(() => history.navigate(next)),
     [history],
   )
   useEffect(() => {
