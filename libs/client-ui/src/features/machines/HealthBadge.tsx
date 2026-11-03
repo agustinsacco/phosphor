@@ -30,7 +30,10 @@ export function HealthBadge({
 }): React.JSX.Element {
   const machines = useMachinesStore((s) => s.machines)
   const controlError = useMachinesStore((s) => s.error !== null)
-  const now = useMachinesStore((s) => (s.nowMs || Date.now()) + s.clockOffsetMs)
+  // Signed out the store holds no clock reading (0); a selector reading the clock would never settle.
+  const nowMs = useMachinesStore((s) => s.nowMs)
+  const clockOffsetMs = useMachinesStore((s) => s.clockOffsetMs)
+  const now = (nowMs || Date.now()) + clockOffsetMs
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const { run, running } = useMachineHealthStore()
   const [open, setOpen] = useState(false)
