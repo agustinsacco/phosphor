@@ -270,7 +270,8 @@ env, catalogue and limits ([host.md](host.md#remote-lane-names-and-lifecycle)).
 
 A title is 2-5 words and at most 60 characters on every machine; neither is a
 preference. The prompt lists up to 40 existing titles in the repository, worktrees
-included, and a reply that still collides gets a numeric suffix (`dedupeTitle`).
+included, and a reply that still collides gets a numeric suffix (`dedupeTitle`),
+with the title shortened so the suffix stays within the 60 characters.
 
 Two naming passes never run for one session: `startChat` owns naming for the
 chats it creates and suppresses the session store's own pass.
@@ -307,8 +308,9 @@ Two constraints on the one-shot, both silent when broken:
   event loop open, so a naming run would print its title and then not exit for
   ten minutes. The naming env passes `claudeOneShotEnv()`
   (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`) through `titleRunEnv`, which also pins
-  `PI_CLAUDE_CLI_CONTEXT=pi` as sessions do. `runPrintMode` also keeps whatever
-  stdout arrived before a timeout, so a slow exit cannot throw away a finished title.
+  `PI_CLAUDE_CLI_CONTEXT=pi` as sessions do. On Desktop the runner also titles
+  from whatever stdout arrived before a timeout or abort (`acceptPartial`), so a
+  slow exit cannot throw away a finished title; a Host discards that output.
 
 ## Preferences
 
