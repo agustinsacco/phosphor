@@ -127,6 +127,8 @@ export interface TitleRunRequest {
   /** Learns from a success when set; the provider the plan defaulted to. */
   memory?: TitleMemory
   defaultProvider?: string
+  /** Desktop titles from what a timed-out or aborted attempt printed; a Host discards it. */
+  acceptPartial?: boolean
   print?: Pick<PrintModeOptions, 'timeoutMs' | 'signal' | 'stderr' | 'maxOutputBytes' | 'overflow'>
 }
 
@@ -152,7 +154,8 @@ export async function runTitleAttempts(request: TitleRunRequest): Promise<TitleR
       [...request.pi.prefixArgs, ...titleArgs(attempt), prompt],
       { cwd: request.cwd, env: request.env, ...request.print },
     )
-    const title = stdout ? sanitizeTitle(stdout) : null
+    const usable = !reason || request.acceptPartial === true
+    const title = usable && stdout ? sanitizeTitle(stdout) : null
     if (title) {
       if (request.memory)
         rememberTitleFailures(
