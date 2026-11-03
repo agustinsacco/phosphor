@@ -108,6 +108,39 @@ describe('queue digest', () => {
     expect(queueChanges(['a'], ['a'])).toEqual([])
   })
 
+  it('reads only push runs on the base head, so a scheduled run starts no pass', async () => {
+    const order: string[] = []
+    const gh = vi.fn(async (args: string[]) => {
+      order.push(`gh ${args[0]}`)
+      if (args[0] === 'pr') return JSON.stringify([pr(4)])
+      const at = (flag: string) => args[args.indexOf(flag) + 1]
+      const push = at('--event') === 'push' && at('--commit') === sha('a')
+      return JSON.stringify(
+        push
+          ? [{ headSha: sha('a'), status: 'COMPLETED', conclusion: 'SUCCESS', workflowName: 'CI' }]
+          : [{ headSha: sha('a'), status: 'IN_PROGRESS', workflowName: 'Nightly' }],
+      )
+    })
+    const git = vi.fn(async () => {
+      order.push('git ls-remote')
+      return `${sha('a')}\trefs/heads/main\n`
+    })
+    expect((await readQueue(gh, git, 'main')).lines[0]).toBe('main aaaaaaa CI: passing')
+    expect(order.indexOf('git ls-remote')).toBeLessThan(order.indexOf('gh run'))
+  })
+
+  it('holds the queue while the base branch CI is red', async () => {
+    const gh = vi.fn(async (args: string[]) =>
+      args[0] === 'pr'
+        ? JSON.stringify([pr(4)])
+        : JSON.stringify([{ headSha: sha('a'), status: 'COMPLETED', conclusion: 'FAILURE' }]),
+    )
+    const git = vi.fn(async () => `${sha('a')}\trefs/heads/main\n`)
+    const queue = await readQueue(gh, git, 'main')
+    expect(queue.lines[0]).toBe('main aaaaaaa CI: failing')
+    expect(queue.actionable).toBe(false)
+  })
+
   it('says when the open pull requests may not all be listed', async () => {
     const open = Array.from({ length: 100 }, (_, i) => pr(i + 1))
     const gh = vi.fn(async (args: string[]) => (args[0] === 'pr' ? JSON.stringify(open) : '[]'))

@@ -275,4 +275,105 @@ describe('release mode', () => {
     await tick()
     expect(gh.mock.calls.length).toBe(calls)
   })
+
+  it('keeps watching after a takeover from off fails', async () => {
+    origin = await releaseOrigin()
+    let offline = false
+    const a = lane('one', [], (git) => async (args, input) => {
+      if (offline && args[0] === 'ls-remote') throw new Error('git ls-remote failed: offline')
+      return git(args, input)
+    })
+    offline = true
+    await expect(a.command('takeover')).rejects.toThrow(/offline/)
+    await settle()
+    offline = false
+    await tick()
+    expect(a.status()).toMatchObject({ enabled: true, role: 'active', epoch: 1 })
+  })
+
+  it('reads the queue in full again after switching back on or regaining the lease', async () => {
+    origin = await releaseOrigin()
+    const a = lane('one')
+    await a.command('on')
+    await a.command('off')
+    await a.command('on')
+    expect(a.passes()).toHaveLength(2)
+    expect(a.passes()[1]).toContain('read the queue in full')
+    const b = lane('two')
+    await b.command('on')
+    await b.command('takeover')
+    await tick(LEASE_RENEW_MS)
+    expect(a.status()?.role).toBe('standby')
+    await b.command('off')
+    await tick(LEASE_RENEW_MS)
+    expect(a.status()?.role).toBe('active')
+    expect(a.passes()).toHaveLength(3)
+    expect(a.passes()[2]).toContain('read the queue in full')
+  })
+
+  it("keeps a standby lane's runs loud: only the lease holder works quietly", async () => {
+    origin = await releaseOrigin()
+    const a = lane('one')
+    await a.command('on')
+    const b = lane('two')
+    await b.command('on')
+    b.emit('before_agent_start', { messageType: 'custom' })
+    expect(b.status()).toMatchObject({ role: 'standby', quiet: false })
+  })
+
+  it('waits for the lane to be idle before a pass, and sweeps only with work to move', async () => {
+    origin = await releaseOrigin()
+    const a = lane('one')
+    await a.command('on')
+    await tick(SWEEP_MS)
+    expect(a.passes()).toHaveLength(1)
+    a.ctx.isIdle = () => false
+    prs = [
+      {
+        number: 6,
+        headRefOid: 'c'.repeat(40),
+        isDraft: true,
+        baseRefName: 'main',
+        mergeable: 'MERGEABLE',
+        labels: [],
+        statusCheckRollup: [],
+      },
+    ]
+    await tick()
+    expect(a.passes()).toHaveLength(1)
+    a.ctx.isIdle = () => true
+    a.ctx.hasPendingMessages = () => true
+    await tick()
+    expect(a.passes()).toHaveLength(1)
+    a.ctx.hasPendingMessages = () => false
+    await tick()
+    expect(a.passes()).toHaveLength(2)
+  })
+
+  it('switches off, and hands the lease over, when navigation leaves release mode behind', async () => {
+    origin = await releaseOrigin()
+    const a = lane('one')
+    await a.command('on')
+    a.branch.length = 0
+    a.emit('session_tree')
+    await settle()
+    expect(a.status()).toMatchObject({ enabled: false, role: 'off' })
+    expect(a.active()).toEqual(['read', 'bash'])
+    const { lease } = await readState(origin.git, 'refs/test/check')
+    expect(Date.parse(lease!.expires)).toBeLessThanOrEqual(clock)
+  })
+
+  it('keeps a problem until a GitHub call succeeds again', async () => {
+    origin = await releaseOrigin()
+    const a = lane('one')
+    await a.command('on')
+    gh.mockRejectedValueOnce(new Error('gh pr failed: HTTP 502'))
+    await tick()
+    a.ctx.isIdle = () => false
+    await tick()
+    expect(a.status()?.problem).toBe('gh pr failed: HTTP 502')
+    a.ctx.isIdle = () => true
+    await tick()
+    expect(a.status()?.problem).toBeUndefined()
+  })
 })
