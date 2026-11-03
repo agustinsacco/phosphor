@@ -16,6 +16,14 @@ Work in this lane's checkout. Change nothing on GitHub except what step 5 lists,
 and never change repository settings, rulesets or required checks yourself:
 recommend the change and let the user make it.
 
+## 0. Look for an earlier setup
+
+Fetch origin. If `origin/BASE` already has `.github/release-manager.md`, or a
+setup pull request is open (`gh pr list --state open --search "release-manager.md in:title,body"`),
+this is a check, not a first setup: read what is there, report how it differs
+from what the steps below would choose, and propose only those changes. Never
+add a second "Pull requests" section to AGENTS.md; edit the one there.
+
 ## 1. Check access
 
 - `git remote get-url origin` must be a GitHub repository. Note `owner/repo`.
@@ -25,14 +33,17 @@ recommend the change and let the user make it.
   settings: `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`,
   `allow_auto_merge`, `delete_branch_on_merge`.
 
-Stop and tell the user if any of these fail.
+Stop and tell the user if any of these fail. The steps below read the
+repository; only step 5 writes to it.
 
 ## 2. Read how the repository merges and releases
 
-- Rulesets: `gh api repos/OWNER/REPO/rulesets`, then each one by id. Note the
-  required status checks, required approvals and bypass actors. Branch
-  protection: `gh api repos/OWNER/REPO/branches/BASE/protection` (a 404 means
-  none).
+- The rules on the base, readable with push access:
+  `gh api repos/OWNER/REPO/rules/branches/BASE` lists every active ruleset rule
+  (required status checks, required approvals). Classic branch protection:
+  `gh api repos/OWNER/REPO/branches/BASE --jq .protected`. The full protection
+  and ruleset details need admin access; a 403 or 404 there means **unknown**,
+  not "none". Say which you could not read, and recommend rather than assume.
 - Workflows in `.github/workflows/`: what runs on pull requests, what runs on
   pushes to the base, and which workflows release (`workflow_run`, tags,
   `release:`). Note any `concurrency` with `cancel-in-progress` on the base: a
@@ -98,6 +109,8 @@ a draft while you still have commits to push. The release manager
 (.github/release-manager.md) validates, merges and releases it: don't merge your
 own pull request or wait on CI. It may push merge or fix commits to your branch,
 so pull before you push. If your pull request already merged, open a new one.
+Label it `rm:hold` to keep it out of the queue; `rm:blocked` means it waits on
+its lane or a person, as its status comment says.
 ```
 
 ## 5. Open the setup pull request
@@ -107,11 +120,15 @@ so pull before you push. If your pull request already merged, open a new one.
    `gh label create rm:priority --force --color d93f0b --description "Release manager: merge first"`,
    `gh label create rm:blocked --force --color b60205 --description "Release manager: waits on its lane or a person"`.
 2. Create the "Release queue" issue unless one exists
-   (`gh issue list --search '"Release queue" in:title' --state open`), then
-   `gh issue pin NUMBER`. The manager keeps it current.
-3. Commit the two files on this lane's branch, push, and open the pull request.
-   Its description lists what you found, each choice and assumption, and the
-   settings you recommend the user change.
+   (`gh issue list --search '"Release queue" in:title' --state open`):
+   `gh issue create --title "Release queue" --body "The release manager keeps this issue current."`,
+   then `gh issue pin NUMBER`. A repository pins at most three issues; if the
+   pin fails, leave the issue unpinned and say so. The manager keeps it current.
+3. Commit the two files on a new branch from the base
+   (`git fetch origin && git switch -c release-setup origin/BASE`), never on
+   this lane's own branch, push it, and open the pull request. Its description
+   lists what you found, each choice and assumption, what you could not read,
+   and the settings you recommend the user change.
 
 ## 6. Tell the user what is left
 
