@@ -127,21 +127,14 @@ function useSignOutThenRemove(host: HostSection, setError: (error: string | null
     }
   })
   return async (name: string): Promise<boolean> => {
-    const { machine, repositoryId, setProgram, alive } = latest.current
+    const { machine, repositoryId, programs } = latest.current
     setError(null)
-    let ptyId: string
-    try {
-      ;({ ptyId } = await window.phosphor.invoke('hosts:machineTask', machine.id, {
-        type: 'machine.task',
-        task: 'mcp.logout',
-        name,
-        ...(repositoryId ? { repositoryId } : {}),
-      }))
-    } catch (error) {
-      setError(errorText(error))
-      return false
-    }
-    if (!alive.current) return false
+    const ptyId = await programs.openTask(
+      { task: 'mcp.logout', name, ...(repositoryId ? { repositoryId } : {}) },
+      'Connector sign-out',
+      `pi signs ${name} out on ${machine.label}. Once it succeeds, ${name} is removed from this scope.`,
+    )
+    if (ptyId === null) return false
     const off = window.phosphor.onPtyExit(ptyId, (code) => {
       off()
       if (pending.current?.ptyId !== ptyId) return
@@ -150,11 +143,6 @@ function useSignOutThenRemove(host: HostSection, setError: (error: string | null
       void latest.current.settings.change({ type: 'mcp.remove', name })
     })
     pending.current = { ptyId, name }
-    setProgram({
-      ptyId,
-      title: 'Connector sign-out',
-      instructions: `pi signs ${name} out on ${machine.label}. Once it succeeds, ${name} is removed from this scope.`,
-    })
     return true
   }
 }
