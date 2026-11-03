@@ -289,7 +289,14 @@ Everything lives under `libs/client-ui/src/features/settings/`.
   and actions, typed on `@phosphor/shared/machine-settings*` wherever a Host type
   exists. A Host too old for a feature is detected by the missing field, never by a
   flag. A difference in the client, not the machine, is a `Platform` capability,
-  never the form factor.
+  never the form factor. Two sources differ:
+  - **Connectors** carries no `status`: `servers` is null until the first read, a
+    failed action (and on This Mac a failed read; on a Host the gate shows it) is its
+    `error`, and it has a list of `notices[]` (a legacy or malformed configuration,
+    an untrusted folder, an entry pi rejects).
+  - **Folders** carries no `status`: This Mac lists its recent workspaces with no
+    read, and on a Host the gate covers the settings read. Its one `notice` is a
+    failed action.
 - **Primitives.** `components/form/`: `Row` (its title names the control inside it),
   `Toggle`, `NumberField` (commits on blur or Enter, clamped; a half-typed value is
   never saved), `TextField`, `Select` (native, so pickers and the `combobox` role

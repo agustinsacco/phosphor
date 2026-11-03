@@ -39,9 +39,13 @@ async function confirmRemove(spec: string): Promise<boolean> {
 /**
  * This Mac's packages, for `folder` (a workspace path) or the whole machine:
  * reads from pi's settings and install dirs, actions through pi's own package
- * manager with the output streamed in place.
+ * manager with the output streamed in place. `versions: false` skips the
+ * registry's latest versions.
  */
-export function useLocalPackages(folder: string | null): PackageSource {
+export function useLocalPackages(
+  folder: string | null,
+  { versions = true }: { versions?: boolean } = {},
+): PackageSource {
   const [packages, setPackages] = useState<PackageItem[] | null>(null)
   const [latest, setLatest] = useState<Record<string, string | null>>({})
   const [claudeCli, setClaudeCli] = useState<boolean | null>(null)
@@ -57,6 +61,7 @@ export function useLocalPackages(folder: string | null): PackageSource {
       ])
       setPackages(list.map(item))
       setClaudeCli(detect.claude)
+      if (!versions) return
       // The registry is slower than the local reads and may fail (offline,
       // a private registry): it never blocks the listing.
       window.phosphor
@@ -66,7 +71,7 @@ export function useLocalPackages(folder: string | null): PackageSource {
     } catch (err) {
       setError(errorText(err))
     }
-  }, [workspace])
+  }, [workspace, versions])
 
   useEffect(() => {
     void refresh()
@@ -87,7 +92,7 @@ export function useLocalPackages(folder: string | null): PackageSource {
   }
 
   return {
-    caps: LOCAL_CAPS,
+    caps: versions ? LOCAL_CAPS : { ...LOCAL_CAPS, versionCheck: false },
     status:
       packages !== null ? 'ready' : error ? { error, retry: () => void refresh() } : 'loading',
     packages,

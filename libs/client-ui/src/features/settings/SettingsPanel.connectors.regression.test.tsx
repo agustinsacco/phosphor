@@ -264,6 +264,42 @@ describe('a Host', () => {
     expect(changes()).toEqual([{ type: 'mcp.remove', name: 'docs' }])
   })
 
+  it('kills a sign-out program that starts after the section closed (regression R-U6)', async () => {
+    read = hostConnectors([server('docs', { oauth: true })])
+    let started!: (value: { ptyId: string }) => void
+    install(
+      vi.fn(async (channel: string) => {
+        if (channel === 'hosts:machineTask')
+          return new Promise<{ ptyId: string }>((resolve) => (started = resolve))
+        if (channel === 'hosts:settingsRead' || channel === 'hosts:settingsPatch') return read
+        return undefined
+      }),
+    )
+    await show()
+    vi.mocked(promptChoice).mockResolvedValue('remove')
+    await click(button('Remove', row('docs')))
+    expect(calls('hosts:machineTask')).toHaveLength(1)
+    act(() => root.unmount())
+    await act(async () => started({ ptyId: 'pty-late' }))
+    expect(calls('pty:kill')).toEqual([['pty:kill', 'pty-late']])
+  })
+
+  it('starts no sign-out program once Host terminal access is gone (regression R-U6)', async () => {
+    read = hostConnectors([server('docs', { oauth: true })])
+    await show()
+    let answer!: (value: string) => void
+    vi.mocked(promptChoice).mockImplementation(() => new Promise((resolve) => (answer = resolve)))
+    await click(button('Remove', row('docs')))
+    // The Host reconnects without terminal access while the confirmation is open.
+    const hosts = mixedRemoteHosts()
+    const host = hosts[machine.id]!
+    host.capabilities = host.capabilities.filter((capability) => capability !== 'terminal')
+    act(() => useRemoteLanesStore.setState({ hosts }))
+    await act(async () => answer('remove'))
+    expect(calls('hosts:machineTask')).toEqual([])
+    expect(changes()).toEqual([])
+  })
+
   it('offers only catalogue connectors the Host lacks, writable by default (regression M11)', async () => {
     read = hostConnectors([server('linear')])
     await show()

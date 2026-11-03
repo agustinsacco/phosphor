@@ -22,10 +22,10 @@ export function ScopeRow({
   guard?: (apply: () => void) => void
 }): React.JSX.Element {
   const folder = useSettingsUiStore((s) => s.folder)
-  // A folder that left the list stays chosen and named until the user picks another.
+  // A folder that left the list stays chosen, marked removed, until the user picks another.
   const options =
     folder !== null && !folders.some((option) => option.value === folder)
-      ? [...folders, { value: folder, label: folder }]
+      ? [...folders, { value: folder, label: `Removed folder (${folder})` }]
       : folders
   const choose = (next: string | null): void =>
     guard(() => useSettingsUiStore.getState().setFolder(next))

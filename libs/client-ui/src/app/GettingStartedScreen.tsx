@@ -8,8 +8,9 @@ import { useLocalPackages } from '@/features/settings/sections/extensions/useLoc
  * again later via Settings → Extensions / Agent.
  */
 export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.JSX.Element {
-  // Recommendations are best-effort on a machine that just got pi: a failed read lists none.
-  const source = useLocalPackages(null)
+  // Recommendations are best-effort on a machine that just got pi: a failed read lists none,
+  // and nothing here shows a registry version.
+  const source = useLocalPackages(null, { versions: false })
 
   return (
     <div className="titlebar-drag flex h-full flex-col items-center justify-center px-8">

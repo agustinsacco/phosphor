@@ -9,7 +9,7 @@ type OpenHostProgram = (
   start: () => Promise<{ ptyId: string }>,
   title: string,
   instructions: string,
-) => Promise<void>
+) => Promise<unknown>
 export async function loginHostProgram(
   machine: Pick<MachineView, 'id' | 'label'>,
   settings: HostSettingsState,

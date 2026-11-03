@@ -11,6 +11,12 @@ import type { HostSettingsState } from './useHostSettings'
 export interface MachinePrograms {
   login(provider: string, account?: Pick<ProviderLoginOp, 'accountId' | 'addAccount'>): void
   task(op: Omit<MachineTaskOp, 'type'>): void
+  /** Opens a task the caller has confirmed; resolves to its program id, or null when none opened. */
+  openTask(
+    op: Omit<MachineTaskOp, 'type'>,
+    title: string,
+    instructions: string,
+  ): Promise<string | null>
   busy: boolean
   available: boolean
 }
@@ -51,24 +57,35 @@ export function useMachinePrograms(
     start: () => Promise<{ ptyId: string }>,
     title: string,
     instructions: string,
-  ) {
-    if (!alive.current || !terminals || starting || program) return
+  ): Promise<string | null> {
+    if (!alive.current || !terminals || starting || program) return null
     setStarting(true)
     setError(null)
     try {
       const result = await start()
-      if (alive.current) setProgram({ ...result, title, instructions })
-      else void window.phosphor.invoke('pty:kill', result.ptyId).catch(() => {})
+      if (alive.current) {
+        setProgram({ ...result, title, instructions })
+        return result.ptyId
+      }
+      void window.phosphor.invoke('pty:kill', result.ptyId).catch(() => {})
     } catch (e) {
       if (alive.current) setError(errorText(e))
     } finally {
       if (alive.current) setStarting(false)
     }
+    return null
   }
   const programs: MachinePrograms = {
     login: (provider, account) =>
       void loginHostProgram(machine, settings, openProgram, provider, account),
     task: (input) => void runHostTask(machine, alive, openProgram, input),
+    openTask: (op, title, instructions) =>
+      openProgram(
+        () =>
+          window.phosphor.invoke('hosts:machineTask', machine.id, { type: 'machine.task', ...op }),
+        title,
+        instructions,
+      ),
     busy: starting || !!program,
     available: terminals,
   }
