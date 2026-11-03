@@ -16,10 +16,12 @@ import { modelChoices, type AgentSource, type AgentValues } from './source'
 
 type Scoped = { global: AgentValues; project: AgentValues | null }
 const ALL_FIELDS = Object.keys(AGENT_FIELDS) as AgentFieldKey[]
-const pair = (values: AgentValues | null | undefined): string =>
-  typeof values?.defaultProvider === 'string' && typeof values.defaultModel === 'string'
-    ? JSON.stringify([values.defaultProvider, values.defaultModel])
-    : ''
+/** The scope's model keys, each read on its own: a file may set only one of them. */
+function pair(values: AgentValues | null | undefined): string {
+  const part = (key: string): string => (typeof values?.[key] === 'string' ? values[key] : '')
+  const parts = [part('defaultProvider'), part('defaultModel')]
+  return parts.some(Boolean) ? JSON.stringify(parts) : ''
+}
 
 /** The settings.json keys `path` writes, nested groups one level deep, as main merges them. */
 function patchFor(key: AgentFieldKey, value: unknown): AgentValues {

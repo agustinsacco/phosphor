@@ -6,9 +6,23 @@ import { AGENT_ROW_TEXT } from './agentFields'
 import { SourcedControl, settingSource, unsetChoice } from './AgentFieldRow'
 import type { AgentSource } from './source'
 
-const partsOf = (model: string): [string, string] =>
-  machineAgentModel(model) ?? (['', ''] as [string, string])
-const pairLabel = (model: string): string => partsOf(model).join('/')
+/** A model value's two ids; one is '' where the file sets only the other. */
+function partsOf(model: string): [string, string] {
+  try {
+    const parts: unknown = JSON.parse(model)
+    if (Array.isArray(parts) && parts.length === 2 && parts.every((p) => typeof p === 'string'))
+      return parts as [string, string]
+  } catch {
+    // '' is no model.
+  }
+  return ['', '']
+}
+const pairLabel = (model: string): string => {
+  const [provider, id] = partsOf(model)
+  if (!provider) return `${id} (no provider id)`
+  return id ? `${provider}/${id}` : `${provider} (no model id)`
+}
+const complete = (model: string): boolean => machineAgentModel(model) !== null
 
 /**
  * The model new lanes start on: a catalogue choice, or any provider and model
@@ -21,12 +35,18 @@ export function ModelDefaultRow({ source }: { source: AgentSource }): React.JSX.
     const listed = (pair: string): boolean => known.some((m) => m.value === pair)
     const labelOf = (pair: string): string =>
       known.find((m) => m.value === pair)?.label ?? pairLabel(pair)
-    const unlisted = [...new Set([model, inheritedModel])].filter((m) => m && !listed(m))
+    // An inherited pair with one id missing is not offered: choosing it would write half a pair.
+    const unlisted = [...new Set([model, inheritedModel])].filter(
+      (m) => m && !listed(m) && (m === model || complete(m)),
+    )
     return [
       ...(!model || caps.clear
         ? [unsetChoice(inheritedModel ? labelOf(inheritedModel) : undefined)]
         : []),
-      ...unlisted.map((m) => ({ value: m, label: `${pairLabel(m)} (not in the catalogue)` })),
+      ...unlisted.map((m) => ({
+        value: m,
+        label: complete(m) ? `${pairLabel(m)} (not in the catalogue)` : pairLabel(m),
+      })),
       ...known,
     ]
   }, [models, model, inheritedModel, caps.clear])
