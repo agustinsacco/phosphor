@@ -142,3 +142,39 @@ it('keeps troubleshooting collapsed, orders recovery commands and advances only 
     vi.unstubAllGlobals()
   }
 })
+
+it('lists the Host’s own Claude Code provider row when its Claude check cannot be read', async () => {
+  const invoke = vi.fn(async (channel: string) => {
+    if (channel === 'hosts:claude') throw new Error('unknown method')
+    return channel === 'hosts:providers'
+      ? [
+          { id: 'pi-claude-cli', name: 'Claude Code', status: 'ready' },
+          { id: 'anthropic', name: 'Anthropic', status: 'ready' },
+        ]
+      : null
+  })
+  vi.stubGlobal('phosphor', { invoke })
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  useRemoteLanesStore.setState({ hosts: readyHost(['skills.read']) })
+  useMachinesStore.setState({ machines: [MACHINE], nowMs: Date.now(), clockOffsetMs: 0 })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () =>
+      root.render(
+        <OnlineAndProviders added={MACHINE} providers onOpen={() => {}} onProviders={() => {}} />,
+      ),
+    )
+    expect(invoke).toHaveBeenCalledWith('hosts:claude', MACHINE.id)
+    expect(container.querySelector('[data-provider=anthropic]')).not.toBeNull()
+    expect(container.querySelector('[data-provider=pi-claude-cli]')).not.toBeNull()
+    expect(container.querySelector('[data-provider=pi-claude-cli]')?.textContent).toContain(
+      'Claude Code',
+    )
+  } finally {
+    act(() => root.unmount())
+    useMachinesStore.setState({ machines: [] })
+    useRemoteLanesStore.setState({ hosts: {} })
+    vi.unstubAllGlobals()
+  }
+})
