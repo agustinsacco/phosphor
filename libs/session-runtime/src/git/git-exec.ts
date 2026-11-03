@@ -42,6 +42,9 @@ export interface GitOptions {
   isolateEnv?: boolean
   /** This call's output cap (default 64 MiB); past it the call throws before more is held. */
   maxBuffer?: number
+  /** Optional caller deadline/cancellation for bounded background reads. */
+  timeout?: number
+  signal?: AbortSignal
 }
 
 const TIMEOUT_MS = 30_000
@@ -68,6 +71,7 @@ export async function git(cwd: string, args: string[], options: GitOptions = {})
   const readOnly =
     READ_ONLY.has(args[0] ?? '') ||
     (args[0] === 'worktree' && args[1] === 'list') ||
+    (args[0] === 'remote' && args[1] === 'get-url') ||
     (args[0] === 'symbolic-ref' && args[1] === '--short' && args.length === 3) ||
     (Boolean(options.env?.GIT_INDEX_FILE) && ['add', 'read-tree'].includes(args[0] ?? ''))
   // Unknown commands conservatively invalidate. Shared refs affect sibling
@@ -76,7 +80,8 @@ export async function git(cwd: string, args: string[], options: GitOptions = {})
   try {
     const { stdout } = await execFileAsync('git', args, {
       cwd,
-      timeout: TIMEOUT_MS,
+      timeout: options.timeout ?? TIMEOUT_MS,
+      signal: options.signal,
       maxBuffer: options.maxBuffer ?? MAX_BUFFER,
       ...(options.env || options.isolateEnv
         ? {

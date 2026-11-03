@@ -144,6 +144,75 @@ it("never attributes another fork's same-named head to this checkout", async () 
   })
 })
 
+it('recovers a failed known-PR refresh after its backoff', async () => {
+  const service = reader()
+  const opts = { branches: ['older/lane'] }
+  await service.read('/repo', opts)
+  vi.setSystemTime(161_000)
+  run.mockResolvedValue(unavailable)
+  await service.read('/repo', opts)
+  vi.setSystemTime(222_000)
+  run.mockImplementation(reply)
+  expect(await service.read('/repo', opts)).toMatchObject({
+    byBranch: { 'older/lane': { number: 42 } },
+    coverage: { 'older/lane': { state: 'found', checkedAt: 222_000 } },
+  })
+})
+
+it('does not lose another branch when one PR alias is unavailable', async () => {
+  rows = [pr('a', 1), pr('b', 2)]
+  const service = reader()
+  const opts = { branches: ['a', 'b'] }
+  await service.read('/repo', opts)
+  vi.setSystemTime(161_000)
+  rows = [pr('a', 1)]
+  expect(await service.read('/repo', opts)).toMatchObject({
+    byBranch: { a: { number: 1 }, b: { number: 2 } },
+    coverage: { a: { state: 'found' }, b: { state: 'unavailable', checkedAt: 100_000 } },
+  })
+})
+
+it('periodically rediscovers a reused branch instead of pinning its old PR forever', async () => {
+  const service = reader()
+  const opts = { branches: ['older/lane'] }
+  await service.read('/repo', opts)
+  vi.setSystemTime(401_000)
+  rows = [pr('older/lane', 43)]
+  expect(await service.read('/repo', opts)).toMatchObject({
+    byBranch: { 'older/lane': { number: 43 } },
+  })
+})
+
+it('keeps truncated checks unavailable instead of showing a partial green rollup', async () => {
+  rows[0]!.commits = {
+    nodes: [
+      {
+        commit: {
+          statusCheckRollup: {
+            contexts: { nodes: [{ state: 'SUCCESS' }], pageInfo: { hasNextPage: true } },
+          },
+        },
+      },
+    ],
+  } as never
+  expect(await reader().read('/repo', { branches: ['older/lane'] })).toMatchObject({
+    byBranch: { 'older/lane': { checks: null } },
+  })
+})
+
+it('falls back to identity only when GitHub refuses the detail query, without rescanning history', async () => {
+  run.mockImplementation((cwd, args) =>
+    args.join(' ').includes('contexts(first:100)')
+      ? { ...unavailable, retryWithoutChecks: true }
+      : reply(cwd, args),
+  )
+  expect(await reader().read('/repo', { branches: ['older/lane'] })).toMatchObject({
+    byBranch: { 'older/lane': { number: 42, checks: null } },
+    coverage: { 'older/lane': { state: 'found' } },
+  })
+  expect(run).toHaveBeenCalledTimes(4)
+})
+
 it('rejects oversized requests without spawning gh', async () => {
   expect(
     await reader().read('/repo', { branches: Array.from({ length: 21 }, (_, i) => `b${i}`) }),

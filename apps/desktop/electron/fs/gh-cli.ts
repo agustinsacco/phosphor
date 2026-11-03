@@ -5,6 +5,15 @@ import {
   ghPrsForRepo as queryRepo,
 } from '@phosphor/session-runtime/git/github'
 import { piProcessEnv } from '../pi/shell-env'
+import { createGithubReader } from '@phosphor/session-runtime/git/github-reader'
+import { runGithubCommand } from '@phosphor/session-runtime/git/github-command'
+import type { GhPrReadOptions } from '@shared/models'
+
+const reader = createGithubReader({
+  run: async (cwd, args, signal) => runGithubCommand(cwd, args, await ghEnv(), signal),
+})
+export const readRepositoryPrs = (repoPath: string, options?: GhPrReadOptions) =>
+  reader.read(repoPath, options)
 
 export {
   summarizeChecks,

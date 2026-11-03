@@ -80,6 +80,18 @@
       "types": "./src/git/github.ts",
       "default": "./src/git/github.ts"
     },
+    "./git/github-reader": {
+      "types": "./src/git/github-reader.ts",
+      "default": "./src/git/github-reader.ts"
+    },
+    "./git/github-command": {
+      "types": "./src/git/github-command.ts",
+      "default": "./src/git/github-command.ts"
+    },
+    "./git/github-queries": {
+      "types": "./src/git/github-queries.ts",
+      "default": "./src/git/github-queries.ts"
+    },
     "./git/github-worktrees": {
       "types": "./src/git/github-worktrees.ts",
       "default": "./src/git/github-worktrees.ts"

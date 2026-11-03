@@ -1,5 +1,6 @@
 import type { GhChecks, GhPullRequest, GhRepoPullRequests } from '@phosphor/shared/models'
 import { worktreePrSearches } from './github-worktrees'
+export { createGithubReader } from './github-reader'
 
 export type GhRunner = (cwd: string, args: string[]) => Promise<string | null>
 
@@ -169,6 +170,12 @@ export async function ghPrsForRepo(
       prs.byBranch[branch] = known ? preferPr(known, pr) : pr
     }
   }
+  // Compatibility helper: retain lane matches first without violating old Host readers.
+  const recent = indexPrsByBranch(result.rows)
+  const ordered = Object.entries(prs.byBranch).sort(
+    ([a], [b]) => Number(Object.hasOwn(recent, a)) - Number(Object.hasOwn(recent, b)),
+  )
+  prs.byBranch = Object.fromEntries(ordered.slice(0, limit))
   return prs
 }
 
