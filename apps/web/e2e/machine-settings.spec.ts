@@ -60,6 +60,13 @@ test('browser Host settings load only after explicit configuration access', asyn
   for (const width of [360, 1440]) {
     await page.setViewportSize({ width, height: 850 })
     expect(await settings.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+    // A sourced control (badge, select, Reset) fits the row on a phone, Reset included.
+    await expect(
+      settings.getByRole('combobox', { name: 'Default model', exact: true }),
+    ).toBeVisible()
+    await expect(
+      settings.getByRole('button', { name: 'Reset Default model', exact: true }),
+    ).toBeInViewport({ ratio: 1 })
     await page.screenshot({
       path: info.outputPath(`host-settings-browser-access-${width}.png`),
       fullPage: true,
