@@ -7,8 +7,16 @@ import { useSettingsUiStore } from '../../settingsUiStore'
  * Settings → Subagents: a guide to pi-subagents. Configuration belongs to Pi
  * and its extension, never to a second runner. `rawEditor`: Pi's global
  * settings open in the raw editor here (This Mac; a Host has no raw editors).
+ * `machineDirectives`: the directives exist only at machine scope, so opening
+ * them leaves the folder scope first, as a search result does.
  */
-export function SubagentsView({ rawEditor }: { rawEditor: boolean }): React.JSX.Element {
+export function SubagentsView({
+  rawEditor,
+  machineDirectives,
+}: {
+  rawEditor: boolean
+  machineDirectives: boolean
+}): React.JSX.Element {
   return (
     <div className="max-w-2xl text-base">
       <SectionTitle>Subagents</SectionTitle>
@@ -51,7 +59,7 @@ export function SubagentsView({ rawEditor }: { rawEditor: boolean }): React.JSX.
         isolated worktrees for independent writers and keep one writer per working directory.
       </p>
 
-      <ConfigurationSources rawEditor={rawEditor} />
+      <ConfigurationSources rawEditor={rawEditor} machineDirectives={machineDirectives} />
       <SectionTitle small>Results and storage</SectionTitle>
       <p className="text-text-secondary">
         Child sessions, outputs and run artifacts are owned by the extension. Their paths appear
@@ -72,8 +80,18 @@ export function SubagentsView({ rawEditor }: { rawEditor: boolean }): React.JSX.
   )
 }
 
-function ConfigurationSources({ rawEditor }: { rawEditor: boolean }): React.JSX.Element {
+function ConfigurationSources({
+  rawEditor,
+  machineDirectives,
+}: {
+  rawEditor: boolean
+  machineDirectives: boolean
+}): React.JSX.Element {
   const [editing, setEditing] = useState(false)
+  const openDirectives = (): void => {
+    if (machineDirectives) useSettingsUiStore.getState().setFolder(null)
+    useSettingsUiStore.getState().openResult('agent', 'Sub-agent policy')
+  }
   return (
     <>
       <SectionTitle small>Configuration sources</SectionTitle>
@@ -104,11 +122,7 @@ function ConfigurationSources({ rawEditor }: { rawEditor: boolean }): React.JSX.
         title="Delegation policy"
         description="Phosphor's authorization guidance lives with the other lane directives. It does not change extension configuration."
       >
-        <Button
-          onClick={() => useSettingsUiStore.getState().openResult('agent', 'Sub-agent policy')}
-        >
-          Open directives
-        </Button>
+        <Button onClick={openDirectives}>Open directives</Button>
       </Row>
 
       {editing && (
