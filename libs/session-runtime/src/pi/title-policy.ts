@@ -206,13 +206,15 @@ export function sanitizeTitle(stdout: string): string | null {
 /**
  * Last line of defense against duplicates: the prompt asks the model to
  * avoid existing names, but nothing guarantees it listened. Collisions get a
- * numeric suffix ("Fix Sidebar Resize 2"), case-insensitively.
+ * numeric suffix ("Fix Sidebar Resize 2"), case-insensitively. The base is
+ * shortened so the suffixed title stays within the 60-character cap.
  */
 export function dedupeTitle(title: string, existingNames: string[]): string {
   const taken = new Set(existingNames.map((n) => n.trim().toLowerCase()))
   if (!taken.has(title.toLowerCase())) return title
   for (let n = 2; n < 100; n++) {
-    const candidate = `${title} ${n}`
+    const suffix = ` ${n}`
+    const candidate = `${title.slice(0, MAX_TITLE_LENGTH - suffix.length).trimEnd()}${suffix}`
     if (!taken.has(candidate.toLowerCase())) return candidate
   }
   return title
