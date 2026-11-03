@@ -64,13 +64,14 @@ it('creates a folder and names the two refusals a user can act on', async () => 
   await expect(management.createFolder('host', 'src/..')).rejects.toThrow()
   expect(send).not.toHaveBeenCalled()
 })
+// The Host also refuses as forbidden when its config cannot be read or the grant was revoked (R-C5).
 it('says a Host whose policy forbids folder changes refuses them (regression W4)', async () => {
   for (const change of [
     () => management.add('host', 'Projects'),
     () => management.remove('host', '1234567890abcdef'),
   ]) {
     send.mockResolvedValueOnce({ requestId: laneId, status: 'rejected', code: 'forbidden' })
-    await expect(change()).rejects.toThrow(/allowRepositoryChanges/)
+    await expect(change()).rejects.toThrow(/allowRepositoryChanges.*cannot be read.*revoked/)
   }
 })
 it.each(['capability', 'connection', 'generation', 'ready'] as const)(
