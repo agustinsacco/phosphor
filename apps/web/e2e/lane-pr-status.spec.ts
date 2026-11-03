@@ -52,6 +52,14 @@ test('a Slack thread the Host lane mentions becomes a header quick link', async 
   await page.getByRole('button', { name: 'Send message', exact: true }).click()
   for (const width of [400, 1440]) {
     await page.setViewportSize({ width, height: 850 })
+    // The phone and wide headers are different components: touching the pill
+    // before the resize lands drives the old header, which then unmounts.
+    const compact = width < 900
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-form-factor',
+      compact ? 'compact' : 'expanded',
+    )
+    await expect(page.locator('header.compact-lane-header')).toHaveCount(compact ? 1 : 0)
     await expect(slack).toHaveAttribute('aria-label', '1 Slack thread in context')
     await slack.focus()
     await slack.press('Enter')
