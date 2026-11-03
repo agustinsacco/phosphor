@@ -273,3 +273,30 @@ it.each([
     )
   },
 )
+
+it('waits for a Host folder’s inherited machine read, and offers Retry when it fails (regression R-U5)', async () => {
+  let machineRead: 'pending' | 'fail' | 'ok' = 'pending'
+  invoke.mockImplementation(async (channel: string, hostId, section, repositoryId) => {
+    if (channel === 'hosts:models') return []
+    if (channel !== 'hosts:settingsRead') return local(channel)
+    if (!repositoryId && machineRead === 'pending') return new Promise(() => undefined)
+    if (!repositoryId && machineRead === 'fail') throw new Error('Host unreachable')
+    return mockSettingsRead(hostId, section, repositoryId)
+  })
+  useSettingsUiStore.setState({ folder: FOLDER })
+  await showHostSettings(root, HOST.id, 'agent')
+  const rows = () => container.querySelectorAll('[data-setting-row]').length
+  const retry = () =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
+  expect(container.querySelector('[data-setting-source="pi-default"]')).toBeNull()
+  expect(rows()).toBe(0)
+  machineRead = 'fail'
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  await showHostSettings(root, HOST.id, 'agent')
+  expect(container.textContent).toContain('Could not read the agent settings.')
+  expect(rows()).toBe(0)
+  machineRead = 'ok'
+  await act(async () => retry()!.click())
+  expect(rows()).toBeGreaterThan(0)
+})
