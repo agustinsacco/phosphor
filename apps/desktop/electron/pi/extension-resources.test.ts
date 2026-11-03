@@ -44,6 +44,7 @@ const shippedFiles = [
   'optional/permission-gate.ts',
   'pi-api.ts',
   'release-github.ts',
+  'release-guard.ts',
   'release-lease.ts',
   'release-manager.ts',
   'release-prompt.ts',
