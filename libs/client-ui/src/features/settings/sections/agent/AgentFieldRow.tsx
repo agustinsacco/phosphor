@@ -66,7 +66,12 @@ export function SourcedControl({
       <SourceBadge source={source} />
       {children}
       {reset && source === 'set-here' && (
-        <Button size="xs" aria-label={`Reset ${title}`} onClick={reset}>
+        <Button
+          size="xs"
+          className="shrink-0 whitespace-nowrap"
+          aria-label={`Reset ${title}`}
+          onClick={reset}
+        >
           Reset
         </Button>
       )}

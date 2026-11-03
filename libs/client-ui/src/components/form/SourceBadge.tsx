@@ -15,7 +15,10 @@ export function SourceBadge({ source }: { source: SettingSource }): React.JSX.El
   return (
     <span
       data-setting-source={source}
-      className={clsx('rounded-full px-1.5 py-0.5 text-2xs font-medium', className)}
+      className={clsx(
+        'shrink-0 whitespace-nowrap rounded-full px-1.5 py-0.5 text-2xs font-medium',
+        className,
+      )}
     >
       {label}
     </span>
