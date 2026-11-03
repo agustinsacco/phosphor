@@ -82,6 +82,20 @@ export async function withSettingsFileLock<T>(path: string, run: () => Promise<T
 const owned = (uid: number): boolean => !process.getuid || uid === process.getuid()
 const sha256 = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex')
 const tooLarge = () => new SettingsFailure('bad-request', 'Settings exceed their size limit.')
+const NOT_REGULAR = 'Settings must be an owned regular file, not a link or world-writable file.'
+
+/**
+ * Without `followLinks`, a file that cannot be opened safely is refused like any
+ * other unsafe file, so callers that mark a refused file keep loading.
+ */
+function refusedOpen(error: unknown, policy: SettingsFilePolicy): SettingsFailure | null {
+  if (policy.followLinks) return null
+  const code = error instanceof Error && 'code' in error ? error.code : null
+  if (code === 'ELOOP' || code === 'EISDIR') return new SettingsFailure('forbidden', NOT_REGULAR)
+  if (code === 'EACCES' || code === 'EPERM')
+    return new SettingsFailure('forbidden', 'Settings cannot be read: permission denied.')
+  return null
+}
 
 /** The file's bytes and their revision; a missing file is empty. Nothing is parsed. */
 export function readSettingsBytes(
@@ -98,10 +112,7 @@ export function readSettingsBytes(
         !stat.isFile() ||
         (!policy.followLinks && (stat.nlink !== 1 || (stat.mode & 0o002) !== 0 || !owned(stat.uid)))
       )
-        throw new SettingsFailure(
-          'forbidden',
-          'Settings must be an owned regular file, not a link or world-writable file.',
-        )
+        throw new SettingsFailure('forbidden', NOT_REGULAR)
       const bounded = Buffer.alloc(policy.maxBytes + 1)
       let count = 0
       while (count < bounded.length) {
@@ -115,7 +126,8 @@ export function readSettingsBytes(
       closeSync(fd)
     }
   } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT'))
+      throw refusedOpen(error, policy) ?? error
   }
   return { bytes, revision: sha256(bytes) }
 }
