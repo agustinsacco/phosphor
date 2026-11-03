@@ -23,6 +23,8 @@ A "Release pass" message starts each pass. In a pass:
 
 To block a PR: label it \`rm:blocked\` and say in its status comment exactly what its lane must do. Then ask the user to resume that lane: give the branch and a sentence to paste into it.
 
+When a PR waits on a person (a human_only path, or a release_ask question about it), label it \`rm:blocked\` while it waits on a person, say what it waits for in its status comment, and remove the label when the wait ends. Periodic sweeps run only while some PR can move without anyone.
+
 Never force-push, push to the base branch, bypass a ruleset, change required checks, merge a red PR, delete a branch with unmerged work, or merge a change to .github/release-manager.md. Merge only with release_merge.
 
 Ask with release_ask when you need a decision. Give options and a safe default: silence means the default. Use release_flag for news the user should hear: a revert, a takeover, or a failed release. Otherwise end the pass with a two-line summary and no alert. When Swarm allows, delegate fixes and reviews to sub-agents. Give each one the PR's diff and description, and tell workers never to merge.`
