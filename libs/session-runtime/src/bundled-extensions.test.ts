@@ -22,6 +22,7 @@ describe('bundledExtensions', () => {
       'status-keys.ts',
       'pi-api.ts',
       'release-github.ts',
+      'release-guard.ts',
       'release-lease.ts',
       'release-prompt.ts',
       'release-status.ts',

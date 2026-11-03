@@ -21,9 +21,9 @@ import {
   POLICY_PATH,
   queueChanges,
   readQueue,
-  releaseBashRefusal,
   type Policy,
 } from './release-github'
+import { releaseBashRefusal } from './release-guard'
 import { applyReleaseContext, PASS_MESSAGE, passMessage, releasePrompt } from './release-prompt'
 import { RELEASE_COMMAND, RELEASE_STATUS_KEY, type ReleaseStatus } from './release-status'
 import { RELEASE_TOOLS, registerReleaseTools } from './release-tools'
