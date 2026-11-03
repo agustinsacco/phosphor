@@ -1,3 +1,5 @@
+import { MEMORY_MAX } from './release-lease'
+
 /** The release manager's standing instructions, added to the system prompt in release mode. */
 export const RELEASE_SECTION = 'phosphor_release'
 export const PASS_MESSAGE = 'phosphor-release-pass'
@@ -61,6 +63,12 @@ export interface PassFacts {
   ledger: string[]
 }
 
+/** Memory written by an older or damaged writer may exceed the limit release_memory keeps. */
+function memorySection(memory: string): string {
+  if (memory.length <= MEMORY_MAX) return `Memory:\n${memory.trim() || '(empty)'}`
+  return `Memory (only the first ${MEMORY_MAX} of ${memory.length} characters; save a summary with release_memory):\n${memory.slice(0, MEMORY_MAX)}`
+}
+
 export function passMessage(facts: PassFacts): string {
   const events = facts.ledger.slice(-10).map((line) => {
     try {
@@ -78,7 +86,7 @@ export function passMessage(facts: PassFacts): string {
         ? 'Periodic sweep: nothing changed on GitHub.'
         : `Changed since the last pass:\n${facts.changes.join('\n')}`,
     `Queue facts:\n${facts.queue.join('\n')}`,
-    `Memory:\n${facts.memory.trim() || '(empty)'}`,
+    memorySection(facts.memory),
     ...(events.length ? [`Recent events:\n${events.join('\n')}`] : []),
   ].join('\n\n')
 }

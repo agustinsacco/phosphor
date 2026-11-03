@@ -50,6 +50,8 @@ interface PullRequest {
   statusCheckRollup: Check[] | null
 }
 
+const PR_LIMIT = 100
+
 const FAILED = /^(FAILURE|ERROR|TIMED_OUT|CANCELLED|ACTION_REQUIRED|STARTUP_FAILURE)$/
 
 /** Coarse on purpose: a check moving from queued to running is not news. */
@@ -119,7 +121,7 @@ export async function readQueue(gh: Run, git: Run, base: string): Promise<Queue>
       '--state',
       'open',
       '--limit',
-      '100',
+      String(PR_LIMIT),
       '--json',
       'number,headRefOid,isDraft,baseRefName,mergeable,labels,statusCheckRollup',
     ]),
@@ -142,7 +144,12 @@ export async function readQueue(gh: Run, git: Run, base: string): Promise<Queue>
     pr.isDraft ||
     rollup(pr.statusCheckRollup) === 'pending' ||
     pr.labels.some((label) => label.name === 'rm:hold' || label.name === 'rm:blocked')
-  return { lines: queueLines(open, base, head, ci), actionable: open.some((pr) => !waiting(pr)) }
+  const lines = queueLines(open, base, head, ci)
+  if (open.length >= PR_LIMIT)
+    lines.push(
+      `Only the first ${PR_LIMIT} open pull requests are listed: read the rest with gh pr list.`,
+    )
+  return { lines, actionable: open.some((pr) => !waiting(pr)) }
 }
 
 /** What changed between two passes: new facts, then facts that went away. */
