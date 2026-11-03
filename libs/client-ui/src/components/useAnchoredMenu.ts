@@ -1,4 +1,12 @@
-import { useEffect, useState, type CSSProperties, type RefObject } from 'react'
+import {
+  createElement,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { autoUpdate, computePosition, offset, flip, shift, size } from '@floating-ui/dom'
 
 /** Viewport-fit menus escape scroll containers without losing their anchor. */
@@ -55,4 +63,39 @@ export function useAnchoredMenu(
     }
   }, [trigger, menu, enabled, above])
   return style
+}
+
+/**
+ * A phone sheet that opens upward stays above the place it opened from (the
+ * composer, for `/` and `@`), never over it: pinned to the screen bottom, it
+ * covered Send, and Return on a soft keyboard adds a line instead. Returns
+ * the sheet's bottom offset and the room above it, both following the keyboard,
+ * and a marker to render in place, whose parent is the box measured.
+ */
+export function useCompactLift(enabled: boolean): [CSSProperties, ReactNode] {
+  const marker = useRef<HTMLSpanElement>(null)
+  const [style, setStyle] = useState<CSSProperties>({})
+  useEffect(() => {
+    if (!enabled) return
+    const viewport = window.visualViewport
+    const update = (): void => {
+      const container = marker.current?.parentElement
+      if (!container) return
+      const top = container.getBoundingClientRect().top
+      setStyle({
+        ['--compact-menu-lift' as string]: `${Math.round(window.innerHeight - top + 8)}px`,
+        maxHeight: Math.min(500, Math.max(96, Math.round(top - (viewport?.offsetTop ?? 0) - 16))),
+      })
+    }
+    update()
+    viewport?.addEventListener('resize', update)
+    viewport?.addEventListener('scroll', update)
+    window.addEventListener('resize', update)
+    return () => {
+      viewport?.removeEventListener('resize', update)
+      viewport?.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [enabled])
+  return [style, enabled ? createElement('span', { ref: marker, hidden: true }) : null]
 }

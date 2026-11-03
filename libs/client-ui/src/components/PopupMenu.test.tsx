@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { act, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { PopupMenu } from './PopupMenu'
+import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -127,5 +128,26 @@ describe('PopupMenu', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
     expect(q('menu')).toBeNull()
+  })
+
+  it('lifts an upward phone sheet above the box it opened from, not over it', () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ top: 600 } as DOMRect)
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    render(
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <div>
+          <PopupMenu onClose={() => undefined} className="absolute bottom-full">
+            <span data-testid="menu">typed</span>
+          </PopupMenu>
+        </div>
+      </PlatformProvider>,
+    )
+    rect.mockRestore()
+    const menu = q('menu')!.closest<HTMLElement>('[data-popup-menu]')!
+    expect(menu.parentElement).toBe(document.body)
+    expect(menu.style.getPropertyValue('--compact-menu-lift')).toBe('208px')
+    expect(menu.style.maxHeight).toBe('500px')
   })
 })

@@ -141,7 +141,11 @@ export function ComposerInput({
           }
         />
         {children}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pb-2">
+        {/* One row, never wrapped: the model name truncates before a control moves. */}
+        <div
+          className="composer-toolbar flex items-center gap-x-2 px-2.5 pb-2"
+          data-testid="composer-toolbar"
+        >
           <div className="flex shrink-0 items-center gap-0.5">
             {canAttach && <AttachButton onFiles={attachments.addFiles} />}
             {platform.localLanes && (

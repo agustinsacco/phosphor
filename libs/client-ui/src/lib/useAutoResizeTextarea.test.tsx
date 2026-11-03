@@ -138,6 +138,32 @@ describe('useAutoResizeTextarea', () => {
     expect(textarea!.style.height).toBe('40px')
   })
 
+  it('keeps the last line in view while typing at the end, and the scroll otherwise', () => {
+    setMockScrollHeight(600)
+    renderHarness('long '.repeat(100))
+    let top = 0
+    Object.defineProperty(textarea!, 'scrollTop', {
+      configurable: true,
+      get: () => top,
+      set: (value: number) => {
+        top = value
+      },
+    })
+    textarea!.focus()
+    // As typing does: the field holds the edit and the caret before React renders it.
+    const type = (value: string, caret: number): void => {
+      textarea!.value = value
+      textarea!.setSelectionRange(caret, caret)
+      act(() => setText(value))
+    }
+    top = 120
+    // Editing mid-text: the reset to `auto` must not move the view.
+    type('long '.repeat(101), 10)
+    expect(top).toBe(120)
+    type('long '.repeat(102), 510)
+    expect(top).toBe(600)
+  })
+
   it('re-measures when the element is resized (column width change)', () => {
     setMockScrollHeight(100)
     renderHarness('text')

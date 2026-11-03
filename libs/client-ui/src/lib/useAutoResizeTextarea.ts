@@ -29,9 +29,15 @@ export function useAutoResizeTextarea(
 
     const resize = (): void => {
       // Reset to content height so scrollHeight measures all wrapped lines,
-      // then clamp: the floor is the natural `rows` height, the ceiling the cap.
+      // then clamp: the floor is the natural `rows` height, the ceiling the cap
+      // (or a smaller CSS max-height, as a phone sets beside its keyboard).
+      // The reset collapses the field for a moment, which moves its scroll. Put
+      // it back, and while typing at the end keep the last line in view.
+      const top = el.scrollTop
       el.style.height = 'auto'
       el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
+      const typingAtEnd = document.activeElement === el && el.selectionEnd === el.value.length
+      el.scrollTop = typingAtEnd ? el.scrollHeight : top
     }
     resize()
 

@@ -208,6 +208,16 @@ fonts settle with the same bounded readiness as Desktop before feature views
 mount. Phone controls retain 44px hit targets and 16px text-entry fields without
 inflating all interface copy; wide screens use compact desktop density. Safe-area
 insets and visual-viewport resize/scroll follow the on-screen keyboard.
+
+On a phone the composer is the shared card, tightened (`client-shell.css`):
+less padding, one control row, a short readout strip, and Continue hidden
+while it cannot act. Its field stops growing at a third of what the keyboard
+leaves and scrolls itself, following the caret, so the line being typed stays
+on screen. A streaming placeholder names only what a soft keyboard can do.
+Each page scrolls in one place: a lane's transcript, or the remote start
+page's intro above its composer, which is never a scroller of its own. A menu
+that opens upward (`/`, `@`, model, thinking, readouts) is a bottom sheet
+lifted above the box it opened from, so it never covers Send.
 HTML/SVG previews use revocable Blob URLs, an empty iframe sandbox and a leading
 restrictive document CSP. Scripts, network, forms and authored navigation are
 refused. The parent permits only `frame-src blob:` for these previews and blocks
