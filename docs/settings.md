@@ -407,7 +407,9 @@ carries `agentClearSupported` offers it. A choice (the model, the thinking level
 the delivery modes) lists the unset value first, named by what it falls back to
 (**pi default (medium)**, **Machine (high)**). While nothing is set here it is
 selected, so any concrete value can be pinned, including the one shown; where
-Reset is offered, choosing it is Reset.
+Reset is offered, choosing it is Reset. `defaultProvider` and `defaultModel` are
+read each on its own: a file that sets only one shows it as set here, with Reset
+and the id in Custom model.
 
 The groups, in order:
 
