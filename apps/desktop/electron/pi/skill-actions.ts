@@ -3,7 +3,7 @@ import { invalidatePiCommands } from './catalogue'
 import { requireCommands } from './commands'
 import { installLocalSkill } from './skills/share'
 import { PiUnavailableError, resolvePiInvoker } from './invoker'
-import { ensureDesktopBundledSkills } from './session-launch'
+import { restoreDesktopArtifactSkill } from './session-launch'
 import {
   buildSkillZip,
   confirmSkillImport,
@@ -62,7 +62,7 @@ async function mutateSkills<T>(mutation: () => Promise<T>): Promise<T> {
 }
 
 export function restoreBundledSkill(): void {
-  ensureDesktopBundledSkills(true)
+  restoreDesktopArtifactSkill()
   invalidatePiCommands()
 }
 

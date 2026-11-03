@@ -30,6 +30,11 @@ export function seedBundledSkills(resourceRoot: string, agentDir: string, restor
   if (failures.length) throw failures[0]
 }
 
+/** The Skills page's restore: only the artifact skill, so other deleted bundles stay deleted. */
+export function restoreArtifactSkill(resourceRoot: string, agentDir: string): void {
+  seedSkill(resourceRoot, agentDir, ARTIFACT_SKILL, true)
+}
+
 /**
  * Seed once per pi configuration, not per app version. The receipt is outside
  * the skill: deleting the skill must not cause its resurrection on restart.
