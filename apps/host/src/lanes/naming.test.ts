@@ -412,6 +412,16 @@ it('asks for a title unlike its sibling lanes and dedupes the reply against them
   await vi.waitFor(() => expect(job.apply).toHaveBeenCalledWith('Named 2'))
 })
 
+it('keeps a deduplicated title within 60 characters', async () => {
+  const sibling = 'A'.repeat(60)
+  const job = routedJob({ existingNames: [sibling] })
+  createLaneNamer(machine)(job)
+  await vi.waitFor(() => expect(children).toHaveLength(1))
+  children[0]?.stdout.write(sibling)
+  children[0]?.emit('close', 0)
+  await vi.waitFor(() => expect(job.apply).toHaveBeenCalledWith(`${'A'.repeat(58)} 2`))
+})
+
 it('reads automatic naming live and resolves the routed account for each session', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'host-naming-'))
   const path = join(dir, 'config.json')
