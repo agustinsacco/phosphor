@@ -29,7 +29,7 @@ import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from '@/features/sessions/nameTransition'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useCurrentWork } from '@/features/chat/currentWork'
-import { LanePrStatus } from '@/features/sessions/LanePrStatus'
+import { LaneLinks } from '@/features/sessions/LaneLinks'
 
 /**
  * The window's one and only title bar.
@@ -168,7 +168,7 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
         >
           {title ?? 'New session'}
         </span>
-        <LanePrStatus sessionId={sessionId} />
+        <LaneLinks sessionId={sessionId} />
         <SwarmBadge sessionId={sessionId} />
       </div>
       {/* Reference order: terminal, files, changes, artifacts, subagents, kebab. */}

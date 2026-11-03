@@ -225,6 +225,36 @@ Unavailable or truncated listings never imply “no PR”; confirmed absence kee
 the existing complete-listing, known-branch, worktree-only rule. The listing
 remains capped at 100 recent PRs, with no history paging or webhook guarantee.
 
+### Slack thread links
+
+After the PR button, a pill with Slack's colour mark lists the Slack threads the
+lane has in context, so you can get back to them and point the agent at one. It
+renders nothing until the transcript mentions a thread, and shows a count once
+there are several. `LaneLinks.tsx` puts both controls in all three headers.
+
+`slackThread.ts` derives the list from the chat store on every render. Nothing is
+persisted, so there is no IPC, Host protocol or session-file change, and sidebar
+rows do not carry it. Only user prompts and settled assistant text count; tool
+output (a Slack search through MCP) and a still-streaming reply do not. Each item
+is parsed once (a `WeakMap` keyed by the immutable item). Threads are deduplicated
+by channel and thread root, so a reply link and its root are one entry, in the
+order the transcript first mentions them. Each row shows the workspace, the
+thread's start time and the message that mentioned it, links removed.
+
+A link counts only when `new URL` parses it as `https:` on `slack.com` or a
+`*.slack.com` subdomain with no credentials or port, and its path is a message
+permalink (`/archives/<C|G|D id>/p<16 digits>`, with an optional valid
+`thread_ts`) or the web client's `/client/<T id>/<C id>/thread/<C id>-<ts>`. The
+URL that is opened or copied is rebuilt from those parsed parts, never the pasted
+text, so extra query strings and fragments are dropped.
+
+A row opens the thread through `app:openExternal`; the Slack desktop app takes
+over an https permalink if it is installed. Its trailing actions copy the link,
+or add it to the lane's unsent message (`composerDraftKey`, never replacing what
+is typed) and focus the composer. Opening and copying failures are shown in the
+popup, which stays open so you can try again. Enter/Space opens, focus starts on
+the first thread, and Escape closes and returns focus to the pill.
+
 ### The chip is one token carrying two signals
 
 Colour is PR state; the trailing glyph is the check/review verdict. A second

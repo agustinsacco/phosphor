@@ -6,7 +6,6 @@ import { TooltipButton } from '@/components/Tooltip'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, type RepoPullRequests } from '@/stores/pullRequests'
 import { useLanePullRequest } from './useLanePullRequest'
-import { useRemoteLaneSession } from './useRemoteLaneActions'
 import { prChip, noPrChip, PR_CHIP_CLASSES } from './prChip'
 
 /** A real tab stop in the title bar; sidebar row chips deliberately are not. */
@@ -17,18 +16,6 @@ export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.El
   return (
     <LanePrPill key={`${sessionId}:${status.repoPath}`} {...status} repoPath={status.repoPath} />
   )
-}
-
-/** Browser routes identify lanes before their session is adopted. */
-export function RemoteLanePrStatus({
-  hostId,
-  laneId,
-}: {
-  hostId: string
-  laneId: string
-}): React.JSX.Element | null {
-  const session = useRemoteLaneSession(hostId, laneId)
-  return session ? <LanePrStatus sessionId={session.phosphorId} /> : null
 }
 
 function LanePrPill({

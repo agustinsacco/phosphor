@@ -17,7 +17,7 @@ import { useNavigation } from '@/navigation/Navigation'
 import { SCREENS } from '@/navigation/screens'
 import type { LanePane, Location } from '@/navigation/location'
 import { useChatStore } from '@/stores/chat'
-import { LanePrStatus } from '@/features/sessions/LanePrStatus'
+import { LaneLinks } from '@/features/sessions/LaneLinks'
 import { useMachinesStore } from '@/stores/machines'
 import { connectionLabel, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 
@@ -90,7 +90,7 @@ export function CompactLaneHeader({ location }: { location: LaneLocation }): Rea
           pane={pane === 'chat' ? undefined : SCREENS[pane].title}
         />
       </TooltipButton>
-      {session && <LanePrStatus sessionId={session.phosphorId} />}
+      {session && <LaneLinks sessionId={session.phosphorId} />}
       {lane ? (
         <HostLaneMenu hostId={hostId} lane={lane} open={open} onClose={() => setOpen(false)}>
           {({ items, error }) => sheet(items, error)}

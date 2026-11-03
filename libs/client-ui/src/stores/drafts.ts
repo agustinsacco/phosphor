@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { ComposerDraftRecord, DraftAttachment } from '@shared/models'
+import { hostResourceKey, type HostTarget } from '@shared/remote-host'
 import type { PendingAttachment } from '@/features/chat/attachments'
 
 /**
@@ -23,6 +24,16 @@ export function sessionDraftKey(sessionFilePath: string | undefined, phosphorId:
   // Prefer the file path: it is the only identity that survives a restart.
   // `phosphorId` covers the window before pi has told us where the file is.
   return `session:${sessionFilePath ?? phosphorId}`
+}
+
+/** The key a lane's composer files its draft under; Host lanes key by lane id. */
+export function composerDraftKey(
+  entry: { diskPath?: string; target?: HostTarget; laneId?: string } | undefined,
+  phosphorId: string,
+): DraftKey {
+  return entry?.target?.kind === 'remote' && entry.laneId
+    ? hostResourceKey(entry.target, 'session', entry.laneId)
+    : sessionDraftKey(entry?.diskPath, phosphorId)
 }
 
 export function homeDraftKey(workspacePath: string): DraftKey {
