@@ -113,7 +113,8 @@ export function readSettingsBytes(
         (!policy.followLinks && (stat.nlink !== 1 || (stat.mode & 0o002) !== 0 || !owned(stat.uid)))
       )
         throw new SettingsFailure('forbidden', NOT_REGULAR)
-      const bounded = Buffer.alloc(policy.maxBytes + 1)
+      // One byte past the expected size tells an oversized or growing file from a whole one.
+      const bounded = Buffer.alloc(Math.min(stat.size, policy.maxBytes) + 1)
       let count = 0
       while (count < bounded.length) {
         const read = readSync(fd, bounded, count, bounded.length - count, count)
@@ -121,6 +122,8 @@ export function readSettingsBytes(
         count += read
       }
       if (count > policy.maxBytes) throw tooLarge()
+      if (count > stat.size)
+        throw new SettingsFailure('internal', 'Settings changed while being read. Try again.')
       bytes = bounded.subarray(0, count)
     } finally {
       closeSync(fd)
