@@ -73,3 +73,40 @@ test('active lane PR details support keyboard refresh and survive failures with 
     await shutdown(h)
   }
 })
+
+test('a Slack thread in the lane prompt is a header quick link that opens and adds to the message', async () => {
+  const h = await launch()
+  const thread = 'https://acme.slack.com/archives/C0123ABC/p1730563200123456'
+  try {
+    await h.app.evaluate(({ shell }) => {
+      const state = globalThis as unknown as { openedUrls: string[] }
+      state.openedUrls = []
+      shell.openExternal = async (url) => {
+        state.openedUrls.push(url)
+      }
+    })
+    await openWorkspace(h.page)
+    await h.page
+      .getByPlaceholder('Describe a task or ask a question')
+      .fill(`fix what they asked in ${thread}#junk`)
+    await h.page.getByRole('button', { name: /Start lane/i }).click()
+    const slack = h.page.locator('header').getByTestId('lane-slack-threads')
+    await expect(slack).toHaveAttribute('aria-label', '1 Slack thread in context')
+    await slack.click()
+    const list = h.page.getByRole('region', { name: 'Slack threads in this lane' })
+    await expect(list).toContainText('fix what they asked in')
+    await list.getByTestId('slack-thread-open').click()
+    await expect
+      .poll(() =>
+        h.app.evaluate(() => (globalThis as unknown as { openedUrls: string[] }).openedUrls),
+      )
+      .toEqual([thread])
+    await slack.click()
+    await list.getByRole('button', { name: /^Add .* to message$/ }).click()
+    const composer = h.page.locator('[data-composer-input]')
+    await expect(composer).toHaveValue(`${thread} `)
+    await expect(composer).toBeFocused()
+  } finally {
+    await shutdown(h)
+  }
+})

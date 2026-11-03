@@ -1,6 +1,5 @@
 import { useRemoteLanesStore, canControlSession } from '@/stores/remoteLanes'
 import { HostWaitNote, useRemoteLock } from '@/features/machines/HostWaitNote'
-import { hostResourceKey } from '@shared/remote-host'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ImageContent } from '@shared/rpc'
@@ -35,7 +34,7 @@ import {
   type PendingAttachment,
 } from './attachments'
 import { ComposerInput } from './composer/ComposerInput'
-import { sessionDraftKey, useDraftsStore } from '@/stores/drafts'
+import { composerDraftKey, useDraftsStore } from '@/stores/drafts'
 import { refreshSessionCommands, useSessionsStore } from '@/stores/sessions'
 import { useWritingStore } from '@/stores/writing'
 import { ipcErrorText } from '@shared/errors'
@@ -58,7 +57,6 @@ export function Composer({
    * because that is the only identity that survives a restart; `rekey` below
    * moves the draft across when pi finally tells us the path.
    */
-  const diskPath = useSessionsStore((s) => s.live[sessionId]?.diskPath)
   const entry = useSessionsStore((s) => s.live[sessionId])
   const remote = entry?.target?.kind === 'remote'
   const host = useRemoteLanesStore((s) =>
@@ -73,10 +71,7 @@ export function Composer({
     canControlSession(sessionId)
   const uploading = useRef(false)
   const awaiting = useRef(createReceiptGuard())
-  const draftKey =
-    entry?.target?.kind === 'remote' && entry.laneId
-      ? hostResourceKey(entry.target, 'session', entry.laneId)
-      : sessionDraftKey(diskPath, sessionId)
+  const draftKey = composerDraftKey(entry, sessionId)
   const draft = useDraftsStore((s) => s.drafts[draftKey])
   const text = draft?.text ?? ''
   const images = draft?.attachments ?? EMPTY_ATTACHMENTS

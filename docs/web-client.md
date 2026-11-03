@@ -111,6 +111,8 @@ that Host. Beside the title, the shared [PR status button](lanes.md#active-lane-
 opens status details and Refresh without opening the lane menu. Wide headers use
 the same control after the title. Both use this Host lane's repository identity,
 not the machine filter, and share repository refreshes with visible groups.
+The [Slack thread links](lanes.md#slack-thread-links) follow the PR button in
+both headers once the lane's transcript mentions a thread.
 A confirmed action closes the sheet; a refusal stays to say why.
 There is no drawer button, machine filter or pane tab strip inside a lane. A
 reader sees a Take control bar where the composer would be. Wider browsers keep
