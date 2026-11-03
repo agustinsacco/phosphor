@@ -108,6 +108,16 @@ describe('queue digest', () => {
     expect(queueChanges(['a'], ['a'])).toEqual([])
   })
 
+  it('says when the open pull requests may not all be listed', async () => {
+    const open = Array.from({ length: 100 }, (_, i) => pr(i + 1))
+    const gh = vi.fn(async (args: string[]) => (args[0] === 'pr' ? JSON.stringify(open) : '[]'))
+    const git = vi.fn(async () => `${sha('a')}\trefs/heads/main\n`)
+    const more = 'Only the first 100 open pull requests are listed: read the rest with gh pr list.'
+    expect((await readQueue(gh, git, 'main')).lines).toContain(more)
+    open.pop()
+    expect((await readQueue(gh, git, 'main')).lines).not.toContain(more)
+  })
+
   it('reads pull requests, base CI and the base head, and says when a sweep could help', async () => {
     const open = [pr(1, { isDraft: true }), pr(2, { labels: [{ name: 'rm:hold' }] })]
     const gh = vi.fn(async (args: string[]) =>
