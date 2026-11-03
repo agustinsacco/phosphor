@@ -358,19 +358,16 @@ async function runHostCommand(context: RunContext): Promise<number> {
           log: log.write,
         })
         commands = createLaneCommands({
-          moveClaudeAccount: administration.moveClaudeAccount,
+          ...administration.lanePorts,
           repositories,
-          machineTasks: administration.machineTasks,
           deleteLane: createLaneDeletion({
             store,
             stop: binding.deleteStop,
             remove: runtime.remove,
             forget: live.forget,
           }),
-          providerLogins: administration.providerLogins,
           attachments,
           terminals,
-          writes: administration.writes,
           store,
           ...binding,
           runtime: binding,

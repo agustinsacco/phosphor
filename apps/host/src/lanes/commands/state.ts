@@ -60,6 +60,8 @@ export interface LaneCommandPorts {
   /** Wiring owns projection delivery and the live-session mapping. */
   resumeLane(lane: StoredLane): Promise<void>
   stopLane(laneId: string): Promise<void>
+  /** The user stopped this lane: the release keep-alive must not bring it back. */
+  pauseRelease?(laneId: string): void
   sessionFor(laneId: string): string | null
   openDialogs(laneId: string): readonly string[]
   /** Read after the store write: persisted control, counters and timestamps from

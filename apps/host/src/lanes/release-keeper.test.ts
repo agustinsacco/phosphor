@@ -10,6 +10,9 @@ import { createReleaseKeeper } from './release-keeper'
 const dirs: string[] = []
 afterEach(() => dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true })))
 
+const releaseText = (enabled: boolean) =>
+  JSON.stringify({ version: 1, available: true, enabled, role: 'standby', quiet: false })
+
 function fixture(recorded?: string[]) {
   const directory = mkdtempSync(join(tmpdir(), 'host-release-'))
   dirs.push(directory)
@@ -54,13 +57,7 @@ function fixture(recorded?: string[]) {
         id: 's',
         method: 'setStatus',
         statusKey: RELEASE_STATUS_KEY,
-        statusText: JSON.stringify({
-          version: 1,
-          available: true,
-          enabled,
-          role: 'standby',
-          quiet: false,
-        }),
+        statusText: releaseText(enabled),
       },
     })
   const exit = (laneId: string, expected: boolean) => {
