@@ -61,6 +61,17 @@ describe('Host Web access keys', () => {
     expect(cleared.ok).toBe(true)
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ searxngUrl: 'https://s.test' })
   })
+  // P35: the revision once hashed the package list while the commit check hashed files.
+  it("accepts a resources read's revision, with a package listed, at the next resources commit", async () => {
+    const f = await fixture()
+    await writeFile(join(f.agentDir, 'settings.json'), JSON.stringify({ packages: ['npm:keep'] }), {
+      mode: 0o600,
+    })
+    const before = await f.read('resources')
+    expect(before.resources?.packages.map((package_) => package_.spec)).toEqual(['npm:keep'])
+    const change = { type: 'webAccess.key' as const, key: 'braveApiKey' as const, value: 'x' }
+    expect((await f.patch('resources', change, before.revision)).ok).toBe(true)
+  })
   it('refuses a stale revision, a folder scope and a malformed file', async () => {
     const f = await fixture()
     const path = join(f.agentDir, 'web-search.json')
