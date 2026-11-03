@@ -76,6 +76,10 @@
       "types": "./pi-ext/release-guard.ts",
       "default": "./pi-ext/release-guard.ts"
     },
+    "./release-hooks": {
+      "types": "./pi-ext/release-hooks.ts",
+      "default": "./pi-ext/release-hooks.ts"
+    },
     "./release-lease": {
       "types": "./pi-ext/release-lease.ts",
       "default": "./pi-ext/release-lease.ts"
