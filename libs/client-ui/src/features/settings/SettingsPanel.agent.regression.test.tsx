@@ -213,3 +213,26 @@ it('writes medium when it is chosen at machine scope while pi’s default medium
     defaultThinkingLevel: 'medium',
   })
 })
+
+it.each([
+  [{ defaultModel: 'gpt-5' }, ['', 'gpt-5']],
+  [{ defaultProvider: 'openai' }, ['openai', '']],
+])(
+  'shows a model key set on its own as set here, and Reset clears it (regression R-U4, %o)',
+  async (global, ids) => {
+    invoke.mockImplementation(async (channel: string) =>
+      channel === 'pi:agentSettingsScoped' ? { global, project: null } : local(channel),
+    )
+    await showHostSettings(root, 'local', 'agent')
+    const badge = row('Default model').querySelector('[data-setting-source]')
+    expect(badge?.getAttribute('data-setting-source')).toBe('set-here')
+    const field = (title: string) => row(title).querySelector<HTMLInputElement>('input')!.value
+    expect([field('Provider id'), field('Model id')]).toEqual(ids)
+    const reset = container.querySelector<HTMLButtonElement>('[aria-label="Reset Default model"]')
+    await act(async () => reset!.click())
+    expect(invoke).toHaveBeenCalledWith('pi:patchAgentSettings', 'global', undefined, {
+      defaultProvider: undefined,
+      defaultModel: undefined,
+    })
+  },
+)
