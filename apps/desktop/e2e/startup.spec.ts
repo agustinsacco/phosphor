@@ -110,7 +110,7 @@ test('sidebar preserves a saved fork and its inactive source across reloads', as
   }
 })
 
-test('lane PR badges distinguish lightweight, unavailable and truncated results', async () => {
+test('a lane PR badge shows a lightweight result and nothing for a lane without a PR', async () => {
   const h = await launch('light')
   try {
     await h.app.evaluate(({ ipcMain }, workspace) => {
@@ -176,7 +176,12 @@ test('lane PR badges distinguish lightweight, unavailable and truncated results'
     await expect(badge).toHaveText('#17006')
     await expect(badge).toHaveAttribute('data-tooltip', /checks unavailable/)
 
-    for (const result of [null, { byBranch: {}, complete: false }]) {
+    // Unavailable, truncated and a complete listing without this branch: no chip at all.
+    for (const result of [
+      null,
+      { byBranch: {}, complete: false },
+      { byBranch: {}, complete: true },
+    ]) {
       await h.app.evaluate((_electron, value) => {
         ;(globalThis as unknown as { prResult: unknown }).prResult = value
       }, result)
@@ -184,11 +189,6 @@ test('lane PR badges distinguish lightweight, unavailable and truncated results'
       await expect(row).toBeVisible()
       await expect(badge).toHaveCount(0)
     }
-    await h.app.evaluate(() => {
-      ;(globalThis as unknown as { prResult: unknown }).prResult = { byBranch: {}, complete: true }
-    })
-    await h.page.reload()
-    await expect(badge).toHaveText('↑ no PR')
   } finally {
     await h.close()
   }
