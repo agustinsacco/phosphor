@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import type { MachineView } from '@shared/control-api'
 import { errorText } from '@shared/errors'
 import type { MachineSettingsSection } from '@shared/machine-settings'
@@ -31,6 +31,8 @@ function useHostSectionState(
   const { connection, allowed } = settings
   const programs = useMachinePrograms(machine, settings)
   const { setError, alive } = programs
+  // An error belongs to the section and folder it happened in; a running program stays open.
+  useEffect(() => setError(null), [section, repositoryId, setError])
   const [accessBusy, setAccessBusy] = useState(false)
   async function access() {
     if (!(await confirmSettingsAccess(machine.label)) || !alive.current) return
