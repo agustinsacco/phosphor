@@ -143,6 +143,11 @@ function publish(lane: Lane): void {
 
 /** The release tools are declared to the model only while this lane holds the lease. */
 function setRole(lane: Lane, role: ReleaseStatus['role'], state?: ReleaseState): void {
+  // Holding the lease anew, the first pass reads the whole queue again.
+  if (role === 'active' && lane.role !== 'active') {
+    lane.passes = 0
+    lane.lines = []
+  }
   lane.role = role
   if (state) lane.state = state
   const active = lane.pi.getActiveTools?.()
@@ -166,12 +171,17 @@ async function claim(lane: Lane, takeover = false): Promise<void> {
     claimLease(lane.git, localRef(lane), claimant(lane), lane.now(), takeover),
   )
   lane.lastClaim = lane.now()
+  lane.problem = undefined
   if (lane.enabled) setRole(lane, result.role, result.state)
 }
 
 async function maybePass(lane: Lane): Promise<void> {
   if (!idle(lane)) return
   const queue = await readQueue(lane.gh, lane.git, lane.policy.base)
+  if (lane.problem) {
+    lane.problem = undefined
+    publish(lane)
+  }
   const changes = queueChanges(lane.lines, queue.lines)
   const now = lane.now()
   const sweep = queue.actionable && now - lane.lastPass >= SWEEP_MS
@@ -207,10 +217,6 @@ async function tick(lane: Lane): Promise<void> {
   try {
     if (lane.now() - lane.lastClaim >= LEASE_RENEW_MS) await claim(lane)
     if (lane.role === 'active') await maybePass(lane)
-    if (lane.problem) {
-      lane.problem = undefined
-      publish(lane)
-    }
   } catch (error) {
     lane.problem = plain(error)
     // A lease this lane could not renew stops being safe to act on once it lapses.
@@ -235,6 +241,12 @@ function stop(lane: Lane): void {
   lane.timer = undefined
 }
 
+/** Hand over now, rather than make a standby wait for the lease to lapse. */
+function handOver(lane: Lane, me: Claimant): Promise<void> {
+  const release = () => releaseLease(lane.git, localRef(lane), me, lane.now())
+  return exclusive(lane, release).catch(() => undefined)
+}
+
 async function switchOff(lane: Lane): Promise<void> {
   lane.pi.appendEntry?.(RELEASE_COMMAND, { enabled: false, sessionId: sessionOf(lane) })
   const held = lane.role === 'active'
@@ -242,11 +254,7 @@ async function switchOff(lane: Lane): Promise<void> {
   lane.quiet = false
   stop(lane)
   setRole(lane, 'off')
-  // Hand over now, rather than make a standby wait for the lease to lapse.
-  if (held)
-    await exclusive(lane, () =>
-      releaseLease(lane.git, localRef(lane), claimant(lane), lane.now()),
-    ).catch(() => undefined)
+  if (held) await handOver(lane, claimant(lane))
 }
 
 async function command(lane: Lane, args: string, ctx: ReleaseContext): Promise<void> {
@@ -266,19 +274,26 @@ async function command(lane: Lane, args: string, ctx: ReleaseContext): Promise<v
     lane.lastClaim = 0
     setRole(lane, 'standby')
   }
-  if (word === 'takeover') await claim(lane, true)
-  start(lane)
-  if (word === 'takeover' && lane.role !== 'active')
+  if (word !== 'takeover') return start(lane)
+  try {
+    await claim(lane, true)
+  } finally {
+    start(lane) // A failed takeover still watches, and takes the lease once it lapses.
+  }
+  if (lane.role !== 'active')
     throw new Error('Another lane took the release lease first. Try the takeover again.')
 }
 
 function restore(lane: Lane, ctx: ReleaseContext): void {
+  const held = lane.role === 'active' ? claimant(lane) : undefined
   bind(lane, ctx)
   lane.enabled = savedRelease(ctx.sessionManager.getBranch(), sessionOf(lane))
   lane.quiet = false
   if (!lane.enabled) {
     stop(lane)
     setRole(lane, 'off')
+    // Navigation left release mode behind. Shutdown keeps the lease: a restart reclaims it.
+    if (held) void handOver(lane, held)
     return
   }
   // Active again only once origin says so.

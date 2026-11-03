@@ -83,7 +83,8 @@ export function queueLines(prs: PullRequest[], base: string, head: string, ci: s
         pr.headRefOid.slice(0, 7),
         ...(pr.baseRefName === base ? [] : [`onto ${pr.baseRefName}`]),
         pr.isDraft ? 'draft' : 'ready',
-        // GitHub computes mergeability lazily; only a conflict is news.
+        // GitHub computes mergeability lazily; only a conflict is news. While it
+        // recomputes (UNKNOWN), a conflict drops out for a poll: one extra pass at most.
         ...(pr.mergeable === 'CONFLICTING' ? ['conflicting'] : []),
         `checks ${rollup(pr.statusCheckRollup)}`,
         ...labels,
@@ -114,7 +115,9 @@ export interface Queue {
 }
 
 export async function readQueue(gh: Run, git: Run, base: string): Promise<Queue> {
-  const [prs, runs, ref] = await Promise.all([
+  const ref = await git(['ls-remote', 'origin', `refs/heads/${base}`])
+  const head = ref.split(/\s/)[0] ?? ''
+  const [prs, runs] = await Promise.all([
     gh([
       'pr',
       'list',
@@ -125,20 +128,23 @@ export async function readQueue(gh: Run, git: Run, base: string): Promise<Queue>
       '--json',
       'number,headRefOid,isDraft,baseRefName,mergeable,labels,statusCheckRollup',
     ]),
-    gh([
-      'run',
-      'list',
-      '--branch',
-      base,
-      '--limit',
-      '20',
-      '--json',
-      'headSha,status,conclusion,workflowName',
-    ]),
-    git(['ls-remote', 'origin', `refs/heads/${base}`]),
+    // Only what landing a change ran: scheduled and manual runs are not news.
+    head
+      ? gh([
+          'run',
+          'list',
+          '--branch',
+          base,
+          '--event',
+          'push',
+          '--commit',
+          head,
+          '--json',
+          'headSha,status,conclusion,workflowName',
+        ])
+      : '[]',
   ])
   const open = JSON.parse(prs) as PullRequest[]
-  const head = ref.split(/\s/)[0] ?? ''
   const ci = baseRuns(JSON.parse(runs) as Array<Check & { headSha: string }>, head)
   const waiting = (pr: PullRequest) =>
     pr.isDraft ||
@@ -149,7 +155,9 @@ export async function readQueue(gh: Run, git: Run, base: string): Promise<Queue>
     lines.push(
       `Only the first ${PR_LIMIT} open pull requests are listed: read the rest with gh pr list.`,
     )
-  return { lines, actionable: open.some((pr) => !waiting(pr)) }
+  // A red base merges nothing until it is fixed, so only GitHub changing starts a pass.
+  const red = ci.includes(': failing')
+  return { lines, actionable: !red && open.some((pr) => !waiting(pr)) }
 }
 
 /** What changed between two passes: new facts, then facts that went away. */

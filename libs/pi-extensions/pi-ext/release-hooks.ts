@@ -17,8 +17,8 @@ export interface HookLane {
 
 /**
  * Decide, as each run starts, whether its end deserves an alert: a person's
- * prompt does; a pass, an answer or a sub-agent's report in release mode does
- * not, unless the manager flags it or someone speaks to the lane meanwhile.
+ * prompt does; in the lane holding the lease, a pass, an answer or a
+ * sub-agent's report does not, unless the manager flags it or someone speaks to the lane meanwhile.
  */
 export function watchRuns(lane: HookLane, publish: () => void): void {
   lane.pi.on('input', (event) => {
@@ -31,7 +31,8 @@ export function watchRuns(lane: HookLane, publish: () => void): void {
     publish()
   })
   lane.pi.on('before_agent_start', () => {
-    const quiet = lane.enabled && !lane.userInput
+    // Only the lease holder works unattended; a standby's runs are a person's.
+    const quiet = lane.role === 'active' && !lane.userInput
     lane.userInput = false
     if (quiet === lane.quiet) return
     lane.quiet = quiet
