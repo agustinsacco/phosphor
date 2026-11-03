@@ -154,14 +154,34 @@ it('forwards targeted interests and retries only old Host bad-request with legac
     ['github.prs', { repositoryId, options }],
     ['github.prs', { repositoryId }],
   ])
-  call
-    .mockClear()
-    .mockResolvedValue({
+  call.mockClear().mockResolvedValue({
+    type: 'result',
+    id: 'pr',
+    ok: false,
+    error: { code: 'internal', message: 'down' },
+  })
+  await expect(targeted(key, options)).rejects.toThrow('Not available')
+  expect(call).toHaveBeenCalledTimes(1)
+})
+
+it('rejects malformed branch options without sending caller paths and rechecks scope before fallback', async () => {
+  const key = 'host:00000000-0000-4000-8000-000000000001/repo:' + repositoryId
+  for (const options of [
+    { branches: ['feature'], path: '/private' },
+    { branches: Array.from({ length: 21 }, (_, i) => `b${i}`) },
+    { branches: ['same', 'same'] },
+  ])
+    await expect(reads.pullRequests(key, options)).rejects.toThrow('Not available')
+  expect(call).not.toHaveBeenCalled()
+  call.mockImplementation(async () => {
+    generation++
+    return {
       type: 'result',
       id: 'pr',
       ok: false,
-      error: { code: 'internal', message: 'down' },
-    })
-  await expect(targeted(key, options)).rejects.toThrow('Not available')
+      error: { code: 'bad-request', message: 'old host' },
+    }
+  })
+  await expect(reads.pullRequests(key, { branches: ['feature'] })).rejects.toThrow('Not available')
   expect(call).toHaveBeenCalledTimes(1)
 })

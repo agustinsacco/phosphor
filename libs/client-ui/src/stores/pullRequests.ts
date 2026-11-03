@@ -1,13 +1,15 @@
 import { create } from 'zustand'
-import type { GhPullRequest } from '@shared/models'
+import type { GhBranchCoverage, GhPullRequest } from '@shared/models'
+import { pullRequestInterests } from './pullRequestInterests'
+import { mergePullRequestRead, pullRequestPages } from './pullRequestReads'
 import { keyedSlice } from './keyedSlice'
 
 /**
  * Pull-request state per repo, projected from the `gh` CLI.
  *
  * Keyed by repo path rather than by session: a sidebar group is one repo (the
- * grouping already folds worktrees into their main checkout), and one
- * `gh:prsForRepo` call answers for every lane in it. A lane's PR is then joined
+ * grouping already folds worktrees into their main checkout). Bounded targeted
+ * reads progressively cover the interested lane branches. A lane's PR is then joined
  * at render time through `gitByCwd[cwd].branch`, the same way the subtitle
  * already joins git info — `SessionMeta` has no branch field to hang this on.
  *
@@ -18,6 +20,9 @@ import { keyedSlice } from './keyedSlice'
 export interface RepoPullRequests {
   /** headRefName → PR from the last successful fetch. */
   byBranch: Record<string, GhPullRequest>
+  coverage?: Record<string, GhBranchCoverage>
+  /** App scheduling, separate from the upstream observation/attempt timestamps. */
+  branchAttemptedAt?: Record<string, number>
   /** Epoch ms of the last successful app refresh (not upstream freshness); 0 when never fetched. */
   fetchedAt: number
   /** Only an untruncated successful listing can confirm a missing PR. */
@@ -76,34 +81,41 @@ export const usePullRequestsStore = create<PullRequestsState>((set, get) => ({
         attemptedAt: Date.now(),
       })),
     }))
-    const pending = get().byRepo[repoPath]
-    try {
-      let available = repoPath.startsWith('host:') ? true : get().available
-      if (available === undefined || available === false) {
-        available = await window.phosphor.invoke('gh:available')
-        set({ available })
+    let pending = get().byRepo[repoPath]!
+    const pages = pullRequestPages(pullRequestInterests(repoPath), current)
+    // No known heads yet: retain bounded legacy discovery (also used by old Hosts).
+    if (!pages.length) pages.push([])
+    for (const branches of pages) {
+      let result = null
+      try {
+        let available = repoPath.startsWith('host:') ? true : get().available
+        if (available === undefined || available === false) {
+          available = await window.phosphor.invoke('gh:available')
+          set({ available })
+        }
+        if (get().byRepo[repoPath] !== pending) return
+        if (available)
+          result = branches.length
+            ? await window.phosphor.invoke('gh:prsForRepo', repoPath, {
+                branches,
+                ...(opts.force ? { force: true } : {}),
+              })
+            : await window.phosphor.invoke('gh:prsForRepo', repoPath)
+      } catch {
+        /* A failed page cannot invalidate another branch's chip. */
       }
-      const result = available ? await window.phosphor.invoke('gh:prsForRepo', repoPath) : null
       if (get().byRepo[repoPath] !== pending) return
       set((s) => ({
         byRepo: repos.patch(s.byRepo, repoPath, (r) =>
-          result
-            ? { ...r, ...result, fetchedAt: Date.now(), loading: false, failed: false }
-            : { ...r, complete: false, loading: false, failed: true },
+          mergePullRequestRead(r, result, branches, Date.now()),
         ),
       }))
-    } catch {
-      if (get().byRepo[repoPath] !== pending) return
-      // Keep known chips on IPC failure, but revoke any inferred absence.
-      set((s) => ({
-        byRepo: repos.patch(s.byRepo, repoPath, (r) => ({
-          ...r,
-          complete: false,
-          loading: false,
-          failed: true,
-        })),
-      }))
+      pending = get().byRepo[repoPath]!
+      // A legacy reply already covers its whole bounded listing. Don't repeat it per page.
+      if (result && !result.coverage) break
     }
+    if (get().byRepo[repoPath] !== pending) return
+    set((s) => ({ byRepo: repos.patch(s.byRepo, repoPath, (r) => ({ ...r, loading: false })) }))
   },
 
   remove: (repoPath) =>

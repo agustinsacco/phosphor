@@ -24,6 +24,9 @@ export type {
   UpdateFromMainResult,
   CheckoutResult,
   GhChecks,
+  GhPrReadOptions,
+  GhPrFailure,
+  GhBranchCoverage,
   GhRepoPullRequests,
   GhPullRequest,
 } from './models/git'
