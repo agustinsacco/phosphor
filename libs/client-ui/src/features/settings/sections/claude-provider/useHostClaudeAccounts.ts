@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import type { ClaudeRoutingMode, ClaudeUsageSnapshotResult } from '@shared/models'
 import type { MachineAccount } from '@shared/machine-settings'
+import { machineCandidate } from '@/lib/claudeGateway'
 import { openRemoteLane } from '@/stores/remoteLanes'
 import { useHostSection } from '../../machine/HostSection'
 import {
@@ -16,7 +17,8 @@ const HOST_ACCOUNT_LIMIT = 16
 const accountOf = (account: MachineAccount): ClaudeAccountModel => ({
   id: account.id,
   label: account.label,
-  moveLabel: account.label,
+  // The Host composer's name for it, so a move reads the same in both places.
+  moveLabel: machineCandidate(account).label,
   detail: accountDetail(
     account.email !== account.label ? account.email : undefined,
     account.plan,
