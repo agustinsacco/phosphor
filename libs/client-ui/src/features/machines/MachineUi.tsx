@@ -1,7 +1,8 @@
 import clsx from 'clsx'
-import { CheckIcon, ReloadIcon, WarningIcon } from '@/components/icons'
+import { CheckIcon, Spinner, WarningIcon } from '@/components/icons'
 import { tooltipProps } from '@/components/Tooltip'
 import { CopyCommand } from './MachineControls'
+import type { ReadinessCheck } from './machinePresentation'
 import type { Tone } from './machineReachability'
 
 /** Shared pieces of the Machines pages: one status vocabulary, one card, one check row. */
@@ -62,21 +63,13 @@ export function Card({
   title,
   aside,
   children,
-  className,
-  label,
 }: {
   title: string
   aside?: React.ReactNode
   children: React.ReactNode
-  className?: string
-  /** Accessible name when it differs from the title. */
-  label?: string
 }): React.JSX.Element {
   return (
-    <section
-      aria-label={label ?? title}
-      className={clsx('bg-surface border-border rounded-lg border', className)}
-    >
+    <section aria-label={title} className="bg-surface border-border rounded-lg border">
       <header className="border-border flex min-h-10 items-center justify-between gap-3 border-b px-4 py-2">
         <h3 className="text-text-tertiary font-mono text-xs font-semibold uppercase tracking-wider">
           {title}
@@ -98,30 +91,8 @@ export function Skeleton({ className }: { className?: string }): React.JSX.Eleme
   )
 }
 
-export function Spinner({ size = 12, label }: { size?: number; label?: string }) {
-  return (
-    <span role={label ? 'status' : undefined} aria-label={label} className="inline-flex">
-      <ReloadIcon size={size} className="text-text-tertiary motion-safe:animate-spin" />
-    </span>
-  )
-}
-
-export interface CheckItem {
-  name: string
-  ok: boolean
-  short: string
-  detail: string
-  command?: string
-  /** Still being read; shows a spinner instead of a verdict. */
-  loading?: boolean
-  /** What the row says while loading, when not "Checking…". */
-  loadingText?: string
-  /** Not applicable or not reported: neither passing nor failing. */
-  muted?: boolean
-}
-
 /** The row already names the check: "Claude Code signed out" reads as "Signed out". */
-export function checkState(check: CheckItem): string {
+function checkState(check: ReadinessCheck): string {
   if (check.ok) return check.detail
   const rest = check.short.startsWith(`${check.name} `)
     ? check.short.slice(check.name.length + 1)
@@ -133,14 +104,14 @@ export function checkState(check: CheckItem): string {
  * One readiness line: verdict icon, name and its state in words. A failing
  * check opens to its explanation and the one command that fixes it.
  */
-export function CheckRow({ check }: { check: CheckItem }): React.JSX.Element {
+export function CheckRow({ check }: { check: ReadinessCheck }): React.JSX.Element {
   const failing = !check.ok && !check.loading && !check.muted
   return (
     <div data-check={check.name} data-ok={check.ok} className="py-1.5">
       <div className="flex items-center gap-2.5">
         <span className="flex w-4 shrink-0 justify-center">
           {check.loading ? (
-            <Spinner />
+            <Spinner className="text-text-tertiary" />
           ) : check.ok ? (
             <span aria-label="Passed">
               <CheckIcon size={13} className="text-success" />
@@ -171,20 +142,5 @@ export function CheckRow({ check }: { check: CheckItem }): React.JSX.Element {
         </div>
       )}
     </div>
-  )
-}
-
-/** Label and value pairs for the Details card. */
-export function Facts({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return (
-    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 text-base">{children}</dl>
-  )
-}
-export function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <>
-      <dt className="text-text-tertiary">{label}</dt>
-      <dd className="min-w-0 truncate">{children}</dd>
-    </>
   )
 }

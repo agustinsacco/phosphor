@@ -529,11 +529,19 @@ collapsed project statistics remain below the tiles.
 ## Machines
 
 The list has two groups: This computer, then Hosts (sorted online first, then
-by label). Each row is one line of name plus a muted subtitle (hostname when it
+by label). One row (`MachineRow`) and one detail (`MachineDetail`) draw every
+machine from a `MachineOverview` (`features/machines/machineOverview.ts`):
+`useLocalOverview` for this computer, whose id is `'local'` as everywhere else,
+and `hostSummary` / `useHostOverview` for a Host. What only an enrolled Host has
+(rename, heartbeat, setup notices, On this machine, Reconnect, Update Host…,
+removal) is data on the overview, not a second component.
+Each row is one line of name plus a muted subtitle (hostname when it
 differs, platform and architecture, Host version, non-zero lane counts, last
-seen), then three readiness dots (pi, Claude, Tailscale; amber with the reason
+seen), then readiness dots (pi, Claude, Tailscale; amber with the reason
 in a tooltip) and one status pill in a fixed-width column so the dots line up.
-The pill comes from `machineHeadline` and is the machine's single status:
+This computer's subtitle is its platform, pi version and live lanes; its dots are
+pi and Claude, and its pill is what they add up to: Checking…, Ready, the one
+problem, or N issues. A Host's pill comes from `machineHeadline` and is its single status:
 Connected, Connecting…, Waiting for setup, Not reachable, Tailscale stopped,
 Update needed, Access refused, Identity mismatch, Stopping or Offline. No surface
 pairs two verdicts such as "Online · Not reachable yet". A never-connected or
@@ -545,8 +553,8 @@ to three show; the rest are a link to that machine's lanes. A row opens its lane
 This computer's come from live sessions (a streaming turn or an open dialog). A
 Host's come from its live snapshot, and only while it is connected, so the
 subtitle's "N running · N need you" is current; heartbeat lane counts are the
-fallback. The page subtitle sums the fleet in words
-("4 Hosts · 1 connected · 2 need attention · 1 offline").
+fallback. The page subtitle sums the fleet in words, this computer first under its
+platform label ("This Mac ready · 4 Hosts · 1 connected · 2 need attention · 1 offline").
 The whole row opens a stable detail view; live updates do not reset selection.
 Signed out, only this computer is listed, with an optional GitHub sign-in panel.
 Signed in with no Hosts, Add a machine opens guided setup. There are no sample
@@ -572,8 +580,9 @@ skeleton until their own read settles. A failed count reads Unavailable, never
 zero. Offline and account errors are explicit and offer retry.
 
 A Host's detail has one **Back to machines** breadcrumb, then a compact identity
-header (label with Rename, the status pill and a **Machine actions** menu containing
-Reconnect, Check again and Update Host…, which opens Settings → Advanced), followed by **Overview / Settings / Machine files** navigation (Machine files opens
+header (an h2 label with Rename, the status pill and a **Machine actions** menu containing
+Reconnect, Check again and Update Host…, which opens Settings → Advanced; Reconnect and
+Update Host… need a published address), followed by **Overview / Settings / Machine files** navigation (Machine files opens
 the Host's home folder read-only in a dialog). Add a
 machine and debug actions belong to the list, not a selected Host. The same header
 and responsive container run in Desktop and the browser; the browser does not gain
@@ -595,6 +604,8 @@ but its address is not published" and the fix appears under Connection:
 `phosphor setup` on a Mac, `sudo tailscale set --operator=$USER && phosphor setup`
 on Linux. The Claude Code row names the missing part (provider missing or
 outdated, Claude Code missing, signed out); older Hosts keep the single status.
+A missing or outdated Claude Code has one remedy on every machine:
+Settings → Extensions → Claude Code, which installs it or says how.
 
 Providers lists the connected Host's providers, signed-in first. Not signed in
 is neutral, not a warning, because most people use one or two. The rows are
@@ -608,12 +619,10 @@ review, authority, drafts and timing. Advanced's only action is **Pause and
 update**, a confirmed Host update ([host.md](host.md#updating)); otherwise it is
 read-only, with no shared local/remote raw editor and no automatic service restart.
 
-Older Hosts retain Sign in when granted `terminal` and `sessions.control`. It opens
-a private terminal on that Host: `/login PROVIDER`, follow pi's steps, then `/quit`,
-or Claude's own login steps. Closing cancels it and exit refreshes status. Viewers
-without those capabilities keep the CLI hint. Credentials stay on the Host.
+Signing in happens in Settings → Accounts on that machine; on a Host it runs in a
+private terminal there, and credentials stay on the Host.
 
-The **Connection & identity** disclosure contains Details: hostname, platform,
+The collapsed **Details** disclosure holds a Host's hostname, platform,
 Host version, enrollment date, the published address, and a copyable fingerprint
 and machine id. On this machine previews at most three lanes using the shared
 sidebar row presentation, with a View all link when there are more, alongside
@@ -630,8 +639,13 @@ a machine. The re-added machine has a new id, so Desktop's per-machine
 preferences for it (model and thinking picks, pins, filters, routine drafts)
 start fresh.
 
-This computer's detail has Readiness (pi and the Claude CLI), Providers (its
-subscription sign-ins, with a link to Settings → Accounts) and Details.
+This computer's detail is the same view without what needs enrollment: its
+platform label as the heading (no Rename), the pill its checks add up to, and a
+Machine actions menu with Check again, which re-reads pi, Claude Code and its
+providers. Readiness lists pi and Claude Code; Providers lists its subscriptions
+with Settings → Accounts' rows and **Provider settings**; Details holds its
+platform, pi version and live lane count; the terminal opens a shell at home. It
+has no Connection row, On this machine or Remove.
 
 ### Health check and debug log
 

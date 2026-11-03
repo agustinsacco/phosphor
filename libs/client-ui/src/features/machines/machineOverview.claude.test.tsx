@@ -2,19 +2,20 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
-import { ClaudeReadiness, claudeReadiness } from './ClaudeReadiness'
+import { claudeReadiness } from './machinePresentation'
 import { MachinesPage } from './MachinesPage'
+import { OnlineAndProviders } from './onboarding/OnlineAndProviders'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
 import { MACHINE } from './__fixtures__/control'
 
 it('identifies each missing Claude part before offering sign-in', () => {
   for (const provider of ['missing', 'outdated'] as const)
-    expect(claudeReadiness({ provider, cli: 'ok', auth: 'ok' }).command).toBe(
-      'pi install npm:@saccolabs/pi-claude-cli',
+    expect(claudeReadiness({ provider, cli: 'ok', auth: 'ok' }).detail).toContain(
+      'Settings → Extensions → Claude Code',
     )
-  expect(claudeReadiness({ provider: 'ok', cli: 'missing', auth: 'ok' }).command).toBe(
-    'phosphor setup',
+  expect(claudeReadiness({ provider: 'ok', cli: 'missing', auth: 'ok' }).detail).toContain(
+    'Settings → Extensions → Claude Code',
   )
   expect(claudeReadiness({ provider: 'ok', cli: 'ok', auth: 'signed-out' }).command).toBe(
     'phosphor providers login claude',
@@ -82,7 +83,7 @@ it('falls back for an old Host and re-reads Claude and providers with Check agai
     expect(invoke).toHaveBeenCalledWith('hosts:providers', MACHINE.id)
     expect(invoke).toHaveBeenCalledWith('hosts:claude', MACHINE.id)
     expect(container.textContent).toContain('Claude Code provider missing')
-    expect(container.textContent).toContain('pi install npm:@saccolabs/pi-claude-cli')
+    expect(container.textContent).toContain('Settings → Extensions → Claude Code')
   } finally {
     act(() => root.unmount())
     useRemoteLanesStore.setState({ hosts: {} })
@@ -96,21 +97,21 @@ it.each([
     cli: 'ok',
     auth: 'ok',
     text: 'Claude Code provider missing',
-    command: 'pi install npm:@saccolabs/pi-claude-cli',
+    command: undefined,
   },
   {
     provider: 'outdated',
     cli: 'ok',
     auth: 'ok',
     text: 'Claude Code provider outdated',
-    command: 'pi install npm:@saccolabs/pi-claude-cli',
+    command: undefined,
   },
   {
     provider: 'ok',
     cli: 'missing',
     auth: 'ok',
     text: 'Claude Code is missing',
-    command: 'phosphor setup',
+    command: undefined,
   },
   {
     provider: 'ok',
@@ -159,6 +160,7 @@ it.each([
       expect(container.textContent).toContain(text)
       if (command)
         expect([...container.querySelectorAll('code')].map((c) => c.textContent)).toContain(command)
+      else expect(container.querySelector('[data-check="Claude Code"] code')).toBeNull()
     } finally {
       act(() => root.unmount())
       useRemoteLanesStore.setState({ hosts: {} })
@@ -170,17 +172,40 @@ it.each([
 
 it('labels the detailed provider as Claude Code, distinct from native Claude Pro/Max', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('phosphor', {
+    invoke: vi.fn(async (channel: string) =>
+      channel === 'hosts:claude'
+        ? { provider: 'ok', cli: 'ok', auth: 'ok' }
+        : [{ id: 'anthropic', name: 'Claude Pro/Max', status: 'ready' }],
+    ),
+  })
+  useRemoteLanesStore.setState({
+    hosts: {
+      [MACHINE.id]: {
+        connectionToken: 'test',
+        state: 'ready',
+        capabilities: ['skills.read'],
+        repositories: [],
+        lanes: [],
+      },
+    },
+  })
   const container = document.createElement('div')
   const root = createRoot(container)
   try {
     await act(async () =>
       root.render(
-        <ClaudeReadiness check={claudeReadiness({ provider: 'ok', cli: 'ok', auth: 'ok' })} />,
+        <OnlineAndProviders added={MACHINE} providers onOpen={() => {}} onProviders={() => {}} />,
       ),
     )
-    expect(container.querySelector('p')?.textContent).toBe('Claude Code: Signed in and ready')
+    const claude = container.querySelector('[data-check="Claude Code"]')
+    expect(claude?.textContent).toContain('Signed in and ready')
+    expect(container.querySelector('[data-provider=anthropic]')?.textContent).toContain(
+      'Claude Pro/Max',
+    )
   } finally {
     act(() => root.unmount())
+    useRemoteLanesStore.setState({ hosts: {} })
     vi.unstubAllGlobals()
   }
 })

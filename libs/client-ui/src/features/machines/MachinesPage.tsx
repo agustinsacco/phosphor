@@ -14,28 +14,39 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { AddMachineDialog } from './AddMachineDialog'
 import { controlMessage } from './controlMessages'
 import { MachinesPageActions } from './MachinesPageActions'
-import { LocalMachineDetail, useThisComputer } from './LocalMachine'
 import { HostGuide, HostSetup } from './MachineControls'
-import { MachineDetail } from './MachineDetail'
+import { HostMachineDetail, MachineDetail } from './MachineDetail'
 import { MachineFilesButton } from './MachineFilesButton'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { MachineList } from './MachineList'
 import { machineHeadline } from './machineReachability'
-import { LOCAL_MACHINE } from './machinePresentation'
+import { useLocalOverview, type MachineOverview } from './machineOverview'
 import { TrafficLogPanel } from './TrafficLogPanel'
+
+/** This computer's part of the fleet summary: "This Mac ready". */
+function localSummary({ label, headline }: MachineOverview): string {
+  if (headline.tone === 'ok') return `${label} ready`
+  return headline.tone === 'pending' ? `Checking ${label}…` : `${label} needs attention`
+}
 
 /** One line under the title that says how the fleet is doing, in words. */
 function fleetSummary(
+  local: MachineOverview | null,
   machines: readonly MachineView[],
   hosts: ReturnType<typeof useRemoteLanesStore.getState>['hosts'],
   now: number,
 ): string {
-  if (!machines.length) return 'This computer, and any Hosts you add to your account.'
+  const here = local && localSummary(local)
+  if (!machines.length)
+    return here
+      ? `${here}. Hosts you add to your account appear here.`
+      : 'Your enrolled Hosts appear here.'
   const tones = machines.map((m) => machineHeadline(m, hosts[m.id], now).tone)
   const connected = tones.filter((t) => t === 'ok').length
   const attention = tones.filter((t) => t === 'warn' || t === 'error').length
   const offline = tones.filter((t) => t === 'off').length
   return [
+    here,
     `${machines.length} ${machines.length === 1 ? 'Host' : 'Hosts'}`,
     `${connected} connected`,
     attention ? `${attention} ${attention === 1 ? 'needs' : 'need'} attention` : null,
@@ -50,7 +61,7 @@ export function MachinesPage(): React.JSX.Element {
   const { view: account, error: accountError } = useAccount()
   const signedIn = account?.account.status === 'signed-in'
   const state = useMachinesStore()
-  const computer = useThisComputer()
+  const local = useLocalOverview()
   const hosts = useRemoteLanesStore((s) => s.hosts)
   useEffect(() => () => useMachinesStore.setState({ adding: false }), [])
   const adding = state.adding
@@ -69,7 +80,6 @@ export function MachinesPage(): React.JSX.Element {
   }, [])
   const selected = state.view.kind === 'machine' ? state.view.id : null
   const machine = state.machines.find((entry) => entry.id === selected)
-  const local = selected === LOCAL_MACHINE
   const now = state.nowMs || Date.now()
   const openSettings = useOpenSettings()
   const back = (): void => {
@@ -131,11 +141,9 @@ export function MachinesPage(): React.JSX.Element {
           {!selected && (
             <p className="text-text-secondary text-sm">
               {signedIn
-                ? !platform.localLanes && !state.machines.length
-                  ? 'Your enrolled Hosts appear here.'
-                  : fleetSummary(state.machines, hosts, now + state.clockOffsetMs)
-                : platform.localLanes
-                  ? 'This computer. Sign in to add Hosts.'
+                ? fleetSummary(local, state.machines, hosts, now + state.clockOffsetMs)
+                : local
+                  ? `${localSummary(local)}. Sign in to add Hosts.`
                   : 'Sign in to see your Hosts.'}
             </p>
           )}
@@ -159,7 +167,7 @@ export function MachinesPage(): React.JSX.Element {
           )}
           {!selected ? (
             <MachineList
-              computer={computer}
+              local={local}
               signedIn={signedIn}
               machines={signedIn ? state.machines : []}
               loading={state.loading}
@@ -208,10 +216,10 @@ export function MachinesPage(): React.JSX.Element {
                 )
               }
             />
-          ) : local ? (
-            <LocalMachineDetail computer={computer} />
+          ) : local && selected === local.id ? (
+            <MachineDetail overview={local} />
           ) : machine && signedIn ? (
-            <MachineDetail
+            <HostMachineDetail
               key={machine.id}
               machine={machine}
               now={now}

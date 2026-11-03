@@ -112,7 +112,7 @@ transfer and a common machine engine must back these operations:
   contain secrets. Copy or sync must review individual entries and strip secrets
   by default. OAuth remains pi's (`pi mcp login`); credentials will not sync blindly.
 - Provider logins stay on the target. `apps/host/src/commands/provider-login.ts`
-  owns Host-side login, including the private terminal in Machines Readiness.
+  owns Host-side login, including the private terminal Settings → Accounts opens.
   Credentials never participate in copy or sync.
 
 **Open questions.** Later sync needs per-primitive identities, revisions and

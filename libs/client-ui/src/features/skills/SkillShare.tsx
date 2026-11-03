@@ -3,8 +3,7 @@ import { useRef, useState } from 'react'
 import type { ResolvedSkill } from '@shared/skills'
 import { PopupMenu } from '@/components/PopupMenu'
 import { Button } from '@/components/form'
-import { CheckIcon, WarningIcon } from '@/components/icons'
-import { Spinner } from '@/features/machines/MachineUi'
+import { CheckIcon, Spinner, WarningIcon } from '@/components/icons'
 import { formatBytes } from '@/lib/format'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import {
@@ -67,7 +66,7 @@ export function SkillShareActions({
           onClick={toggle}
         >
           <span className="inline-flex items-center gap-1.5">
-            {share.busy && <Spinner size={11} />}
+            {share.busy && <Spinner className="text-text-tertiary" />}
             Share
           </span>
         </Button>
@@ -226,7 +225,7 @@ function Step({ state, children }: { state: StepState; children: React.ReactNode
     <li className="flex items-center gap-2">
       <span className="inline-flex w-4 shrink-0 justify-center">
         {state === 'active' ? (
-          <Spinner size={12} />
+          <Spinner className="text-text-tertiary" />
         ) : state === 'done' ? (
           <CheckIcon size={13} className="text-success" />
         ) : state === 'failed' ? (

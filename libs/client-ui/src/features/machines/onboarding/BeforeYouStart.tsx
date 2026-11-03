@@ -1,4 +1,4 @@
-import { CheckIcon, WarningIcon, ReloadIcon } from '@/components/icons'
+import { CheckIcon, Spinner, WarningIcon } from '@/components/icons'
 import { useEffect, useRef, useState } from 'react'
 import type { TailscaleCode, TailscaleStatus } from '@shared/tailscale-status'
 import { useAccount } from '@/features/settings/useAccount'
@@ -114,9 +114,7 @@ function CheckStatus({
   checking?: boolean
 }): React.JSX.Element {
   return checking ? (
-    <span aria-label="Checking">
-      <ReloadIcon size={16} className="animate-spin text-text-secondary" />
-    </span>
+    <Spinner label="Checking" className="text-text-secondary" />
   ) : passed ? (
     <span aria-label="Passed">
       <CheckIcon size={16} className="text-success" />
