@@ -376,4 +376,21 @@ describe('release mode', () => {
     await tick()
     expect(a.status()?.problem).toBeUndefined()
   })
+
+  it('names no holder once its own lease turns out to be lost, until origin is read again', async () => {
+    origin = await releaseOrigin()
+    const a = lane('one')
+    await a.command('on')
+    const b = lane('two')
+    await b.command('on')
+    await b.command('takeover')
+    await expect(a.tools.get('release_memory')!.execute('call', { memory: 'x' })).rejects.toThrow(
+      /no longer holds/,
+    )
+    expect(a.status()).toMatchObject({ role: 'standby' })
+    expect(a.status()?.holder).toBeUndefined()
+    expect(a.status()?.epoch).toBeUndefined()
+    await tick(LEASE_RENEW_MS)
+    expect(a.status()).toMatchObject({ role: 'standby', holder: hostname(), epoch: 2 })
+  })
 })

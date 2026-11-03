@@ -105,3 +105,47 @@ it('never sends a slash command pi would hand to the model', async () => {
     'This lane does not support the release control. Restart it to update.',
   )
 })
+
+it('says when this lane has not claimed the lease yet, without takeover advice', () => {
+  const base = { version: 1, available: true, enabled: true, quiet: false } as const
+  const hint = releaseHint({ ...base, role: 'standby' })
+  expect(hint).toBe('Release mode is on; this lane has not claimed the release lease yet.')
+  expect(releaseHint({ ...base, role: 'standby', problem: 'offline' })).toBe(
+    `${hint} Last problem: offline`,
+  )
+})
+
+it('stays off, and says it is applying, until the extension acknowledges', async () => {
+  let finish!: (value: unknown) => void
+  piCommand.mockImplementation(async (_id, command) =>
+    command.type === 'get_commands'
+      ? { success: true, data: { commands } }
+      : new Promise((resolve) => (finish = resolve)),
+  )
+  status({})
+  const button = render()
+  await act(async () => {
+    button?.click()
+    button?.click()
+  })
+  expect(button?.getAttribute('aria-checked')).toBe('false')
+  expect(container.querySelector('[role="status"]')?.textContent).toBe('Applying…')
+  await act(async () => finish({ success: true }))
+  expect(prompts()).toEqual([`/${RELEASE_COMMAND} on`])
+  expect(button?.getAttribute('aria-checked')).toBe('false')
+  expect(container.querySelector('[role="status"]')?.textContent).toBe('')
+  status({ enabled: true, role: 'active', epoch: 1 })
+  expect(render()?.getAttribute('aria-checked')).toBe('true')
+})
+
+it('shows why release mode could not change', async () => {
+  piCommand.mockImplementation(async (_id, command) =>
+    command.type === 'get_commands'
+      ? { success: true, data: { commands } }
+      : { success: false, error: 'pi is busy' },
+  )
+  status({})
+  const button = render()
+  await act(async () => button?.click())
+  expect(useChatStore.getState().sessions.one?.error).toMatch(/pi is busy|Could not change/)
+})
