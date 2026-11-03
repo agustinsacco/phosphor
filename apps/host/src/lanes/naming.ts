@@ -8,6 +8,7 @@ import {
   type TitleFailure,
 } from '@phosphor/session-runtime/pi/title-run'
 import { claudeAccountEnv } from '@phosphor/session-runtime/claude/routing'
+import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 import { hostAutoNameLanes } from '../config/live-policy'
 import type { HostConfigV1 } from '../config/schema'
 import type { HostClaudeAccounts } from '../providers/accounts'
@@ -92,6 +93,8 @@ export function createLaneNamer(
 ) {
   const controller = new AbortController()
   const memory = createTitleMemory()
+  // The runtime's own rule, so the fast boot finds the provider the lane runs on.
+  const agentDir = piAgentDir(machine.env)
   let tail = Promise.resolve()
   let pending = 0
   const live = () => !controller.signal.aborted
@@ -104,6 +107,7 @@ export function createLaneNamer(
       model: job.model.id,
       catalogue: async () => job.models,
       fallback,
+      agentDir,
     })
     const account = (await ports.accountEnv?.(job.sessionId)) ?? {}
     if (!live() || !job.current()) return job.outcome?.('stale')

@@ -223,6 +223,15 @@ describe('title-policy edge cases', () => {
     ).toBe('Fix')
   })
 
+  it('keeps a suffixed title within the 60-character cap', () => {
+    const full = 'A'.repeat(60)
+    expect(dedupeTitle(full, [full])).toBe(`${'A'.repeat(58)} 2`)
+    const spaced = `${'B'.repeat(57)} Cd`
+    expect(dedupeTitle(spaced, [spaced])).toBe(`${'B'.repeat(57)} 2`)
+    const taken = [full, ...Array.from({ length: 8 }, (_, i) => `${'A'.repeat(58)} ${i + 2}`)]
+    expect(dedupeTitle(full, taken)).toBe(`${'A'.repeat(57)} 10`)
+  })
+
   it.each([
     'voxtral',
     'whisper',

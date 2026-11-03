@@ -80,11 +80,13 @@ it('ignores stdin, owns and kills its group on clean finish, and fails past 4 Ki
 it('times out after 30 s, kills the group and stops retrying', async () => {
   vi.useFakeTimers()
   const outcome = vi.fn()
-  createLaneNamer(machine)(job({ outcome }))
+  const timedOut = job({ outcome })
+  createLaneNamer(machine)(timedOut)
   await vi.advanceTimersByTimeAsync(0)
   expect(children).toHaveLength(1)
-  children[0]?.stdout.write('')
+  children[0]?.stdout.write('partial')
   await vi.advanceTimersByTimeAsync(30_000)
+  expect(timedOut.apply).not.toHaveBeenCalled()
   expect(outcome).toHaveBeenCalledExactlyOnceWith('print-timeout', {
     reason: 'timeout',
     attempts: 1,
@@ -296,6 +298,13 @@ it('loads executable provider paths, never package display names, and reports ap
   await vi.waitFor(() => expect(outcome).toHaveBeenCalledExactlyOnceWith('applied'))
 })
 
+it('looks up the provider package in the Host agent directory', async () => {
+  const env = { PATH: '/test', PI_CODING_AGENT_DIR: '/host/agent' }
+  createLaneNamer({ ...machine, env })(job({ model: { provider: 'pi-claude-cli', id: 'claude' } }))
+  await vi.waitFor(() => expect(children).toHaveLength(1))
+  expect(listPackages).toHaveBeenCalledWith('/repo', '/host/agent')
+})
+
 it.each([
   ['stale', ['stale']],
   ['print-failed', ['print-failed', { reason: 'exit', attempts: 2 }]],
@@ -408,6 +417,16 @@ it('asks for a title unlike its sibling lanes and dedupes the reply against them
   children[0]?.stdout.write('Named')
   children[0]?.emit('close', 0)
   await vi.waitFor(() => expect(job.apply).toHaveBeenCalledWith('Named 2'))
+})
+
+it('keeps a deduplicated title within 60 characters', async () => {
+  const sibling = 'A'.repeat(60)
+  const job = routedJob({ existingNames: [sibling] })
+  createLaneNamer(machine)(job)
+  await vi.waitFor(() => expect(children).toHaveLength(1))
+  children[0]?.stdout.write(sibling)
+  children[0]?.emit('close', 0)
+  await vi.waitFor(() => expect(job.apply).toHaveBeenCalledWith(`${'A'.repeat(58)} 2`))
 })
 
 it('reads automatic naming live and resolves the routed account for each session', async () => {

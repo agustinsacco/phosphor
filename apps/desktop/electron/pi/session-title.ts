@@ -36,7 +36,13 @@ async function prepare(
   })
   if (!invoker) return null
   const { binaryPath, prefixArgs, stub } = invoker
-  const request = { pi: { binaryPath, prefixArgs }, cwd: workspacePath, message, existingNames }
+  const request = {
+    pi: { binaryPath, prefixArgs },
+    cwd: workspacePath,
+    message,
+    existingNames,
+    acceptPartial: true,
+  }
   if (stub) return { ...request, env: invoker.env, plan: titleAttempts(null, null, null) }
   const settings = await readAgentSettings(workspacePath)
   const claudeCli = usesClaudeCliProvider({}, settings.defaultProvider)

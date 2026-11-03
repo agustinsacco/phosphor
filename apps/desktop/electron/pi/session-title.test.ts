@@ -102,3 +102,10 @@ it('retains rejection for unexpected invocation environment failures', async () 
   expect(state.run).not.toHaveBeenCalled()
   expect(state.log).not.toHaveBeenCalled()
 })
+
+it('names from the partial stdout of a timed-out or aborted attempt', async () => {
+  for (const reason of ['timeout', 'aborted'] as const) {
+    state.run.mockResolvedValueOnce({ stdout: 'Fix Login', error: reason, reason })
+    expect(await generate()).toBe('Fix Login')
+  }
+})

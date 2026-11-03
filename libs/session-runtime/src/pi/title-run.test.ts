@@ -5,6 +5,7 @@ import {
   runTitleAttempts,
   titleRunEnv,
   type TitleMemory,
+  type TitleRunRequest,
 } from './title-run'
 import { CLAUDE_TITLE_FALLBACK, type TitleAttempt } from './title-policy'
 
@@ -148,18 +149,19 @@ it('does not learn on an unsuccessful run that only planned attempts', async () 
   expect(memory).toEqual(freshMemory())
 })
 
+const request = (memory?: TitleMemory, existingNames: string[] = []): TitleRunRequest => ({
+  pi: { binaryPath: '/bin/pi', prefixArgs: ['entry.js'] },
+  cwd: '/repo',
+  env: { PATH: '/bin' },
+  message: 'fix login',
+  existingNames,
+  plan: [fast, full, fallback],
+  memory,
+  defaultProvider: 'vendor',
+  print: { timeoutMs: 30_000, maxOutputBytes: 4096, overflow: 'fail' },
+})
 const run = (memory?: TitleMemory, existingNames: string[] = []) =>
-  runTitleAttempts({
-    pi: { binaryPath: '/bin/pi', prefixArgs: ['entry.js'] },
-    cwd: '/repo',
-    env: { PATH: '/bin' },
-    message: 'fix login',
-    existingNames,
-    plan: [fast, full, fallback],
-    memory,
-    defaultProvider: 'vendor',
-    print: { timeoutMs: 30_000, maxOutputBytes: 4096, overflow: 'fail' },
-  })
+  runTitleAttempts(request(memory, existingNames))
 
 it('runs each attempt with the prompt last and the caller print limits', async () => {
   state.print.mockResolvedValue({ stdout: 'Here is a title:\n"Fix Login Bug."\n' })
@@ -207,10 +209,16 @@ it.each(['timeout', 'aborted'] as const)('stops after %s and learns nothing', as
   expect(memory).toEqual(freshMemory())
 })
 
-it('accepts partial stdout when the successful attempt timed out', async () => {
-  state.print.mockResolvedValue({ stdout: 'Fix Login Bug', error: 'timed out', reason: 'timeout' })
-  expect((await run()).title).toBe('Fix Login Bug')
-})
+it.each(['timeout', 'aborted'] as const)(
+  'names from partial stdout after %s only when the caller accepts it',
+  async (reason) => {
+    state.print.mockResolvedValue({ stdout: 'Fix Login Bug', error: reason, reason })
+    expect((await run()).title).toBeNull()
+    expect(state.print).toHaveBeenCalledTimes(1)
+    const accepted = await runTitleAttempts({ ...request(), acceptPartial: true })
+    expect(accepted.title).toBe('Fix Login Bug')
+  },
+)
 
 it('builds the run env: base, pi-owned Claude context, one-shot exit, then the account', () => {
   expect(
