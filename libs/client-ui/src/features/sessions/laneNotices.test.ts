@@ -35,3 +35,19 @@ it("keeps a release lane's routine pass quiet, and announces any other run", () 
   noticeLaneSettled('lane')
   expect(notify).toHaveBeenCalledTimes(2)
 })
+
+it('still announces a failed run in a quiet release lane', () => {
+  const notify = vi.spyOn(useExtensionUiStore.getState(), 'notify')
+  notify.mockClear()
+  release(true)
+  const failed = {
+    kind: 'assistant',
+    id: 'a',
+    blocks: [],
+    stopReason: 'error',
+    errorMessage: 'gh pr failed: HTTP 502',
+  }
+  noticeLaneSettled('lane', null, Date.now(), { items: [failed], tools: {} } as never)
+  expect(notify).toHaveBeenCalledTimes(1)
+  expect(notify.mock.lastCall?.[0]).toMatchObject({ kind: 'error' })
+})
