@@ -236,3 +236,35 @@ it.each([
     })
   },
 )
+
+it.each([
+  ['defaultProvider', ['', 'claude-sonnet-4-5']],
+  ['defaultModel', ['anthropic', '']],
+] as const)(
+  'shows a Host model key set on its own as set here, and Reset clears it (regression R-U4, no %s)',
+  async (missing, ids) => {
+    invoke.mockImplementation(async (channel: string, hostId, section, repositoryId) => {
+      if (channel === 'hosts:models') return []
+      if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
+      if (channel !== 'hosts:settingsRead') return local(channel)
+      const read = mockSettingsRead(hostId, section, repositoryId)
+      if (read.agent) delete read.agent[missing]
+      return read
+    })
+    await showHostSettings(root, HOST.id, 'agent')
+    const badge = row('Default model').querySelector('[data-setting-source]')
+    expect(badge?.getAttribute('data-setting-source')).toBe('set-here')
+    const field = (title: string) => row(title).querySelector<HTMLInputElement>('input')!.value
+    expect([field('Provider id'), field('Model id')]).toEqual(ids)
+    const reset = container.querySelector<HTMLButtonElement>('[aria-label="Reset Default model"]')
+    await act(async () => reset!.click())
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(invoke).toHaveBeenCalledWith(
+      'hosts:settingsPatch',
+      HOST.id,
+      expect.objectContaining({
+        change: { type: 'agent.patch', patch: { defaultProvider: null, defaultModel: null } },
+      }),
+    )
+  },
+)
