@@ -24,7 +24,9 @@ export function releaseHint(state: ReleaseStatus): string {
     case 'active':
       return `This lane is the repository's release manager (lease epoch ${state.epoch ?? '?'}): it reviews, merges and releases ready pull requests. Switch off to hand over.${problem}`
     case 'standby':
-      return `Release mode is on, but a lane on ${state.holder ?? 'another host'} holds the release lease. This lane takes over if that lease lapses; /${RELEASE_COMMAND} takeover takes it now.${problem}`
+      if (!state.holder)
+        return `Release mode is on; this lane has not claimed the release lease yet.${problem}`
+      return `Release mode is on, but a lane on ${state.holder} holds the release lease. This lane takes over if that lease lapses; /${RELEASE_COMMAND} takeover takes it now.${problem}`
     default:
       return "Make this lane the repository's release manager. Only one lane per repository holds the release lease at a time."
   }
@@ -58,45 +60,54 @@ export function ReleaseSwitch({ sessionId }: { sessionId: string }): React.JSX.E
 
   const hint = releaseHint(state)
   return (
-    <TooltipButton
-      type="button"
-      role="switch"
-      aria-label="Release manager"
-      aria-checked={state.enabled}
-      aria-busy={sending}
-      aria-disabled={sending}
-      aria-describedby={hintId}
-      tooltip={{
-        label: state.enabled ? 'Switch release mode off' : 'Release manager',
-        description: hint,
-      }}
-      data-state={state.role}
-      onClick={() => {
-        if (!sending) void toggle()
-      }}
-      className={clsx(
-        'flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-base font-medium transition-colors',
-        state.role === 'off' && 'text-text-secondary hover:bg-bg-secondary hover:text-text',
-        state.role === 'standby' && 'text-text',
-        state.role === 'active' && 'bg-accent-soft text-text',
-      )}
-    >
-      <span
-        aria-hidden="true"
+    <>
+      <TooltipButton
+        type="button"
+        role="switch"
+        aria-label="Release manager"
+        aria-checked={state.enabled}
+        aria-busy={sending}
+        aria-disabled={sending}
+        aria-describedby={hintId}
+        tooltip={{
+          label: state.enabled ? 'Switch release mode off' : 'Release manager',
+          description: hint,
+        }}
+        data-state={state.role}
+        onClick={() => {
+          if (!sending) void toggle()
+        }}
         className={clsx(
-          'h-1.5 w-1.5 rounded-full',
-          state.problem ? 'bg-warning' : state.role === 'active' ? 'bg-accent' : 'bg-text-tertiary',
+          'flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-base font-medium transition-colors',
+          state.role === 'off' && 'text-text-secondary hover:bg-bg-secondary hover:text-text',
+          state.role === 'standby' && 'text-text',
+          state.role === 'active' && 'bg-accent-soft text-text',
         )}
-      />
-      <span>Release</span>
-      {state.role === 'standby' && (
-        <span className="text-text-tertiary text-2xs font-mono tracking-wide uppercase">
-          standby
+      >
+        <span
+          aria-hidden="true"
+          className={clsx(
+            'h-1.5 w-1.5 rounded-full',
+            state.problem
+              ? 'bg-warning'
+              : state.role === 'active'
+                ? 'bg-accent'
+                : 'bg-text-tertiary',
+          )}
+        />
+        <span>Release</span>
+        {state.role === 'standby' && (
+          <span className="text-text-tertiary text-2xs font-mono tracking-wide uppercase">
+            standby
+          </span>
+        )}
+        <span id={hintId} className="sr-only">
+          {hint}
         </span>
-      )}
-      <span id={hintId} className="sr-only">
-        {hint}
+      </TooltipButton>
+      <span role="status" className="sr-only">
+        {sending ? 'Applying…' : ''}
       </span>
-    </TooltipButton>
+    </>
   )
 }
