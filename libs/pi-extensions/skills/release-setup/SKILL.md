@@ -105,7 +105,7 @@ so pull before you push. If your pull request already merged, open a new one.
 1. Create the labels, which are safe to repeat:
    `gh label create rm:hold --force --color c5def5 --description "Release manager: wait"`,
    `gh label create rm:priority --force --color d93f0b --description "Release manager: merge first"`,
-   `gh label create rm:blocked --force --color b60205 --description "Release manager: needs its lane or the user"`.
+   `gh label create rm:blocked --force --color b60205 --description "Release manager: waits on its lane or a person"`.
 2. Create the "Release queue" issue unless one exists
    (`gh issue list --search '"Release queue" in:title' --state open`), then
    `gh issue pin NUMBER`. The manager keeps it current.
