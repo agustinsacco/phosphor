@@ -62,7 +62,7 @@ export function SourcedControl({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex min-w-0 max-w-full items-center gap-2">
       <SourceBadge source={source} />
       {children}
       {reset && source === 'set-here' && (

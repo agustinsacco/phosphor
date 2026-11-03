@@ -35,7 +35,7 @@ export function Select<T extends string>({
       disabled={disabled}
       onChange={(event) => onChange(event.target.value as T)}
       className={clsx(
-        'border-border bg-surface text-text max-w-full rounded-lg border px-2.5 py-1.5 text-base outline-none disabled:opacity-50',
+        'border-border bg-surface text-text min-w-0 max-w-full rounded-lg border px-2.5 py-1.5 text-base outline-none disabled:opacity-50',
         className,
       )}
     >

@@ -128,7 +128,7 @@ export function Row({
         )}
       </div>
       <RowLabel.Provider value={title}>
-        <div className="shrink-0">{children}</div>
+        <div className="min-w-0 max-w-full shrink-0">{children}</div>
       </RowLabel.Provider>
     </div>
   )
