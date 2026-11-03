@@ -93,7 +93,7 @@ it('shows a Host folder inheriting its machine thinking level, and lets it pin m
   const thinking = [...container.querySelectorAll('select')].find((s) =>
     [...s.options].some((o) => o.value === 'xhigh'),
   )!
-  expect(thinking.value).toBe('high')
+  expect(thinking.selectedOptions[0]?.textContent).toBe('Machine (high)')
   await act(async () => {
     thinking.value = 'medium'
     thinking.dispatchEvent(new Event('change', { bubbles: true }))

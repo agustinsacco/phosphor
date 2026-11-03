@@ -27,6 +27,21 @@ const LEVELS: readonly SelectOption[] = ALL_THINKING_LEVELS.map((level) => ({
   label: level,
 }))
 
+/**
+ * The choice that leaves a field unset, named by what it then falls back to:
+ * the machine's value, else pi's default. Offered while nothing is set here,
+ * so every concrete value is a change, and as Reset where clearing works.
+ */
+export const unsetChoice = (inherited: string | undefined, piDefault?: string): SelectOption => ({
+  value: '',
+  label:
+    inherited !== undefined
+      ? `Machine (${inherited})`
+      : piDefault
+        ? `pi default (${piDefault})`
+        : 'pi default',
+})
+
 /** Which scope a shown value comes from: this one, the machine's, or pi itself. */
 export function settingSource(own: unknown, inherited: unknown): SettingSource {
   if (own !== undefined) return 'set-here'
@@ -77,6 +92,18 @@ export function AgentFieldRow({
   const inherited = source.inherited ? agentFieldValue(source.inherited, field.path) : undefined
   const shown = own ?? inherited ?? field.piDefault
   const set = (value: unknown) => source.setField(key, value)
+  const choices = field.kind === 'mode' ? MODES : LEVELS
+  const labelOf = (value: unknown): string =>
+    choices.find((choice) => choice.value === value)?.label ?? String(value)
+  const unset =
+    own === undefined || source.caps.clear
+      ? [
+          unsetChoice(
+            inherited === undefined ? undefined : labelOf(inherited),
+            labelOf(field.piDefault),
+          ),
+        ]
+      : []
   return (
     <Row title={title} description={description}>
       <SourcedControl
@@ -96,9 +123,9 @@ export function AgentFieldRow({
           />
         ) : (
           <Select
-            value={String(shown)}
-            options={field.kind === 'mode' ? MODES : LEVELS}
-            onChange={set}
+            value={own === undefined ? '' : String(own)}
+            options={[...unset, ...choices]}
+            onChange={(value) => set(value === '' ? undefined : value)}
           />
         )}
       </SourcedControl>
