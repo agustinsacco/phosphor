@@ -80,6 +80,10 @@
       "types": "./src/git/github.ts",
       "default": "./src/git/github.ts"
     },
+    "./git/github-worktrees": {
+      "types": "./src/git/github-worktrees.ts",
+      "default": "./src/git/github-worktrees.ts"
+    },
     "./git/git-exec": {
       "types": "./src/git/git-exec.ts",
       "default": "./src/git/git-exec.ts"
