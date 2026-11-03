@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import {
+  claudeReadiness,
   formatCode,
   HOST_INSTALL,
   platformName,
@@ -102,4 +103,21 @@ it('marks running Tailscale as unpublished until the Host has an endpoint withou
       (check) => check.name === 'Tailscale',
     ),
   ).toMatchObject({ ok: true, detail: 'Connected with HTTPS available' })
+})
+
+it('points a missing Claude Code at phosphor setup when the Host cannot open Settings', () => {
+  const [, configurable] = readinessChecks({ pi: 'ok', claude: 'missing', tailscale: 'ok' }, null)
+  expect(configurable?.detail).toContain('Settings → Extensions → Claude Code')
+  expect(configurable?.command).toBeUndefined()
+  const [, fixed] = readinessChecks({ pi: 'ok', claude: 'missing', tailscale: 'ok' }, null, false)
+  expect(fixed?.detail).not.toContain('Settings')
+  expect(fixed?.command).toBe('phosphor setup')
+  for (const detail of [
+    { provider: 'outdated', cli: 'ok', auth: 'ok' },
+    { provider: 'ok', cli: 'missing', auth: 'ok' },
+  ] as const) {
+    expect(claudeReadiness(detail).command).toBeUndefined()
+    expect(claudeReadiness(detail, false).command).toBe('phosphor setup')
+    expect(claudeReadiness(detail, false).detail).not.toContain('Settings')
+  }
 })

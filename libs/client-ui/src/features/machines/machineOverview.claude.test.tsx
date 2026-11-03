@@ -209,3 +209,46 @@ it('labels the detailed provider as Claude Code, distinct from native Claude Pro
     vi.unstubAllGlobals()
   }
 })
+
+it('gives a Host that cannot open Settings the phosphor setup command for missing Claude parts', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const invoke = vi.fn(async (channel: string): Promise<unknown> => {
+    if (channel === 'account:get')
+      return { account: { status: 'signed-in', user: { login: 'test' } } }
+    if (channel === 'hosts:claude') return { provider: 'missing', cli: 'ok', auth: 'ok' }
+    if (channel === 'hosts:providers' || channel === 'pi:subscriptionAuth') return []
+    return null
+  })
+  vi.stubGlobal('phosphor', { invoke, onAccountChanged: () => () => {} })
+  useMachinesStore.setState({
+    remoteEnabled: true,
+    machines: [{ ...MACHINE, lastSeenAt: new Date().toISOString(), state: 'running' }],
+    view: { kind: 'machine', id: MACHINE.id },
+    nowMs: Date.now(),
+  })
+  useRemoteLanesStore.setState({
+    hosts: {
+      [MACHINE.id]: {
+        connectionToken: 'test',
+        state: 'ready',
+        capabilities: ['skills.read'],
+        repositories: [],
+        lanes: [],
+      },
+    },
+  })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<MachinesPage />))
+    const claude = container.querySelector('[data-check="Claude Code"]')
+    expect(claude?.textContent).toContain('Claude Code provider missing')
+    expect(claude?.textContent).not.toContain('Settings → Extensions → Claude Code')
+    expect(claude?.querySelector('code')?.textContent).toBe('phosphor setup')
+  } finally {
+    act(() => root.unmount())
+    useRemoteLanesStore.setState({ hosts: {} })
+    useMachinesStore.getState().enableRemote(false)
+    vi.unstubAllGlobals()
+  }
+})
