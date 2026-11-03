@@ -141,9 +141,11 @@ export function ComposerInput({
           }
         />
         {children}
-        {/* One row, never wrapped: the model name truncates before a control moves. */}
+        {/* One row while it fits: the model name truncates first. Only when the
+            right group's floor (see .composer-toolbar-end) does not fit does it
+            drop to its own line, whole, so no control is ever crushed. */}
         <div
-          className="composer-toolbar flex items-center gap-x-2 px-2.5 pb-2"
+          className="composer-toolbar flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pb-2"
           data-testid="composer-toolbar"
         >
           <div className="flex shrink-0 items-center gap-0.5">
@@ -163,7 +165,7 @@ export function ComposerInput({
               ))}
             {scopeStatus}
           </div>
-          <div className="ml-auto flex min-w-0 items-center gap-1.5">
+          <div className="composer-toolbar-end flex items-center justify-end gap-1.5">
             {modelPicker}
             {actions}
           </div>

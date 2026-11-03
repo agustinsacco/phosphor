@@ -41,6 +41,21 @@ function fieldState(field: Locator) {
   })
 }
 
+/** Distinct rows of toolbar controls, the narrowest control, and whether all sit in the card. */
+function toolbarLayout(page: Page) {
+  return page.getByTestId('composer-toolbar').evaluate((toolbar) => {
+    const card = toolbar.parentElement!.getBoundingClientRect()
+    const boxes = [...toolbar.querySelectorAll('button')]
+      .map((b) => b.getBoundingClientRect())
+      .filter((box) => box.height > 0)
+    return {
+      rows: new Set(boxes.map((box) => Math.round(box.top + box.height / 2))).size,
+      narrowest: Math.min(...boxes.map((box) => box.width)),
+      inside: boxes.every((box) => box.left >= card.left && box.right <= card.right + 0.5),
+    }
+  })
+}
+
 async function signIn(page: Page, origin: string): Promise<void> {
   await page.goto(origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
@@ -63,18 +78,7 @@ test('the phone lane composer keeps one control row, one scroller and the caret 
   const chat = page.getByRole('textbox', { name: 'Chat message', exact: true })
   await chat.fill('A short draft')
   // Every control shares one row: the model name truncates instead of wrapping.
-  const rows = await page
-    .getByTestId('composer-toolbar')
-    .locator('button')
-    .evaluateAll((buttons) => [
-      ...new Set(
-        buttons
-          .map((b) => b.getBoundingClientRect())
-          .filter((box) => box.height > 0)
-          .map((box) => Math.round(box.top + box.height / 2)),
-      ),
-    ])
-  expect(rows).toHaveLength(1)
+  expect((await toolbarLayout(page)).rows).toBe(1)
   expect(await extraScrollers(page)).toEqual([])
   await page.screenshot({ path: info.outputPath('lane-composer-320.png') })
 
@@ -84,6 +88,13 @@ test('the phone lane composer keeps one control row, one scroller and the caret 
   const card = (await page.getByTestId('composer-toolbar').locator('..').boundingBox())!
   expect(menu.y + menu.height).toBeLessThanOrEqual(card.y)
   await page.getByRole('button', { name: 'Send message', exact: true }).click({ trial: true })
+
+  // Too narrow for one row: the right group takes its own line, and no control is crushed.
+  await page.setViewportSize({ width: 240, height: 760 })
+  const narrow = await toolbarLayout(page)
+  expect(narrow.narrowest).toBeGreaterThanOrEqual(24)
+  expect(narrow.inside).toBe(true)
+  await page.setViewportSize({ width: 320, height: 760 })
 
   // The keyboard leaves half the screen: the field stops growing and scrolls itself.
   await page.setViewportSize({ width: 412, height: 480 })

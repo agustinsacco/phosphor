@@ -20,9 +20,10 @@ The composer is one small field with several ways in.
 - **Two groups and a strip.** The row under the field holds controls only.
   Left, what the agent gets: attach and the [Swarm](#swarm-authorization)
   pill. Right, the engine then go: the model · thinking split chip, then
-  **Continue | Send** (Stop while a turn runs) behind a hairline. The row
-  never wraps: at a narrow width the model name truncates and every control
-  keeps its place. Every readout sits in the
+  **Continue | Send** (Stop while a turn runs) behind a hairline. The model
+  name truncates first, so the row stays one line; only when the right
+  group cannot fit even a short model chip does it drop to its own line,
+  whole, instead of chips wrapping one by one. Every readout sits in the
   **status strip** under the box: the context ring with `36% of 200k` (opens
   the [usage popover](#what-the-context-meters-popover-shows)),
   `Rules 2/2 · MCP 6/9` (opens the [context sources](#context-files)
