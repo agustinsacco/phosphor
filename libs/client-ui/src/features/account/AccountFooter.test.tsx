@@ -6,6 +6,10 @@ import type { AccountView } from '@shared/account'
 import { AccountAvatar, AccountFooter, avatarInitials } from './AccountFooter'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useMachinesStore } from '@/stores/machines'
+import { useLayoutStore } from '@/stores/layout'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useSessionsStore } from '@/stores/sessions'
+import { useSettingsMachine } from '@/features/settings/SettingsMachineScope'
 import { NavigationProvider } from '@/navigation/Navigation'
 import type { Location } from '@/navigation/location'
 import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
@@ -189,4 +193,43 @@ it('advertises the Settings shortcut only where the app shortcuts are installed'
       b.textContent?.startsWith('Settings'),
     )?.textContent,
   ).toBe('Settings ')
+})
+
+it('opens Desktop Settings on This Mac when the switcher chose it over the active Host lane', async () => {
+  useLayoutStore.setState({ page: null })
+  useRemoteLanesStore.setState({ filter: 'local' })
+  useMachinesStore.setState({ machines: [{ id: 'bee1', label: 'bee1' } as never] })
+  useSessionsStore.setState({
+    activeSessionId: 'remote',
+    live: {
+      remote: {
+        sessionId: 'remote',
+        workspacePath: 'host:bee1/lane:lane-1',
+        target: { kind: 'remote', hostId: 'bee1' },
+        laneId: 'lane-1',
+      },
+    } as never,
+  })
+  let configured: string | undefined
+  function Configuring(): null {
+    configured = useSettingsMachine().machine?.id
+    return null
+  }
+  try {
+    await act(async () =>
+      root.render(
+        <>
+          <AccountFooter />
+          <Configuring />
+        </>,
+      ),
+    )
+    await click('Settings')
+    expect(useSettingsUiStore.getState().open).toBe(true)
+    expect(configured).toBe('local')
+  } finally {
+    useRemoteLanesStore.setState({ filter: 'all' })
+    useMachinesStore.setState({ machines: [] })
+    useSessionsStore.setState({ activeSessionId: null, live: {} })
+  }
 })
