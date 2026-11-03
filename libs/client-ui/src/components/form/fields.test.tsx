@@ -42,10 +42,9 @@ it('typing a partial number never saves a clamped value', () => {
   input.focus()
   type(input, '2')
   type(input, '20')
-  type(input, '20480')
   expect(onChange).not.toHaveBeenCalled()
-  expect(input.value).toBe('20480')
-  act(() => input.blur())
+  expect(input.value).toBe('20')
+  type(input, '20480')
   expect(onChange).toHaveBeenCalledExactlyOnceWith(20480)
 })
 
@@ -84,6 +83,27 @@ it('applies a typed value that is already in range before the field is left (reg
   input.focus()
   type(input, '18')
   expect(onChange).toHaveBeenCalledExactlyOnceWith(18)
+})
+
+it('keeps the typed text when a value it applied earlier lands late', () => {
+  const onChange = vi.fn()
+  const render = (value: number) =>
+    act(() =>
+      root.render(
+        <Row title="Reserve tokens">
+          <NumberField value={value} min={1024} max={131072} step={1024} onChange={onChange} />
+        </Row>,
+      ),
+    )
+  render(16384)
+  const input = container.querySelector('input')!
+  type(input, '2048')
+  type(input, '20480')
+  render(2048)
+  expect(input.value).toBe('20480')
+  expect(onChange.mock.calls).toEqual([[2048], [20480]])
+  act(() => input.blur())
+  expect(onChange).toHaveBeenLastCalledWith(20480)
 })
 
 it('takes its accessible name from its Row', () => {

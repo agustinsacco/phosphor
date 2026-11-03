@@ -1,5 +1,5 @@
 import { TooltipButton } from '@/components/Tooltip'
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 
 /** A Row's title: the accessible name of the one control inside it. */
@@ -174,9 +174,11 @@ export function Toggle({
 }
 
 /**
- * A number that commits on blur or Enter, never per keystroke: a half-typed
- * value is neither clamped nor saved. Empty or unparseable input restores the
- * saved value; the committed value is clamped to `min`..`max`.
+ * A number that applies as it is typed once the value is one blur would keep:
+ * within `min`..`max`, and whole when `step` is. Anything else waits for blur
+ * or Enter, then is clamped, so a half-typed value is never clamped and saved.
+ * Empty or unparseable input restores the saved value. Until it is left, the
+ * typed text is kept, so a save that lands late cannot overwrite it.
  */
 export function NumberField({
   value,
@@ -195,11 +197,28 @@ export function NumberField({
 }): React.JSX.Element {
   const label = useRowLabel()
   const [draft, setDraft] = useState(String(value))
-  useEffect(() => setDraft(String(value)), [value])
+  const edited = useRef(false)
+  useEffect(() => {
+    if (!edited.current) setDraft(String(value))
+  }, [value])
+  const parse = (text: string): number | null => {
+    const typed = Number(text)
+    return text.trim() === '' || Number.isNaN(typed) ? null : typed
+  }
+  const settle = (typed: number): number => Math.min(max, Math.max(min, typed))
+  const fits = (typed: number): boolean =>
+    settle(typed) === typed && (!Number.isInteger(step) || Number.isInteger(typed))
+  const edit = (text: string): void => {
+    edited.current = true
+    setDraft(text)
+    const typed = parse(text)
+    if (typed !== null && fits(typed) && typed !== value) onChange(typed)
+  }
   const commit = (): void => {
-    const typed = Number(draft)
-    if (draft.trim() === '' || Number.isNaN(typed)) return setDraft(String(value))
-    const next = Math.min(max, Math.max(min, typed))
+    edited.current = false
+    const typed = parse(draft)
+    if (typed === null) return setDraft(String(value))
+    const next = settle(typed)
     setDraft(String(next))
     if (next !== value) onChange(next)
   }
@@ -212,7 +231,7 @@ export function NumberField({
         min={min}
         max={max}
         step={step}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => edit(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
