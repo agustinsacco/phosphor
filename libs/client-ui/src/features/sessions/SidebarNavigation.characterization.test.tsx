@@ -93,20 +93,20 @@ it('lists New and the page links in order, then the machine scope, lanes and the
   expect(container.querySelectorAll('button[aria-label="Settings"]')).toHaveLength(1)
 })
 
-it('offers the local machine by its platform label, each Host, All machines and Add machine in the machine scope', async () => {
+it('offers This Mac, each Host, All machines and Add machine in the machine scope', async () => {
   await render()
   await act(async () => button('Machine filter').click())
   expect(
     [...document.querySelectorAll('[role=option]')].map((o) =>
-      o.textContent?.startsWith('This computer')
-        ? 'This computer'
+      o.textContent?.startsWith('This Mac')
+        ? 'This Mac'
         : o.textContent?.startsWith('All machines')
           ? 'All machines'
           : o.textContent?.startsWith(MOCK_HOST_ID)
             ? 'Host'
             : o.textContent,
     ),
-  ).toEqual(['This computer', 'Host', 'All machines', '+ Add machine'])
+  ).toEqual(['This Mac', 'Host', 'All machines', '+ Add machine'])
 })
 
 it('New opens home for This Mac and the scoped Host composer for a Host', async () => {
@@ -147,4 +147,18 @@ it('choosing a machine sets the persisted sidebar filter without leaving the ope
   await act(async () => host.click())
   expect(useRemoteLanesStore.getState().filter).toBe(MOCK_HOST_ID)
   expect(useSessionsStore.getState().activeSessionId).toBe('local-lane')
+})
+
+// The pins above name the local machine on macOS; this file's machine scope runs there.
+beforeEach(() => {
+  ;(window.phosphor as { platform?: string }).platform = 'darwin'
+})
+
+it('names the local machine This computer in the machine scope off macOS', async () => {
+  ;(window.phosphor as { platform?: string }).platform = 'linux'
+  await render()
+  await act(async () => button('Machine filter').click())
+  const options = [...document.querySelectorAll('[role=option]')].map((o) => o.textContent ?? '')
+  expect(options[0]).toMatch(/^This computer/)
+  expect(options.some((o) => o.startsWith('This Mac'))).toBe(false)
 })

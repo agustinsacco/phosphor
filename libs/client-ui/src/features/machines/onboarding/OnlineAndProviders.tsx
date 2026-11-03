@@ -79,6 +79,8 @@ export function OnlineAndProviders({
       <MachineProviders
         hostId={added.id}
         refresh={attempt}
+        // An older Host, or a failed Claude check: its provider row is the only Claude Code row.
+        keepClaude={!claude && !claudeLoading}
         onConfigure={
           connection?.configurationSupported
             ? () => {

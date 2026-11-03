@@ -131,7 +131,10 @@ function LaneList({
   account: ClaudeAccountModel
   source: DetailsSource
 }): React.JSX.Element {
-  const targets = moveTargets(source.accounts, account.id)
+  const targets = moveTargets(
+    source.accounts.map((target) => ({ ...target, label: target.moveLabel })),
+    account.id,
+  )
   const live = source.caps.lanes === 'live'
   return (
     <div>

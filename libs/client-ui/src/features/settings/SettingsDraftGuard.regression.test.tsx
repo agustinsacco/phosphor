@@ -108,3 +108,26 @@ it('asks before the browser leaves the Settings page over an unsaved Host draft'
   )
   expect(window.location.pathname).toBe(`/pages/settings/${machine.id}`)
 })
+
+it('asks before browser Back leaves the Settings page over an unsaved Host draft', async () => {
+  window.history.replaceState(null, '', `/pages/settings/${machine.id}`)
+  useSettingsUiStore.setState({ tab: 'agent', machine: null, folder: null })
+  await act(async () =>
+    root.render(
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <BrowserSettings />
+      </PlatformProvider>,
+    ),
+  )
+  await leaveAnUnsavedDraft()
+  // Back has already moved the address when popstate arrives.
+  await act(async () => {
+    window.history.replaceState(null, '', '/lanes')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  })
+  expect(promptChoice).toHaveBeenCalledWith(
+    expect.objectContaining({ title: 'Discard unsaved Host settings?' }),
+  )
+  expect(window.location.pathname).toBe(`/pages/settings/${machine.id}`)
+  expect(document.body.textContent).toContain('Some changes are not saved on bee1')
+})

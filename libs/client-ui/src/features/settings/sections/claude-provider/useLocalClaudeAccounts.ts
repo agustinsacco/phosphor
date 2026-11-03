@@ -13,6 +13,7 @@ import { errorText } from '@shared/errors'
 import { isNewerVersion, meetsMinimum } from '@shared/version'
 import { basename } from '@/lib/path'
 import { sessionTitle } from '@/lib/sessionTitle'
+import { viewCandidate } from '@/lib/claudeGateway'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { usePackageJob } from '../../usePackageJob'
@@ -203,19 +204,23 @@ const accountsOf = (
   accounts: ClaudeAccountsResult | null,
   lanes: Record<string, ClaudeAccountLane[]>,
 ): ClaudeAccountModel[] =>
-  (accounts?.views ?? []).map(({ account, auth, usage, cooldownUntil }) => ({
-    id: account.id,
-    label: account.label,
-    detail: accountDetail(
-      auth.email ?? account.email,
-      auth.plan ?? account.plan,
-      auth.organization ?? account.organization,
-    ),
-    signedIn: auth.loggedIn ?? null,
-    cooldownUntil,
-    usage,
-    lanes: lanes[account.id] ?? [],
-  }))
+  (accounts?.views ?? []).map((view) => {
+    const { account, auth, usage, cooldownUntil } = view
+    return {
+      id: account.id,
+      label: account.label,
+      moveLabel: viewCandidate(view).label,
+      detail: accountDetail(
+        auth.email ?? account.email,
+        auth.plan ?? account.plan,
+        auth.organization ?? account.organization,
+      ),
+      signedIn: auth.loggedIn ?? null,
+      cooldownUntil,
+      usage,
+      lanes: lanes[account.id] ?? [],
+    }
+  })
 
 /** Stable, so an open account row reads its usage once. Main caches each reading ~60 s. */
 const readUsage = (id: string): Promise<ClaudeUsageSnapshotResult> =>

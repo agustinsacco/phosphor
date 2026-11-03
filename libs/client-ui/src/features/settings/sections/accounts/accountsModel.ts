@@ -62,6 +62,8 @@ export interface ClaudeAccountLane {
 export interface ClaudeAccountModel {
   id: string
   label: string
+  /** What a move to this account calls it: the composer's name for it on this machine. */
+  moveLabel: string
   /** Email, plan and organization, as far as the machine knows them. */
   detail: string
   /** `null`: the machine could not verify the sign-in. */
@@ -95,6 +97,11 @@ export interface ClaudeAccountsSource {
   refreshUsage: () => void
   /** One account's usage; `force` asks the CLI again. `null`: no reading yet, not zero. */
   usage: (id: string, force: boolean) => Promise<ClaudeUsageSnapshotResult | null>
+  /**
+   * A lane may move to any other account not known to be signed out
+   * (`signedIn !== false`), unverified ones included, as in the composer
+   * (`moveTargets`).
+   */
   moveLane: (laneId: string, accountId: string) => Promise<void>
   /** Why lanes cannot be restarted or moved from here, when they cannot. */
   moveBlocked?: string | null

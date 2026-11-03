@@ -129,7 +129,9 @@ export function useLocalOverview(): MachineOverview | null {
   const { localLanes } = usePlatform()
   const reads = useLocalReads(localLanes)
   const tasks = useLocalTasks()
-  const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
+  const liveHere = useSessionsStore(
+    (s) => Object.values(s.live).filter((entry) => entry.target?.kind !== 'remote').length,
+  )
   const openSettings = useOpenSettings()
   if (!localLanes) return null
   const checks = localChecks(reads.health, reads.claude, reads.failed)
@@ -215,6 +217,7 @@ export function useClaudeReadiness(
 ): { check: ReadinessCheck | null; loading: boolean } {
   const connection = useRemoteLanesStore((s) => s.hosts[hostId])
   const connected = connection?.state === 'ready'
+  const configurable = connection?.configurationSupported === true
   const [state, setState] = useState<{
     hostId: string
     check: ReadinessCheck | null
@@ -227,7 +230,11 @@ export function useClaudeReadiness(
       void window.phosphor.invoke('hosts:claude', hostId).then(
         (detail) => {
           if (live)
-            setState({ hostId, check: detail ? claudeReadiness(detail) : null, loading: false })
+            setState({
+              hostId,
+              check: detail ? claudeReadiness(detail, configurable) : null,
+              loading: false,
+            })
         },
         () => {
           if (live) setState({ hostId, check: null, loading: false })
@@ -236,7 +243,7 @@ export function useClaudeReadiness(
     return () => {
       live = false
     }
-  }, [hostId, connected, connection?.connectionToken, refresh])
+  }, [hostId, connected, configurable, connection?.connectionToken, refresh])
   const current = connected && state?.hostId === hostId ? state : null
   return { check: current?.check ?? null, loading: current?.loading ?? false }
 }
@@ -291,13 +298,16 @@ export function useHostOverview(
   const freshness = readinessFreshness(machine, now, offset)
   const version = connection?.hostVersion || machine.hostVersion
   const seen = machine.lastSeenAt && relativeTime(machine.lastSeenAt, corrected)
-  const reported = readinessChecks(machine.readiness, machine.endpoint).map((check) => {
-    // An offline machine's last report is history: shown, but not a list of fixes.
-    if (freshness === 'stale') return { ...check, muted: !check.ok }
-    if (check.name !== 'Claude Code') return check
-    if (claude.loading) return { ...check, loading: true }
-    return claude.check ?? check
-  })
+  const configurable = connection?.configurationSupported === true
+  const reported = readinessChecks(machine.readiness, machine.endpoint, configurable).map(
+    (check) => {
+      // An offline machine's last report is history: shown, but not a list of fixes.
+      if (freshness === 'stale') return { ...check, muted: !check.ok }
+      if (check.name !== 'Claude Code') return check
+      if (claude.loading) return { ...check, loading: true }
+      return claude.check ?? check
+    },
+  )
   const connectionCheck: ReadinessCheck = {
     name: 'Connection',
     ok: headline.ok,

@@ -9,11 +9,15 @@ const CLAUDE_CODE_IDS = new Set(['claude', 'pi-claude-cli'])
 /**
  * A Host's provider rows, joined to the shared catalogue for what each needs
  * and what it spends. A provider the catalogue does not list (pi's default,
- * configured with an API key) groups under Other providers.
+ * configured with an API key) groups under Other providers. `keepClaude` keeps
+ * the Claude Code rows for a view that has no Claude Code check of its own.
  */
-export function providerRows(providers: readonly MachineProvider[]): ProviderRow[] {
+export function providerRows(
+  providers: readonly MachineProvider[],
+  keepClaude = false,
+): ProviderRow[] {
   return providers
-    .filter((provider) => !CLAUDE_CODE_IDS.has(provider.id))
+    .filter((provider) => keepClaude || !CLAUDE_CODE_IDS.has(provider.id))
     .map(({ id, name, status }) => {
       const known = SUBSCRIPTION_PROVIDERS.find((entry) => entry.id === id)
       return { ...known, id, name, status }

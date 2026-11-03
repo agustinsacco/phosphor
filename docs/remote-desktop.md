@@ -361,7 +361,9 @@ Further recovery stays in the collapsed Stuck? disclosure.
 
 **Providers** shows the Host's Claude Code readiness row and its providers in
 Settings → Accounts' rows and words (Signed in, Not signed in, Could not verify).
-A missing Claude Code points at Settings → Extensions → Claude Code. **Provider
+A Host that reports no Claude Code check lists its Claude Code provider row instead.
+A missing Claude Code points at Settings → Extensions → Claude Code, or at
+`phosphor setup` on a Host whose Settings this client cannot open. **Provider
 settings** closes the dialog and opens Settings → Accounts on the Host, where Sign
 in runs; a Host too old for that shows `phosphor providers login PROVIDER` instead.
 Check readiness again re-reads both, and Open machine shows the machine page.
