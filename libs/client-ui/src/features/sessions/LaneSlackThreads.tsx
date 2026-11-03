@@ -26,22 +26,12 @@ function SlackPill({
   threads: SlackThread[]
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const id = useId()
   const label = `${threads.length} Slack thread${threads.length === 1 ? '' : 's'} in context`
   const close = (restoreFocus = true): void => {
     setOpen(false)
-    setError(null)
     if (restoreFocus) triggerRef.current?.focus()
-  }
-  const reference = (thread: SlackThread): void => {
-    addToDraft(sessionId, thread.url)
-    close(false)
-    // The composer is a sibling tree; its field is the one shared hook F6 also uses.
-    requestAnimationFrame(() =>
-      document.querySelector<HTMLTextAreaElement>('[data-composer-input]')?.focus(),
-    )
   }
   return (
     <div className="titlebar-no-drag relative shrink-0">
@@ -68,38 +58,61 @@ function SlackPill({
           escapeContainer
           className="absolute left-0 top-full mt-1 w-80 py-2"
         >
-          <FocusFirst>
-            <p className="px-3 pb-1 text-xs text-text-tertiary">Slack threads in this lane</p>
-            {threads.map((thread) => (
-              <ThreadRow
-                key={thread.key}
-                thread={thread}
-                onOpen={() => {
-                  setError(null)
-                  window.phosphor
-                    .invoke('app:openExternal', thread.url)
-                    .then(() => close())
-                    .catch(() => setError('Could not open Slack. Try again.'))
-                }}
-                onCopy={() => {
-                  setError(null)
-                  navigator.clipboard
-                    .writeText(thread.url)
-                    .then(() => close())
-                    .catch(() => setError('Could not copy the link.'))
-                }}
-                onReference={() => reference(thread)}
-              />
-            ))}
-            {error && (
-              <p role="alert" className="px-3 pt-1 text-sm text-danger">
-                {error}
-              </p>
-            )}
-          </FocusFirst>
+          <ThreadList sessionId={sessionId} threads={threads} onClose={close} />
         </PopupMenu>
       )}
     </div>
+  )
+}
+
+/** The popup's rows. Failures stay visible, and the popup open, so you can retry. */
+function ThreadList({
+  sessionId,
+  threads,
+  onClose,
+}: {
+  sessionId: string
+  threads: SlackThread[]
+  onClose: (restoreFocus?: boolean) => void
+}): React.JSX.Element {
+  const [error, setError] = useState<string | null>(null)
+  const attempt = (work: Promise<void>, failure: string): void => {
+    setError(null)
+    work.then(() => onClose()).catch(() => setError(failure))
+  }
+  const reference = (thread: SlackThread): void => {
+    addToDraft(sessionId, thread.url)
+    onClose(false)
+    // The composer is a sibling tree; its field is the one shared hook F6 also uses.
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLTextAreaElement>('[data-composer-input]')?.focus(),
+    )
+  }
+  return (
+    <FocusFirst>
+      <p className="px-3 pb-1 text-xs text-text-tertiary">Slack threads in this lane</p>
+      {threads.map((thread) => (
+        <ThreadRow
+          key={thread.key}
+          thread={thread}
+          onOpen={() =>
+            attempt(
+              window.phosphor.invoke('app:openExternal', thread.url),
+              'Could not open Slack. Try again.',
+            )
+          }
+          onCopy={() =>
+            attempt(navigator.clipboard.writeText(thread.url), 'Could not copy the link.')
+          }
+          onReference={() => reference(thread)}
+        />
+      ))}
+      {error && (
+        <p role="alert" className="px-3 pt-1 text-sm text-danger">
+          {error}
+        </p>
+      )}
+    </FocusFirst>
   )
 }
 
