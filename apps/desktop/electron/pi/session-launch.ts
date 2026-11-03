@@ -4,7 +4,7 @@ import { prepareSessionLaunch } from '@phosphor/session-runtime/pi/session-launc
 import { resolvePiInvoker } from './invoker'
 import { claudeProviderSpawnEnv } from '@phosphor/session-runtime/pi/provider-detect'
 import { artifactStoreEnv } from '../artifacts/artifact-store-root'
-import { seedBundledSkills } from '@phosphor/session-runtime/bundled-skills'
+import { restoreArtifactSkill, seedBundledSkills } from '@phosphor/session-runtime/bundled-skills'
 import { piAgentDir } from './pi-paths'
 import { log } from '../debug-log'
 import { prefs } from '../prefs/backend'
@@ -14,18 +14,19 @@ import { migrateRetiredDirectives } from './retired-directives'
 const resourceRoot = () =>
   app.isPackaged ? process.resourcesPath : join(app.getAppPath(), '../../libs/pi-extensions')
 
-/** Installed before any pi probe/session; user edits and deletion survive updates. */
-export function ensureDesktopBundledSkills(restore = false): void {
-  seedBundledSkills(resourceRoot(), piAgentDir(), restore)
+/** Bring back a deleted artifact skill; never overwrites edits. */
+export function restoreDesktopArtifactSkill(): void {
+  restoreArtifactSkill(resourceRoot(), piAgentDir())
 }
 
 /** Once per launch, before any session: what Phosphor adds to or moves into pi's config. */
 export function preparePiConfig(): void {
   try {
-    ensureDesktopBundledSkills()
+    // Installed before any pi probe or session; user edits and deletions survive updates.
+    seedBundledSkills(resourceRoot(), piAgentDir())
   } catch (error) {
     // A read-only pi configuration must not prevent Desktop from opening.
-    log('skills', 'Could not install bundled visual-artifacts skill', { error: String(error) })
+    log('skills', 'Could not install bundled skills', { error: String(error) })
   }
   migrateRetiredDirectives(prefs() as unknown as RawPrefs, piAgentDir(), (message, data) =>
     log('directives', message, data),
