@@ -213,6 +213,18 @@ it('falls back to identity only when GitHub refuses the detail query, without re
   expect(run).toHaveBeenCalledTimes(4)
 })
 
+it('does not turn an unverifiable head repository into proof of absence', async () => {
+  const service = reader()
+  const opts = { branches: ['older/lane'] }
+  await service.read('/repo', opts)
+  vi.setSystemTime(401_000)
+  rows[0]!.headRepository = null as never
+  expect(await service.read('/repo', opts)).toMatchObject({
+    byBranch: { 'older/lane': { number: 42 } },
+    coverage: { 'older/lane': { state: 'unavailable' } },
+  })
+})
+
 it('rejects oversized requests without spawning gh', async () => {
   expect(
     await reader().read('/repo', { branches: Array.from({ length: 21 }, (_, i) => `b${i}`) }),
