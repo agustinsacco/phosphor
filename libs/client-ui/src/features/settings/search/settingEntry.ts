@@ -16,6 +16,11 @@ export interface SettingEntry {
    * machine shares is found on every machine. Device rows ignore it.
    */
   on?: RowMachines
+  /**
+   * A scoped section's row that no folder renders: opening it switches the
+   * scope line to Machine, so the reveal lands on it.
+   */
+  machineScope?: true
   /** A row the platform only renders with this capability. */
   requires?: SettingsCapability
   /** Exactly as the section renders it: the result jumps to this text. */

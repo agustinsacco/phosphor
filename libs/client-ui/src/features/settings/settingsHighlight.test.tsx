@@ -69,10 +69,14 @@ async function openResult(title: string): Promise<void> {
   const result = container.querySelector<HTMLElement>(`[role="option"][data-tooltip="${title}"]`)
   await act(async () => result!.click())
 }
+/** The row titles and headings the open section renders, which a reveal can land on. */
 const rowTitles = () =>
-  [...container.querySelectorAll('[data-setting-row]')].map(
-    (row) => row.firstElementChild?.firstElementChild?.textContent,
-  )
+  [
+    ...[...container.querySelectorAll('[data-setting-row]')].map(
+      (row) => row.firstElementChild?.firstElementChild,
+    ),
+    ...container.querySelectorAll('h2, h3'),
+  ].map((element) => element?.textContent)
 
 it.each(['Global instructions', 'Lane charter', 'Context budget'])(
   'switches a Host folder to Machine scope to reveal %s, which only the machine has (regression R-U10)',
@@ -84,3 +88,13 @@ it.each(['Global instructions', 'Lane charter', 'Context budget'])(
     expect(rowTitles()).toContain(title)
   },
 )
+
+it('keeps a This Mac folder for its own directive switches, and leaves it for global instructions', async () => {
+  useSettingsUiStore.setState({ folder: '/work/app' })
+  await showHostSettings(root, 'local', 'agent')
+  await openResult('Lane charter')
+  expect(useSettingsUiStore.getState().folder).toBe('/work/app')
+  await openResult('Global instructions')
+  expect(useSettingsUiStore.getState().folder).toBeNull()
+  expect(rowTitles()).toContain('Global instructions')
+})
