@@ -46,12 +46,14 @@ policy. It sends `/phosphor-release on` or `off`;
 saved in the lane's session, so it survives a restart of the same session; a
 fork starts with it off.
 
-The switch publishes `phosphor-release`, a JSON status
+The extension publishes `phosphor-release`, a JSON status
 (`libs/pi-extensions/pi-ext/release-status.ts`, import-free so the Host and
 both clients parse it): `available`, `enabled`, `role` (`off`, `active`,
 `standby`), the lease `holder` host and `epoch`, `quiet`, and the last
-`problem` reaching GitHub. Lanes in repositories without the policy publish
-nothing.
+`problem` reaching GitHub. On standby, `holder` names only a live lease held by
+another lane; until it reads one, the switch says this lane has not claimed the
+lease yet. Lanes in repositories without the policy publish nothing, unless
+release mode is still on.
 
 ## One manager per repository: the lease
 
