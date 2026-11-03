@@ -317,8 +317,8 @@ Six facts that explain the rest:
    process owns the file.
 5. **Seven extensions run inside pi's process** (`libs/pi-extensions/pi-ext/`, loaded with `-e` into
    ordinary sessions): `artifacts`, `context-breakdown`, `headroom`, `lane-reload`,
-   `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
-   the model did: [docs/extensions.md](docs/extensions.md).
+   `release-manager`, `tool-name-guard`, `worktree-paths`. Three of them can
+   change or refuse what the model did: [docs/extensions.md](docs/extensions.md).
 6. **Failure is reported, not hidden.** Failures land on the session's chat;
    main-process detail goes to `phosphor.log`. For a bad session,
    [AGENTS.md](AGENTS.md#debugging-a-failing-session) has the three layers of

@@ -329,12 +329,15 @@ HTML/theme guidance and chart examples. Architecture and processes use diagrams;
 UI reviews use screenshots or clearly labelled prototypes; straightforward
 references can stay Markdown. No universal Markdown or dashboard default.
 
-Desktop ships this directory outside the asar alongside `pi-ext/` and seeds it
-once, before any pi probe or session, into `<piAgentDir>/skills/visual-artifacts`.
-The Host bundle includes the same files; `accept` seeds them before starting its
-sessions (`doctor` stays read-only). This is an ordinary user-owned pi skill, not
+Desktop ships the `skills/` directory outside the asar alongside `pi-ext/` and
+seeds every skill in `BUNDLED_SKILLS` (`visual-artifacts` and
+[`release-setup`](release-manager.md#setting-a-repository-up)) once, before any
+pi probe or session, into `<piAgentDir>/skills/<name>`, each with its own
+receipt. The Host bundle includes the same files; `accept` and `run` seed them
+before starting sessions (`doctor` stays read-only). This is an ordinary user-owned pi skill, not
 an immutable package skill: Skills → Yours offers source editing, hiding,
-export and deletion, plus **Restore artifact skill** for a missing folder.
+export and deletion, plus **Restore artifact skill** for a missing folder. Restore
+brings back `visual-artifacts` only; a deleted `release-setup` stays deleted.
 Deleting a writable skill asks for confirmation naming the bundle. Only
 **Move to Trash** moves the entire folder to the system Trash, where it can be
 recovered. Cancel, Escape and backdrop dismissal leave it untouched. If Trash
