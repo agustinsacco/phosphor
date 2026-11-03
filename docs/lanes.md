@@ -154,14 +154,18 @@ Two queries:
 
 - `ghPrForBranch` — one branch. Used by the top-bar branch popup.
 - `ghPrsForRepo`: a bounded repo listing, indexed by `headRefName`. Used by the
-  sidebar, Home board and active-lane header. **Never fan the single-branch query across lanes**; that is
-  8-20 subprocesses per refresh.
+  sidebar, Home board and active-lane header. If its newest 100 PRs fill the page,
+  it also searches for missing checked-out branches from `git worktree list`,
+  including the main checkout. These searches batch up to 20 quoted `head:`
+  qualifiers and return at most 100 PRs each. This finds older lane PRs in busy
+  repositories without paging through their history. **Never fan the single-branch
+  query across lanes**; that is 8-20 subprocesses per refresh.
 
 Both queries resolve the repository from the supplied working directory, with
 no workspace or organization allowlist. They first request check details. If
 that fails (including GitHub GraphQL resource limits in CI-heavy repos), they
-retry once with identity and state only, keeping the same PR limit. A PR
-still shows its number and state. Check, review and mergeability details are
+retry once with identity and state only, keeping the same PR limit. The same
+fallback applies to batched branch searches. A PR still shows its number and state. Check, review and mergeability details are
 unavailable in this fallback; it gets no green checkmark and cannot make a
 Home lane ready to merge.
 
@@ -191,7 +195,10 @@ launch inherits launchd's PATH, which has no Homebrew in it, and a bare
 chip.** The `↑ no PR` fallback renders only after a successful, complete
 listing and only for a worktree with a known branch. The repo query is capped
 at 100 recent PRs; a full page cannot prove absence for an older branch, so it
-never produces this fallback. A failed query cannot prove absence either.
+never produces this fallback. Supplemental branch searches add confirmed PRs,
+but never turn a truncated listing into proof of absence. Failed worktree
+lookup or branch searches retain the recent PRs already found. A failed repo
+query cannot prove absence either.
 A trunk checked out directly is not "a lane", and guessing "you could open a
 PR" there is wrong more often than right. A **confirmed** chip has no such
 restriction.
@@ -223,7 +230,8 @@ upstream freshness timestamp: a Host can reuse its 60-second repository cache,
 even for manual Refresh. A missing local `gh` probe is retried on a later attempt.
 Unavailable or truncated listings never imply “no PR”; confirmed absence keeps
 the existing complete-listing, known-branch, worktree-only rule. The listing
-remains capped at 100 recent PRs, with no history paging or webhook guarantee.
+uses 100 recent PRs plus bounded searches for missing checked-out branches,
+with no history paging or webhook guarantee.
 
 ### Slack thread links
 

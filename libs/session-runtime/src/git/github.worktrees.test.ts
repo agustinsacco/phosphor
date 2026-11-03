@@ -91,3 +91,29 @@ it('batches missing branches, deduplicates them and skips detached or already-kn
   expect(query).not.toContain('team/recent-0')
   expect(query).not.toContain('detached')
 })
+
+it('quotes unusual branch names and bounds long search batches', async () => {
+  const unusual = 'team/literal"label:injected'
+  const branches = Array.from({ length: 15 }, (_, i) => `team/${'long'.repeat(95)}-${i}`)
+  vi.mocked(git).mockResolvedValue(worktrees(unusual, ...branches))
+  const gh = vi.fn<GhRunner>(async (_cwd, args) =>
+    JSON.stringify(args.includes('--search') ? [] : recent),
+  )
+  await ghPrsForRepo(gh, '/repo')
+  const searches = gh.mock.calls
+    .filter(([, args]) => args.includes('--search'))
+    .map(([, args]) => args[args.indexOf('--search') + 1]!)
+  expect(searches).toHaveLength(2)
+  expect(searches[0]).toContain(`head:${JSON.stringify(unusual)}`)
+  for (const search of searches) expect(search.length).toBeLessThanOrEqual(4000)
+})
+
+it('finds merged PRs for the main checkout as well as worktree PRs', async () => {
+  const merged = { ...older, headRefName: 'main', number: 15776, state: 'MERGED' }
+  const gh = vi.fn<GhRunner>(async (_cwd, args) =>
+    JSON.stringify(args.includes('--search') ? [merged] : recent),
+  )
+  const result = await ghPrsForRepo(gh, '/repo')
+  expect(result?.byBranch.main).toMatchObject({ number: 15776, state: 'MERGED' })
+  expect(result?.complete).toBe(false)
+})
