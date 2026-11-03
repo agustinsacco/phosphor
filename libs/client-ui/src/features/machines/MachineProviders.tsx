@@ -8,15 +8,18 @@ import { useMachineProviders } from './useMachineProviders'
 /**
  * A machine's pi providers on the Machines page: Settings → Accounts' rows, read
  * only. Sign-in opens that page; a Host too old for it gets the CLI command.
+ * `keepClaude` lists the Claude Code provider's row where no Claude Code check shows.
  */
 export function MachineProviders({
   hostId,
   refresh = 0,
   onConfigure,
+  keepClaude = false,
 }: {
   hostId: string
   refresh?: number
   onConfigure?: () => void
+  keepClaude?: boolean
 }): React.JSX.Element {
   const { readable, providers, failed, retry } = useMachineProviders(hostId, refresh)
   return (
@@ -41,7 +44,9 @@ export function MachineProviders({
       ) : providers.length === 0 ? (
         <p className="text-text-secondary text-base">No providers reported by this machine.</p>
       ) : (
-        <ProviderList source={{ providers: providerRows(providers), flow: null, busy: false }} />
+        <ProviderList
+          source={{ providers: providerRows(providers, keepClaude), flow: null, busy: false }}
+        />
       )}
       {onConfigure ? (
         <Button size="sm" onClick={onConfigure}>
