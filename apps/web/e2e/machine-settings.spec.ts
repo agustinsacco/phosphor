@@ -67,6 +67,17 @@ test('browser Host settings load only after explicit configuration access', asyn
     await expect(
       settings.getByRole('button', { name: 'Reset Default model', exact: true }),
     ).toBeInViewport({ ratio: 1 })
+    // The select gives way, not the words: the badge and Reset each stay on one line.
+    const lines = (locator: Locator) =>
+      locator.evaluate((el) => {
+        const range = document.createRange()
+        range.selectNodeContents(el)
+        return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size
+      })
+    expect(await lines(settings.getByText('Set here', { exact: true }).first())).toBe(1)
+    expect(
+      await lines(settings.getByRole('button', { name: 'Reset Default model', exact: true })),
+    ).toBe(1)
     await page.screenshot({
       path: info.outputPath(`host-settings-browser-access-${width}.png`),
       fullPage: true,
