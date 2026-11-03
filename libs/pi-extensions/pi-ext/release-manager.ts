@@ -124,13 +124,19 @@ function bind(lane: Lane, ctx: ReleaseContext): void {
 
 function publish(lane: Lane): void {
   const lease = lane.state?.lease
+  // On standby, only a live lease held by someone else names a holder: never this
+  // lane's own stale one, so the switch never says another lane holds it.
+  const me = claimant(lane)
+  const own = lease?.holder === me.holder && lease.pid === me.pid
+  const others = !own && !!lease && Date.parse(lease.expires) > lane.now()
+  const named = lane.enabled && (lane.role === 'active' ? own : others)
   const status: ReleaseStatus = {
     version: 1,
     available: lane.available,
     enabled: lane.enabled,
     role: lane.role,
     quiet: lane.quiet,
-    ...(lane.enabled && lease ? { holder: lease.host, epoch: lease.epoch } : {}),
+    ...(named && lease ? { holder: lease.host, epoch: lease.epoch } : {}),
     ...(lane.enabled && lane.problem ? { problem: lane.problem } : {}),
   }
   try {

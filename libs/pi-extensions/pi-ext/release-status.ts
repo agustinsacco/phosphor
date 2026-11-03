@@ -15,7 +15,10 @@ export interface ReleaseStatus {
   /** Release mode is on in this lane. */
   enabled: boolean
   role: ReleaseRole
-  /** The host holding the lease when it is not this lane. */
+  /**
+   * The host holding the lease: this lane's when active; on standby, only a
+   * live lease held by another lane.
+   */
   holder?: string
   /** Bumped by every change of holder. */
   epoch?: number
