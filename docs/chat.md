@@ -824,7 +824,8 @@ The model · thinking chip lives on the right of the **composer footer**
 [Rules · MCP readout](#context-files) in the status strip under it; the
 session's ⋮ menu is in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
 The title is followed by the shared [PR status button](lanes.md#active-lane-header),
-joined through this lane's own repository and branch, including on a Host.
+joined through this lane's own repository and branch, including on a Host, and
+then by the lane's [Slack thread links](lanes.md#slack-thread-links).
 
 - **Model picker** (from `get_available_models`), grouped by **family** by
   default so every route to one model sits under one header, toggleable to
