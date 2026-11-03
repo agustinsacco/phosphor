@@ -31,6 +31,7 @@ export interface RemoteTerminalEntry {
   killing?: boolean
   killBusy?: boolean
   ended: boolean
+  exitReported: boolean
   busy: boolean
   pending: { data: string; resolve: () => void; reject: (error: Error) => void }[]
   pendingBytes: number
@@ -52,9 +53,24 @@ export function createTerminalEntry(
     synchronized: false,
     resetVersion: 0,
     ended: false,
+    exitReported: false,
     busy: false,
     pending: [],
     pendingBytes: 0,
     dropVersion: 0,
   }
+}
+
+/**
+ * Report an entry's end once. Only the Host's exit frame carries a real code; a reset with an
+ * ended status, or a lane that went away, reports -1 (unknown) and never success.
+ */
+export function reportExit(
+  e: RemoteTerminalEntry,
+  emit: (windowId: number, channel: string, code: number) => void,
+  code: number,
+) {
+  if (e.exitReported) return
+  e.ended = e.exitReported = true
+  emit(e.windowId, `pty:exit:${e.id}`, code)
 }
