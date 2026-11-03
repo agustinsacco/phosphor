@@ -56,13 +56,23 @@ nothing.
 ## One manager per repository: the lease
 
 The ref `refs/phosphor/release` on origin holds an orphan commit with three
-files: `lease.json` (holder, host, epoch, expiry), `memory.md` (at most 16,384
-characters) and `ledger.jsonl` (the last 500 events). Every write is a
-compare-and-swap: `git push --force-with-lease=refs/phosphor/release:<sha read>`.
-A lost race reads as git's `(stale info)`; any other refusal is a `problem`.
+files: `lease.json` (holder, host, process, epoch, expiry), `memory.md` (at
+most 16,384 characters) and `ledger.jsonl` (the last 500 events). Every write is
+a compare-and-swap: `git push --force-with-lease=refs/phosphor/release:<sha read>`.
+A lost race (git's `(stale info)`, or the server's `cannot lock ref`) reads the
+ref again, so the standby names the lane that won; any other refusal is a
+`problem`. A file the commit lacks reads as empty, but one it lists and cannot
+read fails the read, so a passing glitch never looks like a free lease.
 
 - The lease lasts 20 minutes and is renewed every 5. A new holder bumps the
-  epoch and logs it in the ledger.
+  epoch and logs it in the ledger. If someone deletes the ref, the next holder
+  starts again at epoch 1 with empty memory.
+- The holder is a session on a host, run by one process. A second live process
+  on the same session waits on standby. A restart on the same host finds its old
+  process gone and takes the lease back at once, with a new epoch.
+- Expiry compares each host's own clock with the time written in the lease.
+  Hosts whose clocks disagree by minutes can take over early or late; keep
+  them on network time.
 - A lane that finds the lease held stays on **standby**: it answers the user
   and changes nothing on GitHub. It takes over once the lease lapses, or at
   once on `takeover`.
@@ -92,16 +102,25 @@ its lane could not see; one without gets a fresh reviewer.
 
 Four tools are active only while the lane holds the lease:
 
-| Tool             | Does                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------- |
-| `release_merge`  | Re-reads the lease, refuses a change to the policy, merges with `--match-head-commit` |
-| `release_memory` | Saves memory or a ledger event, as the holder only                                    |
-| `release_ask`    | Asks the user without pausing; silence applies the default after the wait             |
-| `release_flag`   | Makes this pass alert the user when it ends                                           |
+| Tool             | Does                                                                                |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| `release_merge`  | Checks the head and the policy, renews the lease, merges with `--match-head-commit` |
+| `release_memory` | Saves memory or a ledger event, as the holder only                                  |
+| `release_ask`    | Asks the user without pausing; silence applies the default after the wait           |
+| `release_flag`   | Makes this pass alert the user when it ends                                         |
 
-A refused lease check drops the lane to standby. While release mode is on, a
-`tool_call` hook refuses `gh pr merge`, the merge API and force pushes through
-`bash`. It is a guard against the lane's own mistakes, not a security boundary.
+`release_merge` fetches the pull request's head with local git and refuses
+unless it is still the commit reviewed. It refuses a change to the policy file,
+renames and deletions included. Then it renews the lease by compare-and-swap,
+so no other lane can take the lease between that check and the merge. A refused
+renewal drops the lane to standby.
+
+While release mode is on, a `tool_call` hook (`release-guard.ts`) refuses
+merges through `bash`: `gh pr merge`, writes to the merge endpoints, and GraphQL
+merge mutations. It also refuses pushes that force, mirror, prune or delete, and
+any push to the base branch. It splits the command as a shell would, so quoted
+text passes, and it looks into `sh -c`, `eval`, `$(…)` and wrappers such as
+`env`. It is a guard against the lane's own mistakes, not a security boundary.
 
 ## Telling the user
 
