@@ -119,7 +119,7 @@ it('sanitizes, caps at 60 characters, deduplicates and asks for 2-5 words', asyn
   // The suffix fits inside the cap: the base is shortened and trimmed first (R-M4).
   const title = await generate([`Fix Login${' x'.repeat(25)}`, 'Other'])
   expect(title).toBe(`Fix Login${' x'.repeat(24)} 2`)
-  expect(title!.length).toBeLessThanOrEqual(60)
+  expect(String(title).length).toBeLessThanOrEqual(60)
   expect(args(0).at(-1)).toContain('2-5 words')
   expect(args(0).at(-1)).toContain('- Other')
 })
