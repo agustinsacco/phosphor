@@ -605,7 +605,8 @@ but its address is not published" and the fix appears under Connection:
 on Linux. The Claude Code row names the missing part (provider missing or
 outdated, Claude Code missing, signed out); older Hosts keep the single status.
 A missing or outdated Claude Code has one remedy on every machine:
-Settings → Extensions → Claude Code, which installs it or says how.
+Settings → Extensions → Claude Code, which installs it or says how. A Host whose
+Settings cannot open (unconnected, or too old) offers `phosphor setup` instead.
 
 Providers lists the connected Host's providers, signed-in first. Not signed in
 is neutral, not a warning, because most people use one or two. The rows are
