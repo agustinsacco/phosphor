@@ -128,3 +128,40 @@ it('names a too-large or failed repository list with fixed text, never Host text
     new Error('Not available on remote lanes yet.'),
   )
 })
+it('forwards targeted interests and retries only old Host bad-request with legacy params', async () => {
+  const key = 'host:00000000-0000-4000-8000-000000000001/repo:' + repositoryId
+  const options = { branches: ['feature'], force: true }
+  call
+    .mockResolvedValueOnce({
+      type: 'result',
+      id: 'pr',
+      ok: false,
+      error: { code: 'bad-request', message: 'old host' },
+    })
+    .mockResolvedValueOnce({
+      type: 'result',
+      id: 'pr',
+      ok: true,
+      data: { byBranch: {}, complete: false },
+    })
+  // The second argument is the additive protocol extension under regression.
+  const targeted = reads.pullRequests as (
+    key: string,
+    options: { branches: string[]; force?: boolean },
+  ) => ReturnType<typeof reads.pullRequests>
+  await expect(targeted(key, options)).resolves.toEqual({ byBranch: {}, complete: false })
+  expect(call.mock.calls).toEqual([
+    ['github.prs', { repositoryId, options }],
+    ['github.prs', { repositoryId }],
+  ])
+  call
+    .mockClear()
+    .mockResolvedValue({
+      type: 'result',
+      id: 'pr',
+      ok: false,
+      error: { code: 'internal', message: 'down' },
+    })
+  await expect(targeted(key, options)).rejects.toThrow('Not available')
+  expect(call).toHaveBeenCalledTimes(1)
+})
