@@ -35,7 +35,7 @@ vi.mock('./invoker', async (importOriginal) => ({
   resolvePiInvoker: h.invoker,
 }))
 vi.mock('./catalogue', () => ({ invalidatePiCommands: h.invalidate }))
-vi.mock('./session-launch', () => ({ ensureDesktopBundledSkills: h.restore }))
+vi.mock('./session-launch', () => ({ restoreDesktopArtifactSkill: h.restore }))
 vi.mock('./skills', () => h.skills)
 vi.mock('node:fs/promises', () => ({ writeFile: h.write }))
 
@@ -174,7 +174,7 @@ describe('skill mutation actions', () => {
 
   it('restores bundled skills synchronously before invalidating', () => {
     expect(restoreBundledSkill()).toBeUndefined()
-    expect(h.restore).toHaveBeenCalledExactlyOnceWith(true)
+    expect(h.restore).toHaveBeenCalledExactlyOnceWith()
     expect(h.restore.mock.invocationCallOrder[0]).toBeLessThan(
       h.invalidate.mock.invocationCallOrder[0]!,
     )
