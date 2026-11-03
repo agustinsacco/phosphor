@@ -6,7 +6,8 @@ import {
   type MachineAgentBehavior,
 } from '@shared/machine-agent-behavior'
 import type { ThinkingLevel } from '@shared/rpc'
-import { useEffect, useMemo, useState } from 'react'
+import { ipcErrorText } from '@shared/errors'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SaveState, SettingsNoticeProps } from '@/components/form'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useMachineCatalogue, useMachineCataloguesStore } from '@/stores/machineCatalogues'
@@ -15,6 +16,7 @@ import { useHostSection } from '../../machine/HostSection'
 import { useMachineAgentDraft } from '../../machine/machineSettingsDrafts'
 import { needsServiceRestart, type AgentPatch } from '../../machine/machineAgentPatch'
 import { modelChoices, modelValue, type AgentSource } from './source'
+import type { SectionStatus } from '../sectionStatus'
 
 const ALL_FIELDS = Object.keys(AGENT_FIELDS) as AgentFieldKey[]
 const THINKING_ONLY: AgentFieldKey[] = ['defaultThinkingLevel']
@@ -51,26 +53,35 @@ function useHostCatalogue(hostId: string): Pick<AgentSource, 'models' | 'catalog
   return { models: [], catalogue: { failed: true, retry } }
 }
 
-/** In folder scope, the machine's own values: what a folder inherits (a second read). */
+/**
+ * In folder scope, the machine's own values: what a folder inherits (a second
+ * read). The folder's values wait for it, and a failed read offers Retry.
+ */
 function useMachineScopeAgent(
   hostId: string,
   repositoryId: string | undefined,
   revision: string | undefined,
-): MachineAgentDefaults | null {
-  const [agent, setAgent] = useState<MachineAgentDefaults | null>(null)
+): { agent: MachineAgentDefaults | null; status: SectionStatus } {
+  // undefined until the first read lands; a later read replaces it in place.
+  const [agent, setAgent] = useState<MachineAgentDefaults | null | undefined>(undefined)
+  const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
+  const retry = useCallback(() => setAttempt((n) => n + 1), [])
   useEffect(() => {
-    setAgent(null)
+    setError(null)
     if (!repositoryId) return
     let live = true
     window.phosphor.invoke('hosts:settingsRead', hostId, 'agent').then(
       (read) => live && setAgent(read.agent ?? null),
-      () => undefined,
+      (reason: unknown) => live && setError(ipcErrorText(reason)),
     )
     return () => {
       live = false
     }
-  }, [hostId, repositoryId, revision])
-  return agent
+  }, [hostId, repositoryId, revision, attempt])
+  if (!repositoryId) return { agent: null, status: 'ready' }
+  if (error !== null) return { agent: agent ?? null, status: { error, retry } }
+  return { agent: agent ?? null, status: agent === undefined ? 'loading' : 'ready' }
 }
 
 const pair = (agent: MachineAgentDefaults | null): string =>
@@ -147,7 +158,8 @@ export function useHostAgent(): AgentSource {
     announceSave(machine.label, patch, saved, data?.agent?.namingLive),
   )
   const { fields } = draft
-  const inherited = useMachineScopeAgent(machine.id, repositoryId, data?.revision)
+  const machineScope = useMachineScopeAgent(machine.id, repositoryId, data?.revision)
+  const inherited = machineScope.agent
   const catalogue = useHostCatalogue(machine.id)
   const instructions = useMemo(
     () => hostInstructions(machine.id, machine.label),
@@ -160,7 +172,7 @@ export function useHostAgent(): AgentSource {
     [machine.label],
   )
   return {
-    status: state ? 'ready' : 'loading',
+    status: state ? machineScope.status : 'loading',
     notice: data ? hostNotice(!!repositoryId, data) : null,
     caps: { clear: data?.agentClearSupported === true, folderDirectives: false },
     save: draftSave(draft, machine.label),
@@ -168,7 +180,7 @@ export function useHostAgent(): AgentSource {
     blocked: busy,
     fields: data?.agentBehaviorSupported ? ALL_FIELDS : THINKING_ONLY,
     own,
-    inherited: repositoryId ? ((inherited ?? null) as Record<string, unknown> | null) : null,
+    inherited: repositoryId ? (inherited as Record<string, unknown> | null) : null,
     setField: (key, value) => {
       if (key === 'defaultThinkingLevel')
         return draft.set('thinking', (value ?? '') as ThinkingLevel | '')
