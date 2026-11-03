@@ -458,7 +458,9 @@ folder, or "Update this Host".
 
 This Mac saves each edit at once; a Host saves through its draft and revision
 engine ([above](#host-machine-settings)). One save line shows either. A failed
-read shows an error with **Retry**.
+read shows an error with **Retry**. A Host folder also reads the machine's values
+it inherits; the section waits for that read, and a failed one is the section's
+error with **Retry**.
 
 - This Mac's saves use the Host's writer (`libs/session-runtime/src/pi/settings-file.ts`):
   locked per file, atomically replaced, and refused when the file changed since
