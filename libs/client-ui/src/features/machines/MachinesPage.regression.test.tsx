@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { MachineView } from '@shared/control-api'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { MachinesPage } from './MachinesPage'
 import { OnlineAndProviders } from './onboarding/OnlineAndProviders'
@@ -182,4 +183,26 @@ it("onboarding's Providers step uses Settings' sign-in words", async () => {
     container.querySelector(`[data-provider="${id}"] [data-sign-in]`)?.textContent
   expect(row('anthropic')).toBe('Signed in')
   expect(row('openai-codex')).toBe('Not signed in')
+})
+
+it("R-M7: This Mac's live lanes count only its own lanes, not Host lanes open here", async () => {
+  useSessionsStore.setState({
+    live: {
+      mine: { phosphorId: 'mine', workspacePath: '/work/app' },
+      remote: {
+        phosphorId: 'remote',
+        workspacePath: `host:${HOST.id}/lane:lane-1`,
+        target: { kind: 'remote', hostId: HOST.id },
+        laneId: 'lane-1',
+      },
+    } as never,
+  })
+  try {
+    await openThisMac()
+    const detail = container.querySelector('[data-testid=machine-detail]')?.textContent
+    expect(detail).toContain('1 live lane')
+    expect(detail).not.toContain('2 live lanes')
+  } finally {
+    useSessionsStore.setState({ live: {} })
+  }
 })
