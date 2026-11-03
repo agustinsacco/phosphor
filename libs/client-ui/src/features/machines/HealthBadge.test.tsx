@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 import type { HostsSnapshot } from '@shared/ipc'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -106,4 +106,24 @@ it('counts a failing read as an issue, and the refresh button runs the check', a
   await act(async () => button('Refresh').click())
   expect(badge().textContent).toContain('1 issue')
   expect(badge().dataset.tone).toBe('warn')
+})
+
+it('renders signed out, with no clock reading, without an uncached store snapshot (regression R-U7)', async () => {
+  useMachinesStore.setState({ machines: [], nowMs: 0, clockOffsetMs: 0 })
+  let tick = 1_000_000
+  const clock = vi.spyOn(Date, 'now').mockImplementation(() => ++tick)
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+  onTestFinished(() => {
+    clock.mockRestore()
+    errors.mockRestore()
+  })
+  let failure: unknown = null
+  try {
+    await act(async () => root.render(<HealthBadge signedIn={false} onOpenLog={() => {}} />))
+  } catch (error) {
+    failure = String(error)
+  }
+  expect(failure).toBeNull()
+  expect(errors.mock.calls.flat().join('\n')).not.toMatch(/getSnapshot should be cached/)
+  expect(badge()).not.toBeNull()
 })
