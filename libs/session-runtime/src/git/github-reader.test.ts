@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import * as github from './github'
+import type { GithubPr } from './github-queries'
 import { parseRepoPrs } from '@phosphor/shared/host-protocol-github'
 
-const pr = (branch = 'older/lane', number = 42) => ({
+const pr = (branch = 'older/lane', number = 42): GithubPr => ({
   number,
   title: 'Older lane PR',
   url: `https://github.com/example/repo/pull/${number}`,
@@ -194,7 +195,7 @@ it('keeps truncated checks unavailable instead of showing a partial green rollup
         },
       },
     ],
-  } as never
+  }
   expect(await reader().read('/repo', { branches: ['older/lane'] })).toMatchObject({
     byBranch: { 'older/lane': { checks: null } },
   })
@@ -218,7 +219,7 @@ it('does not turn an unverifiable head repository into proof of absence', async 
   const opts = { branches: ['older/lane'] }
   await service.read('/repo', opts)
   vi.setSystemTime(401_000)
-  rows[0]!.headRepository = null as never
+  rows[0]!.headRepository = null
   expect(await service.read('/repo', opts)).toMatchObject({
     byBranch: { 'older/lane': { number: 42 } },
     coverage: { 'older/lane': { state: 'unavailable' } },

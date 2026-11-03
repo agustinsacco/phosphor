@@ -4,6 +4,7 @@ import type {
   GhPullRequest,
   GhRepoPullRequests,
 } from '@phosphor/shared/models'
+import { parsePrReadOptions } from '@phosphor/shared/host-protocol-github'
 import { git } from './git-exec'
 import { toPullRequest } from './github'
 import { GithubFailure, type GithubCommand } from './github-command'
@@ -204,14 +205,11 @@ class GithubReader {
   }
 
   async read(cwd: string, options?: GhPrReadOptions): Promise<GhRepoPullRequests | null> {
-    if (
-      options &&
-      (!Array.isArray(options.branches) ||
-        !options.branches.length ||
-        options.branches.length > 20 ||
-        options.branches.some((b) => typeof b !== 'string' || !b || b.length > 4096))
-    )
-      return null
+    if (options !== undefined) {
+      const parsed = parsePrReadOptions(options)
+      if (!parsed) return null
+      options = parsed
+    }
     const cached = this.repositories.get(cwd)
     if (
       cached &&

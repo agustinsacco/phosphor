@@ -105,6 +105,9 @@ export async function discoverGithubPrs(
       pr.headRefName === branch &&
       pr.headRepository?.nameWithOwner.toLowerCase() === repository.head.toLowerCase()
     const live = open.nodes.find(matches)
+    // Deleted/inaccessible fork identities cannot establish absence or outrank history safely.
+    const unverifiable = (pr: GithubPr) => pr.headRefName === branch && !pr.headRepository
+    if (!live && (open.nodes.some(unverifiable) || all.nodes.some(unverifiable))) return
     if (!live && open.pageInfo?.hasNextPage !== false) return
     const candidate = live ?? all.nodes.find(matches)
     if (!candidate && all.pageInfo?.hasNextPage !== false) return

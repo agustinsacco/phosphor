@@ -38,8 +38,11 @@ export async function runGithubCommand(
     })
     // `gh api --include` exposes retry headers on failures; successful payloads
     // still enter the same JSON parser as repo-view responses.
-    const json = stdout.indexOf('{')
-    return { ok: true, stdout: json >= 0 ? stdout.slice(json) : stdout }
+    // Only `gh api --include` emits HTTP headers. Ordinary gh JSON may be an array.
+    const body = args.includes('--include')
+      ? stdout.replace(/^HTTP\/[\s\S]*?\r?\n\r?\n/, '')
+      : stdout
+    return { ok: true, stdout: body }
   } catch (error) {
     const e = error as { stdout?: string; stderr?: string; killed?: boolean }
     const output = `${e.stdout ?? ''}\n${e.stderr ?? ''}`
