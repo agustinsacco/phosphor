@@ -71,6 +71,21 @@ it('restores the saved value when the field is left empty or unchanged', () => {
   expect(input.value).toBe('16384')
 })
 
+it('applies a typed value that is already in range before the field is left (regression E2)', () => {
+  const onChange = vi.fn()
+  act(() =>
+    root.render(
+      <Row title="Editor font size">
+        <NumberField value={12.5} min={10} max={20} step={0.5} onChange={onChange} />
+      </Row>,
+    ),
+  )
+  const input = container.querySelector('input')!
+  input.focus()
+  type(input, '18')
+  expect(onChange).toHaveBeenCalledExactlyOnceWith(18)
+})
+
 it('takes its accessible name from its Row', () => {
   const input = renderReserve(() => undefined)
   expect(input.getAttribute('aria-label')).toBe('Reserve tokens')
