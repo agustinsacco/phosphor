@@ -217,6 +217,36 @@ describe('lifecycle', () => {
       expect(f.last(request.frame.requestId)).toMatchObject({ status: 'done', fence: 2 })
   })
 
+  it('pauses the release keep-alive on any stop, even of a lane that is already down', async () => {
+    const { state, queue } = setup()
+    const pauseRelease = vi.fn()
+    f.ports.pauseRelease = pauseRelease
+    const down = job({ type: 'lane.stop' })
+    expect(
+      executeLifecycle(state, f.ports, down, queue, admitted({ sessionId: null }), 'lane.stop'),
+    ).toBeUndefined()
+    expect(pauseRelease).toHaveBeenCalledWith(f.lane.laneId)
+    expect(f.ports.stopLane).not.toHaveBeenCalled()
+    await executeLifecycle(
+      state,
+      f.ports,
+      job({ type: 'lane.stop' }),
+      queue,
+      admitted(),
+      'lane.stop',
+    )?.completion
+    expect(pauseRelease).toHaveBeenCalledTimes(2)
+    await executeLifecycle(
+      state,
+      f.ports,
+      job({ type: 'lane.resume' }),
+      queue,
+      admitted({ sessionId: null }),
+      'lane.resume',
+    )?.completion
+    expect(pauseRelease).toHaveBeenCalledTimes(2)
+  })
+
   it('uses fixed failure text and logs only token-shaped error codes', async () => {
     const fail = (code: unknown) => async () => {
       throw Object.assign(new Error('private failure'), { code })
