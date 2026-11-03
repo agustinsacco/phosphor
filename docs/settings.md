@@ -316,7 +316,9 @@ it from anywhere in settings.
 - **Machines.** A machine section's row is indexed on the machines its section
   has (`local`, `host` in `TABS`), unless the row names its own (`on`). Every
   machine section has one shared view, so its rows are found on every machine
-  that lists it. Agent's rows come from its field table
+  that lists it. A row no folder renders (`machineScope`: the context budget,
+  automatic naming, global instructions, and a Host's directives) switches the
+  scope line to Machine when it is opened. Agent's rows come from its field table
   (`sections/agent/agentFields.ts`). A block only one machine has names it:
   `LOCAL_ONLY` for This Mac's raw files, maintenance, sandboxes and the Claude
   Code proof, `{ host: true }` for a Host's update and runtime.
