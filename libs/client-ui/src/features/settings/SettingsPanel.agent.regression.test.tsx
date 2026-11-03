@@ -199,3 +199,17 @@ it('keeps both of two quick This Mac edits on screen once both saves land (regre
   expect(toggle('Auto-compaction').getAttribute('aria-checked')).toBe('false')
   expect(toggle('Retry on transient errors').getAttribute('aria-checked')).toBe('false')
 })
+
+it('writes medium when it is chosen at machine scope while pi’s default medium is shown (regression R-U3)', async () => {
+  await showHostSettings(root, 'local', 'agent')
+  // A browser fires no change for the option already selected.
+  const thinking = row('Default thinking level').querySelector('select')!
+  expect(thinking.value).not.toBe('medium')
+  await act(async () => {
+    thinking.value = 'medium'
+    thinking.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  expect(invoke).toHaveBeenCalledWith('pi:patchAgentSettings', 'global', undefined, {
+    defaultThinkingLevel: 'medium',
+  })
+})
