@@ -109,7 +109,8 @@ it('says where This Mac takes each value from, and Reset clears it', async () =>
 it("shows This Mac's machine values as inherited in folder scope", async () => {
   useSettingsUiStore.setState({ folder: '/work/app' })
   await showHostSettings(root, 'local', 'agent')
-  expect(row('Default thinking level').querySelector('select')!.value).toBe('high')
+  const thinking = row('Default thinking level').querySelector('select')!
+  expect(thinking.selectedOptions[0]?.textContent).toBe('Machine (high)')
   expect([badge('Default thinking level'), badge('Max retries')]).toEqual([
     'inherited',
     'inherited',
@@ -173,4 +174,52 @@ it('saves a custom Host model pair from the disclosure once it is left', async (
   expect(row('Default model').querySelector('select')!.value).toBe(
     JSON.stringify(['openai', 'gpt-5']),
   )
+})
+
+it('offers the unset choice for a value set here only where it can be cleared, as Reset', async () => {
+  const unset = () => row('Default thinking level').querySelector('select')!.options[0]!
+  const thinkHard = (read: ReturnType<typeof mockSettingsRead>) => {
+    if (read.agent) read.agent.defaultThinkingLevel = 'high'
+  }
+  edit = (read) => {
+    thinkHard(read)
+    delete read.agentClearSupported
+  }
+  await showHostSettings(root, HOST.id, 'agent')
+  expect(badge('Default thinking level')).toBe('set-here')
+  expect(unset().value).toBe('off')
+  edit = thinkHard
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  await showHostSettings(root, HOST.id, 'agent')
+  expect([unset().value, unset().textContent]).toEqual(['', 'pi default (medium)'])
+  const select = row('Default thinking level').querySelector('select')!
+  await act(async () => {
+    select.value = ''
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await settle()
+  expect(hostPatches()).toEqual([{ defaultThinkingLevel: null }])
+})
+
+it('lets a folder pin the model it inherits from the machine', async () => {
+  const sonnet = JSON.stringify(['anthropic', 'claude-sonnet-4-5'])
+  const answer = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string, ...rest: unknown[]) =>
+    channel === 'pi:agentSettingsScoped'
+      ? { global: { defaultProvider: 'anthropic', defaultModel: 'claude-sonnet-4-5' }, project: {} }
+      : answer(channel, ...rest),
+  )
+  useSettingsUiStore.setState({ folder: '/work/app' })
+  await showHostSettings(root, 'local', 'agent')
+  const select = row('Default model').querySelector('select')!
+  expect(select.selectedOptions[0]?.textContent).toBe('Machine (anthropic/claude-sonnet-4-5)')
+  await act(async () => {
+    select.value = sonnet
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  expect(invoke).toHaveBeenCalledWith('pi:patchAgentSettings', 'project', '/work/app', {
+    defaultProvider: 'anthropic',
+    defaultModel: 'claude-sonnet-4-5',
+  })
 })

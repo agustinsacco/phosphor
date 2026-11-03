@@ -60,7 +60,9 @@ export function useSettingsSearch(
 
   const choose = (index: number): void => {
     const entry = results[index]
-    if (entry) useSettingsUiStore.getState().openResult(entry.tab, entry.title)
+    if (!entry) return
+    if (entry.machineScope) useSettingsUiStore.getState().setFolder(null)
+    useSettingsUiStore.getState().openResult(entry.tab, entry.title)
   }
 
   return { query, listing, groups, results, counts, active, setActive, step, choose, listId }

@@ -82,9 +82,10 @@ export function guardHostDrafts(hostId: string | null): (next: () => void) => vo
   }
 }
 const fieldsFor = (state?: MachineAgentDefaults): Fields => ({
+  // Each key on its own, as `modelValue` reads them: a file may set only one.
   model:
-    state?.defaultProvider && state.defaultModel
-      ? JSON.stringify([state.defaultProvider, state.defaultModel])
+    state?.defaultProvider || state?.defaultModel
+      ? JSON.stringify([state.defaultProvider ?? '', state.defaultModel ?? ''])
       : '',
   thinking: state?.defaultThinkingLevel ?? '',
   budget: state?.contextBudget ?? '',

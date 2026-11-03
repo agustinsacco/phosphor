@@ -23,6 +23,15 @@ export const modelChoices = (
     label: `${m.name} · ${m.provider}`,
   }))
 
+/**
+ * A scope's default model as `[provider, id]` JSON, each key read on its own:
+ * a settings.json may set only one, which leaves the other ''. '' for neither.
+ */
+export function modelValue(provider: unknown, model: unknown): string {
+  const parts = [provider, model].map((part) => (typeof part === 'string' ? part : ''))
+  return parts.some(Boolean) ? JSON.stringify(parts) : ''
+}
+
 export interface AgentCaps {
   /** A set value can be cleared back to what it inherits (a Host whose read says so). */
   clear: boolean
@@ -73,7 +82,7 @@ export interface AgentSource {
   inherited: AgentValues | null
   /** `undefined` clears the field, so it inherits again. */
   setField(key: AgentFieldKey, value: unknown): void
-  /** `[provider, id]` as JSON, or '' for none; this scope's own. */
+  /** This scope's own `modelValue`: `[provider, id]` as JSON, or '' for none. */
   model: string
   inheritedModel: string
   /** '' clears it. */

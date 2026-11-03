@@ -42,10 +42,9 @@ it('typing a partial number never saves a clamped value', () => {
   input.focus()
   type(input, '2')
   type(input, '20')
-  type(input, '20480')
   expect(onChange).not.toHaveBeenCalled()
-  expect(input.value).toBe('20480')
-  act(() => input.blur())
+  expect(input.value).toBe('20')
+  type(input, '20480')
   expect(onChange).toHaveBeenCalledExactlyOnceWith(20480)
 })
 
@@ -61,6 +60,17 @@ it('commits on Enter and clamps only the committed value', () => {
   expect(input.value).toBe('1024')
 })
 
+it('rounds a fractional value in a whole-number field when it is committed (regression R-C6)', () => {
+  const onChange = vi.fn()
+  const input = renderReserve(onChange)
+  input.focus()
+  type(input, '20480.5')
+  expect(onChange).not.toHaveBeenCalled()
+  act(() => input.blur())
+  expect(onChange).toHaveBeenCalledExactlyOnceWith(20481)
+  expect(input.value).toBe('20481')
+})
+
 it('restores the saved value when the field is left empty or unchanged', () => {
   const onChange = vi.fn()
   const input = renderReserve(onChange)
@@ -69,6 +79,42 @@ it('restores the saved value when the field is left empty or unchanged', () => {
   act(() => input.blur())
   expect(onChange).not.toHaveBeenCalled()
   expect(input.value).toBe('16384')
+})
+
+it('applies a typed value that is already in range before the field is left (regression E2)', () => {
+  const onChange = vi.fn()
+  act(() =>
+    root.render(
+      <Row title="Editor font size">
+        <NumberField value={12.5} min={10} max={20} step={0.5} onChange={onChange} />
+      </Row>,
+    ),
+  )
+  const input = container.querySelector('input')!
+  input.focus()
+  type(input, '18')
+  expect(onChange).toHaveBeenCalledExactlyOnceWith(18)
+})
+
+it('keeps the typed text when a value it applied earlier lands late', () => {
+  const onChange = vi.fn()
+  const render = (value: number) =>
+    act(() =>
+      root.render(
+        <Row title="Reserve tokens">
+          <NumberField value={value} min={1024} max={131072} step={1024} onChange={onChange} />
+        </Row>,
+      ),
+    )
+  render(16384)
+  const input = container.querySelector('input')!
+  type(input, '2048')
+  type(input, '20480')
+  render(2048)
+  expect(input.value).toBe('20480')
+  expect(onChange.mock.calls).toEqual([[2048], [20480]])
+  act(() => input.blur())
+  expect(onChange).toHaveBeenLastCalledWith(20480)
 })
 
 it('takes its accessible name from its Row', () => {

@@ -32,8 +32,8 @@ the form factor.
 | Extensions       | machine, both     | a machine           | yes     | yes     | pi package management, one view on every machine ([below](#extensions))                                  | shells out to `pi install` / `remove` / `update`                      |
 | ↳ Claude Code    | machine, both     | a machine           | yes     | yes     | The `pi-claude-cli` provider on every machine: health and Install, accounts, routing                     | Phosphor prefs + the package's own config                             |
 | ↳ Web access     | machine, both     | package             | yes     | yes     | The `pi-web-access` provider: search, fetch, PDF                                                         | `web-search.json`                                                     |
-| ↳ Subagents      | machine, both     | installed package   | yes     | yes     | Delegation guide, profile precedence, configuration ownership                                            | This Mac: global Pi settings in the raw editor                        |
 | ↳ Computer use   | machine, both     | package             | yes     | yes     | Info page for `@injaneity/pi-computer-use`                                                               | nothing (read-only)                                                   |
+| ↳ Subagents      | machine, both     | installed package   | yes     | yes     | Delegation guide, profile precedence, configuration ownership                                            | This Mac: global Pi settings in the raw editor                        |
 | MCP Connectors   | machine, both     | a machine           | yes     | yes     | pi's built-in MCP: curated OAuth catalog + custom servers, per machine or folder                         | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`; a Host's own           |
 | Folders          | machine, both     | per machine         | yes     | yes     | This Mac: recent folders and sandboxes; a Host: registered folders and trust                             | recents (This Mac); the Host, through `hosts:*Repository`             |
 | Optimization     | machine, This Mac | `localLanes`        | yes     | no      | Headroom tool-result compression + the Advisor                                                           | Phosphor prefs; `headroom:*` lifecycle in main                        |
@@ -204,7 +204,8 @@ Signing in never automatically executes a connector check. MCP Connectors is one
 shared view on every machine ([below](#mcp-connectors)).
 
 A Host's Agent defaults save themselves, as This Mac's do: a select or switch
-when it changes, a text or number field on blur or Enter. Each save sends only
+when it changes, a text field on blur or Enter, and a number field as typed once
+the value is in range (otherwise on blur or Enter). Each save sends only
 the fields that differ, against the latest revision, one at a time; an edit made
 while one is in flight follows it. Host policy and pi defaults are separate
 commits, not an atomic multi-file save. A toast says where each save landed
@@ -298,8 +299,10 @@ Everything lives under `libs/client-ui/src/features/settings/`.
     read, and on a Host the gate covers the settings read. Its one `notice` is a
     failed action.
 - **Primitives.** `components/form/`: `Row` (its title names the control inside it),
-  `Toggle`, `NumberField` (commits on blur or Enter, clamped; a half-typed value is
-  never saved), `TextField`, `Select` (native, so pickers and the `combobox` role
+  `Toggle`, `NumberField` (a typed value applies at once when it lies within the
+  bounds, and is whole when the step is; anything else waits for blur or Enter,
+  then is rounded to a whole number when the step is one and clamped, so a
+  half-typed value is never saved), `TextField`, `Select` (native, so pickers and the `combobox` role
   work everywhere), `Segmented` (a radio group: one tab stop, arrow keys, Home and
   End), `SettingsNotice` (tone `info`, `warning` or `danger`, the last announced as an
   alert; a title, a body and one action), `SourceBadge` (Set here, Inherited from
@@ -320,7 +323,9 @@ it from anywhere in settings.
 - **Machines.** A machine section's row is indexed on the machines its section
   has (`local`, `host` in `TABS`), unless the row names its own (`on`). Every
   machine section has one shared view, so its rows are found on every machine
-  that lists it. Agent's rows come from its field table
+  that lists it. A row no folder renders (`machineScope`: the context budget,
+  automatic naming, global instructions, and a Host's directives) switches the
+  scope line to Machine when it is opened. Agent's rows come from its field table
   (`sections/agent/agentFields.ts`). A block only one machine has names it:
   `LOCAL_ONLY` for This Mac's raw files, maintenance, sandboxes and the Claude
   Code proof, `{ host: true }` for a Host's update and runtime.
@@ -407,7 +412,13 @@ Every row shows the value this scope sets, else the machine's (folder scope),
 else pi's own default, with a badge that says which: **Set here**, **Inherited
 from machine** or **pi default**. **Reset** clears a value set here, so it inherits
 again: This Mac sends `undefined`; a Host sends `null`, and only a Host whose read
-carries `agentClearSupported` offers it.
+carries `agentClearSupported` offers it. A choice (the model, the thinking level,
+the delivery modes) lists the unset value first, named by what it falls back to
+(**pi default (medium)**, **Machine (high)**). While nothing is set here it is
+selected, so any concrete value can be pinned, including the one shown; where
+Reset is offered, choosing it is Reset. `defaultProvider` and `defaultModel` are
+read each on its own: a file that sets only one shows it as set here, with Reset
+and the id in Custom model.
 
 The groups, in order:
 
@@ -456,7 +467,9 @@ folder, or "Update this Host".
 
 This Mac saves each edit at once; a Host saves through its draft and revision
 engine ([above](#host-machine-settings)). One save line shows either. A failed
-read shows an error with **Retry**.
+read shows an error with **Retry**. A Host folder also reads the machine's values
+it inherits; the section waits for that read, and a failed one is the section's
+error with **Retry**.
 
 - This Mac's saves use the Host's writer (`libs/session-runtime/src/pi/settings-file.ts`):
   locked per file, atomically replaced, and refused when the file changed since

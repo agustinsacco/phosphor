@@ -93,7 +93,7 @@ it('shows a Host folder inheriting its machine thinking level, and lets it pin m
   const thinking = [...container.querySelectorAll('select')].find((s) =>
     [...s.options].some((o) => o.value === 'xhigh'),
   )!
-  expect(thinking.value).toBe('high')
+  expect(thinking.selectedOptions[0]?.textContent).toBe('Machine (high)')
   await act(async () => {
     thinking.value = 'medium'
     thinking.dispatchEvent(new Event('change', { bubbles: true }))
@@ -182,3 +182,121 @@ it.each([
     expect(models()[0]).toContain('"defaultProvider":"openai","defaultModel":"gpt-5"')
   },
 )
+
+it('keeps both of two quick This Mac edits on screen once both saves land (regression R-U2)', async () => {
+  const saves: Array<() => void> = []
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'pi:patchAgentSettings')
+      return new Promise<void>((resolve) => saves.push(resolve))
+    return local(channel)
+  })
+  await showHostSettings(root, 'local', 'agent')
+  const toggle = (title: string) => row(title).querySelector<HTMLButtonElement>('[role="switch"]')!
+  await act(async () => toggle('Auto-compaction').click())
+  await act(async () => toggle('Retry on transient errors').click())
+  expect(saves).toHaveLength(2)
+  await act(async () => saves.forEach((save) => save()))
+  expect(toggle('Auto-compaction').getAttribute('aria-checked')).toBe('false')
+  expect(toggle('Retry on transient errors').getAttribute('aria-checked')).toBe('false')
+})
+
+it('writes medium when it is chosen at machine scope while pi’s default medium is shown (regression R-U3)', async () => {
+  await showHostSettings(root, 'local', 'agent')
+  // A browser fires no change for the option already selected.
+  const thinking = row('Default thinking level').querySelector('select')!
+  expect(thinking.value).not.toBe('medium')
+  await act(async () => {
+    thinking.value = 'medium'
+    thinking.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  expect(invoke).toHaveBeenCalledWith('pi:patchAgentSettings', 'global', undefined, {
+    defaultThinkingLevel: 'medium',
+  })
+})
+
+it.each([
+  [{ defaultModel: 'gpt-5' }, ['', 'gpt-5']],
+  [{ defaultProvider: 'openai' }, ['openai', '']],
+])(
+  'shows a model key set on its own as set here, and Reset clears it (regression R-U4, %o)',
+  async (global, ids) => {
+    invoke.mockImplementation(async (channel: string) =>
+      channel === 'pi:agentSettingsScoped' ? { global, project: null } : local(channel),
+    )
+    await showHostSettings(root, 'local', 'agent')
+    const badge = row('Default model').querySelector('[data-setting-source]')
+    expect(badge?.getAttribute('data-setting-source')).toBe('set-here')
+    const field = (title: string) => row(title).querySelector<HTMLInputElement>('input')!.value
+    expect([field('Provider id'), field('Model id')]).toEqual(ids)
+    const reset = container.querySelector<HTMLButtonElement>('[aria-label="Reset Default model"]')
+    await act(async () => reset!.click())
+    expect(invoke).toHaveBeenCalledWith('pi:patchAgentSettings', 'global', undefined, {
+      defaultProvider: undefined,
+      defaultModel: undefined,
+    })
+  },
+)
+
+it.each([
+  ['defaultProvider', ['', 'claude-sonnet-4-5']],
+  ['defaultModel', ['anthropic', '']],
+] as const)(
+  'shows a Host model key set on its own as set here, and Reset clears it (regression R-U4, no %s)',
+  async (missing, ids) => {
+    invoke.mockImplementation(async (channel: string, hostId, section, repositoryId) => {
+      if (channel === 'hosts:models') return []
+      if (channel === 'hosts:settingsPatch') return mockSettingsPatch(hostId, section)
+      if (channel !== 'hosts:settingsRead') return local(channel)
+      const read = mockSettingsRead(hostId, section, repositoryId)
+      // The mock Host keeps earlier tests' saves: pin the pair, then drop one key.
+      Object.assign(read.agent!, {
+        defaultProvider: 'anthropic',
+        defaultModel: 'claude-sonnet-4-5',
+      })
+      delete read.agent![missing]
+      return read
+    })
+    await showHostSettings(root, HOST.id, 'agent')
+    const badge = row('Default model').querySelector('[data-setting-source]')
+    expect(badge?.getAttribute('data-setting-source')).toBe('set-here')
+    const field = (title: string) => row(title).querySelector<HTMLInputElement>('input')!.value
+    expect([field('Provider id'), field('Model id')]).toEqual(ids)
+    const reset = container.querySelector<HTMLButtonElement>('[aria-label="Reset Default model"]')
+    await act(async () => reset!.click())
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(invoke).toHaveBeenCalledWith(
+      'hosts:settingsPatch',
+      HOST.id,
+      expect.objectContaining({
+        change: { type: 'agent.patch', patch: { defaultProvider: null, defaultModel: null } },
+      }),
+    )
+  },
+)
+
+it('waits for a Host folder’s inherited machine read, and offers Retry when it fails (regression R-U5)', async () => {
+  let machineRead: 'pending' | 'fail' | 'ok' = 'pending'
+  invoke.mockImplementation(async (channel: string, hostId, section, repositoryId) => {
+    if (channel === 'hosts:models') return []
+    if (channel !== 'hosts:settingsRead') return local(channel)
+    if (!repositoryId && machineRead === 'pending') return new Promise(() => undefined)
+    if (!repositoryId && machineRead === 'fail') throw new Error('Host unreachable')
+    return mockSettingsRead(hostId, section, repositoryId)
+  })
+  useSettingsUiStore.setState({ folder: FOLDER })
+  await showHostSettings(root, HOST.id, 'agent')
+  const rows = () => container.querySelectorAll('[data-setting-row]').length
+  const retry = () =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
+  expect(container.querySelector('[data-setting-source="pi-default"]')).toBeNull()
+  expect(rows()).toBe(0)
+  machineRead = 'fail'
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  await showHostSettings(root, HOST.id, 'agent')
+  expect(container.textContent).toContain('Could not read the agent settings.')
+  expect(rows()).toBe(0)
+  machineRead = 'ok'
+  await act(async () => retry()!.click())
+  expect(rows()).toBeGreaterThan(0)
+})

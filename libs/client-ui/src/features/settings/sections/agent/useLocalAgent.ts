@@ -12,14 +12,12 @@ import { useSettingsUiStore } from '../../settingsUiStore'
 import { useAccount } from '../../useAccount'
 import { useLocalAgentPrefs } from './useLocalPrefs'
 import type { SectionStatus } from '../sectionStatus'
-import { modelChoices, type AgentSource, type AgentValues } from './source'
+import { modelChoices, modelValue, type AgentSource, type AgentValues } from './source'
 
 type Scoped = { global: AgentValues; project: AgentValues | null }
 const ALL_FIELDS = Object.keys(AGENT_FIELDS) as AgentFieldKey[]
 const pair = (values: AgentValues | null | undefined): string =>
-  typeof values?.defaultProvider === 'string' && typeof values.defaultModel === 'string'
-    ? JSON.stringify([values.defaultProvider, values.defaultModel])
-    : ''
+  modelValue(values?.defaultProvider, values?.defaultModel)
 
 /** The settings.json keys `path` writes, nested groups one level deep, as main merges them. */
 function patchFor(key: AgentFieldKey, value: unknown): AgentValues {
@@ -79,12 +77,20 @@ function useLocalSettingsFile(folder: string | null, loadPrefs: () => Promise<vo
     load().catch((e: unknown) => setError(errorText(e)))
   }, [load])
   useEffect(() => read(), [read])
-  const write = async (patch: AgentValues, next: AgentValues): Promise<void> => {
+  /** Saves `patch`, then applies `apply` to this scope's values as they are by then. */
+  const write = async (
+    patch: AgentValues,
+    apply: (values: AgentValues) => AgentValues,
+  ): Promise<void> => {
     setSaving(true)
     try {
       const scope = folder ? 'project' : 'global'
       await window.phosphor.invoke('pi:patchAgentSettings', scope, folder ?? undefined, patch)
-      setScoped((s) => s && (folder ? { ...s, project: next } : { ...s, global: next }))
+      setScoped(
+        (s) =>
+          s &&
+          (folder ? { ...s, project: apply(s.project ?? {}) } : { ...s, global: apply(s.global) }),
+      )
       useExtensionUiStore.getState().pushToast('Saved — applies to newly started sessions', 'info')
     } catch (e) {
       // A malformed file: main refuses to write rather than clobber it.
@@ -145,13 +151,15 @@ export function useLocalAgent(): AgentSource {
     own,
     inherited: folder ? (scoped?.global ?? {}) : null,
     setField: (key, value) =>
-      void write(patchFor(key, value), withAgentField(own, AGENT_FIELDS[key].path, value)),
+      void write(patchFor(key, value), (values) =>
+        withAgentField(values, AGENT_FIELDS[key].path, value),
+      ),
     model: pair(own),
     inheritedModel: folder ? pair(scoped?.global) : '',
     setModel: (value) => {
       const [provider, model] = value ? (JSON.parse(value) as [string, string]) : []
       const patch = { defaultProvider: provider, defaultModel: model }
-      void write(patch, { ...own, ...patch })
+      void write(patch, (values) => ({ ...values, ...patch }))
     },
     ...catalogue,
     policy: folder
