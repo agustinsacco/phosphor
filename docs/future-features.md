@@ -266,5 +266,26 @@ in-place updates, or run the one-click **Test provider** proof that This Mac
 runs. Each needs an additive Host contract: an optional
 `providers.claudeVersions` sibling (never new keys in `MachineClaude`, which old
 clients parse strictly), and a `claude.test` machine task gated on a Host
-capability. Until then the page hides them (`caps.versions` and `caps.proof`
-are false on a Host).
+capability. Until then a Host's source carries no `proof` and no version
+fields, so the page hides them.
+
+## Host package updates and version checks
+
+**Problem.** A Host's Extensions section installs, updates and removes one
+package at a time as reviewed tasks, but it has no **Update all** and no
+registry version check (`caps.updateAll` and `caps.versionCheck` are false in
+`useHostPackages.ts`). Update is offered on every installed package, because
+the client cannot tell whether a newer version exists.
+
+**Proposed design.** Two additive pieces, each behind a Host capability:
+a `package.updateAll` machine task that runs `pi update --extensions` as one
+reviewed task, and an optional `latest` version field on Host package rows,
+filled from a registry lookup that never blocks the listing. Older Hosts keep
+today's per-package controls.
+
+**Touches.** `libs/shared/src/machine-settings*.ts`, `apps/host/src/settings/`
+(the resources snapshot and package tasks), `libs/host-client/src/settings.ts`,
+and `useHostPackages.ts`.
+
+**Risks.** Update all starts code from every package source at once, so it
+stays one explicit, reviewed task, never a background refresh.
