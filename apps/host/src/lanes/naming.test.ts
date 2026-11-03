@@ -80,11 +80,13 @@ it('ignores stdin, owns and kills its group on clean finish, and fails past 4 Ki
 it('times out after 30 s, kills the group and stops retrying', async () => {
   vi.useFakeTimers()
   const outcome = vi.fn()
-  createLaneNamer(machine)(job({ outcome }))
+  const timedOut = job({ outcome })
+  createLaneNamer(machine)(timedOut)
   await vi.advanceTimersByTimeAsync(0)
   expect(children).toHaveLength(1)
-  children[0]?.stdout.write('')
+  children[0]?.stdout.write('partial')
   await vi.advanceTimersByTimeAsync(30_000)
+  expect(timedOut.apply).not.toHaveBeenCalled()
   expect(outcome).toHaveBeenCalledExactlyOnceWith('print-timeout', {
     reason: 'timeout',
     attempts: 1,
