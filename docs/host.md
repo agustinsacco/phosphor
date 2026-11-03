@@ -309,9 +309,9 @@ for dev builds (`0.0.0-dev.source` when no commit is stamped).
 - `pi-ext/`: the bundled extensions, copied with Desktop's filter (every `.ts`
   file but tests). A session loads them from beside the bundle unless the config
   sets `resourceRoot`.
-- `skills/visual-artifacts/`: the same authoring skill and references Desktop
-  ships. `accept` and usable `run` startup seed a user-owned copy in pi's skills
-  directory before starting sessions. Edits and deletion survive later runs; `doctor` never installs
+- `skills/`: the bundled skills Desktop ships, `visual-artifacts` (with its
+  references) and `release-setup`. `accept` and usable `run` startup seed a
+  user-owned copy of each in pi's skills directory before starting sessions. Edits and deletion survive later runs; `doctor` never installs
   it. See [the shared lifecycle](extensions.md#the-artifact-tools-and-what-each-one-costs).
 - `BUILD-INFO.json`: the version, the source commit, whether the tree had
   uncommitted changes, the Node target, and every file with its size and sha256.

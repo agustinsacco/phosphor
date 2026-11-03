@@ -62,7 +62,7 @@ appear on your screen.
    2026-09-03 for maintenance cost; do not grow it back (cost:
    [known-issues.md](docs/known-issues.md) S11). The release manager is one lane
    that talks to others only through GitHub; the Host keeps it running, the one
-   exception to resuming on the next message ([release-manager.md](docs/release-manager.md)).
+   exception to a lane resuming only on its next message ([release-manager.md](docs/release-manager.md)).
    Routines run their own sessions
    through main's runtime ([routines.md](docs/routines.md)). The session service in
    `libs/session-runtime/src/pi/` owns startup, admission, per-owner path locks

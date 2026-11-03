@@ -14,8 +14,8 @@ composer switch is `ReleaseSwitch.tsx`.
 ## Setting a repository up
 
 Release mode needs `.github/release-manager.md` on the repository's base branch.
-The global `release-setup` skill, seeded into pi's skills like
-`visual-artifacts`, writes it: run `/skill:release-setup` in a lane. It checks
+The global `release-setup` skill, which Desktop and the Host seed into pi's
+skills once (a deleted copy stays deleted), writes it: run `/skill:release-setup` in a lane. It checks
 GitHub access, rulesets, merge settings, workflows and validate commands, then
 opens one setup pull request with the policy file and a "Pull requests" section
 for the repository's AGENTS.md. It also creates the `rm:hold`, `rm:priority` and
