@@ -371,7 +371,7 @@ export default function releaseManager(
   pi.on('tool_call', (event) => {
     const call = event as { toolName?: string; input?: { command?: unknown } }
     if (!lane.enabled || call.toolName !== 'bash' || typeof call.input?.command !== 'string') return
-    const reason = releaseBashRefusal(call.input.command)
+    const reason = releaseBashRefusal(call.input.command, lane.policy.base)
     return reason ? { block: true, reason } : undefined
   })
   pi.on('context_with_system', (event) => {
