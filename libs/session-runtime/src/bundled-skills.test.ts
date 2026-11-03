@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { seedBundledSkills, seedSkill } from './bundled-skills'
+import { restoreArtifactSkill, seedBundledSkills, seedSkill } from './bundled-skills'
 
 const seedArtifactSkill = (root: string, agentDir: string, restore = false) =>
   seedSkill(root, agentDir, 'visual-artifacts', restore)
@@ -90,4 +90,13 @@ it('seeds every bundled skill, each with its own receipt, and keeps going past a
   } finally {
     rmSync(partial, { recursive: true, force: true })
   }
+})
+
+it('restores only the artifact skill, so a deleted release-setup stays deleted', () => {
+  seedBundledSkills(resources, agent)
+  rmSync(join(agent, 'skills/visual-artifacts'), { recursive: true })
+  rmSync(join(agent, 'skills/release-setup'), { recursive: true })
+  restoreArtifactSkill(resources, agent)
+  expect(existsSync(join(agent, 'skills/visual-artifacts/SKILL.md'))).toBe(true)
+  expect(existsSync(join(agent, 'skills/release-setup'))).toBe(false)
 })

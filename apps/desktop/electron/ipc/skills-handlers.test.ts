@@ -39,7 +39,7 @@ vi.mock('node:fs/promises', () => ({ writeFile: h.write }))
 vi.mock('../pi/health', () => ({ cachedPiHealth: h.health }))
 vi.mock('../pi/shell-env', () => ({ piProcessEnv: h.env }))
 vi.mock('../pi/catalogue', () => ({ invalidatePiCommands: h.invalidate }))
-vi.mock('../pi/session-launch', () => ({ ensureDesktopBundledSkills: h.restore }))
+vi.mock('../pi/session-launch', () => ({ restoreDesktopArtifactSkill: h.restore }))
 vi.mock('../pi/skills', () => h.skills)
 
 function invoke<C extends IpcInvokeChannel>(channel: C, ...args: IpcInvokeMap[C]['args']) {
@@ -155,7 +155,7 @@ describe('skills IPC characterization', () => {
 
   it('restores bundled skills before invalidating and preserves restore errors', async () => {
     expect(await invoke('skills:restoreBundled')).toBeUndefined()
-    expect(h.restore).toHaveBeenCalledWith(true)
+    expect(h.restore).toHaveBeenCalledExactlyOnceWith()
     expect(h.restore.mock.invocationCallOrder[0]).toBeLessThan(
       h.invalidate.mock.invocationCallOrder[0]!,
     )
