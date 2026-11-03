@@ -33,6 +33,8 @@ export interface ReleaseKeeperOptions {
 interface Kept {
   failures: number
   upSince: number
+  /** A restart is scheduled or under way: exits meanwhile add nothing. */
+  pending: boolean
 }
 
 type SavedRecord = { version?: unknown; lanes?: unknown } | null
@@ -49,12 +51,30 @@ function load(path: string, log: ReleaseKeeperOptions['log']): string[] {
   }
 }
 
+/** Saving the record of kept lanes, and forgetting one with a logged reason. */
+function recorder(path: string, lanes: Map<string, Kept>, log: ReleaseKeeperOptions['log']) {
+  const save = () => {
+    try {
+      atomicRecord(path, { version: 1, lanes: [...lanes.keys()] }, 0o600)
+    } catch (error) {
+      log('release.keepalive_unsaved', { error: String(error) })
+    }
+  }
+  const forget = (laneId: string, reason: string) => {
+    if (!lanes.delete(laneId)) return
+    save()
+    log('release.keepalive_stopped', { laneId, reason })
+  }
+  return { save, forget }
+}
+
 /**
  * The release keep-alive, the one exception to "a lane resumes on its next
  * message". A lane whose release status says release mode is on is recorded,
  * resumed when the Host starts, and restarted with backoff when pi exits
  * unexpectedly. A deliberate stop while the Host is ready (the user, an account
- * move, a deletion) pauses it until the lane runs again. It never calls a model.
+ * move, a deletion) pauses it until the lane runs again, as does `pause` for a
+ * lane the user stops after it crashed. It never calls a model.
  */
 export function createReleaseKeeper(options: ReleaseKeeperOptions) {
   const path = join(options.directory, RECORD)
@@ -62,32 +82,26 @@ export function createReleaseKeeper(options: ReleaseKeeperOptions) {
   const later =
     options.later ?? ((work: () => void, ms: number) => void setTimeout(work, ms).unref())
   const lanes = new Map<string, Kept>(
-    load(path, options.log).map((id) => [id, { failures: 0, upSince: now() }]),
+    load(path, options.log).map((id) => [id, { failures: 0, upSince: now(), pending: true }]),
   )
-  const save = () => {
-    try {
-      atomicRecord(path, { version: 1, lanes: [...lanes.keys()] }, 0o600)
-    } catch (error) {
-      options.log('release.keepalive_unsaved', { error: String(error) })
-    }
-  }
-  const forget = (laneId: string, reason: string) => {
-    if (!lanes.delete(laneId)) return
-    save()
-    options.log('release.keepalive_stopped', { laneId, reason })
-  }
-  const restart = (laneId: string) => {
-    const kept = lanes.get(laneId)
-    if (!kept || !options.ready() || options.live.sessionFor(laneId) !== null) return
+  const { save, forget } = recorder(path, lanes, options.log)
+  // A restart belongs to the record that scheduled it: pausing the lane cancels it.
+  const restart = (laneId: string, kept: Kept) => {
+    kept.pending = false
+    if (lanes.get(laneId) !== kept || !options.ready() || options.live.sessionFor(laneId) !== null)
+      return
     const lane = options.store.getLane(laneId)
     if (!lane || lane.removedAt !== null || lane.sessionFile === null)
       return forget(laneId, 'lane gone')
+    kept.pending = true // A failed start also reports an exit; its error alone counts.
     options.resumeLane(lane).then(
       () => {
+        kept.pending = false
         kept.upSince = now()
         options.log('release.keepalive_resumed', { laneId })
       },
       (error: unknown) => {
+        kept.pending = false
         options.log('release.keepalive_failed', { laneId, error: String(error) })
         retry(laneId, kept)
       },
@@ -95,9 +109,11 @@ export function createReleaseKeeper(options: ReleaseKeeperOptions) {
   }
   // Crashes and failed resumes share one count, so a crash loop backs off too.
   const retry = (laneId: string, kept: Kept) => {
+    if (kept.pending) return
     if (kept.failures >= GIVE_UP) return forget(laneId, 'kept failing')
+    kept.pending = true
     const delay = Math.min(FIRST_DELAY_MS * 2 ** kept.failures++, MAX_DELAY_MS)
-    later(() => restart(laneId), delay)
+    later(() => restart(laneId, kept), delay)
   }
   const exited = (laneId: string, expected: boolean) => {
     const kept = lanes.get(laneId)
@@ -108,12 +124,13 @@ export function createReleaseKeeper(options: ReleaseKeeperOptions) {
   }
   const status = (laneId: string, text: string | undefined) => {
     const enabled = parseReleaseStatus(text)?.enabled === true
-    if (enabled && !lanes.has(laneId) && lanes.size < MAX_LANES) {
-      lanes.set(laneId, { failures: 0, upSince: now() })
-      save()
-    } else if (!enabled) forget(laneId, 'release mode off')
+    if (!enabled) return forget(laneId, 'release mode off')
+    if (lanes.has(laneId)) return
+    if (lanes.size >= MAX_LANES) return options.log('release.keepalive_full', { laneId })
+    lanes.set(laneId, { failures: 0, upSince: now(), pending: false })
+    save()
   }
-  const unobserve = options.live.observe((laneId, push) => {
+  options.live.observe((laneId, push) => {
     if (push.kind === 'exit') exited(laneId, push.expected)
     else if (
       push.kind === 'extension-ui' &&
@@ -122,8 +139,12 @@ export function createReleaseKeeper(options: ReleaseKeeperOptions) {
     )
       status(laneId, push.request.statusText)
   })
-  ;[...lanes.keys()].forEach((laneId, index) =>
-    later(() => restart(laneId), BOOT_STAGGER_MS * (index + 1)),
+  ;[...lanes].forEach(([laneId, kept], index) =>
+    later(() => restart(laneId, kept), BOOT_STAGGER_MS * (index + 1)),
   )
-  return { lanes: () => [...lanes.keys()], close: unobserve }
+  return {
+    lanes: () => [...lanes.keys()],
+    /** The user stopped this lane: keep it down, even if it had already crashed. */
+    pause: (laneId: string) => forget(laneId, 'stopped'),
+  }
 }

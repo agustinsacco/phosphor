@@ -140,11 +140,14 @@ text passes, and it looks into `sh -c`, `eval`, `$(…)` and wrappers such as
 
 The one exception to "a lane resumes on its next message". The Host follows each
 attached lane's `phosphor-release` status. A lane with release mode on is
-recorded in `release-lanes.json` in the Host's state directory (at most 64). The
-Host resumes recorded lanes when it starts, two seconds apart, and restarts one
-after an unexpected exit, backing off from 30 seconds to 30 minutes; ten
-minutes up resets the backoff, and eight failures in a row stop it. A deliberate
-stop while the Host is ready (the user, an account move, a deletion) or release
-mode switching off removes the record; the lane's next run with release mode on
-records it again. Nothing restarts while the Host drains. It never calls a
+recorded in `release-lanes.json` in the Host's state directory (at most 64; a
+65th is logged as `release.keepalive_full` and not kept). The Host resumes
+recorded lanes when it starts, two seconds apart, and restarts one after an
+unexpected exit, backing off from 30 seconds to 30 minutes; ten minutes up
+resets the backoff, and it gives up after eight restarts fail. A failed restart
+counts once, and only one restart is ever due per lane. A deliberate stop while
+the Host is ready (the user, an account move, a deletion), a Stop sent to a lane
+that already crashed, or release mode switching off removes the record and
+cancels a restart that is due; the lane's next run with release mode on records
+it again. Nothing restarts while the Host drains. It never calls a
 model. Desktop lanes have no keep-alive.
