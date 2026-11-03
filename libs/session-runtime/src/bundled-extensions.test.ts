@@ -36,6 +36,7 @@ describe('bundledExtensions', () => {
       'brain-learning-carrier-sdk.ts',
       'release-github.ts',
       'release-guard.ts',
+      'release-hooks.ts',
       'release-lease.ts',
       'release-prompt.ts',
       'release-status.ts',

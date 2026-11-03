@@ -23,8 +23,8 @@ import {
   readQueue,
   type Policy,
 } from './release-github'
-import { releaseBashRefusal } from './release-guard'
-import { applyReleaseContext, PASS_MESSAGE, passMessage, releasePrompt } from './release-prompt'
+import { guardAndPrompt, watchRuns } from './release-hooks'
+import { PASS_MESSAGE, passMessage } from './release-prompt'
 import { RELEASE_COMMAND, RELEASE_STATUS_KEY, type ReleaseStatus } from './release-status'
 import { RELEASE_TOOLS, registerReleaseTools } from './release-tools'
 
@@ -308,30 +308,6 @@ function registerTools(lane: Lane): void {
   })
 }
 
-/**
- * Decide, as each run starts, whether its end deserves an alert: a person's
- * prompt does; a pass, an answer or a sub-agent's report in release mode does
- * not, unless the manager flags it or someone speaks to the lane meanwhile.
- */
-function watchRuns(lane: Lane): void {
-  lane.pi.on('input', (event) => {
-    const input = event as { source?: string; streamingBehavior?: string }
-    if (input.source === 'extension') return
-    // Mid-run, the message joins the current run; otherwise it starts the next one.
-    if (!input.streamingBehavior) lane.userInput = true
-    if (!lane.quiet) return
-    lane.quiet = false
-    publish(lane)
-  })
-  lane.pi.on('before_agent_start', () => {
-    const quiet = lane.enabled && !lane.userInput
-    lane.userInput = false
-    if (quiet === lane.quiet) return
-    lane.quiet = quiet
-    publish(lane)
-  })
-}
-
 export default function releaseManager(
   pi: ReleaseApi,
   now: () => number = Date.now,
@@ -367,19 +343,6 @@ export default function releaseManager(
     stop(lane)
     lane.ctx = undefined
   })
-  watchRuns(lane)
-  pi.on('tool_call', (event) => {
-    const call = event as { toolName?: string; input?: { command?: unknown } }
-    if (!lane.enabled || call.toolName !== 'bash' || typeof call.input?.command !== 'string') return
-    const reason = releaseBashRefusal(call.input.command, lane.policy.base)
-    return reason ? { block: true, reason } : undefined
-  })
-  pi.on('context_with_system', (event) => {
-    const messages = (event as { messages: unknown[] }).messages
-    const text = lane.enabled
-      ? releasePrompt(lane.role === 'active' ? 'active' : 'standby', lane.state?.lease?.epoch)
-      : undefined
-    applyReleaseContext(messages, text)
-    return { messages }
-  })
+  watchRuns(lane, () => publish(lane))
+  guardAndPrompt(lane)
 }
