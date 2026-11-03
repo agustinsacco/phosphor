@@ -29,6 +29,7 @@ function fixture(recorded?: string[]) {
   let clock = 0
   let ready = true
   const resumeLane = vi.fn(async (lane: StoredLane) => void running.add(lane.laneId))
+  const log = vi.fn()
   const keeper = createReleaseKeeper({
     directory,
     store: { getLane: (id) => (lanes.get(id) as StoredLane | undefined) ?? null },
@@ -41,7 +42,7 @@ function fixture(recorded?: string[]) {
     },
     resumeLane,
     ready: () => ready,
-    log: vi.fn(),
+    log,
     now: () => clock,
     later: (work, ms) => void timers.push({ work, ms }),
   })
@@ -78,6 +79,7 @@ function fixture(recorded?: string[]) {
       .lanes
   return {
     keeper,
+    log,
     resumeLane,
     status,
     exit,
@@ -198,5 +200,39 @@ describe('release keep-alive', () => {
       if (damage !== 'null')
         expect(log).toHaveBeenCalledWith('release.keepalive_unreadable', expect.anything())
     }
+  })
+
+  it('pauses on request, so a crashed lane the user stops stays down', async () => {
+    const f = fixture()
+    f.status('a', true)
+    f.running.add('a')
+    f.exit('a', false)
+    f.keeper.pause('a')
+    expect(f.record()).toEqual([])
+    f.status('a', true) // Recorded again by a later run: the old restart stays cancelled.
+    await f.fire()
+    expect(f.resumeLane).not.toHaveBeenCalled()
+  })
+
+  it('counts a failed restart once, though the failed start also reports an exit', async () => {
+    const f = fixture()
+    f.status('a', true)
+    f.running.add('a')
+    f.exit('a', false)
+    f.resumeLane.mockImplementationOnce(async () => {
+      f.exit('a', false)
+      throw new Error('the lane could not start')
+    })
+    expect(await f.fire()).toEqual([30_000])
+    expect(f.timers.map((timer) => timer.ms)).toEqual([60_000])
+    f.exit('a', false) // Another exit while a restart is already due adds nothing.
+    expect(f.timers.map((timer) => timer.ms)).toEqual([60_000])
+  })
+
+  it('says when it is full rather than silently dropping a lane', () => {
+    const f = fixture()
+    for (let i = 0; i < 65; i++) f.status(`l${i}`, true)
+    expect(f.keeper.lanes()).toHaveLength(64)
+    expect(f.log).toHaveBeenCalledWith('release.keepalive_full', { laneId: 'l64' })
   })
 })
