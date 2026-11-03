@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 import type { ClaudeAccountsResult } from '@shared/models'
 import { mixedRemoteHosts } from '@/dev/mockRemoteLanes'
 import { mockSettingsPatch, mockSettingsRead } from '@/dev/mockMachineSettings'
@@ -135,4 +135,35 @@ it('asks before removing an account and shows the refusal for live sessions (C4)
   await act(async () => button('Remove').click())
   expect(invoke).toHaveBeenCalledWith('claude:removeAccount', 'a')
   await vi.waitFor(() => expect(document.body.textContent).toContain(REFUSAL))
+})
+
+it("names a Host's move targets as the Host composer does, by email first (regression R-M8)", async () => {
+  const lane = { id: 'lane-1', title: 'Fix login', active: true }
+  const account = (id: string, label: string, email?: string) => ({
+    id,
+    label,
+    ...(email ? { email } : {}),
+    loggedIn: true,
+    cooldownUntil: null,
+    usage: null,
+    lanes: id === 'a' ? [lane] : [],
+  })
+  const base = invoke.getMockImplementation()!
+  onTestFinished(() => void invoke.mockImplementation(base))
+  invoke.mockImplementation(async (channel: string, ...args: unknown[]) => {
+    if (channel !== 'hosts:settingsRead') return base(channel, ...args)
+    const read = mockSettingsRead(args[0] as string, args[1] as never, args[2] as never)
+    if (!read.providers) return read
+    const accounts = [account('a', 'Work'), account('b', 'Personal', 'me@example.com')]
+    return { ...read, providers: { ...read.providers, accounts } }
+  })
+  await showHostSettings(root, HOST.id, 'claude-provider')
+  const row = (): HTMLButtonElement | null =>
+    document.querySelector('[data-account-id="a"] button[aria-expanded]')
+  await vi.waitFor(() => expect(row()).not.toBeNull())
+  await act(async () => row()!.click())
+  const moves = [...document.querySelectorAll('button')]
+    .map((b) => b.textContent ?? '')
+    .filter((text) => text.startsWith('Move to'))
+  expect(moves).toEqual(['Move to me@example.com'])
 })
