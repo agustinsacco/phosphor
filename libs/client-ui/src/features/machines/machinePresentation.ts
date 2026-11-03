@@ -19,6 +19,13 @@ export const PI_INSTALL = 'npm install -g @earendil-works/pi-coding-agent'
  * Settings page installs the provider and the CLI, or says how.
  */
 export const CLAUDE_SETUP = 'Set it up in Settings → Extensions → Claude Code.'
+/** A Host that cannot open its Settings installs Claude Code with its own setup. */
+const HOST_CLAUDE_SETUP = 'Run phosphor setup on this machine.'
+function claudeSetup(configurable: boolean): { text: string; command?: string } {
+  return configurable
+    ? { text: CLAUDE_SETUP }
+    : { text: HOST_CLAUDE_SETUP, command: 'phosphor setup' }
+}
 export function platformName(platform: string): string {
   return { darwin: 'macOS', linux: 'Linux', win32: 'Windows' }[platform] ?? platform
 }
@@ -70,9 +77,11 @@ export function readinessFreshness(
   return machineStatus(machine, now, offset) === 'up' ? 'live' : 'stale'
 }
 
+/** `configurable`: the machine can open its Settings, where Claude Code is set up. */
 export function readinessChecks(
   readiness: Readiness | null,
   endpoint?: string | null,
+  configurable = true,
 ): ReadinessCheck[] {
   const pi = readiness?.pi ?? 'unknown'
   const claude = readiness?.claude ?? 'unknown'
@@ -108,14 +117,16 @@ export function readinessChecks(
           : claude === 'signed-out'
             ? 'Sign in to Claude Code on this machine.'
             : claude === 'missing'
-              ? `Claude Code is missing. ${CLAUDE_SETUP}`
+              ? `Claude Code is missing. ${claudeSetup(configurable).text}`
               : 'Not reported yet. Check the Host on this machine.',
       command:
         claude === 'signed-out'
           ? 'phosphor providers login claude'
           : claude === 'unknown'
             ? 'phosphor doctor'
-            : undefined,
+            : claude === 'missing'
+              ? claudeSetup(configurable).command
+              : undefined,
     },
     {
       name: 'Tailscale',
@@ -150,21 +161,25 @@ export function readinessChecks(
 /** A Host's live Claude Code detail, which names the missing part. */
 export function claudeReadiness(
   detail: NonNullable<IpcInvokeMap['hosts:claude']['result']>,
+  configurable = true,
 ): ReadinessCheck {
   const name = 'Claude Code'
+  const setup = claudeSetup(configurable)
   if (detail.provider !== 'ok')
     return {
       name,
       ok: false,
       short: `Claude Code provider ${detail.provider}`,
-      detail: `Claude Code provider ${detail.provider}. ${CLAUDE_SETUP}`,
+      detail: `Claude Code provider ${detail.provider}. ${setup.text}`,
+      command: setup.command,
     }
   if (detail.cli !== 'ok')
     return {
       name,
       ok: false,
       short: 'Claude Code missing',
-      detail: `Claude Code is missing. ${CLAUDE_SETUP}`,
+      detail: `Claude Code is missing. ${setup.text}`,
+      command: setup.command,
     }
   return {
     name,

@@ -149,14 +149,14 @@ it('B6e: every missing Claude Code gets the one remedy, Settings → Extensions 
     await render()
     readRemedy()
   }
-  // An unconnected Host has only its heartbeat report.
+  // An unconnected Host has only its heartbeat report, and no Settings to open (R-M2).
   await act(async () => {
     useRemoteLanesStore.setState({ hosts: {} })
     useMachinesStore.setState({
       machines: [{ ...HOST, readiness: { pi: 'ok', claude: 'missing', tailscale: 'ok' } }],
     })
   })
-  readRemedy()
+  expect(claudeCheck()?.querySelector('code')?.textContent).toBe('phosphor setup')
   for (const remedy of remedies) expect(remedy).toContain('Settings → Extensions → Claude Code')
   expect(new Set(remedies.map((r) => r.slice(r.indexOf('Settings'))))).toHaveLength(1)
 })

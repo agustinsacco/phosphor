@@ -50,6 +50,7 @@ it('falls back for an old Host and re-reads Claude and providers with Check agai
     hosts: {
       [MACHINE.id]: {
         connectionToken: 'test-connection',
+        configurationSupported: true,
         state: 'ready',
         capabilities: ['skills.read'],
         repositories: [],
@@ -143,6 +144,7 @@ it.each([
       hosts: {
         [MACHINE.id]: {
           connectionToken: 'test',
+          configurationSupported: true,
           state: 'ready',
           capabilities: ['skills.read'],
           repositories: [],
