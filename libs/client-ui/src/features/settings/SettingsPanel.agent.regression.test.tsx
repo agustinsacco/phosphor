@@ -182,3 +182,20 @@ it.each([
     expect(models()[0]).toContain('"defaultProvider":"openai","defaultModel":"gpt-5"')
   },
 )
+
+it('keeps both of two quick This Mac edits on screen once both saves land (regression R-U2)', async () => {
+  const saves: Array<() => void> = []
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'pi:patchAgentSettings')
+      return new Promise<void>((resolve) => saves.push(resolve))
+    return local(channel)
+  })
+  await showHostSettings(root, 'local', 'agent')
+  const toggle = (title: string) => row(title).querySelector<HTMLButtonElement>('[role="switch"]')!
+  await act(async () => toggle('Auto-compaction').click())
+  await act(async () => toggle('Retry on transient errors').click())
+  expect(saves).toHaveLength(2)
+  await act(async () => saves.forEach((save) => save()))
+  expect(toggle('Auto-compaction').getAttribute('aria-checked')).toBe('false')
+  expect(toggle('Retry on transient errors').getAttribute('aria-checked')).toBe('false')
+})
