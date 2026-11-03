@@ -403,7 +403,11 @@ Every row shows the value this scope sets, else the machine's (folder scope),
 else pi's own default, with a badge that says which: **Set here**, **Inherited
 from machine** or **pi default**. **Reset** clears a value set here, so it inherits
 again: This Mac sends `undefined`; a Host sends `null`, and only a Host whose read
-carries `agentClearSupported` offers it.
+carries `agentClearSupported` offers it. A choice (the model, the thinking level,
+the delivery modes) lists the unset value first, named by what it falls back to
+(**pi default (medium)**, **Machine (high)**). While nothing is set here it is
+selected, so any concrete value can be pinned, including the one shown; where
+Reset is offered, choosing it is Reset.
 
 The groups, in order:
 
