@@ -679,10 +679,12 @@ In a lane whose checkout has `.github/release-manager.md`, the composer also sho
 a **Release** switch (`composer/ReleaseSwitch.tsx`) beside Swarm. It sends
 `/phosphor-release on` or `off` and, like Swarm, draws only Pi's acknowledged
 `phosphor-release` status: off, active (accent fill and dot) or standby (a
-`standby` tag while another lane holds the repository's lease). A problem reaching
-GitHub turns the dot amber, and the hint, which names the lease epoch or the
-holder's host, quotes the problem. The words carry the state, not the colour. Lanes in other
-repositories show no switch. What release mode does is
+`standby` tag while another lane holds the repository's lease, or before this
+lane has claimed it). A problem reaching GitHub turns the dot amber, and the
+hint, which names the lease epoch or the holder's host, quotes the problem.
+While a change is applying, a status line tells screen readers so. The words
+carry the state, not the colour. Lanes in other repositories show no switch,
+unless release mode is still on. What release mode does is
 [Release manager](release-manager.md).
 
 ## Rich content (first-class citizens)
