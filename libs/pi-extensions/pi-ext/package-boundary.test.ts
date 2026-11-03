@@ -79,7 +79,7 @@ describe('pi extension package boundary', () => {
 
   it('recursively resolves every bundled entry through shipped siblings only', async () => {
     const result = await build({ ...options(source), entryPoints: [...BUNDLED_EXTENSION_FILES] })
-    expect(result.outputFiles).toHaveLength(6)
+    expect(result.outputFiles).toHaveLength(7)
     for (const input of Object.keys(result.metafile!.inputs)) {
       expect(manifest.exports[`./${input.slice(0, -3)}`]).toBeDefined()
       expect(input).not.toContain('.test.')

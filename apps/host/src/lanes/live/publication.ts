@@ -1,6 +1,15 @@
 import type { AttentionKind, LaneEvent, LaneSummary } from '@phosphor/shared/host-protocol'
+import { quietReleaseRun, RELEASE_STATUS_KEY } from '@phosphor/pi-extensions/release-status'
 import type { Attachment, LiveState } from './state'
 import { summaryFor, validSummary } from './summary'
+
+/** A release lane's own pass ends silently; a person's prompt or a flagged pass still alerts. */
+function quietRun(live: Attachment): boolean {
+  const status = live.projection
+    .view()
+    .ui.find((ui) => ui.method === 'setStatus' && ui.statusKey === RELEASE_STATUS_KEY)
+  return status?.method === 'setStatus' && quietReleaseRun(status.statusText)
+}
 
 function attentionTransition(live: Attachment, summary: LaneSummary): AttentionKind | undefined {
   let kind: AttentionKind | undefined
@@ -9,7 +18,8 @@ function attentionTransition(live: Attachment, summary: LaneSummary): AttentionK
     else if (summary.activity === 'failed') kind = 'failed'
   }
   if (summary.activity === 'idle' && live.run && live.ended) {
-    kind = live.receiptAssistantFailed ? 'failed' : 'finished'
+    if (live.receiptAssistantFailed) kind = 'failed'
+    else if (!quietRun(live)) kind = 'finished'
     live.run = live.ended = false
   }
   return kind

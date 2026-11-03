@@ -1,3 +1,4 @@
+import type { SessionPush } from '@phosphor/shared/models'
 import { createLaneStreams, createLanesTopic, streamLimits } from './stream'
 import type { LiveOptions, LiveState } from './live/state'
 import { invalidSummary, promptTitle, summaryFor } from './live/summary'
@@ -20,6 +21,7 @@ export function createLiveLanes(options: LiveOptions) {
     attached: new Map(),
     summaryPublications: new Map(),
     resolvingCommand: false,
+    observers: new Set(),
     streams: createLaneStreams({
       epoch: options.epoch,
       limits,
@@ -69,6 +71,10 @@ export function createLiveLanes(options: LiveOptions) {
         ?.projection.view()
         .dialogs.map((d) => d.id) ?? [],
     detach: detach.bind(null, state),
+    observe(listener: (laneId: string, push: SessionPush) => void) {
+      state.observers.add(listener)
+      return () => void state.observers.delete(listener)
+    },
     forget(laneId: string) {
       detach(state, laneId)
       state.lanesTopic.delta([], [laneId])

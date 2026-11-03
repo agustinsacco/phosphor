@@ -314,10 +314,10 @@ Six facts that explain the rest:
    sessions list is a scan of pi's session directory. Phosphor appends to those
    files for bookmarks, branch jumps and forks, which is only safe while no pi
    process owns the file.
-5. **Six extensions run inside pi's process** (`libs/pi-extensions/pi-ext/`, loaded with `-e` into
+5. **Seven extensions run inside pi's process** (`libs/pi-extensions/pi-ext/`, loaded with `-e` into
    every session): `artifacts`, `context-breakdown`, `headroom`, `lane-reload`,
-   `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
-   the model did: [docs/extensions.md](docs/extensions.md).
+   `release-manager`, `tool-name-guard`, `worktree-paths`. Three of them can
+   change or refuse what the model did: [docs/extensions.md](docs/extensions.md).
 6. **Failure is reported, not hidden.** Failures land on the session's chat;
    main-process detail goes to `phosphor.log`. For a bad session,
    [AGENTS.md](AGENTS.md#debugging-a-failing-session) has the three layers of
@@ -555,9 +555,10 @@ libs/client-ui/src/  shared React UI over PhosphorApi; Desktop and compact entri
   styles/            the Phosphor design tokens
   assets/            the bundled fonts
   dev/               browser-only mock of the preload API (never bundled)
-libs/pi-extensions/pi-ext/  the six pi extensions that run inside pi's process,
+libs/pi-extensions/pi-ext/  the seven pi extensions that run inside pi's process,
                      bundled into every session: artifacts, context-breakdown,
-                     headroom, lane-reload, tool-name-guard, worktree-paths
+                     headroom, lane-reload, release-manager, tool-name-guard,
+                     worktree-paths, plus their imported helpers
 apps/desktop/e2e/                 Playwright-Electron smoke tests + deterministic pi stub
 apps/control/        plain-Node site and control API server; enrollment, machines,
                      clients, grants and Host routes (docs/control-plane.md)

@@ -9,6 +9,7 @@ import { navigateToLane } from '@/stores/remoteLanes'
 import { laneMarker } from '@/lib/laneMarker'
 import { laneOutcome } from '@/lib/laneNotice'
 import { sessionTitle } from '@/lib/sessionTitle'
+import { quietReleaseRun, RELEASE_STATUS_KEY } from '@phosphor/pi-extensions/release-status'
 
 /**
  * Notices about a lane the user is not looking at: it came up, it was named,
@@ -113,5 +114,8 @@ export function noticeLaneSettled(
     })
     return
   }
+  // A release lane's routine pass ends silently; its chat and the Home board carry the summary.
+  if (quietReleaseRun(useExtensionUiStore.getState().statuses[sessionId]?.[RELEASE_STATUS_KEY]))
+    return
   notifyLane(sessionId, { receipt, kind: 'success', message: outcome.excerpt ?? 'Finished.' })
 }

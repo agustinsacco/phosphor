@@ -10,8 +10,30 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 
-/** A shipped default becomes an ordinary, user-owned pi skill. */
+/** Shipped defaults become ordinary, user-owned pi skills. */
 export const ARTIFACT_SKILL = 'visual-artifacts'
+export const BUNDLED_SKILLS = [ARTIFACT_SKILL, 'release-setup'] as const
+
+/**
+ * Seed every bundled skill. One missing bundle does not keep the others out;
+ * the first failure is thrown once all have been tried.
+ */
+export function seedBundledSkills(resourceRoot: string, agentDir: string, restore = false): void {
+  const failures: unknown[] = []
+  for (const name of BUNDLED_SKILLS) {
+    try {
+      seedSkill(resourceRoot, agentDir, name, restore)
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+  if (failures.length) throw failures[0]
+}
+
+/** The Skills page's restore: only the artifact skill, so other deleted bundles stay deleted. */
+export function restoreArtifactSkill(resourceRoot: string, agentDir: string): void {
+  seedSkill(resourceRoot, agentDir, ARTIFACT_SKILL, true)
+}
 
 /**
  * Seed once per pi configuration, not per app version. The receipt is outside
@@ -19,10 +41,15 @@ export const ARTIFACT_SKILL = 'visual-artifacts'
  * Existing bundles (including symlinks) always win. Restoring is explicit and
  * only fills an absent bundle; it never overwrites somebody's edits.
  */
-export function seedArtifactSkill(resourceRoot: string, agentDir: string, restore = false): string {
+export function seedSkill(
+  resourceRoot: string,
+  agentDir: string,
+  name: (typeof BUNDLED_SKILLS)[number],
+  restore = false,
+): string {
   const state = join(agentDir, '.phosphor-bundled-skills')
-  const receipt = join(state, ARTIFACT_SKILL)
-  const target = join(agentDir, 'skills', ARTIFACT_SKILL)
+  const receipt = join(state, name)
+  const target = join(agentDir, 'skills', name)
   if (!restore && existsSync(receipt)) return target
   mkdirSync(state, { recursive: true })
   const present = (): boolean => {
@@ -37,10 +64,9 @@ export function seedArtifactSkill(resourceRoot: string, agentDir: string, restor
   if (!present()) {
     const staging = mkdtempSync(join(state, 'install-'))
     try {
-      const source = join(resourceRoot, 'skills', ARTIFACT_SKILL)
-      if (!existsSync(join(source, 'SKILL.md')))
-        throw new Error('Bundled visual-artifacts skill is missing')
-      const prepared = join(staging, ARTIFACT_SKILL)
+      const source = join(resourceRoot, 'skills', name)
+      if (!existsSync(join(source, 'SKILL.md'))) throw new Error(`Bundled ${name} skill is missing`)
+      const prepared = join(staging, name)
       cpSync(source, prepared, { recursive: true, errorOnExist: true, force: false })
       mkdirSync(join(agentDir, 'skills'), { recursive: true })
       // Never expose half a bundle to pi's resource discovery.

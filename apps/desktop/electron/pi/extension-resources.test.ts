@@ -28,6 +28,7 @@ const library = join(root, 'libs/pi-extensions')
 // This is the existing unpacked production inventory, including the imported
 // budget, context-file and global-instructions helpers, the artifact store format the artifacts extension reads, and
 // the optional gate, and the dependency-free status/widget key vocabulary. Python helpers remain source-only as before.
+// The release-* helpers are release-manager's lease, GitHub, prompt, status and tools.
 const shippedFiles = [
   'artifact-store.ts',
   'artifacts.ts',
@@ -40,6 +41,14 @@ const shippedFiles = [
   'message-ledger.ts',
   'optional/permission-gate.ts',
   'pi-api.ts',
+  'release-github.ts',
+  'release-guard.ts',
+  'release-hooks.ts',
+  'release-lease.ts',
+  'release-manager.ts',
+  'release-prompt.ts',
+  'release-status.ts',
+  'release-tools.ts',
   'status-keys.ts',
   'subagent-snapshot.ts',
   'swarm.ts',
@@ -63,7 +72,7 @@ describe('standalone pi extension resources', () => {
     }
   })
 
-  it('copies the builder inventory to resources/pi-ext and loads all six in plain Node', async () => {
+  it('copies the builder inventory to resources/pi-ext and loads all seven in plain Node', async () => {
     const temporary = mkdtempSync(join(tmpdir(), 'phosphor-extension-resources-'))
     try {
       const resources = join(temporary, 'resources')
@@ -112,7 +121,7 @@ describe('standalone pi extension resources', () => {
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/message-ledger.ts')
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/artifact-store.ts')
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/subagent-snapshot.ts')
-      expect(bundle.outputFiles).toHaveLength(6)
+      expect(bundle.outputFiles).toHaveLength(7)
       for (const output of Object.values(bundle.metafile.outputs)) {
         expect(output.imports.filter((entry) => entry.external && !isBuiltin(entry.path))).toEqual(
           [],

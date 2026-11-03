@@ -22,6 +22,8 @@ import { createSkillsFeature } from '../features/skills'
 import { createSkillInstallFeature } from '../features/skill-install'
 import { checkReadiness, readinessPorts } from '../machine/readiness'
 import { hostUpdateProgram } from '../update/handoff'
+import { hostStateDirectory } from '../lanes/state-dir'
+import { createReleaseKeeper } from '../lanes/release-keeper'
 
 interface AdministrationOptions {
   context: RunContext
@@ -105,26 +107,39 @@ export function createRunAdministration(options: AdministrationOptions) {
     authenticating: () => providerLogins?.active() ?? false,
     sessionFor: options.live.sessionFor,
   })
+  // Release lanes come back on their own: see docs/release-manager.md.
+  const keeper = createReleaseKeeper({
+    directory: hostStateDirectory(context.env, context.home),
+    store: options.store,
+    live: options.live,
+    resumeLane: options.binding.resumeLane,
+    ready: () => options.runtime.life.state() === 'ready',
+    log: (event, fields) => options.log('host', event, fields),
+  })
   return {
-    providerLogins,
-    moveClaudeAccount: createAccountMoves({
-      accounts,
-      runtime: options.runtime,
-      store: options.store,
-      binding: options.binding,
-    }),
-    machineTasks: terminals
-      ? createMachineTasks({
-          terminals,
-          settings,
-          home: context.home,
-          env: options.env,
-          pi: options.pi,
-          // Read when asked: this process's own release, never a path from the request.
-          hostUpdater: () => hostUpdateProgram(context.home, context.env, process.platform),
-        })
-      : undefined,
-    writes: createWrites(featureContext),
+    /** The lane commands' administration ports. */
+    lanePorts: {
+      providerLogins,
+      moveClaudeAccount: createAccountMoves({
+        accounts,
+        runtime: options.runtime,
+        store: options.store,
+        binding: options.binding,
+      }),
+      machineTasks: terminals
+        ? createMachineTasks({
+            terminals,
+            settings,
+            home: context.home,
+            env: options.env,
+            pi: options.pi,
+            // Read when asked: this process's own release, never a path from the request.
+            hostUpdater: () => hostUpdateProgram(context.home, context.env, process.platform),
+          })
+        : undefined,
+      writes: createWrites(featureContext),
+      pauseRelease: keeper.pause,
+    },
     features: () => features(options, featureContext, settings),
   }
 }

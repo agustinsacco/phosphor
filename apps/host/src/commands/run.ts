@@ -59,7 +59,7 @@ import { createLaneCommands } from '../lanes/commands'
 import { createLaneCalls } from '../lanes/calls'
 import type { LaneService } from '../lanes/service'
 import type { Receipt } from '@phosphor/shared/host-protocol'
-import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
+import { seedBundledSkills } from '@phosphor/session-runtime/bundled-skills'
 import { join } from 'node:path'
 import { createHostRoutines, routineOwnership, type HostRoutines } from '../routines/service'
 
@@ -274,7 +274,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           },
         )
         runtime.life.to('validating')
-        seedArtifactSkill(
+        seedBundledSkills(
           machine.resourceRoot,
           context.env.PI_CODING_AGENT_DIR ?? join(context.home, '.pi', 'agent'),
         )
@@ -351,19 +351,16 @@ async function runHostCommand(context: RunContext): Promise<number> {
           log: log.write,
         })
         commands = createLaneCommands({
-          moveClaudeAccount: administration.moveClaudeAccount,
+          ...administration.lanePorts,
           repositories,
-          machineTasks: administration.machineTasks,
           deleteLane: createLaneDeletion({
             store,
             stop: binding.deleteStop,
             remove: runtime.remove,
             forget: live.forget,
           }),
-          providerLogins: administration.providerLogins,
           attachments,
           terminals,
-          writes: administration.writes,
           store,
           ...binding,
           runtime: binding,

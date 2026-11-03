@@ -9,7 +9,8 @@ describe('bundledExtensions', () => {
   it('includes production extension entry points, without helpers, tests or optional packages', () => {
     // Modules imported by an extension, not loaded separately with -e:
     // Budget/files/global/ledger helpers belong to context-breakdown; store/snapshot helpers to artifacts;
-    // status-keys is the shared wire vocabulary, imported by producers and consumers.
+    // status-keys is the shared wire vocabulary, imported by producers and consumers;
+    // the release-* helpers belong to release-manager.
     const imported = new Set([
       'context-budget.ts',
       'context-files.ts',
@@ -20,12 +21,19 @@ describe('bundledExtensions', () => {
       'subagent-snapshot.ts',
       'status-keys.ts',
       'pi-api.ts',
+      'release-github.ts',
+      'release-guard.ts',
+      'release-hooks.ts',
+      'release-lease.ts',
+      'release-prompt.ts',
+      'release-status.ts',
+      'release-tools.ts',
     ])
     const files = readdirSync(join(root, 'libs/pi-extensions/pi-ext')).filter(
       (name) => name.endsWith('.ts') && !name.endsWith('.test.ts') && !imported.has(name),
     )
     expect([...BUNDLED_EXTENSION_FILES].sort()).toEqual(files.sort())
-    expect(BUNDLED_EXTENSION_FILES).toHaveLength(6)
+    expect(BUNDLED_EXTENSION_FILES).toHaveLength(7)
   })
 
   it('uses the supplied development, packaged or standalone resource root', () => {
@@ -42,6 +50,6 @@ describe('bundledExtensions', () => {
 
   it('returns a new array so a caller cannot change later sessions', () => {
     bundledExtensions(root).pop()
-    expect(bundledExtensions(root)).toHaveLength(6)
+    expect(bundledExtensions(root)).toHaveLength(7)
   })
 })

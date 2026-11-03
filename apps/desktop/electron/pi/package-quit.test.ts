@@ -63,7 +63,7 @@ vi.mock('../registry', () => ({
 // A live terminal is unconfirmed work, so every quit here asks first.
 vi.mock('../pty/pty-manager', () => ({ ptyManager: { size: 1, killAll: vi.fn() } }))
 vi.mock('./mcp-cli', () => ({ disposeMcpLogins: vi.fn() }))
-vi.mock('./session-launch', () => ({ ensureDesktopArtifactSkill: vi.fn() }))
+vi.mock('./session-launch', () => ({ restoreDesktopArtifactSkill: vi.fn() }))
 vi.mock('./login-flow', () => ({ cancelAllLogins: vi.fn() }))
 vi.mock('./claude-login', () => ({ cancelAllClaudeLogins: vi.fn() }))
 vi.mock('./session-watcher', () => ({ unwatchAll: () => Promise.resolve() }))

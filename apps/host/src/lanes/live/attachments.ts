@@ -90,6 +90,13 @@ export function push(state: LiveState, laneId: string, push: SessionPush) {
   live.binding.deliver(push)
   state.streams.publish(laneId, { kind: 'pi', push })
   if (push.kind === 'exit') live.exited = true
+  for (const observe of state.observers) {
+    try {
+      observe(laneId, push)
+    } catch {
+      // An observer cannot stop pi's pushes reaching the lane.
+    }
+  }
   changed(state, laneId)
 }
 export function detach(state: LiveState, laneId: string) {
