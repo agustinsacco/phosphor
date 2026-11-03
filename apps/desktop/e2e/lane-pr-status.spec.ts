@@ -1,4 +1,8 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
+
+/** Focus inside a header popup must never scroll the page (overflow: hidden stops users, not focus). */
+const pageScroll = (page: Page): Promise<number> =>
+  page.evaluate(() => (document.scrollingElement?.scrollTop ?? 0) + document.body.scrollTop)
 import { launch, shutdown, openWorkspace } from './fixtures/local-app'
 
 test('active lane PR details support keyboard refresh and survive failures with sidebar hidden', async () => {
@@ -47,6 +51,7 @@ test('active lane PR details support keyboard refresh and survive failures with 
     const details = h.page.getByRole('region', { name: 'Pull request details' })
     await expect(details).toContainText('Review: required')
     await expect(details.getByRole('button', { name: 'Open on GitHub' })).toBeFocused()
+    expect(await pageScroll(h.page)).toBe(0)
     await h.page.keyboard.press('Tab')
     await expect(details.getByRole('button', { name: 'Refresh', exact: true })).toBeFocused()
     await h.app.evaluate(() => {
@@ -63,6 +68,7 @@ test('active lane PR details support keyboard refresh and survive failures with 
     await h.page.keyboard.press('Escape')
     await expect(details).toHaveCount(0)
     await expect(pill).toBeFocused()
+    expect(await pageScroll(h.page)).toBe(0)
     expect(
       await h.page
         .locator('header')
@@ -95,6 +101,8 @@ test('a Slack thread in the lane prompt is a header quick link that opens and ad
     await slack.click()
     const list = h.page.getByRole('region', { name: 'Slack threads in this lane' })
     await expect(list).toContainText('fix what they asked in')
+    await expect(list.getByTestId('slack-thread-open')).toBeFocused()
+    expect(await pageScroll(h.page)).toBe(0)
     await list.getByTestId('slack-thread-open').click()
     await expect
       .poll(() =>
@@ -106,6 +114,7 @@ test('a Slack thread in the lane prompt is a header quick link that opens and ad
     const composer = h.page.locator('[data-composer-input]')
     await expect(composer).toHaveValue(`${thread} `)
     await expect(composer).toBeFocused()
+    expect(await pageScroll(h.page)).toBe(0)
   } finally {
     await shutdown(h)
   }

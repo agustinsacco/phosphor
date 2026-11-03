@@ -1,4 +1,9 @@
+import type { Page } from '@playwright/test'
 import { test, expect } from './fixture'
+
+/** Focus inside a header popup must never scroll the page (overflow: hidden stops users, not focus). */
+const pageScroll = (page: Page): Promise<number> =>
+  page.evaluate(() => (document.scrollingElement?.scrollTop ?? 0) + document.body.scrollTop)
 
 test('active Host lane has keyboard-accessible PR details in phone and wide headers', async ({
   stack,
@@ -16,6 +21,7 @@ test('active Host lane has keyboard-accessible PR details in phone and wide head
     await pill.press('Enter')
     const details = page.getByRole('region', { name: 'Pull request details' })
     await expect(details).toBeVisible()
+    expect(await pageScroll(page)).toBe(0)
     await expect(details).toContainText('Host may reuse its repository cache for up to 60 seconds')
     await expect(details).not.toContainText('No pull request yet')
     await expect(details.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled()
@@ -51,9 +57,11 @@ test('a Slack thread the Host lane mentions becomes a header quick link', async 
     await slack.press('Enter')
     const list = page.getByRole('region', { name: 'Slack threads in this lane' })
     await expect(list).toContainText('PHX-slack fix what they asked in')
+    expect(await pageScroll(page)).toBe(0)
     await page.keyboard.press('Escape')
     await expect(list).toHaveCount(0)
     await expect(slack).toBeFocused()
+    expect(await pageScroll(page)).toBe(0)
     expect(
       await page.locator('header').evaluate((header) => header.scrollWidth <= header.clientWidth),
     ).toBe(true)

@@ -241,7 +241,15 @@ history crawl or webhook guarantee.
 After the PR button, a pill with Slack's colour mark lists the Slack threads the
 lane has in context, so you can get back to them and point the agent at one. It
 renders nothing until the transcript mentions a thread, and shows a count once
-there are several. `LaneLinks.tsx` puts both controls in all three headers.
+there are several. `LaneLinks.tsx` puts both controls in all three headers, and
+both are one component, `LaneHeaderPill.tsx`, which owns the trigger, the
+anchored popup, focus on open and focus return; only their contents differ.
+
+The popup is portalled to `<body>` and placed by floating-ui, which is async.
+Until it answers, `useAnchoredMenu` pins the menu invisible at the viewport's
+corner. Left to its classes it would sit below the viewport, and focusing its
+first row would make Chromium scroll `<body>` (`overflow: hidden` stops users,
+not focus), shifting the whole window up with the top bar off-screen.
 
 `slackThread.ts` derives the list from the chat store on every render. Nothing is
 persisted, so there is no IPC, Host protocol or session-file change, and sidebar

@@ -9,6 +9,24 @@ import {
 } from 'react'
 import { autoUpdate, computePosition, offset, flip, shift, size } from '@floating-ui/dom'
 
+/**
+ * Until floating-ui answers (it is async), an enabled menu sits fixed at the
+ * viewport's corner, invisible and inert. Left to its classes it would be a
+ * portal below the viewport, and a child focusing on mount would make Chromium
+ * scroll <body> to reveal it: overflow: hidden stops users, not focus.
+ */
+const PENDING: CSSProperties = Object.freeze({
+  position: 'fixed',
+  left: 0,
+  top: 0,
+  right: 'auto',
+  bottom: 'auto',
+  margin: 0,
+  transform: 'none',
+  opacity: 0,
+  pointerEvents: 'none',
+})
+
 /** Viewport-fit menus escape scroll containers without losing their anchor. */
 export function useAnchoredMenu(
   trigger: RefObject<HTMLElement | null> | undefined,
@@ -16,7 +34,7 @@ export function useAnchoredMenu(
   enabled: boolean,
   above: boolean,
 ): CSSProperties {
-  const [style, setStyle] = useState<CSSProperties>({})
+  const [style, setStyle] = useState<CSSProperties | null>(null)
   useEffect(() => {
     const reference = trigger?.current
     const floating = menu.current
@@ -62,7 +80,7 @@ export function useAnchoredMenu(
       detach()
     }
   }, [trigger, menu, enabled, above])
-  return style
+  return style ?? (enabled ? PENDING : {})
 }
 
 /**
