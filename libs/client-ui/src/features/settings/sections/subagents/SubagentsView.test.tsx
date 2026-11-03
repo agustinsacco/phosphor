@@ -47,4 +47,28 @@ describe('Subagents settings', () => {
       act(() => root.unmount())
     }
   })
+
+  it.each([
+    ['a Host, whose directives only the machine has', <HostSubagents key="host" />, null],
+    ['This Mac, whose folders keep their own', <LocalSubagents key="local" />, '/work/app'],
+  ])('opens the directives from folder scope on %s (regression R-U10)', async (_, view, folder) => {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    try {
+      useSettingsUiStore.getState().setFolder('/work/app')
+      await act(async () => root.render(view))
+      const open = [...container.querySelectorAll('button')].find(
+        (b) => b.textContent === 'Open directives',
+      )!
+      act(() => open.click())
+      expect(useSettingsUiStore.getState()).toMatchObject({
+        tab: 'agent',
+        folder,
+        reveal: { title: 'Sub-agent policy' },
+      })
+    } finally {
+      act(() => root.unmount())
+      useSettingsUiStore.getState().setFolder(null)
+    }
+  })
 })
