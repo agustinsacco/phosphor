@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { GhPullRequest } from '@shared/models'
-import { prChip, noPrChip } from './prChip'
+import { prChip } from './prChip'
 
 const pr = (over: Partial<GhPullRequest> = {}): GhPullRequest => ({
   number: 412,
@@ -92,13 +92,5 @@ describe('prChip', () => {
   it('does not flag an unknown or clean mergeable state', () => {
     expect(prChip(pr({ mergeable: 'UNKNOWN' })).variant).toBe('open')
     expect(prChip(pr({ mergeable: 'MERGEABLE' })).variant).toBe('open')
-  })
-})
-
-describe('noPrChip', () => {
-  it('is inert — no PR number, no link target', () => {
-    const chip = noPrChip()
-    expect(chip.variant).toBe('no-pr')
-    expect(chip.label).not.toMatch(/#\d/)
   })
 })

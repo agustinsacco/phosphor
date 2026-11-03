@@ -58,7 +58,7 @@ export function RemoteLanePresentation({
   select,
   ...props
 }: RemoteLanePresentationProps): React.JSX.Element {
-  const { pr, confirmedNoPr } = useRemotePr(hostId, lane)
+  const pr = useRemotePr(hostId, lane)
   const showPr = useLanePrefsStore((s) => s.lanes.prStatus)
   const description = useId()
   const view = remoteLanePresentation(lane, ready)
@@ -97,7 +97,7 @@ export function RemoteLanePresentation({
           <span className="text-text-secondary flex items-center gap-1 text-base leading-4">
             <SubtitleSegments segments={view.segments} activity={view.activity} />
             {view.needsYou && <span className="text-warning shrink-0">needs you</span>}
-            {showPr && (pr || confirmedNoPr) && <PrBadge pr={pr ?? null} />}
+            {showPr && pr && <PrBadge pr={pr} />}
           </span>
         </span>
         {workspaceName && (

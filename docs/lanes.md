@@ -64,8 +64,8 @@ not a way to choose a lane. It lives in the row's context menu ("Copy spend"),
 the Home ledger and the context meter's Cost row.
 
 `LanePrefs.prStatus` (default **on**) decides whether the chip renders at all,
-and a chip only renders once there is something to say: a known PR, or a
-confirmed absence on a worktree lane. Settings → Workspaces → "PR status on
+and a chip renders only for a lane with a known PR. A lane without one shows
+no chip, no placeholder and no "no PR" hint. Settings → Workspaces → "PR status on
 lanes".
 
 **Delegated work keeps a live lane working.** The sidebar activity treatment
@@ -147,8 +147,8 @@ Desktop's `apps/desktop/electron/fs/gh-cli.ts` and the Host's
 `features/git/github.ts` run read-only `gh` queries. Their listing, fallback and
 check shaping share `libs/session-runtime/src/git/github.ts`.
 They are **read-only by design**: no push, no create. Those are outward-facing writes
-and belong behind an explicit action, which is why the `↑ no PR` chip is inert
-rather than a one-click create button.
+and belong behind an explicit action, so a lane without a PR offers no
+one-click create either.
 
 Two queries:
 
@@ -187,14 +187,10 @@ Every `gh` run goes through `piProcessEnv`, so PATH is the login shell's. A GUI
 launch inherits launchd's PATH, which has no Homebrew in it, and a bare
 `execFile('gh', …)` would fail in the installed app while working in dev.
 
-**"No PR yet" is inferred, and inference needs a stricter gate than a real
-chip.** The `↑ no PR` fallback renders only after a successful, complete
-listing and only for a worktree with a known branch. The repo query is capped
-at 100 recent PRs; a full page cannot prove absence for an older branch, so it
-never produces this fallback. A failed query cannot prove absence either.
-A trunk checked out directly is not "a lane", and guessing "you could open a
-PR" there is wrong more often than right. A **confirmed** chip has no such
-restriction.
+**No PR, no chip.** A lane whose branch has no PR, whether confirmed absent,
+still loading, truncated out of the 100-PR listing or unreadable, renders
+nothing. The listing keeps refreshing, so a PR opened later appears without
+any action.
 
 Remote repository groups use the same PR store and chips, keyed by opaque
 Host/repository identity instead of a local path. They share the same relevance
@@ -207,10 +203,10 @@ Host feature leaves PR status unavailable, never inferred absent. Desktop's loca
 
 ### Active-lane header
 
-After the lane title, a compact, keyboard-accessible PR button uses the same
-status mapping and colours as row chips. It is a real button, not the sidebar's
-non-tabbable link span, and respects the PR-status preference. Desktop keeps its
-44px bar; phone and wide browser headers reuse the same control. Its details
+After the lane title, a lane with a PR gets a compact, keyboard-accessible PR
+button with the same status mapping and colours as row chips. A lane without
+one gets nothing there. It is a real button, not the sidebar's non-tabbable
+link span, and respects the PR-status preference. Desktop keeps its 44px bar; phone and wide browser headers reuse the same control. Its details
 show state, check counts, review decision and conflicts independently: green
 checks do not imply approval. Identity-only results label those details unavailable.
 Enter/Space opens details; Tab reaches Open on GitHub and Refresh; Escape closes
@@ -218,12 +214,10 @@ and restores focus. Errors opening GitHub are visible and retryable.
 
 Refresh is an explicit forced **app** read. The details label elapsed time since
 the last successful app refresh and, on failure, the failed attempt, retaining
-known PR data. Loading and unavailable states are explicit. This is not an
-upstream freshness timestamp: a Host can reuse its 60-second repository cache,
-even for manual Refresh. A missing local `gh` probe is retried on a later attempt.
-Unavailable or truncated listings never imply “no PR”; confirmed absence keeps
-the existing complete-listing, known-branch, worktree-only rule. The listing
-remains capped at 100 recent PRs, with no history paging or webhook guarantee.
+known PR data. This is not an upstream freshness timestamp: a Host can reuse
+its 60-second repository cache, even for manual Refresh. A missing local `gh`
+probe is retried on a later attempt. The listing remains capped at 100 recent
+PRs, with no history paging or webhook guarantee.
 
 ### Slack thread links
 
@@ -271,7 +265,6 @@ together anyway ("is it in, and is it green").
 | `draft`             | neutral. A draft is not a claim on your attention              |
 | `merged`            | violet. The "this lane is done" signal                         |
 | `closed`            | closed unmerged                                                |
-| `no-pr`             | inert fallback — `↑ no PR`, no number, not a link              |
 
 **Terminal states beat check state, and conflict beats check state too.** A
 merged PR whose last run was red is still merged. A conflicting PR is

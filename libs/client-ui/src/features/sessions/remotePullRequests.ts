@@ -2,7 +2,7 @@ import { parseRemotePrKey, remotePrKey } from '@shared/host-protocol-github'
 import type { HostLaneView } from '@shared/ipc'
 import { useRepoPrRefresh } from './repoPrRefresh'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { pullRequestFor, repoPullRequests, usePullRequestsStore } from '@/stores/pullRequests'
+import { pullRequestFor, usePullRequestsStore } from '@/stores/pullRequests'
 
 // Cache ownership is the Host snapshot, not a sidebar/home component's lifetime.
 useRemoteLanesStore.subscribe((state, previous) => {
@@ -28,6 +28,5 @@ export function useRemotePullRequests(
 export function useRemotePr(hostId: string | undefined, lane: HostLaneView) {
   const key = hostId ? remotePrKey(hostId, lane.repositoryId) : undefined
   const pr = usePullRequestsStore((s) => pullRequestFor(s, key, lane.branch))
-  const complete = usePullRequestsStore((s) => repoPullRequests(s, key).complete)
-  return { pr, confirmedNoPr: complete && !!lane.worktree && !!lane.branch && !pr }
+  return pr
 }

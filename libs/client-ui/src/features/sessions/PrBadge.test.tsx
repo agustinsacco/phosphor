@@ -96,25 +96,6 @@ describe('PrBadge', () => {
   })
 })
 
-describe('PrBadge with no PR', () => {
-  it('renders the inert fallback instead of throwing', () => {
-    render(<PrBadge pr={null} />)
-    expect(badge().getAttribute('data-variant')).toBe('no-pr')
-  })
-
-  it('is not a link — there is nothing to open', () => {
-    render(<PrBadge pr={null} />)
-    expect(badge().getAttribute('role')).toBeNull()
-    expect(badge().className).not.toContain('cursor-pointer')
-  })
-
-  it('does not call out to open anything when clicked', () => {
-    render(<PrBadge pr={null} />)
-    click(badge())
-    expect(invoke).not.toHaveBeenCalled()
-  })
-})
-
 describe('theming', () => {
   it('never uses a `dark:` utility', () => {
     // Phosphor themes with a `.dark` class and defines no @custom-variant dark,

@@ -1387,18 +1387,10 @@ function SessionRow({
   const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
   const pullRequest = usePullRequestsStore((s) => pullRequestFor(s, repoPath, git?.branch))
   const showPrStatus = useLanePrefsStore((s) => s.lanes.prStatus)
-  // "No PR yet" is inferred, not reported by gh, so it needs its own gate: only
-  // once a successful, untruncated fetch for this repo has completed, and
-  // only for a worktree lane. Failures cannot prove absence, nor can a recent
-  // PR page that might omit older lanes. A non-worktree branch (most
-  // commonly the trunk itself) is not "a lane" in the PR sense, and inferring
-  // "you could open a PR" there is far more often wrong than right.
-  const prListingComplete = usePullRequestsStore((s) => s.byRepo[repoPath]?.complete ?? false)
-  const confirmedNoPr = !pullRequest && Boolean(git?.isWorktree && git.branch) && prListingComplete
   // Only render a chip that has something to say. A non-worktree branch with
   // no confirmed PR gets none — gating on the raw preference instead would put
   // an empty chip on every plain-main session the moment the flag is on.
-  const showChip = showPrStatus && Boolean(pullRequest || confirmedNoPr)
+  const showChip = showPrStatus && Boolean(pullRequest)
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
   const markerMode = useLanePrefsStore((s) => s.lanes.markers)
   // Keyed on the branch, not the title: Phosphor names a session only after its
@@ -1616,7 +1608,7 @@ function SessionRow({
             </span>
           )}
           <SubtitleSegments segments={subtitle} activity={activity} />
-          {showChip && <PrBadge pr={pullRequest ?? null} />}
+          {showChip && pullRequest && <PrBadge pr={pullRequest} />}
         </span>
       </span>
       {deleting && (

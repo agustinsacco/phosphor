@@ -6,35 +6,40 @@ import { TooltipButton } from '@/components/Tooltip'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, type RepoPullRequests } from '@/stores/pullRequests'
 import { useLanePullRequest } from './useLanePullRequest'
-import { prChip, noPrChip, PR_CHIP_CLASSES } from './prChip'
+import { prChip, PR_CHIP_CLASSES } from './prChip'
 
-/** A real tab stop in the title bar; sidebar row chips deliberately are not. */
+/**
+ * A real tab stop in the title bar; sidebar row chips deliberately are not.
+ * A lane without a pull request shows nothing: no placeholder, no "no PR".
+ * The listing keeps refreshing underneath, so a PR opened later appears.
+ */
 export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const status = useLanePullRequest(sessionId)
+  const { repoPath, ready, slice, pr } = useLanePullRequest(sessionId)
   const enabled = useLanePrefsStore((s) => s.lanes.prStatus)
-  if (!enabled || !status.repoPath) return null
+  if (!enabled || !repoPath || !pr) return null
   return (
-    <LanePrPill key={`${sessionId}:${status.repoPath}`} {...status} repoPath={status.repoPath} />
+    <LanePrPill
+      key={`${sessionId}:${repoPath}`}
+      repoPath={repoPath}
+      ready={ready}
+      slice={slice}
+      pr={pr}
+    />
   )
 }
 
-function LanePrPill({
-  repoPath,
-  ready,
-  slice,
-  pr,
-  confirmedNoPr,
-}: {
+interface LanePrProps {
   repoPath: string
   ready: boolean
   slice: RepoPullRequests
-  pr: GhPullRequest | undefined
-  confirmedNoPr: boolean
-}): React.JSX.Element {
+  pr: GhPullRequest
+}
+
+function LanePrPill({ repoPath, ready, slice, pr }: LanePrProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const id = useId()
-  const chip = pr ? prChip(pr) : confirmedNoPr ? noPrChip() : null
+  const chip = prChip(pr)
   const close = (): void => {
     setOpen(false)
     triggerRef.current?.focus()
@@ -44,18 +49,18 @@ function LanePrPill({
       <TooltipButton
         ref={triggerRef}
         type="button"
-        aria-label={chip ? `Pull request: ${chip.title}` : 'Pull request status unavailable'}
+        aria-label={`Pull request: ${chip.title}`}
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         onClick={() => setOpen(!open)}
         data-testid="lane-pr-status"
-        data-variant={chip?.variant}
+        data-variant={chip.variant}
         className={clsx(
           'rounded-full border px-2 py-0.5 font-mono text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
-          chip ? PR_CHIP_CLASSES[chip.variant] : 'text-text-tertiary border-border',
+          PR_CHIP_CLASSES[chip.variant],
         )}
       >
-        {chip ? `${chip.label} ${chip.glyph}`.trim() : slice.loading ? 'PR …' : 'PR ?'}
+        {`${chip.label} ${chip.glyph}`.trim()}
       </TooltipButton>
       {open && (
         <PopupMenu
@@ -66,32 +71,14 @@ function LanePrPill({
           escapeContainer
           className="absolute left-0 top-full mt-1 w-80 py-2"
         >
-          <LanePrContent
-            repoPath={repoPath}
-            ready={ready}
-            slice={slice}
-            pr={pr}
-            confirmedNoPr={confirmedNoPr}
-          />
+          <LanePrContent repoPath={repoPath} ready={ready} slice={slice} pr={pr} />
         </PopupMenu>
       )}
     </div>
   )
 }
 
-function LanePrContent({
-  repoPath,
-  ready,
-  slice,
-  pr,
-  confirmedNoPr,
-}: {
-  repoPath: string
-  ready: boolean
-  slice: RepoPullRequests
-  pr: GhPullRequest | undefined
-  confirmedNoPr: boolean
-}): React.JSX.Element {
+function LanePrContent({ repoPath, ready, slice, pr }: LanePrProps): React.JSX.Element {
   const [linkError, setLinkError] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -100,11 +87,7 @@ function LanePrContent({
   return (
     <div ref={ref} role="region" aria-label="Pull request details">
       <div className="space-y-2 px-3 pb-2 text-sm">
-        {pr ? (
-          <PrDetails pr={pr} />
-        ) : (
-          <p>{confirmedNoPr ? noPrChip().title : 'Pull request status unavailable'}</p>
-        )}
+        <PrDetails pr={pr} />
         <RefreshAge slice={slice} />
         {!ready && <p>Repository unavailable. Reconnect to refresh.</p>}
         {repoPath.startsWith('host:') && (
@@ -112,17 +95,15 @@ function LanePrContent({
         )}
         {linkError && <p role="alert">Could not open GitHub. Try again.</p>}
       </div>
-      {pr && (
-        <MenuRow
-          active={false}
-          onClick={() => {
-            setLinkError(false)
-            void window.phosphor.invoke('app:openExternal', pr.url).catch(() => setLinkError(true))
-          }}
-        >
-          Open on GitHub ↗
-        </MenuRow>
-      )}
+      <MenuRow
+        active={false}
+        onClick={() => {
+          setLinkError(false)
+          void window.phosphor.invoke('app:openExternal', pr.url).catch(() => setLinkError(true))
+        }}
+      >
+        Open on GitHub ↗
+      </MenuRow>
       <MenuRow
         active={false}
         disabled={!ready || slice.loading}

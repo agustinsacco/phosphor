@@ -19,7 +19,6 @@ export type PrChipVariant =
   | 'draft'
   | 'merged'
   | 'closed'
-  | 'no-pr' // branch has no PR yet; inert, there is no one-click create
 
 export interface PrChip {
   variant: PrChipVariant
@@ -121,21 +120,6 @@ export function prChip(pr: GhPullRequest): PrChip {
 }
 
 /**
- * The fallback chip for a lane whose branch has no PR yet.
- *
- * Inert on purpose — `gh-cli.ts` is read-only, so this is a hint, not a
- * one-click create button. There is deliberately no PR number to show.
- */
-export function noPrChip(): PrChip {
-  return {
-    variant: 'no-pr',
-    label: '↑ no PR',
-    glyph: '',
-    title: 'No pull request yet for this branch',
-  }
-}
-
-/**
  * Per-variant colours. `soft` grounds plus a tinted border, so the chip stays
  * legible on all three row grounds (sidebar, hover, active) without a fill
  * strong enough to compete with the lane title.
@@ -150,5 +134,4 @@ export const PR_CHIP_CLASSES: Record<PrChipVariant, string> = {
   draft: 'text-text-tertiary bg-chip border-transparent',
   merged: 'text-merged bg-merged-soft border-merged/25',
   closed: 'text-danger bg-danger-soft border-danger/25',
-  'no-pr': 'text-text-tertiary bg-chip border-transparent',
 }
