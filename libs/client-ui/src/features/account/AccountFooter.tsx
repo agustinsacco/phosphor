@@ -4,10 +4,10 @@ import { ipcErrorText } from '@shared/errors'
 import { PopupMenu } from '@/components/PopupMenu'
 import { GearIcon, Spinner, UserIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
+import { useSettingsHost } from '@/features/settings/SettingsMachineScope'
 import { useAccount } from '@/features/settings/useAccount'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useNavigation } from '@/navigation/Navigation'
-import { locationMachine } from '@/navigation/location'
 import { usePlatform } from '@/platform/Platform'
 import { useMachinesStore } from '@/stores/machines'
 
@@ -59,7 +59,9 @@ export function AccountAvatar({
 
 export function AccountFooter(): React.JSX.Element {
   const { view, error: loadError } = useAccount()
-  const { location, navigate } = useNavigation()
+  const { navigate } = useNavigation()
+  // Settings' own default: an open machine detail, then the switcher's This Mac, then a Host lane.
+  const settingsHost = useSettingsHost()
   // Only a client that installs the app shortcuts advertises one.
   const shortcut = usePlatform().appShortcuts ? formatShortcut('mod', ',') : null
   const account = view?.account ?? { status: 'signed-out' }
@@ -85,7 +87,7 @@ export function AccountFooter(): React.JSX.Element {
   }
   const settings = (): void => {
     close()
-    navigate({ to: 'page', page: 'settings', machine: locationMachine(location) })
+    navigate({ to: 'page', page: 'settings', ...(settingsHost ? { machine: settingsHost } : {}) })
   }
   const item =
     'hover:bg-bg-secondary flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-lg'
