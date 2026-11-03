@@ -7,6 +7,7 @@ describe('release prompt', () => {
     const active = releasePrompt('active', 4)
     expect(active).toContain('This lane holds the release lease (epoch 4).')
     expect(active).toContain('Merge only with release_merge.')
+    expect(active).toContain('label it `rm:blocked` while it waits on a person')
     expect(active).toContain("Don't rebuild a lane's reasoning to fix its logic")
     const standby = releasePrompt('standby', 4)
     expect(standby).toContain('change nothing on GitHub')
