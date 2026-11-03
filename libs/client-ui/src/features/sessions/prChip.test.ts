@@ -102,3 +102,16 @@ describe('noPrChip', () => {
     expect(chip.label).not.toMatch(/#\d/)
   })
 })
+
+it('reserves passing glyphs for checks that actually passed, including approved PRs', () => {
+  for (const reviewDecision of [undefined, 'APPROVED'] as const) {
+    for (const absentChecks of [undefined, checks(0, 0, 0)]) {
+      const chip = prChip(pr({ checks: absentChecks, reviewDecision }))
+      expect(chip.glyph).toBe('')
+      expect(chip.title).toContain('no checks')
+    }
+    expect(prChip(pr({ checks: checks(1, 0, 0), reviewDecision })).glyph).toBe(
+      reviewDecision === 'APPROVED' ? '✓✓' : '✓',
+    )
+  }
+})
