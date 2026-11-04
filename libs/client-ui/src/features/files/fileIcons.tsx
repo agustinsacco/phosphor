@@ -1,14 +1,9 @@
+import { strokeProps } from '@/components/icons'
+
 /** Stroke glyphs for file toolbars, drawn at the explorer's 12–13 px. */
 function Glyph({ size = 12, d }: { size?: number; d: string[] }): React.JSX.Element {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
+    <svg {...strokeProps(size)}>
       {d.map((path) => (
         <path key={path} d={path} />
       ))}
