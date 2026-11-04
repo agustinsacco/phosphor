@@ -193,7 +193,7 @@ test('Remote routine creation uses Host models and reports history', async () =>
     await h.page.getByTestId('model-row').filter({ hasText: 'HOST_A_ONLY' }).click()
     await editor
       .getByRole('combobox', { name: 'Routine machine', exact: true })
-      .selectOption({ label: 'This computer' })
+      .selectOption({ label: LOCAL_MACHINE_LABEL })
     await expect(editor.getByTestId('routine-model-picker')).not.toContainText('HOST_A_ONLY')
     await editor
       .getByRole('combobox', { name: 'Routine machine', exact: true })
