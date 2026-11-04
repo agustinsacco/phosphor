@@ -583,3 +583,34 @@ it('says a This Mac lane settled while its window is in the background, as a Hos
   noticeLaneSettled('mac')
   expect(useExtensionUiStore.getState().toasts).toHaveLength(0)
 })
+
+it("words a finished Host lane from its receipt's outcome and excerpt, as This Mac's", async () => {
+  vi.stubGlobal('document', { hasFocus: () => true })
+  const { send, detach } = listenForAttention()
+  const receipt = {
+    title: 'Remote',
+    repository: null,
+    branch: null,
+    settledAt: null,
+    durationMs: null,
+    files: 0,
+    added: 0,
+    removed: 0,
+    tests: null,
+    artifacts: 0,
+    excerpt: 'rate limited',
+    outcome: 'error' as const,
+  }
+  send({
+    hostId: MOCK_HOST_ID,
+    laneId: mockRemoteInfo.laneId ?? '',
+    title: 'Remote',
+    at: '2026-01-01T00:00:03Z',
+    kind: 'finished',
+    receipt,
+  })
+  const toast = () => useExtensionUiStore.getState().toasts[0]
+  await vi.waitFor(() => expect(toast()).toBeDefined())
+  expect(toast()).toMatchObject({ message: 'Stopped: rate limited', kind: 'error' })
+  detach()
+})
