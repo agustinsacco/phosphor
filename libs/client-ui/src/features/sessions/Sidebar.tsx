@@ -21,6 +21,7 @@ import { promptRenameSandbox } from '@/features/workspaces/promptRenameSandbox'
 import { useMenuTriggers, type ContextMenuItem } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { SessionList, useSessionOrderActions } from './SessionList'
+import { useLiveSessionNames } from './useLiveSessionNames'
 import { orderedSessions } from './sessionOrder'
 import { sessionSubtitle } from './sessionSubtitle'
 import {
@@ -623,32 +624,7 @@ export function Sidebar({
    */
   const prByRepo = usePullRequestsStore((s) => s.byRepo)
   const anySearchApplied = Object.values(searchApplied).some(Boolean)
-  /**
-   * Names of live sessions, which lead the disk scan by the watcher's
-   * debounce. Without them, a lane renamed a moment ago is not findable under
-   * the name the sidebar is showing.
-   *
-   * Subscribed as a joined STRING so streaming re-renders nothing: the chat
-   * store replaces `sessions` on every token, but this value only changes when
-   * a name does. The map is then rebuilt off that key, and the whole thing
-   * costs nothing while no filter is applied.
-   */
-  const liveNameKey = useChatStore((s) =>
-    anySearchApplied
-      ? Object.entries(s.sessions)
-          .map(([id, session]) => `${id}\u0000${session.meta?.sessionName ?? ''}`)
-          .join('\u0001')
-      : '',
-  )
-  const liveNames = useMemo(() => {
-    const names = new Map<string, string>()
-    if (!liveNameKey) return names
-    for (const entry of liveNameKey.split('\u0001')) {
-      const [id, name] = entry.split('\u0000')
-      if (id && name) names.set(id, name)
-    }
-    return names
-  }, [liveNameKey])
+  const liveNames = useLiveSessionNames(anySearchApplied)
 
   /** A lane's pull request: its branch's, in its repository. */
   const lanePullRequest = (meta: SessionMeta) => {
