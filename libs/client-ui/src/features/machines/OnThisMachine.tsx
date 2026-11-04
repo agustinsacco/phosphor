@@ -1,23 +1,17 @@
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { RemoteLaneRow } from '@/features/sessions/RemoteLaneRow'
 import { useNavigation } from '@/navigation/Navigation'
-import { artifactOnMachine } from '@/features/artifacts/globalArtifacts'
 import { useEffect, useState } from 'react'
 import { useRemoteLanesStore, REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { openMachinePage } from '@/stores/machinePages'
 import { TooltipButton } from '@/components/Tooltip'
 import { LocalLanePreviewRow, useLocalLanes } from './LocalLanePreview'
+import { machineCounts, type MachineCountKey as Key } from './machineCounts'
 import { Skeleton } from './MachineUi'
 
-type Key = 'skills' | 'routines' | 'artifacts'
 /** A count is loading until its read settles; a failed read is Unavailable, never zero. */
 type Count = number | 'loading' | 'failed'
 const LANES_SHOWN = 3
-const LABELS: Record<Key, string> = {
-  skills: 'Skills',
-  routines: 'Routines',
-  artifacts: 'Artifacts',
-}
 
 /** What On this machine shows for This Mac or a Host. */
 interface MachineResources {
@@ -28,7 +22,7 @@ interface MachineResources {
   /** The lane count and up to three rows; null where lanes cannot be read. */
   lanes: { count: number; rows: React.ReactNode } | null
   /** The tiles this machine offers, and each count read so far. */
-  tiles: Key[]
+  tiles: { key: Key; label: string }[]
   counts: Partial<Record<Key, Count>>
 }
 
@@ -50,31 +44,6 @@ async function readCounts(
   }
 }
 
-const HOST_READS = [
-  {
-    capability: 'skills.read',
-    key: 'skills',
-    read: async (hostId: string) =>
-      (await window.phosphor.invoke('hosts:skills', hostId)).skills.length,
-  },
-  {
-    capability: 'routines',
-    key: 'routines',
-    read: async (hostId: string) =>
-      (await window.phosphor.invoke('routines:list', `host:${hostId}`)).routines.filter(
-        (r) => !r.archived,
-      ).length,
-  },
-  {
-    capability: 'artifacts.read',
-    key: 'artifacts',
-    read: async (hostId: string) =>
-      (await window.phosphor.invoke('artifacts:list', [])).filter((a) =>
-        artifactOnMachine(a.key, hostId, useRemoteLanesStore.getState().hosts),
-      ).length,
-  },
-] as const
-
 function useHostResources(hostId: string): MachineResources | null {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
@@ -86,10 +55,12 @@ function useHostResources(hostId: string): MachineResources | null {
       setCounts({})
       return
     }
-    const granted = HOST_READS.filter((item) => host.capabilities.includes(item.capability))
-    setCounts(Object.fromEntries(granted.map((item) => [item.key, 'loading'])))
+    const granted = machineCounts(window.phosphor.invoke, hostId).filter((count) =>
+      host.capabilities.includes(count.capability),
+    )
+    setCounts(Object.fromEntries(granted.map(({ key }) => [key, 'loading'])))
     void readCounts(
-      granted.map((item) => ({ key: item.key, read: () => item.read(hostId) })),
+      granted,
       () => current && machineReadGeneration(hostId) === generation,
       (key, count) => setCounts((counts) => ({ ...counts, [key]: count })),
     )
@@ -112,39 +83,23 @@ function useHostResources(hostId: string): MachineResources | null {
             )),
         }
       : null,
-    tiles: HOST_READS.filter((item) => host.capabilities.includes(item.capability)).map(
-      (item) => item.key,
+    tiles: machineCounts(window.phosphor.invoke, hostId).filter((count) =>
+      host.capabilities.includes(count.capability),
     ),
     counts,
   }
 }
 
-const LOCAL_READS: readonly { key: Key; read: () => Promise<number> }[] = [
-  { key: 'skills', read: async () => (await window.phosphor.invoke('skills:list')).skills.length },
-  {
-    key: 'routines',
-    read: async () =>
-      (await window.phosphor.invoke('routines:list', 'local')).routines.filter((r) => !r.archived)
-        .length,
-  },
-  {
-    key: 'artifacts',
-    read: async () =>
-      (await window.phosphor.invoke('artifacts:list', [])).filter((a) =>
-        artifactOnMachine(a.key, 'local', {}),
-      ).length,
-  },
-]
-
 function useLocalResources(): MachineResources {
   const lanes = useLocalLanes()
+  const reads = machineCounts(window.phosphor.invoke, 'local')
   const [counts, setCounts] = useState<Partial<Record<Key, Count>>>(() =>
-    Object.fromEntries(LOCAL_READS.map(({ key }) => [key, 'loading'])),
+    Object.fromEntries(reads.map(({ key }) => [key, 'loading'])),
   )
   useEffect(() => {
     let current = true
     void readCounts(
-      LOCAL_READS,
+      machineCounts(window.phosphor.invoke, 'local'),
       () => current,
       (key, count) => setCounts((counts) => ({ ...counts, [key]: count })),
     )
@@ -161,7 +116,7 @@ function useLocalResources(): MachineResources {
         .slice(0, LANES_SHOWN)
         .map((lane) => <LocalLanePreviewRow key={lane.key} lane={lane} />),
     },
-    tiles: LOCAL_READS.map(({ key }) => key),
+    tiles: reads,
     counts,
   }
 }
@@ -210,10 +165,10 @@ function MachineResourcesCard({
       )}
       {tiles.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          {tiles.map((key) => (
+          {tiles.map(({ key, label }) => (
             <MachineResourceTile
               key={key}
-              label={LABELS[key]}
+              label={label}
               count={counts[key] ?? (ready ? 'loading' : 'failed')}
               disabled={!ready}
               onOpen={() => openMachinePage(key, machine)}

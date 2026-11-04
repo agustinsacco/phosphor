@@ -1,8 +1,9 @@
 import { machineStatus, type MachineView } from '@shared/control-api'
 import { errorText } from '@shared/errors'
 import type { HostCapability } from '@shared/remote-host'
-import type { DesktopControlErrorCode, HostsSnapshot, IpcInvokeMap } from '@shared/ipc'
+import type { DesktopControlErrorCode, HostsSnapshot, PhosphorApi } from '@shared/ipc'
 import { controlMessage } from './controlMessages'
+import { machineCounts, type MachineCount } from './machineCounts'
 import { machineHeadline, type Tone } from './machineReachability'
 import type { MachineClaude } from '@shared/host-protocol-machine'
 import { claudeReadiness, localClaude, relativeTime, TAILSCALE_FIXES } from './machinePresentation'
@@ -32,13 +33,8 @@ export interface HealthRun {
   targets: HealthTarget[]
 }
 
-type Invoke = <C extends keyof IpcInvokeMap>(
-  channel: C,
-  ...args: IpcInvokeMap[C]['args']
-) => Promise<IpcInvokeMap[C]['result']>
-
 export interface HealthContext {
-  invoke: Invoke
+  invoke: PhosphorApi['invoke']
   localLabel: string
   signedIn: boolean
   /** Re-reads the machine directory; resolves to an error code, or null. */
@@ -59,6 +55,7 @@ export interface HealthContext {
 interface Probe {
   id: string
   label: string
+  /** What a Host must grant this computer first; This Mac's run reads every probe. */
   capability?: HostCapability
   run: () => Promise<{ tone: Tone; detail: string }>
 }
@@ -71,22 +68,27 @@ interface MachineReads {
   models: () => Promise<number>
   /** null: a Host too old to report it. */
   claude: () => Promise<MachineClaude | null>
-  skills: () => Promise<number>
-  routines: () => Promise<number>
   lanes: () => Promise<string>
 }
-/** What a Host must grant this computer before each probe reads it; This Mac needs none. */
+/** What a Host must grant this computer before each read; the counts carry their own. */
 const HOST_GRANTS: Record<string, HostCapability> = {
   providers: 'skills.read',
   models: 'skills.read',
   claude: 'skills.read',
-  skills: 'skills.read',
-  routines: 'routines',
   lanes: 'sessions.read',
+}
+/** The machine counts the health check runs, by the noun each step counts. */
+const COUNTED: Partial<Record<MachineCount['key'], string>> = {
+  skills: 'skill',
+  routines: 'routine',
 }
 
 /** Providers, Models, Claude Code, Skills, Routines and Lanes, for This Mac or a Host. */
-function machineProbes(reads: MachineReads, grants: Record<string, HostCapability> = {}): Probe[] {
+function machineProbes(
+  reads: MachineReads,
+  counts: readonly MachineCount[],
+  grants: Record<string, HostCapability> = {},
+): Probe[] {
   const probes: Probe[] = [
     {
       id: 'providers',
@@ -120,19 +122,21 @@ function machineProbes(reads: MachineReads, grants: Record<string, HostCapabilit
         return { tone: check.ok ? 'ok' : 'warn', detail: check.ok ? 'Ready' : check.short }
       },
     },
-    {
-      id: 'skills',
-      label: 'Skills',
-      run: async () => ({ tone: 'ok', detail: plural(await reads.skills(), 'skill') }),
-    },
-    {
-      id: 'routines',
-      label: 'Routines',
-      run: async () => ({ tone: 'ok', detail: plural(await reads.routines(), 'routine') }),
-    },
+    ...counts.flatMap(({ key, label, capability, read }) => {
+      const noun = COUNTED[key]
+      if (!noun) return []
+      return [
+        {
+          id: key,
+          label,
+          capability,
+          run: async () => ({ tone: 'ok' as const, detail: plural(await read(), noun) }),
+        },
+      ]
+    }),
     { id: 'lanes', label: 'Lanes', run: async () => ({ tone: 'ok', detail: await reads.lanes() }) },
   ]
-  return probes.map((probe) => ({ ...probe, capability: grants[probe.id] }))
+  return probes.map((probe) => ({ ...probe, capability: probe.capability ?? grants[probe.id] }))
 }
 
 export async function runHealthCheck(context: HealthContext): Promise<HealthRun> {
@@ -188,7 +192,7 @@ export async function runHealthCheck(context: HealthContext): Promise<HealthRun>
     },
   })
   const { invoke } = context
-  for (const probe of machineProbes({
+  const localReads: MachineReads = {
     providers: context.localProviders,
     models: async () => (await invoke('pi:catalogueModels')).models.length,
     claude: async () => {
@@ -198,13 +202,12 @@ export async function runHealthCheck(context: HealthContext): Promise<HealthRun>
       ])
       return localClaude(packages, status)
     },
-    skills: async () => (await invoke('skills:list')).skills.length,
-    routines: async () => (await invoke('routines:list', 'local')).routines.length,
     lanes: async () => {
       const { live, folders } = context.localLanes()
       return `${plural(live, 'live lane')} · ${plural(folders, 'folder')}`
     },
-  }))
+  }
+  for (const probe of machineProbes(localReads, machineCounts(invoke, 'local')))
     await step(local, probe)
 
   if (context.signedIn) {
@@ -255,12 +258,10 @@ export async function runHealthCheck(context: HealthContext): Promise<HealthRun>
         providers: () => context.invoke('hosts:providers', machine.id),
         models: async () => (await context.invoke('hosts:models', machine.id)).length,
         claude: () => context.invoke('hosts:claude', machine.id),
-        skills: async () => (await context.invoke('hosts:skills', machine.id)).skills.length,
-        routines: async () =>
-          (await context.invoke('routines:list', `host:${machine.id}`)).routines.length,
         lanes: async () =>
           `${plural(view?.lanes.length ?? 0, 'lane')} · ${plural(view?.repositories.length ?? 0, 'folder')}`,
       },
+      machineCounts(context.invoke, machine.id),
       HOST_GRANTS,
     )
     // One line, not one per read: none of them can run without a connection.
