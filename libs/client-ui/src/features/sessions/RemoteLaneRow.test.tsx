@@ -406,3 +406,27 @@ it("drafts a routine on the lane's Host and folder from its title and first prom
   })
   expect(useMachinePagesStore.getState().routinesMachine).toBe(`host:${MOCK_HOST_ID}`)
 })
+
+it('leaves an unnamed Host lane’s routine draft unnamed, as This Mac does, not titled from its prompt', async () => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  host.capabilities.push('routines')
+  host.lanes[0] = { ...host.lanes[0]!, title: null }
+  useChatStore.setState((s) => ({
+    sessions: {
+      ...s.sessions,
+      [mockRemoteInfo.sessionId]: {
+        ...s.sessions[mockRemoteInfo.sessionId]!,
+        meta: null,
+        items: [{ kind: 'user', id: 'u1', text: 'Fix the flaky test' } as never],
+      },
+    },
+  }))
+  const { useRoutinesStore } = await import('@/stores/routines')
+  render()
+  menu()
+  await act(async () => button('Make routine…').click())
+  expect(useRoutinesStore.getState().draft?.input).toMatchObject({
+    name: '',
+    instructions: 'Fix the flaky test',
+  })
+})
