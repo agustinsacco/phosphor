@@ -296,6 +296,10 @@ describe('git-worktrees (real git)', () => {
     const result = await removeWorktree(repo, created.path, { deleteBranch: true })
     expect(result).toMatchObject({ removed: true, branchDeleted: false })
     expect(await git(repo, ['rev-parse', 'task-1'])).toBe(advanced)
+    // Shown as "Branch kept: …", in words rather than git's ref-lock text.
+    expect(result).toMatchObject({
+      branchError: 'it changed while Phosphor checked that it had landed.',
+    })
   })
 
   it('prunes after a manual folder delete', async () => {
