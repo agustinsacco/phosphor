@@ -10,7 +10,7 @@ const MachineFilesPane = lazy(() =>
   })),
 )
 
-/** A machine's repositories, browsed read-only from its machine detail. */
+/** A machine's repositories or recent folders, browsed read-only from its machine detail. */
 export function MachineFilesButton({
   machine,
 }: {

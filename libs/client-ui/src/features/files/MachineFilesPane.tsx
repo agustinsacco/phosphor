@@ -8,8 +8,8 @@ import { useEffect, useState } from 'react'
 import { useHostFiles, useLocalFiles, type MachineFilesSource } from './machineFilesSource'
 
 /**
- * A machine's repositories, read only: This Mac's (`'local'`) recent folders or
- * a Host's registered repositories. It never mounts the editor's tabs or a disk watcher.
+ * A machine's files, read only: This Mac's (`'local'`) recent folders or a
+ * Host's registered repositories. It never mounts the editor's tabs or a disk watcher.
  */
 export function MachineFilesPane({ hostId }: { hostId: string }): React.JSX.Element {
   return hostId === 'local' ? (
@@ -36,7 +36,7 @@ function MachineFilesView({ source }: { source: MachineFilesSource }): React.JSX
   const [error, setError] = useState<string | null>(null)
   const ready = source.unavailable === null
   const repository = source.repositories.find((r) => r.id === repositoryId)
-  const { reads } = source
+  const { reads, noun } = source
   useEffect(() => {
     let current = true
     setLoading(Boolean(ready && repository))
@@ -96,14 +96,14 @@ function MachineFilesView({ source }: { source: MachineFilesSource }): React.JSX
   return (
     <section className="flex h-full flex-col gap-3 p-4" aria-label="Machine files">
       <h2 className="font-medium">
-        Repositories <span className="text-text-secondary">Read only</span>
+        {noun.many} <span className="text-text-secondary">Read only</span>
       </h2>
       <Select
-        label="Repository"
+        label={noun.one}
         value={repositoryId}
         onChange={setRepositoryId}
         options={[
-          { value: '', label: 'Choose a repository' },
+          { value: '', label: `Choose a ${noun.one.toLowerCase()}` },
           ...source.repositories.map((r) => ({ value: r.id, label: r.name })),
         ]}
       />
@@ -111,7 +111,7 @@ function MachineFilesView({ source }: { source: MachineFilesSource }): React.JSX
         <p role="alert">{error}</p>
       ) : (
         <ListDetail
-          listLabel="Repository files"
+          listLabel={`${noun.one} files`}
           detailLabel="File preview"
           list={
             <RemoteFileTree files={files} selected={path} onSelect={setPath} loading={loading} />

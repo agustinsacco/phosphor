@@ -17,6 +17,8 @@ export interface MachineFileReads {
 export interface MachineFilesSource {
   /** Why nothing can be browsed now, or null. */
   unavailable: string | null
+  /** What the choices are called: This Mac's sidebar folders, a Host's repositories. */
+  noun: { one: string; many: string }
   repositories: { id: string; name: string }[]
   reads: MachineFileReads
 }
@@ -39,6 +41,7 @@ export function useHostFiles(hostId: string): MachineFilesSource {
   )
   return {
     unavailable: ready ? null : host?.state !== 'ready' ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE,
+    noun: { one: 'Repository', many: 'Repositories' },
     repositories: host?.repositories ?? [],
     reads,
   }
@@ -62,6 +65,7 @@ export function useLocalFiles(): MachineFilesSource {
   const recents = useWorkspacesStore((s) => s.recents)
   return {
     unavailable: null,
+    noun: { one: 'Folder', many: 'Folders' },
     repositories: recents.map((workspace) => ({ id: workspace.path, name: workspace.name })),
     reads: LOCAL_READS,
   }

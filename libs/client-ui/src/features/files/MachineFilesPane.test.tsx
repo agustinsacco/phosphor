@@ -131,9 +131,9 @@ it("browses This Mac's recent folders read-only in the same view, without Host r
   )
   try {
     await act(async () => root.render(<MachineFilesPane hostId="local" />))
-    const select = container.querySelector<HTMLSelectElement>('select[aria-label="Repository"]')
+    const select = container.querySelector<HTMLSelectElement>('select[aria-label="Folder"]')
     expect([...(select?.options ?? [])].map((o) => [o.value, o.textContent])).toEqual([
-      ['', 'Choose a repository'],
+      ['', 'Choose a folder'],
       ['/work/app', 'app'],
     ])
     await act(async () => {
