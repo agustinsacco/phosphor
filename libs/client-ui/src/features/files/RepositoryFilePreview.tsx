@@ -1,6 +1,6 @@
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { MonacoEditor } from './MonacoEditor'
-import { languageForPath } from '@/lib/monaco'
+import { languageForPath } from '@/lib/languages'
 
 /** The caller arranges it (`ListDetail`); platform capabilities choose the preview implementation. */
 export function RepositoryFilePreview({
