@@ -522,8 +522,8 @@ preserved. See [provider login](host.md#providers-login).
 
 ## Remote lane surface isolation
 
-The lane artifact pane reads only its explicit session id. An empty Host reply
-clears that lane's cached artifacts; switching back restores the Mac lane's own
+The lane artifact pane reads only its explicit session id. A failed read says
+so and offers Retry. An empty Host reply clears that lane's cached artifacts; switching back restores the Mac lane's own
 artifacts, not a global selection. Write into workspace and open in Files writes
 a remote artifact into its lane on the Host, as This Mac's does: it reads the
 file's revision first, so it replaces only what it read (or creates a new file),

@@ -1,6 +1,7 @@
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { useEffect, useState } from 'react'
-import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { TooltipButton } from '@/components/Tooltip'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
 import { refreshRemoteArtifacts } from './remoteArtifactRefresh'
@@ -23,6 +24,7 @@ export function RemoteArtifactsPane({
   const refusal = hostFeatureRefusal(host, 'artifacts.read')
   const available = !refusal
   const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   // The session whose Host list has loaded at least once while available. Later refreshes
   // (turn ends, reconnects, epoch changes) replace the list in place and keep the viewer
   // mounted, so a pinned version survives them. Only a lane switch or losing the Host
@@ -48,7 +50,7 @@ export function RemoteArtifactsPane({
     return () => {
       alive = false
     }
-  }, [available, sessionId, summary, epoch, connection])
+  }, [available, sessionId, summary, epoch, connection, attempt])
   if (!available || failed || loaded !== sessionId)
     return (
       <PaneShell
@@ -59,7 +61,14 @@ export function RemoteArtifactsPane({
           </>
         }
       >
-        <p className="p-4">{refusal ?? (failed ? REMOTE_UNAVAILABLE : 'Loading artifacts…')}</p>
+        {refusal || !failed ? (
+          <p className="p-4">{refusal ?? 'Loading artifacts…'}</p>
+        ) : (
+          <p role="alert" className="p-4">
+            Could not read this lane&apos;s artifacts.{' '}
+            <TooltipButton onClick={() => setAttempt((n) => n + 1)}>Retry</TooltipButton>
+          </p>
+        )}
       </PaneShell>
     )
   return <ArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
