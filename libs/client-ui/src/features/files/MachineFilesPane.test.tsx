@@ -151,3 +151,26 @@ it("browses This Mac's recent folders read-only in the same view, without Host r
     useWorkspacesStore.setState({ recents: [] })
   }
 })
+it('names what it browses: This Mac its folders, a Host its repositories', async () => {
+  const { useWorkspacesStore } = await import('@/stores/workspaces')
+  useWorkspacesStore.setState({ recents: [{ path: '/work/app', name: 'app', lastOpenedAt: 1 }] })
+  const words = () => [
+    container.querySelector('h2')?.textContent,
+    container.querySelector('select')?.getAttribute('aria-label'),
+    container.querySelector('option')?.textContent,
+    container.querySelector('nav')?.getAttribute('aria-label'),
+  ]
+  try {
+    await act(async () => root.render(<MachineFilesPane hostId="local" />))
+    expect(words()).toEqual(['Folders Read only', 'Folder', 'Choose a folder', 'Folder files'])
+    await act(async () => root.render(<MachineFilesPane hostId="host" />))
+    expect(words()).toEqual([
+      'Repositories Read only',
+      'Repository',
+      'Choose a repository',
+      'Repository files',
+    ])
+  } finally {
+    useWorkspacesStore.setState({ recents: [] })
+  }
+})
