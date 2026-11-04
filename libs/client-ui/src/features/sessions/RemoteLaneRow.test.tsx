@@ -286,3 +286,36 @@ it('holds navigation and the menu while the Host is not ready', () => {
   menu()
   expect(document.querySelector('[data-testid=context-menu]')).toBeNull()
 })
+it("opens the marker picker in the marker mode, dimming the other lanes' markers in this folder", async () => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  host.laneMarks = true
+  const lane = host.lanes[0]!
+  host.lanes.push(
+    { ...lane, laneId: '00000000-0000-4000-8000-0000000000a1', marker: '🦊' },
+    {
+      ...lane,
+      laneId: '00000000-0000-4000-8000-0000000000a2',
+      repositoryId: 'other',
+      marker: '🐙',
+    },
+  )
+  render()
+  act(() => container.querySelector<HTMLElement>('[data-testid=lane-marker]')!.click())
+  await act(async () => {})
+  const dialog = document.querySelector('[role=dialog][aria-label="Lane marker"]')!
+  // Auto mode (the default): the picker offers Auto, not Manual's Default.
+  expect(dialog.textContent).toContain('Auto')
+  expect(dialog.textContent).not.toContain('Default')
+  const category = dialog.querySelector<HTMLSelectElement>('select[aria-label="Icon category"]')!
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(
+      category,
+      'Suggested',
+    )
+    category.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  const used = [...dialog.querySelectorAll('button')]
+    .filter((b) => b.classList.contains('opacity-35'))
+    .map((b) => b.textContent)
+  expect(used).toEqual(['🦊'])
+})
