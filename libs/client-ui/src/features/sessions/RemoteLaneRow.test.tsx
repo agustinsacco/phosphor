@@ -288,7 +288,7 @@ it('holds navigation and the menu while the Host is not ready', () => {
   menu()
   expect(document.querySelector('[data-testid=context-menu]')).toBeNull()
 })
-it("opens the marker picker in the marker mode, dimming the other lanes' markers in this folder", async () => {
+it('opens the marker picker in the marker mode, dimming markers other lanes on this Host chose, in any folder, as This Mac does', async () => {
   const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
   host.laneMarks = true
   const lane = host.lanes[0]!
@@ -319,7 +319,7 @@ it("opens the marker picker in the marker mode, dimming the other lanes' markers
   const used = [...dialog.querySelectorAll('button')]
     .filter((b) => b.classList.contains('opacity-35'))
     .map((b) => b.textContent)
-  expect(used).toEqual(['🦊'])
+  expect(used.sort()).toEqual(['🐙', '🦊'].sort())
 })
 
 it("copies the same debug block and formatted spend as This Mac's rows, with no Host paths", async () => {
