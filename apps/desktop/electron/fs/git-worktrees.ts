@@ -11,6 +11,13 @@ import {
   gitErrorText,
 } from '@phosphor/session-runtime/git/git-exec'
 import { gitInfoCache } from '@phosphor/session-runtime/git/git-info-cache'
+import {
+  branchTip,
+  deleteBranchAtTip,
+  landedOnTrunk,
+  landedViaPullRequest as landedViaPullRequestAt,
+  type BranchGit,
+} from '@phosphor/session-runtime/git/branch-landed'
 import { ghCommitTree, ghMergedPrHeads } from './gh-cli'
 
 const execFileAsync = promisify(execFile)
@@ -407,107 +414,97 @@ export async function renameBranch(
   }
 }
 
+const proofGit =
+  (repoPath: string): BranchGit =>
+  (args) =>
+    git(repoPath, args, { trim: true })
+
 /**
  * Is this branch's work already on the trunk, squash merges included?
  *
- * `git branch -d` only asks "is it an ancestor", and a squash merge rewrites
- * the branch into one new commit that has no ancestry link back to it. Phosphor
- * lanes land as squash-merged PRs, so `-d` refused EVERY merged lane and the
- * delete flow reported an error on each one — the branch was safe to drop the
- * whole time.
- *
- * The squash test is the standard one: synthesise a commit holding the
- * branch's tree on top of the merge base, then ask `git cherry` whether an
- * equivalent patch is already upstream. The synthesised commit is dangling and
- * unreferenced, so gc collects it.
- *
- * Both remote and local trunk are checked. Unexpected errors mean "not merged",
- * never proof that the caller may force-delete the branch.
+ * Phosphor lanes land as squash-merged PRs, which `git branch -d` refuses.
+ * `landedOnTrunk` also accepts the squash. Both remote and local trunk are
+ * checked. `tip` pins the proof to the commit a deletion will compare against.
  */
-export async function isBranchMerged(repoPath: string, branch: string): Promise<boolean> {
+export async function isBranchMerged(
+  repoPath: string,
+  branch: string,
+  tip = branch,
+): Promise<boolean> {
   const { defaultBranch } = await startPoint(repoPath)
   if (branch === defaultBranch) return false
-
   const bases: string[] = []
   for (const ref of [`refs/remotes/origin/${defaultBranch}`, `refs/heads/${defaultBranch}`]) {
     if (await refExists(repoPath, ref)) bases.push(ref)
   }
-
-  for (const base of bases) {
-    try {
-      await git(repoPath, ['merge-base', '--is-ancestor', branch, base])
-      return true
-    } catch {
-      // Not an ancestor. It can still have been squashed onto the trunk.
-    }
-    try {
-      const mergeBase = await git(repoPath, ['merge-base', base, branch], { trim: true })
-      const tree = await git(repoPath, ['rev-parse', `${branch}^{tree}`], { trim: true })
-      if (!mergeBase || !tree) continue
-      const probe = await git(
-        repoPath,
-        ['commit-tree', tree, '-p', mergeBase, '-m', 'Phosphor squash-merge probe'],
-        { trim: true },
-      )
-      // `git cherry` prefixes '-' when an equivalent patch is already upstream.
-      if ((await git(repoPath, ['cherry', base, probe], { trim: true })).startsWith('-')) {
-        return true
-      }
-    } catch {
-      // Cannot prove it — fall through to the next base, then to false.
-    }
-  }
-  return false
+  return landedOnTrunk(proofGit(repoPath), tip, bases)
 }
 
 /**
  * Did this branch land through a merged GitHub PR?
  *
- * `isBranchMerged` can only see what git can: a squash commit whose patch still
- * matches the branch. It misses a lane whose history was rewritten after the
- * merge (author fixes, a local rebase), or whose squash was cut on a trunk
- * that had moved. On one real install it proved 2 of 26 merged lanes, so the
- * sweep reported "0 reclaimable" over tens of gigabytes.
- *
- * A merged PR is the proof those lanes have, but only with the local branch
- * tied to it: the tip IS the PR head, is an ancestor of it, or has the same
- * tree. A branch that reuses a merged PR's name, or gained commits after the
- * merge, fails all three. gh being absent or offline answers false.
+ * `isBranchMerged` can only see what git can. On one real install it proved
+ * 2 of 26 merged lanes, so the sweep reported "0 reclaimable" over tens of
+ * gigabytes. gh being absent or offline answers false.
  */
-export async function landedViaPullRequest(repoPath: string, branch: string): Promise<boolean> {
-  const heads = await ghMergedPrHeads(repoPath, branch)
-  if (!heads?.length) return false
-  const tip = await git(repoPath, ['rev-parse', '--verify', `refs/heads/${branch}^{commit}`], {
-    trim: true,
-    allowFail: true,
-  })
-  const tree =
-    tip && (await git(repoPath, ['rev-parse', `${tip}^{tree}`], { trim: true, allowFail: true }))
-  if (!tip || !tree) return false
-  for (const head of heads) {
-    if (head === tip) return true
-    if (await git(repoPath, ['cat-file', '-t', head], { trim: true, allowFail: true })) {
-      try {
-        await git(repoPath, ['merge-base', '--is-ancestor', tip, head])
-        return true
-      } catch {
-        // Not behind the PR head; the content can still be identical.
-      }
-      const headTree = await git(repoPath, ['rev-parse', `${head}^{tree}`], {
-        trim: true,
-        allowFail: true,
-      })
-      if (headTree === tree) return true
-    } else if ((await ghCommitTree(repoPath, head)) === tree) {
-      return true
-    }
-  }
-  return false
+export async function landedViaPullRequest(
+  repoPath: string,
+  branch: string,
+  tip?: string,
+): Promise<boolean> {
+  const commit = tip ?? (await branchTip(proofGit(repoPath), branch))
+  if (!commit) return false
+  return landedViaPullRequestAt(
+    proofGit(repoPath),
+    {
+      mergedPrHeads: (name) => ghMergedPrHeads(repoPath, name),
+      commitTree: (oid) => ghCommitTree(repoPath, oid),
+    },
+    branch,
+    commit,
+  )
 }
 
-/** Every proof Phosphor accepts that a branch's work is already on the trunk. */
-export async function isBranchLanded(repoPath: string, branch: string): Promise<boolean> {
-  return (await isBranchMerged(repoPath, branch)) || (await landedViaPullRequest(repoPath, branch))
+/** Every proof Phosphor accepts that a branch's commit `tip` is already on the trunk. */
+async function isBranchLanded(repoPath: string, branch: string, tip: string): Promise<boolean> {
+  return (
+    (await isBranchMerged(repoPath, branch, tip)) ||
+    (await landedViaPullRequest(repoPath, branch, tip))
+  )
+}
+
+/**
+ * `git branch -d` when git sees the merge. Otherwise prove the current tip
+ * landed and delete exactly that tip: unmerged branches, and a branch that
+ * moved during the proof, survive checkout removal.
+ */
+async function deleteLandedBranch(
+  repoPath: string,
+  branch: string,
+): Promise<{ branchDeleted: boolean; branchError?: string }> {
+  try {
+    await git(repoPath, ['branch', '-d', branch])
+    return { branchDeleted: true }
+  } catch (error) {
+    const tip = await branchTip(proofGit(repoPath), branch)
+    if (!tip || !(await isBranchLanded(repoPath, branch, tip))) {
+      return { branchDeleted: false, branchError: gitErrorText(error) }
+    }
+    try {
+      return (await deleteBranchAtTip(proofGit(repoPath), branch, tip))
+        ? { branchDeleted: true }
+        : { branchDeleted: false, branchError: gitErrorText(error) }
+    } catch (deleteError) {
+      // The compare-and-delete refused because the branch is no longer the proven tip.
+      const moved = (await branchTip(proofGit(repoPath), branch)) !== tip
+      return {
+        branchDeleted: false,
+        branchError: moved
+          ? 'it changed while Phosphor checked that it had landed.'
+          : gitErrorText(deleteError),
+      }
+    }
+  }
 }
 
 export async function removeWorktree(
@@ -538,29 +535,8 @@ export async function removeWorktree(
   beforeRemove?.(target) // Synchronous: no await between the final guard and dispatch.
   await git(repoPath, args)
 
-  let branchDeleted = false
-  let branchError: string | undefined
-  if (options.deleteBranch && target.branch) {
-    const branch = target.branch
-    try {
-      await git(repoPath, ['branch', '-d', branch])
-      branchDeleted = true
-    } catch (error) {
-      // Escalate squash-merged branches to -D only with proof they landed;
-      // genuinely unmerged branches survive checkout removal.
-      if (await isBranchLanded(repoPath, branch)) {
-        try {
-          await git(repoPath, ['branch', '-D', branch])
-          branchDeleted = true
-        } catch (forceError) {
-          branchError = gitErrorText(forceError)
-        }
-      } else {
-        branchError = gitErrorText(error)
-      }
-    }
-  }
-  return { removed: true, branchDeleted, branchError }
+  if (!options.deleteBranch || !target.branch) return { removed: true, branchDeleted: false }
+  return { removed: true, ...(await deleteLandedBranch(repoPath, target.branch)) }
 }
 
 export async function pruneWorktrees(repoPath: string): Promise<{ pruned: string[] }> {

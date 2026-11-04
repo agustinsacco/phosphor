@@ -382,3 +382,16 @@ it.each([
   expect(el.textContent).toContain(message)
   expect(receipt).not.toHaveBeenCalled()
 })
+
+it('keeps a Host home reachable while This Mac’s home shows its setup', async () => {
+  const setup = <p>This Mac setup</p>
+  await act(async () => root.render(<WorkspaceHome workspacePath="" localSetup={setup} />))
+  expect(el.querySelector('[data-testid=home-composer]')).not.toBeNull()
+  expect(el.textContent).not.toContain('This Mac setup')
+  await act(async () => useRemoteLanesStore.setState({ filter: 'local' }))
+  expect(el.textContent).toContain('This Mac setup')
+  expect(el.querySelector('[data-testid=home-composer]')).toBeNull()
+  expect(invoke).not.toHaveBeenCalledWith('sessions:stats', '')
+  await act(async () => useRemoteLanesStore.setState({ filter: MOCK_HOST_ID }))
+  expect(el.querySelector('[data-testid=home-composer]')).not.toBeNull()
+})

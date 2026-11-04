@@ -26,7 +26,8 @@ Go to file also works from the editor and ordinary text fields; Ctrl+P remains
 shell history in terminals. Shortcuts also work on remote lanes: Go to file lists
 and opens only the lane's Host files, including line/column jumps. On Host home
 (no lane open), Go to file reports “Not available on remote lanes yet.”; it
-never indexes This Mac's home workspace. Search in files works from any focus, the editor included; on a remote lane it opens Files
+never indexes This Mac's home workspace. With no folder open, neither ⌘P nor
+the palette offers Go to file. Search in files works from any focus, the editor included; on a remote lane it opens Files
 and reports “Not available on remote lanes yet.” without starting a local search.
 F6 moves between the composer and pane controls, including remote lane panes
 and the Host-home repository selector; in a fullscreen pane it focuses Exit
@@ -66,8 +67,10 @@ then stays up while fonts, preferences, pi health, the previous
 workspace/session transcript and the visible sidebar's first scan settle. The
 shell mounts hidden beneath it so discovery finishes without skeletons or
 stray shortcuts. Readiness dismisses it; there is no minimum display time.
-Missing pi leads to setup; a startup failure offers retry; a failed restore can
-be skipped. The model catalogue preloads in the background without holding the
+A startup failure offers retry; a failed restore can be skipped. Missing pi or
+no open folder never replaces the shell: it mounts as usual, so Machines, Host
+lanes and Settings stay reachable, and only This Mac's home waits on setup
+(`useLocalSetup`, below). The model catalogue preloads in the background without holding the
 screen.
 
 ## Left sidebar (Claude Desktop style)
@@ -236,9 +239,11 @@ Signed-out windows have no machine switcher or remote groups.
   About.
 - **Account row**: a 28 px avatar, name and GitHub login when signed in, or
   a neutral avatar and Sign in when signed out. Its popover opens above the
-  row. Signed in, it shows a 40 px avatar, name, login and email, Machines
-  with an online count, Settings with its shortcut, and Sign out. Signed out,
-  it offers optional GitHub sign-in and Settings. Signing in shows browser
+  row. It always lists Machines with an online count: This Mac where the
+  client runs local lanes, plus every Host that is up. Signed in, it also
+  shows a 40 px avatar, name, login and email above it, then Settings with its
+  shortcut and Sign out. Signed out, Machines is followed by optional GitHub
+  sign-in and Settings. Signing in shows browser
   progress and Cancel. The gear opens Settings directly. Keyboard navigation,
   Escape and outside-click dismissal return focus to the row. No token reaches
   this UI ([settings.md](settings.md#phosphor-account)); Settings → Phosphor
@@ -497,9 +502,17 @@ close it; focus moves into the sheet and returns to the element on close.
   Disconnected machines or missing `workspaces.read` disable it with a fixed
   reason. Changing the switcher or opening a lane closes this home pane;
   This Mac's home does not offer it.
-- **Empty states**: no workspace → onboarding card with folder picker; no
-  sessions → "Describe a task…" hero; pi missing/outdated → setup screen with
-  the install command.
+- **Empty states**: This Mac's home takes its setup while This Mac cannot
+  start a lane (`app/useLocalSetup.tsx`): pi missing or outdated → one-click
+  Install/Update pi with the install command (`PiMissingScreen`; the hook owns
+  the install, so leaving the home does not lose it), then the one-time
+  recommendations (`GettingStartedScreen`, which the restore of the last
+  session waits for); no open folder → the
+  folder picker with recents (`WorkspacePicker`). Only local lane creation
+  waits: a Host composer target shows the Host's start page, and on a Host
+  home the setup takes only the composer slot, under the composer's machine
+  picker. This Mac's Machines readiness row shows the same install command. No
+  sessions → "Describe a task…" hero.
 
 ## Home workbench
 

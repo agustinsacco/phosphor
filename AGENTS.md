@@ -186,7 +186,7 @@ Read the linked doc before touching any of these.
 ## Running the app
 
 `npm run dev` needs `pi` on PATH (`npm i -g @earendil-works/pi-coding-agent`,
-Node ≥ 22.19); without it the app boots to the setup screen. `apps/desktop/vite.config.ts`
+Node ≥ 22.19); without it This Mac's home shows the pi setup (Hosts still work). `apps/desktop/vite.config.ts`
 mirrors the `renderer` block of `apps/desktop/electron.vite.config.ts`; keep them in
 sync. The `/run` and `/e2e` skills cover both flows. Never run a packaging build
 in the main checkout ([desktop-build.md](docs/desktop-build.md#never-package-in-the-main-checkout)).

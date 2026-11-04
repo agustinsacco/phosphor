@@ -1995,9 +1995,11 @@ runtime's shared path-lock domain into `<state>/trash/`. A startup sweep removes
 matching trash files older than 30 days. Missing transcripts and a worktree
 already removed outside Phosphor are allowed. A shared worktree is never removed. Worktree removal uses git without force, so
 dirty worktrees remain. The branch considered is the lane's latest reading
-(above). A branch is kept unless its work is proven merged,
-including squash merges by `git cherry` against a synthetic branch-tree commit.
-Symbolic branch refs are kept. Every merged branch, by ancestry or squash, is
+(above). A branch is kept unless its tip is proven landed, by the proofs This
+Mac uses ([lanes.md](lanes.md#deleting-lanes)): ancestry, a squash merge by
+`git cherry` against a synthetic branch-tree commit, or a merged GitHub PR tied
+to the tip, asked through the Host's own `gh` (each question has an 8 s
+timeout and none starts after 20 s; no answer means not landed). Symbolic branch refs are kept. Every landed branch is
 deleted the same way: worktrees are rechecked immediately before
 `git update-ref --no-deref -d`, which compares with the proven tip atomically
 so an advanced tip is kept. It checks worktrees
