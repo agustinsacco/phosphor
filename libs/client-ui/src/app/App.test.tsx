@@ -66,7 +66,8 @@ vi.mock('@/features/routines/RoutinesPage', () => ({ RoutinesPage: () => null })
 vi.mock('@/features/artifacts/ArtifactsPage', () => ({ ArtifactsPage: () => null }))
 vi.mock('@/features/machines/MachinesPage', () => ({ MachinesPage: () => null }))
 vi.mock('@/features/home/WorkspaceHome', () => ({
-  WorkspaceHome: () => <textarea data-composer-input />,
+  WorkspaceHome: ({ localSetup }: { localSetup?: React.ReactNode }) =>
+    localSetup ?? <textarea data-composer-input />,
 }))
 vi.mock('@/features/home/StartingChat', () => ({ StartingChat: () => null }))
 vi.mock('@/features/settings/SettingsModal', () => ({ SettingsModal: () => null }))
@@ -78,6 +79,61 @@ vi.mock('@/features/extension-ui/ExtensionUiHosts', () => ({
 vi.mock('@/features/writing/TextFieldMenu', () => ({ TextFieldMenu: () => null }))
 vi.mock('@/components/ContextMenu', () => ({ ContextMenuHost: () => null }))
 vi.mock('@/components/PromptHost', () => ({ PromptHost: () => null }))
+
+function stubApi(health: { ok: boolean; reason?: string; message?: string; version?: string }) {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  Object.assign(window, {
+    phosphor: {
+      invoke: vi.fn(async (channel: string) =>
+        channel === 'pi:health'
+          ? health
+          : channel === 'pi:listLiveSessions'
+            ? []
+            : { kind: 'none' },
+      ),
+      onPtyStatus: () => () => {},
+    },
+  })
+  vi.spyOn(useWorkspacesStore.getState(), 'hydrate').mockResolvedValue()
+  vi.spyOn(useWorktreesStore.getState(), 'hydratePrefs').mockResolvedValue()
+  vi.spyOn(useDraftsStore.getState(), 'hydrate').mockResolvedValue()
+  vi.spyOn(useModelCatalogueStore.getState(), 'hydrate').mockResolvedValue()
+  useSessionsStore.setState({ activeSessionId: null, live: {} })
+  useLayoutStore.setState({ sidebarVisible: false })
+}
+
+it.each([
+  [
+    'pi is missing',
+    { ok: false, reason: 'missing', message: 'pi was not found.' },
+    '/mac',
+    'pi is not installed',
+  ],
+  ['no folder is open', { ok: true, version: '1.2.0' }, null, 'Open Folder…'],
+])(
+  'mounts the shell when %s, with This Mac’s setup in its home',
+  async (_case, health, homePath, setup) => {
+    stubApi(health)
+    useWorkspacesStore.setState({ homePath })
+    const container = document.createElement('div'),
+      root = createRoot(container)
+    document.body.append(container)
+    try {
+      await act(async () => root.render(<App />))
+      const shell = container.querySelector('[data-testid="app-shell"]')
+      expect(shell).not.toBeNull()
+      expect(shell?.textContent).toContain(setup)
+      expect(shell?.hasAttribute('inert')).toBe(false)
+      expect(container.textContent).toContain('Palette mounted')
+      expect(useGlobalShortcuts).toHaveBeenLastCalledWith(true)
+    } finally {
+      act(() => root.unmount())
+      container.remove()
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+    }
+  },
+)
 
 it.each([true, false])(
   'mounts target-correct global surfaces (lane active: %s)',
