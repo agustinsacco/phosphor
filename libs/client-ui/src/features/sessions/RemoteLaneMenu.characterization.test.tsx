@@ -66,6 +66,8 @@ it('characterizes the Desktop Host lane menu for a reader: control first, then t
   render(host(false))
   expect(menuRows()).toEqual([
     ['Open', false],
+    ['Move upAlt+↑', true],
+    ['Move downAlt+↓', true],
     ['RenameTake control first.', true],
     ['Take control', false],
     ['StopTake control first.', true],
@@ -82,6 +84,8 @@ it('characterizes the Desktop Host lane menu for the controller', () => {
   render(host(true))
   expect(menuRows()).toEqual([
     ['Open', false],
+    ['Move upAlt+↑', true],
+    ['Move downAlt+↓', true],
     ['Rename', false],
     ['Release control', false],
     ['Stop', false],

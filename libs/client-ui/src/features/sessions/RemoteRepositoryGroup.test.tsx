@@ -110,3 +110,24 @@ it("persists a Host folder's collapse in the sidebar's collapsed-groups pref, ke
   await act(async () => render())
   expect(titles()).toEqual([])
 })
+
+it("reorders a Host folder's lanes with Alt+arrows, device-local in the sidebar's session order", async () => {
+  useSessionsStore.setState({ sessionOrder: [] })
+  await act(async () => render())
+  expect(titles()).toEqual(['Fix the login', 'Other'])
+  const second = container.querySelectorAll<HTMLElement>('[data-testid=remote-session-row]')[1]!
+  act(() => {
+    second.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true }),
+    )
+  })
+  expect(titles()).toEqual(['Other', 'Fix the login'])
+  expect(useSessionsStore.getState().sessionOrder).toEqual([
+    `host:${MOCK_HOST_ID}/lane:00000000-0000-4000-8000-0000000000b2`,
+    `host:${MOCK_HOST_ID}/lane:00000000-0000-4000-8000-0000000000b1`,
+  ])
+  expect(invoke).toHaveBeenCalledWith(
+    'app:setSessionOrder',
+    useSessionsStore.getState().sessionOrder,
+  )
+})
