@@ -4,6 +4,7 @@ import { SidebarFooter, SidebarNavigation } from './SidebarNavigation'
 import { RemoteLanes } from './RemoteLanes'
 import { useRemoteLanesStore, machineLabel, navigateToLane } from '@/stores/remoteLanes'
 import { LaneRevealEffect, localLaneGroupKey } from './laneReveal'
+import { loadGroupCollapse, setGroupCollapsed, useGroupCollapse } from './groupCollapse'
 import { TooltipButton } from '@/components/Tooltip'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
@@ -147,7 +148,7 @@ export function Sidebar({
     worktree: WorktreeInfo
   } | null>(null)
   /** Explicit collapse choices (prefs + this run); null until prefs load. */
-  const [collapsed, setCollapsed] = useState<Record<string, boolean> | null>(null)
+  const collapsed = useGroupCollapse((s) => s.collapsed)
   const [pendingDelete, setPendingDelete] = useState<PreflightSummary | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DeleteSessionTarget | null>(null)
   /**
@@ -279,14 +280,7 @@ export function Sidebar({
     return unsubscribe
   }, [knownWorkspaces, workspacesHydrated, collapsed])
 
-  useEffect(() => {
-    void window.phosphor
-      .invoke('app:getPrefs')
-      .then((prefs) => {
-        setCollapsed(Object.fromEntries(prefs.collapsedWorkspaces.map((p) => [p, true])))
-      })
-      .catch(() => setCollapsed({}))
-  }, [])
+  useEffect(() => void loadGroupCollapse(), [])
 
   // Wait for prefs hydration. Toggling a group changes `collapsed` but not
   // the roots, so it never re-lists.
@@ -575,12 +569,7 @@ export function Sidebar({
   }
 
   const toggleGroup = (group: GroupedSessions, wasCollapsed: boolean): void => {
-    const next = { ...(collapsed ?? {}), [group.workspacePath]: !wasCollapsed }
-    setCollapsed(next)
-    void window.phosphor.invoke(
-      'app:setCollapsedWorkspaces',
-      Object.keys(next).filter((p) => next[p]),
-    )
+    setGroupCollapsed(group.workspacePath, !wasCollapsed)
     // Expanding catches up on anything missed while the group was unwatched,
     // across every folder merged into this project (main repo + worktrees).
     if (wasCollapsed) {

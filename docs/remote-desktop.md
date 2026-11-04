@@ -415,7 +415,9 @@ an Add folder on MACHINE… button that opens the Host folder browser.
 A Host's folders are listed in the Host config's order. Each current folder's
 Workspace options menu offers Add folder on MACHINE…, Remove from MACHINE, Move
 up and Move down (`RemoteFolderMenuRows`), then Select all lanes, Select merged
-lanes and Collapse lanes. The folder header (`RemoteRepositoryGroup`) and the
+lanes and Collapse lanes. A folder's collapse persists in the sidebar's one
+`collapsedWorkspaces` pref (key `host:<id>/repo:<repositoryId>`), as This Mac's
+groups do. The folder header (`RemoteRepositoryGroup`) and the
 Host's list (`RemoteHostLanes`, pinned lanes first) are the same components the
 web client's Lanes page and Host home render ([web client](web-client.md#one-lane-row-list-and-menu)). A move
 sends the whole new order (`hosts:orderRepositories`), so every client sees it

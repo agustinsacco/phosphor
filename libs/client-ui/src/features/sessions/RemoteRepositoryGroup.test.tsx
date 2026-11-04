@@ -9,6 +9,7 @@ import { usePullRequestsStore } from '@/stores/pullRequests'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { groupRemoteLanes } from './groupRemoteLanes'
+import { useGroupCollapse } from './groupCollapse'
 import { RemoteRepositoryGroup } from './RemoteRepositoryGroup'
 
 let root: Root
@@ -35,6 +36,7 @@ beforeEach(() => {
   useRemoteLanesStore.setState({ hosts })
   useSessionsStore.setState({ live: {}, bulkDelete: null })
   usePullRequestsStore.setState({ byRepo: {} })
+  useGroupCollapse.setState({ collapsed: null })
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)

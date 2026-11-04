@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId } from 'react'
 import clsx from 'clsx'
 import { SearchIcon, PlusIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
@@ -29,6 +29,7 @@ import type { RemoteLaneGroup } from './groupRemoteLanes'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { useRemoteGroupSearch } from './remoteGroupSearch'
+import { ensureGroupCollapse, setGroupCollapsed, useGroupCollapse } from './groupCollapse'
 import { WorkspaceGroupHeader, WorkspaceGroupTitle } from './SidebarPrimitives'
 
 /** `sidebar` is Desktop's dense list; `page` gives the header controls touch-sized targets. */
@@ -50,11 +51,11 @@ export function RemoteRepositoryGroup({
 }): React.JSX.Element {
   const { repositoryId, name, available, lanes } = group
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const [collapsed, setCollapsed] = useState(false)
+  const groupKey = remoteLaneGroupKey(hostId, repositoryId)
+  const [collapsed, setCollapsed] = useFolderCollapse(groupKey)
   useRemotePullRequests(hostId, repositoryId, !collapsed && available)
   const search = useRemoteGroupSearch(hostId, repositoryId, lanes)
   const ready = !!host && canReadHost(host) && host.state === 'ready'
-  const groupKey = remoteLaneGroupKey(hostId, repositoryId)
   const canSelect =
     ready &&
     host.capabilities.includes('workspaces.write') &&
@@ -117,6 +118,13 @@ export function RemoteRepositoryGroup({
       <RemoteBulkDelete hostId={hostId} selectionKey={selection.key} lanes={lanes} />
     </section>
   )
+}
+
+/** The folder's collapse, in the sidebar's one collapsed-groups pref. Open until chosen. */
+function useFolderCollapse(groupKey: string): [boolean, (collapsed: boolean) => void] {
+  useEffect(ensureGroupCollapse, [])
+  const collapsed = useGroupCollapse((s) => s.collapsed?.[groupKey] ?? false)
+  return [collapsed, (next) => setGroupCollapsed(groupKey, next)]
 }
 
 interface FolderRowsSelection {
