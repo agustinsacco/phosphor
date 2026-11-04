@@ -26,7 +26,8 @@ Go to file also works from the editor and ordinary text fields; Ctrl+P remains
 shell history in terminals. Shortcuts also work on remote lanes: Go to file lists
 and opens only the lane's Host files, including line/column jumps. On Host home
 (no lane open), Go to file reports “Not available on remote lanes yet.”; it
-never indexes This Mac's home workspace. Search in files works from any focus, the editor included; on a remote lane it opens Files
+never indexes This Mac's home workspace. With no folder open, neither ⌘P nor
+the palette offers Go to file. Search in files works from any focus, the editor included; on a remote lane it opens Files
 and reports “Not available on remote lanes yet.” without starting a local search.
 F6 moves between the composer and pane controls, including remote lane panes
 and the Host-home repository selector; in a fullscreen pane it focuses Exit
