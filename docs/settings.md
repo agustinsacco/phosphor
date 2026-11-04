@@ -180,7 +180,8 @@ withholds:
 - **Folders** needs no configuration access: it lists the folders the link
   reports, registers and unregisters within the Host's repository-change policy,
   which a refusal names, and reviews pi trust explicitly, which first asks for
-  configuration access. Its Refresh reads the link's folders again.
+  configuration access (a Host without settings support offers no review). Its
+  Refresh reads the link's folders again.
 - **Advanced** offers Pause and update (the Host's own signed `phosphor update`) and
   shows its pi, read-only paths, PATH and environment names: never values, never a
   raw-JSON editor.

@@ -31,7 +31,8 @@ export function useHostFolders(): FolderSource {
     caps: {
       add: writable,
       remove: writable ? 'unregister' : null,
-      trustReview: terminalLink,
+      // The review needs configuration access, which a Host without settings support never grants.
+      trustReview: terminalLink && connection?.configurationSupported === true,
       sandboxes: false,
     },
     folders: (connection?.repositories ?? []).map(({ id, name, path }) => ({ id, name, path })),
