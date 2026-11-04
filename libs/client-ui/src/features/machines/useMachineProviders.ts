@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MachineProvider } from '@shared/host-protocol-machine'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import {
@@ -21,6 +21,8 @@ export function useMachineProviders(machineId: string, refresh: number) {
   const [providers, setProviders] = useState<MachineProvider[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [reload, setReload] = useState(0)
+  // Check again's round outlives this card, so only a round that moves while it is open reads fresh.
+  const opened = useRef(refresh)
   useEffect(() => {
     let live = true
     setFailed(false)
@@ -28,7 +30,7 @@ export function useMachineProviders(machineId: string, refresh: number) {
     if (readable)
       void (
         local
-          ? refresh || reload
+          ? refresh !== opened.current || reload
             ? readLocalSubscriptionAuth()
             : lastLocalSubscriptionAuth()
           : window.phosphor.invoke('hosts:providers', machineId)
