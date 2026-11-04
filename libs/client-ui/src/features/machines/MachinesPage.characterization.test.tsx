@@ -42,6 +42,19 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
     return { binary: { found: true }, auth: { loggedIn: true } }
   if (channel === 'pi:subscriptionAuth' || channel === 'hosts:providers') return PROVIDERS
   if (channel === 'hosts:claude') return claude
+  if (channel === 'packages:list')
+    return [
+      {
+        spec: 'npm:@saccolabs/pi-claude-cli',
+        scope: 'global',
+        kind: 'npm',
+        filtered: false,
+        name: '@saccolabs/pi-claude-cli',
+        version: '0.10.2',
+        installed: true,
+        resources: { extensions: ['index.ts'], skills: [], prompts: [], themes: [] },
+      },
+    ]
   return null
 })
 
@@ -201,4 +214,21 @@ it("onboarding's Providers step reads the new Host's Claude Code and providers, 
   await click(button('Check readiness again'))
   expect(invoke).toHaveBeenCalledWith('hosts:providers', HOST.id)
   expect(invoke).toHaveBeenCalledWith('hosts:claude', HOST.id)
+})
+
+it("This Mac's Claude Code names a missing provider package, as a Host's does", async () => {
+  const base = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'packages:list' ? [] : base(channel),
+  )
+  try {
+    await render()
+    await click(container.querySelector<HTMLElement>('[data-testid=local-machine-row]'))
+    const row = region('Readiness')?.querySelector('[data-check="Claude Code"]')
+    expect(row?.getAttribute('data-ok')).toBe('false')
+    expect(row?.textContent).toContain('Claude Code provider missing')
+    expect(row?.textContent).toContain('Settings → Extensions → Claude Code')
+  } finally {
+    invoke.mockImplementation(base)
+  }
 })
