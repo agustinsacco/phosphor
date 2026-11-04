@@ -1,4 +1,12 @@
-import { openRemoteLane, useNavigationHostId, useRemoteLanesStore } from '@/stores/remoteLanes'
+import {
+  machineLabel,
+  openRemoteLane,
+  useNavigationHostId,
+  useRemoteLanesStore,
+} from '@/stores/remoteLanes'
+import type { HostConnectionView } from '@shared/ipc'
+import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
+import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { create } from 'zustand'
@@ -50,6 +58,7 @@ export function CommandPalette({
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [addingFolder, setAddingFolder] = useState<string | null>(null)
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -225,23 +234,22 @@ export function CommandPalette({
 
     if (remote) {
       const localOnly = new Set(['open-folder', 'rewind'])
-      for (const lane of host?.lanes ?? []) {
-        base.push({
-          id: `lane-${lane.laneId}`,
-          label: `Open lane: ${lane.title ?? 'Untitled lane'}`,
-          run: () => {
-            if (hostId) void openRemoteLane(hostId, lane.laneId)
-          },
-        })
-      }
-      return base.filter((action) => !localOnly.has(action.id))
+      const onHost = hostId && host ? hostActions(hostId, host, setAddingFolder) : []
+      return [...base.filter((action) => !localOnly.has(action.id)), ...onHost]
     }
     return base
   }, [workspacePath, open, activeSessionId, disk, host, hostId, remote])
 
   const matches = useMemo(() => fuzzyFilter(query, actions, (a) => a.label, 12), [query, actions])
 
-  if (!open) return null
+  const folderBrowser = addingFolder && (
+    <HostFolderBrowser
+      hostId={addingFolder}
+      onClose={() => setAddingFolder(null)}
+      onAdded={(repositoryId) => openRemoteComposer(addingFolder, repositoryId)}
+    />
+  )
+  if (!open) return folderBrowser || null
   const close = (): void => usePaletteStore.getState().setOpen(false)
 
   const run = (action: PaletteAction): void => {
@@ -249,7 +257,7 @@ export function CommandPalette({
     action.run()
   }
 
-  return createPortal(
+  const palette = createPortal(
     <div
       data-shortcut-overlay="palette"
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[16vh] backdrop-blur-[2px]"
@@ -308,4 +316,40 @@ export function CommandPalette({
     </div>,
     document.body,
   )
+  return (
+    <>
+      {palette}
+      {folderBrowser}
+    </>
+  )
+}
+
+/**
+ * A Host's own entries, standing in for This Mac's workspace ones: its lanes,
+ * a new lane in each of its folders ("Switch workspace"), and Add folder on it
+ * ("Open workspace folder…") where this device may add one.
+ */
+function hostActions(
+  hostId: string,
+  host: HostConnectionView,
+  addFolder: (hostId: string) => void,
+): PaletteAction[] {
+  const lanes = host.lanes.map((lane) => ({
+    id: `lane-${lane.laneId}`,
+    label: `Open lane: ${lane.title ?? 'Untitled lane'}`,
+    run: () => void openRemoteLane(hostId, lane.laneId),
+  }))
+  const repositories = host.repositories.map((repository) => ({
+    id: `new-lane-${repository.id}`,
+    label: `New lane in ${repository.name}`,
+    hint: machineLabel(hostId),
+    run: () => openRemoteComposer(hostId, repository.id),
+  }))
+  const canAdd = host.state === 'ready' && host.capabilities.includes('workspaces.write')
+  const add = {
+    id: 'add-host-folder',
+    label: `Add folder on ${machineLabel(hostId)}…`,
+    run: () => addFolder(hostId),
+  }
+  return [...lanes, ...repositories, ...(canAdd ? [add] : [])]
 }
