@@ -10,8 +10,19 @@ import {
 import { PaneIconButton, PaneShell, PaneTitle } from '@/components/PaneShell'
 import { TerminalView } from './TerminalView'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
 import { CloseIcon } from '@/components/icons'
+
+/** Why this device cannot open a shell on the lane's Host; read under the pane's subscriptions. */
+function terminalRefusal(sessionId: string): string | undefined {
+  const target = useSessionsStore.getState().live[sessionId]?.target
+  const hosts = useRemoteLanesStore.getState().hosts
+  return hostFeatureRefusal(
+    target?.kind === 'remote' ? hosts[target.hostId] : undefined,
+    'terminal',
+  )
+}
 
 /**
  * Terminal pane: tab strip in the shell title, "+" as a pane action.
@@ -168,7 +179,7 @@ export const TerminalPane = memo(function TerminalPane({
         {access !== 'control' && (
           <div className="text-text-tertiary px-2 py-1 text-sm">
             {access === 'unavailable'
-              ? 'Not available on remote lanes yet.'
+              ? terminalRefusal(sessionId)
               : 'Read-only. Take control to send messages.'}
           </div>
         )}

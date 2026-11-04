@@ -1,6 +1,8 @@
 import { SCREENS } from '@/navigation/screens'
 import { useSessionsStore } from '@/stores/sessions'
-import { REMOTE_UNAVAILABLE, REMOTE_NOT_READY, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
+import type { HostConnectionView } from '@shared/ipc'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo } from 'react'
@@ -57,9 +59,7 @@ export const RightPane = memo(function RightPane({
             pane={rightPane}
             sessionId={sessionId}
             workspacePath={workspacePath}
-            ready={host?.state === 'ready'}
-            known={!!host}
-            terminal={!!host?.capabilities.includes('terminal')}
+            host={host}
           />
         )}
         {!remote && rightPane === 'files' && (
@@ -88,16 +88,12 @@ function RemotePaneBody({
   pane,
   sessionId,
   workspacePath,
-  ready,
-  known,
-  terminal,
+  host,
 }: {
   pane: NonNullable<RightPaneId>
   sessionId: string
   workspacePath: string
-  ready: boolean
-  known: boolean
-  terminal: boolean
+  host: HostConnectionView | undefined
 }): React.JSX.Element {
   if (pane === 'files' || pane === 'changes')
     return (
@@ -120,9 +116,10 @@ function RemotePaneBody({
   // The agent list is the transcript this window holds, so it stays while the Host
   // reconnects; inspection and history ask the Host and report their own failures.
   if (pane === 'subagents') return <SubagentPanel sessionId={sessionId} />
-  if (ready && pane === 'artifacts')
+  const refusal = hostFeatureRefusal(host, pane === 'terminal' ? 'terminal' : 'artifacts.read')
+  if (!refusal && pane === 'artifacts')
     return <RemoteArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
-  if (ready && pane === 'terminal' && terminal)
+  if (!refusal && pane === 'terminal')
     return <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
   const label = SCREENS[pane].title
   return (
@@ -134,7 +131,7 @@ function RemotePaneBody({
         </>
       }
     >
-      <p className="p-4">{known && !ready ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}</p>
+      <p className="p-4">{refusal}</p>
     </PaneShell>
   )
 }

@@ -115,7 +115,11 @@ it.each(['missing capability', 'failed refresh'] as const)(
           />,
         ),
       )
-      expect(container.textContent).toContain('Not available on remote lanes yet.')
+      expect(container.textContent).toContain(
+        cause === 'failed refresh'
+          ? 'Not available on remote lanes yet.'
+          : 'This Host does not offer artifacts to this device.',
+      )
       expect(container.textContent).toContain('Connected')
       expect(invoke).toHaveBeenCalledTimes(cause === 'failed refresh' ? 1 : 0)
     } finally {

@@ -1,6 +1,7 @@
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { useEffect, useState } from 'react'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
 import { refreshRemoteArtifacts } from './remoteArtifactRefresh'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
@@ -19,7 +20,8 @@ export function RemoteArtifactsPane({
   )
   const laneId = useSessionsStore((s) => s.live[sessionId]?.laneId)
   const summary = JSON.stringify(host?.lanes.find((l) => l.laneId === laneId))
-  const available = host?.state === 'ready' && host.capabilities.includes('artifacts.read')
+  const refusal = hostFeatureRefusal(host, 'artifacts.read')
+  const available = !refusal
   const [failed, setFailed] = useState(false)
   // The session whose Host list has loaded at least once while available. Later refreshes
   // (turn ends, reconnects, epoch changes) replace the list in place and keep the viewer
@@ -57,7 +59,7 @@ export function RemoteArtifactsPane({
           </>
         }
       >
-        <p className="p-4">{!available || failed ? REMOTE_UNAVAILABLE : 'Loading artifacts…'}</p>
+        <p className="p-4">{refusal ?? (failed ? REMOTE_UNAVAILABLE : 'Loading artifacts…')}</p>
       </PaneShell>
     )
   return <ArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />

@@ -11,7 +11,8 @@ import {
   useArtifactsStore,
   type Artifact,
 } from '@/stores/artifacts'
-import { useRemoteLanesStore, machineLabel, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
@@ -27,6 +28,7 @@ import {
   artifactOnMachine,
   mergeGlobalArtifacts,
   canViewStoredArtifact,
+  storedArtifactRefusal,
   type GlobalArtifactRow,
 } from './globalArtifacts'
 
@@ -105,13 +107,18 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
     [stored, live, bySession, hosts, machine],
   )
 
+  const viewingRefusal = viewing ? storedArtifactRefusal(viewing, hosts) : undefined
+  const machineRefusal =
+    machine !== 'all' && machine !== 'local'
+      ? hostFeatureRefusal(hosts[machine], 'artifacts.read')
+      : undefined
   if (viewing) {
-    if (!canViewStoredArtifact(viewing, hosts))
+    if (viewingRefusal)
       return (
         <PageShell
           title={<TooltipButton onClick={() => setViewing(null)}>← All artifacts</TooltipButton>}
         >
-          <p className="p-4">{REMOTE_UNAVAILABLE}</p>
+          <p className="p-4">{viewingRefusal}</p>
         </PageShell>
       )
     return (
@@ -148,11 +155,8 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
             <TooltipButton onClick={() => setRemovals((n) => n + 1)}>Retry</TooltipButton>
           </p>
         )}
-        {machine !== 'all' &&
-        machine !== 'local' &&
-        (hosts[machine]?.state !== 'ready' ||
-          !hosts[machine]?.capabilities.includes('artifacts.read')) ? (
-          <p role="alert">{REMOTE_UNAVAILABLE}</p>
+        {machineRefusal ? (
+          <p role="alert">{machineRefusal}</p>
         ) : listingError && rows.length === 0 ? null : rows.length === 0 ? (
           <div className="flex h-full items-center justify-center px-6">
             <div className="max-w-md text-center">

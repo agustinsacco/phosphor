@@ -47,7 +47,8 @@ Editor models and caches are lane-qualified. Switching lanes or machines cancels
 stale reads and clears previews. Machine-level Files browses configured Host
 repositories read-only without opening a lane.
 [Remote surface gaps](future-features.md#remote-surface-gaps) lists unavailable
-operations. Without the capability, the pane shows “Not available on remote lanes yet.”
+operations. Without the capability, the pane shows “This Host does not offer files to this
+device.”, and “Machine not connected. Wait for reconnection.” while the Host is away.
 See [Remote Desktop](remote-desktop.md#remote-read-panes) for routing and bounds.
 
 ## File management

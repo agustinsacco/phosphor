@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { RemoteFileTree } from './RemoteFileTree'
-import { useRemoteLanesStore, REMOTE_NOT_READY, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteFileSelection } from './remoteFileSelection'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
@@ -37,8 +38,8 @@ export function ReadOnlyFilesPane({
   const [reading, setReading] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const workspace = entry?.workspacePath
-  const ready = host?.state === 'ready' && host.capabilities.includes('workspaces.read')
-  const canRead = useActive(sessionId) && ready
+  const refusal = hostFeatureRefusal(host, 'workspaces.read')
+  const canRead = useActive(sessionId) && !refusal
   const epoch = host?.cursor?.epoch
   const token = host?.connectionToken
   useEffect(() => {
@@ -49,7 +50,7 @@ export function ReadOnlyFilesPane({
     setError('')
     setFiles([])
     setStatus({})
-    setLoading(!!ready)
+    setLoading(!refusal)
     if (canRead && workspace)
       void Promise.all([
         window.phosphor.invoke('fs:listFiles', workspace),
@@ -72,13 +73,13 @@ export function ReadOnlyFilesPane({
     return () => {
       current = false
     }
-  }, [workspace, ready, canRead, epoch, token, changes, refresh])
+  }, [workspace, refusal, canRead, epoch, token, changes, refresh])
   useEffect(() => {
     let current = true
     setContent('')
     setBefore(null)
     setNotice('')
-    setReading(!!selected && !!ready)
+    setReading(!!selected && !refusal)
     if (canRead && workspace && selected)
       void Promise.all([
         changes && status[selected]?.includes('D')
@@ -112,11 +113,11 @@ export function ReadOnlyFilesPane({
     return () => {
       current = false
     }
-  }, [workspace, selected, ready, canRead, changes, status, epoch, token, refresh])
-  if (!ready)
+  }, [workspace, selected, refusal, canRead, changes, status, epoch, token, refresh])
+  if (refusal)
     return (
       <p role="status" className="p-4">
-        {host?.state !== 'ready' ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}
+        {refusal}
       </p>
     )
   return (

@@ -24,7 +24,7 @@ import {
 
 const LOCAL: HostTarget = Object.freeze({ kind: 'local' })
 const laneRemoved = (machine = localMachineLabel()): string => `This lane was removed on ${machine}`
-export const REMOTE_NOT_READY = 'Machine not connected. Wait for reconnection.'
+export { REMOTE_NOT_READY } from './hostRefusals'
 
 export function connectionLabel(state: HostConnectionView['state'] | undefined): string {
   // A first attempt is not a reconnection; the wait notes (`connectingTo`) say the same.

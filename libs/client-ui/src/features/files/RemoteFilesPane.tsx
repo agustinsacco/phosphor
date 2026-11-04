@@ -20,7 +20,8 @@ import { useEffect, useState, useRef } from 'react'
 import { TooltipButton } from '@/components/Tooltip'
 import { MonacoDiff, MonacoEditor, releaseFileModel } from './MonacoEditor'
 import { languageForPath } from '@/lib/monaco'
-import { useRemoteLanesStore, REMOTE_UNAVAILABLE, REMOTE_NOT_READY } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
 import { canControlSession } from '@/stores/remoteLanes'
 import { fileListErrorText } from '@shared/host-protocol-files'
@@ -85,7 +86,8 @@ function RemoteFilesView({
     [sessionId],
   )
   const [error, setError] = useState<string | null>(draft?.error ?? null)
-  const available = host?.state === 'ready' && host.capabilities.includes('workspaces.read')
+  const refusal = hostFeatureRefusal(host, 'workspaces.read')
+  const available = !refusal
   const laneId = useSessionsStore((s) => s.live[sessionId]?.laneId)
   // Host objects are replaced by unrelated lanes and control/stream updates.
   const summary = JSON.stringify(host?.lanes.find((lane) => lane.laneId === laneId))
@@ -269,12 +271,7 @@ function RemoteFilesView({
       setBusy(false)
     }
   }
-  if (!available && !(dirty && selected))
-    return (
-      <p className="p-4">
-        {host && host.state !== 'ready' ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}
-      </p>
-    )
+  if (!available && !(dirty && selected)) return <p className="p-4">{refusal}</p>
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1">
@@ -362,7 +359,7 @@ function RemoteFilesView({
       </div>
       {!available && (
         <p role="status" className="text-text-tertiary border-border border-b px-3 py-2 text-sm">
-          {host?.state === 'ready' ? REMOTE_UNAVAILABLE : 'Reconnecting… Unsaved edits are kept.'}
+          {host?.state === 'ready' ? refusal : 'Reconnecting… Unsaved edits are kept.'}
         </p>
       )}
       {gitUnavailable && (
