@@ -30,7 +30,7 @@ test('Control takeover guards remote mutations and explicit take restores send a
     await h.page.getByRole('button', { name: /^Terminal pane/ }).click()
     // Baseline remote wrapper refuses Terminal; parity may render a read-only terminal instead.
     await expect(
-      h.page.getByText('Not available on remote lanes yet.', { exact: true }),
+      h.page.getByText('This Host does not offer terminals to this device.', { exact: true }),
     ).toBeVisible()
     await expect(h.page.locator('.xterm')).toHaveCount(0)
     await expect(h.page.getByRole('button', { name: 'New terminal', exact: true })).toHaveCount(0)

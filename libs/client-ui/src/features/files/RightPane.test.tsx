@@ -60,7 +60,7 @@ it('never mounts local pane contents for a remote handle', () => {
           />,
         )
       })
-      expect(container.textContent).toContain('Not available on remote lanes yet.')
+      expect(container.textContent).toContain('Machine not connected. Wait for reconnection.')
     }
   } finally {
     act(() => root.unmount())
@@ -209,7 +209,7 @@ it('does not mount a terminal when a ready machine lacks terminal capability', a
         />,
       ),
     )
-    expect(container.textContent).toContain('Not available on remote lanes yet.')
+    expect(container.textContent).toContain('This Host does not offer terminals to this device.')
     expect(useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]?.state).toBe('ready')
   } finally {
     act(() => root.unmount())

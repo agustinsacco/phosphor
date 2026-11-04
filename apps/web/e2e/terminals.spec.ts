@@ -12,9 +12,7 @@ for (const width of [400, 1440]) {
     await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
     await page.goto(`${stack.origin}/lanes/${stack.hostId}/${stack.laneId}/terminal`)
-    await expect(
-      page.getByText('This Host does not allow terminals for this device.'),
-    ).toBeVisible()
+    await expect(page.getByText('This Host does not offer terminals to this device.')).toBeVisible()
     if (width < 900) await page.getByRole('button', { name: /^Lane menu/ }).click()
     await expect(
       page

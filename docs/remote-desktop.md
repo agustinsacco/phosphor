@@ -196,8 +196,10 @@ Uncertain saves preserve edits and are never retried automatically.
 Unsaved drafts stay in renderer memory per lane, survive lane switches, and clear
 on discard, successful save or lane forget.
 Changes shows git status and an inline read-only diff against HEAD. Binary files
-and oversized text use placeholders. Remote text uses in-memory Monaco models, never local preview protocols or
-filesystem watchers. They refresh
+and oversized text use placeholders. Remote text uses in-memory Monaco models, never
+`phosphor-file://` grants or filesystem watchers. Markdown, HTML and SVG open on a
+rendered Preview beside their Source, as This Mac's do, drawn from that text; HTML
+and SVG render in the artifact sandbox, and a revealed line opens the Source. They refresh
 on focused lane summary changes (including turn end), reconnects and manual refresh.
 Streamed text does not reload the pane. Added and untracked files use an empty
 original. If HEAD cannot be read, its placeholder does not discard current text.
@@ -520,11 +522,16 @@ preserved. See [provider login](host.md#providers-login).
 
 ## Remote lane surface isolation
 
-The lane artifact pane reads only its explicit session id. An empty Host reply
-clears that lane's cached artifacts; switching back restores the Mac lane's own
-artifacts, not a global selection. Workspace writes from a remote artifact are
-disabled; [remote surface gaps](future-features.md#remote-surface-gaps) owns this limitation. Save and PDF export explicitly
-target This Mac. The top-bar artifact count belongs to the active lane.
+The lane artifact pane reads only its explicit session id. A failed read says
+so and offers Retry. An empty Host reply clears that lane's cached artifacts;
+switching back restores the Mac lane's own artifacts, not a global selection.
+Write into workspace and open in Files writes a remote artifact into its lane on
+the Host, as This Mac's does: it reads the file's revision first, so it replaces
+only what it read (or creates a new file), then opens it in that lane's Files.
+Like the lane's Files editing, it needs the Host's file editing and this window
+holding the lane; otherwise the button is disabled and its tooltip names why. A
+refusal from the Host is a toast. Save and PDF export explicitly target This
+Mac. The top-bar artifact count belongs to the active lane.
 
 Remote slash commands come from the lane, and file mentions search its Host file
 list. Thinking levels derive from the lane model. Local rules/MCP menus are hidden; the

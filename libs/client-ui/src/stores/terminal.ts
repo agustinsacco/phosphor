@@ -3,6 +3,7 @@ import { drop, keyedSlice } from './keyedSlice'
 import { useLayoutStore } from './layout'
 import { useSessionsStore } from './sessions'
 import { useRemoteLanesStore, canControlSession } from './remoteLanes'
+import { hostFeatureRefusal } from './hostRefusals'
 import { ipcErrorText } from '@shared/errors'
 
 export interface TerminalTab {
@@ -235,11 +236,15 @@ export async function runInTerminal(
   useTerminalStore.getState().queuePaste(ptyId, command.replace(/[\r\n]+$/, ''), !!options.execute)
 }
 
+/** Why this device cannot open a shell on the lane's Host, or undefined (This Mac always can). */
+export function terminalRefusal(sessionId: string): string | undefined {
+  const target = useSessionsStore.getState().live[sessionId]?.target
+  if (target?.kind !== 'remote') return undefined
+  return hostFeatureRefusal(useRemoteLanesStore.getState().hosts[target.hostId], 'terminal')
+}
+
 /** Remote terminals use the same tabs, but never inherit local input authority. */
 export function terminalAccess(sessionId: string): 'control' | 'viewer' | 'unavailable' {
-  const session = useSessionsStore.getState().live[sessionId]
-  if (session?.target?.kind !== 'remote') return 'control'
-  const host = useRemoteLanesStore.getState().hosts[session.target.hostId]
-  if (host?.state !== 'ready' || !host.capabilities.includes('terminal')) return 'unavailable'
+  if (terminalRefusal(sessionId)) return 'unavailable'
   return canControlSession(sessionId) ? 'control' : 'viewer'
 }

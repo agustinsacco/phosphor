@@ -2,6 +2,7 @@ import { usePlatform } from '@/platform/Platform'
 import { localMachineLabel } from '@/lib/localMachine'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useMachinePagesStore, pageMachine } from '@/stores/machinePages'
 import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
@@ -74,9 +75,8 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     : null
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const hostId = machine.startsWith('host:') ? machine.slice(5) : null
-  const unavailable =
-    !!hostId &&
-    (hosts[hostId]?.state !== 'ready' || !hosts[hostId]?.capabilities.includes('routines'))
+  const refusal = hostId ? hostFeatureRefusal(hosts[hostId], 'routines') : undefined
+  const unavailable = !!refusal
   const setMachine = (routinesMachine: string): void =>
     useMachinePagesStore.setState({ routinesMachine })
   const localError = useRoutinesStore((s) => s.error)
@@ -346,12 +346,8 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                 value={machine}
                 onChange={setMachine}
                 choices={[
-                  ...(platform.localLanes
-                    ? [
-                        { value: 'all', label: 'All machines' },
-                        { value: 'local', label: localMachineLabel() },
-                      ]
-                    : []),
+                  { value: 'all', label: 'All machines' },
+                  ...(platform.localLanes ? [{ value: 'local', label: localMachineLabel() }] : []),
                   ...machines.map((m) => ({ value: m.id, label: m.label })),
                 ]}
               >
@@ -388,7 +384,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                   : 'Pause all'}
               </Button>
             </div>
-            {unavailable && <p role="alert">Not available on remote lanes yet.</p>}
+            {refusal && <p role="alert">{refusal}</p>}
             {machines
               .filter((m) => (machine === 'all' || machine === m.id) && remote[m.id]?.unavailable)
               .map((m) => (
