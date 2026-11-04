@@ -16,8 +16,6 @@ import { controlMessage } from './controlMessages'
 import { MachinesPageActions } from './MachinesPageActions'
 import { HostGuide, HostSetup } from './MachineControls'
 import { HostMachineDetail, MachineDetail } from './MachineDetail'
-import { MachineFilesButton } from './MachineFilesButton'
-import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { MachineList } from './MachineList'
 import { machineHeadline } from './machineReachability'
 import { useLocalOverview, type MachineOverview } from './machineOverview'
@@ -81,7 +79,6 @@ export function MachinesPage(): React.JSX.Element {
   const selected = state.view.kind === 'machine' ? state.view.id : null
   const machine = state.machines.find((entry) => entry.id === selected)
   const now = state.nowMs || Date.now()
-  const openSettings = useOpenSettings()
   const back = (): void => {
     state.show({ kind: 'list' })
     setError(null)
@@ -224,26 +221,6 @@ export function MachinesPage(): React.JSX.Element {
               machine={machine}
               now={now}
               offset={state.clockOffsetMs}
-              navigation={
-                <nav aria-label="Machine views" className="border-border flex gap-5 border-b">
-                  <TooltipButton
-                    tooltip="Machine readiness and diagnostics"
-                    aria-current="page"
-                    className="machine-view-tab text-base"
-                  >
-                    Overview
-                  </TooltipButton>
-                  <TooltipButton
-                    tooltip={`Configure ${machine.label} in Settings`}
-                    aria-label="Machine settings"
-                    className="machine-view-tab text-base"
-                    onClick={() => openSettings(machine.id, 'accounts')}
-                  >
-                    Settings
-                  </TooltipButton>
-                  <MachineFilesButton machine={machine} />
-                </nav>
-              }
               onRemove={() => {
                 setError(null)
                 setRemoving(machine)

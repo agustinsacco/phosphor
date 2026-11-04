@@ -648,7 +648,8 @@ This computer's detail is the same view without what needs enrollment: its
 platform label as the heading (no Rename), the pill its checks add up to, and a
 Machine actions menu with Check again, which re-reads pi, Claude Code, Tailscale
 and its providers, and **Update Phosphor…**, which opens Settings → About where the
-app can check for updates. Readiness lists pi, Claude Code and Tailscale; Providers lists its subscriptions
+app can check for updates. The same Overview / Settings navigation follows, and its
+Settings opens Settings → Accounts for this computer. Readiness lists pi, Claude Code and Tailscale; Providers lists its subscriptions
 with Settings → Accounts' rows and **Provider settings**; Details holds its
 platform and architecture, Phosphor version, pi version and live lane count; the terminal opens a shell at home. It
 has no Connection row, On this machine or Remove.
