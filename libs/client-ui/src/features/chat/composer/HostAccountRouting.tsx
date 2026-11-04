@@ -46,7 +46,7 @@ export function HostAccountRouting({
     ready &&
     host.capabilities.includes('sessions.control') &&
     host.lanes.find((l) => l.laneId === laneId)?.control.controller?.self === true
-  const lane = useHostLaneAccount(hostId, laneId, configurable)
+  const lane = useHostLaneAccount(hostId, laneId, ready, configurable)
 
   const load = useCallback(async () => {
     if (!hostId || !laneId) return []
@@ -106,6 +106,7 @@ type HostLaneAccount =
 function useHostLaneAccount(
   hostId: string | undefined,
   laneId: string | undefined,
+  ready: boolean,
   configurable: boolean,
 ): HostLaneAccount {
   const generation = useRemoteLanesStore(() => (hostId ? machineReadGeneration(hostId) : 0))
@@ -116,6 +117,8 @@ function useHostLaneAccount(
     { status: 'unread' | 'loading' | 'failed' } | { status: 'read'; providers: HostProviders }
   >(() => ({ status: configurable ? 'loading' : 'unread' }))
   useEffect(() => {
+    // A reconnecting Host has not said yet whether the grant holds.
+    if (hostId && laneId && !ready) return
     if (!hostId || !laneId || !configurable) {
       setState({ status: 'unread' })
       return
@@ -128,7 +131,7 @@ function useHostLaneAccount(
     return () => {
       current = false
     }
-  }, [hostId, laneId, configurable, generation, version])
+  }, [hostId, laneId, ready, configurable, generation, version])
   const reload = useCallback(() => setVersion((n) => n + 1), [])
   if (state.status === 'read' && laneId)
     return { status: 'read', account: hostSessionAccount(state.providers, laneId), reload }
