@@ -19,6 +19,7 @@ import { useConnectorsStore, type ConnectFlow } from '@/stores/connectors'
 import { useSettingsWorkspace } from '../../SettingsMachineScope'
 import { useSettingsUiStore } from '../../settingsUiStore'
 import type { ConnectorOp, ConnectorView, ConnectorsSource } from './source'
+import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
 
 const NO_SERVERS: McpResolvedServer[] = []
 
@@ -72,6 +73,7 @@ export function useLocalConnectors(): ConnectorsSource {
   const workspacePath = folder ?? undefined
   const scope = folder ? 'project' : 'global'
   const { configs, packages, error, setError, refresh } = useConnectorConfigs(workspacePath)
+  useOnLocalRefresh(refresh)
   const flows = useConnectorsStore((s) => s.flows)
   const adapters = useMemo(() => adapterPackages(packages ?? []), [packages])
   const legacy = Boolean(configs?.legacy) || adapters.length > 0

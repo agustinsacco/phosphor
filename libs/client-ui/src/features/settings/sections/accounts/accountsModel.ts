@@ -45,7 +45,6 @@ export interface ProviderAccountsSource {
   busy: boolean
   signIn?: (id: string) => void
   cancel?: (id: string) => void
-  refresh?: () => void
   /** pi's own login terminal, for a provider the in-app flow cannot drive. */
   terminal?: { ptyId: string | null; open: () => void; close: () => void }
 }

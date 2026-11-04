@@ -38,11 +38,12 @@ export function useExtensionTabs(machine: SettingsMachine | null): ExtensionTabs
 
 /**
  * This Mac's packages in the scope line's folder, as the Extensions page lists
- * them, read again whenever the tab changes: installing from Extensions shows
+ * them, read again whenever the tab changes or on Refresh: installing from Extensions shows
  * the package's own item without reopening Settings.
  */
 function useLocalPackageRead(enabled: boolean, folder: string | null): void {
   const tab = useSettingsUiStore((s) => s.tab)
+  const rereads = useSettingsUiStore((s) => s.rereads)
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
@@ -57,7 +58,7 @@ function useLocalPackageRead(enabled: boolean, folder: string | null): void {
     return () => {
       cancelled = true
     }
-  }, [enabled, tab, folder])
+  }, [enabled, tab, folder, rereads])
 }
 
 /**

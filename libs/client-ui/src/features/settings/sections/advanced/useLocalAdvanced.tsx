@@ -5,6 +5,7 @@ import { ConfigFileEditor, piConfigFile } from '../../ConfigFileEditor'
 import { useSectionLoad } from '../sectionStatus'
 import { useAppUpdate } from './MachineRuntimeRows'
 import type { AdvancedSource, MachineRuntime } from './source'
+import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
 
 const CAPS = { rawFiles: true, maintenance: true } as const
 
@@ -32,9 +33,10 @@ function useLocalRuntime(): MachineRuntime | undefined {
 /** This Mac's version and update, pi health, PATH, raw editors, maintenance and loose resources. */
 export function useLocalAdvanced(): AdvancedSource {
   const [editing, setEditing] = useState<'settings' | 'models' | null>(null)
-  const { data, status } = useSectionLoad(() =>
+  const { data, status, reload } = useSectionLoad(() =>
     Promise.all([window.phosphor.invoke('pi:health'), window.phosphor.invoke('pi:listResources')]),
   )
+  useOnLocalRefresh(reload)
   const [health, resources] = data ?? [null, null]
   const runtime = useLocalRuntime()
   return {

@@ -107,8 +107,10 @@ folders. Choosing **Folder** picks the active lane's folder when it is listed (o
 Host, the folder of an active lane running there), else the first. The choice
 is `settingsUiStore.folder` (null is the whole machine); it resets when the dialog
 opens, when the browser page is entered and when another machine is chosen. Views
-read it and never render a scope switch of their own. A Host's line also holds
-**Refresh**, once configuration access is granted.
+read it and never render a scope switch of their own. The line ends with one
+**Refresh** on every machine (`ScopeRefresh`), which reads the open section again: on
+This Mac each section's own read (`useOnLocalRefresh`), on a Host its settings read,
+once configuration access is granted.
 
 This Mac's sections mount only while This Mac is chosen, so choosing it always shows
 its controls, even while a Host lane is the active lane; they then use This Mac's home
@@ -269,8 +271,8 @@ Everything lives under `libs/client-ui/src/features/settings/`.
   the registry in step with the navigation (`settingsIndex.ts`): a section lists on a
   machine exactly when it has that machine's view.
 - **The machine frame.** `machine/` holds the scope line (`SettingsScopeLine`,
-  `ScopeRow`, `HostScopeRow`, `HostRefresh`), the gate (`HostGate`,
-  `hostSettingsStatus`) and the Host plumbing: `useHostSettings`,
+  `ScopeRow`, `HostScopeRow`, `ScopeRefresh` with `LocalRefresh` and `HostRefresh`),
+  the gate (`HostGate`, `hostSettingsStatus`) and the Host plumbing: `useHostSettings`,
   `useMachinePrograms`, `machineProgramActions`, `HostProgramDialog`,
   `settingsAccess`, `machineSettingsDrafts` and the Agent draft helpers.
   `useHostSection()` gives a Host view its machine, settings read (`settings`),

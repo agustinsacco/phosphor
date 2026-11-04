@@ -3,6 +3,7 @@ import { errorText } from '@shared/errors'
 import type { WebAccessConfigState, WebAccessKey } from '@shared/web-access'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import type { WebAccessSource } from './webAccessSource'
+import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
 
 /** This Mac's `web-search.json`: main reports key names, never values, and saves it 0600. */
 export function useLocalWebAccess(): WebAccessSource {
@@ -22,6 +23,7 @@ export function useLocalWebAccess(): WebAccessSource {
   useEffect(() => {
     void refresh()
   }, [refresh])
+  useOnLocalRefresh(refresh)
 
   const set = async (key: WebAccessKey, value: string | null): Promise<void> => {
     setBusy(true)

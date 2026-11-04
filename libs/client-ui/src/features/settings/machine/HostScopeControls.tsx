@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
-import { Button } from '@/components/form'
 import { useSessionsStore } from '@/stores/sessions'
 import { useHostSection } from './HostSection'
 import { guardHostDrafts } from './machineSettingsDrafts'
+import { ScopeRefresh } from './ScopeRefresh'
 import { ScopeRow } from './ScopeRow'
 
 /**
@@ -38,13 +38,10 @@ export function HostRefresh(): React.JSX.Element | null {
   const { machine, settings, starting, allowed } = useHostSection()
   if (!allowed) return null
   return (
-    <Button
-      size="xs"
-      className="ml-auto"
+    <ScopeRefresh
       disabled={settings.loading || settings.saving || starting}
       onClick={() => guardHostDrafts(machine.id)(() => void settings.refresh())}
-    >
-      {settings.loading ? 'Reading Host settings…' : 'Refresh'}
-    </Button>
+      label={settings.loading ? 'Reading Host settings…' : 'Refresh'}
+    />
   )
 }
