@@ -375,3 +375,32 @@ it('exports the lane as HTML from its row, through the Host, as This Mac rows do
   expect(invoke).toHaveBeenCalledWith('hosts:exportLaneHtml', mockRemoteInfo.sessionId)
   expect(invoke).toHaveBeenCalledWith('fs:writeFile', '/tmp/lane.html', '<html></html>')
 })
+
+it("drafts a routine on the lane's Host and folder from its title and first prompt", async () => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  host.capabilities.push('routines')
+  const lane = host.lanes[0]!
+  useChatStore.setState((s) => ({
+    sessions: {
+      ...s.sessions,
+      [mockRemoteInfo.sessionId]: {
+        ...s.sessions[mockRemoteInfo.sessionId]!,
+        items: [{ kind: 'user', id: 'u1', text: 'Fix the flaky test' } as never],
+      },
+    },
+  }))
+  const { useRoutinesStore } = await import('@/stores/routines')
+  const { useMachinePagesStore } = await import('@/stores/machinePages')
+  render()
+  menu()
+  await act(async () => button('Make routine…').click())
+  expect(useRoutinesStore.getState().draft).toMatchObject({
+    name: 'Remote demo lane',
+    instructions: 'Fix the flaky test',
+  })
+  expect(useRoutinesStore.getState().draftTarget).toEqual({
+    hostId: MOCK_HOST_ID,
+    repositoryId: lane.repositoryId,
+  })
+  expect(useMachinePagesStore.getState().routinesMachine).toBe(`host:${MOCK_HOST_ID}`)
+})

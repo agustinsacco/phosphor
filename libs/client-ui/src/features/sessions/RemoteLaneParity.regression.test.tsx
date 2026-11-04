@@ -32,6 +32,7 @@ const READER_MENU = [
   'Take control',
   'Stop',
   'Mark read',
+  'Make routine…',
   'Pin',
   'Lane marker',
   'Export HTML…',

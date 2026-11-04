@@ -24,6 +24,7 @@ function handlers(): RemoteLaneActionHandlers {
     markRead: vi.fn(),
     togglePin: vi.fn(),
     pickMarker: vi.fn(),
+    makeRoutine: vi.fn(),
     exportHtml: vi.fn(),
     copyDebugInfo: vi.fn(),
     copySpend: vi.fn(),
@@ -64,6 +65,7 @@ describe('remoteLaneActions', () => {
       'Release control',
       'Stop',
       'Mark read',
+      'Make routine…',
       'Pin',
       'Lane marker',
       'Export HTML…',
@@ -132,4 +134,15 @@ describe('remoteLaneActions', () => {
     )
     expect(item(items, 'Delete')).toMatchObject({ disabled: true, hint: REMOTE_UNAVAILABLE })
   })
+})
+
+it("gates Make routine… on the Host's routines capability, with the shared hint", () => {
+  const without = remoteLaneActions(state(), handlers())
+  expect(item(without, 'Make routine…')).toMatchObject({ disabled: true, hint: REMOTE_UNAVAILABLE })
+  const host = { capabilities: [...state().host!.capabilities, 'routines'], laneMarks: true }
+  const withRoutines = remoteLaneActions(state({ host }), handlers())
+  expect(item(withRoutines, 'Make routine…')).toMatchObject({ disabled: false, hint: undefined })
+  expect(
+    item(remoteLaneActions(state({ host, ready: false }), handlers()), 'Make routine…')?.hint,
+  ).toBe(REMOTE_NOT_READY)
 })
