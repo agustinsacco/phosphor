@@ -10,12 +10,13 @@ import { hostSettingsStatus, type HostGateAction, type HostGateNotice } from './
 
 /**
  * A Host section's view, once the Host is reachable, new enough, this client
- * holds the configuration grant and the settings have loaded. Until then, the
- * one notice that says why, with the one action that helps.
+ * holds the configuration grant and the settings have loaded; a section that
+ * reads only the link (`connection`) needs the link alone. Until then, the one
+ * notice that says why, with the one action that helps.
  */
 export function HostGate({ children }: { children: React.ReactNode }): React.JSX.Element {
   const host = useHostSection()
-  const { machine, settings, connection, allowed, error, terminals, starting } = host
+  const { machine, settings, connection, allowed, reads, error, terminalLink, starting } = host
   const record = useMachinesStore((s) => s.machines.find((m) => m.id === machine.id))
   // Signed out the store holds no clock reading (0); a selector reading the clock would never settle.
   const nowMs = useMachinesStore((s) => s.nowMs)
@@ -26,6 +27,7 @@ export function HostGate({ children }: { children: React.ReactNode }): React.JSX
     machine: record,
     connection,
     allowed,
+    reads,
     read: { loading: settings.loading, error: settings.error, loaded: settings.data !== null },
     now,
   })
@@ -41,7 +43,7 @@ export function HostGate({ children }: { children: React.ReactNode }): React.JSX
         <WaitingNote className="py-4">Loading machine settings…</WaitingNote>
       ) : (
         <>
-          {!terminals && (
+          {!terminalLink && (
             <SettingsNotice
               tone="warning"
               title="Native Host terminal support is unavailable or not granted."

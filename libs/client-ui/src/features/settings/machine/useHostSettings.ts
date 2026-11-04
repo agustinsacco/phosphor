@@ -89,13 +89,14 @@ function useLive(key: string) {
  */
 export function useHostSettings(
   hostId: string,
-  section: MachineSettingsSection,
+  /** Null for a section that reads no settings: nothing is read. */
+  section: MachineSettingsSection | null,
   repositoryId?: string,
 ) {
   const supported = usePlatform().machineSettings
   const connection = useRemoteLanesStore((s) => s.hosts[hostId])
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
-  const key = `${hostId}/${generation}/${section}/${repositoryId ?? ''}/${supported}`
+  const key = `${hostId}/${generation}/${section ?? ''}/${repositoryId ?? ''}/${supported}`
   const allowed = canConfigureHost(supported, connection)
   const { live, attempt } = useLive(key)
   const [state, setState] = useState(IDLE)
@@ -120,10 +121,10 @@ export function useHostSettings(
     },
     [live, allowed, attempt, key, update],
   )
-  const refresh = useCallback(
-    () => read(() => window.phosphor.invoke('hosts:settingsRead', hostId, section, repositoryId)),
-    [read, hostId, section, repositoryId],
-  )
+  const refresh = useCallback(async (): Promise<void> => {
+    if (section)
+      await read(() => window.phosphor.invoke('hosts:settingsRead', hostId, section, repositoryId))
+  }, [read, hostId, section, repositoryId])
   useEffect(() => {
     setState(IDLE)
     void refresh()
@@ -141,7 +142,7 @@ export function useHostSettings(
     connection,
     refresh,
     change: async (change: MachineSettingsChange): Promise<MachineSettings | null> => {
-      if (!data || !allowed) return null
+      if (!data || !allowed || !section) return null
       const patch = { section, repositoryId, revision: data.revision, change }
       const saved = await write(
         writer,

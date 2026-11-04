@@ -49,10 +49,11 @@ export function useMachinePrograms(
     const timer = setTimeout(() => void refresh(), 1500)
     return () => clearTimeout(timer)
   }, [authenticating, data, loading, refresh])
-  const terminals =
-    allowed &&
+  /** The link offers private Host programs; running one also needs the grant. */
+  const terminalLink =
     connection?.capabilities.includes('terminal') === true &&
     connection.capabilities.includes('sessions.control')
+  const terminals = allowed && terminalLink
   async function openProgram(
     start: () => Promise<{ ptyId: string }>,
     title: string,
@@ -89,5 +90,15 @@ export function useMachinePrograms(
     busy: starting || !!program,
     available: terminals,
   }
-  return { error, setError, starting, program, setProgram, alive, terminals, programs }
+  return {
+    error,
+    setError,
+    starting,
+    program,
+    setProgram,
+    alive,
+    terminalLink,
+    terminals,
+    programs,
+  }
 }

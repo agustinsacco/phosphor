@@ -30,7 +30,11 @@ vi.mock('@/stores/prompt', () => ({
 }))
 
 const invoke = vi.fn(async (channel: string): Promise<unknown> =>
-  channel === 'packages:list' ? [] : undefined,
+  channel === 'packages:list'
+    ? []
+    : channel === 'hosts:snapshot'
+      ? useRemoteLanesStore.getState().hosts
+      : undefined,
 )
 let root: Root
 let container: HTMLDivElement

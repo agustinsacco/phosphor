@@ -33,14 +33,14 @@ export function HostScopeRow(): React.JSX.Element {
   )
 }
 
-/** Reads the Host's settings again. Only once there is a grant to read with. */
+/** Reads the Host section again, once it can be read (its settings need the grant). */
 export function HostRefresh(): React.JSX.Element | null {
-  const { machine, settings, starting, allowed } = useHostSection()
-  if (!allowed) return null
+  const { machine, settings, starting, readable, refresh } = useHostSection()
+  if (!readable) return null
   return (
     <ScopeRefresh
       disabled={settings.loading || settings.saving || starting}
-      onClick={() => guardHostDrafts(machine.id)(() => void settings.refresh())}
+      onClick={() => guardHostDrafts(machine.id)(() => void refresh())}
       label={settings.loading ? 'Reading Host settings…' : 'Refresh'}
     />
   )

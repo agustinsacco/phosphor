@@ -2,14 +2,19 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { MachineView } from '@shared/control-api'
 import { errorText } from '@shared/errors'
 import type { MachineSettingsSection } from '@shared/machine-settings'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSettingsUiStore } from '../settingsUiStore'
 import { HostProgramDialog } from './HostProgramDialog'
 import { useHostSettings } from './useHostSettings'
 import { useMachinePrograms } from './useMachinePrograms'
 import { confirmSettingsAccess } from './settingsAccess'
 
-/** The Host settings section a Settings section reads; Folders reads `advanced`. */
-export type MachineSettingsTab = MachineSettingsSection | 'folders'
+/**
+ * The Host settings section a Settings section reads. `connection` reads none:
+ * the section needs only the link (Folders lists the Host's registered folders),
+ * so it shows without configuration access.
+ */
+export type MachineSettingsTab = MachineSettingsSection | 'connection'
 
 /**
  * Everything a Host section needs: the machine, its settings read for this
@@ -23,16 +28,21 @@ function useHostSectionState(
 ) {
   const folder = useSettingsUiStore((s) => s.folder)
   const repositoryId = scoped ? (folder ?? undefined) : undefined
-  const settings = useHostSettings(
-    machine.id,
-    section === 'folders' ? 'advanced' : section,
-    repositoryId,
-  )
+  const reads = section === 'connection' ? 'connection' : 'settings'
+  const settings = useHostSettings(machine.id, reads === 'settings' ? section : null, repositoryId)
   const { connection, allowed } = settings
   const programs = useMachinePrograms(machine, settings)
   const { setError, alive } = programs
   // An error belongs to the section and folder it happened in; a running program stays open.
   useEffect(() => setError(null), [section, repositoryId, setError])
+  /** The Host's link again, its registered folders included, from main's snapshot. */
+  async function readLink() {
+    try {
+      useRemoteLanesStore.setState({ hosts: await window.phosphor.invoke('hosts:snapshot') })
+    } catch (e) {
+      if (alive.current) setError(errorText(e))
+    }
+  }
   const [accessBusy, setAccessBusy] = useState(false)
   async function access() {
     if (!(await confirmSettingsAccess(machine.label)) || !alive.current) return
@@ -54,6 +64,11 @@ function useHostSectionState(
     settings,
     connection,
     allowed,
+    reads,
+    /** The section can be read now: its link is up, and its settings need the grant. */
+    readable: reads === 'connection' ? connection?.state === 'ready' : allowed,
+    /** Reads the section again: its settings, or the link's folders. */
+    refresh: reads === 'connection' ? readLink : settings.refresh,
     ...programs,
     accessBusy,
     access,
@@ -80,7 +95,7 @@ export function HostSectionProvider({
   children: React.ReactNode
 }): React.JSX.Element {
   const host = useHostSectionState(machine, section, scoped)
-  const { program, setProgram, settings } = host
+  const { program, setProgram, refresh } = host
   return (
     <HostSectionContext.Provider value={host}>
       {children}
@@ -90,9 +105,9 @@ export function HostSectionProvider({
           {...program}
           onClose={() => {
             setProgram(null)
-            void settings.refresh()
+            void refresh()
           }}
-          onSettled={() => void settings.refresh()}
+          onSettled={() => void refresh()}
         />
       )}
     </HostSectionContext.Provider>

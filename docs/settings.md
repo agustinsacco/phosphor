@@ -158,9 +158,11 @@ reachability words (`machineReachability`) and fix command, plus the link's last
 error: Host offline, not reachable yet or not reachable offer **Reconnect**;
 Connecting… offers nothing; an identity mismatch says to remove and re-add the Host;
 an incompatible Host says to update it; signed out offers **Open Phosphor account**.
-A ready Host without the settings API asks for `phosphor update`; one without the
-grant offers **Enable configuration access**. Then the section loads (a skeleton),
-or its read failed (an alert with **Retry**). Save and program errors show above the
+A section that reads only the link (`host: 'connection'` in the index: Folders)
+renders once the link is ready. For the others, a ready Host without the settings API
+asks for `phosphor update`; one without the grant offers **Enable configuration
+access**. Then the section loads (a skeleton), or its read failed (an alert with
+**Retry**). Save and program errors show above the
 section as alerts.
 
 Each section is the shared view, editing the Host's own files. What a Host adds or
@@ -175,8 +177,10 @@ withholds:
   updates and removes npm packages for the whole machine, each by reviewed task.
 - **MCP Connectors** confirms command connectors and status checks first, and
   signs in in a private terminal.
-- **Folders** registers and unregisters within the Host's repository-change policy,
-  which a refusal names, and reviews pi trust explicitly.
+- **Folders** needs no configuration access: it lists the folders the link
+  reports, registers and unregisters within the Host's repository-change policy,
+  which a refusal names, and reviews pi trust explicitly, which first asks for
+  configuration access. Its Refresh reads the link's folders again.
 - **Advanced** offers Pause and update (the Host's own signed `phosphor update`) and
   shows its pi, read-only paths, PATH and environment names: never values, never a
   raw-JSON editor.

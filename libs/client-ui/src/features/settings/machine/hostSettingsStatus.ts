@@ -27,6 +27,8 @@ export interface HostSettingsStatusInput {
   connection: Pick<HostConnectionView, 'state' | 'lastError' | 'configurationSupported'> | undefined
   /** This client holds the configuration grant (`machine.configure`). */
   allowed: boolean
+  /** What the section reads: its settings, or nothing but the link (`connection`). */
+  reads: 'settings' | 'connection'
   read: { loading: boolean; error: string | null; loaded: boolean }
   /** Already corrected by the control plane's clock offset. */
   now: number
@@ -38,11 +40,13 @@ const NO_RECONNECT = new Set(['Identity mismatch', 'Update needed', 'Connectingâ
 /**
  * The one state a Host section shows before its settings: each connection
  * state in the Machines page's words, then the Host's version, the
- * configuration grant, and the settings read itself.
+ * configuration grant, and the settings read itself. A section that reads
+ * nothing but the link is ready once the link is.
  */
 export function hostSettingsStatus(input: HostSettingsStatusInput): HostSettingsStatus {
   const { label, connection, allowed, read } = input
   if (connection?.state !== 'ready') return { kind: 'notice', ...connectionNotice(input) }
+  if (input.reads === 'connection') return { kind: 'ready' }
   if (!connection.configurationSupported)
     return {
       kind: 'notice',
