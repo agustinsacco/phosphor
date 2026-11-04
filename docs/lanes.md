@@ -70,7 +70,11 @@ lanes".
 
 **Delegated work keeps a live lane working.** The sidebar activity treatment
 and Home board include active roots and descendants from that session's
-`subagent-async` snapshot, even while the parent is quiet. An explicitly
+`subagent-async` snapshot, even while the parent is quiet. A Host lane says
+the same thing: its projection reads that snapshot (parsed in
+`@phosphor/shared/subagent-fleet`) into the summary's `activity`, so a remote
+lane row shows Working while background agents run, and the finished
+attention chime waits for them. An explicitly
 incomplete snapshot cannot establish that delegated work has settled. This
 outranks merge readiness; a real human dialog still outranks running work.
 A child's attention request belongs to its parent, not the "Waiting on you"

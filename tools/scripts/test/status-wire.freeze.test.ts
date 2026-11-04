@@ -288,6 +288,7 @@ const auditedTexts = new Map(
     'libs/session-runtime/src/pi/lane-reload.ts',
     'libs/session-runtime/src/pi/mcp-lane.ts',
     'libs/shared/src/mcp-inspection.ts',
+    'libs/shared/src/subagent-fleet.ts',
     'libs/session-runtime/src/pi/session-startup.ts',
     'libs/shared/src/claude-limits.ts',
     'apps/host/src/commands/accept-waits.ts',
