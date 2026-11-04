@@ -34,6 +34,7 @@ const READER_MENU = [
   'Mark read',
   'Pin',
   'Lane marker',
+  'Export HTML…',
   'Copy debug info',
   'Copy spend',
   'Delete',

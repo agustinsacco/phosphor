@@ -360,3 +360,18 @@ it("copies the same debug block and formatted spend as This Mac's rows, with no 
   await act(async () => button('Copy spend').click())
   expect(writeText).toHaveBeenLastCalledWith('$1.23')
 })
+
+it('exports the lane as HTML from its row, through the Host, as This Mac rows do', async () => {
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'hosts:exportLaneHtml'
+      ? { html: '<html></html>' }
+      : channel === 'app:saveDialog'
+        ? '/tmp/lane.html'
+        : undefined,
+  )
+  render()
+  menu()
+  await act(async () => button('Export HTML…').click())
+  expect(invoke).toHaveBeenCalledWith('hosts:exportLaneHtml', mockRemoteInfo.sessionId)
+  expect(invoke).toHaveBeenCalledWith('fs:writeFile', '/tmp/lane.html', '<html></html>')
+})
