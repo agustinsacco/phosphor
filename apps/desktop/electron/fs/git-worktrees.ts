@@ -501,7 +501,14 @@ async function deleteLandedBranch(
         ? { branchDeleted: true }
         : { branchDeleted: false, branchError: gitErrorText(error) }
     } catch (deleteError) {
-      return { branchDeleted: false, branchError: gitErrorText(deleteError) }
+      // The compare-and-delete refused because the branch is no longer the proven tip.
+      const moved = (await branchTip(repoPath, branch)) !== tip
+      return {
+        branchDeleted: false,
+        branchError: moved
+          ? 'it changed while Phosphor checked that it had landed.'
+          : gitErrorText(deleteError),
+      }
     }
   }
 }
