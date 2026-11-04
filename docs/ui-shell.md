@@ -607,6 +607,8 @@ outdated, Claude Code missing, signed out); older Hosts keep the single status.
 A missing or outdated Claude Code has one remedy on every machine:
 Settings → Extensions → Claude Code, which installs it or says how. A Host whose
 Settings cannot open (unconnected, or too old) offers `phosphor setup` instead.
+Signed out is the same: sign in under Settings → Extensions → Claude Code, and only
+a Host whose Settings cannot open offers `phosphor providers login claude`.
 
 Providers lists the connected Host's providers, signed-in first. Not signed in
 is neutral, not a warning, because most people use one or two. The rows are

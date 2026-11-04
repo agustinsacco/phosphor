@@ -26,6 +26,15 @@ function claudeSetup(configurable: boolean): { text: string; command?: string } 
     ? { text: CLAUDE_SETUP }
     : { text: HOST_CLAUDE_SETUP, command: 'phosphor setup' }
 }
+/** Signing in to Claude Code: in Settings where it opens, otherwise the Host's own command. */
+function claudeSignIn(configurable: boolean): { text: string; command?: string } {
+  return configurable
+    ? { text: 'Sign in under Settings → Extensions → Claude Code.' }
+    : {
+        text: 'Sign in to Claude Code on this machine.',
+        command: 'phosphor providers login claude',
+      }
+}
 export function platformName(platform: string): string {
   return { darwin: 'macOS', linux: 'Linux', win32: 'Windows' }[platform] ?? platform
 }
@@ -115,13 +124,13 @@ export function readinessChecks(
         claude === 'ok'
           ? 'Signed in and ready'
           : claude === 'signed-out'
-            ? 'Sign in to Claude Code on this machine.'
+            ? claudeSignIn(configurable).text
             : claude === 'missing'
               ? `Claude Code is missing. ${claudeSetup(configurable).text}`
               : 'Not reported yet. Check the Host on this machine.',
       command:
         claude === 'signed-out'
-          ? 'phosphor providers login claude'
+          ? claudeSignIn(configurable).command
           : claude === 'unknown'
             ? 'phosphor doctor'
             : claude === 'missing'
@@ -189,13 +198,13 @@ export function claudeReadiness(
       detail.auth === 'ok'
         ? 'Signed in and ready'
         : detail.auth === 'signed-out'
-          ? 'Sign in to Claude Code on this machine.'
+          ? claudeSignIn(configurable).text
           : 'Claude Code sign-in status is unknown. Run phosphor setup on this machine.',
     command:
       detail.auth === 'ok'
         ? undefined
         : detail.auth === 'signed-out'
-          ? 'phosphor providers login claude'
+          ? claudeSignIn(configurable).command
           : 'phosphor setup',
   }
 }
@@ -236,7 +245,7 @@ export function localChecks(
           ? `Claude Code is missing. ${CLAUDE_SETUP}`
           : claude.auth.loggedIn
             ? 'Signed in and ready'
-            : 'Sign in under Settings → Extensions → Claude Code.',
+            : claudeSignIn(true).text,
     },
   ]
 }

@@ -42,7 +42,9 @@ it('gives problem-only readiness and actionable fixes, including unknown reports
     ),
   ).toBe(true)
   expect(
-    readinessChecks(MACHINE.readiness).find((check) => check.name === 'Claude Code')?.command,
+    readinessChecks(MACHINE.readiness, undefined, false).find(
+      (check) => check.name === 'Claude Code',
+    )?.command,
   ).toBe('phosphor providers login claude')
   expect(
     readinessChecks({ pi: 'missing', claude: 'missing', tailscale: 'stopped' }).map(
