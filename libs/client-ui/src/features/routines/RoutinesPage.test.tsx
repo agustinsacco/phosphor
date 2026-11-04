@@ -7,6 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { newRoutine, type Routine, type RoutinesSnapshot, type RoutineRun } from '@shared/routines'
 import { RoutinesPage } from './RoutinesPage'
 import { useRoutinesStore } from '@/stores/routines'
+import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -632,4 +633,22 @@ it('names the local machine in the editor the way the page does', async () => {
     document.querySelectorAll<HTMLOptionElement>('[aria-label="Routine machine"] option'),
   )
   expect(options.find((o) => o.value === 'local')?.textContent).toBe('This Mac')
+})
+
+it('lets the browser return to All machines and starts a new routine there by asking for a Host', async () => {
+  useMachinePagesStore.setState({ routinesMachine: host })
+  await act(async () =>
+    root.render(
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <RoutinesPage workspacePath="" />
+      </PlatformProvider>,
+    ),
+  )
+  await click('bee1')
+  await click('All machines')
+  expect(useMachinePagesStore.getState().routinesMachine).toBe('all')
+  await click('New routine')
+  const picker = document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')
+  expect(picker?.value).toBe('')
+  expect(Array.from(picker?.options ?? []).map((o) => o.value)).toEqual(['', host])
 })
