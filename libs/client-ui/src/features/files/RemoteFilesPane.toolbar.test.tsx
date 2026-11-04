@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { HostCapability } from '@shared/remote-host'
 import { RemoteFilesPane } from './RemoteFilesPane'
@@ -17,7 +17,9 @@ vi.mock('./MonacoEditor', () => ({
 
 const ACTIONS = ['New file', 'New folder', 'Rename', 'Trash', 'Copy to folder', 'Move to folder']
 
+let root: Root | undefined
 afterEach(() => {
+  act(() => root?.unmount())
   useRemoteLanesStore.setState({ hosts: {} })
   useSessionsStore.setState({ live: {} })
   vi.unstubAllGlobals()
@@ -49,9 +51,9 @@ async function renderToolbar(capabilities: HostCapability[]): Promise<HTMLDivEle
     invoke: vi.fn(async (channel: string) => (channel === 'fs:listFiles' ? ['a.ts'] : {})),
   })
   const container = document.createElement('div')
-  const root = createRoot(container)
+  root = createRoot(container)
   await act(async () =>
-    root.render(
+    root!.render(
       <RemoteFilesPane
         workspacePath={mockRemoteInfo.workspacePath}
         sessionId={sessionId}
