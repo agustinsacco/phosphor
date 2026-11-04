@@ -10,7 +10,7 @@ import { revealLabel } from '@/lib/reveal'
 import { hostPlatform } from '@/lib/shortcuts'
 import { FileIcon } from '@/components/icons'
 import { ViewTabs } from './TextFilePreview'
-import { MarkdownPreview } from './TextFileRender'
+import { MarkdownPreview } from './MarkdownPreview'
 
 /**
  * Viewers for the files Monaco cannot show: images, video, audio, PDFs, and
