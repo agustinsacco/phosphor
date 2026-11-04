@@ -7,6 +7,7 @@ import { useNavigation } from '@/navigation/Navigation'
 import { useChatStore, type ChatSession } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSessionsStore } from '@/stores/sessions'
+import { localLiveEntries } from './localLive'
 import { orderTasks, type MachineTask } from './runningTasks'
 import { StatusDot } from './MachineUi'
 
@@ -26,13 +27,7 @@ function localTitle(chat: ChatSession | undefined): string {
 export function useLocalTasks(): MachineTask[] {
   const live = useSessionsStore((s) => s.live)
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
-  const ids = useMemo(
-    () =>
-      Object.values(live)
-        .filter((entry) => entry.target?.kind !== 'remote')
-        .map((entry) => entry.phosphorId),
-    [live],
-  )
+  const ids = useMemo(() => localLiveEntries(live).map((entry) => entry.phosphorId), [live])
   const asking = useExtensionUiStore(
     useShallow((s) => ids.filter((id) => s.dialogs.some((d) => d.sessionId === id))),
   )

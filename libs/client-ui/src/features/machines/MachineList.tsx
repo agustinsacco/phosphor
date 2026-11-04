@@ -26,13 +26,15 @@ function ReadinessDots({ checks }: { checks: ReadinessCheck[] }): React.JSX.Elem
           {...tooltipProps(check.loading ? `Checking ${check.name}…` : check.short)}
           className={clsx(
             'inline-flex items-center gap-1.5 text-sm',
-            check.ok || check.loading ? 'text-text-secondary' : 'text-warning font-medium',
+            check.ok || check.loading || check.muted
+              ? 'text-text-secondary'
+              : 'text-warning font-medium',
           )}
         >
           {check.loading ? (
             <Spinner className="text-text-tertiary" />
           ) : (
-            <StatusDot tone={check.ok ? 'ok' : 'warn'} />
+            <StatusDot tone={check.ok ? 'ok' : check.muted ? 'off' : 'warn'} />
           )}
           {check.name === 'Claude Code' ? 'Claude' : check.name}
         </span>

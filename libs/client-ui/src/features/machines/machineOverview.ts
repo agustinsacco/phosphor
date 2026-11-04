@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { machineStatus, type MachineStatus, type MachineView } from '@shared/control-api'
 import type { HostConnectionView } from '@shared/ipc'
-import type { ClaudeStatus, PiHealth } from '@shared/models'
+import type { AboutInfo } from '@shared/models'
+import type { TailscaleStatus } from '@shared/tailscale-status'
 import { localMachineLabel } from '@/lib/localMachine'
 import { usePlatform } from '@/platform/Platform'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
@@ -11,14 +12,18 @@ import { useSessionsStore } from '@/stores/sessions'
 import {
   claudeReadiness,
   localChecks,
+  localClaude,
   platformName,
   readinessChecks,
   readinessFreshness,
   relativeTime,
+  type LocalReadings,
   type ReadinessCheck,
 } from './machinePresentation'
 import { machineHeadline, type Headline } from './machineReachability'
+import { localLiveEntries } from './localLive'
 import { useLocalTasks } from './MachineTasks'
+import { useHostPiVersion } from './useHostPiVersion'
 import { hostTasks, taskCounts, type MachineTask } from './runningTasks'
 
 const DAY_MS = 86_400_000
@@ -62,14 +67,15 @@ export interface MachineOverview extends MachineSummary {
   notice?: 'setup' | 'offline'
   check: Recheck
   reconnect?: { busy: boolean; run: () => void }
-  update?: () => void
+  /** Where this machine updates: This Mac's About, a Host's Advanced. */
+  update?: { label: string; run: () => void }
   /** Opens Settings → Accounts for this machine, where providers sign in. */
   configure?: () => void
 }
 
 /** The one status a set of checks adds up to, when nothing else (a connection) decides it. */
 function checksHeadline(checks: readonly ReadinessCheck[]): Headline {
-  const problems = checks.filter((check) => !check.ok && !check.loading)
+  const problems = checks.filter((check) => !check.ok && !check.loading && !check.muted)
   if (checks.some((check) => check.loading))
     return { ok: false, tone: 'pending', label: 'Checking…', short: 'Checking…', detail: '' }
   if (!problems.length) return { ok: true, tone: 'ok', label: 'Ready', short: 'Ready', detail: '' }
@@ -90,15 +96,13 @@ function useLive(): React.RefObject<boolean> {
   return live
 }
 
-interface LocalReads {
-  health?: PiHealth | null
-  claude?: ClaudeStatus | null
-  failed: boolean
+interface LocalReads extends LocalReadings {
+  about?: AboutInfo | null
   busy: boolean
   at: number | null
 }
 
-/** This computer's pi and Claude Code reads, again on each Check again. */
+/** This computer's pi, Claude Code (provider, CLI, sign-in) and Tailscale, again on each Check again. */
 function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () => void } {
   const [round, setRound] = useState(0)
   const [state, setState] = useState<LocalReads>({ failed: false, busy: false, at: null })
@@ -111,7 +115,20 @@ function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () 
     const failed = (): void => merge({ failed: true })
     void Promise.allSettled([
       window.phosphor.invoke('pi:health').then((health) => merge({ health }), failed),
-      window.phosphor.invoke('packages:claudeStatus').then((claude) => merge({ claude }), failed),
+      Promise.all([
+        window.phosphor.invoke('packages:list'),
+        window.phosphor.invoke('packages:claudeStatus'),
+      ])
+        .then(([packages, status]) => merge({ claude: localClaude(packages, status) }))
+        .catch(failed),
+      window.phosphor
+        .invoke('hosts:tailscaleStatus')
+        .catch((): TailscaleStatus => ({ code: 'check-failed' }))
+        .then((tailscale) => merge({ tailscale })),
+      window.phosphor.invoke('app:about').then(
+        (about) => merge({ about }),
+        () => merge({ about: null }),
+      ),
     ]).then(() => merge(round ? { busy: false, at: Date.now() } : {}))
     return () => {
       live = false
@@ -126,15 +143,14 @@ function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () 
 
 /** This computer as a machine; null where this client runs no local lanes (the browser). */
 export function useLocalOverview(): MachineOverview | null {
-  const { localLanes } = usePlatform()
+  const { localLanes, appInfo } = usePlatform()
   const reads = useLocalReads(localLanes)
   const tasks = useLocalTasks()
-  const liveHere = useSessionsStore(
-    (s) => Object.values(s.live).filter((entry) => entry.target?.kind !== 'remote').length,
-  )
+  const liveHere = useSessionsStore((s) => localLiveEntries(s.live).length)
+  const reachesHosts = useMachinesStore((s) => s.remoteEnabled && s.machines.length > 0)
   const openSettings = useOpenSettings()
   if (!localLanes) return null
-  const checks = localChecks(reads.health, reads.claude, reads.failed)
+  const checks = localChecks(reads, reachesHosts)
   const platform = platformName(window.phosphor.platform)
   const lanes = liveHere ? `${liveHere} live ${liveHere === 1 ? 'lane' : 'lanes'}` : null
   return {
@@ -155,7 +171,12 @@ export function useLocalOverview(): MachineOverview | null {
       ? { text: 'Could not read all local checks. Check again to retry.', alert: true }
       : undefined,
     facts: [
-      { label: 'Platform', value: platform },
+      { label: 'Platform', value: reads.about ? `${platform} ${reads.about.arch}` : platform },
+      {
+        label: 'Phosphor version',
+        value:
+          reads.about === undefined ? 'Checking…' : (reads.about?.appVersion ?? 'Not available'),
+      },
       {
         label: 'pi',
         value:
@@ -165,6 +186,9 @@ export function useLocalOverview(): MachineOverview | null {
     ],
     connected: true,
     check: { busy: reads.busy, at: reads.at, round: reads.round, run: reads.run },
+    update: appInfo
+      ? { label: 'Update Phosphor…', run: () => openSettings('local', 'about') }
+      : undefined,
     configure: () => openSettings('local', 'accounts'),
   }
 }
@@ -291,6 +315,7 @@ export function useHostOverview(
   const check = useHostRecheck()
   const reconnect = useReconnect(machine.id)
   const claude = useClaudeReadiness(machine.id, check.round)
+  const pi = useHostPiVersion(machine.id, check.round)
   const openSettings = useOpenSettings()
   const summary = hostSummary(machine, connection, now, offset)
   const { headline } = summary
@@ -337,6 +362,7 @@ export function useHostOverview(
       { label: 'Hostname', value: machine.hostname },
       { label: 'Platform', value: `${platformName(machine.platform)} ${machine.arch}` },
       { label: 'Host version', value: version ?? 'Not reported' },
+      ...(pi === null ? [] : [{ label: 'pi', value: pi }]),
       { label: 'Enrolled', value: new Date(machine.enrolledAt).toLocaleDateString() },
       { label: 'Address', value: machine.endpoint ?? 'Not published' },
       { label: 'Fingerprint', value: machine.keyFingerprint, copy: true },
@@ -350,7 +376,9 @@ export function useHostOverview(
         : undefined,
     check,
     reconnect: machine.endpoint ? reconnect : undefined,
-    update: machine.endpoint ? () => openSettings(machine.id, 'advanced') : undefined,
+    update: machine.endpoint
+      ? { label: 'Update Host…', run: () => openSettings(machine.id, 'advanced') }
+      : undefined,
     configure: connection?.configurationSupported
       ? () => openSettings(machine.id, 'accounts')
       : undefined,

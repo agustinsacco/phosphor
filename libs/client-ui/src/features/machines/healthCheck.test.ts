@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { HostsSnapshot } from '@shared/ipc'
 import { healthSummary, runHealthCheck, type HealthRun } from './healthCheck'
-import { MACHINE } from './__fixtures__/control'
+import { CLAUDE_PROVIDER, MACHINE } from './__fixtures__/control'
 
 const now = Date.parse('2026-10-01T00:00:00Z')
 const ready = {
@@ -71,6 +71,8 @@ describe('health check', () => {
       refreshDirectory: async () => null,
       machines: () => [ready, unreachable],
       hosts: () => hosts,
+      localProviders: () => calls('pi:subscriptionAuth') as never,
+      localLanes: () => ({ live: 0, folders: 0 }),
       now: () => now,
       clock: () => (tick += 5),
       onUpdate: (r) => updates.push(r),
@@ -79,7 +81,7 @@ describe('health check', () => {
       Object.fromEntries(
         run.targets.find((t) => t.id === id)?.steps.map((s) => [s.id, [s.tone, s.detail]]) ?? [],
       )
-    expect(steps('local')).toEqual({
+    expect(steps('local')).toMatchObject({
       control: ['ok', '2 machines'],
       tailscale: ['ok', 'Running with MagicDNS and HTTPS'],
       pi: ['ok', 'pi 1.2.0'],
@@ -118,6 +120,8 @@ describe('health check', () => {
       refreshDirectory: async () => 'offline',
       machines: () => [],
       hosts: () => ({}),
+      localProviders: () => calls('pi:subscriptionAuth') as never,
+      localLanes: () => ({ live: 0, folders: 0 }),
       now: () => now,
       onUpdate: () => {},
     })
@@ -129,6 +133,8 @@ describe('health check', () => {
       refreshDirectory: async () => null,
       machines: () => [ready],
       hosts: () => hosts,
+      localProviders: () => calls('pi:subscriptionAuth') as never,
+      localLanes: () => ({ live: 0, folders: 0 }),
       now: () => now,
       onUpdate: () => {},
     })
@@ -172,5 +178,84 @@ describe('health check', () => {
     expect(healthSummary({ ...base, run, wallNow: now + 11 * 60_000 }).label).toBe(
       'All systems normal',
     )
+  })
+
+  it("runs the Host's probe list for This Mac, read on this computer", async () => {
+    const calls = vi.fn(async (channel: string, ...args: unknown[]): Promise<unknown> => {
+      switch (channel) {
+        case 'hosts:tailscaleStatus':
+          return { code: 'ready' }
+        case 'pi:health':
+          return { ok: true, version: '1.2.0' }
+        case 'pi:subscriptionAuth':
+          return [
+            { id: 'a', name: 'A', status: 'ready' },
+            { id: 'b', name: 'B', status: 'not_ready' },
+          ]
+        case 'pi:catalogueModels':
+          return { models: [{ id: 'm', name: 'M', provider: 'a', reasoning: false }], source: 'pi' }
+        case 'packages:list':
+          return [CLAUDE_PROVIDER]
+        case 'packages:claudeStatus':
+          return { binary: { found: true }, auth: { ok: true, loggedIn: false } }
+        case 'skills:list':
+          return { skills: [{}, {}] }
+        case 'routines:list':
+          if (args[0] !== 'local') throw new Error('not local')
+          return { routines: [{}] }
+        default:
+          throw new Error(`unexpected ${channel}`)
+      }
+    })
+    const run = await runHealthCheck({
+      invoke: calls as never,
+      localLabel: 'This Mac',
+      signedIn: false,
+      refreshDirectory: async () => null,
+      machines: () => [],
+      hosts: () => ({}),
+      localProviders: () => calls('pi:subscriptionAuth') as never,
+      localLanes: () => ({ live: 3, folders: 2 }),
+      now: () => now,
+      onUpdate: () => {},
+    })
+    const local = Object.fromEntries(
+      run.targets[0]?.steps.map((s) => [s.id, [s.tone, s.detail]]) ?? [],
+    )
+    expect(local).toEqual({
+      control: ['off', 'Signed out'],
+      tailscale: ['ok', 'Running with MagicDNS and HTTPS'],
+      pi: ['ok', 'pi 1.2.0'],
+      providers: ['ok', '2 providers · 1 signed in'],
+      models: ['ok', '1 model'],
+      claude: ['warn', 'Claude Code signed out'],
+      skills: ['ok', '2 skills'],
+      routines: ['ok', '1 routine'],
+      lanes: ['ok', '3 live lanes · 2 folders'],
+    })
+  })
+
+  it('counts routines as On this machine does, without archived ones, on every machine', async () => {
+    const calls = vi.fn(async (channel: string): Promise<unknown> => {
+      if (channel === 'routines:list')
+        return { routines: [{ archived: false }, { archived: true }] }
+      throw new Error(`unexpected ${channel}`)
+    })
+    const run = await runHealthCheck({
+      invoke: calls as never,
+      localLabel: 'This Mac',
+      signedIn: true,
+      refreshDirectory: async () => null,
+      machines: () => [ready],
+      hosts: () => ({ [ready.id]: { ...hosts[ready.id]!, capabilities: ['routines'] } }),
+      localProviders: () => calls('pi:subscriptionAuth') as never,
+      localLanes: () => ({ live: 0, folders: 0 }),
+      now: () => now,
+      onUpdate: () => {},
+    })
+    const routines = run.targets.map((t) => t.steps.find((s) => s.id === 'routines')?.detail)
+    expect(routines).toEqual(['1 routine', '1 routine'])
+    expect(calls).toHaveBeenCalledWith('routines:list', 'local')
+    expect(calls).toHaveBeenCalledWith('routines:list', `host:${ready.id}`)
   })
 })

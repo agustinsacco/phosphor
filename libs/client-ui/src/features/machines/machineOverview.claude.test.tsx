@@ -17,7 +17,7 @@ it('identifies each missing Claude part before offering sign-in', () => {
   expect(claudeReadiness({ provider: 'ok', cli: 'missing', auth: 'ok' }).detail).toContain(
     'Settings → Extensions → Claude Code',
   )
-  expect(claudeReadiness({ provider: 'ok', cli: 'ok', auth: 'signed-out' }).command).toBe(
+  expect(claudeReadiness({ provider: 'ok', cli: 'ok', auth: 'signed-out' }, false).command).toBe(
     'phosphor providers login claude',
   )
   expect(claudeReadiness({ provider: 'ok', cli: 'ok', auth: 'unknown' }).ok).toBe(false)
@@ -63,7 +63,7 @@ it('falls back for an old Host and re-reads Claude and providers with Check agai
   try {
     await act(async () => root.render(<MachinesPage />))
     expect(invoke).toHaveBeenCalledWith('hosts:claude', MACHINE.id)
-    expect(container.textContent).toContain('Sign in to Claude Code on this machine.')
+    expect(container.textContent).toContain('Sign in under Settings → Extensions → Claude Code.')
     invoke.mockClear()
     invoke.mockImplementation(async (channel: string) => {
       if (channel === 'hosts:claude') return { provider: 'missing', cli: 'ok', auth: 'ok' }
@@ -118,8 +118,8 @@ it.each([
     provider: 'ok',
     cli: 'ok',
     auth: 'signed-out',
-    text: 'Sign in to Claude Code',
-    command: 'phosphor providers login claude',
+    text: 'Sign in under Settings → Extensions → Claude Code.',
+    command: undefined,
   },
   { provider: 'ok', cli: 'ok', auth: 'ok', text: 'Signed in and ready', command: undefined },
 ] as const)(

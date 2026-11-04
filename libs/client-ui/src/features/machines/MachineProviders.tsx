@@ -1,4 +1,5 @@
 import { Button } from '@/components/form'
+import { machineLabel } from '@/stores/remoteLanes'
 import { providerRows } from '@/features/settings/sections/accounts/useHostProviders'
 import { ProviderList } from '@/features/settings/sections/accounts/ProviderList'
 import { CopyCommand } from './MachineControls'
@@ -21,7 +22,7 @@ export function MachineProviders({
   onConfigure?: () => void
   keepClaude?: boolean
 }): React.JSX.Element {
-  const { readable, providers, failed, retry } = useMachineProviders(hostId, refresh)
+  const { connected, readable, providers, failed, retry } = useMachineProviders(hostId, refresh)
   return (
     <div className="space-y-2">
       {failed ? (
@@ -33,10 +34,13 @@ export function MachineProviders({
         </div>
       ) : !readable ? (
         <p className="text-text-secondary text-base">
-          Providers appear once this computer is connected to the machine.
+          {connected
+            ? `This device may not read providers on ${machineLabel(hostId)}.`
+            : 'Providers appear once this computer is connected to the machine.'}
         </p>
       ) : providers === null ? (
         <div role="status" aria-label="Loading providers" className="space-y-3 py-1">
+          <p className="text-text-secondary text-base">Checking providers…</p>
           {[0, 1, 2].map((row) => (
             <Skeleton key={row} className="h-4 w-full" />
           ))}

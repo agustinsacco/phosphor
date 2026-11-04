@@ -546,15 +546,16 @@ by label). One row (`MachineRow`) and one detail (`MachineDetail`) draw every
 machine from a `MachineOverview` (`features/machines/machineOverview.ts`):
 `useLocalOverview` for this computer, whose id is `'local'` as everywhere else,
 and `hostSummary` / `useHostOverview` for a Host. What only an enrolled Host has
-(rename, heartbeat, setup notices, On this machine, Reconnect, Update Host…,
-removal) is data on the overview, not a second component.
+(rename, heartbeat, setup notices, Reconnect, removal) is data on the overview,
+not a second component.
 Each row is one line of name plus a muted subtitle (hostname when it
 differs, platform and architecture, Host version, non-zero lane counts, last
 seen), then readiness dots (pi, Claude, Tailscale; amber with the reason
 in a tooltip) and one status pill in a fixed-width column so the dots line up.
 This computer's subtitle is its platform, pi version and live lanes; its dots are
-pi and Claude, and its pill is what they add up to: Checking…, Ready, the one
-problem, or N issues. A Host's pill comes from `machineHeadline` and is its single status:
+pi, Claude and Tailscale, and its pill is what they add up to: Checking…, Ready, the
+one problem, or N issues. This computer needs Tailscale only to reach Hosts, so
+until the account has one its Tailscale is muted, not a problem. A Host's pill comes from `machineHeadline` and is its single status:
 Connected, Connecting…, Waiting for setup, Not reachable, Tailscale stopped,
 Update needed, Access refused, Identity mismatch, Stopping or Offline. No surface
 pairs two verdicts such as "Online · Not reachable yet". A never-connected or
@@ -590,13 +591,13 @@ the first directory load shows skeleton rows, a later refresh shows "Updating"
 beside the Hosts heading without hiding them, and this computer's checks,
 provider lists, Claude detail and On this machine counts each show a spinner or
 skeleton until their own read settles. A failed count reads Unavailable, never
-zero. Offline and account errors are explicit and offer retry.
+zero, until Check again reads it again. Offline and account errors are explicit and offer retry.
 
 A Host's detail has one **Back to machines** breadcrumb, then a compact identity
 header (an h2 label with Rename, the status pill and a **Machine actions** menu containing
 Reconnect, Check again and Update Host…, which opens Settings → Advanced; Reconnect and
 Update Host… need a published address), followed by **Overview / Settings / Machine files** navigation (Machine files opens
-the Host's home folder read-only in a dialog). Add a
+the Host's registered repositories read-only in a dialog). Add a
 machine and debug actions belong to the list, not a selected Host. The same header
 and responsive container run in Desktop and the browser; the browser does not gain
 This Mac's settings by getting wider. Long machine names occupy at most two visual
@@ -617,11 +618,16 @@ but its address is not published" and the fix appears under Connection:
 `phosphor setup` on a Mac, `sudo tailscale set --operator=$USER && phosphor setup`
 on Linux. The Claude Code row names the missing part (provider missing or
 outdated, Claude Code missing, signed out); older Hosts keep the single status.
+This computer's row names the same parts, read from its pi packages and Claude Code.
 A missing or outdated Claude Code has one remedy on every machine:
 Settings → Extensions → Claude Code, which installs it or says how. A Host whose
 Settings cannot open (unconnected, or too old) offers `phosphor setup` instead.
+Signed out is the same: sign in under Settings → Extensions → Claude Code, and only
+a Host whose Settings cannot open offers `phosphor providers login claude`.
 
-Providers lists the connected Host's providers, signed-in first. Not signed in
+Providers lists the connected Host's providers, signed-in first, after "Checking
+providers…" over skeleton rows. A connected Host that does not let this device read
+them says "This device may not read providers on X". Not signed in
 is neutral, not a warning, because most people use one or two. The rows are
 Settings → Accounts' own (`ProviderList`), read-only. Supporting Hosts link to
 **Settings → Accounts** rather than duplicating authentication controls; older
@@ -637,10 +643,15 @@ Signing in happens in Settings → Accounts on that machine; on a Host it runs i
 private terminal there, and credentials stay on the Host.
 
 The collapsed **Details** disclosure holds a Host's hostname, platform,
-Host version, enrollment date, the published address, and a copyable fingerprint
+Host version, its pi version where this device may read its settings, enrollment date, the published address, and a copyable fingerprint
 and machine id. On this machine previews at most three lanes using the shared
 sidebar row presentation, with a View all link when there are more, alongside
 capability-gated skills, routines and artifact counts linked to machine-filtered pages. Down lanes stay labelled last known.
+The counts are the machine's own: skills without a workspace's, routines that are not
+archived. The health check counts skills and routines the same way.
+This computer's On this machine is the same card: its newest lanes from the sidebar's
+sessions, with the same content (state dot, title, time, branch) on the same row
+primitive but without the lane menu, and its own skills, routines and artifact counts.
 A never-connected Host shows "Waiting for X to finish setup" with
 `phosphor setup` (it resumes where it stopped) and a Troubleshooting disclosure
 with `phosphor service status`, `phosphor service install` and `phosphor run`.
@@ -655,11 +666,16 @@ start fresh.
 
 This computer's detail is the same view without what needs enrollment: its
 platform label as the heading (no Rename), the pill its checks add up to, and a
-Machine actions menu with Check again, which re-reads pi, Claude Code and its
-providers. Readiness lists pi and Claude Code; Providers lists its subscriptions
-with Settings → Accounts' rows and **Provider settings**; Details holds its
-platform, pi version and live lane count; the terminal opens a shell at home. It
-has no Connection row, On this machine or Remove.
+Machine actions menu with Check again, which re-reads pi, Claude Code, Tailscale
+and its providers, and **Update Phosphor…**, which opens Settings → About where the
+app can check for updates. The same Overview / Settings / Machine files navigation
+follows: Settings opens Settings → Accounts for this computer, and Machine files
+browses its recent folders read-only in the same dialog and tree. Readiness lists pi, Claude Code and Tailscale; Providers lists its subscriptions
+with Settings → Accounts' rows and **Provider settings**, opening on the last read by
+Accounts or the health check, or one still in flight (each read runs one `pi auth check`
+per provider), and reading again on a Check again made while it is open; Details holds its
+platform and architecture, Phosphor version, pi version and live lane count; the terminal opens a shell at home. It
+has no Connection row or Remove.
 
 ### Health check and debug log
 
@@ -668,9 +684,10 @@ toggle. The badge sums live state and the last health check from the past 10
 minutes: All systems normal, N issues, N offline, Connecting…, Waiting for
 setup, Control unreachable or Checking…. It opens a popover; refresh runs the
 check directly. The check only reads (nothing restarts): the control plane
-(reloading the directory), local Tailscale and pi, then per Host its heartbeat
-and connection and, when connected and granted, providers, models, Claude Code,
-skills, routines and lanes. Each step shows its time in ms. A Host that is not
+(reloading the directory), then this computer's Tailscale, pi, providers, models,
+Claude Code, skills, routines and live lanes, then per Host its heartbeat and
+connection and, when connected and granted, the same providers, models, Claude
+Code, skills, routines and lanes. Each step shows its time in ms. A Host that is not
 connected gets one "Skipped until connected" line instead of six. Each Host
 section has Reconnect (`hosts:reconnect`), which re-reads the directory, then
 drops and reopens that Host's connection; open lanes resync. The popover links to the log.

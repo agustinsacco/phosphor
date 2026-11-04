@@ -4,8 +4,14 @@ import {
   type MachineView,
   type Readiness,
 } from '@shared/control-api'
-import type { IpcInvokeMap } from '@shared/ipc'
-import type { ClaudeStatus, PiHealth } from '@shared/models'
+import type { MachineClaude } from '@shared/host-protocol-machine'
+import {
+  claudeProviderState,
+  type ClaudeStatus,
+  type PiHealth,
+  type PiPackageEntry,
+} from '@shared/models'
+import type { TailscaleCode, TailscaleStatus } from '@shared/tailscale-status'
 
 export const HOST_GUIDE = 'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md'
 export const HOST_INSTALL =
@@ -25,6 +31,34 @@ function claudeSetup(configurable: boolean): { text: string; command?: string } 
   return configurable
     ? { text: CLAUDE_SETUP }
     : { text: HOST_CLAUDE_SETUP, command: 'phosphor setup' }
+}
+/** Signing in to Claude Code: in Settings where it opens, otherwise the Host's own command. */
+function claudeSignIn(configurable: boolean): { text: string; command?: string } {
+  return configurable
+    ? { text: 'Sign in under Settings → Extensions → Claude Code.' }
+    : {
+        text: 'Sign in to Claude Code on this machine.',
+        command: 'phosphor providers login claude',
+      }
+}
+/** What this computer's Tailscale needs, by its read-only status. */
+export const TAILSCALE_FIXES: Record<TailscaleCode, string> = {
+  ready: 'Tailscale is running and logged in. MagicDNS and HTTPS certificates are available.',
+  'not-installed': 'Install Tailscale on this computer, then sign in to your tailnet.',
+  'not-running': 'Open Tailscale and connect to your tailnet, then check again.',
+  'signed-out': 'Sign in to Tailscale and approve this computer in its admin console.',
+  'magicdns-unavailable': 'Turn on MagicDNS in the Tailscale admin console DNS settings.',
+  'https-unavailable': 'Turn on HTTPS certificates in the Tailscale admin console DNS settings.',
+  'check-failed': 'Could not check Tailscale. Open Tailscale to check your connection manually.',
+}
+const TAILSCALE_SHORT: Record<TailscaleCode, string> = {
+  ready: 'Tailscale ok',
+  'not-installed': 'Tailscale missing',
+  'not-running': 'Tailscale stopped',
+  'signed-out': 'Tailscale signed out',
+  'magicdns-unavailable': 'No MagicDNS',
+  'https-unavailable': 'No Tailscale HTTPS',
+  'check-failed': 'Tailscale not checked',
 }
 export function platformName(platform: string): string {
   return { darwin: 'macOS', linux: 'Linux', win32: 'Windows' }[platform] ?? platform
@@ -115,13 +149,13 @@ export function readinessChecks(
         claude === 'ok'
           ? 'Signed in and ready'
           : claude === 'signed-out'
-            ? 'Sign in to Claude Code on this machine.'
+            ? claudeSignIn(configurable).text
             : claude === 'missing'
               ? `Claude Code is missing. ${claudeSetup(configurable).text}`
               : 'Not reported yet. Check the Host on this machine.',
       command:
         claude === 'signed-out'
-          ? 'phosphor providers login claude'
+          ? claudeSignIn(configurable).command
           : claude === 'unknown'
             ? 'phosphor doctor'
             : claude === 'missing'
@@ -158,11 +192,25 @@ export function readinessChecks(
     },
   ]
 }
-/** A Host's live Claude Code detail, which names the missing part. */
-export function claudeReadiness(
-  detail: NonNullable<IpcInvokeMap['hosts:claude']['result']>,
-  configurable = true,
-): ReadinessCheck {
+/** This computer's Claude Code in a Host's terms, by the Host's provider rule. */
+export function localClaude(
+  packages: readonly PiPackageEntry[],
+  status: ClaudeStatus,
+): MachineClaude {
+  return {
+    provider: claudeProviderState(packages),
+    cli: status.binary.found ? 'ok' : 'missing',
+    auth:
+      status.auth.loggedIn === true
+        ? 'ok'
+        : status.auth.loggedIn === false
+          ? 'signed-out'
+          : 'unknown',
+  }
+}
+
+/** A machine's Claude Code detail, which names the missing part. */
+export function claudeReadiness(detail: MachineClaude, configurable = true): ReadinessCheck {
   const name = 'Claude Code'
   const setup = claudeSetup(configurable)
   if (detail.provider !== 'ok')
@@ -181,30 +229,41 @@ export function claudeReadiness(
       detail: `Claude Code is missing. ${setup.text}`,
       command: setup.command,
     }
-  return {
-    name,
-    ok: detail.auth === 'ok',
-    short: `Claude Code ${detail.auth}`,
-    detail:
-      detail.auth === 'ok'
-        ? 'Signed in and ready'
-        : detail.auth === 'signed-out'
-          ? 'Sign in to Claude Code on this machine.'
-          : 'Claude Code sign-in status is unknown. Run phosphor setup on this machine.',
-    command:
-      detail.auth === 'ok'
-        ? undefined
-        : detail.auth === 'signed-out'
-          ? 'phosphor providers login claude'
-          : 'phosphor setup',
-  }
+  if (detail.auth === 'ok')
+    return { name, ok: true, short: 'Claude Code ok', detail: 'Signed in and ready' }
+  const signIn = claudeSignIn(configurable)
+  return detail.auth === 'signed-out'
+    ? {
+        name,
+        ok: false,
+        short: 'Claude Code signed out',
+        detail: signIn.text,
+        command: signIn.command,
+      }
+    : {
+        name,
+        ok: false,
+        short: 'Claude Code unknown',
+        detail: `Claude Code sign-in status is unknown. ${configurable ? 'Check it under Settings → Extensions → Claude Code.' : 'Run phosphor setup on this machine.'}`,
+        command: configurable ? undefined : 'phosphor setup',
+      }
 }
 
-/** This computer's pi and Claude Code. Each read is `undefined` until it settles. */
+/** This computer's reads; each is `undefined` until it settles. */
+export interface LocalReadings {
+  health?: PiHealth | null
+  claude?: MachineClaude | null
+  tailscale?: TailscaleStatus
+  failed: boolean
+}
+
+/**
+ * This computer's pi, Claude Code and Tailscale. Tailscale only reaches Hosts:
+ * without any (`reachesHosts` false) it is optional, muted rather than a problem.
+ */
 export function localChecks(
-  health: PiHealth | null | undefined,
-  claude: ClaudeStatus | null | undefined,
-  failed: boolean,
+  { health, claude, tailscale, failed }: LocalReadings,
+  reachesHosts: boolean,
 ): ReadinessCheck[] {
   return [
     {
@@ -219,24 +278,25 @@ export function localChecks(
         : 'Could not check pi.',
       command: health && !health.ok ? PI_INSTALL : undefined,
     },
+    claude
+      ? claudeReadiness(claude)
+      : {
+          name: 'Claude Code',
+          ok: false,
+          loading: claude === undefined && !failed,
+          short: 'Not checked',
+          detail: 'Could not check Claude Code.',
+        },
     {
-      name: 'Claude Code',
-      ok: claude?.binary.found === true && claude.auth.loggedIn === true,
-      loading: claude === undefined && !failed,
-      short: !claude
-        ? 'Not checked'
-        : !claude.binary.found
-          ? 'Claude Code missing'
-          : claude.auth.loggedIn
-            ? 'Signed in'
-            : 'Claude Code signed out',
-      detail: !claude
-        ? 'Could not check Claude Code.'
-        : !claude.binary.found
-          ? `Claude Code is missing. ${CLAUDE_SETUP}`
-          : claude.auth.loggedIn
-            ? 'Signed in and ready'
-            : 'Sign in under Settings → Extensions → Claude Code.',
+      name: 'Tailscale',
+      ok: tailscale?.code === 'ready',
+      loading: tailscale === undefined,
+      muted: !reachesHosts,
+      short: TAILSCALE_SHORT[tailscale?.code ?? 'check-failed'],
+      detail:
+        tailscale?.code === 'ready'
+          ? 'Connected with HTTPS available'
+          : `${reachesHosts ? '' : 'Needed only to reach your Hosts. '}${TAILSCALE_FIXES[tailscale?.code ?? 'check-failed']}`,
     },
   ]
 }

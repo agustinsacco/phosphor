@@ -282,3 +282,22 @@ it('disables Stop until the lane has a first message, with the reason', () => {
   items([{ id: 'u', kind: 'user', text: 'hi' }])
   expect(stop().disabled).toBe(false)
 })
+it("characterize: a Host's lane preview shows the shared Host lane rows, and View all past three", async () => {
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  const first = host.lanes[0]!
+  host.lanes = [0, 1, 2, 3].map((n) => ({
+    ...first,
+    laneId: `lane-${n}`,
+    title: `Lane ${n}`,
+    branch: `feature/${n}`,
+  }))
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  await act(async () => root.render(<OnThisMachine hostId={MOCK_HOST_ID} />))
+  const preview = container.querySelector('fieldset.machine-lane-preview')
+  const rows = [...(preview?.querySelectorAll('[data-testid=remote-session-row]') ?? [])]
+  expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual(['Lane 0', 'Lane 1', 'Lane 2'])
+  expect(rows.every((row) => row.classList.contains('lane-row'))).toBe(true)
+  expect(rows[0]?.textContent).toContain('feature/0')
+  expect(container.textContent).toContain('4 lanes')
+  expect(button('View all 4 lanes').textContent).toBe('View all 4 lanes →')
+})

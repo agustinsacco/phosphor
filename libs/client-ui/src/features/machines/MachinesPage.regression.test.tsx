@@ -7,9 +7,12 @@ import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { DESKTOP_PLATFORM, PlatformProvider } from '@/platform/Platform'
 import { MachinesPage } from './MachinesPage'
+import { useMachinePagesStore } from '@/stores/machinePages'
+import { useLayoutStore } from '@/stores/layout'
 import { OnlineAndProviders } from './onboarding/OnlineAndProviders'
-import { MACHINE } from './__fixtures__/control'
+import { CLAUDE_PROVIDER, MACHINE } from './__fixtures__/control'
 
 // B6: the Machines page drew This Mac and a Host with two rows and two details,
 // and they drifted apart. Each case failed on the two-copy page.
@@ -30,6 +33,7 @@ const CONNECTED = {
 }
 let claudeStatus = { binary: { found: true }, auth: { loggedIn: true } }
 let hostClaude = { provider: 'ok', cli: 'ok', auth: 'ok' }
+let tailscale = 'ready'
 let root: Root
 let container: HTMLDivElement
 const invoke = vi.fn(async (channel: string): Promise<unknown> => {
@@ -49,12 +53,20 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
       { id: 'openai-codex', name: 'ChatGPT', status: 'not_ready' },
     ]
   if (channel === 'hosts:claude') return hostClaude
+  if (channel === 'packages:list') return [CLAUDE_PROVIDER]
+  if (channel === 'hosts:tailscaleStatus') return { code: tailscale }
+  if (channel === 'app:about') return { appVersion: '1.4.0', platform: 'darwin', arch: 'arm64' }
+  if (channel === 'hosts:settingsRead') return { advanced: { pi: { version: '0.70.1' } } }
+  if (channel === 'skills:list') return { skills: [{ name: 'a' }, { name: 'b' }] }
+  if (channel === 'routines:list') return { routines: [{ archived: false }, { archived: true }] }
+  if (channel === 'artifacts:list') return [{ key: 'local-a' }, { key: `host:${HOST.id}/lane:l/a` }]
   return null
 })
 
 beforeEach(() => {
   claudeStatus = { binary: { found: true }, auth: { loggedIn: true } }
   hostClaude = { provider: 'ok', cli: 'ok', auth: 'ok' }
+  tailscale = 'ready'
   invoke.mockClear()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('phosphor', { invoke, platform: 'darwin', onAccountChanged: () => () => {} })
@@ -202,6 +214,218 @@ it("R-M7: This Mac's live lanes count only its own lanes, not Host lanes open he
     const detail = container.querySelector('[data-testid=machine-detail]')?.textContent
     expect(detail).toContain('1 live lane')
     expect(detail).not.toContain('2 live lanes')
+  } finally {
+    useSessionsStore.setState({ live: {} })
+  }
+})
+
+const tailscaleRow = (): HTMLElement | null =>
+  container.querySelector<HTMLElement>('[data-check="Tailscale"]')
+const localPill = (): string | null | undefined =>
+  container.querySelector('[data-testid=machine-detail] header [data-tone]')?.textContent
+
+it('C5a: with no Hosts, a missing Tailscale on This Mac is optional and leaves it Ready', async () => {
+  tailscale = 'not-installed'
+  useMachinesStore.setState({ machines: [] })
+  await openThisMac()
+  expect(tailscaleRow()?.getAttribute('data-ok')).toBe('false')
+  expect(tailscaleRow()?.querySelector('[aria-label="Needs attention"]')).toBeNull()
+  expect(tailscaleRow()?.querySelector('[data-tooltip]')?.getAttribute('data-tooltip')).toContain(
+    'Needed only to reach your Hosts',
+  )
+  expect(localPill()).toBe('Ready')
+})
+
+it('C5b: with Hosts enrolled, a stopped Tailscale on This Mac needs attention', async () => {
+  tailscale = 'not-running'
+  await openThisMac()
+  expect(tailscaleRow()?.querySelector('[aria-label="Needs attention"]')).not.toBeNull()
+  expect(tailscaleRow()?.textContent).toContain('Open Tailscale and connect to your tailnet')
+  expect(localPill()).not.toBe('Ready')
+})
+
+it('C5c: signed out, This Mac reaches no Hosts, so its Tailscale is optional', async () => {
+  tailscale = 'signed-out'
+  useMachinesStore.getState().enableRemote(false)
+  await openThisMac()
+  expect(tailscaleRow()?.querySelector('[aria-label="Needs attention"]')).toBeNull()
+  expect(localPill()).toBe('Ready')
+})
+
+it("C5d: a Host's own Tailscale row is never muted", async () => {
+  useMachinesStore.setState({
+    machines: [{ ...HOST, readiness: { pi: 'ok', claude: 'ok', tailscale: 'stopped' } }],
+    view: { kind: 'machine', id: HOST.id },
+  })
+  await render()
+  expect(tailscaleRow()?.querySelector('[aria-label="Needs attention"]')).not.toBeNull()
+})
+
+it("C8: This Mac's actions menu updates Phosphor through Settings → About, where the app can", async () => {
+  await openThisMac()
+  await click(container.querySelector<HTMLElement>('[aria-label="Machine actions"]'))
+  expect(button('Update Host…')).toBeUndefined()
+  await click(button('Update Phosphor…'))
+  expect(useSettingsUiStore.getState()).toMatchObject({ tab: 'about' })
+  act(() => root.unmount())
+  root = createRoot(container)
+  await render(
+    <PlatformProvider value={{ ...DESKTOP_PLATFORM, appInfo: false }}>
+      <MachinesPage />
+    </PlatformProvider>,
+  )
+  await click(container.querySelector<HTMLElement>('[aria-label="Machine actions"]'))
+  expect(button('Check again')).toBeDefined()
+  expect(button('Update Phosphor…')).toBeUndefined()
+})
+
+const fact = (label: string): string | undefined =>
+  [...container.querySelectorAll('.machine-facts dt')].find((dt) => dt.textContent === label)
+    ?.nextElementSibling?.textContent ?? undefined
+
+it("C9a: This Mac's Details add its architecture and Phosphor version", async () => {
+  await openThisMac()
+  expect(fact('Platform')).toBe('macOS arm64')
+  expect(fact('Phosphor version')).toBe('1.4.0')
+  expect(fact('pi')).toBe('1.2.0')
+})
+
+it("C9b: a Host's Details show its pi version where this device may read its settings", async () => {
+  useRemoteLanesStore.setState({
+    hosts: { [HOST.id]: { ...CONNECTED, capabilities: ['skills.read', 'machine.configure'] } },
+  })
+  useMachinesStore.setState({ view: { kind: 'machine', id: HOST.id } })
+  await render()
+  expect(invoke).toHaveBeenCalledWith('hosts:settingsRead', HOST.id, 'advanced')
+  expect(fact('pi')).toBe('0.70.1')
+})
+
+it("C9c: without configuration access, a Host's Details neither read nor show its pi", async () => {
+  useMachinesStore.setState({ view: { kind: 'machine', id: HOST.id } })
+  await render()
+  expect(invoke).not.toHaveBeenCalledWith('hosts:settingsRead', HOST.id, 'advanced')
+  expect(fact('pi')).toBeUndefined()
+  expect(fact('Host version')).toBeDefined()
+})
+
+it("C3: This Mac's Machine views include Machine files, as a Host's do", async () => {
+  await openThisMac()
+  const views = container.querySelector('[aria-label="Machine views"]')
+  expect([...(views?.querySelectorAll('button') ?? [])].map((b) => b.textContent)).toEqual([
+    'Overview',
+    'Settings',
+    'Machine files',
+  ])
+})
+
+it("C2: This Mac's detail lists On this machine: its lanes, skills, routines and artifacts", async () => {
+  const lane = (n: number, mtimeMs: number) => ({
+    path: `/sessions/${n}.jsonl`,
+    sessionId: `s${n}`,
+    cwd: '/work/app',
+    name: `Lane ${n}`,
+    mtimeMs,
+  })
+  const openDiskSession = vi.fn(async () => 'opened')
+  const original = useSessionsStore.getState()
+  useSessionsStore.setState({
+    disk: { '/work/app': [lane(1, 1), lane(2, 3), lane(3, 2), lane(4, 0)] } as never,
+    gitByCwd: { '/work/app': { isRepo: true, branch: 'feature/login' } } as never,
+    openDiskSession: openDiskSession as never,
+  })
+  try {
+    await openThisMac()
+    const card = container.querySelector<HTMLElement>('[aria-label="On this machine"]')
+    expect(card?.textContent).toContain('4 lanes')
+    const rows = [...(card?.querySelectorAll<HTMLElement>('.machine-lane-preview .lane-row') ?? [])]
+    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
+      'Lane 2',
+      'Lane 3',
+      'Lane 1',
+    ])
+    expect(rows[0]?.textContent).toContain('feature/login')
+    expect(button('View all 4 lanes →')).toBeDefined()
+    const tile = (label: string) =>
+      [...(card?.querySelectorAll('button') ?? [])].find((b) => b.textContent?.startsWith(label))
+    expect(tile('Skills')?.textContent).toBe('Skills2')
+    expect(tile('Routines')?.textContent).toBe('Routines1')
+    expect(tile('Artifacts')?.textContent).toBe('Artifacts1')
+    expect(invoke).toHaveBeenCalledWith('routines:list', 'local')
+    await click(tile('Routines'))
+    expect(useMachinePagesStore.getState().routinesMachine).toBe('local')
+    expect(useLayoutStore.getState().page).toBe('routines')
+    useLayoutStore.getState().setPage(null)
+    await click(rows[0])
+    expect(openDiskSession).toHaveBeenCalledWith(
+      '/work/app',
+      expect.objectContaining({ name: 'Lane 2' }),
+    )
+  } finally {
+    useSessionsStore.setState({
+      disk: original.disk,
+      gitByCwd: original.gitByCwd,
+      openDiskSession: original.openDiskSession,
+    })
+  }
+})
+
+it('C2: Check again reads On this machine again after a failed count, on This Mac and a Host', async () => {
+  const base = invoke.getMockImplementation()!
+  let fail = true
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'skills:list' || channel === 'hosts:skills') {
+      if (fail) throw new Error('busy')
+      return { skills: [{ name: 'a' }, { name: 'b' }] }
+    }
+    return base(channel)
+  })
+  const skills = () =>
+    [
+      ...(container
+        .querySelector('[aria-label="On this machine"]')
+        ?.querySelectorAll<HTMLElement>('button') ?? []),
+    ].find((b) => b.textContent?.startsWith('Skills'))?.textContent
+  const checkAgain = async () => {
+    await click(container.querySelector<HTMLElement>('[aria-label="Machine actions"]'))
+    await click(button('Check again'))
+  }
+  try {
+    await openThisMac()
+    expect(skills()).toBe('SkillsUnavailable')
+    fail = false
+    await checkAgain()
+    expect(skills()).toBe('Skills2')
+    fail = true
+    act(() => root.unmount())
+    root = createRoot(container)
+    useMachinesStore.setState({ view: { kind: 'machine', id: HOST.id } })
+    await render()
+    expect(skills()).toBe('SkillsUnavailable')
+    fail = false
+    await checkAgain()
+    expect(skills()).toBe('Skills2')
+  } finally {
+    invoke.mockImplementation(base)
+  }
+})
+
+it("characterize: This Mac's On this machine lists its own live lane, not a Host lane open here", async () => {
+  useSessionsStore.setState({
+    live: {
+      mine: { phosphorId: 'mine', workspacePath: '/work/app' },
+      remote: {
+        phosphorId: 'remote',
+        workspacePath: `host:${HOST.id}/lane:lane-1`,
+        target: { kind: 'remote', hostId: HOST.id },
+        laneId: 'lane-1',
+      },
+    } as never,
+  })
+  try {
+    await openThisMac()
+    const card = container.querySelector('[aria-label="On this machine"]')
+    expect(card?.textContent).toContain('1 lane')
+    expect(card?.querySelectorAll('.machine-lane-preview .lane-row')).toHaveLength(1)
   } finally {
     useSessionsStore.setState({ live: {} })
   }
