@@ -1,15 +1,18 @@
 import { expect, it } from 'vitest'
+import type { PiPackageEntry } from '@shared/models'
 import {
   claudeReadiness,
   formatCode,
   HOST_INSTALL,
   localChecks,
+  localClaude,
   platformName,
   readinessFreshness,
   readinessChecks,
   relativeTime,
   sortMachines,
 } from './machinePresentation'
+import { CLAUDE_PROVIDER } from './__fixtures__/control'
 import { MACHINE } from './__fixtures__/control'
 const now = Date.parse('2026-01-01T03:00:00.000Z')
 it('says relative times and platform names in words', () => {
@@ -149,4 +152,22 @@ it('C7: a Host that can open Settings signs in to Claude Code there, as This Mac
     claudeReadiness(live, false),
   ])
     expect(check?.command).toBe('phosphor providers login claude')
+})
+
+it("characterize: This Mac's Claude provider state follows main's refusal rule", () => {
+  const status = { binary: { found: true }, auth: { ok: true, loggedIn: true } } as never
+  const copy = (version: string, installed = true, scope: 'global' | 'project' = 'global') => ({
+    ...CLAUDE_PROVIDER,
+    version,
+    installed,
+    scope,
+  })
+  const provider = (packages: PiPackageEntry[]) => localClaude(packages, status).provider
+  expect(provider([copy('0.10.2')])).toBe('ok')
+  expect(provider([copy('0.10.0')])).toBe('ok')
+  expect(provider([copy('0.9.1')])).toBe('outdated')
+  expect(provider([copy('0.10.2'), copy('0.9.0', true, 'project')])).toBe('outdated')
+  expect(provider([copy('0.10.2', false)])).toBe('missing')
+  expect(provider([{ ...CLAUDE_PROVIDER, name: 'pi-claude-cli' }])).toBe('missing')
+  expect(provider([])).toBe('missing')
 })

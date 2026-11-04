@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { fakeMachine, type FakeMachine } from '../__fixtures__/machine'
-import { checkClaudeLane, parseLoggedIn } from './claude'
+import { checkClaudeLane, inspectClaude, parseLoggedIn } from './claude'
 
 const provider = (version: string, installed = true) => ({
   name: '@saccolabs/pi-claude-cli',
@@ -96,6 +96,24 @@ describe('the Claude lane', () => {
     expect(await checkClaudeLane([provider('0.10.0')], old)).toEqual({
       available: false,
       reason: `${machine.bin}/claude auth status was unreadable (exit 1): error: unknown command "auth"`,
+    })
+  })
+})
+
+describe('the Claude diagnostics', () => {
+  it("characterize: name the provider ok, outdated or missing by main's refusal rule", async () => {
+    const none = { env: { PATH: '' }, secrets: [] }
+    const state = async (packages: ReturnType<typeof provider>[]) =>
+      (await inspectClaude(packages, none)).provider
+    expect(await state([provider('0.10.2')])).toBe('ok')
+    expect(await state([provider('0.9.1')])).toBe('outdated')
+    expect(await state([provider('0.10.2'), provider('0.9.0')])).toBe('outdated')
+    expect(await state([provider('0.10.2', false)])).toBe('missing')
+    expect(await state([])).toBe('missing')
+    expect(await inspectClaude([provider('0.10.2')], none)).toEqual({
+      provider: 'ok',
+      cli: 'missing',
+      auth: 'unknown',
     })
   })
 })
