@@ -60,6 +60,7 @@ export function ContinueButton({ sessionId }: { sessionId: string }): React.JSX.
       onClick={() => void send()}
       disabled={disabled}
       aria-label="Continue"
+      data-composer-continue=""
       tooltip={{
         label: 'Continue',
         description: 'Sends "continue" so a stopped agent picks up again. Keeps your draft.',

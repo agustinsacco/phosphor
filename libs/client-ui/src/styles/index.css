@@ -746,6 +746,24 @@ select:focus:not(:focus-visible) {
  * needed. Keep the hint, clip it instead of wrapping it — a placeholder is
  * never read by the caret, so an ellipsis there costs nothing.
  */
+/*
+ * The composer toolbar's right group (model chip, actions) wraps lazily. Its
+ * basis is 0, so the line break looks only at its floor: the actions, the
+ * thinking chip and a 4rem model chip. The label adds nothing to that floor
+ * (`contain: inline-size`), so a long model name truncates instead of
+ * wrapping the row; a group that cannot fit even its floor takes its own line.
+ */
+.composer-toolbar-end {
+  flex: 1 1 0%;
+  min-width: min-content;
+}
+.composer-toolbar-end button:has(> [data-testid='model-label']) {
+  min-width: 4rem;
+}
+.composer-toolbar-end [data-testid='model-label'] {
+  contain: inline-size;
+}
+
 .composer-field::placeholder {
   white-space: pre;
   overflow: hidden;
