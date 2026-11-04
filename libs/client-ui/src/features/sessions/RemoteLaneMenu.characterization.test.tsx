@@ -133,3 +133,11 @@ it('characterizes the last-known badge and the disabled row while a Host reconne
       .disabled,
   ).toBe(true)
 })
+
+it('drops Lane marker from the Host lane menu when markers are off', async () => {
+  const { useLanePrefsStore } = await import('@/stores/lanePrefs')
+  act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'off' }))
+  render(host(true))
+  expect(menuRows().map(([label]) => label)).not.toContain('Lane marker')
+  act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'auto' }))
+})

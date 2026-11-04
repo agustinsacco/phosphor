@@ -45,7 +45,7 @@ it.each(['stopped', 'working', 'needs-input', 'failed'] as const)(
     }
     act(() => root.render(<RemoteLaneRow hostId={MOCK_HOST_ID} lane={lane} ready active={false} />))
     expect(el.querySelector('[data-testid=remote-session-row]')?.textContent).toBe(
-      `•Canonical title${activity === 'working' ? 'Working' : '1h ago'}·wt·⎇ feature/parity${activity === 'needs-input' || activity === 'failed' ? 'needs you' : ''}`,
+      `⭐Canonical title${activity === 'working' ? 'Working' : '1h ago'}·wt·⎇ feature/parity${activity === 'needs-input' || activity === 'failed' ? 'needs you' : ''}`,
     )
     expect(el.querySelector('[data-testid=session-indicator]')?.getAttribute('data-state')).toBe(
       activity === 'working' ? 'streaming' : 'unseen',
@@ -53,3 +53,25 @@ it.each(['stopped', 'working', 'needs-input', 'failed'] as const)(
     expect(el.textContent).not.toContain('Needs attention')
   },
 )
+
+it('shows the marker derived from the branch, an explicit Host marker over it, and no slot when markers are off', async () => {
+  const { useLanePrefsStore } = await import('@/stores/lanePrefs')
+  const lane = { ...mockRemoteHosts[MOCK_HOST_ID]!.lanes[0]!, branch: 'feature/parity' }
+  const marker = (): string | null | undefined =>
+    el.querySelector('[data-testid=lane-marker]')?.textContent
+  act(() => root.render(<RemoteLaneRow hostId={MOCK_HOST_ID} lane={lane} ready />))
+  expect(marker()).toBe('⭐')
+  act(() =>
+    root.render(<RemoteLaneRow hostId={MOCK_HOST_ID} lane={{ ...lane, marker: '🦊' }} ready />),
+  )
+  expect(marker()).toBe('🦊')
+  act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'manual' }))
+  act(() => root.render(<RemoteLaneRow hostId={MOCK_HOST_ID} lane={lane} ready />))
+  expect(marker()).toBe('•')
+  act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'off' }))
+  act(() =>
+    root.render(<RemoteLaneRow hostId={MOCK_HOST_ID} lane={{ ...lane, marker: '🦊' }} ready />),
+  )
+  expect(el.querySelector('[data-testid=lane-marker]')).toBeNull()
+  act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'auto' }))
+})
