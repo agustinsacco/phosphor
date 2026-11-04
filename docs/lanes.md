@@ -469,8 +469,8 @@ One Host lane row (`features/sessions/RemoteLaneRow`) and one menu serve every
 surface: Desktop's sidebar, the browser's navigation and Lanes page, Host home and the
 machine preview. `remoteLaneActions` builds the menu as a pure list (Open, Move up and Move
 down where the row sits in an ordered list, Rename,
-Take or Release control, Stop or Resume, Mark read, Pin, Lane marker, Copy debug
-info, Copy spend, Delete, plus Open pull request when the lane has one) and
+Take or Release control, Stop or Resume, Mark read, Pin, Lane marker, Export
+HTML…, Copy debug info, Copy spend, Delete, plus Open pull request when the lane has one) and
 `useRemoteLaneActions` runs it; the phone's lane sheet lists the same items
 without Open. The row's menu opens on right-click, the ContextMenu key or
 Shift+F10, and a touch long-press; on a phone it is a bottom sheet. The row
@@ -495,7 +495,9 @@ pinned lanes never mix with another's or with local ones.
 Copy debug info writes This Mac's block (`formatSessionDebugInfo`: pi's id and
 model once the lane is open) with the machine, Host, lane and branch in place of
 paths: no Host path reaches the clipboard. Copy spend copies the formatted cost,
-as This Mac's does. Local-only tree, fork, clone, routine and HTML export actions are omitted.
+as This Mac's does. Export HTML… opens the lane's session if needed and saves the Host's export
+(`exportRemoteLaneHtml`): a save dialog on Desktop, a download in the browser.
+Local-only tree, fork, clone and routine actions are omitted.
 Remote Delete needs control and workspace-write capability, in Desktop and the
 browser alike. A disabled action's hint names its obstacle: “Take control
 first.” for a viewer, “Only while running.” for rename and spend on a stopped

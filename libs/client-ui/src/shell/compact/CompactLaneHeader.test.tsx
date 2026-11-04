@@ -154,6 +154,7 @@ it('lists the shared lane actions in the sheet, with the same hints as every lan
     'Mark read',
     'Pin',
     'Lane marker',
+    'Export HTML…',
     'Copy debug info',
     'Copy spend',
     'Delete',

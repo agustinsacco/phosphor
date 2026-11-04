@@ -50,6 +50,7 @@ export interface RemoteLaneActionHandlers {
   markRead: () => void
   togglePin: () => void
   pickMarker: () => void
+  exportHtml: () => void
   copyDebugInfo: () => void
   copySpend: () => void
   delete: () => void
@@ -147,6 +148,13 @@ export function remoteLaneActions(
             onClick: handlers.pickMarker,
           },
         ]),
+    // A read: any reader of the lane may keep a copy, as with Copy debug info.
+    {
+      label: 'Export HTML…',
+      disabled: !ready || busy,
+      hint: notReady,
+      onClick: handlers.exportHtml,
+    },
     { label: 'Copy debug info', onClick: handlers.copyDebugInfo },
     {
       label: 'Copy spend',

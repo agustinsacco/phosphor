@@ -5,6 +5,7 @@ import type { ContextMenuItem } from '@/components/ContextMenu'
 import { piCall, piCallOk } from '@/lib/rpc'
 import { laneMarker } from '@/lib/laneMarker'
 import { useNavigation, type Navigation } from '@/navigation/Navigation'
+import { usePlatform } from '@/platform/Platform'
 import { useChatStore } from '@/stores/chat'
 import { setRemoteLaneMarks } from '@/stores/remoteLaneMarks'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -21,7 +22,7 @@ import {
   type RemoteLaneActionState,
 } from './remoteLaneActions'
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
-import { copyDebugInfo, copySpend } from './sessionActions'
+import { copyDebugInfo, copySpend, exportRemoteLaneHtml } from './sessionActions'
 import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
 import { MarkerPickerModal } from './MarkerPickerModal'
 import { useSessionOrderActions } from './SessionList'
@@ -59,6 +60,7 @@ export function useRemoteLaneActions({
   onDone?: () => void
 }) {
   const { navigate } = useNavigation()
+  const { nativeFiles } = usePlatform()
   const orderActions = useSessionOrderActions()
   const entry = useRemoteLaneSession(hostId, lane.laneId)
   const runner = useLaneActionRunner(onDone)
@@ -83,6 +85,7 @@ export function useRemoteLaneActions({
     pr,
     act,
     session,
+    exportAs: { title, nativeFiles },
     onRename,
     openDialog: (next) => {
       setDialog(next)
@@ -201,6 +204,7 @@ function laneHandlers({
   pr,
   act,
   session,
+  exportAs: { title, nativeFiles },
   onRename,
   openDialog,
   onMarked,
@@ -211,6 +215,8 @@ function laneHandlers({
   pr: Parameters<typeof openPullRequest>[0] | null | undefined
   act: (action: () => Promise<unknown>) => Promise<boolean>
   session: () => Promise<string>
+  /** The export's file name, and whether this device saves through a dialog or a download. */
+  exportAs: { title: string; nativeFiles: boolean }
   onRename: () => void
   openDialog: (dialog: LaneDialog) => void
   onMarked: () => void
@@ -236,6 +242,8 @@ function laneHandlers({
     markRead: send('hosts:markRead'),
     togglePin: () => mark({ pinned: !lane.pinned }),
     pickMarker: () => openDialog('marker'),
+    exportHtml: () =>
+      void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),
     copyDebugInfo: () => void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane))),
     copySpend: () => void act(async () => copySpend(await sessionCost(await session()))),
     delete: () => openDialog('delete'),
