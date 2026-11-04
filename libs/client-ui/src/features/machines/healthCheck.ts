@@ -46,6 +46,8 @@ export interface HealthContext {
   /** Latest directory and connections, read after the refresh. */
   machines: () => readonly MachineView[]
   hosts: () => HostsSnapshot | Promise<HostsSnapshot>
+  /** This computer's subscription sign-ins, read now. */
+  localProviders: () => Promise<readonly { status: string }[]>
   /** This computer's live lanes and recent folders. */
   localLanes: () => { live: number; folders: number }
   /** Clock-corrected now. */
@@ -187,7 +189,7 @@ export async function runHealthCheck(context: HealthContext): Promise<HealthRun>
   })
   const { invoke } = context
   for (const probe of machineProbes({
-    providers: () => invoke('pi:subscriptionAuth'),
+    providers: context.localProviders,
     models: async () => (await invoke('pi:catalogueModels')).models.length,
     claude: async () => {
       const [packages, status] = await Promise.all([

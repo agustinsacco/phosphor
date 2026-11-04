@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { localMachineLabel } from '@/lib/localMachine'
+import { readLocalSubscriptionAuth } from '@/stores/localSubscriptionAuth'
 import { useMachinesStore } from '@/stores/machines'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
@@ -26,6 +27,7 @@ export async function startHealthCheck(): Promise<void> {
       },
       machines: () => useMachinesStore.getState().machines,
       hosts: () => window.phosphor.invoke('hosts:snapshot'),
+      localProviders: readLocalSubscriptionAuth,
       localLanes: () => ({
         live: Object.values(useSessionsStore.getState().live).filter(
           (entry) => entry.target?.kind !== 'remote',
