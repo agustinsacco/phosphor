@@ -533,8 +533,8 @@ by label). One row (`MachineRow`) and one detail (`MachineDetail`) draw every
 machine from a `MachineOverview` (`features/machines/machineOverview.ts`):
 `useLocalOverview` for this computer, whose id is `'local'` as everywhere else,
 and `hostSummary` / `useHostOverview` for a Host. What only an enrolled Host has
-(rename, heartbeat, setup notices, On this machine, Reconnect, Update Host…,
-removal) is data on the overview, not a second component.
+(rename, heartbeat, setup notices, Reconnect, removal) is data on the overview,
+not a second component.
 Each row is one line of name plus a muted subtitle (hostname when it
 differs, platform and architecture, Host version, non-zero lane counts, last
 seen), then readiness dots (pi, Claude, Tailscale; amber with the reason
@@ -632,6 +632,9 @@ Host version, its pi version where this device may read its settings, enrollment
 and machine id. On this machine previews at most three lanes using the shared
 sidebar row presentation, with a View all link when there are more, alongside
 capability-gated skills, routines and artifact counts linked to machine-filtered pages. Down lanes stay labelled last known.
+This computer's On this machine is the same card: its newest lanes from the sidebar's
+sessions, with the same content (state dot, title, time, branch) on the same row
+primitive but without the lane menu, and its own skills, routines and artifact counts.
 A never-connected Host shows "Waiting for X to finish setup" with
 `phosphor setup` (it resumes where it stopped) and a Troubleshooting disclosure
 with `phosphor service status`, `phosphor service install` and `phosphor run`.
@@ -653,7 +656,7 @@ follows: Settings opens Settings → Accounts for this computer, and Machine fil
 browses its recent folders read-only in the same dialog and tree. Readiness lists pi, Claude Code and Tailscale; Providers lists its subscriptions
 with Settings → Accounts' rows and **Provider settings**; Details holds its
 platform and architecture, Phosphor version, pi version and live lane count; the terminal opens a shell at home. It
-has no Connection row, On this machine or Remove.
+has no Connection row or Remove.
 
 ### Health check and debug log
 

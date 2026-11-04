@@ -168,8 +168,8 @@ from snapshots without reload.
 
 A connected Host's Machines detail adds On this machine: lanes, skills, routines
 and artifacts, only for announced capabilities. Counts that fail to load say
-Unavailable, not zero. Links open the machine-filtered page. This Mac's detail is
-the same view without it; it uses its own lanes, Skills, Routines and Artifacts pages.
+Unavailable, not zero. Links open the machine-filtered page. This Mac's detail has
+the same card, over its own lanes, skills, routines and artifacts.
 
 Skills follows the sidebar machine selection and has a switcher for This Mac plus
 machines announcing `skills.read`. Remote skills are not edited in place; they can

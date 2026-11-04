@@ -6,97 +6,202 @@ import { useEffect, useState } from 'react'
 import { useRemoteLanesStore, REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { openMachinePage } from '@/stores/machinePages'
 import { TooltipButton } from '@/components/Tooltip'
+import { LocalLanePreviewRow, useLocalLanes } from './LocalLanePreview'
 import { Skeleton } from './MachineUi'
 
 type Key = 'skills' | 'routines' | 'artifacts'
 /** A count is loading until its read settles; a failed read is Unavailable, never zero. */
 type Count = number | 'loading' | 'failed'
 const LANES_SHOWN = 3
+const LABELS: Record<Key, string> = {
+  skills: 'Skills',
+  routines: 'Routines',
+  artifacts: 'Artifacts',
+}
 
-export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element | null {
-  const { navigate } = useNavigation()
+/** What On this machine shows for This Mac or a Host. */
+interface MachineResources {
+  /** `'local'` or a Host id: where View all and the tiles go. */
+  machine: string
+  /** False while a Host is not connected: lanes are last known, links are off. */
+  ready: boolean
+  /** The lane count and up to three rows; null where lanes cannot be read. */
+  lanes: { count: number; rows: React.ReactNode } | null
+  /** The tiles this machine offers, and each count read so far. */
+  tiles: Key[]
+  counts: Partial<Record<Key, Count>>
+}
+
+/** Reads each count in turn while `isCurrent` holds; a failed read is `failed`. */
+async function readCounts(
+  reads: readonly { key: Key; read: () => Promise<number> }[],
+  isCurrent: () => boolean,
+  set: (key: Key, count: Count) => void,
+): Promise<void> {
+  for (const { key, read } of reads) {
+    if (!isCurrent()) return
+    let count: Count
+    try {
+      count = await read()
+    } catch {
+      count = 'failed'
+    }
+    if (isCurrent()) set(key, count)
+  }
+}
+
+const HOST_READS = [
+  {
+    capability: 'skills.read',
+    key: 'skills',
+    read: async (hostId: string) =>
+      (await window.phosphor.invoke('hosts:skills', hostId)).skills.length,
+  },
+  {
+    capability: 'routines',
+    key: 'routines',
+    read: async (hostId: string) =>
+      (await window.phosphor.invoke('routines:list', `host:${hostId}`)).routines.filter(
+        (r) => !r.archived,
+      ).length,
+  },
+  {
+    capability: 'artifacts.read',
+    key: 'artifacts',
+    read: async (hostId: string) =>
+      (await window.phosphor.invoke('artifacts:list', [])).filter((a) =>
+        artifactOnMachine(a.key, hostId, useRemoteLanesStore.getState().hosts),
+      ).length,
+  },
+] as const
+
+function useHostResources(hostId: string): MachineResources | null {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
   const [counts, setCounts] = useState<Partial<Record<Key, Count>>>({})
   useEffect(() => {
     let current = true
-    const isCurrent = () => current && machineReadGeneration(hostId) === generation
     const host = useRemoteLanesStore.getState().hosts[hostId]
     if (host?.state !== 'ready') {
       setCounts({})
       return
     }
-    const requests = [
-      {
-        capability: 'skills.read',
-        key: 'skills',
-        read: async () => (await window.phosphor.invoke('hosts:skills', hostId)).skills.length,
-      },
-      {
-        capability: 'routines',
-        key: 'routines',
-        read: async () =>
-          (await window.phosphor.invoke('routines:list', `host:${hostId}`)).routines.filter(
-            (r) => !r.archived,
-          ).length,
-      },
-      {
-        capability: 'artifacts.read',
-        key: 'artifacts',
-        read: async () =>
-          (await window.phosphor.invoke('artifacts:list', [])).filter((a) =>
-            artifactOnMachine(a.key, hostId, useRemoteLanesStore.getState().hosts),
-          ).length,
-      },
-    ] as const
-    const granted = requests.filter((item) => host.capabilities.includes(item.capability))
+    const granted = HOST_READS.filter((item) => host.capabilities.includes(item.capability))
     setCounts(Object.fromEntries(granted.map((item) => [item.key, 'loading'])))
-    async function refresh(): Promise<void> {
-      for (const item of granted) {
-        if (!isCurrent()) return
-        let count: Count
-        try {
-          count = await item.read()
-        } catch {
-          count = 'failed'
-        }
-        if (isCurrent()) setCounts((counts) => ({ ...counts, [item.key]: count }))
-      }
-    }
-    void refresh()
+    void readCounts(
+      granted.map((item) => ({ key: item.key, read: () => item.read(hostId) })),
+      () => current && machineReadGeneration(hostId) === generation,
+      (key, count) => setCounts((counts) => ({ ...counts, [key]: count })),
+    )
     return () => {
       current = false
     }
   }, [hostId, generation])
   if (!host) return null
   const ready = host.state === 'ready'
-  const tiles = (
-    [
-      ['skills', 'Skills', 'skills.read'],
-      ['routines', 'Routines', 'routines'],
-      ['artifacts', 'Artifacts', 'artifacts.read'],
-    ] as const
-  ).filter(([, , capability]) => host.capabilities.includes(capability))
+  return {
+    machine: hostId,
+    ready,
+    lanes: host.capabilities.includes('sessions.read')
+      ? {
+          count: host.lanes.length,
+          rows: host.lanes
+            .slice(0, LANES_SHOWN)
+            .map((lane) => (
+              <RemoteLaneRow key={lane.laneId} lane={lane} hostId={hostId} ready={ready} />
+            )),
+        }
+      : null,
+    tiles: HOST_READS.filter((item) => host.capabilities.includes(item.capability)).map(
+      (item) => item.key,
+    ),
+    counts,
+  }
+}
+
+const LOCAL_READS: readonly { key: Key; read: () => Promise<number> }[] = [
+  { key: 'skills', read: async () => (await window.phosphor.invoke('skills:list')).skills.length },
+  {
+    key: 'routines',
+    read: async () =>
+      (await window.phosphor.invoke('routines:list', 'local')).routines.filter((r) => !r.archived)
+        .length,
+  },
+  {
+    key: 'artifacts',
+    read: async () =>
+      (await window.phosphor.invoke('artifacts:list', [])).filter((a) =>
+        artifactOnMachine(a.key, 'local', {}),
+      ).length,
+  },
+]
+
+function useLocalResources(): MachineResources {
+  const lanes = useLocalLanes()
+  const [counts, setCounts] = useState<Partial<Record<Key, Count>>>(() =>
+    Object.fromEntries(LOCAL_READS.map(({ key }) => [key, 'loading'])),
+  )
+  useEffect(() => {
+    let current = true
+    void readCounts(
+      LOCAL_READS,
+      () => current,
+      (key, count) => setCounts((counts) => ({ ...counts, [key]: count })),
+    )
+    return () => {
+      current = false
+    }
+  }, [])
+  return {
+    machine: 'local',
+    ready: true,
+    lanes: {
+      count: lanes.length,
+      rows: lanes
+        .slice(0, LANES_SHOWN)
+        .map((lane) => <LocalLanePreviewRow key={lane.key} lane={lane} />),
+    },
+    tiles: LOCAL_READS.map(({ key }) => key),
+    counts,
+  }
+}
+
+/** A machine's lanes, skills, routines and artifacts: This Mac's (`'local'`) or a Host's. */
+export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element | null {
+  return hostId === 'local' ? <LocalResources /> : <HostResources hostId={hostId} />
+}
+function LocalResources(): React.JSX.Element {
+  return <MachineResourcesCard resources={useLocalResources()} />
+}
+function HostResources({ hostId }: { hostId: string }): React.JSX.Element | null {
+  const resources = useHostResources(hostId)
+  return resources && <MachineResourcesCard resources={resources} />
+}
+
+function MachineResourcesCard({
+  resources: { machine, ready, lanes, tiles, counts },
+}: {
+  resources: MachineResources
+}): React.JSX.Element {
+  const { navigate } = useNavigation()
   return (
     <div className="space-y-4">
       {!ready && <p className="text-text-tertiary text-sm">{REMOTE_NOT_READY}</p>}
-      {host.capabilities.includes('sessions.read') && (
+      {lanes && (
         <div>
           <p className="text-text-secondary mb-2 text-sm">
-            {host.lanes.length} {host.lanes.length === 1 ? 'lane' : 'lanes'}
+            {lanes.count} {lanes.count === 1 ? 'lane' : 'lanes'}
             {ready ? '' : ' · last known'}
           </p>
-          {host.lanes.length > 0 && (
+          {lanes.count > 0 && (
             <fieldset className="machine-lane-preview" aria-label="Lane preview" disabled={!ready}>
-              {host.lanes.slice(0, LANES_SHOWN).map((lane) => (
-                <RemoteLaneRow key={lane.laneId} lane={lane} hostId={hostId} ready={ready} />
-              ))}
-              {host.lanes.length > LANES_SHOWN && (
+              {lanes.rows}
+              {lanes.count > LANES_SHOWN && (
                 <TooltipButton
                   className="machine-view-lanes"
-                  onClick={() => navigate({ to: 'lanes', machine: hostId })}
+                  onClick={() => navigate({ to: 'lanes', machine })}
                 >
-                  View all {host.lanes.length} lanes →
+                  View all {lanes.count} lanes →
                 </TooltipButton>
               )}
             </fieldset>
@@ -105,18 +210,15 @@ export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element
       )}
       {tiles.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          {tiles.map(([key, label]) => {
-            const count = counts[key] ?? (ready ? 'loading' : 'failed')
-            return (
-              <MachineResourceTile
-                key={key}
-                label={label}
-                count={count}
-                disabled={!ready}
-                onOpen={() => openMachinePage(key, hostId)}
-              />
-            )
-          })}
+          {tiles.map((key) => (
+            <MachineResourceTile
+              key={key}
+              label={LABELS[key]}
+              count={counts[key] ?? (ready ? 'loading' : 'failed')}
+              disabled={!ready}
+              onOpen={() => openMachinePage(key, machine)}
+            />
+          ))}
         </div>
       )}
     </div>

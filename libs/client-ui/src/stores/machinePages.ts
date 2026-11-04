@@ -10,10 +10,14 @@ export const useMachinePagesStore = create<{
   artifactsMachine: string
 }>(() => ({ skillsMachine: null, routinesMachine: '', artifactsMachine: '' }))
 
-export function openMachinePage(page: GlobalPage, hostId: string): void {
-  if (page === 'skills') useMachinePagesStore.setState({ skillsMachine: hostId })
-  if (page === 'routines') useMachinePagesStore.setState({ routinesMachine: `host:${hostId}` })
-  if (page === 'artifacts') useMachinePagesStore.setState({ artifactsMachine: hostId })
+/** A page filtered to one machine: `'local'` for This Mac, otherwise a Host id. */
+export function openMachinePage(page: GlobalPage, machine: string): void {
+  if (page === 'skills') useMachinePagesStore.setState({ skillsMachine: machine })
+  if (page === 'routines')
+    useMachinePagesStore.setState({
+      routinesMachine: machine === 'local' ? 'local' : `host:${machine}`,
+    })
+  if (page === 'artifacts') useMachinePagesStore.setState({ artifactsMachine: machine })
   useLayoutStore.getState().setPage(page)
 }
 
