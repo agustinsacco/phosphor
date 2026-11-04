@@ -59,7 +59,7 @@ it('requires ready artifact capability and discards replies after capability los
         <RemoteArtifactsPane sessionId={sessionId} workspacePath={mockRemoteInfo.workspacePath} />,
       )
     })
-    expect(container.textContent).toContain('Not available on remote lanes yet.')
+    expect(container.textContent).toContain('This Host does not offer artifacts to this device.')
     expect(invoke).not.toHaveBeenCalled()
     await act(async () =>
       useRemoteLanesStore.setState({

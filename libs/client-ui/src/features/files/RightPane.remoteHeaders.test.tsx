@@ -67,5 +67,5 @@ it('a refusal still gets a titled header', () => {
   show('terminal', ['sessions.read'])
   expect(shells()).toBe(1)
   expect(container.textContent).toContain('Terminal')
-  expect(container.textContent).toContain('Not available on remote lanes yet.')
+  expect(container.textContent).toContain('This Host does not offer terminals to this device.')
 })

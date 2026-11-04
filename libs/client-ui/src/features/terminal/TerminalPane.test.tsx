@@ -67,7 +67,7 @@ it('viewer shows the read-only hint, never auto-creates, and disables input on v
 })
 it('missing capability retains the unavailable state without starting a local shell', async () => {
   await render()
-  expect(container.textContent).toContain('Not available on remote lanes yet.')
+  expect(container.textContent).toContain('This Host does not offer terminals to this device.')
   expect(container.textContent).not.toContain('Starting shell')
   expect(invoke).not.toHaveBeenCalled()
 })

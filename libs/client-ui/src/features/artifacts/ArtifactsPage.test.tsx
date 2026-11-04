@@ -50,7 +50,7 @@ it.each([
       useMachinePagesStore.setState({ artifactsMachine: MOCK_HOST_ID })
       useRemoteLanesStore.setState({ hosts: {} })
     })
-    expect(container.textContent).toContain('Not available on remote lanes yet.')
+    expect(container.textContent).toContain('Machine not connected. Wait for reconnection.')
     expect(container.textContent).not.toContain('Mac document')
   } finally {
     act(() => root.unmount())

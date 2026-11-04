@@ -381,7 +381,7 @@ it.each([
   }
   await act(async () => useRemoteLanesStore.setState({ hosts: {} }))
   if (sequence.at(-1) !== 'local') {
-    expect(container.textContent).toContain('Not available on remote lanes yet.')
+    expect(container.textContent).toContain('Machine not connected. Wait for reconnection.')
     expect(container.textContent).not.toContain('Local task')
     expect(container.textContent).not.toContain('Remote task')
   }
