@@ -77,3 +77,21 @@ it("names This Mac's move targets as the composer does, by sign-in email first",
     .filter((text) => text.startsWith('Move to'))
   expect(moves).toEqual(['Move to me@example.com'])
 })
+
+const openAccountA = async (): Promise<void> => {
+  await act(async () => root.render(<LocalClaudeProvider />))
+  const row = (): HTMLButtonElement | null =>
+    document.querySelector('[data-account-id="a"] button[aria-expanded]')
+  await vi.waitFor(() => expect(row()?.textContent).toContain('1'))
+  await act(async () => row()!.click())
+}
+const buttonNamed = (text: string): HTMLButtonElement | undefined =>
+  [...document.querySelectorAll('button')].find((button) => button.textContent === text)
+
+it("forces a new reading of This Mac's account usage on Check again", async () => {
+  await openAccountA()
+  await vi.waitFor(() => expect(buttonNamed('Check again')).toBeDefined())
+  invoke.mockClear()
+  await act(async () => buttonNamed('Check again')!.click())
+  expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot', 'a', true)
+})
