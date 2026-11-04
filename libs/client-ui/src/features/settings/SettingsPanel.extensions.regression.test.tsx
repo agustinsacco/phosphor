@@ -53,6 +53,8 @@ const HOST_PACKAGES = [
   },
 ]
 
+type HostPackage = (typeof HOST_PACKAGES)[number]
+let hostPackages: (repositoryId?: string) => readonly HostPackage[] = () => HOST_PACKAGES
 let localPackages: PiPackageEntry[] = []
 const invoke = vi.fn()
 let root: Root
@@ -69,6 +71,7 @@ beforeEach(() => {
   useRemoteLanesStore.setState({ hosts: mixedRemoteHosts(), filter: 'local' })
   prepareHostSettings(machine)
   localPackages = [entry('demo-pack')]
+  hostPackages = () => HOST_PACKAGES
   invoke.mockReset().mockImplementation(async (channel, hostId, section, repositoryId) => {
     if (channel === 'packages:list') return localPackages
     if (channel === 'packages:detect') return { claude: true }
@@ -77,7 +80,7 @@ beforeEach(() => {
     if (channel === 'hosts:settingsRead') {
       const read = await mockSettingsRead(hostId, section, repositoryId)
       return section === 'resources'
-        ? { ...read, resources: { ...read.resources, packages: HOST_PACKAGES } }
+        ? { ...read, resources: { ...read.resources, packages: hostPackages(repositoryId) } }
         : read
     }
     return undefined
@@ -169,4 +172,52 @@ it("warns on a Host's Recommended card when its claude CLI is missing, as This M
   )
   await show(machine.id, 'extensions')
   expect(container.textContent).toContain('Needs the `claude` CLI on your PATH')
+})
+
+const webAccess = (installed: boolean, scope = 'global') => ({
+  spec: 'npm:pi-web-access',
+  name: 'pi-web-access',
+  installed,
+  scope,
+})
+const subagents = HOST_PACKAGES[1]!
+
+it("lists a Host's nested item for a declared but missing package, as This Mac does (A17)", async () => {
+  hostPackages = () => [webAccess(false), subagents]
+  await show(machine.id, 'agent')
+  expect(nested()).toEqual(['Claude Code', 'Web access', 'Subagents'])
+})
+
+it("reads a Host's nested items in the scope line's folder, as This Mac does (A18)", async () => {
+  hostPackages = (repositoryId) =>
+    repositoryId === FOLDER ? [webAccess(true, 'project'), subagents] : [subagents]
+  useSettingsUiStore.setState({ folder: FOLDER })
+  await show(machine.id, 'agent')
+  expect(nested()).toEqual(['Claude Code', 'Web access', 'Subagents'])
+  act(() => useSettingsUiStore.getState().setFolder(null))
+  await settle()
+  expect(nested()).toEqual(['Claude Code', 'Subagents'])
+})
+
+it("never lists a Host's nested items from a read in another scope (B9)", async () => {
+  const pending: ((packages: readonly HostPackage[]) => void)[] = []
+  const read = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string, ...args: unknown[]) => {
+    const result = await read(channel, ...args)
+    if (channel !== 'hosts:settingsRead' || args[1] !== 'resources') return result
+    return new Promise((resolve) =>
+      pending.push((packages) =>
+        resolve({ ...result, resources: { ...result.resources, packages } }),
+      ),
+    )
+  })
+  useSettingsUiStore.setState({ folder: FOLDER })
+  await show(machine.id, 'agent')
+  const folderRead = pending.shift()!
+  act(() => useSettingsUiStore.getState().setFolder(null))
+  await settle()
+  await act(async () => pending.shift()?.([subagents]))
+  await act(async () => folderRead([webAccess(true, 'project'), subagents]))
+  await settle()
+  expect(nested()).toEqual(['Claude Code', 'Subagents'])
 })
