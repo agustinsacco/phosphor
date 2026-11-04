@@ -14,15 +14,25 @@ export interface PiFacts {
   problem?: string
 }
 
-/** A Host's own runtime and its signed self-update. */
-export interface HostRuntime {
+/** A machine's update action: one line about it, and the button that runs it. */
+export interface MachineUpdate {
+  /** Says when the machine cannot run it. */
+  note: string
+  action: string
+  primary?: boolean
+  disabled: boolean
+  run: () => void
+}
+
+/** What runs the machine (Phosphor on This Mac, the Host service), and its update. */
+export interface MachineRuntime {
+  /** Names the rows: "Phosphor version", "Host version". */
+  product: 'Phosphor' | 'Host'
   version: string
   platform: string
-  configPath: string
-  /** One line about the update; says when the Host cannot run it. */
-  updateNote: string
-  canUpdate: boolean
-  update: () => void
+  /** A Host's config file; This Mac's settings have no single one. */
+  configPath?: string
+  update: MachineUpdate
 }
 
 /** One machine's Advanced blocks. A block renders only when its data is present. */
@@ -41,7 +51,7 @@ export interface AdvancedSource {
   agentDir?: string
   /** The PATH pi runs with. */
   path?: readonly string[]
-  host?: HostRuntime
+  runtime?: MachineRuntime
   /** Allowlisted environment variable names, never values. */
   environment?: readonly { name: string; available: boolean; passed: boolean }[]
   /** pi's loose resources; null while loading. */

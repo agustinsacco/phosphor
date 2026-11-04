@@ -39,13 +39,17 @@ export function useHostAdvanced(): AdvancedSource {
     agentDir: runtime?.pi?.agentDir ?? runtime?.piAgentDir,
     path: runtime?.path,
     environment: runtime?.environment,
-    host: runtime && {
+    runtime: runtime && {
+      product: 'Host',
       version: runtime.hostVersion,
       platform: runtime.platform,
       configPath: runtime.configPath,
-      updateNote: `Install the newest signed Phosphor Host release on ${machine.label}. Its lanes pause while it restarts, and a failed health check brings the old version back.${programs.available ? '' : ' Needs Host terminal access.'}`,
-      canUpdate: programs.available && !programs.busy,
-      update: () => programs.task({ task: 'host.update' }),
+      update: {
+        note: `Install the newest signed Phosphor Host release on ${machine.label}. Its lanes pause while it restarts, and a failed health check brings the old version back.${programs.available ? '' : ' Needs Host terminal access.'}`,
+        action: 'Pause and update',
+        disabled: !programs.available || programs.busy,
+        run: () => programs.task({ task: 'host.update' }),
+      },
     },
     footnote:
       'Secret values are never returned. Set them in the Host service’s environment, not in this page or the control plane; an interactive SSH shell’s variables may differ from the service.',

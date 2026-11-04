@@ -3,7 +3,8 @@ import { Button, Row, SectionTitle, SettingsNotice } from '@/components/form'
 import type { PiResources } from '@shared/models'
 import { SectionStatusNotice } from '../sectionStatus'
 import { MaintenanceSection } from './MaintenanceSection'
-import type { AdvancedSource, HostRuntime, PiFacts } from './source'
+import { MachineRuntimeRows } from './MachineRuntimeRows'
+import type { AdvancedSource, PiFacts } from './source'
 
 /**
  * pi health and the machine's own diagnostics, on every machine. This Mac adds
@@ -17,7 +18,7 @@ export function AdvancedView({ source }: { source: AdvancedSource }): React.JSX.
       <SectionTitle>Advanced</SectionTitle>
       <SectionStatusNotice status={source.status} title="Couldn’t check pi" />
       {source.notice && <SettingsNotice {...source.notice} />}
-      {source.host && <HostRows host={source.host} />}
+      {source.runtime && <MachineRuntimeRows runtime={source.runtime} />}
       {pi !== undefined && <PiHealthRow pi={pi} />}
       {source.agentDir && (
         <Row title="pi agent directory" description="pi's settings, sessions and credentials.">
@@ -65,24 +66,6 @@ function PiHealthRow({ pi }: { pi: PiFacts | null }): React.JSX.Element {
         {pi ? (pi.ok ? (pi.version ? `v${pi.version}` : 'found') : (pi.problem ?? 'error')) : '…'}
       </span>
     </Row>
-  )
-}
-
-function HostRows({ host }: { host: HostRuntime }): React.JSX.Element {
-  return (
-    <>
-      <Row title="Host updates" description={host.updateNote}>
-        <Button disabled={!host.canUpdate} onClick={host.update}>
-          Pause and update
-        </Button>
-      </Row>
-      <Row title="Host version" description={host.platform}>
-        <code className="font-mono text-sm">{host.version}</code>
-      </Row>
-      <Row title="Host config" description="Folders, policy and the allowlisted environment.">
-        <code className="break-all font-mono text-sm">{host.configPath}</code>
-      </Row>
-    </>
   )
 }
 

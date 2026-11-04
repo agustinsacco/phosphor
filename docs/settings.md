@@ -37,7 +37,7 @@ the form factor.
 | MCP Connectors   | machine, both     | a machine           | yes     | yes     | pi's built-in MCP: curated OAuth catalog + custom servers, per machine or folder                         | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`; a Host's own           |
 | Folders          | machine, both     | per machine         | yes     | yes     | This Mac: recent folders and sandboxes; a Host: registered folders and trust                             | recents (This Mac); the Host, through `hosts:*Repository`             |
 | Optimization     | machine, This Mac | `localLanes`        | yes     | no      | Headroom tool-result compression + the Advisor                                                           | Phosphor prefs; `headroom:*` lifecycle in main                        |
-| Advanced         | machine, both     | per machine         | yes     | yes     | pi health, PATH and agent dir; This Mac: raw editors, maintenance, resources; a Host: update and runtime | the pi files it edits; maintenance prefs                              |
+| Advanced         | machine, both     | per machine         | yes     | yes     | Version and update, pi health, PATH, agent dir; This Mac: raw editors, maintenance, resources; Host: env | the pi files it edits; maintenance prefs                              |
 
 A machine section is listed for This Mac when the client has `localLanes`, and for a
 Host when it has `machineSettings`; there a Host writes its own files through
@@ -863,10 +863,14 @@ and the raw editor.
   the login shell's PATH on This Mac). A Host reports its pi as additive
   `advanced.pi { version, path, agentDir }`; a Host without it shows **Update this
   Host to see its pi** and its agent directory and PATH only.
-- **Host updates**, a Host only: **Pause and update** runs the Host's own signed
-  `phosphor update` as a reviewed task, and needs Host terminal access. Beside it
-  the Host version, platform and config path, and **Environment availability**:
-  each allowlisted variable's name and whether it reaches pi, never its value.
+- **Updates and version**, first on both, in the same rows (`MachineRuntimeRows`):
+  This Mac's Phosphor version and platform (`app:about`) with the app's own update
+  row, the one About shows (**Check now**, then **Restart to update** or
+  **Download**); a Host's version, platform and config path with **Pause and
+  update**, which runs the Host's own signed `phosphor update` as a reviewed task
+  and needs Host terminal access.
+- **Environment availability**, a Host only: each allowlisted variable's name and
+  whether it reaches pi, never its value.
 - **Raw file editors**, This Mac only (Monaco JSON) for `~/.pi/agent/settings.json`
   and `models.json`, with a "restart sessions to apply" note. The escape hatch the
   Agent tab points at when a file is too broken to edit structurally.
