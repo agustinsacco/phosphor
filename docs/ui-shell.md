@@ -236,9 +236,11 @@ Signed-out windows have no machine switcher or remote groups.
   About.
 - **Account row**: a 28 px avatar, name and GitHub login when signed in, or
   a neutral avatar and Sign in when signed out. Its popover opens above the
-  row. Signed in, it shows a 40 px avatar, name, login and email, Machines
-  with an online count, Settings with its shortcut, and Sign out. Signed out,
-  it offers optional GitHub sign-in and Settings. Signing in shows browser
+  row. It always lists Machines with an online count: This Mac where the
+  client runs local lanes, plus every Host that is up. Signed in, it also
+  shows a 40 px avatar, name, login and email above it, then Settings with its
+  shortcut and Sign out. Signed out, Machines is followed by optional GitHub
+  sign-in and Settings. Signing in shows browser
   progress and Cancel. The gear opens Settings directly. Keyboard navigation,
   Escape and outside-click dismissal return focus to the row. No token reaches
   this UI ([settings.md](settings.md#phosphor-account)); Settings → Phosphor
