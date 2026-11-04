@@ -9,6 +9,8 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { DESKTOP_PLATFORM, PlatformProvider } from '@/platform/Platform'
 import { MachinesPage } from './MachinesPage'
+import { useMachinePagesStore } from '@/stores/machinePages'
+import { useLayoutStore } from '@/stores/layout'
 import { OnlineAndProviders } from './onboarding/OnlineAndProviders'
 import { CLAUDE_PROVIDER, MACHINE } from './__fixtures__/control'
 
@@ -55,6 +57,9 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
   if (channel === 'hosts:tailscaleStatus') return { code: tailscale }
   if (channel === 'app:about') return { appVersion: '1.4.0', platform: 'darwin', arch: 'arm64' }
   if (channel === 'hosts:settingsRead') return { advanced: { pi: { version: '0.70.1' } } }
+  if (channel === 'skills:list') return { skills: [{ name: 'a' }, { name: 'b' }] }
+  if (channel === 'routines:list') return { routines: [{ archived: false }, { archived: true }] }
+  if (channel === 'artifacts:list') return [{ key: 'local-a' }, { key: `host:${HOST.id}/lane:l/a` }]
   return null
 })
 
@@ -311,4 +316,55 @@ it("C3: This Mac's Machine views include Machine files, as a Host's do", async (
     'Settings',
     'Machine files',
   ])
+})
+
+it("C2: This Mac's detail lists On this machine: its lanes, skills, routines and artifacts", async () => {
+  const lane = (n: number, mtimeMs: number) => ({
+    path: `/sessions/${n}.jsonl`,
+    sessionId: `s${n}`,
+    cwd: '/work/app',
+    name: `Lane ${n}`,
+    mtimeMs,
+  })
+  const openDiskSession = vi.fn(async () => 'opened')
+  const original = useSessionsStore.getState()
+  useSessionsStore.setState({
+    disk: { '/work/app': [lane(1, 1), lane(2, 3), lane(3, 2), lane(4, 0)] } as never,
+    gitByCwd: { '/work/app': { isRepo: true, branch: 'feature/login' } } as never,
+    openDiskSession: openDiskSession as never,
+  })
+  try {
+    await openThisMac()
+    const card = container.querySelector<HTMLElement>('[aria-label="On this machine"]')
+    expect(card?.textContent).toContain('4 lanes')
+    const rows = [...(card?.querySelectorAll<HTMLElement>('.machine-lane-preview .lane-row') ?? [])]
+    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
+      'Lane 2',
+      'Lane 3',
+      'Lane 1',
+    ])
+    expect(rows[0]?.textContent).toContain('feature/login')
+    expect(button('View all 4 lanes →')).toBeDefined()
+    const tile = (label: string) =>
+      [...(card?.querySelectorAll('button') ?? [])].find((b) => b.textContent?.startsWith(label))
+    expect(tile('Skills')?.textContent).toBe('Skills2')
+    expect(tile('Routines')?.textContent).toBe('Routines1')
+    expect(tile('Artifacts')?.textContent).toBe('Artifacts1')
+    expect(invoke).toHaveBeenCalledWith('routines:list', 'local')
+    await click(tile('Routines'))
+    expect(useMachinePagesStore.getState().routinesMachine).toBe('local')
+    expect(useLayoutStore.getState().page).toBe('routines')
+    useLayoutStore.getState().setPage(null)
+    await click(rows[0])
+    expect(openDiskSession).toHaveBeenCalledWith(
+      '/work/app',
+      expect.objectContaining({ name: 'Lane 2' }),
+    )
+  } finally {
+    useSessionsStore.setState({
+      disk: original.disk,
+      gitByCwd: original.gitByCwd,
+      openDiskSession: original.openDiskSession,
+    })
+  }
 })
