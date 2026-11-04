@@ -112,3 +112,23 @@ it('says a connected Host does not let this device read providers, rather than "
   expect(container.textContent).not.toContain('once this computer is connected')
   expect(invoke).not.toHaveBeenCalled()
 })
+it('says "Checking providers…" while the first read is in flight', async () => {
+  invoke.mockImplementationOnce(() => new Promise(() => {}))
+  await render()
+  expect(container.querySelector('[role=status]')?.textContent).toContain('Checking providers…')
+})
+it("reuses This Mac's last provider read on open, and reads again on Check again", async () => {
+  const local = vi.fn(async () => [{ id: 'anthropic', name: 'Claude', status: 'ready' }])
+  vi.stubGlobal('phosphor', { invoke: local })
+  const open = async (refresh: number) => {
+    act(() => root.unmount())
+    root = createRoot(container)
+    await act(async () => root.render(<MachineProviders hostId="local" refresh={refresh} />))
+  }
+  await open(0)
+  await open(0)
+  expect(container.querySelector('[data-provider=anthropic]')?.textContent).toContain('Signed in')
+  expect(local).toHaveBeenCalledOnce()
+  await act(async () => root.render(<MachineProviders hostId="local" refresh={1} />))
+  expect(local).toHaveBeenCalledTimes(2)
+})
