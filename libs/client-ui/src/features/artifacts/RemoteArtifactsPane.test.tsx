@@ -117,7 +117,7 @@ it.each(['missing capability', 'failed refresh'] as const)(
       )
       expect(container.textContent).toContain(
         cause === 'failed refresh'
-          ? 'Not available on remote lanes yet.'
+          ? "Could not read this lane's artifacts."
           : 'This Host does not offer artifacts to this device.',
       )
       expect(container.textContent).toContain('Connected')
@@ -190,6 +190,54 @@ it('keeps the viewer mounted across later refreshes and reloads only on a lane s
     await act(async () => render(other))
     expect(container.textContent).toContain('Loading artifacts')
     expect(container.textContent).not.toContain('Artifact viewer')
+  } finally {
+    act(() => root.unmount())
+    useRemoteLanesStore.setState({ hosts: {} })
+    vi.unstubAllGlobals()
+  }
+})
+
+it('a failed first read offers Retry, and a later success shows the artifacts', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const hostId = mockRemoteInfo.target?.kind === 'remote' ? mockRemoteInfo.target.hostId : ''
+  const sessionId = mockRemoteInfo.sessionId
+  useSessionsStore.setState({
+    activeSessionId: sessionId,
+    live: { [sessionId]: { ...mockRemoteInfo, phosphorId: sessionId } },
+  })
+  let offline = true
+  const invoke = vi.fn(async () => {
+    if (offline) throw new Error('offline')
+    return []
+  })
+  vi.stubGlobal('phosphor', { invoke })
+  useRemoteLanesStore.setState({
+    hosts: {
+      [hostId]: {
+        connectionToken: 'test-connection-1',
+        state: 'ready',
+        capabilities: ['artifacts.read'],
+        lanes: [],
+        repositories: [],
+      },
+    },
+  })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  const retry = () =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
+  try {
+    await act(async () =>
+      root.render(
+        <RemoteArtifactsPane sessionId={sessionId} workspacePath={mockRemoteInfo.workspacePath} />,
+      ),
+    )
+    expect(container.textContent).toContain("Could not read this lane's artifacts.")
+    offline = false
+    await act(async () => retry()?.click())
+    expect(invoke).toHaveBeenCalledTimes(2)
+    expect(container.textContent).toContain('Artifact viewer')
+    expect(retry()).toBeUndefined()
   } finally {
     act(() => root.unmount())
     useRemoteLanesStore.setState({ hosts: {} })
