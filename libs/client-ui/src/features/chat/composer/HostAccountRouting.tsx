@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClaudeSessionAccount } from '@shared/models'
+import { claudeSessionAccount } from '@shared/claude-session-account'
 import { confirmSettingsAccess } from '@/features/settings/machine/settingsAccess'
 import { laneAccountId, machineCandidate, moveTargets } from '@/lib/claudeGateway'
 import {
@@ -138,29 +139,17 @@ function useHostLaneAccount(
   return { status: state.status === 'read' ? 'unread' : state.status, reload }
 }
 
-/**
- * A Host lane's account as This Mac's `claude:sessionAccount` describes one. The
- * alternative follows the session runtime's rule (`alternativeTo`): the first
- * other account not itself on hold.
- */
-function hostSessionAccount(
-  providers: HostProviders,
-  laneId: string,
-  nowMs = Date.now(),
-): ClaudeSessionAccount | null {
+/** A Host lane's account as This Mac's `claude:sessionAccount` describes one. */
+function hostSessionAccount(providers: HostProviders, laneId: string): ClaudeSessionAccount | null {
   const { accounts } = providers
-  const account = accounts.find((a) => a.id === laneAccountId(accounts, laneId))
-  if (!account) return null
-  const holding = (until: number | null) => until !== null && until > nowMs
-  const other = accounts.find((a) => a.id !== account.id && !holding(a.cooldownUntil))
-  return {
-    id: account.id,
-    label: account.label,
-    ...(account.email ? { email: account.email } : {}),
-    ...(account.plan ? { plan: account.plan } : {}),
-    total: accounts.length,
-    mode: providers.mode,
-    cooldownUntil: holding(account.cooldownUntil) ? account.cooldownUntil : null,
-    alternative: other ? { id: other.id, label: other.email ?? other.label } : null,
-  }
+  const accountId = laneAccountId(accounts, laneId)
+  if (!accountId) return null
+  const holds = new Map(accounts.map((a) => [a.id, a.cooldownUntil]))
+  return claudeSessionAccount(
+    accounts,
+    accountId,
+    providers.mode,
+    (id) => holds.get(id),
+    Date.now(),
+  )
 }
