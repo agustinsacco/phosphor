@@ -24,8 +24,14 @@ it('refuses nothing a ready Host offers', () => {
   expect(hostFeatureRefusal(ready, 'sessions.read')).toBeUndefined()
 })
 
-it('asks for a Host update in the fixed words', () => {
-  expect(needsNewerHost('pins and lane markers')).toBe(
-    `A newer Host is needed for pins and lane markers. ${HOST_TOO_OLD}`,
-  )
+// The three refusals a merge moves onto needsNewerHost, byte for byte.
+it.each([
+  // features/sessions/remoteRepositoryOrder.ts
+  ['Moving folders needs', `Moving folders needs a newer Host. ${HOST_TOO_OLD}`],
+  // stores/remoteLaneMarks.ts
+  ['Pins and lane markers need', `Pins and lane markers need a newer Host. ${HOST_TOO_OLD}`],
+  // features/machines/HostFolderBrowser.tsx
+  ['Hidden folders need', `Hidden folders need a newer Host. ${HOST_TOO_OLD}`],
+])('asks for a Host update as %s … does today', (subject, text) => {
+  expect(needsNewerHost(subject)).toBe(text)
 })
