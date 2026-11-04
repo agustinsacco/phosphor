@@ -79,6 +79,11 @@ vi.mock('@/features/extension-ui/ExtensionUiHosts', () => ({
 vi.mock('@/features/writing/TextFieldMenu', () => ({ TextFieldMenu: () => null }))
 vi.mock('@/components/ContextMenu', () => ({ ContextMenuHost: () => null }))
 vi.mock('@/components/PromptHost', () => ({ PromptHost: () => null }))
+vi.mock('./GettingStartedScreen', () => ({
+  GettingStartedScreen: ({ onDone }: { onDone: () => void }) => (
+    <button onClick={onDone}>Recommendations done</button>
+  ),
+}))
 
 function stubApi(health: { ok: boolean; reason?: string; message?: string; version?: string }) {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -194,3 +199,69 @@ it.each([true, false])(
     }
   },
 )
+
+/** pi missing at launch, with a one-click install whose exit the test sends. */
+function stubInstall(resumeTarget: object = { kind: 'none' }) {
+  stubApi({ ok: false })
+  let health: object = { ok: false, reason: 'too-old', message: 'pi is too old.', version: '0.1.0' }
+  const job: { exit?: (code: number) => void } = {}
+  const invoke = vi.fn(async (channel: string) =>
+    channel === 'pi:health'
+      ? health
+      : channel === 'packages:installPi'
+        ? { jobId: 'install' }
+        : channel === 'pi:listLiveSessions'
+          ? []
+          : resumeTarget,
+  )
+  Object.assign(window.phosphor, {
+    invoke,
+    onPackagesJobOutput: () => () => {},
+    onPackagesJobExit: (_id: string, onExit: (code: number) => void) => {
+      job.exit = onExit
+      return () => (job.exit = undefined)
+    },
+  })
+  useWorkspacesStore.setState({ homePath: '/mac' })
+  useRemoteLanesStore.setState({ filter: 'local' })
+  return { invoke, job, installed: () => (health = { ok: true, version: '1.2.0' }) }
+}
+
+async function renderApp(test: (container: HTMLElement) => Promise<void>) {
+  const container = document.createElement('div'),
+    root = createRoot(container)
+  document.body.append(container)
+  try {
+    await act(async () => root.render(<App />))
+    await test(container)
+  } finally {
+    act(() => root.unmount())
+    container.remove()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  }
+}
+
+const button = (container: HTMLElement, text: string) =>
+  [...container.querySelectorAll('button')].find((b) => b.textContent?.includes(text))
+
+it('hears a pi install that finishes while This Mac’s home is away', async () => {
+  const { invoke, job, installed } = stubInstall()
+  await renderApp(async (container) => {
+    await act(async () => button(container, 'Update pi')?.click())
+    expect(invoke).toHaveBeenCalledWith('packages:installPi')
+    const id = mockRemoteInfo.sessionId
+    await act(async () =>
+      useSessionsStore.setState({
+        activeSessionId: id,
+        live: { [id]: { ...mockRemoteInfo, phosphorId: id } },
+      }),
+    )
+    expect(container.textContent).not.toContain('pi needs an update')
+    installed()
+    await act(async () => job.exit?.(0))
+    await act(async () => useSessionsStore.setState({ activeSessionId: null }))
+    expect(invoke.mock.calls.filter(([channel]) => channel === 'pi:health')).toHaveLength(2)
+    expect(button(container, 'Recommendations done')).toBeDefined()
+  })
+})
