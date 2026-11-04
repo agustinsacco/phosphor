@@ -156,7 +156,7 @@ describe('ComposerField', () => {
     it("turns the keyboard's autocorrect off and keeps its spelling suggestions", () => {
       render(<Harness />)
       expect(field().getAttribute('autocorrect')).toBe('off')
-      expect(field().spellcheck).toBe(true)
+      expect(field().getAttribute('spellcheck')).not.toBe('false')
     })
 
     it('adds a line on Return instead of sending', () => {

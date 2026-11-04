@@ -16,7 +16,9 @@ The composer is one small field with several ways in.
   `lib/softKeyboard.ts`), Return adds a line like Shift+Enter and the send
   button sends; Cmd/Ctrl/Alt+Enter from a connected keyboard still sends.
   There, the shared send button also closes the keyboard so the reply has the
-  screen.
+  screen, and the field sets `autocorrect="off"`: the keyboard stops rewriting
+  paths, commands and identifiers, while spellcheck underlines and the
+  keyboard's suggestion bar still fix a misspelled word.
 - **Two groups and a strip.** The row under the field holds controls only.
   Left, what the agent gets: attach and the [Swarm](#swarm-authorization)
   pill. Right, the engine then go: the model · thinking split chip, then

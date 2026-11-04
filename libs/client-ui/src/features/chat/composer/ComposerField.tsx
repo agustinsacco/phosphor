@@ -13,7 +13,7 @@ import {
 import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
 import { recordTextareaEdit } from '@/lib/textareaUndo'
 import { hostPlatform } from '@/lib/shortcuts'
-import { enterAddsLine } from '@/lib/softKeyboard'
+import { enterAddsLine, softKeyboard } from '@/lib/softKeyboard'
 import { useGhostFit } from '@/lib/writing/useGhostFit'
 import { useWritingStore } from '@/stores/writing'
 import { FORMATTING_ACTIONS, type FormattingAction } from './formattingActions'
@@ -28,6 +28,8 @@ import { FORMATTING_ACTIONS, type FormattingAction } from './formattingActions'
  *
  * **Enter sends on a hardware keyboard,** even on a "- " line. ⇧Enter, and Return
  * on a phone's soft keyboard (`enterAddsLine`), add a line and continue a list.
+ * There the keyboard's autocorrect is off: it rewrites paths and commands, and
+ * the spellcheck underline and suggestion bar still fix a misspelled word.
  *
  * **Autocomplete** (Settings → Writing) draws its suggestion as ghost text in
  * a mirror layer laid over the textarea, so the textarea stays the only thing
@@ -295,6 +297,7 @@ export function ComposerField({
       <textarea
         aria-label="Chat message"
         data-composer-input=""
+        autoCorrect={softKeyboard() ? 'off' : undefined}
         style={{
           // Painted above the mirror, so the caret and selection stay on top.
           position: 'relative',
