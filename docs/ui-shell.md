@@ -578,7 +578,7 @@ the first directory load shows skeleton rows, a later refresh shows "Updating"
 beside the Hosts heading without hiding them, and this computer's checks,
 provider lists, Claude detail and On this machine counts each show a spinner or
 skeleton until their own read settles. A failed count reads Unavailable, never
-zero. Offline and account errors are explicit and offer retry.
+zero, until Check again reads it again. Offline and account errors are explicit and offer retry.
 
 A Host's detail has one **Back to machines** breadcrumb, then a compact identity
 header (an h2 label with Rename, the status pill and a **Machine actions** menu containing
@@ -634,6 +634,8 @@ Host version, its pi version where this device may read its settings, enrollment
 and machine id. On this machine previews at most three lanes using the shared
 sidebar row presentation, with a View all link when there are more, alongside
 capability-gated skills, routines and artifact counts linked to machine-filtered pages. Down lanes stay labelled last known.
+The counts are the machine's own: skills without a workspace's, routines that are not
+archived. The health check counts skills and routines the same way.
 This computer's On this machine is the same card: its newest lanes from the sidebar's
 sessions, with the same content (state dot, title, time, branch) on the same row
 primitive but without the lane menu, and its own skills, routines and artifact counts.
@@ -656,8 +658,9 @@ and its providers, and **Update Phosphor…**, which opens Settings → About wh
 app can check for updates. The same Overview / Settings / Machine files navigation
 follows: Settings opens Settings → Accounts for this computer, and Machine files
 browses its recent folders read-only in the same dialog and tree. Readiness lists pi, Claude Code and Tailscale; Providers lists its subscriptions
-with Settings → Accounts' rows and **Provider settings**, opening on Accounts' last
-read (each read runs one `pi auth check` per provider) and reading again on Check again; Details holds its
+with Settings → Accounts' rows and **Provider settings**, opening on the last read by
+Accounts or the health check, or one still in flight (each read runs one `pi auth check`
+per provider), and reading again on a Check again made while it is open; Details holds its
 platform and architecture, Phosphor version, pi version and live lane count; the terminal opens a shell at home. It
 has no Connection row or Remove.
 
