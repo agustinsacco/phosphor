@@ -205,10 +205,12 @@ describe('a Host', () => {
   it('reads "Checking…" only while a check is in flight, not during a Refresh', async () => {
     await show()
     let answer!: (value: MachineSettings) => void
-    invoke.mockImplementation(async (channel: string) =>
-      channel === 'hosts:settingsRead' || channel === 'hosts:settingsCheck'
-        ? new Promise<MachineSettings>((resolve) => (answer = resolve))
-        : undefined,
+    install(
+      vi.fn(async (channel: string) =>
+        channel === 'hosts:settingsRead' || channel === 'hosts:settingsCheck'
+          ? new Promise<MachineSettings>((resolve) => (answer = resolve))
+          : undefined,
+      ),
     )
     await click(button('Refresh'))
     expect(has('Checking…')).toBe(false)
@@ -239,11 +241,13 @@ describe('a Host', () => {
 
   it('starts no sign-in when the Host did not confirm the catalogue Add', async () => {
     await show()
-    invoke.mockImplementation(async (channel: string) => {
-      if (channel === 'hosts:settingsRead') return read
-      if (channel === 'hosts:settingsPatch') throw new Error('stale')
-      return undefined
-    })
+    install(
+      vi.fn(async (channel: string) => {
+        if (channel === 'hosts:settingsRead') return read
+        if (channel === 'hosts:settingsPatch') throw new Error('stale')
+        return undefined
+      }),
+    )
     vi.mocked(promptChoice).mockResolvedValue('save')
     await click(button('Add', row('linear')))
     expect(calls('hosts:machineTask')).toEqual([])
