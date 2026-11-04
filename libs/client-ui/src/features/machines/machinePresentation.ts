@@ -4,8 +4,14 @@ import {
   type MachineView,
   type Readiness,
 } from '@shared/control-api'
-import type { IpcInvokeMap } from '@shared/ipc'
-import type { ClaudeStatus, PiHealth } from '@shared/models'
+import type { MachineClaude } from '@shared/host-protocol-machine'
+import {
+  MIN_CLAUDE_CONTEXT_VERSION,
+  type ClaudeStatus,
+  type PiHealth,
+  type PiPackageEntry,
+} from '@shared/models'
+import { meetsMinimum } from '@shared/version'
 
 export const HOST_GUIDE = 'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md'
 export const HOST_INSTALL =
@@ -167,11 +173,36 @@ export function readinessChecks(
     },
   ]
 }
-/** A Host's live Claude Code detail, which names the missing part. */
-export function claudeReadiness(
-  detail: NonNullable<IpcInvokeMap['hosts:claude']['result']>,
-  configurable = true,
-): ReadinessCheck {
+/**
+ * This computer's Claude Code in a Host's terms. The provider rule is main's
+ * refusal (`provider-detect.ts`): every listed copy installed at the minimum.
+ */
+export function localClaude(
+  packages: readonly PiPackageEntry[],
+  status: ClaudeStatus,
+): MachineClaude {
+  const copies = packages.filter((pkg) => pkg.name === '@saccolabs/pi-claude-cli')
+  const usable = (pkg: PiPackageEntry) =>
+    pkg.installed && meetsMinimum(pkg.version, MIN_CLAUDE_CONTEXT_VERSION)
+  return {
+    provider:
+      copies.length && copies.every(usable)
+        ? 'ok'
+        : copies.some((pkg) => pkg.installed)
+          ? 'outdated'
+          : 'missing',
+    cli: status.binary.found ? 'ok' : 'missing',
+    auth:
+      status.auth.loggedIn === true
+        ? 'ok'
+        : status.auth.loggedIn === false
+          ? 'signed-out'
+          : 'unknown',
+  }
+}
+
+/** A machine's Claude Code detail, which names the missing part. */
+export function claudeReadiness(detail: MachineClaude, configurable = true): ReadinessCheck {
   const name = 'Claude Code'
   const setup = claudeSetup(configurable)
   if (detail.provider !== 'ok')
@@ -190,29 +221,30 @@ export function claudeReadiness(
       detail: `Claude Code is missing. ${setup.text}`,
       command: setup.command,
     }
-  return {
-    name,
-    ok: detail.auth === 'ok',
-    short: `Claude Code ${detail.auth}`,
-    detail:
-      detail.auth === 'ok'
-        ? 'Signed in and ready'
-        : detail.auth === 'signed-out'
-          ? claudeSignIn(configurable).text
-          : 'Claude Code sign-in status is unknown. Run phosphor setup on this machine.',
-    command:
-      detail.auth === 'ok'
-        ? undefined
-        : detail.auth === 'signed-out'
-          ? claudeSignIn(configurable).command
-          : 'phosphor setup',
-  }
+  if (detail.auth === 'ok')
+    return { name, ok: true, short: 'Claude Code ok', detail: 'Signed in and ready' }
+  const signIn = claudeSignIn(configurable)
+  return detail.auth === 'signed-out'
+    ? {
+        name,
+        ok: false,
+        short: 'Claude Code signed out',
+        detail: signIn.text,
+        command: signIn.command,
+      }
+    : {
+        name,
+        ok: false,
+        short: 'Claude Code unknown',
+        detail: `Claude Code sign-in status is unknown. ${configurable ? 'Check it under Settings → Extensions → Claude Code.' : 'Run phosphor setup on this machine.'}`,
+        command: configurable ? undefined : 'phosphor setup',
+      }
 }
 
 /** This computer's pi and Claude Code. Each read is `undefined` until it settles. */
 export function localChecks(
   health: PiHealth | null | undefined,
-  claude: ClaudeStatus | null | undefined,
+  claude: MachineClaude | null | undefined,
   failed: boolean,
 ): ReadinessCheck[] {
   return [
@@ -228,25 +260,15 @@ export function localChecks(
         : 'Could not check pi.',
       command: health && !health.ok ? PI_INSTALL : undefined,
     },
-    {
-      name: 'Claude Code',
-      ok: claude?.binary.found === true && claude.auth.loggedIn === true,
-      loading: claude === undefined && !failed,
-      short: !claude
-        ? 'Not checked'
-        : !claude.binary.found
-          ? 'Claude Code missing'
-          : claude.auth.loggedIn
-            ? 'Signed in'
-            : 'Claude Code signed out',
-      detail: !claude
-        ? 'Could not check Claude Code.'
-        : !claude.binary.found
-          ? `Claude Code is missing. ${CLAUDE_SETUP}`
-          : claude.auth.loggedIn
-            ? 'Signed in and ready'
-            : claudeSignIn(true).text,
-    },
+    claude
+      ? claudeReadiness(claude)
+      : {
+          name: 'Claude Code',
+          ok: false,
+          loading: claude === undefined && !failed,
+          short: 'Not checked',
+          detail: 'Could not check Claude Code.',
+        },
   ]
 }
 

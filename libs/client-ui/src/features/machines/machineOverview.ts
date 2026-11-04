@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { machineStatus, type MachineStatus, type MachineView } from '@shared/control-api'
 import type { HostConnectionView } from '@shared/ipc'
-import type { ClaudeStatus, PiHealth } from '@shared/models'
+import type { MachineClaude } from '@shared/host-protocol-machine'
+import type { PiHealth } from '@shared/models'
 import { localMachineLabel } from '@/lib/localMachine'
 import { usePlatform } from '@/platform/Platform'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
@@ -11,6 +12,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import {
   claudeReadiness,
   localChecks,
+  localClaude,
   platformName,
   readinessChecks,
   readinessFreshness,
@@ -92,13 +94,13 @@ function useLive(): React.RefObject<boolean> {
 
 interface LocalReads {
   health?: PiHealth | null
-  claude?: ClaudeStatus | null
+  claude?: MachineClaude | null
   failed: boolean
   busy: boolean
   at: number | null
 }
 
-/** This computer's pi and Claude Code reads, again on each Check again. */
+/** This computer's pi and Claude Code (provider, CLI, sign-in) reads, again on each Check again. */
 function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () => void } {
   const [round, setRound] = useState(0)
   const [state, setState] = useState<LocalReads>({ failed: false, busy: false, at: null })
@@ -111,7 +113,12 @@ function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () 
     const failed = (): void => merge({ failed: true })
     void Promise.allSettled([
       window.phosphor.invoke('pi:health').then((health) => merge({ health }), failed),
-      window.phosphor.invoke('packages:claudeStatus').then((claude) => merge({ claude }), failed),
+      Promise.all([
+        window.phosphor.invoke('packages:list'),
+        window.phosphor.invoke('packages:claudeStatus'),
+      ])
+        .then(([packages, status]) => merge({ claude: localClaude(packages, status) }))
+        .catch(failed),
     ]).then(() => merge(round ? { busy: false, at: Date.now() } : {}))
     return () => {
       live = false

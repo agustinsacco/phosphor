@@ -604,6 +604,7 @@ but its address is not published" and the fix appears under Connection:
 `phosphor setup` on a Mac, `sudo tailscale set --operator=$USER && phosphor setup`
 on Linux. The Claude Code row names the missing part (provider missing or
 outdated, Claude Code missing, signed out); older Hosts keep the single status.
+This computer's row names the same parts, read from its pi packages and Claude Code.
 A missing or outdated Claude Code has one remedy on every machine:
 Settings → Extensions → Claude Code, which installs it or says how. A Host whose
 Settings cannot open (unconnected, or too old) offers `phosphor setup` instead.

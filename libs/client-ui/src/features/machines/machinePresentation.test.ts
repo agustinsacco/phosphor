@@ -129,7 +129,7 @@ it('C7: a Host that can open Settings signs in to Claude Code there, as This Mac
   const live = { provider: 'ok', cli: 'ok', auth: 'signed-out' } as const
   const local = localChecks(
     { ok: true, version: '1.0.0' } as never,
-    { binary: { found: true }, auth: { loggedIn: false } } as never,
+    { provider: 'ok', cli: 'ok', auth: 'signed-out' },
     false,
   ).find((check) => check.name === 'Claude Code')
   for (const check of [

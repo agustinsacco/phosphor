@@ -9,7 +9,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { MachinesPage } from './MachinesPage'
 import { OnlineAndProviders } from './onboarding/OnlineAndProviders'
-import { MACHINE } from './__fixtures__/control'
+import { CLAUDE_PROVIDER, MACHINE } from './__fixtures__/control'
 
 // B6: the Machines page drew This Mac and a Host with two rows and two details,
 // and they drifted apart. Each case failed on the two-copy page.
@@ -49,6 +49,7 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
       { id: 'openai-codex', name: 'ChatGPT', status: 'not_ready' },
     ]
   if (channel === 'hosts:claude') return hostClaude
+  if (channel === 'packages:list') return [CLAUDE_PROVIDER]
   return null
 })
 
