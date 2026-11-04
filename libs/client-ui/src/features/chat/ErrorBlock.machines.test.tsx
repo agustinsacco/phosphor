@@ -131,3 +131,17 @@ it.each(MACHINES)("%s: sign-in opens Settings → Accounts for the lane's machin
     machine: m === 'host' ? MOCK_HOST_ID : 'local',
   })
 })
+
+it.each([
+  ['loses control', { control: { fence: 1, controller: null } }],
+  ['starts a turn', { activity: 'working' }],
+] as const)('host: Retry leaves as soon as the lane %s', async (_, change) => {
+  await failedTurn('host', 'Token is expired, run aws sso login')
+  expect(button('Retry failed turn')).toBeDefined()
+  act(() => {
+    const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+    hosts[MOCK_HOST_ID]!.lanes[0] = { ...hosts[MOCK_HOST_ID]!.lanes[0]!, ...change }
+    useRemoteLanesStore.setState({ hosts })
+  })
+  expect(button('Retry failed turn')).toBeUndefined()
+})
