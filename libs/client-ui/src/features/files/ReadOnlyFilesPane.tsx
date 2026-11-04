@@ -9,6 +9,7 @@ import { Button } from '@/components/form'
 import { languageForPath } from '@/lib/languages'
 import type { PendingReveal } from '@/stores/files'
 import { useLineReveal } from './useLineReveal'
+import { TextFilePreview } from './TextFilePreview'
 
 /**
  * The Host serves reads only for the focused lane, and focus follows activation,
@@ -181,7 +182,7 @@ function ReadOnlyFileView({
   const scroller = useRef<HTMLDivElement>(null)
   useLineReveal(scroller, reveal, content)
   const language = languageForPath(path)
-  return (
+  const text = (
     <div ref={scroller} className="h-full overflow-auto p-3">
       {typeof before === 'string' && (
         <>
@@ -193,4 +194,6 @@ function ReadOnlyFileView({
       <CodeBlock code={content} language={language} />
     </div>
   )
+  if (before !== undefined) return text
+  return <TextFilePreview path={path} content={content} reveal={reveal} source={text} />
 }

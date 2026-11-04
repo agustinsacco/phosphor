@@ -9,7 +9,8 @@ import { formatBytes } from '@/lib/format'
 import { revealLabel } from '@/lib/reveal'
 import { hostPlatform } from '@/lib/shortcuts'
 import { FileIcon } from '@/components/icons'
-import { Markdown } from '@/components/markdown/Markdown'
+import { ViewTabs } from './TextFilePreview'
+import { MarkdownPreview } from './TextFileRender'
 
 /**
  * Viewers for the files Monaco cannot show: images, video, audio, PDFs, and
@@ -74,20 +75,10 @@ export function FileViewer({
     <div className="flex h-full flex-col">
       <div className="border-border flex h-8 shrink-0 items-center gap-2 overflow-x-auto border-b px-2 [&::-webkit-scrollbar]:hidden">
         {textPreview && (
-          <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="View">
-            <ViewTab
-              active={view === 'preview'}
-              onClick={() => useFilesStore.getState().setView(workspacePath, file.path, 'preview')}
-            >
-              Preview
-            </ViewTab>
-            <ViewTab
-              active={view === 'source'}
-              onClick={() => useFilesStore.getState().setView(workspacePath, file.path, 'source')}
-            >
-              Source
-            </ViewTab>
-          </div>
+          <ViewTabs
+            view={view}
+            onChange={(next) => useFilesStore.getState().setView(workspacePath, file.path, next)}
+          />
         )}
         <span className="text-text-tertiary min-w-0 flex-1 truncate text-sm">
           {view === 'preview' && file.dirty && kind !== 'markdown'
@@ -135,13 +126,7 @@ function Preview({
     // The grant URL is only the base relative images resolve against, so a
     // missing grant (browser harness) still renders, just without them.
     if (file.binary || file.tooLarge) return <FileFallback file={file} />
-    return (
-      <div className="h-full overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-6 py-5">
-          <Markdown text={file.content} urlBase={url ?? undefined} />
-        </div>
-      </div>
-    )
+    return <MarkdownPreview text={file.content} urlBase={url ?? undefined} />
   }
 
   if (failed || broken) {
@@ -312,27 +297,4 @@ async function openInDefaultApp(path: string): Promise<void> {
   } else {
     toastError(result.message)
   }
-}
-
-function ViewTab({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <TooltipButton
-      onClick={onClick}
-      aria-pressed={active}
-      className={clsx(
-        'rounded-sm px-1.5 py-0.5 text-sm font-medium transition-colors',
-        active ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
-      )}
-    >
-      {children}
-    </TooltipButton>
-  )
 }

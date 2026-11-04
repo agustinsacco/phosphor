@@ -196,8 +196,10 @@ Uncertain saves preserve edits and are never retried automatically.
 Unsaved drafts stay in renderer memory per lane, survive lane switches, and clear
 on discard, successful save or lane forget.
 Changes shows git status and an inline read-only diff against HEAD. Binary files
-and oversized text use placeholders. Remote text uses in-memory Monaco models, never local preview protocols or
-filesystem watchers. They refresh
+and oversized text use placeholders. Remote text uses in-memory Monaco models, never
+`phosphor-file://` grants or filesystem watchers. Markdown, HTML and SVG open on a
+rendered Preview beside their Source, as This Mac's do, drawn from that text; HTML
+and SVG render in the artifact sandbox, and a revealed line opens the Source. They refresh
 on focused lane summary changes (including turn end), reconnects and manual refresh.
 Streamed text does not reload the pane. Added and untracked files use an empty
 original. If HEAD cannot be read, its placeholder does not discard current text.

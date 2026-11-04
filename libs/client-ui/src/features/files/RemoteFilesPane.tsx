@@ -6,6 +6,7 @@ import {
 } from './remoteFileDrafts'
 import { useRemoteFileSelection, releaseRemoteFileSelection } from './remoteFileSelection'
 import { RemoteFileTree } from './RemoteFileTree'
+import { TextFilePreview } from './TextFilePreview'
 import { RemoteFilesToolbar, type RemoteFileAction } from './RemoteFilesToolbar'
 import { useEffect, useState, useRef } from 'react'
 import { MonacoDiff, MonacoEditor, releaseFileModel } from './MonacoEditor'
@@ -17,7 +18,7 @@ import { canControlSession } from '@/stores/remoteLanes'
 import { fileListErrorText } from '@shared/host-protocol-files'
 import { promptText } from '@/stores/prompt'
 
-/** Remote content stays in memory. No local preview protocols or filesystem watcher. */
+/** Remote content stays in memory: no `phosphor-file://` grant and no filesystem watcher. */
 export function RemoteFilesPane(props: {
   workspacePath: string
   sessionId: string
@@ -76,6 +77,7 @@ function RemoteFilesView({
     [sessionId],
   )
   const [error, setError] = useState<string | null>(draft?.error ?? null)
+  const reveal = selection?.path === selected ? selection.reveal : undefined
   const refusal = hostFeatureRefusal(host, 'workspaces.read')
   const available = !refusal
   const laneId = useSessionsStore((s) => s.live[sessionId]?.laneId)
@@ -323,27 +325,34 @@ function RemoteFilesView({
               renderSideBySide={false}
             />
           ) : selected && editable ? (
-            <MonacoEditor
-              path={`remote:${sessionId}/${selected}`}
-              reveal={selection?.path === selected ? selection.reveal : undefined}
-              language={languageForPath(selected)}
-              value={content}
-              readOnly={!writable || busy}
-              onChange={(value) => {
-                if (revision === undefined) return
-                keepRemoteFileDraft(sessionId, {
-                  selected,
-                  content: value,
-                  before,
-                  revision,
-                  dirty: true,
-                  uncertain,
-                  error,
-                })
-                setContent(value)
-                setDirty(true)
-              }}
-              onSave={() => void save()}
+            <TextFilePreview
+              path={selected}
+              content={content}
+              reveal={reveal}
+              source={
+                <MonacoEditor
+                  path={`remote:${sessionId}/${selected}`}
+                  reveal={reveal}
+                  language={languageForPath(selected)}
+                  value={content}
+                  readOnly={!writable || busy}
+                  onChange={(value) => {
+                    if (revision === undefined) return
+                    keepRemoteFileDraft(sessionId, {
+                      selected,
+                      content: value,
+                      before,
+                      revision,
+                      dirty: true,
+                      uncertain,
+                      error,
+                    })
+                    setContent(value)
+                    setDirty(true)
+                  }}
+                  onSave={() => void save()}
+                />
+              }
             />
           ) : (
             <pre className="text-text-secondary p-4 text-sm">
