@@ -109,8 +109,9 @@ is `settingsUiStore.folder` (null is the whole machine); it resets when the dial
 opens, when the browser page is entered and when another machine is chosen. Views
 read it and never render a scope switch of their own. The line ends with one
 **Refresh** on every machine (`ScopeRefresh`), which reads the open section again: on
-This Mac each section's own read (`useOnLocalRefresh`), on a Host its settings read,
-once configuration access is granted.
+This Mac each section's own read (`useOnLocalRefresh`; Subagents and Computer use
+read nothing there, so it changes nothing), on a Host its settings read once
+configuration access is granted, or for Folders the link's folders.
 
 This Mac's sections mount only while This Mac is chosen, so choosing it always shows
 its controls, even while a Host lane is the active lane; they then use This Mac's home
