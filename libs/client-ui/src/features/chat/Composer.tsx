@@ -490,7 +490,7 @@ export function Composer({
               )}
               {/* Yields before it wraps: it fills what the readouts leave and
                   truncates, and a strip narrower than 36rem drops it. */}
-              {!remote && text === '' && !isStreaming && (
+              {text === '' && !isStreaming && (
                 <span className="@xl:inline ml-auto hidden min-w-0 flex-1 basis-0 truncate text-right">
                   <span className="font-mono">/</span> commands ·{' '}
                   <span className="font-mono">@</span> files · <span className="font-mono">!</span>{' '}
