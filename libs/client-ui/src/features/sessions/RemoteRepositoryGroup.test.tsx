@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { remotePrKey } from '@shared/host-protocol-github'
 import type { GhPullRequest } from '@shared/models'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { useChatStore } from '@/stores/chat'
 import { usePullRequestsStore } from '@/stores/pullRequests'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -89,6 +90,31 @@ it('finds a Host lane by its PR number and title, normalized, as This Mac does',
   act(() => container.querySelector<HTMLButtonElement>('[aria-label="Clear search"]')!.click())
   search('fix-the')
   expect(titles()).toEqual(['Fix the login'])
+})
+
+it("finds a Host lane by its live session name, this Host's only, ahead of the Host summary", () => {
+  const remote = (hostId: string, laneId: string, phosphorId: string) => ({
+    phosphorId,
+    workspacePath: `host:${hostId}/lane:${laneId}`,
+    target: { kind: 'remote' as const, hostId },
+    laneId,
+  })
+  useSessionsStore.setState({
+    live: {
+      p1: remote(MOCK_HOST_ID, '00000000-0000-4000-8000-0000000000b1', 'p1'),
+      // Another Host's session on the same lane id must not rename this one.
+      p2: remote('other-host', '00000000-0000-4000-8000-0000000000b2', 'p2'),
+    },
+  })
+  useChatStore.setState({
+    sessions: {
+      p1: { items: [], meta: { sessionName: 'Renamed just now' } },
+      p2: { items: [], meta: { sessionName: 'Renamed elsewhere' } },
+    } as never,
+  })
+  render()
+  search('renamed')
+  expect(titles()).toEqual(['Renamed just now'])
 })
 
 it("persists a Host folder's collapse in the sidebar's collapsed-groups pref, keyed by Host and folder", async () => {

@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SessionMeta } from '@shared/models'
 import { ContextMenuHost } from '@/components/ContextMenu'
+import { useChatStore } from '@/stores/chat'
 import { useMachinesStore } from '@/stores/machines'
 import { usePullRequestsStore } from '@/stores/pullRequests'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -174,4 +175,29 @@ it('selects merged lanes from a This Mac group menu, through the same rows as a 
     b.getAttribute('aria-label'),
   )
   expect(checked).toEqual(['Select Lane 1'])
+})
+
+it('finds a This Mac lane by its live session name, ahead of the disk scan', async () => {
+  useChatStore.setState({
+    sessions: { live1: { meta: { sessionName: 'Renamed just now' } } } as never,
+  })
+  await act(async () => root.render(<Sidebar workspacePath="/repo" />))
+  await act(async () => {})
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label^="Search lanes in"]')!.click())
+  const input = container.querySelector<HTMLInputElement>('[data-testid=lane-search-input]')!
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      input,
+      'renamed',
+    )
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  act(() => {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  })
+  const rows = [...container.querySelectorAll('[data-testid=session-row]')].map(
+    (r) => r.textContent,
+  )
+  expect(rows).toHaveLength(1)
+  expect(rows[0]).toContain('Renamed just now')
 })
