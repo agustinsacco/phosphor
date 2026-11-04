@@ -7,8 +7,9 @@ export const useLaneRevealStore = create<{ seq: number; groupKey: string | null 
 }))
 
 export const localLaneGroupKey = (workspacePath: string): string => workspacePath
+/** A Host folder's group: its reveal, its selection and its collapse in the sidebar pref. */
 export const remoteLaneGroupKey = (hostId: string, repositoryId: string): string =>
-  `host:${hostId}:${repositoryId}`
+  `host:${hostId}/repo:${repositoryId}`
 
 export function requestReveal(groupKey: string): void {
   useLaneRevealStore.setState((state) => ({ seq: state.seq + 1, groupKey }))

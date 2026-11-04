@@ -4,9 +4,14 @@ import { Button } from '@/components/form'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { canReadHost, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { compareLanesByCreation, groupRemoteLanes } from './groupRemoteLanes'
+import { compareLanesByCreation, groupRemoteLanes, remoteLaneOrderKey } from './groupRemoteLanes'
+import { SessionList } from './SessionList'
 import { RemoteLaneRow } from './RemoteLaneRow'
-import { RemoteRepositoryGroup, type RemoteLaneDensity } from './RemoteRepositoryGroup'
+import {
+  RemoteRepositoryGroup,
+  useRemoteLaneOrder,
+  type RemoteLaneDensity,
+} from './RemoteRepositoryGroup'
 import { SectionLabel } from './SidebarPrimitives'
 
 /**
@@ -25,8 +30,11 @@ export function RemoteHostLanes({
   density?: RemoteLaneDensity
 }): React.JSX.Element {
   const ready = useRemoteLanesStore((s) => s.hosts[hostId]?.state === 'ready')
+  const pinned = useRemoteLaneOrder(
+    hostId,
+    lanes.filter((lane) => lane.pinned).sort(compareLanesByCreation),
+  )
   if (ready && !repositories.length && !lanes.length) return <NoFolders hostId={hostId} />
-  const pinned = lanes.filter((lane) => lane.pinned).sort(compareLanesByCreation)
   return (
     <>
       {pinned.length > 0 && (
@@ -62,23 +70,30 @@ function PinnedRemoteLanes({
   const active = useSessionsStore((s) =>
     s.activeSessionId ? s.live[s.activeSessionId] : undefined,
   )
+  const deleting = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   return (
     <section aria-label="Pinned" className={!ready ? 'opacity-50' : undefined}>
       <SectionLabel>Pinned</SectionLabel>
-      {lanes.map((lane) => (
-        <RemoteLaneRow
-          key={lane.laneId}
-          hostId={hostId}
-          lane={lane}
-          ready={ready}
-          workspaceName={repositories.find((r) => r.id === lane.repositoryId)?.name}
-          active={
-            active?.target?.kind === 'remote' &&
-            active.target.hostId === hostId &&
-            active.laneId === lane.laneId
-          }
-        />
-      ))}
+      <SessionList
+        disabled={!ready || deleting}
+        items={lanes.map((lane) => ({
+          id: lane.laneId,
+          path: remoteLaneOrderKey(hostId, lane.laneId),
+          content: (
+            <RemoteLaneRow
+              hostId={hostId}
+              lane={lane}
+              ready={ready}
+              workspaceName={repositories.find((r) => r.id === lane.repositoryId)?.name}
+              active={
+                active?.target?.kind === 'remote' &&
+                active.target.hostId === hostId &&
+                active.laneId === lane.laneId
+              }
+            />
+          ),
+        }))}
+      />
     </section>
   )
 }

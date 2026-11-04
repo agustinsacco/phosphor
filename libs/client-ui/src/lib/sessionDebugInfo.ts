@@ -23,12 +23,12 @@ import { claudeProjectDirName } from '@shared/claude-paths'
 export { claudeProjectDirName }
 
 export interface SessionDebugSource {
-  /** pi's session file (.jsonl), absolute. */
-  path: string
-  /** pi's session id. */
-  sessionId: string
-  /** The session's own working directory. */
-  cwd: string
+  /** pi's session file (.jsonl), absolute. Absent for a Host lane: no Host path leaves it. */
+  path?: string
+  /** pi's session id, when known (a Host lane's, once its session is open). */
+  sessionId?: string
+  /** The session's own working directory. Absent for a Host lane, like `path`. */
+  cwd?: string
   provider?: string
   model?: string
   /**
@@ -42,6 +42,8 @@ export interface SessionDebugSource {
    * pasted into a bug report and opened by someone else.
    */
   claudeSessionId?: string | null
+  /** Where the session runs, for a session that is not This Mac's (machine, Host, lane). */
+  context?: ReadonlyArray<readonly [label: string, value: string]>
 }
 
 /**
@@ -66,11 +68,12 @@ export function piSessionDirName(cwd: string): string {
  * and the reader's home is not necessarily the writer's.
  */
 export function claudeSessionPath(source: SessionDebugSource): string | null {
-  if (source.provider !== 'pi-claude-cli') return null
+  if (source.provider !== 'pi-claude-cli' || source.cwd === undefined) return null
   // No mapping means the session predates observer mode, where the two ids
   // really were the same. A miss is a path that may not exist; a WRONG id is
   // a path that cannot.
   const id = source.claudeSessionId ?? source.sessionId
+  if (id === undefined) return null
   return `~/.claude/projects/${claudeProjectDirName(source.cwd)}/${id}.jsonl`
 }
 
@@ -82,11 +85,13 @@ export function claudeSessionPath(source: SessionDebugSource): string | null {
  * a tool.
  */
 export function formatSessionDebugInfo(source: SessionDebugSource): string {
+  const line = (label: string, value: string | undefined): string[] =>
+    value === undefined ? [] : [`  ${`${label}:`.padEnd(10)}${value}`]
   const lines = [
     'pi session',
-    `  id:       ${source.sessionId}`,
-    `  cwd:      ${source.cwd}`,
-    `  file:     ${source.path}`,
+    ...line('id', source.sessionId),
+    ...line('cwd', source.cwd),
+    ...line('file', source.path),
   ]
   if (source.provider) {
     lines.push(`  provider: ${source.provider}${source.model ? ` / ${source.model}` : ''}`)
@@ -95,5 +100,6 @@ export function formatSessionDebugInfo(source: SessionDebugSource): string {
   if (cli) {
     lines.push(`  claude:   ${cli}`)
   }
+  for (const [label, value] of source.context ?? []) lines.push(...line(label, value))
   return lines.join('\n')
 }

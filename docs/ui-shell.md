@@ -196,8 +196,9 @@ Signed-out windows have no machine switcher or remote groups.
   screen; it does not spawn a session, because the folder and the first prompt
   are chosen there. Artifacts, Skills, and Routines open global pages (below).
 - **Session list**: pinned, then sessions grouped by project. Each row: name
-  (or first-message preview), relative time, state. Drag a row above or below
-  another in its section to reorder it, or use its context menu's **Move up /
+  (or first-message preview), relative time, state. Drag a row with the mouse
+  above or below another in its section to reorder it (a touch or pen
+  long-press opens the row's menu instead), or use its context menu's **Move up /
   Move down** or **Alt+↑ / Alt+↓** while focused. Open, suspended and closed
   sessions share one order, persisted by session file path across restarts.
   First-turn rows become reorderable once pi reports their file path, without
@@ -211,8 +212,9 @@ Signed-out windows have no machine switcher or remote groups.
   [Phosphor Beacon](style-guide.md#loading-identity--phosphor-beacon), an amber
   edge rail and a status chip in place of the timestamp. Context menu: open,
   session tree, pin, lane marker, open pull request (when the lane has one;
-  this is the keyboard route, the chip is mouse-only), suspend (live lanes,
-  labelled with the ~200 MB it reclaims), fork, clone, export HTML, copy debug
+  this is the keyboard route, the chip is mouse-only), Stop (live lanes, as on
+  a Host lane, labelled with the ~200 MB it reclaims; the row then reads
+  suspended), Mark read (unseen lanes), fork, clone, export HTML, copy debug
   info, copy spend, delete (trash). Live-only rows offer Open, Rename, Export
   HTML and Delete, even before a transcript exists. Delete confirms that any
   running turn will stop; failures remain visible for retry.

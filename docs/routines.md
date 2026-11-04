@@ -31,7 +31,10 @@ Duplicate, Import and Make routine… open fresh and replace a waiting new draft
 The page includes starter instructions for weekly analysis, dependency audits,
 and cycle retros. A lane's context menu offers **Make routine…**: a reviewable
 draft of its name, first user text, and workspace, not its running process or
-entire conversation. Choose the model explicitly before saving that draft.
+entire conversation. Choose the model explicitly before saving that draft. On a
+Host lane the draft opens on that Host's Routines with the lane's folder chosen,
+once the page has its machine list; the item needs the Host's `routines`
+capability.
 
 Schedules: Manual, Hourly, Daily, Weekdays, Weekly, Monthly (including last day),
 Once, or Custom five-field cron. The editor previews the next three occurrences in the

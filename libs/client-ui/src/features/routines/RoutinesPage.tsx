@@ -24,6 +24,7 @@ import { ModalOverlay } from '@/components/Modal'
 import { presentText } from '@/stores/prompt'
 import {
   editorDraft,
+  hostRoutineDraft,
   keepEditorDraft,
   NEW_ROUTINE,
   newRoutineDraftKey,
@@ -145,14 +146,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     const savedDraft = input || !unsaved ? undefined : editorDraft(newDraftKey, null)
     const restored =
       savedDraft ??
-      (machine.startsWith('host:')
-        ? {
-            input: { ...(input ?? blank), provider: '', model: '', workspacePath: '' },
-            revision: null,
-            machineId: machine,
-            repositoryId: '',
-          }
-        : undefined)
+      (machine.startsWith('host:') ? hostRoutineDraft(input ?? blank, machine, '') : undefined)
     setEditor({
       restored,
       key: newDraftKey,
@@ -172,13 +166,19 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     })
   }
 
-  // Context-menu drafts are consumed once; no hidden schedule is created.
+  // Context-menu drafts are consumed once; no hidden schedule is created. A Host
+  // draft waits for the machine list, or the editor would drop its unknown machine.
   useEffect(() => {
-    if (draft) {
-      setEditor({ key: NEW_ROUTINE, input: draft, pristine: newRoutine(draft.workspacePath) })
-      useRoutinesStore.setState({ draft: null })
-    }
-  }, [draft])
+    if (!draft || (draft.restored && !localSnapshot && !localError)) return
+    const { input, restored } = draft
+    setEditor({
+      key: restored ? newRoutineDraftKey(restored.machineId) : NEW_ROUTINE,
+      input: restored?.input ?? input,
+      pristine: newRoutine(input.workspacePath),
+      restored,
+    })
+    useRoutinesStore.setState({ draft: null })
+  }, [draft, localSnapshot, localError])
 
   useEffect(() => {
     if (!selected) return

@@ -139,7 +139,9 @@ base emoji. No image CDN or network access is needed.
 **None** explicitly clears a lane. **Auto** removes its override and returns to
 the branch-derived marker; in Manual mode this action is labelled **Default**
 and leaves the lane unmarked. Escape or Cancel leaves the choice unchanged.
-Explicit choices persist across reloads and mode changes.
+Explicit choices persist across reloads and mode changes. The picker dims
+markers other lanes on the same machine chose explicitly, in any workspace:
+This Mac's lanes for a This Mac lane, that Host's lanes for a Host lane.
 
 ## PR status
 
@@ -413,10 +415,17 @@ there.
 
 **A lane that finishes off screen says so.** When pi reports a lane's run
 settled (`agent_settled` after an `agent_start`, in the push handler) and that
-lane is not the one on screen, `noticeLaneSettled` puts up a notice with the
+lane is not in front of you, `noticeLaneSettled` puts up a notice with the
 first line of the final reply, or the error if the run stopped on one. A run
-pi reports `aborted` says nothing: only the stop control produces one. The lane on screen never gets a notice,
-even with the window in the background — its transcript already shows it.
+pi reports `aborted` says nothing: only the stop control produces one. A lane is
+in front of you when it is on screen in a focused window (`laneInView`): it gets
+no notice, since its transcript already shows it. On screen in a background
+window it does. A Host lane's attention follows the same rule through the same
+presenter (`noticeHostAttention`): the same wording (`settledNotice` from the
+run's receipt, with its excerpt, for a finished or failed run and a finished
+routine; “Needs your input.” for a question; a neutral “Routine update.” for a
+routine with no receipt, which may have paused), kind and marker, titled with
+its machine.
 
 **The wait is animated, not flashed.** `OpeningLane` fades in after a 90ms
 beat, so opening a warm lane never flashes it, and fades out over the lane it
@@ -437,7 +446,7 @@ user is **not** looking at never takes the screen.
 
 A magnifier in the workspace header opens a search field **under** that
 header. It filters that group only: search is per project because the header
-it hangs off is.
+it hangs off is. A Host folder's search is the same, through the same matcher.
 
 `laneSearch.ts` matches against the three identities the row shows: **title,
 branch, and PR (number and title)**, because those are what you remember a lane
@@ -467,9 +476,10 @@ mid-turn is findable under the name on screen.
 
 One Host lane row (`features/sessions/RemoteLaneRow`) and one menu serve every
 surface: Desktop's sidebar, the browser's navigation and Lanes page, Host home and the
-machine preview. `remoteLaneActions` builds the menu as a pure list (Open, Rename,
-Take or Release control, Stop or Resume, Mark read, Pin, Lane marker, Copy debug
-info, Copy spend, Delete, plus Open pull request when the lane has one) and
+machine preview. `remoteLaneActions` builds the menu as a pure list (Open, Move up and Move
+down where the row sits in an ordered list, Rename,
+Take or Release control, Stop or Resume, Mark read, Make routine…, Pin, Lane
+marker, Export HTML…, Copy debug info, Copy spend, Delete, plus Open pull request when the lane has one) and
 `useRemoteLaneActions` runs it; the phone's lane sheet lists the same items
 without Open. The row's menu opens on right-click, the ContextMenu key or
 Shift+F10, and a touch long-press; on a phone it is a bottom sheet. The row
@@ -482,13 +492,22 @@ Pins and markers belong to the Host: a Host that announces `laneMarks` keeps
 them, so every client shows the same ones
 ([protocol](remote-protocol.md#lane-pins-and-markers)); Desktop's older local
 choices, kept under Host/lane resource keys, move to it, and rows read only the
-Host's. Without `laneMarks`, Pin and Lane marker are disabled with “Update this
+Host's. A Host lane with no explicit marker shows the one derived from its
+branch, and `LanePrefs.markers` applies as on This Mac: `manual` derives
+nothing and `off` removes the slot and Lane marker. Without `laneMarks`, Pin
+and Lane marker are disabled with “Update this
 Host to pin and mark lanes.” A pinned Host lane shows the pin icon and sits in a
 Pinned section above that Host's folders, newest first, with its folder named,
 as local pinned lanes sit above local groups. Pins stay per Host: one Host's
 pinned lanes never mix with another's or with local ones.
 
-Local-only tree, fork, clone, routine and HTML export actions are omitted.
+Copy debug info writes This Mac's block (`formatSessionDebugInfo`: pi's id and
+model once the lane is open) with the machine, Host, lane and branch in place of
+paths: no Host path reaches the clipboard. Copy spend copies the formatted cost,
+as This Mac's does. Both copies confirm with a toast and, where the clipboard is
+denied, show the text to copy by hand, on either machine. Export HTML… opens the lane's session if needed and saves the Host's export
+(`exportRemoteLaneHtml`): a save dialog on Desktop, a download in the browser.
+Local-only tree, fork and clone actions are omitted.
 Remote Delete needs control and workspace-write capability, in Desktop and the
 browser alike. A disabled action's hint names its obstacle: “Take control
 first.” for a viewer, “Only while running.” for rename and spend on a stopped
@@ -529,7 +548,9 @@ it.
 
 The checkbox replaces the indicator dot in the same gutter, so entering select
 mode shifts nothing (`SelectableIndicator` in `LaneSelect.tsx`, on both lists).
-"Select all lanes" lives in the workspace `⋯` menu. The bulk bar
+"Select all lanes", "Select merged lanes" (lanes whose pull request merged)
+and "Collapse lanes" live in the workspace `⋯` menu, the same rows
+(`LaneSelectionRows`) on This Mac's groups and Host folders. The bulk bar
 (`LaneBulkBar`) shows only in select mode.
 
 Deleting is three resources, and all three default on. The branch default is
@@ -613,7 +634,7 @@ then fades away.
 
 A merged PR finishes code, not a conversation. Automatic cleanup requires an
 explicit **Finish conversation…** decision from the sidebar context menu for
-**every** transcript in the checkout. Suspend its live sessions first. **Reopen
+**every** transcript in the checkout. Stop its live sessions first. **Reopen
 conversation** or resuming the lane clears that decision. Unknown, legacy,
 paused and otherwise unfinished conversations remain protected across restarts.
 

@@ -105,3 +105,26 @@ describe('formatSessionDebugInfo', () => {
     expect(lines.slice(1).every((l) => l.startsWith('  '))).toBe(true)
   })
 })
+
+describe('formatSessionDebugInfo for a This Mac session', () => {
+  it('characterizes the whole block, byte for byte', () => {
+    expect(formatSessionDebugInfo(source)).toBe(
+      [
+        'pi session',
+        '  id:       01a02bb0-a041-7109-9d1c-8333ecea33c4',
+        '  cwd:      /home/dev/proj',
+        '  file:     /home/dev/.pi/agent/sessions/--home-dev-proj--/2026-08-22T22-56-30-785Z_01a02bb0.jsonl',
+        '  provider: pi-claude-cli / claude-opus-5',
+        '  claude:   ~/.claude/projects/-home-dev-proj/01a02bb0-a041-7109-9d1c-8333ecea33c4.jsonl',
+      ].join('\n'),
+    )
+    expect(formatSessionDebugInfo({ ...source, provider: undefined, model: undefined })).toBe(
+      [
+        'pi session',
+        '  id:       01a02bb0-a041-7109-9d1c-8333ecea33c4',
+        '  cwd:      /home/dev/proj',
+        '  file:     /home/dev/.pi/agent/sessions/--home-dev-proj--/2026-08-22T22-56-30-785Z_01a02bb0.jsonl',
+      ].join('\n'),
+    )
+  })
+})

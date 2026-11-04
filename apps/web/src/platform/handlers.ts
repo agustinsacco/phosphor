@@ -91,6 +91,8 @@ function preferenceHandlers(prefs: ReturnType<typeof createBrowserPreferences>) 
     'app:setFontPrefs': prefs.fonts,
     'app:setModelPicks': prefs.models,
     'app:setLanePrefs': prefs.lanes,
+    'app:setSessionOrder': prefs.sessionOrder,
+    'app:setCollapsedWorkspaces': prefs.collapsedWorkspaces,
     'app:setWorktreePrefs': prefs.worktrees,
   } satisfies Partial<BrowserHandlers>
 }

@@ -341,38 +341,18 @@ export function attachRemoteLanesListener(): () => void {
   const offChanged = window.phosphor.onHostsChanged(() => void refresh())
   const offAttention = window.phosphor.onHostAttention((event) => {
     void refresh()
-    const { activeSessionId, live } = useSessionsStore.getState()
+    const { live } = useSessionsStore.getState()
     const adopted = Object.values(live).find(
       (entry) =>
         entry.target?.kind === 'remote' &&
         entry.target.hostId === event.hostId &&
         entry.laneId === event.laneId,
     )
-    if (
-      adopted?.phosphorId === activeSessionId &&
-      useLayoutStore.getState().page === null &&
-      document.hasFocus()
-    )
-      return
-    void import('./extensionUi').then(({ useExtensionUiStore }) => {
-      if (!active) return
-      useExtensionUiStore.getState().notify({
-        // Remote sessions skip the local settled path. Sharing their key also
-        // replaces any existing lane notice instead of adding a second card.
-        sessionId: adopted?.phosphorId,
-        title: `${machineLabel(event.hostId)} · ${event.title}`,
-        message: event.kind,
-        receipt: {
-          facts: event.receipt,
-          machine: machineLabel(event.hostId),
-          machineId: event.hostId,
-          laneId: event.laneId,
-          at: event.at,
-        },
-        kind: event.kind === 'failed' ? 'error' : 'info',
-        openLabel: 'Open lane',
-        onOpen: () => openRemoteLane(event.hostId, event.laneId),
-      })
+    void import('@/features/sessions/laneNotices').then(({ noticeHostAttention }) => {
+      if (active)
+        noticeHostAttention(event, adopted?.phosphorId, () =>
+          openRemoteLane(event.hostId, event.laneId),
+        )
     })
   })
   const offOpen = window.phosphor.onHostOpenLane(
