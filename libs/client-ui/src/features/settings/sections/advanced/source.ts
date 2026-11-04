@@ -29,7 +29,8 @@ export interface MachineRuntime {
   /** Names the rows: "Phosphor version", "Host version". */
   product: 'Phosphor' | 'Host'
   version: string
-  platform: string
+  /** `process.platform` (darwin, linux, win32), when known. */
+  platform?: string
   /** A Host's config file; This Mac's settings have no single one. */
   configPath?: string
   update: MachineUpdate

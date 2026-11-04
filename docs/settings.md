@@ -879,7 +879,8 @@ and the raw editor.
   row, the one About shows (**Check now**, then **Restart to update** or
   **Download**); a Host's version, platform and config path with **Pause and
   update**, which runs the Host's own signed `phosphor update` as a reviewed task
-  and needs Host terminal access.
+  and needs Host terminal access. Both name the platform alike (macOS, Linux,
+  Windows); a version This Mac cannot read shows as unknown beside its update row.
 - **Environment availability**, a Host only: each allowlisted variable's name and
   whether it reaches pi, never its value.
 - **Raw file editors**, This Mac only (Monaco JSON) for `~/.pi/agent/settings.json`

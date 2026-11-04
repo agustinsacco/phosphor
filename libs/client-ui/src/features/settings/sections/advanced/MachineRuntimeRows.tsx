@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Button, Row } from '@/components/form'
 import type { UpdateState } from '@shared/models'
 import { useUpdatesStore } from '@/features/updates/updatesStore'
+import { platformName } from '@/features/machines/machinePresentation'
 import type { MachineRuntime, MachineUpdate } from './source'
 
 /**
@@ -91,7 +92,7 @@ export function MachineRuntimeRows({ runtime }: { runtime: MachineRuntime }): Re
   return (
     <>
       <MachineUpdateRow title={titles.update} update={runtime.update} />
-      <Row title={titles.version} description={runtime.platform}>
+      <Row title={titles.version} description={runtime.platform && platformName(runtime.platform)}>
         <code className="font-mono text-sm">{runtime.version}</code>
       </Row>
       {runtime.configPath && (
