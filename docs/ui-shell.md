@@ -13,7 +13,9 @@
   whenever anything hung below the window (a popup before it was placed, a menu,
   a portal): the whole app moved up, the top bar went off-screen and a blank strip
   stayed below until a reload. Scrolling belongs to panes, never the page.
-  `e2e/window-scroll.spec.ts` pins it. The phone and browser shells are
+  `e2e/window-scroll.spec.ts` pins it. A menu that could hang below the window uses the
+  shared anchored `PopupMenu` (`escapeContainer`), which flips and caps its height
+  to fit; the branch menu in the home composer is one. The phone and browser shells are
   `position: fixed` and follow the visual viewport, so the clip does not touch them.
 - Window title: `<project> — Phosphor`, or `<repo> (<branch>) — Phosphor` for
   a worktree; plain `Phosphor` before a workspace is open. The session name is
