@@ -650,10 +650,14 @@ export function Sidebar({
     return names
   }, [liveNameKey])
 
-  /** The three identities one lane can be found by. */
-  const laneFields = (meta: SessionMeta): LaneSearchFields => {
+  /** A lane's pull request: its branch's, in its repository. */
+  const lanePullRequest = (meta: SessionMeta) => {
     const git = gitByCwd[meta.cwd || workspacePath]
     const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
+    return pullRequestFor({ byRepo: prByRepo }, repoPath, git?.branch)
+  }
+  /** The three identities one lane can be found by. */
+  const laneFields = (meta: SessionMeta): LaneSearchFields => {
     const livePhosphorId = liveByDisk.get(meta.path)
     const liveName = livePhosphorId ? liveNames.get(livePhosphorId) : undefined
     return {
@@ -662,17 +666,13 @@ export function Sidebar({
           { explicitName: liveName ?? meta.name, firstUserText: meta.firstUserText },
           { elide: false },
         ) ?? '',
-      branch: git?.branch,
-      pr: pullRequestFor({ byRepo: prByRepo }, repoPath, git?.branch),
+      branch: gitByCwd[meta.cwd || workspacePath]?.branch,
+      pr: lanePullRequest(meta),
     }
   }
 
   /** A lane whose pull request merged: what "Select merged lanes" picks, as on a Host. */
-  const isMerged = (meta: SessionMeta): boolean => {
-    const git = gitByCwd[meta.cwd || workspacePath]
-    const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
-    return pullRequestFor({ byRepo: prByRepo }, repoPath, git?.branch)?.state === 'MERGED'
-  }
+  const isMerged = (meta: SessionMeta): boolean => lanePullRequest(meta)?.state === 'MERGED'
   /** The workspace menu's lane selection, over the lanes the search shows. */
   const selectGroupLanes = (group: string, visible: SessionMeta[], mode: LaneSelectMode): void => {
     if (mode === 'clear') clearLaneSelection()
