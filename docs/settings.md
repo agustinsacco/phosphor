@@ -856,8 +856,9 @@ One view on every machine (`sections/advanced/`: an `AdvancedSource` from
 reports its data. A failed load says why and offers **Retry**, as do Maintenance
 and the raw editor.
 
-- **pi health**, on both: where pi is installed and its version; on This Mac also
-  the minimum version Phosphor supports. Then **pi agent directory** and the
+- **pi health**, on both: where pi is installed, its version and the minimum
+  version Phosphor supports (`MIN_PI_VERSION`); a pi older than that reads
+  **too-old** on every machine. Then **pi agent directory** and the
   **Executable search path** pi runs with (`PiHealth.path`, `PiHealth.agentDir`;
   the login shell's PATH on This Mac). A Host reports its pi as additive
   `advanced.pi { version, path, agentDir }`; a Host without it shows **Update this
