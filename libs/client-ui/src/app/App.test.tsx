@@ -271,7 +271,10 @@ it('restores the last session only after the recommendations that follow a pi in
   const { job, installed } = stubInstall(target)
   const createSession = vi
     .spyOn(useSessionsStore.getState(), 'createSession')
-    .mockImplementation(async () => useSessionsStore.setState({ activeSessionId: 'restored' }))
+    .mockImplementation(async () => {
+      useSessionsStore.setState({ activeSessionId: 'restored' })
+      return 'restored'
+    })
   await renderApp(async (container) => {
     await act(async () => button(container, 'Update pi')?.click())
     installed()

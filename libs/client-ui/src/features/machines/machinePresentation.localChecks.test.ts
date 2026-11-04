@@ -3,7 +3,7 @@ import { localChecks, PI_INSTALL } from './machinePresentation'
 
 it('describes missing pi on This Mac in words and offers the install command', () => {
   const [pi] = localChecks(
-    { ok: false, reason: 'missing', message: 'pi was not found on PATH.', minVersion: '0.70.0' },
+    { ok: false, reason: 'not-found', message: 'pi was not found on PATH.', minVersion: '0.70.0' },
     undefined,
     false,
   )
