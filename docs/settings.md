@@ -249,8 +249,8 @@ a restart; only an older Host without `namingLive` needs a service restart for n
 **Instructions and directives** opens the Host's
 own [global instructions](chat.md#global-instructions) in the same editor as This
 Mac's, read and saved through the `instructions` settings section. Its four directive
-switches and **What gets sent** preview are This Mac's, with the Host's label in
-the machine block; they save on change, like the rest of the page, as Host
+switches and **What gets sent** preview are This Mac's, with the Host's label,
+platform and repository names in the machine block, as its lanes receive them; they save on change, like the rest of the page, as Host
 config (`agentDirectives`), which each lane start reads, so a save needs no restart
 and running lanes keep the prompt they started with. There are no per-folder Host
 directives. A Host without the section asks to be updated. Source URLs and non-allowlisted
