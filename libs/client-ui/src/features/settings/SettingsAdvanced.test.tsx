@@ -143,3 +143,18 @@ it("keeps This Mac's update row when its version cannot be read", async () => {
     invoke.mockImplementation(about)
   }
 })
+
+it('says in About that the version is unknown when the app cannot report it', async () => {
+  const about = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string, ...rest: string[]) => {
+    if (channel === 'app:about') throw new Error('no about')
+    return about(channel, ...rest)
+  })
+  try {
+    await showHostSettings(root, 'local', 'about')
+    await act(async () => {})
+    expect(container.textContent).toMatch(/Phosphor version\s*unknown/)
+  } finally {
+    invoke.mockImplementation(about)
+  }
+})
