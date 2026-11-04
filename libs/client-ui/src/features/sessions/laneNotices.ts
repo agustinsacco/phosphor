@@ -6,7 +6,8 @@ import { useExtensionUiStore, type Toast } from '@/stores/extensionUi'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
-import { navigateToLane } from '@/stores/remoteLanes'
+import { machineLabel, navigateToLane, useRemoteLanesStore } from '@/stores/remoteLanes'
+import type { HostAttention } from '@shared/ipc'
 import { laneMarker } from '@/lib/laneMarker'
 import { laneOutcome } from '@/lib/laneNotice'
 import { sessionTitle } from '@/lib/sessionTitle'
@@ -41,13 +42,7 @@ export function notifyLane(
         (firstUser?.kind === 'user' ? firstUser.text : undefined) ?? scanned?.firstUserText,
     }) ??
     'Untitled lane'
-  const marker = laneMarker(
-    live.diskPath ? sessions.laneMarkers[live.diskPath] : undefined,
-    sessions.gitByCwd[live.workspacePath]?.branch,
-    live.workspacePath,
-    useLanePrefsStore.getState().lanes.markers,
-  )
-  useExtensionUiStore.getState().notify({
+  showLaneNotice({
     sessionId,
     receipt: notice.receipt?.facts
       ? { ...notice.receipt, facts: { ...notice.receipt.facts, title } }
@@ -55,9 +50,89 @@ export function notifyLane(
     title,
     message: notice.message,
     kind: notice.kind ?? 'info',
-    marker: marker || undefined,
-    openLabel: 'Open lane',
+    marker: laneMarker(
+      live.diskPath ? sessions.laneMarkers[live.diskPath] : undefined,
+      sessions.gitByCwd[live.workspacePath]?.branch,
+      live.workspacePath,
+      useLanePrefsStore.getState().lanes.markers,
+    ),
     onOpen: () => navigateToLane({ sessionId }),
+  })
+}
+
+/** The one lane card, for This Mac's lanes and a Host's: one per lane, opening it on click. */
+function showLaneNotice(
+  notice: Pick<Toast, 'sessionId' | 'receipt' | 'title' | 'message' | 'kind' | 'onOpen'> & {
+    marker: string
+  },
+): void {
+  useExtensionUiStore.getState().notify({
+    ...notice,
+    marker: notice.marker || undefined,
+    openLabel: 'Open lane',
+  })
+}
+
+/**
+ * The lane is in front of the user: on screen in a focused window. A lane on
+ * screen in a background window still gets its notice, on every machine.
+ */
+export function laneInView(sessionId: string | undefined): boolean {
+  return !!sessionId && laneOnScreen(sessionId) && document.hasFocus()
+}
+
+/** A settled run's line: the reply's excerpt, or why it stopped. One wording for every machine. */
+export function settledNotice(outcome: { kind: 'done' | 'error'; excerpt?: string | null }): {
+  kind: Toast['kind']
+  message: string
+} {
+  if (outcome.kind === 'error')
+    return {
+      kind: 'error',
+      message: outcome.excerpt ? `Stopped: ${outcome.excerpt}` : 'Stopped with an error.',
+    }
+  return { kind: 'success', message: outcome.excerpt || 'Finished.' }
+}
+
+const ATTENTION_NOTICE: Record<HostAttention['kind'], ReturnType<typeof settledNotice>> = {
+  finished: settledNotice({ kind: 'done' }),
+  failed: settledNotice({ kind: 'error' }),
+  'needs-input': { kind: 'info', message: 'Needs your input.' },
+  routine: { kind: 'success', message: 'Routine finished.' },
+}
+
+/**
+ * A Host lane needs attention. Worded and marked as This Mac's lanes are; an
+ * adopted lane shares its session's card, so a settled notice is replaced, not
+ * doubled. Nothing for the lane in front of the user.
+ */
+export function noticeHostAttention(
+  event: HostAttention,
+  sessionId: string | undefined,
+  onOpen: () => Promise<boolean>,
+): void {
+  if (laneInView(sessionId)) return
+  const lane = useRemoteLanesStore
+    .getState()
+    .hosts[event.hostId]?.lanes.find((l) => l.laneId === event.laneId)
+  const machine = machineLabel(event.hostId)
+  showLaneNotice({
+    sessionId,
+    title: `${machine} · ${event.title}`,
+    ...(event.kind === 'finished' && event.receipt
+      ? settledNotice(event.receipt)
+      : ATTENTION_NOTICE[event.kind]),
+    marker: lane
+      ? laneMarker(lane.marker, lane.branch, lane.cwd, useLanePrefsStore.getState().lanes.markers)
+      : '',
+    receipt: {
+      facts: event.receipt,
+      machine,
+      machineId: event.hostId,
+      laneId: event.laneId,
+      at: event.at,
+    },
+    onOpen,
   })
 }
 
@@ -72,8 +147,9 @@ export function laneOnScreen(sessionId: string): boolean {
 /**
  * A lane's run just settled. Say so if the user is somewhere else.
  *
- * Nothing for the lane on screen: the transcript already shows it. The
- * caller skips an aborted run, which only the stop control produces.
+ * Nothing for the lane in front of the user (`laneInView`): the transcript
+ * already shows it. The caller skips an aborted run, which only the stop
+ * control produces.
  */
 export function noticeLaneSettled(
   sessionId: string,
@@ -81,7 +157,7 @@ export function noticeLaneSettled(
   settledAt = Date.now(),
   settledChat?: Pick<ChatSessionState, 'items' | 'tools'>,
 ): void {
-  if (laneOnScreen(sessionId)) return
+  if (laneInView(sessionId)) return
   const items = settledChat?.items ?? useChatStore.getState().sessions[sessionId]?.items ?? []
   const live = useSessionsStore.getState().live[sessionId]
   const chat = useChatStore.getState().sessions[sessionId]
@@ -105,14 +181,5 @@ export function noticeLaneSettled(
     settledAt,
   })
   const receipt = { facts, machine: localMachineLabel(), at: new Date(settledAt).toISOString() }
-  const outcome = laneOutcome(items)
-  if (outcome.kind === 'error') {
-    notifyLane(sessionId, {
-      receipt,
-      kind: 'error',
-      message: outcome.excerpt ? `Stopped: ${outcome.excerpt}` : 'Stopped with an error.',
-    })
-    return
-  }
-  notifyLane(sessionId, { receipt, kind: 'success', message: outcome.excerpt ?? 'Finished.' })
+  notifyLane(sessionId, { receipt, ...settledNotice(laneOutcome(items)) })
 }

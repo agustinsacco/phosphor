@@ -413,10 +413,15 @@ there.
 
 **A lane that finishes off screen says so.** When pi reports a lane's run
 settled (`agent_settled` after an `agent_start`, in the push handler) and that
-lane is not the one on screen, `noticeLaneSettled` puts up a notice with the
+lane is not in front of you, `noticeLaneSettled` puts up a notice with the
 first line of the final reply, or the error if the run stopped on one. A run
-pi reports `aborted` says nothing: only the stop control produces one. The lane on screen never gets a notice,
-even with the window in the background — its transcript already shows it.
+pi reports `aborted` says nothing: only the stop control produces one. A lane is
+in front of you when it is on screen in a focused window (`laneInView`): it gets
+no notice, since its transcript already shows it. On screen in a background
+window it does. A Host lane's attention follows the same rule through the same
+presenter (`noticeHostAttention`): the same wording (`settledNotice` for a
+finished or failed run, “Needs your input.” for a question), kind and marker,
+titled with its machine.
 
 **The wait is animated, not flashed.** `OpeningLane` fades in after a 90ms
 beat, so opening a warm lane never flashes it, and fades out over the lane it
