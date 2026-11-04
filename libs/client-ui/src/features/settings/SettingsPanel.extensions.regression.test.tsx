@@ -159,3 +159,14 @@ it('test(E7): This Mac asks before it removes a package', async () => {
   expect(promptChoice).toHaveBeenCalledOnce()
   expect(calls('packages:run')).toEqual([])
 })
+
+it("warns on a Host's Recommended card when its claude CLI is missing, as This Mac's does", async () => {
+  const read = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string, ...args: unknown[]) =>
+    channel === 'hosts:claude'
+      ? { provider: 'missing', cli: 'missing', auth: 'unknown' }
+      : read(channel, ...args),
+  )
+  await show(machine.id, 'extensions')
+  expect(container.textContent).toContain('Needs the `claude` CLI on your PATH')
+})
