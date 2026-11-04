@@ -1,4 +1,5 @@
 import type { ContextMenuItem } from '@/components/ContextMenu'
+import { featureNotOffered } from '@/stores/hostRefusals'
 import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import type { LanePrefs } from '@shared/models'
@@ -8,7 +9,6 @@ export const ONLY_WHILE_RUNNING = 'Only while running.'
 /** A Host older than `laneMarks` cannot keep pins or markers, and only that Host can. */
 export const LANE_MARKS_NEED_UPDATE = 'Update this Host to pin and mark lanes.'
 /** No `routines` capability: an older Host, or a grant without it, so neither "yet" nor "update". */
-export const HOST_ROUTINES_REFUSED = 'This Host does not offer routines to this device.'
 
 /**
  * Why a controller-only row action is disabled, or undefined when control is
@@ -156,13 +156,15 @@ function keepActions(
   const { lane, ready, busy } = state
   const { running, canMark, markHint } = remoteLaneAccess(state)
   const notReady = !ready ? REMOTE_NOT_READY : undefined
+  // The lane's own readiness gates first; the capability alone says whether routines exist here.
+  const noRoutines = state.host?.capabilities.includes('routines')
+    ? undefined
+    : featureNotOffered('routines')
   return [
     {
       label: 'Make routine…',
-      disabled: !ready || busy || !state.host?.capabilities.includes('routines'),
-      hint:
-        notReady ??
-        (state.host?.capabilities.includes('routines') ? undefined : HOST_ROUTINES_REFUSED),
+      disabled: !ready || busy || noRoutines !== undefined,
+      hint: notReady ?? noRoutines,
       onClick: handlers.makeRoutine,
     },
     {

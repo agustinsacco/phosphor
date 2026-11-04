@@ -1,4 +1,5 @@
 import { HOST_TOO_OLD } from '@shared/host-protocol-repositories'
+import { needsNewerHost } from '@/stores/hostRefusals'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 
@@ -44,7 +45,7 @@ export async function moveRemoteRepository(
       .getState()
       .pushToast(
         error instanceof Error && error.message.includes(HOST_TOO_OLD)
-          ? `Moving folders needs a newer Host. ${HOST_TOO_OLD}`
+          ? needsNewerHost('Moving folders needs')
           : 'The Host could not move this folder. Try again.',
         'error',
       )
