@@ -120,3 +120,34 @@ it("chooses among the Host's registered repositories, not its home folder", asyn
   ])
   expect(invoke).not.toHaveBeenCalled()
 })
+it("browses This Mac's recent folders read-only in the same view, without Host reads", async () => {
+  const { useWorkspacesStore } = await import('@/stores/workspaces')
+  useWorkspacesStore.setState({ recents: [{ path: '/work/app', name: 'app', lastOpenedAt: 1 }] })
+  const base = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'fs:listFiles'
+      ? ['README.md']
+      : ({ binary: false, content: 'Local preview' } as never),
+  )
+  try {
+    await act(async () => root.render(<MachineFilesPane hostId="local" />))
+    const select = container.querySelector<HTMLSelectElement>('select[aria-label="Repository"]')
+    expect([...(select?.options ?? [])].map((o) => [o.value, o.textContent])).toEqual([
+      ['', 'Choose a repository'],
+      ['/work/app', 'app'],
+    ])
+    await act(async () => {
+      select!.value = '/work/app'
+      select!.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(invoke).toHaveBeenCalledWith('fs:listFiles', '/work/app')
+    await act(async () => container.querySelector('nav button')?.click())
+    expect(invoke).toHaveBeenCalledWith('fs:readFile', '/work/app/README.md')
+    expect(container.textContent).toContain('Local preview')
+    expect(container.textContent).toContain('Read only')
+    expect(invoke.mock.calls.some(([channel]) => channel.startsWith('hosts:'))).toBe(false)
+  } finally {
+    invoke.mockImplementation(base)
+    useWorkspacesStore.setState({ recents: [] })
+  }
+})
