@@ -16,7 +16,8 @@ import { homeDraftKey } from '@/stores/drafts'
 
 /**
  * Local workbench and shared remote creation, with independent dashboard and composer targets.
- * `localSetup` takes This Mac's place while it cannot start a lane (no pi, no folder); a Host
+ * `localSetup` takes This Mac's place while it cannot start a lane (no pi, no folder): the whole
+ * home, or on a Host home only the composer slot, under the composer's machine picker. A Host
  * composer target then gets its full start page.
  */
 export function WorkspaceHome({
@@ -46,7 +47,7 @@ export function WorkspaceHome({
       onChange={setComposerMachine}
     />
   )
-  if (composerMachine === 'local' && localSetup) return <>{localSetup}</>
+  if (composerMachine === 'local' && localSetup && !homeHostId) return <>{localSetup}</>
   if (composerMachine !== 'local' && (homeHostId === composerMachine || localSetup))
     return (
       <RemoteWorkspacePage
@@ -75,7 +76,13 @@ export function WorkspaceHome({
       </div>
       <div className="flex shrink-0 flex-col items-center px-4 pb-6 pt-4 sm:px-6">
         <div className="relative w-full max-w-3xl">
-          {composerMachine === 'local' ? (
+          {composerMachine === 'local' && localSetup ? (
+            // The picker stays outside the scroll box, so its menu opens above unclipped.
+            <>
+              <div className="flex justify-center">{machinePicker}</div>
+              <div className="max-h-[50vh] overflow-y-auto">{localSetup}</div>
+            </>
+          ) : composerMachine === 'local' ? (
             <LocalHomeComposer
               workspacePath={workspacePath}
               textareaRef={textareaRef}

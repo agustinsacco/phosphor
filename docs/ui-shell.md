@@ -506,8 +506,9 @@ close it; focus moves into the sheet and returns to the element on close.
   Install/Update pi with the install command (`PiMissingScreen`), then the
   one-time recommendations (`GettingStartedScreen`); no open folder → the
   folder picker with recents (`WorkspacePicker`). Only local lane creation
-  waits: a Host home or a Host composer target shows the Host's start page,
-  and This Mac's Machines readiness row shows the same install command. No
+  waits: a Host composer target shows the Host's start page, and on a Host
+  home the setup takes only the composer slot, under the composer's machine
+  picker. This Mac's Machines readiness row shows the same install command. No
   sessions → "Describe a task…" hero.
 
 ## Home workbench
