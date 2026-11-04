@@ -114,3 +114,32 @@ it("shows This Mac's own version and update where a Host shows its own (B23)", a
   await act(async () => check!.click())
   expect(invoke).toHaveBeenCalledWith('updates:check')
 })
+
+it('names the platform the same way on This Mac and on a Host', async () => {
+  await showHostSettings(root, 'local', 'advanced')
+  await act(async () => {})
+  expect(container.textContent).toContain('macOS')
+  expect(container.textContent).not.toContain('darwin')
+  act(() => root.unmount())
+  root = createRoot(container)
+  await showHostSettings(root, machine.id, 'advanced')
+  expect(container.textContent).toContain('Linux')
+})
+
+it("keeps This Mac's update row when its version cannot be read", async () => {
+  const about = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string, ...rest: string[]) => {
+    if (channel === 'app:about') throw new Error('no about')
+    return about(channel, ...rest)
+  })
+  try {
+    await showHostSettings(root, 'local', 'advanced')
+    await act(async () => {})
+    const text = container.textContent ?? ''
+    expect(text).toContain('Phosphor updates')
+    expect(text).toContain('Phosphor version')
+    expect(text).toContain('unknown')
+  } finally {
+    invoke.mockImplementation(about)
+  }
+})
