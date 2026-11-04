@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { RemoteFileTree } from './RemoteFileTree'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
@@ -6,6 +6,9 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteFileSelection } from './remoteFileSelection'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { Button } from '@/components/form'
+import { languageForPath } from '@/lib/languages'
+import type { PendingReveal } from '@/stores/files'
+import { useLineReveal } from './useLineReveal'
 
 /**
  * The Host serves reads only for the focused lane, and focus follows activation,
@@ -151,18 +154,43 @@ export function ReadOnlyFilesPane({
         ) : notice ? (
           <p className="p-4">{notice}</p>
         ) : (
-          <div className="p-3">
-            {changes && before !== null && (
-              <>
-                <h3>HEAD</h3>
-                <CodeBlock code={before} language="text" />
-              </>
-            )}
-            {changes && <h3>Working copy</h3>}
-            <CodeBlock code={content} language="text" />
-          </div>
+          <ReadOnlyFileView
+            path={selected}
+            content={content}
+            before={changes ? before : undefined}
+            reveal={!changes && selection?.path === selected ? selection.reveal : undefined}
+          />
         )}
       </div>
     </section>
+  )
+}
+
+/** One file as text in the lane's language; Changes puts its HEAD version (null: none) first. */
+function ReadOnlyFileView({
+  path,
+  content,
+  before,
+  reveal,
+}: {
+  path: string
+  content: string
+  before?: string | null
+  reveal?: PendingReveal
+}): React.JSX.Element {
+  const scroller = useRef<HTMLDivElement>(null)
+  useLineReveal(scroller, reveal, content)
+  const language = languageForPath(path)
+  return (
+    <div ref={scroller} className="h-full overflow-auto p-3">
+      {typeof before === 'string' && (
+        <>
+          <h3>HEAD</h3>
+          <CodeBlock code={before} language={language} />
+        </>
+      )}
+      {before !== undefined && <h3>Working copy</h3>}
+      <CodeBlock code={content} language={language} />
+    </div>
   )
 }
