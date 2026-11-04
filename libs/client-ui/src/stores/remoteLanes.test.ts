@@ -291,7 +291,7 @@ it.each(['local', 'all'])(
     expect(useRemoteLanesStore.getState().filter).toBe(filter === 'all' ? 'all' : MOCK_HOST_ID)
     expect(useLayoutStore.getState().page).toBeNull()
     expect(useLaneRevealStore.getState().groupKey).toBe(
-      `host:${MOCK_HOST_ID}:${mockRemoteHosts[MOCK_HOST_ID]?.lanes[0]?.repositoryId}`,
+      `host:${MOCK_HOST_ID}/repo:${mockRemoteHosts[MOCK_HOST_ID]?.lanes[0]?.repositoryId}`,
     )
   },
 )
