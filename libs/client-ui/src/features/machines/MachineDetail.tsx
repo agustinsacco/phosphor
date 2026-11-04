@@ -97,7 +97,7 @@ export function MachineDetail({
           </Card>
           {overview.connected && (
             <Card title="On this machine">
-              <OnThisMachine hostId={id} />
+              <OnThisMachine hostId={id} refresh={check.round} />
             </Card>
           )}
         </div>

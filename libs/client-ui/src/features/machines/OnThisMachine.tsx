@@ -44,7 +44,7 @@ async function readCounts(
   }
 }
 
-function useHostResources(hostId: string): MachineResources | null {
+function useHostResources(hostId: string, refresh: number): MachineResources | null {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
   const [counts, setCounts] = useState<Partial<Record<Key, Count>>>({})
@@ -67,7 +67,7 @@ function useHostResources(hostId: string): MachineResources | null {
     return () => {
       current = false
     }
-  }, [hostId, generation])
+  }, [hostId, generation, refresh])
   if (!host) return null
   const ready = host.state === 'ready'
   return {
@@ -90,7 +90,7 @@ function useHostResources(hostId: string): MachineResources | null {
   }
 }
 
-function useLocalResources(): MachineResources {
+function useLocalResources(refresh: number): MachineResources {
   const lanes = useLocalLanes()
   const reads = machineCounts(window.phosphor.invoke, 'local')
   const [counts, setCounts] = useState<Partial<Record<Key, Count>>>(() =>
@@ -106,7 +106,7 @@ function useLocalResources(): MachineResources {
     return () => {
       current = false
     }
-  }, [])
+  }, [refresh])
   return {
     machine: 'local',
     ready: true,
@@ -121,15 +121,21 @@ function useLocalResources(): MachineResources {
   }
 }
 
+interface OnThisMachineProps {
+  hostId: string
+  /** Check again's round: each new one reads the counts again. */
+  refresh?: number
+}
+
 /** A machine's lanes, skills, routines and artifacts: This Mac's (`'local'`) or a Host's. */
-export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element | null {
-  return hostId === 'local' ? <LocalResources /> : <HostResources hostId={hostId} />
+export function OnThisMachine(props: OnThisMachineProps): React.JSX.Element | null {
+  return props.hostId === 'local' ? <LocalResources {...props} /> : <HostResources {...props} />
 }
-function LocalResources(): React.JSX.Element {
-  return <MachineResourcesCard resources={useLocalResources()} />
+function LocalResources({ refresh = 0 }: OnThisMachineProps): React.JSX.Element {
+  return <MachineResourcesCard resources={useLocalResources(refresh)} />
 }
-function HostResources({ hostId }: { hostId: string }): React.JSX.Element | null {
-  const resources = useHostResources(hostId)
+function HostResources({ hostId, refresh = 0 }: OnThisMachineProps): React.JSX.Element | null {
+  const resources = useHostResources(hostId, refresh)
   return resources && <MachineResourcesCard resources={resources} />
 }
 
