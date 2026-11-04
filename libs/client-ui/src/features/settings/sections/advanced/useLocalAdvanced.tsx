@@ -10,14 +10,13 @@ import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
 const CAPS = { rawFiles: true, maintenance: true } as const
 
 /**
- * This Mac's Phosphor: its version (`app:about`) and update, where the app
- * reports them. A failed version read keeps the update row and says "unknown".
+ * This app's `app:about` (About and Advanced both read it here), while
+ * `enabled`: null until it answers, "unknown" when it failed.
  */
-function useLocalRuntime(): MachineRuntime | undefined {
-  const { appInfo } = usePlatform()
+export function useAboutInfo(enabled: boolean): AboutInfo | 'unknown' | null {
   const [about, setAbout] = useState<AboutInfo | 'unknown' | null>(null)
   useEffect(() => {
-    if (!appInfo) return
+    if (!enabled) return
     let live = true
     window.phosphor.invoke('app:about').then(
       (info) => live && setAbout(info),
@@ -26,7 +25,17 @@ function useLocalRuntime(): MachineRuntime | undefined {
     return () => {
       live = false
     }
-  }, [appInfo])
+  }, [enabled])
+  return about
+}
+
+/**
+ * This Mac's Phosphor: its version and update, where the app reports them. A
+ * failed version read keeps the update row and says "unknown".
+ */
+function useLocalRuntime(): MachineRuntime | undefined {
+  const { appInfo } = usePlatform()
+  const about = useAboutInfo(appInfo)
   const update = useAppUpdate(appInfo)
   if (!appInfo || !about) return undefined
   if (about === 'unknown') return { product: 'Phosphor', version: 'unknown', update }

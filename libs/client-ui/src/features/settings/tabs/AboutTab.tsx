@@ -1,11 +1,11 @@
 import { TooltipSummary } from '@/components/Tooltip'
 import { Row, SectionTitle } from '@/components/form'
 import { PhosphorLockup } from '@/components/PhosphorMark'
-import type { AboutInfo } from '@shared/models'
 import { piInstallLocation, type PiHealth } from '@shared/models'
 import { useEffect, useState } from 'react'
 import { usePlatform } from '@/platform/Platform'
 import { MachineUpdateRow, useAppUpdate } from '../sections/advanced/MachineRuntimeRows'
+import { useAboutInfo } from '../sections/advanced/useLocalAdvanced'
 import { VERIFIED_PI_LINE, isPiNewerThanVerified } from '@/lib/piDrift'
 import interLicense from '@/assets/fonts/Inter-OFL.txt?raw'
 import monoLicense from '@/assets/fonts/JetBrainsMono-OFL.txt?raw'
@@ -43,12 +43,13 @@ export function AboutTab(): React.JSX.Element {
 
 /** Versions, update checks and pi drift, read from the native app. */
 function AppInfoRows(): React.JSX.Element {
-  const [about, setAbout] = useState<AboutInfo | null>(null)
+  const read = useAboutInfo(true)
+  const about = read === 'unknown' ? null : read
+  const pending = read === 'unknown' ? 'unknown' : '…'
   const [health, setHealth] = useState<PiHealth | null>(null)
   const update = useAppUpdate()
 
   useEffect(() => {
-    void window.phosphor.invoke('app:about').then(setAbout)
     void window.phosphor.invoke('pi:health').then(setHealth)
   }, [])
 
@@ -57,7 +58,7 @@ function AppInfoRows(): React.JSX.Element {
   return (
     <>
       <Row title="Phosphor version">
-        <span className="font-mono text-base">{about?.appVersion ?? '…'}</span>
+        <span className="font-mono text-base">{about?.appVersion ?? pending}</span>
       </Row>
       <MachineUpdateRow title="Updates" update={update} />
       <Row title="pi version" description={health ? piInstallLocation(health) : undefined}>
@@ -67,12 +68,12 @@ function AppInfoRows(): React.JSX.Element {
       </Row>
       <Row title="Platform">
         <span className="font-mono text-base">
-          {about ? `${about.platform}-${about.arch}` : '…'}
+          {about ? `${about.platform}-${about.arch}` : pending}
         </span>
       </Row>
       <Row title="Runtime">
         <span className="font-mono text-base">
-          {about ? `Electron ${about.electron} · Node ${about.node}` : '…'}
+          {about ? `Electron ${about.electron} · Node ${about.node}` : pending}
         </span>
       </Row>
 
