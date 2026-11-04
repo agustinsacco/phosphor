@@ -100,11 +100,15 @@ test('the phone lane composer keeps one control row, one scroller and the caret 
   await page.setViewportSize({ width: 412, height: 480 })
   await chat.fill(DRAFT)
   await chat.press('End')
-  const field = await fieldState(chat)
-  expect(field.bottom).toBeLessThanOrEqual(field.shellBottom)
-  expect(field.height).toBeLessThanOrEqual(480 * 0.35)
-  expect(field.atEnd).toBe(true)
-  expect(await extraScrollers(page)).toEqual([])
+  // Viewport updates and the textarea's ResizeObserver settle on animation frames.
+  // Keep every geometry assertion, but re-read the layout instead of freezing one early frame.
+  await expect(async () => {
+    const field = await fieldState(chat)
+    expect(field.bottom).toBeLessThanOrEqual(field.shellBottom)
+    expect(field.height).toBeLessThanOrEqual(480 * 0.35)
+    expect(field.atEnd).toBe(true)
+    expect(await extraScrollers(page)).toEqual([])
+  }).toPass({ timeout: 15_000 })
 })
 
 test('the phone new-lane page scrolls once, never its composer, and keeps the caret in view', async ({
@@ -118,9 +122,11 @@ test('the phone new-lane page scrolls once, never its composer, and keeps the ca
   const start = page.getByRole('textbox', { name: 'Chat message', exact: true })
   await start.fill(DRAFT)
   await start.press('End')
-  const field = await fieldState(start)
-  expect(field.bottom).toBeLessThanOrEqual(field.shellBottom)
-  expect(field.atEnd).toBe(true)
+  await expect(async () => {
+    const field = await fieldState(start)
+    expect(field.bottom).toBeLessThanOrEqual(field.shellBottom)
+    expect(field.atEnd).toBe(true)
+  }).toPass({ timeout: 15_000 })
   await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeInViewport()
   const nested = await page
     .locator('.remote-start')
