@@ -19,9 +19,9 @@ const FEATURE_NAMES: Record<GrantedCapability, string> = {
   routines: 'routines',
 }
 
-/** A Host refused an operation it predates. */
-export function needsNewerHost(feature: string): string {
-  return `A newer Host is needed for ${feature}. ${HOST_TOO_OLD}`
+/** A Host refused an operation it predates; `subject` ends in its verb ("Pins need"). */
+export function needsNewerHost(subject: string): string {
+  return `${subject} a newer Host. ${HOST_TOO_OLD}`
 }
 
 /**
