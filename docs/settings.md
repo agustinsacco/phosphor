@@ -739,7 +739,8 @@ scope line: **Machine** is the machine's `mcp.json`, **Folder** the chosen folde
   tokens and only writes `mcp.json`.
 - **Add a connector**: the curated OAuth catalog (Linear, Notion, Braintrust,
   Datadog, Supabase, Questrade, Fellow, Slack), minus what is configured. Add
-  writes the entry; on This Mac it also starts the sign-in.
+  writes the entry, then starts its sign-in: on a Host once it confirms the save,
+  as the reviewed sign-in task.
 - **Add custom server…**: a remote URL with an optional Authorization header
   (Machine scope only), or a command with one argument per line.
 - **This Mac only** (`caps`): per-server **Test**, tools and tool visibility,
