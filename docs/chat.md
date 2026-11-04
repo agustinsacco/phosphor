@@ -1090,11 +1090,14 @@ wording: hidden with one account, "Spending … of N accounts", and the warning
 that names where new lanes go when the lane's account is out of allowance
 (`accountSwitcherSummary`). That read runs a sign-in check per account on the
 Host, so it is kept for a minute per Host connection
-(`stores/hostProvidersCache.ts`); a failed one is not kept. Without access the
-summary stays neutral and nothing is read. It needs lane control, and asks for
+(`stores/hostProvidersCache.ts`); a failed one is not kept, and a move drops it.
+An account added, removed or rerouted in that Host's Settings shows here within
+that minute. A reconnect keeps the last answer on screen until the new
+connection's read lands. Without access the summary stays neutral and nothing
+is read. It needs lane control, and asks for
 the Host's settings access first if this client lacks it; the picker stays open
 through the reconnect that grant causes, then reads the Host's accounts. A
-failed read says so and offers Retry, and usage is re-read after every move
+failed read, or a Host answer without provider settings, says so and offers Retry, and usage is re-read after every move
 attempt, confirmed or not. A Host older
 than the call says so in the section and offers Refresh, rather than hiding it.
 
