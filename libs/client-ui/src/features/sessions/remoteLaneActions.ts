@@ -48,6 +48,7 @@ export interface RemoteLaneActionHandlers {
   stop: () => void
   resume: () => void
   markRead: () => void
+  makeRoutine: () => void
   togglePin: () => void
   pickMarker: () => void
   exportHtml: () => void
@@ -131,6 +132,14 @@ export function remoteLaneActions(
       disabled: !ready || busy,
       hint: notReady,
       onClick: handlers.markRead,
+    },
+    {
+      label: 'Make routine…',
+      disabled: !ready || busy || !state.host?.capabilities.includes('routines'),
+      hint:
+        notReady ??
+        (state.host?.capabilities.includes('routines') ? undefined : REMOTE_UNAVAILABLE),
+      onClick: handlers.makeRoutine,
     },
     {
       label: lane.pinned ? 'Unpin' : 'Pin',

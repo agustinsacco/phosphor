@@ -11,6 +11,7 @@ import { setRemoteLaneMarks } from '@/stores/remoteLaneMarks'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
+import { makeRoutine } from '@/stores/routines'
 import { STOP_NEEDS_PROMPT } from '@/features/machines/useLaneControl'
 import { openPullRequest } from './PrBadge'
 import { useRemotePr } from './remotePullRequests'
@@ -242,6 +243,7 @@ function laneHandlers({
     markRead: send('hosts:markRead'),
     togglePin: () => mark({ pinned: !lane.pinned }),
     pickMarker: () => openDialog('marker'),
+    makeRoutine: () => void act(async () => routineFromLane(hostId, lane, title, await session())),
     exportHtml: () =>
       void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),
     copyDebugInfo: () => void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane))),
@@ -318,6 +320,19 @@ function usedMarkers(lanes: readonly HostLaneView[], lane: HostLaneView): Set<st
 async function renameLane(sessionId: string, name: string): Promise<void> {
   if (!(await piCallOk(sessionId, { type: 'set_session_name', name }))) throw new Error()
   useChatStore.getState().patchMeta(sessionId, { sessionName: name })
+}
+
+/**
+ * "Make routine…" on a Host lane: This Mac's draft (title and first prompt),
+ * opened on the lane's Host and folder. The lane's session is open by now, so
+ * its transcript holds the first prompt.
+ */
+function routineFromLane(hostId: string, lane: HostLaneView, title: string, sessionId: string) {
+  const first = useChatStore.getState().sessions[sessionId]?.items.find((i) => i.kind === 'user')
+  makeRoutine('', title, first?.kind === 'user' ? first.text : '', {
+    hostId,
+    repositoryId: lane.repositoryId,
+  })
 }
 
 async function sessionCost(sessionId: string): Promise<number> {

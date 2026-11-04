@@ -9,6 +9,7 @@ import {
   type RoutinesSnapshot,
 } from '@shared/routines'
 import { useLayoutStore } from './layout'
+import { openMachinePage } from './machinePages'
 
 /** Shared frozen default: a selector must never return a fresh object. */
 const NO_LANES: RoutineLaneIndex = Object.freeze({})
@@ -36,6 +37,8 @@ interface RoutinesState {
   laneIndex: RoutineLaneIndex
   error: string | null
   draft: RoutineInput | null
+  /** The Host and folder a context-menu draft targets; null for This Mac. */
+  draftTarget: RoutineDraftTarget | null
   /**
    * What the editor held when it closed, keyed by routine id or a per-machine new-routine key.
    * Closing the editor, by Escape or Cancel or leaving the page, must not
@@ -60,6 +63,7 @@ export const useRoutinesStore = create<RoutinesState>((set, get) => ({
   laneIndex: NO_LANES,
   error: null,
   draft: null,
+  draftTarget: null,
   editorDrafts: {},
   refresh: async () => {
     const request = ++sequence
@@ -172,12 +176,28 @@ export function editorDraft(key: string, revision: number | null): EditorDraft |
   return null
 }
 
-/** Reviewable draft only: never schedules or copies an active conversation. */
-export function makeRoutine(workspacePath: string, name: string, instructions: string): void {
+/** The Host folder a "Make routine…" draft from a Host lane runs in. */
+export interface RoutineDraftTarget {
+  hostId: string
+  repositoryId: string
+}
+
+/**
+ * Reviewable draft only: never schedules or copies an active conversation. A
+ * `target` opens it on that Host's Routines, in the lane's folder.
+ */
+export function makeRoutine(
+  workspacePath: string,
+  name: string,
+  instructions: string,
+  target?: RoutineDraftTarget,
+): void {
   useRoutinesStore.setState({
     draft: { ...newRoutine(workspacePath), name: name.slice(0, 100), instructions },
+    draftTarget: target ?? null,
   })
-  useLayoutStore.getState().setPage('routines')
+  if (target) openMachinePage('routines', target.hostId)
+  else useLayoutStore.getState().setPage('routines')
 }
 
 /** Retire in-flight projection reads before a browser owner is replaced. */
@@ -194,6 +214,7 @@ export function clearRoutineMemory(): void {
     laneIndex: NO_LANES,
     error: null,
     draft: null,
+    draftTarget: null,
     editorDrafts: {},
   })
 }

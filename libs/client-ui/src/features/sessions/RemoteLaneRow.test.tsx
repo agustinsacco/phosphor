@@ -112,6 +112,8 @@ it('prefers the live name, then Host summary, then first prompt without local na
 it('uses the local context-menu host and gates controller actions for a viewer', () => {
   const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
   host.lanes[0]!.control.controller = null
+  // A Host with every capability: only control stands between a viewer and the actions.
+  host.capabilities.push('routines')
   render()
   menu()
   expect(button('Rename').disabled).toBe(true)
