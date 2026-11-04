@@ -234,3 +234,77 @@ it('shows a failed first read as a failure, not an empty list, and retries', asy
   await act(async () => {})
   expect(document.body.textContent).toContain('personal@example.com')
 })
+
+/*
+ * The same gate and wording as This Mac's switcher (`accountSwitcherSummary`), from
+ * the Host's accounts. They are read only where this device already holds the
+ * configuration grant, at most once a minute per Host connection.
+ */
+const providersReads = () =>
+  invoke.mock.calls.filter(([channel]) => channel === 'hosts:settingsRead').length
+
+async function settle(): Promise<void> {
+  await act(async () => {})
+}
+
+it('hides the switcher on a Host with one Claude account, as This Mac does', async () => {
+  host(FULL)
+  accounts = [account('work', [LANE], { email: 'work@example.com' })]
+  render()
+  await settle()
+  expect(document.body.textContent).not.toContain('Switch account')
+})
+
+it("names the account a Host lane spends, of how many, as This Mac's does", async () => {
+  host(FULL)
+  render()
+  await settle()
+  expect(document.body.textContent).toContain('Spending work@example.com of 3 accounts.')
+})
+
+it('warns and names where new lanes go when the Host account is out of allowance', async () => {
+  host(FULL)
+  accounts[0] = { ...accounts[0]!, cooldownUntil: Date.now() + 60_000 }
+  render()
+  await settle()
+  expect(document.body.textContent).toContain(
+    'Out of plan allowance. New sessions go to personal@example.com.',
+  )
+})
+
+it("reads a Host's accounts once a minute per connection, never without the grant", async () => {
+  host(['sessions.read', 'sessions.control'])
+  render()
+  await settle()
+  expect(providersReads()).toBe(0)
+  act(() => root?.unmount())
+  host(FULL)
+  render()
+  await settle()
+  act(() => root?.unmount())
+  render()
+  await settle()
+  expect(providersReads()).toBe(1)
+  // A new connection is a new read.
+  act(() => reconnecting())
+  act(() => host(FULL))
+  act(() => root?.unmount())
+  render()
+  await settle()
+  expect(providersReads()).toBe(2)
+})
+
+it('keeps no failed read: the switcher stays neutral and the next open reads again', async () => {
+  host(FULL)
+  invoke.mockImplementationOnce(async () => {
+    throw new Error('Host settings operation not confirmed.')
+  })
+  render()
+  await settle()
+  expect(document.body.textContent).toContain('Move this lane to another Claude account')
+  act(() => root?.unmount())
+  render()
+  await settle()
+  expect(providersReads()).toBe(2)
+  expect(document.body.textContent).toContain('Spending work@example.com of 3 accounts.')
+})
