@@ -14,7 +14,7 @@ import { languageForPath } from '@/lib/monaco'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
-import { canControlSession } from '@/stores/remoteLanes'
+import { useLaneWriteRefusal } from './laneWriteRefusal'
 import { fileListErrorText } from '@shared/host-protocol-files'
 import { promptText } from '@/stores/prompt'
 
@@ -57,10 +57,7 @@ function RemoteFilesView({
   const [uncertain, setUncertain] = useState(draft?.uncertain ?? false)
   const dirtyRef = useRef(false)
   dirtyRef.current = dirty
-  const writable =
-    host?.state === 'ready' &&
-    host.capabilities.includes('workspaces.write') &&
-    canControlSession(sessionId)
+  const writable = !useLaneWriteRefusal(sessionId)
   useEffect(() => {
     if (selection && !dirtyRef.current) setSelected(selection.path)
   }, [selection])

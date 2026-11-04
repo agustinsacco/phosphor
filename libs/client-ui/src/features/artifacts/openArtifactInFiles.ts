@@ -1,6 +1,9 @@
 import { ipcErrorText } from '@shared/errors'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { openFileInWorkspace } from '@/stores/layout'
+import type { Artifact } from '@/stores/artifacts'
+import { useLaneWriteRefusal } from '@/features/files/laneWriteRefusal'
+import { suggestedFileName } from './artifactKinds'
 
 /**
  * Write an artifact's text into its lane's workspace, then open it in that lane's Files. A Host
@@ -24,4 +27,15 @@ export function openArtifactInFiles(
     .catch((error: unknown) => {
       useExtensionUiStore.getState().pushToast(ipcErrorText(error), 'error')
     })
+}
+
+/**
+ * The artifact pane's "Write into workspace and open in Files": why this client cannot write
+ * into the lane now (the same rule as the Host Files pane), and the write.
+ */
+export function useOpenArtifactInFiles(workspacePath: string, sessionId?: string) {
+  const refusal = useLaneWriteRefusal(sessionId ?? '')
+  const open = (artifact: Artifact, content: string) =>
+    openArtifactInFiles(workspacePath, suggestedFileName(artifact), content, sessionId)
+  return { refusal, open }
 }

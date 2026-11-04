@@ -527,7 +527,9 @@ clears that lane's cached artifacts; switching back restores the Mac lane's own
 artifacts, not a global selection. Write into workspace and open in Files writes
 a remote artifact into its lane on the Host, as This Mac's does: it reads the
 file's revision first, so it replaces only what it read (or creates a new file),
-then opens it in that lane's Files. A refusal is a toast. Save and PDF export
+then opens it in that lane's Files. Like the lane's Files editing, it needs the
+Host's file editing and this window holding the lane; otherwise the button is
+disabled and its tooltip names why. A refusal from the Host is a toast. Save and PDF export
 explicitly target This Mac. The top-bar artifact count belongs to the active lane.
 
 Remote slash commands come from the lane, and file mentions search its Host file

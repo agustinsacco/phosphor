@@ -4,7 +4,7 @@ import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { LOCAL_ARTIFACT_PREFIX, useArtifactsStore, type Artifact } from '@/stores/artifacts'
-import { openArtifactInFiles } from './openArtifactInFiles'
+import { useOpenArtifactInFiles } from './openArtifactInFiles'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { PageShell } from '@/components/PageShell'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
@@ -145,6 +145,7 @@ export function ArtifactWorkspace({
   const platform = usePlatform()
   // A Host artifact downloads to this machine, so its actions name it.
   const downloads = remote ? `${localMachineLabel()} Downloads` : 'Downloads'
+  const writeIn = useOpenArtifactInFiles(workspacePath, sessionId)
   const [mode, setMode] = useState<ViewMode>('preview')
   const [exporting, setExporting] = useState(false)
   // The PDF prints the rendered preview, so the export reads this node for the
@@ -343,15 +344,9 @@ export function ArtifactWorkspace({
           )}
           {!page && platform.fileEditing && (
             <ActionIcon
-              title="Write into workspace and open in Files"
-              onClick={() =>
-                void openArtifactInFiles(
-                  workspacePath,
-                  suggestedFileName(artifact),
-                  shown.content,
-                  sessionId,
-                )
-              }
+              disabled={!!writeIn.refusal}
+              title={writeIn.refusal ?? 'Write into workspace and open in Files'}
+              onClick={() => void writeIn.open(artifact, shown.content)}
             >
               <FileIcon size={12} />
             </ActionIcon>
