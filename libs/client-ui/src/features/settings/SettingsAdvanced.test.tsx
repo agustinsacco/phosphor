@@ -128,9 +128,9 @@ it('names the platform the same way on This Mac and on a Host', async () => {
 
 it("keeps This Mac's update row when its version cannot be read", async () => {
   const about = invoke.getMockImplementation()!
-  invoke.mockImplementation(async (channel: string, ...rest: string[]) => {
+  invoke.mockImplementation(async (channel: string, hostId?: string, section?: string) => {
     if (channel === 'app:about') throw new Error('no about')
-    return about(channel, ...rest)
+    return about(channel, hostId, section)
   })
   try {
     await showHostSettings(root, 'local', 'advanced')
@@ -146,9 +146,9 @@ it("keeps This Mac's update row when its version cannot be read", async () => {
 
 it('says in About that the version is unknown when the app cannot report it', async () => {
   const about = invoke.getMockImplementation()!
-  invoke.mockImplementation(async (channel: string, ...rest: string[]) => {
+  invoke.mockImplementation(async (channel: string, hostId?: string, section?: string) => {
     if (channel === 'app:about') throw new Error('no about')
-    return about(channel, ...rest)
+    return about(channel, hostId, section)
   })
   try {
     await showHostSettings(root, 'local', 'about')
