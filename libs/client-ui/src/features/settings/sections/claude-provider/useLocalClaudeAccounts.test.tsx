@@ -95,3 +95,11 @@ it("forces a new reading of This Mac's account usage on Check again", async () =
   await act(async () => buttonNamed('Check again')!.click())
   expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot', 'a', true)
 })
+
+it("opens a lane from This Mac's account lane list", async () => {
+  useSessionsStore.setState({ activeSessionId: null })
+  await openAccountA()
+  await vi.waitFor(() => expect(buttonNamed('Open lane')).toBeDefined())
+  await act(async () => buttonNamed('Open lane')!.click())
+  await vi.waitFor(() => expect(useSessionsStore.getState().activeSessionId).toBe('lane'))
+})
