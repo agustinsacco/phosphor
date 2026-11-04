@@ -91,7 +91,7 @@ export function App(): React.JSX.Element {
     void useModelCatalogueStore.getState().hydrate()
     checkHealth()
   }, [])
-  const localSetup = useLocalSetup(health, currentWorkspace, checkHealth)
+  const { setup: localSetup, gettingStarted } = useLocalSetup(health, currentWorkspace, checkHealth)
 
   // Terminal busy-map broadcast → store (drives header badges + tab dots).
   useEffect(
@@ -116,9 +116,10 @@ export function App(): React.JSX.Element {
 
   // Land where the user left off. Main validates that the workspace and
   // session file still exist, so a deleted folder degrades to the picker
-  // instead of routing into a broken screen.
+  // instead of routing into a broken screen. It waits out the recommendations
+  // that follow a pi install, which the restored session would cover.
   useEffect(() => {
-    if (!health?.ok) return
+    if (!health?.ok || gettingStarted) return
     let cancelled = false
 
     void (async () => {
@@ -170,7 +171,7 @@ export function App(): React.JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [health?.ok])
+  }, [health?.ok, gettingStarted])
 
   // One launch-only latch: sidebar refreshes and later session switches must
   // never bring back the full-window screen. Keep the shell mounted beneath

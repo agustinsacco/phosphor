@@ -503,8 +503,10 @@ close it; focus moves into the sheet and returns to the element on close.
   This Mac's home does not offer it.
 - **Empty states**: This Mac's home takes its setup while This Mac cannot
   start a lane (`app/useLocalSetup.tsx`): pi missing or outdated → one-click
-  Install/Update pi with the install command (`PiMissingScreen`), then the
-  one-time recommendations (`GettingStartedScreen`); no open folder → the
+  Install/Update pi with the install command (`PiMissingScreen`; the hook owns
+  the install, so leaving the home does not lose it), then the one-time
+  recommendations (`GettingStartedScreen`, which the restore of the last
+  session waits for); no open folder → the
   folder picker with recents (`WorkspacePicker`). Only local lane creation
   waits: a Host composer target shows the Host's start page, and on a Host
   home the setup takes only the composer slot, under the composer's machine
