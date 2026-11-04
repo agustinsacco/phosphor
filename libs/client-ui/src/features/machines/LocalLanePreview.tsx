@@ -9,6 +9,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { sessionSubtitle } from '@/features/sessions/sessionSubtitle'
 import { LaneRow, SessionIndicator, SubtitleSegments } from '@/features/sessions/SidebarPrimitives'
 import { isUnseen } from '@/features/sessions/unseen'
+import { localLiveEntries } from './localLive'
 
 /** A This Mac lane: its file (once pi has written one), its live session, or both. */
 export interface LocalLane {
@@ -23,7 +24,7 @@ export function useLocalLanes(): LocalLane[] {
   const disk = useSessionsStore((s) => s.disk)
   const live = useSessionsStore((s) => s.live)
   return useMemo(() => {
-    const local = Object.values(live).filter((entry) => entry.target?.kind !== 'remote')
+    const local = localLiveEntries(live)
     const liveByPath = new Map(local.map((entry) => [entry.diskPath, entry.phosphorId]))
     const stored = Object.entries(disk)
       .flatMap(([workspacePath, metas]) => metas.map((meta) => ({ workspacePath, meta })))

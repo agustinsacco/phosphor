@@ -5,6 +5,7 @@ import { useMachinesStore } from '@/stores/machines'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { runHealthCheck, type HealthRun } from './healthCheck'
+import { localLiveEntries } from './localLive'
 
 /** The last health check in this window. Never persisted; a new run replaces it. */
 export const useMachineHealthStore = create<{ run: HealthRun | null; running: boolean }>(() => ({
@@ -29,9 +30,7 @@ export async function startHealthCheck(): Promise<void> {
       hosts: () => window.phosphor.invoke('hosts:snapshot'),
       localProviders: readLocalSubscriptionAuth,
       localLanes: () => ({
-        live: Object.values(useSessionsStore.getState().live).filter(
-          (entry) => entry.target?.kind !== 'remote',
-        ).length,
+        live: localLiveEntries(useSessionsStore.getState().live).length,
         folders: useWorkspacesStore.getState().recents.length,
       }),
       now: () => Date.now() + useMachinesStore.getState().clockOffsetMs,

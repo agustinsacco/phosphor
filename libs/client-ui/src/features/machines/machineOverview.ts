@@ -21,6 +21,7 @@ import {
   type ReadinessCheck,
 } from './machinePresentation'
 import { machineHeadline, type Headline } from './machineReachability'
+import { localLiveEntries } from './localLive'
 import { useLocalTasks } from './MachineTasks'
 import { useHostPiVersion } from './useHostPiVersion'
 import { hostTasks, taskCounts, type MachineTask } from './runningTasks'
@@ -145,9 +146,7 @@ export function useLocalOverview(): MachineOverview | null {
   const { localLanes, appInfo } = usePlatform()
   const reads = useLocalReads(localLanes)
   const tasks = useLocalTasks()
-  const liveHere = useSessionsStore(
-    (s) => Object.values(s.live).filter((entry) => entry.target?.kind !== 'remote').length,
-  )
+  const liveHere = useSessionsStore((s) => localLiveEntries(s.live).length)
   const reachesHosts = useMachinesStore((s) => s.remoteEnabled && s.machines.length > 0)
   const openSettings = useOpenSettings()
   if (!localLanes) return null
