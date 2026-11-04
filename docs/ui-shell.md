@@ -612,7 +612,9 @@ Settings cannot open (unconnected, or too old) offers `phosphor setup` instead.
 Signed out is the same: sign in under Settings → Extensions → Claude Code, and only
 a Host whose Settings cannot open offers `phosphor providers login claude`.
 
-Providers lists the connected Host's providers, signed-in first. Not signed in
+Providers lists the connected Host's providers, signed-in first, after "Checking
+providers…" over skeleton rows. A connected Host that does not let this device read
+them says "This device may not read providers on X". Not signed in
 is neutral, not a warning, because most people use one or two. The rows are
 Settings → Accounts' own (`ProviderList`), read-only. Supporting Hosts link to
 **Settings → Accounts** rather than duplicating authentication controls; older
@@ -654,7 +656,8 @@ and its providers, and **Update Phosphor…**, which opens Settings → About wh
 app can check for updates. The same Overview / Settings / Machine files navigation
 follows: Settings opens Settings → Accounts for this computer, and Machine files
 browses its recent folders read-only in the same dialog and tree. Readiness lists pi, Claude Code and Tailscale; Providers lists its subscriptions
-with Settings → Accounts' rows and **Provider settings**; Details holds its
+with Settings → Accounts' rows and **Provider settings**, opening on Accounts' last
+read (each read runs one `pi auth check` per provider) and reading again on Check again; Details holds its
 platform and architecture, Phosphor version, pi version and live lane count; the terminal opens a shell at home. It
 has no Connection row or Remove.
 
