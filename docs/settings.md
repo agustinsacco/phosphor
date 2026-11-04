@@ -611,8 +611,8 @@ pi's own package manager (`pi install` / `pi remove` / `pi update`) on that mach
   **Repair** when pi's settings name it but it is missing, and **Add** otherwise
   (`standardPackageState`, matched by package name, so pinned versions and a Host's
   redacted specs still match). A Host offers only the `headless` ones: computer use
-  needs a desktop session. The Claude Code card says when the `claude` CLI is not on
-  PATH (This Mac).
+  needs a desktop session. The Claude Code card says when the machine's `claude` CLI
+  is not on PATH (a Host's from `hosts:claude`).
 - **Installed** lists, for the machine and for the folder in scope. Each row shows
   the version, a `vX available` chip when the machine checks the registry, and what
   the package contributes: by name on This Mac (skills with a **View in Skills**
