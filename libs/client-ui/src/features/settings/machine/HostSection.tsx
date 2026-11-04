@@ -28,8 +28,12 @@ function useHostSectionState(
 ) {
   const folder = useSettingsUiStore((s) => s.folder)
   const repositoryId = scoped ? (folder ?? undefined) : undefined
-  const reads = section === 'connection' ? 'connection' : 'settings'
-  const settings = useHostSettings(machine.id, reads === 'settings' ? section : null, repositoryId)
+  const reads: 'settings' | 'connection' = section === 'connection' ? 'connection' : 'settings'
+  const settings = useHostSettings(
+    machine.id,
+    section === 'connection' ? null : section,
+    repositoryId,
+  )
   const { connection, allowed } = settings
   const programs = useMachinePrograms(machine, settings)
   const { setError, alive } = programs
