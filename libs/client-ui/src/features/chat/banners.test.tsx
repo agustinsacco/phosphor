@@ -97,3 +97,19 @@ it.each(['stopped', 'idle'] as const)('shows no crash for a %s Host lane', async
   const el = await renderHostLane(activity, true)
   expect(el.textContent).not.toContain('pi crashed')
 })
+
+it("offers a crashed Host lane's controller one Resume, the banner's", async () => {
+  const el = await renderHostLane('failed', true)
+  const resumes = [...el.querySelectorAll('button')].filter((b) =>
+    b.textContent?.startsWith('Resume'),
+  )
+  expect(resumes.map((b) => b.textContent)).toEqual(['Resume session'])
+})
+
+it("keeps the control row's Resume for a stopped Host lane, with no crash banner", async () => {
+  const el = await renderHostLane('stopped', true)
+  const resumes = [...el.querySelectorAll('button')].filter((b) =>
+    b.textContent?.startsWith('Resume'),
+  )
+  expect(resumes.map((b) => b.textContent)).toEqual(['Resume'])
+})
