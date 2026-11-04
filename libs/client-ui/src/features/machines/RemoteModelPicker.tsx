@@ -1,39 +1,44 @@
+import { supportedThinkingLevels } from '@shared/thinking'
 import { useMachinesStore } from '@/stores/machines'
-import { Button } from '@/components/form'
 import { machineLabel } from '@/stores/remoteLanes'
-import { RemoteModelChips } from './RemoteModelChips'
+import { StartModelPicker, type StartModelSource } from '@/features/home/StartModelPicker'
 import type { useRemoteModel } from './useRemoteModel'
-import './remoteModel.css'
 
 export { useRemoteModel } from './useRemoteModel'
 
-/**
- * The composer's model and thinking chips at every width, the same picker as
- * This Mac's home and every lane. A phone gets the shared menu as a sheet.
- */
+type HostModelSelection = ReturnType<typeof useRemoteModel>
+
+/** A Host's new-lane model picker: its catalogue, with the picks remembered for it. */
 export function RemoteModelPicker({
   selection,
 }: {
-  selection: ReturnType<typeof useRemoteModel>
+  selection: HostModelSelection
 }): React.JSX.Element {
-  return (
-    <div className="remote-model-picker">
-      <RemoteModelChips selection={selection} />
-      {selection.canRetry && (
-        <Button size="sm" onClick={() => void selection.retry()}>
-          Retry models
-        </Button>
-      )}
-      {selection.missingModel && (
-        <Button
-          size="sm"
-          onClick={() =>
-            useMachinesStore.getState().show({ kind: 'machine', id: selection.hostId })
-          }
-        >
-          Sign in on {machineLabel(selection.hostId)}
-        </Button>
-      )}
-    </div>
-  )
+  return <StartModelPicker source={hostStartModel(selection)} />
+}
+
+function hostStartModel(selection: HostModelSelection): StartModelSource {
+  const { model, hostId } = selection
+  const actions: StartModelSource['actions'] = []
+  if (selection.canRetry) actions.push({ label: 'Retry models', run: () => void selection.retry() })
+  if (selection.missingModel)
+    actions.push({
+      label: `Sign in on ${machineLabel(hostId)}`,
+      run: () => useMachinesStore.getState().show({ kind: 'machine', id: hostId }),
+    })
+  return {
+    testIdPrefix: 'remote',
+    models: selection.models,
+    current: model,
+    chip: model
+      ? { text: model.name, tone: 'normal', title: `${model.name} · ${selection.explanation}` }
+      : { text: selection.hint, tone: 'muted', title: selection.hint },
+    loading: false,
+    levels: model ? supportedThinkingLevels(model) : [],
+    thinking: selection.thinking,
+    choose: selection.choose,
+    setThinking: selection.setThinking,
+    menu: { emptyText: selection.hint, unavailable: selection.unavailable },
+    actions,
+  }
 }

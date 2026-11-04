@@ -844,9 +844,14 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   from `libs/shared/src/thinking.ts`. The segment is hidden unless the model has
   more than one level.
 - **Two owners, one chip.** `ModelPicker` drives a live session over RPC
-  (`set_model`). `HomeModelPicker` has no process to talk to, so it reads and
-  writes pi's own `defaultProvider` / `defaultModel` / `defaultThinkingLevel`.
-  Both render `composer/ModelChip.tsx`: the model name as the left segment,
+  (`set_model`). A new lane has no process to talk to, so the start composer's
+  one `StartModelPicker` (`features/home/`) reads a machine's model source:
+  This Mac's reads and writes pi's own `defaultProvider` / `defaultModel` /
+  `defaultThinkingLevel` (`useLocalStartModel`); a Host's reads its catalogue
+  and the picks remembered for it (`RemoteModelPicker`). Retry models and Sign in
+  on the machine are the source's actions, rendered after the chips. The picker
+  grows into the toolbar's free width on every machine.
+  Both owners render `composer/ModelChip.tsx`: the model name as the left segment,
   the thinking level (with a caret) as the right. The provider is not on the
   chip: it is in the chip's tooltip and, in a session, in the strip, named only
   when pi does not ship it (`namedProvider`).

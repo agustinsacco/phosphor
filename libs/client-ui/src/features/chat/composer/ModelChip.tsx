@@ -6,9 +6,10 @@ import { ChevronDownIcon } from '@/components/icons'
  * The composer's model · thinking split chip, shared by both owners.
  *
  * Two components drive it: `ModelPicker` (a live session, writing pi over
- * RPC) and `HomeModelPicker` (no session yet, writing pi's `settings.json`
- * defaults). That data split is deliberate — see the comment in
- * `HomeModelPicker`. The *presentation* was copy-pasted between them, and it
+ * RPC) and `StartModelPicker` (no session yet, over a machine's model source;
+ * This Mac's writes pi's `settings.json` defaults). That data split is
+ * deliberate — see the comment in `useLocalStartModel`. The *presentation* was
+ * copy-pasted between them, and it
  * drifted: the session chip put the provider on the model's own line while
  * home still stacked it, and home named the provider for every model while
  * the session chip named it only when pi did not ship it. One of those was a

@@ -121,7 +121,6 @@
     "src/features/files/useExplorer.ts::useExplorer[1]/rootProps[1]/onKeyDown[1]": 93,
     "src/features/files/useSearchResultsNav.ts::useSearchResultsNav[1]": 130,
     "src/features/files/workspaceSearchStore.ts::useWorkspaceSearchStore[1]": 104,
-    "src/features/home/HomeModelPicker.tsx::HomeModelPicker[1]": 168,
     "src/features/home/LaneBoard.tsx::LaneBoard[1]": 94,
     "src/features/home/Ledger.tsx::Ledger[1]": 123,
     "src/features/home/WorkspaceHome.tsx::file": 657,
