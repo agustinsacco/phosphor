@@ -5,6 +5,7 @@ import { create } from 'zustand'
 import { fuzzyFilter } from '@/lib/fuzzy'
 import { MenuRow } from '@/components/PopupMenu'
 import { useLayoutStore } from '@/stores/layout'
+import { openMachinePage } from '@/stores/machinePages'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
 import { useWorkspacesStore } from '@/stores/workspaces'
@@ -100,16 +101,17 @@ export function CommandPalette({
         run: () => layout.toggleSidebar(),
       },
       // Global pages, deliberately NOT session-gated: they cover the main
-      // region on their own and are the whole point of having them.
+      // region on their own and are the whole point of having them. On a Host
+      // they open on that Host.
       {
         id: 'open-artifacts-page',
         label: 'Open artifacts page',
-        run: () => layout.setPage('artifacts'),
+        run: () => (hostId ? openMachinePage('artifacts', hostId) : layout.setPage('artifacts')),
       },
       {
         id: 'open-skills-page',
         label: 'Open skills page',
-        run: () => layout.setPage('skills'),
+        run: () => (hostId ? openMachinePage('skills', hostId) : layout.setPage('skills')),
       },
       // Right-pane commands only exist inside a session — the pane itself is
       // rendered by MainWithPanes, which requires one. Offering them on the
@@ -222,12 +224,7 @@ export function CommandPalette({
     }
 
     if (remote) {
-      const localOnly = new Set([
-        'open-folder',
-        'open-artifacts-page',
-        'open-skills-page',
-        'rewind',
-      ])
+      const localOnly = new Set(['open-folder', 'rewind'])
       for (const lane of host?.lanes ?? []) {
         base.push({
           id: `lane-${lane.laneId}`,

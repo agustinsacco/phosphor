@@ -103,8 +103,6 @@ it.each([true, false])(
         'Switch workspace',
         'Open session:',
         'Rewind',
-        'Open skills page',
-        'Open artifacts page',
       ]) {
         await query(label)
         expect(document.body.textContent).toContain('No matching commands')
@@ -115,6 +113,8 @@ it.each([true, false])(
           ? ['Toggle terminal', 'Toggle files', 'Toggle changes']
           : ['Toggle sidebar']),
         'New session',
+        'Open skills page',
+        'Open artifacts page',
       ]) {
         await query(label)
         expect(document.body.textContent).toContain(label)
