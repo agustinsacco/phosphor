@@ -1,19 +1,11 @@
 import { CheckIcon, Spinner, WarningIcon } from '@/components/icons'
 import { useEffect, useRef, useState } from 'react'
-import type { TailscaleCode, TailscaleStatus } from '@shared/tailscale-status'
+import type { TailscaleStatus } from '@shared/tailscale-status'
 import { useAccount } from '@/features/settings/useAccount'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { Button } from '@/components/form'
+import { TAILSCALE_FIXES } from '../machinePresentation'
 
-export const TAILSCALE_FIXES: Record<TailscaleCode, string> = {
-  ready: 'Tailscale is running and logged in. MagicDNS and HTTPS certificates are available.',
-  'not-installed': 'Install Tailscale on this computer, then sign in to your tailnet.',
-  'not-running': 'Open Tailscale and connect to your tailnet, then check again.',
-  'signed-out': 'Sign in to Tailscale and approve this computer in its admin console.',
-  'magicdns-unavailable': 'Turn on MagicDNS in the Tailscale admin console DNS settings.',
-  'https-unavailable': 'Turn on HTTPS certificates in the Tailscale admin console DNS settings.',
-  'check-failed': 'Could not check Tailscale. Open Tailscale to check your connection manually.',
-}
 export function BeforeYouStart(): React.JSX.Element {
   const { view } = useAccount()
   const openSettings = useOpenSettings()

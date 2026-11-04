@@ -11,6 +11,7 @@ import {
   type PiHealth,
   type PiPackageEntry,
 } from '@shared/models'
+import type { TailscaleCode, TailscaleStatus } from '@shared/tailscale-status'
 import { meetsMinimum } from '@shared/version'
 
 export const HOST_GUIDE = 'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md'
@@ -40,6 +41,25 @@ function claudeSignIn(configurable: boolean): { text: string; command?: string }
         text: 'Sign in to Claude Code on this machine.',
         command: 'phosphor providers login claude',
       }
+}
+/** What this computer's Tailscale needs, by its read-only status. */
+export const TAILSCALE_FIXES: Record<TailscaleCode, string> = {
+  ready: 'Tailscale is running and logged in. MagicDNS and HTTPS certificates are available.',
+  'not-installed': 'Install Tailscale on this computer, then sign in to your tailnet.',
+  'not-running': 'Open Tailscale and connect to your tailnet, then check again.',
+  'signed-out': 'Sign in to Tailscale and approve this computer in its admin console.',
+  'magicdns-unavailable': 'Turn on MagicDNS in the Tailscale admin console DNS settings.',
+  'https-unavailable': 'Turn on HTTPS certificates in the Tailscale admin console DNS settings.',
+  'check-failed': 'Could not check Tailscale. Open Tailscale to check your connection manually.',
+}
+const TAILSCALE_SHORT: Record<TailscaleCode, string> = {
+  ready: 'Tailscale ok',
+  'not-installed': 'Tailscale missing',
+  'not-running': 'Tailscale stopped',
+  'signed-out': 'Tailscale signed out',
+  'magicdns-unavailable': 'No MagicDNS',
+  'https-unavailable': 'No Tailscale HTTPS',
+  'check-failed': 'Tailscale not checked',
 }
 export function platformName(platform: string): string {
   return { darwin: 'macOS', linux: 'Linux', win32: 'Windows' }[platform] ?? platform
@@ -241,11 +261,21 @@ export function claudeReadiness(detail: MachineClaude, configurable = true): Rea
       }
 }
 
-/** This computer's pi and Claude Code. Each read is `undefined` until it settles. */
+/** This computer's reads; each is `undefined` until it settles. */
+export interface LocalReadings {
+  health?: PiHealth | null
+  claude?: MachineClaude | null
+  tailscale?: TailscaleStatus
+  failed: boolean
+}
+
+/**
+ * This computer's pi, Claude Code and Tailscale. Tailscale only reaches Hosts:
+ * without any (`reachesHosts` false) it is optional, muted rather than a problem.
+ */
 export function localChecks(
-  health: PiHealth | null | undefined,
-  claude: MachineClaude | null | undefined,
-  failed: boolean,
+  { health, claude, tailscale, failed }: LocalReadings,
+  reachesHosts: boolean,
 ): ReadinessCheck[] {
   return [
     {
@@ -269,6 +299,17 @@ export function localChecks(
           short: 'Not checked',
           detail: 'Could not check Claude Code.',
         },
+    {
+      name: 'Tailscale',
+      ok: tailscale?.code === 'ready',
+      loading: tailscale === undefined,
+      muted: !reachesHosts,
+      short: TAILSCALE_SHORT[tailscale?.code ?? 'check-failed'],
+      detail:
+        tailscale?.code === 'ready'
+          ? 'Connected with HTTPS available'
+          : `${reachesHosts ? '' : 'Needed only to reach your Hosts. '}${TAILSCALE_FIXES[tailscale?.code ?? 'check-failed']}`,
+    },
   ]
 }
 

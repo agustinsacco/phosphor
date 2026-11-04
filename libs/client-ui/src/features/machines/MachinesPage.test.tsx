@@ -23,6 +23,7 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
   if (channel === 'control:removeMachine') return { ok: true }
   if (channel === 'pi:subscriptionAuth') return []
   if (channel === 'packages:list') return [CLAUDE_PROVIDER]
+  if (channel === 'hosts:tailscaleStatus') return { code: 'ready' }
   return null
 })
 beforeEach(() => {
@@ -138,6 +139,7 @@ it('shows loading rows for local checks until each read settles, then the verdic
     if (channel === 'packages:claudeStatus')
       return { binary: { found: true }, auth: { loggedIn: false } }
     if (channel === 'packages:list') return [CLAUDE_PROVIDER]
+    if (channel === 'hosts:tailscaleStatus') return { code: 'ready' }
     return null
   })
   await render()

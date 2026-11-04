@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { machineStatus, type MachineStatus, type MachineView } from '@shared/control-api'
 import type { HostConnectionView } from '@shared/ipc'
-import type { MachineClaude } from '@shared/host-protocol-machine'
-import type { PiHealth } from '@shared/models'
+import type { TailscaleStatus } from '@shared/tailscale-status'
 import { localMachineLabel } from '@/lib/localMachine'
 import { usePlatform } from '@/platform/Platform'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
@@ -17,6 +16,7 @@ import {
   readinessChecks,
   readinessFreshness,
   relativeTime,
+  type LocalReadings,
   type ReadinessCheck,
 } from './machinePresentation'
 import { machineHeadline, type Headline } from './machineReachability'
@@ -71,7 +71,7 @@ export interface MachineOverview extends MachineSummary {
 
 /** The one status a set of checks adds up to, when nothing else (a connection) decides it. */
 function checksHeadline(checks: readonly ReadinessCheck[]): Headline {
-  const problems = checks.filter((check) => !check.ok && !check.loading)
+  const problems = checks.filter((check) => !check.ok && !check.loading && !check.muted)
   if (checks.some((check) => check.loading))
     return { ok: false, tone: 'pending', label: 'Checking…', short: 'Checking…', detail: '' }
   if (!problems.length) return { ok: true, tone: 'ok', label: 'Ready', short: 'Ready', detail: '' }
@@ -92,15 +92,12 @@ function useLive(): React.RefObject<boolean> {
   return live
 }
 
-interface LocalReads {
-  health?: PiHealth | null
-  claude?: MachineClaude | null
-  failed: boolean
+interface LocalReads extends LocalReadings {
   busy: boolean
   at: number | null
 }
 
-/** This computer's pi and Claude Code (provider, CLI, sign-in) reads, again on each Check again. */
+/** This computer's pi, Claude Code (provider, CLI, sign-in) and Tailscale, again on each Check again. */
 function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () => void } {
   const [round, setRound] = useState(0)
   const [state, setState] = useState<LocalReads>({ failed: false, busy: false, at: null })
@@ -119,6 +116,10 @@ function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () 
       ])
         .then(([packages, status]) => merge({ claude: localClaude(packages, status) }))
         .catch(failed),
+      window.phosphor
+        .invoke('hosts:tailscaleStatus')
+        .catch((): TailscaleStatus => ({ code: 'check-failed' }))
+        .then((tailscale) => merge({ tailscale })),
     ]).then(() => merge(round ? { busy: false, at: Date.now() } : {}))
     return () => {
       live = false
@@ -139,9 +140,10 @@ export function useLocalOverview(): MachineOverview | null {
   const liveHere = useSessionsStore(
     (s) => Object.values(s.live).filter((entry) => entry.target?.kind !== 'remote').length,
   )
+  const reachesHosts = useMachinesStore((s) => s.remoteEnabled && s.machines.length > 0)
   const openSettings = useOpenSettings()
   if (!localLanes) return null
-  const checks = localChecks(reads.health, reads.claude, reads.failed)
+  const checks = localChecks(reads, reachesHosts)
   const platform = platformName(window.phosphor.platform)
   const lanes = liveHere ? `${liveHere} live ${liveHere === 1 ? 'lane' : 'lanes'}` : null
   return {

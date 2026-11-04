@@ -4,8 +4,7 @@ import type { HostCapability } from '@shared/remote-host'
 import type { DesktopControlErrorCode, HostsSnapshot, IpcInvokeMap } from '@shared/ipc'
 import { controlMessage } from './controlMessages'
 import { machineHeadline, type Tone } from './machineReachability'
-import { claudeReadiness, relativeTime } from './machinePresentation'
-import { TAILSCALE_FIXES } from './onboarding/BeforeYouStart'
+import { claudeReadiness, relativeTime, TAILSCALE_FIXES } from './machinePresentation'
 
 /**
  * The Machines health check: every read Desktop makes of the control plane

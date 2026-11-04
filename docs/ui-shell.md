@@ -540,8 +540,9 @@ differs, platform and architecture, Host version, non-zero lane counts, last
 seen), then readiness dots (pi, Claude, Tailscale; amber with the reason
 in a tooltip) and one status pill in a fixed-width column so the dots line up.
 This computer's subtitle is its platform, pi version and live lanes; its dots are
-pi and Claude, and its pill is what they add up to: Checking…, Ready, the one
-problem, or N issues. A Host's pill comes from `machineHeadline` and is its single status:
+pi, Claude and Tailscale, and its pill is what they add up to: Checking…, Ready, the
+one problem, or N issues. This computer needs Tailscale only to reach Hosts, so
+until the account has one its Tailscale is muted, not a problem. A Host's pill comes from `machineHeadline` and is its single status:
 Connected, Connecting…, Waiting for setup, Not reachable, Tailscale stopped,
 Update needed, Access refused, Identity mismatch, Stopping or Offline. No surface
 pairs two verdicts such as "Online · Not reachable yet". A never-connected or
@@ -645,8 +646,8 @@ start fresh.
 
 This computer's detail is the same view without what needs enrollment: its
 platform label as the heading (no Rename), the pill its checks add up to, and a
-Machine actions menu with Check again, which re-reads pi, Claude Code and its
-providers. Readiness lists pi and Claude Code; Providers lists its subscriptions
+Machine actions menu with Check again, which re-reads pi, Claude Code, Tailscale
+and its providers. Readiness lists pi, Claude Code and Tailscale; Providers lists its subscriptions
 with Settings → Accounts' rows and **Provider settings**; Details holds its
 platform, pi version and live lane count; the terminal opens a shell at home. It
 has no Connection row, On this machine or Remove.
