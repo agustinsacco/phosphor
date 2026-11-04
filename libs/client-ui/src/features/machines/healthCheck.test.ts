@@ -237,7 +237,8 @@ describe('health check', () => {
 
   it('counts routines as On this machine does, without archived ones, on every machine', async () => {
     const calls = vi.fn(async (channel: string): Promise<unknown> => {
-      if (channel === 'routines:list') return { routines: [{ archived: false }, { archived: true }] }
+      if (channel === 'routines:list')
+        return { routines: [{ archived: false }, { archived: true }] }
       throw new Error(`unexpected ${channel}`)
     })
     const run = await runHealthCheck({
