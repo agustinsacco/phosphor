@@ -10,6 +10,7 @@ import { BranchIcon, ChevronIcon, CollapseAllIcon, FileIcon, SearchIcon } from '
 import { formatShortcut } from '@/lib/shortcuts'
 import { createIn, renameEntry, trashEntry, runFileAction } from './fileActions'
 import { useExplorer } from './useExplorer'
+import { NewEntryIcon } from './fileIcons'
 import { useWorkspaceSearchStore } from './workspaceSearchStore'
 
 export const FileExplorer = memo(function FileExplorer({
@@ -74,17 +75,7 @@ export const FileExplorer = memo(function FileExplorer({
               active={false}
               onClick={() => runFileAction(createIn(workspacePath, controls.selected.at(-1), kind))}
             >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d={kind === 'file' ? 'M14 2H4v20h16V8l-6-6v6h6' : 'M3 20V4h7l3 3h8v13H3'} />
-                <path d="M8 14h8m-4-4v8" />
-              </svg>
+              <NewEntryIcon kind={kind} />
             </IconToggle>
           ))}
           <IconToggle

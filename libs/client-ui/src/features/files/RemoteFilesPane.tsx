@@ -6,18 +6,8 @@ import {
 } from './remoteFileDrafts'
 import { useRemoteFileSelection, releaseRemoteFileSelection } from './remoteFileSelection'
 import { RemoteFileTree } from './RemoteFileTree'
-import { IconToggle } from './FileExplorer'
-import {
-  FileIcon,
-  PlusIcon,
-  RefreshIcon,
-  CheckIcon,
-  ChangesIcon,
-  CloseIcon,
-  BranchIcon,
-} from '@/components/icons'
+import { RemoteFilesToolbar, type RemoteFileAction } from './RemoteFilesToolbar'
 import { useEffect, useState, useRef } from 'react'
-import { TooltipButton } from '@/components/Tooltip'
 import { MonacoDiff, MonacoEditor, releaseFileModel } from './MonacoEditor'
 import { languageForPath } from '@/lib/monaco'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
@@ -234,7 +224,7 @@ function RemoteFilesView({
     })
     applySaveResult(await result)
   }
-  async function action(kind: 'file' | 'directory' | 'rename' | 'delete' | 'copy' | 'move') {
+  async function action(kind: RemoteFileAction) {
     if (!writable || busy || dirty) return
     const value = await promptText({
       title:
@@ -274,89 +264,24 @@ function RemoteFilesView({
   if (!available && !(dirty && selected)) return <p className="p-4">{refusal}</p>
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1">
-        <span className="text-text-tertiary mr-auto text-xs font-semibold font-mono uppercase tracking-wider">
-          {changes ? 'Changes' : 'Explorer'}
-        </span>
-        {!writable && 'Read-only '}
-        <IconToggle title="Refresh" active={false} onClick={() => setRefresh((n) => n + 1)}>
-          <RefreshIcon />
-        </IconToggle>
-        {writable && !changes && (
-          <>
-            <IconToggle
-              title="New file"
-              active={false}
-              disabled={busy || dirty}
-              onClick={() => void action('file')}
-            >
-              <FileIcon />
-            </IconToggle>
-            <IconToggle
-              title="New folder"
-              active={false}
-              disabled={busy || dirty}
-              onClick={() => void action('directory')}
-            >
-              <PlusIcon />
-            </IconToggle>
-            <IconToggle
-              title="Rename"
-              active={false}
-              disabled={busy || dirty || !selected}
-              onClick={() => void action('rename')}
-            >
-              <ChangesIcon />
-            </IconToggle>
-            <IconToggle
-              title="Trash"
-              active={false}
-              disabled={busy || dirty || !selected}
-              onClick={() => void action('delete')}
-            >
-              <CloseIcon />
-            </IconToggle>
-            <IconToggle
-              title="Copy to folder"
-              active={false}
-              disabled={busy || dirty || !selected}
-              onClick={() => void action('copy')}
-            >
-              <PlusIcon />
-            </IconToggle>
-            <IconToggle
-              title="Move to folder"
-              active={false}
-              disabled={busy || dirty || !selected}
-              onClick={() => void action('move')}
-            >
-              <BranchIcon />
-            </IconToggle>
-            <IconToggle
-              title="Save"
-              active={false}
-              disabled={busy || uncertain || !dirty || !editable}
-              onClick={() => void save()}
-            >
-              <CheckIcon />
-            </IconToggle>
-          </>
-        )}
-        {dirty && (
-          <TooltipButton
-            className="text-accent rounded-sm px-2 py-1 text-sm hover:bg-bg-secondary"
-            disabled={busy}
-            onClick={() => {
-              clearRemoteFileDraft(sessionId)
-              setDirty(false)
-              dirtyRef.current = false
-              setRefresh((n) => n + 1)
-            }}
-          >
-            {uncertain ? 'Reload file' : 'Discard edits'}
-          </TooltipButton>
-        )}
-      </div>
+      <RemoteFilesToolbar
+        changes={changes}
+        writable={writable}
+        busy={busy}
+        dirty={dirty}
+        uncertain={uncertain}
+        editable={editable}
+        selected={selected}
+        onRefresh={() => setRefresh((n) => n + 1)}
+        onAction={(kind) => void action(kind)}
+        onSave={() => void save()}
+        onDiscard={() => {
+          clearRemoteFileDraft(sessionId)
+          setDirty(false)
+          dirtyRef.current = false
+          setRefresh((n) => n + 1)
+        }}
+      />
       {!available && (
         <p role="status" className="text-text-tertiary border-border border-b px-3 py-2 text-sm">
           {host?.state === 'ready' ? refusal : 'Reconnecting… Unsaved edits are kept.'}

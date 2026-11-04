@@ -102,7 +102,7 @@ it('shows read-only files and diffs, refreshes on turn end and summary, never wa
   }
   try {
     await render()
-    expect(container.textContent).toContain('Read-only')
+    expect(container.textContent).toContain('Read only')
     expect(container.textContent).toContain('a.ts')
     const file = Array.from(container.querySelectorAll('button')).find((b) =>
       b.textContent?.includes('a.ts'),
