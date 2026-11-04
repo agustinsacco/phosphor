@@ -53,6 +53,8 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
   if (channel === 'hosts:claude') return hostClaude
   if (channel === 'packages:list') return [CLAUDE_PROVIDER]
   if (channel === 'hosts:tailscaleStatus') return { code: tailscale }
+  if (channel === 'app:about') return { appVersion: '1.4.0', platform: 'darwin', arch: 'arm64' }
+  if (channel === 'hosts:settingsRead') return { advanced: { pi: { version: '0.70.1' } } }
   return null
 })
 
@@ -270,4 +272,33 @@ it("C8: This Mac's actions menu updates Phosphor through Settings → About, whe
   await click(container.querySelector<HTMLElement>('[aria-label="Machine actions"]'))
   expect(button('Check again')).toBeDefined()
   expect(button('Update Phosphor…')).toBeUndefined()
+})
+
+const fact = (label: string): string | undefined =>
+  [...container.querySelectorAll('.machine-facts dt')].find((dt) => dt.textContent === label)
+    ?.nextElementSibling?.textContent ?? undefined
+
+it("C9a: This Mac's Details add its architecture and Phosphor version", async () => {
+  await openThisMac()
+  expect(fact('Platform')).toBe('macOS arm64')
+  expect(fact('Phosphor version')).toBe('1.4.0')
+  expect(fact('pi')).toBe('1.2.0')
+})
+
+it("C9b: a Host's Details show its pi version where this device may read its settings", async () => {
+  useRemoteLanesStore.setState({
+    hosts: { [HOST.id]: { ...CONNECTED, capabilities: ['skills.read', 'machine.configure'] } },
+  })
+  useMachinesStore.setState({ view: { kind: 'machine', id: HOST.id } })
+  await render()
+  expect(invoke).toHaveBeenCalledWith('hosts:settingsRead', HOST.id, 'advanced')
+  expect(fact('pi')).toBe('0.70.1')
+})
+
+it("C9c: without configuration access, a Host's Details neither read nor show its pi", async () => {
+  useMachinesStore.setState({ view: { kind: 'machine', id: HOST.id } })
+  await render()
+  expect(invoke).not.toHaveBeenCalledWith('hosts:settingsRead', HOST.id, 'advanced')
+  expect(fact('pi')).toBeUndefined()
+  expect(fact('Host version')).toBeDefined()
 })
