@@ -2,14 +2,19 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { MachineView } from '@shared/control-api'
 import { errorText } from '@shared/errors'
 import type { MachineSettingsSection } from '@shared/machine-settings'
+import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
 import { useSettingsUiStore } from '../settingsUiStore'
 import { HostProgramDialog } from './HostProgramDialog'
 import { useHostSettings } from './useHostSettings'
 import { useMachinePrograms } from './useMachinePrograms'
 import { confirmSettingsAccess } from './settingsAccess'
 
-/** The Host settings section a Settings section reads; Folders reads `advanced`. */
-export type MachineSettingsTab = MachineSettingsSection | 'folders'
+/**
+ * The Host settings section a Settings section reads. `connection` reads none:
+ * the section needs only the link (Folders lists the Host's registered folders),
+ * so it shows without configuration access.
+ */
+export type MachineSettingsTab = MachineSettingsSection | 'connection'
 
 /**
  * Everything a Host section needs: the machine, its settings read for this
@@ -23,9 +28,10 @@ function useHostSectionState(
 ) {
   const folder = useSettingsUiStore((s) => s.folder)
   const repositoryId = scoped ? (folder ?? undefined) : undefined
+  const reads: 'settings' | 'connection' = section === 'connection' ? 'connection' : 'settings'
   const settings = useHostSettings(
     machine.id,
-    section === 'folders' ? 'advanced' : section,
+    section === 'connection' ? null : section,
     repositoryId,
   )
   const { connection, allowed } = settings
@@ -54,6 +60,14 @@ function useHostSectionState(
     settings,
     connection,
     allowed,
+    reads,
+    /** The section can be read now: its link is up, and its settings need the grant. */
+    readable: reads === 'connection' ? connection?.state === 'ready' : allowed,
+    /**
+     * Reads the section again: its settings, or the link's folders, through the
+     * remote-lanes listener, the only writer of the Host snapshot.
+     */
+    refresh: reads === 'connection' ? refreshHostsSnapshot : settings.refresh,
     ...programs,
     accessBusy,
     access,
@@ -80,7 +94,7 @@ export function HostSectionProvider({
   children: React.ReactNode
 }): React.JSX.Element {
   const host = useHostSectionState(machine, section, scoped)
-  const { program, setProgram, settings } = host
+  const { program, setProgram, refresh } = host
   return (
     <HostSectionContext.Provider value={host}>
       {children}
@@ -90,9 +104,9 @@ export function HostSectionProvider({
           {...program}
           onClose={() => {
             setProgram(null)
-            void settings.refresh()
+            void refresh()
           }}
-          onSettled={() => void settings.refresh()}
+          onSettled={() => void refresh()}
         />
       )}
     </HostSectionContext.Provider>

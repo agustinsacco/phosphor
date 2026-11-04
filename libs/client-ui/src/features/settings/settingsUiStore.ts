@@ -41,6 +41,8 @@ interface SettingsUiState {
   listing: boolean
   /** A setting to scroll to and flash once its tab renders; a new object per request. */
   reveal: { title: string } | null
+  /** Counts This Mac's scope-line Refreshes; its sections read again on each. */
+  rereads: number
   setOpen: (open: boolean) => void
   /** A fresh visit: default machine, no search. The browser page calls it on arrival. */
   reset: () => void
@@ -49,6 +51,7 @@ interface SettingsUiState {
   setFolder: (folder: string | null) => void
   setQuery: (query: string) => void
   openResult: (tab: SettingsTab, title: string) => void
+  reread: () => void
 }
 
 const FRESH = { machine: null, folder: null, query: '', listing: false, reveal: null } as const
@@ -64,6 +67,7 @@ const FRESH = { machine: null, folder: null, query: '', listing: false, reveal: 
 export const useSettingsUiStore = create<SettingsUiState>((set) => ({
   open: false,
   tab: 'appearance',
+  rereads: 0,
   ...FRESH,
   // Each opening starts unsearched on the default machine; ⌘, while already open keeps both.
   setOpen: (open) => set((s) => (s.open === open ? {} : { open, ...FRESH })),
@@ -77,4 +81,5 @@ export const useSettingsUiStore = create<SettingsUiState>((set) => ({
   setFolder: (folder) => set({ folder }),
   setQuery: (query) => set({ query, listing: query.trim() !== '' }),
   openResult: (tab, title) => set({ tab, listing: false, reveal: { title } }),
+  reread: () => set((s) => ({ rereads: s.rereads + 1 })),
 }))

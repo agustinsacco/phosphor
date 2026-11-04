@@ -23,6 +23,7 @@ function status(
     machine: MACHINE,
     connection: state ? { state, configurationSupported: true, ...connection } : undefined,
     allowed: state === 'ready',
+    reads: 'settings',
     read: { loading: false, error: null, loaded: false },
     now: NOW,
     ...overrides,
@@ -86,6 +87,12 @@ describe('hostSettingsStatus', () => {
       title: 'Configuration access is not enabled',
       action: 'enable-access',
     })
+  })
+
+  it('readies a section that reads only the link once the link is up, grant or not', () => {
+    const link = { reads: 'connection', allowed: false } as const
+    expect(status('ready', link, { configurationSupported: false })).toEqual({ kind: 'ready' })
+    expect(status('down', link)).toMatchObject({ kind: 'notice', action: 'reconnect' })
   })
 
   it('is loading until the read lands, retries a failed read, and is ready once loaded', () => {

@@ -3,6 +3,7 @@ import type { LoginFlowState, SubscriptionProviderStatus } from '@shared/models'
 import { errorText } from '@shared/errors'
 import { readLocalSubscriptionAuth } from '@/stores/localSubscriptionAuth'
 import type { ProviderAccountsSource } from './accountsModel'
+import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
 
 /** Has this sign-in stopped, for better or worse? */
 const isFlowEnded = (state: LoginFlowState): boolean =>
@@ -47,6 +48,7 @@ export function useLocalProviders(): ProviderAccountsSource {
   useEffect(() => {
     void refresh()
   }, [refresh])
+  useOnLocalRefresh(refresh)
   useEffect(
     () =>
       window.phosphor.onPiLoginState((state) => {
@@ -84,7 +86,6 @@ export function useLocalProviders(): ProviderAccountsSource {
       void window.phosphor.invoke('pi:cancelLogin', id as SubscriptionProviderStatus['id'])
       setFlow(null)
     },
-    refresh: () => void refresh(),
     terminal,
   }
 }

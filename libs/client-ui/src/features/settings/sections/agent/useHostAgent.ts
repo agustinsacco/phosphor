@@ -6,10 +6,14 @@ import {
   type MachineAgentBehavior,
 } from '@shared/machine-agent-behavior'
 import type { ThinkingLevel } from '@shared/rpc'
+import type { MachineContext } from '@shared/machine-prompt'
+import type { RepositorySummary } from '@shared/host-protocol'
 import { ipcErrorText } from '@shared/errors'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SaveState, SettingsNoticeProps } from '@/components/form'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { useMachinesStore } from '@/stores/machines'
+import { platformName } from '@/features/machines/machinePresentation'
 import { useMachineCatalogue, useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { hostInstructions } from '../../instructions/instructionsSource'
 import { useHostSection } from '../../machine/HostSection'
@@ -146,12 +150,33 @@ const hostPolicy = (draft: Draft, namingLive: true | undefined): AgentSource['po
 })
 
 /**
+ * The machine facts a Host lane is sent (`createRuntimeState`): its Control
+ * platform, named as the Host names it, and its repositories' folder names.
+ */
+function useHostMachineContext(
+  hostId: string,
+  label: string,
+  repositories: readonly RepositorySummary[] | undefined,
+): MachineContext {
+  const platform = useMachinesStore((s) => s.machines.find((m) => m.id === hostId)?.platform)
+  return useMemo(
+    () => ({
+      kind: 'host' as const,
+      label,
+      os: platform ? platformName(platform) : 'host-os',
+      repositories: (repositories ?? []).map((repository) => repository.name),
+    }),
+    [label, platform, repositories],
+  )
+}
+
+/**
  * A Host's Agent section through its revisioned settings: every edit is a
  * draft the autosave engine sends one patch at a time (`machineSettingsDrafts`).
  * What the Host refuses stays as a draft until it is retried or discarded.
  */
 export function useHostAgent(): AgentSource {
-  const { machine, settings, repositoryId } = useHostSection()
+  const { machine, settings, repositoryId, connection } = useHostSection()
   const data = settings.data
   const state = data?.agent
   const draft = useMachineAgentDraft(machine.id, repositoryId, settings, (patch, saved) =>
@@ -167,10 +192,7 @@ export function useHostAgent(): AgentSource {
   )
   const busy = settings.loading || draft.stale
   const own = { ...fields.behavior, defaultThinkingLevel: fields.thinking || undefined }
-  const hostContext = useMemo(
-    () => ({ kind: 'host' as const, label: machine.label, os: 'host-os', repositories: [] }),
-    [machine.label],
-  )
+  const hostContext = useHostMachineContext(machine.id, machine.label, connection?.repositories)
   return {
     status: state ? machineScope.status : 'loading',
     notice: data ? hostNotice(!!repositoryId, data) : null,

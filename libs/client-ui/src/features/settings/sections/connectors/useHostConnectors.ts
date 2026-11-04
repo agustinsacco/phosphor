@@ -162,6 +162,8 @@ export function useHostConnectors(): ConnectorsSource {
   const servers = state?.servers.map((server) => connectorView(server, folder)) ?? null
 
   const save = (name: string, config: McpServerConfig) => saveOnHost(host, name, config, setError)
+  const program = (task: 'mcp.login' | 'mcp.logout', name: string): void =>
+    programs.task({ task, name, ...(repositoryId ? { repositoryId } : {}) })
 
   const run = async (op: ConnectorOp): Promise<boolean> => {
     setError(null)
@@ -177,11 +179,7 @@ export function useHostConnectors(): ConnectorsSource {
         return (await settings.change({ type: 'mcp.remove', name: op.name })) !== null
       case 'signIn':
       case 'signOut':
-        programs.task({
-          task: op.type === 'signIn' ? 'mcp.login' : 'mcp.logout',
-          name: op.name,
-          ...(repositoryId ? { repositoryId } : {}),
-        })
+        program(op.type === 'signIn' ? 'mcp.login' : 'mcp.logout', op.name)
         return true
       case 'checkAll':
         if (!(await confirmCheck(machine.label))) return false
@@ -189,13 +187,19 @@ export function useHostConnectors(): ConnectorsSource {
         return true
       case 'upsert':
         return save(op.name, op.config)
-      case 'catalogue':
+      case 'catalogue': {
+        let config: McpServerConfig
         try {
-          return await save(op.entry.serverName, buildConnectorConfig(op.entry, op.choice))
+          config = buildConnectorConfig(op.entry, op.choice)
         } catch (err) {
           setError(errorText(err))
           return false
         }
+        if (!(await save(op.entry.serverName, config))) return false
+        // As on This Mac, Add goes on to the sign-in, once the Host confirmed the save.
+        if (programs.available) program('mcp.login', op.entry.serverName)
+        return true
+      }
       case 'test':
       case 'cancelChecks':
         return false
@@ -211,7 +215,7 @@ export function useHostConnectors(): ConnectorsSource {
     locked: !state || state.legacy || state.malformed,
     busy: settings.loading || settings.saving || programs.busy,
     canSignIn: programs.available && !programs.busy,
-    checking: settings.loading,
+    checking: settings.checking,
     slow: false,
     ...(state?.checkedAt !== undefined ? { checkedAt: state.checkedAt } : {}),
     run,

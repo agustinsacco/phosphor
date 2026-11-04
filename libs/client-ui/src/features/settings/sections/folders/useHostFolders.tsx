@@ -5,9 +5,13 @@ import { useHostSection } from '../../machine/HostSection'
 import { confirmFolderRemoval } from './confirmFolderRemoval'
 import type { FolderSource } from './source'
 
-/** A Host's registered folders: the only folders its lanes may run in. */
+/**
+ * A Host's registered folders: the only folders its lanes may run in. They need
+ * only the link; reviewing a folder's project trust asks for configuration
+ * access first, since it runs a reviewed task on the Host.
+ */
 export function useHostFolders(): FolderSource {
-  const { machine, connection, programs } = useHostSection()
+  const { machine, connection, programs, allowed, access, terminalLink } = useHostSection()
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,7 +31,8 @@ export function useHostFolders(): FolderSource {
     caps: {
       add: writable,
       remove: writable ? 'unregister' : null,
-      trustReview: programs.available,
+      // The review needs configuration access, which a Host without settings support never grants.
+      trustReview: terminalLink && connection?.configurationSupported === true,
       sandboxes: false,
     },
     folders: (connection?.repositories ?? []).map(({ id, name, path }) => ({ id, name, path })),
@@ -55,6 +60,7 @@ export function useHostFolders(): FolderSource {
         setBusy(false)
       }
     },
-    reviewTrust: (folder) => programs.task({ task: 'folder.trust', repositoryId: folder.id }),
+    reviewTrust: (folder) =>
+      allowed ? programs.task({ task: 'folder.trust', repositoryId: folder.id }) : void access(),
   }
 }

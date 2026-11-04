@@ -11,6 +11,7 @@ import type { HostTarget } from '@shared/remote-host'
 import { forgetRemoteSession, useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
 import { migrateLegacyLaneMarks } from './remoteLaneMarks'
+import { bindHostsSnapshotRead } from './hostsSnapshotRead'
 import { useExtensionUiStore } from './extensionUi'
 import { useLayoutStore } from './layout'
 import { useWorkspacesStore } from './workspaces'
@@ -377,10 +378,9 @@ export function attachRemoteLanesListener(): () => void {
   const offOpen = window.phosphor.onHostOpenLane(
     ({ hostId, laneId }) => void openRemoteLane(hostId, laneId),
   )
-  const onFocus = (): void => {
-    void refresh()
-  }
+  const onFocus = (): void => void refresh()
   window.addEventListener('focus', onFocus)
+  bindHostsSnapshotRead(refresh)
   void refresh()
   return () => {
     active = false

@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { DEFAULT_APP_PREFS } from '@shared/models'
+import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
 import type { MachineSettings } from '@shared/machine-settings'
 import { prepareHostSettings, showHostSettings } from './__fixtures__/hostSettingsSurface'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -38,12 +38,15 @@ const invoke = vi.fn(async (channel: string, hostId?: string, section?: string) 
   if (channel === 'pi:listResources') return { extensions: [], prompts: [], themes: [] }
   if (channel === 'app:getPrefs') return DEFAULT_APP_PREFS
   if (channel === 'maintenance:scan') return []
+  if (channel === 'app:about')
+    return { appVersion: '9.8.7', platform: 'darwin', arch: 'arm64', electron: '1', node: '1' }
+  if (channel === 'updates:state') return { phase: 'idle' }
   return undefined
 })
 let root: Root, container: HTMLDivElement
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  vi.stubGlobal('phosphor', { invoke, platform: 'darwin' })
+  vi.stubGlobal('phosphor', { invoke, platform: 'darwin', onUpdateEvent: () => () => {} })
   useRemoteLanesStore.setState({ filter: 'local', hosts: mixedRemoteHosts() })
   prepareHostSettings(machine)
   hostRead = (hostId, section) => mockSettingsRead(hostId, section as never)
@@ -83,4 +86,75 @@ it("shows a Host's pi beside its update, and asks an older Host to update (P77)"
   expect(container.textContent).toContain('Update this Host to see its pi')
   expect(container.textContent).not.toContain('pi health')
   expect(container.textContent).toContain('/home/bee1/.pi/agent')
+})
+
+it("holds a Host's pi to the minimum This Mac's is held to (B19)", async () => {
+  hostRead = (hostId, section) => {
+    const read = mockSettingsRead(hostId, section as never)
+    if (read.advanced?.pi) read.advanced.pi.version = '1.1.9'
+    return read
+  }
+  await showHostSettings(root, machine.id, 'advanced')
+  const text = container.textContent ?? ''
+  expect(text).toContain(`dist/cli.js — minimum supported ${MIN_PI_VERSION}`)
+  expect(text).toContain('too-old')
+  expect(text).not.toContain('v1.1.9')
+})
+
+it("shows This Mac's own version and update where a Host shows its own (B23)", async () => {
+  await showHostSettings(root, 'local', 'advanced')
+  await act(async () => {})
+  const text = container.textContent ?? ''
+  expect(text).toContain('Phosphor version')
+  expect(text).toContain('9.8.7')
+  const check = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent?.trim() === 'Check now',
+  )
+  expect(check).toBeDefined()
+  await act(async () => check!.click())
+  expect(invoke).toHaveBeenCalledWith('updates:check')
+})
+
+it('names the platform the same way on This Mac and on a Host', async () => {
+  await showHostSettings(root, 'local', 'advanced')
+  await act(async () => {})
+  expect(container.textContent).toContain('macOS')
+  expect(container.textContent).not.toContain('darwin')
+  act(() => root.unmount())
+  root = createRoot(container)
+  await showHostSettings(root, machine.id, 'advanced')
+  expect(container.textContent).toContain('Linux')
+})
+
+it("keeps This Mac's update row when its version cannot be read", async () => {
+  const about = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string, hostId?: string, section?: string) => {
+    if (channel === 'app:about') throw new Error('no about')
+    return about(channel, hostId, section)
+  })
+  try {
+    await showHostSettings(root, 'local', 'advanced')
+    await act(async () => {})
+    const text = container.textContent ?? ''
+    expect(text).toContain('Phosphor updates')
+    expect(text).toContain('Phosphor version')
+    expect(text).toContain('unknown')
+  } finally {
+    invoke.mockImplementation(about)
+  }
+})
+
+it('says in About that the version is unknown when the app cannot report it', async () => {
+  const about = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string, hostId?: string, section?: string) => {
+    if (channel === 'app:about') throw new Error('no about')
+    return about(channel, hostId, section)
+  })
+  try {
+    await showHostSettings(root, 'local', 'about')
+    await act(async () => {})
+    expect(container.textContent).toMatch(/Phosphor version\s*unknown/)
+  } finally {
+    invoke.mockImplementation(about)
+  }
 })

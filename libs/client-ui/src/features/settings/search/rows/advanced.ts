@@ -14,6 +14,15 @@ export const ADVANCED_ROWS: SettingEntry[] = [
     ],
     HOST_ONLY,
   ),
+  ...section(
+    'advanced',
+    null,
+    [
+      ['Phosphor updates', 'update upgrade version check now restart'],
+      ['Phosphor version', 'runtime platform app'],
+    ],
+    LOCAL_ONLY,
+  ),
   ...section('advanced', null, [
     ['pi health', 'version install binary'],
     ['pi agent directory', 'agent dir folder'],

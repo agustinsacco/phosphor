@@ -6,6 +6,7 @@ import { JobOutput } from '../../JobOutput'
 import { usePackageJob } from '../../usePackageJob'
 import { openSkillsOn } from './openSkillsOn'
 import type { PackageAction, PackageCaps, PackageItem, PackageSource } from './packageSource'
+import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
 
 const LOCAL_CAPS: PackageCaps = {
   anySource: true,
@@ -76,6 +77,7 @@ export function useLocalPackages(
   useEffect(() => {
     void refresh()
   }, [refresh])
+  useOnLocalRefresh(refresh)
 
   const job = usePackageJob(() => void refresh())
   const run = (

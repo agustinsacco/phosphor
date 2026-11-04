@@ -4,7 +4,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MachineSettings } from '@shared/machine-settings'
 import { prepareHostSettings, showHostSettings } from './__fixtures__/hostSettingsSurface'
-import { hostConnectors, localConnectorsInvoke } from './__fixtures__/connectorsSettings'
+import {
+  globalServer,
+  hostConnectors,
+  localConnectorsInvoke,
+} from './__fixtures__/connectorsSettings'
 import { useSettingsUiStore } from './settingsUiStore'
 import { useConnectorsStore } from '@/stores/connectors'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -90,6 +94,8 @@ function type(label: string, value: string): void {
     field.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
+const has = (text: string, within: ParentNode = container) =>
+  [...within.querySelectorAll('button')].some((b) => b.textContent?.trim() === text)
 const click = (target: HTMLElement) => act(async () => target.click())
 const settle = () => act(async () => {})
 
@@ -111,6 +117,21 @@ describe('This Mac in a folder', () => {
     expect(calls('mcp:upsertServer')).toEqual([
       ['mcp:upsertServer', 'project', '/work', 'linear', { url: 'https://mcp.linear.app/mcp' }],
     ])
+  })
+})
+
+describe('This Mac at machine scope', () => {
+  beforeEach(() =>
+    install(
+      localConnectorsInvoke(() => [globalServer('linear', { url: 'https://mcp.linear.app/mcp' })]),
+    ),
+  )
+
+  it('says when it last checked every connector, as a Host does', async () => {
+    await showHostSettings(root, 'local', 'connectors')
+    await settle()
+    expect(row('linear').textContent).toContain('Up · 1 tool')
+    expect(container.textContent).toMatch(/Checked \d/)
   })
 })
 
@@ -179,6 +200,57 @@ describe('a Host', () => {
         approveCode: true,
       },
     ])
+  })
+
+  it('reads "Checking…" only while a check is in flight, not during a Refresh', async () => {
+    await show()
+    let answer!: (value: MachineSettings) => void
+    install(
+      vi.fn(async (channel: string) =>
+        channel === 'hosts:settingsRead' || channel === 'hosts:settingsCheck'
+          ? new Promise<MachineSettings>((resolve) => (answer = resolve))
+          : undefined,
+      ),
+    )
+    await click(button('Refresh'))
+    expect(has('Checking…')).toBe(false)
+    expect(has('Refresh & test all')).toBe(true)
+    await act(async () => answer(read))
+    vi.mocked(promptChoice).mockResolvedValue('check')
+    await click(button('Refresh & test all'))
+    expect(button('Checking…').disabled).toBe(true)
+    await act(async () => answer(read))
+    expect(has('Refresh & test all')).toBe(true)
+  })
+
+  it('starts the sign-in after a confirmed catalogue Add, as This Mac does', async () => {
+    await show()
+    vi.mocked(promptChoice).mockResolvedValueOnce('save').mockResolvedValueOnce('run')
+    await click(button('Add', row('linear')))
+    expect(changes()).toEqual([
+      { type: 'mcp.upsert', name: 'linear', config: { url: 'https://mcp.linear.app/mcp' } },
+    ])
+    expect(calls('hosts:machineTask')).toEqual([
+      [
+        'hosts:machineTask',
+        machine.id,
+        { type: 'machine.task', task: 'mcp.login', name: 'linear' },
+      ],
+    ])
+  })
+
+  it('starts no sign-in when the Host did not confirm the catalogue Add', async () => {
+    await show()
+    install(
+      vi.fn(async (channel: string) => {
+        if (channel === 'hosts:settingsRead') return read
+        if (channel === 'hosts:settingsPatch') throw new Error('stale')
+        return undefined
+      }),
+    )
+    vi.mocked(promptChoice).mockResolvedValue('save')
+    await click(button('Add', row('linear')))
+    expect(calls('hosts:machineTask')).toEqual([])
   })
 
   it('refuses an Authorization header in a folder before it reaches the Host', async () => {

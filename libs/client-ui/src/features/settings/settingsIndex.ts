@@ -78,7 +78,7 @@ export const TABS: SettingsSection[] = [
   machineSection('accounts', 'Accounts', { local: true, host: 'providers' }),
   machineSection('extensions', 'Extensions', { local: true, host: 'resources' }),
   machineSection('connectors', 'MCP Connectors', { local: true, host: 'connectors' }),
-  machineSection('folders', 'Folders', { local: true, host: 'folders' }),
+  machineSection('folders', 'Folders', { local: true, host: 'connection' }),
   machineSection('optimization', 'Optimization', { local: true }),
   machineSection('advanced', 'Advanced', { local: true, host: 'advanced' }),
 ]

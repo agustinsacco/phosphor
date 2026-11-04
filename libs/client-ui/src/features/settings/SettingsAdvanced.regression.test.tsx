@@ -41,7 +41,7 @@ let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  vi.stubGlobal('phosphor', { invoke, platform: 'darwin' })
+  vi.stubGlobal('phosphor', { invoke, platform: 'darwin', onUpdateEvent: () => () => {} })
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
     configurable: true,
     value: () => undefined,

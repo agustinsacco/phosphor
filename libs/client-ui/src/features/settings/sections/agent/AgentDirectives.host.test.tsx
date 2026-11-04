@@ -11,6 +11,8 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mixedRemoteHosts } from '@/dev/mockRemoteLanes'
 import { mockSettingsRead, mockSettingsPatch } from '@/dev/mockMachineSettings'
 import { promptChoice } from '@/stores/prompt'
+import { useMachinesStore } from '@/stores/machines'
+import type { MachineView } from '@shared/control-api'
 vi.mock('@/stores/prompt', () => ({
   promptChoice: vi.fn(async () => undefined),
   promptText: vi.fn(),
@@ -102,4 +104,12 @@ it('asks an older Host to update instead of offering switches it ignores', async
   await render()
   expect(container.textContent).toContain('Update this Host to edit its global instructions')
   expect(container.querySelector('[aria-label="Lane charter"]')).toBeNull()
+})
+
+it("previews the Host's real platform and repositories, as its lanes receive them", async () => {
+  useMachinesStore.setState({ machines: [{ ...machine, platform: 'linux' } as MachineView] })
+  await render()
+  const preview = container.querySelector('pre')!.textContent
+  expect(preview).toContain('bee1 (Linux), a Phosphor Host')
+  expect(preview).toContain('- Repositories on this machine: Phosphor.')
 })

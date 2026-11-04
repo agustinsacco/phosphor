@@ -275,7 +275,8 @@ auth" (`libs/client-ui/src/features/connectors/catalog.ts`).
 **Add starts the sign-in.** Add writes `{url}` to the global file (plus
 `oauth` where the entry needs it) and immediately runs `pi mcp login`, so the
 row appears in Connected with its flow card open and the browser already
-launched.
+launched. On a Host, once it confirms the save, Add opens the same reviewed
+`pi mcp login` task as the row's **Sign in**.
 
 **Two connectors default to read-only, on purpose.** With no `oauth.scope`
 the MCP SDK requests every scope the server advertises, and for a brokerage
