@@ -111,16 +111,16 @@ export function CommandPalette({
       },
       // Global pages, deliberately NOT session-gated: they cover the main
       // region on their own and are the whole point of having them. On a Host
-      // they open on that Host.
+      // they open on that Host; elsewhere on the sidebar's machine.
       {
         id: 'open-artifacts-page',
         label: 'Open artifacts page',
-        run: () => (hostId ? openMachinePage('artifacts', hostId) : layout.setPage('artifacts')),
+        run: () => openMachinePage('artifacts', hostId ?? null),
       },
       {
         id: 'open-skills-page',
         label: 'Open skills page',
-        run: () => (hostId ? openMachinePage('skills', hostId) : layout.setPage('skills')),
+        run: () => openMachinePage('skills', hostId ?? null),
       },
       // Right-pane commands only exist inside a session — the pane itself is
       // rendered by MainWithPanes, which requires one. Offering them on the

@@ -10,10 +10,12 @@ export const useMachinePagesStore = create<{
   artifactsMachine: string
 }>(() => ({ skillsMachine: null, routinesMachine: '', artifactsMachine: '' }))
 
-export function openMachinePage(page: GlobalPage, hostId: string): void {
+/** Opens a global page on `hostId`; null drops any override, so it follows the sidebar. */
+export function openMachinePage(page: GlobalPage, hostId: string | null): void {
   if (page === 'skills') useMachinePagesStore.setState({ skillsMachine: hostId })
-  if (page === 'routines') useMachinePagesStore.setState({ routinesMachine: `host:${hostId}` })
-  if (page === 'artifacts') useMachinePagesStore.setState({ artifactsMachine: hostId })
+  if (page === 'routines')
+    useMachinePagesStore.setState({ routinesMachine: hostId ? `host:${hostId}` : '' })
+  if (page === 'artifacts') useMachinePagesStore.setState({ artifactsMachine: hostId ?? '' })
   useLayoutStore.getState().setPage(page)
 }
 
