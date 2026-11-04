@@ -7,7 +7,7 @@ import type { HostConnectionView } from '@shared/ipc'
 import { SettingsModal } from './SettingsModal'
 import { useSettingsUiStore } from './settingsUiStore'
 import { useLayoutStore } from '@/stores/layout'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { attachRemoteLanesListener, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useMachinesStore } from '@/stores/machines'
 import { MOCK_HOST_ID, mockRemoteHosts } from '@/dev/mockRemoteLanes'
@@ -141,5 +141,46 @@ describe('Folders on a Host (B2)', () => {
     await renderHost({})
     await act(async () => button('Refresh')?.click())
     expect(invoke).toHaveBeenCalledWith('hosts:snapshot')
+  })
+
+  it('offers no project trust review on a Host too old for configuration access', async () => {
+    await renderHost({
+      configurationSupported: false,
+      capabilities: ['sessions.read', 'sessions.control', 'terminal', 'workspaces.write'],
+    })
+    expect(document.body.textContent).toContain('/remote/demo')
+    expect(button('Review project trust')).toBeUndefined()
+  })
+
+  it('reads the folders again through the listener, never beside its read in flight', async () => {
+    const reads: Array<() => void> = []
+    invoke.mockImplementation(async (channel: string): Promise<unknown> => {
+      if (channel !== 'hosts:snapshot') return channel === 'packages:list' ? [] : undefined
+      const hosts = useRemoteLanesStore.getState().hosts
+      await new Promise<void>((resolve) => reads.push(resolve))
+      return hosts
+    })
+    vi.stubGlobal('phosphor', {
+      invoke,
+      platform: 'darwin',
+      onAccountChanged: () => () => {},
+      onHostsChanged: () => () => {},
+      onHostAttention: () => () => {},
+      onHostOpenLane: () => () => {},
+    })
+    await renderHost({})
+    const detach = attachRemoteLanesListener()
+    try {
+      const snapshots = () => invoke.mock.calls.filter(([channel]) => channel === 'hosts:snapshot')
+      expect(snapshots()).toHaveLength(1)
+      await act(async () => button('Refresh')?.click())
+      expect(snapshots()).toHaveLength(1)
+      await act(async () => reads.shift()?.())
+      await vi.waitFor(() => expect(snapshots()).toHaveLength(2))
+      await act(async () => reads.shift()?.())
+    } finally {
+      detach()
+      invoke.mockReset()
+    }
   })
 })
