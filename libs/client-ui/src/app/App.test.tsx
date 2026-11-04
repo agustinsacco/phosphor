@@ -265,3 +265,19 @@ it('hears a pi install that finishes while This Mac’s home is away', async () 
     expect(button(container, 'Recommendations done')).toBeDefined()
   })
 })
+
+it('restores the last session only after the recommendations that follow a pi install', async () => {
+  const target = { kind: 'session', workspacePath: '/mac', sessionPath: '/mac/last.jsonl' }
+  const { job, installed } = stubInstall(target)
+  const createSession = vi
+    .spyOn(useSessionsStore.getState(), 'createSession')
+    .mockImplementation(async () => useSessionsStore.setState({ activeSessionId: 'restored' }))
+  await renderApp(async (container) => {
+    await act(async () => button(container, 'Update pi')?.click())
+    installed()
+    await act(async () => job.exit?.(0))
+    expect(createSession).not.toHaveBeenCalled()
+    await act(async () => button(container, 'Recommendations done')?.click())
+    expect(createSession).toHaveBeenCalledWith('/mac', { sessionPath: '/mac/last.jsonl' })
+  })
+})
