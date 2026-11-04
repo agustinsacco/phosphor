@@ -1,6 +1,5 @@
 import { createRepositories } from '../features/repositories'
-import { createLaneDeletion, transcriptTrash } from '../lanes/delete'
-import { githubRunner } from '../features/git/github'
+import { transcriptTrash } from '../lanes/delete'
 import type { HostClaudeAccounts } from '../providers/accounts'
 import {
   createRunAccounts,
@@ -355,13 +354,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           moveClaudeAccount: administration.moveClaudeAccount,
           repositories,
           machineTasks: administration.machineTasks,
-          deleteLane: createLaneDeletion({
-            store,
-            stop: binding.deleteStop,
-            remove: runtime.remove,
-            forget: live.forget,
-            github: githubRunner(context.env),
-          }),
+          deleteLane: administration.deleteLane,
           providerLogins: administration.providerLogins,
           attachments,
           terminals,
