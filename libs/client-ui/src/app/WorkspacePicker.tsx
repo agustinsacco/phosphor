@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Button } from '@/components/form'
 import { useWorkspacesStore } from '@/stores/workspaces'
 
+/** This Mac's home while no folder is open: a lane here needs one. */
 export function WorkspacePicker({ piVersion }: { piVersion?: string }): React.JSX.Element {
   const { recents, pickAndOpen, openWorkspace, openSandbox } = useWorkspacesStore()
   // The native folder dialog takes a beat to appear; without this the button
@@ -20,10 +21,7 @@ export function WorkspacePicker({ piVersion }: { piVersion?: string }): React.JS
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Full-width screen, so this must clear the Windows/Linux controls
-          overlay as well as macOS's traffic lights: h-11 = TITLEBAR_HEIGHT. */}
-      <div className="titlebar-drag h-11 shrink-0" />
+    <div className="flex h-full flex-col overflow-y-auto">
       <div className="flex flex-1 flex-col items-center justify-center gap-8 px-8 pb-16">
         <div className="text-center">
           <h1 className="text-4xl font-semibold tracking-tight">What are we building today?</h1>

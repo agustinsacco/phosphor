@@ -11,10 +11,8 @@ import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { attachPiCommandsListener, useSessionsStore } from '@/stores/sessions'
 import { useActivePanes, useLayoutStore } from '@/stores/layout'
-import { PiMissingScreen } from './PiMissingScreen'
 import { LoadingScreen } from './LoadingScreen'
-import { GettingStartedScreen } from './GettingStartedScreen'
-import { WorkspacePicker } from './WorkspacePicker'
+import { useLocalSetup } from './useLocalSetup'
 import { ChatView } from '@/features/chat/ChatView'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { StartingChat } from '@/features/home/StartingChat'
@@ -64,11 +62,10 @@ export function App(): React.JSX.Element {
   const [sidebarReady, setSidebarReady] = useState(false)
   const [startupComplete, setStartupComplete] = useState(false)
   const [startupError, setStartupError] = useState<string | null>(null)
-  const [showGettingStarted, setShowGettingStarted] = useState(false)
 
+  // A re-check keeps the last answer on screen: clearing it would unmount the shell.
   const checkHealth = (): void => {
     setStartupError(null)
-    setHealth(null)
     void window.phosphor
       .invoke('pi:health')
       .then(setHealth)
@@ -94,6 +91,7 @@ export function App(): React.JSX.Element {
     void useModelCatalogueStore.getState().hydrate()
     checkHealth()
   }, [])
+  const localSetup = useLocalSetup(health, currentWorkspace, checkHealth)
 
   // Terminal busy-map broadcast → store (drives header badges + tab dots).
   useEffect(
@@ -177,16 +175,17 @@ export function App(): React.JSX.Element {
   // One launch-only latch: sidebar refreshes and later session switches must
   // never bring back the full-window screen. Keep the shell mounted beneath
   // it so Sidebar can finish its initial discovery/scan without a deadlock.
+  // Without pi there is nothing to restore.
   useEffect(() => {
     if (
-      health?.ok &&
+      health &&
       initialDataReady &&
-      !restoring &&
+      (!health.ok || !restoring) &&
       (!currentWorkspace || !sidebarVisible || sidebarReady)
     ) {
       setStartupComplete(true)
     }
-  }, [health?.ok, initialDataReady, restoring, currentWorkspace, sidebarVisible, sidebarReady])
+  }, [health, initialDataReady, restoring, currentWorkspace, sidebarVisible, sidebarReady])
 
   const loading = !startupComplete || startupError !== null
   useGlobalShortcuts(!loading)
@@ -195,13 +194,13 @@ export function App(): React.JSX.Element {
       message={
         health === null
           ? 'Checking pi installation…'
-          : restoring
+          : health.ok && restoring
             ? 'Restoring your workspace…'
             : 'Loading your sessions…'
       }
       error={startupError ?? undefined}
       onRetry={() => window.location.reload()}
-      onContinue={health?.ok ? () => setStartupError(null) : undefined}
+      onContinue={health ? () => setStartupError(null) : undefined}
     />
   )
 
@@ -219,26 +218,6 @@ export function App(): React.JSX.Element {
     return loadingScreen
   }
 
-  if (!health.ok) {
-    return (
-      <PiMissingScreen
-        health={health}
-        onRetry={checkHealth}
-        onInstalled={() => setShowGettingStarted(true)}
-      />
-    )
-  }
-
-  // One-time recommendations after Phosphor itself installed pi.
-  if (showGettingStarted) {
-    return <GettingStartedScreen onDone={() => setShowGettingStarted(false)} />
-  }
-
-  if (!currentWorkspace) {
-    if (loading) return loadingScreen
-    return <WorkspacePicker piVersion={health.version} />
-  }
-
   return (
     // Column, not a row: the top bar spans the whole window above the
     // sidebar/chat/pane columns. That is what keeps the OS window-control
@@ -251,11 +230,11 @@ export function App(): React.JSX.Element {
         style={loading ? { visibility: 'hidden' } : undefined}
         data-testid="app-shell"
       >
-        <TopBar workspacePath={currentWorkspace} machineFiles={machineFiles} />
+        <TopBar workspacePath={currentWorkspace ?? ''} machineFiles={machineFiles} />
         <div className="flex min-h-0 flex-1">
           {sidebarVisible && (
             <Sidebar
-              workspacePath={remote ? '' : currentWorkspace}
+              workspacePath={remote ? '' : (currentWorkspace ?? '')}
               onInitialReady={setSidebarReady}
             />
           )}
@@ -269,12 +248,16 @@ export function App(): React.JSX.Element {
             re-rendered for an empty folder ("Start your first session in
             hey-2") for a beat before the chat replaced it.
           */}
-            {activeSessionId ? (
+            {activeSessionId && currentWorkspace ? (
               <MainWithPanes workspacePath={currentWorkspace} activeSessionId={activeSessionId} />
             ) : starting ? (
               <StartingChat starting={starting} />
             ) : (
-              <WorkspaceHome key={currentWorkspace} workspacePath={currentWorkspace} />
+              <WorkspaceHome
+                key={currentWorkspace ?? ''}
+                workspacePath={currentWorkspace ?? ''}
+                localSetup={localSetup}
+              />
             )}
             {/*
             A lane the user asked for that is not up yet, over whichever of
@@ -295,7 +278,7 @@ export function App(): React.JSX.Element {
           */}
             {page && (
               <div data-testid="global-page" className="bg-bg absolute inset-0 z-30">
-                <GlobalScreen page={page} workspacePath={currentWorkspace} />
+                <GlobalScreen page={page} workspacePath={currentWorkspace ?? ''} />
               </div>
             )}
           </main>
@@ -309,14 +292,14 @@ export function App(): React.JSX.Element {
             </aside>
           )}
         </div>
-        <FuzzyFinder workspacePath={currentWorkspace} />
+        {currentWorkspace && <FuzzyFinder workspacePath={currentWorkspace} />}
         <ContextMenuHost />
         <TextFieldMenu />
         <ExtensionDialogHost />
         <PromptHost />
         <ToastHost />
         <BulkDeleteProgressPopover />
-        <CommandPalette key={currentWorkspace} workspacePath={currentWorkspace} />
+        <CommandPalette key={currentWorkspace ?? ''} workspacePath={currentWorkspace ?? ''} />
         <SettingsModal />
         <FeedbackModal />
       </div>

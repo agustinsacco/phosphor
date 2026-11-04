@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { WorkspaceSessionStats } from '@shared/models'
 import { useRemoteComposer } from './remoteComposer'
 import { HostHome } from './HostHome'
@@ -14,15 +14,25 @@ import { prefetchTrunk } from '@/features/sessions/startChat'
 import { projectName } from '@/lib/path'
 import { homeDraftKey } from '@/stores/drafts'
 
-/** Local workbench and shared remote creation, with independent dashboard and composer targets. */
-export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
+/**
+ * Local workbench and shared remote creation, with independent dashboard and composer targets.
+ * `localSetup` takes This Mac's place while it cannot start a lane (no pi, no folder); a Host
+ * composer target then gets its full start page.
+ */
+export function WorkspaceHome({
+  workspacePath,
+  localSetup,
+}: {
+  workspacePath: string
+  localSetup?: ReactNode
+}): React.JSX.Element {
   const [composerMachine, setComposerMachine] = useComposerMachine()
   const target = useRemoteComposer((s) => s.target)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const filter = useRemoteLanesStore((s) => s.filter)
   const homeHostId = filter === 'local' || filter === 'all' ? null : filter
   const git = useSessionsStore((s) => s.gitByCwd[workspacePath])
-  const dashboard = useLocalDashboard(workspacePath, homeHostId)
+  const dashboard = useLocalDashboard(workspacePath, !homeHostId && !localSetup)
   useEffect(() => {
     if (!target) return
     setComposerMachine(target.hostId)
@@ -36,7 +46,8 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       onChange={setComposerMachine}
     />
   )
-  if (composerMachine !== 'local' && homeHostId === composerMachine)
+  if (composerMachine === 'local' && localSetup) return <>{localSetup}</>
+  if (composerMachine !== 'local' && (homeHostId === composerMachine || localSetup))
     return (
       <RemoteWorkspacePage
         hostId={composerMachine}
@@ -85,11 +96,11 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   )
 }
 
-function useLocalDashboard(workspacePath: string, homeHostId: string | null) {
+function useLocalDashboard(workspacePath: string, shown: boolean) {
   const [stats, setStats] = useState<WorkspaceSessionStats | null>(null)
   const [username, setUsername] = useState('')
   useEffect(() => {
-    if (homeHostId) return
+    if (!shown) return
     let current = true
     void window.phosphor
       .invoke('sessions:stats', workspacePath)
@@ -113,6 +124,6 @@ function useLocalDashboard(workspacePath: string, homeHostId: string | null) {
     return () => {
       current = false
     }
-  }, [workspacePath, homeHostId])
+  }, [workspacePath, shown])
   return { stats, username }
 }

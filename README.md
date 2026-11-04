@@ -260,7 +260,8 @@ Phosphor needs `pi` on your PATH:
 npm install -g @earendil-works/pi-coding-agent
 ```
 
-The app shows a setup screen until pi is available. Sign in by running `pi` in
+Until pi is available, This Mac's home offers to install it; Machines, Host
+lanes and Settings work meanwhile. Sign in by running `pi` in
 Phosphor's built-in terminal and using `/login`, or configure API keys / a local
 endpoint in `~/.pi/agent/`.
 

@@ -66,8 +66,10 @@ then stays up while fonts, preferences, pi health, the previous
 workspace/session transcript and the visible sidebar's first scan settle. The
 shell mounts hidden beneath it so discovery finishes without skeletons or
 stray shortcuts. Readiness dismisses it; there is no minimum display time.
-Missing pi leads to setup; a startup failure offers retry; a failed restore can
-be skipped. The model catalogue preloads in the background without holding the
+A startup failure offers retry; a failed restore can be skipped. Missing pi or
+no open folder never replaces the shell: it mounts as usual, so Machines, Host
+lanes and Settings stay reachable, and only This Mac's home waits on setup
+(`useLocalSetup`, below). The model catalogue preloads in the background without holding the
 screen.
 
 ## Left sidebar (Claude Desktop style)
@@ -499,9 +501,14 @@ close it; focus moves into the sheet and returns to the element on close.
   Disconnected machines or missing `workspaces.read` disable it with a fixed
   reason. Changing the switcher or opening a lane closes this home pane;
   This Mac's home does not offer it.
-- **Empty states**: no workspace → onboarding card with folder picker; no
-  sessions → "Describe a task…" hero; pi missing/outdated → setup screen with
-  the install command.
+- **Empty states**: This Mac's home takes its setup while This Mac cannot
+  start a lane (`app/useLocalSetup.tsx`): pi missing or outdated → one-click
+  Install/Update pi with the install command (`PiMissingScreen`), then the
+  one-time recommendations (`GettingStartedScreen`); no open folder → the
+  folder picker with recents (`WorkspacePicker`). Only local lane creation
+  waits: a Host home or a Host composer target shows the Host's start page,
+  and This Mac's Machines readiness row shows the same install command. No
+  sessions → "Describe a task…" hero.
 
 ## Home workbench
 

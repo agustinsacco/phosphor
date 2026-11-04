@@ -2,7 +2,9 @@ import { piInstallLocation, type PiHealth } from '@shared/models'
 import { Button } from '@/components/form'
 import { usePackageJob } from '@/features/settings/usePackageJob'
 import { JobOutput } from '@/features/settings/JobOutput'
+import { PI_INSTALL } from '@/features/machines/machinePresentation'
 
+/** This Mac's home while pi is missing or too old: install or update it in one click. */
 export function PiMissingScreen({
   health,
   onRetry,
@@ -24,7 +26,7 @@ export function PiMissingScreen({
   })
 
   return (
-    <div className="titlebar-drag flex h-full flex-col items-center justify-center gap-6 px-8">
+    <div className="flex h-full flex-col items-center justify-center gap-6 overflow-y-auto px-8">
       <div className="bg-surface border-border w-full max-w-lg rounded-lg border p-8 shadow-sm">
         <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
         <p className="text-text-secondary mt-3 text-lg leading-relaxed">
@@ -49,7 +51,7 @@ export function PiMissingScreen({
 
         <p className="text-text-tertiary mt-5 text-base">Or install it yourself:</p>
         <div className="bg-code-bg border-border mt-1.5 rounded-md border px-4 py-3">
-          <code className="font-mono text-lg">npm install -g @earendil-works/pi-coding-agent</code>
+          <code className="font-mono text-lg">{PI_INSTALL}</code>
         </div>
 
         {health.version && (

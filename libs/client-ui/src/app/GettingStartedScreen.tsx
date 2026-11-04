@@ -3,8 +3,8 @@ import { StandardPackages } from '@/features/settings/sections/extensions/Standa
 import { useLocalPackages } from '@/features/settings/sections/extensions/useLocalPackages'
 
 /**
- * One-time step after Phosphor itself installed pi: recommend providers and
- * curated extensions before entering the app. Everything here is reachable
+ * One-time step in This Mac's home after Phosphor itself installed pi:
+ * recommend providers and curated extensions. Everything here is reachable
  * again later via Settings → Extensions / Agent.
  */
 export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.JSX.Element {
@@ -13,7 +13,7 @@ export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.
   const source = useLocalPackages(null, { versions: false })
 
   return (
-    <div className="titlebar-drag flex h-full flex-col items-center justify-center px-8">
+    <div className="flex h-full flex-col items-center justify-center px-8">
       <div className="bg-surface border-border w-full max-w-2xl overflow-y-auto rounded-lg border p-8 shadow-sm">
         <h1 className="text-3xl font-semibold tracking-tight">pi is ready</h1>
         <p className="text-text-secondary mt-2 text-lg leading-relaxed">
