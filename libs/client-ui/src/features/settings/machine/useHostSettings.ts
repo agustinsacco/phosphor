@@ -25,8 +25,16 @@ interface SettingsState {
   error: string | null
   loading: boolean
   saving: boolean
+  /** A connectors check is in flight; `loading` is true for any read. */
+  checking: boolean
 }
-const IDLE: SettingsState = { result: null, error: null, loading: false, saving: false }
+const IDLE: SettingsState = {
+  result: null,
+  error: null,
+  loading: false,
+  saving: false,
+  checking: false,
+}
 
 interface Writer {
   /** Still mounted, on the same connection generation, section and scope. */
@@ -128,6 +136,7 @@ export function useHostSettings(
     error: state.error,
     loading: state.loading,
     saving: state.saving,
+    checking: state.checking,
     allowed,
     connection,
     refresh,
@@ -143,7 +152,12 @@ export function useHostSettings(
     },
     check: async (): Promise<void> => {
       if (section !== 'connectors' || state.loading || state.saving) return
-      await read(() => window.phosphor.invoke('hosts:settingsCheck', hostId, repositoryId))
+      update({ checking: true })
+      try {
+        await read(() => window.phosphor.invoke('hosts:settingsCheck', hostId, repositoryId))
+      } finally {
+        if (live()) update({ checking: false })
+      }
     },
     moveAccount: async (laneId: string, accountId: string): Promise<void> => {
       if (!allowed) return

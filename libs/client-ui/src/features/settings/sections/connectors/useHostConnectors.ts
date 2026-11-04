@@ -211,7 +211,7 @@ export function useHostConnectors(): ConnectorsSource {
     locked: !state || state.legacy || state.malformed,
     busy: settings.loading || settings.saving || programs.busy,
     canSignIn: programs.available && !programs.busy,
-    checking: settings.loading,
+    checking: settings.checking,
     slow: false,
     ...(state?.checkedAt !== undefined ? { checkedAt: state.checkedAt } : {}),
     run,
