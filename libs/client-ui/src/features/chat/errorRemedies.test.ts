@@ -92,3 +92,16 @@ it.each([
   expect(remedy?.signIn).toBe(command === undefined ? true : undefined)
   if (remedy?.signIn) expect(remedy.label).toBe('Sign in on bee1')
 })
+
+// Settings → Accounts holds API keys as well as sign-ins, on every machine.
+it.each([
+  ['401: invalid x-api-key sk-test', 'This Mac'],
+  ['401: invalid x-api-key sk-test', 'bee1'],
+  ['HTTP 401 Unauthorized', 'This Mac'],
+  ['Unauthorized: invalid API key', 'bee1'],
+])('sends a rejected credential to sign in on its machine: %s on %s', (message, machine) => {
+  const remedy = matchErrorRemedy(message, { machine })
+  expect(remedy?.signIn).toBe(true)
+  expect(remedy?.label).toBe(`Sign in on ${machine}`)
+  expect(remedy?.command).toBeUndefined()
+})
