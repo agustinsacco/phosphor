@@ -318,3 +318,34 @@ it('keeps no failed read: the switcher stays neutral and the next open reads aga
   expect(providersReads()).toBe(2)
   expect(document.body.textContent).toContain('Spending work@example.com of 3 accounts.')
 })
+
+it('keeps what the Host said through a reconnect while it reads again', async () => {
+  host(FULL)
+  render()
+  await settle()
+  act(() => reconnecting())
+  act(() => host(FULL))
+  // The new connection's read has not answered yet.
+  expect(document.body.textContent).toContain('Spending work@example.com of 3 accounts.')
+  await settle()
+  expect(providersReads()).toBe(2)
+  expect(document.body.textContent).toContain('Spending work@example.com of 3 accounts.')
+})
+
+it('stays hidden on a one-account Host through a reconnect', async () => {
+  host(FULL)
+  accounts = [account('work', [LANE], { email: 'work@example.com' })]
+  render()
+  await settle()
+  act(() => reconnecting())
+  expect(document.body.textContent).not.toContain('Switch account')
+})
+
+it('goes neutral when the configuration grant is withdrawn', async () => {
+  host(FULL)
+  render()
+  await settle()
+  act(() => host(['sessions.read', 'sessions.control']))
+  expect(document.body.textContent).not.toContain('Spending')
+  expect(document.body.textContent).toContain('Move this lane to another Claude account')
+})
