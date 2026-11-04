@@ -6,13 +6,12 @@ import {
 } from '@shared/control-api'
 import type { MachineClaude } from '@shared/host-protocol-machine'
 import {
-  MIN_CLAUDE_CONTEXT_VERSION,
+  claudeProviderState,
   type ClaudeStatus,
   type PiHealth,
   type PiPackageEntry,
 } from '@shared/models'
 import type { TailscaleCode, TailscaleStatus } from '@shared/tailscale-status'
-import { meetsMinimum } from '@shared/version'
 
 export const HOST_GUIDE = 'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md'
 export const HOST_INSTALL =
@@ -193,24 +192,13 @@ export function readinessChecks(
     },
   ]
 }
-/**
- * This computer's Claude Code in a Host's terms. The provider rule is main's
- * refusal (`provider-detect.ts`): every listed copy installed at the minimum.
- */
+/** This computer's Claude Code in a Host's terms, by the Host's provider rule. */
 export function localClaude(
   packages: readonly PiPackageEntry[],
   status: ClaudeStatus,
 ): MachineClaude {
-  const copies = packages.filter((pkg) => pkg.name === '@saccolabs/pi-claude-cli')
-  const usable = (pkg: PiPackageEntry) =>
-    pkg.installed && meetsMinimum(pkg.version, MIN_CLAUDE_CONTEXT_VERSION)
   return {
-    provider:
-      copies.length && copies.every(usable)
-        ? 'ok'
-        : copies.some((pkg) => pkg.installed)
-          ? 'outdated'
-          : 'missing',
+    provider: claudeProviderState(packages),
     cli: status.binary.found ? 'ok' : 'missing',
     auth:
       status.auth.loggedIn === true

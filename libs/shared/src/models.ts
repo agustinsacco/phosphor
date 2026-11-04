@@ -1,5 +1,10 @@
 /** App-level domain declarations; import this facade from app code. */
 export { piInstallLocation, MIN_PI_VERSION, MIN_CLAUDE_CONTEXT_VERSION } from './models/sessions'
+export {
+  CLAUDE_PROVIDER_PACKAGE,
+  claudeContextProviderShortfall,
+  claudeProviderState,
+} from './models/claude-provider'
 export type {
   PiHealth,
   WorkspaceInfo,
