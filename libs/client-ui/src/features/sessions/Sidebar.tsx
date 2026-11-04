@@ -87,7 +87,12 @@ import {
 import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from './nameTransition'
 import { committedRename } from './inlineRename'
-import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
+import {
+  cloneSession,
+  exportSidebarSession,
+  markSidebarSessionRead,
+  renameSidebarSession,
+} from './sidebarActions'
 import {
   applySessionRename,
   copySessionDebugInfo,
@@ -1480,14 +1485,18 @@ function SessionRow({
             },
           ]
         : []),
+      // "Stop", as on a Host lane: the process ends, the transcript stays.
       ...(livePhosphorId
         ? [
             {
-              label: 'Suspend',
+              label: 'Stop',
               hint: '~200 MB',
               onClick: () => void store.suspendSession(livePhosphorId),
             },
           ]
+        : []),
+      ...(unseen
+        ? [{ label: 'Mark read', onClick: () => markSidebarSessionRead(meta.path, livePhosphorId) }]
         : []),
       {
         label: 'Fork',

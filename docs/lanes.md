@@ -614,7 +614,7 @@ then fades away.
 
 A merged PR finishes code, not a conversation. Automatic cleanup requires an
 explicit **Finish conversation…** decision from the sidebar context menu for
-**every** transcript in the checkout. Suspend its live sessions first. **Reopen
+**every** transcript in the checkout. Stop its live sessions first. **Reopen
 conversation** or resuming the lane clears that decision. Unknown, legacy,
 paused and otherwise unfinished conversations remain protected across restarts.
 
