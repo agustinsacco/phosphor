@@ -94,11 +94,22 @@ export function settledNotice(outcome: { kind: 'done' | 'error'; excerpt?: strin
   return { kind: 'success', message: outcome.excerpt || 'Finished.' }
 }
 
+/**
+ * A Host attention's line when it carries no receipt. `routine` folds a
+ * finished routine and a paused one together, so without a receipt it stays neutral.
+ */
 const ATTENTION_NOTICE: Record<HostAttention['kind'], ReturnType<typeof settledNotice>> = {
   finished: settledNotice({ kind: 'done' }),
   failed: settledNotice({ kind: 'error' }),
   'needs-input': { kind: 'info', message: 'Needs your input.' },
-  routine: { kind: 'success', message: 'Routine finished.' },
+  routine: { kind: 'info', message: 'Routine update.' },
+}
+
+/** A settled run's receipt words the notice, as on This Mac; Desktop attaches one only to a settled run. */
+function attentionNotice(event: HostAttention): ReturnType<typeof settledNotice> {
+  return event.receipt && event.kind !== 'needs-input'
+    ? settledNotice({ kind: event.receipt.outcome, excerpt: event.receipt.excerpt })
+    : ATTENTION_NOTICE[event.kind]
 }
 
 /**
@@ -119,9 +130,7 @@ export function noticeHostAttention(
   showLaneNotice({
     sessionId,
     title: `${machine} · ${event.title}`,
-    ...(event.kind === 'finished' && event.receipt
-      ? settledNotice({ kind: event.receipt.outcome, excerpt: event.receipt.excerpt })
-      : ATTENTION_NOTICE[event.kind]),
+    ...attentionNotice(event),
     marker: lane
       ? laneMarker(lane.marker, lane.branch, lane.cwd, useLanePrefsStore.getState().lanes.markers)
       : '',

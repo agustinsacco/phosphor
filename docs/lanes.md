@@ -419,9 +419,11 @@ pi reports `aborted` says nothing: only the stop control produces one. A lane is
 in front of you when it is on screen in a focused window (`laneInView`): it gets
 no notice, since its transcript already shows it. On screen in a background
 window it does. A Host lane's attention follows the same rule through the same
-presenter (`noticeHostAttention`): the same wording (`settledNotice` for a
-finished or failed run, “Needs your input.” for a question), kind and marker,
-titled with its machine.
+presenter (`noticeHostAttention`): the same wording (`settledNotice` from the
+run's receipt, with its excerpt, for a finished or failed run and a finished
+routine; “Needs your input.” for a question; a neutral “Routine update.” for a
+routine with no receipt, which may have paused), kind and marker, titled with
+its machine.
 
 **The wait is animated, not flashed.** `OpeningLane` fades in after a 90ms
 beat, so opening a warm lane never flashes it, and fades out over the lane it
