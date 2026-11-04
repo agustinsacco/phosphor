@@ -12,6 +12,7 @@ import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteL
 import { useLayoutStore } from '@/stores/layout'
 import { useRemoteFileSelection } from '@/features/files/remoteFileSelection'
 import { suggestedFileName } from './artifactKinds'
+import type { HostCapability } from '@shared/remote-host'
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -84,6 +85,75 @@ it.each(['repo-a', 'repo-b'])(
   },
 )
 
+const ALL_WRITE: HostCapability[] = [
+  'sessions.read',
+  'sessions.control',
+  'workspaces.read',
+  'workspaces.write',
+  'artifacts.read',
+]
+
+/** The mock Host with these capabilities, its lane held by this client or another one. */
+function laneHost(capabilities: HostCapability[], held: boolean) {
+  const host = mockRemoteHosts[MOCK_HOST_ID]!
+  return {
+    ...host,
+    capabilities,
+    lanes: host.lanes.map((lane) => ({
+      ...lane,
+      control: {
+        ...lane.control,
+        controller: {
+          label: held ? 'This Desktop' : 'Another Desktop',
+          connected: true,
+          self: held,
+        },
+      },
+    })),
+  }
+}
+
+it.each([
+  ['a viewer', ALL_WRITE, false, 'Take control first.'],
+  [
+    'a Host without file editing',
+    ALL_WRITE.filter((c) => c !== 'workspaces.write'),
+    true,
+    'This Host does not offer file editing to this device.',
+  ],
+])(
+  'remote artifact write is disabled for %s, with the reason the Host Files pane would refuse it',
+  async (_, capabilities, held, reason) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const id = mockRemoteInfo.sessionId
+    const invoke = vi.fn().mockResolvedValue(null)
+    vi.stubGlobal('phosphor', { invoke })
+    useSessionsStore.setState({ live: { [id]: { ...mockRemoteInfo, phosphorId: id } } })
+    useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: laneHost(capabilities, held) } })
+    useArtifactsStore.setState({ bySession: {}, selected: {}, selectedVersion: {} })
+    useArtifactsStore
+      .getState()
+      .addLocal(id, { title: 'Remote artifact', type: 'markdown', content: 'Remote document' })
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    try {
+      await act(async () =>
+        root.render(<ArtifactsPane sessionId={id} workspacePath={mockRemoteInfo.workspacePath} />),
+      )
+      const write = container.querySelector<HTMLButtonElement>(`[data-tooltip="${reason}"]`)
+      expect(write?.disabled).toBe(true)
+      await act(async () => write?.click())
+      expect(invoke.mock.calls.map(([channel]) => channel)).not.toContain('fs:writeFile')
+    } finally {
+      act(() => root.unmount())
+      container.remove()
+      useRemoteLanesStore.setState({ hosts: {} })
+      vi.unstubAllGlobals()
+    }
+  },
+)
+
 it.each([
   ['a new file', null],
   ['an existing file at its read revision', 'a'.repeat(64)],
@@ -101,14 +171,7 @@ it.each([
     })
     vi.stubGlobal('phosphor', { invoke })
     useSessionsStore.setState({ live: { [id]: { ...mockRemoteInfo, phosphorId: id } } })
-    useRemoteLanesStore.setState({
-      hosts: {
-        [MOCK_HOST_ID]: {
-          ...mockRemoteHosts[MOCK_HOST_ID]!,
-          capabilities: ['sessions.read', 'workspaces.read', 'workspaces.write', 'artifacts.read'],
-        },
-      },
-    })
+    useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: laneHost(ALL_WRITE, true) } })
     useArtifactsStore.setState({ bySession: {}, selected: {}, selectedVersion: {} })
     useArtifactsStore
       .getState()
