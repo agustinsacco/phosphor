@@ -111,3 +111,12 @@ it('clears selection and preview on machine A -> B -> A switches', async () => {
     expect(container.textContent).toContain('Remote preview')
   }
 })
+it("chooses among the Host's registered repositories, not its home folder", async () => {
+  await act(async () => root.render(<MachineFilesPane hostId="host" />))
+  const select = container.querySelector<HTMLSelectElement>('select[aria-label="Repository"]')
+  expect([...(select?.options ?? [])].map((o) => [o.value, o.textContent])).toEqual([
+    ['', 'Choose a repository'],
+    [repositoryId, 'Remote repo'],
+  ])
+  expect(invoke).not.toHaveBeenCalled()
+})
