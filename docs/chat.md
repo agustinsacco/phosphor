@@ -269,7 +269,13 @@ The composer is one small field with several ways in.
   compaction summarised away. Attachments are restored from the entry, since
   `fork` replies with text only.
 - Error and abort stop reasons are styled apart: an error banner with the
-  message; aborted is a muted "stopped" divider.
+  message; aborted is a muted "stopped" divider. A failure Phosphor knows the
+  fix for carries it, one set on every machine (`errorRemedies.ts`,
+  `ErrorRemedyActions.tsx`): a provider login opens **Sign in on <machine>**
+  (Settings → Accounts for the lane's machine), an expired AWS token offers
+  `aws sso login` to run in the lane's terminal on that machine, and a Bedrock
+  configuration failure links its docs. **Retry failed turn** resends the last
+  failed prompt once the fix is in, while the lane is idle and controlled.
 - Auto-retry: an inline strip "Retrying (2/3) in 4s — <error>" with cancel.
 - Compaction: a system divider "Context compacted — N tokens summarized" with
   an expandable summary, drawn from pi's `compaction_end` on every provider,

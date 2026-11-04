@@ -8,6 +8,7 @@ import { useChatUiStore } from './uiState'
 import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteHosts, MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
+import { localMachineLabel } from '@/lib/localMachine'
 vi.mock('@/components/markdown/Markdown', () => ({
   Markdown: ({ text }: { text: string }) => <span>{text}</span>,
 }))
@@ -40,10 +41,11 @@ it.each([
         useSessionsStore.setState({ activeSessionId: id })
         root.render(<ErrorBlock key={id} message="OAuth refresh token rejected" />)
       })
-      expect(container.textContent).toContain(id === 'mac' ? 'Run pi /login' : 'Sign in on')
+      expect(container.textContent).toContain(
+        `Sign in on ${id === 'mac' ? localMachineLabel() : id === 'bee-a' ? MOCK_HOST_ID : 'other'}`,
+      )
       if (id !== 'mac') {
         expect(invoke).not.toHaveBeenCalled()
-        expect(container.textContent).not.toContain('Run pi /login')
         expect(container.textContent).not.toContain('mac-profile')
       }
     }

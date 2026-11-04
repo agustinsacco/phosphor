@@ -26,10 +26,12 @@ describe('matchErrorRemedy', () => {
     ).toMatch(/aws sso login/)
   })
 
-  it('suggests pi /login for OAuth failures', () => {
-    const remedy = matchErrorRemedy('OAuth refresh token rejected')
-    expect(remedy?.command).toBe('pi')
-    expect(remedy?.label).toBe('Run pi /login')
+  it('sends OAuth failures to sign in again, naming the machine', () => {
+    const remedy = matchErrorRemedy('OAuth refresh token rejected', { machine: 'This Mac' })
+    expect(remedy?.signIn).toBe(true)
+    expect(remedy?.command).toBeUndefined()
+    expect(remedy?.label).toBe('Sign in on This Mac')
+    expect(remedy?.retryAfter).toBe(true)
   })
 
   it('explains the Bedrock data retention failure without inventing a command', () => {
@@ -79,14 +81,14 @@ describe('matchErrorRemedy', () => {
 })
 
 it.each([
-  'OAuth refresh token rejected',
-  'ExpiredTokenException',
-  'Token is expired, run aws sso login',
-  'The security token is invalid',
-])('remote auth remedy never suggests a local command: %s', (message) => {
-  const remedy = matchErrorRemedy(message, { machine: 'bee1', awsProfile: 'local-profile' })
-  expect(remedy?.label).toBe('Sign in on bee1')
-  expect(remedy?.remoteSignIn).toBe(true)
-  expect(remedy?.command).toBeUndefined()
-  expect(remedy?.hint).not.toContain('local-profile')
+  ['OAuth refresh token rejected', undefined],
+  ['Invalid API key · Please run /login', undefined],
+  ['ExpiredTokenException', 'aws sso login'],
+  ['Token is expired, run aws sso login', 'aws sso login'],
+  ['The security token is invalid', 'aws sso login'],
+])('a Host lane gets the same remedy as This Mac: %s', (message, command) => {
+  const remedy = matchErrorRemedy(message, { machine: 'bee1' })
+  expect(remedy?.command).toBe(command)
+  expect(remedy?.signIn).toBe(command === undefined ? true : undefined)
+  if (remedy?.signIn) expect(remedy.label).toBe('Sign in on bee1')
 })
