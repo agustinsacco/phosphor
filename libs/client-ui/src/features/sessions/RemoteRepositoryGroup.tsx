@@ -28,7 +28,7 @@ import { useRemotePullRequests } from './remotePullRequests'
 import type { RemoteLaneGroup } from './groupRemoteLanes'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
 import { LaneSearchBar } from './LaneSearchBar'
-import { laneMatches, laneQueryTerms } from './laneSearch'
+import { useRemoteGroupSearch } from './remoteGroupSearch'
 import { WorkspaceGroupHeader, WorkspaceGroupTitle } from './SidebarPrimitives'
 
 /** `sidebar` is Desktop's dense list; `page` gives the header controls touch-sized targets. */
@@ -52,7 +52,7 @@ export function RemoteRepositoryGroup({
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const [collapsed, setCollapsed] = useState(false)
   useRemotePullRequests(hostId, repositoryId, !collapsed && available)
-  const search = useGroupSearch(lanes)
+  const search = useRemoteGroupSearch(hostId, repositoryId, lanes)
   const ready = !!host && canReadHost(host) && host.state === 'ready'
   const groupKey = remoteLaneGroupKey(hostId, repositoryId)
   const canSelect =
@@ -162,7 +162,7 @@ function GroupSearchBar({
   search,
   total,
 }: {
-  search: ReturnType<typeof useGroupSearch>
+  search: ReturnType<typeof useRemoteGroupSearch>
   total: number
 }): React.JSX.Element {
   return (
@@ -195,7 +195,7 @@ function SearchToggle({
   onOpen,
 }: {
   name: string
-  search: ReturnType<typeof useGroupSearch>
+  search: ReturnType<typeof useRemoteGroupSearch>
   className: string
   onOpen: () => void
 }): React.JSX.Element {
@@ -216,30 +216,6 @@ function SearchToggle({
       <SearchIcon size={12} />
     </TooltipButton>
   )
-}
-
-/** A group's lane search: the draft being typed, the applied query and the lanes it keeps. */
-function useGroupSearch(lanes: HostLaneView[]) {
-  const [searching, setSearching] = useState(false)
-  const [draft, setDraft] = useState('')
-  const [query, setQuery] = useState('')
-  const terms = laneQueryTerms(query)
-  return {
-    searching,
-    draft,
-    query,
-    visible: lanes.filter((lane) =>
-      laneMatches(`${lane.title ?? ''} ${lane.branch ?? ''}`.toLowerCase(), terms),
-    ),
-    setDraft,
-    open: () => setSearching(true),
-    commit: () => setQuery(draft),
-    clear: () => {
-      setSearching(false)
-      setDraft('')
-      setQuery('')
-    },
-  }
 }
 
 /** The group's rows; with `select`, each row carries its box in this group's selection. */

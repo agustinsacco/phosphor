@@ -437,7 +437,7 @@ user is **not** looking at never takes the screen.
 
 A magnifier in the workspace header opens a search field **under** that
 header. It filters that group only: search is per project because the header
-it hangs off is.
+it hangs off is. A Host folder's search is the same, through the same matcher.
 
 `laneSearch.ts` matches against the three identities the row shows: **title,
 branch, and PR (number and title)**, because those are what you remember a lane
