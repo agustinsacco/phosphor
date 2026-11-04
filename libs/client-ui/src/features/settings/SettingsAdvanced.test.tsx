@@ -38,12 +38,15 @@ const invoke = vi.fn(async (channel: string, hostId?: string, section?: string) 
   if (channel === 'pi:listResources') return { extensions: [], prompts: [], themes: [] }
   if (channel === 'app:getPrefs') return DEFAULT_APP_PREFS
   if (channel === 'maintenance:scan') return []
+  if (channel === 'app:about')
+    return { appVersion: '9.8.7', platform: 'darwin', arch: 'arm64', electron: '1', node: '1' }
+  if (channel === 'updates:state') return { phase: 'idle' }
   return undefined
 })
 let root: Root, container: HTMLDivElement
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  vi.stubGlobal('phosphor', { invoke, platform: 'darwin' })
+  vi.stubGlobal('phosphor', { invoke, platform: 'darwin', onUpdateEvent: () => () => {} })
   useRemoteLanesStore.setState({ filter: 'local', hosts: mixedRemoteHosts() })
   prepareHostSettings(machine)
   hostRead = (hostId, section) => mockSettingsRead(hostId, section as never)
@@ -96,4 +99,18 @@ it("holds a Host's pi to the minimum This Mac's is held to (B19)", async () => {
   expect(text).toContain(`dist/cli.js — minimum supported ${MIN_PI_VERSION}`)
   expect(text).toContain('too-old')
   expect(text).not.toContain('v1.1.9')
+})
+
+it("shows This Mac's own version and update where a Host shows its own (B23)", async () => {
+  await showHostSettings(root, 'local', 'advanced')
+  await act(async () => {})
+  const text = container.textContent ?? ''
+  expect(text).toContain('Phosphor version')
+  expect(text).toContain('9.8.7')
+  const check = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent?.trim() === 'Check now',
+  )
+  expect(check).toBeDefined()
+  await act(async () => check!.click())
+  expect(invoke).toHaveBeenCalledWith('updates:check')
 })
