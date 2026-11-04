@@ -479,9 +479,13 @@ it inherits; the section waits for that read, and a failed one is the section's
 error with **Retry**.
 
 - This Mac's saves use the Host's writer (`libs/session-runtime/src/pi/settings-file.ts`):
-  locked per file, atomically replaced, and refused when the file changed since
-  it was read. This Mac's policy (`DESKTOP_FILE_POLICY`) saves through a dotfile
-  symlink, so the link survives, and keeps each file's mode. `settings.json`,
+  locked per file and atomically replaced. The client sends no revision; main
+  takes it inside the lock just before writing, so a change made outside since
+  the page read the file is not refused. An edit merges only its own key, so an
+  outside change to another key survives and one to the same key is overwritten
+  without a warning; a raw editor's save replaces the whole file. This Mac's
+  policy (`DESKTOP_FILE_POLICY`) saves through a dotfile symlink, so the link
+  survives, and keeps each file's mode. `settings.json`,
   `models.json`, `mcp.json` and their raw editors all write through it.
 - pi settings apply to **new** lanes. The context budget is the live-session
   exception described above.
