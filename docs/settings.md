@@ -676,9 +676,9 @@ fails**. See
   verify), its lane count and its 5-hour use. It **opens** onto its usage
   windows (read under that account's own CLI config dir, so they cannot show
   another account's numbers; a Host shows its last reading, and **Check again**
-  asks its CLI) and its lanes: the live sessions on This Mac, the saved and
-  running lanes on a Host, with **Open lane**. No reading yet says so and never
-  draws a meter. A lane can be restarted on the same account or moved to another,
+  asks the machine's CLI anew on every machine) and its lanes: the live sessions
+  on This Mac, the saved and running lanes on a Host, each with **Open lane**.
+  No reading yet says so and never draws a meter. A lane can be restarted on the same account or moved to another,
   after a confirmation; both respawn it from its session file, which is the only
   way an account can change. Move targets follow one rule everywhere (`moveTargets`
   in `lib/claudeGateway.ts`, also used by the composer's account switcher): every

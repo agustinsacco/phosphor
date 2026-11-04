@@ -16,6 +16,7 @@ import { sessionTitle } from '@/lib/sessionTitle'
 import { viewCandidate } from '@/lib/claudeGateway'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
+import { navigateToLane } from '@/stores/remoteLanes'
 import { usePackageJob } from '../../usePackageJob'
 import {
   accountDetail,
@@ -273,6 +274,7 @@ export function useLocalClaudeAccounts(): ClaudeAccountsSource {
       }),
     usage: readUsage,
     moveLane: async (laneId, accountId) => void (await moveSessionToAccount(laneId, accountId)),
+    openLane: (laneId) => void navigateToLane({ sessionId: laneId }),
     submitCode: (code) =>
       void window.phosphor
         .invoke('claude:submitCode', code)
