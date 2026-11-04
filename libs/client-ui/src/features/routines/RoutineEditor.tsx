@@ -1,4 +1,5 @@
 import { usePlatform } from '@/platform/Platform'
+import { localMachineLabel } from '@/lib/localMachine'
 import { TooltipButton, TooltipSummary, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useId, useState } from 'react'
 import { DateTime } from 'luxon'
@@ -214,10 +215,20 @@ export function RoutineEditor({
       enabled,
       name: draft.name.trim() || draft.instructions.trim().split('\n')[0]!.slice(0, 80),
     })
-  const save = async (enabled: boolean): Promise<void> => {
+  /** Save and Check setup both hold the editor busy and report their failure in it. */
+  const run = async (operation: () => Promise<void>): Promise<void> => {
     setBusy(true)
     setError('')
     try {
+      await operation()
+    } catch (cause) {
+      setError(String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const save = (enabled: boolean): Promise<void> =>
+    run(async () => {
       const input = normalized(enabled)
       if (enabled && !remote) await window.phosphor.invoke('routines:check', input)
       const routedInput = remote ? { ...input, repositoryId } : input
@@ -230,23 +241,9 @@ export function RoutineEditor({
       )
       keepEditorDraft(draftKey, null)
       onSaved()
-    } catch (cause) {
-      setError(String(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-  const checkSetup = async (): Promise<void> => {
-    setBusy(true)
-    setError('')
-    try {
-      setCheck(await window.phosphor.invoke('routines:check', normalized(false)))
-    } catch (cause) {
-      setError(String(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
+    })
+  const checkSetup = (): Promise<void> =>
+    run(async () => setCheck(await window.phosphor.invoke('routines:check', normalized(false))))
   let preview: number[] = []
   let scheduleError = ''
   try {
@@ -359,7 +356,7 @@ export function RoutineEditor({
                   }}
                 >
                   <option value="">Choose an available machine</option>
-                  {platform.localLanes && <option value="local">This computer</option>}
+                  {platform.localLanes && <option value="local">{localMachineLabel()}</option>}
                   {machines.map((m) => (
                     <option key={m.id} value={m.id} disabled={!m.available}>
                       {m.label}
