@@ -44,9 +44,15 @@ interface PaletteAction {
   run: () => void
 }
 
-/** The finder mounts only with a folder open, as ⌘P checks, so Go to file needs one. */
-const listed = (action: PaletteAction, workspacePath: string): boolean =>
-  action.id !== 'go-to-file' || workspacePath !== ''
+/** Actions that act on This Mac only, left out on a Host. */
+const LOCAL_ONLY = new Set(['open-folder', 'rewind'])
+
+/**
+ * Whether the palette lists an action. The finder mounts only with a folder open, as ⌘P
+ * checks, so Go to file needs one.
+ */
+const listed = (action: PaletteAction, workspacePath: string, remote: boolean): boolean =>
+  (action.id !== 'go-to-file' || workspacePath !== '') && !(remote && LOCAL_ONLY.has(action.id))
 
 export function CommandPalette({
   workspacePath,
@@ -236,15 +242,9 @@ export function CommandPalette({
       })
     }
 
-    if (remote) {
-      const localOnly = new Set(['open-folder', 'rewind'])
-      const onHost = hostId && host ? hostActions(hostId, host, setAddingFolder) : []
-      return [
-        ...base.filter((action) => !localOnly.has(action.id) && listed(action, workspacePath)),
-        ...onHost,
-      ]
-    }
-    return base.filter((action) => listed(action, workspacePath))
+    const shown = base.filter((action) => listed(action, workspacePath, remote))
+    if (!remote) return shown
+    return [...shown, ...(hostId && host ? hostActions(hostId, host, setAddingFolder) : [])]
   }, [workspacePath, open, activeSessionId, disk, host, hostId, remote])
 
   const matches = useMemo(() => fuzzyFilter(query, actions, (a) => a.label, 12), [query, actions])
