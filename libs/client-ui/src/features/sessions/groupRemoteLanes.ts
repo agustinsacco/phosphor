@@ -1,3 +1,4 @@
+import { orderedSessions } from './sessionOrder'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 
 export interface RemoteLaneGroup {
@@ -5,6 +6,25 @@ export interface RemoteLaneGroup {
   name: string
   available: boolean
   lanes: HostLaneView[]
+}
+
+/**
+ * A Host lane's entry in the sidebar's device-local `sessionOrder`: the lane's
+ * own workspace spelling, so it never meets a This Mac session path.
+ */
+export const remoteLaneOrderKey = (hostId: string, laneId: string): string =>
+  `host:${hostId}/lane:${laneId}`
+
+/** Host lanes in the order this device's user arranged them, newest unarranged ones first. */
+export function orderedRemoteLanes(
+  hostId: string,
+  lanes: HostLaneView[],
+  order: string[],
+): HostLaneView[] {
+  return orderedSessions(
+    lanes.map((lane) => ({ lane, path: remoteLaneOrderKey(hostId, lane.laneId) })),
+    order,
+  ).map(({ lane }) => lane)
 }
 
 /** Newest first, like Desktop's sessions; an unreadable timestamp sinks, ties keep snapshot order. */

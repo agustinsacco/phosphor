@@ -467,7 +467,8 @@ mid-turn is findable under the name on screen.
 
 One Host lane row (`features/sessions/RemoteLaneRow`) and one menu serve every
 surface: Desktop's sidebar, the browser's navigation and Lanes page, Host home and the
-machine preview. `remoteLaneActions` builds the menu as a pure list (Open, Rename,
+machine preview. `remoteLaneActions` builds the menu as a pure list (Open, Move up and Move
+down where the row sits in an ordered list, Rename,
 Take or Release control, Stop or Resume, Mark read, Pin, Lane marker, Copy debug
 info, Copy spend, Delete, plus Open pull request when the lane has one) and
 `useRemoteLaneActions` runs it; the phone's lane sheet lists the same items

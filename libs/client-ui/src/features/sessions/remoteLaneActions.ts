@@ -83,6 +83,8 @@ export function remoteLaneAccess({ lane, host, ready }: RemoteLaneActionState) {
 export function remoteLaneActions(
   state: RemoteLaneActionState,
   handlers: RemoteLaneActionHandlers,
+  /** Move up and Move down, where the row sits in an ordered list (`SessionList`). */
+  order: ContextMenuItem[] = [],
 ): ContextMenuItem[] {
   const { lane, ready, busy, stopBlocked, pr } = state
   const { controlled, running, canWrite, canMark, controlHint, markHint } = remoteLaneAccess(state)
@@ -93,6 +95,7 @@ export function remoteLaneActions(
     items.push({ label: `Open pull request #${pr.number}`, onClick: handlers.openPullRequest })
   if (handlers.open)
     items.push({ label: 'Open', disabled: !ready || busy, hint: notReady, onClick: handlers.open })
+  items.push(...order)
   items.push({
     label: 'Rename',
     disabled: !controlled || !running || busy,

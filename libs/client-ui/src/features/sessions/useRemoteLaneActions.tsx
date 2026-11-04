@@ -22,6 +22,7 @@ import {
 } from './remoteLaneActions'
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
 import { MarkerPickerModal } from './MarkerPickerModal'
+import { useSessionOrderActions } from './SessionList'
 
 const ACTION_FAILED = 'The Host could not confirm this. Check the lane before retrying.'
 type LaneDialog = 'delete' | 'marker' | null
@@ -56,6 +57,7 @@ export function useRemoteLaneActions({
   onDone?: () => void
 }) {
   const { navigate } = useNavigation()
+  const orderActions = useSessionOrderActions()
   const entry = useRemoteLaneSession(hostId, lane.laneId)
   const runner = useLaneActionRunner(onDone)
   const [dialog, setDialog] = useState<LaneDialog>(null)
@@ -105,7 +107,7 @@ export function useRemoteLaneActions({
     />
   )
   return {
-    items: (): ContextMenuItem[] => remoteLaneActions(state, handlers),
+    items: (): ContextMenuItem[] => remoteLaneActions(state, handlers, orderActions),
     dialogs,
     title,
     busy,

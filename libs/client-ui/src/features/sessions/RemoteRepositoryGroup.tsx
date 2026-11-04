@@ -25,7 +25,8 @@ import { TAKE_CONTROL_FIRST } from './remoteLaneActions'
 import { RemoteWorkspaceOptions, type LaneSelectMode } from './RemoteWorkspaceOptions'
 import { RemoteLaneRow } from './RemoteLaneRow'
 import { useRemotePullRequests } from './remotePullRequests'
-import type { RemoteLaneGroup } from './groupRemoteLanes'
+import { orderedRemoteLanes, remoteLaneOrderKey, type RemoteLaneGroup } from './groupRemoteLanes'
+import { SessionList } from './SessionList'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { useRemoteGroupSearch } from './remoteGroupSearch'
@@ -49,8 +50,10 @@ export function RemoteRepositoryGroup({
   group: RemoteLaneGroup
   density?: RemoteLaneDensity
 }): React.JSX.Element {
-  const { repositoryId, name, available, lanes } = group
+  const { repositoryId, name, available } = group
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
+  const sessionOrder = useSessionsStore((s) => s.sessionOrder)
+  const lanes = orderedRemoteLanes(hostId, group.lanes, sessionOrder)
   const groupKey = remoteLaneGroupKey(hostId, repositoryId)
   const [collapsed, setCollapsed] = useFolderCollapse(groupKey)
   useRemotePullRequests(hostId, repositoryId, !collapsed && available)
@@ -243,29 +246,37 @@ function GroupLanes({
   const active = useSessionsStore((s) =>
     s.activeSessionId ? s.live[s.activeSessionId] : undefined,
   )
+  const deleting = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   return (
     <div className={!ready ? 'opacity-50' : undefined}>
-      {lanes.map((lane) => (
-        <RemoteLaneRow
-          key={lane.laneId}
-          hostId={hostId}
-          lane={lane}
-          ready={ready}
-          active={
-            active?.target?.kind === 'remote' &&
-            active.target.hostId === hostId &&
-            active.laneId === lane.laneId
-          }
-          select={
-            select && {
-              selected: select.selected.includes(lane.laneId),
-              selecting: select.selecting,
-              blocked: canDeleteRemoteLane(hostId, lane) ? undefined : TAKE_CONTROL_FIRST,
-              onToggle: (shiftKey) => toggleLane(select.group, select.order, lane.laneId, shiftKey),
-            }
-          }
-        />
-      ))}
+      <SessionList
+        disabled={!ready || !!query || !!select?.selecting || deleting}
+        items={lanes.map((lane) => ({
+          id: lane.laneId,
+          path: remoteLaneOrderKey(hostId, lane.laneId),
+          content: (
+            <RemoteLaneRow
+              hostId={hostId}
+              lane={lane}
+              ready={ready}
+              active={
+                active?.target?.kind === 'remote' &&
+                active.target.hostId === hostId &&
+                active.laneId === lane.laneId
+              }
+              select={
+                select && {
+                  selected: select.selected.includes(lane.laneId),
+                  selecting: select.selecting,
+                  blocked: canDeleteRemoteLane(hostId, lane) ? undefined : TAKE_CONTROL_FIRST,
+                  onToggle: (shiftKey) =>
+                    toggleLane(select.group, select.order, lane.laneId, shiftKey),
+                }
+              }
+            />
+          ),
+        }))}
+      />
       {!lanes.length && (
         <p className="text-text-tertiary px-2 py-2 text-sm">
           {query ? `No lanes match “${query}”` : 'No lanes yet'}
