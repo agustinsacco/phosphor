@@ -24,6 +24,7 @@ import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { useDraftsStore, homeDraftKey } from '@/stores/drafts'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 it.each(['ready', 'down', 'reconnecting'] as const)(
@@ -63,7 +64,13 @@ it.each(['ready', 'down', 'reconnecting'] as const)(
           (b) => b.textContent === `Sign in on ${MOCK_HOST_ID}`,
         )!
         act(() => signIn.click())
-        expect(useMachinesStore.getState().view).toEqual({ kind: 'machine', id: MOCK_HOST_ID })
+        // The same place the chat's Sign in remedy opens: Settings → Accounts for the Host.
+        expect(useSettingsUiStore.getState()).toMatchObject({
+          open: true,
+          machine: MOCK_HOST_ID,
+          tab: 'accounts',
+        })
+        expect(useMachinesStore.getState().view).not.toEqual({ kind: 'machine', id: MOCK_HOST_ID })
       } else if (state === 'reconnecting') {
         // A Host that is coming back waits; it is not reported as disconnected.
         expect(document.body.textContent).toContain('Connecting…')
