@@ -74,10 +74,6 @@ describe('matchErrorRemedy', () => {
     expect(matchErrorRemedy(undefined)).toBeNull()
     expect(matchErrorRemedy('')).toBeNull()
   })
-
-  it('does not fire on a plain 401 with no login hint', () => {
-    expect(matchErrorRemedy('401 Unauthorized')).toBeNull()
-  })
 })
 
 it.each([

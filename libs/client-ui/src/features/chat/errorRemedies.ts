@@ -125,8 +125,9 @@ export function matchErrorRemedy(
     return { label: 'Refresh AWS credentials', command, hint, retryAfter: true }
   }
 
-  // A provider sign-in (pi's OAuth providers, a CLI provider's own login).
-  if (text.includes('oauth') || text.includes('refresh token') || text.includes('login')) {
+  // A provider sign-in (pi's OAuth providers, a CLI provider's own login) or a
+  // rejected credential: Settings → Accounts holds both, on every machine.
+  if (/oauth|refresh token|login|unauthorized|\b401\b|invalid.*api.?key/.test(text)) {
     return {
       label: `Sign in on ${context.machine ?? 'this machine'}`,
       hint: 'Sign in again in Settings → Accounts for this machine, then retry the failed turn.',
