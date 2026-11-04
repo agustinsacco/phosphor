@@ -4,6 +4,7 @@ import { join, dirname } from 'node:path'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import type { GhRunner } from '@phosphor/session-runtime/git/github'
 import {
+  branchTip,
   deleteBranchAtTip,
   ghCommitTree,
   ghMergedPrHeads,
@@ -96,8 +97,7 @@ export async function branchMerged(
   // The trunk lane creation used. No trunk means no proof, never a proof against HEAD.
   const trunk = await resolveDefaultBranch(run).catch(() => null)
   if (trunk === null || branch === trunk) return false
-  const commit =
-    tip ?? (await run(['rev-parse', '--verify', `refs/heads/${branch}^{commit}`]).catch(() => ''))
+  const commit = tip ?? (await branchTip(run, branch))
   if (!commit) return false
   if (await landedOnTrunk(run, commit, defaultBranchRefs(trunk))) return true
   return github
@@ -231,8 +231,8 @@ export async function deleteMergedBranch(
     if (current === ref) return false
     const worktrees = await run(['worktree', 'list', '--porcelain'])
     if (worktrees.split('\n').includes(`branch ${ref}`)) return false
-    const tip = await run(['rev-parse', '--verify', ref])
-    if (!allowed() || !(await branchMerged(root, branch, { tip, github }))) return false
+    const tip = await branchTip(run, branch)
+    if (!tip || !allowed() || !(await branchMerged(root, branch, { tip, github }))) return false
     // Every proof (ancestry, squash or PR) ends in one compare-and-delete at the proven tip.
     return await deleteBranchAtTip(run, branch, tip, allowed)
   } catch {

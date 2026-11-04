@@ -13,6 +13,10 @@ import type { GhRunner } from './github'
 /** Runs git in the repository: trimmed stdout, rejecting on a non-zero exit. */
 export type BranchGit = (args: string[]) => Promise<string>
 
+/** The branch's commit, or '' when it does not exist. */
+export const branchTip = (run: BranchGit, branch: string): Promise<string> =>
+  run(['rev-parse', '--verify', `refs/heads/${branch}^{commit}`]).catch(() => '')
+
 /** What GitHub says about a branch's merged pull requests. Null means no answer. */
 export interface PullRequestEvidence {
   mergedPrHeads(branch: string): Promise<string[] | null>

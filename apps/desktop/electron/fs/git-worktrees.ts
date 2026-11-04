@@ -12,6 +12,7 @@ import {
 } from '@phosphor/session-runtime/git/git-exec'
 import { gitInfoCache } from '@phosphor/session-runtime/git/git-info-cache'
 import {
+  branchTip,
   deleteBranchAtTip,
   landedOnTrunk,
   landedViaPullRequest as landedViaPullRequestAt,
@@ -418,13 +419,6 @@ const proofGit =
   (args) =>
     git(repoPath, args, { trim: true })
 
-/** The branch's commit, or '' when it does not exist. */
-const branchTip = (repoPath: string, branch: string): Promise<string> =>
-  git(repoPath, ['rev-parse', '--verify', `refs/heads/${branch}^{commit}`], {
-    trim: true,
-    allowFail: true,
-  })
-
 /**
  * Is this branch's work already on the trunk, squash merges included?
  *
@@ -458,7 +452,7 @@ export async function landedViaPullRequest(
   branch: string,
   tip?: string,
 ): Promise<boolean> {
-  const commit = tip ?? (await branchTip(repoPath, branch))
+  const commit = tip ?? (await branchTip(proofGit(repoPath), branch))
   if (!commit) return false
   return landedViaPullRequestAt(
     proofGit(repoPath),
@@ -492,7 +486,7 @@ async function deleteLandedBranch(
     await git(repoPath, ['branch', '-d', branch])
     return { branchDeleted: true }
   } catch (error) {
-    const tip = await branchTip(repoPath, branch)
+    const tip = await branchTip(proofGit(repoPath), branch)
     if (!tip || !(await isBranchLanded(repoPath, branch, tip))) {
       return { branchDeleted: false, branchError: gitErrorText(error) }
     }
@@ -502,7 +496,7 @@ async function deleteLandedBranch(
         : { branchDeleted: false, branchError: gitErrorText(error) }
     } catch (deleteError) {
       // The compare-and-delete refused because the branch is no longer the proven tip.
-      const moved = (await branchTip(repoPath, branch)) !== tip
+      const moved = (await branchTip(proofGit(repoPath), branch)) !== tip
       return {
         branchDeleted: false,
         branchError: moved
