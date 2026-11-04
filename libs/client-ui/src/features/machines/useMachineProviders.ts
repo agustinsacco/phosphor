@@ -11,7 +11,8 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 export function useMachineProviders(machineId: string, refresh: number) {
   const host = useRemoteLanesStore((s) => s.hosts[machineId])
   const local = machineId === 'local'
-  const readable = local || (host?.state === 'ready' && host.capabilities.includes('skills.read'))
+  const connected = local || host?.state === 'ready'
+  const readable = local || (connected && !!host?.capabilities.includes('skills.read'))
   const [providers, setProviders] = useState<MachineProvider[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [reload, setReload] = useState(0)
@@ -37,5 +38,5 @@ export function useMachineProviders(machineId: string, refresh: number) {
       live = false
     }
   }, [machineId, local, readable, reload, refresh])
-  return { readable, providers, failed, retry: () => setReload((n) => n + 1) }
+  return { connected, readable, providers, failed, retry: () => setReload((n) => n + 1) }
 }
