@@ -300,16 +300,13 @@ function RemoteLaneDialogs({
 }
 
 /**
- * Markers other lanes in this folder chose, for the picker to dim. Explicit
- * choices only, as on This Mac: derived markers collide by design.
+ * Markers other lanes on this Host chose, in any folder, for the picker to dim:
+ * This Mac dims every lane's choice on the machine too. Explicit choices only,
+ * as on This Mac: derived markers collide by design.
  */
 function usedMarkers(lanes: readonly HostLaneView[], lane: HostLaneView): Set<string> {
   return new Set(
-    lanes.flatMap((other) =>
-      other.laneId !== lane.laneId && other.repositoryId === lane.repositoryId && other.marker
-        ? [other.marker]
-        : [],
-    ),
+    lanes.flatMap((other) => (other.laneId !== lane.laneId && other.marker ? [other.marker] : [])),
   )
 }
 

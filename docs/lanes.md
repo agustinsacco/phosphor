@@ -139,7 +139,9 @@ base emoji. No image CDN or network access is needed.
 **None** explicitly clears a lane. **Auto** removes its override and returns to
 the branch-derived marker; in Manual mode this action is labelled **Default**
 and leaves the lane unmarked. Escape or Cancel leaves the choice unchanged.
-Explicit choices persist across reloads and mode changes.
+Explicit choices persist across reloads and mode changes. The picker dims
+markers other lanes on the same machine chose explicitly, in any workspace:
+This Mac's lanes for a This Mac lane, that Host's lanes for a Host lane.
 
 ## PR status
 

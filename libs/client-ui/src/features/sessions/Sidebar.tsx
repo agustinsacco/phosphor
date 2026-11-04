@@ -1416,7 +1416,8 @@ function SessionRow({
   const [pickingMarker, setPickingMarker] = useState(false)
 
   /**
-   * Markers already spoken for in this workspace, so the picker can dim them.
+   * Markers already spoken for on this machine, in any workspace, so the
+   * picker can dim them (a Host's picker dims its own lanes' alike).
    * Derived from EXPLICIT choices only: auto markers collide by design (the
    * palette is finite) and dimming them would grey out most of the grid.
    */
