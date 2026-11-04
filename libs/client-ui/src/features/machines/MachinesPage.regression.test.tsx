@@ -408,3 +408,25 @@ it('C2: Check again reads On this machine again after a failed count, on This Ma
     invoke.mockImplementation(base)
   }
 })
+
+it("characterize: This Mac's On this machine lists its own live lane, not a Host lane open here", async () => {
+  useSessionsStore.setState({
+    live: {
+      mine: { phosphorId: 'mine', workspacePath: '/work/app' },
+      remote: {
+        phosphorId: 'remote',
+        workspacePath: `host:${HOST.id}/lane:lane-1`,
+        target: { kind: 'remote', hostId: HOST.id },
+        laneId: 'lane-1',
+      },
+    } as never,
+  })
+  try {
+    await openThisMac()
+    const card = container.querySelector('[aria-label="On this machine"]')
+    expect(card?.textContent).toContain('1 lane')
+    expect(card?.querySelectorAll('.machine-lane-preview .lane-row')).toHaveLength(1)
+  } finally {
+    useSessionsStore.setState({ live: {} })
+  }
+})
