@@ -42,6 +42,7 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
     return { binary: { found: true }, auth: { loggedIn: true } }
   if (channel === 'pi:subscriptionAuth' || channel === 'hosts:providers') return PROVIDERS
   if (channel === 'hosts:claude') return claude
+  if (channel === 'hosts:tailscaleStatus') return { code: 'ready' }
   if (channel === 'packages:list')
     return [
       {
@@ -119,11 +120,11 @@ it("This Mac's row reads its checks, and its detail shows readiness, providers a
   expect(row?.textContent).toContain('This Mac')
   expect(row?.textContent).toContain('macOS')
   expect(row?.textContent).toContain('pi 1.2.0')
-  expect(okChecks(row, 'data-check-chip')).toEqual(['true', 'true'])
+  expect(okChecks(row, 'data-check-chip')).toEqual(['true', 'true', 'true'])
   expect(row?.querySelector('[data-tone]')?.textContent).toBe('Ready')
   await click(row)
   expect(container.querySelector('[data-testid=machine-detail]')).not.toBeNull()
-  expect(okChecks(region('Readiness'), 'data-check')).toEqual(['true', 'true'])
+  expect(okChecks(region('Readiness'), 'data-check')).toEqual(['true', 'true', 'true'])
   const providers = region('Providers')
   expect(providers?.textContent).toContain('Claude Pro/Max')
   expect(providers?.textContent).toContain('ChatGPT')
@@ -231,4 +232,14 @@ it("This Mac's Claude Code names a missing provider package, as a Host's does", 
   } finally {
     invoke.mockImplementation(base)
   }
+})
+
+it("This Mac's Readiness lists pi, Claude Code and Tailscale, read on this computer", async () => {
+  await render()
+  await click(container.querySelector<HTMLElement>('[data-testid=local-machine-row]'))
+  const names = [...(region('Readiness')?.querySelectorAll('[data-check]') ?? [])].map((e) =>
+    e.getAttribute('data-check'),
+  )
+  expect(names).toEqual(['pi', 'Claude Code', 'Tailscale'])
+  expect(invoke).toHaveBeenCalledWith('hosts:tailscaleStatus')
 })

@@ -30,6 +30,7 @@ const CONNECTED = {
 }
 let claudeStatus = { binary: { found: true }, auth: { loggedIn: true } }
 let hostClaude = { provider: 'ok', cli: 'ok', auth: 'ok' }
+let tailscale = 'ready'
 let root: Root
 let container: HTMLDivElement
 const invoke = vi.fn(async (channel: string): Promise<unknown> => {
@@ -50,12 +51,14 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
     ]
   if (channel === 'hosts:claude') return hostClaude
   if (channel === 'packages:list') return [CLAUDE_PROVIDER]
+  if (channel === 'hosts:tailscaleStatus') return { code: tailscale }
   return null
 })
 
 beforeEach(() => {
   claudeStatus = { binary: { found: true }, auth: { loggedIn: true } }
   hostClaude = { provider: 'ok', cli: 'ok', auth: 'ok' }
+  tailscale = 'ready'
   invoke.mockClear()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('phosphor', { invoke, platform: 'darwin', onAccountChanged: () => () => {} })
@@ -206,4 +209,46 @@ it("R-M7: This Mac's live lanes count only its own lanes, not Host lanes open he
   } finally {
     useSessionsStore.setState({ live: {} })
   }
+})
+
+const tailscaleRow = (): HTMLElement | null =>
+  container.querySelector<HTMLElement>('[data-check="Tailscale"]')
+const localPill = (): string | null | undefined =>
+  container.querySelector('[data-testid=machine-detail] header [data-tone]')?.textContent
+
+it('C5a: with no Hosts, a missing Tailscale on This Mac is optional and leaves it Ready', async () => {
+  tailscale = 'not-installed'
+  useMachinesStore.setState({ machines: [] })
+  await openThisMac()
+  expect(tailscaleRow()?.getAttribute('data-ok')).toBe('false')
+  expect(tailscaleRow()?.querySelector('[aria-label="Needs attention"]')).toBeNull()
+  expect(tailscaleRow()?.querySelector('[data-tooltip]')?.getAttribute('data-tooltip')).toContain(
+    'Needed only to reach your Hosts',
+  )
+  expect(localPill()).toBe('Ready')
+})
+
+it('C5b: with Hosts enrolled, a stopped Tailscale on This Mac needs attention', async () => {
+  tailscale = 'not-running'
+  await openThisMac()
+  expect(tailscaleRow()?.querySelector('[aria-label="Needs attention"]')).not.toBeNull()
+  expect(tailscaleRow()?.textContent).toContain('Open Tailscale and connect to your tailnet')
+  expect(localPill()).not.toBe('Ready')
+})
+
+it('C5c: signed out, This Mac reaches no Hosts, so its Tailscale is optional', async () => {
+  tailscale = 'signed-out'
+  useMachinesStore.getState().enableRemote(false)
+  await openThisMac()
+  expect(tailscaleRow()?.querySelector('[aria-label="Needs attention"]')).toBeNull()
+  expect(localPill()).toBe('Ready')
+})
+
+it("C5d: a Host's own Tailscale row is never muted", async () => {
+  useMachinesStore.setState({
+    machines: [{ ...HOST, readiness: { pi: 'ok', claude: 'ok', tailscale: 'stopped' } }],
+    view: { kind: 'machine', id: HOST.id },
+  })
+  await render()
+  expect(tailscaleRow()?.querySelector('[aria-label="Needs attention"]')).not.toBeNull()
 })
