@@ -89,7 +89,7 @@ export function remoteLaneActions(
   order: ContextMenuItem[] = [],
 ): ContextMenuItem[] {
   const { lane, ready, busy, stopBlocked, pr } = state
-  const { controlled, running, canWrite, canMark, controlHint, markHint } = remoteLaneAccess(state)
+  const { controlled, running, canWrite, controlHint } = remoteLaneAccess(state)
   const self = lane.control.controller?.self === true
   const notReady = !ready ? REMOTE_NOT_READY : undefined
   const items: ContextMenuItem[] = []
@@ -133,6 +133,28 @@ export function remoteLaneActions(
       hint: notReady,
       onClick: handlers.markRead,
     },
+    ...keepActions(state, handlers),
+    {
+      label: 'Delete',
+      danger: true,
+      separatorAbove: true,
+      disabled: !controlled || !canWrite || busy,
+      hint: controlHint ?? (!canWrite ? REMOTE_UNAVAILABLE : undefined),
+      onClick: handlers.delete,
+    },
+  )
+  return items
+}
+
+/** What a reader may keep or curate: a routine, pin and marker, an export and copies. */
+function keepActions(
+  state: RemoteLaneActionState,
+  handlers: RemoteLaneActionHandlers,
+): ContextMenuItem[] {
+  const { lane, ready, busy } = state
+  const { running, canMark, markHint } = remoteLaneAccess(state)
+  const notReady = !ready ? REMOTE_NOT_READY : undefined
+  return [
     {
       label: 'Make routine…',
       disabled: !ready || busy || !state.host?.capabilities.includes('routines'),
@@ -171,14 +193,5 @@ export function remoteLaneActions(
       hint: notReady ?? (!running ? ONLY_WHILE_RUNNING : undefined),
       onClick: handlers.copySpend,
     },
-    {
-      label: 'Delete',
-      danger: true,
-      separatorAbove: true,
-      disabled: !controlled || !canWrite || busy,
-      hint: controlHint ?? (!canWrite ? REMOTE_UNAVAILABLE : undefined),
-      onClick: handlers.delete,
-    },
-  )
-  return items
+  ]
 }

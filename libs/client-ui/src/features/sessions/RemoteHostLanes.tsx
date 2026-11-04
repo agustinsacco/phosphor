@@ -4,15 +4,14 @@ import { Button } from '@/components/form'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { canReadHost, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import {
-  compareLanesByCreation,
-  groupRemoteLanes,
-  orderedRemoteLanes,
-  remoteLaneOrderKey,
-} from './groupRemoteLanes'
+import { compareLanesByCreation, groupRemoteLanes, remoteLaneOrderKey } from './groupRemoteLanes'
 import { SessionList } from './SessionList'
 import { RemoteLaneRow } from './RemoteLaneRow'
-import { RemoteRepositoryGroup, type RemoteLaneDensity } from './RemoteRepositoryGroup'
+import {
+  RemoteRepositoryGroup,
+  useRemoteLaneOrder,
+  type RemoteLaneDensity,
+} from './RemoteRepositoryGroup'
 import { SectionLabel } from './SidebarPrimitives'
 
 /**
@@ -31,13 +30,11 @@ export function RemoteHostLanes({
   density?: RemoteLaneDensity
 }): React.JSX.Element {
   const ready = useRemoteLanesStore((s) => s.hosts[hostId]?.state === 'ready')
-  const sessionOrder = useSessionsStore((s) => s.sessionOrder)
-  if (ready && !repositories.length && !lanes.length) return <NoFolders hostId={hostId} />
-  const pinned = orderedRemoteLanes(
+  const pinned = useRemoteLaneOrder(
     hostId,
     lanes.filter((lane) => lane.pinned).sort(compareLanesByCreation),
-    sessionOrder,
   )
+  if (ready && !repositories.length && !lanes.length) return <NoFolders hostId={hostId} />
   return (
     <>
       {pinned.length > 0 && (

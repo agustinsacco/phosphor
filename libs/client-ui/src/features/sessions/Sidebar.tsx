@@ -35,7 +35,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { LaneMarker } from './LaneMarker'
 import { BulkDeleteModal } from './BulkDeleteModal'
 import { LaneBulkBar, SelectableIndicator } from './LaneSelect'
-import { LaneSelectionRows } from './LaneSelectionRows'
+import { LaneSelectionRows, type LaneSelectMode } from './LaneSelectionRows'
 import {
   clearLaneSelection,
   selectLanes,
@@ -670,6 +670,15 @@ export function Sidebar({
     const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
     return pullRequestFor({ byRepo: prByRepo }, repoPath, git?.branch)?.state === 'MERGED'
   }
+  /** The workspace menu's lane selection, over the lanes the search shows. */
+  const selectGroupLanes = (group: string, visible: SessionMeta[], mode: LaneSelectMode): void => {
+    if (mode === 'clear') clearLaneSelection()
+    else
+      selectLanes(
+        group,
+        (mode === 'all' ? visible : visible.filter(isMerged)).map((meta) => meta.path),
+      )
+  }
 
   // Re-run the scan for a group whose last attempt failed, across every
   // folder merged into the project, so the sidebar recovers instead of
@@ -889,19 +898,10 @@ export function Sidebar({
                           canSelect={selectingThis || visible.length > 0}
                           selecting={selectingThis}
                           collapsed={isCollapsed}
-                          onCollapse={(next) => {
-                            if (next !== isCollapsed) toggleGroup(group, isCollapsed)
-                          }}
-                          onSelect={(mode) => {
-                            if (mode === 'clear') clearLaneSelection()
-                            else
-                              selectLanes(
-                                group.workspacePath,
-                                mode === 'all'
-                                  ? visiblePaths
-                                  : visible.filter(isMerged).map((m) => m.path),
-                              )
-                          }}
+                          onCollapse={(next) =>
+                            next !== isCollapsed && toggleGroup(group, isCollapsed)
+                          }
+                          onSelect={(mode) => selectGroupLanes(group.workspacePath, visible, mode)}
                           onDone={closeWorkspaceMenu}
                         />
                         <MenuRow

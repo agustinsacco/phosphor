@@ -23,6 +23,7 @@ import { ModalOverlay } from '@/components/Modal'
 import { presentText } from '@/stores/prompt'
 import {
   editorDraft,
+  hostRoutineDraft,
   keepEditorDraft,
   NEW_ROUTINE,
   newRoutineDraftKey,
@@ -135,17 +136,6 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     }
   }, [])
 
-  /** A new routine's editor state on a Host: the Host picks provider, model and folder path. */
-  const hostDraft = (
-    input: RoutineInput,
-    machineId: string,
-    repositoryId: string,
-  ): EditorDraft => ({
-    input: { ...input, provider: '', model: '', workspacePath: '' },
-    revision: null,
-    machineId,
-    repositoryId,
-  })
   /**
    * Open the editor on a routine that is not saved yet. With no `input` it
    * resumes whatever was left in it last time; a starter, duplicate, import or
@@ -156,7 +146,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     const savedDraft = input || !unsaved ? undefined : editorDraft(newDraftKey, null)
     const restored =
       savedDraft ??
-      (machine.startsWith('host:') ? hostDraft(input ?? blank, machine, '') : undefined)
+      (machine.startsWith('host:') ? hostRoutineDraft(input ?? blank, machine, '') : undefined)
     setEditor({
       restored,
       key: newDraftKey,
@@ -179,19 +169,15 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
   // Context-menu drafts are consumed once; no hidden schedule is created. A Host
   // draft waits for the machine list, or the editor would drop its unknown machine.
   useEffect(() => {
-    const target = useRoutinesStore.getState().draftTarget
-    if (draft && (!target || localSnapshot || localError)) {
-      const restored = target
-        ? hostDraft(draft, `host:${target.hostId}`, target.repositoryId)
-        : undefined
-      setEditor({
-        key: restored ? newRoutineDraftKey(restored.machineId) : NEW_ROUTINE,
-        input: restored?.input ?? draft,
-        pristine: newRoutine(draft.workspacePath),
-        restored,
-      })
-      useRoutinesStore.setState({ draft: null, draftTarget: null })
-    }
+    if (!draft || (draft.restored && !localSnapshot && !localError)) return
+    const { input, restored } = draft
+    setEditor({
+      key: restored ? newRoutineDraftKey(restored.machineId) : NEW_ROUTINE,
+      input: restored?.input ?? input,
+      pristine: newRoutine(input.workspacePath),
+      restored,
+    })
+    useRoutinesStore.setState({ draft: null })
   }, [draft, localSnapshot, localError])
 
   useEffect(() => {

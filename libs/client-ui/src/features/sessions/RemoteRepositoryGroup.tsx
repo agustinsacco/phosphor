@@ -53,8 +53,7 @@ export function RemoteRepositoryGroup({
 }): React.JSX.Element {
   const { repositoryId, name, available } = group
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const sessionOrder = useSessionsStore((s) => s.sessionOrder)
-  const lanes = orderedRemoteLanes(hostId, group.lanes, sessionOrder)
+  const lanes = useRemoteLaneOrder(hostId, group.lanes)
   const groupKey = remoteLaneGroupKey(hostId, repositoryId)
   const [collapsed, setCollapsed] = useFolderCollapse(groupKey)
   useRemotePullRequests(hostId, repositoryId, !collapsed && available)
@@ -121,6 +120,15 @@ export function RemoteRepositoryGroup({
       )}
       <RemoteBulkDelete hostId={hostId} selectionKey={selection.key} lanes={lanes} />
     </section>
+  )
+}
+
+/** Host lanes as this device's user arranged them (the sidebar's `sessionOrder`). */
+export function useRemoteLaneOrder(hostId: string, lanes: HostLaneView[]): HostLaneView[] {
+  return orderedRemoteLanes(
+    hostId,
+    lanes,
+    useSessionsStore((s) => s.sessionOrder),
   )
 }
 

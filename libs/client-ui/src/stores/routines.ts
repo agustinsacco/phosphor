@@ -36,9 +36,8 @@ interface RoutinesState {
   /** Lanes the routines still own; the sidebar hides exactly these paths. */
   laneIndex: RoutineLaneIndex
   error: string | null
-  draft: RoutineInput | null
-  /** The Host and folder a context-menu draft targets; null for This Mac. */
-  draftTarget: RoutineDraftTarget | null
+  /** A context-menu draft; `restored` places it on a Host and folder. */
+  draft: { input: RoutineInput; restored?: EditorDraft } | null
   /**
    * What the editor held when it closed, keyed by routine id or a per-machine new-routine key.
    * Closing the editor, by Escape or Cancel or leaving the page, must not
@@ -63,7 +62,6 @@ export const useRoutinesStore = create<RoutinesState>((set, get) => ({
   laneIndex: NO_LANES,
   error: null,
   draft: null,
-  draftTarget: null,
   editorDrafts: {},
   refresh: async () => {
     const request = ++sequence
@@ -176,6 +174,20 @@ export function editorDraft(key: string, revision: number | null): EditorDraft |
   return null
 }
 
+/** A new routine's editor state on a Host: the Host picks provider, model and folder path. */
+export function hostRoutineDraft(
+  input: RoutineInput,
+  machineId: string,
+  repositoryId: string,
+): EditorDraft {
+  return {
+    input: { ...input, provider: '', model: '', workspacePath: '' },
+    revision: null,
+    machineId,
+    repositoryId,
+  }
+}
+
 /** The Host folder a "Make routine…" draft from a Host lane runs in. */
 export interface RoutineDraftTarget {
   hostId: string
@@ -192,10 +204,11 @@ export function makeRoutine(
   instructions: string,
   target?: RoutineDraftTarget,
 ): void {
-  useRoutinesStore.setState({
-    draft: { ...newRoutine(workspacePath), name: name.slice(0, 100), instructions },
-    draftTarget: target ?? null,
-  })
+  const input = { ...newRoutine(workspacePath), name: name.slice(0, 100), instructions }
+  const restored = target
+    ? hostRoutineDraft(input, `host:${target.hostId}`, target.repositoryId)
+    : undefined
+  useRoutinesStore.setState({ draft: { input, restored } })
   if (target) openMachinePage('routines', target.hostId)
   else useLayoutStore.getState().setPage('routines')
 }
@@ -214,7 +227,6 @@ export function clearRoutineMemory(): void {
     laneIndex: NO_LANES,
     error: null,
     draft: null,
-    draftTarget: null,
     editorDrafts: {},
   })
 }

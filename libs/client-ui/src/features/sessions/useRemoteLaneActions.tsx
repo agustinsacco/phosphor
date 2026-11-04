@@ -67,7 +67,7 @@ export function useRemoteLaneActions({
   const runner = useLaneActionRunner(onDone)
   const [dialog, setDialog] = useState<LaneDialog>(null)
   const title = useRemoteLaneTitle(lane, hostId)
-  const { state, pr, deletingInBulk } = useLaneActionState(
+  const { state, pr, deletingInBulk, marker } = useLaneActionState(
     hostId,
     lane,
     ready,
@@ -76,15 +76,13 @@ export function useRemoteLaneActions({
   )
   const busy = state.busy
   const access = remoteLaneAccess(state)
-
-  const act = runner.act
   const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
   const handlers = laneHandlers({
     hostId,
     lane,
     navigate: withOpen ? navigate : undefined,
     pr,
-    act,
+    act: runner.act,
     session,
     exportAs: { title, nativeFiles },
     onRename,
@@ -98,7 +96,7 @@ export function useRemoteLaneActions({
   /** Names the lane through its live session; resolves false when the Host refused. */
   const saveName = async (name: string): Promise<boolean> =>
     access.controlled && access.running && !!name.trim() && !busy
-      ? act(async () => renameLane(await session(), name.trim()))
+      ? runner.act(async () => renameLane(await session(), name.trim()))
       : false
   const dialogs = (
     <RemoteLaneDialogs
@@ -121,11 +119,7 @@ export function useRemoteLaneActions({
     deletingInBulk,
     saveName,
     pickMarker: access.canMark && state.markers !== 'off' ? handlers.pickMarker : undefined,
-    /** The row's marker: the explicit Host choice, else derived from the branch, as on This Mac. */
-    marker:
-      state.markers === 'off'
-        ? null
-        : laneMarker(lane.marker, lane.branch, lane.cwd, state.markers),
+    marker,
     ...access,
   }
 }
@@ -156,7 +150,9 @@ function useLaneActionState(
     pr: pr ?? null,
     markers,
   }
-  return { state, pr, deletingInBulk }
+  /** The row's marker: the explicit Host choice, else derived from the branch, as on This Mac. */
+  const marker = markers === 'off' ? null : laneMarker(lane.marker, lane.branch, lane.cwd, markers)
+  return { state, pr, deletingInBulk, marker }
 }
 
 /** The live session bound to a Host lane, once one has been opened. */

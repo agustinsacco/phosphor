@@ -396,12 +396,12 @@ it("drafts a routine on the lane's Host and folder from its title and first prom
   render()
   menu()
   await act(async () => button('Make routine…').click())
-  expect(useRoutinesStore.getState().draft).toMatchObject({
+  expect(useRoutinesStore.getState().draft?.input).toMatchObject({
     name: 'Remote demo lane',
     instructions: 'Fix the flaky test',
   })
-  expect(useRoutinesStore.getState().draftTarget).toEqual({
-    hostId: MOCK_HOST_ID,
+  expect(useRoutinesStore.getState().draft?.restored).toMatchObject({
+    machineId: `host:${MOCK_HOST_ID}`,
     repositoryId: lane.repositoryId,
   })
   expect(useMachinePagesStore.getState().routinesMachine).toBe(`host:${MOCK_HOST_ID}`)

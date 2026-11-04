@@ -139,7 +139,8 @@ describe('remoteLaneActions', () => {
 it("gates Make routine… on the Host's routines capability, with the shared hint", () => {
   const without = remoteLaneActions(state(), handlers())
   expect(item(without, 'Make routine…')).toMatchObject({ disabled: true, hint: REMOTE_UNAVAILABLE })
-  const host = { capabilities: [...state().host!.capabilities, 'routines'], laneMarks: true }
+  const base = state().host!
+  const host = { ...base, capabilities: [...base.capabilities, 'routines' as const] }
   const withRoutines = remoteLaneActions(state({ host }), handlers())
   expect(item(withRoutines, 'Make routine…')).toMatchObject({ disabled: false, hint: undefined })
   expect(
