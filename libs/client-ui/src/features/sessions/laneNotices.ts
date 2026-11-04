@@ -120,7 +120,7 @@ export function noticeHostAttention(
     sessionId,
     title: `${machine} · ${event.title}`,
     ...(event.kind === 'finished' && event.receipt
-      ? settledNotice(event.receipt)
+      ? settledNotice({ kind: event.receipt.outcome, excerpt: event.receipt.excerpt })
       : ATTENTION_NOTICE[event.kind]),
     marker: lane
       ? laneMarker(lane.marker, lane.branch, lane.cwd, useLanePrefsStore.getState().lanes.markers)
