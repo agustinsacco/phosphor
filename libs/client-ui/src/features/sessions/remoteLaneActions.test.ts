@@ -136,9 +136,13 @@ describe('remoteLaneActions', () => {
   })
 })
 
-it("gates Make routine… on the Host's routines capability, with the shared hint", () => {
+it("gates Make routine… on the Host's routines capability, saying the Host does not offer them", () => {
   const without = remoteLaneActions(state(), handlers())
-  expect(item(without, 'Make routine…')).toMatchObject({ disabled: true, hint: REMOTE_UNAVAILABLE })
+  // The capability is missing on an older Host or under a grant without it: never "yet".
+  expect(item(without, 'Make routine…')).toMatchObject({
+    disabled: true,
+    hint: 'This Host does not offer routines to this device.',
+  })
   const base = state().host!
   const host = { ...base, capabilities: [...base.capabilities, 'routines' as const] }
   const withRoutines = remoteLaneActions(state({ host }), handlers())
