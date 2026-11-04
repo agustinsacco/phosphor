@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import contextBreakdownExtension, {
   contextEntriesOf,
   entryChars,
@@ -133,7 +136,17 @@ describe('measureMessages', () => {
 })
 
 describe('context breakdown extension', () => {
-  afterEach(() => vi.unstubAllEnvs())
+  let agentDir: string
+  beforeEach(() => {
+    // Exercise the real global-context reader without loading the runner's own instructions.
+    agentDir = mkdtempSync(join(tmpdir(), 'phosphor-context-breakdown-'))
+    vi.stubEnv('PI_CODING_AGENT_DIR', agentDir)
+    vi.stubEnv('PHOSPHOR_CONTEXT_FILES', '')
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    rmSync(agentDir, { recursive: true, force: true })
+  })
 
   /** A pi stand-in that records handlers and lets a test fire them. */
   function fakePi(
@@ -231,6 +244,32 @@ describe('context breakdown extension', () => {
     const after = JSON.parse(pi.pushed[1]!)
     expect(after.contextFiles.off).toEqual(['claude'])
     expect(before.parts.systemPrompt - after.parts.systemPrompt).toBe(Math.ceil(block.length / 4))
+    pi.stop()
+  })
+
+  it('reports global instructions from the isolated agent directory', () => {
+    const path = join(agentDir, 'AGENTS.md')
+    const content = 'Controlled global instructions'
+    const block = `<project_instructions path="${path}">\n${content}\n</project_instructions>`
+    writeFileSync(path, content)
+    const pi = fakePi([])
+    try {
+      pi.start()
+      expect(JSON.parse(pi.pushed[0]!).contextFiles).toEqual({
+        off: [],
+        files: [
+          {
+            path,
+            kind: 'agents',
+            scope: 'global',
+            tokens: Math.ceil(block.length / 4),
+            included: true,
+          },
+        ],
+      })
+    } finally {
+      pi.stop()
+    }
   })
 
   it('waits for a context before publishing anything', () => {
