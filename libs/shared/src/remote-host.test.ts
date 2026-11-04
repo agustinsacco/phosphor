@@ -3,6 +3,7 @@ import {
   HOST_CAPABILITIES,
   HOST_PROTOCOL_VERSION,
   hostResourceKey,
+  remoteLaneKey,
   validateHostHello,
   type HostTarget,
 } from './remote-host'
@@ -154,5 +155,11 @@ describe('hostResourceKey', () => {
 
   it.each(['', 'a'.repeat(4097)])('rejects empty or oversized resource IDs', (id) => {
     expect(() => hostResourceKey(remote, 'session', id)).toThrow('Invalid resource ID')
+  })
+})
+
+describe('remoteLaneKey', () => {
+  it('spells a Host lane as host:<hostId>/lane:<laneId>', () => {
+    expect(remoteLaneKey('h-1', 'lane-7')).toBe('host:h-1/lane:lane-7')
   })
 })

@@ -5,6 +5,7 @@ import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useState } from 'react'
 import type { ArtifactListing } from '@shared/artifacts'
 import { ipcErrorText } from '@shared/errors'
+import { remoteLaneKey } from '@shared/remote-host'
 import {
   normalizeArtifactType,
   openArtifact,
@@ -96,7 +97,7 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
             phosphorId: l.phosphorId,
             diskPath:
               l.target?.kind === 'remote' && l.laneId
-                ? `host:${l.target.hostId}/lane:${l.laneId}`
+                ? remoteLaneKey(l.target.hostId, l.laneId)
                 : l.diskPath,
             workspacePath: l.workspacePath,
             artifacts: bySession[l.phosphorId] ?? {},
