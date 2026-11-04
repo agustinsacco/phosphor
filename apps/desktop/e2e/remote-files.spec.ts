@@ -79,6 +79,13 @@ test('Files is styled in empty, populated and non-git folders', async ({
     for (const name of ['Refresh', 'New file', 'New folder'])
       await expect(h.page.getByRole('button', { name, exact: true })).toBeVisible()
     await file(h, 'nested/guide.md')
+    // Markdown opens on its rendered Preview, as This Mac's viewer does; Source is the editor.
+    const view = h.page.getByRole('group', { name: 'View', exact: true })
+    await expect(view.getByRole('button', { name: 'Preview', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await view.getByRole('button', { name: 'Source', exact: true }).click()
     await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY guide')
     await captures(h, info, 'remote-files-populated')
     await file(h, 'binary.bin')
