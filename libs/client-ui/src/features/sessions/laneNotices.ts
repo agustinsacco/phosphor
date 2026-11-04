@@ -1,5 +1,6 @@
 import type { ChatSessionState } from '@/features/chat/chatItems'
 import { laneReceipt } from './laneReceipt'
+import { remoteLaneMarker } from './remoteLaneView'
 import { localMachineLabel } from '@/lib/localMachine'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore, type Toast } from '@/stores/extensionUi'
@@ -131,9 +132,7 @@ export function noticeHostAttention(
     sessionId,
     title: `${machine} · ${event.title}`,
     ...attentionNotice(event),
-    marker: lane
-      ? laneMarker(lane.marker, lane.branch, lane.cwd, useLanePrefsStore.getState().lanes.markers)
-      : '',
+    marker: lane ? remoteLaneMarker(lane, useLanePrefsStore.getState().lanes.markers) : '',
     receipt: {
       facts: event.receipt,
       machine,

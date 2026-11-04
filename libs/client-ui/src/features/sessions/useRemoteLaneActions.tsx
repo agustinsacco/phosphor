@@ -3,7 +3,7 @@ import type { HostLaneView } from '@shared/ipc'
 import { hostResourceKey } from '@shared/remote-host'
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { piCall, piCallOk } from '@/lib/rpc'
-import { laneMarker } from '@/lib/laneMarker'
+import { remoteLaneMarker } from './remoteLaneView'
 import { useNavigation, type Navigation } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'
 import { useChatStore } from '@/stores/chat'
@@ -151,7 +151,7 @@ function useLaneActionState(
     markers,
   }
   /** The row's marker: the explicit Host choice, else derived from the branch, as on This Mac. */
-  const marker = markers === 'off' ? null : laneMarker(lane.marker, lane.branch, lane.cwd, markers)
+  const marker = markers === 'off' ? null : remoteLaneMarker(lane, markers)
   return { state, pr, deletingInBulk, marker }
 }
 
@@ -268,7 +268,10 @@ function RemoteLaneDialogs({
   onClose: () => void
 }): React.JSX.Element | null {
   const markers = useLanePrefsStore((s) => s.lanes.markers)
-  const hosts = useRemoteLanesStore((s) => s.hosts)
+  // Read only while the picker is open: every row mounts these dialogs.
+  const hostLanes = useRemoteLanesStore((s) =>
+    dialog === 'marker' ? s.hosts[hostId]?.lanes : undefined,
+  )
   if (dialog === 'delete')
     return (
       <RemoteLaneDeleteDialog
@@ -288,7 +291,7 @@ function RemoteLaneDialogs({
         current={lane.marker}
         autoKey={lane.branch || lane.cwd}
         mode={markers}
-        usedMarkers={usedMarkers(hosts[hostId]?.lanes ?? [], lane)}
+        usedMarkers={usedMarkers(hostLanes ?? [], lane)}
         onPick={(marker) => {
           onClose()
           void setRemoteLaneMarks(hostId, lane.laneId, { marker })

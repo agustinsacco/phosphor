@@ -1,4 +1,5 @@
 import type { HostLaneView } from '@shared/ipc'
+import { laneMarker } from '@/lib/laneMarker'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { relativeTimeShort } from '@/lib/time'
 import type { SubtitleSegment } from './sessionSubtitle'
@@ -11,6 +12,14 @@ export function remoteLaneTitle(
   return (
     sessionTitle({ explicitName: name?.trim() || summary, firstUserText: first }) ?? 'Untitled lane'
   )
+}
+
+/** A Host lane's marker by This Mac's rule: its explicit choice, else derived from its branch or folder. */
+export function remoteLaneMarker(
+  lane: Pick<HostLaneView, 'marker' | 'branch' | 'cwd'>,
+  mode: Parameters<typeof laneMarker>[3],
+): string {
+  return laneMarker(lane.marker, lane.branch, lane.cwd, mode)
 }
 
 /** Process lifecycle is not an agent result; unread attention is not a request for input. */
