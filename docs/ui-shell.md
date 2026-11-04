@@ -584,7 +584,7 @@ A Host's detail has one **Back to machines** breadcrumb, then a compact identity
 header (an h2 label with Rename, the status pill and a **Machine actions** menu containing
 Reconnect, Check again and Update Host…, which opens Settings → Advanced; Reconnect and
 Update Host… need a published address), followed by **Overview / Settings / Machine files** navigation (Machine files opens
-the Host's home folder read-only in a dialog). Add a
+the Host's registered repositories read-only in a dialog). Add a
 machine and debug actions belong to the list, not a selected Host. The same header
 and responsive container run in Desktop and the browser; the browser does not gain
 This Mac's settings by getting wider. Long machine names occupy at most two visual

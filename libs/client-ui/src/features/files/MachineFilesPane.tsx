@@ -1,4 +1,5 @@
 import { ListDetail } from '@/components/ListDetail'
+import { Select } from '@/components/form'
 import { usePlatform } from '@/platform/Platform'
 import { RepositoryFilePreview } from './RepositoryFilePreview'
 import { RemoteFileTree } from './RemoteFileTree'
@@ -89,19 +90,15 @@ function MachineFilesView({ hostId }: { hostId: string }): React.JSX.Element {
       <h2 className="font-medium">
         Repositories <span className="text-text-secondary">Read only</span>
       </h2>
-      <select
-        aria-label="Repository"
+      <Select
+        label="Repository"
         value={repositoryId}
-        onChange={(e) => setRepositoryId(e.target.value)}
-        className="bg-surface rounded border p-2"
-      >
-        <option value="">Choose a repository</option>
-        {host.repositories.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.name}
-          </option>
-        ))}
-      </select>
+        onChange={setRepositoryId}
+        options={[
+          { value: '', label: 'Choose a repository' },
+          ...host.repositories.map((r) => ({ value: r.id, label: r.name })),
+        ]}
+      />
       {error ? (
         <p role="alert">{error}</p>
       ) : (

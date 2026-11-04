@@ -140,7 +140,7 @@ lane shells and the Machine page's shell
 machine settings, including provider installation and Claude accounts, work after
 [configuration access](#configuration-access-and-lane-deletion). File editing and
 This Mac's settings are unavailable. Attention is in-app only, not OS push. A Host's
-home folder opens read-only from **Machines → a Host → Machine files**.
+registered repositories open read-only from **Machines → a Host → Machine files**.
 
 `PageShell` owns each page's single heading, actions and close behavior;
 `PageBody` supplies the shared width, gutters and scrolling for Machines,
