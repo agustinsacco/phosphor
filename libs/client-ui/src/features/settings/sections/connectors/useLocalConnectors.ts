@@ -112,6 +112,7 @@ export function useLocalConnectors(): ConnectorsSource {
     canSignIn: true,
     checking: checks.checking,
     slow: checks.slow,
+    ...(checks.checkedAt !== undefined ? { checkedAt: checks.checkedAt } : {}),
     ...(legacy && packages !== null ? { migration: { workspacePath, adapters } } : {}),
     ...(configs ? { files: { states: configs.files, workspacePath } } : {}),
     laneWorkspace: workspacePath ?? settingsWorkspace ?? undefined,

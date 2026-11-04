@@ -734,7 +734,8 @@ scope line: **Machine** is the machine's `mcp.json`, **Folder** the chosen folde
   (**Up · N tools**, **Needs sign-in**, **Down**, **Not checked**, …), an
   **Enabled** switch, Sign in and Sign out for OAuth servers, and Remove, which
   asks first and signs an OAuth server out before removing it. **Refresh & test
-  all** rereads and checks. Signing in runs `pi mcp login`; Phosphor holds no
+  all** rereads and checks, and **Checked** under it gives the time the last full
+  check finished, on every machine. Signing in runs `pi mcp login`; Phosphor holds no
   tokens and only writes `mcp.json`.
 - **Add a connector**: the curated OAuth catalog (Linear, Notion, Braintrust,
   Datadog, Supabase, Questrade, Fellow, Slack), minus what is configured. Add
