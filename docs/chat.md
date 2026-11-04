@@ -858,8 +858,9 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   one `StartModelPicker` (`features/home/`) reads a machine's model source:
   This Mac's reads and writes pi's own `defaultProvider` / `defaultModel` /
   `defaultThinkingLevel` (`useLocalStartModel`); a Host's reads its catalogue
-  and the picks remembered for it (`RemoteModelPicker`). Retry models and Sign in
-  on the machine are the source's actions, rendered after the chips. The picker
+  and the picks remembered for it (`RemoteModelPicker`). A source's actions are
+  rendered after the chips: a Host's are Retry models and, with no usable
+  signed-in model, Sign in on it (Settings → Accounts for that Host). The picker
   grows into the toolbar's free width on every machine.
   Both owners render `composer/ModelChip.tsx`: the model name as the left segment,
   the thinking level (with a caret) as the right. The provider is not on the

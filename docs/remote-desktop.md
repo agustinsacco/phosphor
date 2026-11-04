@@ -469,7 +469,8 @@ owned by [Lanes](lanes.md#remote-lanes). Error remedies are the same set as This
 Mac's: Sign in on the machine opens Settings → Accounts for that Host, a shell fix
 (`aws sso login`) runs in the lane's terminal on the Host (for its controller), and
 never in a local terminal. A ready Host without a usable signed-in model offers
-Sign in on that machine, distinct from a disconnected refusal. Retry appears only
+Sign in on that machine in the start composer, to the same Settings → Accounts,
+distinct from a disconnected refusal. Retry appears only
 for the last confirmed failed turn while idle and controlled, on every machine.
 
 Skills, Routines and Artifacts follow the sidebar machine. A page picker overrides
