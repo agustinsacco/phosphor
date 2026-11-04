@@ -7,7 +7,9 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useLayoutStore } from '@/stores/layout'
 import { useMachinePagesStore } from '@/stores/machinePages'
+import { useRemoteComposer } from '@/features/home/remoteComposer'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import type { HostCapability } from '@shared/remote-host'
 
 /** The palette on a Host offers what it offers on This Mac, for that Host. */
 
@@ -44,8 +46,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function openOnHost(): Promise<void> {
+async function openOnHost(capabilities: HostCapability[] = []): Promise<void> {
   const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  host.capabilities.push(...capabilities)
   useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host }, filter: MOCK_HOST_ID })
   useSessionsStore.setState({ activeSessionId: null, live: {} })
   usePaletteStore.setState({ open: true })
@@ -74,4 +77,22 @@ it.each([
   expect(useLayoutStore.getState().page).toBe(page)
   const pages = useMachinePagesStore.getState()
   expect(page === 'skills' ? pages.skillsMachine : pages.artifactsMachine).toBe(MOCK_HOST_ID)
+})
+
+it("starts a new lane in one of the Host's repositories", async () => {
+  await openOnHost()
+  const repository = mockRemoteHosts[MOCK_HOST_ID]!.repositories[0]!
+  await run(`New lane in ${repository.name}`)
+  expect(useRemoteComposer.getState().target).toEqual({
+    hostId: MOCK_HOST_ID,
+    repositoryId: repository.id,
+  })
+})
+
+it('adds a folder on a Host that lets this device add one', async () => {
+  await openOnHost(['workspaces.write'])
+  await run(`Add folder on ${MOCK_HOST_ID}…`)
+  expect(document.body.textContent).toContain(
+    "Choose a folder under this machine's home directory.",
+  )
 })
