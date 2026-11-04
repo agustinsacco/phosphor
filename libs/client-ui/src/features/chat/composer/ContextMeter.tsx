@@ -27,7 +27,7 @@ import { HEADROOM_STATUS_KEY, parseHeadroomStatus } from './headroomStatus'
 import { assessBurn, burnSamples } from '@/lib/burnRate'
 import { compactReset, isClaudeCliModel, windowResetLabel } from '@/lib/claudeUsage'
 import { moveTargets, viewCandidate } from '@/lib/claudeGateway'
-import { AccountSwitcher } from './AccountSwitcher'
+import { AccountSwitcher, accountSwitcherSummary } from './AccountSwitcher'
 import type {
   ClaudeSessionAccount,
   ClaudeUsageSnapshotResult,
@@ -571,20 +571,12 @@ function AccountRouting({
       ),
     [accountId],
   )
-  if (!account || account.total < 2) return null
-  const held = account.cooldownUntil !== null
+  const shown = account && accountSwitcherSummary(account)
+  if (!shown) return null
   return (
     <AccountSwitcher
-      warn={held}
-      summary={
-        held
-          ? account.mode === 'specific'
-            ? 'Out of plan allowance, and routing is pinned here — Settings → Extensions → Claude Code.'
-            : account.alternative
-              ? `Out of plan allowance. New sessions go to ${account.alternative.label}.`
-              : 'Out of plan allowance, and every other account is too.'
-          : `Spending ${account.email ?? account.label} of ${account.total} accounts.`
-      }
+      warn={shown.warn}
+      summary={shown.summary}
       nextId={account.alternative?.id}
       load={load}
       move={async (id) => void (await moveSessionToAccount(sessionId, id))}

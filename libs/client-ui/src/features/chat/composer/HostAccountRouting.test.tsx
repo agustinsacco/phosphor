@@ -9,6 +9,7 @@ import { usePromptStore } from '@/stores/prompt'
 import { MOCK_HOST_ID, mockRemoteHosts, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import type { HostCapability } from '@shared/remote-host'
 import type { MachineAccount } from '@shared/machine-settings'
+import { forgetHostProviders } from '@/stores/hostProvidersCache'
 
 beforeAll(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -114,16 +115,20 @@ afterEach(() => {
   container = null
   invoke.mockClear()
   onMoved.mockClear()
+  forgetHostProviders(MOCK_HOST_ID)
   usePromptStore.setState({ requests: [] })
 })
 
-it('reads nothing until the picker opens, then moves the Host lane to another account', async () => {
+it('reads the accounts again when the picker opens, then moves the Host lane', async () => {
   host(['sessions.read', 'sessions.control', 'machine.configure'])
   render()
-  expect(invoke).not.toHaveBeenCalled()
+  await act(async () => {})
+  expect(invoke).toHaveBeenCalledTimes(1)
   click('Switch account')
   await act(async () => {})
-  expect(invoke).toHaveBeenCalledWith('hosts:settingsRead', MOCK_HOST_ID, 'providers')
+  // Targets need fresh sign-in states, not the summary's cached read.
+  expect(invoke).toHaveBeenCalledTimes(2)
+  expect(invoke).toHaveBeenLastCalledWith('hosts:settingsRead', MOCK_HOST_ID, 'providers')
   // The lane's own account and signed-out accounts are not targets.
   expect(document.body.textContent).toContain('personal@example.com')
   expect(document.body.textContent).not.toContain('signed-out')
@@ -135,8 +140,9 @@ it('reads nothing until the picker opens, then moves the Host lane to another ac
 
 it('says so when the Host has no other signed-in account', async () => {
   host(['sessions.read', 'sessions.control', 'machine.configure'])
-  accounts = [account('work', [LANE])]
+  accounts = [account('work', [LANE]), account('signed-out', [], { loggedIn: false })]
   render()
+  await act(async () => {})
   click('Switch account')
   await act(async () => {})
   expect(document.body.textContent).toContain('No other signed-in Claude account')
@@ -151,9 +157,10 @@ it('asks for settings access before reading Host accounts', async () => {
   expect(invoke).not.toHaveBeenCalledWith('hosts:settingsRead', MOCK_HOST_ID, 'providers')
 })
 
-it('needs lane control before offering a move', () => {
+it('needs lane control before offering a move', async () => {
   host(['sessions.read', 'machine.configure'])
   render()
+  await act(async () => {})
   expect(document.body.textContent).toContain('Take control of this lane')
   const button = [...document.querySelectorAll('button')].find((b) =>
     b.textContent?.includes('Switch account'),
@@ -163,6 +170,8 @@ it('needs lane control before offering a move', () => {
 
 it('surfaces a failed move instead of swallowing it', async () => {
   host(['sessions.read', 'sessions.control', 'machine.configure'])
+  render()
+  await act(async () => {})
   invoke.mockImplementationOnce(async () => ({
     section: 'providers',
     revision: 'r1',
@@ -171,7 +180,6 @@ it('surfaces a failed move instead of swallowing it', async () => {
   invoke.mockImplementationOnce(async () => {
     throw new Error('Account move not confirmed.')
   })
-  render()
   click('Switch account')
   await act(async () => {})
   click('personal@example.com')
@@ -210,6 +218,7 @@ it('stays closed and grants nothing when access is declined', async () => {
 it('hides the targets when control is lost while picking, and Cancel still closes', async () => {
   host(FULL)
   render()
+  await act(async () => {})
   click('Switch account')
   await act(async () => {})
   expect(document.body.textContent).toContain('personal@example.com')
@@ -222,10 +231,11 @@ it('hides the targets when control is lost while picking, and Cancel still close
 
 it('shows a failed first read as a failure, not an empty list, and retries', async () => {
   host(FULL)
+  render()
+  await act(async () => {})
   invoke.mockImplementationOnce(async () => {
     throw new Error('Host settings operation not confirmed.')
   })
-  render()
   click('Switch account')
   await act(async () => {})
   expect(document.body.textContent).toContain('Host settings operation not confirmed.')

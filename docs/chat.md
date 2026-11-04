@@ -1081,9 +1081,16 @@ account on the Host, so its section is titled `Plan usage · Claude on <machine>
 and comes from that Host's own `claude -p /usage` for the account the lane bills
 (`hosts:claudeUsage` → [`machine.claudeUsage`](host.md#claude-machine-diagnostics)).
 Its **Switch account** moves the lane to another account on that Host, as This
-Mac's does ([cli-providers](cli-providers.md)). It needs lane control, and asks
-for the Host's settings access first if this client lacks it; the picker stays
-open through the reconnect that grant causes, then reads the Host's accounts. A
+Mac's does ([cli-providers](cli-providers.md)). Where this client already holds
+the Host's settings access, the Host's accounts give it This Mac's gate and
+wording: hidden with one account, "Spending … of N accounts", and the warning
+that names where new lanes go when the lane's account is out of allowance
+(`accountSwitcherSummary`). That read runs a sign-in check per account on the
+Host, so it is kept for a minute per Host connection
+(`stores/hostProvidersCache.ts`); a failed one is not kept. Without access the
+summary stays neutral and nothing is read. It needs lane control, and asks for
+the Host's settings access first if this client lacks it; the picker stays open
+through the reconnect that grant causes, then reads the Host's accounts. A
 failed read says so and offers Retry, and usage is re-read after every move
 attempt, confirmed or not. A Host older
 than the call says so in the section and offers Refresh, rather than hiding it.
