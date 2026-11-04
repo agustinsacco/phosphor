@@ -31,7 +31,7 @@ import { SessionList } from './SessionList'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { useRemoteGroupSearch } from './remoteGroupSearch'
-import { ensureGroupCollapse, setGroupCollapsed, useGroupCollapse } from './groupCollapse'
+import { ensureSidebarPrefs, setGroupCollapsed, useGroupCollapse } from './groupCollapse'
 import { WorkspaceGroupHeader, WorkspaceGroupTitle } from './SidebarPrimitives'
 
 /** `sidebar` is Desktop's dense list; `page` gives the header controls touch-sized targets. */
@@ -126,7 +126,7 @@ export function RemoteRepositoryGroup({
 
 /** The folder's collapse, in the sidebar's one collapsed-groups pref. Open until chosen. */
 function useFolderCollapse(groupKey: string): [boolean, (collapsed: boolean) => void] {
-  useEffect(ensureGroupCollapse, [])
+  useEffect(ensureSidebarPrefs, [])
   const collapsed = useGroupCollapse((s) => s.collapsed?.[groupKey] ?? false)
   return [collapsed, (next) => setGroupCollapsed(groupKey, next)]
 }

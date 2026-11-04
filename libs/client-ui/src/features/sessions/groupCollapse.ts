@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useSessionsStore } from '@/stores/sessions'
 
 /**
  * The sidebar's explicit collapse choices, for This Mac's workspace groups
@@ -41,9 +42,22 @@ function whenRead(): Promise<void> {
   return useGroupCollapse.getState().collapsed === null ? loadGroupCollapse() : Promise.resolve()
 }
 
-/** Read the pref if nothing has, for a list that does not own the sidebar (a Host folder). */
-export function ensureGroupCollapse(): void {
+let orderRead: Promise<void> | null = null
+
+/**
+ * Read the sidebar prefs (collapse once, lane order on each mount) for a list
+ * that does not own This Mac's sidebar: a Host folder anywhere, including the
+ * browser, where no sidebar reads them. Folders mounting together share one read.
+ */
+export function ensureSidebarPrefs(): void {
   void whenRead()
+  orderRead ??= useSessionsStore
+    .getState()
+    .hydratePinned()
+    .catch(() => undefined)
+    .finally(() => {
+      orderRead = null
+    })
 }
 
 export function setGroupCollapsed(key: string, collapsed: boolean): void {

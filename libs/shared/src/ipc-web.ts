@@ -117,9 +117,7 @@ export const IPC_WEB = {
   'app:setRewoundSessions': unsupported(
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),
-  'app:setSessionOrder': unsupported(
-    'Native settings, local paths and persistent session data are unavailable in the browser.',
-  ),
+  'app:setSessionOrder': browser,
   'app:setLaneMarkers': unsupported(
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),
@@ -152,9 +150,7 @@ export const IPC_WEB = {
   'app:revealDebugLog': unsupported(
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),
-  'app:setCollapsedWorkspaces': unsupported(
-    'Native settings, local paths and persistent session data are unavailable in the browser.',
-  ),
+  'app:setCollapsedWorkspaces': browser,
   'app:recordWorkspace': unsupported(
     'Native settings, local paths and persistent session data are unavailable in the browser.',
   ),
