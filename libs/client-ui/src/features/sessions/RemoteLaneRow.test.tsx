@@ -319,3 +319,44 @@ it("opens the marker picker in the marker mode, dimming the other lanes' markers
     .map((b) => b.textContent)
   expect(used).toEqual(['🦊'])
 })
+
+it("copies the same debug block and formatted spend as This Mac's rows, with no Host paths", async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+  const lane = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.lanes[0]!
+  useChatStore.getState().setMeta(mockRemoteInfo.sessionId, {
+    sessionId: 'pi-session-1',
+    sessionFile: '/srv/host/sessions/pi-session-1.jsonl',
+    model: { provider: 'anthropic', id: 'claude-x' },
+  } as never)
+  command.mockImplementation(async (_id: string, request: { type: string }) =>
+    request.type === 'get_session_stats'
+      ? { success: true, data: { sessionId: 'pi-session-1', cost: 1.234 } }
+      : { success: true },
+  )
+  render()
+  menu()
+  await act(async () => button('Copy debug info').click())
+  expect(writeText).toHaveBeenLastCalledWith(
+    [
+      'pi session',
+      '  id:       pi-session-1',
+      '  provider: anthropic / claude-x',
+      `  machine:  ${MOCK_HOST_ID}`,
+      `  host:     ${MOCK_HOST_ID}`,
+      `  lane:     ${lane.laneId}`,
+      '  branch:   none',
+    ].join('\n'),
+  )
+  expect(writeText.mock.lastCall?.[0]).not.toContain('/srv/host')
+  expect(writeText.mock.lastCall?.[0]).not.toContain(lane.cwd)
+  // A fresh gesture: the row swallows a second menu until the next pointerdown.
+  act(() =>
+    container
+      .querySelector('button')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })),
+  )
+  menu()
+  await act(async () => button('Copy spend').click())
+  expect(writeText).toHaveBeenLastCalledWith('$1.23')
+})
