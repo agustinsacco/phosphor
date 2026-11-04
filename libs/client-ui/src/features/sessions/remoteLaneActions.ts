@@ -7,6 +7,8 @@ export const TAKE_CONTROL_FIRST = 'Take control first.'
 export const ONLY_WHILE_RUNNING = 'Only while running.'
 /** A Host older than `laneMarks` cannot keep pins or markers, and only that Host can. */
 export const LANE_MARKS_NEED_UPDATE = 'Update this Host to pin and mark lanes.'
+/** No `routines` capability: an older Host, or a grant without it, so neither "yet" nor "update". */
+export const HOST_ROUTINES_REFUSED = 'This Host does not offer routines to this device.'
 
 /**
  * Why a controller-only row action is disabled, or undefined when control is
@@ -160,7 +162,7 @@ function keepActions(
       disabled: !ready || busy || !state.host?.capabilities.includes('routines'),
       hint:
         notReady ??
-        (state.host?.capabilities.includes('routines') ? undefined : REMOTE_UNAVAILABLE),
+        (state.host?.capabilities.includes('routines') ? undefined : HOST_ROUTINES_REFUSED),
       onClick: handlers.makeRoutine,
     },
     {
