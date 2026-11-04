@@ -88,11 +88,11 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
       mergeGlobalArtifacts(
         (stored ?? []).filter((row) => canViewStoredArtifact(row.key, hosts)),
         Object.values(live)
-          .filter((l) => {
-            if (l.target?.kind !== 'remote') return true
-            const host = hosts[l.target.hostId]
-            return host?.state === 'ready' && host.capabilities.includes('artifacts.read')
-          })
+          .filter(
+            (l) =>
+              l.target?.kind !== 'remote' ||
+              !hostFeatureRefusal(hosts[l.target.hostId], 'artifacts.read'),
+          )
           .map((l) => ({
             machine: l.target?.kind === 'remote' ? machineLabel(l.target.hostId) : undefined,
             phosphorId: l.phosphorId,
