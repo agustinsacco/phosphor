@@ -91,6 +91,29 @@ it('shows the signed-in header, online count, machine navigation and sign-out', 
   expect(invoke).toHaveBeenCalledWith('account:signOut')
   expect(document.querySelector('[data-popup-menu]')).toBeNull()
 })
+const machinesRow = (): HTMLButtonElement | undefined =>
+  Array.from(document.querySelectorAll<HTMLButtonElement>('[data-popup-menu] button')).find(
+    (entry) => entry.textContent?.startsWith('Machines'),
+  )
+it('lists Machines while signed out, counting This Mac where it runs lanes plus Hosts that are up', async () => {
+  await render()
+  await click('Sign in')
+  expect(machinesRow()?.textContent).toBe('Machines 2 online')
+  useMachinesStore.setState({ view: { kind: 'machine', id: 'one' } })
+  await act(async () => machinesRow()?.click())
+  expect(useMachinesStore.getState().view).toEqual({ kind: 'list' })
+  act(() => root.unmount())
+  root = createRoot(container)
+  await act(async () =>
+    root.render(
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <AccountFooter />
+      </PlatformProvider>,
+    ),
+  )
+  await click('Sign in')
+  expect(machinesRow()?.textContent).toBe('Machines 1 online')
+})
 it('supports keyboard navigation, Escape and outside dismissal with focus return', async () => {
   await render()
   button('Sign in').focus()
