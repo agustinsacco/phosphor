@@ -492,7 +492,10 @@ Pinned section above that Host's folders, newest first, with its folder named,
 as local pinned lanes sit above local groups. Pins stay per Host: one Host's
 pinned lanes never mix with another's or with local ones.
 
-Local-only tree, fork, clone, routine and HTML export actions are omitted.
+Copy debug info writes This Mac's block (`formatSessionDebugInfo`: pi's id and
+model once the lane is open) with the machine, Host, lane and branch in place of
+paths: no Host path reaches the clipboard. Copy spend copies the formatted cost,
+as This Mac's does. Local-only tree, fork, clone, routine and HTML export actions are omitted.
 Remote Delete needs control and workspace-write capability, in Desktop and the
 browser alike. A disabled action's hint names its obstacle: “Take control
 first.” for a viewer, “Only while running.” for rename and spend on a stopped

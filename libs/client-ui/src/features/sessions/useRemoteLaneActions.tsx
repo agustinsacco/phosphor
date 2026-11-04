@@ -21,6 +21,8 @@ import {
   type RemoteLaneActionState,
 } from './remoteLaneActions'
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
+import { copyDebugInfo, copySpend } from './sessionActions'
+import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
 import { MarkerPickerModal } from './MarkerPickerModal'
 import { useSessionOrderActions } from './SessionList'
 
@@ -234,13 +236,8 @@ function laneHandlers({
     markRead: send('hosts:markRead'),
     togglePin: () => mark({ pinned: !lane.pinned }),
     pickMarker: () => openDialog('marker'),
-    copyDebugInfo: () =>
-      void act(() =>
-        navigator.clipboard.writeText(
-          `Machine: ${machineLabel(hostId)}\nHost: ${hostId}\nLane: ${lane.laneId}\nBranch: ${lane.branch ?? 'none'}`,
-        ),
-      ),
-    copySpend: () => void act(async () => copySpend(await session())),
+    copyDebugInfo: () => void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane))),
+    copySpend: () => void act(async () => copySpend(await sessionCost(await session()))),
     delete: () => openDialog('delete'),
   }
 }
@@ -315,14 +312,32 @@ async function renameLane(sessionId: string, name: string): Promise<void> {
   useChatStore.getState().patchMeta(sessionId, { sessionName: name })
 }
 
-async function copySpend(sessionId: string): Promise<void> {
+async function sessionCost(sessionId: string): Promise<number> {
   const stats = await piCall(sessionId, { type: 'get_session_stats' })
   if (!stats) throw new Error()
-  await navigator.clipboard.writeText(
-    JSON.stringify(
-      stats,
-      (key, value: unknown) => (key === 'sessionFile' || key === 'sessionId' ? undefined : value),
-      2,
-    ),
+  return stats.cost
+}
+
+/**
+ * A Host lane's debug block: pi's id and model from its open session (else the
+ * Host summary's model) and where it runs. Never a Host path: the lane's folder
+ * and session file stay on the Host.
+ */
+function remoteLaneDebugSource(hostId: string, lane: HostLaneView): SessionDebugSource {
+  const live = Object.values(useSessionsStore.getState().live).find(
+    (e) => e.target?.kind === 'remote' && e.target.hostId === hostId && e.laneId === lane.laneId,
   )
+  const meta = live ? useChatStore.getState().sessions[live.phosphorId]?.meta : null
+  const model = meta?.model ?? lane.model
+  return {
+    sessionId: meta?.sessionId,
+    provider: model?.provider,
+    model: model?.id,
+    context: [
+      ['machine', machineLabel(hostId)],
+      ['host', hostId],
+      ['lane', lane.laneId],
+      ['branch', lane.branch ?? 'none'],
+    ],
+  }
 }

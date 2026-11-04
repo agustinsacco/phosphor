@@ -86,7 +86,12 @@ import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from './nameTransition'
 import { committedRename } from './inlineRename'
 import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
-import { applySessionRename, copySessionDebugInfo, exportSessionHtml } from './sessionActions'
+import {
+  applySessionRename,
+  copySessionDebugInfo,
+  copySpend,
+  exportSessionHtml,
+} from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
 
@@ -1507,7 +1512,7 @@ function SessionRow({
             {
               label: 'Copy spend',
               hint: formatCost(meta.cost),
-              onClick: () => void navigator.clipboard.writeText(formatCost(meta.cost)),
+              onClick: () => void copySpend(meta.cost),
             },
           ]
         : []),
