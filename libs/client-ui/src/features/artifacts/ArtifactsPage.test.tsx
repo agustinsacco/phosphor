@@ -58,3 +58,42 @@ it.each([
     vi.unstubAllGlobals()
   }
 })
+
+it.each([
+  ['ready and offering artifacts', 'ready', ['artifacts.read'], true],
+  ['ready without artifacts', 'ready', ['sessions.read'], false],
+  ['reconnecting', 'reconnecting', ['artifacts.read'], false],
+] as const)(
+  'All machines lists a live Host lane artifact only while its Host is %s',
+  async (_, state, capabilities, listed) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    vi.stubGlobal('phosphor', { invoke: vi.fn().mockResolvedValue([]) })
+    useMachinePagesStore.setState({ artifactsMachine: 'all' })
+    useSessionsStore.setState({ live: { remote: { ...mockRemoteInfo, phosphorId: 'remote' } } })
+    useRemoteLanesStore.setState({
+      hosts: {
+        [MOCK_HOST_ID]: {
+          ...mockRemoteHosts[MOCK_HOST_ID]!,
+          state,
+          capabilities: [...capabilities],
+        },
+      },
+    })
+    useArtifactsStore.setState({ bySession: {} })
+    useArtifactsStore
+      .getState()
+      .addLocal('remote', { title: 'Bee document', type: 'markdown', content: 'Bee' })
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    try {
+      await act(async () => root.render(<ArtifactsPage />))
+      expect(container.textContent?.includes('Bee document')).toBe(listed)
+    } finally {
+      act(() => root.unmount())
+      container.remove()
+      useMachinePagesStore.setState({ artifactsMachine: '' })
+      vi.unstubAllGlobals()
+    }
+  },
+)
