@@ -277,6 +277,27 @@ describe('git-worktrees (real git)', () => {
     expect(await git(repo, ['branch', '--list', 'task-1'])).toBe('')
   })
 
+  it('keeps a branch that moved after its landed proof: deletion compares the proven tip', async () => {
+    const created = await addWorktree(repo, 'task-1', { kind: 'new', base: 'main' })
+    await writeFile(join(created.path, 'a.txt'), 'lane\n')
+    await commitAll(created.path, 'work on task-1')
+    const proven = await git(repo, ['rev-parse', 'task-1'])
+    const tree = await git(repo, ['rev-parse', 'task-1^{tree}'])
+    await writeFile(join(repo, 'a.txt'), 'trunk moved\n')
+    await git(repo, ['commit', '-am', 'task-1 (#1), squashed onto a newer trunk'])
+    // GitHub knows the PR head only remotely; while it answers, the branch gains a commit.
+    const advanced = await git(repo, ['commit-tree', tree, '-p', proven, '-m', 'later work'])
+    gh.heads.mockResolvedValue(['f'.repeat(40)])
+    gh.tree.mockImplementation(async () => {
+      await git(repo, ['update-ref', 'refs/heads/task-1', advanced])
+      return tree
+    })
+
+    const result = await removeWorktree(repo, created.path, { deleteBranch: true })
+    expect(result).toMatchObject({ removed: true, branchDeleted: false })
+    expect(await git(repo, ['rev-parse', 'task-1'])).toBe(advanced)
+  })
+
   it('prunes after a manual folder delete', async () => {
     const created = await addWorktree(repo, 'task-1', { kind: 'new', base: 'main' })
     await rm(created.path, { recursive: true, force: true })
