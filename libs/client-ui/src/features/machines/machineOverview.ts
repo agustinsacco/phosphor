@@ -64,7 +64,8 @@ export interface MachineOverview extends MachineSummary {
   notice?: 'setup' | 'offline'
   check: Recheck
   reconnect?: { busy: boolean; run: () => void }
-  update?: () => void
+  /** Where this machine updates: This Mac's About, a Host's Advanced. */
+  update?: { label: string; run: () => void }
   /** Opens Settings → Accounts for this machine, where providers sign in. */
   configure?: () => void
 }
@@ -134,7 +135,7 @@ function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () 
 
 /** This computer as a machine; null where this client runs no local lanes (the browser). */
 export function useLocalOverview(): MachineOverview | null {
-  const { localLanes } = usePlatform()
+  const { localLanes, appInfo } = usePlatform()
   const reads = useLocalReads(localLanes)
   const tasks = useLocalTasks()
   const liveHere = useSessionsStore(
@@ -174,6 +175,9 @@ export function useLocalOverview(): MachineOverview | null {
     ],
     connected: true,
     check: { busy: reads.busy, at: reads.at, round: reads.round, run: reads.run },
+    update: appInfo
+      ? { label: 'Update Phosphor…', run: () => openSettings('local', 'about') }
+      : undefined,
     configure: () => openSettings('local', 'accounts'),
   }
 }
@@ -359,7 +363,9 @@ export function useHostOverview(
         : undefined,
     check,
     reconnect: machine.endpoint ? reconnect : undefined,
-    update: machine.endpoint ? () => openSettings(machine.id, 'advanced') : undefined,
+    update: machine.endpoint
+      ? { label: 'Update Host…', run: () => openSettings(machine.id, 'advanced') }
+      : undefined,
     configure: connection?.configurationSupported
       ? () => openSettings(machine.id, 'accounts')
       : undefined,
