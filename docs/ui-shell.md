@@ -193,8 +193,9 @@ Signed-out windows have no machine switcher or remote groups.
   screen; it does not spawn a session, because the folder and the first prompt
   are chosen there. Artifacts, Skills, and Routines open global pages (below).
 - **Session list**: pinned, then sessions grouped by project. Each row: name
-  (or first-message preview), relative time, state. Drag a row above or below
-  another in its section to reorder it, or use its context menu's **Move up /
+  (or first-message preview), relative time, state. Drag a row with the mouse
+  above or below another in its section to reorder it (a touch or pen
+  long-press opens the row's menu instead), or use its context menu's **Move up /
   Move down** or **Alt+↑ / Alt+↓** while focused. Open, suspended and closed
   sessions share one order, persisted by session file path across restarts.
   First-turn rows become reorderable once pi reports their file path, without

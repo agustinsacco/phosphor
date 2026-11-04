@@ -397,8 +397,8 @@ All machines lists local repository groups first, followed by labelled Hosts.
 
 Connected Hosts show repository-grouped lanes, newest first within each folder
 (a lane you just created is at the top, as a new local session is) until you
-reorder them: drag, Move up / Move down or Alt+↑ / Alt+↓, through the same
-`SessionList` as local rows. The order is this device's, kept in `sessionOrder`
+reorder them: a mouse drag, Move up / Move down or Alt+↑ / Alt+↓, through the
+same `SessionList` as local rows (on a phone, the row's long-press menu). The order is this device's, kept in `sessionOrder`
 under `host:<id>/lane:<laneId>`; Pinned reorders within itself. Rows show running, new and needs-you
 signals from their existing summaries (`working`, `attention > read`, and
 `needs-input` or `failed`). Local activity uses streaming chat state, unseen
