@@ -26,8 +26,7 @@ export function OptimizationTab(): React.JSX.Element {
   const [busy, setBusy] = useState(false)
 
   const refresh = useCallback(async (): Promise<void> => {
-    const next = await window.phosphor.invoke('headroom:status').catch(() => null)
-    setStatus(next)
+    setStatus(await window.phosphor.invoke('headroom:status').catch(() => null))
     if (workspacePath) {
       setStats(await window.phosphor.invoke('optimization:stats', workspacePath).catch(() => null))
     }

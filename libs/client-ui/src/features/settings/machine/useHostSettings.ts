@@ -82,14 +82,14 @@ function useLive(key: string) {
 }
 
 /**
- * One Host settings section, for `repositoryId` or the whole machine. A read,
- * check or change belongs to the connection generation, section and scope it
- * started in: one that completes after they changed, or after unmount, is
- * dropped, and of overlapping reads only the newest lands.
+ * One Host settings section, for `repositoryId` or the whole machine; a null
+ * `section` reads nothing. A read, check or change belongs to the connection
+ * generation, section and scope it started in: one that completes after they
+ * changed, or after unmount, is dropped, and of overlapping reads only the newest lands.
+ * A check is such a read (it settles its own failure); `checking` is true only for it.
  */
 export function useHostSettings(
   hostId: string,
-  /** Null for a section that reads no settings: nothing is read. */
   section: MachineSettingsSection | null,
   repositoryId?: string,
 ) {
@@ -154,11 +154,8 @@ export function useHostSettings(
     check: async (): Promise<void> => {
       if (section !== 'connectors' || state.loading || state.saving) return
       update({ checking: true })
-      try {
-        await read(() => window.phosphor.invoke('hosts:settingsCheck', hostId, repositoryId))
-      } finally {
-        if (live()) update({ checking: false })
-      }
+      await read(() => window.phosphor.invoke('hosts:settingsCheck', hostId, repositoryId))
+      if (live()) update({ checking: false })
     },
     moveAccount: async (laneId: string, accountId: string): Promise<void> => {
       if (!allowed) return

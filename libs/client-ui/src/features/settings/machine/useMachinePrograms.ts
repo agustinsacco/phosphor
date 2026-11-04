@@ -90,15 +90,5 @@ export function useMachinePrograms(
     busy: starting || !!program,
     available: terminals,
   }
-  return {
-    error,
-    setError,
-    starting,
-    program,
-    setProgram,
-    alive,
-    terminalLink,
-    terminals,
-    programs,
-  }
+  return { error, setError, starting, program, setProgram, alive, terminalLink, programs }
 }
