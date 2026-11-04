@@ -298,3 +298,49 @@ it.each(['prompt', 'abort'] as const)(
     }
   },
 )
+
+/* `/` commands, `@` files and `!` shell all work on a Host lane, so the empty field
+ * names them there as it does on This Mac. */
+it.each(['local', 'host'] as const)(
+  'an empty %s lane composer names / commands, @ files and ! shell',
+  async (machine) => {
+    const { useSessionsStore } = await import('@/stores/sessions')
+    const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+    const { mockRemoteInfo, mockRemoteHosts, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
+    const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID])
+    if (!host?.lanes[0]?.control.controller) throw new Error('Missing host')
+    host.lanes[0].control.controller.self = true
+    const sessionId = machine === 'host' ? mockRemoteInfo.sessionId : 'cheat-local'
+    // Earlier cases leave a draft and a turn on the Host lane; this one needs both empty.
+    useDraftsStore.setState({ drafts: {} })
+    useChatStore.setState({ sessions: {} })
+    if (machine === 'host') {
+      useSessionsStore.setState({
+        live: { [sessionId]: { ...mockRemoteInfo, phosphorId: sessionId } },
+      })
+      useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+    }
+    useChatStore.getState().ensure(sessionId)
+    const el = document.createElement('div')
+    document.body.append(el)
+    const root = createRoot(el)
+    try {
+      await act(async () =>
+        root.render(
+          <Composer
+            sessionId={sessionId}
+            workspacePath={machine === 'host' ? mockRemoteInfo.workspacePath : '/tmp/w'}
+          />,
+        ),
+      )
+      expect(el.querySelector('.composer-status')?.textContent).toContain(
+        '/ commands · @ files · ! shell',
+      )
+    } finally {
+      act(() => root.unmount())
+      el.remove()
+      useRemoteLanesStore.setState({ hosts: {} })
+      useSessionsStore.setState({ live: {} })
+    }
+  },
+)

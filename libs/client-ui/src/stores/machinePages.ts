@@ -10,14 +10,17 @@ export const useMachinePagesStore = create<{
   artifactsMachine: string
 }>(() => ({ skillsMachine: null, routinesMachine: '', artifactsMachine: '' }))
 
-/** A page filtered to one machine: `'local'` for This Mac, otherwise a Host id. */
-export function openMachinePage(page: GlobalPage, machine: string): void {
+/**
+ * Opens a global page filtered to one machine: `'local'` for This Mac, otherwise
+ * a Host id. Null drops any override, so the page follows the sidebar.
+ */
+export function openMachinePage(page: GlobalPage, machine: string | null): void {
   if (page === 'skills') useMachinePagesStore.setState({ skillsMachine: machine })
   if (page === 'routines')
     useMachinePagesStore.setState({
-      routinesMachine: machine === 'local' ? 'local' : `host:${machine}`,
+      routinesMachine: machine === null ? '' : machine === 'local' ? 'local' : `host:${machine}`,
     })
-  if (page === 'artifacts') useMachinePagesStore.setState({ artifactsMachine: machine })
+  if (page === 'artifacts') useMachinePagesStore.setState({ artifactsMachine: machine ?? '' })
   useLayoutStore.getState().setPage(page)
 }
 

@@ -41,7 +41,7 @@ export function ChatView({
   return (
     <SessionFileTarget.Provider value={sessionId}>
       <div className="flex h-full min-w-0 flex-col">
-        {!remote && <CrashBanner sessionId={sessionId} workspacePath={workspacePath} />}
+        <CrashBanner sessionId={sessionId} workspacePath={workspacePath} />
         {!header && <RemoteLaneControls sessionId={sessionId} />}
         <NoModelsBanner sessionId={sessionId} />
         <RewoundBanner sessionId={sessionId} />

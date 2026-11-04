@@ -1,15 +1,27 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ClaudeSessionAccount } from '@shared/models'
+import { claudeSessionAccount } from '@shared/claude-session-account'
 import { confirmSettingsAccess } from '@/features/settings/machine/settingsAccess'
 import { laneAccountId, machineCandidate, moveTargets } from '@/lib/claudeGateway'
+import {
+  forgetHostProviders,
+  readHostProviders,
+  type HostProviders,
+} from '@/stores/hostProvidersCache'
+import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { AccountSwitcher } from './AccountSwitcher'
+import { AccountSwitcher, accountSwitcherSummary } from './AccountSwitcher'
 
 /**
  * A Host lane's account switcher: the same control as This Mac's, fed by the
  * Host. The Host does the move (`claude.account`: stop, rebind, resume under the
  * lane's fence), so it needs lane control plus the Host's configuration grant,
  * which it asks for with the dialog Settings uses.
+ *
+ * With the grant already held, the Host's accounts give it This Mac's gate and
+ * wording (`accountSwitcherSummary`). Without it, nothing is read until the user
+ * opens the picker and grants access, so the summary stays neutral.
  *
  * Granting access reconnects the Host, and a reconnecting Host has not said yet
  * whether it can be configured. The switcher stays mounted through that, on the
@@ -35,19 +47,27 @@ export function HostAccountRouting({
     ready &&
     host.capabilities.includes('sessions.control') &&
     host.lanes.find((l) => l.laneId === laneId)?.control.controller?.self === true
+  const lane = useHostLaneAccount(hostId, laneId, ready, configurable)
 
   const load = useCallback(async () => {
     if (!hostId || !laneId) return []
-    const data = await window.phosphor.invoke('hosts:settingsRead', hostId, 'providers')
-    const accounts = data.providers?.accounts ?? []
+    forgetHostProviders(hostId)
+    const { accounts } = await readHostProviders(hostId)
     return moveTargets(accounts.map(machineCandidate), laneAccountId(accounts, laneId))
   }, [hostId, laneId])
 
   if (!hostId || !laneId || !host || supported.current !== true) return null
+  // Read: This Mac's gate and wording. Not read (no grant) or a failed read: neutral.
+  if (lane.status === 'loading') return null
+  const account = lane.status === 'read' ? lane.account : undefined
+  const shown = account ? accountSwitcherSummary(account) : undefined
+  if (account === null || shown === null) return null
   const label = machineLabel(hostId)
   return (
     <AccountSwitcher
-      summary={`Move this lane to another Claude account on ${label}.`}
+      summary={shown?.summary ?? `Move this lane to another Claude account on ${label}.`}
+      warn={shown?.warn ?? false}
+      nextId={account?.alternative?.id}
       blocked={
         !ready
           ? `Reconnecting to ${label}…`
@@ -70,9 +90,66 @@ export function HostAccountRouting({
         try {
           await window.phosphor.invoke('hosts:claudeAccount', hostId, laneId, accountId)
         } finally {
+          forgetHostProviders(hostId)
+          lane.reload()
           onMoved()
         }
       }}
     />
+  )
+}
+
+type HostLaneAccount =
+  | { status: 'unread' | 'loading' | 'failed'; reload: () => void }
+  | { status: 'read'; account: ClaudeSessionAccount | null; reload: () => void }
+
+/** The account a Host lane spends, from the Host's providers, only where the grant is held. */
+function useHostLaneAccount(
+  hostId: string | undefined,
+  laneId: string | undefined,
+  ready: boolean,
+  configurable: boolean,
+): HostLaneAccount {
+  const generation = useRemoteLanesStore(() => (hostId ? machineReadGeneration(hostId) : 0))
+  const [version, setVersion] = useState(0)
+  // Hidden until the first answer, as This Mac's is; a later read (a reconnect,
+  // a move) keeps what is on screen, so a picker the user opened stays open.
+  const [state, setState] = useState<
+    { status: 'unread' | 'loading' | 'failed' } | { status: 'read'; providers: HostProviders }
+  >(() => ({ status: configurable ? 'loading' : 'unread' }))
+  useEffect(() => {
+    // A reconnecting Host has not said yet whether the grant holds.
+    if (hostId && laneId && !ready) return
+    if (!hostId || !laneId || !configurable) {
+      setState({ status: 'unread' })
+      return
+    }
+    let current = true
+    void readHostProviders(hostId).then(
+      (providers) => current && setState({ status: 'read', providers }),
+      () => current && setState({ status: 'failed' }),
+    )
+    return () => {
+      current = false
+    }
+  }, [hostId, laneId, ready, configurable, generation, version])
+  const reload = useCallback(() => setVersion((n) => n + 1), [])
+  if (state.status === 'read' && laneId)
+    return { status: 'read', account: hostSessionAccount(state.providers, laneId), reload }
+  return { status: state.status === 'read' ? 'unread' : state.status, reload }
+}
+
+/** A Host lane's account as This Mac's `claude:sessionAccount` describes one. */
+function hostSessionAccount(providers: HostProviders, laneId: string): ClaudeSessionAccount | null {
+  const { accounts } = providers
+  const accountId = laneAccountId(accounts, laneId)
+  if (!accountId) return null
+  const holds = new Map(accounts.map((a) => [a.id, a.cooldownUntil]))
+  return claudeSessionAccount(
+    accounts,
+    accountId,
+    providers.mode,
+    (id) => holds.get(id),
+    Date.now(),
   )
 }

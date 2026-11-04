@@ -491,9 +491,11 @@ close it; focus moves into the sheet and returns to the element on close.
 - **Command palette** (Cmd/Ctrl+K): new session, go to file, toggle sidebar
   and each pane, open the Artifacts/Skills pages, rewind, expand/collapse tool
   output, settings and keybindings, theme, open a folder, switch workspace,
-  open a session. On a remote lane, local folder/recents/disk-session commands,
-  rewind and global Artifacts/Skills page commands are omitted; lane navigation
-  lists that Host's lanes instead. The same filtering applies on Host home,
+  open a session. On a remote lane, local folder/recents/disk-session commands
+  and rewind are omitted; the Artifacts/Skills page commands open that Host's
+  pages, and that Host's lanes, "New lane in <folder>" for each of its folders
+  and "Add folder on <Host>…" (where the Host lets this device add one) stand
+  in for them. The same filtering applies on Host home,
   using the sidebar's selected machine rather than This Mac's home workspace.
   Target switches refresh the command set.
   Distinct from the chat `/` command menu.

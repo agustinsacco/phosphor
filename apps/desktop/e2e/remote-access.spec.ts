@@ -100,9 +100,17 @@ test('Provider login and error remedies target bee1, Settings configures bee1 an
     await expect(h.page.getByRole('button', { name: 'Sign in on bee1', exact: true })).toBeVisible()
     await captures(h, info, 'remote-auth-remedy')
     await h.page.getByRole('button', { name: 'Sign in on bee1', exact: true }).click()
-    await expect(h.page.locator('main')).toContainText('bee1')
-    await expect(h.page.locator('main')).toContainText('Readiness')
+    // The remedy opens Settings → Accounts for the lane's machine, never a local terminal.
+    const remedySettings = h.page.getByRole('dialog', { name: 'Settings', exact: true })
+    await expect(remedySettings.getByTestId('settings-machine-scope')).toContainText(
+      'Configuring bee1',
+    )
+    await expect(
+      remedySettings.getByRole('heading', { name: 'Accounts', exact: true }),
+    ).toBeVisible()
     await expect(h.page.locator('.xterm')).toHaveCount(0)
+    await h.page.keyboard.press('Escape')
+    await expect(remedySettings).toBeHidden()
     const machineSettings = await openMachineSettings(h)
     const provider = machineSettings.locator('[data-provider="openai-codex"]')
     await expect(provider.locator('[data-sign-in]')).toHaveText('Not signed in')
