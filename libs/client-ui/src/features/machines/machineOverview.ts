@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { machineStatus, type MachineStatus, type MachineView } from '@shared/control-api'
 import type { HostConnectionView } from '@shared/ipc'
+import type { AboutInfo } from '@shared/models'
 import type { TailscaleStatus } from '@shared/tailscale-status'
 import { localMachineLabel } from '@/lib/localMachine'
 import { usePlatform } from '@/platform/Platform'
@@ -21,6 +22,7 @@ import {
 } from './machinePresentation'
 import { machineHeadline, type Headline } from './machineReachability'
 import { useLocalTasks } from './MachineTasks'
+import { useHostPiVersion } from './useHostPiVersion'
 import { hostTasks, taskCounts, type MachineTask } from './runningTasks'
 
 const DAY_MS = 86_400_000
@@ -94,6 +96,7 @@ function useLive(): React.RefObject<boolean> {
 }
 
 interface LocalReads extends LocalReadings {
+  about?: AboutInfo | null
   busy: boolean
   at: number | null
 }
@@ -121,6 +124,10 @@ function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () 
         .invoke('hosts:tailscaleStatus')
         .catch((): TailscaleStatus => ({ code: 'check-failed' }))
         .then((tailscale) => merge({ tailscale })),
+      window.phosphor.invoke('app:about').then(
+        (about) => merge({ about }),
+        () => merge({ about: null }),
+      ),
     ]).then(() => merge(round ? { busy: false, at: Date.now() } : {}))
     return () => {
       live = false
@@ -165,7 +172,12 @@ export function useLocalOverview(): MachineOverview | null {
       ? { text: 'Could not read all local checks. Check again to retry.', alert: true }
       : undefined,
     facts: [
-      { label: 'Platform', value: platform },
+      { label: 'Platform', value: reads.about ? `${platform} ${reads.about.arch}` : platform },
+      {
+        label: 'Phosphor version',
+        value:
+          reads.about === undefined ? 'Checking…' : (reads.about?.appVersion ?? 'Not available'),
+      },
       {
         label: 'pi',
         value:
@@ -304,6 +316,7 @@ export function useHostOverview(
   const check = useHostRecheck()
   const reconnect = useReconnect(machine.id)
   const claude = useClaudeReadiness(machine.id, check.round)
+  const pi = useHostPiVersion(machine.id, check.round)
   const openSettings = useOpenSettings()
   const summary = hostSummary(machine, connection, now, offset)
   const { headline } = summary
@@ -350,6 +363,7 @@ export function useHostOverview(
       { label: 'Hostname', value: machine.hostname },
       { label: 'Platform', value: `${platformName(machine.platform)} ${machine.arch}` },
       { label: 'Host version', value: version ?? 'Not reported' },
+      ...(pi === null ? [] : [{ label: 'pi', value: pi }]),
       { label: 'Enrolled', value: new Date(machine.enrolledAt).toLocaleDateString() },
       { label: 'Address', value: machine.endpoint ?? 'Not published' },
       { label: 'Fingerprint', value: machine.keyFingerprint, copy: true },

@@ -628,7 +628,7 @@ Signing in happens in Settings → Accounts on that machine; on a Host it runs i
 private terminal there, and credentials stay on the Host.
 
 The collapsed **Details** disclosure holds a Host's hostname, platform,
-Host version, enrollment date, the published address, and a copyable fingerprint
+Host version, its pi version where this device may read its settings, enrollment date, the published address, and a copyable fingerprint
 and machine id. On this machine previews at most three lanes using the shared
 sidebar row presentation, with a View all link when there are more, alongside
 capability-gated skills, routines and artifact counts linked to machine-filtered pages. Down lanes stay labelled last known.
@@ -650,7 +650,7 @@ Machine actions menu with Check again, which re-reads pi, Claude Code, Tailscale
 and its providers, and **Update Phosphor…**, which opens Settings → About where the
 app can check for updates. Readiness lists pi, Claude Code and Tailscale; Providers lists its subscriptions
 with Settings → Accounts' rows and **Provider settings**; Details holds its
-platform, pi version and live lane count; the terminal opens a shell at home. It
+platform and architecture, Phosphor version, pi version and live lane count; the terminal opens a shell at home. It
 has no Connection row, On this machine or Remove.
 
 ### Health check and debug log
