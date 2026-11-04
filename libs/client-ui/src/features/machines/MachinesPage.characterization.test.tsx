@@ -133,7 +133,7 @@ it("This Mac's row reads its checks, and its detail shows readiness, providers a
   expect(useSettingsUiStore.getState()).toMatchObject({ tab: 'accounts', machine: 'local' })
   expect(region('Terminal')).not.toBeNull()
   expect(button('Remove machine')).toBeUndefined()
-  expect(container.querySelector('[aria-label="Machine views"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Machine views"]')).not.toBeNull()
 })
 
 it("a Host's row and detail show its status, readiness, providers, actions and removal", async () => {
@@ -242,4 +242,15 @@ it("This Mac's Readiness lists pi, Claude Code and Tailscale, read on this compu
   )
   expect(names).toEqual(['pi', 'Claude Code', 'Tailscale'])
   expect(invoke).toHaveBeenCalledWith('hosts:tailscaleStatus')
+})
+
+it("This Mac's detail has the Host's Machine views, and its Settings tab opens This Mac", async () => {
+  await render()
+  await click(container.querySelector<HTMLElement>('[data-testid=local-machine-row]'))
+  const views = container.querySelector('[aria-label="Machine views"]')
+  expect([...(views?.querySelectorAll('button') ?? [])].map((b) => b.textContent)).toEqual(
+    expect.arrayContaining(['Overview', 'Settings']),
+  )
+  await click(views?.querySelector<HTMLElement>('[aria-label="Machine settings"]'))
+  expect(useSettingsUiStore.getState()).toMatchObject({ tab: 'accounts', machine: 'local' })
 })
