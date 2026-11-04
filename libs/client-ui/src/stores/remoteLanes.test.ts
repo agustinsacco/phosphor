@@ -520,3 +520,66 @@ it.each([true, false])(
     expect(useLaneRevealStore.getState().groupKey).toBe(knownMain ? '/repo' : workspacePath)
   },
 )
+
+function listenForAttention() {
+  let attention: ((event: HostAttention) => void) | undefined
+  const noop = () => () => undefined
+  vi.stubGlobal('window', {
+    phosphor: {
+      ...window.phosphor,
+      onHostsChanged: noop,
+      onHostOpenLane: noop,
+      onHostAttention: (listener: typeof attention) => {
+        attention = listener
+        return () => {}
+      },
+    },
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })
+  invoke.mockImplementation(async (channel) =>
+    channel === 'hosts:snapshot' ? useRemoteLanesStore.getState().hosts : [],
+  )
+  const detach = attachRemoteLanesListener()
+  return { send: (event: HostAttention) => attention?.(event), detach }
+}
+
+it("words a Host lane's notice as This Mac's, with its kind and the lane's marker", async () => {
+  vi.stubGlobal('document', { hasFocus: () => true })
+  const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+  hosts[MOCK_HOST_ID]!.lanes[0] = { ...hosts[MOCK_HOST_ID]!.lanes[0]!, marker: '🦊' }
+  useRemoteLanesStore.setState({ hosts })
+  const { send, detach } = listenForAttention()
+  const event = {
+    hostId: MOCK_HOST_ID,
+    laneId: mockRemoteInfo.laneId ?? '',
+    title: 'Remote',
+    at: '2026-01-01T00:00:00Z',
+  }
+  const toast = () => useExtensionUiStore.getState().toasts[0]
+  send({ ...event, kind: 'finished' })
+  await vi.waitFor(() => expect(toast()).toBeDefined())
+  expect(toast()).toMatchObject({ message: 'Finished.', kind: 'success', marker: '🦊' })
+  send({ ...event, kind: 'failed', at: '2026-01-01T00:00:01Z' })
+  await vi.waitFor(() => expect(toast()?.message).toBe('Stopped with an error.'))
+  expect(toast()?.kind).toBe('error')
+  send({ ...event, kind: 'needs-input', at: '2026-01-01T00:00:02Z' })
+  await vi.waitFor(() => expect(toast()?.message).toBe('Needs your input.'))
+  detach()
+})
+
+it('says a This Mac lane settled while its window is in the background, as a Host lane does', async () => {
+  const { noticeLaneSettled } = await import('@/features/sessions/laneNotices')
+  useSessionsStore.setState({
+    live: { mac: { phosphorId: 'mac', workspacePath: '/mac' } },
+    activeSessionId: 'mac',
+  })
+  useLayoutStore.setState({ page: null })
+  vi.stubGlobal('document', { hasFocus: () => false })
+  noticeLaneSettled('mac')
+  expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
+  vi.stubGlobal('document', { hasFocus: () => true })
+  useExtensionUiStore.setState({ toasts: [] })
+  noticeLaneSettled('mac')
+  expect(useExtensionUiStore.getState().toasts).toHaveLength(0)
+})
