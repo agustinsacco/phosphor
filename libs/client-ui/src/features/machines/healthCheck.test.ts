@@ -234,4 +234,27 @@ describe('health check', () => {
       lanes: ['ok', '3 live lanes · 2 folders'],
     })
   })
+
+  it('counts routines as On this machine does, without archived ones, on every machine', async () => {
+    const calls = vi.fn(async (channel: string): Promise<unknown> => {
+      if (channel === 'routines:list') return { routines: [{ archived: false }, { archived: true }] }
+      throw new Error(`unexpected ${channel}`)
+    })
+    const run = await runHealthCheck({
+      invoke: calls as never,
+      localLabel: 'This Mac',
+      signedIn: true,
+      refreshDirectory: async () => null,
+      machines: () => [ready],
+      hosts: () => ({ [ready.id]: { ...hosts[ready.id]!, capabilities: ['routines'] } }),
+      localProviders: () => calls('pi:subscriptionAuth') as never,
+      localLanes: () => ({ live: 0, folders: 0 }),
+      now: () => now,
+      onUpdate: () => {},
+    })
+    const routines = run.targets.map((t) => t.steps.find((s) => s.id === 'routines')?.detail)
+    expect(routines).toEqual(['1 routine', '1 routine'])
+    expect(calls).toHaveBeenCalledWith('routines:list', 'local')
+    expect(calls).toHaveBeenCalledWith('routines:list', `host:${ready.id}`)
+  })
 })
