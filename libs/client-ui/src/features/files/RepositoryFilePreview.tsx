@@ -30,7 +30,7 @@ export function RepositoryFilePreview({
         ) : binary ? (
           <p>{preview}</p>
         ) : (
-          <CodeBlock code={preview} language="text" />
+          <CodeBlock code={preview} language={languageForPath(path)} />
         )}
       </div>
     )
