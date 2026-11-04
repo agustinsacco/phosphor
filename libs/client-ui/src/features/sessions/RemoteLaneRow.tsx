@@ -80,7 +80,11 @@ export function RemoteLaneRow({
           pinned={lane.pinned === true}
           workspaceName={workspaceName}
           select={select && !actions.deletingInBulk ? { ...select, title } : undefined}
-          marker={<LaneMarker marker={lane.marker ?? ''} onPick={actions.pickMarker} />}
+          marker={
+            actions.marker !== null && (
+              <LaneMarker marker={actions.marker} onPick={actions.pickMarker} />
+            )
+          }
           onClick={() => {
             if (ready) navigate({ to: 'lane', lane: { hostId, laneId: lane.laneId } })
           }}

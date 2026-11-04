@@ -3,11 +3,13 @@ import type { HostLaneView } from '@shared/ipc'
 import { hostResourceKey } from '@shared/remote-host'
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { piCall, piCallOk } from '@/lib/rpc'
+import { laneMarker } from '@/lib/laneMarker'
 import { useNavigation, type Navigation } from '@/navigation/Navigation'
 import { useChatStore } from '@/stores/chat'
 import { setRemoteLaneMarks } from '@/stores/remoteLaneMarks'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
+import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { STOP_NEEDS_PROMPT } from '@/features/machines/useLaneControl'
 import { openPullRequest } from './PrBadge'
 import { useRemotePr } from './remotePullRequests'
@@ -110,7 +112,12 @@ export function useRemoteLaneActions({
     error: runner.error,
     deletingInBulk,
     saveName,
-    pickMarker: access.canMark ? handlers.pickMarker : undefined,
+    pickMarker: access.canMark && state.markers !== 'off' ? handlers.pickMarker : undefined,
+    /** The row's marker: the explicit Host choice, else derived from the branch, as on This Mac. */
+    marker:
+      state.markers === 'off'
+        ? null
+        : laneMarker(lane.marker, lane.branch, lane.cwd, state.markers),
     ...access,
   }
 }
@@ -131,6 +138,7 @@ function useLaneActionState(
     (s) => !!sessionId && !s.sessions[sessionId]?.items.some((item) => item.kind === 'user'),
   )
   const { pr } = useRemotePr(hostId, lane)
+  const markers = useLanePrefsStore((s) => s.lanes.markers)
   const state: RemoteLaneActionState = {
     lane,
     host,
@@ -138,6 +146,7 @@ function useLaneActionState(
     busy: running || deletingInBulk,
     stopBlocked: unprompted ? STOP_NEEDS_PROMPT : null,
     pr: pr ?? null,
+    markers,
   }
   return { state, pr, deletingInBulk }
 }

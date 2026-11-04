@@ -482,7 +482,10 @@ Pins and markers belong to the Host: a Host that announces `laneMarks` keeps
 them, so every client shows the same ones
 ([protocol](remote-protocol.md#lane-pins-and-markers)); Desktop's older local
 choices, kept under Host/lane resource keys, move to it, and rows read only the
-Host's. Without `laneMarks`, Pin and Lane marker are disabled with “Update this
+Host's. A Host lane with no explicit marker shows the one derived from its
+branch, and `LanePrefs.markers` applies as on This Mac: `manual` derives
+nothing and `off` removes the slot and Lane marker. Without `laneMarks`, Pin
+and Lane marker are disabled with “Update this
 Host to pin and mark lanes.” A pinned Host lane shows the pin icon and sits in a
 Pinned section above that Host's folders, newest first, with its folder named,
 as local pinned lanes sit above local groups. Pins stay per Host: one Host's

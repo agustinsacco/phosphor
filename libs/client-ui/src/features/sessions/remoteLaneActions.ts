@@ -1,6 +1,7 @@
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
+import type { LanePrefs } from '@shared/models'
 
 export const TAKE_CONTROL_FIRST = 'Take control first.'
 export const ONLY_WHILE_RUNNING = 'Only while running.'
@@ -33,6 +34,8 @@ export interface RemoteLaneActionState {
   /** Why the Host would refuse Stop right now, if it would. */
   stopBlocked: string | null
   pr: { number: number } | null
+  /** The marker preference: `off` drops the marker slot and its menu item, as on This Mac. */
+  markers: LanePrefs['markers']
 }
 
 export interface RemoteLaneActionHandlers {
@@ -131,7 +134,16 @@ export function remoteLaneActions(
       hint: markHint,
       onClick: handlers.togglePin,
     },
-    { label: 'Lane marker', disabled: !canMark, hint: markHint, onClick: handlers.pickMarker },
+    ...(state.markers === 'off'
+      ? []
+      : [
+          {
+            label: 'Lane marker',
+            disabled: !canMark,
+            hint: markHint,
+            onClick: handlers.pickMarker,
+          },
+        ]),
     { label: 'Copy debug info', onClick: handlers.copyDebugInfo },
     {
       label: 'Copy spend',

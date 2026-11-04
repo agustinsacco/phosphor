@@ -46,6 +46,7 @@ function state(edit: Partial<RemoteLaneActionState> = {}, self = true): RemoteLa
     busy: false,
     stopBlocked: null,
     pr: null,
+    markers: 'auto',
     ...edit,
   }
 }
