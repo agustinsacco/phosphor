@@ -86,3 +86,25 @@ it('finds a Host lane by its PR number and title, normalized, as This Mac does',
   search('fix-the')
   expect(titles()).toEqual(['Fix the login'])
 })
+
+it("persists a Host folder's collapse in the sidebar's collapsed-groups pref, keyed by Host and folder", async () => {
+  const key = `host:${MOCK_HOST_ID}/repo:${REPO}`
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'app:getPrefs' ? { collapsedWorkspaces: ['/local/repo'] } : undefined,
+  )
+  await act(async () => render())
+  expect(titles()).toHaveLength(2)
+  act(() => container.querySelector<HTMLButtonElement>('[aria-expanded="true"]')!.click())
+  expect(titles()).toEqual([])
+  await act(async () => {})
+  expect(invoke).toHaveBeenCalledWith('app:setCollapsedWorkspaces', ['/local/repo', key])
+
+  // A fresh window reads it back: the folder opens collapsed.
+  act(() => root.unmount())
+  root = createRoot(container)
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'app:getPrefs' ? { collapsedWorkspaces: [key] } : undefined,
+  )
+  await act(async () => render())
+  expect(titles()).toEqual([])
+})
