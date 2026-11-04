@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MachineView } from '@shared/control-api'
 import type { HostConnectionView } from '@shared/ipc'
 import { SettingsModal } from './SettingsModal'
@@ -11,6 +11,7 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useMachinesStore } from '@/stores/machines'
 import { MOCK_HOST_ID, mockRemoteHosts } from '@/dev/mockRemoteLanes'
+import { promptChoice } from '@/stores/prompt'
 
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -23,6 +24,10 @@ vi.hoisted(() => {
   })
 })
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/stores/prompt', () => ({
+  promptChoice: vi.fn(async () => undefined),
+  promptText: vi.fn(),
+}))
 
 const invoke = vi.fn(async (channel: string): Promise<unknown> =>
   channel === 'packages:list' ? [] : undefined,
@@ -100,4 +105,37 @@ it('asks to update a Host whose protocol this client cannot speak', async () => 
   expect(text).toContain('Update needed')
   expect(text).toContain('phosphor update')
   expect(button('Reconnect')).toBeUndefined()
+})
+
+describe('Folders on a Host (B2)', () => {
+  beforeEach(() => {
+    vi.mocked(promptChoice).mockClear()
+    useSettingsUiStore.setState({ tab: 'folders' })
+  })
+
+  it('lists the folders once the link is ready, without configuration access or a settings read', async () => {
+    const text = await renderHost({})
+    expect(text).toContain('Demo repository')
+    expect(text).toContain('/remote/demo')
+    expect(text).not.toContain('Configuration access is not enabled')
+    expect(text).not.toContain('Update this Host to use machine settings')
+    expect(invoke).not.toHaveBeenCalledWith('hosts:settingsRead', MOCK_HOST_ID, 'advanced')
+  })
+
+  it('asks for configuration access only to review project trust', async () => {
+    await renderHost({
+      configurationSupported: true,
+      capabilities: ['sessions.read', 'sessions.control', 'terminal', 'workspaces.write'],
+    })
+    await act(async () => button('Review project trust')?.click())
+    expect(vi.mocked(promptChoice).mock.calls[0]?.[0].title).toBe(
+      'Enable settings access for Studio?',
+    )
+  })
+
+  it('reads the folders again on Refresh', async () => {
+    await renderHost({})
+    await act(async () => button('Refresh')?.click())
+    expect(invoke).toHaveBeenCalledWith('hosts:snapshot')
+  })
 })
