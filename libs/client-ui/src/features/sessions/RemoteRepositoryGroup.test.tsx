@@ -131,3 +131,21 @@ it("reorders a Host folder's lanes with Alt+arrows, device-local in the sidebar'
     useSessionsStore.getState().sessionOrder,
   )
 })
+
+it("reads a Host folder's saved lane order where no This Mac sidebar has (the browser)", async () => {
+  useSessionsStore.setState({ sessionOrder: [] })
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'app:getPrefs'
+      ? {
+          pinnedSessions: [],
+          sessionOrder: [
+            `host:${MOCK_HOST_ID}/lane:00000000-0000-4000-8000-0000000000b2`,
+            `host:${MOCK_HOST_ID}/lane:00000000-0000-4000-8000-0000000000b1`,
+          ],
+        }
+      : undefined,
+  )
+  await act(async () => render())
+  await act(async () => {})
+  expect(titles()).toEqual(['Other', 'Fix the login'])
+})
