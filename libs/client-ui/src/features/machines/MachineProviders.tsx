@@ -40,6 +40,7 @@ export function MachineProviders({
         </p>
       ) : providers === null ? (
         <div role="status" aria-label="Loading providers" className="space-y-3 py-1">
+          <p className="text-text-secondary text-base">Checking providers…</p>
           {[0, 1, 2].map((row) => (
             <Skeleton key={row} className="h-4 w-full" />
           ))}

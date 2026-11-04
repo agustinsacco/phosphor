@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react'
 import type { MachineProvider } from '@shared/host-protocol-machine'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import {
+  lastLocalSubscriptionAuth,
+  readLocalSubscriptionAuth,
+} from '@/stores/localSubscriptionAuth'
 
 /**
  * A machine's pi providers for the Machines page, read-only: This Mac's
  * subscriptions (`'local'`) or a Host's. `providers` is null while the first
  * read is in flight; a failed read says so and can be retried. Signing in
- * happens in Settings → Accounts.
+ * happens in Settings → Accounts. This Mac opens on Settings' last read; Check
+ * again and Retry read again.
  */
 export function useMachineProviders(machineId: string, refresh: number) {
   const host = useRemoteLanesStore((s) => s.hosts[machineId])
@@ -23,7 +28,9 @@ export function useMachineProviders(machineId: string, refresh: number) {
     if (readable)
       void (
         local
-          ? window.phosphor.invoke('pi:subscriptionAuth')
+          ? refresh || reload
+            ? readLocalSubscriptionAuth()
+            : lastLocalSubscriptionAuth()
           : window.phosphor.invoke('hosts:providers', machineId)
       ).then(
         (rows) => {
