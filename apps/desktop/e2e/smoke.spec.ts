@@ -3642,7 +3642,7 @@ test('sidebar session drag, menu and keyboard order survives suspend and restart
     await expect.poll(order).toEqual(original)
     await expect(last.getByTestId('session-row')).toBeFocused()
     await last.getByTestId('session-row').click({ button: 'right' })
-    await page.getByRole('button', { name: /^Stop~200 MB/ }).click()
+    await page.getByRole('button', { name: /^Stop/ }).click()
     await expect(last).toContainText('suspended')
     await last.dragTo(rows.first(), { targetPosition: { x: 80, y: 2 } })
     await expect.poll(order).toEqual(expected)

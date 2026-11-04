@@ -37,9 +37,10 @@ test('Desktop streams a real Host lane, reads Files and becomes a viewer on cont
       )
       .toBe(true)
     await expect(h.page.getByText('Controlled by Second client', { exact: true })).toBeVisible()
-    await expect(h.page.getByRole('status')).toContainText(
-      'Read-only. Take control to send messages.',
-    )
+    // Host folders' lane lists carry their own (empty) reorder announcer, as This Mac's do.
+    await expect(
+      h.page.getByRole('status').filter({ hasText: 'Read-only. Take control to send messages.' }),
+    ).toBeVisible()
     await expect(composer).toHaveCount(0)
     await expect(h.page.getByRole('button', { name: 'Take control', exact: true })).toBeVisible()
     await h.page.getByRole('button', { name: /^Files pane/ }).click()
