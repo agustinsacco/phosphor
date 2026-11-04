@@ -168,7 +168,7 @@ function MachineViews({ overview }: { overview: MachineOverview }): React.JSX.El
       >
         Settings
       </TooltipButton>
-      {overview.machine && <MachineFilesButton machine={overview} />}
+      <MachineFilesButton machine={overview} />
     </nav>
   )
 }
