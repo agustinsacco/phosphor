@@ -71,6 +71,7 @@ describe('health check', () => {
       refreshDirectory: async () => null,
       machines: () => [ready, unreachable],
       hosts: () => hosts,
+      localLanes: () => ({ live: 0, folders: 0 }),
       now: () => now,
       clock: () => (tick += 5),
       onUpdate: (r) => updates.push(r),
@@ -79,7 +80,7 @@ describe('health check', () => {
       Object.fromEntries(
         run.targets.find((t) => t.id === id)?.steps.map((s) => [s.id, [s.tone, s.detail]]) ?? [],
       )
-    expect(steps('local')).toEqual({
+    expect(steps('local')).toMatchObject({
       control: ['ok', '2 machines'],
       tailscale: ['ok', 'Running with MagicDNS and HTTPS'],
       pi: ['ok', 'pi 1.2.0'],
@@ -118,6 +119,7 @@ describe('health check', () => {
       refreshDirectory: async () => 'offline',
       machines: () => [],
       hosts: () => ({}),
+      localLanes: () => ({ live: 0, folders: 0 }),
       now: () => now,
       onUpdate: () => {},
     })
@@ -129,6 +131,7 @@ describe('health check', () => {
       refreshDirectory: async () => null,
       machines: () => [ready],
       hosts: () => hosts,
+      localLanes: () => ({ live: 0, folders: 0 }),
       now: () => now,
       onUpdate: () => {},
     })
@@ -211,7 +214,7 @@ describe('health check', () => {
       localLanes: () => ({ live: 3, folders: 2 }),
       now: () => now,
       onUpdate: () => {},
-    } as never)
+    })
     const local = Object.fromEntries(
       run.targets[0]?.steps.map((s) => [s.id, [s.tone, s.detail]]) ?? [],
     )

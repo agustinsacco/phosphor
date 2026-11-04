@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { localMachineLabel } from '@/lib/localMachine'
 import { useMachinesStore } from '@/stores/machines'
+import { useSessionsStore } from '@/stores/sessions'
+import { useWorkspacesStore } from '@/stores/workspaces'
 import { runHealthCheck, type HealthRun } from './healthCheck'
 
 /** The last health check in this window. Never persisted; a new run replaces it. */
@@ -24,6 +26,12 @@ export async function startHealthCheck(): Promise<void> {
       },
       machines: () => useMachinesStore.getState().machines,
       hosts: () => window.phosphor.invoke('hosts:snapshot'),
+      localLanes: () => ({
+        live: Object.values(useSessionsStore.getState().live).filter(
+          (entry) => entry.target?.kind !== 'remote',
+        ).length,
+        folders: useWorkspacesStore.getState().recents.length,
+      }),
       now: () => Date.now() + useMachinesStore.getState().clockOffsetMs,
       onUpdate: (run) => {
         if (id === current) useMachineHealthStore.setState({ run })

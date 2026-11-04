@@ -4,7 +4,8 @@ import type { HostCapability } from '@shared/remote-host'
 import type { DesktopControlErrorCode, HostsSnapshot, IpcInvokeMap } from '@shared/ipc'
 import { controlMessage } from './controlMessages'
 import { machineHeadline, type Tone } from './machineReachability'
-import { claudeReadiness, relativeTime, TAILSCALE_FIXES } from './machinePresentation'
+import type { MachineClaude } from '@shared/host-protocol-machine'
+import { claudeReadiness, localClaude, relativeTime, TAILSCALE_FIXES } from './machinePresentation'
 
 /**
  * The Machines health check: every read Desktop makes of the control plane
@@ -45,6 +46,8 @@ export interface HealthContext {
   /** Latest directory and connections, read after the refresh. */
   machines: () => readonly MachineView[]
   hosts: () => HostsSnapshot | Promise<HostsSnapshot>
+  /** This computer's live lanes and recent folders. */
+  localLanes: () => { live: number; folders: number }
   /** Clock-corrected now. */
   now: () => number
   clock?: () => number
@@ -59,6 +62,76 @@ interface Probe {
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+/** One machine's reads behind the probes every machine runs. */
+interface MachineReads {
+  providers: () => Promise<readonly { status: string }[]>
+  models: () => Promise<number>
+  /** null: a Host too old to report it. */
+  claude: () => Promise<MachineClaude | null>
+  skills: () => Promise<number>
+  routines: () => Promise<number>
+  lanes: () => Promise<string>
+}
+/** What a Host must grant this computer before each probe reads it; This Mac needs none. */
+const HOST_GRANTS: Record<string, HostCapability> = {
+  providers: 'skills.read',
+  models: 'skills.read',
+  claude: 'skills.read',
+  skills: 'skills.read',
+  routines: 'routines',
+  lanes: 'sessions.read',
+}
+
+/** Providers, Models, Claude Code, Skills, Routines and Lanes, for This Mac or a Host. */
+function machineProbes(reads: MachineReads, grants: Record<string, HostCapability> = {}): Probe[] {
+  const probes: Probe[] = [
+    {
+      id: 'providers',
+      label: 'Providers',
+      run: async () => {
+        const providers = await reads.providers()
+        const signed = providers.filter((p) => p.status === 'ready').length
+        return {
+          tone: signed ? 'ok' : 'warn',
+          detail: `${plural(providers.length, 'provider')} · ${signed} signed in`,
+        }
+      },
+    },
+    {
+      id: 'models',
+      label: 'Models',
+      run: async () => {
+        const models = await reads.models()
+        return models
+          ? { tone: 'ok', detail: plural(models, 'model') }
+          : { tone: 'warn', detail: 'No usable models' }
+      },
+    },
+    {
+      id: 'claude',
+      label: 'Claude Code',
+      run: async () => {
+        const detail = await reads.claude()
+        if (!detail) return { tone: 'off', detail: 'Not reported by this Host version' }
+        const check = claudeReadiness(detail)
+        return { tone: check.ok ? 'ok' : 'warn', detail: check.ok ? 'Ready' : check.short }
+      },
+    },
+    {
+      id: 'skills',
+      label: 'Skills',
+      run: async () => ({ tone: 'ok', detail: plural(await reads.skills(), 'skill') }),
+    },
+    {
+      id: 'routines',
+      label: 'Routines',
+      run: async () => ({ tone: 'ok', detail: plural(await reads.routines(), 'routine') }),
+    },
+    { id: 'lanes', label: 'Lanes', run: async () => ({ tone: 'ok', detail: await reads.lanes() }) },
+  ]
+  return probes.map((probe) => ({ ...probe, capability: grants[probe.id] }))
+}
 
 export async function runHealthCheck(context: HealthContext): Promise<HealthRun> {
   const clock = context.clock ?? (() => performance.now())
@@ -112,6 +185,25 @@ export async function runHealthCheck(context: HealthContext): Promise<HealthRun>
         : { tone: 'error', detail: health.reason ?? 'pi is not available' }
     },
   })
+  const { invoke } = context
+  for (const probe of machineProbes({
+    providers: () => invoke('pi:subscriptionAuth'),
+    models: async () => (await invoke('pi:catalogueModels')).models.length,
+    claude: async () => {
+      const [packages, status] = await Promise.all([
+        invoke('packages:list'),
+        invoke('packages:claudeStatus'),
+      ])
+      return localClaude(packages, status)
+    },
+    skills: async () => (await invoke('skills:list')).skills.length,
+    routines: async () => (await invoke('routines:list', 'local')).routines.length,
+    lanes: async () => {
+      const { live, folders } = context.localLanes()
+      return `${plural(live, 'live lane')} · ${plural(folders, 'folder')}`
+    },
+  }))
+    await step(local, probe)
 
   if (context.signedIn) {
     const hosts = await context.hosts()
@@ -156,70 +248,19 @@ export async function runHealthCheck(context: HealthContext): Promise<HealthRun>
     const ready = view?.state === 'ready'
     const granted = (capability?: HostCapability) =>
       !capability || !!view?.capabilities.includes(capability)
-    const probes: Probe[] = [
+    const probes = machineProbes(
       {
-        id: 'providers',
-        label: 'Providers',
-        capability: 'skills.read',
-        run: async () => {
-          const providers = await context.invoke('hosts:providers', machine.id)
-          const signed = providers.filter((p) => p.status === 'ready').length
-          return {
-            tone: signed ? 'ok' : 'warn',
-            detail: `${plural(providers.length, 'provider')} · ${signed} signed in`,
-          }
-        },
+        providers: () => context.invoke('hosts:providers', machine.id),
+        models: async () => (await context.invoke('hosts:models', machine.id)).length,
+        claude: () => context.invoke('hosts:claude', machine.id),
+        skills: async () => (await context.invoke('hosts:skills', machine.id)).skills.length,
+        routines: async () =>
+          (await context.invoke('routines:list', `host:${machine.id}`)).routines.length,
+        lanes: async () =>
+          `${plural(view?.lanes.length ?? 0, 'lane')} · ${plural(view?.repositories.length ?? 0, 'folder')}`,
       },
-      {
-        id: 'models',
-        label: 'Models',
-        capability: 'skills.read',
-        run: async () => {
-          const models = await context.invoke('hosts:models', machine.id)
-          return models.length
-            ? { tone: 'ok', detail: plural(models.length, 'model') }
-            : { tone: 'warn', detail: 'No usable models' }
-        },
-      },
-      {
-        id: 'claude',
-        label: 'Claude Code',
-        capability: 'skills.read',
-        run: async () => {
-          const detail = await context.invoke('hosts:claude', machine.id)
-          if (!detail) return { tone: 'off', detail: 'Not reported by this Host version' }
-          const check = claudeReadiness(detail)
-          return { tone: check.ok ? 'ok' : 'warn', detail: check.ok ? 'Ready' : check.short }
-        },
-      },
-      {
-        id: 'skills',
-        label: 'Skills',
-        capability: 'skills.read',
-        run: async () => {
-          const result = await context.invoke('hosts:skills', machine.id)
-          return { tone: 'ok', detail: plural(result.skills.length, 'skill') }
-        },
-      },
-      {
-        id: 'routines',
-        label: 'Routines',
-        capability: 'routines',
-        run: async () => {
-          const result = await context.invoke('routines:list', `host:${machine.id}`)
-          return { tone: 'ok', detail: plural(result.routines.length, 'routine') }
-        },
-      },
-      {
-        id: 'lanes',
-        label: 'Lanes',
-        capability: 'sessions.read',
-        run: async () => ({
-          tone: 'ok',
-          detail: `${plural(view?.lanes.length ?? 0, 'lane')} · ${plural(view?.repositories.length ?? 0, 'folder')}`,
-        }),
-      },
-    ]
+      HOST_GRANTS,
+    )
     // One line, not one per read: none of them can run without a connection.
     if (!ready)
       target.steps.push({
