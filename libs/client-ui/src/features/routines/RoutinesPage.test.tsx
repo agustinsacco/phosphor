@@ -623,3 +623,13 @@ it('deduplicates aggregate and per-Host routine rows by id, preferring the refre
   expect(container.textContent).toContain('Remote task')
   expect(container.textContent).not.toContain('Stale aggregate name')
 })
+
+it('names the local machine in the editor the way the page does', async () => {
+  vi.stubGlobal('phosphor', { ...window.phosphor, platform: 'darwin' })
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await click('New routine')
+  const options = Array.from(
+    document.querySelectorAll<HTMLOptionElement>('[aria-label="Routine machine"] option'),
+  )
+  expect(options.find((o) => o.value === 'local')?.textContent).toBe('This Mac')
+})
