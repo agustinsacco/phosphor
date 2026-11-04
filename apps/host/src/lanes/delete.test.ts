@@ -174,6 +174,27 @@ it('deletes a lane branch that landed as a merged PR after its history was rewri
   await expect(run(['show-ref', '--verify', 'refs/heads/feature'])).rejects.toThrow()
 })
 
+it('keeps a lane branch when GitHub gives no answer or a PR head the branch moved past', async () => {
+  await run(['checkout', '-b', 'feature'])
+  await writeFile(join(root, 'a'), 'lane')
+  await run(['commit', '-am', 'lane work'])
+  const prHead = await run(['rev-parse', 'feature'])
+  await writeFile(join(root, 'a'), 'after the merge')
+  await run(['commit', '-am', 'unlanded'])
+  await run(['checkout', 'main'])
+  expect(
+    await deleteMergedBranch(
+      root,
+      'feature',
+      () => true,
+      async () => null,
+    ),
+  ).toBe(false)
+  const merged = async () => JSON.stringify([{ headRefOid: prHead }])
+  expect(await deleteMergedBranch(root, 'feature', () => true, merged)).toBe(false)
+  expect(await run(['rev-parse', '--verify', 'feature'])).toMatch(/^[a-f0-9]{40}$/)
+})
+
 it('rechecks authority before a normally merged branch deletion', async () => {
   await run(['branch', 'feature'])
   expect(await deleteMergedBranch(root, 'feature', () => false)).toBe(false)

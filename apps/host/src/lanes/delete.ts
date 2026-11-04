@@ -2,6 +2,16 @@ import { randomUUID } from 'node:crypto'
 import { lstat, mkdir, opendir, realpath, rename, rm } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { git } from '@phosphor/session-runtime/git/git-exec'
+import type { GhRunner } from '@phosphor/session-runtime/git/github'
+import {
+  deleteBranchAtTip,
+  ghCommitTree,
+  ghMergedPrHeads,
+  landedOnTrunk,
+  landedViaPullRequest,
+  type BranchGit,
+  type PullRequestEvidence,
+} from '@phosphor/session-runtime/git/branch-landed'
 import type { DeleteLaneOp } from '@phosphor/shared/host-protocol-repositories'
 import { isLaneBranchName, type RejectCode } from '@phosphor/shared/host-protocol'
 import type { HostStore } from './store'
@@ -43,48 +53,64 @@ export function transcriptTrash(state: string) {
     },
   }
 }
-export async function branchMerged(root: string, branch: string): Promise<boolean> {
+/** Proof commands run without the user's git config; the squash probe needs an identity. */
+const proofGit =
+  (root: string): BranchGit =>
+  (args) =>
+    git(root, args, {
+      isolateEnv: true,
+      trim: true,
+      env: {
+        GIT_AUTHOR_NAME: 'Phosphor',
+        GIT_AUTHOR_EMAIL: 'phosphor@localhost',
+        GIT_COMMITTER_NAME: 'Phosphor',
+        GIT_COMMITTER_EMAIL: 'phosphor@localhost',
+      },
+    })
+
+/** One PR proof asks GitHub for at most this long; later questions get no answer. */
+const PULL_REQUEST_PROOF_MS = 20_000
+
+function pullRequestEvidence(root: string, github: GhRunner): PullRequestEvidence {
+  const deadline = Date.now() + PULL_REQUEST_PROOF_MS
+  const bounded: GhRunner = (cwd, args) =>
+    Date.now() < deadline ? github(cwd, args) : Promise.resolve(null)
+  return {
+    mergedPrHeads: (branch) => ghMergedPrHeads(bounded, root, branch),
+    commitTree: (oid) => ghCommitTree(bounded, root, oid),
+  }
+}
+
+/**
+ * Is the lane branch's tip on the trunk lane creation used: by ancestry, as a
+ * squash, or through a merged GitHub PR when `github` can ask? `tip` pins the
+ * proof to the commit the deletion compares against.
+ */
+export async function branchMerged(
+  root: string,
+  branch: string,
+  { tip, github }: { tip?: string; github?: GhRunner } = {},
+): Promise<boolean> {
   if (!isLaneBranchName(branch)) return false
-  const run = (args: string[]) => git(root, args, { isolateEnv: true, trim: true })
+  const run = proofGit(root)
   // The trunk lane creation used. No trunk means no proof, never a proof against HEAD.
   const trunk = await resolveDefaultBranch(run).catch(() => null)
   if (trunk === null || branch === trunk) return false
-  for (const base of defaultBranchRefs(trunk)) {
-    try {
-      await run(['merge-base', '--is-ancestor', `refs/heads/${branch}`, base])
-      return true
-    } catch {
-      /* Try squash proof. */
-    }
-    try {
-      const mergeBase = await run(['merge-base', base, `refs/heads/${branch}`])
-      const tree = await run(['rev-parse', `refs/heads/${branch}^{tree}`])
-      const probe = await git(
-        root,
-        ['commit-tree', tree, '-p', mergeBase, '-m', 'Phosphor squash-merge probe'],
-        {
-          isolateEnv: true,
-          trim: true,
-          env: {
-            GIT_AUTHOR_NAME: 'Phosphor',
-            GIT_AUTHOR_EMAIL: 'phosphor@localhost',
-            GIT_COMMITTER_NAME: 'Phosphor',
-            GIT_COMMITTER_EMAIL: 'phosphor@localhost',
-          },
-        },
-      )
-      if ((await run(['cherry', base, probe])).startsWith('-')) return true
-    } catch {
-      /* No proof means no deletion. */
-    }
-  }
-  return false
+  const commit =
+    tip ?? (await run(['rev-parse', '--verify', `refs/heads/${branch}^{commit}`]).catch(() => ''))
+  if (!commit) return false
+  if (await landedOnTrunk(run, commit, defaultBranchRefs(trunk))) return true
+  return github
+    ? landedViaPullRequest(run, pullRequestEvidence(root, github), branch, commit)
+    : false
 }
 export function createLaneDeletion(options: {
   store: HostStore
   stop(laneId: string, allowed: () => boolean): Promise<void>
   remove(request: unknown): Promise<void>
   forget(laneId: string): void
+  /** The Host's read-only gh, for the merged-PR proof. Without it only git proves a merge. */
+  github?: GhRunner
 }) {
   return async (
     op: DeleteLaneOp,
@@ -148,7 +174,7 @@ export function createLaneDeletion(options: {
       }
       let branchKept = op.removeBranch && lane.branch !== null
       if (op.removeBranch && lane.branch && !shared() && allowed())
-        branchKept = !(await deleteMergedBranch(root, lane.branch, allowed))
+        branchKept = !(await deleteMergedBranch(root, lane.branch, allowed, options.github))
       if (!allowed()) return { ok: false, code: 'forbidden' }
       options.store.markRemoved(lane.laneId)
       options.forget(lane.laneId)
@@ -188,6 +214,7 @@ export async function deleteMergedBranch(
   root: string,
   branch: string,
   allowed: () => boolean = () => true,
+  github?: GhRunner,
 ): Promise<boolean> {
   if (!isLaneBranchName(branch)) return false
   const run = (args: string[]) => git(root, args, { isolateEnv: true, trim: true })
@@ -201,25 +228,13 @@ export async function deleteMergedBranch(
     )
       return false
     const current = await run(['symbolic-ref', '--quiet', 'HEAD'])
-    if (current === `refs/heads/${branch}`) return false
+    if (current === ref) return false
     const worktrees = await run(['worktree', 'list', '--porcelain'])
-    if (worktrees.split('\n').includes(`branch refs/heads/${branch}`)) return false
-    const tip = await run(['rev-parse', '--verify', `refs/heads/${branch}`])
-    if (!allowed() || !(await branchMerged(root, branch))) return false
-    if (tip !== (await run(['rev-parse', '--verify', `refs/heads/${branch}`]))) return false
-    // Every merged branch (ancestry or squash) is removed by one compare-and-delete at the
-    // proven tip. `git branch -d` would delete whatever tip is current, not the proven one.
-    const before = await run(['worktree', 'list', '--porcelain'])
-    if (before.split('\n').includes(`branch ${ref}`) || !allowed()) return false
-    // Never dereference a symbolic ref or lose a concurrently advanced tip.
-    await run(['update-ref', '--no-deref', '-d', ref, tip])
-    const after = await run(['worktree', 'list', '--porcelain'])
-    if (after.split('\n').includes(`branch ${ref}`)) {
-      // A checkout raced the mutation. Restore only if no writer recreated the ref.
-      await run(['update-ref', ref, tip, ''])
-      return false
-    }
-    return true
+    if (worktrees.split('\n').includes(`branch ${ref}`)) return false
+    const tip = await run(['rev-parse', '--verify', ref])
+    if (!allowed() || !(await branchMerged(root, branch, { tip, github }))) return false
+    // Every proof (ancestry, squash or PR) ends in one compare-and-delete at the proven tip.
+    return await deleteBranchAtTip(run, branch, tip, allowed)
   } catch {
     return false
   }

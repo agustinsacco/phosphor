@@ -554,8 +554,12 @@ counts as a user and holds the worktree.
 
 **A branch is deleted only when it is proven merged.** `git branch -d` tests
 ancestry, and a squash merge leaves no ancestry link, so `-d` refuses every
-squash-merged lane. `isBranchLanded` accepts two proofs, and `-D` runs only
-when one holds:
+squash-merged lane. `isBranchLanded` accepts two proofs about the tip it read,
+and the branch goes only when one holds, by one compare-and-delete at that tip
+(`deleteBranchAtTip`, `git update-ref --no-deref -d <ref> <tip>`). A branch
+that gained a commit during the proof, or that a worktree has checked out, is
+kept. This Mac and a Host share the proofs and the deletion
+(`libs/session-runtime/src/git/branch-landed.ts`):
 
 - **The squash test** (`isBranchMerged`): `git cherry` against a commit built
   from the branch's tree.
@@ -564,7 +568,8 @@ when one holds:
   a newer trunk. It proved 2 of 26 merged lanes on one install. A merged PR
   from the branch counts only if the local tip is its head, sits behind it, or
   has the same tree, so a reused branch name or work added after the merge
-  never passes. Without `gh`, or offline, this proof answers no.
+  never passes. Without `gh`, or offline, this proof answers no. A Host asks
+  its own `gh` and gives one proof 20 seconds of questions.
 
 Anything unproven is kept and reported; the transcript still goes.
 

@@ -7,6 +7,10 @@ import {
 import { piProcessEnv } from '../pi/shell-env'
 import { createGithubReader } from '@phosphor/session-runtime/git/github-reader'
 import { runGithubCommand } from '@phosphor/session-runtime/git/github-command'
+import {
+  ghCommitTree as commitTree,
+  ghMergedPrHeads as mergedPrHeads,
+} from '@phosphor/session-runtime/git/branch-landed'
 import type { GhPrReadOptions } from '@shared/models'
 
 const reader = createGithubReader({
@@ -64,49 +68,7 @@ async function gh(cwd: string, args: string[]): Promise<string | null> {
 export const ghPrForBranch = (repoPath: string, branch: string) => queryBranch(gh, repoPath, branch)
 export const ghPrsForRepo = (repoPath: string, limit = 100) => queryRepo(gh, repoPath, limit)
 
-const OID = /^[0-9a-f]{40}([0-9a-f]{24})?$/
-
 /** Read-only merge evidence; callers must also prove the local branch is covered. */
-export async function ghMergedPrHeads(repoPath: string, branch: string): Promise<string[] | null> {
-  if (!branch) return null
-  const raw = await gh(repoPath, [
-    'pr',
-    'list',
-    '--head',
-    branch,
-    '--state',
-    'merged',
-    '--limit',
-    '20',
-    '--json',
-    'headRefOid',
-  ])
-  if (raw === null) return null
-  try {
-    const rows: unknown = JSON.parse(raw)
-    if (!Array.isArray(rows)) return null
-    return rows
-      .map((row: { headRefOid?: unknown }) => row?.headRefOid)
-      .filter((oid): oid is string => typeof oid === 'string' && OID.test(oid))
-  } catch {
-    return null
-  }
-}
-
-/** A commit never changes its tree, so one answer per commit is enough. */
-const commitTrees = new Map<string, string>()
-export async function ghCommitTree(repoPath: string, oid: string): Promise<string | null> {
-  if (!OID.test(oid)) return null
-  const cached = commitTrees.get(oid)
-  if (cached) return cached
-  const raw = await gh(repoPath, [
-    'api',
-    `repos/{owner}/{repo}/git/commits/${oid}`,
-    '--jq',
-    '.tree.sha',
-  ])
-  const tree = raw?.trim() ?? ''
-  if (!OID.test(tree)) return null
-  commitTrees.set(oid, tree)
-  return tree
-}
+export const ghMergedPrHeads = (repoPath: string, branch: string) =>
+  mergedPrHeads(gh, repoPath, branch)
+export const ghCommitTree = (repoPath: string, oid: string) => commitTree(gh, repoPath, oid)
