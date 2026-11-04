@@ -132,6 +132,11 @@ describe('ComposerField', () => {
     expect(field().value).toBe('- fix the bug')
   })
 
+  it('leaves autocorrect to the platform with a hardware keyboard', () => {
+    render(<Harness />)
+    expect(field().hasAttribute('autocorrect')).toBe(false)
+  })
+
   it('continues the list on ⇧Enter', () => {
     const onSubmit = vi.fn()
     render(<Harness initial="- one" onSubmit={onSubmit} />)
@@ -147,6 +152,12 @@ describe('ComposerField', () => {
       vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('coarse') }))
     })
     afterEach(() => vi.unstubAllGlobals())
+
+    it("turns the keyboard's autocorrect off and keeps its spelling suggestions", () => {
+      render(<Harness />)
+      expect(field().getAttribute('autocorrect')).toBe('off')
+      expect(field().getAttribute('spellcheck')).not.toBe('false')
+    })
 
     it('adds a line on Return instead of sending', () => {
       const onSubmit = vi.fn()
