@@ -1,11 +1,10 @@
 import { usePlatform } from '@/platform/Platform'
 import { localMachineLabel } from '@/lib/localMachine'
-import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { LOCAL_ARTIFACT_PREFIX, useArtifactsStore, type Artifact } from '@/stores/artifacts'
-import { openFileInWorkspace } from '@/stores/layout'
+import { openArtifactInFiles } from './openArtifactInFiles'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { PageShell } from '@/components/PageShell'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
@@ -94,6 +93,7 @@ export const ArtifactsPane = memo(function ArtifactsPane({
       artifact={selected}
       list={list}
       workspacePath={workspacePath}
+      sessionId={sessionId}
       piSessionId={piSessionId}
       onSelect={(id) => useArtifactsStore.getState().select(sessionId, id)}
       requestedVersion={selected.id === selectedId ? requestedVersion : undefined}
@@ -115,6 +115,7 @@ export function ArtifactWorkspace({
   artifact,
   list,
   workspacePath,
+  sessionId,
   piSessionId,
   onSelect,
   requestedVersion,
@@ -124,6 +125,8 @@ export function ArtifactWorkspace({
   artifact: Artifact
   list: Artifact[]
   workspacePath: string
+  /** The lane whose Files pane a written artifact opens in. */
+  sessionId?: string
   /** pi's id for the session that owns the artifact; names it in a copied reference. */
   piSessionId?: string
   onSelect: (id: string) => void
@@ -217,13 +220,6 @@ export function ArtifactWorkspace({
     if (!outputPath) return
     await window.phosphor.invoke('fs:writeFile', outputPath, shown.content)
     await window.phosphor.invoke('app:revealPath', outputPath)
-  }
-
-  const openInFiles = async (): Promise<void> => {
-    if (remote) return
-    const target = `${workspacePath}/${suggestedFileName(artifact)}`
-    await window.phosphor.invoke('fs:writeFile', target, shown.content)
-    await openFileInWorkspace(workspacePath, target)
   }
 
   /**
@@ -347,9 +343,15 @@ export function ArtifactWorkspace({
           )}
           {!page && platform.fileEditing && (
             <ActionIcon
-              disabled={remote}
-              title={remote ? REMOTE_UNAVAILABLE : 'Write into workspace and open in Files'}
-              onClick={() => void openInFiles()}
+              title="Write into workspace and open in Files"
+              onClick={() =>
+                void openArtifactInFiles(
+                  workspacePath,
+                  suggestedFileName(artifact),
+                  shown.content,
+                  sessionId,
+                )
+              }
             >
               <FileIcon size={12} />
             </ActionIcon>

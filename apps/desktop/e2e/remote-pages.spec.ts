@@ -91,8 +91,8 @@ test('Remote artifacts and Skills are useful read-only pages', async ({
     await expect(
       h.page
         .getByTestId('right-pane')
-        .getByRole('button', { name: 'Not available on remote lanes yet.', exact: true }),
-    ).toBeDisabled()
+        .getByRole('button', { name: 'Write into workspace and open in Files', exact: true }),
+    ).toBeEnabled()
     const preview = h.page.frameLocator('iframe[title="HOST_A_ONLY card"]')
     await expect(
       preview.getByRole('heading', { name: 'HOST_A_ONLY version 1', exact: true }),

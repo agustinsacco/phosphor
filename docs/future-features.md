@@ -16,7 +16,6 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 | Files           | Content search, media/PDF previews, quick look, external imports, open-in-app, per-file Revert in Changes, Host file-list truncation flags         |
 | Skills          | Catalogue install, upload, export to a file, discovery and in-place edits                                                                          |
 | Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync |
-| Artifacts       | Revision-aware writes from an artifact into a remote workspace                                                                                     |
 | Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                               |
 | Clients         | Web Push to a closed browser or installed PWA                                                                                                      |
 | Portability     | Cross-machine lane migration, primitive copy/sync and sharing Desktop's local runtime                                                              |

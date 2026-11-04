@@ -524,9 +524,11 @@ preserved. See [provider login](host.md#providers-login).
 
 The lane artifact pane reads only its explicit session id. An empty Host reply
 clears that lane's cached artifacts; switching back restores the Mac lane's own
-artifacts, not a global selection. Workspace writes from a remote artifact are
-disabled; [remote surface gaps](future-features.md#remote-surface-gaps) owns this limitation. Save and PDF export explicitly
-target This Mac. The top-bar artifact count belongs to the active lane.
+artifacts, not a global selection. Write into workspace and open in Files writes
+a remote artifact into its lane on the Host, as This Mac's does: it reads the
+file's revision first, so it replaces only what it read (or creates a new file),
+then opens it in that lane's Files. A refusal is a toast. Save and PDF export
+explicitly target This Mac. The top-bar artifact count belongs to the active lane.
 
 Remote slash commands come from the lane, and file mentions search its Host file
 list. Thinking levels derive from the lane model. Local rules/MCP menus are hidden; the
