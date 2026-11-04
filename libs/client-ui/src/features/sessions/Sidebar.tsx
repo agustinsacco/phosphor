@@ -267,11 +267,14 @@ export function Sidebar({
   )
 
   // Scan every known workspace (capped; collapsed groups lazy-load on expand).
+  // Only the pref's first read gates it: a toggle, here or on a Host folder,
+  // never re-scans, and expanding a group catches it up (`toggleGroup`).
+  const collapseLoaded = collapsed !== null
   useEffect(() => {
     // Never begin from the store's empty default. On first launch that would
     // scan just the resumed workspace, paint it as a complete sidebar, and
     // append the persisted projects a beat later.
-    if (!workspacesHydrated || collapsed === null) return
+    if (!workspacesHydrated || !collapseLoaded) return
     const store = useSessionsStore.getState()
     void store.refreshAllDisk(knownWorkspaces)
     void store.hydratePinned()
@@ -291,7 +294,7 @@ export function Sidebar({
       }
     })
     return unsubscribe
-  }, [knownWorkspaces, workspacesHydrated, collapsed])
+  }, [knownWorkspaces, workspacesHydrated, collapseLoaded])
 
   useEffect(() => void loadGroupCollapse(), [])
 
