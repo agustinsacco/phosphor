@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SessionMeta } from '@shared/models'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { useMachinesStore } from '@/stores/machines'
+import { usePullRequestsStore } from '@/stores/pullRequests'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
@@ -63,7 +64,7 @@ beforeEach(() => {
           : channel === 'git:listWorktrees'
             ? []
             : channel === 'sessions:list'
-              ? [meta(1), meta(2, UNSEEN_AT)]
+              ? (useSessionsStore.getState().disk['/repo'] ?? [])
               : null,
     )
   useMachinesStore.setState({ remoteEnabled: false, machines: [], adding: false })
@@ -130,4 +131,47 @@ it('offers Mark read on an unseen This Mac lane, and it marks the lane seen', as
     Date.parse(UNSEEN_AT),
   )
   expect(invoke).toHaveBeenCalledWith('app:markSessionSeen', '/repo/s2.jsonl')
+})
+
+it('selects merged lanes from a This Mac group menu, through the same rows as a Host folder', async () => {
+  const pr = (number: number, state: 'MERGED' | 'OPEN') =>
+    ({ number, title: `PR ${number}`, url: `https://example.test/${number}`, state }) as never
+  usePullRequestsStore.setState({
+    byRepo: {
+      '/repo': {
+        byBranch: { 'merged-branch': pr(1, 'MERGED'), 'open-branch': pr(2, 'OPEN') },
+        fetchedAt: Date.now(),
+        attemptedAt: Date.now(),
+        complete: true,
+        loading: false,
+      },
+    },
+  })
+  useSessionsStore.setState({
+    live: {},
+    disk: { '/repo': [meta(1), { ...meta(2), cwd: '/wt2' }] },
+    gitByCwd: {
+      '/repo': { branch: 'merged-branch', mainRepoPath: '/repo' } as never,
+      '/wt2': { branch: 'open-branch', mainRepoPath: '/repo', isWorktree: true } as never,
+    },
+  })
+  await act(async () =>
+    root.render(
+      <>
+        <Sidebar workspacePath="/repo" />
+        <ContextMenuHost />
+      </>,
+    ),
+  )
+  await act(async () => {})
+  act(() => container.querySelector<HTMLElement>('[data-testid=workspace-group-menu]')!.click())
+  const rows = [...document.querySelectorAll<HTMLButtonElement>('[data-popup-menu] button')]
+  expect(rows.map((b) => b.textContent)).toEqual(
+    expect.arrayContaining(['Select all lanes', 'Select merged lanes', 'Collapse lanes']),
+  )
+  act(() => rows.find((b) => b.textContent === 'Select merged lanes')!.click())
+  const checked = [...container.querySelectorAll('[role=checkbox][aria-checked=true]')].map((b) =>
+    b.getAttribute('aria-label'),
+  )
+  expect(checked).toEqual(['Select Lane 1'])
 })
