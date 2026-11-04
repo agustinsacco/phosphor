@@ -439,3 +439,11 @@ it('forgets a lane whose folder left the Host, keeping its transcript and worktr
   expect(forget).toHaveBeenCalledWith(lane.laneId)
   expect(await readFile(join(cwd, 'work'), 'utf8')).toBe('kept')
 })
+
+it('answers not landed for a lane branch that does not exist, and creates none', async () => {
+  const github = vi.fn(async () => '[]')
+  expect(await branchMerged(root, 'gone', { github })).toBe(false)
+  expect(await deleteMergedBranch(root, 'gone', () => true, github)).toBe(false)
+  expect(github).not.toHaveBeenCalled()
+  await expect(run(['rev-parse', '--verify', 'refs/heads/gone'])).rejects.toThrow()
+})
