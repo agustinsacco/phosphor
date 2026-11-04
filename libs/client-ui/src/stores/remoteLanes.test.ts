@@ -584,33 +584,54 @@ it('says a This Mac lane settled while its window is in the background, as a Hos
   expect(useExtensionUiStore.getState().toasts).toHaveLength(0)
 })
 
-it("words a finished Host lane from its receipt's outcome and excerpt, as This Mac's", async () => {
+const hostReceipt = (outcome: 'done' | 'error', excerpt: string) => ({
+  title: 'Remote',
+  repository: null,
+  branch: null,
+  settledAt: null,
+  durationMs: null,
+  files: 0,
+  added: 0,
+  removed: 0,
+  tests: null,
+  artifacts: 0,
+  excerpt,
+  outcome,
+})
+
+it("words a failed Host lane from its receipt's excerpt, as This Mac's", async () => {
   vi.stubGlobal('document', { hasFocus: () => true })
   const { send, detach } = listenForAttention()
-  const receipt = {
-    title: 'Remote',
-    repository: null,
-    branch: null,
-    settledAt: null,
-    durationMs: null,
-    files: 0,
-    added: 0,
-    removed: 0,
-    tests: null,
-    artifacts: 0,
-    excerpt: 'rate limited',
-    outcome: 'error' as const,
-  }
+  // Desktop attaches an error receipt only to a `failed` event (attention-publication.ts).
   send({
     hostId: MOCK_HOST_ID,
     laneId: mockRemoteInfo.laneId ?? '',
     title: 'Remote',
     at: '2026-01-01T00:00:03Z',
-    kind: 'finished',
-    receipt,
+    kind: 'failed',
+    receipt: hostReceipt('error', 'rate limited'),
   })
   const toast = () => useExtensionUiStore.getState().toasts[0]
   await vi.waitFor(() => expect(toast()).toBeDefined())
   expect(toast()).toMatchObject({ message: 'Stopped: rate limited', kind: 'error' })
+  detach()
+})
+
+it('words a routine neutrally without a receipt, since it may have paused, and from its receipt when it finished', async () => {
+  vi.stubGlobal('document', { hasFocus: () => true })
+  const { send, detach } = listenForAttention()
+  const event = {
+    hostId: MOCK_HOST_ID,
+    laneId: mockRemoteInfo.laneId ?? '',
+    title: 'Remote',
+    kind: 'routine' as const,
+  }
+  const toast = () => useExtensionUiStore.getState().toasts[0]
+  send({ ...event, at: '2026-01-01T00:00:04Z' })
+  await vi.waitFor(() => expect(toast()).toBeDefined())
+  expect(toast()).toMatchObject({ message: 'Routine update.', kind: 'info' })
+  send({ ...event, at: '2026-01-01T00:00:05Z', receipt: hostReceipt('done', 'Shipped it') })
+  await vi.waitFor(() => expect(toast()?.message).toBe('Shipped it'))
+  expect(toast()?.kind).toBe('success')
   detach()
 })
