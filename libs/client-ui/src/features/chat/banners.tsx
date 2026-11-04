@@ -4,6 +4,9 @@ import { useMemo } from 'react'
 import type { SessionMeta } from '@shared/models'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
+import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useLaneControl } from '@/features/machines/useLaneControl'
+import { remoteControlHint } from '@/features/sessions/remoteLaneActions'
 import { sessionTitle } from '@/lib/sessionTitle'
 import {
   latestRewoundVersion,
@@ -13,20 +16,44 @@ import {
 
 /** Inline banners: pi crashed, no models configured, and an old version of a rewound chat. */
 
-export function CrashBanner({
-  sessionId,
-  workspacePath,
-}: {
-  sessionId: string
-  workspacePath: string
-}): React.JSX.Element | null {
-  const error = useChatStore((s) => s.sessions[sessionId]?.error)
-  const diskPath = useSessionsStore((s) => s.live[sessionId]?.diskPath)
-  if (!error || !error.includes('exited unexpectedly')) return null
+/** A crashed lane: what pi said, how to bring it back, and why this window may not. */
+interface Crash {
+  message: string
+  resume: () => Promise<unknown>
+  blocked: string | undefined
+  error: string | null
+}
 
+/**
+ * This Mac's session learns of the crash from its own process exit; a Host lane
+ * from the Host, as `activity: 'failed'`, and resumes there under lane control.
+ */
+function useCrash(sessionId: string, workspacePath: string): Crash | null {
+  const error = useChatStore((s) => s.sessions[sessionId]?.error)
+  const entry = useSessionsStore((s) => s.live[sessionId])
+  const control = useLaneControl(sessionId)
+  const failed = useRemoteLanesStore((s) =>
+    control
+      ? s.hosts[control.hostId]?.lanes.find((lane) => lane.laneId === entry?.laneId)?.activity ===
+        'failed'
+      : false,
+  )
+  if (control) {
+    if (!failed) return null
+    return {
+      message: `pi exited unexpectedly on ${machineLabel(control.hostId)}. The session file is preserved.`,
+      resume: () => control.act('hosts:resumeLane'),
+      blocked: control.busy
+        ? 'Resuming…'
+        : remoteControlHint(control.hostState === 'ready', control.enabled, control.controlling),
+      error: control.error,
+    }
+  }
+  if (!error || !error.includes('exited unexpectedly')) return null
   const resume = async (): Promise<void> => {
     const store = useSessionsStore.getState()
     await store.disposeSession(sessionId)
+    const diskPath = entry?.diskPath
     if (diskPath) {
       const metas = await window.phosphor.invoke('sessions:list', workspacePath)
       const meta = metas.find((m) => m.path === diskPath)
@@ -37,15 +64,30 @@ export function CrashBanner({
     }
     await store.createSession(workspacePath)
   }
+  return { message: error, resume, blocked: undefined, error: null }
+}
 
+export function CrashBanner({
+  sessionId,
+  workspacePath,
+}: {
+  sessionId: string
+  workspacePath: string
+}): React.JSX.Element | null {
+  const crash = useCrash(sessionId, workspacePath)
+  if (!crash) return null
   return (
     <div className="mx-auto w-full max-w-3xl px-6 pt-2">
       <div className="bg-danger-soft border-danger/25 flex items-center gap-3 rounded-lg border px-3.5 py-2.5">
         <span className="text-danger text-lg font-medium">pi crashed</span>
-        <span className="text-text-secondary flex-1 truncate text-base">{error}</span>
+        <span className="text-text-secondary flex-1 truncate text-base">
+          {crash.error ?? crash.message}
+        </span>
         <TooltipButton
-          onClick={() => void resume()}
-          className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-sm font-medium transition-colors"
+          onClick={() => void crash.resume()}
+          disabled={crash.blocked !== undefined}
+          tooltip={crash.blocked}
+          className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-sm font-medium transition-colors disabled:opacity-50"
         >
           Resume session
         </TooltipButton>

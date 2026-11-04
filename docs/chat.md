@@ -42,7 +42,10 @@ The composer is one small field with several ways in.
   recovery control (after a restart, a transient error or an unfinished turn):
   disabled while resuming, awaiting a reply, streaming or compacting, and
   available again in a reopened session after an app restart. It uses normal
-  prompt delivery; if pi's process crashed, use **Resume session** first.
+  prompt delivery; if pi's process crashed, use **Resume session** first. That
+  is the "pi crashed" banner above the transcript, on This Mac and on a Host
+  lane whose activity is `failed`; there it resumes the lane on the Host
+  (`hosts:resumeLane`) and, like every lane action, needs lane control.
 - **Markdown list primitives.** Shift+Enter continues the list the caret is on
   (renumbering; an empty item steps out a level, then exits). Tab/Shift+Tab
   nest and un-nest inside a list (Tab takes an autocomplete suggestion first
