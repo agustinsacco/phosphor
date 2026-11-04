@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { DEFAULT_APP_PREFS } from '@shared/models'
+import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
 import type { MachineSettings } from '@shared/machine-settings'
 import { prepareHostSettings, showHostSettings } from './__fixtures__/hostSettingsSurface'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -83,4 +83,17 @@ it("shows a Host's pi beside its update, and asks an older Host to update (P77)"
   expect(container.textContent).toContain('Update this Host to see its pi')
   expect(container.textContent).not.toContain('pi health')
   expect(container.textContent).toContain('/home/bee1/.pi/agent')
+})
+
+it("holds a Host's pi to the minimum This Mac's is held to (B19)", async () => {
+  hostRead = (hostId, section) => {
+    const read = mockSettingsRead(hostId, section as never)
+    if (read.advanced?.pi) read.advanced.pi.version = '1.1.9'
+    return read
+  }
+  await showHostSettings(root, machine.id, 'advanced')
+  const text = container.textContent ?? ''
+  expect(text).toContain(`dist/cli.js — minimum supported ${MIN_PI_VERSION}`)
+  expect(text).toContain('too-old')
+  expect(text).not.toContain('v1.1.9')
 })
