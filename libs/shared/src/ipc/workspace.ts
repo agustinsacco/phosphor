@@ -9,6 +9,7 @@ import type {
   OpenInDefaultAppResult,
   GhPullRequest,
   GhRepoPullRequests,
+  GhPrReadOptions,
   GitInfo,
   PullResult,
   SessionMeta,
@@ -149,7 +150,7 @@ export interface GhInvokeMap {
    * `gh:prForBranch` stays for the single-branch popup, never per-lane fanout.
    */
   'gh:prsForRepo': {
-    args: [repoPath: string]
+    args: [repoPath: string, options?: GhPrReadOptions]
     result: GhRepoPullRequests | null
   }
   'gh:available': { args: []; result: boolean }

@@ -5,6 +5,7 @@ import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { repoPullRequests, usePullRequestsStore } from '@/stores/pullRequests'
 import { useRepoPrRefresh } from './repoPrRefresh'
+import { branchHasNoPullRequest } from '@/stores/pullRequestReads'
 // Also installs Host-owned cache eviction, independent of sidebar visibility.
 import './remotePullRequests'
 
@@ -44,7 +45,8 @@ export function useLanePullRequest(sessionId: string) {
     ready,
     slice,
     pr,
-    confirmedNoPr: !!worktree && !!branch && !pr && slice.complete,
+    branch: branch ?? undefined,
+    confirmedNoPr: !!worktree && branchHasNoPullRequest(slice, branch),
   }
 }
 

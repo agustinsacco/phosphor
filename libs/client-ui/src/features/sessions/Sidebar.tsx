@@ -51,7 +51,8 @@ import {
 import { laneMarker } from '@/lib/laneMarker'
 import { formatCost } from '@/lib/format'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
-import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
+import { usePullRequestsStore, pullRequestFor, repoPullRequests } from '@/stores/pullRequests'
+import { branchHasNoPullRequest } from '@/stores/pullRequestReads'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { makeRoutine, useRoutineLaneIndex } from '@/stores/routines'
 import {
@@ -1387,14 +1388,11 @@ function SessionRow({
   const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
   const pullRequest = usePullRequestsStore((s) => pullRequestFor(s, repoPath, git?.branch))
   const showPrStatus = useLanePrefsStore((s) => s.lanes.prStatus)
-  // "No PR yet" is inferred, not reported by gh, so it needs its own gate: only
-  // once a successful, untruncated fetch for this repo has completed, and
-  // only for a worktree lane. Failures cannot prove absence, nor can a recent
-  // PR page that might omit older lanes. A non-worktree branch (most
-  // commonly the trunk itself) is not "a lane" in the PR sense, and inferring
-  // "you could open a PR" there is far more often wrong than right.
-  const prListingComplete = usePullRequestsStore((s) => s.byRepo[repoPath]?.complete ?? false)
-  const confirmedNoPr = !pullRequest && Boolean(git?.isWorktree && git.branch) && prListingComplete
+  // Only an explicitly checked branch (or complete legacy listing) proves absence.
+  const absent = usePullRequestsStore((s) =>
+    branchHasNoPullRequest(repoPullRequests(s, repoPath), git?.branch),
+  )
+  const confirmedNoPr = !!git?.isWorktree && absent
   // Only render a chip that has something to say. A non-worktree branch with
   // no confirmed PR gets none — gating on the raw preference instead would put
   // an empty chip on every plain-main session the moment the flag is on.

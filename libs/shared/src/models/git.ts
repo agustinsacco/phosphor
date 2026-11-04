@@ -118,15 +118,27 @@ export interface GhChecks {
   total: number
 }
 
-/**
- * A pull request for the current branch, as reported by the `gh` CLI.
- * Absent (null) whenever gh is missing, unauthenticated, or the repo has no
- * GitHub remote — all normal states, never surfaced as errors.
- */
+export interface GhPrReadOptions {
+  branches: string[]
+  force?: boolean
+}
+
+export type GhPrFailure = 'unavailable' | 'timeout' | 'rate-limited'
+
+export interface GhBranchCoverage {
+  state: 'found' | 'absent' | 'unavailable'
+  /** Last successful upstream observation; zero when never observed. */
+  checkedAt: number
+  attemptedAt: number
+  reason?: GhPrFailure
+}
+
+/** A bounded read. Only explicit branch coverage proves targeted absence. */
 export interface GhRepoPullRequests {
   byBranch: Record<string, GhPullRequest>
   /** False when the bounded listing may have omitted older branches. */
   complete: boolean
+  coverage?: Record<string, GhBranchCoverage>
 }
 
 export interface GhPullRequest {

@@ -24,12 +24,14 @@ function LanePrPill({
   slice,
   pr,
   confirmedNoPr,
+  branch,
 }: {
   repoPath: string
   ready: boolean
   slice: RepoPullRequests
   pr: GhPullRequest | undefined
   confirmedNoPr: boolean
+  branch?: string
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -72,6 +74,7 @@ function LanePrPill({
             slice={slice}
             pr={pr}
             confirmedNoPr={confirmedNoPr}
+            branch={branch}
           />
         </PopupMenu>
       )}
@@ -85,12 +88,14 @@ function LanePrContent({
   slice,
   pr,
   confirmedNoPr,
+  branch,
 }: {
   repoPath: string
   ready: boolean
   slice: RepoPullRequests
   pr: GhPullRequest | undefined
   confirmedNoPr: boolean
+  branch?: string
 }): React.JSX.Element {
   const [linkError, setLinkError] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -105,9 +110,9 @@ function LanePrContent({
         ) : (
           <p>{confirmedNoPr ? noPrChip().title : 'Pull request status unavailable'}</p>
         )}
-        <RefreshAge slice={slice} />
+        <RefreshAge slice={slice} branch={branch} />
         {!ready && <p>Repository unavailable. Reconnect to refresh.</p>}
-        {repoPath.startsWith('host:') && (
+        {!slice.coverage && repoPath.startsWith('host:') && (
           <p>The Host may reuse its repository cache for up to 60 seconds.</p>
         )}
         {linkError && <p role="alert">Could not open GitHub. Try again.</p>}
@@ -170,7 +175,14 @@ function PrDetails({ pr }: { pr: GhPullRequest }): React.JSX.Element {
   )
 }
 
-function RefreshAge({ slice }: { slice: RepoPullRequests }): React.JSX.Element {
+function RefreshAge({
+  slice,
+  branch,
+}: {
+  slice: RepoPullRequests
+  branch?: string
+}): React.JSX.Element {
+  const coverage = branch ? slice.coverage?.[branch] : undefined
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1_000)
@@ -180,11 +192,22 @@ function RefreshAge({ slice }: { slice: RepoPullRequests }): React.JSX.Element {
   return (
     <div>
       {slice.loading && <p role="status">Refreshing repository…</p>}
-      {slice.failed && <p>Last app attempt failed ({age(slice.attemptedAt)}).</p>}
+      {slice.coverage
+        ? coverage?.state === 'unavailable' && (
+            <p>
+              Last upstream attempt failed ({age(coverage.attemptedAt)}).{' '}
+              {coverage.checkedAt > 0 ? 'Showing stale status.' : 'Status unavailable.'}
+            </p>
+          )
+        : slice.failed && <p>Last app attempt failed ({age(slice.attemptedAt)}).</p>}
       <p>
-        {slice.fetchedAt
-          ? `Last successful app refresh: ${age(slice.fetchedAt)}`
-          : 'No successful app refresh yet.'}
+        {slice.coverage
+          ? coverage?.checkedAt
+            ? `Last upstream check: ${age(coverage.checkedAt)}`
+            : 'No successful upstream check yet.'
+          : slice.fetchedAt
+            ? `Last successful app refresh: ${age(slice.fetchedAt)}`
+            : 'No successful app refresh yet.'}
       </p>
     </div>
   )

@@ -2,7 +2,7 @@ import { handle } from './handle'
 import { removeReviewedWorktree } from '../maintenance/removal'
 import { withWorkspace } from '../maintenance/history'
 import { gitDisplayInfo, gitInfoBatch } from '@phosphor/session-runtime/git/git-info'
-import { ghAvailable, ghPrForBranch, ghPrsForRepo } from '../fs/gh-cli'
+import { ghAvailable, readRepositoryPrs } from '../fs/gh-cli'
 import { createSessionBaseline, gitStatusMap, restoreFileTo, showFileAt } from '../fs/git-service'
 import {
   addWorktree,
@@ -20,11 +20,13 @@ import { checkoutBranch, fetchRepo, pullFastForward, updateFromMain } from '../f
 export function registerGitHandlers(): void {
   handle('gh:available', () => ghAvailable())
 
-  handle('gh:prForBranch', (_event, repoPath: string, branch: string) =>
-    ghPrForBranch(repoPath, branch),
+  handle(
+    'gh:prForBranch',
+    async (_event, repoPath: string, branch: string) =>
+      (await readRepositoryPrs(repoPath, { branches: [branch] }))?.byBranch[branch] ?? null,
   )
 
-  handle('gh:prsForRepo', (_event, repoPath: string) => ghPrsForRepo(repoPath))
+  handle('gh:prsForRepo', (_event, repoPath, options) => readRepositoryPrs(repoPath, options))
 
   handle('git:info', (_event, workspacePath, options) => gitDisplayInfo(workspacePath, options))
 

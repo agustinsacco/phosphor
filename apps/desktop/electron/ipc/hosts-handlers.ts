@@ -200,7 +200,7 @@ export function registerHostsHandlers(): void {
     if (routine) return routine
     const key = args[0]
     if (channel === 'gh:prsForRepo' && typeof key === 'string' && key.startsWith('host:'))
-      return { result: repositories.pullRequests(key) }
+      return { result: repositories.pullRequests(key, args[1]) }
     if (typeof key === 'string' && /^host:[^/]+\/machine(?:\/|$)/.test(key))
       return routeRemoteRead(channel, args, () => catalogues.lane(key.slice(5).split('/')[0] ?? ''))
     if (

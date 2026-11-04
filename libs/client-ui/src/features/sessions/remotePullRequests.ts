@@ -1,6 +1,7 @@
 import { parseRemotePrKey, remotePrKey } from '@shared/host-protocol-github'
 import type { HostLaneView } from '@shared/ipc'
 import { useRepoPrRefresh } from './repoPrRefresh'
+import { branchHasNoPullRequest } from '@/stores/pullRequestReads'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { pullRequestFor, repoPullRequests, usePullRequestsStore } from '@/stores/pullRequests'
 
@@ -14,7 +15,7 @@ useRemoteLanesStore.subscribe((state, previous) => {
   }
 })
 
-/** Repository-wide reads: never one gh subprocess per lane or a local filesystem path. */
+/** Repository-scoped batches: never per-lane subprocesses or caller filesystem paths. */
 export function useRemotePullRequests(
   hostId: string,
   repositoryId: string,
@@ -28,6 +29,8 @@ export function useRemotePullRequests(
 export function useRemotePr(hostId: string | undefined, lane: HostLaneView) {
   const key = hostId ? remotePrKey(hostId, lane.repositoryId) : undefined
   const pr = usePullRequestsStore((s) => pullRequestFor(s, key, lane.branch))
-  const complete = usePullRequestsStore((s) => repoPullRequests(s, key).complete)
-  return { pr, confirmedNoPr: complete && !!lane.worktree && !!lane.branch && !pr }
+  const absent = usePullRequestsStore((s) =>
+    branchHasNoPullRequest(repoPullRequests(s, key), lane.branch),
+  )
+  return { pr, confirmedNoPr: absent && !!lane.worktree }
 }
