@@ -54,14 +54,15 @@ MCP Connectors is top level and always present on This Mac, since MCP is built i
 pi rather than added by a package. The items nested under Extensions follow the
 chosen machine (`useExtensionTabs`): an item is listed when the section registry has
 a view for that kind of machine and it is listed everywhere (`always`: Claude Code,
-whose page offers Install) or its package is there. On This Mac a declared package
-counts, so its health and setup screens stay reachable during setup; Subagents needs
-it installed. On a Host the package must be installed. This Mac's package list is
-re-read on every open and tab change; a Host's is read once per connection while
-configuration access is granted, and again whenever its Extensions page reads after
-a task. This Mac reads the packages of the scope line's folder, as its Extensions page
-does. So a fresh install gets its item without a restart, and an item whose package
-vanished falls back to Extensions.
+whose page offers Install) or its package is there. On every machine a declared
+package counts, so its health and setup screens stay reachable during setup and
+repair; Subagents needs it installed. Every machine reads the packages of the scope
+line's folder, as its Extensions page does, and lists only a read of that scope
+(`extensionPackageLists.ts`, one list per machine and folder). This Mac's list is
+re-read on every open and tab change; a Host's is read once per connection and scope
+while configuration access is granted, and again whenever its Extensions page reads
+after a task. So a fresh install gets its item without a restart, and an item whose
+package vanished falls back to Extensions.
 
 Phosphor's prefs live in electron-store. pi's config stays in pi's files. The
 two are never mixed.

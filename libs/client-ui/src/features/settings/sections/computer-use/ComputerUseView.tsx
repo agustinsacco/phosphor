@@ -15,7 +15,7 @@ export function ComputerUseView({ onHost }: { onHost: boolean }): React.JSX.Elem
       <div className="mt-4 rounded-lg border border-border bg-bg-secondary/50 px-3.5 py-3 text-base">
         <p className="text-text-secondary">
           {onHost
-            ? 'This extension needs a desktop session and platform-level accessibility permissions on the Host. Nobody sees a permission prompt from here: grant Accessibility and Screen Recording at the Host’s own console. Hosts do not offer this package; it is listed because it is installed.'
+            ? 'This extension needs a desktop session and platform-level accessibility permissions on the Host. Nobody sees a permission prompt from here: grant Accessibility and Screen Recording at the Host’s own console. Hosts do not offer this package; it is listed because pi’s settings on the Host name it.'
             : 'This extension requires platform-level accessibility permissions. On macOS, grant Accessibility and Screen Recording access to the helper when prompted.'}{' '}
           See the package docs for full setup instructions.
         </p>

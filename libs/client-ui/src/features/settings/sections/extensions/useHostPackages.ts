@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { MachineSettings } from '@shared/machine-settings'
 import { useHostSection } from '../../machine/HostSection'
-import { publishHostPackages } from './hostExtensionPackages'
+import { publishPackageList } from './extensionPackageLists'
 import { openSkillsOn } from './openSkillsOn'
 import type { PackageAction, PackageCaps, PackageItem, PackageSource } from './packageSource'
 
@@ -59,8 +59,8 @@ export function useHostPackages(): PackageSource {
   const packages = settings.data?.resources?.packages
   const claudeCli = useHostClaudeCli(machine.id, settings.data)
   useEffect(() => {
-    if (packages) publishHostPackages(machine.id, packages)
-  }, [machine.id, packages])
+    if (packages) publishPackageList(machine.id, repositoryId ?? null, packages)
+  }, [machine.id, repositoryId, packages])
   return {
     caps: HOST_CAPS,
     status: packages ? 'ready' : 'loading',
