@@ -3,6 +3,7 @@ import {
   claudeReadiness,
   formatCode,
   HOST_INSTALL,
+  localChecks,
   platformName,
   readinessFreshness,
   readinessChecks,
@@ -120,4 +121,27 @@ it('points a missing Claude Code at phosphor setup when the Host cannot open Set
     expect(claudeReadiness(detail, false).command).toBe('phosphor setup')
     expect(claudeReadiness(detail, false).detail).not.toContain('Settings')
   }
+})
+it('C7: a Host that can open Settings signs in to Claude Code there, as This Mac does', () => {
+  const signedOut = { pi: 'ok', claude: 'signed-out', tailscale: 'ok' } as const
+  const live = { provider: 'ok', cli: 'ok', auth: 'signed-out' } as const
+  const local = localChecks(
+    { ok: true, version: '1.0.0' } as never,
+    { binary: { found: true }, auth: { loggedIn: false } } as never,
+    false,
+  ).find((check) => check.name === 'Claude Code')
+  for (const check of [
+    readinessChecks(signedOut, 'https://h', true)[1],
+    claudeReadiness(live, true),
+    local,
+  ]) {
+    expect(check?.detail).toBe('Sign in under Settings → Extensions → Claude Code.')
+    expect(check?.command).toBeUndefined()
+  }
+  // Only a Host whose Settings cannot open keeps the command.
+  for (const check of [
+    readinessChecks(signedOut, 'https://h', false)[1],
+    claudeReadiness(live, false),
+  ])
+    expect(check?.command).toBe('phosphor providers login claude')
 })
