@@ -215,7 +215,7 @@ export function localChecks(
       detail: health
         ? health.ok
           ? `Ready · ${health.version}`
-          : (health.reason ?? 'Install pi to run lanes.')
+          : (health.message ?? health.reason ?? 'Install pi to run lanes.')
         : 'Could not check pi.',
       command: health && !health.ok ? PI_INSTALL : undefined,
     },
