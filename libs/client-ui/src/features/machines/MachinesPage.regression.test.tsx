@@ -368,3 +368,43 @@ it("C2: This Mac's detail lists On this machine: its lanes, skills, routines and
     })
   }
 })
+
+it('C2: Check again reads On this machine again after a failed count, on This Mac and a Host', async () => {
+  const base = invoke.getMockImplementation()!
+  let fail = true
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'skills:list' || channel === 'hosts:skills') {
+      if (fail) throw new Error('busy')
+      return { skills: [{ name: 'a' }, { name: 'b' }] }
+    }
+    return base(channel)
+  })
+  const skills = () =>
+    [
+      ...(container
+        .querySelector('[aria-label="On this machine"]')
+        ?.querySelectorAll<HTMLElement>('button') ?? []),
+    ].find((b) => b.textContent?.startsWith('Skills'))?.textContent
+  const checkAgain = async () => {
+    await click(container.querySelector<HTMLElement>('[aria-label="Machine actions"]'))
+    await click(button('Check again'))
+  }
+  try {
+    await openThisMac()
+    expect(skills()).toBe('SkillsUnavailable')
+    fail = false
+    await checkAgain()
+    expect(skills()).toBe('Skills2')
+    fail = true
+    act(() => root.unmount())
+    root = createRoot(container)
+    useMachinesStore.setState({ view: { kind: 'machine', id: HOST.id } })
+    await render()
+    expect(skills()).toBe('SkillsUnavailable')
+    fail = false
+    await checkAgain()
+    expect(skills()).toBe('Skills2')
+  } finally {
+    invoke.mockImplementation(base)
+  }
+})
