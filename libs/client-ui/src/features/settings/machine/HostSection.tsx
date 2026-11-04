@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { MachineView } from '@shared/control-api'
 import { errorText } from '@shared/errors'
 import type { MachineSettingsSection } from '@shared/machine-settings'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
 import { useSettingsUiStore } from '../settingsUiStore'
 import { HostProgramDialog } from './HostProgramDialog'
 import { useHostSettings } from './useHostSettings'
@@ -39,14 +39,6 @@ function useHostSectionState(
   const { setError, alive } = programs
   // An error belongs to the section and folder it happened in; a running program stays open.
   useEffect(() => setError(null), [section, repositoryId, setError])
-  /** The Host's link again, its registered folders included, from main's snapshot. */
-  async function readLink() {
-    try {
-      useRemoteLanesStore.setState({ hosts: await window.phosphor.invoke('hosts:snapshot') })
-    } catch (e) {
-      if (alive.current) setError(errorText(e))
-    }
-  }
   const [accessBusy, setAccessBusy] = useState(false)
   async function access() {
     if (!(await confirmSettingsAccess(machine.label)) || !alive.current) return
@@ -71,8 +63,11 @@ function useHostSectionState(
     reads,
     /** The section can be read now: its link is up, and its settings need the grant. */
     readable: reads === 'connection' ? connection?.state === 'ready' : allowed,
-    /** Reads the section again: its settings, or the link's folders. */
-    refresh: reads === 'connection' ? readLink : settings.refresh,
+    /**
+     * Reads the section again: its settings, or the link's folders, through the
+     * remote-lanes listener, the only writer of the Host snapshot.
+     */
+    refresh: reads === 'connection' ? refreshHostsSnapshot : settings.refresh,
     ...programs,
     accessBusy,
     access,

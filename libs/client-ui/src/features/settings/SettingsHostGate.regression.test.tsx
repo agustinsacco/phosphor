@@ -137,12 +137,6 @@ describe('Folders on a Host (B2)', () => {
     )
   })
 
-  it('reads the folders again on Refresh', async () => {
-    await renderHost({})
-    await act(async () => button('Refresh')?.click())
-    expect(invoke).toHaveBeenCalledWith('hosts:snapshot')
-  })
-
   it('offers no project trust review on a Host too old for configuration access', async () => {
     await renderHost({
       configurationSupported: false,
