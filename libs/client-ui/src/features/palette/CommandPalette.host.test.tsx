@@ -96,3 +96,21 @@ it('adds a folder on a Host that lets this device add one', async () => {
     "Choose a folder under this machine's home directory.",
   )
 })
+
+it.each([
+  ['Open skills page', 'skills'],
+  ['Open artifacts page', 'artifacts'],
+] as const)('%s from a This Mac lane drops the Host an earlier run chose', async (label, page) => {
+  await openOnHost()
+  await run(label)
+  useSessionsStore.setState({
+    activeSessionId: 'mac',
+    live: { mac: { phosphorId: 'mac', sessionId: 'mac', workspacePath: '/mac' } } as never,
+  })
+  usePaletteStore.setState({ open: true })
+  await act(async () => root.render(<CommandPalette workspacePath="/mac" />))
+  await run(label)
+  expect(useLayoutStore.getState().page).toBe(page)
+  const pages = useMachinePagesStore.getState()
+  expect(page === 'skills' ? pages.skillsMachine : pages.artifactsMachine).toBeFalsy()
+})
