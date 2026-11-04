@@ -346,12 +346,8 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                 value={machine}
                 onChange={setMachine}
                 choices={[
-                  ...(platform.localLanes
-                    ? [
-                        { value: 'all', label: 'All machines' },
-                        { value: 'local', label: localMachineLabel() },
-                      ]
-                    : []),
+                  { value: 'all', label: 'All machines' },
+                  ...(platform.localLanes ? [{ value: 'local', label: localMachineLabel() }] : []),
                   ...machines.map((m) => ({ value: m.id, label: m.label })),
                 ]}
               >
