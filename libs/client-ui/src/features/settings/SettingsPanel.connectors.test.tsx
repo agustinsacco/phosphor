@@ -90,6 +90,8 @@ function type(label: string, value: string): void {
     field.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
+const has = (text: string, within: ParentNode = container) =>
+  [...within.querySelectorAll('button')].some((b) => b.textContent?.trim() === text)
 const click = (target: HTMLElement) => act(async () => target.click())
 const settle = () => act(async () => {})
 
@@ -179,6 +181,25 @@ describe('a Host', () => {
         approveCode: true,
       },
     ])
+  })
+
+  it('reads "Checking…" only while a check is in flight, not during a Refresh', async () => {
+    await show()
+    let answer!: (value: MachineSettings) => void
+    invoke.mockImplementation(async (channel: string) =>
+      channel === 'hosts:settingsRead' || channel === 'hosts:settingsCheck'
+        ? new Promise<MachineSettings>((resolve) => (answer = resolve))
+        : undefined,
+    )
+    await click(button('Refresh'))
+    expect(has('Checking…')).toBe(false)
+    expect(has('Refresh & test all')).toBe(true)
+    await act(async () => answer(read))
+    vi.mocked(promptChoice).mockResolvedValue('check')
+    await click(button('Refresh & test all'))
+    expect(button('Checking…').disabled).toBe(true)
+    await act(async () => answer(read))
+    expect(has('Refresh & test all')).toBe(true)
   })
 
   it('refuses an Authorization header in a folder before it reaches the Host', async () => {
