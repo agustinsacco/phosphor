@@ -22,7 +22,8 @@ import {
   useSelectedKeys,
 } from './laneSelection'
 import { TAKE_CONTROL_FIRST } from './remoteLaneActions'
-import { RemoteWorkspaceOptions, type LaneSelectMode } from './RemoteWorkspaceOptions'
+import { RemoteWorkspaceOptions } from './RemoteWorkspaceOptions'
+import type { LaneSelectMode } from './LaneSelectionRows'
 import { RemoteLaneRow } from './RemoteLaneRow'
 import { useRemotePullRequests } from './remotePullRequests'
 import { orderedRemoteLanes, remoteLaneOrderKey, type RemoteLaneGroup } from './groupRemoteLanes'

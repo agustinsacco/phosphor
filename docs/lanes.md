@@ -536,7 +536,9 @@ it.
 
 The checkbox replaces the indicator dot in the same gutter, so entering select
 mode shifts nothing (`SelectableIndicator` in `LaneSelect.tsx`, on both lists).
-"Select all lanes" lives in the workspace `⋯` menu. The bulk bar
+"Select all lanes", "Select merged lanes" (lanes whose pull request merged)
+and "Collapse lanes" live in the workspace `⋯` menu, the same rows
+(`LaneSelectionRows`) on This Mac's groups and Host folders. The bulk bar
 (`LaneBulkBar`) shows only in select mode.
 
 Deleting is three resources, and all three default on. The branch default is

@@ -35,6 +35,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { LaneMarker } from './LaneMarker'
 import { BulkDeleteModal } from './BulkDeleteModal'
 import { LaneBulkBar, SelectableIndicator } from './LaneSelect'
+import { LaneSelectionRows } from './LaneSelectionRows'
 import {
   clearLaneSelection,
   selectLanes,
@@ -663,6 +664,13 @@ export function Sidebar({
     }
   }
 
+  /** A lane whose pull request merged: what "Select merged lanes" picks, as on a Host. */
+  const isMerged = (meta: SessionMeta): boolean => {
+    const git = gitByCwd[meta.cwd || workspacePath]
+    const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
+    return pullRequestFor({ byRepo: prByRepo }, repoPath, git?.branch)?.state === 'MERGED'
+  }
+
   // Re-run the scan for a group whose last attempt failed, across every
   // folder merged into the project, so the sidebar recovers instead of
   // pinning a permanent "Loading sessions…".
@@ -877,18 +885,25 @@ export function Sidebar({
                         triggerRef={workspaceMenuTriggerRef}
                         className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
                       >
-                        <MenuRow
-                          active={false}
-                          testId="workspace-group-select"
-                          disabled={!selectingThis && visible.length < 2}
-                          onClick={() => {
-                            if (selectingThis) clearLaneSelection()
-                            else selectLanes(group.workspacePath, visiblePaths)
-                            closeWorkspaceMenu()
+                        <LaneSelectionRows
+                          canSelect={selectingThis || visible.length > 0}
+                          selecting={selectingThis}
+                          collapsed={isCollapsed}
+                          onCollapse={(next) => {
+                            if (next !== isCollapsed) toggleGroup(group, isCollapsed)
                           }}
-                        >
-                          {selectingThis ? 'Clear selection' : 'Select all lanes'}
-                        </MenuRow>
+                          onSelect={(mode) => {
+                            if (mode === 'clear') clearLaneSelection()
+                            else
+                              selectLanes(
+                                group.workspacePath,
+                                mode === 'all'
+                                  ? visiblePaths
+                                  : visible.filter(isMerged).map((m) => m.path),
+                              )
+                          }}
+                          onDone={closeWorkspaceMenu}
+                        />
                         <MenuRow
                           active={false}
                           disabled={groups.indexOf(group) === 0}
