@@ -4,7 +4,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MachineSettings } from '@shared/machine-settings'
 import { prepareHostSettings, showHostSettings } from './__fixtures__/hostSettingsSurface'
-import { hostConnectors, localConnectorsInvoke } from './__fixtures__/connectorsSettings'
+import {
+  globalServer,
+  hostConnectors,
+  localConnectorsInvoke,
+} from './__fixtures__/connectorsSettings'
 import { useSettingsUiStore } from './settingsUiStore'
 import { useConnectorsStore } from '@/stores/connectors'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -113,6 +117,21 @@ describe('This Mac in a folder', () => {
     expect(calls('mcp:upsertServer')).toEqual([
       ['mcp:upsertServer', 'project', '/work', 'linear', { url: 'https://mcp.linear.app/mcp' }],
     ])
+  })
+})
+
+describe('This Mac at machine scope', () => {
+  beforeEach(() =>
+    install(
+      localConnectorsInvoke(() => [globalServer('linear', { url: 'https://mcp.linear.app/mcp' })]),
+    ),
+  )
+
+  it('says when it last checked every connector, as a Host does', async () => {
+    await showHostSettings(root, 'local', 'connectors')
+    await settle()
+    expect(row('linear').textContent).toContain('Up · 1 tool')
+    expect(container.textContent).toMatch(/Checked \d/)
   })
 })
 
