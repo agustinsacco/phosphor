@@ -132,3 +132,21 @@ it("reuses This Mac's last provider read on open, and reads again on Check again
   await act(async () => root.render(<MachineProviders hostId="local" refresh={1} />))
   expect(local).toHaveBeenCalledTimes(2)
 })
+it("keeps reusing This Mac's last read on later opens after one Check again", async () => {
+  const local = vi.fn(async () => [{ id: 'anthropic', name: 'Claude', status: 'ready' }])
+  vi.stubGlobal('phosphor', { invoke: local })
+  // The page stays mounted, so Check again's round outlives the detail it ran in.
+  const open = async (refresh: number) => {
+    act(() => root.unmount())
+    root = createRoot(container)
+    await act(async () => root.render(<MachineProviders hostId="local" refresh={refresh} />))
+  }
+  await open(0)
+  local.mockClear()
+  await act(async () => root.render(<MachineProviders hostId="local" refresh={1} />))
+  expect(local).toHaveBeenCalledOnce()
+  await open(1)
+  await open(1)
+  expect(container.querySelector('[data-provider=anthropic]')?.textContent).toContain('Signed in')
+  expect(local).toHaveBeenCalledOnce()
+})
