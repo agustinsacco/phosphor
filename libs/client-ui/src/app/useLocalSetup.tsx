@@ -3,13 +3,15 @@ import type { PiHealth } from '@shared/models'
 import { PiMissingScreen } from './PiMissingScreen'
 import { GettingStartedScreen } from './GettingStartedScreen'
 import { WorkspacePicker } from './WorkspacePicker'
+import { usePackageJob } from '@/features/settings/usePackageJob'
 
 /**
  * What takes This Mac's home while it cannot start a lane: pi missing or too
  * old, the one-time recommendations after Phosphor installed pi, or no folder
  * open. Only local lane creation waits on it. The shell stays mounted around
  * it, so Machines, Host lanes and Settings stay reachable. Null once This Mac
- * can start a lane, and while pi's health is still unknown.
+ * can start a lane, and while pi's health is still unknown. The install job lives
+ * here, not in the screen, so it is still heard after the user leaves the home.
  */
 export function useLocalSetup(
   health: PiHealth | null,
@@ -17,13 +19,19 @@ export function useLocalSetup(
   recheckHealth: () => void,
 ): ReactNode | null {
   const [gettingStarted, setGettingStarted] = useState(false)
+  const install = usePackageJob((exitCode) => {
+    if (exitCode !== 0) return
+    setGettingStarted(true)
+    recheckHealth()
+  })
   if (!health) return null
   if (!health.ok)
     return (
       <PiMissingScreen
         health={health}
+        job={install}
+        onInstall={() => void install.start(() => window.phosphor.invoke('packages:installPi'))}
         onRetry={recheckHealth}
-        onInstalled={() => setGettingStarted(true)}
       />
     )
   if (gettingStarted) return <GettingStartedScreen onDone={() => setGettingStarted(false)} />
