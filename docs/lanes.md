@@ -504,7 +504,8 @@ pinned lanes never mix with another's or with local ones.
 Copy debug info writes This Mac's block (`formatSessionDebugInfo`: pi's id and
 model once the lane is open) with the machine, Host, lane and branch in place of
 paths: no Host path reaches the clipboard. Copy spend copies the formatted cost,
-as This Mac's does. Export HTML… opens the lane's session if needed and saves the Host's export
+as This Mac's does. Both copies confirm with a toast and, where the clipboard is
+denied, show the text to copy by hand, on either machine. Export HTML… opens the lane's session if needed and saves the Host's export
 (`exportRemoteLaneHtml`): a save dialog on Desktop, a download in the browser.
 Local-only tree, fork and clone actions are omitted.
 Remote Delete needs control and workspace-write capability, in Desktop and the

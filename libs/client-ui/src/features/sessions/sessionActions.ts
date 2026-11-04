@@ -162,21 +162,27 @@ export async function copySessionDebugInfo(
 
 /** Copy a lane's spend as the row shows it, on every machine. */
 export const copySpend = (cost: number): Promise<void> =>
-  navigator.clipboard.writeText(formatCost(cost))
+  copyLaneText(formatCost(cost), 'Spend copied', 'Copy spend')
 
 /**
  * Copy any lane's debug block, This Mac's or a Host's: the one presenter, with
  * the one fallback. The source carries what the machine can say.
  */
-export async function copyDebugInfo(source: SessionDebugSource): Promise<void> {
-  const text = formatSessionDebugInfo(source)
-  const toast = useExtensionUiStore.getState().pushToast
+export const copyDebugInfo = (source: SessionDebugSource): Promise<void> =>
+  copyLaneText(
+    formatSessionDebugInfo(source),
+    'Session debug info copied',
+    'Copy session debug info',
+  )
+
+/** Copy a lane's detail and say so; never rejects. */
+async function copyLaneText(text: string, copied: string, title: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text)
-    toast('Session debug info copied', 'info')
+    useExtensionUiStore.getState().pushToast(copied, 'info')
   } catch {
     // Clipboard can be denied; the text is useless if it is neither copied nor
     // shown, so fall back to something the user can select by hand.
-    await presentText({ title: 'Copy session debug info', text })
+    await presentText({ title, text })
   }
 }
