@@ -225,10 +225,12 @@ const accountsOf = (
 
 /**
  * Stable, so an open account row reads its usage once. Main caches each reading
- * ~60 s; `force` (Check again) skips the cache.
+ * ~60 s; only `force` (Check again) asks the CLI anew.
  */
 const readUsage = (id: string, force: boolean): Promise<ClaudeUsageSnapshotResult> =>
-  window.phosphor.invoke('claude:usageSnapshot', id, force)
+  force
+    ? window.phosphor.invoke('claude:usageSnapshot', id, true)
+    : window.phosphor.invoke('claude:usageSnapshot', id)
 
 /** This Mac's Claude Code page: package jobs, in-app sign-in, live sessions per account. */
 export function useLocalClaudeAccounts(): ClaudeAccountsSource {
