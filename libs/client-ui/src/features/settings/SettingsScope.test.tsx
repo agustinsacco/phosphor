@@ -170,3 +170,14 @@ it('lists This Mac’s extension items for the scope line’s folder, as the Ext
   expect(calls('packages:list').length).toBeGreaterThan(0)
   expect(calls('packages:list').map(([, workspace]) => workspace)).not.toContain('/work/app')
 })
+
+it("reads a This Mac section again from the scope line's Refresh, as a Host's does (A20)", async () => {
+  await showHostSettings(root, 'local', 'agent')
+  const refresh = [...scopeLine().querySelectorAll('button')].find(
+    (b) => b.textContent === 'Refresh',
+  )
+  expect(refresh).toBeDefined()
+  const before = calls('pi:agentSettingsScoped').length
+  await act(async () => refresh!.click())
+  expect(calls('pi:agentSettingsScoped').length).toBe(before + 1)
+})
