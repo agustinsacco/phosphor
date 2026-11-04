@@ -262,6 +262,8 @@ function RemoteLaneDialogs({
   allowed: boolean
   onClose: () => void
 }): React.JSX.Element | null {
+  const markers = useLanePrefsStore((s) => s.lanes.markers)
+  const hosts = useRemoteLanesStore((s) => s.hosts)
   if (dialog === 'delete')
     return (
       <RemoteLaneDeleteDialog
@@ -274,14 +276,14 @@ function RemoteLaneDialogs({
         onClose={onClose}
       />
     )
-  if (dialog === 'marker')
+  if (dialog === 'marker' && markers !== 'off')
     return (
       <MarkerPickerModal
         title={title}
         current={lane.marker}
-        autoKey={lane.branch}
-        mode="manual"
-        usedMarkers={new Set()}
+        autoKey={lane.branch || lane.cwd}
+        mode={markers}
+        usedMarkers={usedMarkers(hosts[hostId]?.lanes ?? [], lane)}
         onPick={(marker) => {
           onClose()
           void setRemoteLaneMarks(hostId, lane.laneId, { marker })
@@ -290,6 +292,20 @@ function RemoteLaneDialogs({
       />
     )
   return null
+}
+
+/**
+ * Markers other lanes in this folder chose, for the picker to dim. Explicit
+ * choices only, as on This Mac: derived markers collide by design.
+ */
+function usedMarkers(lanes: readonly HostLaneView[], lane: HostLaneView): Set<string> {
+  return new Set(
+    lanes.flatMap((other) =>
+      other.laneId !== lane.laneId && other.repositoryId === lane.repositoryId && other.marker
+        ? [other.marker]
+        : [],
+    ),
+  )
 }
 
 async function renameLane(sessionId: string, name: string): Promise<void> {
