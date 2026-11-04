@@ -9,6 +9,9 @@ import { useArtifactsStore } from '@/stores/artifacts'
 import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { useLayoutStore } from '@/stores/layout'
+import { useRemoteFileSelection } from '@/features/files/remoteFileSelection'
+import { suggestedFileName } from './artifactKinds'
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -81,35 +84,64 @@ it.each(['repo-a', 'repo-b'])(
   },
 )
 
-it('remote artifact workspace write is disabled, while downloads are explicitly on the local machine', async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  const invoke = vi.fn().mockResolvedValue(null)
-  vi.stubGlobal('phosphor', { invoke })
-  const id = mockRemoteInfo.sessionId
-  useArtifactsStore.setState({ bySession: {}, selected: {}, selectedVersion: {} })
-  useArtifactsStore
-    .getState()
-    .addLocal(id, { title: 'Remote artifact', type: 'markdown', content: 'Remote document' })
-  const container = document.createElement('div')
-  document.body.append(container)
-  const root = createRoot(container)
-  try {
-    await act(async () =>
-      root.render(<ArtifactsPane sessionId={id} workspacePath={mockRemoteInfo.workspacePath} />),
-    )
-    const unavailable = container.querySelector<HTMLButtonElement>(
-      '[data-tooltip="Not available on remote lanes yet."]',
-    )
-    expect(unavailable?.disabled).toBe(true)
-    expect(container.querySelector('[data-tooltip="Save source to This computer…"]')).not.toBeNull()
-    await act(async () => unavailable?.click())
-    expect(invoke).not.toHaveBeenCalled()
-  } finally {
-    act(() => root.unmount())
-    container.remove()
-    vi.unstubAllGlobals()
-  }
-})
+it.each([
+  ['a new file', null],
+  ['an existing file at its read revision', 'a'.repeat(64)],
+])(
+  'remote artifact writes %s into the Host lane and opens it there; downloads name the local machine',
+  async (_, revision) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const id = mockRemoteInfo.sessionId
+    let written = false
+    const invoke = vi.fn(async (channel: string) => {
+      if (channel === 'fs:writeFile') written = true
+      if (channel !== 'fs:readFile') return { mtimeMs: 1, revision: 'b'.repeat(64) }
+      if (!written && revision === null) throw new Error('missing')
+      return { content: 'old', binary: false, size: 3, revision: revision ?? 'b'.repeat(64) }
+    })
+    vi.stubGlobal('phosphor', { invoke })
+    useSessionsStore.setState({ live: { [id]: { ...mockRemoteInfo, phosphorId: id } } })
+    useRemoteLanesStore.setState({
+      hosts: {
+        [MOCK_HOST_ID]: {
+          ...mockRemoteHosts[MOCK_HOST_ID]!,
+          capabilities: ['sessions.read', 'workspaces.read', 'workspaces.write', 'artifacts.read'],
+        },
+      },
+    })
+    useArtifactsStore.setState({ bySession: {}, selected: {}, selectedVersion: {} })
+    useArtifactsStore
+      .getState()
+      .addLocal(id, { title: 'Remote artifact', type: 'markdown', content: 'Remote document' })
+    const name = suggestedFileName(Object.values(useArtifactsStore.getState().bySession[id]!)[0]!)
+    const target = `${mockRemoteInfo.workspacePath}/${name}`
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    try {
+      await act(async () =>
+        root.render(<ArtifactsPane sessionId={id} workspacePath={mockRemoteInfo.workspacePath} />),
+      )
+      expect(
+        container.querySelector('[data-tooltip="Save source to This computer…"]'),
+      ).not.toBeNull()
+      const write = container.querySelector<HTMLButtonElement>(
+        '[data-tooltip="Write into workspace and open in Files"]',
+      )
+      expect(write?.disabled).toBe(false)
+      await act(async () => write?.click())
+      expect(invoke).toHaveBeenCalledWith('fs:writeFile', target, 'Remote document', revision)
+      expect(useRemoteFileSelection.getState().bySession[id]?.path).toBe(name)
+      expect(useLayoutStore.getState().bySession[id]?.pane).toBe('files')
+    } finally {
+      act(() => root.unmount())
+      container.remove()
+      useRemoteLanesStore.setState({ hosts: {} })
+      useRemoteFileSelection.setState({ bySession: {}, blocked: {} })
+      vi.unstubAllGlobals()
+    }
+  },
+)
 
 it('copies a reference the agent can read, once pi has named the session', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
