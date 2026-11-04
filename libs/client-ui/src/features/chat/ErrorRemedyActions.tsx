@@ -3,10 +3,12 @@ import { Button } from '@/components/form'
 import { RunCommandRow } from '@/components/RunCommandRow'
 import { piCallOk } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
-import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { terminalAccess } from '@/stores/terminal'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
+import { useLaneControl } from '@/features/machines/useLaneControl'
+import { useCanControlSession } from '@/features/sessions/useCanControlSession'
 import type { ErrorRemedy } from './errorRemedies'
 
 /**
@@ -86,14 +88,10 @@ function RetryFailedTurn({
   sessionId: string
   message: string | undefined
 }): React.JSX.Element | null {
-  const entry = useSessionsStore((s) => s.live[sessionId])
+  const control = useLaneControl(sessionId)
+  const controlling = useCanControlSession(sessionId)
   // A Host lane is idle when its Host says so; This Mac's when no turn streams.
-  const idle = useRemoteLanesStore((s) =>
-    entry?.target?.kind === 'remote'
-      ? s.hosts[entry.target.hostId]?.lanes.find((lane) => lane.laneId === entry.laneId)
-          ?.activity === 'idle'
-      : true,
-  )
+  const idle = control ? control.activity === 'idle' : true
   const chat = useChatStore((s) => s.sessions[sessionId])
   const [retrying, setRetrying] = useState(false)
   const last = chat?.items.at(-1)
@@ -104,7 +102,7 @@ function RetryFailedTurn({
     !chat?.isStreaming
       ? chat?.items.findLast((item) => item.kind === 'user')
       : undefined
-  if (!idle || retryUser?.kind !== 'user' || !canControlSession(sessionId)) return null
+  if (!idle || retryUser?.kind !== 'user' || !controlling) return null
   return (
     <Button
       size="sm"

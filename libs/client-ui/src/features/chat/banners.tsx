@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import type { SessionMeta } from '@shared/models'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
-import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { machineLabel } from '@/stores/remoteLanes'
 import { useLaneControl } from '@/features/machines/useLaneControl'
 import { remoteControlHint } from '@/features/sessions/remoteLaneActions'
 import { sessionTitle } from '@/lib/sessionTitle'
@@ -32,14 +32,8 @@ function useCrash(sessionId: string, workspacePath: string): Crash | null {
   const error = useChatStore((s) => s.sessions[sessionId]?.error)
   const entry = useSessionsStore((s) => s.live[sessionId])
   const control = useLaneControl(sessionId)
-  const failed = useRemoteLanesStore((s) =>
-    control
-      ? s.hosts[control.hostId]?.lanes.find((lane) => lane.laneId === entry?.laneId)?.activity ===
-        'failed'
-      : false,
-  )
   if (control) {
-    if (!failed) return null
+    if (control.activity !== 'failed') return null
     return {
       message: `pi exited unexpectedly on ${machineLabel(control.hostId)}. The session file is preserved.`,
       resume: () => control.act('hosts:resumeLane'),
