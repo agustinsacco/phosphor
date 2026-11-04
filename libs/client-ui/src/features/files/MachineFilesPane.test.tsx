@@ -141,7 +141,7 @@ it("browses This Mac's recent folders read-only in the same view, without Host r
       select!.dispatchEvent(new Event('change', { bubbles: true }))
     })
     expect(invoke).toHaveBeenCalledWith('fs:listFiles', '/work/app')
-    await act(async () => container.querySelector('nav button')?.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('nav button')?.click())
     expect(invoke).toHaveBeenCalledWith('fs:readFile', '/work/app/README.md')
     expect(container.textContent).toContain('Local preview')
     expect(container.textContent).toContain('Read only')
