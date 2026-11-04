@@ -45,7 +45,8 @@ The composer is one small field with several ways in.
   prompt delivery; if pi's process crashed, use **Resume session** first. That
   is the "pi crashed" banner above the transcript, on This Mac and on a Host
   lane whose activity is `failed`; there it resumes the lane on the Host
-  (`hosts:resumeLane`) and, like every lane action, needs lane control.
+  (`hosts:resumeLane`) and, like every lane action, needs lane control. The
+  control row above the composer then offers no Resume of its own.
 - **Markdown list primitives.** Shift+Enter continues the list the caret is on
   (renumbering; an empty item steps out a level, then exits). Tab/Shift+Tab
   nest and un-nest inside a list (Tab takes an autocomplete suggestion first

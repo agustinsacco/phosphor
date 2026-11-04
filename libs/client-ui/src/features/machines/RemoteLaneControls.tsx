@@ -49,7 +49,8 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
           Release control
         </Button>
       )}
-      {control.controlling && (
+      {/* A crashed lane's Resume is the crash banner's, so there is one to press. */}
+      {control.controlling && control.activity !== 'failed' && (
         <Button
           size="xs"
           disabled={busy || stopBlocked !== null}
