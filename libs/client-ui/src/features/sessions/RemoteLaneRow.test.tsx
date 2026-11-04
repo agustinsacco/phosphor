@@ -353,11 +353,11 @@ it("copies the same debug block and formatted spend as This Mac's rows, with no 
   expect(writeText.mock.lastCall?.[0]).not.toContain('/srv/host')
   expect(writeText.mock.lastCall?.[0]).not.toContain(lane.cwd)
   // A fresh gesture: the row swallows a second menu until the next pointerdown.
-  act(() =>
+  act(() => {
     container
       .querySelector('button')!
-      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })),
-  )
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+  })
   menu()
   await act(async () => button('Copy spend').click())
   expect(writeText).toHaveBeenLastCalledWith('$1.23')

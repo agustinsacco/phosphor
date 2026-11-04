@@ -62,7 +62,9 @@ function search(query: string): void {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, query)
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
-  act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+  act(() => {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  })
 }
 
 it('finds a Host lane by its PR number and title, normalized, as This Mac does', () => {
