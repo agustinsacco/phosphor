@@ -105,9 +105,12 @@ test('Provider login and error remedies target bee1, Settings configures bee1 an
     await expect(remedySettings.getByTestId('settings-machine-scope')).toContainText(
       'Configuring bee1',
     )
+    // Without configuration access the page is the grant gate, so the nav names the section.
     await expect(
-      remedySettings.getByRole('heading', { name: 'Accounts', exact: true }),
-    ).toBeVisible()
+      remedySettings
+        .getByRole('navigation', { name: 'Settings sections' })
+        .getByRole('button', { name: 'Accounts', exact: true }),
+    ).toHaveAttribute('aria-current', 'page')
     await expect(h.page.locator('.xterm')).toHaveCount(0)
     await h.page.keyboard.press('Escape')
     await expect(remedySettings).toBeHidden()
