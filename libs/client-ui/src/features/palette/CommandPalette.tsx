@@ -35,6 +35,10 @@ interface PaletteAction {
   run: () => void
 }
 
+/** The finder mounts only with a folder open, as ⌘P checks, so Go to file needs one. */
+const listed = (action: PaletteAction, workspacePath: string): boolean =>
+  action.id !== 'go-to-file' || workspacePath !== ''
+
 export function CommandPalette({
   workspacePath,
 }: {
@@ -237,9 +241,9 @@ export function CommandPalette({
           },
         })
       }
-      return base.filter((action) => !localOnly.has(action.id))
+      return base.filter((action) => !localOnly.has(action.id) && listed(action, workspacePath))
     }
-    return base
+    return base.filter((action) => listed(action, workspacePath))
   }, [workspacePath, open, activeSessionId, disk, host, hostId, remote])
 
   const matches = useMemo(() => fuzzyFilter(query, actions, (a) => a.label, 12), [query, actions])
