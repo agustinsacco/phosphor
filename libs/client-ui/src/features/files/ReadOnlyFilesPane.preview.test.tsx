@@ -15,6 +15,15 @@ vi.mock('@/components/markdown/CodeBlock', () => ({
   ),
 }))
 
+vi.mock('@/components/markdown/Markdown', () => ({
+  Markdown: ({ text }: { text: string }) => <article>{text}</article>,
+}))
+vi.mock('@/components/SandboxedHtml', () => ({
+  SandboxedHtml: ({ html, title }: { html: string; title: string }) => (
+    <iframe title={title} data-html={html} />
+  ),
+}))
+
 const sessionId = mockRemoteInfo.sessionId
 const source = Array.from({ length: 60 }, (_, i) => `const line${i + 1} = ${i + 1}`).join('\n')
 
@@ -81,4 +90,25 @@ it('scrolls to the line a chat link names', async () => {
   while (scroller && scroller.scrollTop === 0) scroller = scroller.parentElement
   // Line 30's top: 12 px of padding and 29 lines of 20 px above it.
   expect(scroller?.scrollTop).toBe(12 + 29 * 20)
+})
+
+const button = (container: HTMLElement, label: string) =>
+  [...container.querySelectorAll('button')].find((b) => b.textContent === label)
+
+it('renders markdown, with its source one click away, as This Mac does', async () => {
+  const container = await openFromChat('docs/README.md')
+  // Renderers load on first use.
+  await vi.waitFor(() => expect(container.querySelector('article')?.textContent).toBe(source))
+  await act(async () => button(container, 'Source')?.click())
+  expect(container.querySelector('article')).toBeNull()
+  expect(container.querySelector('pre')?.textContent).toBe(source)
+})
+
+it.each(['site/page.html', 'art/logo.svg'])('renders %s in the sandboxed frame', async (path) => {
+  const container = await openFromChat(path)
+  await vi.waitFor(() =>
+    expect(container.querySelector('iframe')?.getAttribute('title')).toBe(path.split('/').pop()),
+  )
+  expect(container.querySelector('iframe')?.getAttribute('data-html')).toContain(source)
+  expect(button(container, 'Preview')?.getAttribute('aria-pressed')).toBe('true')
 })
