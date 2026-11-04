@@ -68,7 +68,7 @@ const proofGit =
       },
     })
 
-/** One PR proof asks GitHub for at most this long; later questions get no answer. */
+/** One PR proof starts no GitHub question after this long; a question already asked can finish. */
 const PULL_REQUEST_PROOF_MS = 20_000
 
 function pullRequestEvidence(root: string, github: GhRunner): PullRequestEvidence {

@@ -569,7 +569,8 @@ kept. This Mac and a Host share the proofs and the deletion
   from the branch counts only if the local tip is its head, sits behind it, or
   has the same tree, so a reused branch name or work added after the merge
   never passes. Without `gh`, or offline, this proof answers no. A Host asks
-  its own `gh` and gives one proof 20 seconds of questions.
+  its own `gh`, each question with an 8 s timeout, and starts none after a
+  proof's first 20 seconds.
 
 Anything unproven is kept and reported; the transcript still goes.
 
