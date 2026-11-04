@@ -7,6 +7,14 @@
   application menu**, so every command reaches you through the top bar, the
   command palette or a key binding. Chromium's zoom accelerators are
   re-implemented by hand in `useGlobalShortcuts.ts`.
+- **The window never scrolls.** `<body>` is `position: relative; overflow: clip`
+  and `<html>` is `overflow: hidden`, in `styles/index.css`. With only
+  `overflow: hidden`, focus and `scrollIntoView` still scrolled the viewport
+  whenever anything hung below the window (a popup before it was placed, a menu,
+  a portal): the whole app moved up, the top bar went off-screen and a blank strip
+  stayed below until a reload. Scrolling belongs to panes, never the page.
+  `e2e/window-scroll.spec.ts` pins it. The phone and browser shells are
+  `position: fixed` and follow the visual viewport, so the clip does not touch them.
 - Window title: `<project> — Phosphor`, or `<repo> (<branch>) — Phosphor` for
   a worktree; plain `Phosphor` before a workspace is open. The session name is
   deliberately absent: the OS title names the folder, and the session already

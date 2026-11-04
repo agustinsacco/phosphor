@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { act, useEffect, useRef, useState } from 'react'
+import { act, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { PopupMenu } from './PopupMenu'
 import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
@@ -83,40 +83,6 @@ describe('PopupMenu', () => {
     expect(q('scrolling-parent')!.contains(menu)).toBe(false)
     expect(menu.parentElement).toBe(document.body)
     expect((menu as HTMLElement).style.position).toBe('fixed')
-  })
-  it('is pinned inside the viewport before positioning resolves, so focus on open cannot scroll the page', () => {
-    // The regression: positioning is async, so a child that focused on mount saw
-    // an unpositioned portal below the viewport, and Chromium scrolled <body>
-    // (overflow: hidden stops users, not focus) to reveal it. The whole app
-    // stayed shifted up with the top bar off-screen.
-    const seen: string[] = []
-    function FocusOnMount(): React.JSX.Element {
-      const ref = useRef<HTMLButtonElement>(null)
-      useEffect(() => {
-        const menu = ref.current!.closest<HTMLElement>('[data-popup-menu]')!
-        seen.push(menu.style.position)
-      }, [])
-      return <button ref={ref}>First row</button>
-    }
-    function Pill(): React.JSX.Element {
-      const trigger = useRef<HTMLButtonElement>(null)
-      return (
-        <div>
-          <button ref={trigger}>Pill</button>
-          <PopupMenu
-            triggerRef={trigger}
-            fitViewport
-            escapeContainer
-            onClose={() => undefined}
-            className="absolute left-0 top-full"
-          >
-            <FocusOnMount />
-          </PopupMenu>
-        </div>
-      )
-    }
-    render(<Pill />)
-    expect(seen).toEqual(['fixed'])
   })
   it('closes when the trigger is clicked a second time', () => {
     // The regression: mousedown closed the menu and the trigger's own click

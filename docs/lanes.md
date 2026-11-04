@@ -245,11 +245,11 @@ there are several. `LaneLinks.tsx` puts both controls in all three headers, and
 both are one component, `LaneHeaderPill.tsx`, which owns the trigger, the
 anchored popup, focus on open and focus return; only their contents differ.
 
-The popup is portalled to `<body>` and placed by floating-ui, which is async.
-Until it answers, `useAnchoredMenu` pins the menu invisible at the viewport's
-corner. Left to its classes it would sit below the viewport, and focusing its
-first row would make Chromium scroll `<body>` (`overflow: hidden` stops users,
-not focus), shifting the whole window up with the top bar off-screen.
+The popup is the shared `PopupMenu` in its anchored mode (`escapeContainer`),
+like `ChoiceMenu` and the machine header menu: portalled to `<body>` and placed by
+floating-ui, so it fits beside a pill at the right edge of the wide browser header.
+It can sit below the window for a frame before it is placed, which is harmless
+only because [the window never scrolls](ui-shell.md#window--chrome).
 
 `slackThread.ts` derives the list from the chat store on every render. Nothing is
 persisted, so there is no IPC, Host protocol or session-file change, and sidebar
