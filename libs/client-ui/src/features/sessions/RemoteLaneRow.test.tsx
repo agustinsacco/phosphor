@@ -85,7 +85,6 @@ it('shows remote PR state and opens its link without opening the lane', async ()
             url: 'https://github.com/a/b/pull/42',
           },
         },
-        complete: true,
         loading: false,
         fetchedAt: 1,
         attemptedAt: 1,

@@ -25,8 +25,8 @@ export interface RepoPullRequests {
   branchAttemptedAt?: Record<string, number>
   /** Epoch ms of the last successful app refresh (not upstream freshness); 0 when never fetched. */
   fetchedAt: number
-  /** Only an untruncated successful listing can confirm a missing PR. */
-  complete: boolean
+  /** Never set or read: kept only because a frozen characterization fixture spells it. */
+  complete?: boolean
   /** Last app attempt failed; known PRs remain available. */
   failed?: boolean
   /** Last attempt, including failures, for retry throttling. */
@@ -39,7 +39,6 @@ const repos = keyedSlice<RepoPullRequests>({
   byBranch: {},
   fetchedAt: 0,
   attemptedAt: 0,
-  complete: false,
   loading: false,
   failed: false,
 })

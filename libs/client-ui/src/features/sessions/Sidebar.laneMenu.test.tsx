@@ -143,7 +143,6 @@ it('selects merged lanes from a This Mac group menu, through the same rows as a 
         byBranch: { 'merged-branch': pr(1, 'MERGED'), 'open-branch': pr(2, 'OPEN') },
         fetchedAt: Date.now(),
         attemptedAt: Date.now(),
-        complete: true,
         loading: false,
       },
     },

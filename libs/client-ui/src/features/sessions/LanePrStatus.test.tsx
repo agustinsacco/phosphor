@@ -36,12 +36,11 @@ const read = vi.fn(async (_repo: string): Promise<GhRepoPullRequests> => ({
   complete: true,
 }))
 const external = vi.fn(async (_url: string) => {})
-function seed(value: GhPullRequest | undefined, complete = true) {
+function seed(value: GhPullRequest | undefined) {
   usePullRequestsStore.setState({
     byRepo: {
       '/repo': {
         byBranch: value ? { feature: value } : {},
-        complete,
         attemptedAt: Date.now(),
         fetchedAt: Date.now(),
         loading: false,
@@ -166,11 +165,9 @@ it('renders unavailable details honestly for identity-only results and link fail
   expect(detail()?.querySelector('[role="alert"]')?.textContent).toContain('Could not open GitHub')
 })
 
-it('shows nothing for a lane without a PR, confirmed, truncated or on an ordinary branch', async () => {
+it('shows nothing for a lane without a PR or on an ordinary branch', async () => {
   seed(undefined)
   await act(async () => root.render(<LanePrStatus sessionId="a" />))
-  expect(pill()).toBeNull()
-  await act(async () => seed(undefined, false))
   expect(pill()).toBeNull()
   await act(async () => {
     seed(undefined)
@@ -248,7 +245,7 @@ it('requests a stale refresh when activating another lane in the same repository
 })
 
 it('uses branch coverage for stale status and upstream age rather than another page refresh, and shows nothing once the PR is gone', async () => {
-  seed(pr, false)
+  seed(pr)
   usePullRequestsStore.setState((s) => ({
     byRepo: {
       '/repo': {

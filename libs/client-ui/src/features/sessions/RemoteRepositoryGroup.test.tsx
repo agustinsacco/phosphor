@@ -74,7 +74,6 @@ it('finds a Host lane by its PR number and title, normalized, as This Mac does',
     byRepo: {
       [remotePrKey(MOCK_HOST_ID, REPO)]: {
         byBranch: { b: pr },
-        complete: true,
         attemptedAt: Date.now(),
         fetchedAt: Date.now(),
         loading: false,

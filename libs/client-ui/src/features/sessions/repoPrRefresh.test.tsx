@@ -90,10 +90,7 @@ it('does not fetch on hidden mount and recovers from a failed first read on the 
   expect(usePullRequestsStore.getState().byRepo['/repo']?.failed).toBe(true)
   await act(async () => vi.advanceTimersByTimeAsync(60_001))
   expect(read).toHaveBeenCalledTimes(2)
-  expect(usePullRequestsStore.getState().byRepo['/repo']).toMatchObject({
-    failed: false,
-    complete: true,
-  })
+  expect(usePullRequestsStore.getState().byRepo['/repo']?.failed).toBe(false)
 })
 
 it('requests stale refresh on settlement/summary changes but coalesces fresh same-repo navigation', async () => {

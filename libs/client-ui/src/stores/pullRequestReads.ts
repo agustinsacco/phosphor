@@ -34,14 +34,12 @@ export function mergePullRequestRead(
     ...current.branchAttemptedAt,
     ...Object.fromEntries(branches.map((branch) => [branch, now])),
   }
-  if (!result && !current.coverage)
-    return { ...current, branchAttemptedAt, complete: false, failed: true }
-  // Old Hosts have no branch coverage; only their complete listings prove absence.
+  if (!result && !current.coverage) return { ...current, branchAttemptedAt, failed: true }
+  // Old Hosts have no branch coverage: a complete listing replaces the known PRs, a truncated one adds to them.
   if (result && !result.coverage)
     return {
       ...current,
       byBranch: result.complete ? result.byBranch : { ...current.byBranch, ...result.byBranch },
-      complete: result.complete,
       coverage: undefined,
       branchAttemptedAt,
       fetchedAt: now,
@@ -68,20 +66,10 @@ export function mergePullRequestRead(
     byBranch,
     coverage,
     branchAttemptedAt,
-    complete: false,
     fetchedAt: result ? now : current.fetchedAt,
     failed:
       current.failed ||
       !result ||
       Object.values(result.coverage ?? {}).some((c) => c.state === 'unavailable'),
   }
-}
-
-/** Targeted absence must be explicit; retain compatibility with complete old-Host listings. */
-export function branchHasNoPullRequest(
-  slice: RepoPullRequests,
-  branch: string | null | undefined,
-): boolean {
-  if (!branch || slice.byBranch[branch]) return false
-  return slice.coverage ? slice.coverage[branch]?.state === 'absent' : slice.complete
 }

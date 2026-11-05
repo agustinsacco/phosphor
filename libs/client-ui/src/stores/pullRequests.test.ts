@@ -130,42 +130,42 @@ describe('refresh', () => {
     expect(pullRequestFor(state, '/another-org/service', 'feat/a')?.number).toBe(17)
   })
 
-  it('does not confirm absence when gh is installed but the repo query fails', async () => {
+  it('records a failed repo query without a successful refresh', async () => {
     invoke.mockImplementation(async (channel: string) => (channel === 'gh:available' ? true : null))
     await usePullRequestsStore.getState().refresh(REPO)
     const slice = repoPullRequests(usePullRequestsStore.getState(), REPO)
     expect(slice.fetchedAt).toBe(0)
-    expect(slice.complete).toBe(false)
+    expect(slice.failed).toBe(true)
     expect(slice.loading).toBe(false)
     const calls = invoke.mock.calls.length
     await usePullRequestsStore.getState().refresh(REPO)
     expect(invoke).toHaveBeenCalledTimes(calls)
   })
 
-  it('preserves known PRs but revokes absence after a failed query', async () => {
+  it('preserves known PRs after a failed query', async () => {
     await usePullRequestsStore.getState().refresh(REPO)
-    expect(repoPullRequests(usePullRequestsStore.getState(), REPO).complete).toBe(true)
+    expect(repoPullRequests(usePullRequestsStore.getState(), REPO).failed).toBe(false)
     invoke.mockResolvedValue(null)
     await usePullRequestsStore.getState().refresh(REPO, { force: true })
     const slice = repoPullRequests(usePullRequestsStore.getState(), REPO)
     expect(slice.byBranch['feat/a']?.number).toBe(412)
-    expect(slice.complete).toBe(false)
+    expect(slice.failed).toBe(true)
   })
 
-  it('does not confirm absence for a truncated listing', async () => {
-    usePullRequestsStore.setState({ available: true })
-    invoke.mockResolvedValue({ byBranch: { 'feat/a': pr() }, complete: false })
+  it('adds a truncated listing to the known PRs', async () => {
     await usePullRequestsStore.getState().refresh(REPO)
+    invoke.mockResolvedValue({ byBranch: { 'feat/b': pr({ number: 7 }) }, complete: false })
+    await usePullRequestsStore.getState().refresh(REPO, { force: true })
     const slice = repoPullRequests(usePullRequestsStore.getState(), REPO)
     expect(slice.byBranch['feat/a']?.number).toBe(412)
-    expect(slice.complete).toBe(false)
+    expect(slice.byBranch['feat/b']?.number).toBe(7)
   })
 
-  it('confirms absence only after a successful complete listing', async () => {
-    usePullRequestsStore.setState({ available: true })
-    invoke.mockResolvedValue({ byBranch: {}, complete: true })
+  it('replaces the known PRs with a complete listing', async () => {
     await usePullRequestsStore.getState().refresh(REPO)
-    expect(repoPullRequests(usePullRequestsStore.getState(), REPO).complete).toBe(true)
+    invoke.mockResolvedValue({ byBranch: {}, complete: true })
+    await usePullRequestsStore.getState().refresh(REPO, { force: true })
+    expect(repoPullRequests(usePullRequestsStore.getState(), REPO).byBranch).toEqual({})
   })
 
   it('coalesces concurrent refreshes even before availability resolves', async () => {
