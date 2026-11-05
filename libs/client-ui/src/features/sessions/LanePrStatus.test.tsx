@@ -166,20 +166,23 @@ it('renders unavailable details honestly for identity-only results and link fail
   expect(detail()?.querySelector('[role="alert"]')?.textContent).toContain('Could not open GitHub')
 })
 
-it('infers no PR only for a complete worktree listing, not truncated data or ordinary branches', async () => {
+it('shows nothing for a lane without a PR, confirmed, truncated or on an ordinary branch', async () => {
   seed(undefined)
   await act(async () => root.render(<LanePrStatus sessionId="a" />))
-  expect(pill()?.textContent).toBe('↑ no PR')
+  expect(pill()).toBeNull()
   await act(async () => seed(undefined, false))
-  expect(pill()?.textContent).toBe('PR ?')
+  expect(pill()).toBeNull()
   await act(async () => {
     seed(undefined)
     useSessionsStore.setState({ gitByCwd: { '/repo/wt': { ...git, isWorktree: false } } })
   })
-  expect(pill()?.textContent).toBe('PR ?')
+  expect(pill()).toBeNull()
+  // The listing keeps polling, so a PR opened later still appears.
+  await act(async () => seed(pr))
+  expect(pill()?.textContent).toBe('#42 ✓')
 })
 
-it('shows loading and respects the PR status preference', async () => {
+it('shows nothing while the first listing loads, then the PR, and respects the preference', async () => {
   let finish!: (value: { byBranch: { feature: GhPullRequest }; complete: boolean }) => void
   read.mockImplementationOnce(
     () =>
@@ -188,11 +191,15 @@ it('shows loading and respects the PR status preference', async () => {
       }),
   )
   await act(async () => root.render(<LanePrStatus sessionId="a" />))
-  expect(pill()?.textContent).toBe('PR …')
+  expect(pill()).toBeNull()
+  await act(async () => finish({ byBranch: { feature: pr }, complete: true }))
+  expect(pill()?.textContent).toBe('#42 ✓')
+  read.mockImplementationOnce(() => new Promise(() => {}))
   await act(async () => pill()!.click())
+  await act(async () => button('Refresh').click())
   expect(detail()?.textContent).toContain('Refreshing repository…')
   expect(button('Refreshing…').disabled).toBe(true)
-  await act(async () => finish({ byBranch: { feature: pr }, complete: true }))
+  expect(pill()?.textContent).toBe('#42 ✓')
   await act(async () => useLanePrefsStore.getState().applyLanePrefs({ prStatus: false }))
   expect(pill()).toBeNull()
   expect(detail()).toBeNull()
@@ -240,7 +247,7 @@ it('requests a stale refresh when activating another lane in the same repository
   expect(read).toHaveBeenCalledTimes(2)
 })
 
-it('uses branch coverage for absence, stale status and upstream age rather than another page refresh', async () => {
+it('uses branch coverage for stale status and upstream age rather than another page refresh, and shows nothing once the PR is gone', async () => {
   seed(pr, false)
   usePullRequestsStore.setState((s) => ({
     byRepo: {
@@ -275,7 +282,8 @@ it('uses branch coverage for absence, stale status and upstream age rather than 
       },
     })),
   )
-  expect(pill()?.textContent).toContain('no PR')
+  // Confirmed absence shows nothing: no "no PR" face (the lane has no PR control).
+  expect(pill()).toBeNull()
   await act(async () =>
     usePullRequestsStore.setState((s) => ({
       byRepo: {
@@ -286,5 +294,5 @@ it('uses branch coverage for absence, stale status and upstream age rather than 
       },
     })),
   )
-  expect(pill()?.textContent).toBe('PR ?')
+  expect(pill()).toBeNull()
 })

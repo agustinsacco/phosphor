@@ -54,8 +54,7 @@ import {
 import { laneMarker } from '@/lib/laneMarker'
 import { formatCost } from '@/lib/format'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
-import { usePullRequestsStore, pullRequestFor, repoPullRequests } from '@/stores/pullRequests'
-import { branchHasNoPullRequest } from '@/stores/pullRequestReads'
+import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { makeRoutine, useRoutineLaneIndex } from '@/stores/routines'
 import {
@@ -1383,15 +1382,10 @@ function SessionRow({
   const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
   const pullRequest = usePullRequestsStore((s) => pullRequestFor(s, repoPath, git?.branch))
   const showPrStatus = useLanePrefsStore((s) => s.lanes.prStatus)
-  // Only an explicitly checked branch (or complete legacy listing) proves absence.
-  const absent = usePullRequestsStore((s) =>
-    branchHasNoPullRequest(repoPullRequests(s, repoPath), git?.branch),
-  )
-  const confirmedNoPr = !!git?.isWorktree && absent
   // Only render a chip that has something to say. A non-worktree branch with
   // no confirmed PR gets none — gating on the raw preference instead would put
   // an empty chip on every plain-main session the moment the flag is on.
-  const showChip = showPrStatus && Boolean(pullRequest || confirmedNoPr)
+  const showChip = showPrStatus && Boolean(pullRequest)
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
   const markerMode = useLanePrefsStore((s) => s.lanes.markers)
   // Keyed on the branch, not the title: Phosphor names a session only after its
@@ -1614,7 +1608,7 @@ function SessionRow({
             </span>
           )}
           <SubtitleSegments segments={subtitle} activity={activity} />
-          {showChip && <PrBadge pr={pullRequest ?? null} />}
+          {showChip && pullRequest && <PrBadge pr={pullRequest} />}
         </span>
       </span>
       {deleting && (

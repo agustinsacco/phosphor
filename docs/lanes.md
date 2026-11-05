@@ -64,8 +64,8 @@ not a way to choose a lane. It lives in the row's context menu ("Copy spend"),
 the Home ledger and the context meter's Cost row.
 
 `LanePrefs.prStatus` (default **on**) decides whether the chip renders at all,
-and a chip only renders once there is something to say: a known PR, or a
-confirmed absence on a worktree lane. Settings → Lanes → "PR status on
+and a chip renders only for a lane with a known PR. A lane without one shows
+no chip, no placeholder and no "no PR" hint. Settings → Lanes → "PR status on
 lanes".
 
 **Delegated work keeps a live lane working.** The sidebar activity treatment
@@ -203,10 +203,9 @@ Only explicit absence removes it. Missing gh, auth, network and deadline failure
 are normal unavailable states, without toasts. Desktop runs gh through
 `piProcessEnv` for the login-shell PATH; the Host uses its own environment.
 
-**"No PR yet" needs positive absence evidence.** The inert `↑ no PR` fallback
-requires explicit absent coverage and a known worktree branch. A targeted reply
-never claims repository-wide completeness. A trunk checked out directly is not
-"a lane" in this sense; a confirmed PR may still appear there.
+**Absence shows nothing.** A lane whose branch has no PR gets no chip and no
+header pill; absent coverage only removes a previously known PR. A targeted
+reply never claims repository-wide completeness.
 
 Remote groups use the same store, keyed by opaque Host/repository identity.
 `github.prs` requires `workspaces.read` and resolves only configured repository
@@ -225,10 +224,10 @@ has no bearing on remote PRs.
 
 ### Active-lane header
 
-After the lane title, a compact, keyboard-accessible PR button uses the same
-status mapping and colours as row chips. It is a real button, not the sidebar's
-non-tabbable link span, and respects the PR-status preference. Desktop keeps its
-44px bar; phone and wide browser headers reuse the same control. Its details
+After the lane title, a lane with a PR gets a compact, keyboard-accessible PR
+button with the same status mapping and colours as row chips. A lane without
+one gets nothing there. It is a real button, not the sidebar's non-tabbable
+link span, and respects the PR-status preference. Desktop keeps its 44px bar; phone and wide browser headers reuse the same control. Its details
 show state, check counts, review decision and conflicts independently: green
 checks do not imply approval. Identity-only results label those details unavailable.
 Enter/Space opens details; Tab reaches Open on GitHub and Refresh; Escape closes
@@ -296,7 +295,6 @@ together anyway ("is it in, and is it green").
 | `draft`             | neutral. A draft is not a claim on your attention              |
 | `merged`            | violet. The "this lane is done" signal                         |
 | `closed`            | closed unmerged                                                |
-| `no-pr`             | inert fallback — `↑ no PR`, no number, not a link              |
 
 **Terminal states beat check state, and conflict beats check state too.** A
 merged PR whose last run was red is still merged. A conflicting PR is

@@ -4,82 +4,60 @@ import { MenuRow } from '@/components/PopupMenu'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, type RepoPullRequests } from '@/stores/pullRequests'
 import { useLanePullRequest } from './useLanePullRequest'
-import { prChip, noPrChip, PR_CHIP_CLASSES } from './prChip'
+import { prChip, PR_CHIP_CLASSES } from './prChip'
 import { LaneHeaderPill } from './LaneHeaderPill'
 
-/** A real tab stop in the title bar; sidebar row chips deliberately are not. */
+/**
+ * A real tab stop in the title bar; sidebar row chips deliberately are not.
+ * A lane without a pull request shows nothing: no placeholder, no "no PR".
+ * The listing keeps refreshing underneath, so a PR opened later appears.
+ */
 export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const status = useLanePullRequest(sessionId)
+  const { repoPath, ready, slice, pr, branch } = useLanePullRequest(sessionId)
   const enabled = useLanePrefsStore((s) => s.lanes.prStatus)
-  if (!enabled || !status.repoPath) return null
+  if (!enabled || !repoPath || !pr) return null
   return (
-    <LanePrPill key={`${sessionId}:${status.repoPath}`} {...status} repoPath={status.repoPath} />
+    <LanePrPill
+      key={`${sessionId}:${repoPath}`}
+      repoPath={repoPath}
+      ready={ready}
+      slice={slice}
+      pr={pr}
+      branch={branch}
+    />
   )
 }
 
-function LanePrPill({
-  repoPath,
-  ready,
-  slice,
-  pr,
-  confirmedNoPr,
-  branch,
-}: {
+interface LanePrProps {
   repoPath: string
   ready: boolean
   slice: RepoPullRequests
-  pr: GhPullRequest | undefined
-  confirmedNoPr: boolean
+  pr: GhPullRequest
   branch?: string
-}): React.JSX.Element {
-  const chip = pr ? prChip(pr) : confirmedNoPr ? noPrChip() : null
+}
+
+function LanePrPill(props: LanePrProps): React.JSX.Element {
+  const chip = prChip(props.pr)
   return (
     <LaneHeaderPill
-      label={chip ? `Pull request: ${chip.title}` : 'Pull request status unavailable'}
+      label={`Pull request: ${chip.title}`}
       testId="lane-pr-status"
-      variant={chip?.variant}
-      className={chip ? PR_CHIP_CLASSES[chip.variant] : 'text-text-tertiary border-border'}
-      face={chip ? `${chip.label} ${chip.glyph}`.trim() : slice.loading ? 'PR …' : 'PR ?'}
+      variant={chip.variant}
+      className={PR_CHIP_CLASSES[chip.variant]}
+      face={`${chip.label} ${chip.glyph}`.trim()}
       region="Pull request details"
     >
-      {() => (
-        <LanePrContent
-          repoPath={repoPath}
-          ready={ready}
-          slice={slice}
-          pr={pr}
-          confirmedNoPr={confirmedNoPr}
-          branch={branch}
-        />
-      )}
+      {() => <LanePrContent {...props} />}
     </LaneHeaderPill>
   )
 }
 
-function LanePrContent({
-  repoPath,
-  ready,
-  slice,
-  pr,
-  confirmedNoPr,
-  branch,
-}: {
-  repoPath: string
-  ready: boolean
-  slice: RepoPullRequests
-  pr: GhPullRequest | undefined
-  confirmedNoPr: boolean
-  branch?: string
-}): React.JSX.Element {
+function LanePrContent({ repoPath, ready, slice, pr, branch }: LanePrProps): React.JSX.Element {
   const [linkError, setLinkError] = useState(false)
   return (
     <>
       <div className="space-y-2 px-3 pb-2 text-sm">
-        {pr ? (
-          <PrDetails pr={pr} />
-        ) : (
-          <p>{confirmedNoPr ? noPrChip().title : 'Pull request status unavailable'}</p>
-        )}
+        <PrDetails pr={pr} />
         <RefreshAge slice={slice} branch={branch} />
         {!ready && <p>Repository unavailable. Reconnect to refresh.</p>}
         {!slice.coverage && repoPath.startsWith('host:') && (
@@ -87,17 +65,15 @@ function LanePrContent({
         )}
         {linkError && <p role="alert">Could not open GitHub. Try again.</p>}
       </div>
-      {pr && (
-        <MenuRow
-          active={false}
-          onClick={() => {
-            setLinkError(false)
-            void window.phosphor.invoke('app:openExternal', pr.url).catch(() => setLinkError(true))
-          }}
-        >
-          Open on GitHub ↗
-        </MenuRow>
-      )}
+      <MenuRow
+        active={false}
+        onClick={() => {
+          setLinkError(false)
+          void window.phosphor.invoke('app:openExternal', pr.url).catch(() => setLinkError(true))
+        }}
+      >
+        Open on GitHub ↗
+      </MenuRow>
       <MenuRow
         active={false}
         disabled={!ready || slice.loading}

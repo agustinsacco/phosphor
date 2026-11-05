@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import type { GhPullRequest } from '@shared/models'
-import { prChip, noPrChip, PR_CHIP_CLASSES } from './prChip'
+import { prChip, PR_CHIP_CLASSES } from './prChip'
 
 /**
  * The PR chip on a lane row, and the shortcut to the PR itself.
@@ -21,31 +21,25 @@ import { prChip, noPrChip, PR_CHIP_CLASSES } from './prChip'
  * menu carries an "Open pull request" item. The chip is the shortcut; the menu
  * is the accessible route. Changing one without the other regresses it.
  *
- * `pr={null}` renders the "no PR yet" fallback instead — still a chip (same
- * column, same width discipline), but not a link: there is nothing to open.
+ * A lane without a PR renders no chip at all: callers pass only a real PR.
  */
-export function PrBadge({ pr }: { pr: GhPullRequest | null }): React.JSX.Element {
-  const chip = pr ? prChip(pr) : noPrChip()
+export function PrBadge({ pr }: { pr: GhPullRequest }): React.JSX.Element {
+  const chip = prChip(pr)
   return (
     <span
       data-testid="session-pr-badge"
       data-variant={chip.variant}
-      role={pr ? 'link' : undefined}
+      role="link"
       tabIndex={-1}
-      aria-label={pr ? `${chip.title}. Open on GitHub` : chip.title}
-      data-tooltip={pr ? `${chip.title}\nClick to open on GitHub` : chip.title}
-      onClick={
-        pr
-          ? (event) => {
-              // The row underneath opens the session. Without this, one click
-              // both opens the PR in a browser and switches the session out
-              // from under it.
-              event.stopPropagation()
-              event.preventDefault()
-              void openPullRequest(pr)
-            }
-          : undefined
-      }
+      aria-label={`${chip.title}. Open on GitHub`}
+      data-tooltip={`${chip.title}\nClick to open on GitHub`}
+      onClick={(event) => {
+        // The row underneath opens the session. Without this, one click both
+        // opens the PR in a browser and switches the session out from under it.
+        event.stopPropagation()
+        event.preventDefault()
+        void openPullRequest(pr)
+      }}
       className={clsx(
         'ml-auto flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 font-mono text-2xs font-semibold',
         // Hover derives from the chip's OWN colour (`border-current`) rather
@@ -53,7 +47,7 @@ export function PrBadge({ pr }: { pr: GhPullRequest | null }): React.JSX.Element
         // `@custom-variant dark` is defined, so Tailwind's `dark:` would key
         // off the OS preference and be wrong whenever the two disagree. No
         // other component in the renderer uses `dark:` either.
-        pr && 'cursor-pointer hover:border-current hover:underline hover:underline-offset-2',
+        'cursor-pointer hover:border-current hover:underline hover:underline-offset-2',
         PR_CHIP_CLASSES[chip.variant],
       )}
     >

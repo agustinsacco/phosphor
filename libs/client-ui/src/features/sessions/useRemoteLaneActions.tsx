@@ -139,7 +139,7 @@ function useLaneActionState(
   const unprompted = useChatStore(
     (s) => !!sessionId && !s.sessions[sessionId]?.items.some((item) => item.kind === 'user'),
   )
-  const { pr } = useRemotePr(hostId, lane)
+  const pr = useRemotePr(hostId, lane)
   const markers = useLanePrefsStore((s) => s.lanes.markers)
   const state: RemoteLaneActionState = {
     lane,

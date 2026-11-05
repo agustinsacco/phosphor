@@ -5,7 +5,6 @@ import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { repoPullRequests, usePullRequestsStore } from '@/stores/pullRequests'
 import { useRepoPrRefresh } from './repoPrRefresh'
-import { branchHasNoPullRequest } from '@/stores/pullRequestReads'
 // Also installs Host-owned cache eviction, independent of sidebar visibility.
 import './remotePullRequests'
 
@@ -31,7 +30,6 @@ export function useLanePullRequest(sessionId: string) {
       ? (git.mainRepoPath ?? entry?.workspacePath)
       : undefined
   const branch = remote ? lane?.branch : git?.branch
-  const worktree = remote ? lane?.worktree : git?.isWorktree
   const slice = usePullRequestsStore((s) => repoPullRequests(s, repoPath))
   const revision = useMemo(
     () => ({ sessionId, streaming, lanes: host?.lanes }),
@@ -40,14 +38,7 @@ export function useLanePullRequest(sessionId: string) {
   useRepoPrRefresh(ready && repoPath ? [repoPath] : [], revision)
   useLaneGitInfo(remote ? undefined : entry?.workspacePath, streaming)
   const pr = branch ? slice.byBranch[branch] : undefined
-  return {
-    repoPath,
-    ready,
-    slice,
-    pr,
-    branch: branch ?? undefined,
-    confirmedNoPr: !!worktree && branchHasNoPullRequest(slice, branch),
-  }
+  return { repoPath, ready, slice, pr, branch: branch ?? undefined }
 }
 
 function useLaneGitInfo(cwd: string | undefined, streaming: boolean): void {
