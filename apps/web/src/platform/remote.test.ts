@@ -5,6 +5,7 @@ import { createFakeHost, createLoopbackPair } from '@phosphor/shared/host-protoc
 import { formatKeyFingerprint, type MachineView } from '@phosphor/shared/control-api'
 import { type GrantPayload } from '@phosphor/shared/host-grant'
 import type { ClientFrame } from '@phosphor/shared/host-protocol'
+import type { HostAttention } from '@phosphor/shared/ipc'
 import { browserCrypto } from '@phosphor/host-client/crypto'
 
 const disposals: (() => void)[] = []
@@ -24,6 +25,8 @@ async function setup(
     grant?: 'deny' | 'wrong-endpoint' | 'wrong-key' | 'expired'
     proof?: () => Promise<boolean>
     expires?: number
+    /** Answers `lane.receipt` as a Host that keeps receipts would; the fake Host keeps none. */
+    receipt?: (laneId: string) => unknown
   } = {},
 ) {
   const owner = randomUUID(),
@@ -130,13 +133,24 @@ async function setup(
     )!.id
     pair.server.onMessage((text) => frames.push({ host: id, frame: JSON.parse(text) }))
     host.attach(pair.server)
+    const listeners: ((text: string) => void)[] = []
     return {
       ...pair.client,
-      onMessage: (listener: (text: string) => void) =>
+      send: (text: string) => {
+        const frame = JSON.parse(text) as ClientFrame
+        if (!options.receipt || frame.type !== 'call' || frame.method !== 'lane.receipt')
+          return pair.client.send(text)
+        const data = options.receipt((frame.params as { laneId: string }).laneId)
+        const result = JSON.stringify({ type: 'result', id: frame.id, ok: true, data })
+        setTimeout(() => listeners.forEach((listener) => listener(result)), 0)
+      },
+      onMessage: (listener: (text: string) => void) => {
+        listeners.push(listener)
         pair.client.onMessage((text) => {
           if (delivery.hold(id, text)) delivery.pending.push(() => listener(text))
           else listener(text)
-        }),
+        })
+      },
     }
   })
   const adapter = createBrowserApi({
@@ -378,3 +392,34 @@ it.each(['reconnect', 'logout'] as const)(
     expect(await result).not.toHaveProperty('data')
   },
 )
+it("words a failed Host lane's notice from the run's receipt, with its excerpt", async () => {
+  const s = await setup({
+    receipt: () => ({
+      title: 'Lane',
+      repository: null,
+      branch: null,
+      settledAt: Date.now(),
+      durationMs: 1000,
+      files: 0,
+      added: 0,
+      removed: 0,
+      tests: null,
+      artifacts: 0,
+      excerpt: 'Build broke on step 3',
+      outcome: 'error',
+    }),
+  })
+  await s.ready()
+  const host = s.machines[0]!.id
+  const lane = await s.api.invoke('hosts:createLane', host, { repositoryId: '0123456789abcdef' })
+  const attention: HostAttention[] = []
+  s.api.onHostAttention((event) => attention.push(event))
+  s.hosts[0]!.failLane(lane.laneId!)
+  await vi.waitFor(() => expect(attention).toHaveLength(1))
+  expect(attention[0]).toMatchObject({
+    hostId: host,
+    laneId: lane.laneId,
+    kind: 'failed',
+    receipt: { outcome: 'error', excerpt: 'Build broke on step 3' },
+  })
+})
