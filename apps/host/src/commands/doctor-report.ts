@@ -6,6 +6,7 @@ import {
   type HostCapability,
   type HostHello,
 } from '@phosphor/shared/remote-host'
+import { platformName } from '@phosphor/shared/platform-name'
 import { identityDirectory, readIdentityFile } from '../control/identity'
 import { EXIT, exitCodeFor, fail, info, pass, warn, type Check } from '../checks'
 import type { HostConfigV1 } from '../config/schema'
@@ -92,14 +93,7 @@ export async function buildMachine(
         machineContext: {
           kind: 'host' as const,
           label: machineLabel,
-          os:
-            context.platform === 'darwin'
-              ? 'macOS'
-              : context.platform === 'win32'
-                ? 'Windows'
-                : context.platform === 'linux'
-                  ? 'Linux'
-                  : context.platform,
+          os: platformName(context.platform),
           repositories: config.repositories.map((repository) => basename(repository)),
         },
       }

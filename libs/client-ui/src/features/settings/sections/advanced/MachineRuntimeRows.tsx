@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Button, Row } from '@/components/form'
 import type { UpdateState } from '@shared/models'
 import { useUpdatesStore } from '@/features/updates/updatesStore'
-import { platformName } from '@/features/machines/machinePresentation'
+import { platformName } from '@shared/platform-name'
 import type { MachineRuntime, MachineUpdate } from './source'
 
 /**
