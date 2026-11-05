@@ -33,8 +33,8 @@ export function useHostFiles(hostId: string): MachineFilesSource {
         const file = await window.phosphor.invoke('hosts:repositoryFile', hostId, id, path)
         return { binary: file.binary, content: file.binary ? 'Binary file' : file.content }
       },
-      listError: (failure) => fileListErrorText(failure, REMOTE_UNAVAILABLE),
-      readError: REMOTE_UNAVAILABLE,
+      listError: (failure) => fileListErrorText(failure, 'Could not read files.'),
+      readError: 'Could not read this file.',
       modelPath: (id, path) => `host:${hostId}/repository:${id}/${path}`,
     }),
     [hostId],
