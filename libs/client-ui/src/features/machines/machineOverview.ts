@@ -12,10 +12,10 @@ import { useSessionsStore } from '@/stores/sessions'
 import {
   claudeReadiness,
   localChecks,
-  localClaude,
   platformName,
   readinessChecks,
   readinessFreshness,
+  readLocalClaude,
   relativeTime,
   type LocalReadings,
   type ReadinessCheck,
@@ -115,12 +115,7 @@ function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () 
     const failed = (): void => merge({ failed: true })
     void Promise.allSettled([
       window.phosphor.invoke('pi:health').then((health) => merge({ health }), failed),
-      Promise.all([
-        window.phosphor.invoke('packages:list'),
-        window.phosphor.invoke('packages:claudeStatus'),
-      ])
-        .then(([packages, status]) => merge({ claude: localClaude(packages, status) }))
-        .catch(failed),
+      readLocalClaude(window.phosphor.invoke).then((claude) => merge({ claude }), failed),
       window.phosphor
         .invoke('hosts:tailscaleStatus')
         .catch((): TailscaleStatus => ({ code: 'check-failed' }))

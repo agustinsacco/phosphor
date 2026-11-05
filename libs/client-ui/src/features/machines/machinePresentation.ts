@@ -5,12 +5,8 @@ import {
   type Readiness,
 } from '@shared/control-api'
 import type { MachineClaude } from '@shared/host-protocol-machine'
-import {
-  claudeProviderState,
-  type ClaudeStatus,
-  type PiHealth,
-  type PiPackageEntry,
-} from '@shared/models'
+import type { PhosphorApi } from '@shared/ipc'
+import { claudeProviderState, type PiHealth } from '@shared/models'
 import type { TailscaleCode, TailscaleStatus } from '@shared/tailscale-status'
 
 export const HOST_GUIDE = 'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md'
@@ -196,11 +192,15 @@ export function readinessChecks(
     },
   ]
 }
-/** This computer's Claude Code in a Host's terms, by the Host's provider rule. */
-export function localClaude(
-  packages: readonly PiPackageEntry[],
-  status: ClaudeStatus,
-): MachineClaude {
+/**
+ * This computer's Claude Code in a Host's terms (the counterpart of `hosts:claude`),
+ * by the Host's provider rule.
+ */
+export async function readLocalClaude(invoke: PhosphorApi['invoke']): Promise<MachineClaude> {
+  const [packages, status] = await Promise.all([
+    invoke('packages:list'),
+    invoke('packages:claudeStatus'),
+  ])
   return {
     provider: claudeProviderState(packages),
     cli: status.binary.found ? 'ok' : 'missing',

@@ -8,7 +8,7 @@ import { machineHeadline, type Tone } from './machineReachability'
 import type { MachineClaude } from '@shared/host-protocol-machine'
 import {
   claudeReadiness,
-  localClaude,
+  readLocalClaude,
   relativeTime,
   TAILSCALE_FIXES,
   TAILSCALE_OPTIONAL,
@@ -155,13 +155,7 @@ function localProbes(context: HealthContext): Probe[] {
   const reads: MachineReads = {
     providers: context.localProviders,
     models: async () => (await invoke('pi:catalogueModels')).models.length,
-    claude: async () => {
-      const [packages, status] = await Promise.all([
-        invoke('packages:list'),
-        invoke('packages:claudeStatus'),
-      ])
-      return localClaude(packages, status)
-    },
+    claude: () => readLocalClaude(invoke),
     lanes: async () => {
       const { live, folders } = context.localLanes()
       return `${plural(live, 'live lane')} · ${plural(folders, 'folder')}`

@@ -5,11 +5,11 @@ import {
   formatCode,
   HOST_INSTALL,
   localChecks,
-  localClaude,
   PI_INSTALL,
   platformName,
   readinessFreshness,
   readinessChecks,
+  readLocalClaude,
   relativeTime,
   sortMachines,
 } from './machinePresentation'
@@ -155,7 +155,7 @@ it('C7: a Host that can open Settings signs in to Claude Code there, as This Mac
     expect(check?.command).toBe('phosphor providers login claude')
 })
 
-it("characterize: This Mac's Claude provider state follows main's refusal rule", () => {
+it("characterize: This Mac's Claude provider state follows main's refusal rule", async () => {
   const status = { binary: { found: true }, auth: { ok: true, loggedIn: true } } as never
   const copy = (version: string, installed = true, scope: 'global' | 'project' = 'global') => ({
     ...CLAUDE_PROVIDER,
@@ -163,14 +163,18 @@ it("characterize: This Mac's Claude provider state follows main's refusal rule",
     installed,
     scope,
   })
-  const provider = (packages: PiPackageEntry[]) => localClaude(packages, status).provider
-  expect(provider([copy('0.10.2')])).toBe('ok')
-  expect(provider([copy('0.10.0')])).toBe('ok')
-  expect(provider([copy('0.9.1')])).toBe('outdated')
-  expect(provider([copy('0.10.2'), copy('0.9.0', true, 'project')])).toBe('outdated')
-  expect(provider([copy('0.10.2', false)])).toBe('missing')
-  expect(provider([{ ...CLAUDE_PROVIDER, name: 'pi-claude-cli' }])).toBe('missing')
-  expect(provider([])).toBe('missing')
+  const provider = async (packages: PiPackageEntry[]) =>
+    (
+      await readLocalClaude((async (channel: string) =>
+        channel === 'packages:list' ? packages : status) as never)
+    ).provider
+  expect(await provider([copy('0.10.2')])).toBe('ok')
+  expect(await provider([copy('0.10.0')])).toBe('ok')
+  expect(await provider([copy('0.9.1')])).toBe('outdated')
+  expect(await provider([copy('0.10.2'), copy('0.9.0', true, 'project')])).toBe('outdated')
+  expect(await provider([copy('0.10.2', false)])).toBe('missing')
+  expect(await provider([{ ...CLAUDE_PROVIDER, name: 'pi-claude-cli' }])).toBe('missing')
+  expect(await provider([])).toBe('missing')
 })
 
 it("describes This Mac's unavailable pi by its reason, and offers the install command once", () => {
