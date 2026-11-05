@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GhBranchCoverage, GhPullRequest } from '@shared/models'
+import type { GhBranchCoverage, GhPullRequest, GitInfo, SessionMeta } from '@shared/models'
 import { pullRequestInterests } from './pullRequestInterests'
 import { mergePullRequestRead, pullRequestPages } from './pullRequestReads'
 import { keyedSlice } from './keyedSlice'
@@ -145,4 +145,13 @@ export function pullRequestFor(
 ): GhPullRequest | undefined {
   if (!branch) return undefined
   return repos.read(state.byRepo, repoPath).byBranch[branch]
+}
+
+/** A This Mac lane's pull request. A worktree's PRs live under its main repository. */
+export function localLanePullRequest(
+  state: Pick<PullRequestsState, 'byRepo'>,
+  meta: Pick<SessionMeta, 'cwd'>,
+  git: Pick<GitInfo, 'mainRepoPath' | 'branch'> | undefined,
+): GhPullRequest | undefined {
+  return pullRequestFor(state, git?.mainRepoPath ?? meta.cwd, git?.branch)
 }
