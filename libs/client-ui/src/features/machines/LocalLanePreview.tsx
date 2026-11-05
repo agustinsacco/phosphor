@@ -75,7 +75,7 @@ export function LocalLanePreviewRow({ lane }: { lane: LocalLane }): React.JSX.El
     sessionTitle(
       { explicitName: liveName ?? meta?.name, firstUserText: meta?.firstUserText ?? firstUser },
       { elide: false },
-    ) ?? 'Untitled session'
+    ) ?? (meta ? 'Untitled session' : 'New session')
   const open = async (): Promise<void> => {
     if (!phosphorId && meta?.worktreeRemoved)
       return openSidebarConversation(lane.workspacePath, meta)
