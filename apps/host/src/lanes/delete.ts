@@ -6,8 +6,7 @@ import type { GhRunner } from '@phosphor/session-runtime/git/github'
 import {
   branchTip,
   deleteBranchAtTip,
-  ghCommitTree,
-  ghMergedPrHeads,
+  githubEvidence,
   landedOnTrunk,
   landedViaPullRequest,
   type BranchGit,
@@ -76,10 +75,7 @@ function pullRequestEvidence(root: string, github: GhRunner): PullRequestEvidenc
   const deadline = Date.now() + PULL_REQUEST_PROOF_MS
   const bounded: GhRunner = (cwd, args) =>
     Date.now() < deadline ? github(cwd, args) : Promise.resolve(null)
-  return {
-    mergedPrHeads: (branch) => ghMergedPrHeads(bounded, root, branch),
-    commitTree: (oid) => ghCommitTree(bounded, root, oid),
-  }
+  return githubEvidence(bounded, root)
 }
 
 /**

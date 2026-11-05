@@ -18,7 +18,7 @@ import {
   landedViaPullRequest as landedViaPullRequestAt,
   type BranchGit,
 } from '@phosphor/session-runtime/git/branch-landed'
-import { ghCommitTree, ghMergedPrHeads } from './gh-cli'
+import { ghEvidence } from './gh-cli'
 
 const execFileAsync = promisify(execFile)
 
@@ -454,15 +454,7 @@ export async function landedViaPullRequest(
 ): Promise<boolean> {
   const commit = tip ?? (await branchTip(proofGit(repoPath), branch))
   if (!commit) return false
-  return landedViaPullRequestAt(
-    proofGit(repoPath),
-    {
-      mergedPrHeads: (name) => ghMergedPrHeads(repoPath, name),
-      commitTree: (oid) => ghCommitTree(repoPath, oid),
-    },
-    branch,
-    commit,
-  )
+  return landedViaPullRequestAt(proofGit(repoPath), ghEvidence(repoPath), branch, commit)
 }
 
 /** Every proof Phosphor accepts that a branch's commit `tip` is already on the trunk. */

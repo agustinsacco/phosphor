@@ -26,7 +26,12 @@ const gh = vi.hoisted(() => ({
   heads: vi.fn<(repo: string, branch: string) => Promise<string[] | null>>(),
   tree: vi.fn<(repo: string, oid: string) => Promise<string | null>>(),
 }))
-vi.mock('./gh-cli', () => ({ ghMergedPrHeads: gh.heads, ghCommitTree: gh.tree }))
+vi.mock('./gh-cli', () => ({
+  ghEvidence: (repoPath: string) => ({
+    mergedPrHeads: (branch: string) => gh.heads(repoPath, branch),
+    commitTree: (oid: string) => gh.tree(repoPath, oid),
+  }),
+}))
 
 const execFileAsync = promisify(execFile)
 

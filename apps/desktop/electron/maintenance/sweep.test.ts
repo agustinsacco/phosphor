@@ -33,7 +33,12 @@ const gh = vi.hoisted(() => ({
   heads: vi.fn<(repo: string, branch: string) => Promise<string[] | null>>(),
 }))
 vi.mock('../pi/session-watcher', () => ({ notifyWorkspaceSessions: vi.fn() }))
-vi.mock('../fs/gh-cli', () => ({ ghMergedPrHeads: gh.heads, ghCommitTree: async () => null }))
+vi.mock('../fs/gh-cli', () => ({
+  ghEvidence: (repoPath: string) => ({
+    mergedPrHeads: (branch: string) => gh.heads(repoPath, branch),
+    commitTree: async () => null,
+  }),
+}))
 
 const execFileAsync = promisify(execFile)
 const HOUR = 60 * 60 * 1000
