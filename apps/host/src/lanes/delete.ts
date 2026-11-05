@@ -87,7 +87,7 @@ function pullRequestEvidence(root: string, github: GhRunner): PullRequestEvidenc
  * squash, or through a merged GitHub PR when `github` can ask? `tip` pins the
  * proof to the commit the deletion compares against.
  */
-export async function branchMerged(
+export async function branchLanded(
   root: string,
   branch: string,
   { tip, github }: { tip?: string; github?: GhRunner } = {},
@@ -174,7 +174,7 @@ export function createLaneDeletion(options: {
       }
       let branchKept = op.removeBranch && lane.branch !== null
       if (op.removeBranch && lane.branch && !shared() && allowed())
-        branchKept = !(await deleteMergedBranch(root, lane.branch, allowed, options.github))
+        branchKept = !(await deleteLandedBranch(root, lane.branch, allowed, options.github))
       if (!allowed()) return { ok: false, code: 'forbidden' }
       options.store.markRemoved(lane.laneId)
       options.forget(lane.laneId)
@@ -210,7 +210,7 @@ async function forgetUnlisted(
 }
 
 /** Kept branches are not lane deletion failures. Checkout is re-checked around the deletion. */
-export async function deleteMergedBranch(
+export async function deleteLandedBranch(
   root: string,
   branch: string,
   allowed: () => boolean = () => true,
@@ -232,7 +232,7 @@ export async function deleteMergedBranch(
     const worktrees = await run(['worktree', 'list', '--porcelain'])
     if (worktrees.split('\n').includes(`branch ${ref}`)) return false
     const tip = await branchTip(run, branch)
-    if (!tip || !allowed() || !(await branchMerged(root, branch, { tip, github }))) return false
+    if (!tip || !allowed() || !(await branchLanded(root, branch, { tip, github }))) return false
     // Every proof (ancestry, squash or PR) ends in one compare-and-delete at the proven tip.
     return await deleteBranchAtTip(run, branch, tip, allowed)
   } catch {
