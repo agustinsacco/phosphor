@@ -101,6 +101,18 @@ it("holds a Host's pi to the minimum This Mac's is held to (B19)", async () => {
   expect(text).not.toContain('v1.1.9')
 })
 
+it("passes a Host's prerelease pi at the minimum, as the Host's own gate does (settings F1)", async () => {
+  hostRead = (hostId, section) => {
+    const read = mockSettingsRead(hostId, section as never)
+    if (read.advanced?.pi) read.advanced.pi.version = `${MIN_PI_VERSION}-rc.1`
+    return read
+  }
+  await showHostSettings(root, machine.id, 'advanced')
+  const text = container.textContent ?? ''
+  expect(text).toContain(`v${MIN_PI_VERSION}-rc.1`)
+  expect(text).not.toContain('too-old')
+})
+
 it("shows This Mac's own version and update where a Host shows its own (B23)", async () => {
   await showHostSettings(root, 'local', 'advanced')
   await act(async () => {})
