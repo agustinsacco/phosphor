@@ -168,3 +168,10 @@ it('says in About that the version is unknown when the app cannot report it', ()
     await act(async () => {})
     expect(container.textContent).toMatch(/Phosphor version\s*unknown/)
   }))
+
+it("says in About that pi's version is unknown when the health check fails", () =>
+  withFailing('pi:health', async () => {
+    await showHostSettings(root, 'local', 'about')
+    await act(async () => {})
+    expect(container.textContent).toMatch(/pi version\s*unknown/)
+  }))
