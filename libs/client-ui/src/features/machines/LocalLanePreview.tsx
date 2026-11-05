@@ -7,6 +7,7 @@ import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSessionsStore } from '@/stores/sessions'
 import { openSidebarConversation } from '@/features/sessions/completionActions'
+import { pendingLiveEntries } from '@/features/sessions/groupSessions'
 import { sessionSubtitle } from '@/features/sessions/sessionSubtitle'
 import { LaneRow, SessionIndicator, SubtitleSegments } from '@/features/sessions/SidebarPrimitives'
 import { isUnseen } from '@/features/sessions/unseen'
@@ -32,13 +33,11 @@ export function useLocalLanes(): LocalLane[] {
       .sort((a, b) => (b.meta.mtimeMs ?? 0) - (a.meta.mtimeMs ?? 0))
     const paths = new Set(stored.map(({ meta }) => meta.path))
     return [
-      ...local
-        .filter((entry) => !entry.diskPath || !paths.has(entry.diskPath))
-        .map((entry) => ({
-          key: entry.phosphorId,
-          workspacePath: entry.workspacePath,
-          phosphorId: entry.phosphorId,
-        })),
+      ...pendingLiveEntries(local, paths).map((entry) => ({
+        key: entry.phosphorId,
+        workspacePath: entry.workspacePath,
+        phosphorId: entry.phosphorId,
+      })),
       ...stored.map(({ workspacePath, meta }) => ({
         key: meta.path,
         workspacePath,
