@@ -6,6 +6,7 @@ import {
 } from '@/stores/remoteLanes'
 import type { HostConnectionView } from '@shared/ipc'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
+import { remoteLaneTitle } from '@/features/sessions/remoteLaneView'
 import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -343,7 +344,7 @@ function hostActions(
 ): PaletteAction[] {
   const lanes = host.lanes.map((lane) => ({
     id: `lane-${lane.laneId}`,
-    label: `Open lane: ${lane.title ?? 'Untitled lane'}`,
+    label: `Open lane: ${remoteLaneTitle(null, lane.title)}`,
     run: () => void openRemoteLane(hostId, lane.laneId),
   }))
   const repositories = host.repositories.map((repository) => ({
