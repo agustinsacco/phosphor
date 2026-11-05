@@ -2,6 +2,7 @@ import { usePlatform } from '@/platform/Platform'
 import { useEffect } from 'react'
 import { useMachineCatalogue, useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { catalogueEmptyText, useModelCatalogueStore } from '@/stores/modelCatalogue'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 
 /** Routine model choices belong to their execution machine, not the active lane. */
@@ -17,14 +18,15 @@ export function useRoutineModels(machineId?: string) {
   useEffect(() => {
     if (!hostId && localLanes) void useModelCatalogueStore.getState().hydrate()
   }, [hostId, localLanes])
-  if (hostId)
+  if (hostId) {
+    const refusal = hostFeatureRefusal(host, 'skills.read', 'models')
     return {
-      models:
-        host?.state === 'ready' && host.capabilities.includes('skills.read') ? remote.models : [],
+      models: refusal ? [] : remote.models,
       loading: remote.status === 'idle' || remote.status === 'loading',
-      emptyText: REMOTE_UNAVAILABLE,
+      emptyText: refusal ?? REMOTE_UNAVAILABLE,
       refresh: () => void useMachineCataloguesStore.getState().load(hostId, undefined, true),
     }
+  }
   return {
     models: localLanes ? models : [],
     loading: localLanes && (status === 'idle' || status === 'loading'),

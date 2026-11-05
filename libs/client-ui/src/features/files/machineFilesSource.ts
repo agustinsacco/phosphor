@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { fileListErrorText } from '@shared/host-protocol-files'
-import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useWorkspacesStore } from '@/stores/workspaces'
 
 /** How a machine's files are read; one object per machine, so a view can depend on it. */
@@ -25,7 +26,6 @@ export interface MachineFilesSource {
 
 export function useHostFiles(hostId: string): MachineFilesSource {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const ready = host?.state === 'ready' && host.capabilities.includes('workspaces.read')
   const reads = useMemo<MachineFileReads>(
     () => ({
       list: (id) => window.phosphor.invoke('hosts:repositoryFiles', hostId, id),
@@ -40,7 +40,7 @@ export function useHostFiles(hostId: string): MachineFilesSource {
     [hostId],
   )
   return {
-    unavailable: ready ? null : host?.state !== 'ready' ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE,
+    unavailable: hostFeatureRefusal(host, 'workspaces.read') ?? null,
     noun: { one: 'Repository', many: 'Repositories' },
     repositories: host?.repositories ?? [],
     reads,

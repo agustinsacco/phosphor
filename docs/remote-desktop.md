@@ -219,7 +219,9 @@ polling and manual app refresh do not bypass the Host's 60-second upstream cache
 the details label app-refresh age rather than claiming fresh GitHub data.
 The live chat picker keeps the lane's full pi model list through `lane.models`,
 requiring `sessions.read`. Stopped lanes do not fall back to a machine catalogue.
-Skills requires `skills.read`. Remote Skills shows the installed list
+Skills requires `skills.read`; without it Skills says "This Host does not offer
+skills to this device." and the start and routine model pickers say "This Host
+does not offer models to this device.". Remote Skills shows the installed list
 and SKILL.md read-only, with no export, upload, discovery installs or in-place edits.
 
 ### Skill sharing
