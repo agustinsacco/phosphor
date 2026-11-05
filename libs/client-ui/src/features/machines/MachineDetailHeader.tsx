@@ -48,7 +48,7 @@ export function MachineDetailHeader({
   )
 }
 
-/** Reconnect and Update Host… only where the machine has an address to use them on. */
+/** Reconnect and a Host's update only where it has an address to use them on. */
 function MachineHeaderActions({
   overview: { check, reconnect, update },
 }: {
@@ -94,7 +94,7 @@ function MachineHeaderActions({
           {reconnect &&
             row(reconnect.busy ? 'Reconnecting…' : 'Reconnect', reconnect.run, reconnect.busy)}
           {row(check.busy ? 'Checking…' : 'Check again', check.run, check.busy)}
-          {update && row('Update Host…', update)}
+          {update && row(update.label, update.run)}
         </PopupMenu>
       )}
     </div>

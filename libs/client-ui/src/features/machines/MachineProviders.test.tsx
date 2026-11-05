@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 import { MachineProviders } from './MachineProviders'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useMachinesStore } from '@/stores/machines'
+import { MACHINE } from './__fixtures__/control'
 let root: Root, container: HTMLDivElement
 const invoke = vi.fn(async (channel: string): Promise<unknown> => {
   if (channel === 'hosts:providers') return [{ id: 'xai', name: 'xAI', status: 'not_ready' }]
@@ -90,4 +92,61 @@ it('shows loading rows while the first read is in flight, and a hint when not co
   useRemoteLanesStore.setState({ hosts: {} })
   await render()
   expect(container.textContent).toContain('Providers appear once this computer is connected')
+})
+it('says a connected Host does not let this device read providers, rather than "once connected"', async () => {
+  useRemoteLanesStore.setState({
+    hosts: {
+      host: {
+        state: 'ready',
+        capabilities: ['terminal', 'sessions.control'],
+        repositories: [],
+        lanes: [],
+        connectionToken: 'test-connection-1',
+      },
+    },
+  })
+  useMachinesStore.setState({ machines: [{ ...MACHINE, id: 'host', label: 'Build box' }] })
+  onTestFinished(() => useMachinesStore.setState({ machines: [] }))
+  await render()
+  expect(container.textContent).toContain('This device may not read providers on Build box.')
+  expect(container.textContent).not.toContain('once this computer is connected')
+  expect(invoke).not.toHaveBeenCalled()
+})
+it('says "Checking providers…" while the first read is in flight', async () => {
+  invoke.mockImplementationOnce(() => new Promise(() => {}))
+  await render()
+  expect(container.querySelector('[role=status]')?.textContent).toContain('Checking providers…')
+})
+it("reuses This Mac's last provider read on open, and reads again on Check again", async () => {
+  const local = vi.fn(async () => [{ id: 'anthropic', name: 'Claude', status: 'ready' }])
+  vi.stubGlobal('phosphor', { invoke: local })
+  const open = async (refresh: number) => {
+    act(() => root.unmount())
+    root = createRoot(container)
+    await act(async () => root.render(<MachineProviders hostId="local" refresh={refresh} />))
+  }
+  await open(0)
+  await open(0)
+  expect(container.querySelector('[data-provider=anthropic]')?.textContent).toContain('Signed in')
+  expect(local).toHaveBeenCalledOnce()
+  await act(async () => root.render(<MachineProviders hostId="local" refresh={1} />))
+  expect(local).toHaveBeenCalledTimes(2)
+})
+it("keeps reusing This Mac's last read on later opens after one Check again", async () => {
+  const local = vi.fn(async () => [{ id: 'anthropic', name: 'Claude', status: 'ready' }])
+  vi.stubGlobal('phosphor', { invoke: local })
+  // The page stays mounted, so Check again's round outlives the detail it ran in.
+  const open = async (refresh: number) => {
+    act(() => root.unmount())
+    root = createRoot(container)
+    await act(async () => root.render(<MachineProviders hostId="local" refresh={refresh} />))
+  }
+  await open(0)
+  local.mockClear()
+  await act(async () => root.render(<MachineProviders hostId="local" refresh={1} />))
+  expect(local).toHaveBeenCalledOnce()
+  await open(1)
+  await open(1)
+  expect(container.querySelector('[data-provider=anthropic]')?.textContent).toContain('Signed in')
+  expect(local).toHaveBeenCalledOnce()
 })

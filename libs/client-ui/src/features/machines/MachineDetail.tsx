@@ -4,9 +4,11 @@ import type { MachineView } from '@shared/control-api'
 import { CopyButton } from '@/components/CopyButton'
 import { Button } from '@/components/form'
 import { Spinner } from '@/components/icons'
-import { TooltipSummary } from '@/components/Tooltip'
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
+import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { CopyCommand, Troubleshooting } from './MachineControls'
 import { MachineDetailHeader } from './MachineDetailHeader'
+import { MachineFilesButton } from './MachineFilesButton'
 import { useHostOverview, type MachineOverview } from './machineOverview'
 import { HOST_SERVICE_STATUS, relativeTime } from './machinePresentation'
 import { Card, CheckRow } from './MachineUi'
@@ -17,11 +19,9 @@ import { MachineProviders } from './MachineProviders'
 /** One detail for any machine, This Mac or a Host. What a machine lacks is not drawn. */
 export function MachineDetail({
   overview,
-  navigation,
   onRemove,
 }: {
   overview: MachineOverview
-  navigation?: React.ReactNode
   /** Offered for an enrolled Host. */
   onRemove?: () => void
 }): React.JSX.Element {
@@ -35,7 +35,7 @@ export function MachineDetail({
   return (
     <div data-testid="machine-detail" className="space-y-4">
       <MachineDetailHeader overview={overview} />
-      {navigation}
+      <MachineViews overview={overview} />
       {overview.notice === 'setup' && (
         <section
           aria-label="Finish setup"
@@ -95,9 +95,9 @@ export function MachineDetail({
               </p>
             )}
           </Card>
-          {overview.machine && overview.connected && (
+          {overview.connected && (
             <Card title="On this machine">
-              <OnThisMachine hostId={id} />
+              <OnThisMachine hostId={id} refresh={check.round} />
             </Card>
           )}
         </div>
@@ -143,10 +143,34 @@ export function HostMachineDetail({
   machine: MachineView
   now: number
   offset: number
-  navigation?: React.ReactNode
   onRemove: () => void
 }): React.JSX.Element {
   return <MachineDetail overview={useHostOverview(machine, now, offset)} {...rest} />
+}
+
+/** The same views for every machine: this Overview, its Settings and its files. */
+function MachineViews({ overview }: { overview: MachineOverview }): React.JSX.Element {
+  const openSettings = useOpenSettings()
+  return (
+    <nav aria-label="Machine views" className="border-border flex gap-5 border-b">
+      <TooltipButton
+        tooltip="Machine readiness and diagnostics"
+        aria-current="page"
+        className="machine-view-tab text-base"
+      >
+        Overview
+      </TooltipButton>
+      <TooltipButton
+        tooltip={`Configure ${overview.label} in Settings`}
+        aria-label="Machine settings"
+        className="machine-view-tab text-base"
+        onClick={() => openSettings(overview.id, 'accounts')}
+      >
+        Settings
+      </TooltipButton>
+      <MachineFilesButton machine={overview} />
+    </nav>
+  )
 }
 
 function MachineFacts({ facts }: { facts: MachineOverview['facts'] }): React.JSX.Element {

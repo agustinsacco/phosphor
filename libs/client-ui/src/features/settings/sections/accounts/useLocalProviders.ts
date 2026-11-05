@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { LoginFlowState, SubscriptionProviderStatus } from '@shared/models'
 import { errorText } from '@shared/errors'
+import { readLocalSubscriptionAuth } from '@/stores/localSubscriptionAuth'
 import type { ProviderAccountsSource } from './accountsModel'
 
 /** Has this sign-in stopped, for better or worse? */
@@ -37,7 +38,7 @@ export function useLocalProviders(): ProviderAccountsSource {
   const [error, setError] = useState<string | null>(null)
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      setProviders(await window.phosphor.invoke('pi:subscriptionAuth'))
+      setProviders(await readLocalSubscriptionAuth())
       setLoadError(null)
     } catch (caught) {
       setLoadError(errorText(caught))

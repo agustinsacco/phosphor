@@ -42,6 +42,20 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
     return { binary: { found: true }, auth: { loggedIn: true } }
   if (channel === 'pi:subscriptionAuth' || channel === 'hosts:providers') return PROVIDERS
   if (channel === 'hosts:claude') return claude
+  if (channel === 'hosts:tailscaleStatus') return { code: 'ready' }
+  if (channel === 'packages:list')
+    return [
+      {
+        spec: 'npm:@saccolabs/pi-claude-cli',
+        scope: 'global',
+        kind: 'npm',
+        filtered: false,
+        name: '@saccolabs/pi-claude-cli',
+        version: '0.10.2',
+        installed: true,
+        resources: { extensions: ['index.ts'], skills: [], prompts: [], themes: [] },
+      },
+    ]
   return null
 })
 
@@ -106,11 +120,11 @@ it("This Mac's row reads its checks, and its detail shows readiness, providers a
   expect(row?.textContent).toContain('This Mac')
   expect(row?.textContent).toContain('macOS')
   expect(row?.textContent).toContain('pi 1.2.0')
-  expect(okChecks(row, 'data-check-chip')).toEqual(['true', 'true'])
+  expect(okChecks(row, 'data-check-chip')).toEqual(['true', 'true', 'true'])
   expect(row?.querySelector('[data-tone]')?.textContent).toBe('Ready')
   await click(row)
   expect(container.querySelector('[data-testid=machine-detail]')).not.toBeNull()
-  expect(okChecks(region('Readiness'), 'data-check')).toEqual(['true', 'true'])
+  expect(okChecks(region('Readiness'), 'data-check')).toEqual(['true', 'true', 'true'])
   const providers = region('Providers')
   expect(providers?.textContent).toContain('Claude Pro/Max')
   expect(providers?.textContent).toContain('ChatGPT')
@@ -119,7 +133,7 @@ it("This Mac's row reads its checks, and its detail shows readiness, providers a
   expect(useSettingsUiStore.getState()).toMatchObject({ tab: 'accounts', machine: 'local' })
   expect(region('Terminal')).not.toBeNull()
   expect(button('Remove machine')).toBeUndefined()
-  expect(container.querySelector('[aria-label="Machine views"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Machine views"]')).not.toBeNull()
 })
 
 it("a Host's row and detail show its status, readiness, providers, actions and removal", async () => {
@@ -201,4 +215,42 @@ it("onboarding's Providers step reads the new Host's Claude Code and providers, 
   await click(button('Check readiness again'))
   expect(invoke).toHaveBeenCalledWith('hosts:providers', HOST.id)
   expect(invoke).toHaveBeenCalledWith('hosts:claude', HOST.id)
+})
+
+it("This Mac's Claude Code names a missing provider package, as a Host's does", async () => {
+  const base = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'packages:list' ? [] : base(channel),
+  )
+  try {
+    await render()
+    await click(container.querySelector<HTMLElement>('[data-testid=local-machine-row]'))
+    const row = region('Readiness')?.querySelector('[data-check="Claude Code"]')
+    expect(row?.getAttribute('data-ok')).toBe('false')
+    expect(row?.textContent).toContain('Claude Code provider missing')
+    expect(row?.textContent).toContain('Settings → Extensions → Claude Code')
+  } finally {
+    invoke.mockImplementation(base)
+  }
+})
+
+it("This Mac's Readiness lists pi, Claude Code and Tailscale, read on this computer", async () => {
+  await render()
+  await click(container.querySelector<HTMLElement>('[data-testid=local-machine-row]'))
+  const names = [...(region('Readiness')?.querySelectorAll('[data-check]') ?? [])].map((e) =>
+    e.getAttribute('data-check'),
+  )
+  expect(names).toEqual(['pi', 'Claude Code', 'Tailscale'])
+  expect(invoke).toHaveBeenCalledWith('hosts:tailscaleStatus')
+})
+
+it("This Mac's detail has the Host's Machine views, and its Settings tab opens This Mac", async () => {
+  await render()
+  await click(container.querySelector<HTMLElement>('[data-testid=local-machine-row]'))
+  const views = container.querySelector('[aria-label="Machine views"]')
+  expect([...(views?.querySelectorAll('button') ?? [])].map((b) => b.textContent)).toEqual(
+    expect.arrayContaining(['Overview', 'Settings']),
+  )
+  await click(views?.querySelector<HTMLElement>('[aria-label="Machine settings"]'))
+  expect(useSettingsUiStore.getState()).toMatchObject({ tab: 'accounts', machine: 'local' })
 })

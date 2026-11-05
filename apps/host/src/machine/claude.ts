@@ -1,11 +1,16 @@
-import { MIN_CLAUDE_CONTEXT_VERSION, type PiPackageEntry } from '@phosphor/shared/models'
+import {
+  CLAUDE_PROVIDER_PACKAGE,
+  claudeProviderState,
+  MIN_CLAUDE_CONTEXT_VERSION,
+  type PiPackageEntry,
+} from '@phosphor/shared/models'
 import { claudeContextProviderShortfall } from '@phosphor/session-runtime/pi/provider-detect'
 import { extractVersion } from '@phosphor/session-runtime/pi/versions'
 import type { MachineClaude } from '@phosphor/shared/host-protocol-machine'
 import { which } from './executables'
 import { probe, probeFailure, type ProbeEnvironment } from './probe'
 
-export const CLAUDE_PROVIDER_PACKAGE = '@saccolabs/pi-claude-cli'
+export { CLAUDE_PROVIDER_PACKAGE }
 
 export type ClaudeLane =
   { available: true; claude: string; version: string } | { available: false; reason: string }
@@ -96,9 +101,7 @@ export async function inspectClaude(
   packages: Pick<PiPackageEntry, 'name' | 'version' | 'installed'>[],
   environment: ProbeEnvironment,
 ): Promise<MachineClaude> {
-  const installed = packages.some((pkg) => pkg.name === CLAUDE_PROVIDER_PACKAGE && pkg.installed)
-  const provider =
-    claudeContextProviderShortfall(packages) === null ? 'ok' : installed ? 'outdated' : 'missing'
+  const provider = claudeProviderState(packages)
   const claude = await which('claude', environment.env.PATH ?? '')
   if (!claude) return { provider, cli: 'missing', auth: 'unknown' }
   const auth = await claudeLoggedIn(claude, environment, { timeoutMs: 2000 })
