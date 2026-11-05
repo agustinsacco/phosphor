@@ -268,9 +268,14 @@ export function attachRemoteLanesListener(): () => void {
   let active = true
   let fetching = false
   let dirty = false
-  async function refresh(): Promise<void> {
+  let reading: Promise<void> = Promise.resolve()
+  /** Resolves once a read that started after the call has landed. */
+  function refresh(): Promise<void> {
     dirty = true
-    if (fetching) return
+    if (!fetching) reading = read()
+    return reading
+  }
+  async function read(): Promise<void> {
     fetching = true
     try {
       while (active && dirty) {
