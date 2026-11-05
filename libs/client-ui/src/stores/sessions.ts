@@ -24,6 +24,7 @@ import {
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
 import { createSettleTracker } from '@/lib/runSettle'
 import { requestSwarm } from '@/lib/swarm'
+import { restoreSession, forgetSessionTransition } from '@/features/sessions/sessionTransition'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { clearBurnSamples, recordBurnSample } from '@/lib/burnRate'
 import {
@@ -428,7 +429,7 @@ export function attachPiCommandsListener(): () => void {
  * simply lack some of these commands, and surfacing five chat errors while a
  * session is still opening would be worse than the graceful degradation below.
  */
-export async function bootstrapSession(phosphorId: string): Promise<void> {
+export async function bootstrapSession(phosphorId: string): Promise<boolean> {
   const chat = useChatStore.getState()
   // get_state is awaited on its own, ahead of the rest: it carries
   // `sessionFile`, and "reopen my last session" depends on that path being
@@ -450,7 +451,7 @@ export async function bootstrapSession(phosphorId: string): Promise<void> {
   if (state.status === 'fulfilled' && state.value.success && state.value.data) {
     if (!sessionIsOpen(phosphorId)) {
       await restPromise
-      return
+      return false
     }
     chat.setMeta(phosphorId, state.value.data)
     const diskPath = state.value.data.sessionFile
@@ -484,7 +485,7 @@ export async function bootstrapSession(phosphorId: string): Promise<void> {
     }
   }
   const [models, commands, stats, thinkingLevels] = await restPromise
-  if (!sessionIsOpen(phosphorId)) return
+  if (!sessionIsOpen(phosphorId)) return false
   if (models.status === 'fulfilled' && models.value.success && models.value.data) {
     chat.setModels(phosphorId, models.value.data.models)
   }
@@ -496,8 +497,6 @@ export async function bootstrapSession(phosphorId: string): Promise<void> {
     recordPolledStats(phosphorId, stats.value.data)
     chat.setStats(phosphorId, stats.value.data)
   }
-  // Older pi builds lack this command; leaving it null makes the picker derive
-  // the levels locally instead of showing a wrong hardcoded list.
   if (
     thinkingLevels.status === 'fulfilled' &&
     thinkingLevels.value.success &&
@@ -505,6 +504,7 @@ export async function bootstrapSession(phosphorId: string): Promise<void> {
   ) {
     chat.setThinkingLevels(phosphorId, thinkingLevels.value.data.levels)
   }
+  return state.status === 'fulfilled' && state.value.success && !!state.value.data?.sessionFile
 }
 
 /**
@@ -616,6 +616,7 @@ async function dropSessionState(sessionId: string): Promise<void> {
   // Before any await, so a cleanup that fails partway still releases it and
   // a session re-adopted under this id is not throttled by its predecessor.
   commandsRefreshedAt.delete(sessionId)
+  forgetSessionTransition(sessionId)
   const entry = useSessionsStore.getState().live[sessionId]
   if (entry?.target?.kind === 'remote' && entry.laneId) {
     const { useDraftsStore } = await import('./drafts')
@@ -1022,7 +1023,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const workspacePath = info.workspacePath || requestedPath
       // Resuming from disk means history is on its way; the transcript shows a
       // skeleton instead of the "nothing here yet" empty state until it lands.
-      useChatStore.getState().ensure(phosphorId, { resuming: Boolean(options.sessionPath) })
+      useChatStore.getState().ensure(phosphorId, {
+        resuming: Boolean(options.sessionPath || options.forkFrom),
+      })
       attachSessionPushHandler(phosphorId)
 
       // Configure before publishing the lane or sending its first prompt. A
@@ -1072,35 +1075,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         void window.phosphor.invoke('app:setLastSession', options.sessionPath)
       }
 
-      // Resume: hydrate history before metadata so the transcript paints fast.
-      if (options.sessionPath) {
-        // Asked in parallel with the transcript. The store, not pi's messages,
-        // is what fills the pane: messages stop at the last compaction, so a
-        // compacted session that restarted (a provider switch, a relaunch)
-        // used to come back with an empty pane.
-        const stored = window.phosphor
-          .invoke('artifacts:forSession', options.sessionPath)
-          .catch(() => null)
-        try {
-          const messages = await rehydrateTranscript(phosphorId)
-          const { useArtifactsStore } = await import('./artifacts')
-          const snapshots = await stored
-          if (snapshots?.length) useArtifactsStore.getState().hydrate(phosphorId, snapshots)
-          // The old path, for when the store had nothing to say: replaying the
-          // toolResult messages pi still has in context.
-          else if (messages) useArtifactsStore.getState().ingestFromHistory(phosphorId, messages)
-        } catch {
-          // non-fatal
-        } finally {
-          // hydrate() clears this, but a failed or empty get_messages must not
-          // leave the transcript stuck behind a skeleton forever.
-          useChatStore.getState().doneResuming(phosphorId)
-        }
-      }
+      // History-bearing starts share the same required identity + reconciliation
+      // path as a live branch change. Failed loads keep a retry, not an empty chat.
+      if (options.sessionPath || options.forkFrom) await restoreSession(phosphorId)
       if (!sessionIsOpen(phosphorId)) return phosphorId
-      // Never rejects (it wraps get_state and allSettles the rest), so the
-      // naming chain below can hang off it safely.
-      const bootstrapped = bootstrapSession(phosphorId)
+      const bootstrapped =
+        options.sessionPath || options.forkFrom ? Promise.resolve() : bootstrapSession(phosphorId)
       void bootstrapped
 
       const firstPrompt = options.firstPrompt

@@ -41,6 +41,11 @@ import { useWritingStore } from '@/stores/writing'
 import { ipcErrorText } from '@shared/errors'
 import { createReceiptGuard, withDraftIds } from './receiptGuard'
 import { runShellCommand } from './composer/runShellCommand'
+import {
+  sessionTransitionPending,
+  useSessionTransition,
+} from '@/features/sessions/sessionTransition'
+import { SessionTransitionBanner } from '@/features/sessions/SessionTransitionBanner'
 
 export function Composer({
   sessionId,
@@ -64,6 +69,9 @@ export function Composer({
     entry?.target?.kind === 'remote' ? s.hosts[entry.target.hostId] : undefined,
   )
   const lock = useRemoteLock(sessionId)
+  const transition = useSessionTransition((s) => s.bySession[sessionId])
+  const resuming = useChatStore((s) => s.sessions[sessionId]?.resuming)
+  const restoring = !!transition || !!resuming
   const remoteAttachments =
     remote &&
     host?.state === 'ready' &&
@@ -161,7 +169,7 @@ export function Composer({
 
   const send = useCallback(
     async (behavior?: 'steer' | 'followUp') => {
-      if (!canControlSession(sessionId)) return
+      if (!canControlSession(sessionId) || sessionTransitionPending(sessionId)) return
       const message = text.trim()
       if ((!message && images.length === 0) || uploading.current) return
 
@@ -381,7 +389,12 @@ export function Composer({
       <ComposerStrips sessionId={sessionId} />
 
       <HostWaitNote sessionId={sessionId} className="mx-auto mb-1.5 max-w-3xl" />
-      <fieldset {...lock} className="relative mx-auto min-w-0 max-w-3xl">
+      <SessionTransitionBanner sessionId={sessionId} />
+      <fieldset
+        {...lock}
+        disabled={lock.disabled || restoring}
+        className="relative mx-auto min-w-0 max-w-3xl"
+      >
         <ComposerInput
           workspacePath={workspacePath}
           remoteAttachments={remoteAttachments}
