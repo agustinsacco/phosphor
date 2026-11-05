@@ -209,3 +209,18 @@ it("describes This Mac's unavailable pi by its reason, and offers the install co
     }),
   ).toMatchObject({ detail: 'pi --version exited with code 1', command: PI_INSTALL })
 })
+
+it('characterize: an unknown Claude Code sign-in says where to check it', () => {
+  const unknown = { provider: 'ok', cli: 'ok', auth: 'unknown' } as const
+  expect(claudeReadiness(unknown)).toMatchObject({
+    ok: false,
+    short: 'Claude Code unknown',
+    detail:
+      'Claude Code sign-in status is unknown. Check it under Settings → Extensions → Claude Code.',
+    command: undefined,
+  })
+  expect(claudeReadiness(unknown, false)).toMatchObject({
+    detail: 'Claude Code sign-in status is unknown. Run phosphor setup on this machine.',
+    command: 'phosphor setup',
+  })
+})
