@@ -3,7 +3,7 @@ import { localMachineLabel } from '@/lib/localMachine'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
-import { useMachinePagesStore, pageMachine } from '@/stores/machinePages'
+import { useMachinePagesStore, pageMachine, routineScope } from '@/stores/machinePages'
 import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
@@ -54,11 +54,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
   const remote = useRoutinesStore((s) => s.remote)
   const filter = useRemoteLanesStore((s) => s.filter)
   const override = useMachinePagesStore((s) => s.routinesMachine)
-  const selectedMachine = pageMachine(filter, override)
-  const machine =
-    selectedMachine === 'local' || selectedMachine === 'all' || selectedMachine.startsWith('host:')
-      ? selectedMachine
-      : `host:${selectedMachine}`
+  const machine = routineScope(pageMachine(filter, override))
   const snapshot = localSnapshot
     ? {
         ...localSnapshot,

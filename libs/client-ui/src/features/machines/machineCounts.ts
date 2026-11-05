@@ -1,6 +1,7 @@
 import type { PhosphorApi } from '@shared/ipc'
 import type { HostCapability } from '@shared/remote-host'
 import { artifactOnMachine } from '@/features/artifacts/globalArtifacts'
+import { routineScope } from '@/stores/machinePages'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 
 export type MachineCountKey = 'skills' | 'routines' | 'artifacts'
@@ -32,7 +33,7 @@ export function machineCounts(invoke: PhosphorApi['invoke'], machine: string): M
       label: 'Routines',
       capability: 'routines',
       read: async () =>
-        (await invoke('routines:list', local ? 'local' : `host:${machine}`)).routines.filter(
+        (await invoke('routines:list', routineScope(machine))).routines.filter(
           (routine) => !routine.archived,
         ).length,
     },
