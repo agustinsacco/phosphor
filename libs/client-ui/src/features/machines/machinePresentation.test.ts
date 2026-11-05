@@ -6,6 +6,7 @@ import {
   HOST_INSTALL,
   localChecks,
   localClaude,
+  PI_INSTALL,
   platformName,
   readinessFreshness,
   readinessChecks,
@@ -170,4 +171,24 @@ it("characterize: This Mac's Claude provider state follows main's refusal rule",
   expect(provider([copy('0.10.2', false)])).toBe('missing')
   expect(provider([{ ...CLAUDE_PROVIDER, name: 'pi-claude-cli' }])).toBe('missing')
   expect(provider([])).toBe('missing')
+})
+
+it('describes missing pi on This Mac in words and offers the install command', () => {
+  const [pi] = localChecks(
+    {
+      health: {
+        ok: false,
+        reason: 'not-found',
+        message: 'pi was not found on PATH.',
+        minVersion: '0.70.0',
+      },
+      failed: false,
+    },
+    false,
+  )
+  expect(pi).toMatchObject({
+    ok: false,
+    detail: 'pi was not found on PATH.',
+    command: PI_INSTALL,
+  })
 })
