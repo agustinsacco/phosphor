@@ -248,8 +248,8 @@ export function claudeReadiness(detail: MachineClaude, configurable = true): Rea
         name,
         ok: false,
         short: 'Claude Code unknown',
-        detail: `Claude Code sign-in status is unknown. ${configurable ? 'Check it under Settings → Extensions → Claude Code.' : 'Run phosphor setup on this machine.'}`,
-        command: configurable ? undefined : 'phosphor setup',
+        detail: `Claude Code sign-in status is unknown. ${configurable ? 'Check it under Settings → Extensions → Claude Code.' : setup.text}`,
+        command: setup.command,
       }
 }
 
