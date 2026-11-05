@@ -42,6 +42,12 @@ it('does not issue a read for a down or capability-less machine', async () => {
   useRemoteLanesStore.setState({ hosts })
   await useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
   expect(invoke).not.toHaveBeenCalled()
+  expect(catalogue().error).toBe('This Host does not offer models to this device.')
+  hosts[MOCK_HOST_ID]!.state = 'down'
+  useRemoteLanesStore.setState({ hosts: structuredClone(hosts) })
+  await useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
+  expect(invoke).not.toHaveBeenCalled()
+  expect(catalogue().error).toBe('Machine not connected. Wait for reconnection.')
 })
 it('ignores a late reply when the Host restarts under a ready snapshot', async () => {
   let resolve: ((value: unknown) => void) | undefined

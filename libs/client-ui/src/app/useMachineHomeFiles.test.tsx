@@ -71,7 +71,7 @@ it('offers only readable Host files on home and resets browsing on switch or lan
     expect(container.querySelector('select')).toBeNull()
     for (const [state, capabilities, reason] of [
       ['down', ['workspaces.read'], 'Machine not connected. Wait for reconnection.'],
-      ['ready', [], 'Not available on remote lanes yet.'],
+      ['ready', [], 'This Host does not offer files to this device.'],
     ] as const) {
       await act(async () =>
         useRemoteLanesStore.setState({
