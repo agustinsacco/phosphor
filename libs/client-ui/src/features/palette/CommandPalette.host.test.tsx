@@ -10,6 +10,7 @@ import { useMachinePagesStore } from '@/stores/machinePages'
 import { useRemoteComposer } from '@/features/home/remoteComposer'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import type { HostCapability } from '@shared/remote-host'
+import type { HostLaneView } from '@shared/ipc'
 
 /** The palette on a Host offers what it offers on This Mac, for that Host. */
 
@@ -46,9 +47,13 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function openOnHost(capabilities: HostCapability[] = []): Promise<void> {
+async function openOnHost(
+  capabilities: HostCapability[] = [],
+  lane: Partial<HostLaneView> = {},
+): Promise<void> {
   const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
   host.capabilities.push(...capabilities)
+  host.lanes[0] = { ...host.lanes[0]!, ...lane }
   useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host }, filter: MOCK_HOST_ID })
   useSessionsStore.setState({ activeSessionId: null, live: {} })
   usePaletteStore.setState({ open: true })
@@ -96,6 +101,19 @@ it('adds a folder on a Host that lets this device add one', async () => {
     "Choose a folder under this machine's home directory.",
   )
 })
+
+it.each(['', '   '])(
+  'names a Host lane titled %j as the sidebar does: Untitled lane',
+  async (title) => {
+    await openOnHost([], { title })
+    const labels = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].map(
+      (r) => r.textContent ?? '',
+    )
+    expect(labels.filter((label) => label.startsWith('Open lane:'))).toEqual([
+      'Open lane: Untitled lane',
+    ])
+  },
+)
 
 it.each([
   ['Open skills page', 'skills'],
