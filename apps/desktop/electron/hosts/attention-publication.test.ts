@@ -2,12 +2,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import type { AttentionEvent } from '@shared/host-protocol'
 import type { LaneReceipt } from '@shared/lane-receipt'
 import type { AttentionPorts, AttentionState } from './attention'
-import {
-  makeAttention,
-  publishAttention,
-  receiptForEvent,
-  waitForReceipt,
-} from './attention-publication'
+import { makeAttention } from '@phosphor/host-client/attention'
+import { publishAttention, waitForReceipt } from './attention-publication'
 
 const event: AttentionEvent = {
   id: 'event',
@@ -54,53 +50,6 @@ function setup(read?: AttentionPorts['receipt']) {
 afterEach(() => {
   vi.clearAllTimers()
   vi.useRealTimers()
-})
-
-it.each([
-  ['finished', 'finished'],
-  ['failed', 'failed'],
-  ['needs-input', 'needs-input'],
-  ['routine-finished', 'routine'],
-  ['routine-paused', 'routine'],
-] as const)('maps %s to %s without changing routing or timestamp', (kind, expected) => {
-  expect(makeAttention('host', { ...event, kind, title: null })).toEqual({
-    hostId: 'host',
-    laneId: 'lane',
-    kind: expected,
-    title: 'Untitled lane',
-    at: event.at,
-  })
-})
-
-it.each([0, 30_000, -30_000, 30_001, -30_001, null])(
-  'matches receipt timestamps with inclusive 30s tolerance: %s',
-  (offset) => {
-    const value = {
-      ...receipt,
-      settledAt: offset === null ? null : Date.parse(event.at) + offset,
-    }
-    expect(receiptForEvent(event, value)).toEqual(
-      offset !== null && Math.abs(offset) <= 30_000 ? value : null,
-    )
-  },
-)
-
-it.each(['finished', 'failed', 'routine-finished', 'needs-input', 'routine-paused'] as const)(
-  'only accepts matching completed outcomes for %s',
-  (kind) => {
-    for (const outcome of ['done', 'error'] as const) {
-      const value = { ...receipt, outcome }
-      const matches =
-        kind === 'failed' ? outcome === 'error' : kind.endsWith('finished') && outcome === 'done'
-      expect(receiptForEvent({ ...event, kind }, value)).toEqual(matches ? value : null)
-    }
-  },
-)
-
-it('rejects malformed receipts and invalid event timestamps', () => {
-  for (const value of [undefined, {}, { ...receipt, files: -1 }, { ...receipt, excerpt: 42 }])
-    expect(receiptForEvent(event, value)).toBeNull()
-  expect(receiptForEvent({ ...event, at: 'invalid' }, receipt)).toBeNull()
 })
 
 it.each([

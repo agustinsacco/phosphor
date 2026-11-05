@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import type { AttentionEvent } from '@shared/host-protocol'
 import type { LaneReceipt } from '@shared/lane-receipt'
-import { createHostAttention, readHostReceipt } from './attention'
+import { createHostAttention } from './attention'
 const event: AttentionEvent = {
   id: 'one',
   laneId: 'lane',
@@ -95,34 +95,6 @@ it('times out in 2s, shares one read per lane, drops late data and account chang
   t2.attention.clear()
   await vi.advanceTimersByTimeAsync(2000)
   expect(t2.publish).not.toHaveBeenCalled()
-})
-
-it('routes the optional read with read authorization and drops detached or replaced connection data', async () => {
-  let attached = true
-  const view = { state: 'ready', capabilities: ['sessions.read'], lanes: [{ laneId: 'lane' }] }
-  const connection = {
-    snapshot: () => view,
-    call: vi.fn(async () => ({ ok: true as const, data: facts })),
-  }
-  const current = () => (attached ? connection : undefined)
-  expect(await readHostReceipt(current, 'host', 'lane')).toEqual(facts)
-  expect(connection.call).toHaveBeenCalledWith('lane.receipt', { laneId: 'lane' })
-  view.capabilities = []
-  connection.call.mockClear()
-  expect(await readHostReceipt(current, 'host', 'lane')).toBeUndefined()
-  expect(connection.call).not.toHaveBeenCalled()
-  view.capabilities = ['sessions.read']
-  connection.call.mockImplementation(async () => {
-    attached = false
-    return { ok: true, data: facts }
-  })
-  expect(await readHostReceipt(current, 'host', 'lane')).toBeUndefined()
-  attached = true
-  connection.call.mockImplementation(async () => {
-    view.lanes = []
-    return { ok: true, data: facts }
-  })
-  expect(await readHostReceipt(current, 'host', 'lane')).toBeUndefined()
 })
 
 it('bounds concurrent receipt reads across lanes', () => {

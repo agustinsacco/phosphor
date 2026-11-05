@@ -106,7 +106,7 @@ const ATTENTION_NOTICE: Record<HostAttention['kind'], ReturnType<typeof settledN
   routine: { kind: 'info', message: 'Routine update.' },
 }
 
-/** A settled run's receipt words the notice, as on This Mac; Desktop attaches one only to a settled run. */
+/** A settled run's receipt words the notice, as on This Mac; a Host's attention carries one only for a settled run. */
 function attentionNotice(event: HostAttention): ReturnType<typeof settledNotice> {
   return event.receipt && event.kind !== 'needs-input'
     ? settledNotice({ kind: event.receipt.outcome, excerpt: event.receipt.excerpt })

@@ -1,6 +1,7 @@
 import type { AttentionEvent } from '@shared/host-protocol'
 import type { HostAttention } from '@shared/ipc'
-import { makeAttention, waitForReceipt } from './attention-publication'
+import { makeAttention } from '@phosphor/host-client/attention'
+import { waitForReceipt } from './attention-publication'
 
 export interface AttentionPorts {
   receipt?: (hostId: string, laneId: string) => Promise<unknown>
@@ -64,33 +65,4 @@ function receiveAttention(
     if (oldest) state.seen.delete(oldest)
   }
   waitForReceipt(state, ports, event, makeAttention(hostId, event), arrival)
-}
-
-/** Only the connection that began this read may supply the receipt. */
-export async function readHostReceipt(
-  connectionFor: (hostId: string) =>
-    | {
-        snapshot(): {
-          state: string
-          capabilities: readonly string[]
-          lanes: readonly { laneId: string }[]
-        }
-        call(method: string, params: unknown): Promise<{ ok: true; data?: unknown } | { ok: false }>
-      }
-    | undefined,
-  hostId: string,
-  laneId: string,
-): Promise<unknown> {
-  const connection = connectionFor(hostId)
-  if (!connection?.snapshot().capabilities.includes('sessions.read')) return undefined
-  const data = await connection.call('lane.receipt', { laneId })
-  const view = connection.snapshot()
-  if (
-    connectionFor(hostId) !== connection ||
-    view.state !== 'ready' ||
-    !view.capabilities.includes('sessions.read') ||
-    !view.lanes.some((lane) => lane.laneId === laneId)
-  )
-    return undefined
-  return data.ok ? data.data : undefined
 }

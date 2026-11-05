@@ -602,7 +602,7 @@ const hostReceipt = (outcome: 'done' | 'error', excerpt: string) => ({
 it("words a failed Host lane from its receipt's excerpt, as This Mac's", async () => {
   vi.stubGlobal('document', { hasFocus: () => true })
   const { send, detach } = listenForAttention()
-  // Desktop attaches an error receipt only to a `failed` event (attention-publication.ts).
+  // An error receipt is attached only to a `failed` event (host-client/src/attention.ts).
   send({
     hostId: MOCK_HOST_ID,
     laneId: mockRemoteInfo.laneId ?? '',

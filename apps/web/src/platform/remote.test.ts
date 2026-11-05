@@ -4,7 +4,7 @@ import { createBrowserApi } from './index'
 import { createFakeHost, createLoopbackPair } from '@phosphor/shared/host-protocol-testing'
 import { formatKeyFingerprint, type MachineView } from '@phosphor/shared/control-api'
 import { type GrantPayload } from '@phosphor/shared/host-grant'
-import type { ClientFrame } from '@phosphor/shared/host-protocol'
+import type { ClientFrame, FrameSocket } from '@phosphor/shared/host-protocol'
 import type { HostAttention } from '@phosphor/shared/ipc'
 import { browserCrypto } from '@phosphor/host-client/crypto'
 
@@ -20,15 +20,32 @@ const lifecycle = {
 }
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } })
-async function setup(
-  options: {
-    grant?: 'deny' | 'wrong-endpoint' | 'wrong-key' | 'expired'
-    proof?: () => Promise<boolean>
-    expires?: number
-    /** Answers `lane.receipt` as a Host that keeps receipts would; the fake Host keeps none. */
-    receipt?: (laneId: string) => unknown
-  } = {},
-) {
+interface SetupOptions {
+  grant?: 'deny' | 'wrong-endpoint' | 'wrong-key' | 'expired'
+  proof?: () => Promise<boolean>
+  expires?: number
+  /** Answers `lane.receipt` as a Host that keeps receipts would; the fake Host keeps none. */
+  receipt?: (laneId: string) => unknown
+}
+/** The client side of a socket whose `lane.receipt` calls `receipt` answers. */
+function answeringReceipts(socket: FrameSocket, receipt: (laneId: string) => unknown): FrameSocket {
+  const listeners: ((text: string) => void)[] = []
+  return {
+    ...socket,
+    send: (text) => {
+      const frame = JSON.parse(text) as ClientFrame
+      if (frame.type !== 'call' || frame.method !== 'lane.receipt') return socket.send(text)
+      const data = receipt((frame.params as { laneId: string }).laneId)
+      const result = JSON.stringify({ type: 'result', id: frame.id, ok: true, data })
+      setTimeout(() => listeners.forEach((listener) => listener(result)), 0)
+    },
+    onMessage: (listener) => {
+      listeners.push(listener)
+      socket.onMessage(listener)
+    },
+  }
+}
+async function setup(options: SetupOptions = {}) {
   const owner = randomUUID(),
     clientId = randomUUID()
   const machines: MachineView[] = []
@@ -133,25 +150,15 @@ async function setup(
     )!.id
     pair.server.onMessage((text) => frames.push({ host: id, frame: JSON.parse(text) }))
     host.attach(pair.server)
-    const listeners: ((text: string) => void)[] = []
-    return {
+    const client: FrameSocket = {
       ...pair.client,
-      send: (text: string) => {
-        const frame = JSON.parse(text) as ClientFrame
-        if (!options.receipt || frame.type !== 'call' || frame.method !== 'lane.receipt')
-          return pair.client.send(text)
-        const data = options.receipt((frame.params as { laneId: string }).laneId)
-        const result = JSON.stringify({ type: 'result', id: frame.id, ok: true, data })
-        setTimeout(() => listeners.forEach((listener) => listener(result)), 0)
-      },
-      onMessage: (listener: (text: string) => void) => {
-        listeners.push(listener)
+      onMessage: (listener: (text: string) => void) =>
         pair.client.onMessage((text) => {
           if (delivery.hold(id, text)) delivery.pending.push(() => listener(text))
           else listener(text)
-        })
-      },
+        }),
     }
+    return options.receipt ? answeringReceipts(client, options.receipt) : client
   })
   const adapter = createBrowserApi({
     fetch,

@@ -1,7 +1,19 @@
-import type { PhosphorApi, IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
+import type {
+  HostAttention,
+  PhosphorApi,
+  IpcInvokeChannel,
+  IpcInvokeMap,
+} from '@phosphor/shared/ipc'
 import { IPC_WEB, type WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { createRemoteLanes } from '@phosphor/host-client/remote-lanes'
-import type { FrameSocket } from '@phosphor/shared/host-protocol'
+import {
+  makeAttention,
+  readHostReceipt,
+  receiptExpected,
+  receiptForEvent,
+  receiptWithin,
+} from '@phosphor/host-client/attention'
+import type { AttentionEvent, FrameSocket } from '@phosphor/shared/host-protocol'
 import type { IdentityCrypto } from '@phosphor/host-client/crypto'
 import { createBrowserControl } from './control'
 import { createBrowserHosts, DIRECTORY_POLL_MS } from './hosts'
@@ -79,6 +91,32 @@ function piFailure(args: unknown[], error: string) {
   const command = args[1] as IpcInvokeMap['pi:command']['args'][1]
   return { type: 'response', command: command.type, id: command.id, success: false, error }
 }
+/**
+ * A Host's attention, worded from its run's receipt when one answers within two seconds, as on
+ * Desktop. A newer attention for the lane supersedes one still waiting for its receipt.
+ */
+function browserAttention(ports: {
+  connection: Parameters<typeof readHostReceipt>[0]
+  fence: () => () => boolean
+  emit: (attention: HostAttention) => void
+}) {
+  const waiting = new Map<string, string>()
+  return (hostId: string, event: AttentionEvent) => {
+    const current = ports.fence(),
+      lane = `${hostId}/${event.laneId}`
+    waiting.set(lane, event.id)
+    const read = receiptExpected(event)
+      ? receiptWithin(readHostReceipt(ports.connection, hostId, event.laneId).catch(() => {}))
+      : Promise.resolve()
+    void read.then((value) => {
+      if (waiting.get(lane) !== event.id) return
+      waiting.delete(lane)
+      const attention = makeAttention(hostId, event),
+        receipt = receiptForEvent(event, value)
+      if (current()) ports.emit(receipt ? { ...attention, receipt } : attention)
+    })
+  }
+}
 /** Install api on window BEFORE importing the shared UI; call start after installation. */
 export function createBrowserApi(options: BrowserApiOptions = {}): {
   api: PhosphorApi
@@ -126,14 +164,14 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       events.emit('hosts', undefined)
     },
     routinesChanged: (hostId) => events.emit('routines', { machine: `host:${hostId}` }),
-    attention: (hostId, event) =>
-      events.emit('attention', {
-        hostId,
-        laneId: event.laneId,
-        title: event.title ?? 'Untitled lane',
-        at: event.at,
-        kind: event.kind.startsWith('routine-') ? 'routine' : event.kind,
-      }),
+    attention: browserAttention({
+      connection: (hostId) => hosts.connection(hostId),
+      fence: () => {
+        const epoch = control.generation()
+        return () => !stopped && epoch === control.generation()
+      },
+      emit: (attention) => events.emit('attention', attention),
+    }),
   })
   const lanes = createRemoteLanes({
     identity: options.identity,
