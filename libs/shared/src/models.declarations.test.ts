@@ -108,6 +108,7 @@ const publicExports = [
   'clampUiScale',
   'claudeContextProviderShortfall',
   'claudeProviderState',
+  'isPiTooOld',
   'normalizeAgentDirectives',
   'normalizeLanePrefs',
   'piInstallLocation',
@@ -176,5 +177,11 @@ describe('models public declarations', () => {
   it('keeps minimum supported versions', () => {
     expect(models.MIN_PI_VERSION).toBe('1.2.0')
     expect(models.MIN_CLAUDE_CONTEXT_VERSION).toBe('0.10.0')
+  })
+
+  it('holds pi to its minimum, passing a prerelease of it', () => {
+    expect(models.isPiTooOld('1.1.9')).toBe(true)
+    expect(models.isPiTooOld('1.2.0')).toBe(false)
+    expect(models.isPiTooOld('1.2.0-rc.1')).toBe(false)
   })
 })
