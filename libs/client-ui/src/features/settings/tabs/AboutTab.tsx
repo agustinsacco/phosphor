@@ -46,11 +46,13 @@ function AppInfoRows(): React.JSX.Element {
   const read = useAboutInfo(true)
   const about = read === 'unknown' ? null : read
   const pending = read === 'unknown' ? 'unknown' : '…'
-  const [health, setHealth] = useState<PiHealth | null>(null)
+  const [piRead, setPiRead] = useState<PiHealth | 'unknown' | null>(null)
+  const health = piRead === 'unknown' ? null : piRead
+  const piPending = piRead === 'unknown' ? 'unknown' : '…'
   const update = useAppUpdate()
 
   useEffect(() => {
-    void window.phosphor.invoke('pi:health').then(setHealth)
+    window.phosphor.invoke('pi:health').then(setPiRead, () => setPiRead('unknown'))
   }, [])
 
   const drift = isPiNewerThanVerified(health?.version)
@@ -63,7 +65,7 @@ function AppInfoRows(): React.JSX.Element {
       <MachineUpdateRow title="Updates" update={update} />
       <Row title="pi version" description={health ? piInstallLocation(health) : undefined}>
         <span className="font-mono text-base">
-          {health?.version ?? (health ? 'not found' : '…')}
+          {health ? (health.version ?? 'not found') : piPending}
         </span>
       </Row>
       <Row title="Platform">
