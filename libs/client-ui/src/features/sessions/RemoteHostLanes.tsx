@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import { remoteLaneKey } from '@shared/remote-host'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import { Button } from '@/components/form'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { canReadHost, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { compareLanesByCreation, groupRemoteLanes, remoteLaneOrderKey } from './groupRemoteLanes'
+import { compareLanesByCreation, groupRemoteLanes } from './groupRemoteLanes'
 import { SessionList } from './SessionList'
 import { RemoteLaneRow } from './RemoteLaneRow'
 import {
@@ -78,7 +79,7 @@ function PinnedRemoteLanes({
         disabled={!ready || deleting}
         items={lanes.map((lane) => ({
           id: lane.laneId,
-          path: remoteLaneOrderKey(hostId, lane.laneId),
+          path: remoteLaneKey(hostId, lane.laneId),
           content: (
             <RemoteLaneRow
               hostId={hostId}

@@ -1,4 +1,5 @@
 import { useEffect, useId } from 'react'
+import { remoteLaneKey } from '@shared/remote-host'
 import clsx from 'clsx'
 import { SearchIcon, PlusIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
@@ -26,7 +27,7 @@ import { RemoteWorkspaceOptions } from './RemoteWorkspaceOptions'
 import type { LaneSelectMode } from './LaneSelectionRows'
 import { RemoteLaneRow } from './RemoteLaneRow'
 import { useRemotePullRequests } from './remotePullRequests'
-import { orderedRemoteLanes, remoteLaneOrderKey, type RemoteLaneGroup } from './groupRemoteLanes'
+import { orderedRemoteLanes, type RemoteLaneGroup } from './groupRemoteLanes'
 import { SessionList } from './SessionList'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
 import { LaneSearchBar } from './LaneSearchBar'
@@ -262,7 +263,7 @@ function GroupLanes({
         disabled={!ready || !!query || !!select?.selecting || deleting}
         items={lanes.map((lane) => ({
           id: lane.laneId,
-          path: remoteLaneOrderKey(hostId, lane.laneId),
+          path: remoteLaneKey(hostId, lane.laneId),
           content: (
             <RemoteLaneRow
               hostId={hostId}

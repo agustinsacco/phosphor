@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
-import { hostResourceKey } from '@shared/remote-host'
+import { remoteLaneResourceKey } from '@shared/remote-host'
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { piCall, piCallOk } from '@/lib/rpc'
 import { remoteLaneMarker } from './remoteLaneView'
@@ -133,7 +133,7 @@ function useLaneActionState(
   running: boolean,
 ) {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const key = hostResourceKey({ kind: 'remote', hostId }, 'session', lane.laneId)
+  const key = remoteLaneResourceKey(hostId, lane.laneId)
   const deletingInBulk = useSessionsStore((s) => laneIsBeingDeleted(s.bulkDelete, key))
   // pi writes nothing to resume until a first message, so the Host refuses Stop before one.
   const unprompted = useChatStore(
