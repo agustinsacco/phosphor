@@ -139,60 +139,13 @@ function machineProbes(
   return probes.map((probe) => ({ ...probe, capability: probe.capability ?? grants[probe.id] }))
 }
 
-export async function runHealthCheck(context: HealthContext): Promise<HealthRun> {
-  const clock = context.clock ?? (() => performance.now())
-  const run: HealthRun = { startedAt: Date.now(), targets: [] }
-  const publish = () => context.onUpdate(structuredClone(run))
-  async function step(target: HealthTarget, probe: Probe): Promise<HealthStep> {
-    const entry: HealthStep = { id: probe.id, label: probe.label, tone: 'running', detail: '' }
-    target.steps.push(entry)
-    publish()
-    const start = clock()
-    try {
-      Object.assign(entry, await probe.run())
-    } catch (error) {
-      Object.assign(entry, { tone: 'error', detail: errorText(error) })
-    }
-    entry.ms = Math.round(clock() - start)
-    publish()
-    return entry
-  }
+/** A step that does not run: already settled, as a skipped or ungranted read. */
+type Planned = Probe | HealthStep
 
-  const local: HealthTarget = { id: 'local', label: context.localLabel, steps: [] }
-  run.targets.push(local)
-  await step(local, {
-    id: 'control',
-    label: 'Control plane',
-    run: async () => {
-      if (!context.signedIn) return { tone: 'off', detail: 'Signed out' }
-      const error = await context.refreshDirectory()
-      return error
-        ? { tone: 'error', detail: controlMessage(error) }
-        : { tone: 'ok', detail: plural(context.machines().length, 'machine') }
-    },
-  })
-  await step(local, {
-    id: 'tailscale',
-    label: 'Tailscale',
-    run: async () => {
-      const status = await context.invoke('hosts:tailscaleStatus')
-      return status.code === 'ready'
-        ? { tone: 'ok', detail: 'Running with MagicDNS and HTTPS' }
-        : { tone: 'warn', detail: TAILSCALE_FIXES[status.code] }
-    },
-  })
-  await step(local, {
-    id: 'pi',
-    label: 'pi',
-    run: async () => {
-      const health = await context.invoke('pi:health')
-      return health.ok
-        ? { tone: 'ok', detail: `pi ${health.version}` }
-        : { tone: 'error', detail: health.reason ?? 'pi is not available' }
-    },
-  })
+/** This Mac's steps: the control plane, Tailscale and pi, then every machine's probes. */
+function localProbes(context: HealthContext): Probe[] {
   const { invoke } = context
-  const localReads: MachineReads = {
+  const reads: MachineReads = {
     providers: context.localProviders,
     models: async () => (await invoke('pi:catalogueModels')).models.length,
     claude: async () => {
@@ -207,30 +160,65 @@ export async function runHealthCheck(context: HealthContext): Promise<HealthRun>
       return `${plural(live, 'live lane')} · ${plural(folders, 'folder')}`
     },
   }
-  for (const probe of machineProbes(localReads, machineCounts(invoke, 'local')))
-    await step(local, probe)
+  return [
+    {
+      id: 'control',
+      label: 'Control plane',
+      run: async () => {
+        if (!context.signedIn) return { tone: 'off', detail: 'Signed out' }
+        const error = await context.refreshDirectory()
+        return error
+          ? { tone: 'error', detail: controlMessage(error) }
+          : { tone: 'ok', detail: plural(context.machines().length, 'machine') }
+      },
+    },
+    {
+      id: 'tailscale',
+      label: 'Tailscale',
+      run: async () => {
+        const status = await invoke('hosts:tailscaleStatus')
+        return status.code === 'ready'
+          ? { tone: 'ok', detail: 'Running with MagicDNS and HTTPS' }
+          : { tone: 'warn', detail: TAILSCALE_FIXES[status.code] }
+      },
+    },
+    {
+      id: 'pi',
+      label: 'pi',
+      run: async () => {
+        const health = await invoke('pi:health')
+        return health.ok
+          ? { tone: 'ok', detail: `pi ${health.version}` }
+          : { tone: 'error', detail: health.reason ?? 'pi is not available' }
+      },
+    },
+    ...machineProbes(reads, machineCounts(invoke, 'local')),
+  ]
+}
 
-  if (context.signedIn) {
-    const hosts = await context.hosts()
-    await Promise.all(
-      context.machines().map(async (machine) => {
-        const target: HealthTarget = { id: machine.id, label: machine.label, steps: [] }
-        run.targets.push(target)
-        await checkHost(machine, target, hosts[machine.id])
-      }),
-    )
-  }
-  run.finishedAt = Date.now()
-  publish()
-  return run
-
-  async function checkHost(
-    machine: MachineView,
-    target: HealthTarget,
-    view: HostsSnapshot[string] | undefined,
-  ): Promise<void> {
-    const now = context.now()
-    await step(target, {
+/** A Host's steps: its heartbeat and connection, then the probes it is connected and granted for. */
+function hostProbes(
+  context: HealthContext,
+  machine: MachineView,
+  view: HostsSnapshot[string] | undefined,
+): Planned[] {
+  const now = context.now()
+  const headline = machineHeadline(machine, view, now)
+  const probes = machineProbes(
+    {
+      providers: () => context.invoke('hosts:providers', machine.id),
+      models: async () => (await context.invoke('hosts:models', machine.id)).length,
+      claude: () => context.invoke('hosts:claude', machine.id),
+      lanes: async () =>
+        `${plural(view?.lanes.length ?? 0, 'lane')} · ${plural(view?.repositories.length ?? 0, 'folder')}`,
+    },
+    machineCounts(context.invoke, machine.id),
+    HOST_GRANTS,
+  )
+  const granted = (capability?: HostCapability) =>
+    !capability || !!view?.capabilities.includes(capability)
+  return [
+    {
       id: 'heartbeat',
       label: 'Heartbeat',
       run: async () => {
@@ -240,52 +228,78 @@ export async function runHealthCheck(context: HealthContext): Promise<HealthRun>
           ? { tone: 'ok', detail: `Checked in ${seen}` }
           : { tone: 'off', detail: `Last check-in ${seen}` }
       },
-    })
-    const headline = machineHeadline(machine, view, now)
-    await step(target, {
+    },
+    {
       id: 'connection',
       label: 'Connection',
       run: async () => ({
         tone: headline.tone,
         detail: view?.hostVersion ? `${headline.label} · Host ${view.hostVersion}` : headline.label,
       }),
-    })
-    const ready = view?.state === 'ready'
-    const granted = (capability?: HostCapability) =>
-      !capability || !!view?.capabilities.includes(capability)
-    const probes = machineProbes(
-      {
-        providers: () => context.invoke('hosts:providers', machine.id),
-        models: async () => (await context.invoke('hosts:models', machine.id)).length,
-        claude: () => context.invoke('hosts:claude', machine.id),
-        lanes: async () =>
-          `${plural(view?.lanes.length ?? 0, 'lane')} · ${plural(view?.repositories.length ?? 0, 'folder')}`,
-      },
-      machineCounts(context.invoke, machine.id),
-      HOST_GRANTS,
-    )
+    },
     // One line, not one per read: none of them can run without a connection.
-    if (!ready)
-      target.steps.push({
-        id: 'reads',
-        label: 'Host reads',
-        tone: 'off',
-        detail: `Skipped until connected: ${probes.map((p) => p.label).join(', ')}`,
-      })
-    for (const probe of ready ? probes : []) {
-      if (!granted(probe.capability)) {
-        target.steps.push({
-          id: probe.id,
-          label: probe.label,
-          tone: 'off',
-          detail: 'Not granted to this computer',
-        })
-        continue
-      }
-      await step(target, probe)
+    ...(view?.state !== 'ready'
+      ? [
+          {
+            id: 'reads',
+            label: 'Host reads',
+            tone: 'off' as const,
+            detail: `Skipped until connected: ${probes.map((p) => p.label).join(', ')}`,
+          },
+        ]
+      : probes.map((probe) =>
+          granted(probe.capability)
+            ? probe
+            : {
+                id: probe.id,
+                label: probe.label,
+                tone: 'off' as const,
+                detail: 'Not granted to this computer',
+              },
+        )),
+  ]
+}
+
+export async function runHealthCheck(context: HealthContext): Promise<HealthRun> {
+  const clock = context.clock ?? (() => performance.now())
+  const run: HealthRun = { startedAt: Date.now(), targets: [] }
+  const publish = () => context.onUpdate(structuredClone(run))
+  async function step(target: HealthTarget, probe: Probe): Promise<void> {
+    const entry: HealthStep = { id: probe.id, label: probe.label, tone: 'running', detail: '' }
+    target.steps.push(entry)
+    publish()
+    const start = clock()
+    try {
+      Object.assign(entry, await probe.run())
+    } catch (error) {
+      Object.assign(entry, { tone: 'error', detail: errorText(error) })
     }
+    entry.ms = Math.round(clock() - start)
     publish()
   }
+  async function check(id: string, label: string, steps: readonly Planned[]): Promise<void> {
+    const target: HealthTarget = { id, label, steps: [] }
+    run.targets.push(target)
+    for (const planned of steps)
+      if ('run' in planned) await step(target, planned)
+      else target.steps.push(planned)
+    publish()
+  }
+
+  await check('local', context.localLabel, localProbes(context))
+  if (context.signedIn) {
+    const hosts = await context.hosts()
+    await Promise.all(
+      context
+        .machines()
+        .map((machine) =>
+          check(machine.id, machine.label, hostProbes(context, machine, hosts[machine.id])),
+        ),
+    )
+  }
+  run.finishedAt = Date.now()
+  publish()
+  return run
 }
 
 export type Summary = { tone: StepTone; label: string; issues: number }
