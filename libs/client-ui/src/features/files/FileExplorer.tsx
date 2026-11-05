@@ -1,5 +1,5 @@
 import { FileTreeRow, FolderGlyph } from './FileTreeRow'
-import { TooltipButton } from '@/components/Tooltip'
+import { IconToggle } from '@/components/IconToggle'
 import { memo, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import type { DirEntry } from '@shared/models'
@@ -70,7 +70,6 @@ export const FileExplorer = memo(function FileExplorer({
         <div className="flex items-center gap-0.5">
           <IconToggle
             title={`Search in files (${formatShortcut('mod', 'shift', 'F')})`}
-            active={false}
             onClick={() => useWorkspaceSearchStore.getState().openSearch(workspacePath)}
           >
             <SearchIcon size={12} />
@@ -79,7 +78,6 @@ export const FileExplorer = memo(function FileExplorer({
             <IconToggle
               key={kind}
               title={`New ${kind}`}
-              active={false}
               onClick={() => runFileAction(createIn(workspacePath, controls.selected.at(-1), kind))}
             >
               <NewEntryIcon kind={kind} />
@@ -87,7 +85,6 @@ export const FileExplorer = memo(function FileExplorer({
           ))}
           <IconToggle
             title="Reveal active file"
-            active={false}
             disabled={!controls.activePath}
             onClick={() => {
               if (controls.activePath)
@@ -98,7 +95,6 @@ export const FileExplorer = memo(function FileExplorer({
           </IconToggle>
           <IconToggle
             title="Collapse all folders"
-            active={false}
             onClick={() =>
               useFilesStore.setState((s) => ({
                 expanded: Object.fromEntries(
@@ -116,21 +112,20 @@ export const FileExplorer = memo(function FileExplorer({
           </IconToggle>
           <IconToggle
             title="Refresh explorer"
-            active={false}
             onClick={() => runFileAction(useFilesStore.getState().refreshLoadedDirs(workspacePath))}
           >
             <ReloadIcon />
           </IconToggle>
           <IconToggle
             title="Show hidden files"
-            active={showHidden}
+            pressed={showHidden}
             onClick={() => useFilesStore.getState().setShowHidden(workspacePath, !showHidden)}
           >
             <EyeIcon />
           </IconToggle>
           <IconToggle
             title="Respect .gitignore"
-            active={respectGitignore}
+            pressed={respectGitignore}
             onClick={() =>
               useFilesStore.getState().setRespectGitignore(workspacePath, !respectGitignore)
             }
@@ -330,37 +325,6 @@ function ExplorerRow({
         </>
       )}
     </>
-  )
-}
-
-export function IconToggle({
-  title,
-  active,
-  disabled,
-  onClick,
-  children,
-}: {
-  title: string
-  active: boolean
-  disabled?: boolean
-  onClick: () => void
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <TooltipButton
-      title={title}
-      aria-label={title}
-      disabled={disabled}
-      onClick={onClick}
-      className={clsx(
-        'flex h-6 w-6 items-center justify-center rounded-sm transition-colors disabled:opacity-40',
-        active
-          ? 'text-accent bg-accent-soft'
-          : 'text-text-tertiary hover:text-text hover:bg-bg-secondary',
-      )}
-    >
-      {children}
-    </TooltipButton>
   )
 }
 
