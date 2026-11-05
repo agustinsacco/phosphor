@@ -28,9 +28,6 @@ export function usesClaudeCliProvider(
   return defaultProvider === 'pi-claude-cli'
 }
 
-// The rule lives beside the version it checks, so the Machines page applies it too.
-export { claudeContextProviderShortfall }
-
 /** Refuse visibly rather than start Claude on an older provider. */
 export function assertClaudeContextProvider(
   packages: Pick<PiPackageEntry, 'name' | 'version' | 'installed'>[],

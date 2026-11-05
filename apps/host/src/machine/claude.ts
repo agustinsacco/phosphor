@@ -1,16 +1,14 @@
 import {
   CLAUDE_PROVIDER_PACKAGE,
+  claudeContextProviderShortfall,
   claudeProviderState,
   MIN_CLAUDE_CONTEXT_VERSION,
   type PiPackageEntry,
 } from '@phosphor/shared/models'
-import { claudeContextProviderShortfall } from '@phosphor/session-runtime/pi/provider-detect'
 import { extractVersion } from '@phosphor/session-runtime/pi/versions'
 import type { MachineClaude } from '@phosphor/shared/host-protocol-machine'
 import { which } from './executables'
 import { probe, probeFailure, type ProbeEnvironment } from './probe'
-
-export { CLAUDE_PROVIDER_PACKAGE }
 
 export type ClaudeLane =
   { available: true; claude: string; version: string } | { available: false; reason: string }
