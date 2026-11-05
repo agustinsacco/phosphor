@@ -1,11 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { PopupMenu, MenuRow } from '@/components/PopupMenu'
+import { useMemo, useState } from 'react'
+import { MenuRow } from '@/components/PopupMenu'
 import { TooltipButton } from '@/components/Tooltip'
 import { LinkIcon, SlackIcon } from '@/components/icons'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { composerDraftKey, useDraftsStore } from '@/stores/drafts'
 import { slackThreadsInTranscript, type SlackThread } from './slackThread'
+import { LaneHeaderPill, type ClosePill } from './LaneHeaderPill'
 
 /**
  * Quick links to the Slack threads this lane has in context, beside the PR
@@ -25,43 +26,21 @@ function SlackPill({
   sessionId: string
   threads: SlackThread[]
 }): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const id = useId()
-  const label = `${threads.length} Slack thread${threads.length === 1 ? '' : 's'} in context`
-  const close = (restoreFocus = true): void => {
-    setOpen(false)
-    if (restoreFocus) triggerRef.current?.focus()
-  }
   return (
-    <div className="titlebar-no-drag relative shrink-0">
-      <TooltipButton
-        ref={triggerRef}
-        type="button"
-        tooltip={label}
-        aria-label={label}
-        aria-expanded={open}
-        aria-controls={open ? id : undefined}
-        onClick={() => (open ? close() : setOpen(true))}
-        data-testid="lane-slack-threads"
-        className="bg-chip border-border flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-semibold text-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-      >
-        <SlackIcon size={12} />
-        {threads.length > 1 && <span>{threads.length}</span>}
-      </TooltipButton>
-      {open && (
-        <PopupMenu
-          id={id}
-          triggerRef={triggerRef}
-          onClose={close}
-          fitViewport
-          escapeContainer
-          className="absolute left-0 top-full mt-1 w-80 py-2"
-        >
-          <ThreadList sessionId={sessionId} threads={threads} onClose={close} />
-        </PopupMenu>
-      )}
-    </div>
+    <LaneHeaderPill
+      label={`${threads.length} Slack thread${threads.length === 1 ? '' : 's'} in context`}
+      testId="lane-slack-threads"
+      className="bg-chip border-border text-text-secondary"
+      face={
+        <>
+          <SlackIcon size={12} />
+          {threads.length > 1 && <span>{threads.length}</span>}
+        </>
+      }
+      region="Slack threads in this lane"
+    >
+      {(close) => <ThreadList sessionId={sessionId} threads={threads} onClose={close} />}
+    </LaneHeaderPill>
   )
 }
 
@@ -73,7 +52,7 @@ function ThreadList({
 }: {
   sessionId: string
   threads: SlackThread[]
-  onClose: (restoreFocus?: boolean) => void
+  onClose: ClosePill
 }): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const attempt = (work: Promise<void>, failure: string): void => {
@@ -85,11 +64,13 @@ function ThreadList({
     onClose(false)
     // The composer is a sibling tree; its field is the one shared hook F6 also uses.
     requestAnimationFrame(() =>
-      document.querySelector<HTMLTextAreaElement>('[data-composer-input]')?.focus(),
+      document
+        .querySelector<HTMLTextAreaElement>('[data-composer-input]')
+        ?.focus({ preventScroll: true }),
     )
   }
   return (
-    <FocusFirst>
+    <>
       <p className="px-3 pb-1 text-xs text-text-tertiary">Slack threads in this lane</p>
       {threads.map((thread) => (
         <ThreadRow
@@ -112,20 +93,7 @@ function ThreadList({
           {error}
         </p>
       )}
-    </FocusFirst>
-  )
-}
-
-/** Moves focus into the popup on open, as the PR details do. */
-function FocusFirst({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    ref.current?.querySelector('button')?.focus()
-  }, [])
-  return (
-    <div ref={ref} role="region" aria-label="Slack threads in this lane">
-      {children}
-    </div>
+    </>
   )
 }
 

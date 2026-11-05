@@ -58,9 +58,9 @@ describe('status-keys existing wire inventory', () => {
       SUBAGENTS_STATUS_KEY,
       SUBAGENT_ASYNC_WIDGET_KEY,
       SUBAGENT_INSPECT_WIDGET_KEY,
-      SUBAGENT_ASYNC_WIDGET_PREFIX: source(
-        'libs/client-ui/src/features/chat/subagentRuns.ts',
-      ).match(/const ASYNC_WIDGET_PREFIX = '([^']+)'/)?.[1],
+      SUBAGENT_ASYNC_WIDGET_PREFIX: source('libs/shared/src/subagent-fleet.ts').match(
+        /const ASYNC_WIDGET_PREFIX = '([^']+)'/,
+      )?.[1],
       SUBAGENT_INSPECT_WIDGET_PREFIX: source(
         'libs/client-ui/src/features/chat/subagentInspect.ts',
       ).match(/const prefix = '([^']+)'/)?.[1],
