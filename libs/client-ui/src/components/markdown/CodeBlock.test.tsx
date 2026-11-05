@@ -39,3 +39,22 @@ it('falls back safely if syntax highlighting fails, without retaining stale HTML
   expect(el.querySelector('pre')?.textContent).toBe('new text')
   expect(el.textContent).not.toContain('old highlight')
 })
+
+const actionTitles = () =>
+  [...el.querySelectorAll('button[data-tooltip]')].map((b) => b.getAttribute('data-tooltip'))
+it('a chat shell block offers Open as artifact and Run in terminal', async () => {
+  vi.mocked(highlightCode).mockResolvedValue('')
+  await act(async () => root.render(<CodeBlock code="echo hi" language="shell" />))
+  expect(actionTitles()).toEqual(
+    expect.arrayContaining(['Open as artifact', "Run in terminal (pastes, doesn't execute)"]),
+  )
+})
+it('a file preview drops the chat actions and keeps Copy', async () => {
+  vi.mocked(highlightCode).mockResolvedValue('')
+  await act(async () =>
+    root.render(<CodeBlock code="echo hi" language="shell" chatActions={false} />),
+  )
+  expect(actionTitles()).not.toContain('Open as artifact')
+  expect(actionTitles()).not.toContain("Run in terminal (pastes, doesn't execute)")
+  expect(el.querySelectorAll('button').length).toBe(1)
+})
