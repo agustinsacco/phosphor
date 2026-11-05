@@ -9,6 +9,7 @@ import {
   type HostProviders,
 } from '@/stores/hostProvidersCache'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
+import { useCanControlSession } from '@/features/sessions/useCanControlSession'
 import { machineLabel, useRemoteLanesStore, useSessionHostLane } from '@/stores/remoteLanes'
 import { AccountSwitcher, accountSwitcherSummary } from './AccountSwitcher'
 
@@ -42,10 +43,7 @@ export function HostAccountRouting({
   const supported = useRef<boolean | undefined>(undefined)
   if (ready) supported.current = host.configurationSupported === true
   const configurable = ready && host.capabilities.includes('machine.configure')
-  const held =
-    ready &&
-    host.capabilities.includes('sessions.control') &&
-    hostLane?.lane?.control.controller?.self === true
+  const held = useCanControlSession(sessionId)
   const lane = useHostLaneAccount(hostId, laneId, ready, configurable)
 
   const load = useCallback(async () => {
