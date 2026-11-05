@@ -447,3 +447,29 @@ it('answers not landed for a lane branch that does not exist, and creates none',
   expect(github).not.toHaveBeenCalled()
   await expect(run(['rev-parse', '--verify', 'refs/heads/gone'])).rejects.toThrow()
 })
+
+it('asks GitHub nothing more once a PR proof has run for 20 seconds, and keeps the branch', async () => {
+  await run(['checkout', '-b', 'feature'])
+  await writeFile(join(root, 'a'), 'lane')
+  await run(['commit', '-am', 'lane work'])
+  const tree = await run(['rev-parse', 'feature^{tree}'])
+  await run(['checkout', 'main'])
+  // The PR head is not in this clone, so the proof needs a second question: its tree.
+  const answer = (args: string[]) =>
+    args[0] === 'pr' ? JSON.stringify([{ headRefOid: 'a'.repeat(40) }]) : tree
+  vi.useFakeTimers({ toFake: ['Date'] })
+  try {
+    const slow = vi.fn(async (_cwd: string, args: string[]) => {
+      vi.setSystemTime(Date.now() + 21_000)
+      return answer(args)
+    })
+    expect(await deleteLandedBranch(root, 'feature', () => true, slow)).toBe(false)
+    expect(slow).toHaveBeenCalledTimes(1)
+    expect(await run(['rev-parse', '--verify', 'feature'])).toMatch(/^[a-f0-9]{40}$/)
+    const prompt = vi.fn(async (_cwd: string, args: string[]) => answer(args))
+    expect(await deleteLandedBranch(root, 'feature', () => true, prompt)).toBe(true)
+    expect(prompt).toHaveBeenCalledTimes(2)
+  } finally {
+    vi.useRealTimers()
+  }
+})
