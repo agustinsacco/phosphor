@@ -262,12 +262,12 @@ it("C5d: a Host's own Tailscale row is never muted", async () => {
   expect(tailscaleRow()?.querySelector('[aria-label="Needs attention"]')).not.toBeNull()
 })
 
-it("C8: This Mac's actions menu updates Phosphor through Settings → About, where the app can", async () => {
+it("C8: This Mac's actions menu updates Phosphor through Settings → Advanced, as a Host's does", async () => {
   await openThisMac()
   await click(container.querySelector<HTMLElement>('[aria-label="Machine actions"]'))
   expect(button('Update Host…')).toBeUndefined()
   await click(button('Update Phosphor…'))
-  expect(useSettingsUiStore.getState()).toMatchObject({ tab: 'about' })
+  expect(useSettingsUiStore.getState()).toMatchObject({ tab: 'advanced', machine: 'local' })
   act(() => root.unmount())
   root = createRoot(container)
   await render(
