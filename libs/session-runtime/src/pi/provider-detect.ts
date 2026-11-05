@@ -1,4 +1,5 @@
 import {
+  CLAUDE_PROVIDER_PACKAGE,
   claudeContextProviderShortfall,
   MIN_CLAUDE_CONTEXT_VERSION,
   type PiPackageEntry,
@@ -35,7 +36,7 @@ export function assertClaudeContextProvider(
   const found = claudeContextProviderShortfall(packages)
   if (found === null) return
   throw new Error(
-    `Claude sessions need @saccolabs/pi-claude-cli ${MIN_CLAUDE_CONTEXT_VERSION} or newer (${found}). ` +
+    `Claude sessions need ${CLAUDE_PROVIDER_PACKAGE} ${MIN_CLAUDE_CONTEXT_VERSION} or newer (${found}). ` +
       'Update it in Settings → Extensions, then reopen the session.',
   )
 }
