@@ -25,6 +25,12 @@ import { useGitInfo } from './useGitInfo'
  * session alike — previously worktree controls existed in the home composer
  * and the chat header separately, and neither was visible from the other.
  */
+/** The chip's hint: a provisional chat branch, a worktree, or a plain branch. */
+function chipTitle(branch: string, provisional: boolean, worktreeOf: string | undefined): string {
+  if (provisional) return `${branch} — provisional, renamed once this chat is named`
+  return worktreeOf ? `Worktree of ${worktreeOf}` : `Branch ${branch}`
+}
+
 export function BranchControl({
   workspacePath,
 }: {
@@ -102,13 +108,7 @@ export function BranchControl({
       <TooltipButton
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
-        title={
-          naming.pending
-            ? `${info.branch} — provisional, renamed once this chat is named`
-            : info.isWorktree && mainRepo
-              ? `Worktree of ${mainRepo}`
-              : `Branch ${info.branch}`
-        }
+        title={chipTitle(info.branch, naming.pending, info.isWorktree ? mainRepo : undefined)}
         data-testid="branch-chip"
         aria-expanded={open}
         className={clsx(
@@ -153,6 +153,7 @@ export function BranchControl({
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
           fitViewport
+          escapeContainer
           className="absolute left-0 top-full z-40 mt-1.5 max-h-[32rem] w-80 max-w-[calc(100vw-16rem)] overflow-y-auto py-1.5"
         >
           <div className="px-3 pb-1.5 pt-1">
