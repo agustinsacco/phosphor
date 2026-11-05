@@ -38,7 +38,8 @@ export interface LaneControl {
 /**
  * - `stopped`: no pi process; the lane can be resumed.
  * - `idle`: live, waiting for a prompt.
- * - `working`: a turn, compaction or retry is running.
+ * - `working`: a turn, compaction or retry is running, or delegated
+ *   background sub-agents still are after the parent run settled.
  * - `needs-input`: an extension dialog is open.
  * - `failed`: pi exited unexpectedly.
  */

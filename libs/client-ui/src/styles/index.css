@@ -258,6 +258,20 @@ body {
   font-size: 14px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  /*
+   * The window never scrolls. `overflow: hidden` only stops the user: focus and
+   * scrollIntoView still scrolled the viewport whenever anything (a popup, a menu,
+   * a portal) hung below the window, shifting the whole app up with the top bar
+   * gone and a blank strip below. `clip` cannot be scrolled at all, and
+   * `position: relative` makes <body> the containing block that clips absolute
+   * portals too. `html { overflow: hidden }` keeps this on <body>: otherwise
+   * body's overflow moves to the viewport, which treats `clip` as `hidden`.
+   */
+  position: relative;
+  overflow: clip;
+}
+
+html {
   overflow: hidden;
 }
 
