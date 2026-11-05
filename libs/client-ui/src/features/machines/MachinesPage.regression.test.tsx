@@ -291,6 +291,21 @@ it("C9a: This Mac's Details add its architecture and Phosphor version", async ()
   expect(fact('pi')).toBe('1.2.0')
 })
 
+it("characterize: This Mac's Details say Not available when app:about fails", async () => {
+  const base = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'app:about') throw new Error('no about')
+    return base(channel)
+  })
+  try {
+    await openThisMac()
+    expect(fact('Platform')).toBe('macOS')
+    expect(fact('Phosphor version')).toBe('Not available')
+  } finally {
+    invoke.mockImplementation(base)
+  }
+})
+
 it("C9b: a Host's Details show its pi version where this device may read its settings", async () => {
   useRemoteLanesStore.setState({
     hosts: { [HOST.id]: { ...CONNECTED, capabilities: ['skills.read', 'machine.configure'] } },
