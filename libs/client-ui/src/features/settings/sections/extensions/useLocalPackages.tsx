@@ -7,6 +7,7 @@ import { usePackageJob } from '../../usePackageJob'
 import { openSkillsOn } from './openSkillsOn'
 import type { PackageAction, PackageCaps, PackageItem, PackageSource } from './packageSource'
 import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
+import { publishPackageList } from './extensionPackageLists'
 
 const LOCAL_CAPS: PackageCaps = {
   anySource: true,
@@ -40,8 +41,8 @@ async function confirmRemove(spec: string): Promise<boolean> {
 /**
  * This Mac's packages, for `folder` (a workspace path) or the whole machine:
  * reads from pi's settings and install dirs, actions through pi's own package
- * manager with the output streamed in place. `versions: false` skips the
- * registry's latest versions.
+ * manager with the output streamed in place. Each read is published for the
+ * nested Extensions items. `versions: false` skips the registry's latest versions.
  */
 export function useLocalPackages(
   folder: string | null,
@@ -61,6 +62,7 @@ export function useLocalPackages(
         window.phosphor.invoke('packages:detect'),
       ])
       setPackages(list.map(item))
+      publishPackageList('local', folder, list)
       setClaudeCli(detect.claude)
       if (!versions) return
       // The registry is slower than the local reads and may fail (offline,
@@ -72,7 +74,7 @@ export function useLocalPackages(
     } catch (err) {
       setError(errorText(err))
     }
-  }, [workspace, versions])
+  }, [folder, workspace, versions])
 
   useEffect(() => {
     void refresh()

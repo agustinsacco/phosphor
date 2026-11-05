@@ -59,10 +59,11 @@ package counts, so its health and setup screens stay reachable during setup and
 repair; Subagents needs it installed. Every machine reads the packages of the scope
 line's folder, as its Extensions page does, and lists only a read of that scope
 (`extensionPackageLists.ts`, one list per machine and folder). This Mac's list is
-re-read on every open and tab change; a Host's is read once per connection and scope
-while configuration access is granted, and again whenever its Extensions page reads
-after a task. So a fresh install gets its item without a restart, and an item whose
-package vanished falls back to Extensions.
+read once per scope and on Refresh; a Host's once per connection and scope while
+configuration access is granted. On every machine it is read again whenever its
+Extensions page reads, as after an install or removal ends. So a fresh install gets
+its item without a tab change, and an item whose package vanished falls back to
+Extensions.
 
 Phosphor's prefs live in electron-store. pi's config stays in pi's files. The
 two are never mixed.
