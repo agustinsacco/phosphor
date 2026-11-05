@@ -3,6 +3,10 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useModelCatalogueStore, type CatalogueModel } from '@/stores/modelCatalogue'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { localMachineLabel } from '@/lib/localMachine'
+import { NavigationProvider } from '@/navigation/Navigation'
+import type { Location } from '@/navigation/location'
 import { HomeModelPicker } from './HomeModelPicker'
 
 /** This Mac's start picker: pi's catalogue, pi's global defaults, a draft's own model. */
@@ -37,6 +41,8 @@ const chip = (): HTMLButtonElement =>
   el.querySelector<HTMLButtonElement>('[data-testid="home-model-picker"]')!
 const thinkingChip = (): HTMLButtonElement | null =>
   el.querySelector<HTMLButtonElement>('[data-testid="home-thinking-picker"]')
+const actions = (): HTMLButtonElement[] =>
+  [...el.querySelectorAll<HTMLButtonElement>('button')].filter((b) => !b.dataset.testid)
 const patches = (): unknown[] =>
   invoke.mock.calls.filter(([channel]) => channel === 'pi:patchAgentSettings').map(([, ...a]) => a)
 
@@ -126,5 +132,32 @@ describe('HomeModelPicker', () => {
     await draw(<HomeModelPicker />)
     expect(chip().textContent).toBe('one · unavailable')
     expect(chip().getAttribute('data-tooltip')).toBe("one is not in pi's catalogue")
+  })
+
+  it('offers no source action while the catalogue has models', async () => {
+    await draw(<HomeModelPicker />)
+    expect(actions()).toEqual([])
+  })
+
+  it('offers Retry models when the catalogue failed, as a Host does', async () => {
+    catalogue({ status: 'error', models: [] })
+    await draw(<HomeModelPicker />)
+    expect(actions().map((b) => b.textContent)).toEqual(['Retry models'])
+    act(() => actions()[0]!.click())
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers Sign in on This Mac when pi has no models: Settings → Accounts', async () => {
+    catalogue({ models: [] })
+    const navigate = vi.fn<(next: Location) => void>()
+    await draw(
+      <NavigationProvider value={{ location: { to: 'home' } as never, navigate }}>
+        <HomeModelPicker />
+      </NavigationProvider>,
+    )
+    expect(actions().map((b) => b.textContent)).toEqual([`Sign in on ${localMachineLabel()}`])
+    act(() => actions()[0]!.click())
+    expect(useSettingsUiStore.getState().tab).toBe('accounts')
+    expect(navigate).toHaveBeenCalledWith({ to: 'page', page: 'settings', machine: 'local' })
   })
 })
