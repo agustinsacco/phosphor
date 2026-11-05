@@ -6,6 +6,7 @@ import { useNavigation } from '@/navigation/Navigation'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSessionsStore } from '@/stores/sessions'
+import { openSidebarConversation } from '@/features/sessions/completionActions'
 import { sessionSubtitle } from '@/features/sessions/sessionSubtitle'
 import { LaneRow, SessionIndicator, SubtitleSegments } from '@/features/sessions/SidebarPrimitives'
 import { isUnseen } from '@/features/sessions/unseen'
@@ -76,6 +77,8 @@ export function LocalLanePreviewRow({ lane }: { lane: LocalLane }): React.JSX.El
       { elide: false },
     ) ?? 'Untitled session'
   const open = async (): Promise<void> => {
+    if (!phosphorId && meta?.worktreeRemoved)
+      return openSidebarConversation(lane.workspacePath, meta)
     try {
       const sessionId =
         phosphorId ?? (await useSessionsStore.getState().openDiskSession(lane.workspacePath, meta!))
