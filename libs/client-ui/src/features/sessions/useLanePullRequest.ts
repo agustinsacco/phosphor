@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { remotePrKey } from '@shared/host-protocol-github'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useSessionHostLane } from '@/stores/remoteLanes'
 import { repoPullRequests, usePullRequestsStore } from '@/stores/pullRequests'
 import { useRepoPrRefresh } from './repoPrRefresh'
 // Also installs Host-owned cache eviction, independent of sidebar visibility.
@@ -13,18 +13,17 @@ export function useLanePullRequest(sessionId: string) {
   const entry = useSessionsStore((s) => s.live[sessionId])
   const git = useSessionsStore((s) => s.gitByCwd[entry?.workspacePath ?? ''])
   const streaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
-  const host = useRemoteLanesStore((s) =>
-    entry?.target?.kind === 'remote' ? s.hosts[entry.target.hostId] : undefined,
-  )
-  const remote = entry?.target?.kind === 'remote'
-  const lane = host?.lanes.find((item) => item.laneId === entry?.laneId)
+  const hostLane = useSessionHostLane(sessionId)
+  const remote = hostLane !== null
+  const host = hostLane?.host
+  const lane = hostLane?.lane
   const repository = host?.repositories.find((item) => item.id === lane?.repositoryId)
   const ready = remote
     ? host?.state === 'ready' && host.capabilities.includes('workspaces.read') && !!repository
     : !!entry && git?.isRepo === true
   const repoPath = remote
-    ? entry.target?.kind === 'remote' && repository
-      ? remotePrKey(entry.target.hostId, repository.id)
+    ? repository
+      ? remotePrKey(hostLane.hostId, repository.id)
       : undefined
     : git?.isRepo
       ? (git.mainRepoPath ?? entry?.workspacePath)

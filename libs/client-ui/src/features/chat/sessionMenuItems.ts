@@ -4,8 +4,7 @@ import { exportSession } from '@/features/sessions/sessionActions'
 import { piCallOk } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
 import { promptText } from '@/stores/prompt'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSessionsStore } from '@/stores/sessions'
+import { sessionHostLane } from '@/stores/remoteLanes'
 import type { QueueMode, RpcSessionState } from '@shared/rpc'
 
 export const SESSION_OPTIONS = 'Session options'
@@ -98,17 +97,15 @@ export function currentSessionMenuItems(
   sessionId: string,
   nativeFiles: boolean,
 ): ContextMenuItem[] {
-  const entry = useSessionsStore.getState().live[sessionId]
   const meta = useChatStore.getState().sessions[sessionId]?.meta
-  if (entry?.target?.kind !== 'remote')
-    return sessionMenuItems({ sessionId, meta, nativeFiles, controlHint: undefined })
-  const host = useRemoteLanesStore.getState().hosts[entry.target.hostId]
-  const lane = host?.lanes.find((item) => item.laneId === entry.laneId)
-  const controlHint = remoteControlHint(
-    host?.state === 'ready',
-    !!host?.capabilities.includes('sessions.control'),
-    lane?.control.controller?.self === true,
-  )
+  const remote = sessionHostLane(sessionId)
+  const controlHint = remote
+    ? remoteControlHint(
+        remote.host?.state === 'ready',
+        !!remote.host?.capabilities.includes('sessions.control'),
+        remote.lane?.control.controller?.self === true,
+      )
+    : undefined
   return sessionMenuItems({ sessionId, meta, nativeFiles, controlHint })
 }
 

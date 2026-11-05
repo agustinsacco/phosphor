@@ -9,8 +9,7 @@ import {
   type HostProviders,
 } from '@/stores/hostProvidersCache'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
-import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSessionsStore } from '@/stores/sessions'
+import { machineLabel, useRemoteLanesStore, useSessionHostLane } from '@/stores/remoteLanes'
 import { AccountSwitcher, accountSwitcherSummary } from './AccountSwitcher'
 
 /**
@@ -35,10 +34,10 @@ export function HostAccountRouting({
   sessionId: string
   onMoved: () => void
 }): React.JSX.Element | null {
-  const live = useSessionsStore((s) => s.live[sessionId])
-  const hostId = live?.target?.kind === 'remote' ? live.target.hostId : undefined
-  const laneId = live?.laneId
-  const host = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
+  const hostLane = useSessionHostLane(sessionId)
+  const hostId = hostLane?.hostId
+  const laneId = hostLane?.laneId
+  const host = hostLane?.host
   const ready = host?.state === 'ready'
   const supported = useRef<boolean | undefined>(undefined)
   if (ready) supported.current = host.configurationSupported === true
@@ -46,7 +45,7 @@ export function HostAccountRouting({
   const held =
     ready &&
     host.capabilities.includes('sessions.control') &&
-    host.lanes.find((l) => l.laneId === laneId)?.control.controller?.self === true
+    hostLane?.lane?.control.controller?.self === true
   const lane = useHostLaneAccount(hostId, laneId, ready, configurable)
 
   const load = useCallback(async () => {

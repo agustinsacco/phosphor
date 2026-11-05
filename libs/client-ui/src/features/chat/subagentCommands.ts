@@ -1,6 +1,5 @@
 import { useChatStore } from '@/stores/chat'
 import { useLaneControl } from '@/features/machines/useLaneControl'
-import { remoteControlHint } from '@/features/sessions/remoteLaneActions'
 
 export type SubagentCommand =
   'subagents-inspect-rpc' | 'subagents-stop' | 'subagents-steer' | 'phosphor-save-subagent-snapshot'
@@ -33,8 +32,6 @@ export function useSubagentCommands(sessionId: string): {
   const control = useLaneControl(sessionId)
   return {
     supported: (name) => !!commands?.some((c) => c.name === name && c.source === 'extension'),
-    blocked: control
-      ? remoteControlHint(control.hostState === 'ready', control.enabled, control.controlling)
-      : undefined,
+    blocked: control?.hint,
   }
 }
