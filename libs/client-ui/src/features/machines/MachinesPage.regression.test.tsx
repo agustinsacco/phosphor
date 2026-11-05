@@ -13,6 +13,7 @@ import { useMachinePagesStore } from '@/stores/machinePages'
 import { useLayoutStore } from '@/stores/layout'
 import { OnlineAndProviders } from './onboarding/OnlineAndProviders'
 import { CLAUDE_PROVIDER, MACHINE } from './__fixtures__/control'
+import { useSavedConversation } from '@/features/sessions/completionActions'
 
 // B6: the Machines page drew This Mac and a Host with two rows and two details,
 // and they drifted apart. Each case failed on the two-copy page.
@@ -428,5 +429,31 @@ it("characterize: This Mac's On this machine lists its own live lane, not a Host
     expect(card?.querySelectorAll('.machine-lane-preview .lane-row')).toHaveLength(1)
   } finally {
     useSessionsStore.setState({ live: {} })
+  }
+})
+
+it("F1: This Mac's preview opens a worktree-removed lane as its saved conversation, as the sidebar does", async () => {
+  const meta = {
+    path: '/sessions/gone.jsonl',
+    sessionId: 'gone',
+    cwd: '/work/app-wt',
+    name: 'Removed lane',
+    mtimeMs: 1,
+    worktreeRemoved: true,
+  }
+  const openDiskSession = vi.fn(async () => 'opened')
+  const original = useSessionsStore.getState()
+  useSessionsStore.setState({
+    disk: { '/work/app': [meta] } as never,
+    openDiskSession: openDiskSession as never,
+  })
+  try {
+    await openThisMac()
+    await click(container.querySelector<HTMLElement>('.machine-lane-preview .lane-row'))
+    expect(openDiskSession).not.toHaveBeenCalled()
+    expect(useSavedConversation.getState()).toMatchObject({ meta, workspace: '/work/app' })
+  } finally {
+    useSavedConversation.setState({ meta: null })
+    useSessionsStore.setState({ disk: original.disk, openDiskSession: original.openDiskSession })
   }
 })
