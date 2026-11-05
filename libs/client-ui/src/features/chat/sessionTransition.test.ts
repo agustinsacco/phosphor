@@ -8,6 +8,14 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { canControlSession } from '@/stores/remoteLanes'
 import { currentBranchUserMessages, rewindToEntry } from './rewind'
+import {
+  changeSessionBranch,
+  sessionTransitionPending,
+  useSessionTransition,
+} from '@/features/sessions/sessionTransition'
+import { useExtensionUiStore } from '@/stores/extensionUi'
+import { useChatUiStore } from './uiState'
+import { SWARM_COMMAND, SWARM_STATUS_KEY } from '@phosphor/pi-extensions/swarm'
 
 const command = vi.fn()
 const artifactRead = vi.fn(async () => [])
@@ -30,11 +38,12 @@ beforeEach(() => {
     return { success: false }
   })
   artifactRead.mockClear()
+  useSessionTransition.setState({ bySession: {} })
   fake = createFakePhosphor({
     'pi:command': command,
     'pi:createSession': async () => ({ sessionId: 'audit', workspacePath: '/repo', pid: 1 }),
     'git:sessionBaseline': async () => null,
-    'sessions:listMany': async () => [],
+    'sessions:list': async () => [],
     'artifacts:forSession': artifactRead,
     'app:setRewoundSessions': async () => undefined,
     'app:setLastSession': async () => undefined,
@@ -140,4 +149,87 @@ it('reports a failed identity refresh after a successful rewind', async () => {
   expect(useSessionsStore.getState().live.audit?.diskPath).toBe('/repo/parent.jsonl')
   expect(useSessionsStore.getState().rewound).toEqual({})
   expect(useChatStore.getState().sessions.audit?.error).toBeTruthy()
+})
+
+beforeEach(() => {
+  useExtensionUiStore.setState({ statuses: {} })
+  useChatUiStore.setState({ prefill: {} })
+})
+
+it('retries reconciliation without forking again and keeps sending locked until ready', async () => {
+  live()
+  const normal = command.getMockImplementation()!
+  let fail = true
+  command.mockImplementation(async (id, cmd) => {
+    if (cmd.type === 'get_state' && fail) return { success: false }
+    return normal(id, cmd)
+  })
+  const run = rewindToEntry('audit', 'entry')
+  expect(sessionTransitionPending('audit')).toBe(true)
+  await run
+  expect(sessionTransitionPending('audit')).toBe(true)
+  const retry = useSessionTransition.getState().bySession.audit?.retry
+  expect(retry).toBeTypeOf('function')
+  fail = false
+  await retry!()
+  expect(command.mock.calls.filter(([, c]) => c.type === 'fork')).toHaveLength(1)
+  expect(useSessionsStore.getState().rewound).toEqual({ 'parent.jsonl': 'clone.jsonl' })
+  expect(useChatUiStore.getState().prefill.audit?.text).toBe('again')
+  expect(sessionTransitionPending('audit')).toBe(false)
+})
+
+it.each([true, false])(
+  'rewind preserves the current Swarm request (%s), not the historical branch value',
+  async (requested) => {
+    live()
+    useExtensionUiStore.setState({
+      statuses: {
+        audit: {
+          [SWARM_STATUS_KEY]: JSON.stringify({
+            version: 1,
+            available: true,
+            requested,
+            enabled: requested,
+          }),
+        },
+      },
+    })
+    const normal = command.getMockImplementation()!
+    command.mockImplementation(async (id, cmd) => {
+      if (cmd.type === 'get_commands')
+        return {
+          success: true,
+          data: {
+            commands: [{ name: SWARM_COMMAND, source: 'extension' }],
+          },
+        }
+      if (cmd.type === 'prompt') return { success: true }
+      return normal(id, cmd)
+    })
+    await rewindToEntry('audit', 'before-toggle')
+    expect(command).toHaveBeenCalledWith('audit', {
+      type: 'prompt',
+      message: `/${SWARM_COMMAND} ${requested ? 'on' : 'off'}`,
+    })
+    expect(sessionTransitionPending('audit')).toBe(false)
+  },
+)
+
+it('does not mutate a running session', async () => {
+  live()
+  useChatStore.getState().applyEvent('audit', { type: 'agent_start' })
+  await changeSessionBranch('audit', { type: 'clone' })
+  expect(command).not.toHaveBeenCalled()
+  expect(useChatStore.getState().sessions.audit?.error).toContain('Wait for this turn')
+  expect(sessionTransitionPending('audit')).toBe(false)
+})
+
+it('keeps an artifact-load failure recoverable instead of silently showing an empty clone', async () => {
+  live()
+  artifactRead.mockRejectedValueOnce(new Error('artifact read failed'))
+  await rewindToEntry('audit', 'entry')
+  expect(sessionTransitionPending('audit')).toBe(true)
+  await useSessionTransition.getState().bySession.audit?.retry?.()
+  expect(sessionTransitionPending('audit')).toBe(false)
+  expect(command.mock.calls.filter(([, c]) => c.type === 'fork')).toHaveLength(1)
 })
