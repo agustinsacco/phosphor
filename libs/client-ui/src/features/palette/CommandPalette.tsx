@@ -1,14 +1,25 @@
-import { openRemoteLane, useNavigationHostId, useRemoteLanesStore } from '@/stores/remoteLanes'
+import {
+  machineLabel,
+  openRemoteLane,
+  useNavigationHostId,
+  useRemoteLanesStore,
+} from '@/stores/remoteLanes'
+import type { HostConnectionView } from '@shared/ipc'
+import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
+import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { create } from 'zustand'
 import { fuzzyFilter } from '@/lib/fuzzy'
 import { MenuRow } from '@/components/PopupMenu'
 import { useLayoutStore } from '@/stores/layout'
+import { openMachinePage } from '@/stores/machinePages'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { openSettings } from '@/features/settings/useOpenSettings'
+import { navigateDesktop } from '@/navigation/desktopNavigation'
 import { useFeedbackStore } from '@/features/feedback/feedbackStore'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
 import { useChatUiStore } from '@/features/chat/uiState'
@@ -33,6 +44,16 @@ interface PaletteAction {
   run: () => void
 }
 
+/** Actions that act on This Mac only, left out on a Host. */
+const LOCAL_ONLY = new Set(['open-folder', 'rewind'])
+
+/**
+ * Whether the palette lists an action. The finder mounts only with a folder open, as ⌘P
+ * checks, so Go to file needs one.
+ */
+const listed = (action: PaletteAction, workspacePath: string, remote: boolean): boolean =>
+  (action.id !== 'go-to-file' || workspacePath !== '') && !(remote && LOCAL_ONLY.has(action.id))
+
 export function CommandPalette({
   workspacePath,
 }: {
@@ -47,6 +68,7 @@ export function CommandPalette({
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [addingFolder, setAddingFolder] = useState<string | null>(null)
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -98,16 +120,17 @@ export function CommandPalette({
         run: () => layout.toggleSidebar(),
       },
       // Global pages, deliberately NOT session-gated: they cover the main
-      // region on their own and are the whole point of having them.
+      // region on their own and are the whole point of having them. On a Host
+      // they open on that Host; elsewhere on the sidebar's machine.
       {
         id: 'open-artifacts-page',
         label: 'Open artifacts page',
-        run: () => layout.setPage('artifacts'),
+        run: () => openMachinePage('artifacts', hostId ?? null),
       },
       {
         id: 'open-skills-page',
         label: 'Open skills page',
-        run: () => layout.setPage('skills'),
+        run: () => openMachinePage('skills', hostId ?? null),
       },
       // Right-pane commands only exist inside a session — the pane itself is
       // rendered by MainWithPanes, which requires one. Offering them on the
@@ -171,10 +194,7 @@ export function CommandPalette({
         id: 'keybindings',
         label: 'Keyboard shortcuts',
         hint: formatShortcut('mod', '/'),
-        run: () => {
-          useSettingsUiStore.getState().setTab('keybindings')
-          useSettingsUiStore.getState().setOpen(true)
-        },
+        run: () => openSettings((next) => void navigateDesktop(next), null, 'keybindings'),
       },
       {
         id: 'theme-light',
@@ -222,30 +242,21 @@ export function CommandPalette({
       })
     }
 
-    if (remote) {
-      const localOnly = new Set([
-        'open-folder',
-        'open-artifacts-page',
-        'open-skills-page',
-        'rewind',
-      ])
-      for (const lane of host?.lanes ?? []) {
-        base.push({
-          id: `lane-${lane.laneId}`,
-          label: `Open lane: ${lane.title ?? 'Untitled lane'}`,
-          run: () => {
-            if (hostId) void openRemoteLane(hostId, lane.laneId)
-          },
-        })
-      }
-      return base.filter((action) => !localOnly.has(action.id))
-    }
-    return base
+    const shown = base.filter((action) => listed(action, workspacePath, remote))
+    if (!remote) return shown
+    return [...shown, ...(hostId && host ? hostActions(hostId, host, setAddingFolder) : [])]
   }, [workspacePath, open, activeSessionId, disk, host, hostId, remote])
 
   const matches = useMemo(() => fuzzyFilter(query, actions, (a) => a.label, 12), [query, actions])
 
-  if (!open) return null
+  const folderBrowser = addingFolder && (
+    <HostFolderBrowser
+      hostId={addingFolder}
+      onClose={() => setAddingFolder(null)}
+      onAdded={(repositoryId) => openRemoteComposer(addingFolder, repositoryId)}
+    />
+  )
+  if (!open) return folderBrowser || null
   const close = (): void => usePaletteStore.getState().setOpen(false)
 
   const run = (action: PaletteAction): void => {
@@ -253,7 +264,7 @@ export function CommandPalette({
     action.run()
   }
 
-  return createPortal(
+  const palette = createPortal(
     <div
       data-shortcut-overlay="palette"
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[16vh] backdrop-blur-[2px]"
@@ -312,4 +323,40 @@ export function CommandPalette({
     </div>,
     document.body,
   )
+  return (
+    <>
+      {palette}
+      {folderBrowser}
+    </>
+  )
+}
+
+/**
+ * A Host's own entries, standing in for This Mac's workspace ones: its lanes,
+ * a new lane in each of its folders ("Switch workspace"), and Add folder on it
+ * ("Open workspace folder…") where this device may add one.
+ */
+function hostActions(
+  hostId: string,
+  host: HostConnectionView,
+  addFolder: (hostId: string) => void,
+): PaletteAction[] {
+  const lanes = host.lanes.map((lane) => ({
+    id: `lane-${lane.laneId}`,
+    label: `Open lane: ${lane.title ?? 'Untitled lane'}`,
+    run: () => void openRemoteLane(hostId, lane.laneId),
+  }))
+  const repositories = host.repositories.map((repository) => ({
+    id: `new-lane-${repository.id}`,
+    label: `New lane in ${repository.name}`,
+    hint: machineLabel(hostId),
+    run: () => openRemoteComposer(hostId, repository.id),
+  }))
+  const canAdd = host.state === 'ready' && host.capabilities.includes('workspaces.write')
+  const add = {
+    id: 'add-host-folder',
+    label: `Add folder on ${machineLabel(hostId)}…`,
+    run: () => addFolder(hostId),
+  }
+  return [...lanes, ...repositories, ...(canAdd ? [add] : [])]
 }

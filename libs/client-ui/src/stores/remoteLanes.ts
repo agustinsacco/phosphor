@@ -4,12 +4,14 @@ import {
   invalidateRemoteArtifactReads,
 } from '@/features/artifacts/remoteArtifactRefresh'
 import { create } from 'zustand'
+import { localMachineLabel } from '@/lib/localMachine'
 import type { HostConnectionView, HostsSnapshot } from '@shared/ipc'
 import type { LiveSessionInfo } from '@shared/models'
 import type { HostTarget } from '@shared/remote-host'
 import { forgetRemoteSession, useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
 import { migrateLegacyLaneMarks } from './remoteLaneMarks'
+import { bindHostsSnapshotRead } from './hostsSnapshotRead'
 import { useExtensionUiStore } from './extensionUi'
 import { useLayoutStore } from './layout'
 import { useWorkspacesStore } from './workspaces'
@@ -22,7 +24,8 @@ import {
 } from '@/features/sessions/laneReveal'
 
 const LOCAL: HostTarget = Object.freeze({ kind: 'local' })
-export const REMOTE_NOT_READY = 'Machine not connected. Wait for reconnection.'
+const laneRemoved = (machine = localMachineLabel()): string => `This lane was removed on ${machine}`
+export { REMOTE_NOT_READY } from './hostRefusals'
 
 export function connectionLabel(state: HostConnectionView['state'] | undefined): string {
   // A first attempt is not a reconnection; the wait notes (`connectingTo`) say the same.
@@ -197,8 +200,7 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     const host = hosts[remote.hostId]
     const label = machineLabel(remote.hostId)
     if (host?.state !== 'ready') return `${label} is offline`
-    if (!host.lanes.some((lane) => lane.laneId === remote.laneId))
-      return `This lane was removed on ${label}`
+    if (!host.lanes.some((lane) => lane.laneId === remote.laneId)) return laneRemoved(label)
     return undefined
   }
   try {
@@ -216,7 +218,7 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     const problemAfterOpen = unavailable()
     if (problemAfterOpen) throw new Error(problemAfterOpen)
     const entry = sessionId ? useSessionsStore.getState().live[sessionId] : undefined
-    if (!sessionId || !entry) throw new Error('This lane was removed on This Mac')
+    if (!sessionId || !entry) throw new Error(laneRemoved())
     stopWatching()
     alignLaneMachineFilter(remote?.hostId ?? 'local')
     useSessionsStore.getState().activate(sessionId)
@@ -247,8 +249,7 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
       }
     }
     if (!current()) return false
-    const message =
-      problem ?? (remote ? 'Could not open the remote lane.' : 'This lane was removed on This Mac')
+    const message = problem ?? (remote ? 'Could not open the remote lane.' : laneRemoved())
     useRemoteLanesStore.setState({ error: message })
     useExtensionUiStore.getState().pushToast(message, 'error')
     return false
@@ -340,47 +341,26 @@ export function attachRemoteLanesListener(): () => void {
   const offChanged = window.phosphor.onHostsChanged(() => void refresh())
   const offAttention = window.phosphor.onHostAttention((event) => {
     void refresh()
-    const { activeSessionId, live } = useSessionsStore.getState()
+    const { live } = useSessionsStore.getState()
     const adopted = Object.values(live).find(
       (entry) =>
         entry.target?.kind === 'remote' &&
         entry.target.hostId === event.hostId &&
         entry.laneId === event.laneId,
     )
-    if (
-      adopted?.phosphorId === activeSessionId &&
-      useLayoutStore.getState().page === null &&
-      document.hasFocus()
-    )
-      return
-    void import('./extensionUi').then(({ useExtensionUiStore }) => {
-      if (!active) return
-      useExtensionUiStore.getState().notify({
-        // Remote sessions skip the local settled path. Sharing their key also
-        // replaces any existing lane notice instead of adding a second card.
-        sessionId: adopted?.phosphorId,
-        title: `${machineLabel(event.hostId)} · ${event.title}`,
-        message: event.kind,
-        receipt: {
-          facts: event.receipt,
-          machine: machineLabel(event.hostId),
-          machineId: event.hostId,
-          laneId: event.laneId,
-          at: event.at,
-        },
-        kind: event.kind === 'failed' ? 'error' : 'info',
-        openLabel: 'Open lane',
-        onOpen: () => openRemoteLane(event.hostId, event.laneId),
-      })
+    void import('@/features/sessions/laneNotices').then(({ noticeHostAttention }) => {
+      if (active)
+        noticeHostAttention(event, adopted?.phosphorId, () =>
+          openRemoteLane(event.hostId, event.laneId),
+        )
     })
   })
   const offOpen = window.phosphor.onHostOpenLane(
     ({ hostId, laneId }) => void openRemoteLane(hostId, laneId),
   )
-  const onFocus = (): void => {
-    void refresh()
-  }
+  const onFocus = (): void => void refresh()
   window.addEventListener('focus', onFocus)
+  bindHostsSnapshotRead(refresh)
   void refresh()
   return () => {
     active = false

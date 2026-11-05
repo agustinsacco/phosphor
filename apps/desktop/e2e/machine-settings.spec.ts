@@ -2,8 +2,9 @@ import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
-import { captures, openMachineSettings } from './fixtures/remote-ui'
+import { captures, openMachineSettings, openSettingsSection } from './fixtures/remote-ui'
 import {
+  accountRow,
   addPrivateConnector,
   addPrivateAccount,
   createBillingLane,
@@ -22,7 +23,7 @@ test('machine settings save only on bee1, preserve revisions and never read back
       h.hostId
     ]!
     expect(before.connectionToken).toBeTruthy()
-    const budget = settings.getByRole('textbox', { name: 'Host context budget', exact: true })
+    const budget = settings.getByRole('textbox', { name: 'Custom context budget', exact: true })
     await budget.fill('100k')
     await budget.press('Enter')
     await expect
@@ -37,12 +38,9 @@ test('machine settings save only on bee1, preserve revisions and never read back
     expect(after.connectionToken).toBe(before.connectionToken)
     await captures(h, test.info(), 'machine-settings-agent')
 
-    await settings
-      .getByRole('navigation', { name: 'Machine settings', exact: true })
-      .getByRole('button', { name: 'MCP Connectors', exact: true })
-      .click()
+    await openSettingsSection(settings, 'MCP Connectors')
     await addPrivateConnector(h, settings)
-    await expect(settings.locator('[data-connector="private-tools"]')).toContainText('Not verified')
+    await expect(settings.locator('[data-connector="private-tools"]')).toContainText('Not checked')
     const globalMcp = JSON.parse(await readFile(join(h.agent, 'mcp.json'), 'utf8'))
     expect(globalMcp.mcpServers['private-tools'].headers.Authorization).toBe(
       'Bearer HOST_ONLY_MCP_SECRET',
@@ -57,11 +55,16 @@ test('machine settings save only on bee1, preserve revisions and never read back
     ).not.toContain('HOST_ONLY_MCP_SECRET')
 
     const repository = after.repositories.find((repo) => repo.path === h.repo)!
+    // The folder scope lives in the scope line: Folder, then which one.
+    await settings.getByRole('radio', { name: 'Folder', exact: true }).click()
     await settings
-      .getByRole('combobox', { name: 'Host configuration scope', exact: true })
+      .getByRole('combobox', { name: 'Configuration folder', exact: true })
       .selectOption(repository.id)
     await expect(settings).toContainText('This folder is not trusted')
-    await settings.getByRole('button', { name: 'Disable in this folder', exact: true }).click()
+    await settings
+      .locator('[data-connector="private-tools"]')
+      .getByRole('switch', { name: 'Enabled in this folder', exact: true })
+      .click()
     await expect
       .poll(
         async () =>
@@ -91,6 +94,7 @@ test('private Claude accounts route new Host lanes and an explicit account move 
     await h.installClaudeProvider()
     await h.signIn()
     const settings = await openMachineSettings(h)
+    await openSettingsSection(settings, 'Claude Code')
     await expect(settings).toContainText('first@host.example')
     expect(
       (await h.page.evaluate(() => window.phosphor.invoke('hosts:snapshot')))[h.hostId]
@@ -99,17 +103,11 @@ test('private Claude accounts route new Host lanes and an explicit account move 
     await addPrivateAccount(h, settings, 'work@host.example')
     await addPrivateAccount(h, settings, 'backup@host.example')
     // Removing the CLI default proves doctor and startup really honor private accounts.
-    const first = settings
-      .locator('li')
-      .filter({ has: h.page.getByText('first@host.example', { exact: true }) })
-    await first.getByRole('button', { name: 'Remove account', exact: true }).click()
+    const first = accountRow(settings, 'first@host.example')
+    await first.getByRole('button', { name: 'Remove', exact: true }).click()
     await h.page.getByRole('button', { name: 'Sign out and remove', exact: true }).click()
-    await expect(
-      settings.getByRole('heading', { name: 'first@host.example', exact: true }),
-    ).toBeHidden()
-    await settings
-      .getByRole('combobox', { name: 'Claude account routing', exact: true })
-      .selectOption('specific')
+    await expect(first).toHaveCount(0)
+    await settings.getByRole('radio', { name: 'One account' }).check()
     const accounts = await h.page.evaluate(
       (hostId) => window.phosphor.invoke('hosts:settingsRead', hostId, 'providers'),
       h.hostId,
@@ -120,12 +118,13 @@ test('private Claude accounts route new Host lanes and an explicit account move 
     const backup = accounts.providers!.accounts.find(
       (account) => account.email === 'backup@host.example',
     )!
-    await settings
-      .getByRole('combobox', { name: 'Pinned Claude account', exact: true })
-      .selectOption(work.id)
-    await expect(
-      settings.getByRole('combobox', { name: 'Pinned Claude account', exact: true }),
-    ).toBeEnabled()
+    const pin = settings.getByRole('radio', {
+      name: `Use ${work.label} for new sessions`,
+      exact: true,
+    })
+    await pin.check()
+    await expect(pin).toBeChecked()
+    await expect(pin).toBeEnabled()
     const session = await createBillingLane(h)
     await expect
       .poll(() => billingHistory(h, session.sessionId))

@@ -72,6 +72,10 @@
       "types": "./src/claude-limits.ts",
       "default": "./src/claude-limits.ts"
     },
+    "./claude-session-account": {
+      "types": "./src/claude-session-account.ts",
+      "default": "./src/claude-session-account.ts"
+    },
     "./claude-paths": {
       "types": "./src/claude-paths.ts",
       "default": "./src/claude-paths.ts"
@@ -148,9 +152,9 @@
       "types": "./src/machine-settings-mcp.ts",
       "default": "./src/machine-settings-mcp.ts"
     },
-    "./host-default-packages": {
-      "types": "./src/host-default-packages.ts",
-      "default": "./src/host-default-packages.ts"
+    "./standard-packages": {
+      "types": "./src/standard-packages.ts",
+      "default": "./src/standard-packages.ts"
     },
     "./machine-agent-behavior": {
       "types": "./src/machine-agent-behavior.ts",
@@ -167,6 +171,18 @@
     "./mcp": {
       "types": "./src/mcp.ts",
       "default": "./src/mcp.ts"
+    },
+    "./web-access": {
+      "types": "./src/web-access.ts",
+      "default": "./src/web-access.ts"
+    },
+    "./mcp-write-policy": {
+      "types": "./src/mcp-write-policy.ts",
+      "default": "./src/mcp-write-policy.ts"
+    },
+    "./subscription-providers": {
+      "types": "./src/subscription-providers.ts",
+      "default": "./src/subscription-providers.ts"
     },
     "./models": {
       "types": "./src/models.ts",
@@ -211,6 +227,10 @@
     "./subagent-evidence": {
       "types": "./src/subagent-evidence.ts",
       "default": "./src/subagent-evidence.ts"
+    },
+    "./subagent-fleet": {
+      "types": "./src/subagent-fleet.ts",
+      "default": "./src/subagent-fleet.ts"
     },
     "./subagent-inspect": {
       "types": "./src/subagent-inspect.ts",

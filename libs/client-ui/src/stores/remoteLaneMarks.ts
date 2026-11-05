@@ -1,5 +1,6 @@
 import type { LaneMarksChange } from '@shared/host-protocol-lane-marks'
 import { HOST_TOO_OLD } from '@shared/host-protocol-repositories'
+import { needsNewerHost } from './hostRefusals'
 import type { HostConnectionView, HostsSnapshot } from '@shared/ipc'
 import { hostResourceKey } from '@shared/remote-host'
 import { useExtensionUiStore } from './extensionUi'
@@ -23,7 +24,7 @@ export async function setRemoteLaneMarks(
       .getState()
       .pushToast(
         error instanceof Error && error.message.includes(HOST_TOO_OLD)
-          ? `Pins and lane markers need a newer Host. ${HOST_TOO_OLD}`
+          ? needsNewerHost('Pins and lane markers need')
           : 'The Host could not save this pin or marker. Try again.',
         'error',
       )

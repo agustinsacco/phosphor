@@ -87,6 +87,10 @@ html[data-form-factor='compact'] {
   min-width: 0;
   overflow: auto;
 }
+/* A lane's transcript and panes scroll themselves; a second bar beside them is noise. */
+.compact-main[data-route='lane'] {
+  overflow: hidden;
+}
 .browser-navigation,
 .browser-drawer {
   display: flex;
@@ -386,13 +390,15 @@ html[data-form-factor='compact'] {
 }
 [data-compact-menu] {
   position: fixed !important;
+  /* --compact-menu-lift: an upward sheet clears its composer (useCompactLift). */
   inset: auto 8px
     max(
       8px,
       calc(
         100dvh - var(--compact-height, 100dvh) - var(--compact-top, 0px) +
           env(safe-area-inset-bottom)
-      )
+      ),
+      var(--compact-menu-lift, 0px)
     ) !important;
   transform: none !important;
   z-index: 100;
@@ -401,8 +407,40 @@ html[data-form-factor='compact'] {
   max-height: min(65dvh, 500px, calc(var(--compact-height, 100dvh) - 32px));
   overflow-y: auto;
 }
+/* Always shown on touch, and small: a 44px circle covered the whole thumbnail. */
 [data-form-factor='compact'] [data-testid='attachment-chips'] button {
   display: flex;
+  min-width: 24px;
+  min-height: 24px;
+}
+/*
+ * The phone composer is the shared card, tightened: less padding round the field
+ * and its single control row, a short readout strip, and a field that stops at
+ * a third of what the keyboard leaves and scrolls itself, so the caret stays on
+ * screen. Unlayered, so these beat the card's own utilities.
+ */
+[data-form-factor='compact'] .composer {
+  padding: 2px 8px 4px;
+}
+[data-form-factor='compact'] .composer-field:not(input) {
+  max-height: calc(var(--compact-height, 100dvh) / 3);
+  padding: 10px 12px 2px;
+}
+[data-form-factor='compact'] .composer-toolbar {
+  gap: 4px;
+  padding: 0 4px;
+}
+[data-form-factor='compact'] .composer-status {
+  min-height: 0;
+  padding-top: 0;
+}
+[data-form-factor='compact'] .composer-status button {
+  min-height: 32px;
+}
+/* Continue cannot act while a turn runs; on a phone its slot goes to the model name. */
+[data-form-factor='compact'] [data-composer-continue]:disabled,
+[data-form-factor='compact'] [data-composer-continue]:disabled + .composer-divider {
+  display: none;
 }
 [data-form-factor='compact'] .action-tooltip {
   display: none;

@@ -8,3 +8,11 @@ it('classifies every invoke channel and gives every refusal a reason', () => {
     if (entry.kind === 'unsupported') expect(entry.reason.length).toBeGreaterThan(15)
   }
 })
+it('keeps lane and branch prefs in the browser, which apply to every Host from this device', () => {
+  for (const channel of ['app:setLanePrefs', 'app:setWorktreePrefs'] as const)
+    expect(IPC_WEB[channel]).toEqual({ kind: 'browser-local' })
+})
+it("keeps a Host lane's order and a Host folder's collapse in the browser, as Desktop keeps them", () => {
+  for (const channel of ['app:setSessionOrder', 'app:setCollapsedWorkspaces'] as const)
+    expect(IPC_WEB[channel]).toEqual({ kind: 'browser-local' })
+})

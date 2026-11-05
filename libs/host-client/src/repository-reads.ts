@@ -7,8 +7,10 @@ import {
 import {
   parseRemotePrKey,
   parsePrParams,
+  parsePrReadOptions,
   parseRepoPrs,
 } from '@phosphor/shared/host-protocol-github'
+import type { GhPrReadOptions } from '@phosphor/shared/models'
 import type { createHostConnection } from './connection'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
 
@@ -18,11 +20,20 @@ export function repositoryReads(
   ) =>
     Pick<ReturnType<typeof createHostConnection>, 'snapshot' | 'incarnation' | 'call'> | undefined,
 ) {
-  async function call(hostId: string, repositoryId: string, method: string, path?: string) {
+  async function call(
+    hostId: string,
+    repositoryId: string,
+    method: string,
+    path?: string,
+    options?: GhPrReadOptions,
+  ) {
     const c = connection(hostId)
     const params =
       method === 'github.prs'
-        ? parsePrParams({ repositoryId }) && { repositoryId }
+        ? parsePrParams({ repositoryId, options }) && {
+            repositoryId,
+            ...(options ? { options } : {}),
+          }
         : parseFileParams(method, {
             repositoryId,
             ...(path === undefined ? {} : { path }),
@@ -39,7 +50,16 @@ export function repositoryReads(
     // A failed list names its cause in fixed text; every other failure is "unavailable".
     let failure = REMOTE_UNAVAILABLE
     try {
-      const reply = await c.call(method, params)
+      let reply = await c.call(method, params)
+      // An older Host rejects the additive options field. Never retry operational failures.
+      if (
+        available() &&
+        method === 'github.prs' &&
+        options &&
+        !reply.ok &&
+        reply.error.code === 'bad-request'
+      )
+        reply = await c.call(method, { repositoryId })
       if (available() && !reply.ok && method === 'files.list')
         failure = fileListFailure(reply.error.code) ?? REMOTE_UNAVAILABLE
       if (!available() || !reply.ok) throw new Error(REMOTE_UNAVAILABLE)
@@ -52,10 +72,11 @@ export function repositoryReads(
     }
   }
   return {
-    async pullRequests(key: string) {
+    async pullRequests(key: string, options?: unknown) {
       const scope = parseRemotePrKey(key)
-      if (!scope) throw new Error(REMOTE_UNAVAILABLE)
-      const result = await call(scope.hostId, scope.repositoryId, 'github.prs')
+      const parsed = options === undefined ? undefined : parsePrReadOptions(options)
+      if (!scope || parsed === null) throw new Error(REMOTE_UNAVAILABLE)
+      const result = await call(scope.hostId, scope.repositoryId, 'github.prs', undefined, parsed)
       if (!('prs' in result)) throw new Error(REMOTE_UNAVAILABLE)
       return result.prs
     },

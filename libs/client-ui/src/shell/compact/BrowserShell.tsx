@@ -35,7 +35,7 @@ export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Eleme
         ) : (
           <BrowserHeader machine={machine} onMenu={() => setDrawer(true)} />
         )}
-        <main className="compact-main">
+        <main className="compact-main" data-route={location.to}>
           <BrowserScreen machine={machine} pending={pending} />
         </main>
       </div>

@@ -31,7 +31,10 @@ Duplicate, Import and Make routine… open fresh and replace a waiting new draft
 The page includes starter instructions for weekly analysis, dependency audits,
 and cycle retros. A lane's context menu offers **Make routine…**: a reviewable
 draft of its name, first user text, and workspace, not its running process or
-entire conversation. Choose the model explicitly before saving that draft.
+entire conversation. Choose the model explicitly before saving that draft. On a
+Host lane the draft opens on that Host's Routines with the lane's folder chosen,
+once the page has its machine list; the item needs the Host's `routines`
+capability.
 
 Schedules: Manual, Hourly, Daily, Weekdays, Weekly, Monthly (including last day),
 Once, or Custom five-field cron. The editor previews the next three occurrences in the
@@ -214,7 +217,8 @@ The list and header count follow the page selection; the count includes only
 non-archived routines in that selection. A Host page shows no This Mac activity,
 load errors, footer or background controls. Host run history opens from each routine,
 not a mixed Activity feed. All machines explicitly labels local Activity and
-load errors as **This Mac**. An unavailable Host shows its refusal, never local data
+load errors with the local machine's label (**This Mac** on macOS, **This PC** or
+**This computer** elsewhere). An unavailable Host shows its refusal, never local data
 under a remote label. Changing the selection clears an action error shown for the
 previous machine.
 Remote editors and detail labels use the Host model catalogue. Changing the

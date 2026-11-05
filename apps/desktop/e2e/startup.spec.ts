@@ -514,7 +514,12 @@ test('startup errors offer recovery instead of an endless loading screen', async
     })
     await h.page.getByRole('button', { name: 'Try again' }).click()
     await expect(h.page.getByTestId('startup-screen')).toHaveCount(0)
-    await expect(h.page.getByRole('heading', { name: /pi/i }).first()).toBeVisible()
+    // Without pi the shell still mounts: This Mac's home offers the install,
+    // and Machines, Host lanes and Settings stay reachable around it.
+    await expect(h.page.getByTestId('app-shell')).toBeVisible()
+    await expect(h.page.getByRole('heading', { name: 'pi is not installed' })).toBeVisible()
+    await expect(h.page.getByRole('button', { name: 'Machines', exact: true })).toBeVisible()
+    await expect(h.page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
   } finally {
     await h.close()
   }

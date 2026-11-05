@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { HostConnectionView } from '@shared/ipc'
+import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import {
@@ -26,6 +26,8 @@ export interface LaneControl {
   enabled: boolean
   /** This device is the lane's controller. */
   controlling: boolean
+  /** What the Host says the lane is doing; undefined until the Host lists it. */
+  activity: HostLaneView['activity'] | undefined
   /** The lane's process is down, so its lifecycle action is Resume. */
   stopped: boolean
   /** Why Stop is refused right now, if it is. */
@@ -43,7 +45,8 @@ export interface LaneControl {
  */
 export function useLaneControl(sessionId: string | undefined): LaneControl | null {
   const entry = useSessionsStore((s) => (sessionId ? s.live[sessionId] : undefined))
-  const hosts = useRemoteLanesStore((s) => s.hosts)
+  const targetHostId = entry?.target?.kind === 'remote' ? entry.target.hostId : undefined
+  const host = useRemoteLanesStore((s) => (targetHostId ? s.hosts[targetHostId] : undefined))
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const prompted = useChatStore((s) =>
@@ -54,7 +57,6 @@ export function useLaneControl(sessionId: string | undefined): LaneControl | nul
   if (!sessionId || entry?.target?.kind !== 'remote' || !entry.laneId) return null
   const hostId = entry.target.hostId
   const laneId = entry.laneId
-  const host = hosts[hostId]
   const lane = host?.lanes.find((item) => item.laneId === laneId)
   const controller = lane?.control.controller
   const stopped = lane?.activity === 'stopped' || lane?.activity === 'failed'
@@ -83,6 +85,7 @@ export function useLaneControl(sessionId: string | undefined): LaneControl | nul
           : 'No controller',
     enabled: host?.state === 'ready' && host.capabilities.includes('sessions.control'),
     controlling: canControlSession(sessionId),
+    activity: lane?.activity,
     stopped,
     stopBlocked: !prompted && !stopped ? STOP_NEEDS_PROMPT : null,
     busy,

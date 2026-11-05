@@ -26,6 +26,7 @@ import { exportSession, renameSession } from '@/features/sessions/sessionActions
 import { usePlatform } from '@/platform/Platform'
 import { piCallAccepted, piCallOk } from '@/lib/rpc'
 import { formatShortcut } from '@/lib/shortcuts'
+import { softKeyboard } from '@/lib/softKeyboard'
 import {
   composePrompt,
   remotePromptAttachments,
@@ -366,14 +367,17 @@ export function Composer({
     [sessionId, workspacePath, remote],
   )
 
+  // A soft keyboard has no Alt or Esc and its Return adds a line: name only what it can do.
   const placeholder = isStreaming
-    ? `Steer with Enter · queue follow-up with ${formatShortcut('alt', 'Enter')} · Esc to stop`
+    ? softKeyboard()
+      ? 'Steer or queue a follow-up…'
+      : `Steer with Enter · queue follow-up with ${formatShortcut('alt', 'Enter')} · Esc to stop`
     : booting
       ? 'Starting pi…'
       : 'Describe a task…'
 
   return (
-    <div className="shrink-0 px-3 pb-4 pt-1 sm:px-5">
+    <div className="composer shrink-0 px-3 pb-4 pt-1 sm:px-5">
       <ComposerStrips sessionId={sessionId} />
 
       <HostWaitNote sessionId={sessionId} className="mx-auto mb-1.5 max-w-3xl" />
@@ -409,7 +413,10 @@ export function Composer({
             <div className="flex shrink-0 items-center gap-0.5">
               {booting && !isStreaming && <Spinner />}
               {continueButton}
-              <span className="bg-border mx-0.5 h-4 w-px shrink-0" aria-hidden="true" />
+              <span
+                className="composer-divider bg-border mx-0.5 h-4 w-px shrink-0"
+                aria-hidden="true"
+              />
               {isStreaming ? (
                 <StopIconButton onClick={() => void abort()} />
               ) : (
@@ -466,7 +473,7 @@ export function Composer({
             opening the popover it always had. A draft starting with `!` takes
             the line over to explain itself; an empty field lends its right
             end to the cheat sheet that used to crowd the placeholder. */}
-        <div className="text-text-tertiary @container flex min-h-6 flex-wrap items-center gap-x-3 gap-y-0.5 px-2 pt-1.5 text-sm">
+        <div className="composer-status text-text-tertiary @container flex min-h-6 flex-wrap items-center gap-x-3 gap-y-0.5 px-2 pt-1.5 text-sm">
           {text.startsWith('!') ? (
             <span className="text-text-secondary">
               <span className="font-mono">!cmd</span> runs in {remote ? "the Host's" : 'your'} shell
@@ -483,7 +490,7 @@ export function Composer({
               )}
               {/* Yields before it wraps: it fills what the readouts leave and
                   truncates, and a strip narrower than 36rem drops it. */}
-              {!remote && text === '' && !isStreaming && (
+              {text === '' && !isStreaming && (
                 <span className="@xl:inline ml-auto hidden min-w-0 flex-1 basis-0 truncate text-right">
                   <span className="font-mono">/</span> commands ·{' '}
                   <span className="font-mono">@</span> files · <span className="font-mono">!</span>{' '}

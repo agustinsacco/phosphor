@@ -95,6 +95,7 @@ test('a Slack thread in the lane prompt is a header quick link that opens and ad
     await slack.click()
     const list = h.page.getByRole('region', { name: 'Slack threads in this lane' })
     await expect(list).toContainText('fix what they asked in')
+    await expect(list.getByTestId('slack-thread-open')).toBeFocused()
     await list.getByTestId('slack-thread-open').click()
     await expect
       .poll(() =>

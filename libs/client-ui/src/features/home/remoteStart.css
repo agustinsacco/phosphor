@@ -1,3 +1,9 @@
+/*
+ * One scroller: the intro above the composer. The composer never scrolls as a
+ * box; its field scrolls itself past its cap, so the caret stays on screen. A
+ * capped, scrolling composer box hid the caret below its fold and stacked a
+ * second and third scrollbar beside the intro's.
+ */
 .remote-workspace-page {
   height: 100%;
   display: flex;
@@ -36,8 +42,6 @@
 }
 .remote-workspace-page > .remote-start {
   flex-shrink: 0;
-  max-height: 70%;
-  overflow: auto;
 }
 .remote-lane-list {
   border-top: 1px solid var(--px-border);

@@ -1,5 +1,6 @@
 import { RemoteHostLanes } from './RemoteHostLanes'
 import { MachineLabelLine, machineStateText } from './MachineSwitcher'
+import { WorkspaceGroupSkeletons } from './SidebarPrimitives'
 export { LAST_FOLDER_REFUSAL } from './RemoteRepositoryRemoval'
 import { useMachinesStore } from '@/stores/machines'
 import {
@@ -36,16 +37,20 @@ export function RemoteLanes(): React.JSX.Element | null {
                 lanes={hosts[id].lanes}
               />
             ) : (
-              <div className="text-text-tertiary px-2 py-3 text-sm">
-                {!hosts[id] || hosts[id].state === 'no-address'
-                  ? machineStateText(
-                      hosts[id],
-                      machines.find((m) => m.id === id),
-                      now,
-                      loading,
-                    )
-                  : REMOTE_NOT_READY}
-              </div>
+              <>
+                <div className="text-text-tertiary px-2 py-3 text-sm">
+                  {!hosts[id] || hosts[id].state === 'no-address'
+                    ? machineStateText(
+                        hosts[id],
+                        machines.find((m) => m.id === id),
+                        now,
+                        loading,
+                      )
+                    : REMOTE_NOT_READY}
+                </div>
+                {/* The first snapshot is on its way: This Mac's group placeholders. */}
+                {!hosts[id] && loading && <WorkspaceGroupSkeletons />}
+              </>
             )}
           </section>
         ))}

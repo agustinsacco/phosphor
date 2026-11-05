@@ -5,7 +5,7 @@ import { captures } from './fixtures/remote-ui'
 test('real Host Claude detail explains the missing provider and refreshes after installation', async () => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture({ claude: true })
-  const fix = 'pi install npm:@saccolabs/pi-claude-cli'
+  const remedy = 'Settings → Extensions → Claude Code'
   try {
     await h.signIn()
     await h.page.getByRole('button', { name: 'Machines', exact: true }).click()
@@ -15,7 +15,8 @@ test('real Host Claude detail explains the missing provider and refreshes after 
       .getByRole('heading', { name: 'Claude Code', exact: true })
       .locator('../..')
     await expect(claude).toContainText('Claude Code provider missing')
-    await expect(claude.locator('code')).toHaveText(fix)
+    await expect(claude).toContainText(remedy)
+    await expect(claude.locator('code')).toHaveCount(0)
     await captures(h, test.info(), 'claude-detail-machine')
 
     const machine = h.state.machines[0]
@@ -32,13 +33,15 @@ test('real Host Claude detail explains the missing provider and refreshes after 
     // Online advances on its own once the real Host connection is ready.
     const providers = dialog.getByRole('region', { name: 'Providers', exact: true })
     await expect(providers).toBeVisible()
-    await expect(providers).toContainText('Claude Code provider missing')
-    await expect(providers.locator('code').filter({ hasText: fix })).toHaveText(fix)
-    await expect(providers.getByText('Claude Pro/Max: Ready', { exact: true })).toBeVisible()
-    await expect(providers).toContainText('Claude Code: Claude Code provider missing')
+    const providerClaude = providers.locator('[data-check="Claude Code"]')
+    await expect(providerClaude).toContainText('Claude Code provider missing')
+    await expect(providerClaude).toContainText(remedy)
+    await expect(
+      providers.locator('[data-provider="anthropic"]').locator('[data-sign-in]'),
+    ).toHaveText('Signed in')
     await captures(h, test.info(), 'claude-detail-providers')
 
-    await providers.getByRole('button', { name: 'Open machine Readiness', exact: true }).click()
+    await providers.getByRole('button', { name: 'Open machine', exact: true }).click()
     await expect(dialog).toBeHidden()
     await expect(claude).toContainText('Claude Code provider missing')
     await h.installClaudeProvider()

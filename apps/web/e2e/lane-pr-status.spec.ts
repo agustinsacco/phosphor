@@ -18,3 +18,41 @@ test('a Host lane without a PR shows no PR control in phone and wide headers', a
     ).toBe(true)
   }
 })
+
+test('a Slack thread the Host lane mentions becomes a header quick link', async ({
+  stack,
+  page,
+}) => {
+  const thread = 'https://acme.slack.com/archives/C0123ABC/p1730563200123456'
+  await page.goto(stack.origin)
+  await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
+  await page.goto(`${stack.origin}/lanes/${stack.hostId}/${stack.laneId}/chat`)
+  const slack = page.locator('header').getByTestId('lane-slack-threads')
+  await expect(page.getByTestId('transcript-scroll')).toBeVisible()
+  await expect(slack).toHaveCount(0)
+  await page.getByRole('button', { name: 'Take control', exact: true }).click()
+  await page.locator('textarea').fill(`PHX-slack fix what they asked in ${thread}`)
+  await page.getByRole('button', { name: 'Send message', exact: true }).click()
+  for (const width of [400, 1440]) {
+    await page.setViewportSize({ width, height: 850 })
+    // The phone and wide headers are different components: touching the pill
+    // before the resize lands drives the old header, which then unmounts.
+    const compact = width < 900
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-form-factor',
+      compact ? 'compact' : 'expanded',
+    )
+    await expect(page.locator('header.compact-lane-header')).toHaveCount(compact ? 1 : 0)
+    await expect(slack).toHaveAttribute('aria-label', '1 Slack thread in context')
+    await slack.focus()
+    await slack.press('Enter')
+    const list = page.getByRole('region', { name: 'Slack threads in this lane' })
+    await expect(list).toContainText('PHX-slack fix what they asked in')
+    await page.keyboard.press('Escape')
+    await expect(list).toHaveCount(0)
+    await expect(slack).toBeFocused()
+    expect(
+      await page.locator('header').evaluate((header) => header.scrollWidth <= header.clientWidth),
+    ).toBe(true)
+  }
+})

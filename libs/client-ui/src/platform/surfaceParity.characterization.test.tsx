@@ -191,8 +191,8 @@ it('Settings differs between clients only by the capabilities each declares', ()
     expect(ids(COMPACT_PLATFORM, machine)).toEqual(ids(WIDE_BROWSER_PLATFORM, machine))
   const desktop = ids(DESKTOP_PLATFORM, 'host')
   const browser = ids(WIDE_BROWSER_PLATFORM, 'host')
-  // writingAssist and appShortcuts are Desktop's; installableApp is the browser's.
-  expect(desktop.filter((id) => !browser.includes(id))).toEqual(['writing', 'keybindings'])
+  // writingAssist, localVoice and appShortcuts are Desktop's; installableApp is the browser's.
+  expect(desktop.filter((id) => !browser.includes(id))).toEqual(['writing', 'voice', 'keybindings'])
   expect(browser.filter((id) => !desktop.includes(id))).toEqual(['install'])
   // This Mac's own sections need localLanes, so the browser lists none of them.
   expect(ids(WIDE_BROWSER_PLATFORM, 'local')).toEqual(ids(WIDE_BROWSER_PLATFORM, null))

@@ -1,132 +1,83 @@
 import { PiUnavailableError, resolvePiInvoker } from './invoker'
-import { runPrintMode } from './print-mode'
+import { catalogueModels } from './catalogue'
+import { CLAUDE_TITLE_FALLBACK, titleAttempts } from '@phosphor/session-runtime/pi/title-policy'
 import {
-  CLAUDE_TITLE_FALLBACK,
-  dedupeTitle,
-  sanitizeTitle,
-  titleArgs,
-  titleAttempts,
-  titlePrompt,
-  type TitleAttempt,
-} from './session-naming'
-import { modelKey, planTitleRun, rememberTitleFailures, type TitleMemory } from './title-plan'
+  createTitleMemory,
+  modelKey,
+  planTitleRun,
+  runTitleAttempts,
+  titleRunEnv,
+  type TitleRunRequest,
+  type TitleRunResult,
+} from '@phosphor/session-runtime/pi/title-run'
 import { claudeAccountEnv, primaryAccount } from '../claude/accounts'
-import { claudeOneShotEnv, claudeProviderSpawnEnv, usesClaudeCliProvider } from './provider-detect'
+import { usesClaudeCliProvider } from './provider-detect'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
-import { getLanePrefs } from '../store'
 import { log } from '../debug-log'
 
 // Preserve the original per-app-launch learning across all IPC registrations.
-const titleMemory: TitleMemory = {
-  fullBootProviders: new Set(),
-  unusableTitleModels: new Set(),
-}
+const titleMemory = createTitleMemory()
 
-interface PreparedTitle {
-  binaryPath: string
-  prefixArgs: string[]
-  env: NodeJS.ProcessEnv
-  workspacePath: string
-  defaultProvider: string | undefined
-  plan: TitleAttempt[]
-  prompt: string
-  maxLength: number
-}
-
-interface TitleResult {
-  title: string | null
-  errors: string[]
-  used: TitleAttempt | undefined
-}
-
+/**
+ * `--no-session` keeps this run out of the sidebar; `--no-tools` keeps a
+ * title request from being able to touch anything; the rest of `titleArgs`
+ * keeps a five-word title from paying for a full session's context. Spawned
+ * through runPrintMode because `pi -p` blocks until stdin hits EOF: never
+ * reintroduce execFile here.
+ */
 async function prepare(
   workspacePath: string,
   message: string,
   existingNames: string[],
-): Promise<PreparedTitle | null> {
-  const lanePrefs = getLanePrefs()
+): Promise<TitleRunRequest | null> {
   const invoker = await resolvePiInvoker('inherited-stub').catch((error: unknown) => {
     if (error instanceof PiUnavailableError) return null
     throw error
   })
   if (!invoker) return null
   const { binaryPath, prefixArgs, stub } = invoker
-  const env = stub
-    ? invoker.env
-    : {
-        ...process.env,
-        ...invoker.env,
-        // Match sessions' pi ownership; one-shot runs must exit after answering.
-        ...claudeProviderSpawnEnv(),
-        ...claudeOneShotEnv(),
-      }
-
-  // `--no-session` keeps this run out of the sidebar; `--no-tools`
-  // keeps a title request from being able to touch anything; the rest of
-  // `titleArgs` keeps a five-word title from paying for a full session's
-  // context. Spawned through runPrintMode because `pi -p` blocks until
-  // stdin hits EOF — see electron/pi/print-mode.ts, and never
-  // reintroduce execFile here.
-  const settings: { defaultProvider?: string; defaultModel?: string } = stub
-    ? {}
-    : await readAgentSettings(workspacePath)
-  const claudeCli = stub ? false : usesClaudeCliProvider({}, settings.defaultProvider)
-  const fallback = claudeCli ? CLAUDE_TITLE_FALLBACK : null
-  const plan = stub
-    ? titleAttempts(null, null, null)
-    : await planTitleRun(titleMemory, workspacePath, settings, fallback)
+  const request = {
+    pi: { binaryPath, prefixArgs },
+    cwd: workspacePath,
+    message,
+    existingNames,
+    acceptPartial: true,
+  }
+  if (stub) return { ...request, env: invoker.env, plan: titleAttempts(null, null, null) }
+  const settings = await readAgentSettings(workspacePath)
+  const claudeCli = usesClaudeCliProvider({}, settings.defaultProvider)
+  const plan = await planTitleRun(titleMemory, {
+    cwd: workspacePath,
+    provider: settings.defaultProvider,
+    model: settings.defaultModel,
+    catalogue: catalogueModels,
+    fallback: claudeCli ? CLAUDE_TITLE_FALLBACK : null,
+  })
   // A naming run bills a plan too, so it goes to the account the user
   // pinned (or the first one) rather than to whatever the CLI's default
   // keychain entry happens to hold. Only asked for on the Claude path:
   // resolving it costs two `claude` spawns on an install that has never
   // stored an account, and a title run is on the session-start path.
-  if (claudeCli) {
-    Object.assign(env, claudeAccountEnv(await primaryAccount().catch(() => null)))
-  }
-  const prompt = titlePrompt(message, existingNames, {
-    min: lanePrefs.nameMinWords,
-    max: lanePrefs.nameMaxWords,
-  })
+  const account = claudeCli ? claudeAccountEnv(await primaryAccount().catch(() => null)) : {}
   return {
-    binaryPath,
-    prefixArgs,
-    env,
-    workspacePath,
+    ...request,
+    // Match sessions' pi ownership; one-shot runs must exit after answering.
+    env: titleRunEnv({ ...process.env, ...invoker.env }, account),
     plan,
-    prompt,
+    memory: titleMemory,
     defaultProvider: settings.defaultProvider,
-    maxLength: lanePrefs.nameMaxLength,
   }
 }
 
-async function executeAttempts(context: PreparedTitle): Promise<TitleResult> {
-  let title: string | null = null
-  const errors: string[] = []
-  for (const attempt of context.plan) {
-    const { stdout, error } = await runPrintMode(
-      context.binaryPath,
-      [...context.prefixArgs, ...titleArgs(attempt), context.prompt],
-      { cwd: context.workspacePath, env: context.env },
-    )
-    title = stdout ? sanitizeTitle(stdout, context.maxLength) : null
-    if (title) break
-    errors.push(error ?? 'empty reply')
-    // A timeout is not a boot or model problem; another run would only
-    // spend another 30s.
-    if (error?.startsWith('timed out')) break
-  }
-  return { title, errors, used: title ? context.plan[errors.length] : undefined }
-}
-
-function logResult(result: TitleResult, started: number): void {
-  const { title, errors, used } = result
+function logResult(result: TitleRunResult, started: number): void {
+  const { title, failures, used } = result
   // One diagnostic per naming run: otherwise failures have no visible symptom.
   log('naming', title ? 'generated a session name' : 'no session name', {
     ms: Date.now() - started,
     title,
     model: used?.model ? modelKey(used.model) : 'default',
     fastBoot: Boolean(used?.extensions),
-    ...(errors.length ? { errors } : {}),
+    ...(failures.length ? { errors: failures.map((failure) => failure.error) } : {}),
   })
 }
 
@@ -136,18 +87,10 @@ export async function generateSessionTitle(
   message: string,
   existingNames: string[],
 ): Promise<string | null> {
-  const context = await prepare(workspacePath, message, existingNames)
-  if (!context) return null
+  const request = await prepare(workspacePath, message, existingNames)
+  if (!request) return null
   const started = Date.now()
-  const result = await executeAttempts(context)
-  if (result.used) {
-    rememberTitleFailures(
-      titleMemory,
-      context.plan.slice(0, result.errors.length),
-      result.used,
-      context.defaultProvider,
-    )
-  }
+  const result = await runTitleAttempts(request)
   logResult(result, started)
-  return result.title ? dedupeTitle(result.title, existingNames) : null
+  return result.title
 }

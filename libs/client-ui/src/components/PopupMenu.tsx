@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import { useAnchoredMenu } from './useAnchoredMenu'
+import { useAnchoredMenu, useCompactLift } from './useAnchoredMenu'
 import { usePlatform } from '@/platform/Platform'
 import { useEscapeKey } from './Modal'
 import { TooltipButton } from '@/components/Tooltip'
@@ -51,26 +51,13 @@ export function PopupMenu({
   const ref = useRef<HTMLDivElement>(null)
   const computedStyle = fitViewport ? { maxWidth: 'calc(100vw - 2rem)' } : undefined
   const anchored = !compact && escapeContainer && fitViewport && !!triggerRef
-  const anchorStyle = useAnchoredMenu(
-    triggerRef,
-    ref,
-    anchored,
-    !!className?.includes('bottom-full'),
-  )
+  const upward = !!className?.includes('bottom-full')
+  const anchorStyle = useAnchoredMenu(triggerRef, ref, anchored, upward)
+  const [liftStyle, liftMarker] = useCompactLift(compact && upward)
 
   useEscapeKey(onClose)
 
-  // Do not float the trigger's hint over the menu it already opened.
-  useEffect(() => {
-    const trigger = triggerRef?.current
-    if (!trigger) return
-    const previous = trigger.getAttribute('data-tooltip-open')
-    trigger.setAttribute('data-tooltip-open', 'true')
-    return () => {
-      if (previous === null) trigger.removeAttribute('data-tooltip-open')
-      else trigger.setAttribute('data-tooltip-open', previous)
-    }
-  }, [triggerRef])
+  useTriggerHintHidden(triggerRef)
 
   useEffect(() => {
     const handler = (event: MouseEvent): void => {
@@ -90,7 +77,7 @@ export function PopupMenu({
   const menu = (
     <div
       ref={ref}
-      style={{ ...computedStyle, ...anchorStyle }}
+      style={{ ...computedStyle, ...anchorStyle, ...liftStyle }}
       // Marks the subtree as no-drag (see .titlebar-drag in styles/index.css):
       // a menu opened from inside a window-drag region must stay clickable,
       // including its non-button rows (labels, separators).
@@ -106,7 +93,27 @@ export function PopupMenu({
       {children}
     </div>
   )
-  return compact || anchored ? createPortal(menu, document.body) : menu
+  const placed = compact || anchored ? createPortal(menu, document.body) : menu
+  return (
+    <>
+      {liftMarker}
+      {placed}
+    </>
+  )
+}
+
+/** Do not float the trigger's hint over the menu it already opened. */
+function useTriggerHintHidden(triggerRef: React.RefObject<HTMLElement | null> | undefined): void {
+  useEffect(() => {
+    const trigger = triggerRef?.current
+    if (!trigger) return
+    const previous = trigger.getAttribute('data-tooltip-open')
+    trigger.setAttribute('data-tooltip-open', 'true')
+    return () => {
+      if (previous === null) trigger.removeAttribute('data-tooltip-open')
+      else trigger.setAttribute('data-tooltip-open', previous)
+    }
+  }, [triggerRef])
 }
 
 export function MenuRow({

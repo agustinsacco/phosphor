@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { machineReadGeneration } from './machineReadGeneration'
 import type { SkillsListResult } from '@shared/skills'
 import { parseMachineModels, parseMachineProviders } from '@shared/host-protocol-machine'
@@ -74,3 +75,15 @@ export const useMachineCataloguesStore = create<{
     }
   },
 }))
+
+/** A Host's catalogue for its current connection, loaded while `active`; empty for none. */
+export function useMachineCatalogue(hostId: string | null, active = true): MachineCatalogue {
+  const generation = useRemoteLanesStore(() => (hostId ? machineReadGeneration(hostId) : 0))
+  const catalogue = useMachineCataloguesStore((s) =>
+    hostId ? s.catalogues[machineCatalogueKey(hostId, generation)] : undefined,
+  )
+  useEffect(() => {
+    if (hostId && active) void useMachineCataloguesStore.getState().load(hostId)
+  }, [hostId, active, generation])
+  return catalogue ?? EMPTY_MACHINE_CATALOGUE
+}

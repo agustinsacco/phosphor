@@ -140,6 +140,61 @@ it.each([true, false])(
   },
 )
 
+it('deletes a lane branch that landed as a merged PR after its history was rewritten', async () => {
+  await run(['checkout', '-b', 'feature'])
+  await writeFile(join(root, 'a'), 'lane')
+  await run(['commit', '-am', 'lane work'])
+  const prHead = await run(['rev-parse', 'feature'])
+  await run(['commit', '--amend', '--no-edit', '--author', 'Other <o@example.invalid>'])
+  await run(['checkout', 'main'])
+  await writeFile(join(root, 'a'), 'trunk moved')
+  await run(['commit', '-am', 'feature (#1), squashed onto a newer trunk'])
+  expect(await branchMerged(root, 'feature')).toBe(false)
+  const github = vi.fn(async (_cwd: string, args: string[]) =>
+    args[0] === 'pr' ? JSON.stringify([{ headRefOid: prHead }]) : null,
+  )
+  const options = { store, stop: async () => {}, remove: async () => {}, forget: () => {}, github }
+  const repo = store.syncRepositories([root])[0]!
+  const cwd = join(root, '.phosphor', 'worktrees', 'feature')
+  await mkdir(cwd, { recursive: true })
+  const lane = store.ensureLane({
+    repositoryId: repo.id,
+    cwd,
+    sessionFile: null,
+    branch: 'feature',
+    worktree: true,
+  })
+  expect(
+    await createLaneDeletion(options)(
+      { type: 'lane.delete', laneId: lane.laneId, removeWorktree: false, removeBranch: true },
+      () => true,
+    ),
+  ).toEqual({ ok: true, data: { branchKept: false } })
+  expect(github).toHaveBeenCalledWith(root, expect.arrayContaining(['pr', 'list', 'feature']))
+  await expect(run(['show-ref', '--verify', 'refs/heads/feature'])).rejects.toThrow()
+})
+
+it('keeps a lane branch when GitHub gives no answer or a PR head the branch moved past', async () => {
+  await run(['checkout', '-b', 'feature'])
+  await writeFile(join(root, 'a'), 'lane')
+  await run(['commit', '-am', 'lane work'])
+  const prHead = await run(['rev-parse', 'feature'])
+  await writeFile(join(root, 'a'), 'after the merge')
+  await run(['commit', '-am', 'unlanded'])
+  await run(['checkout', 'main'])
+  expect(
+    await deleteMergedBranch(
+      root,
+      'feature',
+      () => true,
+      async () => null,
+    ),
+  ).toBe(false)
+  const merged = async () => JSON.stringify([{ headRefOid: prHead }])
+  expect(await deleteMergedBranch(root, 'feature', () => true, merged)).toBe(false)
+  expect(await run(['rev-parse', '--verify', 'feature'])).toMatch(/^[a-f0-9]{40}$/)
+})
+
 it('rechecks authority before a normally merged branch deletion', async () => {
   await run(['branch', 'feature'])
   expect(await deleteMergedBranch(root, 'feature', () => false)).toBe(false)
@@ -383,4 +438,12 @@ it('forgets a lane whose folder left the Host, keeping its transcript and worktr
   expect(store.listLanes()).toEqual([])
   expect(forget).toHaveBeenCalledWith(lane.laneId)
   expect(await readFile(join(cwd, 'work'), 'utf8')).toBe('kept')
+})
+
+it('answers not landed for a lane branch that does not exist, and creates none', async () => {
+  const github = vi.fn(async () => '[]')
+  expect(await branchMerged(root, 'gone', { github })).toBe(false)
+  expect(await deleteMergedBranch(root, 'gone', () => true, github)).toBe(false)
+  expect(github).not.toHaveBeenCalled()
+  await expect(run(['rev-parse', '--verify', 'refs/heads/gone'])).rejects.toThrow()
 })

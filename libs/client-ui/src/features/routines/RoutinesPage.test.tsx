@@ -7,6 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { newRoutine, type Routine, type RoutinesSnapshot, type RoutineRun } from '@shared/routines'
 import { RoutinesPage } from './RoutinesPage'
 import { useRoutinesStore } from '@/stores/routines'
+import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -380,7 +381,7 @@ it.each([
   }
   await act(async () => useRemoteLanesStore.setState({ hosts: {} }))
   if (sequence.at(-1) !== 'local') {
-    expect(container.textContent).toContain('Not available on remote lanes yet.')
+    expect(container.textContent).toContain('Machine not connected. Wait for reconnection.')
     expect(container.textContent).not.toContain('Local task')
     expect(container.textContent).not.toContain('Remote task')
   }
@@ -483,10 +484,10 @@ it('shows Host execution guidance without This Mac background controls', async (
   expect(container.querySelector('footer input')).toBeNull()
 })
 
-it('labels aggregate activity as This Mac and retains local background controls', async () => {
+it('labels aggregate activity as the local machine and retains local background controls', async () => {
   await renderHostWithLocalActivity()
   await act(async () => useMachinePagesStore.setState({ routinesMachine: 'all' }))
-  expect(container.textContent).toContain('This Mac activity')
+  expect(container.textContent).toContain('This computer activity')
   expect(container.querySelector('footer input')).not.toBeNull()
 })
 
@@ -502,14 +503,14 @@ it('clears local detail and its running state after a sidebar switch to a Host',
   expect(container.textContent).toContain('Remote task')
 })
 
-it('shows local load failures only on This Mac and labels them under All machines', async () => {
+it('shows local load failures only on the local machine and labels them under All machines', async () => {
   await renderHostWithLocalActivity()
   await act(async () => useRoutinesStore.setState({ error: 'Local failure' }))
   expect(container.textContent).not.toContain('Local failure')
   await act(async () => useMachinePagesStore.setState({ routinesMachine: 'local' }))
   expect(container.textContent).toContain('Local failure')
   await act(async () => useMachinePagesStore.setState({ routinesMachine: 'all' }))
-  expect(container.textContent).toContain('This Mac: Local failure')
+  expect(container.textContent).toContain('This computer: Local failure')
 })
 
 it('drops an action error from This Mac when the selection moves to a Host', async () => {
@@ -622,4 +623,57 @@ it('deduplicates aggregate and per-Host routine rows by id, preferring the refre
   expect(container.querySelectorAll('[data-testid="routine-row"]')).toHaveLength(1)
   expect(container.textContent).toContain('Remote task')
   expect(container.textContent).not.toContain('Stale aggregate name')
+})
+
+it('names the local machine in the editor the way the page does', async () => {
+  vi.stubGlobal('phosphor', { ...window.phosphor, platform: 'darwin' })
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await click('New routine')
+  const options = Array.from(
+    document.querySelectorAll<HTMLOptionElement>('[aria-label="Routine machine"] option'),
+  )
+  expect(options.find((o) => o.value === 'local')?.textContent).toBe('This Mac')
+})
+
+it('lets the browser return to All machines and starts a new routine there by asking for a Host', async () => {
+  useMachinePagesStore.setState({ routinesMachine: host })
+  await act(async () =>
+    root.render(
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <RoutinesPage workspacePath="" />
+      </PlatformProvider>,
+    ),
+  )
+  await click('bee1')
+  await click('All machines')
+  expect(useMachinePagesStore.getState().routinesMachine).toBe('all')
+  await click('New routine')
+  const picker = document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')
+  expect(picker?.value).toBe('')
+  expect(Array.from(picker?.options ?? []).map((o) => o.value)).toEqual(['', host])
+})
+
+it("opens a Host lane's Make routine draft on that Host and folder, with the lane's title and prompt", async () => {
+  const { makeRoutine } = await import('@/stores/routines')
+  act(() =>
+    makeRoutine('', 'Host lane', 'Fix the flaky test', {
+      hostId: host.slice(5),
+      repositoryId: machine.repositories[0]!.id,
+    }),
+  )
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await act(async () => {})
+  expect(useMachinePagesStore.getState().routinesMachine).toBe(host)
+  expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
+    host,
+  )
+  expect(
+    document.querySelector<HTMLSelectElement>('[aria-label="Routine repository"]')?.value,
+  ).toBe(machine.repositories[0]!.id)
+  const fields = [
+    ...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'),
+  ]
+  expect(fields.map((f) => f.value)).toEqual(
+    expect.arrayContaining(['Host lane', 'Fix the flaky test']),
+  )
 })

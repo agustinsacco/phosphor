@@ -223,9 +223,33 @@ Agent reads advertise additive `agentBehaviorSupported: true` before clients off
 compaction/retry, thinking-visibility and message-delivery edits. Older Hosts
 remain readable and show an upgrade explanation for those controls. Agent patches
 allow only reviewed bounded fields, preserve unknown nested settings, and never
-materialize inherited machine defaults into a folder. Resource responses may
+materialize inherited machine defaults into a folder. Agent reads also advertise
+additive `agentClearSupported: true`: `null` for an allowlisted key or nested
+compaction/retry field then clears it, and the Host deletes the key rather than
+writing `null`, so a folder inherits again. Host policy keys stay machine-only,
+`null` included. Older Hosts refuse `null`, so clients offer clearing only when the
+flag is present. Resource responses may
 include reviewed package content counts and a resource-filter indicator; older
 responses without these fields remain valid.
+
+Connector reads carry each server's name, scope, transport, enabled state and
+exposure, never its URL, command, headers or environment. Two fields are additive:
+`oauth` (pi signs in to the server with MCP OAuth, as `mcpUsesOAuth` in
+`libs/shared/src/mcp.ts` decides) and `overridden: true` (the folder's file
+overrides a global server). Older Hosts leave both out; clients then offer Sign in
+on every https connector.
+
+Resource reads also carry additive `webAccess { configured, exists, malformed }`:
+the names of the pi-web-access provider keys set in the Host's `web-search.json`
+(`WEB_ACCESS_KEYS`, `libs/shared/src/web-access.ts`), never their values. The
+`resources` change `webAccess.key { key, value | null }` sets one allowlisted key
+to one bounded line of text, or deletes it; it is machine-wide (no
+`repositoryId`) and preserves every other key. The `resources` revision hashes
+pi's `settings.json` files and `web-search.json`, and both the snapshot and the
+commit check that same revision. Older Hosts omit `webAccess` and refuse the
+change. Advanced reads carry additive `pi { version?, path, agentDir }`: the
+version the Host checked at start, where that pi is installed and its agent
+folder. Older Hosts omit it.
 
 Configuration calls serialize through a bounded eight-entry service queue.
 File commits recheck the current revision and live authority immediately before

@@ -1,5 +1,6 @@
 import { selectLane } from './fixtures/remote-ui'
 import { test, expect } from '@playwright/test'
+import { LOCAL_MACHINE_LABEL } from './fixtures/local-machine'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import {
   openRemote,
@@ -32,7 +33,7 @@ test('Every lane surface refreshes A→B→A', async ({ browserName: _browserNam
   const h = await remoteHostFixture()
   try {
     await h.signIn()
-    await selectMachine(h, 'This Mac')
+    await selectMachine(h, LOCAL_MACHINE_LABEL)
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
     await h.page.getByPlaceholder('Describe a task or ask a question').fill('artifact')
     await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()
@@ -62,14 +63,14 @@ test('Every lane surface refreshes A→B→A', async ({ browserName: _browserNam
       await expect(h.page.locator('.monaco-editor')).not.toContainText(previous)
       await pane(h, 'Terminal')
       await expect(
-        h.page.getByText('Not available on remote lanes yet.', { exact: true }),
+        h.page.getByText('This Host does not offer terminals to this device.', { exact: true }),
       ).toBeVisible()
       await expect(h.page.locator('.monaco-editor')).toHaveCount(0)
       await subagents(h)
       await pane(h, 'Artifacts')
       await expect(h.page.getByText('No artifacts yet', { exact: true })).toBeVisible()
     }
-    await selectMachine(h, 'This Mac')
+    await selectMachine(h, LOCAL_MACHINE_LABEL)
     await local.click()
     await pane(h, 'Artifacts')
     await expect(h.page.getByText('LOCAL_ONLY Card', { exact: true }).first()).toBeVisible()
@@ -100,10 +101,10 @@ test('Switcher drives pages; page override resets and never revives Mac data', a
           exact: true,
         })
         .click()
-      await h.page.getByRole('option', { name: 'This Mac', exact: true }).click()
+      await h.page.getByRole('option', { name: LOCAL_MACHINE_LABEL, exact: true }).click()
       await expect(h.page.getByTestId('global-page')).toContainText(local)
       await expect(h.page.getByTestId('global-page')).not.toContainText(host)
-      await selectMachine(h, 'This Mac')
+      await selectMachine(h, LOCAL_MACHINE_LABEL)
       await expect(h.page.getByTestId('global-page')).toContainText(local)
       await expect(h.page.getByTestId('global-page')).not.toContainText(host)
       await selectMachine(h, 'bee1')
@@ -122,10 +123,10 @@ test('Switcher drives pages; page override resets and never revives Mac data', a
       .getByTestId('global-page')
       .getByRole('button', { name: 'Machine', exact: true })
       .click()
-    await h.page.getByRole('option', { name: 'This Mac', exact: true }).click()
+    await h.page.getByRole('option', { name: LOCAL_MACHINE_LABEL, exact: true }).click()
     await expect(
       h.page.getByTestId('global-page').getByRole('button', { name: 'Machine', exact: true }),
-    ).toContainText('This Mac')
+    ).toContainText(LOCAL_MACHINE_LABEL)
     await selectMachine(h, 'All machines')
     await expect(
       h.page.getByTestId('global-page').getByRole('button', { name: 'Machine', exact: true }),
@@ -185,7 +186,7 @@ test('Remote Files, Changes, controls, model and error surfaces refresh A→B→
       }
       await pane(h, 'Terminal')
       await expect(
-        h.page.getByText('Not available on remote lanes yet.', { exact: true }),
+        h.page.getByText('This Host does not offer terminals to this device.', { exact: true }),
       ).toBeVisible()
       await expect(h.page.locator('.monaco-editor')).toHaveCount(0)
       await subagents(h)
@@ -212,7 +213,7 @@ test('Settings follows the switcher to This Mac and back to bee1 from a bee1 lan
     const scope = settings.getByTestId('settings-machine-scope')
     for (const [machine, section] of [
       ['bee1', 'Accounts'],
-      ['This Mac', 'Accounts'],
+      [LOCAL_MACHINE_LABEL, 'Accounts'],
       ['bee1', 'Accounts'],
     ] as const) {
       await selectMachine(h, machine)

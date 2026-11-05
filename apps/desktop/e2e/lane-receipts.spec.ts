@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test, expect } from '@playwright/test'
+import { LOCAL_MACHINE_LABEL } from './fixtures/local-machine'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import { captures, openRemote, selectMachine } from './fixtures/remote-ui'
 
@@ -13,7 +14,7 @@ test('bee1 receipt stays machine scoped while This Mac is selected', async ({
   try {
     await h.signIn()
     await openRemote(h)
-    await selectMachine(h, 'This Mac')
+    await selectMachine(h, LOCAL_MACHINE_LABEL)
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
     await h.backgroundTurn('PHX-receipt-test')
     const card = h.page.getByTestId('toast').filter({ hasText: 'tests pass' })
@@ -85,7 +86,7 @@ test('This Mac lane shows its own receipt after settling off screen', async ({
     await expect(card).toBeVisible()
     await card.hover()
     for (const text of [
-      'This Mac',
+      LOCAL_MACHINE_LABEL,
       'workspace',
       // Auto-naming may rename the branch before the card shows; either name is the lane's.
       '⎇ phosphor/',

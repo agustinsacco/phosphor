@@ -13,7 +13,7 @@ import { PopupMenu } from '@/components/PopupMenu'
 import { useContextFilesPrefStore } from '@/stores/contextFilesPref'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSessionsStore } from '@/stores/sessions'
-import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { useMcpServers } from '@/features/connectors/useMcpServers'
 import { CONTEXT_BREAKDOWN_STATUS_KEY, parseContextBreakdown } from './contextBreakdown'
 import { contextFileToggleState } from './contextFileToggle'
@@ -37,6 +37,14 @@ import { contextFileToggleState } from './contextFileToggle'
  * `.pi/mcp.json` its pi loads. A lane also says which servers it has
  * connected, through its context breakdown.
  */
+/** Settings › Connectors on the lane's own machine; the default machine without a lane. */
+function useOpenLaneConnectors(sessionId: string | undefined): () => void {
+  const target = useSessionsStore((s) => (sessionId ? s.live[sessionId]?.target : undefined))
+  const openSettings = useOpenSettings()
+  const machine = target?.kind === 'remote' ? target.hostId : target ? 'local' : null
+  return () => openSettings(machine, 'connectors')
+}
+
 export function ContextSourcesMenu({
   workspacePath,
   sessionId,
@@ -50,6 +58,7 @@ export function ContextSourcesMenu({
   const laneFolder = useSessionsStore((s) =>
     sessionId ? s.live[sessionId]?.workspacePath : undefined,
   )
+  const openConnectors = useOpenLaneConnectors(sessionId)
   const mcp = useMcpServers(laneFolder ?? workspacePath)
   const servers = mcp.servers ?? []
   const breakdownText = useExtensionUiStore((s) =>
@@ -225,9 +234,7 @@ export function ContextSourcesMenu({
               type="button"
               onClick={() => {
                 setOpen(false)
-                const settings = useSettingsUiStore.getState()
-                settings.setTab('connectors')
-                settings.setOpen(true)
+                openConnectors()
               }}
               className="text-text-secondary hover:text-text text-sm"
             >

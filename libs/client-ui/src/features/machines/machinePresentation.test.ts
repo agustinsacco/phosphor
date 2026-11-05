@@ -1,14 +1,18 @@
 import { expect, it } from 'vitest'
+import type { PiPackageEntry } from '@shared/models'
 import {
+  claudeReadiness,
   formatCode,
   HOST_INSTALL,
-  localMachineLabel,
+  localChecks,
+  localClaude,
   platformName,
   readinessFreshness,
   readinessChecks,
   relativeTime,
   sortMachines,
 } from './machinePresentation'
+import { CLAUDE_PROVIDER } from './__fixtures__/control'
 import { MACHINE } from './__fixtures__/control'
 const now = Date.parse('2026-01-01T03:00:00.000Z')
 it('says relative times and platform names in words', () => {
@@ -41,17 +45,15 @@ it('gives problem-only readiness and actionable fixes, including unknown reports
     ),
   ).toBe(true)
   expect(
-    readinessChecks(MACHINE.readiness).find((check) => check.name === 'Claude Code')?.command,
+    readinessChecks(MACHINE.readiness, undefined, false).find(
+      (check) => check.name === 'Claude Code',
+    )?.command,
   ).toBe('phosphor providers login claude')
   expect(
     readinessChecks({ pi: 'missing', claude: 'missing', tailscale: 'stopped' }).map(
       (check) => check.command,
     ),
-  ).toEqual([
-    'npm install -g @earendil-works/pi-coding-agent',
-    'npm install -g @anthropic-ai/claude-code',
-    'sudo tailscale up',
-  ])
+  ).toEqual(['npm install -g @earendil-works/pi-coding-agent', undefined, 'sudo tailscale up'])
   expect(
     readinessChecks(null).every((check) => !check.ok && check.command === 'phosphor doctor'),
   ).toBe(true)
@@ -85,9 +87,6 @@ it('trusts readiness only while a machine is online, and names problems in a few
     'Claude Code not reported',
     'Tailscale not reported',
   ])
-  expect(localMachineLabel('darwin')).toBe('This Mac')
-  expect(localMachineLabel('win32')).toBe('This PC')
-  expect(localMachineLabel('linux')).toBe('This computer')
 })
 it('never suggests piping a download into a shell', () => {
   const missing = readinessChecks({ pi: 'ok', claude: 'ok', tailscale: 'missing' })[2]
@@ -110,4 +109,65 @@ it('marks running Tailscale as unpublished until the Host has an endpoint withou
       (check) => check.name === 'Tailscale',
     ),
   ).toMatchObject({ ok: true, detail: 'Connected with HTTPS available' })
+})
+
+it('points a missing Claude Code at phosphor setup when the Host cannot open Settings', () => {
+  const [, configurable] = readinessChecks({ pi: 'ok', claude: 'missing', tailscale: 'ok' }, null)
+  expect(configurable?.detail).toContain('Settings → Extensions → Claude Code')
+  expect(configurable?.command).toBeUndefined()
+  const [, fixed] = readinessChecks({ pi: 'ok', claude: 'missing', tailscale: 'ok' }, null, false)
+  expect(fixed?.detail).not.toContain('Settings')
+  expect(fixed?.command).toBe('phosphor setup')
+  for (const detail of [
+    { provider: 'outdated', cli: 'ok', auth: 'ok' },
+    { provider: 'ok', cli: 'missing', auth: 'ok' },
+  ] as const) {
+    expect(claudeReadiness(detail).command).toBeUndefined()
+    expect(claudeReadiness(detail, false).command).toBe('phosphor setup')
+    expect(claudeReadiness(detail, false).detail).not.toContain('Settings')
+  }
+})
+it('C7: a Host that can open Settings signs in to Claude Code there, as This Mac does', () => {
+  const signedOut = { pi: 'ok', claude: 'signed-out', tailscale: 'ok' } as const
+  const live = { provider: 'ok', cli: 'ok', auth: 'signed-out' } as const
+  const local = localChecks(
+    {
+      health: { ok: true, version: '1.0.0' } as never,
+      claude: { provider: 'ok', cli: 'ok', auth: 'signed-out' },
+      failed: false,
+    },
+    false,
+  ).find((check) => check.name === 'Claude Code')
+  for (const check of [
+    readinessChecks(signedOut, 'https://h', true)[1],
+    claudeReadiness(live, true),
+    local,
+  ]) {
+    expect(check?.detail).toBe('Sign in under Settings → Extensions → Claude Code.')
+    expect(check?.command).toBeUndefined()
+  }
+  // Only a Host whose Settings cannot open keeps the command.
+  for (const check of [
+    readinessChecks(signedOut, 'https://h', false)[1],
+    claudeReadiness(live, false),
+  ])
+    expect(check?.command).toBe('phosphor providers login claude')
+})
+
+it("characterize: This Mac's Claude provider state follows main's refusal rule", () => {
+  const status = { binary: { found: true }, auth: { ok: true, loggedIn: true } } as never
+  const copy = (version: string, installed = true, scope: 'global' | 'project' = 'global') => ({
+    ...CLAUDE_PROVIDER,
+    version,
+    installed,
+    scope,
+  })
+  const provider = (packages: PiPackageEntry[]) => localClaude(packages, status).provider
+  expect(provider([copy('0.10.2')])).toBe('ok')
+  expect(provider([copy('0.10.0')])).toBe('ok')
+  expect(provider([copy('0.9.1')])).toBe('outdated')
+  expect(provider([copy('0.10.2'), copy('0.9.0', true, 'project')])).toBe('outdated')
+  expect(provider([copy('0.10.2', false)])).toBe('missing')
+  expect(provider([{ ...CLAUDE_PROVIDER, name: 'pi-claude-cli' }])).toBe('missing')
+  expect(provider([])).toBe('missing')
 })

@@ -1,6 +1,7 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { test, expect } from './fixture'
 
+/** The Host's Machines entry opens the shared Settings page, scoped to that Host. */
 async function openSettings(page: Page, origin: string, name: string) {
   await page.goto(`${origin}/pages/machines`)
   await page.getByRole('button', { name: /Synthetic Host/ }).click()
@@ -8,12 +9,20 @@ async function openSettings(page: Page, origin: string, name: string) {
     .getByRole('navigation', { name: 'Machine views' })
     .getByRole('button', { name: 'Machine settings', exact: true })
     .click()
-  const settings = page.getByTestId('machine-settings')
+  await expect(page).toHaveURL(/\/pages\/settings\/[^/]+$/)
+  const settings = page.getByTestId('settings-surface')
+  await expect(settings.getByTestId('settings-machine-scope')).toContainText(
+    'Configuring Synthetic Host',
+  )
+  await section(settings, name)
+  return settings
+}
+
+async function section(settings: Locator, name: string) {
   await settings
-    .getByRole('navigation', { name: 'Machine settings', exact: true })
+    .getByRole('navigation', { name: 'Settings sections', exact: true })
     .getByRole('button', { name, exact: true })
     .click()
-  return settings
 }
 
 test('browser Host settings load only after explicit configuration access', async ({
@@ -33,22 +42,42 @@ test('browser Host settings load only after explicit configuration access', asyn
   await page.getByRole('button', { name: 'Enable for Synthetic Host', exact: true }).click()
   await expect(settings.getByRole('heading', { name: 'Accounts', exact: true })).toBeVisible()
   expect(stack.state.grants).toBeGreaterThan(grantsBefore)
-  await settings
-    .getByRole('navigation', { name: 'Machine settings', exact: true })
-    .getByRole('button', { name: 'Agent', exact: true })
-    .click()
+  // Claude Code is listed under Extensions on a Host too, with the same page.
+  await section(settings, 'Claude Code')
+  await expect(
+    settings.getByRole('heading', { name: 'Claude Code provider', exact: true }),
+  ).toBeVisible()
+  await section(settings, 'Agent')
   await expect(settings.getByRole('heading', { name: 'Agent defaults', exact: true })).toBeVisible()
   // An edit saves itself, as Desktop's settings do, and says where it landed.
-  const retry = settings.getByRole('combobox', { name: 'Enable automatic retry', exact: true })
-  await retry.selectOption('false')
+  const retry = settings.getByRole('switch', { name: 'Retry on transient errors', exact: true })
+  await retry.click()
   await expect(page.getByTestId('toast-stack')).toContainText(
     'Saved on Synthetic Host — applies to new lanes',
   )
   await settings.getByRole('button', { name: 'Refresh', exact: true }).click()
-  await expect(retry).toHaveValue('false')
+  await expect(retry).toHaveAttribute('aria-checked', 'false')
   for (const width of [360, 1440]) {
     await page.setViewportSize({ width, height: 850 })
     expect(await settings.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+    // A sourced control (badge, select, Reset) fits the row on a phone, Reset included.
+    await expect(
+      settings.getByRole('combobox', { name: 'Default model', exact: true }),
+    ).toBeVisible()
+    await expect(
+      settings.getByRole('button', { name: 'Reset Default model', exact: true }),
+    ).toBeInViewport({ ratio: 1 })
+    // The select gives way, not the words: the badge and Reset each stay on one line.
+    const lines = (locator: Locator) =>
+      locator.evaluate((el) => {
+        const range = document.createRange()
+        range.selectNodeContents(el)
+        return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size
+      })
+    expect(await lines(settings.getByText('Set here', { exact: true }).first())).toBe(1)
+    expect(
+      await lines(settings.getByRole('button', { name: 'Reset Default model', exact: true })),
+    ).toBe(1)
     await page.screenshot({
       path: info.outputPath(`host-settings-browser-access-${width}.png`),
       fullPage: true,

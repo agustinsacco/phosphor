@@ -31,7 +31,8 @@ remote cleanup completed or revoke previously issued grants immediately.
 ### Configuration access and lane deletion
 
 A Host's machine settings (**Settings → Configure → \<Host\>**, or **Machines → a Host →
-Settings**) are the same shared sections as Desktop's. A signed-in
+Settings**, which goes to `/pages/settings/<host>`) are the same shared sections as
+Desktop's, on the same Settings page. A signed-in
 browser page holds configuration authority for a Host only after an explicit
 per-page opt-in: **Enable configuration access** in Settings, or **Switch account**
 in a Host lane's usage popover, confirmed in the same dialog, calls
@@ -125,9 +126,12 @@ This computer. Reading a lane does not acquire control. The real Host-backed
 composer, controller controls and approval sheets are reused.
 
 Machines, Skills, Routines and Artifacts are remote-only. Aggregate routines
-preserve partial-state warnings and deduplicate qualified IDs. Incomplete
+preserve partial-state warnings and deduplicate qualified IDs. The Routines
+machine picker offers All machines and each Host; New under All machines asks for
+a Host. Incomplete
 artifact aggregation reports an error rather than a misleading complete list.
-Files and HEAD/working-copy comparisons are read-only. New lanes and existing
+Files and HEAD/working-copy comparisons are read-only, coloured by the file's
+language, and a chat link scrolls to its line. New lanes and existing
 lane composers accept inline images; other browser file attachments are refused
 before any lane creation/upload. The start screen's Repository menu offers Add
 folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
@@ -139,7 +143,7 @@ lane shells and the Machine page's shell
 machine settings, including provider installation and Claude accounts, work after
 [configuration access](#configuration-access-and-lane-deletion). File editing and
 This Mac's settings are unavailable. Attention is in-app only, not OS push. A Host's
-home folder opens read-only from **Machines → a Host → Machine files**.
+registered repositories open read-only from **Machines → a Host → Machine files**.
 
 `PageShell` owns each page's single heading, actions and close behavior;
 `PageBody` supplies the shared width, gutters and scrolling for Machines,
@@ -153,8 +157,13 @@ none (`appShortcuts`), and no Cancel while signing in (`cancelSignIn`).
 The Settings page frames Desktop's `SettingsSurface`: the same search field, section
 navigation and sections, listed by platform capability
 ([settings](settings.md#sections-and-capabilities)). The browser shows Appearance,
-Phosphor account, App installation and About, then **Configure** with the Host
-machine settings of each known Host; it lists no This Mac sections.
+Lanes, Phosphor account, App installation and About, then **Configure** with the Host
+machine settings of each known Host; it lists no This Mac sections. Lanes has no
+"own branch" switch there (it needs `localLanes`): a Host lane always gets its own
+worktree. Voice needs `localVoice`, which the browser lacks. With no Host to
+configure, a **No machine to configure** notice links to Machines. Leaving the page
+while a Host's settings draft is unsaved asks first, as closing Desktop's dialog does;
+the browser's Back button is not intercepted.
 
 ### One lane row, list and menu
 
@@ -208,6 +217,16 @@ fonts settle with the same bounded readiness as Desktop before feature views
 mount. Phone controls retain 44px hit targets and 16px text-entry fields without
 inflating all interface copy; wide screens use compact desktop density. Safe-area
 insets and visual-viewport resize/scroll follow the on-screen keyboard.
+
+On a phone the composer is the shared card, tightened (`client-shell.css`):
+less padding, one control row, a short readout strip, and Continue hidden
+while it cannot act. Its field stops growing at a third of what the keyboard
+leaves and scrolls itself, following the caret, so the line being typed stays
+on screen. A streaming placeholder names only what a soft keyboard can do.
+Each page scrolls in one place: a lane's transcript, or the remote start
+page's intro above its composer, which is never a scroller of its own. A menu
+that opens upward (`/`, `@`, model, thinking, readouts) is a bottom sheet
+lifted above the box it opened from, so it never covers Send.
 HTML/SVG previews use revocable Blob URLs, an empty iframe sandbox and a leading
 restrictive document CSP. Scripts, network, forms and authored navigation are
 refused. The parent permits only `frame-src blob:` for these previews and blocks
@@ -247,10 +266,22 @@ from synthetic install-event tests.
 
 Composer drafts and image blobs are bounded, owner-scoped memory, including
 canonical remote-session tuple keys. Reloading does not restore those drafts.
-The adapter persists only the theme preference, never credentials, transcripts
-or draft contents. Browser font changes last until reload. Owner loss also clears
-remembered creation targets/model choices and resets browser isolation. Unsupported
-native file attachments are rejected.
+The adapter persists only the theme preference and the device's lane and branch
+prefs (`app:setLanePrefs` / `app:setWorktreePrefs`, browser-local: the shared
+`LanePrefs` fields, the worktree switch and a branch prefix of at most 64
+characters, edited under Settings → Lanes and read back by the one prefs read
+at start), each normalized to its allowlisted fields and read back only when
+small, never credentials, transcripts or draft contents. Those prefs apply to
+every Host's lanes started from this browser. It also keeps the sidebar's Host
+lane order and collapsed Host folders (`app:setSessionOrder` /
+`app:setCollapsedWorkspaces`, browser-local: `host:` keys only, at most 500 of
+each, malformed entries dropped), as Desktop does, and clears them from storage
+when the owner changes. A page that stays open across the change keeps its
+in-memory order and collapse until reload and may write them back; those keys
+name the previous owner's Hosts, so they match no row. Browser font changes
+last until reload. Owner loss also clears remembered creation targets/model
+choices and resets browser isolation. Unsupported native file attachments are
+rejected.
 
 The production service worker caches anonymous shell/static resources only.
 API routes, OAuth callbacks, Host requests and non-GET requests bypass it.

@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react'
-import { PopupMenu, MenuRow } from '@/components/PopupMenu'
+import { PopupMenu } from '@/components/PopupMenu'
 import { MoreIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import type { RemoteLaneGroup } from './groupRemoteLanes'
 import { RemoteFolderMenuRows } from './RemoteFolderMenuRows'
 import { RemoteRepositoryRemoval } from './RemoteRepositoryRemoval'
+import { LaneSelectionRows, type LaneSelectMode } from './LaneSelectionRows'
 
 /** The "⋯" menu: the Host's folder rows, lane selection for bulk delete, and collapse. */
 export function RemoteWorkspaceOptions({
@@ -76,58 +77,6 @@ export function RemoteWorkspaceOptions({
           />
         </PopupMenu>
       )}
-    </>
-  )
-}
-
-export type LaneSelectMode = 'all' | 'merged' | 'clear'
-const SELECT_LABELS: Record<LaneSelectMode, string> = {
-  all: 'Select all lanes',
-  merged: 'Select merged lanes',
-  clear: 'Clear selection',
-}
-
-/** Select lanes for bulk delete, and collapse: the group's own rows under the folder rows. */
-function LaneSelectionRows({
-  canSelect,
-  selecting,
-  collapsed,
-  onCollapse,
-  onSelect,
-  onDone,
-}: {
-  canSelect: boolean
-  selecting: boolean
-  collapsed: boolean
-  onCollapse: (collapsed: boolean) => void
-  onSelect: (mode: LaneSelectMode) => void
-  onDone: () => void
-}): React.JSX.Element {
-  return (
-    <>
-      {([selecting ? 'clear' : 'all', 'merged'] as const).map((mode) => (
-        <MenuRow
-          key={mode}
-          active={false}
-          disabled={!canSelect}
-          onClick={() => {
-            onDone()
-            onCollapse(false)
-            onSelect(mode)
-          }}
-        >
-          {SELECT_LABELS[mode]}
-        </MenuRow>
-      ))}
-      <MenuRow
-        active={false}
-        onClick={() => {
-          onCollapse(!collapsed)
-          onDone()
-        }}
-      >
-        {collapsed ? 'Expand' : 'Collapse'} lanes
-      </MenuRow>
     </>
   )
 }

@@ -148,3 +148,17 @@ it('choosing a machine sets the persisted sidebar filter without leaving the ope
   expect(useRemoteLanesStore.getState().filter).toBe(MOCK_HOST_ID)
   expect(useSessionsStore.getState().activeSessionId).toBe('local-lane')
 })
+
+// The pins above name the local machine on macOS; this file's machine scope runs there.
+beforeEach(() => {
+  ;(window.phosphor as { platform?: string }).platform = 'darwin'
+})
+
+it('names the local machine This computer in the machine scope off macOS', async () => {
+  ;(window.phosphor as { platform?: string }).platform = 'linux'
+  await render()
+  await act(async () => button('Machine filter').click())
+  const options = [...document.querySelectorAll('[role=option]')].map((o) => o.textContent ?? '')
+  expect(options[0]).toMatch(/^This computer/)
+  expect(options.some((o) => o.startsWith('This Mac'))).toBe(false)
+})

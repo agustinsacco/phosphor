@@ -3,10 +3,9 @@ import { useRef, useState } from 'react'
 import type { ResolvedSkill } from '@shared/skills'
 import { PopupMenu } from '@/components/PopupMenu'
 import { Button } from '@/components/form'
-import { CheckIcon, WarningIcon } from '@/components/icons'
-import { Spinner } from '@/features/machines/MachineUi'
+import { CheckIcon, Spinner, WarningIcon } from '@/components/icons'
 import { formatBytes } from '@/lib/format'
-import { useMachinesStore } from '@/stores/machines'
+import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import {
   rereadSkillNames,
   shareMachineLabel,
@@ -67,7 +66,7 @@ export function SkillShareActions({
           onClick={toggle}
         >
           <span className="inline-flex items-center gap-1.5">
-            {share.busy && <Spinner size={11} />}
+            {share.busy && <Spinner className="text-text-tertiary" />}
             Share
           </span>
         </Button>
@@ -165,6 +164,7 @@ function MachineList({
   onCopy: (target: string) => void
   onClose: () => void
 }): React.JSX.Element {
+  const openSettings = useOpenSettings()
   return (
     <>
       <div className="text-text text-base font-medium">Copy {name} to…</div>
@@ -195,9 +195,7 @@ function MachineList({
                   size="sm"
                   onClick={() => {
                     onClose()
-                    useMachinesStore
-                      .getState()
-                      .show({ kind: 'machine', id: machine.id, settings: 'resources' })
+                    openSettings(machine.id, 'extensions')
                   }}
                 >
                   Settings
@@ -227,7 +225,7 @@ function Step({ state, children }: { state: StepState; children: React.ReactNode
     <li className="flex items-center gap-2">
       <span className="inline-flex w-4 shrink-0 justify-center">
         {state === 'active' ? (
-          <Spinner size={12} />
+          <Spinner className="text-text-tertiary" />
         ) : state === 'done' ? (
           <CheckIcon size={13} className="text-success" />
         ) : state === 'failed' ? (

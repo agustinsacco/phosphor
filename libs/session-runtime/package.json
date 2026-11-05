@@ -52,6 +52,10 @@
       "types": "./src/pi/mcp-lane.ts",
       "default": "./src/pi/mcp-lane.ts"
     },
+    "./pi/mcp-config-write": {
+      "types": "./src/pi/mcp-config-write.ts",
+      "default": "./src/pi/mcp-config-write.ts"
+    },
     "./pi/mcp-config": {
       "types": "./src/pi/mcp-config.ts",
       "default": "./src/pi/mcp-config.ts"
@@ -72,9 +76,29 @@
       "types": "./src/file-log.ts",
       "default": "./src/file-log.ts"
     },
+    "./git/branch-landed": {
+      "types": "./src/git/branch-landed.ts",
+      "default": "./src/git/branch-landed.ts"
+    },
     "./git/github": {
       "types": "./src/git/github.ts",
       "default": "./src/git/github.ts"
+    },
+    "./git/github-reader": {
+      "types": "./src/git/github-reader.ts",
+      "default": "./src/git/github-reader.ts"
+    },
+    "./git/github-command": {
+      "types": "./src/git/github-command.ts",
+      "default": "./src/git/github-command.ts"
+    },
+    "./git/github-queries": {
+      "types": "./src/git/github-queries.ts",
+      "default": "./src/git/github-queries.ts"
+    },
+    "./git/github-worktrees": {
+      "types": "./src/git/github-worktrees.ts",
+      "default": "./src/git/github-worktrees.ts"
     },
     "./git/git-exec": {
       "types": "./src/git/git-exec.ts",
@@ -212,6 +236,10 @@
       "types": "./src/pi/title-policy.ts",
       "default": "./src/pi/title-policy.ts"
     },
+    "./pi/title-run": {
+      "types": "./src/pi/title-run.ts",
+      "default": "./src/pi/title-run.ts"
+    },
     "./pi/versions": {
       "types": "./src/pi/versions.ts",
       "default": "./src/pi/versions.ts"
@@ -231,6 +259,10 @@
     "./artifacts/artifact-library": {
       "types": "./src/artifacts/artifact-library.ts",
       "default": "./src/artifacts/artifact-library.ts"
+    },
+    "./pi/settings-file": {
+      "types": "./src/pi/settings-file.ts",
+      "default": "./src/pi/settings-file.ts"
     },
     "./pi/session-fold": {
       "types": "./src/pi/session-fold.ts",

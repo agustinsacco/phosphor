@@ -9,7 +9,7 @@ import {
   type RepositoryIdentity,
 } from '../../lanes/store'
 import { FileFailure } from '../files'
-import { withSettingsFileLock } from '../../settings/files'
+import { withSettingsFileLock } from '@phosphor/session-runtime/pi/settings-file'
 
 export interface RepositoryConfigSource {
   configPath: string

@@ -1,7 +1,9 @@
 import clsx from 'clsx'
 import { TooltipButton } from '@/components/Tooltip'
-import { NumberField, Row } from '@/components/form'
+import { NumberField, Row, Select } from '@/components/form'
 import { useSettingsStore } from '@/stores/settings'
+
+const MONO_FONTS = ['JetBrains Mono', 'Fira Code', 'SF Mono', 'Menlo', 'Cascadia Code', 'monospace']
 
 const THEME_OPTIONS = [
   { value: 'light', label: 'Light' },
@@ -33,20 +35,11 @@ export function AppearancePreferences(): React.JSX.Element {
         title="Mono font"
         description="JetBrains Mono is bundled. Other choices use installed fonts."
       >
-        <select
-          aria-label="Mono font"
+        <Select
           value={fonts.monoFont}
-          onChange={(e) => setFonts({ monoFont: e.target.value })}
-          className="border-border bg-surface text-text max-w-full rounded-lg border px-2.5 py-1.5 text-base outline-none"
-        >
-          {['JetBrains Mono', 'Fira Code', 'SF Mono', 'Menlo', 'Cascadia Code', 'monospace'].map(
-            (font) => (
-              <option key={font} value={font}>
-                {font}
-              </option>
-            ),
-          )}
-        </select>
+          options={MONO_FONTS.map((font) => ({ value: font, label: font }))}
+          onChange={(monoFont) => setFonts({ monoFont })}
+        />
       </Row>
     </>
   )

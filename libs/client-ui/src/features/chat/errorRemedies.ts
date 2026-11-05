@@ -11,12 +11,14 @@ export interface ErrorRemedy {
   /** Short imperative label for the button. */
   label: string
   /**
-   * Shell command pasted into the session terminal. Omitted when the fix is
-   * not a shell command at all (an AWS console setting, say) — inventing a
-   * runnable-looking command for those would be worse than showing none.
+   * Shell command pasted into the lane's terminal, on the lane's machine.
+   * Omitted when the fix is not a shell command at all (an AWS console
+   * setting, say) — inventing a runnable-looking command for those would be
+   * worse than showing none.
    */
   command?: string
-  remoteSignIn?: boolean
+  /** The fix is signing in again: Settings → Accounts for the lane's machine. */
+  signIn?: boolean
   /** One-line explanation shown under the error. */
   hint: string
   /**
@@ -55,12 +57,13 @@ function awsLoginCommand(profile: string | undefined): { command: string; hint: 
 }
 
 /**
- * Map an error message to a runnable fix. Ordered most-specific first;
- * returns null when we do not know a safe command.
+ * Map an error message to a fix. Ordered most-specific first; returns null
+ * when we do not know a safe one. The same set on every machine: `machine`
+ * names the lane's machine, and `awsProfile` is known only for This Mac.
  */
 export function matchErrorRemedy(
   message: string | undefined,
-  context: { awsProfile?: string; machine?: string } = {},
+  context: { awsProfile?: string | undefined; machine?: string } = {},
 ): ErrorRemedy | null {
   if (!message) return null
   const text = message.toLowerCase()
@@ -104,20 +107,6 @@ export function matchErrorRemedy(
     }
   }
 
-  if (
-    context.machine &&
-    /oauth|refresh token|unauthorized|401|login|expiredtoken|token.*expired|security token.*invalid/.test(
-      text,
-    )
-  ) {
-    return {
-      label: `Sign in on ${context.machine}`,
-      hint: 'Refresh the provider credentials on this machine, then retry the failed turn.',
-      retryAfter: true,
-      remoteSignIn: true,
-    }
-  }
-
   // AWS SSO token expiry (Bedrock). The message names the fix explicitly.
   if (
     (text.includes('token is expired') || text.includes('token has expired')) &&
@@ -136,17 +125,14 @@ export function matchErrorRemedy(
     return { label: 'Refresh AWS credentials', command, hint, retryAfter: true }
   }
 
-  // pi's own OAuth providers (Anthropic/OpenAI/Copilot via `pi /login`).
-  if (
-    text.includes('oauth') ||
-    text.includes('refresh token') ||
-    ((text.includes('unauthorized') || text.includes('401')) && text.includes('login'))
-  ) {
+  // A provider sign-in (pi's OAuth providers, a CLI provider's own login) or a
+  // rejected credential: Settings → Accounts holds both, on every machine.
+  if (/oauth|refresh token|login|unauthorized|\b401\b|invalid.*api.?key/.test(text)) {
     return {
-      label: 'Run pi /login',
-      command: 'pi',
-      hint: 'Opens pi in the terminal — use /login to re-authenticate, then retry.',
+      label: `Sign in on ${context.machine ?? 'this machine'}`,
+      hint: 'Sign in again in Settings → Accounts for this machine, then retry the failed turn.',
       retryAfter: true,
+      signIn: true,
     }
   }
 

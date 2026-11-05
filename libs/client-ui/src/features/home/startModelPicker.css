@@ -1,0 +1,12 @@
+/* Grows into the toolbar on every machine: the model label has no intrinsic
+   width (`contain: inline-size`), so a wrapper that only shrinks to fit left the
+   chip at its 4rem floor. */
+.start-model-picker {
+  flex: 1 1 0%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  min-width: 0;
+}

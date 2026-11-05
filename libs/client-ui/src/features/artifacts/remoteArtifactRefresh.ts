@@ -1,5 +1,6 @@
 import { useSessionsStore } from '@/stores/sessions'
 import type { HostConnectionView } from '@shared/ipc'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useArtifactsStore } from '@/stores/artifacts'
 
 // One read at a time per handle. A notification during a read queues one more
@@ -23,7 +24,7 @@ function readKey(sessionId: string): string | undefined {
   const entry = state.live[sessionId]
   if (entry?.target?.kind !== 'remote') return
   const host = hostView(entry.target.hostId)
-  if (host?.state !== 'ready' || !host.capabilities.includes('artifacts.read')) return
+  if (!host || hostFeatureRefusal(host, 'artifacts.read')) return
   return JSON.stringify([
     generation,
     state.activeSessionId,

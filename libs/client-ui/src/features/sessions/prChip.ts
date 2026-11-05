@@ -107,14 +107,14 @@ export function prChip(pr: GhPullRequest): PrChip {
     return {
       variant: 'approved',
       label,
-      glyph: pr.checks === null ? '' : '✓✓',
+      glyph: phase === 'pass' ? '✓✓' : '',
       title: `${base} — open, ${checks}, approved`,
     }
   }
   return {
     variant: 'open',
     label,
-    glyph: pr.checks === null ? '' : '✓',
+    glyph: phase === 'pass' ? '✓' : '',
     title: `${base} — open, ${checks}`,
   }
 }

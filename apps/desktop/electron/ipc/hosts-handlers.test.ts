@@ -125,3 +125,39 @@ it('sets Host lane marks over the shared host-client module, unfenced', async ()
   expect(send).toHaveBeenCalledWith({ type: 'lane.marks', marker: '🦊' }, laneId)
   await expect(handler({ sender: { id: 7 } }, 'other', laneId, { pinned: true })).rejects.toThrow()
 })
+
+it('forwards targeted PR options through the opaque remote repository router', async () => {
+  const hostId = '00000000-0000-4000-8000-000000000001'
+  const repositoryId = '1234567890abcdef'
+  const options = { branches: ['feature'], force: true }
+  const call = vi.fn(async () => ({
+    type: 'result',
+    id: 'pr',
+    ok: true,
+    data: {
+      byBranch: {},
+      complete: false,
+      coverage: {
+        feature: { state: 'absent', checkedAt: 10, attemptedAt: 10 },
+      },
+    },
+  }))
+  const connection = {
+    snapshot: () => ({
+      state: 'ready',
+      capabilities: ['workspaces.read'],
+      repositories: [{ id: repositoryId }],
+    }),
+    incarnation: () => ({ generation: 1 }),
+    call,
+  }
+  mocks.connection.mockReturnValue(connection)
+  registerHostsHandlers()
+  const router: unknown = mocks.router.mock.calls.at(-1)?.[0]
+  if (typeof router !== 'function') throw new Error('Missing router')
+  const key = `host:${hostId}/repo:${repositoryId}`
+  expect(await router(1, 'gh:prsForRepo', [key, options]).result).toMatchObject({
+    coverage: { feature: { state: 'absent' } },
+  })
+  expect(call).toHaveBeenCalledExactlyOnceWith('github.prs', { repositoryId, options })
+})

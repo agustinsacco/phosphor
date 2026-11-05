@@ -7,20 +7,8 @@ import {
   type LanePrefs,
 } from './lanes'
 
-type NumericKey = 'nameMinWords' | 'nameMaxWords' | 'nameMaxLength' | 'branchSlugMaxLength'
+type NumericKey = 'branchSlugMaxLength'
 const numericCases: [NumericKey, number, number][] = [
-  ['nameMinWords', -1, 1],
-  ['nameMinWords', 3.49, 3],
-  ['nameMinWords', 3.5, 4],
-  ['nameMinWords', 13, 12],
-  ['nameMaxWords', -1, 2],
-  ['nameMaxWords', 3.49, 3],
-  ['nameMaxWords', 3.5, 4],
-  ['nameMaxWords', 13, 12],
-  ['nameMaxLength', 0, 16],
-  ['nameMaxLength', 16.49, 16],
-  ['nameMaxLength', 16.5, 17],
-  ['nameMaxLength', 121, 120],
   ['branchSlugMaxLength', 0, 12],
   ['branchSlugMaxLength', 12.49, 12],
   ['branchSlugMaxLength', 12.5, 13],
@@ -35,19 +23,18 @@ it.each(numericCases)(
 )
 
 it('normalizeLanePrefs independently rejects nonfinite, nonnumeric and missing numbers', () => {
-  for (const key of [
-    'nameMinWords',
-    'nameMaxWords',
-    'nameMaxLength',
-    'branchSlugMaxLength',
-  ] as const) {
+  for (const key of ['branchSlugMaxLength'] as const) {
     for (const value of [NaN, Infinity, -Infinity, '3', null, undefined]) {
       expect(normalizeLanePrefs({ [key]: value } as Partial<LanePrefs>)[key]).toBe(
         DEFAULT_LANE_PREFS[key],
       )
     }
   }
-  expect(normalizeLanePrefs({ nameMinWords: 12, nameMaxWords: 1 }).nameMaxWords).toBe(12)
+})
+
+it('normalizeLanePrefs drops the deleted title word-range and length prefs', () => {
+  const stale = { nameMinWords: 3, nameMaxWords: 7, nameMaxLength: 9 }
+  expect(normalizeLanePrefs(stale as Partial<LanePrefs>)).toEqual(DEFAULT_LANE_PREFS)
 })
 
 it('lanes preserves marker fallback, boolean coercion and worktree defaults', () => {
@@ -64,8 +51,6 @@ it('lanes preserves marker fallback, boolean coercion and worktree defaults', ()
   }
   expect(DEFAULT_WORKTREE_PREFS).toEqual({ auto: true, branchPrefix: 'phosphor/' })
   expect(LANE_PREF_LIMITS).toEqual({
-    nameWords: { min: 1, max: 12 },
-    nameMaxLength: { min: 16, max: 120 },
     branchSlugMaxLength: { min: 12, max: 80 },
   })
 })

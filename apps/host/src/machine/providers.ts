@@ -1,8 +1,5 @@
-import {
-  SUBSCRIPTION_PROVIDERS,
-  authCheckArgs,
-  parseAuthCheck,
-} from '@phosphor/session-runtime/pi/provider-auth'
+import { SUBSCRIPTION_PROVIDERS } from '@phosphor/shared/subscription-providers'
+import { authCheckArgs, parseAuthCheck } from '@phosphor/session-runtime/pi/provider-auth'
 import type { PiLaunch } from './executables'
 import { probe, probeFailure, type ProbeEnvironment } from './probe'
 

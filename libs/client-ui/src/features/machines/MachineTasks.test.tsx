@@ -10,6 +10,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { MACHINE } from './__fixtures__/control'
 import { MachineList } from './MachineList'
+import { useLocalOverview } from './machineOverview'
 
 let root: Root
 let container: HTMLDivElement
@@ -33,20 +34,25 @@ afterEach(() => {
   navigate.mockReset()
 })
 
+function List(): React.JSX.Element {
+  return (
+    <MachineList
+      local={useLocalOverview()}
+      signedIn
+      machines={[machine]}
+      loading={false}
+      now={Date.now()}
+      offset={0}
+      onOpen={() => undefined}
+      empty={null}
+    />
+  )
+}
 const render = (): void =>
   act(() =>
     root.render(
       <NavigationProvider value={{ location: { to: 'page', page: 'machines' }, navigate }}>
-        <MachineList
-          computer={{ error: false }}
-          signedIn
-          machines={[machine]}
-          loading={false}
-          now={Date.now()}
-          offset={0}
-          onOpen={() => undefined}
-          empty={null}
-        />
+        <List />
       </NavigationProvider>,
     ),
   )

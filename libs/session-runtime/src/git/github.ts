@@ -1,4 +1,6 @@
 import type { GhChecks, GhPullRequest, GhRepoPullRequests } from '@phosphor/shared/models'
+import { worktreePrSearches } from './github-worktrees'
+export { createGithubReader } from './github-reader'
 
 export type GhRunner = (cwd: string, args: string[]) => Promise<string | null>
 
@@ -143,24 +145,44 @@ export async function ghPrForBranch(
  *
  * The sidebar shows a PR chip per lane, and a lane is a branch — so the naive
  * shape is one `ghPrForBranch` per row. That is 8-20 `gh` subprocesses per
- * refresh on a normal workspace. This is the batched sibling, with at most
- * two queries for the whole group, regardless of the workspace or lane count.
+ * refresh on a normal workspace. This is the batched sibling: a truncated
+ * listing is supplemented by searches for missing checked-out branches.
  *
- * The limit is a real cap: a full page cannot prove absence for older lanes.
- * A failed query returns null, which also must never imply "no PR".
+ * The limit is a real cap: even supplemented results cannot prove absence
+ * across the repo. A failed query must never imply "no PR".
  */
 export async function ghPrsForRepo(
   gh: GhRunner,
   repoPath: string,
   limit = 100,
 ): Promise<GhRepoPullRequests | null> {
-  const result = await listPrs(
-    gh,
-    repoPath,
-    ['--state', 'all', '--limit', String(limit)],
-    `${PR_FIELDS},headRefName`,
-  )
+  const args = ['--state', 'all', '--limit', String(limit)]
+  const fields = `${PR_FIELDS},headRefName`
+  const result = await listPrs(gh, repoPath, args, fields)
   if (!result) return null
+  const prs = shapeRepoPrs(result, limit)
+  if (prs.complete) return prs
+  for (const search of await worktreePrSearches(repoPath, prs.byBranch)) {
+    const extra = await listPrs(gh, repoPath, [...args, '--search', search], fields)
+    if (!extra) continue
+    for (const [branch, pr] of Object.entries(shapeRepoPrs(extra, limit).byBranch)) {
+      const known = prs.byBranch[branch]
+      prs.byBranch[branch] = known ? preferPr(known, pr) : pr
+    }
+  }
+  // Compatibility helper: retain lane matches first without violating old Host readers.
+  const recent = indexPrsByBranch(result.rows)
+  const ordered = Object.entries(prs.byBranch).sort(
+    ([a], [b]) => Number(Object.hasOwn(recent, a)) - Number(Object.hasOwn(recent, b)),
+  )
+  prs.byBranch = Object.fromEntries(ordered.slice(0, limit))
+  return prs
+}
+
+function shapeRepoPrs(
+  result: { rows: RawPr[]; checksAvailable: boolean },
+  limit: number,
+): GhRepoPullRequests {
   const byBranch = indexPrsByBranch(result.rows)
   if (!result.checksAvailable) {
     for (const pr of Object.values(byBranch)) pr.checks = null

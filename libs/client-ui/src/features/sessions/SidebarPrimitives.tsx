@@ -179,3 +179,52 @@ export function SectionLabel({ children }: { children: React.ReactNode }): React
     </div>
   )
 }
+
+/**
+ * Placeholder headers for the whole group list, before prefs have landed.
+ *
+ * Distinct from `SessionRowSkeletons`, which stands in for the sessions
+ * *inside* a group whose folders are known. This one covers the earlier
+ * window, when which projects exist and what order they take is still
+ * unknown, and painting a real header means painting one that may vanish.
+ */
+export function WorkspaceGroupSkeletons(): React.JSX.Element {
+  return (
+    <div data-testid="workspace-groups-loading" aria-busy="true">
+      {[0, 1].map((i) => (
+        <div key={i}>
+          <div className="px-2 pb-0.5 pt-2.5">
+            <div
+              className="bg-sidebar-hover h-3 animate-pulse rounded"
+              style={{ width: `${45 - i * 10}%` }}
+            />
+          </div>
+          <SessionRowSkeletons />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Placeholder rows for a group whose folders have not been scanned yet.
+ *
+ * Replaces a single "Loading sessions…" line: the line was indistinguishable
+ * from the empty state one character at a time, and gave no sense of a list
+ * arriving.
+ */
+export function SessionRowSkeletons(): React.JSX.Element {
+  return (
+    <div className="space-y-2 px-2 py-2" data-testid="sessions-loading" aria-busy="true">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex flex-col gap-1">
+          <div
+            className="bg-sidebar-hover h-3 animate-pulse rounded"
+            style={{ width: `${70 - i * 12}%` }}
+          />
+          <div className="bg-sidebar-hover h-2 w-1/3 animate-pulse rounded opacity-60" />
+        </div>
+      ))}
+    </div>
+  )
+}

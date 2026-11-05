@@ -78,7 +78,13 @@ export function registerClaudeAuthHandlers(): void {
   })
 
   handle('claude:accounts', () => accountViews(claudeBinOverride()))
-  handle('claude:removeAccount', (_event, id) => removeAccount(id, claudeBinOverride()))
+  handle('claude:removeAccount', (_event, id) => {
+    // Removing signs the account out: never under its live sessions, as on a
+    // Host. Moving or stopping them is the user's explicit step first.
+    if (spawnAccountSessions()[id]?.length)
+      throw new Error('Stop or move this account’s live sessions before removing it.')
+    return removeAccount(id, claudeBinOverride())
+  })
   handle('claude:reorderAccounts', (_event, ids) => reorderAccounts(ids, claudeBinOverride()))
   handle('claude:setRouting', (_event, mode, pinnedId) =>
     setRouting(mode, pinnedId, claudeBinOverride()),

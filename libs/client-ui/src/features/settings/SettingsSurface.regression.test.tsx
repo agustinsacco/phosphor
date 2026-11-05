@@ -26,8 +26,14 @@ vi.hoisted(() => {
   })
 })
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
-vi.mock('./tabs/AgentTab', () => ({ AgentTab: () => <p>Local agent controls</p> }))
-vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
+vi.mock('./sections/agent', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAgent: () => <p>Local agent controls</p>,
+}))
+vi.mock('./sections/accounts', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  LocalAccounts: () => <p>Local account controls</p>,
+}))
 vi.mock('./tabs/AboutTab', () => ({ AboutTab: () => null }))
 
 const invoke = vi.fn(async (channel: string): Promise<unknown> =>
@@ -138,16 +144,18 @@ it('selects a Host and renders its Accounts section behind the configuration gat
   await act(async () => root.render(<SettingsModal />))
   await choose(machineSelect(), MOCK_HOST_ID)
   // The concerns both machines have keep This Mac's names and order; This Mac's own drop out.
-  expect(navLabels().slice(-6)).toEqual([
+  expect(navLabels().slice(-7)).toEqual([
     'Agent',
     'Accounts',
     'Extensions',
+    'Claude Code',
     'MCP Connectors',
     'Folders',
     'Advanced',
   ])
-  for (const local of ['Workspaces', 'Optimization', 'Voice'])
-    expect(navLabels()).not.toContain(local)
+  expect(navLabels()).not.toContain('Optimization')
+  // Lane display, branch naming and dictation are this device's, whichever machine runs the lane.
+  expect(navLabels()).toEqual(expect.arrayContaining(['Lanes', 'Voice']))
   await openSection('Accounts')
   expect(document.body.textContent).toContain('Configuring Studio')
   expect(document.body.textContent).toContain('Configuration access is not enabled')
@@ -167,10 +175,11 @@ it('renders the shared surface on the browser settings page with device and Host
       'Agent',
       'Accounts',
       'MCP Connectors',
+      'Lanes',
+      'Folders',
     ]),
   )
-  for (const hidden of ['Writing', 'Keybindings', 'Workspaces', 'Voice'])
-    expect(labels).not.toContain(hidden)
+  for (const hidden of ['Writing', 'Keybindings', 'Voice']) expect(labels).not.toContain(hidden)
   expect([...(machineSelect()?.options ?? [])].map((o) => o.value)).not.toContain('local')
   expect(document.body.textContent).not.toContain('available in Desktop')
   await openSection('Phosphor account')
@@ -188,6 +197,6 @@ it('never lists hidden sections in search results', async () => {
   useSettingsUiStore.setState({ query: '', listing: false })
   await act(async () => root.render(<SettingsModal />))
   await choose(machineSelect(), MOCK_HOST_ID)
-  expect(await search('auto-compaction')).toContain('No settings match')
+  expect(await search('auto-compaction')).toMatch(/result/)
   expect(await search('providers')).toMatch(/result/)
 })

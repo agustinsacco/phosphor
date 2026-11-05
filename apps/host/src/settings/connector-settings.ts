@@ -1,10 +1,16 @@
 import { join } from 'node:path'
 import type { MachineSettings, MachineSettingsChange } from '@phosphor/shared/machine-settings'
 import { machineRecord } from '@phosphor/shared/host-protocol-machine'
-import { mcpNamespace } from '@phosphor/shared/mcp'
+import { mcpNamespace, mcpUsesOAuth } from '@phosphor/shared/mcp'
 import { readMcpConfigs, serverProblem } from '@phosphor/session-runtime/pi/mcp-config'
 import type { SettingsContext } from './context'
-import { saveSettingsFile, settingsFile, SettingsFailure, withSettingsFileLock } from './files'
+import {
+  saveSettingsFile,
+  settingsFile,
+  SettingsFailure,
+  withSettingsFileLock,
+  HOST_FILE_POLICY,
+} from '@phosphor/session-runtime/pi/settings-file'
 
 type ConnectorChange = Extract<MachineSettingsChange, { type: `mcp.${string}` }>
 
@@ -27,6 +33,8 @@ export async function readConnectorSettings(
         transport: server.config.url ? 'https' : 'stdio',
         enabled: server.config.enabled !== false,
         exposure: server.config.exposure ?? 'codemode',
+        ...(server.config.url ? { oauth: mcpUsesOAuth(server.config) } : {}),
+        ...(server.overridden ? { overridden: true as const } : {}),
         ...(checked?.servers.get(server.name) ?? {}),
       })),
       ...(configs.projectTrust?.trusted === false
@@ -114,7 +122,7 @@ export async function changeConnectorSettings(
   await withSettingsFileLock(path, async () => {
     if (state.revision('connectors', cwd) !== revision)
       throw new SettingsFailure('bad-request', 'Settings changed. Reload before saving.')
-    const file = settingsFile(path)
+    const file = settingsFile(path, HOST_FILE_POLICY)
     if (file.raw.mcpServers !== undefined && !machineRecord(file.raw.mcpServers))
       throw new SettingsFailure('bad-request', 'Invalid MCP file. Nothing was overwritten.')
     const servers: Record<string, unknown> = Object.assign(
@@ -123,6 +131,12 @@ export async function changeConnectorSettings(
     )
     updateServers(servers, change, before, cwd)
     state.invalidateConnectors()
-    await saveSettingsFile(path, { ...file.raw, mcpServers: servers }, file.revision, commitAllowed)
+    await saveSettingsFile(
+      path,
+      { ...file.raw, mcpServers: servers },
+      file.revision,
+      commitAllowed,
+      HOST_FILE_POLICY,
+    )
   })
 }

@@ -87,27 +87,30 @@ and reports plainly when npm itself is unreachable.
 
 ## Surfaces
 
-**Settings → Extensions.** Curated catalogue cards, then installed packages by
-scope (name, version, spec, resource counts, `filtered` badge, remove), then
-add-by-spec with a scope selector and "Update all". A link to
-[pi.dev/packages](https://pi.dev/packages) for the ecosystem.
+**Settings → Extensions**, the same view on This Mac and on a Host
+([settings.md](settings.md#extensions)). Recommended package cards, then installed
+packages for the machine and the folder in scope (name, version, spec, contents,
+`filtered` badge, repair, update, remove), then add-by-spec and, on This Mac,
+"Update all". A link to [pi.dev/packages](https://pi.dev/packages) for the ecosystem.
 
-**Curated catalogue** (`libs/client-ui/src/features/settings/catalogue.ts`): four specs we
+**Standard packages** (`libs/shared/src/standard-packages.ts`): four specs we
 have read the source of: the Claude Code provider, web access, subagents,
-computer use. MCP needs no package: pi's built-in support covers it
-([mcp.md](mcp.md)). An entry may declare `requiresBinary: 'claude'`,
-which greys the card and says why when the binary is missing.
+computer use. Each says whether it runs `headless`; a Host and guided Host setup
+use only those. MCP needs no package: pi's built-in support covers it
+([mcp.md](mcp.md)). An entry may declare `requiresBinary: 'claude'`, and the card
+says so when the binary is missing.
 
-**Per-extension tabs.** Curated extensions get real config UIs, registered in
-`EXTENSION_TABS` (`settingsIndex.ts`) and shown **only while their package is
-present**. They render nested under the Extensions entry, since they configure
-an installed package; a stale sub-tab falls back to the Extensions list.
+**Per-extension items.** Curated extensions get real config UIs, registered in
+`EXTENSION_TABS` (`settingsIndex.ts`) and nested under the Extensions entry,
+since they configure an installed package. Each machine lists an item when it has
+a view for it and its package is present there, or it is listed everywhere
+(`always`); a stale item falls back to the Extensions list.
 
 | Tab          | Package                      | Contents                                                                                                                       |
 | ------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Claude Code  | `@saccolabs/pi-claude-cli`   | health card (package / `claude` binary / account), tested-version warning, **Test provider** one-click proof, failure playbook |
-| Web access   | `pi-web-access`              | seven common search-provider keys (password fields, `$ENV_VAR` support), raw JSON editor                                       |
-| Subagents    | `pi-subagents`               | delegation guide, profile precedence, configuration sources, raw Pi settings and lane directives                               |
+| Claude Code  | `@saccolabs/pi-claude-cli`   | health with Install, Claude accounts and routing, tested-version warning, **Test provider** proof (This Mac), failure playbook |
+| Web access   | `pi-web-access`              | seven common search-provider keys (password fields, `$ENV_VAR` support), configured by name; This Mac's raw JSON editor        |
+| Subagents    | `pi-subagents`               | delegation guide, profile precedence, configuration sources, This Mac's raw Pi settings and lane directives                    |
 | Computer use | `@injaneity/pi-computer-use` | what the tools do and the OS accessibility permissions macOS will not grant silently                                           |
 
 **MCP Connectors renders in the same slot but is NOT in `EXTENSION_TABS`**: it
@@ -116,11 +119,12 @@ and belongs to no package. See [mcp.md](mcp.md).
 
 The Subagents tab explains optional configuration without creating a second
 runner or profile registry. It appears only for an installed package in the
-active workspace's package list. See [settings.md](settings.md#subagents-pi-subagents).
+machine's package list. See [settings.md](settings.md#subagents-pi-subagents).
 
-**First run.** `PiMissingScreen` offers one-click Install/Update pi with
-streamed output and an auto re-check. A successful install lands on
-`GettingStartedScreen`: provider guidance plus the same catalogue cards.
+**First run.** `PiMissingScreen`, in This Mac's home, offers one-click
+Install/Update pi with streamed output and an auto re-check. A successful
+install lands on `GettingStartedScreen`: provider guidance plus the same recommended cards, through
+`useLocalPackages`.
 
 ## Command approval dialogs
 
@@ -266,10 +270,14 @@ package's own resolution rather than guessing:
 claudeStatus / claudeCliLatest / updateClaudeCli / testClaudeProvider`
   (`apps/desktop/electron/ipc/packages-handlers.ts`); `pi:webSearchConfig /
 patchWebSearchConfig` (`pi-config-handlers.ts`).
-- UI: `tabs/ExtensionsTab.tsx`, `tabs/ClaudeProviderTab.tsx`,
-  `tabs/WebAccessTab.tsx`, `tabs/ComputerUseTab.tsx`, `CatalogueCards.tsx`,
-  `catalogue.ts`, `usePackageJob.ts`, `JobOutput.tsx`, `app/PiMissingScreen.tsx`,
-  `app/GettingStartedScreen.tsx`. Mock cases in `libs/client-ui/src/dev/mockPhosphor.ts`.
+- UI (under `libs/client-ui/src/features/settings/`): `sections/extensions/`
+  (`PackagesView`, `PackageRow`, `StandardPackages`, `useLocalPackages`,
+  `useHostPackages`, `useExtensionTabs`, `openSkillsOn`), `sections/web-access/`,
+  `sections/subagents/`, `sections/computer-use/`, `sections/claude-provider/`,
+  `usePackageJob.ts`, `JobOutput.tsx`; `app/PiMissingScreen.tsx`,
+  `app/GettingStartedScreen.tsx`. The standard packages are
+  `libs/shared/src/standard-packages.ts`. Mock cases in
+  `libs/client-ui/src/dev/mockPhosphor.ts`.
 
 ## Bundled extensions (Phosphor's own)
 

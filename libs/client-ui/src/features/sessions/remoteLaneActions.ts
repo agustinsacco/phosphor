@@ -1,11 +1,14 @@
 import type { ContextMenuItem } from '@/components/ContextMenu'
+import { featureNotOffered } from '@/stores/hostRefusals'
 import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
+import type { LanePrefs } from '@shared/models'
 
 export const TAKE_CONTROL_FIRST = 'Take control first.'
 export const ONLY_WHILE_RUNNING = 'Only while running.'
 /** A Host older than `laneMarks` cannot keep pins or markers, and only that Host can. */
 export const LANE_MARKS_NEED_UPDATE = 'Update this Host to pin and mark lanes.'
+/** No `routines` capability: an older Host, or a grant without it, so neither "yet" nor "update". */
 
 /**
  * Why a controller-only row action is disabled, or undefined when control is
@@ -33,6 +36,8 @@ export interface RemoteLaneActionState {
   /** Why the Host would refuse Stop right now, if it would. */
   stopBlocked: string | null
   pr: { number: number } | null
+  /** The marker preference: `off` drops the marker slot and its menu item, as on This Mac. */
+  markers: LanePrefs['markers']
 }
 
 export interface RemoteLaneActionHandlers {
@@ -45,8 +50,10 @@ export interface RemoteLaneActionHandlers {
   stop: () => void
   resume: () => void
   markRead: () => void
+  makeRoutine: () => void
   togglePin: () => void
   pickMarker: () => void
+  exportHtml: () => void
   copyDebugInfo: () => void
   copySpend: () => void
   delete: () => void
@@ -80,9 +87,11 @@ export function remoteLaneAccess({ lane, host, ready }: RemoteLaneActionState) {
 export function remoteLaneActions(
   state: RemoteLaneActionState,
   handlers: RemoteLaneActionHandlers,
+  /** Move up and Move down, where the row sits in an ordered list (`SessionList`). */
+  order: ContextMenuItem[] = [],
 ): ContextMenuItem[] {
   const { lane, ready, busy, stopBlocked, pr } = state
-  const { controlled, running, canWrite, canMark, controlHint, markHint } = remoteLaneAccess(state)
+  const { controlled, running, canWrite, controlHint } = remoteLaneAccess(state)
   const self = lane.control.controller?.self === true
   const notReady = !ready ? REMOTE_NOT_READY : undefined
   const items: ContextMenuItem[] = []
@@ -90,6 +99,7 @@ export function remoteLaneActions(
     items.push({ label: `Open pull request #${pr.number}`, onClick: handlers.openPullRequest })
   if (handlers.open)
     items.push({ label: 'Open', disabled: !ready || busy, hint: notReady, onClick: handlers.open })
+  items.push(...order)
   items.push({
     label: 'Rename',
     disabled: !controlled || !running || busy,
@@ -125,20 +135,7 @@ export function remoteLaneActions(
       hint: notReady,
       onClick: handlers.markRead,
     },
-    {
-      label: lane.pinned ? 'Unpin' : 'Pin',
-      disabled: !canMark,
-      hint: markHint,
-      onClick: handlers.togglePin,
-    },
-    { label: 'Lane marker', disabled: !canMark, hint: markHint, onClick: handlers.pickMarker },
-    { label: 'Copy debug info', onClick: handlers.copyDebugInfo },
-    {
-      label: 'Copy spend',
-      disabled: !ready || busy || !running,
-      hint: notReady ?? (!running ? ONLY_WHILE_RUNNING : undefined),
-      onClick: handlers.copySpend,
-    },
+    ...keepActions(state, handlers),
     {
       label: 'Delete',
       danger: true,
@@ -149,4 +146,56 @@ export function remoteLaneActions(
     },
   )
   return items
+}
+
+/** What a reader may keep or curate: a routine, pin and marker, an export and copies. */
+function keepActions(
+  state: RemoteLaneActionState,
+  handlers: RemoteLaneActionHandlers,
+): ContextMenuItem[] {
+  const { lane, ready, busy } = state
+  const { running, canMark, markHint } = remoteLaneAccess(state)
+  const notReady = !ready ? REMOTE_NOT_READY : undefined
+  // The lane's own readiness gates first; the capability alone says whether routines exist here.
+  const noRoutines = state.host?.capabilities.includes('routines')
+    ? undefined
+    : featureNotOffered('routines')
+  return [
+    {
+      label: 'Make routine…',
+      disabled: !ready || busy || noRoutines !== undefined,
+      hint: notReady ?? noRoutines,
+      onClick: handlers.makeRoutine,
+    },
+    {
+      label: lane.pinned ? 'Unpin' : 'Pin',
+      disabled: !canMark,
+      hint: markHint,
+      onClick: handlers.togglePin,
+    },
+    ...(state.markers === 'off'
+      ? []
+      : [
+          {
+            label: 'Lane marker',
+            disabled: !canMark,
+            hint: markHint,
+            onClick: handlers.pickMarker,
+          },
+        ]),
+    // A read: any reader of the lane may keep a copy, as with Copy debug info.
+    {
+      label: 'Export HTML…',
+      disabled: !ready || busy,
+      hint: notReady,
+      onClick: handlers.exportHtml,
+    },
+    { label: 'Copy debug info', onClick: handlers.copyDebugInfo },
+    {
+      label: 'Copy spend',
+      disabled: !ready || busy || !running,
+      hint: notReady ?? (!running ? ONLY_WHILE_RUNNING : undefined),
+      onClick: handlers.copySpend,
+    },
+  ]
 }

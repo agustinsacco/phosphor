@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { delimiter } from 'node:path'
 import { MIN_PI_VERSION } from '@shared/models'
+import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 
 const h = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   binary: '/first/pi',
   version: vi.fn(async () => ({ stdout: '1.2.0', stderr: '' })),
   print: vi.fn(async () => ({ stdout: 'Fix Login Bug', error: undefined })),
-  environment: vi.fn(async () => ({ PATH: '/shell/bin' })),
+  environment: vi.fn(async (): Promise<NodeJS.ProcessEnv> => ({ PATH: '/shell/bin' })),
 }))
 vi.mock('electron', () => ({
   app: { isPackaged: false, getAppPath: () => '/repo/apps/desktop', getPath: () => '/data' },
@@ -34,16 +36,13 @@ vi.mock('../pi/session-runtime', () => ({
     create: async () => (await import('../pi/session-launch')).prepareDesktopSessionLaunch(),
   },
 }))
-vi.mock('../pi/print-mode', () => ({ runPrintMode: h.print }))
+vi.mock('@phosphor/session-runtime/pi/print-mode', () => ({ runPrintMode: h.print }))
 vi.mock('../pi/catalogue', () => ({ catalogueModels: async () => [] }))
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: async () => [] }))
 vi.mock('@phosphor/session-runtime/pi/agent-settings', () => ({
   readAgentSettings: async () => ({ defaultProvider: 'openai' }),
 }))
 vi.mock('../claude/accounts', () => ({ claudeAccountEnv: () => ({}), primaryAccount: vi.fn() }))
-vi.mock('../store', () => ({
-  getLanePrefs: () => ({ nameMinWords: 2, nameMaxWords: 5, nameMaxLength: 60 }),
-}))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 
 const call = (channel: string, ...args: unknown[]) => h.handlers.get(channel)!({}, ...args)
@@ -57,6 +56,7 @@ beforeEach(async () => {
   h.binary = '/first/pi'
   h.version.mockResolvedValue({ stdout: MIN_PI_VERSION, stderr: '' })
   h.print.mockResolvedValue({ stdout: 'Fix Login Bug', error: undefined })
+  h.environment.mockResolvedValue({ PATH: '/shell/bin' })
   h.handlers.clear()
   ;(await import('./pi-session-handlers')).registerPiSessionHandlers()
 })
@@ -69,8 +69,24 @@ it('reports the stub script and minimum version without probing pi', async () =>
     binaryPath: '/stub.cjs',
     version: MIN_PI_VERSION,
     minVersion: MIN_PI_VERSION,
+    path: expect.any(Array),
+    agentDir: piAgentDir(),
   })
   expect(h.version).not.toHaveBeenCalled()
+})
+
+it('reports the PATH pi runs with and its agent directory', async () => {
+  h.environment.mockResolvedValue({ PATH: ['/shell/bin', '/usr/bin'].join(delimiter) })
+  expect(await call('pi:health')).toMatchObject({
+    ok: true,
+    path: ['/shell/bin', '/usr/bin'],
+    agentDir: piAgentDir(),
+  })
+})
+
+it("reports Windows' PATH, whose environment key is Path", async () => {
+  h.environment.mockResolvedValue({ Path: ['/pi/bin', '/windows'].join(delimiter) })
+  expect(await call('pi:health')).toMatchObject({ ok: true, path: ['/pi/bin', '/windows'] })
 })
 
 it('retries unhealthy health IPC probes instead of caching failures', async () => {

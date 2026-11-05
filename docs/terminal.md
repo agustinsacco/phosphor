@@ -94,8 +94,10 @@ Viewers can use View terminal to watch an existing shell. Reopening the same
 Host terminal selects its existing tab. An empty list shows "Read-only: no
 terminals available." They do not auto-create
 shells, and input, resize and kill are disabled. The pane shows the read-only
-hint. Without the `terminal` capability it shows "Not available on remote lanes
-yet." Local tabs keep the behavior above.
+hint. Without the `terminal` capability it shows "This Host does not offer
+terminals to this device.", and while the Host is not connected "Machine not
+connected. Wait for reconnection.", in Desktop and the browser alike. Local tabs
+keep the behavior above.
 See [Host terminals](host.md#host-terminals) for the wire limits and native build.
 
 Provider sign-in terminals are the machine-scoped exception: they have no lane
@@ -103,7 +105,7 @@ or fence. Only their creating client can watch, type, resize or kill them, with
 `terminal` and `sessions.control`. They share terminal sequencing and limits,
 but no input, output or terminal metadata is persisted. Exit and Host shutdown
 kill them; disconnect allows ten minutes for the same client to reattach.
-Grant or capability loss kills them immediately. Machines Readiness opens them
+Grant or capability loss kills them immediately. Settings → Accounts opens them
 in a modal and refreshes provider readiness when they exit. The PWA can open the
 plain sign-in; configuring accounts still needs `machine.configure`.
 

@@ -65,12 +65,16 @@ the Home ledger and the context meter's Cost row.
 
 `LanePrefs.prStatus` (default **on**) decides whether the chip renders at all,
 and a chip renders only for a lane with a known PR. A lane without one shows
-no chip, no placeholder and no "no PR" hint. Settings → Workspaces → "PR status on
+no chip, no placeholder and no "no PR" hint. Settings → Lanes → "PR status on
 lanes".
 
 **Delegated work keeps a live lane working.** The sidebar activity treatment
 and Home board include active roots and descendants from that session's
-`subagent-async` snapshot, even while the parent is quiet. An explicitly
+`subagent-async` snapshot, even while the parent is quiet. A Host lane says
+the same thing: its projection reads that snapshot (parsed in
+`@phosphor/shared/subagent-fleet`) into the summary's `activity`, so a remote
+lane row shows Working while background agents run, and the finished
+attention chime waits for them. An explicitly
 incomplete snapshot cannot establish that delegated work has settled. This
 outranks merge readiness; a real human dialog still outranks running work.
 A child's attention request belongs to its parent, not the "Waiting on you"
@@ -125,7 +129,7 @@ does.
 `LanePrefs.markers`: `auto` derives for everyone, `manual` respects choices
 and derives nothing, `off` removes the column and reclaims its width. `off`
 wins over explicit choices. This preference is the feature gate, available in
-Settings → Workspaces → Lane markers. Turning it off also hides the picker;
+Settings → Lanes → Lane markers. Turning it off also hides the picker;
 existing choices are kept for when markers are enabled again.
 
 Click a saved lane's marker (including its empty placeholder), or right-click
@@ -139,31 +143,45 @@ base emoji. No image CDN or network access is needed.
 **None** explicitly clears a lane. **Auto** removes its override and returns to
 the branch-derived marker; in Manual mode this action is labelled **Default**
 and leaves the lane unmarked. Escape or Cancel leaves the choice unchanged.
-Explicit choices persist across reloads and mode changes.
+Explicit choices persist across reloads and mode changes. The picker dims
+markers other lanes on the same machine chose explicitly, in any workspace:
+This Mac's lanes for a This Mac lane, that Host's lanes for a Host lane.
 
 ## PR status
 
 Desktop's `apps/desktop/electron/fs/gh-cli.ts` and the Host's
-`features/git/github.ts` run read-only `gh` queries. Their listing, fallback and
-check shaping share `libs/session-runtime/src/git/github.ts`.
-They are **read-only by design**: no push, no create. Those are outward-facing writes
-and belong behind an explicit action, so a lane without a PR offers no
-one-click create either.
+`features/git/github.ts` bind one machine-owned reader from
+`libs/session-runtime/src/git/github-reader.ts`. It runs **read-only** `gh`
+queries: no push or PR creation, and no credentials in the renderer.
 
-Two queries:
+Discovery and status refresh are separate:
 
-- `ghPrForBranch` — one branch. Used by the top-bar branch popup.
-- `ghPrsForRepo`: a bounded repo listing, indexed by `headRefName`. Used by the
-  sidebar, Home board and active-lane header. **Never fan the single-branch query across lanes**; that is
-  8-20 subprocesses per refresh.
+- The client derives relevant branches from existing Git/lane projections,
+  prioritizes the active lane, then oldest attempted branches. Each page has
+  at most 20 branches; a refresh tick handles at most four pages and publishes
+  each as it arrives. Larger groups rotate through subsequent ticks.
+- Discovery uses batched GraphQL `pullRequests(headRefName: ...)` aliases, not
+  prefix searches or the repository's newest 100 PRs. It checks the head
+  repository against the checkout's origin, so another fork's same-named branch
+  cannot be attributed to this lane. Open PRs outrank terminal history. A
+  truncated connection cannot prove absence.
+- Once discovered, a PR is refreshed by its canonical repository and number.
+  Branch discovery and repository identity are rechecked every five minutes,
+  so reused branches and changed remotes can recover. Negative discoveries are
+  retried after 60 seconds. Associations are an in-memory inference from the
+  current checkout, not a persisted claim that this session created that PR.
+- Details are fetched only for those PRs. A resource-limit failure retries once
+  without details. Check contexts are capped at 100 per PR; truncated or omitted
+  details stay unavailable, never a green checkmark. No checks also earns no
+  passing glyph.
 
-Both queries resolve the repository from the supplied working directory, with
-no workspace or organization allowlist. They first request check details. If
-that fails (including GitHub GraphQL resource limits in CI-heavy repos), they
-retry once with identity and state only, keeping the same PR limit. A PR
-still shows its number and state. Check, review and mergeability details are
-unavailable in this fallback; it gets no green checkmark and cannot make a
-Home lane ready to merge.
+The machine cache coalesces in-flight work independently of freshness and
+serializes upstream queries. Reads have a 20-second total budget including queue
+wait, an 8-second subprocess limit, and cancellation. Successful branch reads
+are reused for 60 seconds. Failures back off from one to 15 minutes; rate limits
+honor retry/reset headers and pause the reader across repositories. Forced reads
+respect backoff and a five-second minimum. Cache state is bounded to 64 recent
+repositories and 1,000 branches per repository; the pending-read limit is 64.
 
 `stores/pullRequests.ts` is keyed by **repo path**, not session: a sidebar
 group is exactly one repo, because worktrees fold into their main checkout. A
@@ -178,28 +196,31 @@ Same-repo lane switches and concurrent consumers coalesce inside `PR_STALE_MS`;
 there is never one request per row. The clock pauses while the document is
 hidden and removes its timer/listeners when the last consumer leaves.
 
-Every `gh` failure is a normal state, not an error: not installed, not
-authenticated, no GitHub remote. A failed listing returns `null`, preserves
-previously known PR chips, and revokes any inferred absence. Attempts,
-including failures, are throttled per repo. Nothing here toasts.
+Each targeted reply includes per-branch coverage: found, absent or unavailable,
+with upstream observation and attempt timestamps. Partial replies merge into
+the store; an unavailable or unqueried branch keeps its previously known PR.
+Only explicit absence removes it. Missing gh, auth, network and deadline failures
+are normal unavailable states, without toasts. Desktop runs gh through
+`piProcessEnv` for the login-shell PATH; the Host uses its own environment.
 
-Every `gh` run goes through `piProcessEnv`, so PATH is the login shell's. A GUI
-launch inherits launchd's PATH, which has no Homebrew in it, and a bare
-`execFile('gh', …)` would fail in the installed app while working in dev.
+**Absence shows nothing.** A lane whose branch has no PR gets no chip and no
+header pill; absent coverage only removes a previously known PR. A targeted
+reply never claims repository-wide completeness.
 
-**No PR, no chip.** A lane whose branch has no PR, whether confirmed absent,
-still loading, truncated out of the 100-PR listing or unreadable, renders
-nothing. The listing keeps refreshing, so a PR opened later appears without
-any action.
+Remote groups use the same store, keyed by opaque Host/repository identity.
+`github.prs` requires `workspaces.read` and resolves only configured repository
+ids, never client filesystem paths. Its optional `options` carries bounded branch
+interests and a force flag. The existing 100-entry wire cap is unchanged; new
+pages stay below it. Both Host and host-client validate coverage.
 
-Remote repository groups use the same PR store and chips, keyed by opaque
-Host/repository identity instead of a local path. They share the same relevance
-clock, with Host summary changes also requesting stale refresh. `github.prs` requires `workspaces.read`, resolves
-only configured repository ids, and uses the Host's environment and `gh` login;
-GitHub credentials never reach the client. Reads are coalesced and throttled per
-repository for 60 seconds on both sides, including failures. A missing or older
-Host feature leaves PR status unavailable, never inferred absent. Desktop's local
-`gh` availability has no bearing on remote PRs.
+A new client retries without options only if an older Host rejects the additive
+field with `bad-request`. Legacy Host reads retain the capped recent listing,
+coalescing and a 20-second deadline. A failed supplemental legacy search returns
+unavailable rather than replacing known results. Old replies without coverage
+can prove absence only with `complete: true`. Native callers without branch
+interests discover at most 20 local worktree heads. These compatibility paths do
+not have the new targeted coverage guarantees. Desktop's local gh availability
+has no bearing on remote PRs.
 
 ### Active-lane header
 
@@ -212,19 +233,28 @@ checks do not imply approval. Identity-only results label those details unavaila
 Enter/Space opens details; Tab reaches Open on GitHub and Refresh; Escape closes
 and restores focus. Errors opening GitHub are visible and retryable.
 
-Refresh is an explicit forced **app** read. The details label elapsed time since
-the last successful app refresh and, on failure, the failed attempt, retaining
-known PR data. This is not an upstream freshness timestamp: a Host can reuse
-its 60-second repository cache, even for manual Refresh. A missing local `gh`
-probe is retried on a later attempt. The listing remains capped at 100 recent
-PRs, with no history paging or webhook guarantee.
+Refresh requests a forced read, subject to the machine reader's cooldown and
+backoff. Details show the selected branch's last upstream observation and failed
+attempt, explicitly labelling retained status as stale. Cached reads do not
+advance upstream freshness. Older Hosts without coverage retain the separately
+labelled app-refresh timestamp and cache warning. Loading and unavailable states
+are explicit; a missing local gh probe is retried on a later attempt. There is no
+history crawl or webhook guarantee.
 
 ### Slack thread links
 
 After the PR button, a pill with Slack's colour mark lists the Slack threads the
 lane has in context, so you can get back to them and point the agent at one. It
 renders nothing until the transcript mentions a thread, and shows a count once
-there are several. `LaneLinks.tsx` puts both controls in all three headers.
+there are several. `LaneLinks.tsx` puts both controls in all three headers, and
+both are one component, `LaneHeaderPill.tsx`, which owns the trigger, the
+anchored popup, focus on open and focus return; only their contents differ.
+
+The popup is the shared `PopupMenu` in its anchored mode (`escapeContainer`),
+like `ChoiceMenu` and the machine header menu: portalled to `<body>` and placed by
+floating-ui, so it fits beside a pill at the right edge of the wide browser header.
+It can sit below the window for a frame before it is placed, which is harmless
+only because [the window never scrolls](ui-shell.md#window--chrome).
 
 `slackThread.ts` derives the list from the chat store on every render. Nothing is
 persisted, so there is no IPC, Host protocol or session-file change, and sidebar
@@ -284,8 +314,17 @@ the keyboard route.
 ## Naming
 
 A local lane is named once, after its first turn ends, by a one-shot `pi -p` call
-(`apps/desktop/electron/pi/session-naming.ts`). The title flows to the branch as well as the
-session, so the sidebar group, the branch chip and the title agree.
+(`apps/desktop/electron/pi/session-title.ts`). The title flows to the branch as well as the
+session, so the sidebar group, the branch chip and the title agree. Desktop and
+the Host share one policy (`libs/session-runtime/src/pi/title-policy.ts`: argv,
+attempts, model pick, prompt, sanitizing, dedupe) and one runner
+(`libs/session-runtime/src/pi/title-run.ts`) on `runPrintMode`; each injects its
+env, catalogue and limits ([host.md](host.md#remote-lane-names-and-lifecycle)).
+
+A title is 2-5 words and at most 60 characters on every machine; neither is a
+preference. The prompt lists up to 40 existing titles in the repository, worktrees
+included, and a reply that still collides gets a numeric suffix (`dedupeTitle`),
+with the title shortened so the suffix stays within the 60 characters.
 
 Two naming passes never run for one session: `startChat` owns naming for the
 chats it creates and suppresses the session store's own pass.
@@ -321,30 +360,37 @@ Two constraints on the one-shot, both silent when broken:
 - pi-claude-cli ≥ 0.7.0 parks its CLI process after a turn, which holds pi's
   event loop open, so a naming run would print its title and then not exit for
   ten minutes. The naming env passes `claudeOneShotEnv()`
-  (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`). `runPrintMode` also keeps whatever stdout
-  arrived before a timeout, so a slow exit cannot throw away a finished title.
+  (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`) through `titleRunEnv`, which also pins
+  `PI_CLAUDE_CLI_CONTEXT=pi` as sessions do. On Desktop the runner also titles
+  from whatever stdout arrived before a timeout or abort (`acceptPartial`), so a
+  slow exit cannot throw away a finished title; a Host discards that output.
 
 ## Preferences
 
-`LanePrefs` in `AppPrefs.lanes`, edited in Settings → Workspaces.
+`LanePrefs` in `AppPrefs.lanes`, edited in Settings → Lanes, a device section: it
+shows whichever machine Configure chooses, and the browser keeps it too
+(browser-local, [web client](web-client.md#memory-and-offline-behavior)). The
+prefix and slug length name a Host lane's branch as they do This Mac's, and
+markers and PR status apply to every machine's rows. Automatic naming is the
+machine's, under Settings → Agent.
 
-| pref                            | default | reaches                                  |
-| ------------------------------- | ------- | ---------------------------------------- |
-| `markers`                       | `auto`  | the sidebar row                          |
-| `autoName`                      | `true`  | both naming passes                       |
-| `nameMinWords` / `nameMaxWords` | 2 / 5   | the naming prompt                        |
-| `nameMaxLength`                 | 60      | `sanitizeTitle`, after the model replies |
-| `branchSlugMaxLength`           | 40      | `slugifyTitle`, so branch and folder     |
+| pref                  | default | reaches                              |
+| --------------------- | ------- | ------------------------------------ |
+| `markers`             | `auto`  | the sidebar row                      |
+| `prStatus`            | `true`  | the row's PR chip                    |
+| `autoName`            | `true`  | both naming passes                   |
+| `branchSlugMaxLength` | 40      | `slugifyTitle`, so branch and folder |
 
 The branch **prefix** is separate, in `WorktreePrefs.branchPrefix`, beside the
 switch that decides whether a chat gets a branch at all. `WorktreePrefs`
 decides _whether_ a lane gets a branch; `LanePrefs` decides what it _looks
 like_. Worktrees off still names sessions.
 
-**Every number is clamped twice**, in the renderer and in main. These values
-reach a prompt, a git ref and a filesystem path, and the settings UI reads back
-the value it just wrote, so an out-of-range entry must be corrected locally too.
-`nameMaxWords` can never fall below `nameMinWords`.
+**The slug length is clamped twice**, in the renderer and in main. It reaches a
+git ref and a filesystem path, and the settings UI reads back the value it just
+wrote, so an out-of-range entry must be corrected locally too. Stored prefs from
+older builds may still hold `nameMinWords`, `nameMaxWords` and `nameMaxLength`;
+`normalizeLanePrefs` drops them.
 
 `LanePrefs` lives in its own leaf store (`stores/lanePrefs.ts`), not in
 `stores/settings.ts`, which calls `window.matchMedia` at creation and would
@@ -379,10 +425,17 @@ there.
 
 **A lane that finishes off screen says so.** When pi reports a lane's run
 settled (`agent_settled` after an `agent_start`, in the push handler) and that
-lane is not the one on screen, `noticeLaneSettled` puts up a notice with the
+lane is not in front of you, `noticeLaneSettled` puts up a notice with the
 first line of the final reply, or the error if the run stopped on one. A run
-pi reports `aborted` says nothing: only the stop control produces one. The lane on screen never gets a notice,
-even with the window in the background — its transcript already shows it.
+pi reports `aborted` says nothing: only the stop control produces one. A lane is
+in front of you when it is on screen in a focused window (`laneInView`): it gets
+no notice, since its transcript already shows it. On screen in a background
+window it does. A Host lane's attention follows the same rule through the same
+presenter (`noticeHostAttention`): the same wording (`settledNotice` from the
+run's receipt, with its excerpt, for a finished or failed run and a finished
+routine; “Needs your input.” for a question; a neutral “Routine update.” for a
+routine with no receipt, which may have paused), kind and marker, titled with
+its machine.
 
 **The wait is animated, not flashed.** `OpeningLane` fades in after a 90ms
 beat, so opening a warm lane never flashes it, and fades out over the lane it
@@ -403,7 +456,7 @@ user is **not** looking at never takes the screen.
 
 A magnifier in the workspace header opens a search field **under** that
 header. It filters that group only: search is per project because the header
-it hangs off is.
+it hangs off is. A Host folder's search is the same, through the same matcher.
 
 `laneSearch.ts` matches against the three identities the row shows: **title,
 branch, and PR (number and title)**, because those are what you remember a lane
@@ -433,9 +486,10 @@ mid-turn is findable under the name on screen.
 
 One Host lane row (`features/sessions/RemoteLaneRow`) and one menu serve every
 surface: Desktop's sidebar, the browser's navigation and Lanes page, Host home and the
-machine preview. `remoteLaneActions` builds the menu as a pure list (Open, Rename,
-Take or Release control, Stop or Resume, Mark read, Pin, Lane marker, Copy debug
-info, Copy spend, Delete, plus Open pull request when the lane has one) and
+machine preview. `remoteLaneActions` builds the menu as a pure list (Open, Move up and Move
+down where the row sits in an ordered list, Rename,
+Take or Release control, Stop or Resume, Mark read, Make routine…, Pin, Lane
+marker, Export HTML…, Copy debug info, Copy spend, Delete, plus Open pull request when the lane has one) and
 `useRemoteLaneActions` runs it; the phone's lane sheet lists the same items
 without Open. The row's menu opens on right-click, the ContextMenu key or
 Shift+F10, and a touch long-press; on a phone it is a bottom sheet. The row
@@ -448,13 +502,22 @@ Pins and markers belong to the Host: a Host that announces `laneMarks` keeps
 them, so every client shows the same ones
 ([protocol](remote-protocol.md#lane-pins-and-markers)); Desktop's older local
 choices, kept under Host/lane resource keys, move to it, and rows read only the
-Host's. Without `laneMarks`, Pin and Lane marker are disabled with “Update this
+Host's. A Host lane with no explicit marker shows the one derived from its
+branch, and `LanePrefs.markers` applies as on This Mac: `manual` derives
+nothing and `off` removes the slot and Lane marker. Without `laneMarks`, Pin
+and Lane marker are disabled with “Update this
 Host to pin and mark lanes.” A pinned Host lane shows the pin icon and sits in a
 Pinned section above that Host's folders, newest first, with its folder named,
 as local pinned lanes sit above local groups. Pins stay per Host: one Host's
 pinned lanes never mix with another's or with local ones.
 
-Local-only tree, fork, clone, routine and HTML export actions are omitted.
+Copy debug info writes This Mac's block (`formatSessionDebugInfo`: pi's id and
+model once the lane is open) with the machine, Host, lane and branch in place of
+paths: no Host path reaches the clipboard. Copy spend copies the formatted cost,
+as This Mac's does. Both copies confirm with a toast and, where the clipboard is
+denied, show the text to copy by hand, on either machine. Export HTML… opens the lane's session if needed and saves the Host's export
+(`exportRemoteLaneHtml`): a save dialog on Desktop, a download in the browser.
+Local-only tree, fork and clone actions are omitted.
 Remote Delete needs control and workspace-write capability, in Desktop and the
 browser alike. A disabled action's hint names its obstacle: “Take control
 first.” for a viewer, “Only while running.” for rename and spend on a stopped
@@ -495,7 +558,9 @@ it.
 
 The checkbox replaces the indicator dot in the same gutter, so entering select
 mode shifts nothing (`SelectableIndicator` in `LaneSelect.tsx`, on both lists).
-"Select all lanes" lives in the workspace `⋯` menu. The bulk bar
+"Select all lanes", "Select merged lanes" (lanes whose pull request merged)
+and "Collapse lanes" live in the workspace `⋯` menu, the same rows
+(`LaneSelectionRows`) on This Mac's groups and Host folders. The bulk bar
 (`LaneBulkBar`) shows only in select mode.
 
 Deleting is three resources, and all three default on. The branch default is
@@ -520,8 +585,12 @@ counts as a user and holds the worktree.
 
 **A branch is deleted only when it is proven merged.** `git branch -d` tests
 ancestry, and a squash merge leaves no ancestry link, so `-d` refuses every
-squash-merged lane. `isBranchLanded` accepts two proofs, and `-D` runs only
-when one holds:
+squash-merged lane. `isBranchLanded` accepts two proofs about the tip it read,
+and the branch goes only when one holds, by one compare-and-delete at that tip
+(`deleteBranchAtTip`, `git update-ref --no-deref -d <ref> <tip>`). A branch
+that gained a commit during the proof, or that a worktree has checked out, is
+kept. This Mac and a Host share the proofs and the deletion
+(`libs/session-runtime/src/git/branch-landed.ts`):
 
 - **The squash test** (`isBranchMerged`): `git cherry` against a commit built
   from the branch's tree.
@@ -530,7 +599,9 @@ when one holds:
   a newer trunk. It proved 2 of 26 merged lanes on one install. A merged PR
   from the branch counts only if the local tip is its head, sits behind it, or
   has the same tree, so a reused branch name or work added after the merge
-  never passes. Without `gh`, or offline, this proof answers no.
+  never passes. Without `gh`, or offline, this proof answers no. A Host asks
+  its own `gh`, each question with an 8 s timeout, and starts none after a
+  proof's first 20 seconds.
 
 Anything unproven is kept and reported; the transcript still goes.
 
@@ -573,7 +644,7 @@ then fades away.
 
 A merged PR finishes code, not a conversation. Automatic cleanup requires an
 explicit **Finish conversation…** decision from the sidebar context menu for
-**every** transcript in the checkout. Suspend its live sessions first. **Reopen
+**every** transcript in the checkout. Stop its live sessions first. **Reopen
 conversation** or resuming the lane clears that decision. Unknown, legacy,
 paused and otherwise unfinished conversations remain protected across restarts.
 

@@ -16,7 +16,7 @@ interface IconProps {
 }
 
 /** Shared attributes for stroked, non-filled glyphs. */
-function strokeProps(size: number): {
+export function strokeProps(size: number): {
   width: number
   height: number
   viewBox: string
@@ -404,10 +404,19 @@ export function CollapseAllIcon({
 /**
  * Indeterminate activity spinner. Colour comes from `className` so callers can
  * tint it (accent for tools, warning for retries) or inherit from an ancestor.
+ * With a `label` it is a status of its own; without one, nearby text says what is busy.
  */
-export function Spinner({ className = 'text-accent' }: { className?: string }): React.JSX.Element {
+export function Spinner({
+  className = 'text-accent',
+  label,
+}: {
+  className?: string
+  label?: string
+}): React.JSX.Element {
   return (
     <svg
+      role={label ? 'status' : undefined}
+      aria-label={label}
       className={clsx('h-3.5 w-3.5 shrink-0 animate-spin', className)}
       viewBox="0 0 24 24"
       fill="none"

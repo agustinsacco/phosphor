@@ -1,12 +1,11 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import clsx from 'clsx'
+import { useEffect, useState } from 'react'
 import type { GhPullRequest } from '@shared/models'
-import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { TooltipButton } from '@/components/Tooltip'
+import { MenuRow } from '@/components/PopupMenu'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, type RepoPullRequests } from '@/stores/pullRequests'
 import { useLanePullRequest } from './useLanePullRequest'
 import { prChip, PR_CHIP_CLASSES } from './prChip'
+import { LaneHeaderPill } from './LaneHeaderPill'
 
 /**
  * A real tab stop in the title bar; sidebar row chips deliberately are not.
@@ -14,7 +13,7 @@ import { prChip, PR_CHIP_CLASSES } from './prChip'
  * The listing keeps refreshing underneath, so a PR opened later appears.
  */
 export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const { repoPath, ready, slice, pr } = useLanePullRequest(sessionId)
+  const { repoPath, ready, slice, pr, branch } = useLanePullRequest(sessionId)
   const enabled = useLanePrefsStore((s) => s.lanes.prStatus)
   if (!enabled || !repoPath || !pr) return null
   return (
@@ -24,6 +23,7 @@ export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.El
       ready={ready}
       slice={slice}
       pr={pr}
+      branch={branch}
     />
   )
 }
@@ -33,64 +33,34 @@ interface LanePrProps {
   ready: boolean
   slice: RepoPullRequests
   pr: GhPullRequest
+  branch?: string
 }
 
-function LanePrPill({ repoPath, ready, slice, pr }: LanePrProps): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const id = useId()
-  const chip = prChip(pr)
-  const close = (): void => {
-    setOpen(false)
-    triggerRef.current?.focus()
-  }
+function LanePrPill(props: LanePrProps): React.JSX.Element {
+  const chip = prChip(props.pr)
   return (
-    <div className="titlebar-no-drag relative shrink-0">
-      <TooltipButton
-        ref={triggerRef}
-        type="button"
-        aria-label={`Pull request: ${chip.title}`}
-        aria-expanded={open}
-        aria-controls={open ? id : undefined}
-        onClick={() => setOpen(!open)}
-        data-testid="lane-pr-status"
-        data-variant={chip.variant}
-        className={clsx(
-          'rounded-full border px-2 py-0.5 font-mono text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
-          PR_CHIP_CLASSES[chip.variant],
-        )}
-      >
-        {`${chip.label} ${chip.glyph}`.trim()}
-      </TooltipButton>
-      {open && (
-        <PopupMenu
-          id={id}
-          triggerRef={triggerRef}
-          onClose={close}
-          fitViewport
-          escapeContainer
-          className="absolute left-0 top-full mt-1 w-80 py-2"
-        >
-          <LanePrContent repoPath={repoPath} ready={ready} slice={slice} pr={pr} />
-        </PopupMenu>
-      )}
-    </div>
+    <LaneHeaderPill
+      label={`Pull request: ${chip.title}`}
+      testId="lane-pr-status"
+      variant={chip.variant}
+      className={PR_CHIP_CLASSES[chip.variant]}
+      face={`${chip.label} ${chip.glyph}`.trim()}
+      region="Pull request details"
+    >
+      {() => <LanePrContent {...props} />}
+    </LaneHeaderPill>
   )
 }
 
-function LanePrContent({ repoPath, ready, slice, pr }: LanePrProps): React.JSX.Element {
+function LanePrContent({ repoPath, ready, slice, pr, branch }: LanePrProps): React.JSX.Element {
   const [linkError, setLinkError] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    ref.current?.querySelector('button')?.focus()
-  }, [])
   return (
-    <div ref={ref} role="region" aria-label="Pull request details">
+    <>
       <div className="space-y-2 px-3 pb-2 text-sm">
         <PrDetails pr={pr} />
-        <RefreshAge slice={slice} />
+        <RefreshAge slice={slice} branch={branch} />
         {!ready && <p>Repository unavailable. Reconnect to refresh.</p>}
-        {repoPath.startsWith('host:') && (
+        {!slice.coverage && repoPath.startsWith('host:') && (
           <p>The Host may reuse its repository cache for up to 60 seconds.</p>
         )}
         {linkError && <p role="alert">Could not open GitHub. Try again.</p>}
@@ -111,7 +81,7 @@ function LanePrContent({ repoPath, ready, slice, pr }: LanePrProps): React.JSX.E
       >
         {slice.loading ? 'Refreshing…' : 'Refresh'}
       </MenuRow>
-    </div>
+    </>
   )
 }
 
@@ -151,7 +121,14 @@ function PrDetails({ pr }: { pr: GhPullRequest }): React.JSX.Element {
   )
 }
 
-function RefreshAge({ slice }: { slice: RepoPullRequests }): React.JSX.Element {
+function RefreshAge({
+  slice,
+  branch,
+}: {
+  slice: RepoPullRequests
+  branch?: string
+}): React.JSX.Element {
+  const coverage = branch ? slice.coverage?.[branch] : undefined
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1_000)
@@ -161,11 +138,22 @@ function RefreshAge({ slice }: { slice: RepoPullRequests }): React.JSX.Element {
   return (
     <div>
       {slice.loading && <p role="status">Refreshing repository…</p>}
-      {slice.failed && <p>Last app attempt failed ({age(slice.attemptedAt)}).</p>}
+      {slice.coverage
+        ? coverage?.state === 'unavailable' && (
+            <p>
+              Last upstream attempt failed ({age(coverage.attemptedAt)}).{' '}
+              {coverage.checkedAt > 0 ? 'Showing stale status.' : 'Status unavailable.'}
+            </p>
+          )
+        : slice.failed && <p>Last app attempt failed ({age(slice.attemptedAt)}).</p>}
       <p>
-        {slice.fetchedAt
-          ? `Last successful app refresh: ${age(slice.fetchedAt)}`
-          : 'No successful app refresh yet.'}
+        {slice.coverage
+          ? coverage?.checkedAt
+            ? `Last upstream check: ${age(coverage.checkedAt)}`
+            : 'No successful upstream check yet.'
+          : slice.fetchedAt
+            ? `Last successful app refresh: ${age(slice.fetchedAt)}`
+            : 'No successful app refresh yet.'}
       </p>
     </div>
   )

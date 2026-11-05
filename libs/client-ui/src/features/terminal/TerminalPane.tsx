@@ -6,6 +6,7 @@ import {
   sessionTerminals,
   ensureTerminalTab,
   terminalAccess,
+  terminalRefusal,
 } from '@/stores/terminal'
 import { PaneIconButton, PaneShell, PaneTitle } from '@/components/PaneShell'
 import { TerminalView } from './TerminalView'
@@ -168,7 +169,7 @@ export const TerminalPane = memo(function TerminalPane({
         {access !== 'control' && (
           <div className="text-text-tertiary px-2 py-1 text-sm">
             {access === 'unavailable'
-              ? 'Not available on remote lanes yet.'
+              ? terminalRefusal(sessionId)
               : 'Read-only. Take control to send messages.'}
           </div>
         )}

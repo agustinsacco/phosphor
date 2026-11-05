@@ -166,10 +166,10 @@ the machine, and the header holds its control buttons. A down Host's composer
 and panes show "Machine not connected. Wait for reconnection." Both recover
 from snapshots without reload.
 
-Machines detail keeps Readiness and adds On this machine: lanes, skills, routines
+A connected Host's Machines detail adds On this machine: lanes, skills, routines
 and artifacts, only for announced capabilities. Counts that fail to load say
-Unavailable, not zero. Links open the machine-filtered page. This Mac keeps its
-existing detail sections and uses its own lanes, Skills, Routines and Artifacts pages.
+Unavailable, not zero. Links open the machine-filtered page. This Mac's detail has
+the same card, over its own lanes, skills, routines and artifacts.
 
 Skills follows the sidebar machine selection and has a switcher for This Mac plus
 machines announcing `skills.read`. Remote skills are not edited in place; they can
@@ -196,8 +196,10 @@ Uncertain saves preserve edits and are never retried automatically.
 Unsaved drafts stay in renderer memory per lane, survive lane switches, and clear
 on discard, successful save or lane forget.
 Changes shows git status and an inline read-only diff against HEAD. Binary files
-and oversized text use placeholders. Remote text uses in-memory Monaco models, never local preview protocols or
-filesystem watchers. They refresh
+and oversized text use placeholders. Remote text uses in-memory Monaco models, never
+`phosphor-file://` grants or filesystem watchers. Markdown, HTML and SVG open on a
+rendered Preview beside their Source, as This Mac's do, drawn from that text; HTML
+and SVG render in the artifact sandbox, and a revealed line opens the Source. They refresh
 on focused lane summary changes (including turn end), reconnects and manual refresh.
 Streamed text does not reload the pane. Added and untracked files use an empty
 original. If HEAD cannot be read, its placeholder does not discard current text.
@@ -359,9 +361,15 @@ reachable from this computer (check Tailscale here and the tailnet), never a
 restart. Only a ready connection advances to Providers, after a short pause.
 Further recovery stays in the collapsed Stuck? disclosure.
 
-**Providers** reads the Host's provider readiness and opens the machine page,
-whose Providers card has Sign in. The terminal fallback on the Host is
-`phosphor providers login PROVIDER`. Provider credentials stay on the Host.
+**Providers** shows the Host's Claude Code readiness row and its providers in
+Settings → Accounts' rows and words (Signed in, Not signed in, Could not verify).
+A Host that reports no Claude Code check lists its Claude Code provider row instead.
+A missing Claude Code points at Settings → Extensions → Claude Code, or at
+`phosphor setup` on a Host whose Settings this client cannot open. **Provider
+settings** closes the dialog and opens Settings → Accounts on the Host, where Sign
+in runs; a Host too old for that shows `phosphor providers login PROVIDER` instead.
+Check readiness again re-reads both, and Open machine shows the machine page.
+Provider credentials stay on the Host.
 In a terminal, guided `phosphor setup` offers to install Claude Code and the
 Claude provider and runs `claude` login when signed out
 ([host.md](host.md#setup)).
@@ -390,7 +398,10 @@ selection is not persisted. Add machine opens the existing Machines add flow.
 All machines lists local repository groups first, followed by labelled Hosts.
 
 Connected Hosts show repository-grouped lanes, newest first within each folder
-(a lane you just created is at the top, as a new local session is), with running, new and needs-you
+(a lane you just created is at the top, as a new local session is) until you
+reorder them: a mouse drag, Move up / Move down or Alt+↑ / Alt+↓, through the
+same `SessionList` as local rows (on a phone, the row's long-press menu). The order is this device's, kept in `sessionOrder`
+under `host:<id>/lane:<laneId>`; Pinned reorders within itself. Rows show running, new and needs-you
 signals from their existing summaries (`working`, `attention > read`, and
 `needs-input` or `failed`). Local activity uses streaming chat state, unseen
 session markers/unread counts, pending extension dialogs and chat errors.
@@ -398,7 +409,8 @@ The button summarizes only machines other than the selected one.
 
 Reconnecting uses an amber pulsing status dot, and the sidebar says
 "Connecting…" for a Host that is connecting, reconnecting or not yet in the
-first Host snapshot, never "Not reachable". Down machines show a grey dot,
+first Host snapshot, never "Not reachable"; while that first snapshot loads, This
+Mac's group skeletons (`SidebarPrimitives`) stand under it. Down machines show a grey dot,
 the directory's last-seen age, and last-known groups with disabled lane and
 creation actions. A Host that is enrolled but not yet connected shows the
 reachability rule's short phrase (for example "Not reachable yet" or "Never
@@ -409,7 +421,9 @@ an Add folder on MACHINE… button that opens the Host folder browser.
 A Host's folders are listed in the Host config's order. Each current folder's
 Workspace options menu offers Add folder on MACHINE…, Remove from MACHINE, Move
 up and Move down (`RemoteFolderMenuRows`), then Select all lanes, Select merged
-lanes and Collapse lanes. The folder header (`RemoteRepositoryGroup`) and the
+lanes and Collapse lanes. A folder's collapse persists in the sidebar's one
+`collapsedWorkspaces` pref (key `host:<id>/repo:<repositoryId>`), as This Mac's
+groups do. The folder header (`RemoteRepositoryGroup`) and the
 Host's list (`RemoteHostLanes`, pinned lanes first) are the same components the
 web client's Lanes page and Host home render ([web client](web-client.md#one-lane-row-list-and-menu)). A move
 sends the whole new order (`hosts:orderRepositories`), so every client sees it
@@ -459,10 +473,13 @@ A successful thinking change in a live Host lane updates that Host's remembered
 choice.
 
 Remote row actions, title precedence, pins, markers and delete confirmations are
-owned by [Lanes](lanes.md#remote-lanes). Authentication remedies open that machine's
-Readiness page, never a local terminal. A ready Host without a usable signed-in
-model offers Sign in on that machine, distinct from a disconnected refusal.
-Retry appears only for the last confirmed failed turn while idle and controlled.
+owned by [Lanes](lanes.md#remote-lanes). Error remedies are the same set as This
+Mac's: Sign in on the machine opens Settings → Accounts for that Host, a shell fix
+(`aws sso login`) runs in the lane's terminal on the Host (for its controller), and
+never in a local terminal. A ready Host without a usable signed-in model offers
+Sign in on that machine in the start composer, to the same Settings → Accounts,
+distinct from a disconnected refusal. Retry appears only
+for the last confirmed failed turn while idle and controlled, on every machine.
 
 Skills, Routines and Artifacts follow the sidebar machine. A page picker overrides
 that selection until the next sidebar change. All machines defaults Skills and
@@ -483,7 +500,8 @@ The separate Overview keeps reachability, readiness, reconnect and diagnostics.
 The [settings contract](settings.md#host-machine-settings) owns the sections,
 review steps, scope, drafts and application timing. Desktop (and the browser, see
 [web client](web-client.md#configuration-access-and-lane-deletion)) asks separately
-for signed configuration access; old Hosts retain their Readiness sign-in route.
+for signed configuration access; for an old Host, the Providers card shows the
+`phosphor providers login` command instead.
 No remote failure mounts a local editor, synchronizes auth or queues a write.
 
 `libs/host-client/src/settings.ts`, shared with the browser, validates the requested
@@ -507,17 +525,22 @@ when their admitted connection or configuration authority is lost; regranting
 access does not revive them. Desktop drops their private handles and pending input
 on authority loss. Cleanup kill remains allowed.
 
-Legacy Readiness sign-in still needs `terminal` plus `sessions.control`, with one
+Provider sign-in from Settings → Accounts needs `terminal` plus `sessions.control`, with one
 PTY per provider and two per Host. Its existing ten-disconnected-minute grace is
 preserved. See [provider login](host.md#providers-login).
 
 ## Remote lane surface isolation
 
-The lane artifact pane reads only its explicit session id. An empty Host reply
-clears that lane's cached artifacts; switching back restores the Mac lane's own
-artifacts, not a global selection. Workspace writes from a remote artifact are
-disabled; [remote surface gaps](future-features.md#remote-surface-gaps) owns this limitation. Save and PDF export explicitly
-target This Mac. The top-bar artifact count belongs to the active lane.
+The lane artifact pane reads only its explicit session id. A failed read says
+so and offers Retry. An empty Host reply clears that lane's cached artifacts;
+switching back restores the Mac lane's own artifacts, not a global selection.
+Write into workspace and open in Files writes a remote artifact into its lane on
+the Host, as This Mac's does: it reads the file's revision first, so it replaces
+only what it read (or creates a new file), then opens it in that lane's Files.
+Like the lane's Files editing, it needs the Host's file editing and this window
+holding the lane; otherwise the button is disabled and its tooltip names why. A
+refusal from the Host is a toast. Save and PDF export explicitly target This
+Mac. The top-bar artifact count belongs to the active lane.
 
 Remote slash commands come from the lane, and file mentions search its Host file
 list. Thinking levels derive from the lane model. Local rules/MCP menus are hidden; the

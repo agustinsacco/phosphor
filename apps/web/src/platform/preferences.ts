@@ -1,10 +1,13 @@
 import {
   DEFAULT_APP_PREFS,
   DEFAULT_FONT_PREFS,
+  normalizeLanePrefs,
   type AppPrefs,
   type FontPrefs,
+  type LanePrefs,
   type ThemePreference,
   type ModelPicks,
+  type WorktreePrefs,
 } from '@phosphor/shared/models'
 
 export interface PreferenceStorage {
@@ -12,6 +15,128 @@ export interface PreferenceStorage {
   setItem(key: string, value: string): void
 }
 const KEY = 'phosphor.web.appearance.v1'
+/** Lane and branch prefs: device prefs that apply to every Host's lanes from this browser. */
+const LANES_KEY = 'phosphor.web.lanes.v1'
+/** The largest stored lane prefs record, and the longest branch prefix accepted. */
+const LANES_MAX_CHARS = 2048
+export const BRANCH_PREFIX_MAX = 64
+
+const record = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value)
+
+/** Only the shared lane fields, normalized as Desktop's store does. Throws on a non-record. */
+function laneRecord(value: unknown): LanePrefs {
+  if (!record(value)) throw new Error('Invalid lane preferences.')
+  return normalizeLanePrefs(value as Partial<LanePrefs>)
+}
+
+/** `auto` and a short one-line branch prefix, nothing else. */
+function worktreeRecord(value: unknown): WorktreePrefs {
+  if (
+    !record(value) ||
+    typeof value.auto !== 'boolean' ||
+    typeof value.branchPrefix !== 'string' ||
+    value.branchPrefix.length > BRANCH_PREFIX_MAX ||
+    [...value.branchPrefix].some((char) => char.charCodeAt(0) < 0x20)
+  )
+    throw new Error('Invalid branch preferences.')
+  return { auto: value.auto, branchPrefix: value.branchPrefix }
+}
+
+/** The sidebar's lane order and collapsed groups: Host keys only, since a browser has no This Mac. */
+const SIDEBAR_KEY = 'phosphor.web.sidebar.v1'
+const SIDEBAR_MAX_CHARS = 512 * 1024
+const SIDEBAR_MAX_ENTRIES = 500
+const SIDEBAR_ENTRY_MAX = 512
+type SidebarField = 'sessionOrder' | 'collapsedWorkspaces'
+
+/** Bounded, unique `host:` keys; anything else is dropped, never normalized into another key. */
+function sidebarKeys(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new Error('Invalid sidebar preferences.')
+  const keys = value.filter(
+    (key): key is string =>
+      typeof key === 'string' &&
+      key.startsWith('host:') &&
+      key.length <= SIDEBAR_ENTRY_MAX &&
+      [...key].every((char) => char.charCodeAt(0) >= 0x20),
+  )
+  return [...new Set(keys)].slice(0, SIDEBAR_MAX_ENTRIES)
+}
+
+/** Restore the stored lane order and collapsed groups into `prefs`, and the setters that store them. */
+function sidebarPreferences(prefs: AppPrefs, storage: PreferenceStorage | undefined) {
+  const fields: SidebarField[] = ['sessionOrder', 'collapsedWorkspaces']
+  try {
+    const text = storage?.getItem(SIDEBAR_KEY)
+    const saved: unknown = text && text.length <= SIDEBAR_MAX_CHARS ? JSON.parse(text) : null
+    for (const field of fields)
+      if (record(saved) && Array.isArray(saved[field])) prefs[field] = sidebarKeys(saved[field])
+  } catch {
+    /* Storage may be denied or hold an older shape; defaults still work. */
+  }
+  const save = () => {
+    try {
+      storage?.setItem(
+        SIDEBAR_KEY,
+        JSON.stringify({
+          sessionOrder: prefs.sessionOrder,
+          collapsedWorkspaces: prefs.collapsedWorkspaces,
+        }),
+      )
+    } catch {
+      /* Memory-only fallback. */
+    }
+  }
+  const setter = (field: SidebarField) => (value: string[]) => {
+    prefs[field] = sidebarKeys(value)
+    save()
+  }
+  return {
+    sessionOrder: setter('sessionOrder'),
+    collapsedWorkspaces: setter('collapsedWorkspaces'),
+    /** Another owner's arrangement is not this one's. */
+    clearSidebar() {
+      if (fields.every((field) => !prefs[field].length)) return
+      for (const field of fields) prefs[field] = []
+      save()
+    },
+  }
+}
+
+/** Restore the stored lane and branch prefs into `prefs`, and the setters that store them. */
+function lanePreferences(prefs: AppPrefs, storage: PreferenceStorage | undefined) {
+  try {
+    const text = storage?.getItem(LANES_KEY)
+    const saved: unknown = text && text.length <= LANES_MAX_CHARS ? JSON.parse(text) : null
+    if (record(saved) && saved.lanes !== undefined) prefs.lanes = laneRecord(saved.lanes)
+    if (record(saved) && saved.worktrees !== undefined)
+      prefs.worktrees = worktreeRecord(saved.worktrees)
+  } catch {
+    /* Storage may be denied or hold an older shape; defaults still work. */
+  }
+  const save = () => {
+    // Persist the normalized, allowlisted records only, never a caller-supplied object.
+    try {
+      storage?.setItem(
+        LANES_KEY,
+        JSON.stringify({ lanes: prefs.lanes, worktrees: prefs.worktrees }),
+      )
+    } catch {
+      /* Memory-only fallback. */
+    }
+  }
+  return {
+    lanes(value: LanePrefs) {
+      prefs.lanes = laneRecord(value)
+      save()
+    },
+    worktrees(value: WorktreePrefs) {
+      prefs.worktrees = worktreeRecord(value)
+      save()
+    },
+  }
+}
+
 export function createBrowserPreferences(storage?: PreferenceStorage) {
   const prefs: AppPrefs = structuredClone(DEFAULT_APP_PREFS)
   // Learning prompts and native background services are never enabled by browser defaults.
@@ -31,7 +156,11 @@ export function createBrowserPreferences(storage?: PreferenceStorage) {
   } catch {
     /* Storage may be denied; preferences still work in memory. */
   }
+  const sidebar = sidebarPreferences(prefs, storage)
   return {
+    ...lanePreferences(prefs, storage),
+    sessionOrder: sidebar.sessionOrder,
+    collapsedWorkspaces: sidebar.collapsedWorkspaces,
     get: () => structuredClone(prefs),
     theme(theme: ThemePreference) {
       if (!['light', 'dark', 'system'].includes(theme)) throw new Error('Invalid theme.')
@@ -79,6 +208,7 @@ export function createBrowserPreferences(storage?: PreferenceStorage) {
     },
     clearOwner() {
       prefs.modelPicks = structuredClone(DEFAULT_APP_PREFS.modelPicks)
+      sidebar.clearSidebar()
     },
   }
 }

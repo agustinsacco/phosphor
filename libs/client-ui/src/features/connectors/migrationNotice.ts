@@ -1,5 +1,6 @@
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { openSettings } from '@/features/settings/useOpenSettings'
+import { navigateDesktop } from '@/navigation/desktopNavigation'
 
 /** Long enough to read and act on; it comes back every launch until the move is done. */
 const NOTICE_MS = 15_000
@@ -23,10 +24,6 @@ export async function noticeMcpMigration(): Promise<void> {
       'which Phosphor no longer manages.',
     openLabel: 'Open Connectors',
     durationMs: NOTICE_MS,
-    onOpen: () => {
-      const settings = useSettingsUiStore.getState()
-      settings.setTab('connectors')
-      settings.setOpen(true)
-    },
+    onOpen: () => openSettings((next) => void navigateDesktop(next), 'local', 'connectors'),
   })
 }

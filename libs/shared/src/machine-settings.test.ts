@@ -151,6 +151,35 @@ describe('machine settings boundaries', () => {
     expect(JSON.stringify(result)).not.toContain('PRIVATE_TOKEN')
   })
 
+  it('keeps whether a connector signs in with OAuth or is overridden, and leaves both out when an older Host does', () => {
+    const read = (server: Record<string, unknown>) =>
+      parseMachineSettings({
+        section: 'connectors',
+        revision,
+        connectors: {
+          trusted: true,
+          malformed: false,
+          legacy: false,
+          servers: [
+            {
+              name: 'docs',
+              scope: 'global',
+              transport: 'https',
+              enabled: true,
+              exposure: 'codemode',
+              ...server,
+            },
+          ],
+        },
+      })?.connectors?.servers[0]
+    expect(read({ oauth: false, overridden: true })).toMatchObject({
+      oauth: false,
+      overridden: true,
+    })
+    expect(read({ oauth: 'yes', overridden: false })).not.toHaveProperty('oauth')
+    expect(read({ oauth: 'yes', overridden: false })).not.toHaveProperty('overridden')
+    expect(read({})).not.toHaveProperty('oauth')
+  })
   it('projects reviewed response fields, not secrets or raw configuration', () => {
     const result = parseMachineSettings({
       section: 'connectors',
@@ -186,5 +215,161 @@ describe('machine settings boundaries', () => {
         agent: { contextBudget: '200k', autoNameLanes: true, defaultThinkingLevel: 'invented' },
       }),
     ).toBeNull()
+  })
+
+  it('keeps namingLive only as true, so older Hosts read as needing a restart', () => {
+    const agent = { contextBudget: '200k', autoNameLanes: true }
+    const read = (extra: object) =>
+      parseMachineSettings({ section: 'agent', revision, agent: { ...agent, ...extra } })?.agent
+    expect(read({ namingLive: true })?.namingLive).toBe(true)
+    expect(read({ namingLive: 'yes' })).not.toHaveProperty('namingLive')
+    expect(read({})).not.toHaveProperty('namingLive')
+  })
+})
+
+describe('agent.patch null clears (agentClearSupported)', () => {
+  const agent = (p: unknown, extra = {}) => patch({ type: 'agent.patch', patch: p }, 'agent', extra)
+  it('accepts null for every allowlisted key and nested behavior field', () => {
+    for (const p of [
+      { defaultModel: null, defaultProvider: null, defaultThinkingLevel: null },
+      { hideThinkingBlock: null, steeringMode: null, followUpMode: null },
+      { compaction: null, retry: null },
+      { compaction: { enabled: null, reserveTokens: 1024 }, retry: { maxRetries: null } },
+      { contextBudget: null, autoNameLanes: null, agentDirectives: null },
+    ])
+      expect(agent(p)).toMatchObject({ change: { patch: p } })
+    expect(agent({ steeringMode: null }, { repositoryId })).toBeTruthy()
+  })
+  it('refuses null for unknown keys and fields, and policy keys with a folder', () => {
+    for (const p of [
+      { environment: null },
+      { compaction: { model: null } },
+      { retry: { unknown: null } },
+      { agentDirectives: { awareness: null } },
+    ])
+      expect(agent(p)).toBeNull()
+    for (const p of [{ contextBudget: null }, { autoNameLanes: null }, { agentDirectives: null }])
+      expect(agent(p, { repositoryId })).toBeNull()
+  })
+  it('reads agentClearSupported back, and never nulls into values', () => {
+    const result = parseMachineSettings({
+      section: 'agent',
+      revision,
+      agentClearSupported: true,
+      agent: { contextBudget: '', autoNameLanes: true, hideThinkingBlock: null },
+    })
+    expect(result?.agentClearSupported).toBe(true)
+    expect(result?.agent).not.toHaveProperty('hideThinkingBlock')
+    expect(
+      parseMachineSettings({
+        section: 'agent',
+        revision,
+        agent: { contextBudget: '', autoNameLanes: true },
+      }),
+    ).not.toHaveProperty('agentClearSupported')
+  })
+})
+
+describe('the Host protocol’s MCP write policy', () => {
+  const upsert = (config: unknown, extra = {}) =>
+    patch({ type: 'mcp.upsert', name: 'docs', config, approveCode: true }, 'connectors', extra)
+  it('refuses headers, environment values and OAuth client secrets in folder scope', () => {
+    for (const config of [
+      { url: 'https://d.test/mcp', headers: { Authorization: 'Bearer private' } },
+      { command: 'node', env: { TOKEN: 'private' } },
+      { url: 'https://d.test/mcp', oauth: { clientId: 'id', clientSecret: 'private' } },
+    ]) {
+      expect(upsert(config, { repositoryId })).toBeNull()
+      expect(upsert(config)).toBeTruthy()
+    }
+    expect(
+      upsert({ url: 'https://d.test/mcp', oauth: { clientId: 'id' } }, { repositoryId }),
+    ).toBeTruthy()
+  })
+  it('allows http only on loopback, for servers and OAuth URLs', () => {
+    for (const url of ['http://localhost:1/mcp', 'http://127.0.0.1:1/mcp', 'http://[::1]:1/mcp'])
+      expect(upsert({ url })).toBeTruthy()
+    for (const url of ['http://10.0.0.1/mcp', 'https://u@d.test/mcp', 'ftp://d.test/mcp'])
+      expect(upsert({ url })).toBeNull()
+    expect(
+      upsert({ url: 'https://d.test/mcp', oauth: { callbackUrl: 'http://public.test/cb' } }),
+    ).toBeNull()
+  })
+})
+
+describe('Host Web access (resources.webAccess, webAccess.key)', () => {
+  const key = (change: unknown, extra = {}) => patch(change, 'resources', extra)
+  it('accepts one allowlisted key set to bounded text or null, machine-wide only', () => {
+    for (const value of ['BSA_x', '$BRAVE_API_KEY', null])
+      expect(key({ type: 'webAccess.key', key: 'braveApiKey', value })).toBeTruthy()
+    for (const change of [
+      { type: 'webAccess.key', key: 'searxngUrl', value: 'x' },
+      { type: 'webAccess.key', key: 'braveApiKey', value: '' },
+      { type: 'webAccess.key', key: 'braveApiKey', value: 'a\nb' },
+      { type: 'webAccess.key', key: 'braveApiKey', value: 'x'.repeat(4097) },
+      { type: 'webAccess.key', key: 'braveApiKey' },
+      { type: 'webAccess.key', key: 'braveApiKey', value: 'x', extra: true },
+    ])
+      expect(key(change)).toBeNull()
+    expect(
+      key({ type: 'webAccess.key', key: 'braveApiKey', value: 'x' }, { repositoryId }),
+    ).toBeNull()
+    expect(patch({ type: 'webAccess.key', key: 'braveApiKey', value: 'x' }, 'agent')).toBeNull()
+  })
+  it('reads back key names only, and drops anything else', () => {
+    const result = parseMachineSettings({
+      section: 'resources',
+      revision,
+      resources: {
+        packages: [],
+        webAccess: {
+          configured: ['braveApiKey', 'BSA_PRIVATE_VALUE', 'braveApiKey', 'exaApiKey'],
+          exists: true,
+          malformed: false,
+          braveApiKey: 'BSA_PRIVATE_VALUE',
+        },
+      },
+    })
+    expect(result?.resources?.webAccess).toEqual({
+      configured: ['braveApiKey', 'exaApiKey'],
+      exists: true,
+      malformed: false,
+    })
+    expect(JSON.stringify(result)).not.toContain('PRIVATE')
+    expect(
+      parseMachineSettings({ section: 'resources', revision, resources: { packages: [] } })
+        ?.resources,
+    ).toEqual({ packages: [] })
+  })
+})
+
+describe('Host Advanced pi health (advanced.pi)', () => {
+  const advanced = (extra: Record<string, unknown>) =>
+    parseMachineSettings({
+      section: 'advanced',
+      revision,
+      advanced: {
+        platform: 'linux',
+        hostVersion: '1.0.0',
+        configPath: '/c',
+        piAgentDir: '/a',
+        path: ['/usr/bin'],
+        environment: [],
+        ...extra,
+      },
+    })?.advanced
+  it('projects the optional pi version, location and agent folder', () => {
+    expect(
+      advanced({ pi: { version: '1.2.0', path: '/opt/pi', agentDir: '/a', extra: 1 } })?.pi,
+    ).toEqual({ version: '1.2.0', path: '/opt/pi', agentDir: '/a' })
+    expect(advanced({ pi: { path: '/opt/pi', agentDir: '/a' } })?.pi).toEqual({
+      path: '/opt/pi',
+      agentDir: '/a',
+    })
+  })
+  it('stays readable from older Hosts and drops a bad pi block', () => {
+    expect(advanced({})).toBeTruthy()
+    expect(advanced({})).not.toHaveProperty('pi')
+    expect(advanced({ pi: { path: 42, agentDir: '/a' } })).not.toHaveProperty('pi')
   })
 })

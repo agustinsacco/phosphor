@@ -36,7 +36,9 @@ files ([Host](host.md#machine-features)). A list that is too big or that the Hos
 could not read says so ("Too many files to list: the Host stops at 20,000." or
 "The Host couldn't list this folder."). Changes lists git status and
 shows an inline read-only Monaco diff against HEAD. Binary and oversized files use
-placeholders. The pane refreshes on focused lane summary changes, reconnects and its
+placeholders. Markdown, HTML and SVG files open on Preview with Source one click away,
+in Desktop and the browser, rendered from the text the Host sent (HTML and SVG in
+the artifact sandbox). The pane refreshes on focused lane summary changes, reconnects and its
 Refresh button, never a local filesystem watcher. Dirty buffers are not reloaded.
 During a disconnect their editor stays mounted read-only with a reconnecting
 message. Reconnection keeps the edited text and original revision for conflict
@@ -47,7 +49,8 @@ Editor models and caches are lane-qualified. Switching lanes or machines cancels
 stale reads and clears previews. Machine-level Files browses configured Host
 repositories read-only without opening a lane.
 [Remote surface gaps](future-features.md#remote-surface-gaps) lists unavailable
-operations. Without the capability, the pane shows “Not available on remote lanes yet.”
+operations. Without the capability, the pane shows “This Host does not offer files to this
+device.”, and “Machine not connected. Wait for reconnection.” while the Host is away.
 See [Remote Desktop](remote-desktop.md#remote-read-panes) for routing and bounds.
 
 ## File management

@@ -143,3 +143,36 @@ it('propagates persistence failures and recovers the serialized mutation queue',
   )
   expect(broken.status).not.toHaveBeenCalled()
 })
+
+it('describes a session account with its live hold and the first other account not on hold', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(NOW)
+  const prefs: ClaudeAccountPrefs = {
+    ...structuredClone(DEFAULT_CLAUDE_ACCOUNT_PREFS),
+    mode: 'ordered',
+    accounts: [
+      { ...account('a'), plan: 'max' },
+      account('b'),
+      { id: 'c', label: 'c', credentialDir: null, addedAt: 1 },
+    ],
+    cooldowns: { a: NOW + 60_000, b: NOW + 1, c: NOW - 1 },
+  }
+  const d = domain({ read: () => prefs })
+  expect(await d.service.sessionAccount({ accountId: 'a' })).toEqual({
+    id: 'a',
+    label: 'a',
+    email: 'a@example.test',
+    plan: 'max',
+    total: 3,
+    mode: 'ordered',
+    cooldownUntil: NOW + 60_000,
+    alternative: { id: 'c', label: 'c' },
+  })
+  expect(await d.service.sessionAccount({ accountId: 'c' })).toEqual({
+    id: 'c',
+    label: 'c',
+    total: 3,
+    mode: 'ordered',
+    cooldownUntil: null,
+    alternative: null,
+  })
+})

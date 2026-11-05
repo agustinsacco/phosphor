@@ -1,5 +1,6 @@
 import { useMachinesStore } from '@/stores/machines'
 import { useSessionsStore } from '@/stores/sessions'
+import { localMachineLabel } from '@/lib/localMachine'
 import { useRemoteLanesStore, machineLabel, connectionLabel } from '@/stores/remoteLanes'
 import { Button } from '@/components/form'
 import { useLaneControl } from './useLaneControl'
@@ -14,7 +15,7 @@ export function MachineChip({ sessionId }: { sessionId: string }): React.JSX.Ele
     <span className="text-text-secondary bg-chip inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-sm">
       {target?.kind === 'remote'
         ? `${machineLabel(target.hostId)} · ${connectionLabel(hosts[target.hostId]?.state)}`
-        : 'This Mac'}
+        : localMachineLabel()}
     </span>
   )
 }
@@ -48,7 +49,8 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
           Release control
         </Button>
       )}
-      {control.controlling && (
+      {/* A crashed lane's Resume is the crash banner's, so there is one to press. */}
+      {control.controlling && control.activity !== 'failed' && (
         <Button
           size="xs"
           disabled={busy || stopBlocked !== null}

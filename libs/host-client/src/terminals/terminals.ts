@@ -1,6 +1,7 @@
 import { createMachinePrograms } from './machine-programs'
 import {
   createTerminalEntry,
+  reportExit,
   type TerminalConnection as Connection,
   type TerminalLane,
   type RemoteTerminalEntry as Entry,
@@ -271,7 +272,7 @@ export function createRemoteTerminals(ports: {
           } else ports.emit(windowId, `pty:data:${id}`, `\x1bc${frame.data}`)
           if (e.ended)
             setTimeout(() => {
-              if (valid(e)) ports.emit(windowId, `pty:exit:${id}`, 0)
+              if (valid(e)) reportExit(e, ports.emit, -1)
             }, 0)
           return
         }
@@ -284,10 +285,7 @@ export function createRemoteTerminals(ports: {
         }
         e.cursor = { epoch: frame.epoch, seq: frame.seq }
         if (frame.type === 'terminal.output') ports.emit(windowId, `pty:data:${id}`, frame.data)
-        else if (!e.ended) {
-          e.ended = true
-          ports.emit(windowId, `pty:exit:${id}`, frame.exitCode)
-        }
+        else reportExit(e, ports.emit, frame.exitCode)
       }))
     })
   }
@@ -397,7 +395,7 @@ export function createRemoteTerminals(ports: {
       if (!e.lane.current() || e.epoch !== e.lane.connection.incarnation().runtimeEpoch) {
         e.watch?.close()
         entries.delete(id)
-        ports.emit(e.windowId, `pty:exit:${id}`, 0)
+        reportExit(e, ports.emit, -1)
       } else if (
         e.generation !== e.lane.connection.incarnation().generation ||
         e.lane.connection.snapshot().state !== 'ready'

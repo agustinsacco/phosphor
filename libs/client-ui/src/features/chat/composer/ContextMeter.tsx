@@ -6,7 +6,7 @@ import { PopupMenu } from '@/components/PopupMenu'
 import { RefreshIcon, Spinner } from '@/components/icons'
 import { formatCost, formatTokens } from '@/lib/format'
 import { hasNoPricing } from './pricing'
-import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import {
   CONTEXT_BREAKDOWN_STATUS_KEY,
@@ -26,8 +26,8 @@ import {
 import { HEADROOM_STATUS_KEY, parseHeadroomStatus } from './headroomStatus'
 import { assessBurn, burnSamples } from '@/lib/burnRate'
 import { compactReset, isClaudeCliModel, windowResetLabel } from '@/lib/claudeUsage'
-import { moveTargets } from '@/lib/claudeGateway'
-import { AccountSwitcher } from './AccountSwitcher'
+import { moveTargets, viewCandidate } from '@/lib/claudeGateway'
+import { AccountSwitcher, accountSwitcherSummary } from './AccountSwitcher'
 import type {
   ClaudeSessionAccount,
   ClaudeUsageSnapshotResult,
@@ -46,6 +46,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   const machine = useMachinesStore((s) =>
     target?.kind === 'remote' ? s.machines.find((m) => m.id === target.hostId)?.label : undefined,
   )
+  const openSettings = useOpenSettings()
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
   const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
   const catalogueWindow = useChatStore(
@@ -238,9 +239,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
                     <TooltipButton
                       onClick={() => {
                         setOpen(false)
-                        const settingsUi = useSettingsUiStore.getState()
-                        settingsUi.setTab('advanced')
-                        settingsUi.setOpen(true)
+                        openSettings('local', 'advanced')
                       }}
                       tooltip={{
                         label: 'Add model pricing',
@@ -565,23 +564,19 @@ function AccountRouting({
   const moveSessionToAccount = useSessionsStore((s) => s.moveSessionToAccount)
   const accountId = account?.id
   const load = useCallback(
-    async () => moveTargets((await window.phosphor.invoke('claude:accounts')).views, accountId),
+    async () =>
+      moveTargets(
+        (await window.phosphor.invoke('claude:accounts')).views.map(viewCandidate),
+        accountId,
+      ),
     [accountId],
   )
-  if (!account || account.total < 2) return null
-  const held = account.cooldownUntil !== null
+  const shown = account && accountSwitcherSummary(account)
+  if (!shown) return null
   return (
     <AccountSwitcher
-      warn={held}
-      summary={
-        held
-          ? account.mode === 'specific'
-            ? 'Out of plan allowance, and routing is pinned here — Settings → Claude Code.'
-            : account.alternative
-              ? `Out of plan allowance. New sessions go to ${account.alternative.label}.`
-              : 'Out of plan allowance, and every other account is too.'
-          : `Spending ${account.email ?? account.label} of ${account.total} accounts.`
-      }
+      warn={shown.warn}
+      summary={shown.summary}
       nextId={account.alternative?.id}
       load={load}
       move={async (id) => void (await moveSessionToAccount(sessionId, id))}

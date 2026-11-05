@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { chmod, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { remoteHostFixture, REMOTE_TEST_TIMEOUT } from './fixtures/remote-host'
-import { captures, openMachineSettings } from './fixtures/remote-ui'
+import { captures, openMachineSettings, openSettingsSection } from './fixtures/remote-ui'
 
 test('Host agent behavior edits ordinary umask configuration without touching local defaults', async () => {
   test.setTimeout(Math.max(REMOTE_TEST_TIMEOUT, 90_000))
@@ -23,9 +23,7 @@ test('Host agent behavior edits ordinary umask configuration without touching lo
     await h.signIn()
     const local = await h.page.evaluate(() => window.phosphor.invoke('pi:agentSettings'))
     const settings = await openMachineSettings(h, 'Agent', 'Agent defaults')
-    await settings
-      .getByRole('combobox', { name: 'Enable automatic compaction', exact: true })
-      .selectOption('false')
+    await settings.getByRole('switch', { name: 'Auto-compaction', exact: true }).click()
     await expect
       .poll(async () => JSON.parse(await readFile(file, 'utf8')).compaction.enabled)
       .toBe(false)
@@ -37,22 +35,18 @@ test('Host agent behavior edits ordinary umask configuration without touching lo
     expect((await stat(file)).mode & 0o777).toBe(0o600)
     expect(await h.page.evaluate(() => window.phosphor.invoke('pi:agentSettings'))).toEqual(local)
     await captures(h, test.info(), 'host-agent-behavior-parity')
-    await settings
-      .getByRole('navigation', { name: 'Machine settings', exact: true })
-      .getByRole('button', { name: 'Extensions', exact: true })
-      .click()
+    await openSettingsSection(settings, 'Extensions')
+    await expect(settings.getByRole('heading', { name: 'Recommended', exact: true })).toBeVisible()
+    await expect(settings.getByRole('button', { name: 'Add Subagents', exact: true })).toBeEnabled()
     await expect(
-      settings.getByRole('heading', { name: 'Standard Host extensions', exact: true }),
-    ).toBeVisible()
-    await expect(
-      settings.getByRole('button', { name: 'Install Swarm subagents', exact: true }),
+      settings.getByRole('button', { name: 'Add Web access', exact: true }),
     ).toBeEnabled()
+    // Computer use needs a desktop session: a Host never offers it.
     await expect(
-      settings.getByRole('button', { name: 'Install Web access', exact: true }),
-    ).toBeEnabled()
-    await expect(settings).toContainText('computer use is not installed')
-    await settings.getByRole('button', { name: 'Install Swarm subagents', exact: true }).click()
-    const review = h.page.getByRole('dialog')
+      settings.getByRole('button', { name: 'Add Computer use', exact: true }),
+    ).toHaveCount(0)
+    await settings.getByRole('button', { name: 'Add Subagents', exact: true }).click()
+    const review = h.page.getByRole('dialog').filter({ hasText: 'pi install npm:pi-subagents' })
     await expect(review).toContainText('pi install npm:pi-subagents')
     await review.getByRole('button', { name: 'Cancel', exact: true }).click()
     expect(JSON.parse(await readFile(file, 'utf8')).packages).toBeUndefined()

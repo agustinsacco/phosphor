@@ -38,7 +38,7 @@ export function useLanePullRequest(sessionId: string) {
   useRepoPrRefresh(ready && repoPath ? [repoPath] : [], revision)
   useLaneGitInfo(remote ? undefined : entry?.workspacePath, streaming)
   const pr = branch ? slice.byBranch[branch] : undefined
-  return { repoPath, ready, slice, pr }
+  return { repoPath, ready, slice, pr, branch: branch ?? undefined }
 }
 
 function useLaneGitInfo(cwd: string | undefined, streaming: boolean): void {

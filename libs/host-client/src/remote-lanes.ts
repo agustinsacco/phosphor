@@ -20,7 +20,7 @@ import {
   sendToLane,
   settledReceipt,
 } from './lane-ops'
-import type { HostCapability } from '@phosphor/shared/remote-host'
+import { remoteLaneKey, type HostCapability } from '@phosphor/shared/remote-host'
 import type { WriteLane } from './ports'
 import { HostReadFailure } from './read-features'
 
@@ -227,7 +227,7 @@ export function createRemoteLanes(ports: {
         sessionId: `remote-${identity.randomHex(8)}`,
         target: { kind: 'remote', hostId },
         laneId,
-        workspacePath: `host:${hostId}/lane:${laneId}`,
+        workspacePath: remoteLaneKey(hostId, laneId),
       }
       const handle: Handle = {
         info,

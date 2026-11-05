@@ -71,7 +71,7 @@ vi.mock('@phosphor/session-runtime/pi/resume-provider', () => ({
 }))
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: state.listPackages }))
 vi.mock('../pi/compaction-reset', () => ({ ensureCompactionReset: state.ensureCompactionReset }))
-vi.mock('../pi/print-mode', () => ({ runPrintMode: state.runPrintMode }))
+vi.mock('@phosphor/session-runtime/pi/print-mode', () => ({ runPrintMode: state.runPrintMode }))
 vi.mock('../pi/catalogue', () => ({ catalogueModels: vi.fn().mockResolvedValue([]) }))
 vi.mock('@phosphor/session-runtime/pi/agent-settings', () => ({
   readAgentSettings: vi.fn().mockResolvedValue({ defaultProvider: 'openai-codex' }),
@@ -93,7 +93,6 @@ vi.mock('../store', () => ({
     agentDirectives: { worktreeGuard: false, laneCharter: false, subagentPolicy: true },
   }),
   recordWorkspace: vi.fn(),
-  getLanePrefs: () => ({ nameMinWords: 2, nameMaxWords: 5, nameMaxLength: 60 }),
   // Identity: these fixtures use plain paths with no symlink to resolve, and
   // the real one would hit the filesystem for a directory that is not there.
   realPathOrNull: (path: string) => path,

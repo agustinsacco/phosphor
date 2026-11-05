@@ -1,11 +1,11 @@
 import { normalizeAgentDirectives, type AgentDirectivePrefs } from '@phosphor/shared/models'
-import { settingsFile } from '../settings/files'
+import { settingsFile, HOST_FILE_POLICY } from '@phosphor/session-runtime/pi/settings-file'
 import { validateHostConfig, type HostConfigV1 } from './schema'
 
 /** The config as it is on disk now, or null while it cannot be read or is invalid. */
 function currentConfig(configPath: string): HostConfigV1 | null {
   try {
-    const current = validateHostConfig(settingsFile(configPath).raw)
+    const current = validateHostConfig(settingsFile(configPath, HOST_FILE_POLICY).raw)
     if (current.ok) return current.config
   } catch {
     // Unreadable now (mid-edit, or replaced by something unsafe).
@@ -44,6 +44,19 @@ export function hostContextBudget(
 ): () => string {
   const read = lastValidConfig(configPath, started)
   return () => read().contextBudget ?? ''
+}
+
+/**
+ * Whether new lanes are named automatically, as the config holds it now. Read
+ * at each lane's first prompt, so the switch in Settings applies to the next
+ * lane without a service restart. An unreadable config keeps the last valid value.
+ */
+export function hostAutoNameLanes(
+  configPath: string,
+  started: Pick<HostConfigV1, 'autoNameLanes'>,
+): () => boolean {
+  const read = lastValidConfig(configPath, started)
+  return () => read().autoNameLanes !== false
 }
 
 /** The runtime's per-lane readers of the Host config's policy. */

@@ -15,7 +15,8 @@ import { parseSkillFrontmatter, setSkillDraftFlag } from '@shared/skills'
 import { SKILL_CATALOG, type SkillCatalogLibrary } from '@shared/skillsCatalog'
 import { useSkillsStore } from '@/stores/skills'
 import { promptChoice } from '@/stores/prompt'
-import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
 import { PaneTitle } from '@/components/PaneShell'
@@ -112,10 +113,11 @@ const SkillsInventory = memo(function SkillsInventory({
   catalogue: ReactNode
 }): React.JSX.Element {
   const remote = workspacePath.startsWith('host:')
-  const available = useRemoteLanesStore((s) => {
-    const host = s.hosts[workspacePath.slice(5).split('/')[0] ?? '']
-    return host?.state === 'ready' && host.capabilities.includes('skills.read')
-  })
+  const refusal = useRemoteLanesStore((s) =>
+    remote
+      ? hostFeatureRefusal(s.hosts[workspacePath.slice(5).split('/')[0] ?? ''], 'skills.read')
+      : undefined,
+  )
   const result = useSkillsStore((s) => s.byWorkspace[workspacePath])
   const loading = useSkillsStore((s) => s.loading[workspacePath] ?? false)
   const error = useSkillsStore((s) => s.error[workspacePath])
@@ -160,8 +162,8 @@ const SkillsInventory = memo(function SkillsInventory({
     >
       <PageBody layout="fill">
         {catalogue}
-        {remote && !available ? (
-          <p className="p-4">{REMOTE_UNAVAILABLE}</p>
+        {refusal ? (
+          <p className="p-4">{refusal}</p>
         ) : selected ? (
           <SkillDetail
             key={`${workspacePath}:${selected.dir}`}

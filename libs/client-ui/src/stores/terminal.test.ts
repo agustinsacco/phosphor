@@ -7,8 +7,16 @@ vi.stubGlobal('window', {
 
 // sessions/layout stores pull in window.phosphor at import in some paths; the
 // stub above must exist before the store module loads.
-const { useTerminalStore, sessionTerminals, runningCount, runInTerminal, ensureTerminalTab } =
-  await import('./terminal')
+const {
+  useTerminalStore,
+  sessionTerminals,
+  runningCount,
+  runInTerminal,
+  ensureTerminalTab,
+  terminalAccess,
+} = await import('./terminal')
+const { useRemoteLanesStore } = await import('./remoteLanes')
+const { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
 const { useSessionsStore } = await import('./sessions')
 const { useLayoutStore } = await import('./layout')
 
@@ -183,5 +191,43 @@ describe('terminal store — spawn failures', () => {
     const ptyId = sessionTerminals(useTerminalStore.getState(), 'session-a').tabs[0]!.ptyId
     await useTerminalStore.getState().closeTab('session-a', ptyId)
     expect(sessionTerminals(useTerminalStore.getState(), 'session-a').error).toBeNull()
+  })
+})
+
+describe('terminalAccess', () => {
+  const id = mockRemoteInfo.sessionId
+  const host = mockRemoteHosts[MOCK_HOST_ID]!
+  function hostWith(
+    state: 'ready' | 'reconnecting',
+    capabilities: (typeof host.capabilities)[number][],
+    self: boolean,
+  ) {
+    const lanes = host.lanes.map((lane) => ({
+      ...lane,
+      control: { ...lane.control, controller: { label: 'Desktop', connected: true, self } },
+    }))
+    return { [MOCK_HOST_ID]: { ...host, state, capabilities, lanes } }
+  }
+  beforeEach(() => {
+    useSessionsStore.setState({ live: { [id]: { ...mockRemoteInfo, phosphorId: id } } })
+  })
+
+  it('gives This Mac control', () => {
+    expect(terminalAccess('session-a')).toBe('control')
+  })
+
+  it.each([
+    ['ready, offered and held', 'ready', ['sessions.control', 'terminal'], true, 'control'],
+    ['ready, offered, not held', 'ready', ['sessions.control', 'terminal'], false, 'viewer'],
+    ['ready without terminals', 'ready', ['sessions.control'], true, 'unavailable'],
+    ['not ready', 'reconnecting', ['sessions.control', 'terminal'], true, 'unavailable'],
+  ] as const)('a Host lane %s', (_, state, capabilities, self, access) => {
+    useRemoteLanesStore.setState({ hosts: hostWith(state, [...capabilities], self) })
+    expect(terminalAccess(id)).toBe(access)
+  })
+
+  it('makes a lane on an unknown Host unavailable', () => {
+    useRemoteLanesStore.setState({ hosts: {} })
+    expect(terminalAccess(id)).toBe('unavailable')
   })
 })

@@ -9,6 +9,10 @@ import { useArtifactsStore } from '@/stores/artifacts'
 import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { useLayoutStore } from '@/stores/layout'
+import { useRemoteFileSelection } from '@/features/files/remoteFileSelection'
+import { suggestedFileName } from './artifactKinds'
+import type { HostCapability } from '@shared/remote-host'
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -81,35 +85,126 @@ it.each(['repo-a', 'repo-b'])(
   },
 )
 
-it('remote artifact workspace write is disabled, while downloads are explicitly on This Mac', async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  const invoke = vi.fn().mockResolvedValue(null)
-  vi.stubGlobal('phosphor', { invoke })
-  const id = mockRemoteInfo.sessionId
-  useArtifactsStore.setState({ bySession: {}, selected: {}, selectedVersion: {} })
-  useArtifactsStore
-    .getState()
-    .addLocal(id, { title: 'Remote artifact', type: 'markdown', content: 'Remote document' })
-  const container = document.createElement('div')
-  document.body.append(container)
-  const root = createRoot(container)
-  try {
-    await act(async () =>
-      root.render(<ArtifactsPane sessionId={id} workspacePath={mockRemoteInfo.workspacePath} />),
-    )
-    const unavailable = container.querySelector<HTMLButtonElement>(
-      '[data-tooltip="Not available on remote lanes yet."]',
-    )
-    expect(unavailable?.disabled).toBe(true)
-    expect(container.querySelector('[data-tooltip="Save source to This Mac…"]')).not.toBeNull()
-    await act(async () => unavailable?.click())
-    expect(invoke).not.toHaveBeenCalled()
-  } finally {
-    act(() => root.unmount())
-    container.remove()
-    vi.unstubAllGlobals()
+const ALL_WRITE: HostCapability[] = [
+  'sessions.read',
+  'sessions.control',
+  'workspaces.read',
+  'workspaces.write',
+  'artifacts.read',
+]
+
+/** The mock Host with these capabilities, its lane held by this client or another one. */
+function laneHost(capabilities: HostCapability[], held: boolean) {
+  const host = mockRemoteHosts[MOCK_HOST_ID]!
+  return {
+    ...host,
+    capabilities,
+    lanes: host.lanes.map((lane) => ({
+      ...lane,
+      control: {
+        ...lane.control,
+        controller: {
+          label: held ? 'This Desktop' : 'Another Desktop',
+          connected: true,
+          self: held,
+        },
+      },
+    })),
   }
-})
+}
+
+it.each([
+  ['a viewer', ALL_WRITE, false, 'Take control first.'],
+  [
+    'a Host without file editing',
+    ALL_WRITE.filter((c) => c !== 'workspaces.write'),
+    true,
+    'This Host does not offer file editing to this device.',
+  ],
+])(
+  'remote artifact write is disabled for %s, with the reason the Host Files pane would refuse it',
+  async (_, capabilities, held, reason) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const id = mockRemoteInfo.sessionId
+    const invoke = vi.fn().mockResolvedValue(null)
+    vi.stubGlobal('phosphor', { invoke })
+    useSessionsStore.setState({ live: { [id]: { ...mockRemoteInfo, phosphorId: id } } })
+    useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: laneHost(capabilities, held) } })
+    useArtifactsStore.setState({ bySession: {}, selected: {}, selectedVersion: {} })
+    useArtifactsStore
+      .getState()
+      .addLocal(id, { title: 'Remote artifact', type: 'markdown', content: 'Remote document' })
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    try {
+      await act(async () =>
+        root.render(<ArtifactsPane sessionId={id} workspacePath={mockRemoteInfo.workspacePath} />),
+      )
+      const write = container.querySelector<HTMLButtonElement>(`[data-tooltip="${reason}"]`)
+      expect(write?.disabled).toBe(true)
+      await act(async () => write?.click())
+      expect(invoke.mock.calls.map(([channel]) => channel)).not.toContain('fs:writeFile')
+    } finally {
+      act(() => root.unmount())
+      container.remove()
+      useRemoteLanesStore.setState({ hosts: {} })
+      vi.unstubAllGlobals()
+    }
+  },
+)
+
+it.each([
+  ['a new file', null],
+  ['an existing file at its read revision', 'a'.repeat(64)],
+])(
+  'remote artifact writes %s into the Host lane and opens it there; downloads name the local machine',
+  async (_, revision) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const id = mockRemoteInfo.sessionId
+    let written = false
+    const invoke = vi.fn(async (channel: string) => {
+      if (channel === 'fs:writeFile') written = true
+      if (channel !== 'fs:readFile') return { mtimeMs: 1, revision: 'b'.repeat(64) }
+      if (!written && revision === null) throw new Error('missing')
+      return { content: 'old', binary: false, size: 3, revision: revision ?? 'b'.repeat(64) }
+    })
+    vi.stubGlobal('phosphor', { invoke })
+    useSessionsStore.setState({ live: { [id]: { ...mockRemoteInfo, phosphorId: id } } })
+    useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: laneHost(ALL_WRITE, true) } })
+    useArtifactsStore.setState({ bySession: {}, selected: {}, selectedVersion: {} })
+    useArtifactsStore
+      .getState()
+      .addLocal(id, { title: 'Remote artifact', type: 'markdown', content: 'Remote document' })
+    const name = suggestedFileName(Object.values(useArtifactsStore.getState().bySession[id]!)[0]!)
+    const target = `${mockRemoteInfo.workspacePath}/${name}`
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    try {
+      await act(async () =>
+        root.render(<ArtifactsPane sessionId={id} workspacePath={mockRemoteInfo.workspacePath} />),
+      )
+      expect(
+        container.querySelector('[data-tooltip="Save source to This computer…"]'),
+      ).not.toBeNull()
+      const write = container.querySelector<HTMLButtonElement>(
+        '[data-tooltip="Write into workspace and open in Files"]',
+      )
+      expect(write?.disabled).toBe(false)
+      await act(async () => write?.click())
+      expect(invoke).toHaveBeenCalledWith('fs:writeFile', target, 'Remote document', revision)
+      expect(useRemoteFileSelection.getState().bySession[id]?.path).toBe(name)
+      expect(useLayoutStore.getState().bySession[id]?.pane).toBe('files')
+    } finally {
+      act(() => root.unmount())
+      container.remove()
+      useRemoteLanesStore.setState({ hosts: {} })
+      useRemoteFileSelection.setState({ bySession: {}, blocked: {} })
+      vi.unstubAllGlobals()
+    }
+  },
+)
 
 it('copies a reference the agent can read, once pi has named the session', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)

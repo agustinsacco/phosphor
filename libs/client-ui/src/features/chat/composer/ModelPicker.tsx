@@ -11,7 +11,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { ModelMenu } from './ModelMenu'
 import { ThinkingMenu, thinkingLabel } from './ThinkingMenu'
 import { ModelChip, ModelChipSkeleton, ThinkingChip } from './ModelChip'
-import { useHostModelUnavailability } from '@/features/machines/useHostModelUnavailability'
+import { useHostModelUnavailability } from '@/features/settings/machine/useHostModelUnavailability'
 
 /**
  * Model + thinking-level pickers in the composer footer.

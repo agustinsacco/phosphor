@@ -1,9 +1,13 @@
-import { expect, type TestInfo } from '@playwright/test'
+import { expect, type Locator, type TestInfo } from '@playwright/test'
 import type { remoteHostFixture } from './remote-host'
 
 export type RemoteFixture = Awaited<ReturnType<typeof remoteHostFixture>>
 
-/** Opens a Host section from the Machines page by its nav label; `heading` is what its panel shows. */
+/**
+ * Opens bee1's Settings from its Machines page entry, enables configuration
+ * access when needed and opens `section`; `heading` is what its panel shows.
+ * Returns the Settings dialog.
+ */
 export async function openMachineSettings(
   h: RemoteFixture,
   section = 'Accounts',
@@ -22,7 +26,8 @@ export async function openMachineSettings(
   if (await h.page.getByTestId('enrolled-machine-row').count())
     await h.page.getByTestId('enrolled-machine-row').click()
   await h.page.getByRole('button', { name: 'Machine settings', exact: true }).click()
-  const settings = h.page.getByTestId('machine-settings')
+  const settings = h.page.getByRole('dialog', { name: 'Settings', exact: true })
+  await expect(settings.getByTestId('settings-machine-scope')).toContainText('Configuring bee1')
   await expect
     .poll(
       async () =>
@@ -34,20 +39,21 @@ export async function openMachineSettings(
     await settings.getByRole('button', { name: 'Enable configuration access', exact: true }).click()
     await h.page.getByRole('button', { name: 'Enable for bee1', exact: true }).click()
   }
-  await settings
-    .getByRole('navigation', { name: 'Machine settings', exact: true })
-    .getByRole('button', { name: 'Accounts', exact: true })
-    .click()
+  await openSettingsSection(settings, 'Accounts')
   await expect(settings.getByRole('heading', { name: 'Accounts', exact: true })).toBeVisible({
     timeout: 30_000,
   })
-  if (section !== 'Accounts')
-    await settings
-      .getByRole('navigation', { name: 'Machine settings', exact: true })
-      .getByRole('button', { name: section, exact: true })
-      .click()
+  if (section !== 'Accounts') await openSettingsSection(settings, section)
   await expect(settings.getByRole('heading', { name: heading, exact: true })).toBeVisible()
   return settings
+}
+
+/** One section from the Settings navigation. */
+export async function openSettingsSection(settings: Locator, name: string) {
+  await settings
+    .getByRole('navigation', { name: 'Settings sections', exact: true })
+    .getByRole('button', { name, exact: true })
+    .click()
 }
 
 export async function openRemote(h: RemoteFixture, title = 'Remote test lane') {

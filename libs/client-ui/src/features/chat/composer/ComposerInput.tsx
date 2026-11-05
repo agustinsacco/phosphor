@@ -141,7 +141,13 @@ export function ComposerInput({
           }
         />
         {children}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pb-2">
+        {/* One row while it fits: the model name truncates first. Only when the
+            right group's floor (see .composer-toolbar-end) does not fit does it
+            drop to its own line, whole, so no control is ever crushed. */}
+        <div
+          className="composer-toolbar flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pb-2"
+          data-testid="composer-toolbar"
+        >
           <div className="flex shrink-0 items-center gap-0.5">
             {canAttach && <AttachButton onFiles={attachments.addFiles} />}
             {platform.localLanes && (
@@ -159,7 +165,7 @@ export function ComposerInput({
               ))}
             {scopeStatus}
           </div>
-          <div className="ml-auto flex min-w-0 items-center gap-1.5">
+          <div className="composer-toolbar-end flex items-center justify-end gap-1.5">
             {modelPicker}
             {actions}
           </div>

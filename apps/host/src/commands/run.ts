@@ -1,5 +1,5 @@
 import { createRepositories } from '../features/repositories'
-import { createLaneDeletion, transcriptTrash } from '../lanes/delete'
+import { transcriptTrash } from '../lanes/delete'
 import type { HostClaudeAccounts } from '../providers/accounts'
 import {
   createRunAccounts,
@@ -53,7 +53,7 @@ import { createHostLog, hostLogDirectory } from '../machine/log'
 import { createHostRuntime, type HostRuntime } from '../session/runtime'
 import { hostLivePolicy } from '../config/live-policy'
 import { createHostLiveLanes } from '../lanes/live-host'
-import { createLaneNamer } from '../lanes/naming'
+import { createLaneNamer, hostLaneNaming } from '../lanes/naming'
 import { createRuntimeLanes } from '../lanes/runtime-host'
 import { createLaneCommands } from '../lanes/commands'
 import { createLaneCalls } from '../lanes/calls'
@@ -298,7 +298,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           changed: () => activeTopic.routinesChanged(),
           now: context.now,
         })
-        nameLane = config.config.autoNameLanes === false ? undefined : createLaneNamer(machine)
+        nameLane = createLaneNamer(machine, hostLaneNaming(config, runtime, claudeAccounts))
         const binding = createRuntimeLanes({
           runtime,
           store,
@@ -354,12 +354,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           moveClaudeAccount: administration.moveClaudeAccount,
           repositories,
           machineTasks: administration.machineTasks,
-          deleteLane: createLaneDeletion({
-            store,
-            stop: binding.deleteStop,
-            remove: runtime.remove,
-            forget: live.forget,
-          }),
+          deleteLane: administration.deleteLane,
           providerLogins: administration.providerLogins,
           attachments,
           terminals,

@@ -987,6 +987,8 @@ export function installMockPhosphor(): void {
             version: MIN_PI_VERSION,
             binaryPath: '/mock/pi',
             minVersion: MIN_PI_VERSION,
+            path: ['/Users/dev/.local/bin', '/opt/homebrew/bin', '/usr/bin', '/bin'],
+            agentDir: '/Users/dev/.pi/agent',
           })
         case 'app:getPrefs':
           return Promise.resolve({
@@ -1617,7 +1619,7 @@ export function installMockPhosphor(): void {
             path: '/Users/dev/.pi/web-search.json',
             exists: true,
             malformed: false,
-            config: { braveApiKey: 'BSA_mock', tavilyApiKey: '$TAVILY_API_KEY' },
+            configured: ['braveApiKey', 'tavilyApiKey'],
           })
         case 'pi:patchWebSearchConfig':
           return Promise.resolve(undefined)

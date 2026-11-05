@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import clsx from 'clsx'
+import { Select } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import type { SettingsSection } from './settingsIndex'
 import type { SettingsMachineChoice } from './SettingsMachineScope'
@@ -58,19 +59,14 @@ export function SettingsNav({
           >
             Configure
           </span>
-          <select
-            aria-label="Configure"
+          <Select
+            label="Configure"
             value={machine.id}
+            options={choices.map((choice) => ({ value: choice.id, label: choice.label }))}
             disabled={choices.length < 2}
-            onChange={(event) => onMachine(event.target.value)}
-            className="border-border bg-surface text-text min-w-0 max-w-40 flex-1 rounded-md border px-1.5 py-1 text-base"
-          >
-            {choices.map((choice) => (
-              <option key={choice.id} value={choice.id}>
-                {choice.label}
-              </option>
-            ))}
-          </select>
+            onChange={onMachine}
+            className="min-w-0 max-w-40 flex-1 rounded-md px-1.5 py-1"
+          />
         </div>
       )}
       {machineSections.map((section) => (

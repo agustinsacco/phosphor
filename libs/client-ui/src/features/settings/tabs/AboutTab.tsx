@@ -1,40 +1,16 @@
 import { TooltipSummary } from '@/components/Tooltip'
-import { Button, Row, SectionTitle } from '@/components/form'
+import { Row, SectionTitle } from '@/components/form'
 import { PhosphorLockup } from '@/components/PhosphorMark'
-import type { AboutInfo } from '@shared/models'
-import { piInstallLocation, type PiHealth, type UpdateState } from '@shared/models'
+import { piInstallLocation, type PiHealth } from '@shared/models'
 import { useEffect, useState } from 'react'
 import { usePlatform } from '@/platform/Platform'
-import { useUpdatesStore } from '@/features/updates/updatesStore'
+import { MachineUpdateRow, useAppUpdate } from '../sections/advanced/MachineRuntimeRows'
+import { useAboutInfo } from '../sections/advanced/useLocalAdvanced'
 import { VERIFIED_PI_LINE, isPiNewerThanVerified } from '@/lib/piDrift'
 import interLicense from '@/assets/fonts/Inter-OFL.txt?raw'
 import monoLicense from '@/assets/fonts/JetBrainsMono-OFL.txt?raw'
 
 /** App and runtime versions, an update check, and a pi version-drift warning. */
-
-/**
- * The update pill only appears once there is something to act on, so until
- * this row existed there was no way to ask "am I current?" — and no caller for
- * `updates:check` at all, on any surface.
- */
-function updateSummary(update: UpdateState): string {
-  switch (update.phase) {
-    case 'checking':
-      return 'Checking…'
-    case 'downloading':
-      return `Downloading ${update.version ?? ''} ${update.progressPercent ?? 0}%`.trim()
-    case 'installing':
-      return `Installing ${update.version ?? ''}`.trim()
-    case 'downloaded':
-      return `${update.version} ready — restart to apply`
-    case 'manual-download':
-      return `${update.version} available — install by hand`
-    case 'unsupported':
-      return 'Not available in this build'
-    default:
-      return 'Up to date'
-  }
-}
 
 export function AboutTab(): React.JSX.Element {
   const { appInfo } = usePlatform()
@@ -67,49 +43,24 @@ export function AboutTab(): React.JSX.Element {
 
 /** Versions, update checks and pi drift, read from the native app. */
 function AppInfoRows(): React.JSX.Element {
-  const [about, setAbout] = useState<AboutInfo | null>(null)
+  const read = useAboutInfo(true)
+  const about = read === 'unknown' ? null : read
+  const pending = read === 'unknown' ? 'unknown' : '…'
   const [health, setHealth] = useState<PiHealth | null>(null)
-  const update = useUpdatesStore((s) => s.update)
+  const update = useAppUpdate()
 
   useEffect(() => {
-    void window.phosphor.invoke('app:about').then(setAbout)
     void window.phosphor.invoke('pi:health').then(setHealth)
   }, [])
-
-  // The pill owns the subscription while it is mounted, but it unmounts
-  // whenever there is nothing to show — which is exactly when this tab is most
-  // likely to be open.
-  useEffect(() => useUpdatesStore.getState().subscribe(), [])
-
-  const busy = update.phase === 'checking' || update.phase === 'downloading'
-  const actionable = update.phase === 'downloaded' || update.phase === 'manual-download'
 
   const drift = isPiNewerThanVerified(health?.version)
 
   return (
     <>
       <Row title="Phosphor version">
-        <span className="font-mono text-base">{about?.appVersion ?? '…'}</span>
+        <span className="font-mono text-base">{about?.appVersion ?? pending}</span>
       </Row>
-      <Row title="Updates" description={updateSummary(update)}>
-        {actionable ? (
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => void useUpdatesStore.getState().restartAndInstall()}
-          >
-            {update.phase === 'downloaded' ? 'Restart to update' : 'Download'}
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            disabled={busy || update.phase === 'unsupported'}
-            onClick={() => void useUpdatesStore.getState().check()}
-          >
-            Check now
-          </Button>
-        )}
-      </Row>
+      <MachineUpdateRow title="Updates" update={update} />
       <Row title="pi version" description={health ? piInstallLocation(health) : undefined}>
         <span className="font-mono text-base">
           {health?.version ?? (health ? 'not found' : '…')}
@@ -117,12 +68,12 @@ function AppInfoRows(): React.JSX.Element {
       </Row>
       <Row title="Platform">
         <span className="font-mono text-base">
-          {about ? `${about.platform}-${about.arch}` : '…'}
+          {about ? `${about.platform}-${about.arch}` : pending}
         </span>
       </Row>
       <Row title="Runtime">
         <span className="font-mono text-base">
-          {about ? `Electron ${about.electron} · Node ${about.node}` : '…'}
+          {about ? `Electron ${about.electron} · Node ${about.node}` : pending}
         </span>
       </Row>
 

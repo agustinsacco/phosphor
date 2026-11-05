@@ -14,7 +14,7 @@ useRemoteLanesStore.subscribe((state, previous) => {
   }
 })
 
-/** Repository-wide reads: never one gh subprocess per lane or a local filesystem path. */
+/** Repository-scoped batches: never per-lane subprocesses or caller filesystem paths. */
 export function useRemotePullRequests(
   hostId: string,
   repositoryId: string,

@@ -103,8 +103,6 @@ it.each([true, false])(
         'Switch workspace',
         'Open session:',
         'Rewind',
-        'Open skills page',
-        'Open artifacts page',
       ]) {
         await query(label)
         expect(document.body.textContent).toContain('No matching commands')
@@ -115,6 +113,8 @@ it.each([true, false])(
           ? ['Toggle terminal', 'Toggle files', 'Toggle changes']
           : ['Toggle sidebar']),
         'New session',
+        'Open skills page',
+        'Open artifacts page',
       ]) {
         await query(label)
         expect(document.body.textContent).toContain(label)
@@ -204,6 +204,30 @@ it('does not build closed actions or rerender for unrelated session state', asyn
     act(() => root.unmount())
     usePaletteStore.setState({ open: false })
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  }
+})
+
+it.each([
+  ['/mac', true],
+  ['', false],
+])('lists Go to file only with a folder open (folder: "%s")', async (workspacePath, listed) => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  Element.prototype.scrollIntoView = vi.fn()
+  Object.assign(window, { phosphor: { invoke: vi.fn().mockResolvedValue([]) } })
+  useSessionsStore.setState({ activeSessionId: null })
+  useRemoteLanesStore.setState({ filter: 'local' })
+  usePaletteStore.setState({ open: true })
+  const container = document.createElement('div'),
+    root = createRoot(container)
+  document.body.append(container)
+  try {
+    await act(async () => root.render(<CommandPalette workspacePath={workspacePath} />))
+    expect(document.body.textContent?.includes('Go to file…')).toBe(listed)
+  } finally {
+    act(() => root.unmount())
+    container.remove()
+    usePaletteStore.setState({ open: false })
     vi.unstubAllGlobals()
   }
 })

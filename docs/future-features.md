@@ -12,11 +12,10 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 
 | Surface         | Missing capability                                                                                                                                 |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chat and lanes  | Fork, clone, rewind/tree editing, the Session tree, Make routine, local rules/MCP controls, worktree Merge into main                               |
-| Files           | Content search, rich previews/quick look, external imports, open-in-app, per-file Revert in Changes, and a truncation flag on Host file lists      |
+| Chat and lanes  | Fork, clone, rewind/tree editing, the Session tree, local rules/MCP controls, worktree Merge into main                                             |
+| Files           | Content search, media/PDF previews, quick look, external imports, open-in-app, per-file Revert in Changes, Host file-list truncation flags         |
 | Skills          | Catalogue install, upload, export to a file, discovery and in-place edits                                                                          |
 | Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync |
-| Artifacts       | Revision-aware writes from an artifact into a remote workspace                                                                                     |
 | Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                               |
 | Clients         | Web Push to a closed browser or installed PWA                                                                                                      |
 | Portability     | Cross-machine lane migration, primitive copy/sync and sharing Desktop's local runtime                                                              |
@@ -112,7 +111,7 @@ transfer and a common machine engine must back these operations:
   contain secrets. Copy or sync must review individual entries and strip secrets
   by default. OAuth remains pi's (`pi mcp login`); credentials will not sync blindly.
 - Provider logins stay on the target. `apps/host/src/commands/provider-login.ts`
-  owns Host-side login, including the private terminal in Machines Readiness.
+  owns Host-side login, including the private terminal Settings → Accounts opens.
   Credentials never participate in copy or sync.
 
 **Open questions.** Later sync needs per-primitive identities, revisions and
@@ -221,7 +220,7 @@ question uses, and show the decision it replaces. After the migration, offer
 to delete the adapter's credential-store entries for the servers that moved.
 
 **Touches.** `apps/desktop/electron/pi/mcp-config.ts` (`projectTrust` reads the
-same store), `features/settings/tabs/ConnectorsTab.tsx`,
+same store), `features/settings/sections/connectors/useLocalConnectors.ts`,
 `features/connectors/MigrationCard.tsx`, and a main-side credential-store
 helper.
 
@@ -232,3 +231,60 @@ across versions.
 **Risks.** Trust lets a repository's config start local commands, so it must
 stay an explicit, per-folder choice. Deleting the wrong keychain entry signs a
 person out of something else.
+
+## Host MCP connector extras
+
+**Problem.** A Host's MCP Connectors share This Mac's view but not all of its
+controls. They have no per-server test or tool names, no exposure or per-tool
+rules, no edit in place, and no lane status (`caps.inspect` and `caps.edit` are
+off for a Host, `useHostConnectors.ts`). A Host check is the reviewed aggregate
+`pi mcp list --json`, and changing an entry means removing and adding it again.
+
+**Proposed design.** Additive, granted settings contracts, one per feature:
+`hosts:settingsCheck` with a server `name` and tool names in the result; an
+`mcp.exposure` change carrying exposure and per-tool rules; `mcp.upsert` with
+`replace: true`, which asks to approve a command connector's code again. Each
+turns its capability on for Hosts that advertise it, and older Hosts keep
+today's controls.
+
+**Touches.** `libs/shared/src/machine-settings*.ts`, `apps/host/src/settings/`
+(`connector-settings.ts`, `connector-check.ts`), `libs/shared/src/ipc/` hosts map,
+`libs/host-client/src/settings.ts`, and the Host adapter.
+
+**Open questions.** Whether a per-server check may start only that server's
+command, and how long a lane reconnect may hold a Host lane.
+
+**Risks.** Every extra check or replace is another way for a grant holder to
+start code as the Host user, so each stays an explicit, reviewed step.
+
+## Host Claude Code: versions and Test provider
+
+A Host's Claude Code page shows whether the provider and the CLI are installed,
+and installs them as reviewed tasks. It does not yet show their versions, offer
+in-place updates, or run the one-click **Test provider** proof that This Mac
+runs. Each needs an additive Host contract: an optional
+`providers.claudeVersions` sibling (never new keys in `MachineClaude`, which old
+clients parse strictly), and a `claude.test` machine task gated on a Host
+capability. Until then a Host's source carries no `proof` and no version
+fields, so the page hides them.
+
+## Host package updates and version checks
+
+**Problem.** A Host's Extensions section installs, updates and removes one
+package at a time as reviewed tasks, but it has no **Update all** and no
+registry version check (`caps.updateAll` and `caps.versionCheck` are false in
+`useHostPackages.ts`). Update is offered on every installed package, because
+the client cannot tell whether a newer version exists.
+
+**Proposed design.** Two additive pieces, each behind a Host capability:
+a `package.updateAll` machine task that runs `pi update --extensions` as one
+reviewed task, and an optional `latest` version field on Host package rows,
+filled from a registry lookup that never blocks the listing. Older Hosts keep
+today's per-package controls.
+
+**Touches.** `libs/shared/src/machine-settings*.ts`, `apps/host/src/settings/`
+(the resources snapshot and package tasks), `libs/host-client/src/settings.ts`,
+and `useHostPackages.ts`.
+
+**Risks.** Update all starts code from every package source at once, so it
+stays one explicit, reviewed task, never a background refresh.

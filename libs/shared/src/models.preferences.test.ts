@@ -18,9 +18,6 @@ const expectedDefaults = {
   lanes: {
     markers: 'auto',
     autoName: true,
-    nameMinWords: 2,
-    nameMaxWords: 5,
-    nameMaxLength: 60,
     branchSlugMaxLength: 40,
     prStatus: true,
   },
@@ -123,52 +120,21 @@ describe('models public preferences', () => {
     expect(models.normalizeLanePrefs(undefined)).not.toBe(models.DEFAULT_LANE_PREFS)
   })
 
-  it('rounds and bounds lane numbers, then raises maximum words to minimum', () => {
-    expect(
-      models.normalizeLanePrefs({
-        nameMinWords: 6.5,
-        nameMaxWords: 2.49,
-        nameMaxLength: 15.5,
-        branchSlugMaxLength: 100,
-      }),
-    ).toEqual({
+  it('rounds and bounds the branch slug length', () => {
+    expect(models.normalizeLanePrefs({ branchSlugMaxLength: 100 })).toEqual({
       markers: 'auto',
       autoName: true,
-      nameMinWords: 7,
-      nameMaxWords: 7,
-      nameMaxLength: 16,
       branchSlugMaxLength: 80,
       prStatus: true,
     })
-    expect(
-      models.normalizeLanePrefs({
-        nameMinWords: -100,
-        nameMaxWords: 100,
-        nameMaxLength: 121,
-        branchSlugMaxLength: 0,
-      }),
-    ).toEqual({
-      markers: 'auto',
-      autoName: true,
-      nameMinWords: 1,
-      nameMaxWords: 12,
-      nameMaxLength: 120,
-      branchSlugMaxLength: 12,
-      prStatus: true,
-    })
+    expect(models.normalizeLanePrefs({ branchSlugMaxLength: 0 }).branchSlugMaxLength).toBe(12)
   })
 
-  it('falls back independently on nonfinite and nonnumeric lane values', () => {
-    const input = {
-      nameMinWords: NaN,
-      nameMaxWords: Infinity,
-      nameMaxLength: '55',
-      branchSlugMaxLength: null,
-    }
+  it('falls back on a nonnumeric branch slug length', () => {
+    const input = { branchSlugMaxLength: null }
     expect(models.normalizeLanePrefs(input as unknown as Partial<models.LanePrefs>)).toEqual(
       models.DEFAULT_LANE_PREFS,
     )
-    expect(models.normalizeLanePrefs({ nameMinWords: 12, nameMaxWords: NaN }).nameMaxWords).toBe(12)
   })
 
   it.each([
@@ -190,7 +156,7 @@ describe('models public preferences', () => {
   )
 
   it('never mutates the input or exported lane default', () => {
-    const input = Object.freeze({ markers: 'manual' as const, nameMinWords: 8, nameMaxWords: 1 })
+    const input = Object.freeze({ markers: 'manual' as const, branchSlugMaxLength: 8 })
     const before = structuredClone(input)
     const defaultBefore = structuredClone(models.DEFAULT_LANE_PREFS)
     models.normalizeLanePrefs(input)

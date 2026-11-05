@@ -6,6 +6,7 @@ import type {
   PullResult,
   UpdateFromMainResult,
   WorktreeInfo,
+  WorktreePrefs,
 } from '@shared/models'
 import { DEFAULT_WORKTREE_PREFS } from '@shared/models'
 import { keyedSlice } from './keyedSlice'
@@ -50,6 +51,8 @@ interface WorktreesState {
   branchPrefix: string
   /** Load the persisted worktree preferences. Called once at app boot. */
   hydratePrefs: () => Promise<void>
+  /** Take the worktree preferences from a prefs payload already read. */
+  applyPrefs: (prefs: WorktreePrefs) => void
   setPreferWorktree: (value: boolean) => void
   setBranchPrefix: (value: string) => void
   refresh: (repoPath: string) => Promise<void>
@@ -99,9 +102,9 @@ export const useWorktreesStore = create<WorktreesState>((set, get) => ({
   branchPrefix: DEFAULT_WORKTREE_PREFS.branchPrefix,
 
   hydratePrefs: async () => {
-    const { worktrees } = await window.phosphor.invoke('app:getPrefs')
-    set({ preferWorktree: worktrees.auto, branchPrefix: worktrees.branchPrefix })
+    get().applyPrefs((await window.phosphor.invoke('app:getPrefs')).worktrees)
   },
+  applyPrefs: (prefs) => set({ preferWorktree: prefs.auto, branchPrefix: prefs.branchPrefix }),
 
   setPreferWorktree: (value) => {
     set({ preferWorktree: value })

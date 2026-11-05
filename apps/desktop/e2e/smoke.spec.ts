@@ -3058,20 +3058,16 @@ test('Connectors: resolved rows, enabled toggle, add custom server', async () =>
       timeout: 10_000,
     })
 
-    // The seeded global server resolves into the list, and `pi mcp list`
-    // reports its state. It is in the "Connected" section, which renders
-    // BEFORE the catalog — so the first checkbox in the dialog is its own
-    // enabled toggle. Scoped to the dialog: the home composer behind it has
-    // checkboxes of its own.
+    // The seeded global server resolves into the list at Machine scope, and
+    // `pi mcp list` reports its state.
     const linear = page.getByTestId('connector-linear')
     await expect(linear.getByText('https://mcp.linear.app/mcp')).toBeVisible()
     await expect(linear.getByText('Needs sign-in')).toBeVisible({ timeout: 20_000 })
     await expect(linear.getByText('exposure: codemode')).toBeVisible()
 
-    // Turning it off writes pi's `"enabled": false`. Plain click: the checkbox
-    // is controlled and only re-renders after the IPC round trip, which
-    // uncheck()'s immediate post-click assertion would race.
-    await page.getByRole('dialog').getByRole('checkbox').first().click()
+    // Turning it off writes pi's `"enabled": false`. Plain click: the switch
+    // is controlled and only re-renders after the IPC round trip.
+    await linear.getByRole('switch', { name: 'Enabled', exact: true }).click()
     await expect
       .poll(async () => {
         const raw = await readFile(join(soloAgentDir, 'mcp.json'), 'utf8')
@@ -3080,12 +3076,14 @@ test('Connectors: resolved rows, enabled toggle, add custom server', async () =>
       .toBe(false)
     await expect(linear.getByText('Disabled')).toBeVisible()
 
-    // Add a project-scoped stdio server → workspace/.pi/mcp.json is written.
+    // Folder scope, then a stdio server → workspace/.pi/mcp.json is written,
+    // one argument per line.
+    await page.getByRole('radio', { name: 'Folder', exact: true }).click()
     await page.getByRole('button', { name: 'Add custom server…' }).click()
     await page.getByPlaceholder('server name (e.g. linear)').fill('local-tools')
-    await page.getByRole('radio', { name: 'Local command' }).check()
-    await page.getByPlaceholder('npx some-mcp-server --flag').fill('npx local-tools-mcp')
-    await page.getByRole('radio', { name: /This project/ }).check()
+    await page.getByRole('radio', { name: 'Local command' }).click()
+    await page.getByRole('textbox', { name: 'Command', exact: true }).fill('npx')
+    await page.getByRole('textbox', { name: 'Arguments', exact: true }).fill('local-tools-mcp')
     await page.getByRole('button', { name: 'Save', exact: true }).click()
 
     await expect
@@ -3506,8 +3504,8 @@ test('lane marker picker works offline and persists choices across marker modes'
     const picker = page.getByRole('dialog', { name: 'Lane marker', exact: true })
     const setMode = async (mode: string): Promise<void> => {
       await page.getByRole('button', { name: /^Settings/ }).click()
-      await page.getByRole('button', { name: 'Workspaces', exact: true }).click()
-      await page.getByRole('button', { name: mode, exact: true }).click()
+      await page.getByRole('button', { name: 'Lanes', exact: true }).click()
+      await page.getByRole('radio', { name: mode, exact: true }).click()
       await page.keyboard.press('Escape')
     }
     await page.context().setOffline(true)
@@ -3532,7 +3530,7 @@ test('lane marker picker works offline and persists choices across marker modes'
       .toContain('🛰️')
     await page.reload()
     await expect(marker).toHaveText('🛰️', { timeout: 30_000 })
-    await setMode('off')
+    await setMode('Off')
     await expect(marker).toHaveCount(0)
     await page.reload()
     await expect(row).toBeVisible({ timeout: 30_000 })
@@ -3540,13 +3538,13 @@ test('lane marker picker works offline and persists choices across marker modes'
     await row.click({ button: 'right' })
     await expect(page.getByRole('button', { name: 'Lane marker…', exact: true })).toHaveCount(0)
     await page.keyboard.press('Escape')
-    await setMode('manual')
+    await setMode('Manual')
     await expect(marker).toHaveText('🛰️')
     await row.click({ button: 'right' })
     await page.getByRole('button', { name: 'Lane marker…', exact: true }).click()
     await picker.getByRole('button', { name: 'Default', exact: true }).click()
     await expect(marker).toHaveText('•')
-    await setMode('auto')
+    await setMode('Auto')
     await expect(marker).toHaveText(auto!)
     await marker.click()
     await picker.getByRole('button', { name: 'None', exact: true }).click()
@@ -3644,7 +3642,7 @@ test('sidebar session drag, menu and keyboard order survives suspend and restart
     await expect.poll(order).toEqual(original)
     await expect(last.getByTestId('session-row')).toBeFocused()
     await last.getByTestId('session-row').click({ button: 'right' })
-    await page.getByRole('button', { name: /^Suspend/ }).click()
+    await page.getByRole('button', { name: /^Stop/ }).click()
     await expect(last).toContainText('suspended')
     await last.dragTo(rows.first(), { targetPosition: { x: 80, y: 2 } })
     await expect.poll(order).toEqual(expected)
@@ -5401,7 +5399,7 @@ test('extensions tab lists pi packages and reveals per-extension tabs', async ()
     // The declared-but-absent package is reported, not hidden.
     await expect(page.getByText('installs on next session start')).toBeVisible()
 
-    // Presence of pi-claude-cli in packages reveals its dedicated tab.
+    // Claude Code is listed under Extensions whether or not pi-claude-cli is installed.
     await page.getByRole('button', { name: 'Claude Code', exact: true }).click()
     await expect(page.getByText('Claude Code provider')).toBeVisible()
     await expect(page.getByText('Extension package')).toBeVisible()
@@ -5430,8 +5428,12 @@ test('extensions tab installs and removes a package through pi CLI (stubbed)', a
     await expect(page.getByText('e2e-added-pack', { exact: true })).toBeVisible()
     await expect(page.getByText('v9.9.9-stub')).toBeVisible()
 
-    // Remove round-trips the same way.
+    // Remove asks first, then round-trips the same way.
     await page.getByRole('button', { name: 'Remove', exact: true }).click()
+    await page
+      .getByRole('dialog', { name: 'Remove npm:e2e-added-pack?', exact: true })
+      .getByRole('button', { name: 'Remove', exact: true })
+      .click()
     await expect(page.getByText('Removed npm:e2e-added-pack')).toBeVisible()
     await expect(page.getByText('e2e-added-pack', { exact: true })).toHaveCount(0)
   } finally {

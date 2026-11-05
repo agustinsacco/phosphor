@@ -162,7 +162,8 @@ that alters the prompt, the tools or compaction breaks the first table.
 - `claudeProviderSpawnEnv`: pins `PI_CLAUDE_CLI_CONTEXT=pi` on every spawn.
 - `claudeOneShotEnv`: every `pi -p` that may land on Claude. Session naming on
   Claude uses the catalogue's cheapest Claude model, falling back to
-  `claude-haiku-4-5` (`apps/desktop/electron/pi/session-naming.ts`).
+  `claude-haiku-4-5` (`libs/session-runtime/src/pi/title-policy.ts`, run on both
+  machines by `title-run.ts`).
 - `apps/desktop/electron/claude/`: which Claude login bills the session, chosen at spawn.
 - The `claude-*` status keys: plan limits, and the sub-agent chip for
   sessions recorded before 0.9.0

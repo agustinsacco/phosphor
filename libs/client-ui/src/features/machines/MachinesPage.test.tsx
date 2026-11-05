@@ -6,7 +6,8 @@ import type { AccountView } from '@shared/account'
 import { MachinesPage } from './MachinesPage'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
-import { MACHINE, LOOKUP } from './__fixtures__/control'
+import { CLAUDE_PROVIDER, MACHINE, LOOKUP } from './__fixtures__/control'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 
 const originalRefresh = useMachinesStore.getState().refresh
 let root: Root
@@ -21,6 +22,8 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
     return { ok: true, machine: MACHINE }
   if (channel === 'control:removeMachine') return { ok: true }
   if (channel === 'pi:subscriptionAuth') return []
+  if (channel === 'packages:list') return [CLAUDE_PROVIDER]
+  if (channel === 'hosts:tailscaleStatus') return { code: 'ready' }
   return null
 })
 beforeEach(() => {
@@ -135,6 +138,8 @@ it('shows loading rows for local checks until each read settles, then the verdic
       })
     if (channel === 'packages:claudeStatus')
       return { binary: { found: true }, auth: { loggedIn: false } }
+    if (channel === 'packages:list') return [CLAUDE_PROVIDER]
+    if (channel === 'hosts:tailscaleStatus') return { code: 'ready' }
     return null
   })
   await render()
@@ -143,7 +148,7 @@ it('shows loading rows for local checks until each read settles, then the verdic
   expect(local()).toContain('Checking…')
   await act(async () => pending[0]?.({ ok: true, version: '1.2.0' }))
   expect(local()).toContain('pi 1.2.0')
-  expect(local()).toContain('Claude signed out')
+  expect(local()).toContain('Claude Code signed out')
   expect(local()).not.toContain('Checking…')
 })
 it('shows only local status and optional sign-in when signed out', async () => {
@@ -159,7 +164,7 @@ it('shows only local status and optional sign-in when signed out', async () => {
   await act(async () =>
     document.querySelector<HTMLButtonElement>('[data-testid=local-machine-row]')?.click(),
   )
-  expect(container.textContent).toContain('Provider sign-ins')
+  expect(container.textContent).toContain('Provider settings')
 })
 it('shows empty guidance, list loading and offline errors explicitly', async () => {
   useMachinesStore.setState({ machines: [] })
@@ -409,3 +414,18 @@ it.each([
     }
   },
 )
+
+it('opens the shared Settings on the selected Host instead of an in-page copy', async () => {
+  useSettingsUiStore.setState({ open: false, tab: 'appearance', machine: null })
+  useMachinesStore.setState({ view: { kind: 'machine', id: MACHINE.id } })
+  await render()
+  const settings = container.querySelector<HTMLButtonElement>('[aria-label="Machine settings"]')
+  await act(async () => settings?.click())
+  expect(useSettingsUiStore.getState()).toMatchObject({
+    open: true,
+    tab: 'accounts',
+    machine: MACHINE.id,
+  })
+  expect(useMachinesStore.getState().view).toEqual({ kind: 'machine', id: MACHINE.id })
+  expect(container.querySelector('[data-testid="machine-detail"]')).not.toBeNull()
+})

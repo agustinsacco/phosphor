@@ -131,7 +131,7 @@ it('opens details with keyboard focus, names facts independently of green, refre
   await act(async () => button('Open on GitHub ↗').click())
   expect(external).toHaveBeenCalledWith(pr.url)
   await act(async () => button('Refresh').click())
-  expect(read).toHaveBeenCalledExactlyOnceWith('/repo')
+  expect(read).toHaveBeenCalledExactlyOnceWith('/repo', { branches: ['feature'], force: true })
   await act(async () =>
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
   )
@@ -208,7 +208,7 @@ it('shows nothing while the first listing loads, then the PR, and respects the p
 it('polls the active collapsed repo and coalesces same-repo lane switching without another workspace', async () => {
   await act(async () => root.render(<LanePrStatus sessionId="a" />))
   await act(async () => root.render(<LanePrStatus sessionId="b" />))
-  expect(read).toHaveBeenCalledExactlyOnceWith('/repo')
+  expect(read).toHaveBeenCalledExactlyOnceWith('/repo', { branches: ['feature'] })
   await act(async () => vi.advanceTimersByTimeAsync(120_001))
   expect(read).toHaveBeenCalledTimes(3)
   expect(read.mock.calls.every(([repo]) => repo === '/repo')).toBe(true)
@@ -228,14 +228,14 @@ it('uses Host repository/branch identity even with a local machine filter and lo
     complete: true,
   })
   await act(async () => root.render(<LanePrStatus sessionId="remote" />))
-  expect(read).toHaveBeenCalledExactlyOnceWith(key)
+  expect(read).toHaveBeenCalledExactlyOnceWith(key, { branches: ['remote-feature'] })
   expect(pill()?.textContent).toContain('#99')
   await act(async () => pill()!.click())
   expect(detail()?.textContent).toContain(
     'Host may reuse its repository cache for up to 60 seconds',
   )
   await act(async () => button('Refresh').click())
-  expect(read.mock.lastCall).toEqual([key])
+  expect(read.mock.lastCall).toEqual([key, { branches: ['remote-feature'], force: true }])
 })
 
 it('requests a stale refresh when activating another lane in the same repository', async () => {
@@ -245,4 +245,54 @@ it('requests a stale refresh when activating another lane in the same repository
   }))
   await act(async () => root.render(<LanePrStatus sessionId="b" />))
   expect(read).toHaveBeenCalledTimes(2)
+})
+
+it('uses branch coverage for stale status and upstream age rather than another page refresh, and shows nothing once the PR is gone', async () => {
+  seed(pr, false)
+  usePullRequestsStore.setState((s) => ({
+    byRepo: {
+      '/repo': {
+        ...s.byRepo['/repo']!,
+        coverage: {
+          feature: {
+            state: 'unavailable',
+            checkedAt: Date.now() - 120_000,
+            attemptedAt: Date.now() - 10_000,
+          },
+          other: { state: 'found', checkedAt: Date.now(), attemptedAt: Date.now() },
+        },
+      },
+    },
+  }))
+  await act(async () => root.render(<LanePrStatus sessionId="a" />))
+  await act(async () => pill()!.click())
+  expect(detail()?.textContent).toContain('Last upstream check: 120s ago')
+  expect(detail()?.textContent).toContain('Last upstream attempt failed (10s ago)')
+  expect(detail()?.textContent).toContain('Showing stale status')
+  await act(async () =>
+    usePullRequestsStore.setState((s) => ({
+      byRepo: {
+        '/repo': {
+          ...s.byRepo['/repo']!,
+          byBranch: {},
+          coverage: {
+            feature: { state: 'absent', checkedAt: Date.now(), attemptedAt: Date.now() },
+          },
+        },
+      },
+    })),
+  )
+  // Confirmed absence shows nothing: no "no PR" face (the lane has no PR control).
+  expect(pill()).toBeNull()
+  await act(async () =>
+    usePullRequestsStore.setState((s) => ({
+      byRepo: {
+        '/repo': {
+          ...s.byRepo['/repo']!,
+          coverage: {},
+        },
+      },
+    })),
+  )
+  expect(pill()).toBeNull()
 })

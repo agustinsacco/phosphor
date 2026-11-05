@@ -8,7 +8,6 @@ import { useSessionsStore } from '@/stores/sessions'
 import { REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { LaneRow, SubtitleSegments } from './SidebarPrimitives'
 import { SelectableIndicator, type LaneSelect } from './LaneSelect'
-import { LaneMarker } from './LaneMarker'
 import { PinIcon } from '@/components/icons'
 import { remoteLanePresentation, remoteLaneTitle } from './remoteLaneView'
 
@@ -40,6 +39,7 @@ type RemoteLanePresentationProps = Omit<React.ComponentProps<typeof LaneRow>, 'c
   pinned?: boolean
   /** The lane's folder, for rows that mix folders (the Pinned section). */
   workspaceName?: string
+  /** The marker slot; absent when markers are off. */
   marker?: React.ReactNode
   /** The row's box in its folder's bulk-delete selection. */
   select?: LaneSelect
@@ -91,7 +91,7 @@ export function RemoteLanePresentation({
         {...props}
       >
         <SelectableIndicator state={view.indicator} select={select} />
-        {marker ?? <LaneMarker marker="" />}
+        {marker}
         <span className="min-w-0 flex-1">
           <span className="text-text block truncate text-lg font-medium leading-5">{title}</span>
           <span className="text-text-secondary flex items-center gap-1 text-base leading-4">

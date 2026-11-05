@@ -291,7 +291,7 @@ it.each(['local', 'all'])(
     expect(useRemoteLanesStore.getState().filter).toBe(filter === 'all' ? 'all' : MOCK_HOST_ID)
     expect(useLayoutStore.getState().page).toBeNull()
     expect(useLaneRevealStore.getState().groupKey).toBe(
-      `host:${MOCK_HOST_ID}:${mockRemoteHosts[MOCK_HOST_ID]?.lanes[0]?.repositoryId}`,
+      `host:${MOCK_HOST_ID}/repo:${mockRemoteHosts[MOCK_HOST_ID]?.lanes[0]?.repositoryId}`,
     )
   },
 )
@@ -520,3 +520,118 @@ it.each([true, false])(
     expect(useLaneRevealStore.getState().groupKey).toBe(knownMain ? '/repo' : workspacePath)
   },
 )
+
+function listenForAttention() {
+  let attention: ((event: HostAttention) => void) | undefined
+  const noop = () => () => undefined
+  vi.stubGlobal('window', {
+    phosphor: {
+      ...window.phosphor,
+      onHostsChanged: noop,
+      onHostOpenLane: noop,
+      onHostAttention: (listener: typeof attention) => {
+        attention = listener
+        return () => {}
+      },
+    },
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })
+  invoke.mockImplementation(async (channel) =>
+    channel === 'hosts:snapshot' ? useRemoteLanesStore.getState().hosts : [],
+  )
+  const detach = attachRemoteLanesListener()
+  return { send: (event: HostAttention) => attention?.(event), detach }
+}
+
+it("words a Host lane's notice as This Mac's, with its kind and the lane's marker", async () => {
+  vi.stubGlobal('document', { hasFocus: () => true })
+  const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+  hosts[MOCK_HOST_ID]!.lanes[0] = { ...hosts[MOCK_HOST_ID]!.lanes[0]!, marker: '🦊' }
+  useRemoteLanesStore.setState({ hosts })
+  const { send, detach } = listenForAttention()
+  const event = {
+    hostId: MOCK_HOST_ID,
+    laneId: mockRemoteInfo.laneId ?? '',
+    title: 'Remote',
+    at: '2026-01-01T00:00:00Z',
+  }
+  const toast = () => useExtensionUiStore.getState().toasts[0]
+  send({ ...event, kind: 'finished' })
+  await vi.waitFor(() => expect(toast()).toBeDefined())
+  expect(toast()).toMatchObject({ message: 'Finished.', kind: 'success', marker: '🦊' })
+  send({ ...event, kind: 'failed', at: '2026-01-01T00:00:01Z' })
+  await vi.waitFor(() => expect(toast()?.message).toBe('Stopped with an error.'))
+  expect(toast()?.kind).toBe('error')
+  send({ ...event, kind: 'needs-input', at: '2026-01-01T00:00:02Z' })
+  await vi.waitFor(() => expect(toast()?.message).toBe('Needs your input.'))
+  detach()
+})
+
+it('says a This Mac lane settled while its window is in the background, as a Host lane does', async () => {
+  const { noticeLaneSettled } = await import('@/features/sessions/laneNotices')
+  useSessionsStore.setState({
+    live: { mac: { phosphorId: 'mac', workspacePath: '/mac' } },
+    activeSessionId: 'mac',
+  })
+  useLayoutStore.setState({ page: null })
+  vi.stubGlobal('document', { hasFocus: () => false })
+  noticeLaneSettled('mac')
+  expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
+  vi.stubGlobal('document', { hasFocus: () => true })
+  useExtensionUiStore.setState({ toasts: [] })
+  noticeLaneSettled('mac')
+  expect(useExtensionUiStore.getState().toasts).toHaveLength(0)
+})
+
+const hostReceipt = (outcome: 'done' | 'error', excerpt: string) => ({
+  title: 'Remote',
+  repository: null,
+  branch: null,
+  settledAt: null,
+  durationMs: null,
+  files: 0,
+  added: 0,
+  removed: 0,
+  tests: null,
+  artifacts: 0,
+  excerpt,
+  outcome,
+})
+
+it("words a failed Host lane from its receipt's excerpt, as This Mac's", async () => {
+  vi.stubGlobal('document', { hasFocus: () => true })
+  const { send, detach } = listenForAttention()
+  // Desktop attaches an error receipt only to a `failed` event (attention-publication.ts).
+  send({
+    hostId: MOCK_HOST_ID,
+    laneId: mockRemoteInfo.laneId ?? '',
+    title: 'Remote',
+    at: '2026-01-01T00:00:03Z',
+    kind: 'failed',
+    receipt: hostReceipt('error', 'rate limited'),
+  })
+  const toast = () => useExtensionUiStore.getState().toasts[0]
+  await vi.waitFor(() => expect(toast()).toBeDefined())
+  expect(toast()).toMatchObject({ message: 'Stopped: rate limited', kind: 'error' })
+  detach()
+})
+
+it('words a routine neutrally without a receipt, since it may have paused, and from its receipt when it finished', async () => {
+  vi.stubGlobal('document', { hasFocus: () => true })
+  const { send, detach } = listenForAttention()
+  const event = {
+    hostId: MOCK_HOST_ID,
+    laneId: mockRemoteInfo.laneId ?? '',
+    title: 'Remote',
+    kind: 'routine' as const,
+  }
+  const toast = () => useExtensionUiStore.getState().toasts[0]
+  send({ ...event, at: '2026-01-01T00:00:04Z' })
+  await vi.waitFor(() => expect(toast()).toBeDefined())
+  expect(toast()).toMatchObject({ message: 'Routine update.', kind: 'info' })
+  send({ ...event, at: '2026-01-01T00:00:05Z', receipt: hostReceipt('done', 'Shipped it') })
+  await vi.waitFor(() => expect(toast()?.message).toBe('Shipped it'))
+  expect(toast()?.kind).toBe('success')
+  detach()
+})

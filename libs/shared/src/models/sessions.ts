@@ -19,6 +19,10 @@ export interface PiHealth {
   minVersion: string
   reason?: 'not-found' | 'version-check-failed' | 'too-old'
   message?: string
+  /** The PATH pi runs with, one entry each: the top cause of "pi not found". */
+  path?: string[]
+  /** pi's agent directory (settings, sessions, credentials) on this machine. */
+  agentDir?: string
 }
 
 /**

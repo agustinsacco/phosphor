@@ -7,6 +7,16 @@
   application menu**, so every command reaches you through the top bar, the
   command palette or a key binding. Chromium's zoom accelerators are
   re-implemented by hand in `useGlobalShortcuts.ts`.
+- **The window never scrolls.** `<body>` is `position: relative; overflow: clip`
+  and `<html>` is `overflow: hidden`, in `styles/index.css`. With only
+  `overflow: hidden`, focus and `scrollIntoView` still scrolled the viewport
+  whenever anything hung below the window (a popup before it was placed, a menu,
+  a portal): the whole app moved up, the top bar went off-screen and a blank strip
+  stayed below until a reload. Scrolling belongs to panes, never the page.
+  `e2e/window-scroll.spec.ts` pins it. A menu that could hang below the window uses the
+  shared anchored `PopupMenu` (`escapeContainer`), which flips and caps its height
+  to fit; the branch menu in the home composer is one. The phone and browser shells are
+  `position: fixed` and follow the visual viewport, so the clip does not touch them.
 - Window title: `<project> — Phosphor`, or `<repo> (<branch>) — Phosphor` for
   a worktree; plain `Phosphor` before a workspace is open. The session name is
   deliberately absent: the OS title names the folder, and the session already
@@ -26,7 +36,8 @@ Go to file also works from the editor and ordinary text fields; Ctrl+P remains
 shell history in terminals. Shortcuts also work on remote lanes: Go to file lists
 and opens only the lane's Host files, including line/column jumps. On Host home
 (no lane open), Go to file reports “Not available on remote lanes yet.”; it
-never indexes This Mac's home workspace. Search in files works from any focus, the editor included; on a remote lane it opens Files
+never indexes This Mac's home workspace. With no folder open, neither ⌘P nor
+the palette offers Go to file. Search in files works from any focus, the editor included; on a remote lane it opens Files
 and reports “Not available on remote lanes yet.” without starting a local search.
 F6 moves between the composer and pane controls, including remote lane panes
 and the Host-home repository selector; in a fullscreen pane it focuses Exit
@@ -66,8 +77,10 @@ then stays up while fonts, preferences, pi health, the previous
 workspace/session transcript and the visible sidebar's first scan settle. The
 shell mounts hidden beneath it so discovery finishes without skeletons or
 stray shortcuts. Readiness dismisses it; there is no minimum display time.
-Missing pi leads to setup; a startup failure offers retry; a failed restore can
-be skipped. The model catalogue preloads in the background without holding the
+A startup failure offers retry; a failed restore can be skipped. Missing pi or
+no open folder never replaces the shell: it mounts as usual, so Machines, Host
+lanes and Settings stay reachable, and only This Mac's home waits on setup
+(`useLocalSetup`, below). The model catalogue preloads in the background without holding the
 screen.
 
 ## Left sidebar (Claude Desktop style)
@@ -88,7 +101,10 @@ Signed-in windows show a lane scope control beneath the main navigation
 (`MachineSwitcher`, the only machine-scope control on either client): a
 divider, a “Lanes on” caption and a bordered field with the selected machine's
 status dot, name and state in words (“Idle”, “2 running”, reachability). It is
-a picker, not a nav row, so it never uses the Machines page icon. Each window
+a picker, not a nav row, so it never uses the Machines page icon. The local
+machine is named in its platform's word everywhere in the UI: **This Mac** on
+macOS, **This PC** on Windows and **This computer** on Linux (`localMachineLabel`,
+`lib/localMachine.ts`); these docs call it This Mac. Each window
 starts on **This Mac**, and selection stays in memory only, including while the
 sidebar is hidden. Signing out or removing the selected machine resets the
 selection to This Mac. Activity on the machines not shown sits on the
@@ -190,8 +206,9 @@ Signed-out windows have no machine switcher or remote groups.
   screen; it does not spawn a session, because the folder and the first prompt
   are chosen there. Artifacts, Skills, and Routines open global pages (below).
 - **Session list**: pinned, then sessions grouped by project. Each row: name
-  (or first-message preview), relative time, state. Drag a row above or below
-  another in its section to reorder it, or use its context menu's **Move up /
+  (or first-message preview), relative time, state. Drag a row with the mouse
+  above or below another in its section to reorder it (a touch or pen
+  long-press opens the row's menu instead), or use its context menu's **Move up /
   Move down** or **Alt+↑ / Alt+↓** while focused. Open, suspended and closed
   sessions share one order, persisted by session file path across restarts.
   First-turn rows become reorderable once pi reports their file path, without
@@ -205,8 +222,9 @@ Signed-out windows have no machine switcher or remote groups.
   [Phosphor Beacon](style-guide.md#loading-identity--phosphor-beacon), an amber
   edge rail and a status chip in place of the timestamp. Context menu: open,
   session tree, pin, lane marker, open pull request (when the lane has one;
-  this is the keyboard route, the chip is mouse-only), suspend (live lanes,
-  labelled with the ~200 MB it reclaims), fork, clone, export HTML, copy debug
+  this is the keyboard route, the chip is mouse-only), Stop (live lanes, as on
+  a Host lane, labelled with the ~200 MB it reclaims; the row then reads
+  suspended), Mark read (unseen lanes), fork, clone, export HTML, copy debug
   info, copy spend, delete (trash). Live-only rows offer Open, Rename, Export
   HTML and Delete, even before a transcript exists. Delete confirms that any
   running turn will stop; failures remain visible for retry.
@@ -218,10 +236,10 @@ Signed-out windows have no machine switcher or remote groups.
   for a project folder, **Remove from sidebar** (behind a second click that
   says files stay on disk). For a sandbox it holds Rename sandbox and Delete
   sandbox (the latter behind a second click) instead. A project folder is only
-  ever _forgotten_, here or from Settings → Workspaces; renaming is offered
+  ever _forgotten_, here or from Settings → Folders; renaming is offered
   for a sandbox because the folder is Phosphor's own. Rename closes the
   sandbox's running chats first and says so in the prompt; see
-  [settings.md](settings.md#workspaces) for what a rename moves and what
+  [settings.md](settings.md#folders) for what a rename moves and what
   removing a project does.
 - **Loading states per group**: never attempted → skeleton rows; partly
   scanned → the rows we have plus `loading N more folders…`; errored →
@@ -233,9 +251,11 @@ Signed-out windows have no machine switcher or remote groups.
   About.
 - **Account row**: a 28 px avatar, name and GitHub login when signed in, or
   a neutral avatar and Sign in when signed out. Its popover opens above the
-  row. Signed in, it shows a 40 px avatar, name, login and email, Machines
-  with an online count, Settings with its shortcut, and Sign out. Signed out,
-  it offers optional GitHub sign-in and Settings. Signing in shows browser
+  row. It always lists Machines with an online count: This Mac where the
+  client runs local lanes, plus every Host that is up. Signed in, it also
+  shows a 40 px avatar, name, login and email above it, then Settings with its
+  shortcut and Sign out. Signed out, Machines is followed by optional GitHub
+  sign-in and Settings. Signing in shows browser
   progress and Cancel. The gear opens Settings directly. Keyboard navigation,
   Escape and outside-click dismissal return focus to the row. No token reaches
   this UI ([settings.md](settings.md#phosphor-account)); Settings → Phosphor
@@ -483,9 +503,11 @@ close it; focus moves into the sheet and returns to the element on close.
 - **Command palette** (Cmd/Ctrl+K): new session, go to file, toggle sidebar
   and each pane, open the Artifacts/Skills pages, rewind, expand/collapse tool
   output, settings and keybindings, theme, open a folder, switch workspace,
-  open a session. On a remote lane, local folder/recents/disk-session commands,
-  rewind and global Artifacts/Skills page commands are omitted; lane navigation
-  lists that Host's lanes instead. The same filtering applies on Host home,
+  open a session. On a remote lane, local folder/recents/disk-session commands
+  and rewind are omitted; the Artifacts/Skills page commands open that Host's
+  pages, and that Host's lanes, "New lane in <folder>" for each of its folders
+  and "Add folder on <Host>…" (where the Host lets this device add one) stand
+  in for them. The same filtering applies on Host home,
   using the sidebar's selected machine rather than This Mac's home workspace.
   Target switches refresh the command set.
   Distinct from the chat `/` command menu.
@@ -494,9 +516,17 @@ close it; focus moves into the sheet and returns to the element on close.
   Disconnected machines or missing `workspaces.read` disable it with a fixed
   reason. Changing the switcher or opening a lane closes this home pane;
   This Mac's home does not offer it.
-- **Empty states**: no workspace → onboarding card with folder picker; no
-  sessions → "Describe a task…" hero; pi missing/outdated → setup screen with
-  the install command.
+- **Empty states**: This Mac's home takes its setup while This Mac cannot
+  start a lane (`app/useLocalSetup.tsx`): pi missing or outdated → one-click
+  Install/Update pi with the install command (`PiMissingScreen`; the hook owns
+  the install, so leaving the home does not lose it), then the one-time
+  recommendations (`GettingStartedScreen`, which the restore of the last
+  session waits for); no open folder → the
+  folder picker with recents (`WorkspacePicker`). Only local lane creation
+  waits: a Host composer target shows the Host's start page, and on a Host
+  home the setup takes only the composer slot, under the composer's machine
+  picker. This Mac's Machines readiness row shows the same install command. No
+  sessions → "Describe a task…" hero.
 
 ## Home workbench
 
@@ -526,11 +556,20 @@ collapsed project statistics remain below the tiles.
 ## Machines
 
 The list has two groups: This computer, then Hosts (sorted online first, then
-by label). Each row is one line of name plus a muted subtitle (hostname when it
+by label). One row (`MachineRow`) and one detail (`MachineDetail`) draw every
+machine from a `MachineOverview` (`features/machines/machineOverview.ts`):
+`useLocalOverview` for this computer, whose id is `'local'` as everywhere else,
+and `hostSummary` / `useHostOverview` for a Host. What only an enrolled Host has
+(rename, heartbeat, setup notices, Reconnect, removal) is data on the overview,
+not a second component.
+Each row is one line of name plus a muted subtitle (hostname when it
 differs, platform and architecture, Host version, non-zero lane counts, last
-seen), then three readiness dots (pi, Claude, Tailscale; amber with the reason
+seen), then readiness dots (pi, Claude, Tailscale; amber with the reason
 in a tooltip) and one status pill in a fixed-width column so the dots line up.
-The pill comes from `machineHeadline` and is the machine's single status:
+This computer's subtitle is its platform, pi version and live lanes; its dots are
+pi, Claude and Tailscale, and its pill is what they add up to: Checking…, Ready, the
+one problem, or N issues. This computer needs Tailscale only to reach Hosts, so
+until the account has one its Tailscale is muted, not a problem. A Host's pill comes from `machineHeadline` and is its single status:
 Connected, Connecting…, Waiting for setup, Not reachable, Tailscale stopped,
 Update needed, Access refused, Identity mismatch, Stopping or Offline. No surface
 pairs two verdicts such as "Online · Not reachable yet". A never-connected or
@@ -542,8 +581,8 @@ to three show; the rest are a link to that machine's lanes. A row opens its lane
 This computer's come from live sessions (a streaming turn or an open dialog). A
 Host's come from its live snapshot, and only while it is connected, so the
 subtitle's "N running · N need you" is current; heartbeat lane counts are the
-fallback. The page subtitle sums the fleet in words
-("4 Hosts · 1 connected · 2 need attention · 1 offline").
+fallback. The page subtitle sums the fleet in words, this computer first under its
+platform label ("This Mac ready · 4 Hosts · 1 connected · 2 need attention · 1 offline").
 The whole row opens a stable detail view; live updates do not reset selection.
 Signed out, only this computer is listed, with an optional GitHub sign-in panel.
 Signed in with no Hosts, Add a machine opens guided setup. There are no sample
@@ -566,12 +605,13 @@ the first directory load shows skeleton rows, a later refresh shows "Updating"
 beside the Hosts heading without hiding them, and this computer's checks,
 provider lists, Claude detail and On this machine counts each show a spinner or
 skeleton until their own read settles. A failed count reads Unavailable, never
-zero. Offline and account errors are explicit and offer retry.
+zero, until Check again reads it again. Offline and account errors are explicit and offer retry.
 
 A Host's detail has one **Back to machines** breadcrumb, then a compact identity
-header (label with Rename, the status pill and a **Machine actions** menu containing
-Reconnect, Check again and Update Host…, which opens Settings → Advanced), followed by **Overview / Settings / Machine files** navigation (Machine files opens
-the Host's home folder read-only in a dialog). Add a
+header (an h2 label with Rename, the status pill and a **Machine actions** menu containing
+Reconnect, Check again and Update Host…, which opens Settings → Advanced; Reconnect and
+Update Host… need a published address), followed by **Overview / Settings / Machine files** navigation (Machine files opens
+the Host's registered repositories read-only in a dialog). Add a
 machine and debug actions belong to the list, not a selected Host. The same header
 and responsive container run in Desktop and the browser; the browser does not gain
 This Mac's settings by getting wider. Long machine names occupy at most two visual
@@ -592,28 +632,40 @@ but its address is not published" and the fix appears under Connection:
 `phosphor setup` on a Mac, `sudo tailscale set --operator=$USER && phosphor setup`
 on Linux. The Claude Code row names the missing part (provider missing or
 outdated, Claude Code missing, signed out); older Hosts keep the single status.
+This computer's row names the same parts, read from its pi packages and Claude Code.
+A missing or outdated Claude Code has one remedy on every machine:
+Settings → Extensions → Claude Code, which installs it or says how. A Host whose
+Settings cannot open (unconnected, or too old) offers `phosphor setup` instead.
+Signed out is the same: sign in under Settings → Extensions → Claude Code, and only
+a Host whose Settings cannot open offers `phosphor providers login claude`.
 
-Providers lists the connected Host's providers, signed-in first. Not signed in
-is neutral, not a warning, because most people use one or two. Supporting Hosts
-link to **Settings → Accounts**, rather than duplicating authentication controls.
-The same sections open from Settings → Configure → \<Host\>. The Machines page's
-Settings has its own target banner, explicit configuration-access request and
-Agent, Accounts, Extensions, MCP Connectors, Folders and Advanced sections, the
-same list Settings shows for that Host. [The settings contract](settings.md#host-machine-settings) owns their
+Providers lists the connected Host's providers, signed-in first, after "Checking
+providers…" over skeleton rows. A connected Host that does not let this device read
+them says "This device may not read providers on X". Not signed in
+is neutral, not a warning, because most people use one or two. The rows are
+Settings → Accounts' own (`ProviderList`), read-only. Supporting Hosts link to
+**Settings → Accounts** rather than duplicating authentication controls; older
+ones show the `phosphor providers login` command.
+The detail's **Settings** tab opens Settings itself, scoped to that Host (the dialog
+on Desktop, `/pages/settings/<host>` in the browser); the page holds no copy of the
+Host's settings. [The settings contract](settings.md#host-machine-settings) owns their
 review, authority, drafts and timing. Advanced's only action is **Pause and
 update**, a confirmed Host update ([host.md](host.md#updating)); otherwise it is
 read-only, with no shared local/remote raw editor and no automatic service restart.
 
-Older Hosts retain Sign in when granted `terminal` and `sessions.control`. It opens
-a private terminal on that Host: `/login PROVIDER`, follow pi's steps, then `/quit`,
-or Claude's own login steps. Closing cancels it and exit refreshes status. Viewers
-without those capabilities keep the CLI hint. Credentials stay on the Host.
+Signing in happens in Settings → Accounts on that machine; on a Host it runs in a
+private terminal there, and credentials stay on the Host.
 
-The **Connection & identity** disclosure contains Details: hostname, platform,
-Host version, enrollment date, the published address, and a copyable fingerprint
+The collapsed **Details** disclosure holds a Host's hostname, platform,
+Host version, its pi version where this device may read its settings, enrollment date, the published address, and a copyable fingerprint
 and machine id. On this machine previews at most three lanes using the shared
 sidebar row presentation, with a View all link when there are more, alongside
 capability-gated skills, routines and artifact counts linked to machine-filtered pages. Down lanes stay labelled last known.
+The counts are the machine's own: skills without a workspace's, routines that are not
+archived. The health check counts skills and routines the same way.
+This computer's On this machine is the same card: its newest lanes from the sidebar's
+sessions, with the same content (state dot, title, time, branch) on the same row
+primitive but without the lane menu, and its own skills, routines and artifact counts.
 A never-connected Host shows "Waiting for X to finish setup" with
 `phosphor setup` (it resumes where it stopped) and a Troubleshooting disclosure
 with `phosphor service status`, `phosphor service install` and `phosphor run`.
@@ -626,8 +678,18 @@ a machine. The re-added machine has a new id, so Desktop's per-machine
 preferences for it (model and thinking picks, pins, filters, routine drafts)
 start fresh.
 
-This computer's detail has Readiness (pi and the Claude CLI), Providers (its
-subscription sign-ins, with a link to Settings → Accounts) and Details.
+This computer's detail is the same view without what needs enrollment: its
+platform label as the heading (no Rename), the pill its checks add up to, and a
+Machine actions menu with Check again, which re-reads pi, Claude Code, Tailscale
+and its providers, and **Update Phosphor…**, which opens Settings → About where the
+app can check for updates. The same Overview / Settings / Machine files navigation
+follows: Settings opens Settings → Accounts for this computer, and Machine files
+browses its recent folders read-only in the same dialog and tree. Readiness lists pi, Claude Code and Tailscale; Providers lists its subscriptions
+with Settings → Accounts' rows and **Provider settings**, opening on the last read by
+Accounts or the health check, or one still in flight (each read runs one `pi auth check`
+per provider), and reading again on a Check again made while it is open; Details holds its
+platform and architecture, Phosphor version, pi version and live lane count; the terminal opens a shell at home. It
+has no Connection row or Remove.
 
 ### Health check and debug log
 
@@ -636,9 +698,10 @@ toggle. The badge sums live state and the last health check from the past 10
 minutes: All systems normal, N issues, N offline, Connecting…, Waiting for
 setup, Control unreachable or Checking…. It opens a popover; refresh runs the
 check directly. The check only reads (nothing restarts): the control plane
-(reloading the directory), local Tailscale and pi, then per Host its heartbeat
-and connection and, when connected and granted, providers, models, Claude Code,
-skills, routines and lanes. Each step shows its time in ms. A Host that is not
+(reloading the directory), then this computer's Tailscale, pi, providers, models,
+Claude Code, skills, routines and live lanes, then per Host its heartbeat and
+connection and, when connected and granted, the same providers, models, Claude
+Code, skills, routines and lanes. Each step shows its time in ms. A Host that is not
 connected gets one "Skipped until connected" line instead of six. Each Host
 section has Reconnect (`hosts:reconnect`), which re-reads the directory, then
 drops and reopens that Host's connection; open lanes resync. The popover links to the log.

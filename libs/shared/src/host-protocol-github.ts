@@ -1,5 +1,24 @@
 import { isUuid } from './control-api'
-import type { GhPullRequest, GhRepoPullRequests } from './models'
+import type { GhBranchCoverage, GhPrReadOptions, GhPullRequest, GhRepoPullRequests } from './models'
+
+export const PR_READ_BATCH_SIZE = 20
+
+export function parsePrReadOptions(value: unknown): GhPrReadOptions | null {
+  if (
+    !record(value) ||
+    Object.keys(value).some((key) => key !== 'branches' && key !== 'force') ||
+    !Array.isArray(value.branches) ||
+    value.branches.length > PR_READ_BATCH_SIZE ||
+    !value.branches.every((branch) => text(branch) && branch.length > 0) ||
+    new Set(value.branches).size !== value.branches.length ||
+    (value.force !== undefined && typeof value.force !== 'boolean')
+  )
+    return null
+  return {
+    branches: [...value.branches],
+    ...(value.force === undefined ? {} : { force: value.force }),
+  }
+}
 
 export const remotePrKey = (hostId: string, repositoryId: string): string =>
   `host:${hostId}/repo:${repositoryId}`
@@ -8,7 +27,12 @@ export function parseRemotePrKey(key: string): { hostId: string; repositoryId: s
   return match && isUuid(match[1]) ? { hostId: match[1], repositoryId: match[2]! } : null
 }
 export function parsePrParams(value: unknown): string | null {
-  if (!record(value) || Object.keys(value).length !== 1) return null
+  if (
+    !record(value) ||
+    Object.keys(value).some((key) => key !== 'repositoryId' && key !== 'options') ||
+    (value.options !== undefined && !parsePrReadOptions(value.options))
+  )
+    return null
   return typeof value.repositoryId === 'string' && /^[a-f0-9]{16}$/.test(value.repositoryId)
     ? value.repositoryId
     : null
@@ -90,5 +114,28 @@ export function parseRepoPrs(v: unknown): GhRepoPullRequests | null {
     if (!branch || branch.length > 4096 || !pr) return null
     byBranch[branch] = pr
   }
-  return { byBranch, complete: v.complete }
+  if (v.coverage === undefined) return { byBranch, complete: v.complete }
+  if (!record(v.coverage) || Object.keys(v.coverage).length > 100) return null
+  const coverage: Record<string, GhBranchCoverage> = Object.create(null)
+  for (const [branch, value] of Object.entries(v.coverage)) {
+    if (
+      !branch ||
+      branch.length > 4096 ||
+      !record(value) ||
+      !['found', 'absent', 'unavailable'].includes(String(value.state)) ||
+      !count(value.checkedAt) ||
+      !count(value.attemptedAt) ||
+      (value.reason !== undefined &&
+        !['unavailable', 'timeout', 'rate-limited'].includes(String(value.reason)))
+    )
+      return null
+    coverage[branch] = {
+      state: value.state as GhBranchCoverage['state'],
+      checkedAt: value.checkedAt,
+      attemptedAt: value.attemptedAt,
+      ...(value.reason === undefined ? {} : { reason: value.reason as GhBranchCoverage['reason'] }),
+    }
+  }
+  if (new Set([...Object.keys(byBranch), ...Object.keys(coverage)]).size > 100) return null
+  return { byBranch, complete: v.complete, coverage }
 }

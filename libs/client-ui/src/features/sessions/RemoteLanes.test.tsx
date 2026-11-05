@@ -213,3 +213,17 @@ it('offers no folder moves without workspaces.write', () => {
   )!
   expect(down.disabled).toBe(true)
 })
+
+it("shows This Mac's group skeletons while a Host's first snapshot is loading", () => {
+  useRemoteLanesStore.setState({ hosts: {}, filter: MOCK_HOST_ID, snapshotStatus: 'loading' })
+  act(() => root.render(<RemoteLanes />))
+  expect(container.querySelector('[data-testid=workspace-groups-loading]')).not.toBeNull()
+  act(() =>
+    useRemoteLanesStore.setState({
+      hosts: structuredClone(mockRemoteHosts),
+      snapshotStatus: 'ready',
+    }),
+  )
+  expect(container.querySelector('[data-testid=workspace-groups-loading]')).toBeNull()
+  expect(container.querySelector('[data-testid=remote-session-row]')).not.toBeNull()
+})

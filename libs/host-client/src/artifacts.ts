@@ -6,7 +6,7 @@ import {
   parseArtifactParams,
   type ArtifactMeta,
 } from '@phosphor/shared/host-protocol-artifacts'
-import type { HostCapability } from '@phosphor/shared/remote-host'
+import { remoteLaneKey, type HostCapability } from '@phosphor/shared/remote-host'
 import type { HostFrame } from '@phosphor/shared/host-protocol'
 import { utf8Length } from '@phosphor/shared/host-protocol'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
@@ -52,7 +52,7 @@ export function createArtifactHost(
 function listing(host: ArtifactHost, a: ArtifactMeta): ArtifactListing {
   const latest = a.versions.at(-1)
   if (!latest) throw new Error(REMOTE_UNAVAILABLE)
-  const session = `host:${host.hostId}/lane:${a.laneId}`
+  const session = remoteLaneKey(host.hostId, a.laneId)
   return {
     key: `${session}/artifact:${a.slug}`,
     sessionId: session,

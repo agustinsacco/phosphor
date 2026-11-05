@@ -19,6 +19,7 @@ import type {
   PiResources,
 } from '../models'
 import type { GlobalInstructions } from '../global-instructions'
+import type { WebAccessKey } from '../web-access'
 export interface BaselinePiInvokeMap {
   'pi:health': { args: []; result: PiHealth }
 
@@ -121,7 +122,7 @@ export interface BaselinePiInvokeMap {
     result: GlobalInstructions
   }
 
-  /** pi-web-access config (web-search.json), with file health for the tab. */
+  /** pi-web-access config (web-search.json): file health and configured key names, never values. */
   'pi:webSearchConfig': {
     args: []
     result: {
@@ -129,7 +130,7 @@ export interface BaselinePiInvokeMap {
       exists: boolean
       malformed: boolean
       error?: string
-      config: Record<string, unknown>
+      configured: WebAccessKey[]
     }
   }
 

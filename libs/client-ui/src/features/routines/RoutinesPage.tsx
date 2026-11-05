@@ -1,6 +1,8 @@
 import { usePlatform } from '@/platform/Platform'
+import { localMachineLabel } from '@/lib/localMachine'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useMachinePagesStore, pageMachine } from '@/stores/machinePages'
 import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
@@ -22,6 +24,7 @@ import { ModalOverlay } from '@/components/Modal'
 import { presentText } from '@/stores/prompt'
 import {
   editorDraft,
+  hostRoutineDraft,
   keepEditorDraft,
   NEW_ROUTINE,
   newRoutineDraftKey,
@@ -73,9 +76,8 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     : null
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const hostId = machine.startsWith('host:') ? machine.slice(5) : null
-  const unavailable =
-    !!hostId &&
-    (hosts[hostId]?.state !== 'ready' || !hosts[hostId]?.capabilities.includes('routines'))
+  const refusal = hostId ? hostFeatureRefusal(hosts[hostId], 'routines') : undefined
+  const unavailable = !!refusal
   const setMachine = (routinesMachine: string): void =>
     useMachinePagesStore.setState({ routinesMachine })
   const localError = useRoutinesStore((s) => s.error)
@@ -83,7 +85,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     machine === 'local'
       ? localError
       : machine === 'all' && localError
-        ? `This Mac: ${localError}`
+        ? `${localMachineLabel()}: ${localError}`
         : null
   const draft = useRoutinesStore((s) => s.draft)
   const draftMachine = machine === 'all' ? 'local' : machine
@@ -144,14 +146,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     const savedDraft = input || !unsaved ? undefined : editorDraft(newDraftKey, null)
     const restored =
       savedDraft ??
-      (machine.startsWith('host:')
-        ? {
-            input: { ...(input ?? blank), provider: '', model: '', workspacePath: '' },
-            revision: null,
-            machineId: machine,
-            repositoryId: '',
-          }
-        : undefined)
+      (machine.startsWith('host:') ? hostRoutineDraft(input ?? blank, machine, '') : undefined)
     setEditor({
       restored,
       key: newDraftKey,
@@ -171,13 +166,19 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     })
   }
 
-  // Context-menu drafts are consumed once; no hidden schedule is created.
+  // Context-menu drafts are consumed once; no hidden schedule is created. A Host
+  // draft waits for the machine list, or the editor would drop its unknown machine.
   useEffect(() => {
-    if (draft) {
-      setEditor({ key: NEW_ROUTINE, input: draft, pristine: newRoutine(draft.workspacePath) })
-      useRoutinesStore.setState({ draft: null })
-    }
-  }, [draft])
+    if (!draft || (draft.restored && !localSnapshot && !localError)) return
+    const { input, restored } = draft
+    setEditor({
+      key: restored ? newRoutineDraftKey(restored.machineId) : NEW_ROUTINE,
+      input: restored?.input ?? input,
+      pristine: newRoutine(input.workspacePath),
+      restored,
+    })
+    useRoutinesStore.setState({ draft: null })
+  }, [draft, localSnapshot, localError])
 
   useEffect(() => {
     if (!selected) return
@@ -345,19 +346,15 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                 value={machine}
                 onChange={setMachine}
                 choices={[
-                  ...(platform.localLanes
-                    ? [
-                        { value: 'all', label: 'All machines' },
-                        { value: 'local', label: 'This Mac' },
-                      ]
-                    : []),
+                  { value: 'all', label: 'All machines' },
+                  ...(platform.localLanes ? [{ value: 'local', label: localMachineLabel() }] : []),
                   ...machines.map((m) => ({ value: m.id, label: m.label })),
                 ]}
               >
                 {machine === 'all'
                   ? 'All machines'
                   : machine === 'local'
-                    ? 'This Mac'
+                    ? localMachineLabel()
                     : (machines.find((m) => m.id === machine)?.label ?? 'Machine')}
               </ChoiceMenu>
               <TextInput
@@ -387,7 +384,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                   : 'Pause all'}
               </Button>
             </div>
-            {unavailable && <p role="alert">Not available on remote lanes yet.</p>}
+            {refusal && <p role="alert">{refusal}</p>}
             {machines
               .filter((m) => (machine === 'all' || machine === m.id) && remote[m.id]?.unavailable)
               .map((m) => (
@@ -473,7 +470,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                           </span>
                         </span>
                         <span className="text-text-tertiary text-sm">
-                          {r.machine?.label ?? 'This computer'}
+                          {r.machine?.label ?? localMachineLabel()}
                         </span>
                         <span className="shrink-0 text-right text-sm">
                           <span
@@ -504,7 +501,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                   heading={
                     <>
                       <h2 className="text-lg font-semibold">
-                        {machine === 'all' ? 'This Mac activity' : 'Activity'}
+                        {machine === 'all' ? `${localMachineLabel()} activity` : 'Activity'}
                       </h2>
                       <p className="text-text-tertiary text-sm">
                         Recent lanes from every routine. Open a routine for its full history.

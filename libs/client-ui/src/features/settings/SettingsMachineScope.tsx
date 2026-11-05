@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { usePlatform } from '@/platform/Platform'
+import { localMachineLabel } from '@/lib/localMachine'
 import { useLayoutStore } from '@/stores/layout'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -52,7 +53,7 @@ function useSettingsMachineChoices(): SettingsMachineChoice[] {
     const label = (id: string): string => machines.find((m) => m.id === id)?.label ?? id
     const hostIds = [...new Set([...machines.map((m) => m.id), ...Object.keys(hosts)])]
     return [
-      ...(localLanes ? [{ id: 'local', label: 'This Mac' }] : []),
+      ...(localLanes ? [{ id: 'local', label: localMachineLabel() }] : []),
       ...(machineSettings ? hostIds.map((id) => ({ id, label: label(id) })) : []),
     ]
   }, [localLanes, machineSettings, machines, hosts])
@@ -75,25 +76,4 @@ export function useSettingsMachine(fallback?: string): {
   const machine =
     find(chosen) ?? find(host) ?? find('local') ?? find(fallback) ?? choices[0] ?? null
   return { choices, machine }
-}
-
-/** The one line that says which machine a machine section configures. */
-export function SettingsMachineScope({
-  machine,
-}: {
-  machine: SettingsMachineChoice
-}): React.JSX.Element {
-  return (
-    <p
-      className="border-border bg-bg-secondary text-text mb-5 rounded-lg border px-3 py-2 text-base font-medium"
-      data-testid="settings-machine-scope"
-    >
-      Configuring {machine.label}
-      <span className="text-text-secondary font-normal">
-        {machine.id === 'local'
-          ? '. These settings stay on This Mac.'
-          : '. Credentials stay on this Host; nothing syncs to another machine.'}
-      </span>
-    </p>
-  )
 }

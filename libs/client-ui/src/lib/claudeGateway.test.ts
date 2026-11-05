@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { ClaudeAccountView } from '@shared/models'
-import { moveTargets } from './claudeGateway'
+import type { MachineAccount } from '@shared/machine-settings'
+import {
+  laneAccountId,
+  machineCandidate,
+  moveTargets as moveTargetsOf,
+  viewCandidate,
+} from './claudeGateway'
+
+const moveTargets = (views: ClaudeAccountView[], current: string | undefined, now: number) =>
+  moveTargetsOf(views.map(viewCandidate), current, now)
 
 const NOW = 1_700_000_000_000
 
@@ -60,5 +69,31 @@ describe('moveTargets', () => {
 
   it('returns every account when the lane has none yet', () => {
     expect(moveTargets([view('a'), view('b')], undefined, NOW).map((t) => t.id)).toEqual(['a', 'b'])
+  })
+})
+
+describe('machineCandidate', () => {
+  const account = (id: string, overrides: Partial<MachineAccount> = {}): MachineAccount => ({
+    id,
+    label: id,
+    loggedIn: true,
+    cooldownUntil: null,
+    usage: null,
+    lanes: [],
+    ...overrides,
+  })
+
+  it('offers a Host account whose sign-in could not be checked, as This Mac does', () => {
+    const accounts = [
+      account('a', { lanes: [{ id: 'lane', title: 'Lane', active: true }] }),
+      account('b', { loggedIn: null, email: 'b@example.com' }),
+      account('c', { loggedIn: false }),
+    ]
+    const targets = moveTargetsOf(
+      accounts.map(machineCandidate),
+      laneAccountId(accounts, 'lane'),
+      NOW,
+    )
+    expect(targets).toEqual([{ id: 'b', label: 'b@example.com', held: false }])
   })
 })
