@@ -173,22 +173,35 @@ it("characterize: This Mac's Claude provider state follows main's refusal rule",
   expect(provider([])).toBe('missing')
 })
 
-it('describes missing pi on This Mac in words and offers the install command', () => {
-  const [pi] = localChecks(
-    {
-      health: {
-        ok: false,
-        reason: 'not-found',
-        message: 'pi was not found on PATH.',
-        minVersion: '0.70.0',
-      },
-      failed: false,
-    },
-    false,
-  )
-  expect(pi).toMatchObject({
-    ok: false,
-    detail: 'pi was not found on PATH.',
-    command: PI_INSTALL,
-  })
+it("describes This Mac's unavailable pi by its reason, and offers the install command once", () => {
+  const piCheck = (health: Parameters<typeof localChecks>[0]['health']) =>
+    localChecks({ health, failed: false }, false)[0]
+  // Main's messages end with an install command of their own (health.ts, win-launch.ts).
+  expect(
+    piCheck({
+      ok: false,
+      reason: 'not-found',
+      message:
+        'The pi coding agent was not found on your PATH. Install it with: npm install -g @earendil-works/pi-coding-agent',
+      minVersion: '0.70.0',
+    }),
+  ).toMatchObject({ ok: false, detail: 'pi was not found on your PATH.', command: PI_INSTALL })
+  expect(
+    piCheck({
+      ok: false,
+      reason: 'too-old',
+      version: '0.60.0',
+      message:
+        'pi 0.60.0 is older than the minimum supported 0.70.0. Update with: npm install -g @earendil-works/pi-coding-agent@latest',
+      minVersion: '0.70.0',
+    }),
+  ).toMatchObject({ detail: 'pi 0.60.0 is older than 0.70.0.', command: PI_INSTALL })
+  expect(
+    piCheck({
+      ok: false,
+      reason: 'version-check-failed',
+      message: 'pi --version exited with code 1',
+      minVersion: '0.70.0',
+    }),
+  ).toMatchObject({ detail: 'pi --version exited with code 1', command: PI_INSTALL })
 })
