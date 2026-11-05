@@ -1,6 +1,6 @@
-import { CheckIcon } from '@/components/icons'
+import { CheckIcon, ReloadIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
-import { IconToggle, RefreshIcon } from './FileExplorer'
+import { IconToggle } from './FileExplorer'
 import { CopyToIcon, MoveToIcon, NewEntryIcon, RenameIcon, TrashIcon } from './fileIcons'
 
 export type RemoteFileAction = 'file' | 'directory' | 'rename' | 'delete' | 'copy' | 'move'
@@ -61,7 +61,7 @@ export function RemoteFilesToolbar({
         </span>
       )}
       <IconToggle title="Refresh" active={false} onClick={onRefresh}>
-        <RefreshIcon />
+        <ReloadIcon />
       </IconToggle>
       {writable && !changes && (
         <>

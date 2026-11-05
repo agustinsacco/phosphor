@@ -6,7 +6,14 @@ import type { DirEntry } from '@shared/models'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { showContextMenu } from '@/components/ContextMenu'
 import { revealLabel } from '@/lib/reveal'
-import { BranchIcon, ChevronIcon, CollapseAllIcon, FileIcon, SearchIcon } from '@/components/icons'
+import {
+  BranchIcon,
+  ChevronIcon,
+  CollapseAllIcon,
+  FileIcon,
+  ReloadIcon,
+  SearchIcon,
+} from '@/components/icons'
 import { formatShortcut } from '@/lib/shortcuts'
 import { createIn, renameEntry, trashEntry, runFileAction } from './fileActions'
 import { useExplorer } from './useExplorer'
@@ -112,7 +119,7 @@ export const FileExplorer = memo(function FileExplorer({
             active={false}
             onClick={() => runFileAction(useFilesStore.getState().refreshLoadedDirs(workspacePath))}
           >
-            <RefreshIcon />
+            <ReloadIcon />
           </IconToggle>
           <IconToggle
             title="Show hidden files"
@@ -354,22 +361,6 @@ export function IconToggle({
     >
       {children}
     </TooltipButton>
-  )
-}
-
-export function RefreshIcon(): React.JSX.Element {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M20 6v5h-5M4 18v-5h5" />
-      <path d="M18.5 9a7 7 0 0 0-12-2L4 11m16 2-2.5 4a7 7 0 0 1-12-2" />
-    </svg>
   )
 }
 
