@@ -860,9 +860,11 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   This Mac's reads and writes pi's own `defaultProvider` / `defaultModel` /
   `defaultThinkingLevel` (`useLocalStartModel`); a Host's reads its catalogue
   and the picks remembered for it (`RemoteModelPicker`). A source's actions are
-  rendered after the chips: a Host's are Retry models and, with no usable
-  signed-in model, Sign in on it (Settings → Accounts for that Host). The picker
-  grows into the toolbar's free width on every machine.
+  rendered after the chips, on every machine: **Retry models** when the source
+  has no model to run (This Mac's: when pi's catalogue could not be read), and
+  **Sign in on <machine>** (Settings → Accounts for that machine,
+  `useSignInAction`) when its list is read and has no usable signed-in model.
+  The picker grows into the toolbar's free width on every machine.
   Both owners render `composer/ModelChip.tsx`: the model name as the left segment,
   the thinking level (with a caret) as the right. The provider is not on the
   chip: it is in the chip's tooltip and, in a session, in the strip, named only

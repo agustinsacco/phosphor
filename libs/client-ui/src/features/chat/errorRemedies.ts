@@ -56,6 +56,9 @@ function awsLoginCommand(profile: string | undefined): { command: string; hint: 
   }
 }
 
+/** The sign-in fix's label, wherever a machine offers it. */
+export const signInLabel = (machine: string): string => `Sign in on ${machine}`
+
 /**
  * Map an error message to a fix. Ordered most-specific first; returns null
  * when we do not know a safe one. The same set on every machine: `machine`
@@ -129,7 +132,7 @@ export function matchErrorRemedy(
   // rejected credential: Settings → Accounts holds both, on every machine.
   if (/oauth|refresh token|login|unauthorized|\b401\b|invalid.*api.?key/.test(text)) {
     return {
-      label: `Sign in on ${context.machine ?? 'this machine'}`,
+      label: signInLabel(context.machine ?? 'this machine'),
       hint: 'Sign in again in Settings → Accounts for this machine, then retry the failed turn.',
       retryAfter: true,
       signIn: true,

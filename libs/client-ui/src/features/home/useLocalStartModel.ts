@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ThinkingLevel } from '@shared/rpc'
 import { ALL_THINKING_LEVELS, clampThinkingLevel, supportedThinkingLevels } from '@shared/thinking'
 import { catalogueEmptyText, modelChipLabel, useModelCatalogueStore } from '@/stores/modelCatalogue'
+import { useSignInAction } from '@/features/chat/useSignInAction'
 import type { StartModelSource } from './StartModelPicker'
 
 type ModelPick = { provider: string; id: string }
@@ -44,6 +45,7 @@ export function useLocalStartModel({
   const current = models.find((m) => m.id === modelId && m.provider === provider)
   const levels = useMemo(() => (current ? supportedThinkingLevels(current) : []), [current])
   const loading = status === 'idle' || status === 'loading'
+  const signIn = useSignInAction('local')
 
   return {
     testIdPrefix: 'home',
@@ -86,7 +88,13 @@ export function useLocalStartModel({
           ? 'pi’s catalogue could not be read — showing only what models.json declares. Retrying…'
           : undefined,
     },
-    actions: [],
+    // The same actions as a Host's source: retry a failed read, sign in to get a model.
+    actions:
+      status === 'error'
+        ? [{ label: 'Retry models', run: () => void useModelCatalogueStore.getState().refresh() }]
+        : status === 'ready' && models.length === 0
+          ? [signIn]
+          : [],
   }
 }
 
