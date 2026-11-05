@@ -414,6 +414,7 @@ export function ErrorBlock({
           remedy={remedy}
           message={message}
           sessionId={sessionId ?? undefined}
+          hostId={hostId}
           workspacePath={workspacePath}
         />
       )}

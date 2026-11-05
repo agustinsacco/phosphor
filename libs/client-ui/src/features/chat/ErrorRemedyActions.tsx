@@ -4,10 +4,8 @@ import { RunCommandRow } from '@/components/RunCommandRow'
 import { piCallOk } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSessionsStore } from '@/stores/sessions'
 import { terminalAccess } from '@/stores/terminal'
 import { useLaneControl } from '@/features/machines/useLaneControl'
-import { useCanControlSession } from '@/features/sessions/useCanControlSession'
 import type { ErrorRemedy } from './errorRemedies'
 import { useSignInAction } from './useSignInAction'
 
@@ -20,15 +18,16 @@ export function ErrorRemedyActions({
   remedy,
   message,
   sessionId,
+  hostId,
   workspacePath,
 }: {
   remedy: ErrorRemedy
   message: string | undefined
   sessionId: string | undefined
+  /** The lane's Host; undefined on This Mac. */
+  hostId: string | undefined
   workspacePath: string | null | undefined
 }): React.JSX.Element {
-  const entry = useSessionsStore((s) => (sessionId ? s.live[sessionId] : undefined))
-  const hostId = entry?.target?.kind === 'remote' ? entry.target.hostId : undefined
   // The play button runs where this window may type into the lane's terminal.
   const canRun = useRemoteLanesStore(() =>
     sessionId ? terminalAccess(sessionId) === 'control' : true,
@@ -89,7 +88,7 @@ function RetryFailedTurn({
   message: string | undefined
 }): React.JSX.Element | null {
   const control = useLaneControl(sessionId)
-  const controlling = useCanControlSession(sessionId)
+  const controlling = control ? control.controlling : true
   // A Host lane is idle when its Host says so; This Mac's when no turn streams.
   const idle = control ? control.activity === 'idle' : true
   const chat = useChatStore((s) => s.sessions[sessionId])
