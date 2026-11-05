@@ -1,5 +1,6 @@
 import type { SettingsNoticeProps } from '@/components/form'
 import type { PiResources } from '@shared/models'
+import type { MachineUpdate } from '@/features/updates/useAppUpdate'
 import type { SectionStatus } from '../sectionStatus'
 
 /** The pi a machine runs: found and new enough, or why not. */
@@ -12,16 +13,6 @@ export interface PiFacts {
   minVersion?: string
   /** Why pi is unusable, when it is. */
   problem?: string
-}
-
-/** A machine's update action: one line about it, and the button that runs it. */
-export interface MachineUpdate {
-  /** Says when the machine cannot run it. */
-  note: string
-  action: string
-  primary?: boolean
-  disabled: boolean
-  run: () => void
 }
 
 /** What runs the machine (Phosphor on This Mac, the Host service), and its update. */

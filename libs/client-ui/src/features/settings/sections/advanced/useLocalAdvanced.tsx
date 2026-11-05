@@ -3,7 +3,7 @@ import { piInstallLocation, type AboutInfo } from '@shared/models'
 import { usePlatform } from '@/platform/Platform'
 import { ConfigFileEditor, piConfigFile } from '../../ConfigFileEditor'
 import { useSectionLoad } from '../sectionStatus'
-import { useAppUpdate } from './MachineRuntimeRows'
+import { useAppUpdate } from '@/features/updates/useAppUpdate'
 import type { AdvancedSource, MachineRuntime } from './source'
 import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
 
