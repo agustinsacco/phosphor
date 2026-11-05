@@ -1,4 +1,4 @@
-import { ghPrsForRepo } from '@phosphor/session-runtime/git/github'
+import { ghPrsForRepo, type GhRunner } from '@phosphor/session-runtime/git/github'
 import { createGithubReader } from '@phosphor/session-runtime/git/github-reader'
 import { runGithubCommand } from '@phosphor/session-runtime/git/github-command'
 import {
@@ -77,5 +77,13 @@ export function githubReader(context: FeatureContext) {
       next.pending = false
     })
     return next.result
+  }
+}
+
+/** Read-only gh for lane deletion's merged-PR proof. Each call has gh's own timeout; failure is no answer. */
+export function githubRunner(env: NodeJS.ProcessEnv): GhRunner {
+  return async (cwd, args) => {
+    const result = await runGithubCommand(cwd, args, env, new AbortController().signal)
+    return result.ok ? result.stdout : null
   }
 }

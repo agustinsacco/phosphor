@@ -25,7 +25,7 @@ test('first-class footer signs in, opens the account popover and signs out witho
     await expect(popover).toContainText('Octo Cat')
     await expect(popover).toContainText('@octo')
     await expect(popover).toContainText('octo@example.com')
-    await expect(popover).toContainText('0 online')
+    await expect(popover).toContainText('1 online')
     await page.keyboard.press('Escape')
     await expect(footer.getByRole('button', { name: 'Your account' })).toBeFocused()
     expect(existsSync(join(h.userData, 'account', 'session.bin'))).toBe(false)

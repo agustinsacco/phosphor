@@ -76,6 +76,10 @@
       "types": "./src/file-log.ts",
       "default": "./src/file-log.ts"
     },
+    "./git/branch-landed": {
+      "types": "./src/git/branch-landed.ts",
+      "default": "./src/git/branch-landed.ts"
+    },
     "./git/github": {
       "types": "./src/git/github.ts",
       "default": "./src/git/github.ts"

@@ -121,9 +121,9 @@ The Subagents tab explains optional configuration without creating a second
 runner or profile registry. It appears only for an installed package in the
 machine's package list. See [settings.md](settings.md#subagents-pi-subagents).
 
-**First run.** `PiMissingScreen` offers one-click Install/Update pi with
-streamed output and an auto re-check. A successful install lands on
-`GettingStartedScreen`: provider guidance plus the same recommended cards, through
+**First run.** `PiMissingScreen`, in This Mac's home, offers one-click
+Install/Update pi with streamed output and an auto re-check. A successful
+install lands on `GettingStartedScreen`: provider guidance plus the same recommended cards, through
 `useLocalPackages`.
 
 ## Command approval dialogs

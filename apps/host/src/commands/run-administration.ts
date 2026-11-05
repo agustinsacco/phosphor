@@ -17,6 +17,8 @@ import { createMachineTasks } from '../settings/tasks'
 import { createWrites } from '../features/writes'
 import { createFilesFeature } from '../features/files'
 import { createGitFeature } from '../features/git'
+import { githubRunner } from '../features/git/github'
+import { createLaneDeletion } from '../lanes/delete'
 import { createArtifactsFeature } from '../features/artifacts'
 import { createSkillsFeature } from '../features/skills'
 import { createSkillInstallFeature } from '../features/skill-install'
@@ -125,6 +127,14 @@ export function createRunAdministration(options: AdministrationOptions) {
         })
       : undefined,
     writes: createWrites(featureContext),
+    deleteLane: createLaneDeletion({
+      store: options.store,
+      stop: options.binding.deleteStop,
+      remove: options.runtime.remove,
+      forget: options.live.forget,
+      // The merged-PR proof asks gh with the same environment as the PR reads.
+      github: githubRunner(context.env),
+    }),
     features: () => features(options, featureContext, settings),
   }
 }
