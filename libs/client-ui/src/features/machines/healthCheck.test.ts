@@ -83,7 +83,7 @@ describe('health check', () => {
       )
     expect(steps('local')).toMatchObject({
       control: ['ok', '2 machines'],
-      tailscale: ['ok', 'Running with MagicDNS and HTTPS'],
+      tailscale: ['ok', 'Connected with HTTPS available'],
       pi: ['ok', 'pi 1.2.0'],
     })
     expect(steps(ready.id)).toEqual({
@@ -224,7 +224,7 @@ describe('health check', () => {
     )
     expect(local).toEqual({
       control: ['off', 'Signed out'],
-      tailscale: ['ok', 'Running with MagicDNS and HTTPS'],
+      tailscale: ['ok', 'Connected with HTTPS available'],
       pi: ['ok', 'pi 1.2.0'],
       providers: ['ok', '2 providers · 1 signed in'],
       models: ['ok', '1 model'],
@@ -257,5 +257,37 @@ describe('health check', () => {
     expect(routines).toEqual(['1 routine', '1 routine'])
     expect(calls).toHaveBeenCalledWith('routines:list', 'local')
     expect(calls).toHaveBeenCalledWith('routines:list', `host:${ready.id}`)
+  })
+
+  it("F3: This Mac's Tailscale and pi steps say what its readiness row says", async () => {
+    const localSteps = async (signedIn: boolean, machines: (typeof ready)[]) => {
+      const calls = vi.fn(async (channel: string): Promise<unknown> => {
+        if (channel === 'hosts:tailscaleStatus') return { code: 'not-installed' }
+        if (channel === 'pi:health')
+          return { ok: false, reason: 'not-found', message: 'pi was not found on your PATH.' }
+        throw new Error(`unexpected ${channel}`)
+      })
+      const run = await runHealthCheck({
+        invoke: calls as never,
+        localLabel: 'This Mac',
+        signedIn,
+        refreshDirectory: async () => null,
+        machines: () => machines,
+        hosts: () => ({}),
+        localProviders: async () => [],
+        localLanes: () => ({ live: 0, folders: 0 }),
+        now: () => now,
+        onUpdate: () => {},
+      })
+      return Object.fromEntries(run.targets[0]?.steps.map((s) => [s.id, [s.tone, s.detail]]) ?? [])
+    }
+    for (const local of [await localSteps(false, [ready]), await localSteps(true, [])])
+      expect(local.tailscale).toEqual(['off', 'Needed only to reach your Hosts'])
+    const withHosts = await localSteps(true, [ready])
+    expect(withHosts.tailscale).toEqual([
+      'warn',
+      'Install Tailscale on this computer, then sign in to your tailnet.',
+    ])
+    expect(withHosts.pi).toEqual(['error', 'pi was not found on your PATH.'])
   })
 })
