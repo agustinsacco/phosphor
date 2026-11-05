@@ -22,12 +22,13 @@ import {
   parseSubagentStatus,
   summarizeSubagents,
 } from '@/features/chat/subagentStatus'
+import { SUBAGENT_INSPECT_WIDGET_KEY } from '@/features/chat/subagentRuns'
+// From its one home, not the chat re-export: the status-wire audit resolves Set literals one hop deep.
 import {
   SUBAGENT_ASYNC_WIDGET_KEY,
-  SUBAGENT_INSPECT_WIDGET_KEY,
   parseFleetWidget,
   summarizeFleet,
-} from '@/features/chat/subagentRuns'
+} from '@phosphor/shared/subagent-fleet'
 import { useChatStore } from '@/stores/chat'
 import { openSubagents } from '@/features/chat/subagentView'
 import { CommandApprovalSheet } from './CommandApprovalSheet'

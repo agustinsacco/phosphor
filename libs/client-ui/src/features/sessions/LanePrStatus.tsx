@@ -1,12 +1,11 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import clsx from 'clsx'
+import { useEffect, useState } from 'react'
 import type { GhPullRequest } from '@shared/models'
-import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { TooltipButton } from '@/components/Tooltip'
+import { MenuRow } from '@/components/PopupMenu'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, type RepoPullRequests } from '@/stores/pullRequests'
 import { useLanePullRequest } from './useLanePullRequest'
 import { prChip, noPrChip, PR_CHIP_CLASSES } from './prChip'
+import { LaneHeaderPill } from './LaneHeaderPill'
 
 /** A real tab stop in the title bar; sidebar row chips deliberately are not. */
 export function LanePrStatus({ sessionId }: { sessionId: string }): React.JSX.Element | null {
@@ -33,52 +32,27 @@ function LanePrPill({
   confirmedNoPr: boolean
   branch?: string
 }): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const id = useId()
   const chip = pr ? prChip(pr) : confirmedNoPr ? noPrChip() : null
-  const close = (): void => {
-    setOpen(false)
-    triggerRef.current?.focus()
-  }
   return (
-    <div className="titlebar-no-drag relative shrink-0">
-      <TooltipButton
-        ref={triggerRef}
-        type="button"
-        aria-label={chip ? `Pull request: ${chip.title}` : 'Pull request status unavailable'}
-        aria-expanded={open}
-        aria-controls={open ? id : undefined}
-        onClick={() => setOpen(!open)}
-        data-testid="lane-pr-status"
-        data-variant={chip?.variant}
-        className={clsx(
-          'rounded-full border px-2 py-0.5 font-mono text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
-          chip ? PR_CHIP_CLASSES[chip.variant] : 'text-text-tertiary border-border',
-        )}
-      >
-        {chip ? `${chip.label} ${chip.glyph}`.trim() : slice.loading ? 'PR …' : 'PR ?'}
-      </TooltipButton>
-      {open && (
-        <PopupMenu
-          id={id}
-          triggerRef={triggerRef}
-          onClose={close}
-          fitViewport
-          escapeContainer
-          className="absolute left-0 top-full mt-1 w-80 py-2"
-        >
-          <LanePrContent
-            repoPath={repoPath}
-            ready={ready}
-            slice={slice}
-            pr={pr}
-            confirmedNoPr={confirmedNoPr}
-            branch={branch}
-          />
-        </PopupMenu>
+    <LaneHeaderPill
+      label={chip ? `Pull request: ${chip.title}` : 'Pull request status unavailable'}
+      testId="lane-pr-status"
+      variant={chip?.variant}
+      className={chip ? PR_CHIP_CLASSES[chip.variant] : 'text-text-tertiary border-border'}
+      face={chip ? `${chip.label} ${chip.glyph}`.trim() : slice.loading ? 'PR …' : 'PR ?'}
+      region="Pull request details"
+    >
+      {() => (
+        <LanePrContent
+          repoPath={repoPath}
+          ready={ready}
+          slice={slice}
+          pr={pr}
+          confirmedNoPr={confirmedNoPr}
+          branch={branch}
+        />
       )}
-    </div>
+    </LaneHeaderPill>
   )
 }
 
@@ -98,12 +72,8 @@ function LanePrContent({
   branch?: string
 }): React.JSX.Element {
   const [linkError, setLinkError] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    ref.current?.querySelector('button')?.focus()
-  }, [])
   return (
-    <div ref={ref} role="region" aria-label="Pull request details">
+    <>
       <div className="space-y-2 px-3 pb-2 text-sm">
         {pr ? (
           <PrDetails pr={pr} />
@@ -135,7 +105,7 @@ function LanePrContent({
       >
         {slice.loading ? 'Refreshing…' : 'Refresh'}
       </MenuRow>
-    </div>
+    </>
   )
 }
 
