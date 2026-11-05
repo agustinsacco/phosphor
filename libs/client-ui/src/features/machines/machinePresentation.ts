@@ -41,6 +41,10 @@ function claudeSignIn(configurable: boolean): { text: string; command?: string }
         command: 'phosphor providers login claude',
       }
 }
+/** A ready Tailscale, on This Mac or a Host. */
+export const TAILSCALE_READY = 'Connected with HTTPS available'
+/** This computer's Tailscale while the account reaches no Hosts: optional, never a problem. */
+export const TAILSCALE_OPTIONAL = 'Needed only to reach your Hosts'
 /** What this computer's Tailscale needs, by its read-only status. */
 export const TAILSCALE_FIXES: Record<TailscaleCode, string> = {
   ready: 'Tailscale is running and logged in. MagicDNS and HTTPS certificates are available.',
@@ -175,7 +179,7 @@ export function readinessChecks(
       detail: unpublished
         ? 'Running, but its address is not published'
         : tailscale === 'ok'
-          ? 'Connected with HTTPS available'
+          ? TAILSCALE_READY
           : tailscale === 'stopped'
             ? 'Start Tailscale on this machine.'
             : tailscale === 'no-https'
@@ -295,8 +299,8 @@ export function localChecks(
       short: TAILSCALE_SHORT[tailscale?.code ?? 'check-failed'],
       detail:
         tailscale?.code === 'ready'
-          ? 'Connected with HTTPS available'
-          : `${reachesHosts ? '' : 'Needed only to reach your Hosts. '}${TAILSCALE_FIXES[tailscale?.code ?? 'check-failed']}`,
+          ? TAILSCALE_READY
+          : `${reachesHosts ? '' : `${TAILSCALE_OPTIONAL}. `}${TAILSCALE_FIXES[tailscale?.code ?? 'check-failed']}`,
     },
   ]
 }

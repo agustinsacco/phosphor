@@ -6,7 +6,14 @@ import { controlMessage } from './controlMessages'
 import { machineCounts, type MachineCount } from './machineCounts'
 import { machineHeadline, type Tone } from './machineReachability'
 import type { MachineClaude } from '@shared/host-protocol-machine'
-import { claudeReadiness, localClaude, relativeTime, TAILSCALE_FIXES } from './machinePresentation'
+import {
+  claudeReadiness,
+  localClaude,
+  relativeTime,
+  TAILSCALE_FIXES,
+  TAILSCALE_OPTIONAL,
+  TAILSCALE_READY,
+} from './machinePresentation'
 
 /**
  * The Machines health check: every read Desktop makes of the control plane
@@ -175,11 +182,13 @@ function localProbes(context: HealthContext): Probe[] {
     {
       id: 'tailscale',
       label: 'Tailscale',
+      // As This Mac's readiness row: without Hosts to reach, it is optional.
       run: async () => {
         const status = await invoke('hosts:tailscaleStatus')
-        return status.code === 'ready'
-          ? { tone: 'ok', detail: 'Running with MagicDNS and HTTPS' }
-          : { tone: 'warn', detail: TAILSCALE_FIXES[status.code] }
+        if (status.code === 'ready') return { tone: 'ok', detail: TAILSCALE_READY }
+        return context.signedIn && context.machines().length
+          ? { tone: 'warn', detail: TAILSCALE_FIXES[status.code] }
+          : { tone: 'off', detail: TAILSCALE_OPTIONAL }
       },
     },
     {
@@ -189,7 +198,7 @@ function localProbes(context: HealthContext): Probe[] {
         const health = await invoke('pi:health')
         return health.ok
           ? { tone: 'ok', detail: `pi ${health.version}` }
-          : { tone: 'error', detail: health.reason ?? 'pi is not available' }
+          : { tone: 'error', detail: health.message ?? health.reason ?? 'pi is not available' }
       },
     },
     ...machineProbes(reads, machineCounts(invoke, 'local')),

@@ -701,7 +701,9 @@ check directly. The check only reads (nothing restarts): the control plane
 (reloading the directory), then this computer's Tailscale, pi, providers, models,
 Claude Code, skills, routines and live lanes, then per Host its heartbeat and
 connection and, when connected and granted, the same providers, models, Claude
-Code, skills, routines and lanes. Each step shows its time in ms. A Host that is not
+Code, skills, routines and lanes. This computer's Tailscale step says what its
+readiness row says: until the account has a Host it reads "Needed only to reach
+your Hosts" and adds no issue to the badge. Each step shows its time in ms. A Host that is not
 connected gets one "Skipped until connected" line instead of six. Each Host
 section has Reconnect (`hosts:reconnect`), which re-reads the directory, then
 drops and reopens that Host's connection; open lanes resync. The popover links to the log.
