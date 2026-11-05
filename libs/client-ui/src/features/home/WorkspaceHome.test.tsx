@@ -193,3 +193,19 @@ it('keeps the Host home and its machine picker when the composer picks This Macâ
   expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain(MOCK_HOST_ID)
   expect(container.textContent).toContain('Send draft')
 })
+
+it('keeps Host home A when the composer picks Host B while This Mac shows its setup', async () => {
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  useRemoteLanesStore.setState({
+    filter: MOCK_HOST_ID,
+    hosts: { [MOCK_HOST_ID]: host, 'host-b': structuredClone(host) },
+  })
+  const setup = <p>This Mac setup</p>
+  await act(async () => root.render(<WorkspaceHome workspacePath="" localSetup={setup} />))
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label=Machine]')!.click())
+  click('host-b')
+  expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('host-b')
+  const homes = [...container.querySelectorAll('section[aria-label="Host home"] h2')]
+  expect(homes.map((h) => h.textContent)).toEqual([MOCK_HOST_ID])
+  expect(container.textContent).not.toContain('This Mac setup')
+})
