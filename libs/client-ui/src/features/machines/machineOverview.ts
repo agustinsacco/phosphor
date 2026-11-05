@@ -23,6 +23,7 @@ import {
 import { machineHeadline, type Headline } from './machineReachability'
 import { localLiveEntries } from './localLive'
 import { useLocalTasks } from './MachineTasks'
+import { useHostClaude } from './useHostClaude'
 import { useHostPiVersion } from './useHostPiVersion'
 import { hostTasks, taskCounts, type MachineTask } from './runningTasks'
 
@@ -235,36 +236,13 @@ export function useClaudeReadiness(
   refresh: number,
 ): { check: ReadinessCheck | null; loading: boolean } {
   const connection = useRemoteLanesStore((s) => s.hosts[hostId])
-  const connected = connection?.state === 'ready'
+  const { detail, loading } = useHostClaude(
+    hostId,
+    `${connection?.connectionToken}:${refresh}`,
+    connection?.state === 'ready',
+  )
   const configurable = connection?.configurationSupported === true
-  const [state, setState] = useState<{
-    hostId: string
-    check: ReadinessCheck | null
-    loading: boolean
-  } | null>(null)
-  useEffect(() => {
-    let live = true
-    setState(connected ? { hostId, check: null, loading: true } : null)
-    if (connected)
-      void window.phosphor.invoke('hosts:claude', hostId).then(
-        (detail) => {
-          if (live)
-            setState({
-              hostId,
-              check: detail ? claudeReadiness(detail, configurable) : null,
-              loading: false,
-            })
-        },
-        () => {
-          if (live) setState({ hostId, check: null, loading: false })
-        },
-      )
-    return () => {
-      live = false
-    }
-  }, [hostId, connected, configurable, connection?.connectionToken, refresh])
-  const current = connected && state?.hostId === hostId ? state : null
-  return { check: current?.check ?? null, loading: current?.loading ?? false }
+  return { check: !loading && detail ? claudeReadiness(detail, configurable) : null, loading }
 }
 
 /** Check again reloads the directory, then the Host's own reads follow `round`. */
