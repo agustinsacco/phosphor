@@ -9,6 +9,7 @@ import { usePromptStore } from '@/stores/prompt'
 import { MOCK_HOST_ID, mockRemoteHosts, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import type { HostCapability } from '@shared/remote-host'
 import type { MachineAccount } from '@shared/machine-settings'
+import { forgetHostProviders } from '@/stores/hostProvidersCache'
 
 beforeAll(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -114,16 +115,20 @@ afterEach(() => {
   container = null
   invoke.mockClear()
   onMoved.mockClear()
+  forgetHostProviders(MOCK_HOST_ID)
   usePromptStore.setState({ requests: [] })
 })
 
-it('reads nothing until the picker opens, then moves the Host lane to another account', async () => {
+it('reads the accounts again when the picker opens, then moves the Host lane', async () => {
   host(['sessions.read', 'sessions.control', 'machine.configure'])
   render()
-  expect(invoke).not.toHaveBeenCalled()
+  await act(async () => {})
+  expect(invoke).toHaveBeenCalledTimes(1)
   click('Switch account')
   await act(async () => {})
-  expect(invoke).toHaveBeenCalledWith('hosts:settingsRead', MOCK_HOST_ID, 'providers')
+  // Targets need fresh sign-in states, not the summary's cached read.
+  expect(invoke).toHaveBeenCalledTimes(2)
+  expect(invoke).toHaveBeenLastCalledWith('hosts:settingsRead', MOCK_HOST_ID, 'providers')
   // The lane's own account and signed-out accounts are not targets.
   expect(document.body.textContent).toContain('personal@example.com')
   expect(document.body.textContent).not.toContain('signed-out')
@@ -135,8 +140,9 @@ it('reads nothing until the picker opens, then moves the Host lane to another ac
 
 it('says so when the Host has no other signed-in account', async () => {
   host(['sessions.read', 'sessions.control', 'machine.configure'])
-  accounts = [account('work', [LANE])]
+  accounts = [account('work', [LANE]), account('signed-out', [], { loggedIn: false })]
   render()
+  await act(async () => {})
   click('Switch account')
   await act(async () => {})
   expect(document.body.textContent).toContain('No other signed-in Claude account')
@@ -151,9 +157,10 @@ it('asks for settings access before reading Host accounts', async () => {
   expect(invoke).not.toHaveBeenCalledWith('hosts:settingsRead', MOCK_HOST_ID, 'providers')
 })
 
-it('needs lane control before offering a move', () => {
+it('needs lane control before offering a move', async () => {
   host(['sessions.read', 'machine.configure'])
   render()
+  await act(async () => {})
   expect(document.body.textContent).toContain('Take control of this lane')
   const button = [...document.querySelectorAll('button')].find((b) =>
     b.textContent?.includes('Switch account'),
@@ -163,6 +170,8 @@ it('needs lane control before offering a move', () => {
 
 it('surfaces a failed move instead of swallowing it', async () => {
   host(['sessions.read', 'sessions.control', 'machine.configure'])
+  render()
+  await act(async () => {})
   invoke.mockImplementationOnce(async () => ({
     section: 'providers',
     revision: 'r1',
@@ -171,7 +180,6 @@ it('surfaces a failed move instead of swallowing it', async () => {
   invoke.mockImplementationOnce(async () => {
     throw new Error('Account move not confirmed.')
   })
-  render()
   click('Switch account')
   await act(async () => {})
   click('personal@example.com')
@@ -210,6 +218,7 @@ it('stays closed and grants nothing when access is declined', async () => {
 it('hides the targets when control is lost while picking, and Cancel still closes', async () => {
   host(FULL)
   render()
+  await act(async () => {})
   click('Switch account')
   await act(async () => {})
   expect(document.body.textContent).toContain('personal@example.com')
@@ -222,10 +231,11 @@ it('hides the targets when control is lost while picking, and Cancel still close
 
 it('shows a failed first read as a failure, not an empty list, and retries', async () => {
   host(FULL)
+  render()
+  await act(async () => {})
   invoke.mockImplementationOnce(async () => {
     throw new Error('Host settings operation not confirmed.')
   })
-  render()
   click('Switch account')
   await act(async () => {})
   expect(document.body.textContent).toContain('Host settings operation not confirmed.')
@@ -233,4 +243,109 @@ it('shows a failed first read as a failure, not an empty list, and retries', asy
   click('Retry')
   await act(async () => {})
   expect(document.body.textContent).toContain('personal@example.com')
+})
+
+/*
+ * The same gate and wording as This Mac's switcher (`accountSwitcherSummary`), from
+ * the Host's accounts. They are read only where this device already holds the
+ * configuration grant, at most once a minute per Host connection.
+ */
+const providersReads = () =>
+  invoke.mock.calls.filter(([channel]) => channel === 'hosts:settingsRead').length
+
+async function settle(): Promise<void> {
+  await act(async () => {})
+}
+
+it('hides the switcher on a Host with one Claude account, as This Mac does', async () => {
+  host(FULL)
+  accounts = [account('work', [LANE], { email: 'work@example.com' })]
+  render()
+  await settle()
+  expect(document.body.textContent).not.toContain('Switch account')
+})
+
+it("names the account a Host lane spends, of how many, as This Mac's does", async () => {
+  host(FULL)
+  render()
+  await settle()
+  expect(document.body.textContent).toContain('Spending work@example.com of 3 accounts.')
+})
+
+it('warns and names where new lanes go when the Host account is out of allowance', async () => {
+  host(FULL)
+  accounts[0] = { ...accounts[0]!, cooldownUntil: Date.now() + 60_000 }
+  render()
+  await settle()
+  expect(document.body.textContent).toContain(
+    'Out of plan allowance. New sessions go to personal@example.com.',
+  )
+})
+
+it("reads a Host's accounts once a minute per connection, never without the grant", async () => {
+  host(['sessions.read', 'sessions.control'])
+  render()
+  await settle()
+  expect(providersReads()).toBe(0)
+  act(() => root?.unmount())
+  host(FULL)
+  render()
+  await settle()
+  act(() => root?.unmount())
+  render()
+  await settle()
+  expect(providersReads()).toBe(1)
+  // A new connection is a new read.
+  act(() => reconnecting())
+  act(() => host(FULL))
+  act(() => root?.unmount())
+  render()
+  await settle()
+  expect(providersReads()).toBe(2)
+})
+
+it('keeps no failed read: the switcher stays neutral and the next open reads again', async () => {
+  host(FULL)
+  invoke.mockImplementationOnce(async () => {
+    throw new Error('Host settings operation not confirmed.')
+  })
+  render()
+  await settle()
+  expect(document.body.textContent).toContain('Move this lane to another Claude account')
+  act(() => root?.unmount())
+  render()
+  await settle()
+  expect(providersReads()).toBe(2)
+  expect(document.body.textContent).toContain('Spending work@example.com of 3 accounts.')
+})
+
+it('keeps what the Host said through a reconnect while it reads again', async () => {
+  host(FULL)
+  render()
+  await settle()
+  act(() => reconnecting())
+  act(() => host(FULL))
+  // The new connection's read has not answered yet.
+  expect(document.body.textContent).toContain('Spending work@example.com of 3 accounts.')
+  await settle()
+  expect(providersReads()).toBe(2)
+  expect(document.body.textContent).toContain('Spending work@example.com of 3 accounts.')
+})
+
+it('stays hidden on a one-account Host through a reconnect', async () => {
+  host(FULL)
+  accounts = [account('work', [LANE], { email: 'work@example.com' })]
+  render()
+  await settle()
+  act(() => reconnecting())
+  expect(document.body.textContent).not.toContain('Switch account')
+})
+
+it('goes neutral when the configuration grant is withdrawn', async () => {
+  host(FULL)
+  render()
+  await settle()
+  act(() => host(['sessions.read', 'sessions.control']))
+  expect(document.body.textContent).not.toContain('Spending')
+  expect(document.body.textContent).toContain('Move this lane to another Claude account')
 })

@@ -42,7 +42,11 @@ The composer is one small field with several ways in.
   recovery control (after a restart, a transient error or an unfinished turn):
   disabled while resuming, awaiting a reply, streaming or compacting, and
   available again in a reopened session after an app restart. It uses normal
-  prompt delivery; if pi's process crashed, use **Resume session** first.
+  prompt delivery; if pi's process crashed, use **Resume session** first. That
+  is the "pi crashed" banner above the transcript, on This Mac and on a Host
+  lane whose activity is `failed`; there it resumes the lane on the Host
+  (`hosts:resumeLane`) and, like every lane action, needs lane control. The
+  control row above the composer then offers no Resume of its own.
 - **Markdown list primitives.** Shift+Enter continues the list the caret is on
   (renumbering; an empty item steps out a level, then exits). Tab/Shift+Tab
   nest and un-nest inside a list (Tab takes an autocomplete suggestion first
@@ -266,7 +270,14 @@ The composer is one small field with several ways in.
   compaction summarised away. Attachments are restored from the entry, since
   `fork` replies with text only.
 - Error and abort stop reasons are styled apart: an error banner with the
-  message; aborted is a muted "stopped" divider.
+  message; aborted is a muted "stopped" divider. A failure Phosphor knows the
+  fix for carries it, one set on every machine (`errorRemedies.ts`,
+  `ErrorRemedyActions.tsx`): a provider login or a rejected credential (a 401,
+  an invalid API key) opens **Sign in on <machine>** (Settings → Accounts for
+  the lane's machine), an expired AWS token offers
+  `aws sso login` to run in the lane's terminal on that machine, and a Bedrock
+  configuration failure links its docs. **Retry failed turn** resends the last
+  failed prompt once the fix is in, while the lane is idle and controlled.
 - Auto-retry: an inline strip "Retrying (2/3) in 4s — <error>" with cancel.
 - Compaction: a system divider "Context compacted — N tokens summarized" with
   an expandable summary, drawn from pi's `compaction_end` on every provider,
@@ -844,9 +855,15 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   from `libs/shared/src/thinking.ts`. The segment is hidden unless the model has
   more than one level.
 - **Two owners, one chip.** `ModelPicker` drives a live session over RPC
-  (`set_model`). `HomeModelPicker` has no process to talk to, so it reads and
-  writes pi's own `defaultProvider` / `defaultModel` / `defaultThinkingLevel`.
-  Both render `composer/ModelChip.tsx`: the model name as the left segment,
+  (`set_model`). A new lane has no process to talk to, so the start composer's
+  one `StartModelPicker` (`features/home/`) reads a machine's model source:
+  This Mac's reads and writes pi's own `defaultProvider` / `defaultModel` /
+  `defaultThinkingLevel` (`useLocalStartModel`); a Host's reads its catalogue
+  and the picks remembered for it (`RemoteModelPicker`). A source's actions are
+  rendered after the chips: a Host's are Retry models and, with no usable
+  signed-in model, Sign in on it (Settings → Accounts for that Host). The picker
+  grows into the toolbar's free width on every machine.
+  Both owners render `composer/ModelChip.tsx`: the model name as the left segment,
   the thinking level (with a caret) as the right. The provider is not on the
   chip: it is in the chip's tooltip and, in a session, in the strip, named only
   when pi does not ship it (`namedProvider`).
@@ -1067,10 +1084,20 @@ account on the Host, so its section is titled `Plan usage · Claude on <machine>
 and comes from that Host's own `claude -p /usage` for the account the lane bills
 (`hosts:claudeUsage` → [`machine.claudeUsage`](host.md#claude-machine-diagnostics)).
 Its **Switch account** moves the lane to another account on that Host, as This
-Mac's does ([cli-providers](cli-providers.md)). It needs lane control, and asks
-for the Host's settings access first if this client lacks it; the picker stays
-open through the reconnect that grant causes, then reads the Host's accounts. A
-failed read says so and offers Retry, and usage is re-read after every move
+Mac's does ([cli-providers](cli-providers.md)). Where this client already holds
+the Host's settings access, the Host's accounts give it This Mac's gate and
+wording: hidden with one account, "Spending … of N accounts", and the warning
+that names where new lanes go when the lane's account is out of allowance
+(`accountSwitcherSummary`). That read runs a sign-in check per account on the
+Host, so it is kept for a minute per Host connection
+(`stores/hostProvidersCache.ts`); a failed one is not kept, and a move drops it.
+An account added, removed or rerouted in that Host's Settings shows here within
+that minute. A reconnect keeps the last answer on screen until the new
+connection's read lands. Without access the summary stays neutral and nothing
+is read. It needs lane control, and asks for
+the Host's settings access first if this client lacks it; the picker stays open
+through the reconnect that grant causes, then reads the Host's accounts. A
+failed read, or a Host answer without provider settings, says so and offers Retry, and usage is re-read after every move
 attempt, confirmed or not. A Host older
 than the call says so in the section and offers Refresh, rather than hiding it.
 

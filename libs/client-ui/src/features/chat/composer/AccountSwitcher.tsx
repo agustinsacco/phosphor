@@ -3,7 +3,31 @@ import clsx from 'clsx'
 import { TooltipButton } from '@/components/Tooltip'
 import { Spinner } from '@/components/icons'
 import type { MoveTarget } from '@/lib/claudeGateway'
+import type { ClaudeSessionAccount } from '@shared/models'
 import { errorText } from '@shared/errors'
+
+/**
+ * What the switcher says about the account a lane spends, or null where there is
+ * nowhere to move it (one account). The one gate and wording for every machine:
+ * This Mac reads the account from `claude:sessionAccount`, a Host from its
+ * providers settings.
+ */
+export function accountSwitcherSummary(
+  account: ClaudeSessionAccount,
+): { summary: string; warn: boolean } | null {
+  if (account.total < 2) return null
+  const held = account.cooldownUntil !== null
+  return {
+    warn: held,
+    summary: held
+      ? account.mode === 'specific'
+        ? 'Out of plan allowance, and routing is pinned here — Settings → Extensions → Claude Code.'
+        : account.alternative
+          ? `Out of plan allowance. New sessions go to ${account.alternative.label}.`
+          : 'Out of plan allowance, and every other account is too.'
+      : `Spending ${account.email ?? account.label} of ${account.total} accounts.`,
+  }
+}
 
 /**
  * The one "Switch account" control for a Claude lane, on This Mac and on a Host.

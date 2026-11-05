@@ -26,10 +26,12 @@ describe('matchErrorRemedy', () => {
     ).toMatch(/aws sso login/)
   })
 
-  it('suggests pi /login for OAuth failures', () => {
-    const remedy = matchErrorRemedy('OAuth refresh token rejected')
-    expect(remedy?.command).toBe('pi')
-    expect(remedy?.label).toBe('Run pi /login')
+  it('sends OAuth failures to sign in again, naming the machine', () => {
+    const remedy = matchErrorRemedy('OAuth refresh token rejected', { machine: 'This Mac' })
+    expect(remedy?.signIn).toBe(true)
+    expect(remedy?.command).toBeUndefined()
+    expect(remedy?.label).toBe('Sign in on This Mac')
+    expect(remedy?.retryAfter).toBe(true)
   })
 
   it('explains the Bedrock data retention failure without inventing a command', () => {
@@ -72,21 +74,30 @@ describe('matchErrorRemedy', () => {
     expect(matchErrorRemedy(undefined)).toBeNull()
     expect(matchErrorRemedy('')).toBeNull()
   })
-
-  it('does not fire on a plain 401 with no login hint', () => {
-    expect(matchErrorRemedy('401 Unauthorized')).toBeNull()
-  })
 })
 
 it.each([
-  'OAuth refresh token rejected',
-  'ExpiredTokenException',
-  'Token is expired, run aws sso login',
-  'The security token is invalid',
-])('remote auth remedy never suggests a local command: %s', (message) => {
-  const remedy = matchErrorRemedy(message, { machine: 'bee1', awsProfile: 'local-profile' })
-  expect(remedy?.label).toBe('Sign in on bee1')
-  expect(remedy?.remoteSignIn).toBe(true)
+  ['OAuth refresh token rejected', undefined],
+  ['Invalid API key · Please run /login', undefined],
+  ['ExpiredTokenException', 'aws sso login'],
+  ['Token is expired, run aws sso login', 'aws sso login'],
+  ['The security token is invalid', 'aws sso login'],
+])('a Host lane gets the same remedy as This Mac: %s', (message, command) => {
+  const remedy = matchErrorRemedy(message, { machine: 'bee1' })
+  expect(remedy?.command).toBe(command)
+  expect(remedy?.signIn).toBe(command === undefined ? true : undefined)
+  if (remedy?.signIn) expect(remedy.label).toBe('Sign in on bee1')
+})
+
+// Settings → Accounts holds API keys as well as sign-ins, on every machine.
+it.each([
+  ['401: invalid x-api-key sk-test', 'This Mac'],
+  ['401: invalid x-api-key sk-test', 'bee1'],
+  ['HTTP 401 Unauthorized', 'This Mac'],
+  ['Unauthorized: invalid API key', 'bee1'],
+])('sends a rejected credential to sign in on its machine: %s on %s', (message, machine) => {
+  const remedy = matchErrorRemedy(message, { machine })
+  expect(remedy?.signIn).toBe(true)
+  expect(remedy?.label).toBe(`Sign in on ${machine}`)
   expect(remedy?.command).toBeUndefined()
-  expect(remedy?.hint).not.toContain('local-profile')
 })

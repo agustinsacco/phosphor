@@ -1,9 +1,7 @@
 import { useSessionsStore } from '@/stores/sessions'
-import { canControlSession, REMOTE_UNAVAILABLE, useRemoteLanesStore } from '@/stores/remoteLanes'
-import { piCallOk } from '@/lib/rpc'
+import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { machineLabel } from '@/stores/remoteLanes'
-import { useMachinesStore } from '@/stores/machines'
-import { Button } from '@/components/form'
+import { localMachineLabel } from '@/lib/localMachine'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useState } from 'react'
 import clsx from 'clsx'
@@ -21,8 +19,8 @@ import { ChatImage } from './ChatImage'
 import { UserText } from './UserText'
 import { USER_BUBBLE_CLASS } from './userBubble'
 import type { TranscriptRow } from './items/transcriptRows'
-import { RunCommandRow } from '@/components/RunCommandRow'
 import { matchErrorRemedy } from './errorRemedies'
+import { ErrorRemedyActions } from './ErrorRemedyActions'
 import { parseErrorMessage, type ParsedError } from './errorMessage'
 import { useActiveWorkspace } from '@/stores/workspaces'
 import { BranchIcon, RewindIcon } from '@/components/icons'
@@ -364,9 +362,10 @@ function AssistantOutcome({
 /**
  * Failed turn. When the message names a failure Phosphor knows the fix for, that
  * fix is offered inline instead of leaving the user to go find it: a runnable
- * command for the shell-fixable ones (expired AWS SSO token, missing pi login),
- * for configuration failures that no command can fix (Bedrock's account-level
- * data retention mode) a docs link plus a pointer at the model menu.
+ * command for the shell-fixable ones (expired AWS SSO token), sign-in for a
+ * provider login, and for configuration failures that no command can fix
+ * (Bedrock's account-level data retention mode) a docs link plus a pointer at
+ * the model menu. The same set on every machine (`ErrorRemedyActions`).
  */
 export function ErrorBlock({
   message,
@@ -380,21 +379,6 @@ export function ErrorBlock({
   const entry = useSessionsStore((s) => (sessionId ? s.live[sessionId] : undefined))
   const workspacePath = entry?.workspacePath ?? fallbackWorkspace
   const hostId = entry?.target?.kind === 'remote' ? entry.target.hostId : undefined
-  const remoteIdle = useRemoteLanesStore((s) =>
-    hostId
-      ? s.hosts[hostId]?.lanes.find((lane) => lane.laneId === entry?.laneId)?.activity === 'idle'
-      : false,
-  )
-  const chat = useChatStore((s) => (sessionId ? s.sessions[sessionId] : undefined))
-  const [retrying, setRetrying] = useState(false)
-  const last = chat?.items.at(-1)
-  const retryUser =
-    last?.kind === 'assistant' &&
-    last.stopReason === 'error' &&
-    last.errorMessage === message &&
-    !chat?.isStreaming
-      ? chat?.items.findLast((item) => item.kind === 'user')
-      : undefined
   const [awsProfile, setAwsProfile] = useState<string | undefined>(undefined)
 
   useEffect(() => {
@@ -413,7 +397,7 @@ export function ErrorBlock({
   // appear in fields the human sentence does not carry.
   const remedy = matchErrorRemedy(message, {
     awsProfile: hostId ? undefined : awsProfile,
-    machine: hostId ? machineLabel(hostId) : undefined,
+    machine: hostId ? machineLabel(hostId) : localMachineLabel(),
   })
   const parsed = parseErrorMessage(message)
 
@@ -426,66 +410,12 @@ export function ErrorBlock({
       </span>
       {parsed.unwrapped && <RawErrorDetails raw={message!} parsed={parsed} />}
       {remedy && (
-        <>
-          <div className="text-text-secondary mt-1.5 text-base leading-relaxed">{remedy.hint}</div>
-          {remedy.remoteSignIn &&
-            hostId &&
-            sessionId &&
-            remoteIdle &&
-            retryUser?.kind === 'user' &&
-            canControlSession(sessionId) && (
-              <Button
-                size="sm"
-                disabled={retrying}
-                onClick={() => {
-                  if (retrying) return
-                  setRetrying(true)
-                  void piCallOk(sessionId, {
-                    type: 'prompt',
-                    message: retryUser.text,
-                    images: retryUser.images,
-                  }).finally(() => setRetrying(false))
-                }}
-              >
-                Retry failed turn
-              </Button>
-            )}
-          {remedy.remoteSignIn && hostId && (
-            <Button
-              size="sm"
-              onClick={() => useMachinesStore.getState().show({ kind: 'machine', id: hostId })}
-            >
-              {remedy.label}
-            </Button>
-          )}
-          {remedy.command !== undefined && !hostId && (
-            <RunCommandRow
-              command={remedy.command}
-              label={remedy.label}
-              workspacePath={workspacePath ?? undefined}
-            />
-          )}
-          {(remedy.docsUrl || remedy.suggestModelSwitch) && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-base">
-              {remedy.docsUrl && (
-                <a
-                  href={remedy.docsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-accent hover:underline"
-                  data-tooltip="Open link"
-                >
-                  {remedy.label}
-                </a>
-              )}
-              {remedy.suggestModelSwitch && (
-                <span className="text-text-tertiary">
-                  Switch models from the picker in the composer below.
-                </span>
-              )}
-            </div>
-          )}
-        </>
+        <ErrorRemedyActions
+          remedy={remedy}
+          message={message}
+          sessionId={sessionId ?? undefined}
+          workspacePath={workspacePath}
+        />
       )}
     </div>
   )

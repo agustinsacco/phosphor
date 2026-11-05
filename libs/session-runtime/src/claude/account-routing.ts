@@ -1,11 +1,7 @@
-import type {
-  ClaudeAccount,
-  ClaudeAccountPrefs,
-  ClaudeRoutingMode,
-  ClaudeSessionAccount,
-} from '@shared/models'
+import type { ClaudeAccount, ClaudeRoutingMode, ClaudeSessionAccount } from '@shared/models'
+import { claudeSessionAccount } from '@shared/claude-session-account'
 import type { AccountState } from './account-state'
-import { isCoolingDown, selectAccount } from './routing'
+import { selectAccount } from './routing'
 
 /** The account a one-shot `pi -p` run (session naming, provider test) uses. */
 async function primaryAccount(
@@ -58,16 +54,6 @@ async function holdAccount(state: AccountState, accountId: string, untilMs: numb
   state.save({ ...prefs, cooldowns: { ...prefs.cooldowns, [accountId]: untilMs } })
 }
 
-/** The account a lane would move to: the first one not itself on hold. */
-function alternativeTo(
-  prefs: ClaudeAccountPrefs,
-  accountId: string,
-  nowMs: number,
-): { id: string; label: string } | null {
-  const other = prefs.accounts.find((a) => a.id !== accountId && !isCoolingDown(prefs, a.id, nowMs))
-  return other ? { id: other.id, label: other.email ?? other.label } : null
-}
-
 /**
  * Which account is billing this session, for the UI that has to say so.
  *
@@ -87,21 +73,13 @@ async function sessionAccount(
   const id =
     options.accountId ?? (options.sessionPath ? prefs.bindings[options.sessionPath] : undefined)
   if (!id) return null
-  const account = prefs.accounts.find((a) => a.id === id)
-  if (!account) return null
-  const now = Date.now()
-  const cooldown = prefs.cooldowns[account.id]
-  return {
-    id: account.id,
-    label: account.label,
-    ...(account.email ? { email: account.email } : {}),
-    ...(account.plan ? { plan: account.plan } : {}),
-    total: prefs.accounts.length,
-    mode: prefs.mode,
-    cooldownUntil: cooldown !== undefined && cooldown > now ? cooldown : null,
-    /** Another account is available and not itself on hold. */
-    alternative: alternativeTo(prefs, account.id, now),
-  }
+  return claudeSessionAccount(
+    prefs.accounts,
+    id,
+    prefs.mode,
+    (accountId) => prefs.cooldowns[accountId],
+    Date.now(),
+  )
 }
 
 export function createAccountRouting(

@@ -72,6 +72,10 @@
       "types": "./src/claude-limits.ts",
       "default": "./src/claude-limits.ts"
     },
+    "./claude-session-account": {
+      "types": "./src/claude-session-account.ts",
+      "default": "./src/claude-session-account.ts"
+    },
     "./claude-paths": {
       "types": "./src/claude-paths.ts",
       "default": "./src/claude-paths.ts"

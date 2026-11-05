@@ -1,7 +1,7 @@
-/* Grows into the toolbar like This Mac's picker: the model label has no intrinsic
+/* Grows into the toolbar on every machine: the model label has no intrinsic
    width (`contain: inline-size`), so a wrapper that only shrinks to fit left the
    chip at its 4rem floor. */
-.remote-model-picker {
+.start-model-picker {
   flex: 1 1 0%;
   display: flex;
   flex-wrap: wrap;
