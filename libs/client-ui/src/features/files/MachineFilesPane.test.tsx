@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MachineFilesPane } from './MachineFilesPane'
 import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
   MonacoEditor: ({ value }: { value: string }) => <pre>{value}</pre>,

@@ -9,7 +9,7 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mixedRemoteHosts } from '@/dev/mockRemoteLanes'
 import { mockSettingsRead } from '@/dev/mockMachineSettings'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,

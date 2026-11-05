@@ -120,5 +120,3 @@ async function loadMonaco(): Promise<typeof MonacoTypes> {
 export function monacoThemeFor(resolved: 'light' | 'dark'): string {
   return resolved === 'dark' ? 'phosphor-dark' : 'phosphor-light'
 }
-
-export { languageForPath } from './languages'

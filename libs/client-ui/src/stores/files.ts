@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { DirEntry } from '@shared/models'
 import { isTextPreview } from '@shared/file-kinds'
-import { languageForPath } from '@/lib/monaco'
+import { languageForPath } from '@/lib/languages'
 import { keyedSlice } from './keyedSlice'
 
 /**

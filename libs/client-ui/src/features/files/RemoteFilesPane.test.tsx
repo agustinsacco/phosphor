@@ -18,7 +18,7 @@ vi.mock('@/features/terminal/TerminalPane', () => ({ TerminalPane: () => null })
 vi.mock('@/features/artifacts/ArtifactsPane', () => ({ ArtifactsPane: () => null }))
 vi.mock('@/features/artifacts/RemoteArtifactsPane', () => ({ RemoteArtifactsPane: () => null }))
 vi.mock('@/features/chat/SubagentPanel', () => ({ SubagentPanel: () => null }))
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
   MonacoEditor: ({

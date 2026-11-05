@@ -12,7 +12,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { Sidebar } from './Sidebar'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 let root: Root
 let container: HTMLDivElement
 const invoke = vi.fn()

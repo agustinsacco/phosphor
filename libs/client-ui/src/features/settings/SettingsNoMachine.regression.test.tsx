@@ -16,7 +16,7 @@ vi.hoisted(() => {
   })
 })
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 
 const navigate = vi.fn()
 let root: Root

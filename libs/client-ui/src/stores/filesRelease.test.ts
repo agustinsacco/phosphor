@@ -11,12 +11,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 const releaseFileModel = vi.fn()
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel }))
-// `languageForPath` is imported eagerly by the store; the real module pulls in
-// monaco-editor's worker entry points, which vitest cannot resolve.
-vi.mock('@/lib/monaco', () => ({
-  languageForPath: () => 'typescript',
-  peekMonaco: () => null,
-}))
+// The real module pulls in monaco-editor's worker entry points, which vitest cannot resolve.
+vi.mock('@/lib/monaco', () => ({ peekMonaco: () => null }))
 
 const openFile = (path: string): Record<string, unknown> => ({
   path,

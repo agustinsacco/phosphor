@@ -8,7 +8,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteInfo, mockRemoteHosts } from '@/dev/mockRemoteLanes'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
   MonacoEditor: () => null,

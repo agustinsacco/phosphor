@@ -9,7 +9,7 @@ import { useWorkspacesStore } from '@/stores/workspaces'
 import { setGroupCollapsed } from './groupCollapse'
 import { Sidebar } from './Sidebar'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 let root: Root
 let container: HTMLDivElement
 const invoke = vi.fn()

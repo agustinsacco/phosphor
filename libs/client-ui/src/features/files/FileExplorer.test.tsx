@@ -6,7 +6,7 @@ import type { DirEntry } from '@shared/models'
 import { useFilesStore } from '@/stores/files'
 import { FileExplorer } from './FileExplorer'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 
 const invoke = vi.fn()
 const scrollIntoView = vi.fn()

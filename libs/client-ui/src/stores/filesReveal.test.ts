@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The real module pulls in monaco-editor's worker entry points, which vitest cannot resolve.
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext', peekMonaco: () => null }))
+vi.mock('@/lib/monaco', () => ({ peekMonaco: () => null }))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: () => {} }))
 
 const invoke = vi.fn(async (_channel: string, path: string) => ({

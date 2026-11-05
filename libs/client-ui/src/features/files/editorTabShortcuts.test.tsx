@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { useEditorTabShortcuts } from './editorTabActions'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({ releaseFileModel: () => {} }))
 const invoke = vi.fn()
 let root: Root

@@ -16,7 +16,7 @@ vi.hoisted(() => {
     value: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 
 const HOST = { id: '11111111-1111-4111-8111-111111111111', label: 'bee1' }
 const invoke = vi.fn()

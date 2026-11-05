@@ -27,7 +27,7 @@ vi.hoisted(() => {
     }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/features/settings/instructions/EditInstructions', () => ({
   EditInstructions: ({ source }: { source: { key: string; machine: string } }) => (
     <div data-editor={source.key}>{source.machine}</div>

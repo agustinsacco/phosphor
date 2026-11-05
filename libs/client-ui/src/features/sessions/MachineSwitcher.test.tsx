@@ -25,7 +25,7 @@ vi.mock('@/stores/chat', async (importOriginal) => {
   const actual = await importOriginal<typeof ChatStoreModule>()
   return { ...actual, useChatStore: Object.assign(vi.fn(actual.useChatStore), actual.useChatStore) }
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 let root: Root
 let container: HTMLDivElement
 const invoke = vi.fn()

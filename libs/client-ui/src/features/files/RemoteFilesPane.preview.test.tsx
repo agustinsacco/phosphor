@@ -8,7 +8,7 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useRemoteFileSelection } from './remoteFileSelection'
 import { mockRemoteInfo, mockRemoteHosts } from '@/dev/mockRemoteLanes'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'markdown' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
   MonacoEditor: ({ value }: { value: string }) => <textarea value={value} readOnly />,
