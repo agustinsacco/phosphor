@@ -8,7 +8,6 @@ export const TAKE_CONTROL_FIRST = 'Take control first.'
 export const ONLY_WHILE_RUNNING = 'Only while running.'
 /** A Host older than `laneMarks` cannot keep pins or markers, and only that Host can. */
 export const LANE_MARKS_NEED_UPDATE = 'Update this Host to pin and mark lanes.'
-/** No `routines` capability: an older Host, or a grant without it, so neither "yet" nor "update". */
 
 /**
  * Why a controller-only row action is disabled, or undefined when control is
