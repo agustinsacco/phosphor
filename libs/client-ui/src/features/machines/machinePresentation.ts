@@ -262,6 +262,16 @@ export interface LocalReadings {
 }
 
 /**
+ * Why This Mac's pi cannot run lanes, without a command: the row offers
+ * `PI_INSTALL`, and main's messages for these two reasons end with their own.
+ */
+function piUnavailable(health: PiHealth): string {
+  if (health.reason === 'too-old') return `pi ${health.version} is older than ${health.minVersion}.`
+  if (health.reason === 'not-found') return 'pi was not found on your PATH.'
+  return health.message ?? 'Install pi to run lanes.'
+}
+
+/**
  * This computer's pi, Claude Code and Tailscale. Tailscale only reaches Hosts:
  * without any (`reachesHosts` false) it is optional, muted rather than a problem.
  */
@@ -278,7 +288,7 @@ export function localChecks(
       detail: health
         ? health.ok
           ? `Ready · ${health.version}`
-          : (health.message ?? health.reason ?? 'Install pi to run lanes.')
+          : piUnavailable(health)
         : 'Could not check pi.',
       command: health && !health.ok ? PI_INSTALL : undefined,
     },
