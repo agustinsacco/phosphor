@@ -20,7 +20,7 @@ export const PI_INSTALL = 'npm install -g @earendil-works/pi-coding-agent'
  * The one fix for a missing or outdated Claude Code on any machine: its
  * Settings page installs the provider and the CLI, or says how.
  */
-export const CLAUDE_SETUP = 'Set it up in Settings → Extensions → Claude Code.'
+const CLAUDE_SETUP = 'Set it up in Settings → Extensions → Claude Code.'
 /** A Host that cannot open its Settings installs Claude Code with its own setup. */
 const HOST_CLAUDE_SETUP = 'Run phosphor setup on this machine.'
 function claudeSetup(configurable: boolean): { text: string; command?: string } {
