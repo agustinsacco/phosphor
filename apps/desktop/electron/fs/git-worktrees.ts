@@ -478,17 +478,15 @@ async function deleteLandedBranch(
     await git(repoPath, ['branch', '-d', branch])
     return { branchDeleted: true }
   } catch (error) {
-    const tip = await branchTip(proofGit(repoPath), branch)
-    if (!tip || !(await isBranchLanded(repoPath, branch, tip))) {
-      return { branchDeleted: false, branchError: gitErrorText(error) }
-    }
+    const run = proofGit(repoPath)
+    const kept = { branchDeleted: false, branchError: gitErrorText(error) }
+    const tip = await branchTip(run, branch)
+    if (!tip || !(await isBranchLanded(repoPath, branch, tip))) return kept
     try {
-      return (await deleteBranchAtTip(proofGit(repoPath), branch, tip))
-        ? { branchDeleted: true }
-        : { branchDeleted: false, branchError: gitErrorText(error) }
+      return (await deleteBranchAtTip(run, branch, tip)) ? { branchDeleted: true } : kept
     } catch (deleteError) {
       // The compare-and-delete refused because the branch is no longer the proven tip.
-      const moved = (await branchTip(proofGit(repoPath), branch)) !== tip
+      const moved = (await branchTip(run, branch)) !== tip
       return {
         branchDeleted: false,
         branchError: moved
