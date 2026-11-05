@@ -4,6 +4,7 @@ import {
   type LanePiPush,
   type LaneSnapshot,
 } from '@phosphor/shared/host-protocol'
+import { hasDelegatedWork, SUBAGENT_ASYNC_WIDGET_KEY } from '@phosphor/shared/subagent-fleet'
 import type {
   AgentMessage,
   ExtensionUIRequest,
@@ -36,6 +37,8 @@ interface ProjectionState {
   statuses: Map<string, ExtensionUIRequest>
   widgets: Map<string, ExtensionUIRequest>
   title?: ExtensionUIRequest
+  /** pi-subagents' fleet widget reports live or unprovable delegated work. */
+  delegated: boolean
   sequence: number
   order: WeakMap<PiEvent, number>
 }
@@ -237,6 +240,7 @@ function applyExit(state: ProjectionState, push: Extract<LanePiPush, { kind: 'ex
   state.run = undefined
   state.retry = undefined
   state.compaction = undefined
+  state.delegated = false
   state.dialogs.clear()
 }
 
@@ -254,6 +258,10 @@ function applyUi(state: ProjectionState, options: ProjectionOptions, request: Ex
     else if (state.widgets.has(request.widgetKey) || state.widgets.size < HOST_LIMITS.uiWidgetKeys)
       state.widgets.set(request.widgetKey, request)
     else options.overflow()
+    // Parsed once per widget update, not on every activity() read.
+    if (request.widgetKey === SUBAGENT_ASYNC_WIDGET_KEY)
+      state.delegated =
+        state.widgets.has(SUBAGENT_ASYNC_WIDGET_KEY) && hasDelegatedWork(request.widgetLines)
   } else if (request.method === 'setTitle') state.title = request
   else if (
     request.method === 'select' ||
@@ -337,7 +345,9 @@ function activity(state: ProjectionState, options: ProjectionOptions): LaneActiv
     state.ended ??
     (state.dialogs.size
       ? 'needs-input'
-      : state.active || state.compaction || state.retry
+      : // Delegated background agents keep the lane working after the parent
+        // run settles, the same way Desktop's sidebar counts them.
+        state.active || state.compaction || state.retry || state.delegated
         ? 'working'
         : 'idle')
   )
@@ -349,6 +359,7 @@ export function createLaneProjection(options: ProjectionOptions) {
     messages: [],
     tail: [],
     active: false,
+    delegated: false,
     messageStarted: false,
     discarding: false,
     dialogs: new Map(),

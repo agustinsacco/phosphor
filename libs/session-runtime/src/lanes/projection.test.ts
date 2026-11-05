@@ -123,6 +123,44 @@ describe('lane projection', () => {
     expect(p.view().messages).toEqual(settled)
     expect(p.activity()).toBe('idle')
   })
+  it('reports live delegated background work as working until the fleet widget clears', () => {
+    const { projection: p, ui } = setup()
+    const widget = (lines: string[]): ExtensionUIRequest => ({
+      type: 'extension_ui_request',
+      id: 'fleet',
+      method: 'setWidget',
+      widgetKey: 'subagent-async',
+      widgetLines: lines,
+    })
+    const snapshot = (state: 'running' | 'complete', omittedRuns = 0) =>
+      'PI_SUBAGENT_ASYNC_JSON:' +
+      JSON.stringify({
+        kind: 'pi-subagents.async-status-snapshot',
+        version: 1,
+        generatedAt: 1,
+        runs: [{ id: 'run-1', kind: 'subagent', label: 'worker', state }],
+        omitted: { runs: omittedRuns },
+      })
+    expect(p.activity()).toBe('idle')
+    // The parent settled; only background agents are still out there.
+    ui(widget([snapshot('running')]))
+    expect(p.activity()).toBe('working')
+    ui(widget([snapshot('complete')]))
+    expect(p.activity()).toBe('idle')
+    // An incomplete snapshot cannot prove the delegated work settled.
+    ui(widget([snapshot('complete', 2)]))
+    expect(p.activity()).toBe('working')
+    // A payload this side does not understand never invents activity.
+    ui(widget(['PI_SUBAGENT_ASYNC_JSON:{not json']))
+    expect(p.activity()).toBe('idle')
+    ui(widget([snapshot('running')]))
+    ui(widget([]))
+    expect(p.activity()).toBe('idle')
+    // Process lifecycle outranks a stale fleet: an exit took the children with it.
+    ui(widget([snapshot('running')]))
+    p.apply({ kind: 'exit', code: 0, signal: null, expected: true })
+    expect(p.activity()).toBe('stopped')
+  })
   it('bounds open dialogs and ignores momentary UI requests', () => {
     const { projection: p, ui, overflow } = setup()
     for (let k = 0; k < HOST_LIMITS.pendingEvents; k++)
