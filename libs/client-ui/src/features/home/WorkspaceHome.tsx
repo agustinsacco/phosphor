@@ -18,7 +18,7 @@ import { homeDraftKey } from '@/stores/drafts'
  * Local workbench and shared remote creation, with independent dashboard and composer targets.
  * `localSetup` takes This Mac's place while it cannot start a lane (no pi, no folder): the whole
  * home, or on a Host home only the composer slot, under the composer's machine picker. A Host
- * composer target then gets its full start page.
+ * composer target on a local home then gets its full start page.
  */
 export function WorkspaceHome({
   workspacePath,
@@ -48,7 +48,10 @@ export function WorkspaceHome({
     />
   )
   if (composerMachine === 'local' && localSetup && !homeHostId) return <>{localSetup}</>
-  if (composerMachine !== 'local' && (homeHostId === composerMachine || localSetup))
+  if (
+    composerMachine !== 'local' &&
+    (homeHostId === composerMachine || (localSetup && !homeHostId))
+  )
     return (
       <RemoteWorkspacePage
         hostId={composerMachine}
