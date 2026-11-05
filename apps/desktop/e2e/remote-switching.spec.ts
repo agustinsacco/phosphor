@@ -63,7 +63,7 @@ test('Every lane surface refreshes A→B→A', async ({ browserName: _browserNam
       await expect(h.page.locator('.monaco-editor')).not.toContainText(previous)
       await pane(h, 'Terminal')
       await expect(
-        h.page.getByText('Not available on remote lanes yet.', { exact: true }),
+        h.page.getByText('This Host does not offer terminals to this device.', { exact: true }),
       ).toBeVisible()
       await expect(h.page.locator('.monaco-editor')).toHaveCount(0)
       await subagents(h)
@@ -186,7 +186,7 @@ test('Remote Files, Changes, controls, model and error surfaces refresh A→B→
       }
       await pane(h, 'Terminal')
       await expect(
-        h.page.getByText('Not available on remote lanes yet.', { exact: true }),
+        h.page.getByText('This Host does not offer terminals to this device.', { exact: true }),
       ).toBeVisible()
       await expect(h.page.locator('.monaco-editor')).toHaveCount(0)
       await subagents(h)

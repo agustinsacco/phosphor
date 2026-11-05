@@ -124,7 +124,7 @@ it('keeps remote skills read-only, gates capability and never offers local insta
   })
   useRemoteLanesStore.setState({ hosts: {}, filter: hostId })
   await act(async () => root.render(<SkillsPage workspacePath={workspacePath} />))
-  expect(container.textContent).toContain('Not available on remote lanes yet.')
+  expect(container.textContent).toContain('Machine not connected. Wait for reconnection.')
   const host = {
     connectionToken: 'test-connection-1',
     state: 'ready' as const,
@@ -150,7 +150,7 @@ it('keeps remote skills read-only, gates capability and never offers local insta
   for (const label of ['Delete', 'Edit', 'Publish', 'Update', 'Export'])
     expect(container.textContent).not.toContain(label)
   await act(async () => useRemoteLanesStore.setState({ hosts: {} }))
-  expect(container.textContent).toContain('Not available on remote lanes yet.')
+  expect(container.textContent).toContain('Machine not connected. Wait for reconnection.')
 })
 
 it('switches to machine-wide skills and shows that machines models/providers without local calls', async () => {
@@ -289,7 +289,7 @@ it.each([
       expect(container.textContent).not.toContain('Not available on remote lanes yet.')
     } else {
       expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('bee1')
-      expect(container.textContent).toContain('Not available on remote lanes yet.')
+      expect(container.textContent).toContain('Machine not connected. Wait for reconnection.')
       expect(container.textContent).not.toContain('New skill')
     }
   }

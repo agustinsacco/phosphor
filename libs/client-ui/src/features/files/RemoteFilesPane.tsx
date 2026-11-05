@@ -6,27 +6,19 @@ import {
 } from './remoteFileDrafts'
 import { useRemoteFileSelection, releaseRemoteFileSelection } from './remoteFileSelection'
 import { RemoteFileTree } from './RemoteFileTree'
-import { IconToggle } from './FileExplorer'
-import {
-  FileIcon,
-  PlusIcon,
-  RefreshIcon,
-  CheckIcon,
-  ChangesIcon,
-  CloseIcon,
-  BranchIcon,
-} from '@/components/icons'
+import { TextFilePreview } from './TextFilePreview'
+import { RemoteFilesToolbar, type RemoteFileAction } from './RemoteFilesToolbar'
 import { useEffect, useState, useRef } from 'react'
-import { TooltipButton } from '@/components/Tooltip'
 import { MonacoDiff, MonacoEditor, releaseFileModel } from './MonacoEditor'
-import { languageForPath } from '@/lib/monaco'
-import { useRemoteLanesStore, REMOTE_UNAVAILABLE, REMOTE_NOT_READY } from '@/stores/remoteLanes'
+import { languageForPath } from '@/lib/languages'
+import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
-import { canControlSession } from '@/stores/remoteLanes'
+import { useLaneWriteRefusal } from './laneWriteRefusal'
 import { fileListErrorText } from '@shared/host-protocol-files'
 import { promptText } from '@/stores/prompt'
 
-/** Remote content stays in memory. No local preview protocols or filesystem watcher. */
+/** Remote content stays in memory: no `phosphor-file://` grant and no filesystem watcher. */
 export function RemoteFilesPane(props: {
   workspacePath: string
   sessionId: string
@@ -65,10 +57,7 @@ function RemoteFilesView({
   const [uncertain, setUncertain] = useState(draft?.uncertain ?? false)
   const dirtyRef = useRef(false)
   dirtyRef.current = dirty
-  const writable =
-    host?.state === 'ready' &&
-    host.capabilities.includes('workspaces.write') &&
-    canControlSession(sessionId)
+  const writable = !useLaneWriteRefusal(sessionId)
   useEffect(() => {
     if (selection && !dirtyRef.current) setSelected(selection.path)
   }, [selection])
@@ -85,7 +74,9 @@ function RemoteFilesView({
     [sessionId],
   )
   const [error, setError] = useState<string | null>(draft?.error ?? null)
-  const available = host?.state === 'ready' && host.capabilities.includes('workspaces.read')
+  const reveal = selection?.path === selected ? selection.reveal : undefined
+  const refusal = hostFeatureRefusal(host, 'workspaces.read')
+  const available = !refusal
   const laneId = useSessionsStore((s) => s.live[sessionId]?.laneId)
   // Host objects are replaced by unrelated lanes and control/stream updates.
   const summary = JSON.stringify(host?.lanes.find((lane) => lane.laneId === laneId))
@@ -232,7 +223,7 @@ function RemoteFilesView({
     })
     applySaveResult(await result)
   }
-  async function action(kind: 'file' | 'directory' | 'rename' | 'delete' | 'copy' | 'move') {
+  async function action(kind: RemoteFileAction) {
     if (!writable || busy || dirty) return
     const value = await promptText({
       title:
@@ -269,100 +260,30 @@ function RemoteFilesView({
       setBusy(false)
     }
   }
-  if (!available && !(dirty && selected))
-    return (
-      <p className="p-4">
-        {host && host.state !== 'ready' ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}
-      </p>
-    )
+  if (!available && !(dirty && selected)) return <p className="p-4">{refusal}</p>
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1">
-        <span className="text-text-tertiary mr-auto text-xs font-semibold font-mono uppercase tracking-wider">
-          {changes ? 'Changes' : 'Explorer'}
-        </span>
-        {!writable && 'Read-only '}
-        <IconToggle title="Refresh" active={false} onClick={() => setRefresh((n) => n + 1)}>
-          <RefreshIcon />
-        </IconToggle>
-        {writable && !changes && (
-          <>
-            <IconToggle
-              title="New file"
-              active={false}
-              disabled={busy || dirty}
-              onClick={() => void action('file')}
-            >
-              <FileIcon />
-            </IconToggle>
-            <IconToggle
-              title="New folder"
-              active={false}
-              disabled={busy || dirty}
-              onClick={() => void action('directory')}
-            >
-              <PlusIcon />
-            </IconToggle>
-            <IconToggle
-              title="Rename"
-              active={false}
-              disabled={busy || dirty || !selected}
-              onClick={() => void action('rename')}
-            >
-              <ChangesIcon />
-            </IconToggle>
-            <IconToggle
-              title="Trash"
-              active={false}
-              disabled={busy || dirty || !selected}
-              onClick={() => void action('delete')}
-            >
-              <CloseIcon />
-            </IconToggle>
-            <IconToggle
-              title="Copy to folder"
-              active={false}
-              disabled={busy || dirty || !selected}
-              onClick={() => void action('copy')}
-            >
-              <PlusIcon />
-            </IconToggle>
-            <IconToggle
-              title="Move to folder"
-              active={false}
-              disabled={busy || dirty || !selected}
-              onClick={() => void action('move')}
-            >
-              <BranchIcon />
-            </IconToggle>
-            <IconToggle
-              title="Save"
-              active={false}
-              disabled={busy || uncertain || !dirty || !editable}
-              onClick={() => void save()}
-            >
-              <CheckIcon />
-            </IconToggle>
-          </>
-        )}
-        {dirty && (
-          <TooltipButton
-            className="text-accent rounded-sm px-2 py-1 text-sm hover:bg-bg-secondary"
-            disabled={busy}
-            onClick={() => {
-              clearRemoteFileDraft(sessionId)
-              setDirty(false)
-              dirtyRef.current = false
-              setRefresh((n) => n + 1)
-            }}
-          >
-            {uncertain ? 'Reload file' : 'Discard edits'}
-          </TooltipButton>
-        )}
-      </div>
+      <RemoteFilesToolbar
+        changes={changes}
+        writable={writable}
+        busy={busy}
+        dirty={dirty}
+        uncertain={uncertain}
+        editable={editable}
+        selected={selected}
+        onRefresh={() => setRefresh((n) => n + 1)}
+        onAction={(kind) => void action(kind)}
+        onSave={() => void save()}
+        onDiscard={() => {
+          clearRemoteFileDraft(sessionId)
+          setDirty(false)
+          dirtyRef.current = false
+          setRefresh((n) => n + 1)
+        }}
+      />
       {!available && (
         <p role="status" className="text-text-tertiary border-border border-b px-3 py-2 text-sm">
-          {host?.state === 'ready' ? REMOTE_UNAVAILABLE : 'Reconnecting… Unsaved edits are kept.'}
+          {host?.state === 'ready' ? refusal : 'Reconnecting… Unsaved edits are kept.'}
         </p>
       )}
       {gitUnavailable && (
@@ -401,27 +322,34 @@ function RemoteFilesView({
               renderSideBySide={false}
             />
           ) : selected && editable ? (
-            <MonacoEditor
-              path={`remote:${sessionId}/${selected}`}
-              reveal={selection?.path === selected ? selection.reveal : undefined}
-              language={languageForPath(selected)}
-              value={content}
-              readOnly={!writable || busy}
-              onChange={(value) => {
-                if (revision === undefined) return
-                keepRemoteFileDraft(sessionId, {
-                  selected,
-                  content: value,
-                  before,
-                  revision,
-                  dirty: true,
-                  uncertain,
-                  error,
-                })
-                setContent(value)
-                setDirty(true)
-              }}
-              onSave={() => void save()}
+            <TextFilePreview
+              path={selected}
+              content={content}
+              reveal={reveal}
+              source={
+                <MonacoEditor
+                  path={`remote:${sessionId}/${selected}`}
+                  reveal={reveal}
+                  language={languageForPath(selected)}
+                  value={content}
+                  readOnly={!writable || busy}
+                  onChange={(value) => {
+                    if (revision === undefined) return
+                    keepRemoteFileDraft(sessionId, {
+                      selected,
+                      content: value,
+                      before,
+                      revision,
+                      dirty: true,
+                      uncertain,
+                      error,
+                    })
+                    setContent(value)
+                    setDirty(true)
+                  }}
+                  onSave={() => void save()}
+                />
+              }
             />
           ) : (
             <pre className="text-text-secondary p-4 text-sm">

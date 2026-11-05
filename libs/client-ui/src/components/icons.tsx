@@ -16,7 +16,7 @@ interface IconProps {
 }
 
 /** Shared attributes for stroked, non-filled glyphs. */
-function strokeProps(size: number): {
+export function strokeProps(size: number): {
   width: number
   height: number
   viewBox: string

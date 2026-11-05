@@ -102,7 +102,7 @@ it('shows read-only files and diffs, refreshes on turn end and summary, never wa
   }
   try {
     await render()
-    expect(container.textContent).toContain('Read-only')
+    expect(container.textContent).toContain('Read only')
     expect(container.textContent).toContain('a.ts')
     const file = Array.from(container.querySelectorAll('button')).find((b) =>
       b.textContent?.includes('a.ts'),
@@ -180,7 +180,7 @@ it('shows read-only files and diffs, refreshes on turn end and summary, never wa
         hosts: { [hostId]: { ...host, capabilities: ['sessions.read'] } },
       }),
     )
-    expect(container.textContent).toContain('Not available on remote lanes yet.')
+    expect(container.textContent).toContain('This Host does not offer files to this device.')
   } finally {
     act(() => root.unmount())
   }

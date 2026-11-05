@@ -14,6 +14,7 @@ import { SessionMenu } from '@/features/chat/SessionMenu'
 import { ReadOnlyFilesPane } from '@/features/files/ReadOnlyFilesPane'
 import { SCREENS } from '@/navigation/screens'
 import { usePlatform } from '@/platform/Platform'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { COMPACT_LANE_PANES } from './CompactLaneHeader'
 import { useRemoteLaneSession } from '@/features/sessions/useRemoteLaneActions'
 import type { Location } from '@/navigation/location'
@@ -116,10 +117,11 @@ function LanePanes({
   // A phone switches panes from the lane menu in its header (CompactLaneHeader), which
   // also carries the lane's controls; wider browsers keep tabs and Desktop's control row.
   const tabs = usePlatform().formFactor !== 'compact'
-  const terminal = useRemoteLanesStore(
-    (s) =>
-      'hostId' in location.lane &&
-      !!s.hosts[location.lane.hostId]?.capabilities.includes('terminal'),
+  const terminalRefusal = useRemoteLanesStore((s) =>
+    hostFeatureRefusal(
+      'hostId' in location.lane ? s.hosts[location.lane.hostId] : undefined,
+      'terminal',
+    ),
   )
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -162,10 +164,10 @@ function LanePanes({
             <ArtifactsPane sessionId={session.phosphorId} workspacePath={session.workspacePath} />
           ) : pane === 'subagents' ? (
             <SubagentPanel sessionId={session.phosphorId} />
-          ) : pane === 'terminal' && terminal ? (
+          ) : pane === 'terminal' && !terminalRefusal ? (
             <TerminalPane sessionId={session.phosphorId} workspacePath={session.workspacePath} />
           ) : pane === 'terminal' ? (
-            <p className="p-4">This Host does not allow terminals for this device.</p>
+            <p className="p-4">{terminalRefusal}</p>
           ) : (
             <p className="p-4">This pane is unavailable.</p>
           )}

@@ -126,9 +126,12 @@ This computer. Reading a lane does not acquire control. The real Host-backed
 composer, controller controls and approval sheets are reused.
 
 Machines, Skills, Routines and Artifacts are remote-only. Aggregate routines
-preserve partial-state warnings and deduplicate qualified IDs. Incomplete
+preserve partial-state warnings and deduplicate qualified IDs. The Routines
+machine picker offers All machines and each Host; New under All machines asks for
+a Host. Incomplete
 artifact aggregation reports an error rather than a misleading complete list.
-Files and HEAD/working-copy comparisons are read-only. New lanes and existing
+Files and HEAD/working-copy comparisons are read-only, coloured by the file's
+language, and a chat link scrolls to its line. New lanes and existing
 lane composers accept inline images; other browser file attachments are refused
 before any lane creation/upload. The start screen's Repository menu offers Add
 folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates

@@ -2,6 +2,7 @@ import { basename } from '@/lib/path'
 import type { HostsSnapshot } from '@shared/ipc'
 import type { ArtifactListing } from '@shared/artifacts'
 import { normalizeArtifactType, type Artifact } from '@/stores/artifacts'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 
 /**
  * The global Artifacts page's rows: the artifact store's listing, merged with
@@ -131,10 +132,14 @@ function foldForks(rows: Array<{ row: GlobalArtifactRow; revision: string }>): G
   })
 }
 
+/** Why a stored artifact's Host cannot show it now, or undefined when it can. */
+export function storedArtifactRefusal(key: string, hosts: HostsSnapshot): string | undefined {
+  if (!key.startsWith('host:')) return undefined
+  return hostFeatureRefusal(hosts[key.slice(5).split('/')[0] ?? ''], 'artifacts.read')
+}
+
 export function canViewStoredArtifact(key: string, hosts: HostsSnapshot): boolean {
-  if (!key.startsWith('host:')) return true
-  const host = hosts[key.slice(5).split('/')[0] ?? '']
-  return host?.state === 'ready' && host.capabilities.includes('artifacts.read')
+  return !storedArtifactRefusal(key, hosts)
 }
 
 export function artifactOnMachine(key: string, machine: string, hosts: HostsSnapshot): boolean {
