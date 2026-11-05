@@ -6,6 +6,17 @@ import { moveSession, orderedSessions } from './sessionOrder'
 const OrderActions = createContext<ContextMenuItem[]>([])
 export const useSessionOrderActions = (): ContextMenuItem[] => useContext(OrderActions)
 
+/**
+ * A press on a row: may it start a drag? Only a mouse drags. A touch or pen
+ * long-press is the row's menu gesture (menuGesture.ts), and a native drag would
+ * race it, so the row stops being draggable for that press. Controls in the row never drag.
+ */
+function armDrag(event: React.PointerEvent<HTMLElement>, enabled: boolean): boolean {
+  const mouse = event.pointerType === 'mouse'
+  event.currentTarget.draggable = enabled && mouse
+  return mouse && !(event.target as Element).closest('input, [role="checkbox"], [role="link"]')
+}
+
 /** Native drag preview; only two DOM attributes change on hover, never the session tree. */
 export function SessionList({
   items,
@@ -78,9 +89,7 @@ export function SessionList({
               draggable={Boolean(path) && !disabled}
               data-tooltip={disabled ? undefined : 'Drag to reorder · Alt+↑ / Alt+↓ to move'}
               onPointerDownCapture={(event) => {
-                blocked.current = Boolean(
-                  (event.target as Element).closest('input, [role="checkbox"], [role="link"]'),
-                )
+                blocked.current = !armDrag(event, Boolean(path) && !disabled)
               }}
               onKeyDownCapture={(event) => {
                 if (

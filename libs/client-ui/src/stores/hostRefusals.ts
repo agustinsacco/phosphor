@@ -24,6 +24,11 @@ export function needsNewerHost(subject: string): string {
   return `${subject} a newer Host. ${HOST_TOO_OLD}`
 }
 
+/** A ready Host that does not grant this device `capability`, in the words both shells show. */
+export function featureNotOffered(capability: GrantedCapability): string {
+  return `This Host does not offer ${FEATURE_NAMES[capability]} to this device.`
+}
+
 /**
  * Why this device cannot use a Host feature now, or undefined when it can; Desktop and the
  * browser show the same words. Control grants all of these, so a missing one is a feature
@@ -35,5 +40,5 @@ export function hostFeatureRefusal(
 ): string | undefined {
   if (host?.state !== 'ready') return REMOTE_NOT_READY
   if (host.capabilities.includes(capability)) return undefined
-  return `This Host does not offer ${FEATURE_NAMES[capability]} to this device.`
+  return featureNotOffered(capability)
 }

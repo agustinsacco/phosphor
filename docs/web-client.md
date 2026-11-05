@@ -272,9 +272,16 @@ prefs (`app:setLanePrefs` / `app:setWorktreePrefs`, browser-local: the shared
 characters, edited under Settings → Lanes and read back by the one prefs read
 at start), each normalized to its allowlisted fields and read back only when
 small, never credentials, transcripts or draft contents. Those prefs apply to
-every Host's lanes started from this browser. Browser font changes last until reload. Owner loss also clears
-remembered creation targets/model choices and resets browser isolation. Unsupported
-native file attachments are rejected.
+every Host's lanes started from this browser. It also keeps the sidebar's Host
+lane order and collapsed Host folders (`app:setSessionOrder` /
+`app:setCollapsedWorkspaces`, browser-local: `host:` keys only, at most 500 of
+each, malformed entries dropped), as Desktop does, and clears them from storage
+when the owner changes. A page that stays open across the change keeps its
+in-memory order and collapse until reload and may write them back; those keys
+name the previous owner's Hosts, so they match no row. Browser font changes
+last until reload. Owner loss also clears remembered creation targets/model
+choices and resets browser isolation. Unsupported native file attachments are
+rejected.
 
 The production service worker caches anonymous shell/static resources only.
 API routes, OAuth callbacks, Host requests and non-GET requests bypass it.

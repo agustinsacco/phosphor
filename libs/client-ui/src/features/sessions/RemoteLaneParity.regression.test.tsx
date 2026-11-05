@@ -26,12 +26,16 @@ type Surface = (typeof SURFACES)[number]
 const SECOND = '0000000000000002'
 const READER_MENU = [
   'Open',
+  'Move up',
+  'Move down',
   'Rename',
   'Take control',
   'Stop',
   'Mark read',
+  'Make routine…',
   'Pin',
   'Lane marker',
+  'Export HTML…',
   'Copy debug info',
   'Copy spend',
   'Delete',
@@ -164,7 +168,10 @@ it.each(['desktop', 'browser', 'home'] as const)(
 it.each(SURFACES)('%s row opens the same lane menu on right-click', (name) => {
   render(name)
   rightClick()
-  expect(labels(menuRows())).toEqual(READER_MENU)
+  // Move up and Move down belong to ordered lists; the machine preview is a sample.
+  expect(labels(menuRows())).toEqual(
+    name === 'machine' ? READER_MENU.filter((label) => !label.startsWith('Move ')) : READER_MENU,
+  )
   expect(menuRow('Delete')?.textContent).toContain('Take control first.')
 })
 

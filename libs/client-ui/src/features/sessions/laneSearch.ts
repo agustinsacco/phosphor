@@ -10,7 +10,8 @@
  * reads as a filter that did nothing. Terms are ANDed and order-free, so
  * `130 rebase` and `rebase 130` find the same lane.
  *
- * Pure and React-free; `Sidebar.tsx` is the only consumer.
+ * Pure and React-free: This Mac's groups (`Sidebar.tsx`) and Host folders
+ * (`remoteGroupSearch.ts`) match through it alike.
  */
 
 import type { GhPullRequest } from '@shared/models'

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import type { IpcInvokeMap } from '@shared/ipc'
 import { ModalOverlay, ModalPanel, useEscapeKey } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
-import { fixedRefusal, HOST_TOO_OLD, isFolderName } from '@shared/host-protocol-repositories'
+import { fixedRefusal, isFolderName } from '@shared/host-protocol-repositories'
+import { needsNewerHost } from '@/stores/hostRefusals'
 import {
   useRemoteLanesStore,
   machineLabel,
@@ -86,10 +87,7 @@ export function HostFolderBrowser({
         })
         .catch(() => {
           // Only a Host that predates hidden listings refuses this where a plain one works.
-          if (alive)
-            setError(
-              hidden ? `Hidden folders need a newer Host. ${HOST_TOO_OLD}` : REMOTE_UNAVAILABLE,
-            )
+          if (alive) setError(hidden ? needsNewerHost('Hidden folders need') : REMOTE_UNAVAILABLE)
         })
     return () => {
       alive = false

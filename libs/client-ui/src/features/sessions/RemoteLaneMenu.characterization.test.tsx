@@ -66,12 +66,16 @@ it('characterizes the Desktop Host lane menu for a reader: control first, then t
   render(host(false))
   expect(menuRows()).toEqual([
     ['Open', false],
+    ['Move upAlt+↑', true],
+    ['Move downAlt+↓', true],
     ['RenameTake control first.', true],
     ['Take control', false],
     ['StopTake control first.', true],
     ['Mark read', false],
+    ['Make routine…This Host does not offer routines to this device.', true],
     ['Pin', false],
     ['Lane marker', false],
+    ['Export HTML…', false],
     ['Copy debug info', false],
     ['Copy spend', false],
     ['DeleteTake control first.', true],
@@ -82,12 +86,16 @@ it('characterizes the Desktop Host lane menu for the controller', () => {
   render(host(true))
   expect(menuRows()).toEqual([
     ['Open', false],
+    ['Move upAlt+↑', true],
+    ['Move downAlt+↓', true],
     ['Rename', false],
     ['Release control', false],
     ['Stop', false],
     ['Mark read', false],
+    ['Make routine…This Host does not offer routines to this device.', true],
     ['Pin', false],
     ['Lane marker', false],
+    ['Export HTML…', false],
     ['Copy debug info', false],
     ['Copy spend', false],
     ['Delete', false],
@@ -132,4 +140,12 @@ it('characterizes the last-known badge and the disabled row while a Host reconne
     container.querySelector<HTMLButtonElement>('[aria-label="New lane in Demo repository"]')!
       .disabled,
   ).toBe(true)
+})
+
+it('drops Lane marker from the Host lane menu when markers are off', async () => {
+  const { useLanePrefsStore } = await import('@/stores/lanePrefs')
+  act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'off' }))
+  render(host(true))
+  expect(menuRows().map(([label]) => label)).not.toContain('Lane marker')
+  act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'auto' }))
 })

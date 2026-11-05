@@ -398,7 +398,10 @@ selection is not persisted. Add machine opens the existing Machines add flow.
 All machines lists local repository groups first, followed by labelled Hosts.
 
 Connected Hosts show repository-grouped lanes, newest first within each folder
-(a lane you just created is at the top, as a new local session is), with running, new and needs-you
+(a lane you just created is at the top, as a new local session is) until you
+reorder them: a mouse drag, Move up / Move down or Alt+↑ / Alt+↓, through the
+same `SessionList` as local rows (on a phone, the row's long-press menu). The order is this device's, kept in `sessionOrder`
+under `host:<id>/lane:<laneId>`; Pinned reorders within itself. Rows show running, new and needs-you
 signals from their existing summaries (`working`, `attention > read`, and
 `needs-input` or `failed`). Local activity uses streaming chat state, unseen
 session markers/unread counts, pending extension dialogs and chat errors.
@@ -406,7 +409,8 @@ The button summarizes only machines other than the selected one.
 
 Reconnecting uses an amber pulsing status dot, and the sidebar says
 "Connecting…" for a Host that is connecting, reconnecting or not yet in the
-first Host snapshot, never "Not reachable". Down machines show a grey dot,
+first Host snapshot, never "Not reachable"; while that first snapshot loads, This
+Mac's group skeletons (`SidebarPrimitives`) stand under it. Down machines show a grey dot,
 the directory's last-seen age, and last-known groups with disabled lane and
 creation actions. A Host that is enrolled but not yet connected shows the
 reachability rule's short phrase (for example "Not reachable yet" or "Never
@@ -417,7 +421,9 @@ an Add folder on MACHINE… button that opens the Host folder browser.
 A Host's folders are listed in the Host config's order. Each current folder's
 Workspace options menu offers Add folder on MACHINE…, Remove from MACHINE, Move
 up and Move down (`RemoteFolderMenuRows`), then Select all lanes, Select merged
-lanes and Collapse lanes. The folder header (`RemoteRepositoryGroup`) and the
+lanes and Collapse lanes. A folder's collapse persists in the sidebar's one
+`collapsedWorkspaces` pref (key `host:<id>/repo:<repositoryId>`), as This Mac's
+groups do. The folder header (`RemoteRepositoryGroup`) and the
 Host's list (`RemoteHostLanes`, pinned lanes first) are the same components the
 web client's Lanes page and Host home render ([web client](web-client.md#one-lane-row-list-and-menu)). A move
 sends the whole new order (`hosts:orderRepositories`), so every client sees it

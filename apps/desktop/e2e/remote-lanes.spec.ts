@@ -151,12 +151,13 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
       'Mark read',
       'Pin',
       'Lane marker',
+      'Export HTML…',
       'Copy debug info',
       'Copy spend',
       'Delete',
     ])
       await expect(menuItem(name)).toBeVisible()
-    for (const name of ['Session tree', 'Fork', 'Clone', 'Make routine'])
+    for (const name of ['Session tree', 'Fork', 'Clone'])
       await expect(menuItem(name)).toHaveCount(0)
     await captures(h, info, 'remote-row-menu')
     await menuItem('Pin').click()

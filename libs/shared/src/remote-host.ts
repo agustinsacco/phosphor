@@ -28,6 +28,14 @@ export const LEGACY_HOST_CAPABILITIES = HOST_CAPABILITIES.filter(
 
 export type HostCapability = (typeof HOST_CAPABILITIES)[number]
 
+/**
+ * A Host lane's client-side key, `host:<hostId>/lane:<laneId>`: its live
+ * session's workspace, its artifacts' session and its sidebar order entry. Not a
+ * path; it never meets a This Mac session path.
+ */
+export const remoteLaneKey = (hostId: string, laneId: string): string =>
+  `host:${hostId}/lane:${laneId}`
+
 /** Local execution remains independent of host enrollment and cloud login. */
 export type HostTarget =
   { readonly kind: 'local' } | { readonly kind: 'remote'; readonly hostId: string }

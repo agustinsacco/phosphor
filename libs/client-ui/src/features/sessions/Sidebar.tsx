@@ -4,6 +4,7 @@ import { SidebarFooter, SidebarNavigation } from './SidebarNavigation'
 import { RemoteLanes } from './RemoteLanes'
 import { useRemoteLanesStore, machineLabel, navigateToLane } from '@/stores/remoteLanes'
 import { LaneRevealEffect, localLaneGroupKey } from './laneReveal'
+import { loadGroupCollapse, setGroupCollapsed, useGroupCollapse } from './groupCollapse'
 import { TooltipButton } from '@/components/Tooltip'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
@@ -20,6 +21,7 @@ import { promptRenameSandbox } from '@/features/workspaces/promptRenameSandbox'
 import { useMenuTriggers, type ContextMenuItem } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { SessionList, useSessionOrderActions } from './SessionList'
+import { useLiveSessionNames } from './useLiveSessionNames'
 import { orderedSessions } from './sessionOrder'
 import { sessionSubtitle } from './sessionSubtitle'
 import {
@@ -34,6 +36,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { LaneMarker } from './LaneMarker'
 import { BulkDeleteModal } from './BulkDeleteModal'
 import { LaneBulkBar, SelectableIndicator } from './LaneSelect'
+import { LaneSelectionRows, type LaneSelectMode } from './LaneSelectionRows'
 import {
   clearLaneSelection,
   selectLanes,
@@ -69,7 +72,9 @@ import {
   WorkspaceGroupHeader,
   WorkspaceGroupTitle,
   SessionIndicator,
+  SessionRowSkeletons,
   SubtitleSegments,
+  WorkspaceGroupSkeletons,
 } from './SidebarPrimitives'
 import { TreeViewModal } from './TreeViewModal'
 import { LaneSearchBar } from './LaneSearchBar'
@@ -84,8 +89,18 @@ import {
 import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from './nameTransition'
 import { committedRename } from './inlineRename'
-import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
-import { applySessionRename, copySessionDebugInfo, exportSessionHtml } from './sessionActions'
+import {
+  cloneSession,
+  exportSidebarSession,
+  markSidebarSessionRead,
+  renameSidebarSession,
+} from './sidebarActions'
+import {
+  applySessionRename,
+  copySessionDebugInfo,
+  copySpend,
+  exportSessionHtml,
+} from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
 
@@ -147,7 +162,7 @@ export function Sidebar({
     worktree: WorktreeInfo
   } | null>(null)
   /** Explicit collapse choices (prefs + this run); null until prefs load. */
-  const [collapsed, setCollapsed] = useState<Record<string, boolean> | null>(null)
+  const collapsed = useGroupCollapse((s) => s.collapsed)
   const [pendingDelete, setPendingDelete] = useState<PreflightSummary | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DeleteSessionTarget | null>(null)
   /**
@@ -253,11 +268,14 @@ export function Sidebar({
   )
 
   // Scan every known workspace (capped; collapsed groups lazy-load on expand).
+  // Only the pref's first read gates it: a toggle, here or on a Host folder,
+  // never re-scans, and expanding a group catches it up (`toggleGroup`).
+  const collapseLoaded = collapsed !== null
   useEffect(() => {
     // Never begin from the store's empty default. On first launch that would
     // scan just the resumed workspace, paint it as a complete sidebar, and
     // append the persisted projects a beat later.
-    if (!workspacesHydrated || collapsed === null) return
+    if (!workspacesHydrated || !collapseLoaded) return
     const store = useSessionsStore.getState()
     void store.refreshAllDisk(knownWorkspaces)
     void store.hydratePinned()
@@ -277,16 +295,9 @@ export function Sidebar({
       }
     })
     return unsubscribe
-  }, [knownWorkspaces, workspacesHydrated, collapsed])
+  }, [knownWorkspaces, workspacesHydrated, collapseLoaded])
 
-  useEffect(() => {
-    void window.phosphor
-      .invoke('app:getPrefs')
-      .then((prefs) => {
-        setCollapsed(Object.fromEntries(prefs.collapsedWorkspaces.map((p) => [p, true])))
-      })
-      .catch(() => setCollapsed({}))
-  }, [])
+  useEffect(() => void loadGroupCollapse(), [])
 
   // Wait for prefs hydration. Toggling a group changes `collapsed` but not
   // the roots, so it never re-lists.
@@ -575,12 +586,7 @@ export function Sidebar({
   }
 
   const toggleGroup = (group: GroupedSessions, wasCollapsed: boolean): void => {
-    const next = { ...(collapsed ?? {}), [group.workspacePath]: !wasCollapsed }
-    setCollapsed(next)
-    void window.phosphor.invoke(
-      'app:setCollapsedWorkspaces',
-      Object.keys(next).filter((p) => next[p]),
-    )
+    setGroupCollapsed(group.workspacePath, !wasCollapsed)
     // Expanding catches up on anything missed while the group was unwatched,
     // across every folder merged into this project (main repo + worktrees).
     if (wasCollapsed) {
@@ -618,37 +624,16 @@ export function Sidebar({
    */
   const prByRepo = usePullRequestsStore((s) => s.byRepo)
   const anySearchApplied = Object.values(searchApplied).some(Boolean)
-  /**
-   * Names of live sessions, which lead the disk scan by the watcher's
-   * debounce. Without them, a lane renamed a moment ago is not findable under
-   * the name the sidebar is showing.
-   *
-   * Subscribed as a joined STRING so streaming re-renders nothing: the chat
-   * store replaces `sessions` on every token, but this value only changes when
-   * a name does. The map is then rebuilt off that key, and the whole thing
-   * costs nothing while no filter is applied.
-   */
-  const liveNameKey = useChatStore((s) =>
-    anySearchApplied
-      ? Object.entries(s.sessions)
-          .map(([id, session]) => `${id}\u0000${session.meta?.sessionName ?? ''}`)
-          .join('\u0001')
-      : '',
-  )
-  const liveNames = useMemo(() => {
-    const names = new Map<string, string>()
-    if (!liveNameKey) return names
-    for (const entry of liveNameKey.split('\u0001')) {
-      const [id, name] = entry.split('\u0000')
-      if (id && name) names.set(id, name)
-    }
-    return names
-  }, [liveNameKey])
+  const liveNames = useLiveSessionNames(anySearchApplied)
 
-  /** The three identities one lane can be found by. */
-  const laneFields = (meta: SessionMeta): LaneSearchFields => {
+  /** A lane's pull request: its branch's, in its repository. */
+  const lanePullRequest = (meta: SessionMeta) => {
     const git = gitByCwd[meta.cwd || workspacePath]
     const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
+    return pullRequestFor({ byRepo: prByRepo }, repoPath, git?.branch)
+  }
+  /** The three identities one lane can be found by. */
+  const laneFields = (meta: SessionMeta): LaneSearchFields => {
     const livePhosphorId = liveByDisk.get(meta.path)
     const liveName = livePhosphorId ? liveNames.get(livePhosphorId) : undefined
     return {
@@ -657,9 +642,21 @@ export function Sidebar({
           { explicitName: liveName ?? meta.name, firstUserText: meta.firstUserText },
           { elide: false },
         ) ?? '',
-      branch: git?.branch,
-      pr: pullRequestFor({ byRepo: prByRepo }, repoPath, git?.branch),
+      branch: gitByCwd[meta.cwd || workspacePath]?.branch,
+      pr: lanePullRequest(meta),
     }
+  }
+
+  /** A lane whose pull request merged: what "Select merged lanes" picks, as on a Host. */
+  const isMerged = (meta: SessionMeta): boolean => lanePullRequest(meta)?.state === 'MERGED'
+  /** The workspace menu's lane selection, over the lanes the search shows. */
+  const selectGroupLanes = (group: string, visible: SessionMeta[], mode: LaneSelectMode): void => {
+    if (mode === 'clear') clearLaneSelection()
+    else
+      selectLanes(
+        group,
+        (mode === 'all' ? visible : visible.filter(isMerged)).map((meta) => meta.path),
+      )
   }
 
   // Re-run the scan for a group whose last attempt failed, across every
@@ -876,18 +873,16 @@ export function Sidebar({
                         triggerRef={workspaceMenuTriggerRef}
                         className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
                       >
-                        <MenuRow
-                          active={false}
-                          testId="workspace-group-select"
-                          disabled={!selectingThis && visible.length < 2}
-                          onClick={() => {
-                            if (selectingThis) clearLaneSelection()
-                            else selectLanes(group.workspacePath, visiblePaths)
-                            closeWorkspaceMenu()
-                          }}
-                        >
-                          {selectingThis ? 'Clear selection' : 'Select all lanes'}
-                        </MenuRow>
+                        <LaneSelectionRows
+                          canSelect={selectingThis || visible.length > 0}
+                          selecting={selectingThis}
+                          collapsed={isCollapsed}
+                          onCollapse={(next) =>
+                            next !== isCollapsed && toggleGroup(group, isCollapsed)
+                          }
+                          onSelect={(mode) => selectGroupLanes(group.workspacePath, visible, mode)}
+                          onDone={closeWorkspaceMenu}
+                        />
                         <MenuRow
                           active={false}
                           disabled={groups.indexOf(group) === 0}
@@ -1421,7 +1416,8 @@ function SessionRow({
   const [pickingMarker, setPickingMarker] = useState(false)
 
   /**
-   * Markers already spoken for in this workspace, so the picker can dim them.
+   * Markers already spoken for on this machine, in any workspace, so the
+   * picker can dim them (a Host's picker dims its own lanes' alike).
    * Derived from EXPLICIT choices only: auto markers collide by design (the
    * palette is finite) and dimming them would grey out most of the grid.
    */
@@ -1484,14 +1480,18 @@ function SessionRow({
             },
           ]
         : []),
+      // "Stop", as on a Host lane: the process ends, the transcript stays.
       ...(livePhosphorId
         ? [
             {
-              label: 'Suspend',
+              label: 'Stop',
               hint: '~200 MB',
               onClick: () => void store.suspendSession(livePhosphorId),
             },
           ]
+        : []),
+      ...(unseen
+        ? [{ label: 'Mark read', onClick: () => markSidebarSessionRead(meta.path, livePhosphorId) }]
         : []),
       {
         label: 'Fork',
@@ -1518,7 +1518,7 @@ function SessionRow({
             {
               label: 'Copy spend',
               hint: formatCost(meta.cost),
-              onClick: () => void navigator.clipboard.writeText(formatCost(meta.cost)),
+              onClick: () => void copySpend(meta.cost),
             },
           ]
         : []),
@@ -1935,52 +1935,3 @@ function PendingSessionRow({
  * because a live session swaps from the second to the first mid-turn and the
  * swap has to be invisible. They had drifted into two different subtitles.
  */
-
-/**
- * Placeholder headers for the whole group list, before prefs have landed.
- *
- * Distinct from `SessionRowSkeletons`, which stands in for the sessions
- * *inside* a group whose folders are known. This one covers the earlier
- * window, when which projects exist and what order they take is still
- * unknown, and painting a real header means painting one that may vanish.
- */
-function WorkspaceGroupSkeletons(): React.JSX.Element {
-  return (
-    <div data-testid="workspace-groups-loading" aria-busy="true">
-      {[0, 1].map((i) => (
-        <div key={i}>
-          <div className="px-2 pb-0.5 pt-2.5">
-            <div
-              className="bg-sidebar-hover h-3 animate-pulse rounded"
-              style={{ width: `${45 - i * 10}%` }}
-            />
-          </div>
-          <SessionRowSkeletons />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/**
- * Placeholder rows for a group whose folders have not been scanned yet.
- *
- * Replaces a single "Loading sessions…" line: the line was indistinguishable
- * from the empty state one character at a time, and gave no sense of a list
- * arriving.
- */
-function SessionRowSkeletons(): React.JSX.Element {
-  return (
-    <div className="space-y-2 px-2 py-2" data-testid="sessions-loading" aria-busy="true">
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="flex flex-col gap-1">
-          <div
-            className="bg-sidebar-hover h-3 animate-pulse rounded"
-            style={{ width: `${70 - i * 12}%` }}
-          />
-          <div className="bg-sidebar-hover h-2 w-1/3 animate-pulse rounded opacity-60" />
-        </div>
-      ))}
-    </div>
-  )
-}

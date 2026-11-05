@@ -3,11 +3,15 @@ import type { HostLaneView } from '@shared/ipc'
 import { hostResourceKey } from '@shared/remote-host'
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { piCall, piCallOk } from '@/lib/rpc'
+import { remoteLaneMarker } from './remoteLaneView'
 import { useNavigation, type Navigation } from '@/navigation/Navigation'
+import { usePlatform } from '@/platform/Platform'
 import { useChatStore } from '@/stores/chat'
 import { setRemoteLaneMarks } from '@/stores/remoteLaneMarks'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
+import { useLanePrefsStore } from '@/stores/lanePrefs'
+import { makeRoutine } from '@/stores/routines'
 import { STOP_NEEDS_PROMPT } from '@/features/machines/useLaneControl'
 import { openPullRequest } from './PrBadge'
 import { useRemotePr } from './remotePullRequests'
@@ -19,7 +23,10 @@ import {
   type RemoteLaneActionState,
 } from './remoteLaneActions'
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
+import { copyDebugInfo, copySpend, exportRemoteLaneHtml } from './sessionActions'
+import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
 import { MarkerPickerModal } from './MarkerPickerModal'
+import { useSessionOrderActions } from './SessionList'
 
 const ACTION_FAILED = 'The Host could not confirm this. Check the lane before retrying.'
 type LaneDialog = 'delete' | 'marker' | null
@@ -54,11 +61,13 @@ export function useRemoteLaneActions({
   onDone?: () => void
 }) {
   const { navigate } = useNavigation()
+  const { nativeFiles } = usePlatform()
+  const orderActions = useSessionOrderActions()
   const entry = useRemoteLaneSession(hostId, lane.laneId)
   const runner = useLaneActionRunner(onDone)
   const [dialog, setDialog] = useState<LaneDialog>(null)
   const title = useRemoteLaneTitle(lane, hostId)
-  const { state, pr, deletingInBulk } = useLaneActionState(
+  const { state, pr, deletingInBulk, marker } = useLaneActionState(
     hostId,
     lane,
     ready,
@@ -67,16 +76,15 @@ export function useRemoteLaneActions({
   )
   const busy = state.busy
   const access = remoteLaneAccess(state)
-
-  const act = runner.act
   const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
   const handlers = laneHandlers({
     hostId,
     lane,
     navigate: withOpen ? navigate : undefined,
     pr,
-    act,
+    act: runner.act,
     session,
+    exportAs: { title, nativeFiles },
     onRename,
     openDialog: (next) => {
       setDialog(next)
@@ -88,7 +96,7 @@ export function useRemoteLaneActions({
   /** Names the lane through its live session; resolves false when the Host refused. */
   const saveName = async (name: string): Promise<boolean> =>
     access.controlled && access.running && !!name.trim() && !busy
-      ? act(async () => renameLane(await session(), name.trim()))
+      ? runner.act(async () => renameLane(await session(), name.trim()))
       : false
   const dialogs = (
     <RemoteLaneDialogs
@@ -103,14 +111,15 @@ export function useRemoteLaneActions({
     />
   )
   return {
-    items: (): ContextMenuItem[] => remoteLaneActions(state, handlers),
+    items: (): ContextMenuItem[] => remoteLaneActions(state, handlers, orderActions),
     dialogs,
     title,
     busy,
     error: runner.error,
     deletingInBulk,
     saveName,
-    pickMarker: access.canMark ? handlers.pickMarker : undefined,
+    pickMarker: access.canMark && state.markers !== 'off' ? handlers.pickMarker : undefined,
+    marker,
     ...access,
   }
 }
@@ -131,6 +140,7 @@ function useLaneActionState(
     (s) => !!sessionId && !s.sessions[sessionId]?.items.some((item) => item.kind === 'user'),
   )
   const { pr } = useRemotePr(hostId, lane)
+  const markers = useLanePrefsStore((s) => s.lanes.markers)
   const state: RemoteLaneActionState = {
     lane,
     host,
@@ -138,8 +148,11 @@ function useLaneActionState(
     busy: running || deletingInBulk,
     stopBlocked: unprompted ? STOP_NEEDS_PROMPT : null,
     pr: pr ?? null,
+    markers,
   }
-  return { state, pr, deletingInBulk }
+  /** The row's marker: the explicit Host choice, else derived from the branch, as on This Mac. */
+  const marker = markers === 'off' ? null : remoteLaneMarker(lane, markers)
+  return { state, pr, deletingInBulk, marker }
 }
 
 /** The live session bound to a Host lane, once one has been opened. */
@@ -188,6 +201,7 @@ function laneHandlers({
   pr,
   act,
   session,
+  exportAs: { title, nativeFiles },
   onRename,
   openDialog,
   onMarked,
@@ -198,6 +212,8 @@ function laneHandlers({
   pr: Parameters<typeof openPullRequest>[0] | null | undefined
   act: (action: () => Promise<unknown>) => Promise<boolean>
   session: () => Promise<string>
+  /** The export's file name, and whether this device saves through a dialog or a download. */
+  exportAs: { title: string; nativeFiles: boolean }
   onRename: () => void
   openDialog: (dialog: LaneDialog) => void
   onMarked: () => void
@@ -223,13 +239,11 @@ function laneHandlers({
     markRead: send('hosts:markRead'),
     togglePin: () => mark({ pinned: !lane.pinned }),
     pickMarker: () => openDialog('marker'),
-    copyDebugInfo: () =>
-      void act(() =>
-        navigator.clipboard.writeText(
-          `Machine: ${machineLabel(hostId)}\nHost: ${hostId}\nLane: ${lane.laneId}\nBranch: ${lane.branch ?? 'none'}`,
-        ),
-      ),
-    copySpend: () => void act(async () => copySpend(await session())),
+    makeRoutine: () => void act(async () => routineFromLane(hostId, lane, await session())),
+    exportHtml: () =>
+      void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),
+    copyDebugInfo: () => void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane))),
+    copySpend: () => void act(async () => copySpend(await sessionCost(await session()))),
     delete: () => openDialog('delete'),
   }
 }
@@ -253,6 +267,11 @@ function RemoteLaneDialogs({
   allowed: boolean
   onClose: () => void
 }): React.JSX.Element | null {
+  const markers = useLanePrefsStore((s) => s.lanes.markers)
+  // Read only while the picker is open: every row mounts these dialogs.
+  const hostLanes = useRemoteLanesStore((s) =>
+    dialog === 'marker' ? s.hosts[hostId]?.lanes : undefined,
+  )
   if (dialog === 'delete')
     return (
       <RemoteLaneDeleteDialog
@@ -265,14 +284,14 @@ function RemoteLaneDialogs({
         onClose={onClose}
       />
     )
-  if (dialog === 'marker')
+  if (dialog === 'marker' && markers !== 'off')
     return (
       <MarkerPickerModal
         title={title}
         current={lane.marker}
-        autoKey={lane.branch}
-        mode="manual"
-        usedMarkers={new Set()}
+        autoKey={lane.branch || lane.cwd}
+        mode={markers}
+        usedMarkers={usedMarkers(hostLanes ?? [], lane)}
         onPick={(marker) => {
           onClose()
           void setRemoteLaneMarks(hostId, lane.laneId, { marker })
@@ -283,19 +302,63 @@ function RemoteLaneDialogs({
   return null
 }
 
+/**
+ * Markers other lanes on this Host chose, in any folder, for the picker to dim:
+ * This Mac dims every lane's choice on the machine too. Explicit choices only,
+ * as on This Mac: derived markers collide by design.
+ */
+function usedMarkers(lanes: readonly HostLaneView[], lane: HostLaneView): Set<string> {
+  return new Set(
+    lanes.flatMap((other) => (other.laneId !== lane.laneId && other.marker ? [other.marker] : [])),
+  )
+}
+
 async function renameLane(sessionId: string, name: string): Promise<void> {
   if (!(await piCallOk(sessionId, { type: 'set_session_name', name }))) throw new Error()
   useChatStore.getState().patchMeta(sessionId, { sessionName: name })
 }
 
-async function copySpend(sessionId: string): Promise<void> {
+/**
+ * "Make routine…" on a Host lane: This Mac's draft (the lane's own name, blank
+ * when it has none, and its first prompt), opened on the lane's Host and
+ * folder. The lane's session is open by now, so its transcript holds the first prompt.
+ */
+function routineFromLane(hostId: string, lane: HostLaneView, sessionId: string) {
+  const chat = useChatStore.getState().sessions[sessionId]
+  const first = chat?.items.find((i) => i.kind === 'user')
+  const name = chat?.meta?.sessionName?.trim() || lane.title || ''
+  makeRoutine('', name, first?.kind === 'user' ? first.text : '', {
+    hostId,
+    repositoryId: lane.repositoryId,
+  })
+}
+
+async function sessionCost(sessionId: string): Promise<number> {
   const stats = await piCall(sessionId, { type: 'get_session_stats' })
   if (!stats) throw new Error()
-  await navigator.clipboard.writeText(
-    JSON.stringify(
-      stats,
-      (key, value: unknown) => (key === 'sessionFile' || key === 'sessionId' ? undefined : value),
-      2,
-    ),
+  return stats.cost
+}
+
+/**
+ * A Host lane's debug block: pi's id and model from its open session (else the
+ * Host summary's model) and where it runs. Never a Host path: the lane's folder
+ * and session file stay on the Host.
+ */
+function remoteLaneDebugSource(hostId: string, lane: HostLaneView): SessionDebugSource {
+  const live = Object.values(useSessionsStore.getState().live).find(
+    (e) => e.target?.kind === 'remote' && e.target.hostId === hostId && e.laneId === lane.laneId,
   )
+  const meta = live ? useChatStore.getState().sessions[live.phosphorId]?.meta : null
+  const model = meta?.model ?? lane.model
+  return {
+    sessionId: meta?.sessionId,
+    provider: model?.provider,
+    model: model?.id,
+    context: [
+      ['machine', machineLabel(hostId)],
+      ['host', hostId],
+      ['lane', lane.laneId],
+      ['branch', lane.branch ?? 'none'],
+    ],
+  }
 }

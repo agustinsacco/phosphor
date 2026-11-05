@@ -652,3 +652,28 @@ it('lets the browser return to All machines and starts a new routine there by as
   expect(picker?.value).toBe('')
   expect(Array.from(picker?.options ?? []).map((o) => o.value)).toEqual(['', host])
 })
+
+it("opens a Host lane's Make routine draft on that Host and folder, with the lane's title and prompt", async () => {
+  const { makeRoutine } = await import('@/stores/routines')
+  act(() =>
+    makeRoutine('', 'Host lane', 'Fix the flaky test', {
+      hostId: host.slice(5),
+      repositoryId: machine.repositories[0]!.id,
+    }),
+  )
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await act(async () => {})
+  expect(useMachinePagesStore.getState().routinesMachine).toBe(host)
+  expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
+    host,
+  )
+  expect(
+    document.querySelector<HTMLSelectElement>('[aria-label="Routine repository"]')?.value,
+  ).toBe(machine.repositories[0]!.id)
+  const fields = [
+    ...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'),
+  ]
+  expect(fields.map((f) => f.value)).toEqual(
+    expect.arrayContaining(['Host lane', 'Fix the flaky test']),
+  )
+})

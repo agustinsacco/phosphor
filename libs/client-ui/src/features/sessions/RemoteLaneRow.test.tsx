@@ -112,6 +112,8 @@ it('prefers the live name, then Host summary, then first prompt without local na
 it('uses the local context-menu host and gates controller actions for a viewer', () => {
   const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
   host.lanes[0]!.control.controller = null
+  // A Host with every capability: only control stands between a viewer and the actions.
+  host.capabilities.push('routines')
   render()
   menu()
   expect(button('Rename').disabled).toBe(true)
@@ -285,4 +287,146 @@ it('holds navigation and the menu while the Host is not ready', () => {
   expect(navigate).not.toHaveBeenCalled()
   menu()
   expect(document.querySelector('[data-testid=context-menu]')).toBeNull()
+})
+it('opens the marker picker in the marker mode, dimming markers other lanes on this Host chose, in any folder, as This Mac does', async () => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  host.laneMarks = true
+  const lane = host.lanes[0]!
+  host.lanes.push(
+    { ...lane, laneId: '00000000-0000-4000-8000-0000000000a1', marker: '🦊' },
+    {
+      ...lane,
+      laneId: '00000000-0000-4000-8000-0000000000a2',
+      repositoryId: 'other',
+      marker: '🐙',
+    },
+  )
+  render()
+  act(() => container.querySelector<HTMLElement>('[data-testid=lane-marker]')!.click())
+  await act(async () => {})
+  const dialog = document.querySelector('[role=dialog][aria-label="Lane marker"]')!
+  // Auto mode (the default): the picker offers Auto, not Manual's Default.
+  expect(dialog.textContent).toContain('Auto')
+  expect(dialog.textContent).not.toContain('Default')
+  const category = dialog.querySelector<HTMLSelectElement>('select[aria-label="Icon category"]')!
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(
+      category,
+      'Suggested',
+    )
+    category.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  const used = [...dialog.querySelectorAll('button')]
+    .filter((b) => b.classList.contains('opacity-35'))
+    .map((b) => b.textContent)
+  expect(used.sort()).toEqual(['🐙', '🦊'].sort())
+})
+
+it("copies the same debug block and formatted spend as This Mac's rows, with no Host paths", async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+  const lane = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.lanes[0]!
+  useChatStore.getState().setMeta(mockRemoteInfo.sessionId, {
+    sessionId: 'pi-session-1',
+    sessionFile: '/srv/host/sessions/pi-session-1.jsonl',
+    model: { provider: 'anthropic', id: 'claude-x' },
+  } as never)
+  command.mockImplementation(async (_id: string, request: { type: string }) =>
+    request.type === 'get_session_stats'
+      ? { success: true, data: { sessionId: 'pi-session-1', cost: 1.234 } }
+      : { success: true },
+  )
+  render()
+  menu()
+  await act(async () => button('Copy debug info').click())
+  expect(writeText).toHaveBeenLastCalledWith(
+    [
+      'pi session',
+      '  id:       pi-session-1',
+      '  provider: anthropic / claude-x',
+      `  machine:  ${MOCK_HOST_ID}`,
+      `  host:     ${MOCK_HOST_ID}`,
+      `  lane:     ${lane.laneId}`,
+      '  branch:   none',
+    ].join('\n'),
+  )
+  expect(writeText.mock.lastCall?.[0]).not.toContain('/srv/host')
+  expect(writeText.mock.lastCall?.[0]).not.toContain(lane.cwd)
+  // A fresh gesture: the row swallows a second menu until the next pointerdown.
+  act(() => {
+    container
+      .querySelector('button')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+  })
+  menu()
+  await act(async () => button('Copy spend').click())
+  expect(writeText).toHaveBeenLastCalledWith('$1.23')
+})
+
+it('exports the lane as HTML from its row, through the Host, as This Mac rows do', async () => {
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'hosts:exportLaneHtml'
+      ? { html: '<html></html>' }
+      : channel === 'app:saveDialog'
+        ? '/tmp/lane.html'
+        : undefined,
+  )
+  render()
+  menu()
+  await act(async () => button('Export HTML…').click())
+  expect(invoke).toHaveBeenCalledWith('hosts:exportLaneHtml', mockRemoteInfo.sessionId)
+  expect(invoke).toHaveBeenCalledWith('fs:writeFile', '/tmp/lane.html', '<html></html>')
+})
+
+it("drafts a routine on the lane's Host and folder from its title and first prompt", async () => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  host.capabilities.push('routines')
+  const lane = host.lanes[0]!
+  useChatStore.setState((s) => ({
+    sessions: {
+      ...s.sessions,
+      [mockRemoteInfo.sessionId]: {
+        ...s.sessions[mockRemoteInfo.sessionId]!,
+        items: [{ kind: 'user', id: 'u1', text: 'Fix the flaky test' } as never],
+      },
+    },
+  }))
+  const { useRoutinesStore } = await import('@/stores/routines')
+  const { useMachinePagesStore } = await import('@/stores/machinePages')
+  render()
+  menu()
+  await act(async () => button('Make routine…').click())
+  expect(useRoutinesStore.getState().draft?.input).toMatchObject({
+    name: 'Remote demo lane',
+    instructions: 'Fix the flaky test',
+  })
+  expect(useRoutinesStore.getState().draft?.restored).toMatchObject({
+    machineId: `host:${MOCK_HOST_ID}`,
+    repositoryId: lane.repositoryId,
+  })
+  expect(useMachinePagesStore.getState().routinesMachine).toBe(`host:${MOCK_HOST_ID}`)
+})
+
+it('leaves an unnamed Host lane’s routine draft unnamed, as This Mac does, not titled from its prompt', async () => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  host.capabilities.push('routines')
+  host.lanes[0] = { ...host.lanes[0]!, title: null }
+  useChatStore.setState((s) => ({
+    sessions: {
+      ...s.sessions,
+      [mockRemoteInfo.sessionId]: {
+        ...s.sessions[mockRemoteInfo.sessionId]!,
+        meta: null,
+        items: [{ kind: 'user', id: 'u1', text: 'Fix the flaky test' } as never],
+      },
+    },
+  }))
+  const { useRoutinesStore } = await import('@/stores/routines')
+  render()
+  menu()
+  await act(async () => button('Make routine…').click())
+  expect(useRoutinesStore.getState().draft?.input).toMatchObject({
+    name: '',
+    instructions: 'Fix the flaky test',
+  })
 })
