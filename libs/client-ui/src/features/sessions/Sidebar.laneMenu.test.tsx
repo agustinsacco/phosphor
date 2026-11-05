@@ -200,3 +200,41 @@ it('finds a This Mac lane by its live session name, ahead of the disk scan', asy
   expect(rows).toHaveLength(1)
   expect(rows[0]).toContain('Renamed just now')
 })
+
+it("shows a lane's PR chip from its main repository's listing, and none for a lane without one", async () => {
+  usePullRequestsStore.setState({
+    byRepo: {
+      '/repo': {
+        byBranch: {
+          'wt-branch': {
+            number: 7,
+            title: 'PR 7',
+            url: 'https://example.test/7',
+            state: 'OPEN',
+          } as never,
+        },
+        fetchedAt: Date.now(),
+        attemptedAt: Date.now(),
+        loading: false,
+      },
+    },
+  })
+  useSessionsStore.setState({
+    live: {},
+    disk: { '/repo': [meta(1), { ...meta(2), cwd: '/wt2' }] },
+    gitByCwd: {
+      '/repo': { branch: 'main', mainRepoPath: '/repo' } as never,
+      '/wt2': { branch: 'wt-branch', mainRepoPath: '/repo', isWorktree: true } as never,
+    },
+  })
+  await act(async () => root.render(<Sidebar workspacePath="/repo" />))
+  await act(async () => {})
+  const chips = [...container.querySelectorAll('[data-testid=session-row]')].map((row) => [
+    row.textContent?.includes('Lane 1') ? 'Lane 1' : 'Lane 2',
+    row.querySelector('[data-testid=session-pr-badge]')?.textContent ?? null,
+  ])
+  expect(chips).toEqual([
+    ['Lane 1', null],
+    ['Lane 2', expect.stringContaining('#7')],
+  ])
+})
