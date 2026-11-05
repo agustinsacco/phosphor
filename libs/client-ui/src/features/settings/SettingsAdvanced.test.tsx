@@ -138,35 +138,33 @@ it('names the platform the same way on This Mac and on a Host', async () => {
   expect(container.textContent).toContain('Linux')
 })
 
-it("keeps This Mac's update row when its version cannot be read", async () => {
-  const about = invoke.getMockImplementation()!
-  invoke.mockImplementation(async (channel: string, hostId?: string, section?: string) => {
-    if (channel === 'app:about') throw new Error('no about')
-    return about(channel, hostId, section)
+/** Runs `run` while `channel` rejects, then answers it again. */
+async function withFailing(channel: string, run: () => Promise<void>): Promise<void> {
+  const answer = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (name: string, hostId?: string, section?: string) => {
+    if (name === channel) throw new Error(`no ${channel}`)
+    return answer(name, hostId, section)
   })
   try {
+    await run()
+  } finally {
+    invoke.mockImplementation(answer)
+  }
+}
+
+it("keeps This Mac's update row when its version cannot be read", () =>
+  withFailing('app:about', async () => {
     await showHostSettings(root, 'local', 'advanced')
     await act(async () => {})
     const text = container.textContent ?? ''
     expect(text).toContain('Phosphor updates')
     expect(text).toContain('Phosphor version')
     expect(text).toContain('unknown')
-  } finally {
-    invoke.mockImplementation(about)
-  }
-})
+  }))
 
-it('says in About that the version is unknown when the app cannot report it', async () => {
-  const about = invoke.getMockImplementation()!
-  invoke.mockImplementation(async (channel: string, hostId?: string, section?: string) => {
-    if (channel === 'app:about') throw new Error('no about')
-    return about(channel, hostId, section)
-  })
-  try {
+it('says in About that the version is unknown when the app cannot report it', () =>
+  withFailing('app:about', async () => {
     await showHostSettings(root, 'local', 'about')
     await act(async () => {})
     expect(container.textContent).toMatch(/Phosphor version\s*unknown/)
-  } finally {
-    invoke.mockImplementation(about)
-  }
-})
+  }))
