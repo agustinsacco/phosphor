@@ -472,3 +472,16 @@ it("F1: This Mac's preview opens a worktree-removed lane as its saved conversati
     useSessionsStore.setState({ disk: original.disk, openDiskSession: original.openDiskSession })
   }
 })
+
+it("F10: This Mac's preview titles a live lane with no file yet 'New session', as the sidebar does", async () => {
+  useSessionsStore.setState({
+    live: { fresh: { phosphorId: 'fresh', workspacePath: '/work/app' } } as never,
+  })
+  try {
+    await openThisMac()
+    const row = container.querySelector('.machine-lane-preview .lane-row')
+    expect(row?.getAttribute('aria-label')).toBe('New session')
+  } finally {
+    useSessionsStore.setState({ live: {} })
+  }
+})
