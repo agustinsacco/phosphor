@@ -9,6 +9,7 @@ import { sessionTitle } from '@/lib/sessionTitle'
 import { useSettingsWorkspace } from '../SettingsMachineScope'
 import { useSettingsUiStore, type SettingsTab } from '../settingsUiStore'
 import { usePackageJob } from '../usePackageJob'
+import { useOnLocalRefresh } from '../machine/ScopeRefresh'
 
 /**
  * Settings → Optimization: manage Headroom (tool-result compression), show
@@ -25,8 +26,7 @@ export function OptimizationTab(): React.JSX.Element {
   const [busy, setBusy] = useState(false)
 
   const refresh = useCallback(async (): Promise<void> => {
-    const next = await window.phosphor.invoke('headroom:status').catch(() => null)
-    setStatus(next)
+    setStatus(await window.phosphor.invoke('headroom:status').catch(() => null))
     if (workspacePath) {
       setStats(await window.phosphor.invoke('optimization:stats', workspacePath).catch(() => null))
     }
@@ -37,6 +37,7 @@ export function OptimizationTab(): React.JSX.Element {
   useEffect(() => {
     void refresh()
   }, [refresh])
+  useOnLocalRefresh(refresh)
 
   /** Run one lifecycle action, then re-read both status and stats. */
   const act = async (action: () => Promise<HeadroomStatus>): Promise<void> => {

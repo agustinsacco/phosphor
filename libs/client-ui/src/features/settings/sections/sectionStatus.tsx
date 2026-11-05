@@ -6,12 +6,13 @@ import { SettingsNotice } from '@/components/form'
 export type SectionStatus = 'loading' | 'ready' | { error: string; retry: () => void }
 
 /**
- * Loads a section's data on mount, and again on `retry`. A failed load leaves
- * `data` as it was and says why; it never stays stuck on "loading".
+ * Loads a section's data on mount, and again on `retry` or `reload`. A failed
+ * load leaves `data` as it was and says why; it never stays stuck on "loading".
  */
 export function useSectionLoad<T>(load: () => Promise<T>): {
   data: T | null
   status: SectionStatus
+  reload: () => void
 } {
   const [attempt, setAttempt] = useState(0)
   const [data, setData] = useState<T | null>(null)
@@ -32,6 +33,7 @@ export function useSectionLoad<T>(load: () => Promise<T>): {
   return {
     data,
     status: error !== null ? { error, retry } : data === null ? 'loading' : 'ready',
+    reload: retry,
   }
 }
 

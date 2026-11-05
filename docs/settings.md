@@ -37,7 +37,7 @@ the form factor.
 | MCP Connectors   | machine, both     | a machine           | yes     | yes     | pi's built-in MCP: curated OAuth catalog + custom servers, per machine or folder                         | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`; a Host's own           |
 | Folders          | machine, both     | per machine         | yes     | yes     | This Mac: recent folders and sandboxes; a Host: registered folders and trust                             | recents (This Mac); the Host, through `hosts:*Repository`             |
 | Optimization     | machine, This Mac | `localLanes`        | yes     | no      | Headroom tool-result compression + the Advisor                                                           | Phosphor prefs; `headroom:*` lifecycle in main                        |
-| Advanced         | machine, both     | per machine         | yes     | yes     | pi health, PATH and agent dir; This Mac: raw editors, maintenance, resources; a Host: update and runtime | the pi files it edits; maintenance prefs                              |
+| Advanced         | machine, both     | per machine         | yes     | yes     | Version and update, pi health, PATH, agent dir; This Mac: raw editors, maintenance, resources; Host: env | the pi files it edits; maintenance prefs                              |
 
 A machine section is listed for This Mac when the client has `localLanes`, and for a
 Host when it has `machineSettings`; there a Host writes its own files through
@@ -54,14 +54,15 @@ MCP Connectors is top level and always present on This Mac, since MCP is built i
 pi rather than added by a package. The items nested under Extensions follow the
 chosen machine (`useExtensionTabs`): an item is listed when the section registry has
 a view for that kind of machine and it is listed everywhere (`always`: Claude Code,
-whose page offers Install) or its package is there. On This Mac a declared package
-counts, so its health and setup screens stay reachable during setup; Subagents needs
-it installed. On a Host the package must be installed. This Mac's package list is
-re-read on every open and tab change; a Host's is read once per connection while
-configuration access is granted, and again whenever its Extensions page reads after
-a task. This Mac reads the packages of the scope line's folder, as its Extensions page
-does. So a fresh install gets its item without a restart, and an item whose package
-vanished falls back to Extensions.
+whose page offers Install) or its package is there. On every machine a declared
+package counts, so its health and setup screens stay reachable during setup and
+repair; Subagents needs it installed. Every machine reads the packages of the scope
+line's folder, as its Extensions page does, and lists only a read of that scope
+(`extensionPackageLists.ts`, one list per machine and folder). This Mac's list is
+re-read on every open and tab change; a Host's is read once per connection and scope
+while configuration access is granted, and again whenever its Extensions page reads
+after a task. So a fresh install gets its item without a restart, and an item whose
+package vanished falls back to Extensions.
 
 Phosphor's prefs live in electron-store. pi's config stays in pi's files. The
 two are never mixed.
@@ -106,8 +107,11 @@ folders. Choosing **Folder** picks the active lane's folder when it is listed (o
 Host, the folder of an active lane running there), else the first. The choice
 is `settingsUiStore.folder` (null is the whole machine); it resets when the dialog
 opens, when the browser page is entered and when another machine is chosen. Views
-read it and never render a scope switch of their own. A Host's line also holds
-**Refresh**, once configuration access is granted.
+read it and never render a scope switch of their own. The line ends with one
+**Refresh** on every machine (`ScopeRefresh`), which reads the open section again: on
+This Mac each section's own read (`useOnLocalRefresh`; Subagents and Computer use
+read nothing there, so it changes nothing), on a Host its settings read once
+configuration access is granted, or for Folders the link's folders.
 
 This Mac's sections mount only while This Mac is chosen, so choosing it always shows
 its controls, even while a Host lane is the active lane; they then use This Mac's home
@@ -155,9 +159,11 @@ reachability words (`machineReachability`) and fix command, plus the link's last
 error: Host offline, not reachable yet or not reachable offer **Reconnect**;
 Connecting… offers nothing; an identity mismatch says to remove and re-add the Host;
 an incompatible Host says to update it; signed out offers **Open Phosphor account**.
-A ready Host without the settings API asks for `phosphor update`; one without the
-grant offers **Enable configuration access**. Then the section loads (a skeleton),
-or its read failed (an alert with **Retry**). Save and program errors show above the
+A section that reads only the link (`host: 'connection'` in the index: Folders)
+renders once the link is ready. For the others, a ready Host without the settings API
+asks for `phosphor update`; one without the grant offers **Enable configuration
+access**. Then the section loads (a skeleton), or its read failed (an alert with
+**Retry**). Save and program errors show above the
 section as alerts.
 
 Each section is the shared view, editing the Host's own files. What a Host adds or
@@ -172,8 +178,11 @@ withholds:
   updates and removes npm packages for the whole machine, each by reviewed task.
 - **MCP Connectors** confirms command connectors and status checks first, and
   signs in in a private terminal.
-- **Folders** registers and unregisters within the Host's repository-change policy,
-  which a refusal names, and reviews pi trust explicitly.
+- **Folders** needs no configuration access: it lists the folders the link
+  reports, registers and unregisters within the Host's repository-change policy,
+  which a refusal names, and reviews pi trust explicitly, which first asks for
+  configuration access (a Host without settings support offers no review). Its
+  Refresh reads the link's folders again.
 - **Advanced** offers Pause and update (the Host's own signed `phosphor update`) and
   shows its pi, read-only paths, PATH and environment names: never values, never a
   raw-JSON editor.
@@ -249,8 +258,8 @@ a restart; only an older Host without `namingLive` needs a service restart for n
 **Instructions and directives** opens the Host's
 own [global instructions](chat.md#global-instructions) in the same editor as This
 Mac's, read and saved through the `instructions` settings section. Its four directive
-switches and **What gets sent** preview are This Mac's, with the Host's label in
-the machine block; they save on change, like the rest of the page, as Host
+switches and **What gets sent** preview are This Mac's, with the Host's label,
+platform and repository names in the machine block, as its lanes receive them; they save on change, like the rest of the page, as Host
 config (`agentDirectives`), which each lane start reads, so a save needs no restart
 and running lanes keep the prompt they started with. There are no per-folder Host
 directives. A Host without the section asks to be updated. Source URLs and non-allowlisted
@@ -268,8 +277,8 @@ Everything lives under `libs/client-ui/src/features/settings/`.
   the registry in step with the navigation (`settingsIndex.ts`): a section lists on a
   machine exactly when it has that machine's view.
 - **The machine frame.** `machine/` holds the scope line (`SettingsScopeLine`,
-  `ScopeRow`, `HostScopeRow`, `HostRefresh`), the gate (`HostGate`,
-  `hostSettingsStatus`) and the Host plumbing: `useHostSettings`,
+  `ScopeRow`, `HostScopeRow`, `ScopeRefresh` with `LocalRefresh` and `HostRefresh`),
+  the gate (`HostGate`, `hostSettingsStatus`) and the Host plumbing: `useHostSettings`,
   `useMachinePrograms`, `machineProgramActions`, `HostProgramDialog`,
   `settingsAccess`, `machineSettingsDrafts` and the Agent draft helpers.
   `useHostSection()` gives a Host view its machine, settings read (`settings`),
@@ -472,9 +481,13 @@ it inherits; the section waits for that read, and a failed one is the section's
 error with **Retry**.
 
 - This Mac's saves use the Host's writer (`libs/session-runtime/src/pi/settings-file.ts`):
-  locked per file, atomically replaced, and refused when the file changed since
-  it was read. This Mac's policy (`DESKTOP_FILE_POLICY`) saves through a dotfile
-  symlink, so the link survives, and keeps each file's mode. `settings.json`,
+  locked per file and atomically replaced. The client sends no revision; main
+  takes it inside the lock just before writing, so a change made outside since
+  the page read the file is not refused. An edit merges only its own key, so an
+  outside change to another key survives and one to the same key is overwritten
+  without a warning; a raw editor's save replaces the whole file. This Mac's
+  policy (`DESKTOP_FILE_POLICY`) saves through a dotfile symlink, so the link
+  survives, and keeps each file's mode. `settings.json`,
   `models.json`, `mcp.json` and their raw editors all write through it.
 - pi settings apply to **new** lanes. The context budget is the live-session
   exception described above.
@@ -611,8 +624,8 @@ pi's own package manager (`pi install` / `pi remove` / `pi update`) on that mach
   **Repair** when pi's settings name it but it is missing, and **Add** otherwise
   (`standardPackageState`, matched by package name, so pinned versions and a Host's
   redacted specs still match). A Host offers only the `headless` ones: computer use
-  needs a desktop session. The Claude Code card says when the `claude` CLI is not on
-  PATH (This Mac).
+  needs a desktop session. The Claude Code card says when the machine's `claude` CLI
+  is not on PATH (a Host's from `hosts:claude`).
 - **Installed** lists, for the machine and for the folder in scope. Each row shows
   the version, a `vX available` chip when the machine checks the registry, and what
   the package contributes: by name on This Mac (skills with a **View in Skills**
@@ -676,9 +689,9 @@ fails**. See
   verify), its lane count and its 5-hour use. It **opens** onto its usage
   windows (read under that account's own CLI config dir, so they cannot show
   another account's numbers; a Host shows its last reading, and **Check again**
-  asks its CLI) and its lanes: the live sessions on This Mac, the saved and
-  running lanes on a Host, with **Open lane**. No reading yet says so and never
-  draws a meter. A lane can be restarted on the same account or moved to another,
+  asks the machine's CLI anew on every machine) and its lanes: the live sessions
+  on This Mac, the saved and running lanes on a Host, each with **Open lane**.
+  No reading yet says so and never draws a meter. A lane can be restarted on the same account or moved to another,
   after a confirmation; both respawn it from its session file, which is the only
   way an account can change. Move targets follow one rule everywhere (`moveTargets`
   in `lib/claudeGateway.ts`, also used by the composer's account switcher): every
@@ -734,11 +747,13 @@ scope line: **Machine** is the machine's `mcp.json`, **Folder** the chosen folde
   (**Up · N tools**, **Needs sign-in**, **Down**, **Not checked**, …), an
   **Enabled** switch, Sign in and Sign out for OAuth servers, and Remove, which
   asks first and signs an OAuth server out before removing it. **Refresh & test
-  all** rereads and checks. Signing in runs `pi mcp login`; Phosphor holds no
+  all** rereads and checks, and **Checked** under it gives the time the last full
+  check finished, on every machine. Signing in runs `pi mcp login`; Phosphor holds no
   tokens and only writes `mcp.json`.
 - **Add a connector**: the curated OAuth catalog (Linear, Notion, Braintrust,
   Datadog, Supabase, Questrade, Fellow, Slack), minus what is configured. Add
-  writes the entry; on This Mac it also starts the sign-in.
+  writes the entry, then starts its sign-in: on a Host once it confirms the save,
+  as the reviewed sign-in task.
 - **Add custom server…**: a remote URL with an optional Authorization header
   (Machine scope only), or a command with one argument per line.
 - **This Mac only** (`caps`): per-server **Test**, tools and tool visibility,
@@ -853,16 +868,22 @@ One view on every machine (`sections/advanced/`: an `AdvancedSource` from
 reports its data. A failed load says why and offers **Retry**, as do Maintenance
 and the raw editor.
 
-- **pi health**, on both: where pi is installed and its version; on This Mac also
-  the minimum version Phosphor supports. Then **pi agent directory** and the
+- **pi health**, on both: where pi is installed, its version and the minimum
+  version Phosphor supports (`MIN_PI_VERSION`); a pi older than that reads
+  **too-old** on every machine. Then **pi agent directory** and the
   **Executable search path** pi runs with (`PiHealth.path`, `PiHealth.agentDir`;
   the login shell's PATH on This Mac). A Host reports its pi as additive
   `advanced.pi { version, path, agentDir }`; a Host without it shows **Update this
   Host to see its pi** and its agent directory and PATH only.
-- **Host updates**, a Host only: **Pause and update** runs the Host's own signed
-  `phosphor update` as a reviewed task, and needs Host terminal access. Beside it
-  the Host version, platform and config path, and **Environment availability**:
-  each allowlisted variable's name and whether it reaches pi, never its value.
+- **Updates and version**, first on both, in the same rows (`MachineRuntimeRows`):
+  This Mac's Phosphor version and platform (`app:about`) with the app's own update
+  row, the one About shows (**Check now**, then **Restart to update** or
+  **Download**); a Host's version, platform and config path with **Pause and
+  update**, which runs the Host's own signed `phosphor update` as a reviewed task
+  and needs Host terminal access. Both name the platform alike (macOS, Linux,
+  Windows); a version This Mac cannot read shows as unknown beside its update row.
+- **Environment availability**, a Host only: each allowlisted variable's name and
+  whether it reaches pi, never its value.
 - **Raw file editors**, This Mac only (Monaco JSON) for `~/.pi/agent/settings.json`
   and `models.json`, with a "restart sessions to apply" note. The escape hatch the
   Agent tab points at when a file is too broken to edit structurally.

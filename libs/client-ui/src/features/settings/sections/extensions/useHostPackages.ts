@@ -1,7 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { MachineSettings } from '@shared/machine-settings'
 import { useHostSection } from '../../machine/HostSection'
-import { publishHostPackages } from './hostExtensionPackages'
+import { publishPackageList } from './extensionPackageLists'
 import { openSkillsOn } from './openSkillsOn'
 import type { PackageAction, PackageCaps, PackageItem, PackageSource } from './packageSource'
 
@@ -31,6 +31,25 @@ const item = (pkg: HostPackage): PackageItem => ({
 })
 
 /**
+ * Whether the Host's `claude` CLI is installed (`hosts:claude`), read again with
+ * every package read, so an install task's end clears the warning. Null when unknown.
+ */
+function useHostClaudeCli(hostId: string, read: unknown): boolean | null {
+  const [cli, setCli] = useState<boolean | null>(null)
+  useEffect(() => {
+    let live = true
+    window.phosphor.invoke('hosts:claude', hostId).then(
+      (claude) => live && setCli(claude ? claude.cli === 'ok' : null),
+      () => live && setCli(null),
+    )
+    return () => {
+      live = false
+    }
+  }, [hostId, read])
+  return cli
+}
+
+/**
  * A Host's packages, from its `resources` read for the folder in scope. Each
  * action is a reviewed task in a private terminal on the Host; the review
  * asks before a removal, and the section reads again when the task ends.
@@ -38,16 +57,17 @@ const item = (pkg: HostPackage): PackageItem => ({
 export function useHostPackages(): PackageSource {
   const { machine, settings, programs, repositoryId } = useHostSection()
   const packages = settings.data?.resources?.packages
+  const claudeCli = useHostClaudeCli(machine.id, settings.data)
   useEffect(() => {
-    if (packages) publishHostPackages(machine.id, packages)
-  }, [machine.id, packages])
+    if (packages) publishPackageList(machine.id, repositoryId ?? null, packages)
+  }, [machine.id, repositoryId, packages])
   return {
     caps: HOST_CAPS,
     status: packages ? 'ready' : 'loading',
     packages: packages?.map(item) ?? null,
     folder: repositoryId !== undefined,
     latest: {},
-    claudeCli: null,
+    claudeCli,
     busy: settings.loading || settings.saving || programs.busy || !programs.available,
     run: (action: PackageAction, spec: string | undefined) => {
       if (spec) programs.task({ task: TASKS[action], name: spec })

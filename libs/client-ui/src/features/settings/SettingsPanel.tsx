@@ -1,6 +1,7 @@
 import { HostGate } from './machine/HostGate'
 import { HostSectionProvider } from './machine/HostSection'
 import { HostRefresh, HostScopeRow } from './machine/HostScopeControls'
+import { LocalRefresh } from './machine/ScopeRefresh'
 import { LocalScopeRow } from './machine/ScopeRow'
 import { SettingsScopeLine } from './machine/SettingsScopeLine'
 import { SETTINGS_SECTIONS } from './sections/registry'
@@ -27,7 +28,10 @@ export function SettingsPanel({
   if (machine.id === 'local')
     return views.Local ? (
       <>
-        <SettingsScopeLine machine={machine}>{views.scoped && <LocalScopeRow />}</SettingsScopeLine>
+        <SettingsScopeLine machine={machine}>
+          {views.scoped && <LocalScopeRow />}
+          <LocalRefresh />
+        </SettingsScopeLine>
         <views.Local />
       </>
     ) : null

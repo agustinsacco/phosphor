@@ -16,6 +16,7 @@ import { sessionTitle } from '@/lib/sessionTitle'
 import { viewCandidate } from '@/lib/claudeGateway'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
+import { navigateToLane } from '@/stores/remoteLanes'
 import { usePackageJob } from '../../usePackageJob'
 import {
   accountDetail,
@@ -24,6 +25,7 @@ import {
   type ClaudeAccountsSource,
 } from '../accounts/accountsModel'
 import type { ClaudeHealthModel, ClaudeInstallable } from './ClaudeHealth'
+import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
 
 const CLAUDE_PROVIDER_SPEC = 'npm:@saccolabs/pi-claude-cli'
 
@@ -72,6 +74,7 @@ function useLocalClaudeState() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+  useOnLocalRefresh(refresh)
   return { state, setState, error, refresh }
 }
 
@@ -222,9 +225,14 @@ const accountsOf = (
     }
   })
 
-/** Stable, so an open account row reads its usage once. Main caches each reading ~60 s. */
-const readUsage = (id: string): Promise<ClaudeUsageSnapshotResult> =>
-  window.phosphor.invoke('claude:usageSnapshot', id)
+/**
+ * Stable, so an open account row reads its usage once. Main caches each reading
+ * ~60 s; only `force` (Check again) asks the CLI anew.
+ */
+const readUsage = (id: string, force: boolean): Promise<ClaudeUsageSnapshotResult> =>
+  force
+    ? window.phosphor.invoke('claude:usageSnapshot', id, true)
+    : window.phosphor.invoke('claude:usageSnapshot', id)
 
 /** This Mac's Claude Code page: package jobs, in-app sign-in, live sessions per account. */
 export function useLocalClaudeAccounts(): ClaudeAccountsSource {
@@ -270,6 +278,7 @@ export function useLocalClaudeAccounts(): ClaudeAccountsSource {
       }),
     usage: readUsage,
     moveLane: async (laneId, accountId) => void (await moveSessionToAccount(laneId, accountId)),
+    openLane: (laneId) => void navigateToLane({ sessionId: laneId }),
     submitCode: (code) =>
       void window.phosphor
         .invoke('claude:submitCode', code)

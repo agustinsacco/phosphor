@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MachineView } from '@shared/control-api'
 import type { HostConnectionView } from '@shared/ipc'
 import { SettingsModal } from './SettingsModal'
 import { useSettingsUiStore } from './settingsUiStore'
 import { useLayoutStore } from '@/stores/layout'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { attachRemoteLanesListener, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useMachinesStore } from '@/stores/machines'
 import { MOCK_HOST_ID, mockRemoteHosts } from '@/dev/mockRemoteLanes'
+import { promptChoice } from '@/stores/prompt'
 
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -23,9 +24,17 @@ vi.hoisted(() => {
   })
 })
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/stores/prompt', () => ({
+  promptChoice: vi.fn(async () => undefined),
+  promptText: vi.fn(),
+}))
 
 const invoke = vi.fn(async (channel: string): Promise<unknown> =>
-  channel === 'packages:list' ? [] : undefined,
+  channel === 'packages:list'
+    ? []
+    : channel === 'hosts:snapshot'
+      ? useRemoteLanesStore.getState().hosts
+      : undefined,
 )
 let root: Root
 let container: HTMLDivElement
@@ -100,4 +109,72 @@ it('asks to update a Host whose protocol this client cannot speak', async () => 
   expect(text).toContain('Update needed')
   expect(text).toContain('phosphor update')
   expect(button('Reconnect')).toBeUndefined()
+})
+
+describe('Folders on a Host (B2)', () => {
+  beforeEach(() => {
+    vi.mocked(promptChoice).mockClear()
+    useSettingsUiStore.setState({ tab: 'folders' })
+  })
+
+  it('lists the folders once the link is ready, without configuration access or a settings read', async () => {
+    const text = await renderHost({})
+    expect(text).toContain('Demo repository')
+    expect(text).toContain('/remote/demo')
+    expect(text).not.toContain('Configuration access is not enabled')
+    expect(text).not.toContain('Update this Host to use machine settings')
+    expect(invoke).not.toHaveBeenCalledWith('hosts:settingsRead', MOCK_HOST_ID, 'advanced')
+  })
+
+  it('asks for configuration access only to review project trust', async () => {
+    await renderHost({
+      configurationSupported: true,
+      capabilities: ['sessions.read', 'sessions.control', 'terminal', 'workspaces.write'],
+    })
+    await act(async () => button('Review project trust')?.click())
+    expect(vi.mocked(promptChoice).mock.calls[0]?.[0].title).toBe(
+      'Enable settings access for Studio?',
+    )
+  })
+
+  it('offers no project trust review on a Host too old for configuration access', async () => {
+    await renderHost({
+      configurationSupported: false,
+      capabilities: ['sessions.read', 'sessions.control', 'terminal', 'workspaces.write'],
+    })
+    expect(document.body.textContent).toContain('/remote/demo')
+    expect(button('Review project trust')).toBeUndefined()
+  })
+
+  it('reads the folders again through the listener, never beside its read in flight', async () => {
+    const reads: Array<() => void> = []
+    invoke.mockImplementation(async (channel: string): Promise<unknown> => {
+      if (channel !== 'hosts:snapshot') return channel === 'packages:list' ? [] : undefined
+      const hosts = useRemoteLanesStore.getState().hosts
+      await new Promise<void>((resolve) => reads.push(resolve))
+      return hosts
+    })
+    vi.stubGlobal('phosphor', {
+      invoke,
+      platform: 'darwin',
+      onAccountChanged: () => () => {},
+      onHostsChanged: () => () => {},
+      onHostAttention: () => () => {},
+      onHostOpenLane: () => () => {},
+    })
+    await renderHost({})
+    const detach = attachRemoteLanesListener()
+    try {
+      const snapshots = () => invoke.mock.calls.filter(([channel]) => channel === 'hosts:snapshot')
+      expect(snapshots()).toHaveLength(1)
+      await act(async () => button('Refresh')?.click())
+      expect(snapshots()).toHaveLength(1)
+      await act(async () => reads.shift()?.())
+      await vi.waitFor(() => expect(snapshots()).toHaveLength(2))
+      await act(async () => reads.shift()?.())
+    } finally {
+      detach()
+      invoke.mockReset()
+    }
+  })
 })

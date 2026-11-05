@@ -71,6 +71,8 @@ export function useConnectorChecks(
   ready: boolean,
 ) {
   const [checks, setChecks] = useState<Checks>({})
+  // When the last full pass (on show, or Refresh & test all) finished.
+  const [checkedAt, setCheckedAt] = useState<number>()
   const [revision, setRevision] = useState(0)
   const scope = JSON.stringify([workspacePath, servers])
   const loadedScope = useRef('')
@@ -78,7 +80,10 @@ export function useConnectorChecks(
   const refresh = useCallback(() => setRevision((value) => value + 1), [])
   useEffect(() => {
     cancel()
-    if (loadedScope.current !== scope) setChecks({})
+    if (loadedScope.current !== scope) {
+      setChecks({})
+      setCheckedAt(undefined)
+    }
     loadedScope.current = scope
     if (!ready || !servers.length) return
     const epoch = generation.current
@@ -94,6 +99,7 @@ export function useConnectorChecks(
       }
       if (epoch !== generation.current) return
       await Promise.all(servers.map(({ name }) => test(name, epoch)))
+      if (epoch === generation.current) setCheckedAt(Date.now())
     }
     void load()
     return cancel
@@ -101,6 +107,7 @@ export function useConnectorChecks(
   const checking = Object.values(checks).some((value) => value.checking)
   return {
     checks: loadedScope.current === scope ? checks : {},
+    checkedAt: loadedScope.current === scope ? checkedAt : undefined,
     test,
     cancel,
     refresh,

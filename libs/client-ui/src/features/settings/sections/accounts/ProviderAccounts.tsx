@@ -37,14 +37,6 @@ export function ProviderAccounts({
       )}
       {source.error && <p className="text-danger mt-3 text-base">{source.error}</p>}
       <div className="mt-5 flex items-center gap-4">
-        {source.refresh && (
-          <TooltipButton
-            onClick={source.refresh}
-            className="text-text-secondary hover:text-text text-base"
-          >
-            Refresh
-          </TooltipButton>
-        )}
         {terminal && terminal.ptyId === null && (
           <TooltipButton
             onClick={terminal.open}

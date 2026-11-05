@@ -25,8 +25,16 @@ interface SettingsState {
   error: string | null
   loading: boolean
   saving: boolean
+  /** A connectors check is in flight; `loading` is true for any read. */
+  checking: boolean
 }
-const IDLE: SettingsState = { result: null, error: null, loading: false, saving: false }
+const IDLE: SettingsState = {
+  result: null,
+  error: null,
+  loading: false,
+  saving: false,
+  checking: false,
+}
 
 interface Writer {
   /** Still mounted, on the same connection generation, section and scope. */
@@ -74,20 +82,21 @@ function useLive(key: string) {
 }
 
 /**
- * One Host settings section, for `repositoryId` or the whole machine. A read,
- * check or change belongs to the connection generation, section and scope it
- * started in: one that completes after they changed, or after unmount, is
- * dropped, and of overlapping reads only the newest lands.
+ * One Host settings section, for `repositoryId` or the whole machine; a null
+ * `section` reads nothing. A read, check or change belongs to the connection
+ * generation, section and scope it started in: one that completes after they
+ * changed, or after unmount, is dropped, and of overlapping reads only the newest lands.
+ * A check is such a read (it settles its own failure); `checking` is true only for it.
  */
 export function useHostSettings(
   hostId: string,
-  section: MachineSettingsSection,
+  section: MachineSettingsSection | null,
   repositoryId?: string,
 ) {
   const supported = usePlatform().machineSettings
   const connection = useRemoteLanesStore((s) => s.hosts[hostId])
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
-  const key = `${hostId}/${generation}/${section}/${repositoryId ?? ''}/${supported}`
+  const key = `${hostId}/${generation}/${section ?? ''}/${repositoryId ?? ''}/${supported}`
   const allowed = canConfigureHost(supported, connection)
   const { live, attempt } = useLive(key)
   const [state, setState] = useState(IDLE)
@@ -112,10 +121,10 @@ export function useHostSettings(
     },
     [live, allowed, attempt, key, update],
   )
-  const refresh = useCallback(
-    () => read(() => window.phosphor.invoke('hosts:settingsRead', hostId, section, repositoryId)),
-    [read, hostId, section, repositoryId],
-  )
+  const refresh = useCallback(async (): Promise<void> => {
+    if (section)
+      await read(() => window.phosphor.invoke('hosts:settingsRead', hostId, section, repositoryId))
+  }, [read, hostId, section, repositoryId])
   useEffect(() => {
     setState(IDLE)
     void refresh()
@@ -128,11 +137,12 @@ export function useHostSettings(
     error: state.error,
     loading: state.loading,
     saving: state.saving,
+    checking: state.checking,
     allowed,
     connection,
     refresh,
     change: async (change: MachineSettingsChange): Promise<MachineSettings | null> => {
-      if (!data || !allowed) return null
+      if (!data || !allowed || !section) return null
       const patch = { section, repositoryId, revision: data.revision, change }
       const saved = await write(
         writer,
@@ -143,7 +153,9 @@ export function useHostSettings(
     },
     check: async (): Promise<void> => {
       if (section !== 'connectors' || state.loading || state.saving) return
+      update({ checking: true })
       await read(() => window.phosphor.invoke('hosts:settingsCheck', hostId, repositoryId))
+      if (live()) update({ checking: false })
     },
     moveAccount: async (laneId: string, accountId: string): Promise<void> => {
       if (!allowed) return
