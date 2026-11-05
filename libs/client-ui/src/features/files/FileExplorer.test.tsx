@@ -203,3 +203,13 @@ it('stops an old reveal when navigation changes during a directory read', async 
   expect(useFilesStore.getState().expanded['/repo/src/nested']).toBeUndefined()
   expect(row('/repo/a.ts')?.getAttribute('aria-pressed')).toBe('true')
 })
+
+it('announces Show hidden files and Respect .gitignore as on/off toggles', async () => {
+  useFilesStore.setState({ showHidden: false, respectGitignore: true })
+  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  const pressed = (label: string) =>
+    container.querySelector(`button[aria-label="${label}"]`)?.getAttribute('aria-pressed')
+  expect(pressed('Show hidden files')).toBe('false')
+  expect(pressed('Respect .gitignore')).toBe('true')
+  expect(pressed('Refresh explorer')).toBeNull()
+})
