@@ -242,7 +242,8 @@ function laneHandlers({
     makeRoutine: () => void act(async () => routineFromLane(hostId, lane, await session())),
     exportHtml: () =>
       void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),
-    copyDebugInfo: () => void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane))),
+    copyDebugInfo: () =>
+      void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane, entry?.phosphorId))),
     copySpend: () => void act(async () => copySpend(await sessionCost(await session()))),
     delete: () => openDialog('delete'),
   }
@@ -344,11 +345,12 @@ async function sessionCost(sessionId: string): Promise<number> {
  * Host summary's model) and where it runs. Never a Host path: the lane's folder
  * and session file stay on the Host.
  */
-function remoteLaneDebugSource(hostId: string, lane: HostLaneView): SessionDebugSource {
-  const live = Object.values(useSessionsStore.getState().live).find(
-    (e) => e.target?.kind === 'remote' && e.target.hostId === hostId && e.laneId === lane.laneId,
-  )
-  const meta = live ? useChatStore.getState().sessions[live.phosphorId]?.meta : null
+function remoteLaneDebugSource(
+  hostId: string,
+  lane: HostLaneView,
+  sessionId: string | undefined,
+): SessionDebugSource {
+  const meta = sessionId ? useChatStore.getState().sessions[sessionId]?.meta : null
   const model = meta?.model ?? lane.model
   return {
     sessionId: meta?.sessionId,
