@@ -681,8 +681,8 @@ start fresh.
 This computer's detail is the same view without what needs enrollment: its
 platform label as the heading (no Rename), the pill its checks add up to, and a
 Machine actions menu with Check again, which re-reads pi, Claude Code, Tailscale
-and its providers, and **Update Phosphor…**, which opens Settings → About where the
-app can check for updates. The same Overview / Settings / Machine files navigation
+and its providers, and **Update Phosphor…**, which opens Settings → Advanced, as a
+Host's **Update Host…** does, where the app can check for updates. The same Overview / Settings / Machine files navigation
 follows: Settings opens Settings → Accounts for this computer, and Machine files
 browses its recent folders read-only in the same dialog and tree. Readiness lists pi, Claude Code and Tailscale; Providers lists its subscriptions
 with Settings → Accounts' rows and **Provider settings**, opening on the last read by

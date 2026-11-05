@@ -67,7 +67,7 @@ export interface MachineOverview extends MachineSummary {
   notice?: 'setup' | 'offline'
   check: Recheck
   reconnect?: { busy: boolean; run: () => void }
-  /** Where this machine updates: This Mac's About, a Host's Advanced. */
+  /** Where this machine updates: its Settings → Advanced. */
   update?: { label: string; run: () => void }
   /** Opens Settings → Accounts for this machine, where providers sign in. */
   configure?: () => void
@@ -187,7 +187,7 @@ export function useLocalOverview(): MachineOverview | null {
     connected: true,
     check: { busy: reads.busy, at: reads.at, round: reads.round, run: reads.run },
     update: appInfo
-      ? { label: 'Update Phosphor…', run: () => openSettings('local', 'about') }
+      ? { label: 'Update Phosphor…', run: () => openSettings('local', 'advanced') }
       : undefined,
     configure: () => openSettings('local', 'accounts'),
   }
