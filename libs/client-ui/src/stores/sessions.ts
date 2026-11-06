@@ -12,7 +12,7 @@ import type {
 } from '@shared/models'
 import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
-import { applySessionModels, readSessionModels } from './sessionModels'
+import { readSessionModels } from './sessionModels'
 import { useNamingStore } from './naming'
 import { usePiCommandsStore } from './piCommands'
 import { drop } from './keyedSlice'
@@ -490,7 +490,7 @@ export async function bootstrapSession(phosphorId: string): Promise<boolean> {
   }
   const [models, commands, stats, thinkingLevels] = await restPromise
   if (!sessionIsOpen(phosphorId)) return false
-  if (models.status === 'fulfilled') applySessionModels(phosphorId, models.value)
+  if (models.status === 'fulfilled') chat.setModels(phosphorId, models.value)
   if (commands.status === 'fulfilled' && commands.value.success && commands.value.data) {
     chat.setCommands(phosphorId, commands.value.data.commands)
     commandsRefreshedAt.set(phosphorId, Date.now())

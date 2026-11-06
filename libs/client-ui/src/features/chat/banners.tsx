@@ -8,6 +8,7 @@ import { machineLabel } from '@/stores/remoteLanes'
 import { useLaneControl } from '@/features/machines/useLaneControl'
 import { ModelActionButtons } from './composer/ModelActionButtons'
 import { useSessionModelActions } from './composer/useSessionModelActions'
+import { MODELS_READ_FAILED } from '@/stores/machineCatalogues'
 import { sessionTitle } from '@/lib/sessionTitle'
 import {
   latestRewoundVersion,
@@ -89,11 +90,12 @@ export function CrashBanner({
   )
 }
 
-/** No models configured: the start picker's actions, and pi's terminal on This Mac. */
+/** No models, or a failed read of them: the start picker's actions, and pi's terminal on This Mac. */
 export function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const platform = usePlatform()
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const models = useChatStore((s) => s.sessions[sessionId]?.models)
+  const failed = useChatStore((s) => s.sessions[sessionId]?.modelsFailed ?? false)
   const live = useSessionsStore((s) => s.live[sessionId])
   const actions = useSessionModelActions(sessionId)
   if (!meta || models === undefined || models === null) return null
@@ -104,7 +106,9 @@ export function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.
     <div className="mx-auto w-full max-w-3xl px-6 pt-2">
       <div className="bg-warning/10 border-warning/30 rounded-lg border px-4 py-3 text-lg">
         <div className="flex items-center gap-3">
-          <div className="text-text flex-1 font-medium">No models configured</div>
+          <div className="text-text flex-1 font-medium">
+            {failed ? MODELS_READ_FAILED : 'No models configured'}
+          </div>
           <ModelActionButtons actions={actions} />
           {workspacePath && platform.terminal && (
             <TooltipButton
@@ -119,15 +123,17 @@ export function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.
             </TooltipButton>
           )}
         </div>
-        <div className="text-text-secondary mt-1 leading-relaxed">
-          Sign in to a provider, set an API key env var (e.g.{' '}
-          <code className="bg-code-bg rounded px-1 font-mono text-base">ANTHROPIC_API_KEY</code>),
-          or add a custom endpoint in{' '}
-          <code className="bg-code-bg rounded px-1 font-mono text-base">
-            ~/.pi/agent/models.json
-          </code>
-          .
-        </div>
+        {!failed && (
+          <div className="text-text-secondary mt-1 leading-relaxed">
+            Sign in to a provider, set an API key env var (e.g.{' '}
+            <code className="bg-code-bg rounded px-1 font-mono text-base">ANTHROPIC_API_KEY</code>),
+            or add a custom endpoint in{' '}
+            <code className="bg-code-bg rounded px-1 font-mono text-base">
+              ~/.pi/agent/models.json
+            </code>
+            .
+          </div>
+        )}
       </div>
     </div>
   )

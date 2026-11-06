@@ -1,5 +1,6 @@
 import { useSessionsStore, sessionIsOpen } from '@/stores/sessions'
-import { applySessionModels, readSessionModels } from '@/stores/sessionModels'
+import { useChatStore } from '@/stores/chat'
+import { readSessionModels } from '@/stores/sessionModels'
 import { useSignInAction } from '../useSignInAction'
 import type { ModelAction } from './ModelActionButtons'
 
@@ -12,5 +13,5 @@ export function useSessionModelActions(sessionId: string): ModelAction[] {
 
 async function retrySessionModels(sessionId: string): Promise<void> {
   const models = await readSessionModels(sessionId)
-  if (sessionIsOpen(sessionId)) applySessionModels(sessionId, models)
+  if (sessionIsOpen(sessionId)) useChatStore.getState().setModels(sessionId, models)
 }
