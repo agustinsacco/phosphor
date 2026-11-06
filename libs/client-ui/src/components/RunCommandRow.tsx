@@ -7,8 +7,8 @@ import { Button } from './form'
  * that sends it to the session terminal, and copy for the "I'll run it
  * elsewhere" case.
  *
- * Used wherever Phosphor can name the exact shell fix for a failure (expired SSO
- * token, missing login) so the user never has to go hunt for the incantation.
+ * Used wherever Phosphor can name the exact shell fix for a failure (an expired
+ * SSO token) so the user never has to go hunt for the incantation.
  */
 export function RunCommandRow({
   command,

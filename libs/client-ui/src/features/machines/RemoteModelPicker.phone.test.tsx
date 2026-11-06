@@ -13,7 +13,8 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { useRemoteModelPicks } from '@/stores/remoteModelPicks'
 import { useModelPicksStore } from '@/stores/modelPicks'
-import { RemoteModelPicker, useRemoteModel } from './RemoteModelPicker'
+import { RemoteModelPicker } from './RemoteModelPicker'
+import { useRemoteModel } from './useRemoteModel'
 
 let root: Root
 let el: HTMLDivElement

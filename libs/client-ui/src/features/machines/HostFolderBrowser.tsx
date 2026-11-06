@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { IpcInvokeMap } from '@shared/ipc'
+import type { HostConnectionView, IpcInvokeMap } from '@shared/ipc'
 import { ModalOverlay, ModalPanel, useEscapeKey } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { fixedRefusal, isFolderName } from '@shared/host-protocol-repositories'
@@ -51,6 +51,11 @@ function NewFolderRow({
   )
 }
 
+/** This device may add a folder on the Host: it is ready and grants `workspaces.write`. */
+export function canAddHostFolder(host: HostConnectionView | undefined): boolean {
+  return host?.state === 'ready' && host.capabilities.includes('workspaces.write')
+}
+
 export function HostFolderBrowser({
   hostId,
   onClose,
@@ -67,8 +72,8 @@ export function HostFolderBrowser({
   const [busy, setBusy] = useState(false)
   const [hidden, setHidden] = useState(false)
   const [naming, setNaming] = useState(false)
-  const available = host?.state === 'ready' && host.capabilities.includes('workspaces.write')
-  const canCreate = available && host.capabilities.includes('sessions.control')
+  const available = canAddHostFolder(host)
+  const canCreate = available && !!host?.capabilities.includes('sessions.control')
   useEffect(() => {
     let alive = true
     setListing(null)

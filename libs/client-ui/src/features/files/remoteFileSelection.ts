@@ -1,6 +1,6 @@
 import { isFilePath } from '@shared/host-protocol-files'
 import { useSessionsStore } from '@/stores/sessions'
-import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { sessionHostLane, useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import type { RevealTarget } from '@/stores/files'
 let sequence = 0
 import { useRemoteFileSelection } from './remoteFileSelectionStore'
@@ -24,9 +24,9 @@ export async function openRemoteFile(
   target?: number | RevealTarget,
 ): Promise<void> {
   const session = useSessionsStore.getState().live[sessionId]
-  if (session?.target?.kind !== 'remote') throw new Error(REMOTE_UNAVAILABLE)
-  const host = useRemoteLanesStore.getState().hosts[session.target.hostId]
-  const lane = host?.lanes.find((l) => l.laneId === session.laneId)
+  const remote = sessionHostLane(sessionId)
+  if (!session || !remote) throw new Error(REMOTE_UNAVAILABLE)
+  const { host, lane } = remote
   if (
     !lane ||
     host?.state !== 'ready' ||
@@ -38,7 +38,7 @@ export async function openRemoteFile(
   await window.phosphor.invoke('fs:readFile', `${session.workspacePath}/${relative}`)
   if (
     useSessionsStore.getState().live[sessionId] !== session ||
-    useRemoteLanesStore.getState().hosts[session.target.hostId] !== host ||
+    useRemoteLanesStore.getState().hosts[remote.hostId] !== host ||
     useRemoteFileSelection.getState().blocked[sessionId]
   )
     throw new Error(REMOTE_UNAVAILABLE)

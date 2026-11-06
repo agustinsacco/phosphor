@@ -5,7 +5,8 @@ import {
   useRemoteLanesStore,
 } from '@/stores/remoteLanes'
 import type { HostConnectionView } from '@shared/ipc'
-import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
+import { canAddHostFolder, HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
+import { remoteLaneTitle } from '@/features/sessions/remoteLaneView'
 import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -343,7 +344,7 @@ function hostActions(
 ): PaletteAction[] {
   const lanes = host.lanes.map((lane) => ({
     id: `lane-${lane.laneId}`,
-    label: `Open lane: ${lane.title ?? 'Untitled lane'}`,
+    label: `Open lane: ${remoteLaneTitle(null, lane.title)}`,
     run: () => void openRemoteLane(hostId, lane.laneId),
   }))
   const repositories = host.repositories.map((repository) => ({
@@ -352,11 +353,10 @@ function hostActions(
     hint: machineLabel(hostId),
     run: () => openRemoteComposer(hostId, repository.id),
   }))
-  const canAdd = host.state === 'ready' && host.capabilities.includes('workspaces.write')
   const add = {
     id: 'add-host-folder',
     label: `Add folder on ${machineLabel(hostId)}…`,
     run: () => addFolder(hostId),
   }
-  return [...lanes, ...repositories, ...(canAdd ? [add] : [])]
+  return [...lanes, ...repositories, ...(canAddHostFolder(host) ? [add] : [])]
 }

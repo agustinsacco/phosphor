@@ -9,6 +9,7 @@ import type { HostConnectionView, HostsSnapshot } from '@shared/ipc'
 import type { LiveSessionInfo } from '@shared/models'
 import type { HostTarget } from '@shared/remote-host'
 import { forgetRemoteSession, useSessionsStore } from './sessions'
+import { hostLaneOf, type SessionHostLane } from './hostLaneOf'
 import { useMachinesStore } from './machines'
 import { migrateLegacyLaneMarks } from './remoteLaneMarks'
 import { bindHostsSnapshotRead } from './hostsSnapshotRead'
@@ -83,12 +84,26 @@ export function connectingTo(hostId: string, state: HostConnectionView['state'] 
   return `${state === 'reconnecting' ? 'Reconnecting' : 'Connecting'} to ${machineLabel(hostId)}…`
 }
 
+/** Null for This Mac's session. Otherwise its Host and lane, read from the stores now. */
+export function sessionHostLane(sessionId: string): SessionHostLane | null {
+  const entry = useSessionsStore.getState().live[sessionId]
+  const hostId = entry?.target?.kind === 'remote' ? entry.target.hostId : undefined
+  return hostLaneOf(entry, hostId ? useRemoteLanesStore.getState().hosts[hostId] : undefined)
+}
+
+/** `sessionHostLane` for a component: it re-renders when the session or its Host moves. */
+export function useSessionHostLane(sessionId: string | undefined): SessionHostLane | null {
+  const entry = useSessionsStore((s) => (sessionId ? s.live[sessionId] : undefined))
+  const hostId = entry?.target?.kind === 'remote' ? entry.target.hostId : undefined
+  const host = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
+  return hostLaneOf(entry, host)
+}
+
 /** Null for a local session. Otherwise its Host's state, and whether this client holds the lane. */
 function heldLane(sessionId: string) {
-  const entry = useSessionsStore.getState().live[sessionId]
-  if (entry?.target?.kind !== 'remote') return null
-  const host = useRemoteLanesStore.getState().hosts[entry.target.hostId]
-  const lane = host?.lanes.find((item) => item.laneId === entry.laneId)
+  const remote = sessionHostLane(sessionId)
+  if (!remote) return null
+  const { host, lane } = remote
   const held =
     !!host?.capabilities.includes('sessions.control') && lane?.control.controller?.self === true
   return { state: host?.state, held }

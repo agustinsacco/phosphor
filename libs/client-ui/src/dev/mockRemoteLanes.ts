@@ -1,6 +1,7 @@
 import { withLaneMarks, type LaneMarksChange } from '@shared/host-protocol-lane-marks'
-import type { HostsSnapshot } from '@shared/ipc'
+import type { HostLaneView, HostsSnapshot } from '@shared/ipc'
 import type { LiveSessionInfo } from '@shared/models'
+import type { HostCapability } from '@shared/remote-host'
 
 export const MOCK_HOST_ID = '00000000-0000-4000-8000-000000000099'
 const LANE = '00000000-0000-4000-8000-000000000098'
@@ -37,6 +38,38 @@ export const mockRemoteHosts: HostsSnapshot = {
       },
     ],
   },
+}
+
+/**
+ * A test's Host lane: the mock Host, with extra capabilities and its lane's
+ * activity and controller set, and the live session bound to that lane under
+ * `sessionId`.
+ */
+export function hostLaneSession({
+  activity = 'idle',
+  self,
+  capabilities = [],
+  sessionId = mockRemoteInfo.sessionId,
+}: {
+  activity?: HostLaneView['activity']
+  /** This window controls the lane; otherwise another device does. */
+  self: boolean
+  capabilities?: HostCapability[]
+  sessionId?: string
+}): { hosts: HostsSnapshot; live: Record<string, LiveSessionInfo & { phosphorId: string }> } {
+  const hosts = structuredClone(mockRemoteHosts)
+  const host = hosts[MOCK_HOST_ID]!
+  host.capabilities.push(...capabilities)
+  const lane = host.lanes[0]!
+  host.lanes[0] = {
+    ...lane,
+    activity,
+    control: {
+      ...lane.control,
+      controller: { label: self ? 'Here' : 'Phone', connected: true, self },
+    },
+  }
+  return { hosts, live: { [sessionId]: { ...mockRemoteInfo, phosphorId: sessionId } } }
 }
 
 const listeners = new Set<() => void>()

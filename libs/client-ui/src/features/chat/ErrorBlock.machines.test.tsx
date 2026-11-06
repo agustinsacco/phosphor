@@ -10,7 +10,7 @@ import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { NavigationProvider } from '@/navigation/Navigation'
 import type { Location } from '@/navigation/location'
 import { localMachineLabel } from '@/lib/localMachine'
-import { mockRemoteHosts, MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
+import { hostLaneSession, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 
 /** One remedy set on every machine; only where the fix runs differs. */
 
@@ -49,25 +49,15 @@ afterEach(() => {
 async function failedTurn(machine: Machine, message: string): Promise<void> {
   const sessionId = machine
   if (machine === 'host') {
-    const hosts = structuredClone(mockRemoteHosts)
-    const lane = hosts[MOCK_HOST_ID]!.lanes[0]!
-    hosts[MOCK_HOST_ID]!.capabilities.push('terminal')
-    hosts[MOCK_HOST_ID]!.lanes[0] = {
-      ...lane,
-      activity: 'idle',
-      control: { ...lane.control, controller: { self: true, connected: true, label: 'Here' } },
-    }
+    const { hosts, live } = hostLaneSession({ self: true, capabilities: ['terminal'], sessionId })
     useRemoteLanesStore.setState({ hosts })
+    useSessionsStore.setState({ activeSessionId: sessionId, live })
+  } else {
+    useSessionsStore.setState({
+      activeSessionId: sessionId,
+      live: { [sessionId]: { phosphorId: sessionId, sessionId, workspacePath: '/mac' } } as never,
+    })
   }
-  useSessionsStore.setState({
-    activeSessionId: sessionId,
-    live: {
-      [sessionId]:
-        machine === 'host'
-          ? { ...mockRemoteInfo, phosphorId: sessionId }
-          : { phosphorId: sessionId, sessionId, workspacePath: '/mac' },
-    } as never,
-  })
   useChatStore.getState().ensure(sessionId)
   useChatStore.setState((s) => ({
     sessions: {
