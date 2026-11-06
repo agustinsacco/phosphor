@@ -93,3 +93,18 @@ it('accepts only real nested parents for a missing planned leaf and checks owner
     readOwnedTranscript(join(sessionDir, 'alias', 'missing.jsonl'), 'job', sessionDir),
   ).rejects.toThrow('Unsafe')
 })
+it.each(['multiple', 'single'])('purges an oversized owned %s-record transcript without using display bounds', async (shape) => {
+  const f = await adapterFixture(); cleanup.push(f.cleanup)
+  const job = f.engine.claimJob(f.engine.createJob(f.scope, f.model, f.snapshot.policyEpoch).id)
+  const session = await f.processorSession(job.id)
+  f.engine.updateJob(job.id, job.fence, { sessionPath: session.path })
+  const count = shape === 'multiple' ? 13 : 1
+  const row = JSON.stringify({ type: 'message', message: { role: 'assistant', content: '漢'.repeat(shape === 'multiple' ? 54000 : 750000) } })
+  const owner = JSON.stringify({ data: { jobId: job.id, kind: 'brain' }, customType: 'phosphor-brain-owner', type: 'custom' })
+  await writeFile(session.path, owner + '\n' + Array.from({ length: count }, () => row).join('\n') + '\n')
+  const transcripts = createBrainTranscripts(f.options, f.store, join(f.directory, 'sessions'), async () => {})
+  await expect(transcripts.read(job.id)).rejects.toThrow()
+  f.engine.forget([f.evidence.id]); await transcripts.purge()
+  expect(f.engine.pendingPurges()).toEqual([])
+  await expect(readFile(session.path)).rejects.toMatchObject({ code: 'ENOENT' })
+})
