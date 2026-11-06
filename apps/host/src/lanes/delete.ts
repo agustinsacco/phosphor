@@ -17,7 +17,10 @@ import { isLaneBranchName, type RejectCode } from '@phosphor/shared/host-protoco
 import type { HostStore } from './store'
 import { inside } from '../features/files'
 import { canonicalRemovedPath } from '../machine/repositories'
-import { defaultBranchRefs, resolveDefaultBranch } from '@phosphor/session-runtime/git/default-branch'
+import {
+  defaultBranchRefs,
+  resolveDefaultBranch,
+} from '@phosphor/session-runtime/git/default-branch'
 
 const missing = (error: unknown) =>
   error instanceof Error && 'code' in error && error.code === 'ENOENT'

@@ -60,27 +60,47 @@ describe('moving a lane in a folder git does not track', () => {
     expect(prepared.plan).toMatchObject({ mode: 'folder', branch: null, blockers: [] })
     // Another machine has no such session, so the id and file name stay.
     expect(installed.sessionId).toBe(SESSION_ID)
-    expect(installed.sessionFile).toBe(join(sessionDirForCwd(targetRoot, join(to.home, '.pi/agent/sessions')), lane.fileName))
+    expect(installed.sessionFile).toBe(
+      join(sessionDirForCwd(targetRoot, join(to.home, '.pi/agent/sessions')), lane.fileName),
+    )
     const entries = lines(installed.sessionFile)
     expect(entries[0]).toMatchObject({ type: 'session', id: SESSION_ID, cwd: targetRoot })
     expect(entries[0]).not.toHaveProperty('parentSession')
     expect(entries.slice(1, 4)).toEqual(lines(lane.sessionFile).slice(1))
     const notice = entries[4]!
-    expect(notice).toMatchObject({ type: 'custom_message', customType: LANE_MOVED_TYPE, parentId: 'a3', display: true })
+    expect(notice).toMatchObject({
+      type: 'custom_message',
+      customType: LANE_MOVED_TYPE,
+      parentId: 'a3',
+      display: true,
+    })
     expect(notice.content).toContain('from This Mac (scratch,')
     expect(notice.content).toContain('Files from the old folder did not move.')
-    expect(notice.content).toContain(`${lane.attachment} → ${join(to.home, 'attachments', '0', 'notes.txt')}`)
-    expect(readFileSync(join(to.home, 'attachments', '0', 'notes.txt'), 'utf8')).toBe('attached bytes')
+    expect(notice.content).toContain(
+      `${lane.attachment} → ${join(to.home, 'attachments', '0', 'notes.txt')}`,
+    )
+    expect(readFileSync(join(to.home, 'attachments', '0', 'notes.txt'), 'utf8')).toBe(
+      'attached bytes',
+    )
     // The row keeps its age and order.
-    expect(Math.floor(statSync(installed.sessionFile).mtimeMs)).toBe(Math.floor(statSync(lane.sessionFile).mtimeMs))
+    expect(Math.floor(statSync(installed.sessionFile).mtimeMs)).toBe(
+      Math.floor(statSync(lane.sessionFile).mtimeMs),
+    )
 
     const dir = sessionDirForCwd(targetRoot, join(to.home, '.pi/agent/sessions'))
-    const child = lines(join(installed.sessionFile.replace(/\.jsonl$/, ''), RUN_ID, 'run-0', 'session.jsonl'))
+    const child = lines(
+      join(installed.sessionFile.replace(/\.jsonl$/, ''), RUN_ID, 'run-0', 'session.jsonl'),
+    )
     expect(child[0]).toMatchObject({ cwd: targetRoot })
-    expect(readdirSync(join(dir, 'subagent-artifacts')).sort()).toEqual([`${RUN_ID}_reviewer_output.md`, 'outputs'])
+    expect(readdirSync(join(dir, 'subagent-artifacts')).sort()).toEqual([
+      `${RUN_ID}_reviewer_output.md`,
+      'outputs',
+    ])
 
     const state = join(to.home, '.pi/agent/pi-claude-cli')
-    expect(JSON.parse(readFileSync(join(state, 'session-map.json'), 'utf8'))).toEqual({ [SESSION_ID]: CLI_ID })
+    expect(JSON.parse(readFileSync(join(state, 'session-map.json'), 'utf8'))).toEqual({
+      [SESSION_ID]: CLI_ID,
+    })
     expect(readFileSync(join(state, 'sysprompt', `${CLI_ID}.txt`), 'utf8')).toBe('prompt')
     const project = claudeProjectDirForCwd(targetRoot, to.env, to.home)
     expect(existsSync(join(project, `${CLI_ID}.jsonl`))).toBe(true)
@@ -91,12 +111,16 @@ describe('moving a lane in a folder git does not track', () => {
     const { from, targetRoot, installed } = await moveFolderLane(true)
     expect(installed.sessionId).not.toBe(SESSION_ID)
     expect(installed.sessionFile).toContain(installed.sessionId)
-    const map = JSON.parse(readFileSync(join(from.home, '.pi/agent/pi-claude-cli/session-map.json'), 'utf8')) as Record<string, string>
+    const map = JSON.parse(
+      readFileSync(join(from.home, '.pi/agent/pi-claude-cli/session-map.json'), 'utf8'),
+    ) as Record<string, string>
     const cli = map[installed.sessionId]!
     expect(cli).toBeTruthy()
     expect(cli).not.toBe(CLI_ID)
     expect(map[SESSION_ID]).toBe(CLI_ID)
-    const copied = lines(join(claudeProjectDirForCwd(targetRoot, from.env, from.home), `${cli}.jsonl`))
+    const copied = lines(
+      join(claudeProjectDirForCwd(targetRoot, from.env, from.home), `${cli}.jsonl`),
+    )
     expect(copied[0]).toMatchObject({ sessionId: cli })
     const notice = lines(installed.sessionFile).at(-1)!
     expect(notice.content).not.toContain('Attached files')
@@ -111,7 +135,10 @@ describe('moving a lane in a folder git does not track', () => {
     mkdirSync(root)
     const lane = writeLane(from, cwd)
     const archivePath = join(from.home, 'bundle')
-    await exportLane({ sessionFile: lane.sessionFile, workspace: 's', paths: from, attachmentAllowed: () => true }, archivePath)
+    await exportLane(
+      { sessionFile: lane.sessionFile, workspace: 's', paths: from, attachmentAllowed: () => true },
+      archivePath,
+    )
     const archive = await openArchive(archivePath)
     const dir = sessionDirForCwd(root, join(to.home, '.pi/agent/sessions'))
     // A transcript of the same name appears before the install publishes its own.
@@ -138,7 +165,12 @@ describe('moving a lane in a folder git does not track', () => {
   it('reports why a lane cannot leave instead of throwing', async () => {
     const from = machine('blocked')
     expect(
-      await inspectLane({ sessionFile: join(from.home, 'missing.jsonl'), workspace: 'x', paths: from, attachmentAllowed: () => true }),
+      await inspectLane({
+        sessionFile: join(from.home, 'missing.jsonl'),
+        workspace: 'x',
+        paths: from,
+        attachmentAllowed: () => true,
+      }),
     ).toEqual({ blockers: ['This lane has no saved transcript to move.'] })
   })
 
@@ -148,7 +180,10 @@ describe('moving a lane in a folder git does not track', () => {
     mkdirSync(cwd)
     const lane = writeLane(from, cwd)
     const archivePath = join(from.home, 'bundle')
-    await exportLane({ sessionFile: lane.sessionFile, workspace: 's', paths: from, attachmentAllowed: () => true }, archivePath)
+    await exportLane(
+      { sessionFile: lane.sessionFile, workspace: 's', paths: from, attachmentAllowed: () => true },
+      archivePath,
+    )
     const bytes = readFileSync(archivePath)
     bytes.writeUInt8(bytes.readUInt8(bytes.length - 1) ^ 1, bytes.length - 1)
     writeFileSync(archivePath, bytes)

@@ -75,6 +75,8 @@ const baselineScope = {
   'hosts:skills': 'machine',
   'hosts:skillExport': 'app',
   'hosts:skillInstall': 'app',
+  'hosts:laneMovePlan': 'app',
+  'hosts:laneMove': 'app',
   'hosts:providerLogin': 'app',
   'hosts:settingsAccess': 'app',
   'hosts:settingsRead': 'app',

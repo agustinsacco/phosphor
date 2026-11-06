@@ -159,7 +159,9 @@ export function createLaneImportFeature(
     if (!p) throw new FeatureFailure('bad-request')
     switch (p.method) {
       case 'laneTransfer.check':
-        return ok(await checkTarget(target(p.repositoryId, p.branchPrefix, p.sameMachine), p.source))
+        return ok(
+          await checkTarget(target(p.repositoryId, p.branchPrefix, p.sameMachine), p.source),
+        )
       case 'laneTransfer.begin': {
         target(p.repositoryId, p.branchPrefix, p.sameMachine)
         for (const [id] of uploads) if (!ports.staging.get(id)) uploads.delete(id)
@@ -215,4 +217,3 @@ export function createLaneImportFeature(
     },
   }
 }
-

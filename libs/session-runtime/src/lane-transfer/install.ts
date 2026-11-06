@@ -1,5 +1,15 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { link, lstat, mkdir, readFile, rm, rmdir, unlink, utimes, writeFile } from 'node:fs/promises'
+import {
+  link,
+  lstat,
+  mkdir,
+  readFile,
+  rm,
+  rmdir,
+  unlink,
+  utimes,
+  writeFile,
+} from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type {
   LaneMoveNotice,
@@ -150,7 +160,8 @@ export async function installLane(input: InstallInput): Promise<InstalledLane> {
   const dirs = new Set<string>()
   let mapped = false
   const undo = async () => {
-    for (const path of [...written].reverse()) await rm(path, { force: true }).catch(() => undefined)
+    for (const path of [...written].reverse())
+      await rm(path, { force: true }).catch(() => undefined)
     for (const dir of [...dirs].sort((a, b) => b.length - a.length))
       await rmdir(dir).catch(() => undefined)
     if (mapped && cli) {
@@ -193,11 +204,7 @@ export async function installLane(input: InstallInput): Promise<InstalledLane> {
       mapped = true
     }
     const transcript = manifest.parts.findIndex((part) => part.kind === 'transcript')
-    const text = rewriteHeader(
-      (await archive.read(transcript)).toString('utf8'),
-      cwd,
-      sessionId,
-    )
+    const text = rewriteHeader((await archive.read(transcript)).toString('utf8'), cwd, sessionId)
     const split = splitTranscript(text)
     if (!split) refuse('The lane bundle is damaged.')
     const notice = noticeText({

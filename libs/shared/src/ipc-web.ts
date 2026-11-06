@@ -28,8 +28,12 @@ export const IPC_WEB = {
   'hosts:skills': remote,
   'hosts:skillExport': remote,
   'hosts:skillInstall': remote,
-  'hosts:laneMovePlan': unsupported('Moving lanes needs Desktop, which carries the lane between machines.'),
-  'hosts:laneMove': unsupported('Moving lanes needs Desktop, which carries the lane between machines.'),
+  'hosts:laneMovePlan': unsupported(
+    'Moving lanes needs Desktop, which carries the lane between machines.',
+  ),
+  'hosts:laneMove': unsupported(
+    'Moving lanes needs Desktop, which carries the lane between machines.',
+  ),
   'hosts:providerLogin': remote,
   'hosts:settingsAccess': remote,
   'hosts:settingsRead': remote,

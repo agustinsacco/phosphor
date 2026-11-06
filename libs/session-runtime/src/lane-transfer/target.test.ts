@@ -8,7 +8,18 @@ import { inspectSourceGit, normalizeOrigin } from './source-git'
 import { inspectTargetGit, planMove, prepareTarget, type WorktreePort } from './target'
 
 const sh = (cwd: string, ...args: string[]) =>
-  execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } }).trim()
+  execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: 't',
+      GIT_AUTHOR_EMAIL: 't@t',
+      GIT_COMMITTER_NAME: 't',
+      GIT_COMMITTER_EMAIL: 't@t',
+    },
+  }).trim()
 
 /** A bare origin, a source clone with a lane worktree, and a second clone as the target. */
 function repositories() {
@@ -50,11 +61,30 @@ const worktrees: WorktreePort = {
 async function facts(cwd: string): Promise<LaneSourceFacts> {
   const git = await inspectSourceGit(cwd)
   if (git.kind !== 'git') throw new Error('not git')
-  return { sessionId: '01a1b11c-7705-7534-964e-c100db3101ce', title: 'Fix It', workspace: 'source', cwd, git: git.facts, bytes: 1, transcriptBytes: 1 }
+  return {
+    sessionId: '01a1b11c-7705-7534-964e-c100db3101ce',
+    title: 'Fix It',
+    workspace: 'source',
+    cwd,
+    git: git.facts,
+    bytes: 1,
+    transcriptBytes: 1,
+  }
 }
 
-const plan = (source: LaneSourceFacts, root: string, target: Awaited<ReturnType<typeof inspectTargetGit>>) =>
-  planMove({ source, target, root, workspace: 'target', branchPrefix: 'phosphor/', sameMachine: false })
+const plan = (
+  source: LaneSourceFacts,
+  root: string,
+  target: Awaited<ReturnType<typeof inspectTargetGit>>,
+) =>
+  planMove({
+    source,
+    target,
+    root,
+    workspace: 'target',
+    branchPrefix: 'phosphor/',
+    sameMachine: false,
+  })
 
 describe('a lane in the same repository on another machine', () => {
   it('refuses until the branch is pushed, then checks it out at the same commit', async () => {
@@ -67,7 +97,11 @@ describe('a lane in the same repository on another machine', () => {
     sh(lane, 'push', 'origin', 'phosphor/feature')
     source = await facts(lane)
     const ready = plan(source, target, remote)
-    expect(ready).toMatchObject({ mode: 'same-workspace', branch: 'phosphor/feature', blockers: [] })
+    expect(ready).toMatchObject({
+      mode: 'same-workspace',
+      branch: 'phosphor/feature',
+      blockers: [],
+    })
     const folder = await prepareTarget({ plan: ready, root: target, source, worktrees })
     expect(sh(folder.cwd, 'rev-parse', 'HEAD')).toBe(source.git!.commit)
     // A second lane from the same worktree shares the folder rather than failing.
@@ -82,14 +116,16 @@ describe('a lane in the same repository on another machine', () => {
     sh(lane, 'push', 'origin', 'phosphor/feature')
     writeFileSync(join(lane, 'untracked.txt'), 'x')
     const dirty = await facts(lane)
-    expect(plan(dirty, target, await inspectTargetGit(target)).blockers[0]).toMatch(/uncommitted changes/)
+    expect(plan(dirty, target, await inspectTargetGit(target)).blockers[0]).toMatch(
+      /uncommitted changes/,
+    )
     sh(lane, 'clean', '-fd')
     const clean = await facts(lane)
     sh(target, 'branch', 'phosphor/feature', 'main')
     const ready = plan(clean, target, await inspectTargetGit(target))
-    await expect(prepareTarget({ plan: ready, root: target, source: clean, worktrees })).rejects.toThrow(
-      'target has its own phosphor/feature at another commit.',
-    )
+    await expect(
+      prepareTarget({ plan: ready, root: target, source: clean, worktrees }),
+    ).rejects.toThrow('target has its own phosphor/feature at another commit.')
   })
 
   it('refuses the default branch and the same machine', async () => {
@@ -98,8 +134,17 @@ describe('a lane in the same repository on another machine', () => {
     expect(plan(trunk, target, await inspectTargetGit(target)).blockers).toContain(
       'This lane is on the default branch, which stays in the main checkout.',
     )
-    const same = planMove({ source: await facts(lane), target: await inspectTargetGit(target), root: target, workspace: 't', branchPrefix: '', sameMachine: true })
-    expect(same.blockers).toContain('This lane is already in this repository on this machine. Use Clone instead.')
+    const same = planMove({
+      source: await facts(lane),
+      target: await inspectTargetGit(target),
+      root: target,
+      workspace: 't',
+      branchPrefix: '',
+      sameMachine: true,
+    })
+    expect(same.blockers).toContain(
+      'This lane is already in this repository on this machine. Use Clone instead.',
+    )
   })
 })
 
@@ -123,9 +168,24 @@ describe('a lane moving to another repository or a plain folder', () => {
 
   it('names a branch from the title when the lane had none', async () => {
     const { temp, target } = repositories()
-    const folder: LaneSourceFacts = { sessionId: '01a1b11c-7705-7534-964e-c100db3101ce', title: 'Fix It', workspace: 'scratch', cwd: temp, git: null, bytes: 1, transcriptBytes: 1 }
-    expect(plan(folder, target, await inspectTargetGit(target))).toMatchObject({ mode: 'new-branch', branch: 'phosphor/fix-it' })
-    expect(plan(folder, temp, { kind: 'folder' })).toMatchObject({ mode: 'folder', branch: null, blockers: [] })
+    const folder: LaneSourceFacts = {
+      sessionId: '01a1b11c-7705-7534-964e-c100db3101ce',
+      title: 'Fix It',
+      workspace: 'scratch',
+      cwd: temp,
+      git: null,
+      bytes: 1,
+      transcriptBytes: 1,
+    }
+    expect(plan(folder, target, await inspectTargetGit(target))).toMatchObject({
+      mode: 'new-branch',
+      branch: 'phosphor/fix-it',
+    })
+    expect(plan(folder, temp, { kind: 'folder' })).toMatchObject({
+      mode: 'folder',
+      branch: null,
+      blockers: [],
+    })
   })
 })
 

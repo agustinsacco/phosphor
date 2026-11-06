@@ -138,7 +138,8 @@ export function isPartPath(v: unknown): v is string {
 
 function parsePart(v: unknown): LanePart | null {
   if (!isRecord(v) || !exact(v, ['kind', 'path', 'size', 'sha256'], ['from'])) return null
-  const single = v.kind === 'transcript' || v.kind === 'claude-transcript' || v.kind === 'claude-prompt'
+  const single =
+    v.kind === 'transcript' || v.kind === 'claude-transcript' || v.kind === 'claude-prompt'
   if (
     !LANE_PART_KINDS.includes(v.kind as LanePartKind) ||
     !(single ? v.path === '' : isPartPath(v.path)) ||
@@ -224,7 +225,11 @@ export function parseLaneManifest(v: unknown): LaneManifest | null {
   const source = parseLaneSourceFacts(v.source)
   let claude: LaneManifest['claude'] = null
   if (v.claude !== null) {
-    if (!isRecord(v.claude) || !exact(v.claude, ['cliSessionId']) || !isSessionId(v.claude.cliSessionId))
+    if (
+      !isRecord(v.claude) ||
+      !exact(v.claude, ['cliSessionId']) ||
+      !isSessionId(v.claude.cliSessionId)
+    )
       return null
     claude = { cliSessionId: v.claude.cliSessionId }
   }
@@ -274,7 +279,12 @@ export function parseLaneTargetPlan(v: unknown): LaneTargetPlan | null {
 }
 
 export function parseLaneMoveNotice(v: unknown): LaneMoveNotice | null {
-  if (!isRecord(v) || !exact(v, ['from', 'to']) || !transferText(v.from, 80) || !transferText(v.to, 80))
+  if (
+    !isRecord(v) ||
+    !exact(v, ['from', 'to']) ||
+    !transferText(v.from, 80) ||
+    !transferText(v.to, 80)
+  )
     return null
   return { from: v.from, to: v.to }
 }

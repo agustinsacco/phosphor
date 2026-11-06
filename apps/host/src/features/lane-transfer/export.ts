@@ -6,7 +6,11 @@ import {
   parseLaneTransferParams,
 } from '@phosphor/shared/host-protocol-lane-transfer-calls'
 import { TransferRefusal } from '@phosphor/session-runtime/lane-transfer/files'
-import { exportLane, inspectLane, type SourceInput } from '@phosphor/session-runtime/lane-transfer/move'
+import {
+  exportLane,
+  inspectLane,
+  type SourceInput,
+} from '@phosphor/session-runtime/lane-transfer/move'
 import type { FeatureContext, FeatureOutcome, HostFeature } from '../feature'
 import { FeatureFailure, featureError } from '../machine'
 import type { Staging } from './staging'

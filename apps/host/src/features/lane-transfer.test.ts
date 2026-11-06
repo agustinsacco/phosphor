@@ -56,7 +56,8 @@ function admitLane(h: Awaited<ReturnType<typeof host>>) {
   ]
   writeFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n')
   const repositoryId = h.store.listRepositories()[0]!.id
-  return h.store.ensureLane({ repositoryId, cwd: h.root, sessionFile: file, worktree: false }).laneId
+  return h.store.ensureLane({ repositoryId, cwd: h.root, sessionFile: file, worktree: false })
+    .laneId
 }
 
 describe('moving a lane between two Hosts', () => {
@@ -65,7 +66,11 @@ describe('moving a lane between two Hosts', () => {
     const b = await host('b')
     const laneId = admitLane(a)
     const inspected = await a.call(a.exporter, 'laneTransfer.inspect', { laneId })
-    expect(inspected.facts).toMatchObject({ sessionId: SESSION, title: 'Sort The Notes', git: null })
+    expect(inspected.facts).toMatchObject({
+      sessionId: SESSION,
+      title: 'Sort The Notes',
+      git: null,
+    })
 
     const repositoryId = b.store.listRepositories()[0]!.id
     const plan = await b.call(b.importer, 'laneTransfer.check', {
@@ -88,7 +93,7 @@ describe('moving a lane between two Hosts', () => {
       notice: { from: 'bee1', to: 'bee2' },
       marks: { pinned: true, marker: '🚀' },
     })
-    for (let offset = 0; offset < size; ) {
+    for (let offset = 0; offset < size;) {
       const { data } = await a.call(a.exporter, 'laneTransfer.read', { exportId, offset })
       await b.call(b.importer, 'laneTransfer.chunk', { importId, offset, data })
       offset += Buffer.from(data as string, 'base64').length
@@ -107,7 +112,9 @@ describe('moving a lane between two Hosts', () => {
 
   it('refuses a running lane and a bundle that does not match its hash', async () => {
     const running = await host('running', true)
-    expect(await running.call(running.exporter, 'laneTransfer.inspect', { laneId: admitLane(running) })).toEqual({
+    expect(
+      await running.call(running.exporter, 'laneTransfer.inspect', { laneId: admitLane(running) }),
+    ).toEqual({
       blockers: ['Stop this lane before moving it. Its saved transcript is what moves.'],
     })
     const b = await host('mismatch')

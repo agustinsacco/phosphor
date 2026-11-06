@@ -41,7 +41,10 @@ export const runsDirFor = (sessionFile: string) => sessionFile.replace(/\.jsonl$
 async function cliSessionFor(paths: MachinePaths, sessionId: string): Promise<string | null> {
   try {
     const map = JSON.parse(
-      await readFile(join(claudeProviderStateDir(paths.env, paths.home), 'session-map.json'), 'utf8'),
+      await readFile(
+        join(claudeProviderStateDir(paths.env, paths.home), 'session-map.json'),
+        'utf8',
+      ),
     ) as unknown
     const id = map && typeof map === 'object' ? (map as Record<string, unknown>)[sessionId] : null
     return isSessionId(id) ? id : null
@@ -116,7 +119,10 @@ export async function collectLane(input: CollectInput): Promise<CollectedLane> {
     if (!input.attachmentAllowed(from)) continue
     const size = await regularSize(from)
     if (size === null || size > LIMIT.attachmentBytes) continue
-    const name = basename(from).replace(/[^A-Za-z0-9._-]/g, '_').slice(-120) || 'file'
+    const name =
+      basename(from)
+        .replace(/[^A-Za-z0-9._-]/g, '_')
+        .slice(-120) || 'file'
     await add('attachment', `${index++}/${name}`, from, from)
   }
 

@@ -18,7 +18,11 @@ export interface LaneMovePorts {
 
 const LOCAL = 'This Mac'
 // eslint-disable-next-line no-control-regex
-const label = (text: string) => text.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ').trim().slice(0, 80) || 'a Host'
+const label = (text: string) =>
+  text
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ')
+    .trim()
+    .slice(0, 80) || 'a Host'
 
 /**
  * Copy a lane from one machine to another, or into another workspace on the
@@ -49,7 +53,13 @@ export function createLaneMoves(ports: LaneMovePorts) {
     try {
       const inspection = await inspect(request)
       if ('blockers' in inspection)
-        return { mode: 'folder', branch: null, workspace: '', blockers: inspection.blockers, bytes: 0 }
+        return {
+          mode: 'folder',
+          branch: null,
+          workspace: '',
+          blockers: inspection.blockers,
+          bytes: 0,
+        }
       const { facts } = inspection
       const { target } = request
       const checked =
@@ -71,7 +81,8 @@ export function createLaneMoves(ports: LaneMovePorts) {
         ? await localLanes.export(source.sessionPath, !same(request), archive)
         : await remote(source.machine).download(source.laneId, archive)
     if ('blockers' in exported) return exported
-    if ((await sha256Of(archive)) !== exported.sha256) return { blockers: ['The lane bundle is damaged.'] }
+    if ((await sha256Of(archive)) !== exported.sha256)
+      return { blockers: ['The lane bundle is damaged.'] }
     if ('workspace' in target) {
       const local = await localLanes.import({
         archive,

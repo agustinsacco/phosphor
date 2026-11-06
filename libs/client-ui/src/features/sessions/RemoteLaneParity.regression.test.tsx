@@ -36,6 +36,7 @@ const READER_MENU = [
   'Pin',
   'Lane marker',
   'Export HTML…',
+  'Move to…',
   'Copy debug info',
   'Copy spend',
   'Delete',
@@ -170,7 +171,9 @@ it.each(SURFACES)('%s row opens the same lane menu on right-click', (name) => {
   rightClick()
   // Move up and Move down belong to ordered lists; the machine preview is a sample.
   expect(labels(menuRows())).toEqual(
-    name === 'machine' ? READER_MENU.filter((label) => !label.startsWith('Move ')) : READER_MENU,
+    name === 'machine'
+      ? READER_MENU.filter((label) => label !== 'Move up' && label !== 'Move down')
+      : READER_MENU,
   )
   expect(menuRow('Delete')?.textContent).toContain('Take control first.')
 })

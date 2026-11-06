@@ -1,7 +1,11 @@
 import { realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, sep } from 'node:path'
-import type { LaneMoveNotice, LaneSourceFacts, LaneTargetPlan } from '@shared/host-protocol-lane-transfer'
+import type {
+  LaneMoveNotice,
+  LaneSourceFacts,
+  LaneTargetPlan,
+} from '@shared/host-protocol-lane-transfer'
 import type { LaneInspection } from '@shared/host-protocol-lane-transfer-calls'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import { refuse } from '@phosphor/session-runtime/lane-transfer/files'
@@ -43,7 +47,8 @@ const worktrees: WorktreePort = {
       cwd: info.realPath,
       undo: async () => {
         await removeWorktree(root, info.path).catch(() => undefined)
-        if (made) await git(root, ['update-ref', '-d', `refs/heads/${branch}`, made]).catch(() => undefined)
+        if (made)
+          await git(root, ['update-ref', '-d', `refs/heads/${branch}`, made]).catch(() => undefined)
       },
     }
   },
@@ -51,7 +56,9 @@ const worktrees: WorktreePort = {
 
 /** A transcript under pi's sessions root, by its resolved path. Anything else is refused. */
 async function transcriptPath(sessionPath: string): Promise<string> {
-  const real = await realpath(sessionPath).catch(() => refuse('This lane has no saved transcript to move.'))
+  const real = await realpath(sessionPath).catch(() =>
+    refuse('This lane has no saved transcript to move.'),
+  )
   const root = await realpath(piSessionsRoot()).catch(() => '')
   if (!root || dirname(dirname(real)) !== root || !real.endsWith('.jsonl'))
     refuse('This lane has no saved transcript to move.')
@@ -106,7 +113,12 @@ export const localLanes = {
       return exportLane(input, archive)
     })
   },
-  async check(workspace: string, facts: LaneSourceFacts, branchPrefix: string, sameMachine: boolean): Promise<LaneTargetPlan> {
+  async check(
+    workspace: string,
+    facts: LaneSourceFacts,
+    branchPrefix: string,
+    sameMachine: boolean,
+  ): Promise<LaneTargetPlan> {
     const root = await workspaceRoot(workspace)
     return checkTarget({ root, workspace: basename(root), branchPrefix, sameMachine }, facts)
   },

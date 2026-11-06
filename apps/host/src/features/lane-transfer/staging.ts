@@ -24,8 +24,7 @@ export function createStaging(root: string, now: () => number = Date.now) {
   for (const name of readdirSync(root)) rmSync(join(root, name), { force: true, recursive: true })
   const entries = new Map<string, Staged>()
   function sweep(): void {
-    for (const [id, entry] of entries)
-      if (now() - entry.started > LIMIT.lifetimeMs) discard(id)
+    for (const [id, entry] of entries) if (now() - entry.started > LIMIT.lifetimeMs) discard(id)
   }
   function discard(id: string): void {
     const entry = entries.get(id)
@@ -36,7 +35,9 @@ export function createStaging(root: string, now: () => number = Date.now) {
     /** Reserve a new staged file, or null when `max` transfers are still running. */
     create(max: number): { id: string; entry: Staged } | null {
       sweep()
-      const running = [...entries.values()].filter((e) => 'state' in e.status && e.status.state === 'running')
+      const running = [...entries.values()].filter(
+        (e) => 'state' in e.status && e.status.state === 'running',
+      )
       if (running.length >= max) return null
       const id = randomBytes(16).toString('hex')
       const entry: Staged = { path: join(root, id), started: now(), status: { state: 'running' } }

@@ -35,20 +35,31 @@ export function writeLane(paths: { home: string; env: NodeJS.ProcessEnv }, cwd: 
       parentId: 'a1',
       message: {
         role: 'user',
-        content: [{ type: 'text', text: `look\n\n<attached-files>\n${attachment}\n/gone.pdf\n</attached-files>` }],
+        content: [
+          {
+            type: 'text',
+            text: `look\n\n<attached-files>\n${attachment}\n/gone.pdf\n</attached-files>`,
+          },
+        ],
       },
     },
     {
       type: 'message',
       id: 'a3',
       parentId: 'a2',
-      message: { role: 'assistant', content: [{ type: 'text', text: 'see subagent-artifacts/outputs/report.md' }] },
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'see subagent-artifacts/outputs/report.md' }],
+      },
     },
   ]
   writeFileSync(sessionFile, lines.map((l) => JSON.stringify(l)).join('\n') + '\n')
   const run = join(sessionFile.replace(/\.jsonl$/, ''), RUN_ID, 'run-0')
   mkdirSync(run, { recursive: true })
-  writeFileSync(join(run, 'session.jsonl'), `${JSON.stringify({ type: 'session', version: 3, id: '01a1b11c-7705-7534-964e-c100db3101cf', cwd })}\n`)
+  writeFileSync(
+    join(run, 'session.jsonl'),
+    `${JSON.stringify({ type: 'session', version: 3, id: '01a1b11c-7705-7534-964e-c100db3101cf', cwd })}\n`,
+  )
   const artifacts = join(dir, 'subagent-artifacts')
   mkdirSync(join(artifacts, 'outputs'), { recursive: true })
   writeFileSync(join(artifacts, `${RUN_ID}_reviewer_output.md`), 'mine')

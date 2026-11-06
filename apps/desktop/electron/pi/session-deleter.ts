@@ -144,7 +144,11 @@ export async function deleteSession(sessionFilePath: string): Promise<void> {
   await removePiSessionDirIfEmpty(sessionFilePath)
   // Files copied here with a lane moved from another machine go with it.
   const id = /_([0-9a-f-]{36})\.jsonl$/.exec(basename(sessionFilePath))?.[1]
-  if (id) await trashIfPresent(laneAttachmentsDir(id)).catch(() => undefined)
+  if (id)
+    await Promise.resolve(id)
+      .then(laneAttachmentsDir)
+      .then(trashIfPresent)
+      .catch(() => undefined)
 
   if (!claudeRef) return
   try {

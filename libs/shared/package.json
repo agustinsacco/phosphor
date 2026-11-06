@@ -319,6 +319,10 @@
     "./host-protocol-lane-transfer-calls": {
       "types": "./src/host-protocol-lane-transfer-calls.ts",
       "default": "./src/host-protocol-lane-transfer-calls.ts"
+    },
+    "./lane-move": {
+      "types": "./src/lane-move.ts",
+      "default": "./src/lane-move.ts"
     }
   },
   "dependencies": {

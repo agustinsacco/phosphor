@@ -11,7 +11,13 @@ import { openArchive, writeArchive, type ArchiveReader } from './archive'
 import { collectLane, type CollectedLane, type MachinePaths } from './collect'
 import { TransferRefusal, refuse } from './files'
 import { inspectSourceGit } from './source-git'
-import { inspectTargetGit, planMove, prepareTarget, type PreparedFolder, type WorktreePort } from './target'
+import {
+  inspectTargetGit,
+  planMove,
+  prepareTarget,
+  type PreparedFolder,
+  type WorktreePort,
+} from './target'
 import { parseHeader } from './transcript'
 
 export interface SourceInput {
@@ -24,7 +30,9 @@ export interface SourceInput {
 
 /** The cwd a transcript's header records. */
 export async function headerCwd(sessionFile: string): Promise<string> {
-  const handle = await open(sessionFile, 'r').catch(() => refuse('This lane has no saved transcript to move.'))
+  const handle = await open(sessionFile, 'r').catch(() =>
+    refuse('This lane has no saved transcript to move.'),
+  )
   try {
     const buffer = Buffer.alloc(8192)
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
@@ -75,7 +83,10 @@ export interface TargetInput {
   maxTranscriptBytes?: number
 }
 
-export async function checkTarget(input: TargetInput, source: LaneSourceFacts): Promise<LaneTargetPlan> {
+export async function checkTarget(
+  input: TargetInput,
+  source: LaneSourceFacts,
+): Promise<LaneTargetPlan> {
   const plan = planMove({ ...input, source, target: await inspectTargetGit(input.root) })
   if (input.maxTranscriptBytes !== undefined && source.transcriptBytes > input.maxTranscriptBytes)
     plan.blockers.push('This lane’s transcript is over 32 MiB, more than a Host can index.')

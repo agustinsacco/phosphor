@@ -24,6 +24,7 @@ import {
 } from './remoteLaneActions'
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
 import { copyDebugInfo, copySpend, exportRemoteLaneHtml } from './sessionActions'
+import { openLaneMove } from './sidebarActions'
 import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
 import { MarkerPickerModal } from './MarkerPickerModal'
 import { useSessionOrderActions } from './SessionList'
@@ -246,6 +247,11 @@ function laneHandlers({
     makeRoutine: () => void act(async () => routineFromLane(hostId, lane, await session())),
     exportHtml: () =>
       void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),
+    moveTo: () =>
+      openLaneMove({ machine: hostId, laneId: lane.laneId }, title, {
+        pinned: lane.pinned === true,
+        marker: lane.marker ?? null,
+      }),
     copyDebugInfo: () =>
       void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane, sessionId))),
     copySpend: () => void act(async () => copySpend(await sessionCost(await session()))),

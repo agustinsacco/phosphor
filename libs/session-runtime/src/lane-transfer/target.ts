@@ -2,10 +2,7 @@ import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { slugifyTitle } from '@phosphor/shared/branchName'
 import { isLaneBranchName } from '@phosphor/shared/host-protocol'
-import type {
-  LaneSourceFacts,
-  LaneTargetPlan,
-} from '@phosphor/shared/host-protocol-lane-transfer'
+import type { LaneSourceFacts, LaneTargetPlan } from '@phosphor/shared/host-protocol-lane-transfer'
 import { resolveDefaultBranch } from '../git/default-branch'
 import { git } from '../git/git-exec'
 import { gitTracking } from '../git/git-tracking'
@@ -104,7 +101,11 @@ const exists = (root: string, ref: string) =>
   )
 
 /** An existing clean worktree of this repository on `branch` at `commit`, which a second lane may share. */
-async function sharedWorktree(root: string, branch: string, commit: string): Promise<string | null> {
+async function sharedWorktree(
+  root: string,
+  branch: string,
+  commit: string,
+): Promise<string | null> {
   const list = await run(root, ['worktree', 'list', '--porcelain']).catch(() => '')
   const entry = list
     .split('\n\n')
@@ -113,7 +114,9 @@ async function sharedWorktree(root: string, branch: string, commit: string): Pro
   const path = entry?.find((line) => line.startsWith('worktree '))?.slice('worktree '.length)
   if (!path || !path.startsWith(join(root, '.phosphor', 'worktrees') + '/')) return null
   const head = await run(path, ['rev-parse', 'HEAD']).catch(() => '')
-  const status = await git(path, ['status', '--porcelain', '--untracked-files=all']).catch(() => 'x')
+  const status = await git(path, ['status', '--porcelain', '--untracked-files=all']).catch(
+    () => 'x',
+  )
   return head === commit && status.trim() === '' ? realpath(path) : null
 }
 

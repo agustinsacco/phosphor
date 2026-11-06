@@ -13,7 +13,10 @@ import { dirname, join, resolve } from 'node:path'
 import { isLaneBranchName } from '@phosphor/shared/host-protocol'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
-import { defaultBranchRefs, resolveDefaultBranch } from '@phosphor/session-runtime/git/default-branch'
+import {
+  defaultBranchRefs,
+  resolveDefaultBranch,
+} from '@phosphor/session-runtime/git/default-branch'
 
 export { gitTracking, gitTracksFolder } from '@phosphor/session-runtime/git/git-tracking'
 

@@ -65,7 +65,11 @@ function userText(content: unknown): string {
   if (!Array.isArray(content)) return ''
   return content
     .map((block: unknown) =>
-      block && typeof block === 'object' && 'type' in block && block.type === 'text' && 'text' in block
+      block &&
+      typeof block === 'object' &&
+      'type' in block &&
+      block.type === 'text' &&
+      'text' in block
         ? String(block.text)
         : '',
     )

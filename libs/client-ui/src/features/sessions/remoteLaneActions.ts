@@ -8,6 +8,9 @@ export const TAKE_CONTROL_FIRST = 'Take control first.'
 export const ONLY_WHILE_RUNNING = 'Only while running.'
 /** A Host older than `laneMarks` cannot keep pins or markers, and only that Host can. */
 export const LANE_MARKS_NEED_UPDATE = 'Update this Host to pin and mark lanes.'
+export const LANE_MOVE_NEEDS_UPDATE = 'Update this Host to move lanes.'
+/** A move copies the saved transcript, so the lane must not be writing it. */
+export const STOP_BEFORE_MOVE = 'Stop this lane first.'
 
 /**
  * Why a controller-only row action is disabled, or undefined when control is
@@ -27,7 +30,7 @@ export function remoteControlHint(
 
 export interface RemoteLaneActionState {
   lane: HostLaneView
-  host: Pick<HostConnectionView, 'capabilities' | 'laneMarks'> | undefined
+  host: Pick<HostConnectionView, 'capabilities' | 'laneMarks' | 'laneTransfer'> | undefined
   /** The Host is connected and ready for actions. */
   ready: boolean
   /** An action on this lane is in flight. */
@@ -53,6 +56,7 @@ export interface RemoteLaneActionHandlers {
   togglePin: () => void
   pickMarker: () => void
   exportHtml: () => void
+  moveTo: () => void
   copyDebugInfo: () => void
   copySpend: () => void
   delete: () => void
@@ -189,6 +193,12 @@ function keepActions(
       hint: notReady,
       onClick: handlers.exportHtml,
     },
+    {
+      label: 'Move to…',
+      disabled: !ready || busy || moveHint(state, running) !== undefined,
+      hint: notReady ?? moveHint(state, running),
+      onClick: handlers.moveTo,
+    },
     { label: 'Copy debug info', onClick: handlers.copyDebugInfo },
     {
       label: 'Copy spend',
@@ -197,4 +207,11 @@ function keepActions(
       onClick: handlers.copySpend,
     },
   ]
+}
+
+/** Why this lane cannot be moved from its Host right now, or undefined. */
+function moveHint(state: RemoteLaneActionState, running: boolean): string | undefined {
+  if (state.host?.laneTransfer !== true) return LANE_MOVE_NEEDS_UPDATE
+  if (!state.host.capabilities.includes('sessions.read')) return featureNotOffered('sessions.read')
+  return running ? STOP_BEFORE_MOVE : undefined
 }

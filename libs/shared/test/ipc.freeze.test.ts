@@ -129,6 +129,8 @@ const expectedEntries = [
   ['hosts:createLane', 'app'],
   ['hosts:deleteLane', 'app'],
   ['hosts:exportLaneHtml', 'app'],
+  ['hosts:laneMove', 'app'],
+  ['hosts:laneMovePlan', 'app'],
   ['hosts:listFolders', 'app'],
   ['hosts:machineShell', 'app'],
   ['hosts:machineTask', 'app'],

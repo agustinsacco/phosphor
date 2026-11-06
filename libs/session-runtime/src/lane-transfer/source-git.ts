@@ -51,7 +51,10 @@ export function normalizeOrigin(url: string): string | null {
  * URL, before any `insteadOf` rewrite: that is the name both machines agree on.
  */
 export async function repositoryOrigin(cwd: string): Promise<string | null> {
-  const url = await git(cwd, ['config', '--get', 'remote.origin.url'], { allowFail: true, trim: true })
+  const url = await git(cwd, ['config', '--get', 'remote.origin.url'], {
+    allowFail: true,
+    trim: true,
+  })
   return url ? normalizeOrigin(url) : null
 }
 
@@ -60,7 +63,13 @@ export type SourceGit =
   | { kind: 'git'; facts: LaneGitFacts; top: string; blockers: string[] }
   | { kind: 'unreadable' }
 
-const IN_PROGRESS = ['MERGE_HEAD', 'rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD', 'REVERT_HEAD']
+const IN_PROGRESS = [
+  'MERGE_HEAD',
+  'rebase-merge',
+  'rebase-apply',
+  'CHERRY_PICK_HEAD',
+  'REVERT_HEAD',
+]
 
 /**
  * Everything a move needs to know about the source checkout, read without

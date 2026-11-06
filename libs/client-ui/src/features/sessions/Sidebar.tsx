@@ -83,7 +83,7 @@ import {
 import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from './nameTransition'
 import { committedRename } from './inlineRename'
-import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
+import { copyActions, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 import {
   applySessionRename,
   copySessionDebugInfo,
@@ -1453,10 +1453,7 @@ function SessionRow({
         separatorAbove: true,
         onClick: () => void store.createSession(workspacePath, { forkFrom: meta.path }),
       },
-      {
-        label: 'Clone',
-        onClick: () => void cloneSession(workspacePath, meta, livePhosphorId),
-      },
+      ...copyActions(workspacePath, meta, livePhosphorId, git?.branch),
       {
         label: 'Export HTML…',
         onClick: () => void exportSidebarSession(workspacePath, meta, livePhosphorId),

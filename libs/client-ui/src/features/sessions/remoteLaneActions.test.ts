@@ -7,6 +7,8 @@ import {
   ONLY_WHILE_RUNNING,
   TAKE_CONTROL_FIRST,
   remoteLaneActions,
+  LANE_MOVE_NEEDS_UPDATE,
+  STOP_BEFORE_MOVE,
   type RemoteLaneActionHandlers,
   type RemoteLaneActionState,
 } from './remoteLaneActions'
@@ -27,6 +29,7 @@ function handlers(): RemoteLaneActionHandlers {
     pickMarker: vi.fn(),
     makeRoutine: vi.fn(),
     exportHtml: vi.fn(),
+    moveTo: vi.fn(),
     copyDebugInfo: vi.fn(),
     copySpend: vi.fn(),
     delete: vi.fn(),
@@ -70,6 +73,7 @@ describe('remoteLaneActions', () => {
       'Pin',
       'Lane marker',
       'Export HTML…',
+      'Move to…',
       'Copy debug info',
       'Copy spend',
       'Delete',
@@ -96,6 +100,16 @@ describe('remoteLaneActions', () => {
     expect(item(items, 'Take control')?.disabled).toBe(false)
     expect(item(items, 'Mark read')?.disabled).toBe(false)
     expect(item(items, 'Pin')?.disabled).toBe(false)
+  })
+
+  it('offers Move to… only from a stopped lane on a Host that can send it', () => {
+    const stopped = { ...state().lane, activity: 'stopped' as const }
+    const move = (edit: Partial<RemoteLaneActionState>) =>
+      item(remoteLaneActions(state(edit), handlers()), 'Move to…')
+    expect(move({})).toMatchObject({ disabled: true, hint: LANE_MOVE_NEEDS_UPDATE })
+    const host = { capabilities: ['sessions.read' as const], laneTransfer: true }
+    expect(move({ host })).toMatchObject({ disabled: true, hint: STOP_BEFORE_MOVE })
+    expect(move({ host, lane: stopped })).toMatchObject({ disabled: false, hint: undefined })
   })
 
   it('explains Stop until a first message, and offers Resume on a stopped lane', () => {

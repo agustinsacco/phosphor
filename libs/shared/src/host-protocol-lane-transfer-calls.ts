@@ -154,7 +154,8 @@ export function parseLaneTransferParams(method: string, v: unknown): LaneTransfe
   }
 }
 
-export type LaneJobStatus<T> = { state: 'running' } | { state: 'done'; value: T } | { blockers: string[] }
+export type LaneJobStatus<T> =
+  { state: 'running' } | { state: 'done'; value: T } | { blockers: string[] }
 
 /** A job's answer: still running, its value, or why it stopped. */
 export function parseLaneJobStatus<T>(
