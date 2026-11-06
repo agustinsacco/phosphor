@@ -110,12 +110,12 @@ function MachineFilesButton({
   toggle: () => void
 }): React.JSX.Element {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const reason = hostFeatureRefusal(host, 'workspaces.read') ?? null
+  const reason = hostFeatureRefusal(host, 'workspaces.read')
   return (
     <TooltipButton
       title={reason ?? 'Files pane'}
       aria-label="Files pane"
-      disabled={reason !== null}
+      disabled={reason !== undefined}
       onClick={toggle}
       className={clsx(
         'titlebar-no-drag flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
