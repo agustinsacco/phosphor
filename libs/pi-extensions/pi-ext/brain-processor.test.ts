@@ -113,6 +113,7 @@ describe('brain processor extension', () => {
     start()
     expect(pi.appendEntry).toHaveBeenCalledWith(BRAIN_OWNER_ENTRY_TYPE, {
       version: 1,
+      kind: 'brain',
       jobId: 'job-1',
     })
     const output = await jobTool.execute('c2', {}, undefined)
@@ -120,7 +121,11 @@ describe('brain processor extension', () => {
   })
 
   it('refuses tools in a session that belongs to another job', async () => {
-    const owner = { type: 'custom', customType: BRAIN_OWNER_ENTRY_TYPE, data: { jobId: 'job-2' } }
+    const owner = {
+      type: 'custom',
+      customType: BRAIN_OWNER_ENTRY_TYPE,
+      data: { kind: 'brain', jobId: 'job-2' },
+    }
     const { pi, start, proposeTool } = started(fakeClient(), [owner])
     start()
     expect(pi.appendEntry).not.toHaveBeenCalled()
@@ -165,7 +170,11 @@ describe('brain processor extension', () => {
 describe('claimBrainSession', () => {
   it('re-owns nothing: a resumed session of the same job stays owned without a new entry', () => {
     const pi = { appendEntry: vi.fn() }
-    const owner = { type: 'custom', customType: BRAIN_OWNER_ENTRY_TYPE, data: { jobId: 'job-1' } }
+    const owner = {
+      type: 'custom',
+      customType: BRAIN_OWNER_ENTRY_TYPE,
+      data: { kind: 'brain', jobId: 'job-1' },
+    }
     expect(claimBrainSession(pi, [owner, { type: 'message' }], 'job-1')).toBe('owned')
     expect(pi.appendEntry).not.toHaveBeenCalled()
   })

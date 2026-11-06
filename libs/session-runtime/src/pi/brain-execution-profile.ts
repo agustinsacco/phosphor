@@ -23,7 +23,7 @@ export interface BrainExecutionProfile {
   prefixArgs?: string[]
   provider: string
   modelId: string
-  /** Absolute path to the bundled brain-processor.ts resource. */
+  /** Absolute path to the audited source or standalone bundled processor resource. */
   processorExtension: string
   /** Optional explicitly audited provider registration, never ambient discovery. */
   providerExtension?: string
@@ -82,8 +82,8 @@ function validateProfile(profile: BrainExecutionProfile, options: CreateSessionO
     throw new Error('Brain working, config and transcript directories must be distinct.')
   if (sessionPathKey(options.workspacePath) !== sessionPathKey(profile.cwd) || options.forkFrom)
     throw new Error('Brain execution requires its isolated cwd and cannot fork a user session.')
-  if (basename(profile.processorExtension) !== 'brain-processor.ts')
-    throw new Error('Brain execution requires the audited brain-processor.ts resource.')
+  if (!['brain-processor.ts', 'brain-processor.mjs'].includes(basename(profile.processorExtension)))
+    throw new Error('Brain execution requires the audited brain-processor.ts resource or bundle.')
   if (profile.owner.kind !== 'brain' || !profile.owner.jobId.trim())
     throw new Error('Brain execution requires a job owner.')
   if (!profile.provider || !profile.modelId)
