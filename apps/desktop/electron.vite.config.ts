@@ -31,7 +31,12 @@ export default defineConfig({
   main: {
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['@phosphor/shared', '@phosphor/session-runtime', '@phosphor/host-client'],
+        exclude: [
+          '@phosphor/shared',
+          '@phosphor/session-runtime',
+          '@phosphor/host-client',
+          '@phosphor/memory-engine',
+        ],
       }),
       brainExtensions(),
     ],
@@ -41,6 +46,7 @@ export default defineConfig({
         '@phosphor/shared': resolve(import.meta.dirname, '../../libs/shared/src'),
         '@phosphor/session-runtime': resolve(import.meta.dirname, '../../libs/session-runtime/src'),
         '@phosphor/host-client': resolve(import.meta.dirname, '../../libs/host-client/src'),
+        '@phosphor/memory-engine': resolve(import.meta.dirname, '../../libs/memory-engine/src'),
       },
     },
     build: {
@@ -51,6 +57,7 @@ export default defineConfig({
           'voice-worker': 'electron/voice/worker.ts',
           // The Brain embedding utility process (electron/brain/embedding-service.ts forks it).
           'brain-embedding-worker': 'electron/brain/embedding-worker.ts',
+          'brain-memory-worker': 'electron/brain/memory-worker.ts',
         },
       },
     },

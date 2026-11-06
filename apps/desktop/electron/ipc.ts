@@ -23,6 +23,8 @@ import { registerControlHandlers } from './ipc/control-handlers'
 import { registerAccountHandlers } from './ipc/account-handlers'
 import { registerVoiceHandlers } from './ipc/voice-handlers'
 import { registerWritingHandlers } from './ipc/writing-handlers'
+import { registerBrainHandlers } from './ipc/brain-handlers'
+import { brainService, installBrainMemory } from './brain/runtime'
 
 /**
  * Register every IPC invoke handler, grouped by domain.
@@ -57,4 +59,6 @@ export function registerIpcHandlers(): void {
   registerTailscaleHandlers()
   registerVoiceHandlers()
   registerWritingHandlers()
+  installBrainMemory()
+  registerBrainHandlers(brainService)
 }

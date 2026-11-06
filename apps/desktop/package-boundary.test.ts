@@ -61,6 +61,7 @@ describe('Desktop application and native install boundary', () => {
     expect(vite).toContain("main: 'electron/main.ts'")
     expect(vite).toContain("'voice-worker': 'electron/voice/worker.ts'")
     expect(vite).toContain("'brain-embedding-worker': 'electron/brain/embedding-worker.ts'")
+    expect(vite).toContain("'brain-memory-worker': 'electron/brain/memory-worker.ts'")
     expect(vite).toContain("lib: { entry: 'electron/preload.ts' }")
     expect(vite).toContain("format: 'cjs'")
     expect(vite).toContain("entryFileNames: '[name].cjs'")
