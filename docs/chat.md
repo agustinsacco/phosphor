@@ -672,9 +672,11 @@ Subagents surfaces, including for normal lanes.
 persists a non-context custom entry through Pi, scoped to the durable session ID and
 current branch, and publishes `phosphor-swarm` status. Resume/reload restores it;
 compaction retains it; tree navigation follows the selected branch. Forks and clones
-with new session identities start off. This includes Rewind (also Esc-Esc), which
-uses Pi's fork even though it stays in the same visible lane. Cloning a live lane
-also moves it onto the new identity with Swarm off. Old lanes must reload/restart Pi
+inherit the copied branch's last Swarm decision when the session header names a
+parent. The extension persists inherited authorization under the new identity before
+applying it; unrelated new sessions still start off. Live Clone and Rewind (also
+Esc-Esc) preserve the lane's current requested setting, even when rewinding before
+its toggle. Their composer stays locked until policy and session state are restored. Old lanes must reload/restart Pi
 to acquire the command. A missing or excluded pi-subagents tool surface disables activation.
 
 The short `phosphor_swarm` authorization section is added **request-locally** by
@@ -693,6 +695,19 @@ can invalidate provider prompt caches, including Claude's warm CLI cache.
 The context meter includes the short block's estimated size while applied. Pi's
 reported total still reflects its last measured request until the next model call.
 No new manager, scheduler or hard spawn budget is introduced.
+
+## Branch transitions and recovery
+
+Clone, Rewind and opening existing history share identity, transcript and artifact
+restoration. Closed clones and forks show a loading state rather than an empty chat.
+Live branch changes wait for an idle turn, serialize per session, and lock the
+composer until restoration finishes. Rewind replaces the artifact pane with the
+selected branch's versions, dropping artifacts and selection from its discarded
+future. A history response cannot erase activity that arrived while it was loading.
+
+A failed restore leaves **Retry loading** beside the composer. It retries reads and
+policy restoration, never the already-completed fork or clone. The rewind picker
+also offers Retry for failed message-list requests, including transport errors.
 
 ## Rich content (first-class citizens)
 

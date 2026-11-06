@@ -430,7 +430,14 @@ test('startup waits for the restored transcript even after the sidebar is ready'
       ipcMain.handle('pi:createSession', () => ({ sessionId: 'restoring-test' }))
       ipcMain.removeHandler('pi:command')
       ipcMain.handle('pi:command', async (_event, _id, command) => {
+        // Restoration requires identity before history; only the history read is held.
+        if (command.type === 'get_state')
+          return {
+            success: true,
+            data: { sessionId: 'restoring-test', sessionFile: `${workspace}/saved.jsonl` },
+          }
         if (command.type !== 'get_messages') return { success: false, error: 'not supported' }
+        ;(globalThis as unknown as { historyRequested: boolean }).historyRequested = true
         await history
         return {
           success: true,
@@ -441,6 +448,13 @@ test('startup waits for the restored transcript even after the sidebar is ready'
     await h.page.reload()
     const screen = h.page.getByTestId('startup-screen')
     await expect(screen.getByRole('status')).toHaveText('Restoring your workspace…')
+    await expect
+      .poll(() =>
+        h.app.evaluate(
+          () => (globalThis as unknown as { historyRequested?: boolean }).historyRequested,
+        ),
+      )
+      .toBe(true)
     // Group headers replace skeletons only once Sidebar's initial scan settles.
     await expect(h.page.getByTestId('workspace-group')).toHaveCount(1)
     await expect(h.page.getByTestId('app-shell')).toBeHidden()
