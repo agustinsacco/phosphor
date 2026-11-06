@@ -1,0 +1,16 @@
+{
+  "name": "@phosphor/brain-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./client": "./src/client.ts",
+    "./node-transport": "./src/node-transport.ts"
+  },
+  "nx": {
+    "includedScripts": []
+  },
+  "dependencies": {
+    "@phosphor/shared": "0.0.0"
+  }
+}

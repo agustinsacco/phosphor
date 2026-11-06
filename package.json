@@ -9,7 +9,9 @@
     "libs/session-runtime",
     "libs/host-client",
     "libs/pi-extensions",
-    "libs/client-ui"
+    "libs/client-ui",
+    "libs/memory-engine",
+    "libs/brain-client"
   ],
   "scripts": {
     "dev": "npm run dev --prefix apps/desktop --",

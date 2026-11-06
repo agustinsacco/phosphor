@@ -8,6 +8,10 @@
       "types": "./src/base64.ts",
       "default": "./src/base64.ts"
     },
+    "./brain": {
+      "types": "./src/brain.ts",
+      "default": "./src/brain.ts"
+    },
     "./web-auth": {
       "types": "./src/web-auth.ts",
       "default": "./src/web-auth.ts"
