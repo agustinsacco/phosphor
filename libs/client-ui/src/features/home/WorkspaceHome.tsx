@@ -39,16 +39,18 @@ export function WorkspaceHome({
     textareaRef.current?.focus()
   }, [target, setComposerMachine])
   const setupHome = !homeHostId && Boolean(localSetup)
+  // Only the whole-home setup puts the picker at the top; everywhere else it sits at the bottom.
+  const setupFillsHome = setupHome && composerMachine === 'local'
   const machinePicker = (
     <MachinePicker
-      placement={setupHome ? 'below' : 'above'}
+      placement={setupFillsHome ? 'below' : 'above'}
       value={composerMachine}
       capability="sessions.control"
       onChange={setComposerMachine}
     />
   )
   const slot = { composerMachine, workspacePath, localSetup, textareaRef, machinePicker }
-  if (composerMachine === 'local' && setupHome) return <HomeComposerSlot {...slot} wholeHome />
+  if (setupFillsHome) return <HomeComposerSlot {...slot} wholeHome />
   if (composerMachine !== 'local' && (homeHostId === composerMachine || setupHome))
     return (
       <RemoteWorkspacePage
