@@ -110,9 +110,9 @@ export async function renderLaneFiles({
   const container = document.createElement('div')
   document.body.append(container)
   const root = createRoot(container)
-  let current: LaneName | null = 'a'
+  const shown = { lane: 'a' as LaneName | null }
   const show = async (lane: LaneName | null): Promise<void> => {
-    current = lane
+    shown.lane = lane
     await act(async () =>
       root.render(
         lane ? (
@@ -123,6 +123,37 @@ export async function renderLaneFiles({
       ),
     )
   }
+  await show('a')
+  return {
+    container,
+    calls,
+    show,
+    remount: async (): Promise<void> => {
+      const lane = shown.lane
+      await show(null)
+      await show(lane)
+    },
+    /** A chat file link in this lane's transcript; resolves whether or not the pane opened it. */
+    openFromChat: async (path: string): Promise<void> => {
+      const lane = lanes[shown.lane ?? 'a']
+      await act(async () => {
+        await openFileInWorkspace(lane.workspacePath, path, undefined, lane.sessionId).catch(
+          () => undefined,
+        )
+      })
+    },
+    savesSent: (): unknown[][] => calls.filter(([channel]) => channel === 'fs:writeFile'),
+    count: (channel: string): number => calls.filter(([c]) => c === channel).length,
+    unmount: (): void => {
+      act(() => root.unmount())
+      container.remove()
+    },
+    ...paneActions(container),
+  }
+}
+
+/** What a user does inside the pane: the tree, the editor and its save. */
+function paneActions(container: HTMLElement) {
   const rows = () => [...container.querySelectorAll<HTMLElement>('[role="treeitem"]')]
   const row = (path: string) => rows().find((r) => r.textContent?.includes(path))
   const editor = (path: string) =>
@@ -139,28 +170,10 @@ export async function renderLaneFiles({
     if (!editor(path)) await clickTreeRow(path)
     return editor(path)
   }
-  await show('a')
   return {
-    container,
-    calls,
-    show,
-    remount: async (): Promise<void> => {
-      const lane = current
-      await show(null)
-      await show(lane)
-    },
     text: (): string => container.textContent ?? '',
     files: (): string[] => rows().map((r) => r.textContent ?? ''),
     clickTreeRow,
-    /** A chat file link in this lane's transcript; resolves whether or not the pane opened it. */
-    openFromChat: async (path: string): Promise<void> => {
-      const lane = lanes[current ?? 'a']
-      await act(async () => {
-        await openFileInWorkspace(lane.workspacePath, path, undefined, lane.sessionId).catch(
-          () => undefined,
-        )
-      })
-    },
     /** Types into the file's editor; false when the editor refuses input (read only). */
     edit: async (path: string, text: string): Promise<boolean> => {
       const target = await showEditor(path)
@@ -185,11 +198,5 @@ export async function renderLaneFiles({
     /** The explorer marks this file as modified in git. */
     marked: (path: string): boolean =>
       /\bM\b/.test(row(path)?.textContent?.replace(path, '') ?? ''),
-    savesSent: (): unknown[][] => calls.filter(([channel]) => channel === 'fs:writeFile'),
-    count: (channel: string): number => calls.filter(([c]) => c === channel).length,
-    unmount: (): void => {
-      act(() => root.unmount())
-      container.remove()
-    },
   }
 }
