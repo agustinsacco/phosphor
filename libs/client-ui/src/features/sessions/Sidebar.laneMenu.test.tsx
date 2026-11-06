@@ -222,3 +222,22 @@ it("shows a lane's PR chip from its main repository's listing, and none for a la
     ['Lane 2', expect.stringContaining('#7')],
   ])
 })
+
+it('Mark read on a live This Mac lane clears its unread count as well as marking it seen', async () => {
+  useSessionsStore.setState((s) => ({
+    live: {
+      ...s.live,
+      live2: { phosphorId: 'live2', workspacePath: '/repo', diskPath: '/repo/s2.jsonl' },
+    },
+    unread: { live2: 3 },
+  }))
+  const rows = await menuFor('Lane 2')
+  expect(rows).toContain('Mark read')
+  act(() =>
+    [...document.querySelectorAll<HTMLButtonElement>('[data-testid=context-menu] button')]
+      .find((b) => b.textContent === 'Mark read')!
+      .click(),
+  )
+  expect(useSessionsStore.getState().unread.live2 ?? 0).toBe(0)
+  expect(invoke).toHaveBeenCalledWith('app:markSessionSeen', '/repo/s2.jsonl')
+})
