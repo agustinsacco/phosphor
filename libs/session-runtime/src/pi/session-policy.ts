@@ -5,8 +5,11 @@ import { composeDirectives } from '@phosphor/shared/agent-directives'
 import { prepareProviderAccount } from './session-provider'
 import type { PiSpawnOptions } from './rpc-client'
 import type { prepareSessionLaunch } from './session-launch'
+import { prepareBrainSpawnOptions, type BrainExecutionProfile } from './brain-execution-profile'
 
 export interface SessionExecution {
+  /** Trusted internal processor capability, never derived from CreateSessionOptions. */
+  brain?: BrainExecutionProfile
   unattended?: boolean
   intent?: 'report' | 'code'
   signal?: AbortSignal
@@ -37,6 +40,8 @@ export async function prepareSessionPolicy(
   launch: Awaited<ReturnType<typeof prepareSessionLaunch>>,
   runtime: SessionPolicyRuntime,
 ): Promise<{ spawnOptions: Omit<PiSpawnOptions, 'cwd'>; accountId?: string }> {
+  if (execution.brain)
+    return { spawnOptions: await prepareBrainSpawnOptions(options, execution.brain) }
   const { stub, binaryPath, prefixArgs, extensions } = launch
   const env = { ...launch.env }
   const git = stub ? { isRepo: false } : await runtime.git(options.workspacePath)
