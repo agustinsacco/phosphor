@@ -4,6 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./brain": {
+      "types": "./pi-ext/brain.ts",
+      "default": "./pi-ext/brain.ts"
+    },
+    "./brain-processor": {
+      "types": "./pi-ext/brain-processor.ts",
+      "default": "./pi-ext/brain-processor.ts"
+    },
     "./status-keys": {
       "types": "./pi-ext/status-keys.ts",
       "default": "./pi-ext/status-keys.ts"

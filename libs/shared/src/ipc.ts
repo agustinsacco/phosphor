@@ -5,7 +5,7 @@
  * `IpcInvokeMap`. Streams are pushed from main on per-session channels
  * (`pi:event:<sessionId>`) declared by `sessionEventChannel`.
  */
-import type { BrainInvokeMap } from './brain'
+import type { BrainInvokeMap } from './ipc/brain'
 import type { HostsInvokeMap } from './ipc/hosts'
 import type { AppInvokeMap } from './ipc/app'
 import type { PiInvokeMap } from './ipc/pi'

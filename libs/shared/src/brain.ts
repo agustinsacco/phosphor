@@ -154,6 +154,10 @@ export interface BrainEmbeddingStatus {
   modelId: string
   dimensions: number
 }
+export interface BrainProcessConsent {
+  policyEpoch: number
+  model: BrainModel
+}
 export interface BrainStatus {
   supported: boolean
   snapshot: BrainSnapshot
@@ -163,6 +167,8 @@ export interface BrainStatus {
 }
 export interface BrainQuery {
   query: string
+  /** Omitted/null means project-wide evidence only. Agent bridge binds this from its lane. */
+  branch?: string | null
   entityIds?: string[]
   scopes?: string[]
   validAt?: number
@@ -204,28 +210,7 @@ export interface BrainDelivery {
   evidenceIds: string[]
   claimIds: string[]
 }
-/** UI commands. Authority comes from the Desktop handler, never this DTO. */
-export interface BrainInvokeMap {
-  'brain:status': { args: []; result: BrainStatus }
-  'brain:setPrefs': { args: [prefs: BrainPrefs]; result: BrainStatus }
-  'brain:download': { args: [acceptTerms: boolean]; result: BrainStatus }
-  'brain:removeModel': { args: []; result: BrainStatus }
-  'brain:search': { args: [query: BrainQuery]; result: BrainSearchResult }
-  'brain:read': { args: [evidenceId: string]; result: BrainEvidence }
-  'brain:graph': { args: [entityId?: string]; result: BrainGraph }
-  'brain:process': { args: [scope: string]; result: BrainJob }
-  'brain:cancel': { args: [jobId: string]; result: void }
-  'brain:review': {
-    args: [proposalId: string, approve: boolean, revision: BrainRevision]
-    result: void
-  }
-  'brain:correct': {
-    args: [claimId: string, correction: BrainCorrection, revision: BrainRevision]
-    result: void
-  }
-  'brain:forget': { args: [evidenceIds: string[]]; result: BrainForgetResult }
-  'brain:transcript': { args: [jobId: string]; result: string }
-}
+export type { BrainInvokeMap } from './ipc/brain'
 /** Agent transport is separate from UI review/settings permissions. */
 export interface BrainAgentMap {
   search: { request: BrainQuery; result: BrainSearchResult }
