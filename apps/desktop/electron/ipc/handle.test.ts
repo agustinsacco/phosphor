@@ -3,7 +3,7 @@ const main = vi.hoisted(() => ({ handle: vi.fn() }))
 vi.mock('electron', () => ({ ipcMain: main }))
 vi.mock('./sender-policy', () => ({ admitSender: () => undefined }))
 import type { IpcInvokeChannel } from '@shared/ipc'
-import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
+import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
 import { handle, rejectRemoteArguments, setRemoteReadRouter } from './handle'
 
 it('rejects opaque workspaces and remote handles before any local handler runs', () => {
