@@ -38,6 +38,7 @@ import { isArtifactWriteTool } from '@/lib/artifactTools'
 import { useLayoutStore } from './layout'
 import { lanePrefs } from './lanePrefs'
 import { cleanupInFlight, trackCleanup } from './sessionCleanup'
+import { applyDiskScans, scanWorkspace } from './sessionDiskScan'
 import { ipcErrorText } from '@shared/errors'
 
 /**
@@ -59,7 +60,9 @@ export function shouldRefreshStatsOn(
   // carry — the authoritative post-turn context estimate and
   // the post-compaction reset. Without it, the old per-sub-step polling is
   // the only thing that moves the meter mid-turn, so it stays.
-  if (usageArrivesOnDeltas) return eventType === 'agent_end' || eventType === 'compaction_end'
+  if (usageArrivesOnDeltas) {
+    return eventType === 'agent_end' || eventType === 'compaction_end'
+  }
   return (
     eventType === 'agent_end' ||
     eventType === 'compaction_end' ||
@@ -904,19 +907,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   refreshDisk: async (workspacePath) => {
-    try {
-      const metas = await window.phosphor.invoke('sessions:list', workspacePath)
-      set((s) => ({
-        disk: { ...s.disk, [workspacePath]: metas },
-        scanStatus: { ...s.scanStatus, [workspacePath]: 'ok' },
-      }))
-    } catch {
-      // Leave the previous `disk` intact and record the failure so the
-      // sidebar can show a retry instead of a permanent fake "Loading…".
-      set((s) => ({
-        scanStatus: { ...s.scanStatus, [workspacePath]: 'error' },
-      }))
-    }
+    const scan = await scanWorkspace(workspacePath)
+    set((s) => applyDiskScans(s, [scan]))
   },
 
   /**
@@ -936,37 +928,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
    * the sidebar calls it for every folder of an EXPANDED group, uncapped.
    */
   refreshAllDisk: async (workspacePaths, limit = 8) => {
-    const targets = workspacePaths.slice(0, limit)
-    // Capture each `path` explicitly — a rejected inner promise would
-    // otherwise drop the `{ path, metas }` wrapper (allSettled's `reason` has
-    // no path), making per-workspace status impossible to record.
-    const results = await Promise.all(
-      targets.map(async (path) => {
-        try {
-          return {
-            path,
-            status: 'ok' as const,
-            metas: await window.phosphor.invoke('sessions:list', path),
-          }
-        } catch {
-          return { path, status: 'error' as const }
-        }
-      }),
-    )
-    set((s) => {
-      const disk = { ...s.disk }
-      const scanStatus = { ...s.scanStatus }
-      for (const result of results) {
-        // A workspace that has been deleted just yields no sessions.
-        if (result.status === 'ok') {
-          disk[result.path] = result.metas
-          scanStatus[result.path] = 'ok'
-        } else {
-          scanStatus[result.path] = 'error'
-        }
-      }
-      return { disk, scanStatus }
-    })
+    const scans = await Promise.all(workspacePaths.slice(0, limit).map(scanWorkspace))
+    set((s) => applyDiskScans(s, scans))
   },
 
   /**
@@ -1190,8 +1153,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     get().markSeen(meta.path)
     // Reopening clears the suspended marker; the resume path below re-spawns pi
     // and the transcript shows its skeleton while history replays.
-    if (get().suspendedPaths.includes(meta.path))
+    if (get().suspendedPaths.includes(meta.path)) {
       set((s) => ({ suspendedPaths: s.suspendedPaths.filter((p) => p !== meta.path) }))
+    }
     // Already live? Just activate.
     const existing = Object.values(get().live).find((l) => l.diskPath === meta.path)
     if (existing) {
@@ -1275,7 +1239,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // Keep the persisted workspace paired with the persisted session —
     // resumeTarget reunites the two on launch, and a stale lastWorkspacePath
     // would resume this session against another project's cwd.
-    if (live?.workspacePath) void window.phosphor.invoke('app:recordWorkspace', live.workspacePath)
+    if (live?.workspacePath) {
+      void window.phosphor.invoke('app:recordWorkspace', live.workspacePath)
+    }
   },
 
   disposeSession: async (sessionId) => {
@@ -1373,8 +1339,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
             }
           })
           // A deleted successor must not keep its old file folded away.
-          if (rewound !== rewoundBefore)
+          if (rewound !== rewoundBefore) {
             void window.phosphor.invoke('app:setRewoundSessions', rewound)
+          }
           void window.phosphor.invoke('app:setPinnedSessions', get().pinned)
           void window.phosphor.invoke('app:setLaneMarkers', get().laneMarkers)
         }
@@ -1480,8 +1447,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
               force: options.discardChanges,
               deleteBranch: options.deleteBranch,
             })
-            if (!outcome.removed)
+            if (!outcome.removed) {
               throw new Error(`worktree kept, ${outcome.dirtyCount} uncommitted changes`)
+            }
             branchError = outcome.branchError
           }
           const cwd =
