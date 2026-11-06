@@ -6,11 +6,8 @@ import { useMachineCaps } from '@/stores/machineCaps'
 import { machineLabel } from '@/stores/remoteLanes'
 import { compareLanesByCreation, groupRemoteLanes } from './groupRemoteLanes'
 import { RemoteLaneList } from './RemoteLaneList'
-import {
-  RemoteRepositoryGroup,
-  useRemoteLaneOrder,
-  type RemoteLaneDensity,
-} from './RemoteRepositoryGroup'
+import { RemoteRepositoryGroup, useRemoteLaneOrder } from './RemoteRepositoryGroup'
+import type { LaneGroupDensity } from './LaneGroup'
 import { SectionLabel } from './SidebarPrimitives'
 
 /**
@@ -26,7 +23,7 @@ export function RemoteHostLanes({
   density,
 }: Pick<HostConnectionView, 'repositories' | 'lanes'> & {
   hostId: string
-  density?: RemoteLaneDensity
+  density?: LaneGroupDensity
 }): React.JSX.Element {
   const ready = useMachineCaps(hostId).ready
   const pinned = useRemoteLaneOrder(

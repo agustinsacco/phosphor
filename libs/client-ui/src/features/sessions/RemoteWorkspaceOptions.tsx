@@ -8,7 +8,7 @@ import { RemoteFolderMenuRows } from './RemoteFolderMenuRows'
 import { RemoteRepositoryRemoval } from './RemoteRepositoryRemoval'
 import { LaneSelectionRows, type LaneSelectMode } from './LaneSelectionRows'
 
-/** The "⋯" menu: the Host's folder rows, lane selection for bulk delete, and collapse. */
+/** The "⋯" menu in This Mac's order: lane selection for bulk delete, collapse, then the Host's folder rows. */
 export function RemoteWorkspaceOptions({
   hostId,
   group,
@@ -60,19 +60,19 @@ export function RemoteWorkspaceOptions({
           onClose={() => setMenu(false)}
           className="absolute right-1 top-full z-40 mt-1 min-w-44 py-1"
         >
-          <RemoteFolderMenuRows
-            hostId={hostId}
-            repositoryId={group.repositoryId}
-            onAdd={() => setAdding(true)}
-            onRemove={() => setRemoving(true)}
-            onDone={() => setMenu(false)}
-          />
           <LaneSelectionRows
             canSelect={canSelect}
             selecting={selecting}
             collapsed={collapsed}
             onCollapse={onCollapse}
             onSelect={onSelect}
+            onDone={() => setMenu(false)}
+          />
+          <RemoteFolderMenuRows
+            hostId={hostId}
+            repositoryId={group.repositoryId}
+            onAdd={() => setAdding(true)}
+            onRemove={() => setRemoving(true)}
             onDone={() => setMenu(false)}
           />
         </PopupMenu>
