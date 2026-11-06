@@ -38,6 +38,8 @@ beforeEach(() => {
         edges: brainFixture().snapshot.claims,
         truncated: false,
       }
+    if (channel === 'brain:evidence')
+      return { items: brainFixture().snapshot.evidence, nextCursor: null }
     if (channel === 'brain:read')
       return {
         id: 'evidence',
@@ -420,4 +422,107 @@ it('keeps a refused review visible across successful background status polls', a
   } finally {
     vi.useRealTimers()
   }
+})
+
+it('pages, inspects and explicitly forgets uncited evidence outside the snapshot', async () => {
+  const status = brainFixture()
+  status.snapshot.prefs.enabled = true
+  status.snapshot.evidence = []
+  status.snapshot.proposals = []
+  const cursor = 'a'.repeat(64)
+  let forgotten = false
+  const normal = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string, ...args: unknown[]) => {
+    if (channel === 'brain:status') return status
+    if (channel === 'brain:evidence') {
+      if (forgotten) return { items: [], nextCursor: null }
+      const item = { ...brainFixture().snapshot.evidence[0]!, id: args[1] ? 'uncited' : 'first' }
+      return { items: [item], nextCursor: args[1] ? null : cursor }
+    }
+    if (channel === 'brain:read')
+      return {
+        id: 'uncited',
+        text: 'Uncited source outside the snapshot',
+        label: 'Raw source',
+        role: 'user',
+        scope: '/synthetic',
+        observedAt: 1,
+        rootIds: ['root'],
+        branch: 'main',
+      }
+    if (channel === 'brain:forget') {
+      forgotten = true
+      status.snapshot.counts.evidence = 0
+      return { evidence: 1, claims: 0, affectedSessions: ['recipient'] }
+    }
+    return normal(channel, ...args)
+  })
+  await act(async () => root.render(<BrainPage />))
+  await click('Activity')
+  await click('Next evidence page')
+  expect(invoke).toHaveBeenCalledWith('brain:evidence', '/synthetic', cursor)
+  await act(async () => {
+    const select = container.querySelector(
+      '[aria-label="Captured evidence item"]',
+    ) as HTMLSelectElement
+    select.value = 'uncited'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await click('Read captured evidence')
+  expect(container.textContent).toContain('Uncited source outside the snapshot')
+  await click('Forget captured evidence…')
+  const confirm = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent === 'Confirm forget evidence',
+  )!
+  expect(confirm.disabled).toBe(true)
+  await act(async () =>
+    (
+      container.querySelector(
+        '[aria-label="Confirm forgetting evidence"] input',
+      ) as HTMLInputElement
+    ).click(),
+  )
+  await click('Confirm forget evidence')
+  expect(invoke).toHaveBeenCalledWith('brain:forget', ['uncited'])
+  expect(container.textContent).not.toContain('Uncited source outside the snapshot')
+  expect(container.textContent).toContain('1 session(s) may retain delivered copies')
+  expect(invoke.mock.calls.some(([channel]) => channel === 'brain:process')).toBe(false)
+})
+
+it('recovers a failed first source-page load without processing evidence', async () => {
+  const status = brainFixture()
+  status.snapshot.prefs.enabled = true
+  const normal = invoke.getMockImplementation()!
+  let fail = true
+  invoke.mockImplementation(async (channel: string, ...args: unknown[]) => {
+    if (channel === 'brain:status') return status
+    if (channel === 'brain:evidence' && fail) {
+      fail = false
+      throw new Error('Source inventory temporarily unavailable')
+    }
+    return normal(channel, ...args)
+  })
+  await act(async () => root.render(<BrainPage />))
+  await click('Activity')
+  expect(container.textContent).toContain('Source inventory temporarily unavailable')
+  await click('Retry evidence load')
+  expect(container.textContent).not.toContain('Source inventory temporarily unavailable')
+  expect(container.querySelector('[aria-label="Captured evidence item"]')).not.toBeNull()
+})
+
+it('disables graph-stale approval but keeps rejection actionable', async () => {
+  const status = brainFixture()
+  status.snapshot.graphRevision++
+  invoke.mockResolvedValueOnce(status)
+  await act(async () => root.render(<BrainPage />))
+  await click('Activity')
+  await click('Read original evidence')
+  expect(
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Approve')!.disabled,
+  ).toBe(true)
+  await click('Reject')
+  expect(invoke).toHaveBeenCalledWith('brain:review', 'proposal', false, {
+    graphRevision: 3,
+    policyEpoch: 2,
+  })
 })
