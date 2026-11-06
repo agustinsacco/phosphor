@@ -98,7 +98,11 @@ export class Proposals {
     validate.check(typeof approve === 'boolean', 'Invalid review choice')
     const proposal = this.data.require('proposals', id)
     this.data.consent(proposal.scope)
-    validate.check(revision.policyEpoch === this.data.revision().policyEpoch, 'Stale consent')
+    const epoch = this.data.revision().policyEpoch
+    validate.check(
+      revision.policyEpoch === epoch && proposal.policyEpoch === epoch,
+      'Stale consent',
+    )
     const receiptId = identifier('review', id)
     const value = identifier(approve, revision.graphRevision, revision.policyEpoch)
     const receipt = this.data.get('receipts', receiptId)
@@ -106,10 +110,12 @@ export class Proposals {
       validate.check(receipt.value === value, 'Conflicting review retry')
       return
     }
-    this.data.assertRevision(revision)
-    this.data.assertRevision(proposal)
     validate.check(proposal.state === 'pending', 'Proposal already reviewed')
-    if (approve) this.validateReferences(proposal.input, this.jobs.get(proposal.jobId))
+    if (approve) {
+      this.data.assertRevision(revision)
+      this.data.assertRevision(proposal)
+      this.validateReferences(proposal.input, this.jobs.get(proposal.jobId))
+    }
     this.data.transaction(() => {
       if (approve) this.apply(proposal)
       this.data.put('proposals', id, proposal.scope, {
