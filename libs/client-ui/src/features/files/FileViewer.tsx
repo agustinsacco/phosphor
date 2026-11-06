@@ -237,7 +237,7 @@ export function FileFallback({
   const why =
     reason ??
     (file.tooLarge
-      ? 'Larger than 4 MB — too big to open as text.'
+      ? 'Too large to open as text.'
       : ext
         ? `No preview for .${ext} files.`
         : 'No preview for this file.')
@@ -250,7 +250,9 @@ export function FileFallback({
             {basename(file.relativePath)}
           </div>
           <div className="text-text-tertiary mt-0.5 text-sm">
-            {formatBytes(file.size)} · {why}
+            {/* A Host refuses an oversized read without saying the size. */}
+            {file.size > 0 && `${formatBytes(file.size)} · `}
+            {why}
           </div>
         </div>
         {osActions && <FileActions path={file.path} />}

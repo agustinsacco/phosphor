@@ -190,23 +190,21 @@ Files lists tracked and untracked non-ignored paths; a folder outside git lists
 through the Host's bounded walk ([Host](host.md#machine-features)). A file list
 the Host refuses names why in fixed text: `too-large` reads "Too many files to
 list: the Host stops at 20,000." and `internal` reads "The Host couldn't list
-this folder."; any other failure reads "Could not read files.", and a failed file
-read "Could not read this file.", as in the browser. Host text never reaches the
-pane. Controllers with
+this folder."; any other failure reads "Could not read files.", as in the
+browser. Host text never reaches the pane. Controllers with
 `workspaces.write` and `sessions.control` can edit text, create files and folders,
-rename, copy, move and trash entries inside the lane. Saves compare the SHA-256
-revision read by the editor; conflicts preserve edits and require a refresh.
-Uncertain saves preserve edits and are never retried automatically.
-Unsaved drafts stay in renderer memory per lane, survive lane switches, and clear
-on discard, successful save or lane forget.
-Changes shows git status and an inline read-only diff against HEAD. Binary files
-and oversized text use placeholders. Remote text uses in-memory Monaco models, never
-`phosphor-file://` grants or filesystem watchers. Markdown, HTML and SVG open on a
-rendered Preview beside their Source, as This Mac's do, drawn from that text; HTML
-and SVG render in the artifact sandbox, and a revealed line opens the Source. They refresh
-on focused lane summary changes (including turn end), reconnects and manual refresh.
-Streamed text does not reload the pane. Added and untracked files use an empty
-original. If HEAD cannot be read, its placeholder does not discard current text.
+rename, move, copy and trash entries inside the lane, in This Mac's Files pane.
+Saves compare the SHA-256 revision read by the editor; conflicts preserve edits
+and offer a reload. Uncertain saves preserve edits and are never retried.
+Unsaved edits stay in renderer memory per lane, survive lane switches, and clear
+on reload, successful save or lane forget.
+Changes lists the files the lane's tools touched, each with an inline read-only
+diff. Binary files and oversized text use placeholders. Remote text uses in-memory
+Monaco models, never `phosphor-file://` grants or filesystem watchers. Markdown,
+HTML and SVG open on a rendered Preview beside their Source, as This Mac's do,
+drawn from that text; HTML and SVG render in the artifact sandbox, and a revealed
+line opens the Source. They refresh on focused lane summary changes (including
+turn end), reconnects and manual refresh. Streamed text does not reload the pane.
 
 Main routes lane-keyed `fs:listFiles`, `fs:readFile`, `git:statusMap`, `git:showFileAt`,
 `skills:list` and `skills:readFile` to the read features only when the call

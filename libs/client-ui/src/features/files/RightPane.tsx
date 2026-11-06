@@ -5,13 +5,12 @@ import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import type { HostConnectionView } from '@shared/ipc'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { TooltipButton } from '@/components/Tooltip'
-import { memo, useMemo } from 'react'
+import { memo } from 'react'
 import clsx from 'clsx'
 import { useLayoutStore, sessionPanes, type RightPane as RightPaneId } from '@/stores/layout'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { FilesPane } from './FilesPane'
-import { localFilesSource } from './filesSource'
-import { RemoteFilesPane } from './RemoteFilesPane'
+import { useLaneFilesSource, type FilesSource } from './filesSource'
 import { FilesChangedPane } from './FilesChangedPane'
 import { TerminalPane } from '@/features/terminal/TerminalPane'
 import { RemoteArtifactsPane } from '@/features/artifacts/RemoteArtifactsPane'
@@ -38,7 +37,7 @@ export const RightPane = memo(function RightPane({
   const rightPane = useLayoutStore((s) => sessionPanes(s, sessionId).pane)
   const side = useLayoutStore((s) => sessionPanes(s, sessionId).side)
   const expanded = useLayoutStore((s) => sessionPanes(s, sessionId).expanded)
-  const localFiles = useMemo(() => localFilesSource(workspacePath), [workspacePath])
+  const files = useLaneFilesSource(sessionId, workspacePath)
   if (!rightPane) return null
   return (
     // Gutter + rounded card so the pane reads as a panel resting on the app
@@ -62,16 +61,17 @@ export const RightPane = memo(function RightPane({
             sessionId={sessionId}
             workspacePath={workspacePath}
             host={host}
+            files={files}
           />
         )}
         {!remote && rightPane === 'files' && (
           <PaneShell title={<PaneSwitcher active="files" />}>
-            <FilesPane source={localFiles} />
+            <FilesPane source={files} />
           </PaneShell>
         )}
         {!remote && rightPane === 'changes' && (
           <PaneShell title={<PaneSwitcher active="changes" />}>
-            <FilesChangedPane workspacePath={workspacePath} />
+            <FilesChangedPane source={files} />
           </PaneShell>
         )}
         {!remote && rightPane === 'terminal' && (
@@ -91,11 +91,13 @@ function RemotePaneBody({
   sessionId,
   workspacePath,
   host,
+  files,
 }: {
   pane: NonNullable<RightPaneId>
   sessionId: string
   workspacePath: string
   host: HostConnectionView | undefined
+  files: FilesSource
 }): React.JSX.Element {
   if (pane === 'files' || pane === 'changes')
     return (
@@ -107,12 +109,7 @@ function RemotePaneBody({
           </>
         }
       >
-        <RemoteFilesPane
-          key={sessionId}
-          workspacePath={workspacePath}
-          sessionId={sessionId}
-          changes={pane === 'changes'}
-        />
+        {pane === 'files' ? <FilesPane source={files} /> : <FilesChangedPane source={files} />}
       </PaneShell>
     )
   // The agent list is the transcript this window holds, so it stays while the Host

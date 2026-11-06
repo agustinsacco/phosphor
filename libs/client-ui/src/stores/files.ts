@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { DirEntry, FileContent } from '@shared/models'
+import { isFilePath } from '@shared/host-protocol-files'
 import { isTextPreview } from '@shared/file-kinds'
 import { languageForPath } from '@/lib/languages'
 import type { FilesSource } from '@/features/files/filesSource'
@@ -146,6 +147,24 @@ export function attachFilesSource({ workspacePath, listing, writeRefusal }: File
 
 export function filesSourceTraits(workspacePath: string): FilesSourceTraits {
   return sourceTraits.get(workspacePath) ?? { listing: 'tree', writeRefusal: null }
+}
+
+/**
+ * A path a Host lane's transcript names, as the lane's file key: relative to the lane, under its
+ * cwd, or already under its `host:` key. Anything else, including `..` and `.git`, is refused.
+ */
+export function laneFilePath(cwd: string, workspace: string, path: string): string {
+  const relative = path.startsWith('host:')
+    ? path.startsWith(`${workspace}/`)
+      ? path.slice(workspace.length + 1)
+      : null
+    : path.startsWith('/')
+      ? path.startsWith(`${cwd}/`)
+        ? path.slice(cwd.length + 1)
+        : null
+      : path
+  if (!isFilePath(relative)) throw new Error(REMOTE_UNAVAILABLE)
+  return `${workspace}/${relative}`
 }
 
 /** Files state for a workspace; the shared empty value when none exists yet. */

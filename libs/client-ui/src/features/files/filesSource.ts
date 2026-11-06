@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -17,12 +18,16 @@ export interface FilesFeatures {
   listOptions: boolean
   /** File copy/cut/paste and import through the OS clipboard, a picker or a drop. */
   clipboardFiles: boolean
+  /** Revert a changed file to the session's start. */
+  revert: boolean
 }
 
 /** One lane's files, as the Files pane reads and writes them. */
 export interface FilesSource {
   /** The files store key: a local folder or a Host lane's `host:` key; IPC routes by it. */
   workspacePath: string
+  /** The folder the lane's tools name paths in: the folder itself, or the Host lane's cwd. */
+  pathRoot: string
   /** Why the files cannot be read now, or null. */
   unavailable: string | null
   /** Why this device cannot write them now, or null. */
@@ -41,8 +46,10 @@ const LOCAL_FEATURES: FilesFeatures = {
   osActions: true,
   listOptions: true,
   clipboardFiles: true,
+  revert: true,
 }
 
+// Revert needs a session baseline the Host does not keep yet (E6).
 const HOST_FEATURES: FilesFeatures = {
   watch: false,
   search: false,
@@ -50,12 +57,14 @@ const HOST_FEATURES: FilesFeatures = {
   osActions: false,
   listOptions: false,
   clipboardFiles: false,
+  revert: false,
 }
 
 /** A folder on this device; it holds no state, so it is not a hook. */
 export function localFilesSource(workspacePath: string): FilesSource {
   return {
     workspacePath,
+    pathRoot: workspacePath,
     unavailable: null,
     writeRefusal: null,
     listing: 'tree',
@@ -72,19 +81,24 @@ export function useHostFilesSource(sessionId: string, workspacePath: string): Fi
     target?.kind === 'remote' ? s.hosts[target.hostId] : undefined,
   )
   const writeRefusal = useLaneWriteRefusal(sessionId)
+  const lane = host?.lanes.find((l) => l.laneId === laneId)
   return {
     workspacePath,
+    pathRoot: lane?.cwd ?? workspacePath,
     unavailable: hostFeatureRefusal(host, 'workspaces.read') ?? null,
     writeRefusal: writeRefusal ?? null,
     listing: 'flat',
     // The Host object is replaced by unrelated lanes and stream updates; only this lane's
     // summary, the connection and the Host runtime say the files may have changed.
-    refreshKey: JSON.stringify([
-      host?.lanes.find((lane) => lane.laneId === laneId),
-      host?.state,
-      host?.connectionToken,
-      host?.cursor?.epoch,
-    ]),
+    refreshKey: JSON.stringify([lane, host?.state, host?.connectionToken, host?.cursor?.epoch]),
     features: HOST_FEATURES,
   }
+}
+
+/** The lane's files on the machine that runs it. */
+export function useLaneFilesSource(sessionId: string, workspacePath: string): FilesSource {
+  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
+  const host = useHostFilesSource(sessionId, workspacePath)
+  const local = useMemo(() => localFilesSource(workspacePath), [workspacePath])
+  return remote ? host : local
 }

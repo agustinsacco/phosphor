@@ -622,10 +622,10 @@ async function dropSessionState(sessionId: string): Promise<void> {
   forgetSessionTransition(sessionId)
   const entry = useSessionsStore.getState().live[sessionId]
   if (entry?.target?.kind === 'remote' && entry.laneId) {
-    const { useDraftsStore } = await import('./drafts')
-    useDraftsStore
-      .getState()
-      .releaseRemoteFiles(hostResourceKey(entry.target, 'session', entry.laneId))
+    const key = hostResourceKey(entry.target, 'session', entry.laneId)
+    const [drafts, files] = await Promise.all([import('./drafts'), import('./files')])
+    drafts.useDraftsStore.getState().releaseRemoteFiles(key)
+    files.useFilesStore.getState().releaseWorkspace(entry.workspacePath)
   }
   unsubscribers.get(sessionId)?.()
   unsubscribers.delete(sessionId)

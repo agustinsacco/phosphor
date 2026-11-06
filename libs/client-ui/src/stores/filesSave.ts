@@ -109,16 +109,19 @@ async function saveFile(
  * more; a changed file is a conflict; any other failure may have landed, so it is never retried.
  */
 async function saveAtRevision(set: SetFiles, workspacePath: string, file: OpenFile): Promise<void> {
+  // A lane forgotten mid-save has released its files; its reply then changes nothing.
   const settle = (fields: Partial<OpenFile> | ((f: OpenFile) => Partial<OpenFile>)) =>
     set((s) =>
-      patchWorkspace(s, workspacePath, (w) => ({
-        ...w,
-        openFiles: w.openFiles.map((f) =>
-          f.path === file.path && f.instanceId === file.instanceId
-            ? { ...f, ...(typeof fields === 'function' ? fields(f) : fields) }
-            : f,
-        ),
-      })),
+      !s.byWorkspace[workspacePath]
+        ? s
+        : patchWorkspace(s, workspacePath, (w) => ({
+            ...w,
+            openFiles: w.openFiles.map((f) =>
+              f.path === file.path && f.instanceId === file.instanceId
+                ? { ...f, ...(typeof fields === 'function' ? fields(f) : fields) }
+                : f,
+            ),
+          })),
     )
   settle({ saving: true })
   try {

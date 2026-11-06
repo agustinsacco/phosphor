@@ -20,34 +20,52 @@ previous keyboard focus on dismissal.
 
 ## Remote lanes
 
-With `workspaces.read`, remote Files lists the lane's tracked and untracked
-non-ignored paths. With `workspaces.write` and `sessions.control`, the controller
-can edit text with Cmd/Ctrl+S or Save, create files and folders, rename, copy, move
-and trash entries. Actions accept lane-relative paths; trash requires typing the
-selected path. Viewers remain read-only. Saves use a SHA-256 revision, not an
-mtime: a conflict keeps the buffer until the user discards and refreshes.
-Uncertain saves keep edits and disable both Save and Cmd/Ctrl+S until Reload file
-reads the file again. Reload file discards the edited buffer.
-Files uses a nested tree and the same row and icon controls as the local explorer.
-An empty tree says "No files yet". A failed git status does not hide the file
-list, and configured non-git folders can be browsed: the Host skips the hidden,
-dependency and build folders This Mac's Go to file skips and lists at most 20,000
-files ([Host](host.md#machine-features)). A list that is too big or that the Host
-could not read says so ("Too many files to list: the Host stops at 20,000." or
-"The Host couldn't list this folder."). Changes lists git status and
-shows an inline read-only Monaco diff against HEAD. Binary and oversized files use
-placeholders. Markdown, HTML and SVG files open on Preview with Source one click away,
-in Desktop and the browser, rendered from the text the Host sent (HTML and SVG in
-the artifact sandbox). The pane refreshes on focused lane summary changes, reconnects and its
-Refresh button, never a local filesystem watcher. Dirty buffers are not reloaded.
-During a disconnect their editor stays mounted read-only with a reconnecting
-message. Reconnection keeps the edited text and original revision for conflict
-checking; it never substitutes a fresh read for unsaved edits.
+A Host lane's Files and Changes are This Mac's panes over the lane's files
+source: the same explorer, editor tabs, viewer and Changes list. What a Host
+offers is data on that source, not a separate pane. With `workspaces.read`,
+Files lists the lane's tracked and untracked non-ignored paths, one list per
+refresh folded into the tree. With `workspaces.write` and `sessions.control`, the
+controller edits text and saves with Cmd/Ctrl+S or Save all, creates files and
+folders, renames, deletes to trash with This Mac's confirm, and moves entries by
+dragging them in the tree (Option/Ctrl copies). Without them the explorer shows a
+"Read only" tag naming the reason and the editor is read-only. A Host lane hides
+what needs a local folder: content search, the hidden-file and .gitignore
+toggles, the OS clipboard and file import, Reveal, Quick Look, Open in default
+app and media previews.
+
+Saves send the SHA-256 revision the editor read, not an mtime, one at a time per
+file; a pane that remounts during a save sees it and sends nothing more. A
+conflict keeps the buffer and offers Reload, not Keep mine, which the revision
+check would refuse again. An uncertain save keeps the edits under "Save not
+confirmed. Your edits are kept. Do not retry an uncertain save." and is never
+retried; Reload file reads the file again and discards the edited buffer.
+Opening another file opens a tab, as on This Mac; one path is one buffer, and
+closing a dirty tab asks first. Open files and unsaved edits live in the files
+store per lane, survive lane switches and closing the pane, and are dropped when
+the lane is forgotten.
+
+A failed git status shows "Git status is unavailable." and does not hide the
+file list, and configured non-git folders can be browsed: the Host skips the
+hidden, dependency and build folders This Mac's Go to file skips and lists at
+most 20,000 files ([Host](host.md#machine-features)). A list that is too big or
+that the Host could not read says so ("Too many files to list: the Host stops at
+20,000." or "The Host couldn't list this folder."). Changes is This Mac's
+agent-touched view: the files the lane's edit and write tools touched, each with
+an inline diff read through the Host. Revert needs a session baseline the Host
+does not keep yet, so a Host lane hides it. Binary and oversized files use
+placeholders. Markdown, HTML and SVG files open on Preview with Source one click
+away, in Desktop and the browser, rendered from the text the Host sent (HTML and
+SVG in the artifact sandbox). The pane refreshes on focused lane summary changes,
+reconnects, a new Host runtime and its Refresh button, never a local filesystem
+watcher. Dirty buffers are not reloaded. During a disconnect the open files stay
+on screen, read-only, under "Unsaved edits are kept."; reconnection keeps the edited
+text and original revision for conflict checking and never substitutes a fresh
+read for unsaved edits.
 Chat links, tool path chips and the finder open through an explicit remote lane
 and can reveal a line. Host absolute paths must be inside that lane's cwd.
-Editor models and caches are lane-qualified. Switching lanes or machines cancels
-stale reads and clears previews. Machine-level Files browses configured Host
-repositories read-only without opening a lane.
+Editor models and caches are lane-qualified. Machine-level Files browses
+configured Host repositories read-only without opening a lane, and the browser's
+Files pane is read-only until it gains this pane.
 [Remote surface gaps](future-features.md#remote-surface-gaps) lists unavailable
 operations. Without the capability, the pane shows “This Host does not offer files to this
 device.”, and “Machine not connected. Wait for reconnection.” while the Host is away.

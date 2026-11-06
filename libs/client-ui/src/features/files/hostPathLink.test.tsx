@@ -3,12 +3,16 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import { SessionFileTarget } from './SessionFileTarget'
-import { RemoteFilesPane } from './RemoteFilesPane'
+import { RightPane } from './RightPane'
 import { PathLink } from '@/features/chat/tools/PathLink'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useRemoteFileSelection, openRemoteFile, remoteRelativePath } from './remoteFileSelection'
+import { openFileInWorkspace, useLayoutStore } from '@/stores/layout'
 import { mockRemoteInfo, mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+// The settings store reads the colour scheme when the Files pane's modules load.
+vi.hoisted(() => {
+  window.matchMedia = () => ({ matches: false, addEventListener() {} }) as unknown as MediaQueryList
+})
 vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
@@ -27,12 +31,14 @@ vi.mock('./MonacoEditor', () => ({
     </pre>
   ),
 }))
-afterEach(() => {
-  vi.unstubAllGlobals()
-  useRemoteFileSelection.setState({ bySession: {}, blocked: {} })
-})
+vi.mock('@/features/terminal/TerminalPane', () => ({ TerminalPane: () => null }))
+vi.mock('@/features/artifacts/ArtifactsPane', () => ({ ArtifactsPane: () => null }))
+vi.mock('@/features/artifacts/RemoteArtifactsPane', () => ({ RemoteArtifactsPane: () => null }))
+vi.mock('@/features/chat/SubagentPanel', () => ({ SubagentPanel: () => null }))
+afterEach(() => vi.unstubAllGlobals())
 it('opens a Host absolute tool path through an explicit lane and never reads the identical Mac path', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  Element.prototype.scrollIntoView = () => {}
   const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID])
   if (!host) throw new Error('fixture')
   host.capabilities = ['workspaces.read']
@@ -42,6 +48,9 @@ it('opens a Host absolute tool path through an explicit lane and never reads the
   useSessionsStore.setState({
     activeSessionId: id,
     live: { [id]: { ...mockRemoteInfo, phosphorId: id } },
+  })
+  useLayoutStore.setState({
+    bySession: { [id]: { pane: 'files', expanded: false, side: 'right', size: 45 } },
   })
   const invoke = vi.fn(async (channel: string, path: string) => {
     if (channel === 'fs:listFiles') return ['src/file.ts']
@@ -60,33 +69,20 @@ it('opens a Host absolute tool path through an explicit lane and never reads the
           <SessionFileTarget.Provider value={id}>
             <PathLink path="/same/repo/src/file.ts" line={17} />
           </SessionFileTarget.Provider>
-          <RemoteFilesPane
-            workspacePath={mockRemoteInfo.workspacePath}
-            sessionId={id}
-            changes={false}
-          />
+          <RightPane workspacePath={mockRemoteInfo.workspacePath} sessionId={id} />
         </>,
       ),
     )
-    await act(async () => element.querySelector('button')?.click())
+    await act(async () => element.querySelector<HTMLElement>('button')?.click())
     expect(element.textContent).toContain('HOST CONTENT')
     expect(element.textContent).toContain('Git status is unavailable')
     expect(element.querySelector('[data-line="17"]')).not.toBeNull()
     expect(invoke.mock.calls.some(([, path]) => path === '/same/repo/src/file.ts')).toBe(false)
-    await expect(openRemoteFile(id, '/outside/file.ts')).rejects.toThrow('Not available')
+    await expect(
+      openFileInWorkspace(mockRemoteInfo.workspacePath, '/outside/file.ts', undefined, id),
+    ).rejects.toThrow('Not available')
     expect(invoke.mock.calls.every(([, path]) => path.startsWith('host:'))).toBe(true)
   } finally {
     act(() => root.unmount())
   }
-})
-it('confines absolute and relative paths to the named lane and rejects aliases', () => {
-  expect(remoteRelativePath('/host/worktree', 'host:h/lane:a', '/host/worktree/a.ts')).toBe('a.ts')
-  for (const path of [
-    '/host/main/a.ts',
-    '../a.ts',
-    'host:h/lane:b/a.ts',
-    '/host/worktree-other/a.ts',
-    '.git/config',
-  ])
-    expect(() => remoteRelativePath('/host/worktree', 'host:h/lane:a', path)).toThrow()
 })

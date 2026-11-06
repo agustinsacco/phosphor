@@ -34,6 +34,7 @@ const lane = (writeRefusal: string | null = null): FilesSource => ({
     osActions: false,
     listOptions: false,
     clipboardFiles: false,
+    revert: false,
   },
 })
 const open = (file: Partial<OpenFile> & { path: string }) =>
@@ -141,4 +142,11 @@ it('names the finder shortcut only where the machine searches', async () => {
   expect(container.textContent).not.toContain('or press')
   await render(localFilesSource('/lane'))
   expect(container.textContent).toContain('or press')
+})
+
+it('says an oversized file is too large without a size the machine did not send', async () => {
+  open({ path: '/lane/big.txt', tooLarge: true, size: 0 })
+  await render(lane())
+  expect(container.textContent).toContain('Too large to open as text.')
+  expect(container.textContent).not.toContain('0 B')
 })

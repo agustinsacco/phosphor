@@ -98,6 +98,8 @@ export async function renderLaneFiles({
   controller?: boolean
 }) {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  // jsdom has no layout; the explorer and the tabs scroll their active row into view.
+  Element.prototype.scrollIntoView ??= () => {}
   seedLaneFiles({ capabilities, controller })
   const calls: unknown[][] = []
   vi.stubGlobal('phosphor', {
@@ -154,8 +156,14 @@ export async function renderLaneFiles({
 
 /** What a user does inside the pane: the tree, the editor and its save. */
 function paneActions(container: HTMLElement) {
-  const rows = () => [...container.querySelectorAll<HTMLElement>('[role="treeitem"]')]
-  const row = (path: string) => rows().find((r) => r.textContent?.includes(path))
+  const rows = () => [
+    ...container.querySelectorAll<HTMLElement>('[data-testid="file-explorer"] [data-path]'),
+  ]
+  const row = (path: string) => rows().find((r) => r.dataset.path?.endsWith(`/${path}`))
+  const tab = (path: string) =>
+    [...container.querySelectorAll<HTMLElement>('[role="tab"]')].find(
+      (t) => t.dataset.tooltip === path,
+    )
   const editor = (path: string) =>
     [...container.querySelectorAll<HTMLTextAreaElement>('textarea[data-model]')].find((t) =>
       t.dataset.model?.endsWith(`/${path}`),
@@ -165,9 +173,10 @@ function paneActions(container: HTMLElement) {
     if (!target) throw new Error(`No tree row for ${path}`)
     await act(async () => target.click())
   }
-  /** The file's editor, opening it from the tree when it is not showing. */
+  /** The file's editor: its tab when it is open, else the tree. */
   const showEditor = async (path: string): Promise<HTMLTextAreaElement | undefined> => {
-    if (!editor(path)) await clickTreeRow(path)
+    const open = tab(path)
+    if (!editor(path)) await (open ? act(async () => open.click()) : clickTreeRow(path))
     return editor(path)
   }
   return {
@@ -196,7 +205,6 @@ function paneActions(container: HTMLElement) {
     },
     content: async (path: string): Promise<string | undefined> => (await showEditor(path))?.value,
     /** The explorer marks this file as modified in git. */
-    marked: (path: string): boolean =>
-      /\bM\b/.test(row(path)?.textContent?.replace(path, '') ?? ''),
+    marked: (path: string): boolean => !!row(path)?.querySelector('[data-tooltip="modified"]'),
   }
 }
