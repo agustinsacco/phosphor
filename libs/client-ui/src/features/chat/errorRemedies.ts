@@ -2,9 +2,9 @@
  * Actionable remediation for provider/auth errors surfaced in the transcript.
  *
  * A turn that dies on "token expired" is not a modelling problem — it is a
- * one-command fix the user has to go find. Matching the handful of errors we
- * know the shell fix for turns each into a play button, while anything
- * unrecognized still renders as plain text (never a guessed command).
+ * fix the user has to go find. Matching the handful of errors we know the fix
+ * for turns each into that fix (a sign-in, a command, a docs link), while
+ * anything unrecognized still renders as plain text (never a guessed command).
  */
 
 export interface ErrorRemedy {
