@@ -42,7 +42,9 @@ function padTo(bytes: number): string {
 describe('Host artifacts on sessions past the scan cap', () => {
   let dir: string
   let lanes: StoredLane[]
-  let log: ReturnType<typeof vi.fn>
+  let log: ReturnType<
+    typeof vi.fn<(event: string, fields: Record<string, string | number>) => void>
+  >
   let feature: ReturnType<typeof createArtifactsFeature>
 
   function lane(laneId: string, sessionFile: string): StoredLane {
@@ -68,7 +70,7 @@ describe('Host artifacts on sessions past the scan cap', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'host-artifacts-large-'))
     lanes = []
-    log = vi.fn()
+    log = vi.fn<(event: string, fields: Record<string, string | number>) => void>()
     feature = createArtifactsFeature({
       store: {
         getLane: (id) => lanes.find((l) => l.laneId === id) ?? null,
