@@ -264,7 +264,12 @@ describe('health check', () => {
       const calls = vi.fn(async (channel: string): Promise<unknown> => {
         if (channel === 'hosts:tailscaleStatus') return { code: 'not-installed' }
         if (channel === 'pi:health')
-          return { ok: false, reason: 'not-found', message: 'pi was not found on your PATH.' }
+          return {
+            ok: false,
+            reason: 'not-found',
+            message:
+              'The pi coding agent was not found on your PATH. Install it with: npm install -g @earendil-works/pi-coding-agent',
+          }
         throw new Error(`unexpected ${channel}`)
       })
       const run = await runHealthCheck({

@@ -264,8 +264,9 @@ export interface LocalReadings {
 /**
  * Why This Mac's pi cannot run lanes, without a command: the row offers
  * `PI_INSTALL`, and main's messages for these two reasons end with their own.
+ * The health check's pi step says the same.
  */
-function piUnavailable(health: PiHealth): string {
+export function piUnavailable(health: PiHealth): string {
   if (health.reason === 'too-old') return `pi ${health.version} is older than ${health.minVersion}.`
   if (health.reason === 'not-found') return 'pi was not found on your PATH.'
   return health.message ?? 'Install pi to run lanes.'

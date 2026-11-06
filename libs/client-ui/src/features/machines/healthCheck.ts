@@ -8,6 +8,7 @@ import { machineHeadline, type Tone } from './machineReachability'
 import type { MachineClaude } from '@shared/host-protocol-machine'
 import {
   claudeReadiness,
+  piUnavailable,
   readLocalClaude,
   relativeTime,
   TAILSCALE_FIXES,
@@ -192,7 +193,7 @@ function localProbes(context: HealthContext): Probe[] {
         const health = await invoke('pi:health')
         return health.ok
           ? { tone: 'ok', detail: `pi ${health.version}` }
-          : { tone: 'error', detail: health.message ?? health.reason ?? 'pi is not available' }
+          : { tone: 'error', detail: piUnavailable(health) }
       },
     },
     ...machineProbes(reads, machineCounts(invoke, 'local')),
