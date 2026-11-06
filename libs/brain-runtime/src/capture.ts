@@ -7,7 +7,7 @@ import type { BrainCapture } from '@phosphor/shared/brain'
 import type { LiveSession } from '@phosphor/session-runtime/pi/session-registry'
 import { extractText } from '@phosphor/session-runtime/pi/session-content'
 import type { PiEvent } from '@phosphor/shared/rpc'
-import type { DesktopMemoryClient } from './memory-client'
+import type { BrainMemoryClient } from './memory-client'
 import { bounded, laneAuthority } from './authority'
 
 interface Entry {
@@ -89,7 +89,7 @@ export type BrainCaptureObserver = (() => void) & {
 /** Only service-admitted, uniquely matching new input is eligible; events alone authorize nothing. */
 export async function attachBrainCapture(
   live: LiveSession,
-  store: DesktopMemoryClient,
+  store: BrainMemoryClient,
   epoch: number,
   onError: (error: unknown) => void,
 ): Promise<BrainCaptureObserver> {
@@ -106,7 +106,7 @@ export async function attachBrainCapture(
 class InputCapture {
   constructor(
     private readonly live: LiveSession,
-    private readonly store: DesktopMemoryClient,
+    private readonly store: BrainMemoryClient,
     private readonly epoch: number,
     private readonly onError: (error: unknown) => void,
   ) {

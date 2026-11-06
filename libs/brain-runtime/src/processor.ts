@@ -13,7 +13,7 @@ import type { LiveSession } from '@phosphor/session-runtime/pi/session-registry'
 import { verifyBrainModel } from '@phosphor/session-runtime/pi/brain-execution-profile'
 import type { PiEvent } from '@phosphor/shared/rpc'
 import type { BrainServiceOptions } from './service-types'
-import type { DesktopMemoryClient } from './memory-client'
+import type { BrainMemoryClient } from './memory-client'
 import type { BrainCapability, createBrainBridge } from './bridge'
 
 type Bridge = Awaited<ReturnType<typeof createBrainBridge>>
@@ -32,7 +32,7 @@ const PROMPT =
 
 export function createBrainProcessor(
   options: BrainServiceOptions,
-  store: DesktopMemoryClient,
+  store: BrainMemoryClient,
   bridge: Bridge,
   sessionDir: string,
 ) {
@@ -41,7 +41,7 @@ export function createBrainProcessor(
 class BrainProcessor {
   constructor(
     private readonly options: BrainServiceOptions,
-    private readonly store: DesktopMemoryClient,
+    private readonly store: BrainMemoryClient,
     private readonly bridge: Bridge,
     private readonly sessionDir: string,
   ) {}

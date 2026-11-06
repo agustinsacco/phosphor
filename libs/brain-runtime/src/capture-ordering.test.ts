@@ -8,7 +8,7 @@ import type {
 } from '@phosphor/session-runtime/pi/session-startup'
 import { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import { withSessionInput } from '@phosphor/session-runtime/pi/session-input'
-import type { DesktopMemoryClient } from './memory-client'
+import type { BrainMemoryClient } from './memory-client'
 const authority = vi.hoisted(() => ({ scope: '/repo', branch: 'main' }))
 vi.mock('./authority', async (original) => ({
   ...(await original<object>()),
@@ -42,7 +42,7 @@ function memory() {
       captures.push(capture)
       return null
     },
-  } as unknown as DesktopMemoryClient
+  } as unknown as BrainMemoryClient
   return { captures, onError, store }
 }
 async function fixture() {
