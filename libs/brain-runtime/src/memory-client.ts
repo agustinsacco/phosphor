@@ -7,14 +7,14 @@ export interface MemoryProcess {
   onExit(listener: () => void): void
   kill(): void
 }
-export type DesktopMemoryClient = {
+export type BrainMemoryClient = {
   [K in keyof MemoryOperations]: (
     ...args: Parameters<MemoryOperations[K]>
   ) => Promise<ReturnType<MemoryOperations[K]>>
 }
 
 /** One bounded request queue. A timeout poisons the connection: no unknown late writes. */
-export function createMemoryClient(child: MemoryProcess, timeoutMs = 15_000): DesktopMemoryClient {
+export function createMemoryClient(child: MemoryProcess, timeoutMs = 15_000): BrainMemoryClient {
   let nextId = 0
   let stopped = false
   let closing: Promise<void> | undefined
@@ -66,7 +66,7 @@ export function createMemoryClient(child: MemoryProcess, timeoutMs = 15_000): De
   }
   const methods = Object.fromEntries(
     MEMORY_METHODS.map((method) => [method, (...args: unknown[]) => call(method, args)]),
-  ) as DesktopMemoryClient
+  ) as BrainMemoryClient
   methods.close = () => {
     closing ??= call('close', []).then(
       () => {

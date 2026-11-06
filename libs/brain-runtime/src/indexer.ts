@@ -4,11 +4,11 @@ import {
   type BrainSearchResult,
 } from '@phosphor/shared/brain'
 import { brainQuery } from './authority'
-import type { DesktopMemoryClient } from './memory-client'
-import type { BrainEmbeddings } from './embedding-port'
+import type { BrainMemoryClient } from './memory-client'
+import type { BrainEmbeddings } from './embedding/embedding-port'
 
 /** Only reviewed summaries; completion is compared atomically with the pre-embedding revision. */
-export function createBrainIndexer(store: DesktopMemoryClient, embeddings: BrainEmbeddings) {
+export function createBrainIndexer(store: BrainMemoryClient, embeddings: BrainEmbeddings) {
   let stopped = false
   let running: Promise<void> | undefined
   let requested = false
@@ -66,7 +66,7 @@ export function createBrainIndexer(store: DesktopMemoryClient, embeddings: Brain
 }
 
 async function searchBrain(
-  store: DesktopMemoryClient,
+  store: BrainMemoryClient,
   embeddings: BrainEmbeddings,
   signal: AbortSignal,
   query: BrainQuery,

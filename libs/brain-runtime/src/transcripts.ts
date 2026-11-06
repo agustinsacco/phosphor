@@ -9,7 +9,7 @@ import {
   brainOwnerFromEntry,
 } from '@phosphor/session-runtime/pi/brain-session-owner'
 import type { BrainServiceOptions } from './service-types'
-import type { DesktopMemoryClient } from './memory-client'
+import type { BrainMemoryClient } from './memory-client'
 
 const MAX_TRANSCRIPT = 2_000_000
 /** Missing is safe only for the final leaf beneath real, existing owned parents. */
@@ -122,7 +122,7 @@ async function purgeOwnedTranscript(
 
 export function createBrainTranscripts(
   options: BrainServiceOptions,
-  store: DesktopMemoryClient,
+  store: BrainMemoryClient,
   sessionDir: string,
   cancel: (jobId: string) => Promise<void>,
 ) {

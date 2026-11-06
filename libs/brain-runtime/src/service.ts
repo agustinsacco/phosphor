@@ -1,28 +1,23 @@
 import { mkdir, realpath } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import type { BrainStatus } from '@phosphor/shared/brain'
-import { createDesktopMemory } from './memory-service'
 import { createBrainBridge } from './bridge'
 import { createBrainIndexer } from './indexer'
 import { createBrainProcessor } from './processor'
 import { createBrainWorking } from './working'
 import { createBrainTranscripts } from './transcripts'
 import { createBrainLifecycle } from './service-lifecycle'
-import { createBrainUI } from './controller'
+import { createBrainApi } from './controller'
 import type { BrainService, BrainServiceOptions } from './service-types'
-import type { DesktopMemoryClient } from './memory-client'
-export type { BrainService, BrainServiceOptions, BrainUI } from './service-types'
+import type { BrainMemoryClient } from './memory-client'
+export type { BrainService, BrainServiceOptions, BrainApi } from './service-types'
 
-/** Local Desktop binding. No startup downloads, ambient auth, or alternative session spawner. */
+/** Node backend. No startup downloads, ambient auth, or alternative session spawner. */
 export async function createBrainService(options: BrainServiceOptions): Promise<BrainService> {
-  for (const path of [
-    options.directory,
-    options.memoryWorkerPath,
-    ...Object.values(options.resources),
-  ])
+  for (const path of [options.directory, ...Object.values(options.resources)])
     if (!isAbsolute(path)) throw new Error('Brain requires absolute owned resource paths')
   await mkdir(options.directory, { recursive: true, mode: 0o700 })
-  const store = createDesktopMemory(options.directory, options.memoryWorkerPath)
+  const store = options.openStore(options.directory)
   try {
     return await assembleBrainService(options, store)
   } catch (error) {
@@ -34,7 +29,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
 /** Injectable worker port for focused integration tests; never exposed through IPC. */
 export async function assembleBrainService(
   options: BrainServiceOptions,
-  store: DesktopMemoryClient,
+  store: BrainMemoryClient,
 ): Promise<BrainService> {
   const sessionDir = join(await realpath(options.directory), 'sessions')
   await mkdir(sessionDir, { recursive: true, mode: 0o700 })
@@ -83,7 +78,7 @@ export async function assembleBrainService(
     bridge.revokeAll()
     await processor.revoke()
   }
-  const ui = createBrainUI({
+  const api = createBrainApi({
     options,
     store,
     indexer,
@@ -107,5 +102,5 @@ export async function assembleBrainService(
   } catch (error) {
     options.onError?.(error)
   }
-  return { ui, memory: working.memory, dispose: lifecycle.dispose }
+  return { api, memory: working.memory, dispose: lifecycle.dispose }
 }

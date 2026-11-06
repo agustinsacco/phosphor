@@ -11,7 +11,7 @@ import { BRAIN_EMBEDDING_MODEL } from '@phosphor/shared/brain'
 import type { LiveSession } from '@phosphor/session-runtime/pi/session-registry'
 import type { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import type { BrainServiceOptions } from '../service-types'
-import type { DesktopMemoryClient } from '../memory-client'
+import type { BrainMemoryClient } from '../memory-client'
 import type { MemoryRequest } from '../memory-protocol'
 import { MEMORY_METHODS } from '../memory-protocol'
 import { createMemoryHandler } from '../memory-worker-handler'
@@ -61,8 +61,8 @@ export async function adapterFixture() {
         return result.data
       },
     ]),
-  ) as DesktopMemoryClient
-  const { lives, registry, embeds, options } = sessionFixture(root, directory)
+  ) as BrainMemoryClient
+  const { lives, registry, embeds, options } = sessionFixture(root, directory, store)
   const model = { provider: 'openai', id: 'synthetic' }
   const snapshot = engine.setPrefs({
     enabled: true,
@@ -124,7 +124,7 @@ function embeddingFixture() {
   return embeds
 }
 
-function sessionFixture(root: string, directory: string) {
+function sessionFixture(root: string, directory: string, store: BrainMemoryClient) {
   const lives = new Map<string, LiveSession>()
   const emitter = new EventEmitter()
   const registry = Object.assign(emitter, {
@@ -138,7 +138,7 @@ function sessionFixture(root: string, directory: string) {
   const embeds = embeddingFixture()
   const options: BrainServiceOptions = {
     directory,
-    memoryWorkerPath: join(root, 'brain-memory-worker.js'),
+    openStore: vi.fn(() => store),
     embeddings: embeds,
     resources: {
       workingExtension: join(root, 'brain.mjs'),

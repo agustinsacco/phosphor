@@ -1,6 +1,6 @@
 import { connect } from 'node:net'
 import { expect, it, vi } from 'vitest'
-import type { BrainAgentResponse } from '@shared/brain'
+import type { BrainAgentResponse } from '@phosphor/shared/brain'
 import { createBrainBridge, type BrainCapability, type BrainBridgeRuntime } from './bridge'
 
 function exchange(endpoint: string, token: string, method: string, params: unknown = {}) {

@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { BrainCapture } from '@phosphor/shared/brain'
 import type { LiveSession } from '@phosphor/session-runtime/pi/session-registry'
-import type { DesktopMemoryClient } from './memory-client'
+import type { BrainMemoryClient } from './memory-client'
 const authority = vi.hoisted(() => ({ scope: '/repo', branch: 'main' }))
 vi.mock('./authority', async (original) => ({
   ...(await original<object>()),
@@ -52,7 +52,7 @@ async function fixture(baselineSwitch = false) {
       captures.push(input)
       return null
     },
-  } as unknown as DesktopMemoryClient
+  } as unknown as BrainMemoryClient
   const attach = async () => {
     const observer = (await attachBrainCapture(live, store, 1, onError)) as Observer
     cleanups.push(observer)

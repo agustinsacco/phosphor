@@ -3,7 +3,11 @@ import { chmod, mkdtemp, rm } from 'node:fs/promises'
 import { createServer, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { BrainAgentMethod, BrainAgentRequest, BrainAgentResponse } from '@shared/brain'
+import type {
+  BrainAgentMethod,
+  BrainAgentRequest,
+  BrainAgentResponse,
+} from '@phosphor/shared/brain'
 
 export interface BrainCapability {
   kind: 'working' | 'processor'

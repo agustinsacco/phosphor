@@ -3,8 +3,7 @@ import { BRAIN_EMBEDDING_MODEL } from '@phosphor/shared/brain'
 import { adapterFixture, deferred } from './__fixtures__/adapter-fixture'
 import { createBrainIndexer } from './indexer'
 
-vi.mock('electron', () => ({ utilityProcess: { fork: vi.fn() } }))
-const { assembleBrainService } = await import('./service')
+import { assembleBrainService } from './service'
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close()
@@ -140,7 +139,7 @@ it.each(['startup', 'enable'] as const)(
     cleanup.push(() => service.dispose())
     if (when === 'enable') {
       expect(f.embeddings.embed).not.toHaveBeenCalled()
-      await service.ui['brain:setPrefs']({ ...f.engine.snapshot().prefs, enabled: true })
+      await service.api.setPrefs({ ...f.engine.snapshot().prefs, enabled: true })
     }
     expect(f.engine.snapshot().counts.vectors).toBe(1)
     expect(f.embeddings.download).not.toHaveBeenCalled()
@@ -154,12 +153,12 @@ it('returns saved consent despite optional indexing failure and retries on the n
   cleanup.push(() => service.dispose())
   const failure = new Error('Synthetic local embedding timeout')
   f.embeddings.embed.mockRejectedValueOnce(failure)
-  const status = await service.ui['brain:setPrefs']({ ...f.engine.snapshot().prefs, enabled: true })
+  const status = await service.api.setPrefs({ ...f.engine.snapshot().prefs, enabled: true })
   expect(status.snapshot.prefs.enabled).toBe(true)
   expect(status.snapshot.policyEpoch).toBe(f.engine.snapshot().policyEpoch)
   expect(f.options.onError).toHaveBeenCalledWith(failure)
   expect(f.engine.snapshot().counts.vectors).toBe(0)
-  await service.ui['brain:setPrefs'](status.snapshot.prefs)
+  await service.api.setPrefs(status.snapshot.prefs)
   expect(f.engine.snapshot().counts.vectors).toBe(1)
   expect(f.options.sessions.create).not.toHaveBeenCalled()
 })
@@ -215,12 +214,12 @@ it.each([false, true])(
     expect(f.engine.snapshot().counts.vectors).toBe(2)
     const failure = new Error('Synthetic derived indexing failure')
     if (fails) f.embeddings.embed.mockRejectedValueOnce(failure)
-    const result = await f.service.ui['brain:forget']([f.evidence.id])
+    const result = await f.service.api.forget([f.evidence.id])
     expect(result.evidence).toBe(1)
     expect(f.engine.snapshot().claims.map((claim) => claim.state)).toEqual(['active'])
     if (fails) {
       expect(f.options.onError).toHaveBeenCalledWith(failure)
-      await f.service.ui['brain:setPrefs'](f.engine.snapshot().prefs)
+      await f.service.api.setPrefs(f.engine.snapshot().prefs)
     }
     expect(f.engine.snapshot().counts.vectors).toBe(1)
     expect(f.engine.embeddingItems(BRAIN_EMBEDDING_MODEL.id, 8)).toEqual([])

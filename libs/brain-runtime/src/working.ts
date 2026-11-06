@@ -4,7 +4,7 @@ import type {
   SessionMemoryAugmentation,
 } from '@phosphor/session-runtime/pi/session-startup'
 import type { BrainServiceOptions } from './service-types'
-import type { DesktopMemoryClient } from './memory-client'
+import type { BrainMemoryClient } from './memory-client'
 import type { BrainCapability, createBrainBridge } from './bridge'
 import type { createBrainIndexer } from './indexer'
 import { bounded, brainQuery, fields, identifier, laneAuthority } from './authority'
@@ -13,7 +13,7 @@ import { attachBrainCapture, type BrainCaptureObserver } from './capture'
 type Bridge = Awaited<ReturnType<typeof createBrainBridge>>
 export function createBrainWorking(
   options: BrainServiceOptions,
-  store: DesktopMemoryClient,
+  store: BrainMemoryClient,
   bridge: Bridge,
   indexer: ReturnType<typeof createBrainIndexer>,
 ) {
@@ -22,7 +22,7 @@ export function createBrainWorking(
 class BrainWorking {
   constructor(
     private readonly options: BrainServiceOptions,
-    private readonly store: DesktopMemoryClient,
+    private readonly store: BrainMemoryClient,
     private readonly bridge: Bridge,
     private readonly indexer: ReturnType<typeof createBrainIndexer>,
   ) {

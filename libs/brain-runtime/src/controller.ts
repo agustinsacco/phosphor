@@ -1,5 +1,5 @@
-import type { BrainServiceOptions, BrainUI } from './service-types'
-import type { DesktopMemoryClient } from './memory-client'
+import type { BrainServiceOptions, BrainApi } from './service-types'
+import type { BrainMemoryClient } from './memory-client'
 import type { BrainStatus } from '@phosphor/shared/brain'
 import type { createBrainIndexer } from './indexer'
 import type { createBrainProcessor } from './processor'
@@ -8,7 +8,7 @@ import { bounded, brainQuery, canonicalPrefs, identifier, laneAuthority } from '
 
 interface Controller {
   options: BrainServiceOptions
-  store: DesktopMemoryClient
+  store: BrainMemoryClient
   indexer: ReturnType<typeof createBrainIndexer>
   processor: ReturnType<typeof createBrainProcessor>
   transcripts: ReturnType<typeof createBrainTranscripts>
@@ -25,13 +25,13 @@ async function indexDerived({ indexer, options }: Controller): Promise<void> {
     options.onError?.(error)
   }
 }
-export function createBrainUI(controller: Controller): BrainUI {
+export function createBrainApi(controller: Controller): BrainApi {
   const { options, store, indexer, processor, transcripts, serialize, status, revoke, isClosed } =
     controller
   const index = () => indexDerived(controller)
-  const ui: BrainUI = {
-    'brain:status': status,
-    'brain:setPrefs': (prefs) =>
+  const api: BrainApi = {
+    status,
+    setPrefs: (prefs) =>
       serialize(async () => {
         bounded(prefs)
         const canonical = await canonicalPrefs(prefs)
@@ -42,19 +42,19 @@ export function createBrainUI(controller: Controller): BrainUI {
         await index()
         return status()
       }),
-    'brain:download': async (acceptTerms) => {
+    download: async (acceptTerms) => {
       if (isClosed() || acceptTerms !== true)
         throw new Error('Explicit model terms acknowledgement required')
       await options.embeddings.download(true)
       await index()
       return status()
     },
-    'brain:removeModel': async () => {
+    removeModel: async () => {
       if (isClosed()) throw new Error('Brain is disposed')
       await options.embeddings.remove()
       return status()
     },
-    'brain:search': async (query) => {
+    search: async (query) => {
       brainQuery(query)
       const snapshot = await store.snapshot()
       const scopes = query.scopes ?? snapshot.prefs.workspaces
@@ -65,28 +65,27 @@ export function createBrainUI(controller: Controller): BrainUI {
         throw new Error('Brain search scope unavailable')
       return indexer.search(query, scopes)
     },
-    'brain:read': async (id) =>
-      store.read(identifier(id), (await store.snapshot()).prefs.workspaces),
-    'brain:evidence': (scope, cursor) =>
+    read: async (id) => store.read(identifier(id), (await store.snapshot()).prefs.workspaces),
+    evidence: (scope, cursor) =>
       store.evidencePage(bounded(scope), cursor === undefined ? undefined : identifier(cursor)),
-    'brain:graph': (id) => store.graph(id === undefined ? undefined : identifier(id)),
-    'brain:process': (scope, consent) =>
+    graph: (id) => store.graph(id === undefined ? undefined : identifier(id)),
+    process: (scope, consent) =>
       serialize(async () => {
         bounded(consent)
         const canonical = (await laneAuthority(scope)).scope
         return processor.process(canonical, consent)
       }),
-    'brain:cancel': (id) => serialize(() => processor.cancel(identifier(id))),
-    'brain:review': (id, approve, revision) =>
+    cancel: (id) => serialize(() => processor.cancel(identifier(id))),
+    review: (id, approve, revision) =>
       serialize(async () => {
         if (typeof approve !== 'boolean') throw new Error('Invalid Brain review')
         await store.review(identifier(id), approve, bounded(revision))
       }).then(index),
-    'brain:correct': (id, correction, revision) =>
+    correct: (id, correction, revision) =>
       serialize(async () => {
         await store.correct(identifier(id), bounded(correction), bounded(revision))
       }).then(index),
-    'brain:forget': (ids) =>
+    forget: (ids) =>
       serialize(async () => {
         if (!Array.isArray(ids) || ids.length > 500)
           throw new Error('Invalid Brain forget selection')
@@ -98,7 +97,7 @@ export function createBrainUI(controller: Controller): BrainUI {
         await index()
         return result
       }),
-    'brain:transcript': (id) => transcripts.read(identifier(id)),
+    transcript: (id) => transcripts.read(identifier(id)),
   }
-  return ui
+  return api
 }
