@@ -240,6 +240,106 @@ it('requires explicit confirmation before decreasing retention', async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(retention, '5')
     retention.dispatchEvent(new Event('input', { bubbles: true }))
   })
-  expect([...container.querySelectorAll('button')].find((b) => b.textContent === 'Save Brain settings')!.disabled).toBe(true)
+  expect(
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save Brain settings')!
+      .disabled,
+  ).toBe(true)
   expect(container.textContent).toContain('retained-since-capture')
+})
+
+it('recovers the enrollment workspace list after its first load fails', async () => {
+  const normal = invoke.getMockImplementation()!
+  let attempts = 0
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'app:getPrefs' && attempts++ === 0) throw new Error('workspaces offline')
+    return normal(channel)
+  })
+  await act(async () => root.render(<BrainPage />))
+  await click('Settings')
+  expect(container.textContent).toContain('workspaces offline')
+  await click('Retry workspaces')
+  expect(container.textContent).not.toContain('workspaces offline')
+})
+
+it('processes only after explicit per-run consent and passes the exact enrolled workspace', async () => {
+  const fixture = brainFixture()
+  fixture.snapshot.prefs.enabled = true
+  fixture.snapshot.prefs.processor = { provider: 'exact-provider', id: 'exact-model' }
+  invoke.mockResolvedValue(fixture)
+  await act(async () => root.render(<BrainPage />))
+  await click('Activity')
+  expect(
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!
+      .disabled,
+  ).toBe(true)
+  await act(async () =>
+    (container.querySelector('input[type="checkbox"]') as HTMLInputElement).click(),
+  )
+  await click('Process workspace')
+  expect(invoke).toHaveBeenCalledWith('brain:process', '/synthetic')
+  expect(
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!
+      .disabled,
+  ).toBe(true)
+})
+
+it('requires explicit forgetting consent and warns that delivered copies survive', async () => {
+  await act(async () => root.render(<BrainPage />))
+  await click('Synthetic claim')
+  await click('Forget cited evidence…')
+  expect(container.textContent).toContain('Already delivered copies')
+  const forget = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent === 'Confirm forget evidence',
+  )!
+  expect(forget.disabled).toBe(true)
+  const confirmation = container.querySelector(
+    '[aria-label="Confirm forgetting evidence"] input',
+  ) as HTMLInputElement
+  await act(async () => confirmation.click())
+  await click('Confirm forget evidence')
+  expect(invoke).toHaveBeenCalledWith('brain:forget', ['evidence'])
+})
+
+it('submits a human correction only with reason, confirmation and the reviewed revision', async () => {
+  await act(async () => root.render(<BrainPage />))
+  await click('Synthetic claim')
+  await click('Correct claim…')
+  expect(
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Confirm correction')!
+      .disabled,
+  ).toBe(true)
+  const form = container.querySelector('[aria-label="Claim inspector"] form')!
+  const reason = form.querySelector('textarea')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      reason,
+      'Human correction reason',
+    )
+    reason.dispatchEvent(new Event('input', { bubbles: true }))
+    ;(form.querySelector('input[type="checkbox"]') as HTMLInputElement).click()
+  })
+  await click('Confirm correction')
+  expect(invoke).toHaveBeenCalledWith(
+    'brain:correct',
+    'claim',
+    expect.objectContaining({ reason: 'Human correction reason', literal: 'test' }),
+    { graphRevision: 3, policyEpoch: 2 },
+  )
+})
+
+it('keeps a refused review visible across successful background status polls', async () => {
+  vi.useFakeTimers()
+  try {
+    const normal = invoke.getMockImplementation()!
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'brain:review') throw new Error('Stale review: refresh and review again')
+      return normal(channel)
+    })
+    await act(async () => root.render(<BrainPage />))
+    await click('Activity')
+    await click('Reject')
+    expect(container.textContent).toContain('Stale review: refresh and review again')
+    await act(async () => vi.advanceTimersByTimeAsync(3000))
+    expect(container.textContent).toContain('Stale review: refresh and review again')
+  } finally { vi.useRealTimers() }
 })
