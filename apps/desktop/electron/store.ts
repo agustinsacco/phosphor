@@ -89,7 +89,10 @@ export function getPrefs(): AppPrefs {
     rewoundSessions: pruneRewoundSessions(s.get('rewoundSessions') ?? {}),
     sessionOrder: s.get('sessionOrder') ?? [],
     modelPicks: { ...DEFAULT_MODEL_PICKS, ...s.get('modelPicks') },
-    collapsedWorkspaces: canonicalPaths(s.get('collapsedWorkspaces') ?? [], realPathOrNull),
+    // Host folder keys (`host:…`) are not paths; only This Mac's folders resolve.
+    collapsedWorkspaces: canonicalPaths(s.get('collapsedWorkspaces') ?? [], (path) =>
+      path.startsWith('host:') ? null : realPathOrNull(path),
+    ),
     seenSessions: s.get('seenSessions') ?? {},
     laneMarkers: s.get('laneMarkers') ?? {},
     // Normalized on read as well as write: prefs are user-editable JSON, and
