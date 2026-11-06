@@ -111,3 +111,13 @@ describe('portable startup', () => {
     await h.registry.disposeAll()
   })
 })
+it('keeps optional memory baseline failures from refusing an ordinary resume', async () => {
+  const h = sessionFixture()
+  const dispose = vi.fn(async () => {})
+  h.runtime.memory = { prepare: async () => ({ onCreated: async () => { throw new Error('Optional baseline exceeded') }, dispose }) }
+  const live = await h.spawn({ workspacePath: '/repo', sessionPath: '/repo/ordinary.jsonl' }, h.sink)
+  expect(h.registry.get(live.sessionId)).toBeDefined()
+  expect(dispose).toHaveBeenCalled()
+  expect(h.runtime.log).toHaveBeenCalledWith('brain', expect.any(String), expect.any(Object))
+  await h.registry.disposeAll()
+})
