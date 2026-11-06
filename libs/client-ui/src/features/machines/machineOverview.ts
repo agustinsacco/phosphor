@@ -3,6 +3,7 @@ import { machineStatus, type MachineStatus, type MachineView } from '@shared/con
 import type { HostConnectionView } from '@shared/ipc'
 import type { AboutInfo } from '@shared/models'
 import type { TailscaleStatus } from '@shared/tailscale-status'
+import { platformName } from '@shared/platform-name'
 import { localMachineLabel } from '@/lib/localMachine'
 import { usePlatform } from '@/platform/Platform'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
@@ -13,7 +14,6 @@ import {
   claudeReadiness,
   localChecks,
   localClaude,
-  platformName,
   readinessChecks,
   readinessFreshness,
   relativeTime,

@@ -10,6 +10,7 @@ import {
 } from '@/features/chat/attachments'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore, canControlSession, adoptRemoteLane } from '@/stores/remoteLanes'
+import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
 import { piCallOk } from '@/lib/rpc'
 import { requestSwarm } from '@/lib/swarm'
 
@@ -48,8 +49,7 @@ export async function startRemoteChat(
   if (!canControlSession(info.sessionId))
     await window.phosphor.invoke('hosts:takeControl', hostId, info.laneId)
   // Main rechecks the fence; the renderer must not attempt a viewer prompt.
-  const fresh = await window.phosphor.invoke('hosts:snapshot')
-  useRemoteLanesStore.setState({ hosts: fresh })
+  await refreshHostsSnapshot()
   if (!canControlSession(info.sessionId)) throw new Error()
   // As on This Mac: the first prompt never runs without the authorization the user chose.
   if (swarm)

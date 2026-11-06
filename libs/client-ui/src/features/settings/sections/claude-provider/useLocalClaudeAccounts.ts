@@ -25,7 +25,7 @@ import {
   type ClaudeAccountsSource,
 } from '../accounts/accountsModel'
 import type { ClaudeHealthModel, ClaudeInstallable } from './ClaudeHealth'
-import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
+import { useLocalRead } from '../../machine/ScopeRefresh'
 
 const CLAUDE_PROVIDER_SPEC = 'npm:@saccolabs/pi-claude-cli'
 
@@ -71,10 +71,7 @@ function useLocalClaudeState() {
       setError(errorText(caught))
     }
   }, [])
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-  useOnLocalRefresh(refresh)
+  useLocalRead(refresh)
   return { state, setState, error, refresh }
 }
 

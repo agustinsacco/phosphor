@@ -1,5 +1,6 @@
 import { receiptDurationLabel } from '@shared/lane-receipt'
 import { stripAnsi } from '@shared/ansi'
+import { platformName } from '@shared/platform-name'
 import { localMachineLabel } from '@/lib/localMachine'
 import { useMachinesStore } from '@/stores/machines'
 import { TooltipButton } from '@/components/Tooltip'
@@ -61,9 +62,7 @@ export function LaneReceiptCard({
         <span className="text-text-secondary flex items-center justify-between text-xs">
           <span className="border-border rounded border px-1.5 py-0.5">
             {receipt?.machine ?? localMachineLabel()}
-            {platform
-              ? ` · ${platform === 'darwin' ? 'macOS' : platform === 'linux' ? 'Linux' : platform}`
-              : ''}
+            {platform ? ` · ${platformName(platform)}` : ''}
           </span>
           <time dateTime={receipt?.at}>{age ? `${age}m ago` : 'Just now'}</time>
         </span>

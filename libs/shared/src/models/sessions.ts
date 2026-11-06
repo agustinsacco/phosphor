@@ -1,5 +1,6 @@
 import type { HostTarget } from '../remote-host'
 import type { ExtensionUIRequest, PiEvent } from '../rpc'
+import { compareVersions } from '../version'
 
 export interface PiHealth {
   ok: boolean
@@ -170,6 +171,11 @@ export interface WorkspaceSessionStats {
 
 /** Minimum pi version Phosphor is verified against. */
 export const MIN_PI_VERSION = '1.2.0'
+
+/** Is this pi older than `MIN_PI_VERSION`? A prerelease of the minimum is not. */
+export function isPiTooOld(version: string): boolean {
+  return compareVersions(version, MIN_PI_VERSION) < 0
+}
 
 /**
  * The first `@saccolabs/pi-claude-cli` release a Claude session starts on.

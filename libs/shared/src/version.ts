@@ -50,6 +50,25 @@ export function meetsMinimum(version: string | undefined, minimum: string): bool
   return !isNewerVersion(minimum, version)
 }
 
+/**
+ * Order dotted versions numerically: <0, 0 or >0. Missing segments count as
+ * `0` and a segment reads up to its first non-digit, so a prerelease never
+ * sorts below its release (`1.2.0-rc.1` reads as `1.2.0.1`). It holds pi to
+ * its minimum (`isPiTooOld`), the same on Desktop, on a Host and in Settings.
+ * Unlike `meetsMinimum`, it keeps the Desktop and Host pi gates as they
+ * shipped, which let a prerelease of the minimum pass.
+ */
+export function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map((n) => parseInt(n, 10) || 0)
+  const pb = b.split('.').map((n) => parseInt(n, 10) || 0)
+  const len = Math.max(pa.length, pb.length)
+  for (let i = 0; i < len; i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
 interface ParsedVersion {
   nums: number[]
   pre: string

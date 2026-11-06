@@ -191,5 +191,6 @@ timer would otherwise start a second one on top of it.
 - `UpdatePill` (sidebar footer) renders only `downloading`, `installing`,
   `downloaded`, `manual-download`. Only the last two are clickable, because only
   those can do anything.
-- Settings → About has **Check now**, the one way to ask "am I current?" while
-  the pill is hidden.
+- Settings → About and This Mac's Settings → Advanced have **Check now** (one
+  shared row, `useAppUpdate`), the way to ask "am I current?" while the pill is
+  hidden.

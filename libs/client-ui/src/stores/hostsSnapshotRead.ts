@@ -10,7 +10,10 @@ export function bindHostsSnapshotRead(read: () => Promise<void>): void {
   listenerRead = read
 }
 
-/** Reads main's Host snapshot again through the listener, coalesced with a read in flight. */
+/**
+ * Reads main's Host snapshot again through the listener, coalesced with a read
+ * in flight, and resolves once a read started after the call has landed.
+ */
 export function refreshHostsSnapshot(): Promise<void> {
   return listenerRead()
 }

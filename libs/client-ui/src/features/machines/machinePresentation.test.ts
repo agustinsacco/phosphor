@@ -6,7 +6,6 @@ import {
   HOST_INSTALL,
   localChecks,
   localClaude,
-  platformName,
   readinessFreshness,
   readinessChecks,
   relativeTime,
@@ -15,13 +14,10 @@ import {
 import { CLAUDE_PROVIDER } from './__fixtures__/control'
 import { MACHINE } from './__fixtures__/control'
 const now = Date.parse('2026-01-01T03:00:00.000Z')
-it('says relative times and platform names in words', () => {
+it('says relative times in words', () => {
   const online = { ...MACHINE, lastSeenAt: new Date(now).toISOString(), state: 'running' as const }
   expect(relativeTime(online.lastSeenAt, now - 10000)).toBe('just now')
   expect(relativeTime('2026-01-01T00:00:00.000Z', now)).toBe('3 h ago')
-  expect(platformName('darwin')).toBe('macOS')
-  expect(platformName('win32')).toBe('Windows')
-  expect(platformName('linux')).toBe('Linux')
 })
 it('sorts online first then label without mutating input', () => {
   const entries = [

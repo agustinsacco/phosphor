@@ -3,8 +3,8 @@ import { basename, dirname } from 'node:path'
 import type { Readiness } from '@phosphor/shared/control-api'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { claudeContextProviderShortfall } from '@phosphor/session-runtime/pi/provider-detect'
-import { MIN_PI_VERSION } from '@phosphor/shared/models'
-import { compareVersions, extractVersion } from '@phosphor/session-runtime/pi/versions'
+import { isPiTooOld } from '@phosphor/shared/models'
+import { extractVersion } from '@phosphor/session-runtime/pi/versions'
 import type { HostConfigV1 } from '../config/schema'
 import { parseLoggedIn } from './claude'
 import { buildPiEnvironment } from './environment'
@@ -18,7 +18,7 @@ export function piReadiness(run: ProbeResult | null): Readiness['pi'] {
   if (!run) return 'missing'
   if (!clean(run) || run.code !== 0) return 'unknown'
   const version = extractVersion(`${run.stdout}\n${run.stderr}`)
-  return version ? (compareVersions(version, MIN_PI_VERSION) < 0 ? 'outdated' : 'ok') : 'unknown'
+  return version ? (isPiTooOld(version) ? 'outdated' : 'ok') : 'unknown'
 }
 export function claudeReadiness(run: ProbeResult | null): Readiness['claude'] {
   if (!run) return 'missing'
