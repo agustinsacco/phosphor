@@ -128,3 +128,29 @@ it('reads a stale project copy beside a current global one as outdated, as main 
     invoke.mockImplementation(base)
   }
 })
+
+it('names the stale copy in the outdated warning, as main names the copy it refuses', async () => {
+  const copy = (scope: 'global' | 'project', version: string) => ({
+    spec: 'npm:@saccolabs/pi-claude-cli',
+    scope,
+    kind: 'npm',
+    filtered: false,
+    name: '@saccolabs/pi-claude-cli',
+    version,
+    installed: true,
+    resources: {},
+  })
+  const base = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'packages:list'
+      ? [copy('global', '0.10.2'), copy('project', '0.8.0')]
+      : base(channel),
+  )
+  try {
+    await act(async () => root.render(<LocalClaudeProvider />))
+    await vi.waitFor(() => expect(container.textContent).toContain('this is 0.8.0'))
+    expect(container.textContent).toContain('@saccolabs/pi-claude-cli v0.8.0 (project)')
+  } finally {
+    invoke.mockImplementation(base)
+  }
+})
