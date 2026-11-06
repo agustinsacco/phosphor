@@ -1,0 +1,78 @@
+import {
+  BRAIN_EMBEDDING_MODEL,
+  type BrainQuery,
+  type BrainSearchResult,
+} from '@phosphor/shared/brain'
+import type { DesktopMemoryClient } from './memory-client'
+import type { BrainEmbeddings } from './embedding-port'
+
+/** Only reviewed summaries; completion is compared atomically with the pre-embedding revision. */
+export function createBrainIndexer(store: DesktopMemoryClient, embeddings: BrainEmbeddings) {
+  let stopped = false
+  let running: Promise<void> | undefined
+  const abort = new AbortController()
+  async function index(): Promise<void> {
+    for (let batch = 0; batch < 25 && !stopped; batch++) {
+      const revision = await store.snapshot()
+      if (!revision.prefs.enabled || embeddings.status().phase !== 'ready') return
+      const items = await store.embeddingItems(BRAIN_EMBEDDING_MODEL.id, 8)
+      if (!items.length) return
+      const vectors = await embeddings.embed(
+        items.map((item) => item.text),
+        'document',
+        abort.signal,
+      )
+      if (stopped || vectors.length !== items.length) return
+      if (
+        !(await store.commitVectors(
+          revision,
+          items.map((item, index) => ({
+            claimId: item.claimId,
+            modelId: BRAIN_EMBEDDING_MODEL.id,
+            values: vectors[index]!,
+          })),
+        ))
+      )
+        return
+    }
+  }
+  return {
+    index() {
+      running ??= index().finally(() => {
+        running = undefined
+      })
+      return running
+    },
+    async search(query: BrainQuery, scopes: string[]): Promise<BrainSearchResult> {
+      const revision = await store.snapshot()
+      let vector: { modelId: string; values: number[] } | undefined
+      let degraded = false
+      if (query.mode !== 'lexical') {
+        try {
+          const result = await embeddings.embed([query.query], 'query', abort.signal)
+          if (result.length !== 1 || !result[0]) throw new Error('Embedding query unavailable')
+          vector = { modelId: BRAIN_EMBEDDING_MODEL.id, values: result[0] }
+        } catch {
+          degraded = true
+        }
+      }
+      const result = await store.search(query, scopes, vector)
+      if (
+        result.policyEpoch !== revision.policyEpoch ||
+        result.graphRevision !== revision.graphRevision
+      )
+        throw new Error('Brain changed during retrieval; retry')
+      if (degraded) {
+        result.degradation.push(
+          'Local semantic retrieval unavailable; lexical and typed graph results only',
+        )
+        result.status = 'partial'
+      }
+      return result
+    },
+    dispose() {
+      stopped = true
+      abort.abort()
+    },
+  }
+}
