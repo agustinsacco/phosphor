@@ -62,19 +62,19 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it('characterizes the Desktop Host lane menu for a reader: control first, then the rest', () => {
+it("characterizes the Desktop Host lane menu for a reader: This Mac's order, control before Stop", () => {
   render(host(false))
   expect(menuRows()).toEqual([
     ['Open', false],
     ['Move upAlt+↑', true],
     ['Move downAlt+↓', true],
-    ['RenameTake control first.', true],
+    ['Rename…Take control first.', true],
+    ['Make routine…This Host does not offer routines to this device.', true],
+    ['Pin', false],
+    ['Lane marker…', false],
     ['Take control', false],
     ['StopTake control first.', true],
     ['Mark read', false],
-    ['Make routine…This Host does not offer routines to this device.', true],
-    ['Pin', false],
-    ['Lane marker', false],
     ['Export HTML…', false],
     ['Copy debug info', false],
     ['Copy spend', false],
@@ -88,13 +88,13 @@ it('characterizes the Desktop Host lane menu for the controller', () => {
     ['Open', false],
     ['Move upAlt+↑', true],
     ['Move downAlt+↓', true],
-    ['Rename', false],
+    ['Rename…', false],
+    ['Make routine…This Host does not offer routines to this device.', true],
+    ['Pin', false],
+    ['Lane marker…', false],
     ['Release control', false],
     ['Stop', false],
     ['Mark read', false],
-    ['Make routine…This Host does not offer routines to this device.', true],
-    ['Pin', false],
-    ['Lane marker', false],
     ['Export HTML…', false],
     ['Copy debug info', false],
     ['Copy spend', false],
