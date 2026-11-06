@@ -11,6 +11,15 @@ import type { BrainTransport } from './port'
 import { BRAIN_RESULT_VALIDATORS } from './validate'
 
 export type { BrainConnection, BrainTransport } from './port'
+export {
+  brainDataBlock,
+  clipBrainText,
+  describeBrainClaim,
+  describeBrainEvidence,
+  escapeBrainText,
+  fitBrainGroups,
+  type BrainDataSource,
+} from './format'
 
 /**
  * Every failure a Brain caller can see. Messages never carry the capability
