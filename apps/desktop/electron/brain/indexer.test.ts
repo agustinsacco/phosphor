@@ -147,6 +147,87 @@ it.each(['startup', 'enable'] as const)(
     expect(f.options.sessions.create).not.toHaveBeenCalled()
   },
 )
+it('returns saved consent despite optional indexing failure and retries on the next request', async () => {
+  const f = await reviewedFixture()
+  f.engine.setPrefs({ ...f.engine.snapshot().prefs, enabled: false })
+  const service = await assembleBrainService({ ...f.options, embeddings: f.embeddings }, f.store)
+  cleanup.push(() => service.dispose())
+  const failure = new Error('Synthetic local embedding timeout')
+  f.embeddings.embed.mockRejectedValueOnce(failure)
+  const status = await service.ui['brain:setPrefs']({ ...f.engine.snapshot().prefs, enabled: true })
+  expect(status.snapshot.prefs.enabled).toBe(true)
+  expect(status.snapshot.policyEpoch).toBe(f.engine.snapshot().policyEpoch)
+  expect(f.options.onError).toHaveBeenCalledWith(failure)
+  expect(f.engine.snapshot().counts.vectors).toBe(0)
+  await service.ui['brain:setPrefs'](status.snapshot.prefs)
+  expect(f.engine.snapshot().counts.vectors).toBe(1)
+  expect(f.options.sessions.create).not.toHaveBeenCalled()
+})
+
+async function conflictingFixture() {
+  const f = await reviewedFixture()
+  const source = f.engine.capture({
+    ...f.evidence,
+    entryId: 'conflicting-input',
+    rootIds: ['conflicting-input'],
+    text: 'Atlas depends on Venus',
+  })!
+  const job = f.engine.claimJob(
+    f.engine.createJob(f.scope, f.model, f.engine.snapshot().policyEpoch).id,
+  )
+  const proposal = f.engine.submit(job.id, job.fence, {
+    entities: [
+      { key: 'atlas', label: 'Atlas', kind: 'component', aliases: [], evidenceIds: [source.id] },
+    ],
+    claims: [
+      {
+        subject: 'atlas',
+        predicate: 'depends_on',
+        literal: 'Venus',
+        summary: 'Atlas depends on Venus',
+        kind: 'reported',
+        citations: [{ evidenceId: source.id, quote: source.text }],
+        validFrom: null,
+        validTo: null,
+      },
+    ],
+    rationale: 'Independent conflicting user evidence',
+  })
+  f.engine.review(proposal.id, true, f.engine.snapshot())
+  const embeddings = {
+    ...f.embeddings,
+    embed: vi.fn(async (texts: string[]) =>
+      texts.map(() => Array.from({ length: 768 }, (_, index) => (index === 0 ? 1 : 0))),
+    ),
+  }
+  const service = await assembleBrainService({ ...f.options, embeddings }, f.store)
+  cleanup.push(() => service.dispose())
+  return { ...f, embeddings, service }
+}
+it.each([false, true])(
+  'rebuilds surviving vectors after forgetting without losing the result on embedding failure=%s',
+  async (fails) => {
+    const f = await conflictingFixture()
+    expect(f.engine.snapshot().claims.map((claim) => claim.state)).toEqual([
+      'contested',
+      'contested',
+    ])
+    expect(f.engine.snapshot().counts.vectors).toBe(2)
+    const failure = new Error('Synthetic derived indexing failure')
+    if (fails) f.embeddings.embed.mockRejectedValueOnce(failure)
+    const result = await f.service.ui['brain:forget']([f.evidence.id])
+    expect(result.evidence).toBe(1)
+    expect(f.engine.snapshot().claims.map((claim) => claim.state)).toEqual(['active'])
+    if (fails) {
+      expect(f.options.onError).toHaveBeenCalledWith(failure)
+      await f.service.ui['brain:setPrefs'](f.engine.snapshot().prefs)
+    }
+    expect(f.engine.snapshot().counts.vectors).toBe(1)
+    expect(f.engine.embeddingItems(BRAIN_EMBEDDING_MODEL.id, 8)).toEqual([])
+    expect(f.options.sessions.create).not.toHaveBeenCalled()
+  },
+)
+
 it('exposes semantic degradation without silently substituting another embedding model', async () => {
   const f = await reviewedFixture()
   f.embeddings.embed.mockRejectedValue(new Error('Model unavailable'))
