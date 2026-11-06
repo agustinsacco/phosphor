@@ -50,6 +50,16 @@ it('registers lazily and retries service acquisition after a failed first load',
   await expect(status()).resolves.toBe('ready')
   expect(get).toHaveBeenCalledTimes(2)
 })
+it('rejects oversized processing consent without even acquiring the lazy backend', () => {
+  const acquire = vi.fn(async () => {
+    throw new Error('Backend must not be acquired')
+  })
+  registerBrainHandlers(acquire)
+  expect(() =>
+    registrations.get('brain:process')!({}, '/workspace', { text: 'x'.repeat(256_001) }),
+  ).toThrow('exceeds limit')
+  expect(acquire).not.toHaveBeenCalled()
+})
 it('refuses oversized IPC payloads before entering the adapter', () => {
   const ui = Object.fromEntries(channels.map((channel) => [channel, vi.fn()])) as unknown as BrainUI
   registerBrainHandlers({ ui } as BrainService)
