@@ -413,7 +413,8 @@ The button summarizes only machines other than the selected one.
 Reconnecting uses an amber pulsing status dot, and the sidebar says
 "Connecting…" for a Host that is connecting, reconnecting or not yet in the
 first Host snapshot, never "Not reachable"; while that first snapshot loads, This
-Mac's group skeletons (`SidebarPrimitives`) stand under it. Down machines show a grey dot,
+Mac's group skeletons (`SidebarPrimitives`) stand under it, there and on the phone's
+Lanes page. Down machines show a grey dot,
 the directory's last-seen age, and last-known groups with disabled lane and
 creation actions. A Host that is enrolled but not yet connected shows the
 reachability rule's short phrase (for example "Not reachable yet" or "Never
