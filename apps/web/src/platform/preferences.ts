@@ -15,6 +15,7 @@ export interface PreferenceStorage {
   setItem(key: string, value: string): void
 }
 const KEY = 'phosphor.web.appearance.v1'
+const APPEARANCE_MAX_CHARS = 4095
 /** Lane and branch prefs: device prefs that apply to every Host's lanes from this browser. */
 const LANES_KEY = 'phosphor.web.lanes.v1'
 /** The largest stored lane prefs record, and the longest branch prefix accepted. */
@@ -23,6 +24,35 @@ export const BRANCH_PREFIX_MAX = 64
 
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
+
+/** The JSON record stored under `key`; null when absent, larger than `maxChars`, unreadable or not a record. */
+function storedRecord(
+  storage: PreferenceStorage | undefined,
+  key: string,
+  maxChars: number,
+): Record<string, unknown> | null {
+  try {
+    const text = storage?.getItem(key)
+    const saved: unknown = text && text.length <= maxChars ? JSON.parse(text) : null
+    return record(saved) ? saved : null
+  } catch {
+    /* Storage may be denied or hold an older shape; defaults still work. */
+    return null
+  }
+}
+
+/** Store an allowlisted record, never a caller-supplied object; memory-only when storage refuses. */
+function saveRecord(
+  storage: PreferenceStorage | undefined,
+  key: string,
+  value: Record<string, unknown>,
+): void {
+  try {
+    storage?.setItem(key, JSON.stringify(value))
+  } catch {
+    /* Memory-only fallback. */
+  }
+}
 
 /** Only the shared lane fields, normalized as Desktop's store does. Throws on a non-record. */
 function laneRecord(value: unknown): LanePrefs {
@@ -66,27 +96,16 @@ function sidebarKeys(value: unknown): string[] {
 /** Restore the stored lane order and collapsed groups into `prefs`, and the setters that store them. */
 function sidebarPreferences(prefs: AppPrefs, storage: PreferenceStorage | undefined) {
   const fields: SidebarField[] = ['sessionOrder', 'collapsedWorkspaces']
-  try {
-    const text = storage?.getItem(SIDEBAR_KEY)
-    const saved: unknown = text && text.length <= SIDEBAR_MAX_CHARS ? JSON.parse(text) : null
-    for (const field of fields)
-      if (record(saved) && Array.isArray(saved[field])) prefs[field] = sidebarKeys(saved[field])
-  } catch {
-    /* Storage may be denied or hold an older shape; defaults still work. */
+  const saved = storedRecord(storage, SIDEBAR_KEY, SIDEBAR_MAX_CHARS)
+  for (const field of fields) {
+    const value = saved?.[field]
+    if (Array.isArray(value)) prefs[field] = sidebarKeys(value)
   }
-  const save = () => {
-    try {
-      storage?.setItem(
-        SIDEBAR_KEY,
-        JSON.stringify({
-          sessionOrder: prefs.sessionOrder,
-          collapsedWorkspaces: prefs.collapsedWorkspaces,
-        }),
-      )
-    } catch {
-      /* Memory-only fallback. */
-    }
-  }
+  const save = () =>
+    saveRecord(storage, SIDEBAR_KEY, {
+      sessionOrder: prefs.sessionOrder,
+      collapsedWorkspaces: prefs.collapsedWorkspaces,
+    })
   const setter = (field: SidebarField) => (value: string[]) => {
     prefs[field] = sidebarKeys(value)
     save()
@@ -105,26 +124,15 @@ function sidebarPreferences(prefs: AppPrefs, storage: PreferenceStorage | undefi
 
 /** Restore the stored lane and branch prefs into `prefs`, and the setters that store them. */
 function lanePreferences(prefs: AppPrefs, storage: PreferenceStorage | undefined) {
+  const saved = storedRecord(storage, LANES_KEY, LANES_MAX_CHARS)
   try {
-    const text = storage?.getItem(LANES_KEY)
-    const saved: unknown = text && text.length <= LANES_MAX_CHARS ? JSON.parse(text) : null
-    if (record(saved) && saved.lanes !== undefined) prefs.lanes = laneRecord(saved.lanes)
-    if (record(saved) && saved.worktrees !== undefined)
-      prefs.worktrees = worktreeRecord(saved.worktrees)
+    if (saved?.lanes !== undefined) prefs.lanes = laneRecord(saved.lanes)
+    if (saved?.worktrees !== undefined) prefs.worktrees = worktreeRecord(saved.worktrees)
   } catch {
-    /* Storage may be denied or hold an older shape; defaults still work. */
+    /* An older shape; defaults still work. */
   }
-  const save = () => {
-    // Persist the normalized, allowlisted records only, never a caller-supplied object.
-    try {
-      storage?.setItem(
-        LANES_KEY,
-        JSON.stringify({ lanes: prefs.lanes, worktrees: prefs.worktrees }),
-      )
-    } catch {
-      /* Memory-only fallback. */
-    }
-  }
+  const save = () =>
+    saveRecord(storage, LANES_KEY, { lanes: prefs.lanes, worktrees: prefs.worktrees })
   return {
     lanes(value: LanePrefs) {
       prefs.lanes = laneRecord(value)
@@ -141,21 +149,8 @@ export function createBrowserPreferences(storage?: PreferenceStorage) {
   const prefs: AppPrefs = structuredClone(DEFAULT_APP_PREFS)
   // Learning prompts and native background services are never enabled by browser defaults.
   prefs.writing = { spellcheck: true, autocomplete: false }
-  try {
-    const text = storage?.getItem(KEY)
-    if (text && text.length < 4096) {
-      const saved: unknown = JSON.parse(text)
-      if (
-        saved &&
-        typeof saved === 'object' &&
-        'theme' in saved &&
-        ['light', 'dark', 'system'].includes(String(saved.theme))
-      )
-        prefs.theme = saved.theme as ThemePreference
-    }
-  } catch {
-    /* Storage may be denied; preferences still work in memory. */
-  }
+  const theme = String(storedRecord(storage, KEY, APPEARANCE_MAX_CHARS)?.theme)
+  if (['light', 'dark', 'system'].includes(theme)) prefs.theme = theme as ThemePreference
   const sidebar = sidebarPreferences(prefs, storage)
   return {
     ...lanePreferences(prefs, storage),
@@ -165,12 +160,8 @@ export function createBrowserPreferences(storage?: PreferenceStorage) {
     theme(theme: ThemePreference) {
       if (!['light', 'dark', 'system'].includes(theme)) throw new Error('Invalid theme.')
       prefs.theme = theme
-      // Persist one allowlisted, nonsecret scalar, never a caller-supplied object.
-      try {
-        storage?.setItem(KEY, JSON.stringify({ theme }))
-      } catch {
-        /* Memory-only fallback. */
-      }
+      // One allowlisted, nonsecret scalar.
+      saveRecord(storage, KEY, { theme })
     },
     fonts(fonts: FontPrefs) {
       // Font preferences are memory-only; use the shared defaults as the schema.
