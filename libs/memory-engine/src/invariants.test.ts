@@ -547,3 +547,13 @@ it('regression: a rejected proposal permits a fresh explicit processing attempt'
   expect(next.id).not.toBe(job.id)
   expect(next.state).toBe('queued')
 })
+it('regression: forgetting removes lowercased FTS index terms, not only content rows', () => {
+  const { store, directory } = fixture()
+  const source = store.capture(input)!
+  const proposal = extraction(source.id)
+  const marker = 'uniqueforgottenftsterm98213476'
+  proposal.claims[0]!.summary = marker
+  process(store, '/a', proposal)
+  store.forget([source.id])
+  expect(readFileSync(join(directory, 'memory.sqlite')).includes(Buffer.from(marker))).toBe(false)
+})
