@@ -29,6 +29,8 @@ export function createBrainUI(controller: Controller): BrainUI {
         await revoke()
         const snapshot = await store.setPrefs(canonical)
         await options.embeddings.setEnabled(snapshot.prefs.enabled)
+      }).then(async () => {
+        await indexer.index()
         return status()
       }),
     'brain:download': async (acceptTerms) => {

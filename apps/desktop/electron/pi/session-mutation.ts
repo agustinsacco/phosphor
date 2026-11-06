@@ -29,7 +29,8 @@ function assertNoOwner(path: string): void {
   if (routineSessionForPath(path) ?? routineSessionForPath(key)) throw new Error(ROUTINE)
   for (const session of registry.list()) {
     if (!session.diskPath || sessionPathKey(session.diskPath) !== key) continue
-    assertNoBrainControl(session)
+    const live = registry.get(session.sessionId)
+    if (live) assertNoBrainControl(live)
     throw new Error(isRoutineSession(session.sessionId) ? ROUTINE : OPEN)
   }
 }
