@@ -63,7 +63,7 @@ export type BrainOwnership = 'pending' | 'owned' | 'foreign'
 interface BranchEntry {
   type?: unknown
   customType?: unknown
-  data?: { jobId?: unknown } | null
+  data?: { kind?: unknown; jobId?: unknown } | null
 }
 
 /** Claims an unowned, empty session for `jobId`; never re-owns or adopts history. */
@@ -77,10 +77,12 @@ export function claimBrainSession(
     (entry) => entry?.type === 'custom' && entry.customType === BRAIN_OWNER_ENTRY_TYPE,
   )
   if (owners.length > 0) {
-    return owners.every((entry) => entry?.data?.jobId === jobId) ? 'owned' : 'foreign'
+    return owners.every((entry) => entry?.data?.kind === 'brain' && entry.data.jobId === jobId)
+      ? 'owned'
+      : 'foreign'
   }
   if (entries.some((entry) => entry?.type === 'message')) return 'foreign'
-  pi.appendEntry(BRAIN_OWNER_ENTRY_TYPE, { version: 1, jobId })
+  pi.appendEntry(BRAIN_OWNER_ENTRY_TYPE, { version: 1, kind: 'brain', jobId })
   return 'owned'
 }
 
