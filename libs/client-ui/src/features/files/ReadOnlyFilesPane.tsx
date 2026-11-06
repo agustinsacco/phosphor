@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { RemoteFileTree } from './RemoteFileTree'
+import { useTreeFolders } from './useTreeFolders'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
@@ -32,6 +33,8 @@ export function ReadOnlyFilesPane({
   )
   const selection = useRemoteFileSelection((s) => s.bySession[sessionId])
   const [selected, setSelected] = useState(selection?.path ?? '')
+  // Held here: the tree unmounts while a file is open, and "← Files" keeps its folders.
+  const folders = useTreeFolders(selected || null, changes)
   const [files, setFiles] = useState<string[]>([])
   const [status, setStatus] = useState<Record<string, string>>({})
   const [content, setContent] = useState('')
@@ -131,6 +134,7 @@ export function ReadOnlyFilesPane({
         <span className="min-w-0 flex-1 truncate">
           {selected || (changes ? 'Changes' : 'Files')} · Read only
         </span>
+        {!selected && <Button onClick={folders.collapseAll}>Collapse all</Button>}
         <Button onClick={() => setRefresh((n) => n + 1)}>Refresh</Button>
       </header>
       {error ? (
@@ -141,6 +145,7 @@ export function ReadOnlyFilesPane({
       <div className="min-h-0 flex-1 overflow-auto">
         {!selected ? (
           <RemoteFileTree
+            folders={folders}
             files={changes ? Object.keys(status) : files}
             status={status}
             selected={null}
