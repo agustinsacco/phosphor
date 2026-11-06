@@ -38,7 +38,7 @@ it('augments only an ordinary interactive launch and binds its actual created se
   expect(h.augmentation.dispose).not.toHaveBeenCalled()
 })
 
-it.each(['spawn', 'bind', 'readiness', 'bookkeeping', 'cancel'] as const)(
+it.each(['spawn', 'readiness', 'bookkeeping', 'cancel'] as const)(
   'revokes a prepared capability after %s failure',
   async (failure) => {
     const h = fixture()
@@ -46,10 +46,6 @@ it.each(['spawn', 'bind', 'readiness', 'bookkeeping', 'cancel'] as const)(
     if (failure === 'spawn')
       vi.spyOn(h.registry, 'create').mockImplementation(() => {
         throw new Error('spawn')
-      })
-    if (failure === 'bind')
-      h.augmentation.onCreated.mockImplementation(() => {
-        throw new Error('bind')
       })
     if (failure === 'readiness')
       h.registry.on('created', () =>
@@ -71,6 +67,23 @@ it.each(['spawn', 'bind', 'readiness', 'bookkeeping', 'cancel'] as const)(
     expect(h.registry.list()).toEqual([])
   },
 )
+
+it('revokes a capability on optional bind failure without refusing an ordinary startup', async () => {
+  const h = fixture()
+  h.augmentation.onCreated.mockImplementation(() => {
+    throw new Error('bind')
+  })
+  const live = await h.spawn({ workspacePath: '/repo' }, h.sink)
+  expect(h.augmentation.dispose).toHaveBeenCalledOnce()
+  expect(h.registry.get(live.sessionId)).toBeDefined()
+  expect(h.clients[0]!.alive).toBe(true)
+  expect(h.runtime.recordWorkspace).toHaveBeenCalledWith('/repo', 'repo')
+  expect(h.runtime.log).toHaveBeenCalledWith(
+    'brain',
+    'Optional memory disabled',
+    expect.objectContaining({ error: 'Error: bind' }),
+  )
+})
 
 it.each(['stub', 'unattended'] as const)(
   'does not issue working-memory capabilities for %s sessions',
@@ -96,9 +109,9 @@ it('keeps ordinary spawn options identical when the hook is absent or returns no
 
 it('revokes a prepared capability even when process disposal fails', async () => {
   const h = fixture()
-  h.augmentation.onCreated.mockImplementation(() => {
-    throw new Error('bind failure')
-  })
+  h.registry.on('created', () =>
+    h.clients[0]!.request.mockRejectedValue(new Error('readiness failure')),
+  )
   vi.spyOn(h.registry, 'dispose').mockRejectedValueOnce(new Error('stop failure'))
   await expect(h.spawn({ workspacePath: '/repo' }, h.sink)).rejects.toThrow('stop failure')
   expect(h.augmentation.dispose).toHaveBeenCalledOnce()

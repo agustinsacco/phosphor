@@ -80,6 +80,7 @@ interface PendingInput {
   authority: { scope: string; branch: string }
   admittedAt: number
   accepted: boolean
+  baselineSequence: number
 }
 export type BrainCaptureObserver = (() => void) & {
   beforeInput(command: SessionUserInput): Promise<SessionInputReceipt | undefined>
@@ -114,7 +115,9 @@ class InputCapture {
   }
   private identity?: CaptureIdentity
   private path?: string
-  private seen = new Set<string>()
+  private observed = new Map<string, number>()
+  private observationSequence = 0
+  private deferred = new Set<string>()
   private pending: PendingInput[] = []
   private disposed = false
   private tail = Promise.resolve()
@@ -126,7 +129,14 @@ class InputCapture {
     this.live.client.on('event', this.schedule)
   }
   private remember(entries: unknown[]): void {
-    for (const raw of entries) this.seen.add((raw as Entry).id!)
+    for (const raw of entries) {
+      const id = (raw as Entry).id!
+      if (!this.observed.has(id)) {
+        if (this.observed.size >= 4000)
+          throw new Error('Brain capture observed-entry budget exceeded')
+        this.observed.set(id, ++this.observationSequence)
+      }
+    }
   }
   private fileChanged = (path: string): void => {
     if (this.path && this.path !== path) this.fail(new Error('Brain capture identity changed'))
@@ -155,17 +165,30 @@ class InputCapture {
   }
   private consume = async (snapshot: CaptureSnapshot): Promise<void> => {
     if (!(await this.allowed())) return
-    const inputs = this.pending.filter((input) => input.accepted)
+    const settled = new Set([...this.observed.keys()].filter((id) => !this.deferred.has(id)))
+    this.remember(snapshot.entries)
+    // A same-chunk event can precede RPC completion. Observe IDs now, but do not
+    // settle the batch until every admission can participate in uniqueness checks.
+    if (this.pending.some((input) => !input.accepted)) {
+      for (const raw of snapshot.entries) {
+        const id = (raw as Entry).id!
+        if (!settled.has(id)) this.deferred.add(id)
+      }
+      return
+    }
+    const inputs = this.pending
     const candidates = inputs.length
       ? newUserCaptures(
           snapshot.entries,
-          new Set(this.seen),
+          settled,
           inputs[0]!.authority,
           snapshot.identity.sessionId,
         )
       : []
     const matches = (candidate: BrainCapture, input: PendingInput): boolean =>
-      candidate.text === input.text && candidate.observedAt >= input.admittedAt
+      candidate.text === input.text &&
+      candidate.observedAt >= input.admittedAt &&
+      this.observed.get(candidate.entryId)! > input.baselineSequence
     for (const candidate of candidates) {
       const possible = inputs.filter((input) => matches(candidate, input))
       if (
@@ -179,7 +202,7 @@ class InputCapture {
     this.pending = this.pending.filter(
       (input) => !candidates.some((candidate) => matches(candidate, input)),
     )
-    this.remember(snapshot.entries)
+    this.deferred.clear()
   }
   beforeInput = (command: SessionUserInput): Promise<SessionInputReceipt | undefined> =>
     this.enqueue(async () => {
@@ -206,6 +229,7 @@ class InputCapture {
         authority,
         admittedAt: Date.now(),
         accepted: false,
+        baselineSequence: this.observationSequence,
       }
       this.pending.push(input)
       let completed = false
@@ -238,6 +262,8 @@ class InputCapture {
   dispose = (): void => {
     this.disposed = true
     this.pending = []
+    this.deferred.clear()
+    this.observed.clear()
     this.live.client.off('event', this.schedule)
     this.live.client.off('session-file', this.fileChanged)
   }
