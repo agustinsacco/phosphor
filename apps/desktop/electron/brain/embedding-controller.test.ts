@@ -78,6 +78,18 @@ describe('setup', () => {
     })
   })
 
+  it('isolates status snapshots and cannot restart work after disposal', async () => {
+    const { embeddings, net, processes } = setup()
+    const snapshot = embeddings.status()
+    snapshot.phase = 'ready'
+    expect(embeddings.status().phase).toBe('off')
+    embeddings.dispose()
+    await embeddings.setEnabled(true)
+    await expect(embeddings.download(true)).rejects.toThrow('Turn on Brain')
+    expect(net.urls).toEqual([])
+    expect(processes).toEqual([])
+  })
+
   it('enabling with nothing on disk reports missing and never downloads or spawns', async () => {
     const { embeddings, net, processes, phases } = setup()
     await embeddings.setEnabled(true)
