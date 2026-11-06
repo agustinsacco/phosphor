@@ -19,7 +19,7 @@ explicitly rebuilds node-pty for Electron and repeats that repair.
 Root has no node-pty, Electron or Electron rebuild lifecycle of its own.
 Failures in the nested app install propagate to the root install.
 
-The root lock includes the five private source-library workspaces.
+The root lock includes the seven private source-library workspaces.
 Nonnative JavaScript dependencies remain in the root installation for portable
 library tests as well as in Desktop. Desktop, Control, Web and the site keep independent
 installations and lockfiles; this is bounded library consolidation, not one
@@ -64,13 +64,31 @@ App-relative `build/` supplies platform icons, entitlements and the development
 tray. Builder copies the tray to `resources/routine-tray.png`, and the eight
 production TypeScript extension files to `resources/pi-ext` with six entrypoints.
 Tests are excluded; extensions remain readable outside the asar by pi.
+The two optional Brain entrypoints are excluded from this raw TypeScript copy:
+`tools/scripts/build-brain-extensions.mjs` stages standalone `brain-ext/brain.mjs`
+and `brain-processor.mjs` for Desktop and Host resources. Staging does not enable
+them, and Hosts do not activate Brain.
 Development sessions resolve extensions from `../../libs/pi-extensions` relative
 to the app. Packaged sessions still use `process.resourcesPath`.
 
 Builder packages only `out/`, the application manifest and production dependency
 closure. node-pty is unpacked from the asar, with its spawn-helper executable.
-The main bundle has two entries: `out/main/main.js` and `out/main/voice-worker.js`,
-the voice utility process. Its speech runtime, `sherpa-onnx`, is the
+The main bundle has four entries: `out/main/main.js`, `out/main/voice-worker.js`,
+`out/main/brain-memory-worker.js` and `out/main/brain-embedding-worker.js`.
+Brain bundles its private source libraries but externalizes Transformers.js.
+ONNX Runtime and `@img` native packages unpack together; target-foreign binaries
+and the unused web/WASM runtime packages are excluded. `.npmrc` suppresses ORT's
+optional install download. Model files are never packaged or fetched at build
+or startup. The native Brain runtime is enabled only on darwin-arm64.
+
+Offline development and packaged-asar-layout embedding probes have passed on an
+Apple M4 Pro using Electron 43.8.3. The packaged-layout probe used stock Electron,
+not the signed/notarized application executable. Signing/notarization and complete
+ORT/libvips redistribution license text remain release gates; see the bundled
+[notice inventory](../apps/desktop/build/brain-third-party-notices.md). These probes
+do not establish public-release readiness.
+
+The voice utility process is unchanged. Its speech runtime, `sherpa-onnx`, is the
 WebAssembly build: plain JavaScript and a `.wasm` file that load from inside the
 asar, with nothing to rebuild per architecture. The macOS `Info.plist` carries
 `NSMicrophoneUsageDescription` and the entitlements include audio input

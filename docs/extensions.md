@@ -282,10 +282,10 @@ patchWebSearchConfig` (`pi-config-handlers.ts`).
 ## Bundled extensions (Phosphor's own)
 
 Separate from packages the user installs, Phosphor ships **six** TypeScript
-extensions in `libs/pi-extensions/pi-ext/`, loaded into **every** session via
+extensions in `libs/pi-extensions/pi-ext/`, loaded into **ordinary** sessions via
 `pi --mode rpc -e <path>` (`bundledExtensions()` in
-`libs/session-runtime/src/bundled-extensions.ts`, called by `apps/desktop/electron/pi/session-runtime.ts`). They are the only Phosphor code with a
-say inside a turn.
+`libs/session-runtime/src/bundled-extensions.ts`, called by `apps/desktop/electron/pi/session-runtime.ts`). The opt-in [Brain](brain.md) adds separate standalone working/processor bundles;
+isolated processors do not load these six defaults.
 
 The private `@phosphor/pi-extensions` source package keeps these standalone
 files and adjacent tests together. Development resolves the resource root at
@@ -612,6 +612,12 @@ lanes do not appear in that library; local deleted-session artifacts remain.
 See [remote artifacts](remote-desktop.md#remote-artifacts) for the wire limits.
 
 ### Brain's private processor audit
+
+The optional working `brain.mjs` contributes request-local, untrusted recall
+and the read-only `brain_search` / `brain_read` tools only with a private grant.
+Without its endpoint/token it registers nothing. Neither raw Brain TypeScript
+entry ships in `pi-ext`: the build stages bundled `.mjs` resources in `brain-ext`.
+Hosts stage these resources but never activate Brain.
 
 The opt-in Brain processor loads only its standalone `brain-processor.mjs`
 resource. Before sending evidence, main discovers `/phosphor-brain-audit` from
