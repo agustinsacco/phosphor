@@ -232,6 +232,25 @@ describe('Brain resources and native packaging', () => {
     expect(kept('optional/brain.ts')).toBe(true)
   })
 
+  it('bundles the portable Brain source while keeping native Transformers in Desktop', () => {
+    const vite = readFileSync(join(app, 'electron.vite.config.ts'), 'utf8')
+    const main = vite.slice(vite.indexOf('  main: {'), vite.indexOf('  preload: {'))
+    expect(main).toContain("'@phosphor/brain-runtime',")
+    expect(main).toContain(
+      "'@phosphor/brain-runtime': resolve(import.meta.dirname, '../../libs/brain-runtime/src')",
+    )
+    // externalizeDepsPlugin retains the dynamic native runtime; only source
+    // packages belong in its exclude list. Existing unpack assertions cover ORT.
+    expect(main).not.toContain('@huggingface/transformers')
+    expect(manifest.dependencies['@huggingface/transformers']).toBe('4.3.2')
+    expect(facade.dependencies['@huggingface/transformers']).toBe('4.3.2')
+    expect(readFileSync(join(app, 'electron/brain/embedding-worker.ts'), 'utf8')).toContain(
+      "await import('@huggingface/transformers')",
+    )
+    const runtime = json(join(root, 'libs/brain-runtime/package.json'))
+    expect(runtime.dependencies['@huggingface/transformers']).toBeUndefined()
+  })
+
   it('bundles the extensions in every main build without a runtime import', () => {
     const vite = readFileSync(join(app, 'electron.vite.config.ts'), 'utf8')
     expect(vite).toContain('tools/scripts/build-brain-extensions.mjs')

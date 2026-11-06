@@ -11,7 +11,8 @@
     "libs/pi-extensions",
     "libs/client-ui",
     "libs/memory-engine",
-    "libs/brain-client"
+    "libs/brain-client",
+    "libs/brain-runtime"
   ],
   "scripts": {
     "dev": "npm run dev --prefix apps/desktop --",

@@ -16,6 +16,7 @@
     "schema",
     "client-ui",
     "web",
+    "brain-runtime",
     "brain-client",
     "memory-engine"
   ],

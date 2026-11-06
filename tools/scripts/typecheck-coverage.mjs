@@ -21,6 +21,7 @@ export const typecheckProjects = [
   'libs/session-runtime/tsconfig.json',
   'libs/memory-engine/tsconfig.json',
   'libs/brain-client/tsconfig.json',
+  'libs/brain-runtime/tsconfig.json',
   'libs/pi-extensions/tsconfig.json',
   'apps/host/tsconfig.json',
   'apps/control/tsconfig.json',

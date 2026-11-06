@@ -13,6 +13,7 @@ import { pathToFileURL } from 'node:url'
 // Every registered Nx project; nx-affected.test.ts keeps it complete.
 export const ALL_PROJECTS = [
   'brain-client',
+  'brain-runtime',
   'memory-engine',
   'client-ui',
   'web',

@@ -24,6 +24,7 @@ const nodeLibraries = [
   'libs/pi-extensions',
   'libs/memory-engine',
   'libs/brain-client',
+  'libs/brain-runtime',
 ]
 const libraries = [...nodeLibraries.slice(0, 4), 'libs/client-ui', ...nodeLibraries.slice(4)]
 
@@ -77,6 +78,27 @@ describe('workspace installation closure', () => {
     expect(appRequire.resolve('app-builder-lib/package.json')).toBe(
       join(app, 'node_modules/app-builder-lib/package.json'),
     )
+  })
+
+  it('records the Brain runtime workspace and its direct source dependencies in the lock', () => {
+    const source = json(join(root, 'libs/brain-runtime/package.json'))
+    expect(source.dependencies).toEqual({
+      '@phosphor/shared': '0.0.0',
+      '@phosphor/session-runtime': '0.0.0',
+      '@phosphor/memory-engine': '0.0.0',
+      '@phosphor/pi-extensions': '0.0.0',
+    })
+    const lock = json(join(root, 'package-lock.json'))
+    expect(lock.packages[''].workspaces).toEqual(libraries)
+    expect(lock.packages['libs/brain-runtime']).toEqual({
+      name: source.name,
+      version: source.version,
+      dependencies: source.dependencies,
+    })
+    expect(lock.packages['node_modules/@phosphor/brain-runtime']).toEqual({
+      resolved: 'libs/brain-runtime',
+      link: true,
+    })
   })
 
   it('exports the memory validation subpath used by the Desktop adapter', () => {
