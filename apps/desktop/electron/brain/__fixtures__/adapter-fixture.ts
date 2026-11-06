@@ -189,7 +189,20 @@ async function processorSessionFixture(
     request: vi.fn(async (command: { type: string }) =>
       command.type === 'get_state'
         ? { success: true, data: { model, sessionFile: path, sessionId: 'native-processor' } }
-        : { success: true },
+        : command.type === 'get_entries'
+          ? {
+              success: true,
+              data: {
+                entries: [
+                  {
+                    type: 'custom',
+                    customType: 'phosphor-brain-owner',
+                    data: { kind: 'brain', jobId },
+                  },
+                ],
+              },
+            }
+          : { success: true },
     ),
     alive: true,
     sessionFile: path,

@@ -1,7 +1,11 @@
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fields } from './authority'
-import { readOwnedTranscript } from './transcripts'
+import {
+  assertTranscriptOwnership,
+  plannedTranscriptExists,
+  readOwnedTranscript,
+} from './transcripts'
 import { compareVersions } from '@phosphor/session-runtime/pi/versions'
 import { abortable, promptProcessor } from './processor-wait'
 import type { BrainJob, BrainProcessConsent, BrainProposalInput } from '@phosphor/shared/brain'
@@ -204,13 +208,10 @@ class BrainProcessor {
         modelId: current.job.model.id,
       })
       current.abort.signal.throwIfAborted()
-      const state = await live.client.request({ type: 'get_state' })
-      const path = state.success ? state.data?.sessionFile : undefined
-      if (!path) throw new Error('Brain processor transcript path unavailable')
-      await readOwnedTranscript(path, current.job.id, this.sessionDir)
-      await this.store.updateJob(current.job.id, current.job.fence, { sessionPath: path })
+      await this.bindTranscript(current)
       const retry = await live.client.request({ type: 'set_auto_retry', enabled: false })
       if (!retry.success) throw new Error('Brain cannot disable retries')
+      current.abort.signal.throwIfAborted()
       current.ready = true
       await promptProcessor(live, PROMPT, current.abort.signal)
       const final = await this.store.job(current.job.id)
@@ -218,6 +219,34 @@ class BrainProcessor {
     } finally {
       live.client.off('event', checkEvent)
     }
+  }
+  private bindTranscript = async (current: Active): Promise<void> => {
+    const live = current.session!
+    const assertOwner = (): void => {
+      current.abort.signal.throwIfAborted()
+      if (
+        this.options.registry.get(live.sessionId) !== live ||
+        live.owner?.kind !== 'brain' ||
+        live.owner.jobId !== current.job.id
+      )
+        throw new Error('Brain processor owner mismatch')
+    }
+    assertOwner()
+    const entries = await abortable(
+      live.client.request({ type: 'get_entries' }),
+      current.abort.signal,
+    )
+    if (!entries.success) throw new Error('Brain transcript ownership unavailable')
+    assertTranscriptOwnership(entries.data?.entries, current.job.id)
+    const state = await abortable(live.client.request({ type: 'get_state' }), current.abort.signal)
+    const path = state.success ? state.data?.sessionFile : undefined
+    if (!path) throw new Error('Brain processor transcript path unavailable')
+    await this.options.sessionPaths.withSessionPath(path, async () => {
+      if (await plannedTranscriptExists(path, this.sessionDir))
+        await readOwnedTranscript(path, current.job.id, this.sessionDir)
+      assertOwner()
+      await this.store.updateJob(current.job.id, current.job.fence, { sessionPath: path })
+    })
   }
   process = async (scope: string, consent: BrainProcessConsent): Promise<BrainJob> => {
     if (this.disposed || this.active) throw new Error('One Brain processor may run at a time')
