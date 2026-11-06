@@ -5,7 +5,11 @@ import type { PiRpcClient, PiSpawnOptions } from './rpc-client'
 import type { BrainSessionOwner } from './brain-session-owner'
 import { sessionPathKey } from './session-path-lock'
 
-/** Trusted machine-local capability. Never accept this profile over renderer/Host IPC. */
+/**
+ * Trusted machine-local capability, never accepted over renderer/Host IPC.
+ * The binding gates pi >=1.4.0 (the probed version), audits provider tools and
+ * owns the whole-job deadline/cancellation through execution.signal and disposeBrain.
+ */
 export interface BrainExecutionProfile {
   owner: BrainSessionOwner
   /** Existing empty working directory, unrelated to a user's workspace. */
