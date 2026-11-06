@@ -71,24 +71,6 @@ export interface BreakdownSlice {
   hint?: string
 }
 
-/**
- * How much of pi's total the extension could not attribute.
- *
- * The extension measures pi's own state — its composed system prompt and its
- * active tool schemas. Under a CLI provider that is only part of the request:
- * the provider wraps pi's context in its own framing. Before pi-claude-cli
- * 0.9.0 the Claude Code CLI also sent its own system prompt and native tool
- * schemas, and kept native tool results in its own transcript. Measured live
- * on 2026-09-09, that unattributable share was ~29k tokens on turn 1 of a
- * Claude session and ~0.5k on a native one.
- *
- * It must be shown as its own slice, never spread across the measured ones.
- */
-export function measuredTokens(breakdown: ContextBreakdown): number {
-  const p = breakdown.parts
-  return p.messages + (p.thinking ?? 0) + p.systemPrompt + p.tools + p.mcpTools
-}
-
 /** The parts that do not change between turns: prompt and schemas. */
 function fixedTokens(breakdown: ContextBreakdown): number {
   const p = breakdown.parts
