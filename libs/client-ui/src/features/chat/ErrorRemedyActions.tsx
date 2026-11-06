@@ -32,7 +32,8 @@ export function ErrorRemedyActions({
   const canRun = useRemoteLanesStore(() =>
     sessionId ? terminalAccess(sessionId) === 'control' : true,
   )
-  const signIn = useSignInAction(hostId ?? 'local')
+  // The label is the remedy's own, like every other remedy's button.
+  const signIn = useSignInAction(hostId ?? 'local').run
 
   return (
     <>
@@ -41,7 +42,7 @@ export function ErrorRemedyActions({
         <RetryFailedTurn sessionId={sessionId} message={message} />
       )}
       {remedy.signIn && (
-        <Button size="sm" onClick={signIn.run}>
+        <Button size="sm" onClick={signIn}>
           {remedy.label}
         </Button>
       )}
