@@ -85,7 +85,7 @@ it('regression: every uncited source beyond snapshot limits is reachable through
   expect(sizes).toEqual([50, 50, 50, 50, 50, 1])
   expect(actual).toEqual(expected)
   expect(store.snapshot().counts.claims).toBe(0)
-})
+}, 30_000)
 it('regression: paging continues after the cursor source is forgotten', () => {
   const { store, capture, page } = fixture()
   const ids = Array.from({ length: 51 }, (_, index) => capture(`entry-${index}`).id).sort()

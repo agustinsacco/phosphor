@@ -17,9 +17,18 @@ interface Controller {
   revoke(): Promise<void>
   isClosed(): boolean
 }
+/** Derived indexing cannot turn a committed edit into a reported write failure. */
+async function indexDerived({ indexer, options }: Controller): Promise<void> {
+  try {
+    await indexer.index()
+  } catch (error) {
+    options.onError?.(error)
+  }
+}
 export function createBrainUI(controller: Controller): BrainUI {
   const { options, store, indexer, processor, transcripts, serialize, status, revoke, isClosed } =
     controller
+  const index = () => indexDerived(controller)
   const ui: BrainUI = {
     'brain:status': status,
     'brain:setPrefs': (prefs) =>
@@ -30,14 +39,14 @@ export function createBrainUI(controller: Controller): BrainUI {
         const snapshot = await store.setPrefs(canonical)
         await options.embeddings.setEnabled(snapshot.prefs.enabled)
       }).then(async () => {
-        await indexer.index()
+        await index()
         return status()
       }),
     'brain:download': async (acceptTerms) => {
       if (isClosed() || acceptTerms !== true)
         throw new Error('Explicit model terms acknowledgement required')
       await options.embeddings.download(true)
-      await indexer.index()
+      await index()
       return status()
     },
     'brain:removeModel': async () => {
@@ -72,11 +81,11 @@ export function createBrainUI(controller: Controller): BrainUI {
       serialize(async () => {
         if (typeof approve !== 'boolean') throw new Error('Invalid Brain review')
         await store.review(identifier(id), approve, bounded(revision))
-      }).then(() => indexer.index()),
+      }).then(index),
     'brain:correct': (id, correction, revision) =>
       serialize(async () => {
         await store.correct(identifier(id), bounded(correction), bounded(revision))
-      }).then(() => indexer.index()),
+      }).then(index),
     'brain:forget': (ids) =>
       serialize(async () => {
         if (!Array.isArray(ids) || ids.length > 500)
@@ -84,6 +93,9 @@ export function createBrainUI(controller: Controller): BrainUI {
         await revoke()
         const result = await store.forget(ids.map(identifier))
         await transcripts.purge()
+        return result
+      }).then(async (result) => {
+        await index()
         return result
       }),
     'brain:transcript': (id) => transcripts.read(identifier(id)),
