@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { MOCK_HOST_ID, mockRemoteHosts, mockRemoteInfo } from '@/dev/mockRemoteLanes'
+import { hostLaneSession, MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -36,19 +36,9 @@ async function renderHostLane(
   activity: HostLaneView['activity'],
   self: boolean,
 ): Promise<HTMLElement> {
-  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
-  const lane = host.lanes[0]!
-  host.lanes[0] = {
-    ...lane,
-    activity,
-    control: { ...lane.control, controller: { label: 'Phone', connected: true, self } },
-  }
-  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
-  useSessionsStore.setState({
-    live: {
-      [mockRemoteInfo.sessionId]: { ...mockRemoteInfo, phosphorId: mockRemoteInfo.sessionId },
-    } as never,
-  })
+  const { hosts, live } = hostLaneSession({ activity, self })
+  useRemoteLanesStore.setState({ hosts })
+  useSessionsStore.setState({ live })
   return render(mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath)
 }
 
