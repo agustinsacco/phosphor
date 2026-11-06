@@ -55,7 +55,13 @@ function fakeClient(overrides: Partial<BrainClient> = {}): BrainClient {
 }
 
 function fakePi() {
-  return { on: vi.fn(), registerTool: vi.fn(), appendEntry: vi.fn(), registerCommand: vi.fn() }
+  return {
+    on: vi.fn(),
+    registerTool: vi.fn(),
+    appendEntry: vi.fn(),
+    registerCommand: vi.fn(),
+    getActiveTools: vi.fn().mockReturnValue(['brain_job', 'brain_propose']),
+  }
 }
 
 type Tool = {
@@ -101,7 +107,7 @@ describe('brain processor extension', () => {
       (call) => call[0] as { name: string; parameters: unknown },
     )
     expect(tools.map((tool) => tool.name)).toEqual(['brain_job', 'brain_propose'])
-    expect(pi.registerCommand).not.toHaveBeenCalled()
+    expect(pi.registerCommand.mock.calls.map((call) => call[0])).toEqual(['phosphor-brain-audit'])
     expect(pi.on.mock.calls.map((call) => call[0] as string)).toEqual(['session_start'])
     const schema = JSON.stringify(tools.map((tool) => tool.parameters))
     expect(schema).not.toMatch(/"(jobId|fence|scope|token)"/)
@@ -132,6 +138,39 @@ describe('brain processor extension', () => {
     await expect(
       proposeTool.execute('c1', { entities: [], claims: [], rationale: 'r' }, undefined),
     ).rejects.toThrow(/does not belong/)
+  })
+
+  it('attests ownership and exact active tools without contacting Brain or the model', () => {
+    const job = vi.fn<BrainClient['job']>()
+    const { pi, start } = started(fakeClient({ job }))
+    start()
+    const command = pi.registerCommand.mock.calls.find(
+      (call) => call[0] === 'phosphor-brain-audit',
+    )?.[1]
+    expect(command).toBeDefined()
+    const setStatus = vi.fn()
+    const nonce = '0123456789abcdef0123456789abcdef'
+    command.handler(nonce, { ui: { setStatus } })
+    expect(setStatus).toHaveBeenCalledWith(
+      'phosphor-brain-audit',
+      JSON.stringify({
+        version: 1,
+        nonce,
+        jobId: 'job-1',
+        tools: ['brain_job', 'brain_propose'],
+      }),
+    )
+    expect(job).not.toHaveBeenCalled()
+    expect(() => command.handler('invalid nonce', { ui: { setStatus } })).toThrow()
+  })
+
+  it('refuses evidence delivery if the active tool set changes after startup', async () => {
+    const job = vi.fn<BrainClient['job']>()
+    const { pi, start, jobTool } = started(fakeClient({ job }))
+    start()
+    pi.getActiveTools.mockReturnValue(['brain_job', 'brain_propose', 'bash'])
+    await expect(jobTool.execute('call', {}, undefined)).rejects.toThrow(/tool set/)
+    expect(job).not.toHaveBeenCalled()
   })
 
   it('stops when Brain hands back a different job', async () => {
