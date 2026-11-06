@@ -211,7 +211,7 @@ it('keeps Host home A when the composer picks Host B while This Mac shows its se
 })
 
 it.each(['local', 'all'])(
-  'a %s home that shows This Mac’s setup puts the composer’s machine picker above it',
+  'the %s home that shows This Mac’s setup puts the composer’s machine picker above it',
   async (filter) => {
     const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
     useRemoteLanesStore.setState({ filter, hosts: { [MOCK_HOST_ID]: host } })
