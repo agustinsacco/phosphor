@@ -73,6 +73,7 @@ const baselineScope = {
   'brain:removeModel': 'app',
   'brain:search': 'app',
   'brain:read': 'app',
+  'brain:evidence': 'app',
   'brain:graph': 'app',
   'brain:process': 'app',
   'brain:cancel': 'app',

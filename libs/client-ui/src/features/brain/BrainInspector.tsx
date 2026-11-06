@@ -8,6 +8,7 @@ import {
 } from '@shared/brain'
 import { Button } from '@/components/form'
 import { BrainEvidence } from './BrainEvidence'
+import { BrainForgetEvidence } from './BrainForgetEvidence'
 import { formatBrainTime } from './brainTime'
 import type { BrainAction } from './useBrain'
 
@@ -44,7 +45,12 @@ export function BrainInspector(props: InspectorProps): React.JSX.Element {
       </div>
       {correcting && <CorrectionForm {...props} onDone={() => setCorrecting(false)} />}
       {forgetting && (
-        <ForgetEvidence claim={claim} busy={busy} act={act} onDone={() => setForgetting(false)} />
+        <BrainForgetEvidence
+          ids={[...new Set(claim.citations.map((c) => c.evidenceId))]}
+          busy={busy}
+          act={act}
+          onDone={() => setForgetting(false)}
+        />
       )}
     </aside>
   )
@@ -155,60 +161,6 @@ function TemporalFields({
         </label>
       ))}
     </>
-  )
-}
-
-function ForgetEvidence({
-  claim,
-  busy,
-  act,
-  onDone,
-}: {
-  claim: BrainClaim
-  busy: boolean
-  act: BrainAction
-  onDone: () => void
-}): React.JSX.Element {
-  const [confirmed, setConfirmed] = useState(false)
-  const [result, setResult] = useState('')
-  const ids = [...new Set(claim.citations.map((c) => c.evidenceId))]
-  return (
-    <section className="brain-card" aria-label="Confirm forgetting evidence">
-      <h3>Forget {ids.length} cited evidence item(s)?</h3>
-      <p>
-        Removes this evidence and dependent memory, including claims beyond this view. Already
-        delivered copies in session transcripts or at reasoning providers cannot be recalled or
-        deleted by Brain.
-      </p>
-      <label className="brain-field">
-        <span>
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(e) => setConfirmed(e.target.checked)}
-          />{' '}
-          I understand this permanent deletion and the delivered-copy limitation.
-        </span>
-      </label>
-      <div className="brain-actions">
-        <Button onClick={onDone}>Keep evidence</Button>
-        <Button
-          variant="danger"
-          disabled={busy || !confirmed || !ids.length}
-          onClick={() => {
-            void act(async () => {
-              const forgotten = await window.phosphor.invoke('brain:forget', ids)
-              setResult(
-                `Forgot ${forgotten.evidence} evidence items and ${forgotten.claims} claims. ${forgotten.affectedSessions.length} session(s) may retain delivered copies.`,
-              )
-            })
-          }}
-        >
-          Confirm forget evidence
-        </Button>
-      </div>
-      {result && <p role="status">{result}</p>}
-    </section>
   )
 }
 

@@ -255,7 +255,11 @@ it('requires processing consent again if the configured model or enrollment poli
     const fixture = brainFixture()
     fixture.snapshot.prefs.enabled = true
     fixture.snapshot.prefs.processor = { provider: 'explicit-provider', id: 'first-model' }
-    invoke.mockResolvedValue(fixture)
+    let latest = fixture
+    const normal = invoke.getMockImplementation()!
+    invoke.mockImplementation(async (channel: string) =>
+      channel === 'brain:status' ? latest : normal(channel),
+    )
     await act(async () => root.render(<BrainPage />))
     await click('Activity')
     const consent = container.querySelector('input[type="checkbox"]') as HTMLInputElement
@@ -264,7 +268,7 @@ it('requires processing consent again if the configured model or enrollment poli
       [...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!
         .disabled,
     ).toBe(false)
-    invoke.mockResolvedValue({
+    latest = {
       ...fixture,
       snapshot: {
         ...fixture.snapshot,
@@ -274,7 +278,7 @@ it('requires processing consent again if the configured model or enrollment poli
           processor: { provider: 'different-provider', id: 'different-model' },
         },
       },
-    })
+    }
     await act(async () => vi.advanceTimersByTimeAsync(3000))
     expect(
       [...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!
@@ -340,7 +344,10 @@ it('processes only after explicit per-run consent and passes the exact enrolled 
   const fixture = brainFixture()
   fixture.snapshot.prefs.enabled = true
   fixture.snapshot.prefs.processor = { provider: 'exact-provider', id: 'exact-model' }
-  invoke.mockResolvedValue(fixture)
+  const normal = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'brain:status' ? fixture : normal(channel),
+  )
   await act(async () => root.render(<BrainPage />))
   await click('Activity')
   expect(
@@ -513,7 +520,10 @@ it('recovers a failed first source-page load without processing evidence', async
 it('disables graph-stale approval but keeps rejection actionable', async () => {
   const status = brainFixture()
   status.snapshot.graphRevision++
-  invoke.mockResolvedValueOnce(status)
+  const normal = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'brain:status' ? status : normal(channel),
+  )
   await act(async () => root.render(<BrainPage />))
   await click('Activity')
   await click('Read original evidence')

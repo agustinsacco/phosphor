@@ -1,8 +1,9 @@
 import { formatBrainTime } from './brainTime'
 import { useState } from 'react'
-import type { BrainProposal, BrainSnapshot } from '@shared/brain'
+import type { BrainProposal, BrainSnapshot, BrainRevision } from '@shared/brain'
 import { Button } from '@/components/form'
 import { BrainEvidence } from './BrainEvidence'
+import { BrainCapturedEvidence } from './BrainCapturedEvidence'
 import type { BrainAction } from './useBrain'
 
 type ActivityProps = { snapshot: BrainSnapshot; busy: boolean; act: BrainAction }
@@ -11,6 +12,7 @@ export function BrainActivity(props: ActivityProps): React.JSX.Element {
   const [transcript, setTranscript] = useState<string | null>(null)
   return (
     <section aria-label="Brain activity">
+      <BrainCapturedEvidence {...props} />
       <ProcessWorkspace
         key={`${snapshot.policyEpoch}:${snapshot.prefs.processor?.provider}:${snapshot.prefs.processor?.id}`}
         {...props}
@@ -69,6 +71,7 @@ export function BrainActivity(props: ActivityProps): React.JSX.Element {
           <Proposal
             key={`${proposal.id}:${proposal.graphRevision}:${proposal.policyEpoch}`}
             proposal={proposal}
+            current={snapshot}
             busy={busy}
             act={act}
           />
@@ -112,7 +115,9 @@ function ProcessWorkspace({ snapshot, busy, act }: ActivityProps): React.JSX.Ele
           ? `${processor.provider}/${processor.id}`
           : 'the exact model you select in Settings'}
         . Remote reasoning providers receive evidence text, even though embeddings are local. No
-        fallback provider or model. Output stays a proposal until you approve it.
+        fallback provider or model. Each click sends one batch of at most 200 whole sources and
+        60,000 source bytes, prioritizing new evidence. The batch is not limited to the evidence
+        page shown above. Output stays a proposal until you approve it.
       </p>
       <label className="brain-field">
         <span>
@@ -141,17 +146,22 @@ function ProcessWorkspace({ snapshot, busy, act }: ActivityProps): React.JSX.Ele
 
 function Proposal({
   proposal,
+  current,
   busy,
   act,
 }: {
   proposal: BrainProposal
+  current: BrainRevision
   busy: boolean
   act: BrainAction
 }): React.JSX.Element {
   const [read, setRead] = useState(false)
   const citations = proposal.input.claims.flatMap((c) => c.citations)
   const revision = { graphRevision: proposal.graphRevision, policyEpoch: proposal.policyEpoch }
+  const samePolicy = current.policyEpoch === proposal.policyEpoch
+  const stale = !samePolicy || current.graphRevision !== proposal.graphRevision
   const canApprove =
+    !stale &&
     read &&
     proposal.input.claims.length > 0 &&
     proposal.input.claims.every((c) => c.citations.length > 0)
@@ -182,7 +192,10 @@ function Proposal({
       <BrainEvidence citations={citations} busy={busy} act={act} onRead={() => setRead(true)} />
       <p>
         Approval uses graph revision {revision.graphRevision}, policy epoch {revision.policyEpoch}.
-        Stale review will be refused; refresh and review again.
+        {stale
+          ? ' This proposal is stale. Process again with current consent to produce a new review.'
+          : ' Stale approval is refused.'}
+        {stale && samePolicy && ' You can reject this graph-stale proposal.'}
       </p>
       <div className="brain-actions">
         <Button
@@ -194,7 +207,7 @@ function Proposal({
           Approve
         </Button>
         <Button
-          disabled={busy}
+          disabled={busy || !samePolicy}
           onClick={() => {
             void act(() => window.phosphor.invoke('brain:review', proposal.id, false, revision))
           }}

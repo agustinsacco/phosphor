@@ -15,6 +15,7 @@ const channels = [
   'brain:removeModel',
   'brain:search',
   'brain:read',
+  'brain:evidence',
   'brain:graph',
   'brain:process',
   'brain:cancel',
@@ -34,6 +35,8 @@ it('registers exactly the public review/settings channels and forwards typed arg
     'result',
   )
   expect(ui['brain:process']).toHaveBeenCalledWith('/workspace', consent)
+  await registrations.get('brain:evidence')!({}, '/workspace', 'a'.repeat(64))
+  expect(ui['brain:evidence']).toHaveBeenCalledWith('/workspace', 'a'.repeat(64))
   expect(registrations.has('brain:dispose')).toBe(false)
   expect(registrations.has('brain:putVectors')).toBe(false)
 })

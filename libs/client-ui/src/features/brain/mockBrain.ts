@@ -147,10 +147,15 @@ function process(scope: string, consent: BrainProcessConsent): BrainJob {
   return job
 }
 function review(id: string, approve: boolean, revision: BrainRevision): void {
-  checkRevision(revision)
+  if (approve) checkRevision(revision)
   const snapshot = state.snapshot
   const proposal = snapshot.proposals.find((p) => p.id === id && p.state === 'pending')
   if (!proposal) throw new Error('Pending proposal not found.')
+  if (
+    revision.policyEpoch !== snapshot.policyEpoch ||
+    proposal.policyEpoch !== snapshot.policyEpoch
+  )
+    throw new Error('Stale consent.')
   proposal.state = approve ? 'applied' : 'rejected'
   if (!approve) return
   snapshot.entities = proposal.input.entities.map((e) => ({
@@ -249,6 +254,18 @@ export async function mockBrainCall(channel: string, args: unknown[]): Promise<u
 
 function readMockBrain(channel: string, args: unknown[]): unknown {
   switch (channel) {
+    case 'brain:evidence': {
+      const items =
+        state.snapshot.prefs.enabled && state.snapshot.prefs.workspaces.includes(String(args[0]))
+          ? state.snapshot.evidence
+              .filter((item) => item.scope === args[0] && (!args[1] || item.id > String(args[1])))
+              .sort((a, b) => a.id.localeCompare(b.id))
+          : []
+      return structuredClone({
+        items: items.slice(0, 50),
+        nextCursor: items.length > 50 ? items[49]!.id : null,
+      })
+    }
     case 'brain:graph':
       return structuredClone({
         nodes: state.snapshot.entities,

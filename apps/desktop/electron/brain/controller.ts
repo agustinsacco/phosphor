@@ -58,6 +58,8 @@ export function createBrainUI(controller: Controller): BrainUI {
     },
     'brain:read': async (id) =>
       store.read(identifier(id), (await store.snapshot()).prefs.workspaces),
+    'brain:evidence': (scope, cursor) =>
+      store.evidencePage(bounded(scope), cursor === undefined ? undefined : identifier(cursor)),
     'brain:graph': (id) => store.graph(id === undefined ? undefined : identifier(id)),
     'brain:process': (scope, consent) =>
       serialize(async () => {

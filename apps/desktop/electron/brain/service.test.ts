@@ -44,6 +44,18 @@ it('defaults off, never downloads on enable, and exposes only typed UI operation
   expect(Object.keys(service.ui)).not.toContain('dispose')
   expect(Object.keys(service.ui)).not.toContain('putVectors')
 })
+it('routes source pages through the worker with exact enrolled scope and current consent', async () => {
+  const f = await fixture()
+  const page = await f.service.ui['brain:evidence'](f.scope)
+  expect(page.items.map((item) => item.id)).toEqual([f.evidence.id])
+  expect(page.items[0]).not.toHaveProperty('text')
+  expect(page.nextCursor).toBeNull()
+  await expect(f.service.ui['brain:evidence'](f.scope + '-other')).rejects.toThrow('consent')
+  await expect(f.service.ui['brain:evidence'](f.scope, 'bad')).rejects.toThrow('cursor')
+  await f.service.ui['brain:setPrefs']({ ...f.snapshot.prefs, enabled: false })
+  await expect(f.service.ui['brain:evidence'](f.scope)).rejects.toThrow('consent')
+})
+
 it('serializes a policy change against manual admission so stale consent cannot start a processor', async () => {
   const f = await fixture()
   const policy = f.service.ui['brain:setPrefs']({ ...f.snapshot.prefs, recall: false })

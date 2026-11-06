@@ -25,6 +25,7 @@ export const IPC_WEB = {
   'brain:removeModel': localBrain,
   'brain:search': localBrain,
   'brain:read': localBrain,
+  'brain:evidence': localBrain,
   'brain:graph': localBrain,
   'brain:process': localBrain,
   'brain:cancel': localBrain,
