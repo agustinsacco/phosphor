@@ -226,3 +226,100 @@ it('checks evidence integrity and restrictive blob/database modes without invent
   expect(result.results).toHaveLength(0)
   expect(result.status).toBe('partial')
 })
+
+it('regression: historical claims retain the pre-correction state and revision', () => {
+  const { store, time } = fixture()
+  const evidence = store.capture(input)!
+  process(store, '/a', extraction(evidence.id))
+  const original = store.snapshot().claims[0]!
+  time(2000)
+  store.correct(
+    original.id,
+    {
+      subjectId: original.subjectId,
+      predicate: original.predicate,
+      objectId: original.objectId,
+      literal: null,
+      summary: 'Ownership corrected',
+      validFrom: 2000,
+      validTo: null,
+      reason: 'Human verified',
+    },
+    store.snapshot(),
+  )
+  const historical = store.search({ query: 'Al', knownAt: 1500, validAt: 1000, mode: 'lexical' }, [
+    '/a',
+  ])
+  expect(historical.results[0]!.claim).toEqual(original)
+})
+it('regression: forgetting a root deletes its copies, not an independent co-cited root', () => {
+  const { store } = fixture()
+  const first = store.capture(input)!
+  const independent = store.capture({
+    ...input,
+    entryId: 'independent',
+    rootIds: ['independent-root'],
+  })!
+  const derived = store.capture({
+    ...input,
+    entryId: 'derived',
+    rootIds: ['root', 'independent-root'],
+  })!
+  const forgotten = store.forget([first.id])
+  expect(forgotten.evidence).toBe(2)
+  expect(() => store.read(derived.id, ['/a'])).toThrow()
+  expect(store.read(independent.id, ['/a']).id).toBe(independent.id)
+  expect(
+    store.capture({ ...input, entryId: 'independent-new', rootIds: ['independent-root'] }),
+  ).not.toBeNull()
+  expect(
+    store.capture({ ...input, entryId: 'derived-new', rootIds: ['root', 'independent-root'] }),
+  ).toBeNull()
+})
+it('checks source existence and consent again at approval, and rejects stale parallel proposals', () => {
+  const { store } = fixture()
+  const first = store.capture(input)!
+  const second = store.capture({ ...input, scope: '/b' })!
+  const jobA = store.claimJob(store.createJob('/a', model).id)
+  const pendingA = store.submit(jobA.id, jobA.fence, extraction(first.id))
+  const jobB = store.claimJob(store.createJob('/b', model).id)
+  const pendingB = store.submit(jobB.id, jobB.fence, extraction(second.id))
+  store.review(pendingA.id, true, store.snapshot())
+  expect(() => store.review(pendingB.id, true, store.snapshot())).toThrow('Stale')
+  expect(() => store.submit(jobB.id, jobB.fence - 1, extraction(second.id))).toThrow()
+  store.forget([second.id])
+  expect(() => store.review(pendingB.id, true, store.snapshot())).toThrow()
+})
+it('rejects cross-scope existing IDs, missing vectors and incompatible dimensions honestly', () => {
+  const { store } = fixture()
+  const source = store.capture(input)!
+  process(store, '/a', extraction(source.id))
+  const claim = store.snapshot().claims[0]!
+  const other = store.capture({ ...input, scope: '/b' })!
+  const job = store.claimJob(store.createJob('/b', model).id)
+  const bad = extraction(other.id)
+  bad.entities[0]!.existingId = claim.subjectId
+  expect(() => store.submit(job.id, job.fence, bad)).toThrow('scope')
+  store.putVectors([{ claimId: claim.id, modelId: 'local', values: [1, 0] }])
+  expect(() =>
+    store.putVectors([{ claimId: claim.id, modelId: 'local', values: [1, 0, 0] }]),
+  ).toThrow('dimensions')
+  expect(() =>
+    store.putVectors([{ claimId: claim.id, modelId: 'local', values: [0, 0] }]),
+  ).toThrow()
+  const result = store.search({ query: 'Al', mode: 'hybrid' }, ['/a'], {
+    modelId: 'missing',
+    values: [1, 0],
+  })
+  expect(result.status).toBe('partial')
+  expect(result.degradation.join()).toContain('vectors')
+})
+it('expires during an open app on search without a preferences change or scheduler', () => {
+  const { store, time } = fixture()
+  const source = store.capture(input)!
+  process(store, '/a', extraction(source.id))
+  time(31 * 86_400_000)
+  expect(store.search({ query: 'Al', mode: 'lexical' }, ['/a']).results).toHaveLength(0)
+  expect(store.snapshot().counts.evidence).toBe(0)
+  expect(store.capture(input)).toBeNull()
+})
