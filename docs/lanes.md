@@ -585,11 +585,11 @@ counts as a user and holds the worktree.
 
 **A branch is deleted only when it is proven landed.** `git branch -d` tests
 ancestry, and a squash merge leaves no ancestry link, so `-d` refuses every
-squash-merged lane. Two proofs about the tip the caller read count, and the
-branch goes only when one holds, by one compare-and-delete at that tip
-(`deleteBranchAtTip`, `git update-ref --no-deref -d <ref> <tip>`). A branch
-that gained a commit during the proof, or that a worktree has checked out, is
-kept. This Mac and a Host share the proofs and the deletion
+squash-merged lane. Either of two proofs about the tip the caller read is
+enough, and the branch goes only when one holds, by one compare-and-delete at
+that tip (`deleteBranchAtTip`, `git update-ref --no-deref -d <ref> <tip>`). A
+branch that gained a commit during the proof, or that a worktree has checked
+out, is kept. This Mac and a Host share the proofs and the deletion
 (`libs/session-runtime/src/git/branch-landed.ts`). Each machine composes them
 over its own trunk rule: This Mac's `isBranchLanded`
 (`apps/desktop/electron/fs/git-worktrees.ts`) against `origin/<default>` and
@@ -600,12 +600,13 @@ against the trunk lane creation used.
   commit built from the branch's tree.
 - **A merged PR** (`landedViaPullRequest`, asking GitHub through
   `githubEvidence` and `gh`): the squash test misses a lane whose history was
-  rewritten after merging, or whose squash was cut on a newer trunk. It proved 2 of 26 merged lanes on one install. A merged PR
-  from the branch counts only if the local tip is its head, sits behind it, or
-  has the same tree, so a reused branch name or work added after the merge
-  never passes. Without `gh`, or offline, this proof answers no. A Host asks
-  its own `gh`, each question with an 8 s timeout, and starts none after a
-  proof's first 20 seconds.
+  rewritten after merging, or whose squash was cut on a newer trunk. It proved
+  2 of 26 merged lanes on one install. A merged PR from the branch counts only
+  if the local tip is its head, sits behind it, or has the same tree, so a
+  reused branch name or work added after the merge never passes. Without
+  `gh`, or offline, this proof answers no. A Host asks its own `gh`, each
+  question with an 8 s timeout, and starts none after a proof's first 20
+  seconds.
 
 Anything unproven is kept and reported; the transcript still goes.
 
