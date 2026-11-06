@@ -1,6 +1,5 @@
 import { machineReachability } from '@/features/machines/machineReachability'
 import type { MachineView } from '@shared/control-api'
-import { localMachineLabel } from '@/lib/localMachine'
 import { isUnseen } from './unseen'
 import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -337,11 +336,7 @@ function EnabledMachineSwitcher({ onScope }: { onScope: MachineScopeChange }): R
           <MachineDot state={selected === 'local' ? 'ready' : hosts[selected]?.state} />
         )}
         <span className="min-w-0 truncate font-medium">
-          {selected === 'local'
-            ? localMachineLabel()
-            : selected === 'all'
-              ? 'All machines'
-              : machineLabel(selected)}
+          {selected === 'all' ? 'All machines' : machineLabel(selected)}
         </span>
         <span
           data-testid="machine-filter-state"
