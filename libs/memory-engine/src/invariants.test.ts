@@ -526,3 +526,24 @@ it('regression: correction runtime input cannot override claim scope with untype
   expect(() => store.correct(claim.id, correction, store.snapshot())).toThrow()
   expect(store.snapshot().claims.every((item) => item.scope === '/a')).toBe(true)
 })
+
+it('regression: forgetting removes deleted summaries from retained FTS segment bytes', () => {
+  const { store, directory } = fixture()
+  const source = store.capture(input)!
+  const proposal = extraction(source.id)
+  const marker = 'UNIQUE_FORGOTTEN_FTS_SUMMARY_98213476'
+  proposal.claims[0]!.summary = marker
+  process(store, '/a', proposal)
+  store.forget([source.id])
+  expect(readFileSync(join(directory, 'memory.sqlite')).includes(Buffer.from(marker))).toBe(false)
+})
+it('regression: a rejected proposal permits a fresh explicit processing attempt', () => {
+  const { store } = fixture()
+  const source = store.capture(input)!
+  const job = store.claimJob(store.createJob('/a', model).id)
+  const pending = store.submit(job.id, job.fence, extraction(source.id))
+  store.review(pending.id, false, store.snapshot())
+  const next = store.createJob('/a', model)
+  expect(next.id).not.toBe(job.id)
+  expect(next.state).toBe('queued')
+})
