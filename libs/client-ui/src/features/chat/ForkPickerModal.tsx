@@ -4,6 +4,26 @@ import { currentBranchUserMessages, rewindToEntry, type BranchUserMessage } from
 import { useChatUiStore } from './uiState'
 import { ModalOverlay } from '@/components/Modal'
 
+function useForkCandidates(
+  sessionId: string,
+  open: boolean,
+): [BranchUserMessage[] | null | undefined, () => void] {
+  const [candidates, setCandidates] = useState<BranchUserMessage[] | null | undefined>()
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    if (!open) return
+    setCandidates(undefined)
+    let current = true
+    void currentBranchUserMessages(sessionId).then((messages) => {
+      if (current) setCandidates(messages)
+    })
+    return () => {
+      current = false
+    }
+  }, [open, sessionId, attempt])
+  return [candidates, () => setAttempt((n) => n + 1)]
+}
+
 /**
  * Pick a past user message and fork the session from just before it.
  *
@@ -15,27 +35,12 @@ import { ModalOverlay } from '@/components/Modal'
  */
 export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const open = useChatUiStore((s) => s.forkPickerFor === sessionId)
-  // undefined while loading, null when the entries could not be read.
-  const [candidates, setCandidates] = useState<BranchUserMessage[] | null | undefined>(undefined)
+  const [candidates, retry] = useForkCandidates(sessionId, open)
   const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    if (!open) return
-    setCandidates(undefined)
-    let current = true
-    void currentBranchUserMessages(sessionId).then((messages) => {
-      if (current) setCandidates(messages)
-    })
-    return () => {
-      current = false
-    }
-  }, [open, sessionId])
 
   if (!open) return null
   const close = (): void => useChatUiStore.getState().closeForkPicker()
 
-  // One mechanism with the per-message rewind button, including the image
-  // restore: both fork from an entry on the current branch, with its images.
   const fork = async (candidate: BranchUserMessage): Promise<void> => {
     setBusy(true)
     try {
@@ -73,7 +78,10 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
           )}
           {candidates === null && (
             <div className="text-text-tertiary px-3 py-6 text-center text-base">
-              Couldn't read this session's messages.
+              Couldn't read this session's messages.{' '}
+              <TooltipButton className="underline" onClick={retry}>
+                Retry
+              </TooltipButton>
             </div>
           )}
           {candidates?.length === 0 && (

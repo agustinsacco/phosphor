@@ -111,9 +111,26 @@ export async function piCallInline<T extends RpcCommand['type']>(
  * (artifacts rebuild theirs from persisted toolResults), or `undefined` when
  * the read failed — `piCall` has already reported that on the chat surface.
  */
-export async function rehydrateTranscript(sessionId: string): Promise<AgentMessage[] | undefined> {
+export async function rehydrateTranscript(
+  sessionId: string,
+  guardActivity = false,
+): Promise<AgentMessage[] | undefined> {
+  const before = useChatStore.getState().sessions[sessionId]
   const data = await piCall(sessionId, { type: 'get_messages' })
-  if (!data || !useChatStore.getState().sessions[sessionId]) return undefined
+  const current = useChatStore.getState().sessions[sessionId]
+  if (!data || !current) return undefined
+  if (
+    guardActivity &&
+    (current.items !== before?.items ||
+      current.tools !== before.tools ||
+      current.isStreaming !== before.isStreaming ||
+      current.promptSentAt !== before.promptSentAt)
+  ) {
+    useChatStore
+      .getState()
+      .setError(sessionId, 'Session activity changed while loading. Retry when the turn finishes.')
+    return undefined
+  }
   useChatStore.getState().hydrate(sessionId, data.messages)
   return data.messages
 }
