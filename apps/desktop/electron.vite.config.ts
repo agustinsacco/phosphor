@@ -36,6 +36,7 @@ export default defineConfig({
           '@phosphor/session-runtime',
           '@phosphor/host-client',
           '@phosphor/memory-engine',
+          '@phosphor/brain-runtime',
         ],
       }),
       brainExtensions(),
@@ -47,6 +48,7 @@ export default defineConfig({
         '@phosphor/session-runtime': resolve(import.meta.dirname, '../../libs/session-runtime/src'),
         '@phosphor/host-client': resolve(import.meta.dirname, '../../libs/host-client/src'),
         '@phosphor/memory-engine': resolve(import.meta.dirname, '../../libs/memory-engine/src'),
+        '@phosphor/brain-runtime': resolve(import.meta.dirname, '../../libs/brain-runtime/src'),
       },
     },
     build: {

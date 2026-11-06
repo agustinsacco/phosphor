@@ -31,13 +31,14 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
   // Library changes also select their transitive app consumers.
   const desktop = ['desktop', 'control', 'web', 'tooling']
   const host = ['host', 'web', 'tooling']
-  const runtime = ['desktop', 'control', 'host', 'runtime', 'web', 'tooling']
+  const runtime = ['desktop', 'control', 'host', 'runtime', 'brain-runtime', 'web', 'tooling']
   const extensions = [
     'desktop',
     'control',
     'host',
     'pi-extensions',
     'runtime',
+    'brain-runtime',
     'client-ui',
     'web',
     'site',
@@ -54,6 +55,7 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
     'host-client',
     'pi-extensions',
     'runtime',
+    'brain-runtime',
     'shared',
     'tooling',
   ]
@@ -87,11 +89,23 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
       'libs/brain-client/src/client.ts',
       [...extensions.filter((p) => p !== 'site'), 'brain-client'],
     ],
-    ['libs/memory-engine/src/service.ts', [...desktop, 'memory-engine']],
+    ['libs/memory-engine/src/service.ts', [...desktop, 'memory-engine', 'brain-runtime']],
+    ['libs/brain-runtime/src/service.ts', [...desktop, 'brain-runtime']],
+    ['libs/brain-runtime/src/embedding/embedding-controller.ts', [...desktop, 'brain-runtime']],
     ['libs/session-runtime/src/pi/session-service.ts', runtime],
     [
       'libs/host-client/src/connection.ts',
-      ['desktop', 'control', 'host', 'host-client', 'runtime', 'web', 'site', 'tooling'],
+      [
+        'desktop',
+        'control',
+        'host',
+        'host-client',
+        'runtime',
+        'brain-runtime',
+        'web',
+        'site',
+        'tooling',
+      ],
     ],
     ['libs/shared/src/ipc.ts', [...libraries, 'site']],
     ['supabase/config.toml', ['schema', 'tooling']],
