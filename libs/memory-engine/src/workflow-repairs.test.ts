@@ -204,7 +204,7 @@ it('regression: valid pending work is not repeated merely because fresh evidence
   expect(next.evidenceIds).toEqual([fresh.id])
   expect(next.evidenceIds).not.toContain(old.id)
 })
-it('characterize: count-bounded snapshots can exceed the worker 9MB response ceiling', () => {
+it('regression: count-bounded snapshots stay below the worker response ceiling', () => {
   const { store, data, capture } = fixture()
   capture('source')
   const { pending } = propose(store)
@@ -224,5 +224,6 @@ it('characterize: count-bounded snapshots can exceed the worker 9MB response cei
   })
   const bytes = Buffer.byteLength(JSON.stringify(store.snapshot()))
   console.info(`Synthetic snapshot bytes: ${bytes}`)
-  expect(bytes).toBeGreaterThan(9_000_000)
+  expect(bytes).toBeLessThanOrEqual(8_600_000)
+  expect(store.snapshot().truncated).toBe(true)
 })
