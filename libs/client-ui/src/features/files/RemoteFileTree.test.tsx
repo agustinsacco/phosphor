@@ -3,8 +3,6 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import { RemoteFileTree } from './RemoteFileTree'
-vi.mock('@/lib/monaco', () => ({}))
-vi.mock('./MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
 afterEach(() => vi.unstubAllGlobals())
 it('shows loading, empty and bounded tree refusal rather than raw toolbar text or partial trees', () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
