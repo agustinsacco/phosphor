@@ -28,7 +28,11 @@ export function parseSwarmStatus(text: string | undefined): SwarmStatus | null {
 
 interface SwarmContext {
   isIdle(): boolean
-  sessionManager: { getSessionId(): string; getBranch(): unknown[] }
+  sessionManager: {
+    getSessionId(): string
+    getBranch(): unknown[]
+    getHeader?(): { parentSession?: string } | null
+  }
   ui: { setStatus(key: string, text: string): void }
 }
 interface SwarmApi {
@@ -42,14 +46,14 @@ interface SwarmApi {
   ): void
 }
 
-/** Only this branch AND this session can grant authority; forks/clones start off. */
-export function savedSwarm(branch: unknown[], sessionId: string): boolean {
+/** Inheritance is explicit at startup; ordinary restoration remains identity-scoped. */
+export function savedSwarm(branch: unknown[], sessionId: string, inherit = false): boolean {
   for (let i = branch.length - 1; i >= 0; i--) {
     const entry = branch[i] as
       | { type?: string; customType?: string; data?: { sessionId?: string; enabled?: unknown } }
       | undefined
     if (entry?.type === 'custom' && entry.customType === SWARM_COMMAND)
-      return entry.data?.sessionId === sessionId && entry.data.enabled === true
+      return (inherit || entry.data?.sessionId === sessionId) && entry.data?.enabled === true
   }
   return false
 }
@@ -67,6 +71,21 @@ export function applySwarmContext(messages: unknown[], enabled: boolean): void {
       m.sections[SWARM_SECTION] = `<${SWARM_SECTION}>\n${SWARM_PROMPT}\n</${SWARM_SECTION}>`
     }
     first = false
+  }
+}
+
+function inheritSwarm(pi: SwarmApi, ctx: SwarmContext): void {
+  const id = ctx.sessionManager.getSessionId()
+  const branch = ctx.sessionManager.getBranch()
+  // Adopt copied policy only with explicit ancestry, and bind it durably to
+  // this identity before applying it. Unrelated sessions still start off.
+  if (
+    ctx.sessionManager.getHeader?.()?.parentSession &&
+    !savedSwarm(branch, id) &&
+    savedSwarm(branch, id, true)
+  ) {
+    if (!pi.appendEntry) throw new Error('This Pi version cannot persist Swarm authorization.')
+    pi.appendEntry(SWARM_COMMAND, { enabled: true, sessionId: id })
   }
 }
 
@@ -100,7 +119,11 @@ export default function swarm(
     requested = savedSwarm(ctx.sessionManager.getBranch(), ctx.sessionManager.getSessionId())
     apply(ctx)
   }
-  pi.on('session_start', restore)
+  pi.on('session_start', (event, context) => {
+    const ctx = context as SwarmContext
+    inheritSwarm(pi, ctx)
+    restore(event, context)
+  })
   pi.on('session_tree', restore)
   pi.registerCommand?.(SWARM_COMMAND, {
     description: 'Host control: toggle lane Swarm authorization without running a model',

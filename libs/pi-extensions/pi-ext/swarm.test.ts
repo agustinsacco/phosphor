@@ -143,6 +143,26 @@ describe('lane Swarm authorization', () => {
     expect(f.status().enabled).toBe(false)
   })
 
+  it('adopts copied authorization only for a session with a parent, then persists its own identity', async () => {
+    const f = fixture()
+    await f.command('on')
+    f.ctx.sessionManager.getSessionId = () => 'clone'
+    Object.assign(f.ctx.sessionManager, { getHeader: () => ({ parentSession: '/parent.jsonl' }) })
+    f.emit('session_start')
+    expect(f.status().requested).toBe(true)
+    expect(f.pi.appendEntry).toHaveBeenLastCalledWith(SWARM_COMMAND, {
+      enabled: true,
+      sessionId: 'clone',
+    })
+    const writes = f.pi.appendEntry.mock.calls.length
+    f.emit('session_start')
+    expect(f.pi.appendEntry).toHaveBeenCalledTimes(writes)
+    await f.command('off')
+    f.ctx.sessionManager.getSessionId = () => 'second-clone'
+    f.emit('session_start')
+    expect(f.status().requested).toBe(false)
+  })
+
   it('keeps lanes independent', async () => {
     const a = fixture()
     const b = fixture()
