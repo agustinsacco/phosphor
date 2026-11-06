@@ -192,10 +192,10 @@ async function command<Delivery>(
   assertManualCommand(admission, id, command)
   // Interactive compaction/reload callbacks must never send work into a processor.
   if (live.owner) return live.client.request(command)
-  await invalidateSessionInput(live, command)
   const mutating = !observes(command)
   if (mutating) admission.mutating.set(id, (admission.mutating.get(id) ?? 0) + 1)
   try {
+    if (live.memoryInput) await invalidateSessionInput(live, command)
     return await runtime.withBudgetCompaction(id, command.type, () =>
       dispatchCommand(runtime, admission, live, id, command),
     )
