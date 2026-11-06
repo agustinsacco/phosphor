@@ -7,7 +7,9 @@ import { openMemoryStore } from '@phosphor/memory-engine/service'
 import { createMemoryHandler } from './memory-worker-handler'
 
 const directories: string[] = []
-afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }) })
+afterEach(() => {
+  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
+})
 it('rejects stale embedding completions atomically and refuses omitted manual consent epochs', () => {
   const directory = mkdtempSync(join(tmpdir(), 'brain-db-adapter-'))
   directories.push(directory)
@@ -15,7 +17,13 @@ it('rejects stale embedding completions atomically and refuses omitted manual co
   const handle = createMemoryHandler(store)
   const revision = store.snapshot()
   store.setPrefs({ ...revision.prefs, enabled: true })
-  expect(handle({ id: 1, method: 'commitVectors', args: [revision, []] })).toEqual({ id: 1, ok: true, data: false })
-  expect(handle({ id: 2, method: 'createJob', args: ['/repo', { provider: 'openai', id: 'm' }] })).toMatchObject({ ok: false })
+  expect(handle({ id: 1, method: 'commitVectors', args: [revision, []] })).toEqual({
+    id: 1,
+    ok: true,
+    data: false,
+  })
+  expect(
+    handle({ id: 2, method: 'createJob', args: ['/repo', { provider: 'openai', id: 'm' }] }),
+  ).toMatchObject({ ok: false })
   store.close()
 })
