@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import { HOST_TOO_OLD } from '@shared/host-protocol-repositories'
-import { hostResourceKey } from '@shared/remote-host'
+import { remoteLaneResourceKey as key } from '@shared/remote-host'
 import { useExtensionUiStore } from './extensionUi'
 import { useRemoteLanesStore } from './remoteLanes'
 import { migrateLegacyLaneMarks, setRemoteLaneMarks } from './remoteLaneMarks'
@@ -25,8 +25,6 @@ beforeEach(() => {
 })
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
-const key = (hostId: string, laneId: string) =>
-  hostResourceKey({ kind: 'remote', hostId }, 'session', laneId)
 function lane(laneId: string, marks: Partial<HostLaneView> = {}): HostLaneView {
   return {
     laneId,
