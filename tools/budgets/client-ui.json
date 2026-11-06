@@ -182,7 +182,7 @@
     "src/stores/files.ts::useFilesStore[1]": 452,
     "src/stores/remoteLanes.ts::navigateToLane[1]": 84,
     "src/stores/remoteLanes.ts::attachRemoteLanesListener[1]": 120,
-    "src/stores/sessions.ts::file": 1511,
+    "src/stores/sessions.ts::file": 1510,
     "src/stores/sessions.ts::attachSessionPushHandler[1]": 123,
     "src/stores/sessions.ts::attachSessionPushHandler[1]/unsubscribe[1]": 120,
     "src/stores/sessions.ts::useSessionsStore[1]": 695,
