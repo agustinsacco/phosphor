@@ -3,6 +3,7 @@ import { hostFeatureRefusal } from './hostRefusals'
 import { useRemoteLanesStore } from './remoteLanes'
 import { create } from 'zustand'
 import type { SkillsListResult } from '@shared/skills'
+import { hostIdOfPath } from '@phosphor/shared/remote-host'
 
 /**
  * Skills page state: the last resolution per workspace, plus which tab and
@@ -30,9 +31,7 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
   tab: 'yours',
   selectedDir: null,
   refresh: async (workspacePath) => {
-    const hostId = workspacePath.startsWith('host:')
-      ? workspacePath.slice(5).split('/')[0]
-      : undefined
+    const hostId = hostIdOfPath(workspacePath)
     const host = hostId ? useRemoteLanesStore.getState().hosts[hostId] : undefined
     const generation = hostId ? machineReadGeneration(hostId) : undefined
     const selection = selectionGeneration

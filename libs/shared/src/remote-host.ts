@@ -131,3 +131,9 @@ export function hostResourceKey(
     resourceId,
   ])
 }
+
+/** The Host id of a `host:<hostId>/…` path or key; undefined for anything else. */
+export function hostIdOfPath(path: string): string | undefined {
+  if (!path.startsWith('host:')) return undefined
+  return path.slice(5).split('/')[0] || undefined
+}
