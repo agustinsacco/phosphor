@@ -15,6 +15,8 @@ import type {
   BrainCapture,
   BrainDelivery,
   BrainEvidence,
+  BrainEvidencePage,
+  BrainEvidenceSummary,
   BrainForgetResult,
 } from '@phosphor/shared/brain'
 import { type Data, identifier } from './data'
@@ -115,6 +117,31 @@ export class Evidence {
       'Evidence integrity failure',
     )
     return { ...evidence, text }
+  }
+  evidencePage(scope: string, afterId?: string): BrainEvidencePage {
+    validate.text(scope)
+    if (afterId !== undefined) {
+      validate.check(
+        typeof afterId === 'string' && /^[a-f0-9]{64}$/.test(afterId),
+        'Invalid evidence cursor',
+      )
+    }
+    this.data.consent(scope)
+    const rows = this.data.db
+      .prepare(
+        `SELECT id,scope,json_extract(value,'$.label') AS label,
+      json_extract(value,'$.role') AS role,json_extract(value,'$.observedAt') AS observed_at
+      FROM documents WHERE kind='evidence' AND scope=? AND id>? ORDER BY id LIMIT 51`,
+      )
+      .all(scope, afterId ?? '')
+    const items: BrainEvidenceSummary[] = rows.slice(0, 50).map((row) => ({
+      id: String(row.id),
+      scope: String(row.scope),
+      label: String(row.label),
+      role: row.role as BrainEvidenceSummary['role'],
+      observedAt: Number(row.observed_at),
+    }))
+    return { items, nextCursor: rows.length > 50 ? items[49]!.id : null }
   }
   delivery(input: BrainDelivery): void {
     validate.bounded(input)

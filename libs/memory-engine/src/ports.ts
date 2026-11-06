@@ -5,6 +5,7 @@ import type {
   BrainCorrection,
   BrainDelivery,
   BrainEvidence,
+  BrainEvidencePage,
   BrainForgetResult,
   BrainGraph,
   BrainJob,
@@ -34,6 +35,7 @@ export interface MemoryStorePort {
   setPrefs(prefs: BrainPrefs): BrainSnapshot
   capture(input: BrainCapture): BrainEvidence | null
   read(evidenceId: string, allowedScopes: string[]): BrainEvidence
+  evidencePage(scope: string, afterId?: string): BrainEvidencePage
   /** Manual callers must pass the acknowledged epoch; checked in the same worker operation. */
   createJob(scope: string, model: BrainModel, expectedPolicyEpoch?: number): BrainJob
   claimJob(jobId: string): BrainJob
