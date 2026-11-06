@@ -188,7 +188,7 @@ copies ([Lanes](lanes.md#remote-lanes) owns their rules):
   the ContextMenu key, Shift+F10 or a touch long-press (one short vibration
   where the device can) opens its menu; below 900px the menu is a bottom sheet
   titled with the lane.
-- The menu comes from `remoteLaneActions`, the same items and hints Desktop
+- The menu comes from `laneActions`, the same items and hints Desktop
   shows. Delete, Rename and Stop need control (“Take control first.”); Delete
   also needs `workspaces.write`. Rows carry This Mac's select box
   (`LaneSelect.tsx`), and bulk delete is the shared bar and confirm

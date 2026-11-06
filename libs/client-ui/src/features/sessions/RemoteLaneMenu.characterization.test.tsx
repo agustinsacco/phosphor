@@ -149,3 +149,19 @@ it('drops Lane marker from the Host lane menu when markers are off', async () =>
   expect(menuRows().map(([label]) => label)).not.toContain('Lane marker')
   act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'auto' }))
 })
+
+it('hides Mark read on a read Host lane, as This Mac does', () => {
+  const view = host(true)
+  view.lanes[0] = { ...view.lanes[0]!, read: view.lanes[0]!.attention }
+  render(view)
+  expect(menuRows().map(([label]) => label)).not.toContain('Mark read')
+})
+
+it("opens the Host lane menu's copies and Delete with a separator, as This Mac does", () => {
+  render(host(true))
+  menuRows()
+  const separated = [...document.querySelectorAll('[data-testid=context-menu] button')]
+    .filter((b) => b.previousElementSibling !== null)
+    .map((b) => b.textContent)
+  expect(separated).toEqual(['Export HTML…', 'Delete'])
+})
