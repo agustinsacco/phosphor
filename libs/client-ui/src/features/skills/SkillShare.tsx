@@ -7,9 +7,9 @@ import { Button } from '@/components/form'
 import { CheckIcon, Spinner, WarningIcon } from '@/components/icons'
 import { formatBytes } from '@/lib/format'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
+import { machineLabel } from '@/stores/remoteLanes'
 import {
   rereadSkillNames,
-  shareMachineLabel,
   useShareMachines,
   useSkillPresence,
   type Presence,
@@ -259,7 +259,7 @@ function CopyProgress({
   share: Share
   onClose: () => void
 }): React.JSX.Element {
-  const target = shareMachineLabel(copy.target)
+  const target = machineLabel(copy.target)
   const [read, write] = steps(copy)
   const size =
     'files' in copy
@@ -272,7 +272,7 @@ function CopyProgress({
       </div>
       <ol className="space-y-1 py-2" aria-live="polite">
         <Step state={read}>
-          {read === 'active' ? 'Reading' : 'Read'} from {shareMachineLabel(source)}
+          {read === 'active' ? 'Reading' : 'Read'} from {machineLabel(source)}
           {size}
         </Step>
         <Step state={write}>

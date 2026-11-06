@@ -58,10 +58,10 @@ export function useNavigationHostId(): string | undefined {
   return filter !== 'local' && filter !== 'all' ? filter : undefined
 }
 
-export function machineLabel(hostId: string): string {
-  return (
-    useMachinesStore.getState().machines.find((machine) => machine.id === hostId)?.label ?? hostId
-  )
+/** A machine's name: `'local'`, the sentinel the switcher, skill share and sign-in use, is This Mac. */
+export function machineLabel(machine: string): string {
+  if (machine === 'local') return localMachineLabel()
+  return useMachinesStore.getState().machines.find((m) => m.id === machine)?.label ?? machine
 }
 
 export function canReadHost(host: HostConnectionView): boolean {

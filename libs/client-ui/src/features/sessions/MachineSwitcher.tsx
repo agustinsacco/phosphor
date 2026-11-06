@@ -89,9 +89,7 @@ export function MachineLabelLine({ id }: { id: string }): React.JSX.Element {
     <div className="border-border mt-4 border-t px-2 pt-3">
       <div className="text-text-secondary flex items-center gap-2 text-sm font-medium">
         <MachineGlyph local={id === 'local'} />
-        <span className="min-w-0 flex-1 truncate">
-          {id === 'local' ? localMachineLabel() : machineLabel(id)}
-        </span>
+        <span className="min-w-0 flex-1 truncate">{machineLabel(id)}</span>
         <MachineDot state={id === 'local' ? 'ready' : host?.state} />
       </div>
       <div className="text-text-tertiary mt-1 text-xs">
@@ -284,9 +282,7 @@ function EnabledMachineSwitcher({ onScope }: { onScope: MachineScopeChange }): R
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <MachineDot state={state} />
-            <span className="truncate font-medium">
-              {id === 'local' ? localMachineLabel() : machineLabel(id)}
-            </span>
+            <span className="truncate font-medium">{machineLabel(id)}</span>
           </span>
           <span className="text-text-tertiary block truncate text-sm">{detailFor(id)}</span>
         </span>
