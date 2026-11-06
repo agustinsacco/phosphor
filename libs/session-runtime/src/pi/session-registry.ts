@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import type { PiRpcClient, PiSpawnOptions } from './rpc-client'
 import type { LiveSessionInfo } from '@shared/models'
+import type { BrainSessionOwner } from './brain-session-owner'
 
 export interface SessionRegistryRuntime {
   createClient: (options: PiSpawnOptions) => PiRpcClient
@@ -12,6 +13,8 @@ export interface LiveSession {
   sessionId: string
   workspacePath: string
   client: PiRpcClient
+  /** Set before spawn/created so capture observers can exclude internal processors. */
+  owner?: Readonly<BrainSessionOwner>
 }
 
 interface SessionRegistryEvents {
@@ -37,11 +40,20 @@ export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
     super()
   }
 
-  create(workspacePath: string, spawnOptions: Omit<PiSpawnOptions, 'cwd'>): LiveSession {
+  create(
+    workspacePath: string,
+    spawnOptions: Omit<PiSpawnOptions, 'cwd'>,
+    owner?: BrainSessionOwner,
+  ): LiveSession {
     this.runtime.assertCanStart()
     const sessionId = randomUUID()
     const client = this.runtime.createClient({ ...spawnOptions, cwd: workspacePath })
-    const session: LiveSession = { sessionId, workspacePath, client }
+    const session: LiveSession = {
+      sessionId,
+      workspacePath,
+      client,
+      ...(owner ? { owner: Object.freeze({ ...owner }) } : {}),
+    }
     this.sessions.set(sessionId, session)
 
     // No 'exit' listener on purpose: the entry outlives the child process so the

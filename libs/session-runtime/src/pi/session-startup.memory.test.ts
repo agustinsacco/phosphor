@@ -82,3 +82,24 @@ it.each(['stub', 'unattended'] as const)(
     expect(h.prepare).not.toHaveBeenCalled()
   },
 )
+
+it('keeps ordinary spawn options identical when the hook is absent or returns no augmentation', async () => {
+  const h = sessionFixture()
+  cleanups.push(() => h.registry.disposeAll())
+  const create = vi.spyOn(h.registry, 'create')
+  await h.spawn({ workspacePath: '/repo' }, h.sink)
+  const baseline = create.mock.calls[0]
+  h.runtime.memory = { prepare: vi.fn(async () => undefined) }
+  await h.spawn({ workspacePath: '/repo' }, h.sink)
+  expect(create.mock.calls[1]).toEqual(baseline)
+})
+
+it('revokes a prepared capability even when process disposal fails', async () => {
+  const h = fixture()
+  h.augmentation.onCreated.mockImplementation(() => {
+    throw new Error('bind failure')
+  })
+  vi.spyOn(h.registry, 'dispose').mockRejectedValueOnce(new Error('stop failure'))
+  await expect(h.spawn({ workspacePath: '/repo' }, h.sink)).rejects.toThrow('stop failure')
+  expect(h.augmentation.dispose).toHaveBeenCalledOnce()
+})
