@@ -17,9 +17,14 @@ import {
   type LaneSourceFacts,
 } from './host-protocol-lane-transfer'
 
+/**
+ * Export and commit outlast a call's deadline on a large lane or repository, so
+ * both start a job and answer at once; `exportStatus` / `importStatus` report it.
+ */
 export const LANE_EXPORT_METHODS = [
   'laneTransfer.inspect',
   'laneTransfer.export',
+  'laneTransfer.exportStatus',
   'laneTransfer.read',
   'laneTransfer.release',
 ] as const
@@ -28,12 +33,13 @@ export const LANE_IMPORT_METHODS = [
   'laneTransfer.begin',
   'laneTransfer.chunk',
   'laneTransfer.commit',
+  'laneTransfer.importStatus',
 ] as const
 
 export type LaneTransferParams =
   | { method: 'laneTransfer.inspect' | 'laneTransfer.export'; laneId: string }
   | { method: 'laneTransfer.read'; exportId: string; offset: number }
-  | { method: 'laneTransfer.release'; exportId: string }
+  | { method: 'laneTransfer.release' | 'laneTransfer.exportStatus'; exportId: string }
   | {
       method: 'laneTransfer.check'
       repositoryId: string
@@ -53,7 +59,7 @@ export type LaneTransferParams =
       marks: LaneMoveMarks
     }
   | { method: 'laneTransfer.chunk'; importId: string; offset: number; data: string }
-  | { method: 'laneTransfer.commit'; importId: string }
+  | { method: 'laneTransfer.commit' | 'laneTransfer.importStatus'; importId: string }
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -79,6 +85,7 @@ export function parseLaneTransferParams(method: string, v: unknown): LaneTransfe
         ? { method, exportId: v.exportId, offset: v.offset }
         : null
     case 'laneTransfer.release':
+    case 'laneTransfer.exportStatus':
       return keys(v, ['exportId']) && isTransferId(v.exportId)
         ? { method, exportId: v.exportId }
         : null
@@ -138,6 +145,7 @@ export function parseLaneTransferParams(method: string, v: unknown): LaneTransfe
         ? { method, importId: v.importId, offset: v.offset, data: v.data }
         : null
     case 'laneTransfer.commit':
+    case 'laneTransfer.importStatus':
       return keys(v, ['importId']) && isTransferId(v.importId)
         ? { method, importId: v.importId }
         : null
@@ -146,28 +154,39 @@ export function parseLaneTransferParams(method: string, v: unknown): LaneTransfe
   }
 }
 
-export interface LaneExportStarted {
-  exportId: string
-  size: number
-  sha256: string
+export type LaneJobStatus<T> = { state: 'running' } | { state: 'done'; value: T } | { blockers: string[] }
+
+/** A job's answer: still running, its value, or why it stopped. */
+export function parseLaneJobStatus<T>(
+  v: unknown,
+  value: (v: unknown) => T | null,
+): LaneJobStatus<T> | null {
+  if (isRecord(v) && keys(v, ['state']) && v.state === 'running') return { state: 'running' }
+  if (isRecord(v) && keys(v, ['state', 'value']) && v.state === 'done') {
+    const parsed = value(v.value)
+    return parsed === null ? null : { state: 'done', value: parsed }
+  }
+  const refused = parseLaneInspection(v)
+  return refused && 'blockers' in refused ? refused : null
 }
 
-export function parseLaneExportStarted(v: unknown): LaneExportStarted | null {
+export function parseLaneExported(v: unknown): { size: number; sha256: string } | null {
   return isRecord(v) &&
-    keys(v, ['exportId', 'size', 'sha256']) &&
-    isTransferId(v.exportId) &&
+    keys(v, ['size', 'sha256']) &&
     offset(v.size) &&
     typeof v.sha256 === 'string' &&
     /^[a-f0-9]{64}$/.test(v.sha256)
-    ? { exportId: v.exportId, size: v.size, sha256: v.sha256 }
+    ? { size: v.size, sha256: v.sha256 }
     : null
 }
 
-/** A commit's answer: the new lane, or why nothing was created. */
-export function parseLaneImported(v: unknown): { laneId: string } | { blockers: string[] } | null {
-  if (isRecord(v) && keys(v, ['laneId']) && isUuid(v.laneId)) return { laneId: v.laneId }
-  const refused = parseLaneInspection(v)
-  return refused && 'blockers' in refused ? refused : null
+export function parseTransferStarted(v: unknown, key: 'exportId' | 'importId'): string | null {
+  return isRecord(v) && keys(v, [key]) && isTransferId(v[key]) ? (v[key] as string) : null
+}
+
+/** An import's value: the new lane. */
+export function parseLaneImported(v: unknown): { laneId: string } | null {
+  return isRecord(v) && keys(v, ['laneId']) && isUuid(v.laneId) ? { laneId: v.laneId } : null
 }
 
 export function parseLaneChunk(v: unknown): string | null {

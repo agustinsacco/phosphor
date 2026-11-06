@@ -64,19 +64,26 @@ export function createLaneExportFeature(
         if (typeof input === 'string') return ok({ blockers: [input] })
         const staged = ports.staging.create(4)
         if (!staged) throw new FeatureFailure('internal')
-        try {
-          const { size, sha256 } = await exportLane(input, staged.path)
-          context.log('lane.exported', { bytes: size })
-          return ok({ exportId: staged.id, size, sha256 })
-        } catch (error) {
-          ports.staging.discard(staged.id)
-          if (error instanceof TransferRefusal) return ok({ blockers: [error.message] })
-          throw error
-        }
+        const job = exportLane(input, staged.entry.path).then((value) => {
+          context.log('lane.exported', { bytes: value.size })
+          return value
+        })
+        ports.staging.track(staged.entry, job, (error) => {
+          if (error instanceof TransferRefusal) return [error.message]
+          context.log('feature.failed', { method, reason: 'internal' })
+          return ['This Host could not read the lane.']
+        })
+        return ok({ exportId: staged.id })
+      }
+      case 'laneTransfer.exportStatus': {
+        const staged = ports.staging.get(p.exportId)
+        if (!staged) throw new FeatureFailure('bad-request')
+        return ok(staged.status)
       }
       case 'laneTransfer.read': {
         const staged = ports.staging.get(p.exportId)
-        if (!staged) throw new FeatureFailure('bad-request')
+        if (!staged || !('state' in staged.status) || staged.status.state !== 'done')
+          throw new FeatureFailure('bad-request')
         const fd = openSync(staged.path, 'r')
         try {
           const buffer = Buffer.alloc(LIMIT.chunkBytes)
@@ -88,7 +95,7 @@ export function createLaneExportFeature(
         }
       }
       case 'laneTransfer.release':
-        ports.staging.discard(p.exportId)
+        ports.staging.release(p.exportId)
         return ok({})
       default:
         throw new FeatureFailure('unsupported')

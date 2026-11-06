@@ -1,5 +1,5 @@
 import { createHash, type Hash } from 'node:crypto'
-import { closeSync, constants, fstatSync, openSync, writeSync } from 'node:fs'
+import { closeSync, constants, fstatSync, openSync, rmSync, writeSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   LANE_TRANSFER_LIMITS as LIMIT,
@@ -10,7 +10,7 @@ import {
   parseLaneTransferParams,
   type LaneTransferParams,
 } from '@phosphor/shared/host-protocol-lane-transfer-calls'
-import { TransferRefusal } from '@phosphor/session-runtime/lane-transfer/files'
+import { TransferRefusal, refuse } from '@phosphor/session-runtime/lane-transfer/files'
 import { installLane } from '@phosphor/session-runtime/lane-transfer/install'
 import {
   checkTarget,
@@ -23,7 +23,7 @@ import type { HostStore } from '../../lanes/store'
 import { LaneFolderError, prepareLaneFolder } from '../../lanes/worktree'
 import type { FeatureContext, FeatureOutcome, HostFeature } from '../feature'
 import { FeatureFailure, featureError } from '../machine'
-import type { Staging } from './staging'
+import type { Staged, Staging } from './staging'
 
 export interface LaneImportPorts {
   staging: Staging
@@ -80,10 +80,17 @@ export function createLaneImportFeature(
       maxTranscriptBytes: LIMIT.transcriptBytes,
     }
   }
-  async function commit(id: string, upload: Upload): Promise<FeatureOutcome> {
-    const staged = ports.staging.get(id)
-    if (!staged || upload.received !== upload.begin.size) throw new FeatureFailure('bad-request')
-    if (upload.hash.digest('hex') !== upload.begin.sha256) throw new FeatureFailure('bad-request')
+  /** The bytes go once the commit ends either way; the job's answer stays for polling. */
+  async function commit(staged: Staged, upload: Upload): Promise<{ laneId: string }> {
+    try {
+      return await admit(staged, upload)
+    } finally {
+      rmSync(staged.path, { force: true })
+    }
+  }
+  async function admit(staged: Staged, upload: Upload): Promise<{ laneId: string }> {
+    if (upload.received !== upload.begin.size || upload.hash.digest('hex') !== upload.begin.sha256)
+      refuse('The lane bundle is damaged.')
     const { begin } = upload
     const input = target(begin.repositoryId, begin.branchPrefix, begin.sameMachine)
     const prepared = await prepareImport({ ...input, archivePath: staged.path, worktrees })
@@ -114,7 +121,7 @@ export function createLaneImportFeature(
       applyMarks(id, begin.marks)
       ports.published(id)
       context.log('lane.imported', { mode: prepared.plan.mode, bytes: begin.size })
-      return ok({ laneId: id })
+      return { laneId: id }
     } catch (error) {
       if (laneId) ports.store.markRemoved(laneId)
       await undo?.()
@@ -158,7 +165,7 @@ export function createLaneImportFeature(
         for (const [id] of uploads) if (!ports.staging.get(id)) uploads.delete(id)
         const staged = ports.staging.create(2)
         if (!staged) throw new FeatureFailure('internal')
-        closeSync(openSync(staged.path, 'wx', 0o600))
+        closeSync(openSync(staged.entry.path, 'wx', 0o600))
         uploads.set(staged.id, { received: 0, hash: createHash('sha256'), begin: p })
         return ok({ importId: staged.id })
       }
@@ -166,16 +173,24 @@ export function createLaneImportFeature(
         return chunk(p)
       case 'laneTransfer.commit': {
         const upload = uploads.get(p.importId)
-        if (!upload) throw new FeatureFailure('bad-request')
+        const staged = ports.staging.get(p.importId)
+        if (!upload || !staged) throw new FeatureFailure('bad-request')
         uploads.delete(p.importId)
         // One commit at a time: two lanes racing for one branch or folder would each pass the checks.
-        const job = tail.then(() => commit(p.importId, upload))
+        const job = tail.then(() => commit(staged, upload))
         tail = job.catch(() => undefined)
-        try {
-          return await job
-        } finally {
-          ports.staging.discard(p.importId)
-        }
+        ports.staging.track(staged, job, (error) => {
+          if (error instanceof TransferRefusal || error instanceof LaneFolderError)
+            return [error.message]
+          context.log('feature.failed', { method, reason: 'internal' })
+          return ['This Host could not add the lane. Nothing was kept.']
+        })
+        return ok({})
+      }
+      case 'laneTransfer.importStatus': {
+        const staged = ports.staging.get(p.importId)
+        if (!staged) throw new FeatureFailure('bad-request')
+        return ok(staged.status)
       }
       default:
         throw new FeatureFailure('unsupported')

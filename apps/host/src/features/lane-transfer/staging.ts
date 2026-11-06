@@ -2,15 +2,18 @@ import { randomBytes } from 'node:crypto'
 import { lstatSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { LANE_TRANSFER_LIMITS as LIMIT } from '@phosphor/shared/host-protocol-lane-transfer'
+import type { LaneJobStatus } from '@phosphor/shared/host-protocol-lane-transfer-calls'
 
 /**
- * Bundles in flight, under `<state>/lane-transfer/{exports,imports}/`: private to this user,
- * never inside a repository, and gone after an hour or a restart. A transfer
- * id is 128 random bits, never a path.
+ * Bundles in flight, under `<state>/lane-transfer/{exports,imports}/`: private
+ * to this user, never inside a repository, and gone after an hour or a
+ * restart. A transfer id is 128 random bits, never a path. Each one carries
+ * its job's status, which outlives the file so a client can still ask.
  */
 export interface Staged {
   path: string
   started: number
+  status: LaneJobStatus<unknown>
 }
 
 export function createStaging(root: string, now: () => number = Date.now) {
@@ -30,18 +33,37 @@ export function createStaging(root: string, now: () => number = Date.now) {
     if (entry) rmSync(entry.path, { force: true })
   }
   return {
-    /** Reserve a new staged file, or null when `max` transfers are already open. */
-    create(max: number): { id: string; path: string } | null {
+    /** Reserve a new staged file, or null when `max` transfers are still running. */
+    create(max: number): { id: string; entry: Staged } | null {
       sweep()
-      if (entries.size >= max) return null
+      const running = [...entries.values()].filter((e) => 'state' in e.status && e.status.state === 'running')
+      if (running.length >= max) return null
       const id = randomBytes(16).toString('hex')
-      const path = join(root, id)
-      entries.set(id, { path, started: now() })
-      return { id, path }
+      const entry: Staged = { path: join(root, id), started: now(), status: { state: 'running' } }
+      entries.set(id, entry)
+      return { id, entry }
     },
     get(id: string): Staged | undefined {
       sweep()
       return entries.get(id)
+    },
+    /** Run `job` as this transfer's status; a refusal's sentence is its answer. */
+    track(entry: Staged, job: Promise<unknown>, refusal: (error: unknown) => string[]): void {
+      // Both outcomes are handled here, so the chain itself cannot reject.
+      void job.then(
+        (value) => {
+          entry.status = { state: 'done', value }
+        },
+        (error: unknown) => {
+          entry.status = { blockers: refusal(error) }
+          rmSync(entry.path, { force: true })
+        },
+      )
+    },
+    /** Drop the bytes but keep the answer. */
+    release(id: string): void {
+      const entry = entries.get(id)
+      if (entry) rmSync(entry.path, { force: true })
     },
     discard,
     close(): void {
