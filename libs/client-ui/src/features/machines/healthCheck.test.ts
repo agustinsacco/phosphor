@@ -290,4 +290,34 @@ describe('health check', () => {
     ])
     expect(withHosts.pi).toEqual(['error', 'pi was not found on your PATH.'])
   })
+
+  it("This Mac's pi step reads like its readiness row, without main's install command", async () => {
+    const calls = vi.fn(async (channel: string): Promise<unknown> => {
+      if (channel === 'hosts:tailscaleStatus') return { code: 'ready' }
+      if (channel === 'pi:health')
+        return {
+          ok: false,
+          version: '0.50.0',
+          minVersion: '0.70.0',
+          reason: 'too-old',
+          message:
+            'pi 0.50.0 is older than the minimum supported 0.70.0. Update with: npm install -g @earendil-works/pi-coding-agent@latest',
+        }
+      throw new Error(`unexpected ${channel}`)
+    })
+    const run = await runHealthCheck({
+      invoke: calls as never,
+      localLabel: 'This Mac',
+      signedIn: false,
+      refreshDirectory: async () => null,
+      machines: () => [],
+      hosts: () => ({}),
+      localProviders: async () => [],
+      localLanes: () => ({ live: 0, folders: 0 }),
+      now: () => now,
+      onUpdate: () => {},
+    })
+    const pi = run.targets[0]?.steps.find((s) => s.id === 'pi')
+    expect([pi?.tone, pi?.detail]).toEqual(['error', 'pi 0.50.0 is older than 0.70.0.'])
+  })
 })
