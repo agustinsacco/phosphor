@@ -6,7 +6,7 @@ import {
   plannedTranscriptExists,
   readOwnedTranscript,
 } from './transcripts'
-import { compareVersions } from '@phosphor/session-runtime/pi/versions'
+import { compareVersions } from '@phosphor/shared/version'
 import { abortable, promptProcessor } from './processor-wait'
 import type { BrainJob, BrainProcessConsent, BrainProposalInput } from '@phosphor/shared/brain'
 import type { LiveSession } from '@phosphor/session-runtime/pi/session-registry'
