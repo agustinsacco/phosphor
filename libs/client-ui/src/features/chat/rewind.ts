@@ -1,11 +1,10 @@
 import type { ImageContent } from '@shared/rpc'
 import { sessionBranch } from '@shared/session-branch'
 import { useChatStore } from '@/stores/chat'
-import { bootstrapSession, useSessionsStore } from '@/stores/sessions'
-import { piCall, rehydrateTranscript } from '@/lib/rpc'
+import { changeSessionBranch } from '@/features/sessions/sessionTransition'
+import { piCall } from '@/lib/rpc'
 import type { ChatItem, UserItem } from './chatItems'
 import { userMessageImages, userMessageText } from './messageContent'
-import { useChatUiStore } from './uiState'
 
 /**
  * Rewind semantics come straight from pi's own `fork` RPC command: it
@@ -16,7 +15,7 @@ import { useChatUiStore } from './uiState'
  *
  * pi always creates a new session file here, even though the live RPC
  * connection carries on uninterrupted on the same subprocess — so
- * `bootstrapSession` has to run again to relearn the new `sessionFile`.
+ * the shared session transition must relearn the new `sessionFile`.
  * Skipping that step leaves `live[sessionId].diskPath` pointed at the
  * abandoned pre-fork file, which reads in the sidebar as the chat having
  * been duplicated (see `bootstrapSession`'s doc comment).
@@ -35,7 +34,7 @@ import { useChatUiStore } from './uiState'
  * one title. This is the ONLY place that records: Fork and Clone produce files
  * of exactly the same shape, and both of theirs must stay visible.
  *
- * Rewinds on one session run one at a time. Each reads the file it starts
+ * Clone and Rewind on one session run one at a time. Each reads the file it starts
  * from, and a second one started before the first had relearned its file
  * recorded from the same old file too, overwriting the first link and leaving
  * the middle version as a stray duplicate row.
@@ -45,55 +44,7 @@ export function rewindToEntry(
   entryId: string,
   images?: ImageContent[],
 ): Promise<void> {
-  const run = (inFlight.get(sessionId) ?? Promise.resolve()).then(() =>
-    rewindOnce(sessionId, entryId, images),
-  )
-  const settled = run.then(
-    () => undefined,
-    () => undefined,
-  )
-  inFlight.set(sessionId, settled)
-  void settled.then(() => {
-    if (inFlight.get(sessionId) === settled) inFlight.delete(sessionId)
-  })
-  return run
-}
-
-const inFlight = new Map<string, Promise<void>>()
-
-async function rewindOnce(
-  sessionId: string,
-  entryId: string,
-  images?: ImageContent[],
-): Promise<void> {
-  const before = useSessionsStore.getState().live[sessionId]?.diskPath
-  const fork = await piCall(sessionId, { type: 'fork', entryId })
-  if (!fork) return
-  if (fork.cancelled) {
-    useChatStore.getState().setError(sessionId, 'Rewind was cancelled by an extension.')
-    return
-  }
-  // Recorded in the same update that moves `diskPath`, not after
-  // `bootstrapSession` returns: it keeps loading models and commands after
-  // learning the file, and for that whole round trip the old file was neither
-  // live nor recorded, so the sidebar showed it beside the new one.
-  let recorded = false
-  const record = (after: string | undefined): void => {
-    if (recorded || !before || !after || after === before) return
-    recorded = true
-    useSessionsStore.getState().recordRewind(before, after)
-  }
-  const unsubscribe = useSessionsStore.subscribe((s) => record(s.live[sessionId]?.diskPath))
-  try {
-    // Rebuild the transcript from the new branch point and relearn its file.
-    await Promise.all([rehydrateTranscript(sessionId), bootstrapSession(sessionId)])
-  } finally {
-    unsubscribe()
-  }
-  record(useSessionsStore.getState().live[sessionId]?.diskPath)
-  if (fork.text || images?.length) {
-    useChatUiStore.getState().setPrefill(sessionId, fork.text, images)
-  }
+  return changeSessionBranch(sessionId, { type: 'fork', entryId }, images)
 }
 
 /** A user message on the session's current branch — something `fork` accepts. */
@@ -145,17 +96,17 @@ function isRawEntry(value: unknown): value is RawEntry {
  * `get_entries` ships the whole file: 15 MB for the largest local session,
  * ~80 ms to parse and clone. Fine behind a click; keep it off render paths.
  *
- * Deliberately NOT `piCall` (AGENTS.md fact 3): every caller turns `null`
- * into its own, more specific message.
+ * Transport rejections and error replies both return null, so callers can
+ * leave loading state and offer a retry.
  */
 export async function currentBranchUserMessages(
   sessionId: string,
 ): Promise<BranchUserMessage[] | null> {
-  const response = await window.phosphor.piCommand(sessionId, { type: 'get_entries' })
-  if (!response.success || !response.data) return null
-  const entries = response.data.entries.filter(isRawEntry)
+  const data = await piCall(sessionId, { type: 'get_entries' })
+  if (!data) return null
+  const entries = data.entries.filter(isRawEntry)
   const messages: BranchUserMessage[] = []
-  for (const entry of sessionBranch(entries, response.data.leafId, 'last')) {
+  for (const entry of sessionBranch(entries, data.leafId, 'last')) {
     const message = entry.message
     if (entry.type !== 'message' || message?.role !== 'user' || message.content == null) continue
     const content = { content: message.content }

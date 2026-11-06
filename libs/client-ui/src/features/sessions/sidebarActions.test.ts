@@ -4,6 +4,7 @@ import type { SessionMeta } from '@shared/models'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { cloneSession } from './sidebarActions'
+import { useSessionTransition } from './sessionTransition'
 
 const invoke = vi.fn()
 const piCommand = vi.fn()
@@ -45,6 +46,7 @@ function sessionState(sessionFile: string): RpcSessionState {
 }
 
 beforeEach(() => {
+  useSessionTransition.setState({ bySession: {} })
   invoke.mockReset().mockResolvedValue(undefined)
   piCommand.mockReset()
   vi.stubGlobal('window', { phosphor: { invoke, piCommand } })
