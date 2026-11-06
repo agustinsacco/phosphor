@@ -18,6 +18,7 @@
 import { Type } from 'typebox'
 import {
   BRAIN_PREDICATES,
+  BRAIN_PROCESSOR_TOOLS,
   type BrainEntityKind,
   type BrainEpistemicKind,
   type BrainEvidence,
@@ -40,6 +41,7 @@ import {
   createNodeBrainTransport,
 } from '@phosphor/brain-client/node-transport'
 import type { ToolDefinition } from './pi-api'
+import { BRAIN_AUDIT_COMMAND, BRAIN_AUDIT_STATUS_KEY } from './status-keys'
 
 export const BRAIN_JOB_ENV = 'PHOSPHOR_BRAIN_JOB_ID'
 export const BRAIN_OWNER_ENTRY_TYPE = 'phosphor-brain-owner'
@@ -56,6 +58,14 @@ export interface BrainProcessorPiApi {
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void
   registerTool<Parameters, Details>(definition: ToolDefinition<Parameters, unknown, Details>): void
   appendEntry(type: string, data: unknown): void
+  getActiveTools(): string[]
+  registerCommand(
+    name: string,
+    options: {
+      description: string
+      handler: (args: string, ctx: { ui: { setStatus(key: string, text: string): void } }) => void
+    },
+  ): void
 }
 
 export type BrainOwnership = 'pending' | 'owned' | 'foreign'
@@ -174,6 +184,28 @@ const PROPOSAL_PARAMETERS = Type.Object(
   strict,
 )
 
+function auditedTools(pi: BrainProcessorPiApi): string[] {
+  const tools = pi.getActiveTools().slice().sort()
+  if (
+    tools.length !== BRAIN_PROCESSOR_TOOLS.length ||
+    tools.some((name, i) => name !== BRAIN_PROCESSOR_TOOLS[i])
+  )
+    throw new Error('Brain processor tool set is not restricted to its audited tools.')
+  return tools
+}
+
+/** A local command, never an inference request or evidence-bearing tool call. */
+function registerAudit(pi: BrainProcessorPiApi, jobId: string, authorize: () => string[]): void {
+  pi.registerCommand(BRAIN_AUDIT_COMMAND, {
+    description: 'Attest this owned processor and its active tools without running a model.',
+    handler: (nonce, ctx) => {
+      if (!/^[a-f0-9]{32}$/.test(nonce)) throw new Error('Invalid Brain audit nonce')
+      const tools = authorize()
+      ctx.ui.setStatus(BRAIN_AUDIT_STATUS_KEY, JSON.stringify({ version: 1, nonce, jobId, tools }))
+    },
+  })
+}
+
 export function registerBrainProcessor(
   pi: BrainProcessorPiApi,
   client: BrainClient,
@@ -185,8 +217,8 @@ export function registerBrainProcessor(
       ?.sessionManager
     ownership = claimBrainSession(pi, manager?.getBranch?.() ?? [], jobId)
   })
-  const requireOwnership = (): void => {
-    if (ownership === 'owned') return
+  const requireOwnership = (): string[] => {
+    if (ownership === 'owned') return auditedTools(pi)
     throw new Error(
       ownership === 'foreign'
         ? 'This session does not belong to the Brain job it was started for.'
@@ -194,6 +226,7 @@ export function registerBrainProcessor(
     )
   }
 
+  registerAudit(pi, jobId, requireOwnership)
   pi.registerTool<Record<string, never>, { jobId: string; evidence: number }>({
     name: 'brain_job',
     label: 'Brain job',

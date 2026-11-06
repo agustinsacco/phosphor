@@ -611,6 +611,18 @@ fetches. The global library tags remote rows with their machine. Removed Host
 lanes do not appear in that library; local deleted-session artifacts remain.
 See [remote artifacts](remote-desktop.md#remote-artifacts) for the wire limits.
 
+### Brain's private processor audit
+
+The opt-in Brain processor loads only its standalone `brain-processor.mjs`
+resource. Before sending evidence, main discovers `/phosphor-brain-audit` from
+that exact resource and invokes it as a local extension command, not a model
+prompt. Its `phosphor-brain-audit` status contains `{ version: 1, nonce, jobId,
+tools }`. Main requires the nonce, owner and exact `brain_job` / `brain_propose`
+active tool set, plus a `handled` prompt disposition. Every processor tool
+rechecks that active set. Missing, malformed, timed-out or mismatched audits
+fail closed. Processor pushes never enter ordinary lane UI channels; this
+status has no renderer consumer.
+
 ### The status channel is a wire contract
 
 Bundled extensions and provider packages talk to Phosphor's UI the same way:
