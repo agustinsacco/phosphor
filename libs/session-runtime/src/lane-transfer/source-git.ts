@@ -46,9 +46,12 @@ export function normalizeOrigin(url: string): string | null {
   return `${host}/${segments.join('/')}`.toLowerCase()
 }
 
-/** Origin of the repository holding `cwd`, normalized, or null. */
+/**
+ * Origin of the repository holding `cwd`, normalized, or null. The configured
+ * URL, before any `insteadOf` rewrite: that is the name both machines agree on.
+ */
 export async function repositoryOrigin(cwd: string): Promise<string | null> {
-  const url = await git(cwd, ['remote', 'get-url', 'origin'], { allowFail: true, trim: true })
+  const url = await git(cwd, ['config', '--get', 'remote.origin.url'], { allowFail: true, trim: true })
   return url ? normalizeOrigin(url) : null
 }
 
