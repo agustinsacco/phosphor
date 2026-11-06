@@ -79,6 +79,13 @@ describe('workspace installation closure', () => {
     )
   })
 
+  it('exports the memory validation subpath used by the Desktop adapter', () => {
+    const require = createRequire(join(root, 'package.json'))
+    expect(require.resolve('@phosphor/memory-engine/validation')).toBe(
+      join(root, 'libs/memory-engine/src/validation.ts'),
+    )
+  })
+
   it('bundles real workspace subpath exports rather than shipping TypeScript links', async () => {
     // UI exports contain Vite assets and workers, not Node entrypoints. The web
     // production build validates their actual browser graph via build-policy.ts.
