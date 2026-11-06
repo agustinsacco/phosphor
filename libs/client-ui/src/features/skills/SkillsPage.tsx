@@ -146,7 +146,7 @@ const SkillsInventory = memo(function SkillsInventory({
         <div className="flex items-center gap-1.5">
           {machinePicker}
           {remote ? (
-            <span>Read-only</span>
+            <span>Read only</span>
           ) : (
             <>
               <Button size="sm" onClick={() => void pickImport()}>

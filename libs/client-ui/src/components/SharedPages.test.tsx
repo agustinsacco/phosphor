@@ -150,7 +150,7 @@ it.each([DESKTOP_PLATFORM, COMPACT_PLATFORM])(
   'shares remote Skills inventory and routine actions in $formFactor',
   async (platform) => {
     await render(platform, <SkillsPage workspacePath="" />)
-    expect(container.textContent).toContain('Read-only')
+    expect(container.textContent).toContain('Read only')
     expect(container.querySelector('[placeholder="Search skills"]')).not.toBeNull()
     expect(container.textContent).not.toContain('Upload')
     await render(platform, <RoutinesPage workspacePath="" />)
