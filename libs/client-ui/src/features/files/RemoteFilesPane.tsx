@@ -7,6 +7,7 @@ import {
 import { useRemoteFileSelection, releaseRemoteFileSelection } from './remoteFileSelection'
 import { RemoteFileTree } from './RemoteFileTree'
 import { useTreeFolders } from './useTreeFolders'
+import { useRemoteFileList } from './useRemoteFileList'
 import { TextFilePreview } from './TextFilePreview'
 import { RemoteFilesToolbar, type RemoteFileAction } from './RemoteFilesToolbar'
 import { useEffect, useState, useRef } from 'react'
@@ -16,7 +17,6 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLaneWriteRefusal } from './laneWriteRefusal'
-import { fileListErrorText } from '@shared/host-protocol-files'
 import { promptText } from '@/stores/prompt'
 
 /** Remote content stays in memory: no `phosphor-file://` grant and no filesystem watcher. */
@@ -42,10 +42,6 @@ function RemoteFilesView({
   })
   const host = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
   const [refresh, setRefresh] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [files, setFiles] = useState<string[]>([])
-  const [gitUnavailable, setGitUnavailable] = useState(false)
-  const [status, setStatus] = useState<Record<string, string>>({})
   const selection = useRemoteFileSelection((s) => s.bySession[sessionId])
   const [draft] = useState(() => useRemoteFileDrafts.getState().bySession[sessionId])
   const [selected, setSelected] = useState<string | null>(draft?.selected ?? null)
@@ -79,40 +75,12 @@ function RemoteFilesView({
   const reveal = selection?.path === selected ? selection.reveal : undefined
   const refusal = hostFeatureRefusal(host, 'workspaces.read')
   const available = !refusal
-  const laneId = useSessionsStore((s) => s.live[sessionId]?.laneId)
-  // Host objects are replaced by unrelated lanes and control/stream updates.
-  const summary = JSON.stringify(host?.lanes.find((lane) => lane.laneId === laneId))
-  const connectionState = host?.state
-  const runtimeEpoch = host?.cursor?.epoch
-  useEffect(() => {
-    let alive = true
-    setLoading(available)
-    setFiles([])
-    setStatus({})
-    if (available)
-      void Promise.all([
-        window.phosphor.invoke('fs:listFiles', workspacePath),
-        window.phosphor.invoke('git:statusMap', workspacePath).catch(() => null),
-      ]).then(
-        ([files, status]) => {
-          if (alive) {
-            setLoading(false)
-            setFiles(files)
-            setGitUnavailable(status === null)
-            setStatus(status ?? {})
-            if (!dirtyRef.current) setError(null)
-          }
-        },
-        (error: unknown) => {
-          if (!alive) return
-          setLoading(false)
-          setError(fileListErrorText(error, 'Could not read files.'))
-        },
-      )
-    return () => {
-      alive = false
-    }
-  }, [workspacePath, available, summary, connectionState, runtimeEpoch, refresh])
+  const { loading, files, gitUnavailable, status } = useRemoteFileList(
+    { workspacePath, sessionId, host },
+    { available, refresh },
+    dirtyRef,
+    setError,
+  )
   useEffect(() => {
     let alive = true
     if (dirtyRef.current) return
