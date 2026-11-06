@@ -74,6 +74,26 @@ async function openLane(page: Page, title = 'Synthetic acceptance lane') {
   await expect(page.getByText('No controller', { exact: true })).toBeVisible()
 }
 
+test('Brain stays unavailable in compact and wide browsers and rejects direct IPC', async ({
+  page,
+  stack,
+}) => {
+  await signIn(page, stack.origin)
+  await navigatePage(page, 'Brain')
+  await expect(page.getByText(/Brain is unavailable on this machine/)).toBeVisible()
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await expect(page.getByText(/Brain is unavailable on this machine/)).toBeVisible()
+  const failure = await page.evaluate(async () => {
+    try {
+      await window.phosphor.invoke('brain:status')
+      return ''
+    } catch (error) {
+      return String(error)
+    }
+  })
+  expect(failure).toContain('Brain is a local Desktop prototype')
+})
+
 test('production bootstrap: anonymous cookie boundary and anonymous service-worker shell', async ({
   page,
   context,
