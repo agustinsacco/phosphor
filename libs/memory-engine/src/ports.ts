@@ -55,6 +55,8 @@ export interface MemoryStorePort {
   ): BrainSearchResult
   embeddingItems(modelId: string, limit: number): { claimId: string; text: string }[]
   putVectors(vectors: MemoryVector[]): void
+  pendingPurges(): { jobId: string; sessionPath: string }[]
+  acknowledgePurge(jobId: string): void
   close(): void
 }
 /** Structured-clone-safe worker port; no SQL or file paths from agent/UI callers. */
