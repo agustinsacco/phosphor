@@ -50,3 +50,22 @@ it('a Host whose model read fails says the models could not be read', async () =
   expect(container.textContent).toBe('Could not read models.')
   act(() => root.unmount())
 })
+
+it('a Host whose models have not been read yet says they are loading, not that a read failed', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('phosphor', { invoke: vi.fn(() => new Promise(() => {})) })
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  host.capabilities.push('skills.read')
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  const hints: string[] = []
+  function Hint() {
+    const { hint } = useRemoteModel(MOCK_HOST_ID)
+    hints.push(hint)
+    return <p>{hint}</p>
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  await act(async () => root.render(<Hint />))
+  expect(new Set(hints)).toEqual(new Set(['Loading models…']))
+  act(() => root.unmount())
+})

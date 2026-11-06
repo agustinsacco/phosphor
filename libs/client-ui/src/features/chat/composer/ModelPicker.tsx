@@ -49,7 +49,7 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       ? meta?.model
       : undefined
   const { switchingTo, switchTo } = useSessionModelSwitch(sessionId, currentModel, remote)
-  const actions = useSessionModelActions(sessionId)
+  const { actions } = useSessionModelActions(sessionId)
   const failed = useChatStore((s) => s.sessions[sessionId]?.modelsFailed ?? false)
 
   if (!meta) {

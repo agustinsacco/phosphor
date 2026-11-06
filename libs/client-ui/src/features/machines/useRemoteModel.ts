@@ -55,7 +55,7 @@ export function useRemoteModel(hostId: string) {
     : (hostFeatureRefusal(host, 'skills.read', 'models') ??
       (missingModel
         ? `No signed-in model on ${machineLabel(hostId)}.`
-        : catalogue.status === 'loading'
+        : catalogue.status === 'idle' || catalogue.status === 'loading'
           ? 'Loading models…'
           : MODELS_READ_FAILED))
   return {
