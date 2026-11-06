@@ -41,6 +41,9 @@ export function BrainExplore({ snapshot, busy, act }: ExploreProps): React.JSX.E
           void act(async () => setGraph(await window.phosphor.invoke('brain:graph', id)))
         }}
       />
+      <p>
+        Snapshot includes enrolled branches. Entity exploration shows project-wide evidence only.
+      </p>
       {graph && <Button onClick={() => setGraph(null)}>Show snapshot graph</Button>}
       <h2 className="font-semibold">Claims · accessible list</h2>
       {!claims.length && (
@@ -98,6 +101,7 @@ function SearchForm({
   const [mode, setMode] = useState<'lexical' | 'hybrid'>('lexical')
   const [validAt, setValidAt] = useState('')
   const [knownAt, setKnownAt] = useState('')
+  const [branch, setBranch] = useState('')
   return (
     <form
       className="brain-card"
@@ -109,6 +113,7 @@ function SearchForm({
               query,
               mode,
               limit: 50,
+              branch: branch.trim() || undefined,
               validAt: validAt ? new Date(validAt).getTime() : undefined,
               knownAt: knownAt ? new Date(knownAt).getTime() : undefined,
             }),
@@ -123,6 +128,15 @@ function SearchForm({
           onChange={(e) => setQuery(e.target.value)}
           required
           maxLength={2000}
+        />
+      </label>
+      <label className="brain-field">
+        Evidence branch · blank means project-wide only
+        <TextInput
+          aria-label="Evidence branch"
+          value={branch}
+          onChange={(e) => setBranch(e.target.value)}
+          maxLength={200}
         />
       </label>
       <label className="brain-field">

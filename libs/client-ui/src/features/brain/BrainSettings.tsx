@@ -131,9 +131,10 @@ function ReasoningFields({
     <div className="brain-card">
       <h3>Reasoning provider · separate from local embeddings</h3>
       <p>
-        Manual Process sends enrolled evidence to the exact configured reasoning provider/model
-        using its existing credentials. A remote provider receives transcript content. Local
-        embeddings do not make remote reasoning private. No automatic model fallback.
+        Manual Process sends enrolled evidence to the exact configured native Anthropic or OpenAI
+        model, using its API key from the local app environment. Shared OAuth and CLI providers are
+        unsupported. A remote provider receives transcript content. Local embeddings do not make
+        remote reasoning private. No automatic model fallback.
       </p>
       <label className="brain-field">
         Exact provider
@@ -209,6 +210,7 @@ function EmbeddingSettings({
         <Button
           disabled={
             busy ||
+            !status.snapshot.prefs.enabled ||
             !terms ||
             transferring ||
             model.phase === 'ready' ||
