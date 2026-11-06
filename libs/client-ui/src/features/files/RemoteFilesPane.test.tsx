@@ -11,6 +11,12 @@ import { useRemoteFileSelection, openRemoteFile } from './remoteFileSelection'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteInfo, mockRemoteHosts } from '@/dev/mockRemoteLanes'
 import type { SessionPush } from '@shared/models'
+import {
+  remoteFilesHostId,
+  remoteFilesSessionId,
+  renderRemoteFilesPane,
+  seedRemoteFilesLane,
+} from './__fixtures__/renderRemoteFilesPane'
 
 vi.mock('./FilesPane', () => ({ FilesPane: () => null }))
 vi.mock('./FilesChangedPane', () => ({ FilesChangedPane: () => null }))
@@ -51,20 +57,6 @@ afterEach(() => {
   useRemoteLanesStore.setState({ hosts: {} })
 })
 it('shows read-only files and diffs, refreshes on turn end and summary, never watches or writes', async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  const hostId = mockRemoteInfo.target?.kind === 'remote' ? mockRemoteInfo.target.hostId : ''
-  const sessionId = mockRemoteInfo.sessionId
-  useSessionsStore.setState({ live: { [sessionId]: { phosphorId: sessionId, ...mockRemoteInfo } } })
-  const host = {
-    connectionToken: 'test-connection-1',
-    state: 'ready' as const,
-    capabilities: ['sessions.read', 'workspaces.read'] as const,
-    repositories: [],
-    lanes: mockRemoteHosts[hostId]?.lanes ?? [],
-  }
-  useRemoteLanesStore.setState({
-    hosts: { [hostId]: { ...host, capabilities: [...host.capabilities] } },
-  })
   const invoke = vi.fn(async (channel: string) => {
     switch (channel) {
       case 'fs:listFiles':
@@ -80,28 +72,19 @@ it('shows read-only files and diffs, refreshes on turn end and summary, never wa
     }
   })
   let listener: ((push: SessionPush) => void) | undefined
-  vi.stubGlobal('phosphor', {
-    invoke,
-    onSessionPush: (_: string, cb: (push: SessionPush) => void) => {
-      listener = cb
-      return () => {}
+  const { container, root, render } = await renderRemoteFilesPane({
+    capabilities: ['sessions.read', 'workspaces.read'],
+    phosphor: {
+      invoke,
+      onSessionPush: (_: string, cb: (push: SessionPush) => void) => {
+        listener = cb
+        return () => {}
+      },
     },
   })
-  const container = document.createElement('div')
-  const root = createRoot(container)
-  const render = async (changes = false) => {
-    await act(async () => {
-      root.render(
-        <RemoteFilesPane
-          workspacePath={mockRemoteInfo.workspacePath}
-          sessionId={sessionId}
-          changes={changes}
-        />,
-      )
-    })
-  }
+  const hostId = remoteFilesHostId
+  const host = useRemoteLanesStore.getState().hosts[hostId]!
   try {
-    await render()
     expect(container.textContent).toContain('Read only')
     expect(container.textContent).toContain('a.ts')
     const file = Array.from(container.querySelectorAll('button')).find((b) =>
@@ -189,24 +172,6 @@ it('shows read-only files and diffs, refreshes on turn end and summary, never wa
 it.each(['??', 'A ', 'AM', ' M'])(
   'keeps current content for %s when HEAD is absent',
   async (status) => {
-    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    const target = mockRemoteInfo.target
-    if (target?.kind !== 'remote') throw new Error('Missing remote fixture')
-    const sessionId = mockRemoteInfo.sessionId
-    useSessionsStore.setState({
-      live: { [sessionId]: { phosphorId: sessionId, ...mockRemoteInfo } },
-    })
-    useRemoteLanesStore.setState({
-      hosts: {
-        [target.hostId]: {
-          connectionToken: 'test-connection-1',
-          state: 'ready',
-          capabilities: ['workspaces.read'],
-          repositories: [],
-          lanes: [],
-        },
-      },
-    })
     const invoke = vi.fn(async (channel: string) => {
       if (channel === 'fs:listFiles') return ['new.ts']
       if (channel === 'git:statusMap') return { 'new.ts': status }
@@ -214,19 +179,12 @@ it.each(['??', 'A ', 'AM', ' M'])(
       if (channel === 'git:showFileAt') throw new Error('Not available on remote lanes yet.')
       throw new Error('Unexpected channel')
     })
-    vi.stubGlobal('phosphor', { invoke })
-    const container = document.createElement('div')
-    const root = createRoot(container)
+    const { container, root } = await renderRemoteFilesPane({
+      capabilities: ['workspaces.read'],
+      phosphor: { invoke },
+      changes: true,
+    })
     try {
-      await act(async () =>
-        root.render(
-          <RemoteFilesPane
-            workspacePath={mockRemoteInfo.workspacePath}
-            sessionId={sessionId}
-            changes
-          />,
-        ),
-      )
       const file = Array.from(container.querySelectorAll('button')).find((b) =>
         b.textContent?.includes('new.ts'),
       )
@@ -248,35 +206,10 @@ it.each(['success', 'conflict', 'unknown'])(
   'keeps revision-safe edits through disconnect/reconnect on %s saves',
   async (outcome) => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    const target = mockRemoteInfo.target
-    if (target?.kind !== 'remote') throw new Error('Missing remote fixture')
-    const sessionId = mockRemoteInfo.sessionId
-    useSessionsStore.setState({
-      live: { [sessionId]: { phosphorId: sessionId, ...mockRemoteInfo } },
-    })
-    const fixture = mockRemoteHosts[target.hostId]
-    if (!fixture) throw new Error('Missing Host fixture')
-    useRemoteLanesStore.setState({
-      hosts: {
-        [target.hostId]: {
-          ...fixture,
-          connectionToken: 'test-connection-1',
-          state: 'ready',
-          capabilities: [
-            'sessions.read',
-            'sessions.control',
-            'workspaces.read',
-            'workspaces.write',
-          ],
-          lanes: fixture.lanes.map((lane) => ({
-            ...lane,
-            control: {
-              ...lane.control,
-              controller: { self: true, label: 'Desktop', connected: true },
-            },
-          })),
-        },
-      },
+    const sessionId = remoteFilesSessionId
+    seedRemoteFilesLane({
+      capabilities: ['sessions.read', 'sessions.control', 'workspaces.read', 'workspaces.write'],
+      controller: true,
     })
     useLayoutStore.setState({
       bySession: { [sessionId]: { pane: 'files', expanded: false, side: 'right', size: 45 } },
@@ -312,12 +245,12 @@ it.each(['success', 'conflict', 'unknown'])(
       await click(' a.ts')
       await click('Edit')
       const editor = container.querySelector('textarea')
-      const host = useRemoteLanesStore.getState().hosts[target.hostId]
+      const host = useRemoteLanesStore.getState().hosts[remoteFilesHostId]
       if (!host) throw new Error('Host missing')
       const reads = invoke.mock.calls.filter(([c]) => c === 'fs:readFile').length
       await act(async () =>
         useRemoteLanesStore.setState({
-          hosts: { [target.hostId]: { ...host, state: 'reconnecting' } },
+          hosts: { [remoteFilesHostId]: { ...host, state: 'reconnecting' } },
         }),
       )
       expect(container.querySelector('textarea')).toBe(editor)
@@ -326,7 +259,7 @@ it.each(['success', 'conflict', 'unknown'])(
       expect(container.textContent).toContain('Reconnecting')
       await click('Editor save')
       expect(invoke.mock.calls.filter(([c]) => c === 'fs:writeFile')).toHaveLength(0)
-      await act(async () => useRemoteLanesStore.setState({ hosts: { [target.hostId]: host } }))
+      await act(async () => useRemoteLanesStore.setState({ hosts: { [remoteFilesHostId]: host } }))
       expect(container.querySelector('textarea')).toBe(editor)
       expect(editor?.value).toBe('edited')
       expect(invoke.mock.calls.filter(([c]) => c === 'fs:readFile')).toHaveLength(reads)
