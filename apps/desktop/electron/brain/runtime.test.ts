@@ -1,0 +1,90 @@
+import { beforeEach, expect, it, vi } from 'vitest'
+import type { SessionStartupRuntime } from '@phosphor/session-runtime/pi/session-startup'
+const state = vi.hoisted(() => ({
+  factory: vi.fn(),
+  embeds: vi.fn(),
+  setMemory: vi.fn(),
+  audit: vi.fn(),
+  log: vi.fn(),
+  prepare: vi.fn(),
+  dispose: vi.fn(),
+  stopEmbeddings: vi.fn(),
+  registry: {},
+  sessions: {},
+  paths: {},
+  packaged: false,
+}))
+vi.mock('electron', () => ({
+  app: {
+    get isPackaged() {
+      return state.packaged
+    },
+    getPath: () => '/profile',
+    getAppPath: () => '/repo/apps/desktop',
+  },
+}))
+vi.mock('../registry', () => ({ registry: state.registry }))
+vi.mock('../pi/session-runtime', () => ({
+  desktopSessions: state.sessions,
+  setSessionMemory: state.setMemory,
+}))
+vi.mock('../pi/session-path-lock', () => ({ sessionPaths: state.paths }))
+vi.mock('../pi/brain-tool-audit', () => ({ verifyBrainTools: state.audit }))
+vi.mock('../debug-log', () => ({ log: state.log }))
+vi.mock('./embedding-service', () => ({ createBrainEmbeddings: state.embeds }))
+vi.mock('./service', () => ({ createBrainService: state.factory }))
+vi.mock('./processor-resolver', () => ({ resolveBrainProcessor: vi.fn() }))
+beforeEach(() => {
+  vi.resetModules()
+  vi.clearAllMocks()
+  state.packaged = false
+  state.prepare.mockReset().mockResolvedValue(undefined)
+  state.dispose.mockReset().mockResolvedValue(undefined)
+  state.embeds.mockReturnValue({ dispose: state.stopEmbeddings })
+  state.factory.mockReset().mockResolvedValue({
+    ui: {},
+    memory: { prepare: state.prepare },
+    dispose: state.dispose,
+  })
+})
+it('is lazy, shares the real session service and locks, and closes before further admission', async () => {
+  const runtime = await import('./runtime')
+  runtime.installBrainMemory()
+  expect(state.factory).not.toHaveBeenCalled()
+  const a = runtime.brainService(),
+    b = runtime.brainService()
+  expect(a).toBe(b)
+  await a
+  expect(state.factory).toHaveBeenCalledWith(
+    expect.objectContaining({
+      directory: '/profile/brain',
+      sessions: state.sessions,
+      registry: state.registry,
+      sessionPaths: state.paths,
+      resources: {
+        workingExtension: '/repo/libs/pi-extensions/brain-ext/brain.mjs',
+        processorExtension: '/repo/libs/pi-extensions/brain-ext/brain-processor.mjs',
+      },
+      memoryWorkerPath: expect.stringMatching(/brain-memory-worker\.js$/),
+    }),
+  )
+  expect(state.embeds).toHaveBeenCalledWith(
+    expect.objectContaining({ directory: '/profile/brain/embeddings' }),
+  )
+  await runtime.disposeBrain()
+  expect(state.dispose).toHaveBeenCalledOnce()
+  await expect(runtime.brainService()).rejects.toThrow('shutting down')
+})
+it('does not fail ordinary startup on an unavailable Brain and retries its next acquisition', async () => {
+  const runtime = await import('./runtime')
+  state.factory.mockRejectedValueOnce(new Error('offline'))
+  runtime.installBrainMemory()
+  const memory = state.setMemory.mock.calls[0]![0] as NonNullable<SessionStartupRuntime['memory']>
+  await expect(memory.prepare({ workspacePath: '/repo' })).resolves.toBeUndefined()
+  expect(state.stopEmbeddings).toHaveBeenCalledOnce()
+  expect(state.log).toHaveBeenCalledOnce()
+  await memory.prepare({ workspacePath: '/repo' })
+  expect(state.factory).toHaveBeenCalledTimes(2)
+  expect(state.prepare).toHaveBeenCalledWith({ workspacePath: '/repo' })
+  await runtime.disposeBrain()
+})

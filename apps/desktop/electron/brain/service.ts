@@ -22,10 +22,13 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
   ])
     if (!isAbsolute(path)) throw new Error('Brain requires absolute owned resource paths')
   await mkdir(options.directory, { recursive: true, mode: 0o700 })
-  return assembleBrainService(
-    options,
-    createDesktopMemory(options.directory, options.memoryWorkerPath),
-  )
+  const store = createDesktopMemory(options.directory, options.memoryWorkerPath)
+  try {
+    return await assembleBrainService(options, store)
+  } catch (error) {
+    await store.close().catch((failure: unknown) => options.onError?.(failure))
+    throw error
+  }
 }
 
 /** Injectable worker port for focused integration tests; never exposed through IPC. */
@@ -91,8 +94,15 @@ export async function assembleBrainService(
     revoke,
     isClosed: lifecycle.isClosed,
   })
+  let enabled: boolean
   try {
-    await options.embeddings.setEnabled((await store.snapshot()).prefs.enabled)
+    enabled = (await store.snapshot()).prefs.enabled
+  } catch (error) {
+    await lifecycle.dispose().catch((failure: unknown) => options.onError?.(failure))
+    throw error
+  }
+  try {
+    await options.embeddings.setEnabled(enabled)
   } catch (error) {
     options.onError?.(error)
   }
