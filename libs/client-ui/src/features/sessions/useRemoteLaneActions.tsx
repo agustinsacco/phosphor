@@ -83,6 +83,7 @@ export function useRemoteLaneActions({
     navigate: withOpen ? navigate : undefined,
     pr,
     act: runner.act,
+    sessionId: entry?.phosphorId,
     session,
     exportAs: { title, nativeFiles },
     onRename,
@@ -200,6 +201,7 @@ function laneHandlers({
   navigate,
   pr,
   act,
+  sessionId,
   session,
   exportAs: { title, nativeFiles },
   onRename,
@@ -211,6 +213,8 @@ function laneHandlers({
   navigate: Navigation['navigate'] | undefined
   pr: Parameters<typeof openPullRequest>[0] | null | undefined
   act: (action: () => Promise<unknown>) => Promise<boolean>
+  /** The lane's open session, if any; `session()` opens one when absent. */
+  sessionId: string | undefined
   session: () => Promise<string>
   /** The export's file name, and whether this device saves through a dialog or a download. */
   exportAs: { title: string; nativeFiles: boolean }
@@ -243,7 +247,7 @@ function laneHandlers({
     exportHtml: () =>
       void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),
     copyDebugInfo: () =>
-      void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane, entry?.phosphorId))),
+      void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane, sessionId))),
     copySpend: () => void act(async () => copySpend(await sessionCost(await session()))),
     delete: () => openDialog('delete'),
   }
