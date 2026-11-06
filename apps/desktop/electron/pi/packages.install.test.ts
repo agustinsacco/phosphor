@@ -43,7 +43,7 @@ it('runs one npm pi install at a time and refuses a second click while it runs',
   const { runPiInstall } = await import('./packages')
   const [first, second] = await Promise.all([runPiInstall(sender), runPiInstall(sender)])
   const third = await runPiInstall(sender)
-  await vi.runAllTimersAsync()
+  await vi.advanceTimersByTimeAsync(0)
   expect(h.spawn).toHaveBeenCalledOnce()
   for (const refused of [second, third]) {
     expect(sent).toContainEqual([
