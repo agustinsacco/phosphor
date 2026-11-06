@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { hostLaneSession, MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSessionsStore } from '@/stores/sessions'
+import { bootstrapSession, useSessionsStore } from '@/stores/sessions'
 import type { HostLaneView } from '@phosphor/shared/ipc'
 import { ChatView } from './ChatView'
 
@@ -153,4 +153,22 @@ it('Retry models reads the lane models again and drops the banner once some arri
   await act(async () => retry?.click())
   expect(piCommand).toHaveBeenCalledWith('local', { type: 'get_available_models' })
   expect(el.textContent).not.toContain('No models configured')
+})
+
+it('says a failed model read failed, with Retry models, instead of "No models configured"', async () => {
+  const piCommand = vi.fn(async (_id: string, command: { type: string }) =>
+    command.type === 'get_state'
+      ? { success: true, data: { sessionId: 'local' } }
+      : { success: false, error: 'pi is busy' },
+  )
+  vi.stubGlobal('phosphor', { invoke, piCommand })
+  useSessionsStore.setState({
+    live: { local: { phosphorId: 'local', sessionId: 'local', workspacePath: '/w' } } as never,
+  })
+  useChatStore.getState().ensure('local')
+  await bootstrapSession('local')
+  const el = await render('local', '/w')
+  expect(el.textContent).toContain('Could not read models.')
+  expect(el.textContent).not.toContain('No models configured')
+  expect(buttonTexts(el)).toContain('Retry models')
 })
