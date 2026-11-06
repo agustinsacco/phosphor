@@ -8,6 +8,7 @@ import {
   REMOTE_NOT_READY,
   useSessionHostLane,
 } from '@/stores/remoteLanes'
+import type { SessionHostLane } from '@/stores/sessionHostLane'
 
 /** pi writes nothing to resume until a first message; the Host refuses Stop before then. */
 export const STOP_NEEDS_PROMPT = 'Send a first message before stopping this lane.'
@@ -26,7 +27,7 @@ export interface LaneControl {
   enabled: boolean
   /** This device is the lane's controller. */
   controlling: boolean
-  /** Why this window may not act on the lane now (`remoteControlHint`), or undefined. */
+  /** Why this window may not act on the lane now (`laneControlHint`), or undefined. */
   hint: string | undefined
   /** What the Host says the lane is doing; undefined until the Host lists it. */
   activity: HostLaneView['activity'] | undefined
@@ -38,6 +39,15 @@ export interface LaneControl {
   error: string | null
   /** Resolves true once the Host confirmed the action. */
   act: (channel: LaneControlChannel) => Promise<boolean>
+}
+
+/** Why this window may not act on a Host lane now (`remoteControlHint`), or undefined. */
+export function laneControlHint({ host, lane }: SessionHostLane): string | undefined {
+  return remoteControlHint(
+    host?.state === 'ready',
+    !!host?.capabilities.includes('sessions.control'),
+    lane?.control.controller?.self === true,
+  )
 }
 
 /**
@@ -85,7 +95,7 @@ export function useLaneControl(sessionId: string | undefined): LaneControl | nul
           : 'No controller',
     enabled,
     controlling,
-    hint: remoteControlHint(host?.state === 'ready', enabled, controlling),
+    hint: laneControlHint(remote),
     activity: lane?.activity,
     stopped,
     stopBlocked: !prompted && !stopped ? STOP_NEEDS_PROMPT : null,

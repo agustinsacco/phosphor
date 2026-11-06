@@ -1,5 +1,5 @@
 import type { ContextMenuItem } from '@/components/ContextMenu'
-import { remoteControlHint } from '@/features/sessions/remoteLaneActions'
+import { laneControlHint } from '@/features/machines/useLaneControl'
 import { exportSession } from '@/features/sessions/sessionActions'
 import { piCallOk } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
@@ -27,7 +27,7 @@ export interface SessionMenuState {
   nativeFiles: boolean
   /**
    * Why this client may not send the session commands, or undefined when it
-   * may. Host lanes fence them to the controller (`remoteControlHint`).
+   * may. Host lanes fence them to the controller (`laneControlHint`).
    */
   controlHint: string | undefined
 }
@@ -99,13 +99,7 @@ export function currentSessionMenuItems(
 ): ContextMenuItem[] {
   const meta = useChatStore.getState().sessions[sessionId]?.meta
   const remote = sessionHostLane(sessionId)
-  const controlHint = remote
-    ? remoteControlHint(
-        remote.host?.state === 'ready',
-        !!remote.host?.capabilities.includes('sessions.control'),
-        remote.lane?.control.controller?.self === true,
-      )
-    : undefined
+  const controlHint = remote ? laneControlHint(remote) : undefined
   return sessionMenuItems({ sessionId, meta, nativeFiles, controlHint })
 }
 
