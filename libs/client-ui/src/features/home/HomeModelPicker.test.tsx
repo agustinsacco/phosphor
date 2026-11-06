@@ -78,6 +78,25 @@ describe('HomeModelPicker', () => {
     expect(thinkingChip()?.textContent).toBe('High')
   })
 
+  it('ignores a default thinking level pi does not know, and a default model that is not a name', async () => {
+    invoke.mockImplementation(async (channel: string) =>
+      channel === 'pi:agentSettings'
+        ? { defaultProvider: 'p', defaultModel: 7, defaultThinkingLevel: 'extreme' }
+        : {},
+    )
+    await draw(<HomeModelPicker override={{ provider: 'p', id: 'one' }} />)
+    expect(chip().textContent).toBe('Model One')
+    expect(thinkingChip()?.textContent).toBe('No thinking')
+  })
+
+  it('picks no model when pi names a provider but no model', async () => {
+    invoke.mockImplementation(async (channel: string) =>
+      channel === 'pi:agentSettings' ? { defaultProvider: 'p', defaultModel: 7 } : {},
+    )
+    await draw(<HomeModelPicker />)
+    expect(chip().textContent).toBe('Select model')
+  })
+
   it("prefers the draft's model over pi's default", async () => {
     await draw(<HomeModelPicker override={{ provider: 'p', id: 'two' }} />)
     expect(chip().textContent).toBe('Model Two')
