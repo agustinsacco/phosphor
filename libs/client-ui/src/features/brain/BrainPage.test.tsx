@@ -185,12 +185,30 @@ it('requires processing consent again if the configured model or enrollment poli
     await click('Activity')
     const consent = container.querySelector('input[type="checkbox"]') as HTMLInputElement
     await act(async () => consent.click())
-    expect([...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!.disabled).toBe(false)
-    invoke.mockResolvedValue({ ...fixture, snapshot: { ...fixture.snapshot, policyEpoch: 3, prefs: { ...fixture.snapshot.prefs, processor: { provider: 'different-provider', id: 'different-model' } } } })
+    expect(
+      [...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!
+        .disabled,
+    ).toBe(false)
+    invoke.mockResolvedValue({
+      ...fixture,
+      snapshot: {
+        ...fixture.snapshot,
+        policyEpoch: 3,
+        prefs: {
+          ...fixture.snapshot.prefs,
+          processor: { provider: 'different-provider', id: 'different-model' },
+        },
+      },
+    })
     await act(async () => vi.advanceTimersByTimeAsync(3000))
-    expect([...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!.disabled).toBe(true)
+    expect(
+      [...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!
+        .disabled,
+    ).toBe(true)
     expect(invoke.mock.calls.some(([c]) => c === 'brain:process')).toBe(false)
-  } finally { vi.useRealTimers() }
+  } finally {
+    vi.useRealTimers()
+  }
 })
 
 it('does not poll while hidden and resumes a failed initial load on becoming visible', async () => {
@@ -200,11 +218,28 @@ it('does not poll while hidden and resumes a failed initial load on becoming vis
     await act(async () => root.render(<BrainPage />))
     invoke.mockClear()
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
-    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); await vi.advanceTimersByTimeAsync(9000) })
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+      await vi.advanceTimersByTimeAsync(9000)
+    })
     expect(invoke).not.toHaveBeenCalled()
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
     await act(async () => document.dispatchEvent(new Event('visibilitychange')))
     expect(container.textContent).toContain('Explore')
     expect(container.textContent).not.toContain('first load offline')
-  } finally { vi.useRealTimers() }
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('requires explicit confirmation before decreasing retention', async () => {
+  await act(async () => root.render(<BrainPage />))
+  await click('Settings')
+  const retention = container.querySelector('input[type="number"]') as HTMLInputElement
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(retention, '5')
+    retention.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  expect([...container.querySelectorAll('button')].find((b) => b.textContent === 'Save Brain settings')!.disabled).toBe(true)
+  expect(container.textContent).toContain('retained-since-capture')
 })
