@@ -91,6 +91,8 @@ function healthOf({
   cliLatest,
 }: LocalClaudeState): ClaudeHealthModel {
   const cliVersion = status?.binary.version
+  // Main's refusal rule over every copy, as Machines reads it; the row shows the copy it refuses.
+  const shown = entries.find((e) => claudeProviderState([e]) === 'outdated') ?? pkg
   return {
     provider:
       pkg === undefined
@@ -99,12 +101,11 @@ function healthOf({
           ? 'missing'
           : !pkg.installed
             ? 'declared'
-            : // Main's refusal rule over every copy, as Machines reads it.
-              claudeProviderState(entries) === 'ok'
+            : claudeProviderState(entries) === 'ok'
               ? 'installed'
               : 'outdated',
-    ...(pkg ? { package: { name: pkg.name, version: pkg.version, scope: pkg.scope } } : {}),
-    providerLatest: newer(latest, pkg?.version),
+    ...(shown ? { package: { name: shown.name, version: shown.version, scope: shown.scope } } : {}),
+    providerLatest: newer(latest, shown?.version),
     cli: status === null ? 'checking' : status.binary.found ? 'installed' : 'missing',
     cliVersion,
     cliPath: status?.binary.path,
