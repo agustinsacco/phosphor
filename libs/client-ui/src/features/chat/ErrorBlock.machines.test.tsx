@@ -55,7 +55,7 @@ async function failedTurn(machine: Machine, message: string): Promise<void> {
   } else {
     useSessionsStore.setState({
       activeSessionId: sessionId,
-      live: { [sessionId]: { phosphorId: sessionId, sessionId, workspacePath: '/mac' } },
+      live: { [sessionId]: { phosphorId: sessionId, sessionId, workspacePath: '/mac' } } as never,
     })
   }
   useChatStore.getState().ensure(sessionId)
