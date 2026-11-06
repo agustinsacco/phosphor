@@ -104,6 +104,7 @@ vi.mock('../store', () => ({
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 import { registerPiSessionHandlers } from './pi-session-handlers'
 import { cancelSessionOpens } from '../pi/session-path-lock'
+import { spawnSession } from '../pi/session-runtime'
 
 const fixtureDirectories: string[] = []
 function ordinaryTranscript(): string {
@@ -143,6 +144,24 @@ beforeEach(() => {
 })
 
 describe('session context policy integration', () => {
+  it('keeps trusted Brain admission out of ordinary workspace maintenance', async () => {
+    await expect(
+      spawnSession({ workspacePath: '/brain/cwd' }, undefined, {
+        brain: {
+          owner: { kind: 'brain', jobId: 'job-1' },
+          cwd: '/brain/cwd',
+          agentDir: '/brain/config',
+          sessionDir: '/brain/sessions',
+          binaryPath: '/bin/pi',
+          provider: 'pi-claude-cli',
+          modelId: 'unsupported',
+          processorExtension: '/brain/brain-processor.mjs',
+        },
+      }),
+    ).rejects.toThrow('Brain Claude execution is unsupported')
+    expect(state.access).not.toHaveBeenCalled()
+  })
+
   it('hides internal Brain processors from the ordinary live-lane projection', () => {
     const ordinary = { sessionId: 'live-1', workspacePath: '/repo' }
     state.brainIds.add('brain-1')
