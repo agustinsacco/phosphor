@@ -8,8 +8,8 @@ import type { AdvancedSource, PiFacts } from './source'
 
 /**
  * pi health and the machine's own diagnostics, on every machine. This Mac adds
- * raw config editors, maintenance and loose resources; a Host adds its signed
- * update, its runtime and which environment names reach pi.
+ * raw config editors, maintenance and loose resources; a Host adds its config
+ * path and which environment names reach pi.
  */
 export function AdvancedView({ source }: { source: AdvancedSource }): React.JSX.Element {
   const { caps, pi, path, environment, resources } = source

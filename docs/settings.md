@@ -754,7 +754,7 @@ scope line: **Machine** is the machine's `mcp.json`, **Folder** the chosen folde
 - **Add a connector**: the curated OAuth catalog (Linear, Notion, Braintrust,
   Datadog, Supabase, Questrade, Fellow, Slack), minus what is configured. Add
   writes the entry, then starts its sign-in: on a Host once it confirms the save,
-  as the reviewed sign-in task.
+  as the reviewed sign-in task (where Host terminal access is granted).
 - **Add custom server…**: a remote URL with an optional Authorization header
   (Machine scope only), or a command with one argument per line.
 - **This Mac only** (`caps`): per-server **Test**, tools and tool visibility,
@@ -909,8 +909,8 @@ copy/paste differs per platform because Ctrl+C must stay SIGINT off macOS.
 ## About
 
 App version, an on-demand **Check now** for updates (the sidebar pill only
-appears once there is something to act on, so this is the way to ask "am I
-current?"), pi's version and path, platform/arch, Electron and Node versions,
+appears once there is something to act on, so this, and This Mac's Advanced, is
+the way to ask "am I current?"), pi's version and path, platform/arch, Electron and Node versions,
 and the bundled font licenses. A pi newer than the line Phosphor is verified
 against gets a warning: newer minors usually work, but protocol additions may
 not be surfaced yet.
