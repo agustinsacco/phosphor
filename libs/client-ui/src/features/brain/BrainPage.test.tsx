@@ -143,17 +143,68 @@ it('provides keyboard-operable entity list and pauses graph for reduced motion',
 it('binds a searched claim correction to the revision actually reviewed', async () => {
   const fixture = brainFixture()
   invoke.mockImplementation(async (channel: string) => {
-    if (channel === 'brain:search') return { graphRevision: 1, policyEpoch: 1, status: 'ok', results: [{ claim: fixture.snapshot.claims[0], evidence: [], reasons: ['lexical'], score: 1 }], entities: fixture.snapshot.entities, degradation: [], truncated: false }
+    if (channel === 'brain:search')
+      return {
+        graphRevision: 1,
+        policyEpoch: 1,
+        status: 'ok',
+        results: [
+          { claim: fixture.snapshot.claims[0], evidence: [], reasons: ['lexical'], score: 1 },
+        ],
+        entities: fixture.snapshot.entities,
+        degradation: [],
+        truncated: false,
+      }
     return fixture
   })
   await act(async () => root.render(<BrainPage />))
   const search = container.querySelector('input[maxlength="2000"]') as HTMLInputElement
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'synthetic')
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      search,
+      'synthetic',
+    )
     search.dispatchEvent(new Event('input', { bubbles: true }))
-    container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    container
+      .querySelector('form')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
   })
   await click('Synthetic claim')
   await click('Correct claim…')
   expect(container.textContent).toContain('Uses graph revision 1 and policy epoch 1')
+})
+
+it('requires processing consent again if the configured model or enrollment policy changes', async () => {
+  vi.useFakeTimers()
+  try {
+    const fixture = brainFixture()
+    fixture.snapshot.prefs.enabled = true
+    fixture.snapshot.prefs.processor = { provider: 'explicit-provider', id: 'first-model' }
+    invoke.mockResolvedValue(fixture)
+    await act(async () => root.render(<BrainPage />))
+    await click('Activity')
+    const consent = container.querySelector('input[type="checkbox"]') as HTMLInputElement
+    await act(async () => consent.click())
+    expect([...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!.disabled).toBe(false)
+    invoke.mockResolvedValue({ ...fixture, snapshot: { ...fixture.snapshot, policyEpoch: 3, prefs: { ...fixture.snapshot.prefs, processor: { provider: 'different-provider', id: 'different-model' } } } })
+    await act(async () => vi.advanceTimersByTimeAsync(3000))
+    expect([...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!.disabled).toBe(true)
+    expect(invoke.mock.calls.some(([c]) => c === 'brain:process')).toBe(false)
+  } finally { vi.useRealTimers() }
+})
+
+it('does not poll while hidden and resumes a failed initial load on becoming visible', async () => {
+  vi.useFakeTimers()
+  try {
+    invoke.mockRejectedValueOnce(new Error('first load offline'))
+    await act(async () => root.render(<BrainPage />))
+    invoke.mockClear()
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); await vi.advanceTimersByTimeAsync(9000) })
+    expect(invoke).not.toHaveBeenCalled()
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')))
+    expect(container.textContent).toContain('Explore')
+    expect(container.textContent).not.toContain('first load offline')
+  } finally { vi.useRealTimers() }
 })
