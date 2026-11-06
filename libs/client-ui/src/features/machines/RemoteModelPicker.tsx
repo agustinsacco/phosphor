@@ -3,8 +3,6 @@ import { useSignInAction } from '@/features/chat/useSignInAction'
 import { StartModelPicker, type StartModelSource } from '@/features/home/StartModelPicker'
 import type { useRemoteModel } from './useRemoteModel'
 
-export { useRemoteModel } from './useRemoteModel'
-
 type HostModelSelection = ReturnType<typeof useRemoteModel>
 
 /** A Host's new-lane model picker: its catalogue, with the picks remembered for it. */
