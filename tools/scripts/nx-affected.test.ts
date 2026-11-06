@@ -44,6 +44,8 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
     'tooling',
   ]
   const libraries = [
+    'brain-client',
+    'memory-engine',
     'client-ui',
     'web',
     'control',
@@ -80,6 +82,9 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
     ['apps/control/src/main.ts', ['control', 'web', 'site', 'tooling']],
     ['apps/host/project.json', host],
     ['libs/pi-extensions/pi-ext/headroom.ts', extensions],
+    // Site reads extension source inputs, but never the Node-only agent client.
+    ['libs/brain-client/src/client.ts', [...extensions.filter((p) => p !== 'site'), 'brain-client']],
+    ['libs/memory-engine/src/service.ts', [...desktop, 'memory-engine']],
     ['libs/session-runtime/src/pi/session-service.ts', runtime],
     [
       'libs/host-client/src/connection.ts',
