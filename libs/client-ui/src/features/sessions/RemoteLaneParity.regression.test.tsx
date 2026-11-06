@@ -343,7 +343,9 @@ it.each(['desktop', 'browser'] as const)(
     const moveUp = (title: string) => {
       rightClick(rowNamed(title))
       const disabled = menuRow('Move up')?.disabled
-      act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      })
       return disabled
     }
     expect([moveUp('Pin B'), moveUp('Lane B')]).toEqual([false, false])
