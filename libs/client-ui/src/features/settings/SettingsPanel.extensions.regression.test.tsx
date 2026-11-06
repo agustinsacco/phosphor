@@ -222,3 +222,33 @@ it("never lists a Host's nested items from a read in another scope (B9)", async 
   await settle()
   expect(nested()).toEqual(['Claude Code', 'Subagents'])
 })
+
+it("lists This Mac's nested item when an install ends, as a Host's does (settings F2)", async () => {
+  let exit: ((code: number) => void) | undefined
+  vi.stubGlobal('phosphor', {
+    ...window.phosphor,
+    onPackagesJobExit: (_jobId: string, listener: (code: number) => void) => {
+      exit = listener
+      return () => {}
+    },
+  })
+  await show('local', 'extensions')
+  expect(nested()).not.toContain('Web access')
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Add Web access"]')!.click(),
+  )
+  localPackages = [entry('demo-pack'), entry('pi-web-access')]
+  await act(async () => exit!(0))
+  await settle()
+  expect(nested()).toContain('Web access')
+})
+
+it("reads This Mac's packages for the navigation once per scope, not per tab (settings F2)", async () => {
+  await show('local', 'agent')
+  const reads = calls('packages:list').length
+  act(() => useSettingsUiStore.getState().setTab('appearance'))
+  await settle()
+  act(() => useSettingsUiStore.getState().setTab('agent'))
+  await settle()
+  expect(calls('packages:list')).toHaveLength(reads)
+})

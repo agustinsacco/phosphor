@@ -93,7 +93,7 @@ it('shows loading rows while the first read is in flight, and a hint when not co
   await render()
   expect(container.textContent).toContain('Providers appear once this computer is connected')
 })
-it('says a connected Host does not let this device read providers, rather than "once connected"', async () => {
+it('says a connected Host without the grant does not let this device read providers', async () => {
   useRemoteLanesStore.setState({
     hosts: {
       host: {

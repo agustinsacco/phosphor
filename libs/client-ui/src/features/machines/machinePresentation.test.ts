@@ -5,23 +5,20 @@ import {
   formatCode,
   HOST_INSTALL,
   localChecks,
-  localClaude,
-  platformName,
+  PI_INSTALL,
   readinessFreshness,
   readinessChecks,
+  readLocalClaude,
   relativeTime,
   sortMachines,
 } from './machinePresentation'
 import { CLAUDE_PROVIDER } from './__fixtures__/control'
 import { MACHINE } from './__fixtures__/control'
 const now = Date.parse('2026-01-01T03:00:00.000Z')
-it('says relative times and platform names in words', () => {
+it('says relative times in words', () => {
   const online = { ...MACHINE, lastSeenAt: new Date(now).toISOString(), state: 'running' as const }
   expect(relativeTime(online.lastSeenAt, now - 10000)).toBe('just now')
   expect(relativeTime('2026-01-01T00:00:00.000Z', now)).toBe('3 h ago')
-  expect(platformName('darwin')).toBe('macOS')
-  expect(platformName('win32')).toBe('Windows')
-  expect(platformName('linux')).toBe('Linux')
 })
 it('sorts online first then label without mutating input', () => {
   const entries = [
@@ -154,7 +151,7 @@ it('C7: a Host that can open Settings signs in to Claude Code there, as This Mac
     expect(check?.command).toBe('phosphor providers login claude')
 })
 
-it("characterize: This Mac's Claude provider state follows main's refusal rule", () => {
+it("characterize: This Mac's Claude provider state follows main's refusal rule", async () => {
   const status = { binary: { found: true }, auth: { ok: true, loggedIn: true } } as never
   const copy = (version: string, installed = true, scope: 'global' | 'project' = 'global') => ({
     ...CLAUDE_PROVIDER,
@@ -162,12 +159,64 @@ it("characterize: This Mac's Claude provider state follows main's refusal rule",
     installed,
     scope,
   })
-  const provider = (packages: PiPackageEntry[]) => localClaude(packages, status).provider
-  expect(provider([copy('0.10.2')])).toBe('ok')
-  expect(provider([copy('0.10.0')])).toBe('ok')
-  expect(provider([copy('0.9.1')])).toBe('outdated')
-  expect(provider([copy('0.10.2'), copy('0.9.0', true, 'project')])).toBe('outdated')
-  expect(provider([copy('0.10.2', false)])).toBe('missing')
-  expect(provider([{ ...CLAUDE_PROVIDER, name: 'pi-claude-cli' }])).toBe('missing')
-  expect(provider([])).toBe('missing')
+  const provider = async (packages: PiPackageEntry[]) =>
+    (
+      await readLocalClaude((async (channel: string) =>
+        channel === 'packages:list' ? packages : status) as never)
+    ).provider
+  expect(await provider([copy('0.10.2')])).toBe('ok')
+  expect(await provider([copy('0.10.0')])).toBe('ok')
+  expect(await provider([copy('0.9.1')])).toBe('outdated')
+  expect(await provider([copy('0.10.2'), copy('0.9.0', true, 'project')])).toBe('outdated')
+  expect(await provider([copy('0.10.2', false)])).toBe('missing')
+  expect(await provider([{ ...CLAUDE_PROVIDER, name: 'pi-claude-cli' }])).toBe('missing')
+  expect(await provider([])).toBe('missing')
+})
+
+it("describes This Mac's unavailable pi by its reason, and offers the install command once", () => {
+  const piCheck = (health: Parameters<typeof localChecks>[0]['health']) =>
+    localChecks({ health, failed: false }, false)[0]
+  // Main's messages end with an install command of their own (health.ts, win-launch.ts).
+  expect(
+    piCheck({
+      ok: false,
+      reason: 'not-found',
+      message:
+        'The pi coding agent was not found on your PATH. Install it with: npm install -g @earendil-works/pi-coding-agent',
+      minVersion: '0.70.0',
+    }),
+  ).toMatchObject({ ok: false, detail: 'pi was not found on your PATH.', command: PI_INSTALL })
+  expect(
+    piCheck({
+      ok: false,
+      reason: 'too-old',
+      version: '0.60.0',
+      message:
+        'pi 0.60.0 is older than the minimum supported 0.70.0. Update with: npm install -g @earendil-works/pi-coding-agent@latest',
+      minVersion: '0.70.0',
+    }),
+  ).toMatchObject({ detail: 'pi 0.60.0 is older than 0.70.0.', command: PI_INSTALL })
+  expect(
+    piCheck({
+      ok: false,
+      reason: 'version-check-failed',
+      message: 'pi --version exited with code 1',
+      minVersion: '0.70.0',
+    }),
+  ).toMatchObject({ detail: 'pi --version exited with code 1', command: PI_INSTALL })
+})
+
+it('characterize: an unknown Claude Code sign-in says where to check it', () => {
+  const unknown = { provider: 'ok', cli: 'ok', auth: 'unknown' } as const
+  expect(claudeReadiness(unknown)).toMatchObject({
+    ok: false,
+    short: 'Claude Code unknown',
+    detail:
+      'Claude Code sign-in status is unknown. Check it under Settings → Extensions → Claude Code.',
+    command: undefined,
+  })
+  expect(claudeReadiness(unknown, false)).toMatchObject({
+    detail: 'Claude Code sign-in status is unknown. Run phosphor setup on this machine.',
+    command: 'phosphor setup',
+  })
 })

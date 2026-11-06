@@ -110,6 +110,11 @@
 .machine-lane-preview .lane-row {
   padding-inline: 0;
 }
+/* Rows sit flush with the card text, so the working bar moves into the card's
+   gutter to keep the sidebar's gap between it and the lane icon. */
+.machine-lane-preview .lane-row[data-activity]::before {
+  left: -8px;
+}
 .machine-view-lanes {
   margin-top: 6px;
   color: var(--px-text-secondary);

@@ -10,8 +10,8 @@ export const packageListKey = (machine: SettingsMachine, folder: string | null):
 
 /**
  * Each machine's last package list per scope (`packageListKey`). The navigation
- * reads the scope line's own; a Host's Extensions page publishes every read after
- * it, so a finished install or removal lists or drops the package's own item.
+ * reads the scope line's own; each machine's Extensions page publishes every read
+ * after it, so a finished install or removal lists or drops the package's own item.
  */
 export const useExtensionPackageLists = create<Record<string, PackageNames>>(() => ({}))
 

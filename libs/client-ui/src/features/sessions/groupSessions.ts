@@ -172,6 +172,14 @@ interface LiveEntry {
   diskPath?: string
 }
 
+/** Live sessions with no row in `disk` yet: no file, or one the scan has not reported. */
+export function pendingLiveEntries<T extends LiveEntry>(
+  live: readonly T[],
+  diskPaths: ReadonlySet<string>,
+): T[] {
+  return live.filter((entry) => !entry.diskPath || !diskPaths.has(entry.diskPath))
+}
+
 /**
  * Live sessions with no matching row in `disk` yet, keyed by each session's
  * group. A freshly created session is spawned and prompted immediately,
@@ -191,8 +199,7 @@ export function pendingSessionsByGroup(
   }
 
   const map = new Map<string, string[]>()
-  for (const entry of live) {
-    if (entry.diskPath && diskPaths.has(entry.diskPath)) continue
+  for (const entry of pendingLiveEntries(live, diskPaths)) {
     const key = groupKeyByPath.get(entry.workspacePath) ?? entry.workspacePath
     const list = map.get(key)
     if (list) list.push(entry.phosphorId)

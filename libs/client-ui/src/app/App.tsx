@@ -19,6 +19,7 @@ import { StartingChat } from '@/features/home/StartingChat'
 import { OPENING_LANE_EXIT_MS, OpeningLane } from '@/features/sessions/OpeningLane'
 import { Sidebar } from '@/features/sessions/Sidebar'
 import { BulkDeleteProgressPopover } from '@/features/sessions/BulkDeleteModal'
+import { SessionRecoveryModals } from '@/features/sessions/SessionRecoveryModals'
 import { TopBar } from './TopBar'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { TextFieldMenu } from '@/features/writing/TextFieldMenu'
@@ -300,6 +301,7 @@ export function App(): React.JSX.Element {
         <PromptHost />
         <ToastHost />
         <BulkDeleteProgressPopover />
+        <SessionRecoveryModals />
         <CommandPalette key={currentWorkspace ?? ''} workspacePath={currentWorkspace ?? ''} />
         <SettingsModal />
         <FeedbackModal />

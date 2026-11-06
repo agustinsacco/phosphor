@@ -1,7 +1,7 @@
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { loadHostConfig } from '../config/load'
 import { buildPiEnvironment } from '../machine/environment'
-import { CLAUDE_PROVIDER_PACKAGE } from '../machine/claude'
+import { CLAUDE_PROVIDER_PACKAGE } from '@phosphor/shared/models'
 import { setupTerminal, type SetupTerminal, type TerminalScreen } from './setup-terminal'
 import {
   lstatSync,

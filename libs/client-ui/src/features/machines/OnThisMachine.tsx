@@ -1,12 +1,13 @@
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { RemoteLaneRow } from '@/features/sessions/RemoteLaneRow'
 import { useNavigation } from '@/navigation/Navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import type { HostCapability } from '@shared/remote-host'
 import { useRemoteLanesStore, REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { openMachinePage } from '@/stores/machinePages'
 import { TooltipButton } from '@/components/Tooltip'
 import { LocalLanePreviewRow, useLocalLanes } from './LocalLanePreview'
-import { machineCounts, type MachineCountKey as Key } from './machineCounts'
+import { machineCounts, type MachineCount, type MachineCountKey as Key } from './machineCounts'
 import { Skeleton } from './MachineUi'
 
 /** A count is loading until its read settles; a failed read is Unavailable, never zero. */
@@ -44,6 +45,13 @@ async function readCounts(
   }
 }
 
+/** The counts a Host has granted this computer. */
+function grantedCounts(hostId: string, capabilities: readonly HostCapability[]): MachineCount[] {
+  return machineCounts(window.phosphor.invoke, hostId).filter((count) =>
+    capabilities.includes(count.capability),
+  )
+}
+
 function useHostResources(hostId: string, refresh: number): MachineResources | null {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
@@ -55,9 +63,7 @@ function useHostResources(hostId: string, refresh: number): MachineResources | n
       setCounts({})
       return
     }
-    const granted = machineCounts(window.phosphor.invoke, hostId).filter((count) =>
-      host.capabilities.includes(count.capability),
-    )
+    const granted = grantedCounts(hostId, host.capabilities)
     setCounts(Object.fromEntries(granted.map(({ key }) => [key, 'loading'])))
     void readCounts(
       granted,
@@ -83,30 +89,28 @@ function useHostResources(hostId: string, refresh: number): MachineResources | n
             )),
         }
       : null,
-    tiles: machineCounts(window.phosphor.invoke, hostId).filter((count) =>
-      host.capabilities.includes(count.capability),
-    ),
+    tiles: grantedCounts(hostId, host.capabilities),
     counts,
   }
 }
 
 function useLocalResources(refresh: number): MachineResources {
   const lanes = useLocalLanes()
-  const reads = machineCounts(window.phosphor.invoke, 'local')
+  const reads = useMemo(() => machineCounts(window.phosphor.invoke, 'local'), [])
   const [counts, setCounts] = useState<Partial<Record<Key, Count>>>(() =>
     Object.fromEntries(reads.map(({ key }) => [key, 'loading'])),
   )
   useEffect(() => {
     let current = true
     void readCounts(
-      machineCounts(window.phosphor.invoke, 'local'),
+      reads,
       () => current,
       (key, count) => setCounts((counts) => ({ ...counts, [key]: count })),
     )
     return () => {
       current = false
     }
-  }, [refresh])
+  }, [reads, refresh])
   return {
     machine: 'local',
     ready: true,

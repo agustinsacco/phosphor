@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import { git } from '@phosphor/session-runtime/git/git-exec'
-import { createLaneDeletion, deleteMergedBranch, branchMerged, transcriptTrash } from './delete'
+import { createLaneDeletion, deleteLandedBranch, branchLanded, transcriptTrash } from './delete'
 import { openStore, type HostStore } from './store'
 vi.mock('@phosphor/session-runtime/git/git-exec', { spy: true })
 let root: string, store: HostStore
@@ -30,26 +30,26 @@ it('keeps unmerged, current and checked-out branches; removes a squash-proven br
   await writeFile(join(root, 'a'), 'feature')
   await run(['commit', '-am', 'feature'])
   vi.mocked(gitExec.git).mockClear()
-  expect(await deleteMergedBranch(root, 'feature')).toBe(false)
+  expect(await deleteLandedBranch(root, 'feature')).toBe(false)
   expect(vi.mocked(gitExec.git).mock.calls.some((c) => c[1][0] === 'branch')).toBe(false)
   await run(['checkout', 'main'])
-  expect(await branchMerged(root, 'feature')).toBe(false)
-  expect(await deleteMergedBranch(root, 'feature')).toBe(false)
+  expect(await branchLanded(root, 'feature')).toBe(false)
+  expect(await deleteLandedBranch(root, 'feature')).toBe(false)
   await run(['merge', '--squash', 'feature'])
   await run(['commit', '-m', 'squashed'])
-  expect(await branchMerged(root, 'feature')).toBe(true)
+  expect(await branchLanded(root, 'feature')).toBe(true)
   await run(['worktree', 'add', join(root, 'wt'), 'feature'])
   vi.mocked(gitExec.git).mockClear()
-  expect(await deleteMergedBranch(root, 'feature')).toBe(false)
+  expect(await deleteLandedBranch(root, 'feature')).toBe(false)
   expect(vi.mocked(gitExec.git).mock.calls.some((c) => c[1][0] === 'branch')).toBe(false)
   await run(['worktree', 'remove', join(root, 'wt')])
   let checks = 0
-  expect(await deleteMergedBranch(root, 'feature', () => ++checks === 1)).toBe(false)
+  expect(await deleteLandedBranch(root, 'feature', () => ++checks === 1)).toBe(false)
   expect(checks).toBe(2)
   expect(await run(['rev-parse', '--verify', 'feature'])).toMatch(/^[a-f0-9]{40}$/)
-  expect(await deleteMergedBranch(root, 'feature')).toBe(true)
+  expect(await deleteLandedBranch(root, 'feature')).toBe(true)
   await expect(run(['show-ref', '--verify', 'refs/heads/feature'])).rejects.toThrow()
-  expect(await deleteMergedBranch(root, 'main')).toBe(false)
+  expect(await deleteLandedBranch(root, 'main')).toBe(false)
 })
 it('stops before trashing, marks removed and publishes, but refuses lost admission', async () => {
   const repo = store.syncRepositories([root])[0]
@@ -149,7 +149,7 @@ it('deletes a lane branch that landed as a merged PR after its history was rewri
   await run(['checkout', 'main'])
   await writeFile(join(root, 'a'), 'trunk moved')
   await run(['commit', '-am', 'feature (#1), squashed onto a newer trunk'])
-  expect(await branchMerged(root, 'feature')).toBe(false)
+  expect(await branchLanded(root, 'feature')).toBe(false)
   const github = vi.fn(async (_cwd: string, args: string[]) =>
     args[0] === 'pr' ? JSON.stringify([{ headRefOid: prHead }]) : null,
   )
@@ -183,7 +183,7 @@ it('keeps a lane branch when GitHub gives no answer or a PR head the branch move
   await run(['commit', '-am', 'unlanded'])
   await run(['checkout', 'main'])
   expect(
-    await deleteMergedBranch(
+    await deleteLandedBranch(
       root,
       'feature',
       () => true,
@@ -191,13 +191,13 @@ it('keeps a lane branch when GitHub gives no answer or a PR head the branch move
     ),
   ).toBe(false)
   const merged = async () => JSON.stringify([{ headRefOid: prHead }])
-  expect(await deleteMergedBranch(root, 'feature', () => true, merged)).toBe(false)
+  expect(await deleteLandedBranch(root, 'feature', () => true, merged)).toBe(false)
   expect(await run(['rev-parse', '--verify', 'feature'])).toMatch(/^[a-f0-9]{40}$/)
 })
 
 it('rechecks authority before a normally merged branch deletion', async () => {
   await run(['branch', 'feature'])
-  expect(await deleteMergedBranch(root, 'feature', () => false)).toBe(false)
+  expect(await deleteLandedBranch(root, 'feature', () => false)).toBe(false)
   expect(await run(['rev-parse', '--verify', 'feature'])).toMatch(/^[a-f0-9]{40}$/)
 })
 
@@ -216,7 +216,7 @@ it('compares the proven tip on the ancestry-merged path too', async () => {
       await actual(root, ['update-ref', 'refs/heads/feature', advanced], { isolateEnv: true })
     return actual(cwd, args, options)
   })
-  expect(await deleteMergedBranch(root, 'feature')).toBe(false)
+  expect(await deleteLandedBranch(root, 'feature')).toBe(false)
   expect(await run(['rev-parse', 'feature'])).toBe(advanced)
 })
 
@@ -392,17 +392,17 @@ it('proves lanes against a develop-only trunk and keeps unmerged, current and tr
   await run(['merge', '--no-ff', '-m', 'merge', 'merged'])
   await run(['merge', '--squash', 'squashed'])
   await run(['commit', '-m', 'squash'])
-  expect(await branchMerged(root, 'merged')).toBe(true)
-  expect(await branchMerged(root, 'squashed')).toBe(true)
-  expect(await branchMerged(root, 'unmerged')).toBe(false)
-  expect(await branchMerged(root, 'develop')).toBe(false)
-  expect(await deleteMergedBranch(root, 'develop')).toBe(false)
-  expect(await deleteMergedBranch(root, 'unmerged')).toBe(false)
+  expect(await branchLanded(root, 'merged')).toBe(true)
+  expect(await branchLanded(root, 'squashed')).toBe(true)
+  expect(await branchLanded(root, 'unmerged')).toBe(false)
+  expect(await branchLanded(root, 'develop')).toBe(false)
+  expect(await deleteLandedBranch(root, 'develop')).toBe(false)
+  expect(await deleteLandedBranch(root, 'unmerged')).toBe(false)
   await run(['checkout', 'merged'])
-  expect(await deleteMergedBranch(root, 'merged')).toBe(false)
+  expect(await deleteLandedBranch(root, 'merged')).toBe(false)
   await run(['checkout', 'develop'])
-  expect(await deleteMergedBranch(root, 'merged')).toBe(true)
-  expect(await deleteMergedBranch(root, 'squashed')).toBe(true)
+  expect(await deleteLandedBranch(root, 'merged')).toBe(true)
+  expect(await deleteLandedBranch(root, 'squashed')).toBe(true)
   expect(await run(['for-each-ref', '--format=%(refname)', 'refs/heads'])).toBe(
     'refs/heads/develop\nrefs/heads/unmerged',
   )
@@ -442,8 +442,34 @@ it('forgets a lane whose folder left the Host, keeping its transcript and worktr
 
 it('answers not landed for a lane branch that does not exist, and creates none', async () => {
   const github = vi.fn(async () => '[]')
-  expect(await branchMerged(root, 'gone', { github })).toBe(false)
-  expect(await deleteMergedBranch(root, 'gone', () => true, github)).toBe(false)
+  expect(await branchLanded(root, 'gone', { github })).toBe(false)
+  expect(await deleteLandedBranch(root, 'gone', () => true, github)).toBe(false)
   expect(github).not.toHaveBeenCalled()
   await expect(run(['rev-parse', '--verify', 'refs/heads/gone'])).rejects.toThrow()
+})
+
+it('asks GitHub nothing more once a PR proof has run for 20 seconds, and keeps the branch', async () => {
+  await run(['checkout', '-b', 'feature'])
+  await writeFile(join(root, 'a'), 'lane')
+  await run(['commit', '-am', 'lane work'])
+  const tree = await run(['rev-parse', 'feature^{tree}'])
+  await run(['checkout', 'main'])
+  // The PR head is not in this clone, so the proof needs a second question: its tree.
+  const answer = (args: string[]) =>
+    args[0] === 'pr' ? JSON.stringify([{ headRefOid: 'a'.repeat(40) }]) : tree
+  vi.useFakeTimers({ toFake: ['Date'] })
+  try {
+    const slow = vi.fn(async (_cwd: string, args: string[]) => {
+      vi.setSystemTime(Date.now() + 21_000)
+      return answer(args)
+    })
+    expect(await deleteLandedBranch(root, 'feature', () => true, slow)).toBe(false)
+    expect(slow).toHaveBeenCalledTimes(1)
+    expect(await run(['rev-parse', '--verify', 'feature'])).toMatch(/^[a-f0-9]{40}$/)
+    const prompt = vi.fn(async (_cwd: string, args: string[]) => answer(args))
+    expect(await deleteLandedBranch(root, 'feature', () => true, prompt)).toBe(true)
+    expect(prompt).toHaveBeenCalledTimes(2)
+  } finally {
+    vi.useRealTimers()
+  }
 })

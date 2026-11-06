@@ -35,3 +35,10 @@ export const CLAUDE_PROVIDER: PiPackageEntry = {
   installed: true,
   resources: { extensions: ['index.ts'], skills: [], prompts: [], themes: [] },
 }
+/** This computer's own reads, healthy, for a suite's invoke stub to answer after its overrides. */
+export const LOCAL_READS: Record<string, unknown> = {
+  'packages:list': [CLAUDE_PROVIDER],
+  'packages:claudeStatus': { binary: { found: true }, auth: { ok: true, loggedIn: true } },
+  'hosts:tailscaleStatus': { code: 'ready' },
+  'app:about': { appVersion: '1.4.0', platform: 'darwin', arch: 'arm64' },
+}

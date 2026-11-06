@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isNewerVersion, meetsMinimum } from './version'
+import { compareVersions, isNewerVersion, meetsMinimum } from './version'
 
 describe('isNewerVersion', () => {
   it('detects a newer release', () => {
@@ -72,5 +72,24 @@ describe('meetsMinimum', () => {
     expect(meetsMinimum('v1.0.0', '0.9.0')).toBe(false)
     expect(meetsMinimum('1.0', '0.9.0')).toBe(false)
     expect(meetsMinimum('latest', '0.9.0')).toBe(false)
+  })
+})
+
+describe('compareVersions', () => {
+  it('orders versions numerically, not lexically', () => {
+    expect(compareVersions('0.78.0', '0.9.0')).toBeGreaterThan(0)
+    expect(compareVersions('0.78.0', '0.78.0')).toBe(0)
+    expect(compareVersions('0.77.9', '0.78.0')).toBeLessThan(0)
+    expect(compareVersions('1.0.0', '0.99.99')).toBeGreaterThan(0)
+  })
+
+  it('tolerates differing segment counts', () => {
+    expect(compareVersions('1.2', '1.2.0')).toBe(0)
+    expect(compareVersions('1.2.1', '1.2')).toBeGreaterThan(0)
+  })
+
+  it('never puts a prerelease below its release', () => {
+    expect(compareVersions('1.2.0-rc', '1.2.0')).toBe(0)
+    expect(compareVersions('1.2.0-rc.1', '1.2.0')).toBeGreaterThan(0)
   })
 })
