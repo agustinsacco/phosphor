@@ -276,7 +276,10 @@ it('processes only after explicit per-run consent and passes the exact enrolled 
     (container.querySelector('input[type="checkbox"]') as HTMLInputElement).click(),
   )
   await click('Process workspace')
-  expect(invoke).toHaveBeenCalledWith('brain:process', '/synthetic', { policyEpoch: 2, model: { provider: 'exact-provider', id: 'exact-model' } })
+  expect(invoke).toHaveBeenCalledWith('brain:process', '/synthetic', {
+    policyEpoch: 2,
+    model: { provider: 'exact-provider', id: 'exact-model' },
+  })
   expect(
     [...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!
       .disabled,
