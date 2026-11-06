@@ -1,5 +1,15 @@
 /** Brain v1: machine-local, opt-in, reviewed memory. No credentials or database paths. */
 export const BRAIN_PROTOCOL = 1
+/** Pinned local validation candidate. No hosted embedding or silent model fallback. */
+export const BRAIN_EMBEDDING_MODEL = {
+  id: 'embeddinggemma-300m-q4@5090578d9565bb06545b4552f76e6bc2c93e4a66',
+  label: 'EmbeddingGemma 300M · Q4',
+  dimensions: 768,
+  downloadBytes: 218_726_989,
+  modelUrl: 'https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX',
+  termsUrl: 'https://ai.google.dev/gemma/terms',
+  usePolicyUrl: 'https://ai.google.dev/gemma/prohibited_use_policy',
+} as const
 export const BRAIN_PREDICATES = [
   'owns',
   'depends_on',
