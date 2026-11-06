@@ -15,6 +15,19 @@ async function fixture() {
   cleanup.push(() => service.dispose())
   return { ...f, service }
 }
+it('rejects a failed initial database read and closes resources instead of caching a dead service', async () => {
+  const f = await adapterFixture()
+  cleanup.push(f.cleanup)
+  vi.spyOn(f.store, 'snapshot').mockRejectedValueOnce(new Error('database offline'))
+  const close = vi.spyOn(f.store, 'close')
+  const result = assembleBrainService(f.options, f.store).then((service) => {
+    cleanup.push(() => service.dispose())
+    return service
+  })
+  await expect(result).rejects.toThrow('database offline')
+  expect(close).toHaveBeenCalledOnce()
+  expect(f.embeds.dispose).toHaveBeenCalledOnce()
+})
 it('defaults off, never downloads on enable, and exposes only typed UI operations', async () => {
   const f = await adapterFixture()
   cleanup.push(f.cleanup)
