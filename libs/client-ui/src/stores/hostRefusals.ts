@@ -3,6 +3,7 @@ import type { HostConnectionView } from '@shared/ipc'
 import type { HostCapability } from '@shared/remote-host'
 
 export const REMOTE_NOT_READY = 'Machine not connected. Wait for reconnection.'
+export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
 
 /** Capabilities control grants every client; configuration is a separate opt-in. */
 type GrantedCapability = Exclude<HostCapability, 'machine.configure'>

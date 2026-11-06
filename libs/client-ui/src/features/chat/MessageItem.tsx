@@ -1,5 +1,6 @@
 import { useSessionsStore } from '@/stores/sessions'
-import { machineLabel, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
+import { machineLabel } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useState } from 'react'
 import clsx from 'clsx'

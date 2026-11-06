@@ -39,8 +39,6 @@ export function connectionLabel(state: HostConnectionView['state'] | undefined):
         : 'Down'
 }
 
-export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
-
 export function useActiveMachine(): HostTarget {
   return useSessionsStore((s) =>
     s.activeSessionId ? (s.live[s.activeSessionId]?.target ?? LOCAL) : LOCAL,

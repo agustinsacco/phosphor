@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
 import { ChevronIcon } from '@/components/icons'
 import { FileTreeRow, FolderGlyph } from './FileTreeRow'
 
