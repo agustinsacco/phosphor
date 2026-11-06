@@ -3,6 +3,7 @@ import type { DirEntry } from '@shared/models'
 import { isTextPreview } from '@shared/file-kinds'
 import { languageForPath } from '@/lib/languages'
 import { keyedSlice } from './keyedSlice'
+import { fileSaveActions } from './filesSave'
 
 /** Which side of a file that is both text and renderable (HTML, SVG, Markdown) is showing. */
 export type FileView = 'preview' | 'source'
@@ -27,7 +28,6 @@ export interface PendingReveal extends RevealTarget {
 
 let revealSeq = 0
 let fileSeq = 0
-const fileWrites = new Map<string, Promise<void>>()
 const reopeningWorkspaces = new Set<string>()
 
 export interface OpenFile {
@@ -79,7 +79,7 @@ const workspaces = keyedSlice<WorkspaceFiles>({
   gitStatus: {},
 })
 
-interface FilesState {
+export interface FilesState {
   // explorer — keyed by absolute dir path, so already collision-free
   entries: Record<string, DirEntry[] | undefined>
   expanded: Record<string, boolean>
@@ -144,7 +144,7 @@ function parentDir(path: string): string {
 const pollingWorkspaces = new Set<string>()
 
 /** Apply a patch to one workspace's slice, creating it if absent. */
-function patchWorkspace(
+export function patchWorkspace(
   state: FilesState,
   workspacePath: string,
   update: (current: WorkspaceFiles) => WorkspaceFiles,
@@ -157,7 +157,11 @@ function patchWorkspace(
  * alone. `updateBuffer` and `saveFile` derive their new fields from the file
  * they are replacing, so they still map inline.
  */
-function patchFile(w: WorkspaceFiles, path: string, fields: Partial<OpenFile>): WorkspaceFiles {
+export function patchFile(
+  w: WorkspaceFiles,
+  path: string,
+  fields: Partial<OpenFile>,
+): WorkspaceFiles {
   return {
     ...w,
     openFiles: w.openFiles.map((f) => (f.path === path ? { ...f, ...fields } : f)),
@@ -503,116 +507,5 @@ export const useFilesStore = create<FilesState>((set, get) => ({
     set((s) => patchWorkspace(s, workspacePath, (w) => patchFile(w, path, { view })))
   },
 
-  updateBuffer: (workspacePath, path, content) => {
-    set((s) =>
-      patchWorkspace(s, workspacePath, (w) => ({
-        ...w,
-        openFiles: w.openFiles.map((f) =>
-          f.path === path ? { ...f, content, dirty: content !== f.savedContent } : f,
-        ),
-      })),
-    )
-  },
-
-  saveFile: async (workspacePath, path) => {
-    const file = workspaceFiles(get(), workspacePath).openFiles.find((f) => f.path === path)
-    if (!file || !file.dirty) return
-    // Serialize writes to the same disk path, but capture each requested revision
-    // now. A later keystroke must never be marked saved by an earlier write.
-    const write = (fileWrites.get(path) ?? Promise.resolve())
-      .catch(() => {})
-      .then(async () => {
-        const { mtimeMs } = await window.phosphor.invoke('fs:writeFile', path, file.content)
-        set((s) =>
-          patchWorkspace(s, workspacePath, (w) => ({
-            ...w,
-            openFiles: w.openFiles.map((f) =>
-              f.path === path && f.instanceId === file.instanceId
-                ? {
-                    ...f,
-                    savedContent: file.content,
-                    dirty: f.content !== file.content,
-                    mtimeMs,
-                    size: new TextEncoder().encode(file.content).length,
-                    diskConflict: false,
-                  }
-                : f,
-            ),
-          })),
-        )
-      })
-    fileWrites.set(path, write)
-    try {
-      await write
-    } finally {
-      if (fileWrites.get(path) === write) fileWrites.delete(path)
-    }
-  },
-
-  handleExternalChanges: async (workspacePath, paths) => {
-    const changed = new Set(paths)
-    const affected = workspaceFiles(get(), workspacePath).openFiles.filter((f) =>
-      changed.has(f.path),
-    )
-    for (const file of affected) {
-      if (file.dirty) {
-        set((s) =>
-          patchWorkspace(s, workspacePath, (w) => patchFile(w, file.path, { diskConflict: true })),
-        )
-      } else {
-        await get().reloadFromDisk(workspacePath, file.path)
-      }
-    }
-  },
-
-  reloadFromDisk: async (workspacePath, path) => {
-    const original = workspaceFiles(get(), workspacePath).openFiles.find((f) => f.path === path)
-    if (!original) return
-    try {
-      const file = await window.phosphor.invoke('fs:readFile', path)
-      set((s) =>
-        patchWorkspace(s, workspacePath, (w) => ({
-          ...w,
-          openFiles: w.openFiles.map((f) => {
-            if (f.path !== path || f.instanceId !== original.instanceId) return f
-            // A watcher read may finish after typing or a save. Keep that newer
-            // revision and ask the user to resolve the conflict instead.
-            if (f.content !== original.content || f.savedContent !== original.savedContent)
-              return { ...f, diskConflict: true }
-            return {
-              ...f,
-              savedContent: file.content,
-              content: file.content,
-              mtimeMs: file.mtimeMs,
-              size: file.size,
-              binary: file.binary,
-              tooLarge: file.tooLarge,
-              dirty: false,
-              diskConflict: false,
-            }
-          }),
-        })),
-      )
-    } catch {
-      // Deleted externally — keep the buffer, flag the conflict.
-      set((s) =>
-        patchWorkspace(s, workspacePath, (w) => ({
-          ...w,
-          openFiles: w.openFiles.map((f) =>
-            f.path === path && f.instanceId === original.instanceId
-              ? { ...f, diskConflict: true }
-              : f,
-          ),
-        })),
-      )
-    }
-  },
-
-  keepBuffer: (workspacePath, path) => {
-    set((s) =>
-      patchWorkspace(s, workspacePath, (w) =>
-        patchFile(w, path, { diskConflict: false, dirty: true }),
-      ),
-    )
-  },
+  ...fileSaveActions(set, get),
 }))
