@@ -1,10 +1,14 @@
 import { usePlatform } from '@/platform/Platform'
 import { useEffect } from 'react'
-import { useMachineCatalogue, useMachineCataloguesStore } from '@/stores/machineCatalogues'
+import {
+  MODELS_READ_FAILED,
+  useMachineCatalogue,
+  useMachineCataloguesStore,
+} from '@/stores/machineCatalogues'
 import { catalogueEmptyText, useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { hostIdOfPath } from '@phosphor/shared/remote-host'
-import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 
 /** Routine model choices belong to their execution machine, not the active lane. */
 export function useRoutineModels(machineId?: string) {
@@ -24,7 +28,7 @@ export function useRoutineModels(machineId?: string) {
     return {
       models: refusal ? [] : remote.models,
       loading: remote.status === 'idle' || remote.status === 'loading',
-      emptyText: refusal ?? REMOTE_UNAVAILABLE,
+      emptyText: refusal ?? MODELS_READ_FAILED,
       refresh: () => void useMachineCataloguesStore.getState().load(hostId, undefined, true),
     }
   }

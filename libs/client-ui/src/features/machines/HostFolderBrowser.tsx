@@ -4,7 +4,7 @@ import { ModalOverlay, ModalPanel, useEscapeKey } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { fixedRefusal, isFolderName } from '@shared/host-protocol-repositories'
 import { hostFeatureRefusal, needsNewerHost } from '@/stores/hostRefusals'
-import { useRemoteLanesStore, machineLabel, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
 import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 
 /** Inline name entry; its own Escape cancels the name, not the whole dialog. */
@@ -87,7 +87,8 @@ export function HostFolderBrowser({
         })
         .catch(() => {
           // Only a Host that predates hidden listings refuses this where a plain one works.
-          if (alive) setError(hidden ? needsNewerHost('Hidden folders need') : REMOTE_UNAVAILABLE)
+          if (alive)
+            setError(hidden ? needsNewerHost('Hidden folders need') : 'Could not read folders.')
         })
     return () => {
       alive = false
