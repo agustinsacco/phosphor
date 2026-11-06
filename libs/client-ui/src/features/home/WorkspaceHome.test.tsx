@@ -232,5 +232,7 @@ it.each(['local', 'all'])(
     const homes = [...container.querySelectorAll('section[aria-label="Host home"] h2')]
     expect(homes.map((h) => h.textContent)).toEqual([MOCK_HOST_ID])
     expect(container.textContent).toContain('Send draft')
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label=Machine]')!.click())
+    expect(container.querySelector('[role=listbox]')?.className).toContain('bottom-full')
   },
 )
