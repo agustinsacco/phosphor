@@ -131,7 +131,7 @@ export async function deleteBranchAtTip(
 const OID = /^[0-9a-f]{40}([0-9a-f]{24})?$/
 
 /** Head commits of the branch's merged PRs: read-only evidence, never proof on its own. */
-export async function ghMergedPrHeads(
+async function ghMergedPrHeads(
   gh: GhRunner,
   repoPath: string,
   branch: string,
@@ -163,11 +163,7 @@ export async function ghMergedPrHeads(
 
 /** A commit never changes its tree, so one answer per commit is enough. */
 const commitTrees = new Map<string, string>()
-export async function ghCommitTree(
-  gh: GhRunner,
-  repoPath: string,
-  oid: string,
-): Promise<string | null> {
+async function ghCommitTree(gh: GhRunner, repoPath: string, oid: string): Promise<string | null> {
   if (!OID.test(oid)) return null
   const cached = commitTrees.get(oid)
   if (cached) return cached
@@ -181,4 +177,12 @@ export async function ghCommitTree(
   if (!OID.test(tree)) return null
   commitTrees.set(oid, tree)
   return tree
+}
+
+/** GitHub's merged-PR evidence for the repository at `root`, asked through `gh`. */
+export function githubEvidence(gh: GhRunner, root: string): PullRequestEvidence {
+  return {
+    mergedPrHeads: (branch) => ghMergedPrHeads(gh, root, branch),
+    commitTree: (oid) => ghCommitTree(gh, root, oid),
+  }
 }

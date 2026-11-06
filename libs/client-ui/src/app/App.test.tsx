@@ -107,6 +107,21 @@ function stubApi(health: { ok: boolean; reason?: string; message?: string; versi
   useLayoutStore.setState({ sidebarVisible: false })
 }
 
+async function renderApp(test: (container: HTMLElement) => Promise<void>) {
+  const container = document.createElement('div'),
+    root = createRoot(container)
+  document.body.append(container)
+  try {
+    await act(async () => root.render(<App />))
+    await test(container)
+  } finally {
+    act(() => root.unmount())
+    container.remove()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  }
+}
+
 it.each([
   [
     'pi is missing',
@@ -120,46 +135,21 @@ it.each([
   async (_case, health, homePath, setup) => {
     stubApi(health)
     useWorkspacesStore.setState({ homePath })
-    const container = document.createElement('div'),
-      root = createRoot(container)
-    document.body.append(container)
-    try {
-      await act(async () => root.render(<App />))
+    await renderApp(async (container) => {
       const shell = container.querySelector('[data-testid="app-shell"]')
       expect(shell).not.toBeNull()
       expect(shell?.textContent).toContain(setup)
       expect(shell?.hasAttribute('inert')).toBe(false)
       expect(container.textContent).toContain('Palette mounted')
       expect(useGlobalShortcuts).toHaveBeenLastCalledWith(true)
-    } finally {
-      act(() => root.unmount())
-      container.remove()
-      vi.restoreAllMocks()
-      vi.unstubAllGlobals()
-    }
+    })
   },
 )
 
 it.each([true, false])(
   'mounts target-correct global surfaces (lane active: %s)',
   async (laneActive) => {
-    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    Object.assign(window, {
-      phosphor: {
-        invoke: vi.fn(async (channel: string) =>
-          channel === 'pi:health'
-            ? { ok: true, version: '1.2.0' }
-            : channel === 'pi:listLiveSessions'
-              ? []
-              : { kind: 'none' },
-        ),
-        onPtyStatus: () => () => {},
-      },
-    })
-    vi.spyOn(useWorkspacesStore.getState(), 'hydrate').mockResolvedValue()
-    vi.spyOn(useWorktreesStore.getState(), 'hydratePrefs').mockResolvedValue()
-    vi.spyOn(useDraftsStore.getState(), 'hydrate').mockResolvedValue()
-    vi.spyOn(useModelCatalogueStore.getState(), 'hydrate').mockResolvedValue()
+    stubApi({ ok: true, version: '1.2.0' })
     const id = mockRemoteInfo.sessionId
     useSessionsStore.setState({
       activeSessionId: laneActive ? id : null,
@@ -167,12 +157,7 @@ it.each([true, false])(
     })
     useWorkspacesStore.setState({ homePath: '/mac' })
     useRemoteLanesStore.setState({ filter: 'bee1-home' })
-    useLayoutStore.setState({ sidebarVisible: false })
-    const container = document.createElement('div'),
-      root = createRoot(container)
-    document.body.append(container)
-    try {
-      await act(async () => root.render(<App />))
+    await renderApp(async (container) => {
       expect(container.textContent).toContain('Finder mounted')
       expect(container.textContent).toContain('Palette mounted')
       expect(useGlobalShortcuts).toHaveBeenLastCalledWith(true)
@@ -191,12 +176,7 @@ it.each([true, false])(
         await act(async () => useRemoteLanesStore.setState({ filter: 'local' }))
         expect(container.textContent).not.toContain('Host repositories')
       }
-    } finally {
-      act(() => root.unmount())
-      container.remove()
-      vi.restoreAllMocks()
-      vi.unstubAllGlobals()
-    }
+    })
   },
 )
 
@@ -225,21 +205,6 @@ function stubInstall(resumeTarget: object = { kind: 'none' }) {
   useWorkspacesStore.setState({ homePath: '/mac' })
   useRemoteLanesStore.setState({ filter: 'local' })
   return { invoke, job, installed: () => (health = { ok: true, version: '1.2.0' }) }
-}
-
-async function renderApp(test: (container: HTMLElement) => Promise<void>) {
-  const container = document.createElement('div'),
-    root = createRoot(container)
-  document.body.append(container)
-  try {
-    await act(async () => root.render(<App />))
-    await test(container)
-  } finally {
-    act(() => root.unmount())
-    container.remove()
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
-  }
 }
 
 const button = (container: HTMLElement, text: string) =>

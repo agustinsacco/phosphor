@@ -3,8 +3,7 @@ import type { WorkspaceSessionStats } from '@shared/models'
 import { useRemoteComposer } from './remoteComposer'
 import { HostHome } from './HostHome'
 import { LocalHomeDashboard } from './LocalHomeDashboard'
-import { LocalHomeComposer } from './LocalHomeComposer'
-import { RemoteStartView } from './RemoteStartView'
+import { HomeComposerSlot } from './HomeComposerSlot'
 import { RemoteWorkspacePage } from './RemoteWorkspacePage'
 import { useComposerMachine } from './useComposerMachine'
 import { MachinePicker } from '@/features/machines/MachinePicker'
@@ -17,8 +16,8 @@ import { homeDraftKey } from '@/stores/drafts'
 /**
  * Local workbench and shared remote creation, with independent dashboard and composer targets.
  * `localSetup` takes This Mac's place while it cannot start a lane (no pi, no folder): the whole
- * home, or on a Host home only the composer slot, under the composer's machine picker. A Host
- * composer target then gets its full start page.
+ * home on a local home, or only the composer slot on a Host home, under the composer's machine
+ * picker either way. A Host composer target on a local home then gets its full start page.
  */
 export function WorkspaceHome({
   workspacePath,
@@ -39,16 +38,20 @@ export function WorkspaceHome({
     setComposerMachine(target.hostId)
     textareaRef.current?.focus()
   }, [target, setComposerMachine])
+  const setupHome = !homeHostId && Boolean(localSetup)
+  // Only the whole-home setup puts the picker at the top; everywhere else it sits at the bottom.
+  const setupFillsHome = setupHome && composerMachine === 'local'
   const machinePicker = (
     <MachinePicker
-      placement="above"
+      placement={setupFillsHome ? 'below' : 'above'}
       value={composerMachine}
       capability="sessions.control"
       onChange={setComposerMachine}
     />
   )
-  if (composerMachine === 'local' && localSetup && !homeHostId) return <>{localSetup}</>
-  if (composerMachine !== 'local' && (homeHostId === composerMachine || localSetup))
+  const slot = { composerMachine, workspacePath, localSetup, textareaRef, machinePicker }
+  if (setupFillsHome) return <HomeComposerSlot {...slot} wholeHome />
+  if (composerMachine !== 'local' && (homeHostId === composerMachine || setupHome))
     return (
       <RemoteWorkspacePage
         hostId={composerMachine}
@@ -76,27 +79,7 @@ export function WorkspaceHome({
       </div>
       <div className="flex shrink-0 flex-col items-center px-4 pb-6 pt-4 sm:px-6">
         <div className="relative w-full max-w-3xl">
-          {composerMachine === 'local' && localSetup ? (
-            // The picker stays outside the scroll box, so its menu opens above unclipped.
-            <>
-              <div className="flex justify-center">{machinePicker}</div>
-              <div className="max-h-[50vh] overflow-y-auto">{localSetup}</div>
-            </>
-          ) : composerMachine === 'local' ? (
-            <LocalHomeComposer
-              workspacePath={workspacePath}
-              textareaRef={textareaRef}
-              machinePicker={machinePicker}
-            />
-          ) : (
-            <RemoteStartView
-              key={`${composerMachine}:${workspacePath}`}
-              hostId={composerMachine}
-              draftKey={homeDraftKey(workspacePath)}
-              textareaRef={textareaRef}
-              machinePicker={machinePicker}
-            />
-          )}
+          <HomeComposerSlot {...slot} />
         </div>
       </div>
     </div>

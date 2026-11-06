@@ -80,7 +80,10 @@ export function githubReader(context: FeatureContext) {
   }
 }
 
-/** Read-only gh for lane deletion's merged-PR proof. Each call has gh's own timeout; failure is no answer. */
+/**
+ * Read-only gh for lane deletion's merged-PR proof. Each call has `runGithubCommand`'s 8 s
+ * timeout; failure is no answer.
+ */
 export function githubRunner(env: NodeJS.ProcessEnv): GhRunner {
   return async (cwd, args) => {
     const result = await runGithubCommand(cwd, args, env, new AbortController().signal)
