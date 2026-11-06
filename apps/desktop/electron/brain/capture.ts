@@ -1,3 +1,8 @@
+import type {
+  SessionUserInput,
+  SessionInputReceipt,
+} from '@phosphor/session-runtime/pi/session-startup'
+import { readCaptureSnapshot, type CaptureIdentity, type CaptureSnapshot } from './capture-snapshot'
 import type { BrainCapture } from '@phosphor/shared/brain'
 import type { LiveSession } from '@phosphor/session-runtime/pi/session-registry'
 import { extractText } from '@phosphor/session-runtime/pi/session-content'
@@ -27,7 +32,6 @@ export function newUserCaptures(
     if (!entry || typeof entry.id !== 'string' || entry.id.length > 200)
       throw new Error('Ambiguous Brain entry identity')
     if (seen.has(entry.id)) continue
-    seen.add(entry.id)
     if (
       entry.parentId !== null &&
       (typeof entry.parentId !== 'string' || !known.has(entry.parentId))
@@ -71,58 +75,170 @@ export function newUserCaptures(
   return result
 }
 
-/** Only a newly admitted lane is observed. Existing entries become a permanent baseline. */
+interface PendingInput {
+  text: string
+  authority: { scope: string; branch: string }
+  admittedAt: number
+  accepted: boolean
+}
+export type BrainCaptureObserver = (() => void) & {
+  beforeInput(command: SessionUserInput): Promise<SessionInputReceipt | undefined>
+}
+
+/** Only service-admitted, uniquely matching new input is eligible; events alone authorize nothing. */
 export async function attachBrainCapture(
   live: LiveSession,
   store: DesktopMemoryClient,
   epoch: number,
   onError: (error: unknown) => void,
-): Promise<() => void> {
+): Promise<BrainCaptureObserver> {
   if (live.owner) throw new Error('Processor sessions cannot be captured')
-  const initial = await live.client.request({ type: 'get_entries' })
-  const state = await live.client.request({ type: 'get_state' })
-  if (!initial.success || !initial.data || !state.success || !state.data?.sessionId)
-    throw new Error('Brain capture baseline unavailable')
-  bounded(initial.data.entries, 1_000_000)
-  if (initial.data.entries.length > 4000) throw new Error('Brain capture baseline exceeds limit')
-  const seen = new Set(
-    initial.data.entries.map((raw) => {
-      const id = (raw as Entry)?.id
-      if (typeof id !== 'string') throw new Error('Brain capture baseline identity unavailable')
-      return id
-    }),
-  )
-  const nativeId = state.data.sessionId
-  let disposed = false
-  let tail = Promise.resolve()
-  const scan = async (): Promise<void> => {
-    if (disposed) return
-    const snapshot = await store.snapshot()
-    if (!snapshot.prefs.enabled || snapshot.policyEpoch !== epoch) {
-      disposed = true
-      return
-    }
-    const current = await live.client.request({ type: 'get_state' })
-    if (!current.success || current.data?.sessionId !== nativeId) {
-      disposed = true
-      return
-    }
-    const authority = await laneAuthority(live.workspacePath)
-    if (!snapshot.prefs.workspaces.includes(authority.scope)) return
-    const response = await live.client.request({ type: 'get_entries' })
-    if (!response.success || !response.data) throw new Error('Brain capture entries unavailable')
-    const captures = newUserCaptures(response.data.entries, seen, authority, nativeId)
-    for (const capture of captures) {
-      if (disposed || (await store.snapshot()).policyEpoch !== epoch) return
-      await store.captureAt(epoch, capture)
-    }
+  const capture = new InputCapture(live, store, epoch, onError)
+  try {
+    await capture.initialize()
+  } catch (error) {
+    capture.dispose()
+    throw error
   }
-  const schedule = (event: PiEvent): void => {
-    if (event.type === 'agent_end') tail = tail.then(scan).catch(onError)
+  return Object.assign(capture.dispose, { beforeInput: capture.beforeInput })
+}
+class InputCapture {
+  constructor(
+    private readonly live: LiveSession,
+    private readonly store: DesktopMemoryClient,
+    private readonly epoch: number,
+    private readonly onError: (error: unknown) => void,
+  ) {
+    this.path = live.client.sessionFile
+    live.client.on('session-file', this.fileChanged)
   }
-  live.client.on('event', schedule)
-  return () => {
-    disposed = true
-    live.client.off('event', schedule)
+  private identity?: CaptureIdentity
+  private path?: string
+  private seen = new Set<string>()
+  private pending: PendingInput[] = []
+  private disposed = false
+  private tail = Promise.resolve()
+  initialize = async (): Promise<void> => {
+    const snapshot = await readCaptureSnapshot(this.live)
+    if (this.disposed) throw new Error('Brain capture identity changed during baseline')
+    this.identity = snapshot.identity
+    this.remember(snapshot.entries)
+    this.live.client.on('event', this.schedule)
+  }
+  private remember(entries: unknown[]): void {
+    for (const raw of entries) this.seen.add((raw as Entry).id!)
+  }
+  private fileChanged = (path: string): void => {
+    if (this.path && this.path !== path) this.fail(new Error('Brain capture identity changed'))
+    this.path = path
+  }
+  private fail = (error: unknown): void => {
+    this.dispose()
+    this.onError(error)
+  }
+  private enqueue<T>(run: () => Promise<T>): Promise<T> {
+    const result = this.tail.then(run)
+    this.tail = result.then(
+      () => {},
+      (error: unknown) => this.fail(error),
+    )
+    return result
+  }
+  private allowed = async (): Promise<boolean> => {
+    if (this.disposed) return false
+    const snapshot = await this.store.snapshot()
+    if (!snapshot.prefs.enabled || snapshot.policyEpoch !== this.epoch) {
+      this.dispose()
+      return false
+    }
+    return true
+  }
+  private consume = async (snapshot: CaptureSnapshot): Promise<void> => {
+    if (!(await this.allowed())) return
+    const inputs = this.pending.filter((input) => input.accepted)
+    const candidates = inputs.length
+      ? newUserCaptures(
+          snapshot.entries,
+          new Set(this.seen),
+          inputs[0]!.authority,
+          snapshot.identity.sessionId,
+        )
+      : []
+    const matches = (candidate: BrainCapture, input: PendingInput): boolean =>
+      candidate.text === input.text && candidate.observedAt >= input.admittedAt
+    for (const candidate of candidates) {
+      const possible = inputs.filter((input) => matches(candidate, input))
+      if (
+        possible.length !== 1 ||
+        candidates.filter((item) => matches(item, possible[0]!)).length !== 1
+      )
+        continue
+      if (!(await this.allowed())) return
+      await this.store.captureAt(this.epoch, { ...candidate, ...possible[0]!.authority })
+    }
+    this.pending = this.pending.filter(
+      (input) => !candidates.some((candidate) => matches(candidate, input)),
+    )
+    this.remember(snapshot.entries)
+  }
+  beforeInput = (command: SessionUserInput): Promise<SessionInputReceipt | undefined> =>
+    this.enqueue(async () => {
+      if (!(await this.allowed())) return undefined
+      if (
+        !command.message ||
+        command.message.length > 16000 ||
+        command.message.trimStart().startsWith('/') ||
+        command.images?.length
+      )
+        return undefined
+      await this.consume(await readCaptureSnapshot(this.live, this.identity))
+      const authority = await laneAuthority(this.live.workspacePath)
+      const snapshot = await this.store.snapshot()
+      if (
+        this.disposed ||
+        snapshot.policyEpoch !== this.epoch ||
+        !snapshot.prefs.workspaces.includes(authority.scope)
+      )
+        return undefined
+      if (this.pending.length >= 32) throw new Error('Brain pending input budget exceeded')
+      const input: PendingInput = {
+        text: command.message,
+        authority,
+        admittedAt: Date.now(),
+        accepted: false,
+      }
+      this.pending.push(input)
+      let completed = false
+      return {
+        complete: (response) =>
+          this.enqueue(async () => {
+            if (completed || this.disposed) return
+            completed = true
+            const disposition =
+              response?.success && response.type === 'response' && response.command === command.type
+                ? (response.data as { disposition?: unknown } | undefined)?.disposition
+                : undefined
+            if (
+              disposition !== 'queued' &&
+              !(command.type === 'prompt' && disposition === 'started')
+            )
+              this.pending = this.pending.filter((item) => item.text !== input.text)
+            else input.accepted = true
+            await this.scan()
+          }),
+      }
+    })
+  private scan = async (): Promise<void> => {
+    if (await this.allowed())
+      await this.consume(await readCaptureSnapshot(this.live, this.identity))
+  }
+  private schedule = (event: PiEvent): void => {
+    if (event.type === 'agent_end') this.enqueue(this.scan).catch(() => {})
+  }
+  dispose = (): void => {
+    this.disposed = true
+    this.pending = []
+    this.live.client.off('event', this.schedule)
+    this.live.client.off('session-file', this.fileChanged)
   }
 }

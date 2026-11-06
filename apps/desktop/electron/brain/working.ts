@@ -8,7 +8,7 @@ import type { DesktopMemoryClient } from './memory-client'
 import type { BrainCapability, createBrainBridge } from './bridge'
 import type { createBrainIndexer } from './indexer'
 import { bounded, brainQuery, fields, identifier, laneAuthority } from './authority'
-import { attachBrainCapture } from './capture'
+import { attachBrainCapture, type BrainCaptureObserver } from './capture'
 
 type Bridge = Awaited<ReturnType<typeof createBrainBridge>>
 export function createBrainWorking(
@@ -123,8 +123,18 @@ class BrainWorking {
           policyEpoch: snapshot.policyEpoch,
         })
       : undefined
-    let cleanup = (): void => {
+    let capture: BrainCaptureObserver | undefined
+    let disabled = false
+    let id: string | undefined
+    const cleanup = (): void => {
+      disabled = true
       grant?.revoke()
+      capture?.()
+      if (id) this.cleanups.delete(id)
+    }
+    const failed = (error: unknown): void => {
+      cleanup()
+      this.options.onError?.(error)
     }
     const augmentation: SessionMemoryAugmentation = {
       ...(grant
@@ -136,28 +146,31 @@ class BrainWorking {
             extensions: [this.options.resources.workingExtension],
           }
         : {}),
+      beforeInput: async (command) => (disabled ? undefined : capture?.beforeInput(command)),
+      invalidateInput: cleanup,
       onCreated: async (live) => {
-        if (this.stopped || (await this.store.snapshot()).policyEpoch !== snapshot.policyEpoch) {
-          grant?.revoke()
-          return
+        id = live.sessionId
+        try {
+          if (
+            disabled ||
+            this.stopped ||
+            (await this.store.snapshot()).policyEpoch !== snapshot.policyEpoch
+          ) {
+            cleanup()
+            return
+          }
+          grant?.bind(live.sessionId)
+          capture = await attachBrainCapture(live, this.store, snapshot.policyEpoch, failed)
+          if (disabled || this.stopped) {
+            cleanup()
+            return
+          }
+          this.cleanups.set(live.sessionId, cleanup)
+        } catch (error) {
+          failed(error)
         }
-        grant?.bind(live.sessionId)
-        const detach = await attachBrainCapture(
-          live,
-          this.store,
-          snapshot.policyEpoch,
-          this.options.onError ?? (() => {}),
-        )
-        cleanup = () => {
-          grant?.revoke()
-          detach()
-          this.cleanups.delete(live.sessionId)
-        }
-        this.cleanups.set(live.sessionId, cleanup)
       },
-      dispose() {
-        cleanup()
-      },
+      dispose: cleanup,
     }
     return augmentation
   }

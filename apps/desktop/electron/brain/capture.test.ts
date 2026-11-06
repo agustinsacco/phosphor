@@ -71,7 +71,14 @@ it('baselines historical entries and does not reinterpret them when policy chang
     throw error
   })
   cleanup.push(async () => detach())
+  const receipt = await detach.beforeInput({ type: 'prompt', message: 'plain new input' })
   entries = [...entries, entry('new')]
+  await receipt?.complete({
+    type: 'response',
+    command: 'prompt',
+    success: true,
+    data: { disposition: 'started' },
+  })
   client.emit('event', { type: 'agent_end' })
   await vi.waitFor(() => expect(f.engine.snapshot().counts.evidence).toBe(2))
   f.engine.setPrefs({ ...f.snapshot.prefs, recall: false })
@@ -97,9 +104,7 @@ it('stops capture when the native transcript identity changes instead of importi
     workspacePath: f.scope,
     client: client as unknown as PiRpcClient,
   }
-  const detach = await attachBrainCapture(live, f.store, f.snapshot.policyEpoch, (error) => {
-    throw error
-  })
+  const detach = await attachBrainCapture(live, f.store, f.snapshot.policyEpoch, vi.fn())
   cleanup.push(async () => detach())
   nativeId = 'old-different-transcript'
   entries = [entry('historical', 'user', null)]

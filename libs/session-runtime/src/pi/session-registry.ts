@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import type { PiRpcClient, PiSpawnOptions } from './rpc-client'
 import type { LiveSessionInfo } from '@shared/models'
+import { invalidateSessionInput, type SessionInputObserver } from './session-input'
 import type { BrainSessionOwner } from './brain-session-owner'
 
 export interface SessionRegistryRuntime {
@@ -15,6 +16,8 @@ export interface LiveSession {
   client: PiRpcClient
   /** Set before spawn/created so capture observers can exclude internal processors. */
   owner?: Readonly<BrainSessionOwner>
+  /** Optional trusted input observer; never part of LiveSessionInfo or RPC/IPC. */
+  memoryInput?: SessionInputObserver
 }
 
 interface SessionRegistryEvents {
@@ -93,6 +96,7 @@ export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
     // Keep ownership visible until exit. A concurrent delete must not trash a
     // file while an earlier dispose is still waiting for its writer to stop.
     const operation = Promise.resolve().then(async () => {
+      await invalidateSessionInput(session)
       await session.client.dispose()
       this.sessions.delete(sessionId)
       this.emit('disposed', { sessionId })
