@@ -227,3 +227,144 @@ it('regression: count-bounded snapshots stay below the worker response ceiling',
   expect(bytes).toBeLessThanOrEqual(8_600_000)
   expect(store.snapshot().truncated).toBe(true)
 })
+
+function textCapture(store: ReturnType<typeof openMemoryStore>, entryId: string, text: string) {
+  return store.capture({
+    scope: '/a',
+    sessionId: 'synthetic-budget',
+    entryId,
+    rootIds: [entryId],
+    parentId: null,
+    branch: null,
+    role: 'user',
+    label: entryId,
+    observedAt: 1000,
+    text,
+  })!
+}
+it('regression: manual source-byte batches progress through long messages without clipping', () => {
+  const { store } = fixture()
+  const ids = [0, 1, 2].map(
+    (index) => textCapture(store, `long-${index}`, `Source fact.${'x'.repeat(29988)}`).id,
+  )
+  const first = propose(store)
+  expect(first.job.evidenceIds).toHaveLength(2)
+  const bytes = first.job.evidenceIds.reduce(
+    (sum, id) => sum + Buffer.byteLength(store.read(id, ['/a']).text),
+    0,
+  )
+  expect(bytes).toBe(60000)
+  store.review(first.pending.id, true, store.snapshot())
+  const next = store.createJob('/a', model)
+  expect(next.evidenceIds).toHaveLength(1)
+  expect(new Set([...first.job.evidenceIds, ...next.evidenceIds])).toEqual(new Set(ids))
+})
+it('regression: source-byte budgeting counts UTF-8 bytes, not JavaScript character length', () => {
+  const { store } = fixture()
+  for (let index = 0; index < 2; index++)
+    textCapture(store, `unicode-${index}`, `Source fact.${'界'.repeat(12000)}`)
+  const job = store.createJob('/a', model)
+  expect(job.evidenceIds).toHaveLength(1)
+  expect(Buffer.byteLength(store.read(job.evidenceIds[0]!, ['/a']).text)).toBe(36012)
+})
+it('regression: one individually oversized source yields an identifiable budget error', () => {
+  const { store } = fixture()
+  const source = textCapture(store, 'oversized', 'x'.repeat(60001))
+  expect(() => store.createJob('/a', model)).toThrow(source.id)
+  expect(() => store.createJob('/a', model)).toThrow('60000')
+  expect(store.snapshot().jobs).toHaveLength(0)
+})
+it.each(['failed', 'cancelled', 'rejected', 'graph-stale', 'policy-stale', 'interrupted'])(
+  'explicit retry creates a new fenced job for %s work',
+  (state) => {
+    const { store, data, capture } = fixture()
+    const source = capture('retry-source')
+    const initial = store.claimJob(store.createJob('/a', model).id)
+    if (state === 'failed' || state === 'cancelled')
+      store.updateJob(initial.id, initial.fence, { state })
+    if (state === 'interrupted')
+      data.put('jobs', initial.id, initial.scope, { ...initial, state: 'interrupted' })
+    if (state === 'policy-stale') store.setPrefs({ ...prefs, recall: true })
+    if (state === 'rejected' || state === 'graph-stale') {
+      const pending = store.submit(initial.id, initial.fence, input(source.id))
+      if (state === 'rejected') store.review(pending.id, false, store.snapshot())
+      else {
+        capture('revision-change', '/b')
+        const other = propose(store, '/b')
+        store.review(other.pending.id, true, store.snapshot())
+      }
+    }
+    const next = store.createJob('/a', model, store.snapshot().policyEpoch)
+    expect(next.id).not.toBe(initial.id)
+    expect(next.evidenceIds).toEqual([source.id])
+    const running = store.claimJob(next.id)
+    expect(() => store.submit(next.id, running.fence - 1, input(source.id))).toThrow('fence')
+    expect(store.submit(next.id, running.fence, input(source.id)).jobId).toBe(next.id)
+  },
+)
+it('still rejects old caller epochs and a non-consented processor before selecting a batch', () => {
+  const { store, capture } = fixture()
+  capture('source')
+  const old = store.snapshot().policyEpoch
+  store.setPrefs({ ...prefs, recall: true })
+  expect(() => store.createJob('/a', model, old)).toThrow('Stale processing consent')
+  expect(() => store.createJob('/a', { provider: 'other', id: 'not-consented' })).toThrow('consent')
+})
+it('allows a graph-stale rejection using its old graph revision, but not a stale policy', () => {
+  const { store, capture } = fixture()
+  capture('first')
+  const first = propose(store)
+  capture('second', '/b')
+  const second = propose(store, '/b')
+  store.review(second.pending.id, true, store.snapshot())
+  store.review(first.pending.id, false, first.pending)
+  expect(
+    store.snapshot().proposals.find((proposal) => proposal.id === first.pending.id)!.state,
+  ).toBe('rejected')
+})
+it('maximum legal proposal rows remain whole and reachable while other snapshot sections keep room', () => {
+  const { store, data, capture } = fixture()
+  const source = capture('source')
+  const { pending } = propose(store)
+  const maximum = {
+    ...pending.input,
+    claims: Array.from({ length: 100 }, () => ({
+      ...pending.input.claims[0]!,
+      summary: 's'.repeat(7900),
+    })),
+  }
+  let remaining = 1_000_000 - Buffer.byteLength(JSON.stringify(maximum))
+  for (const claim of maximum.claims) {
+    const count = Math.min(8000 - claim.literal!.length, remaining)
+    claim.literal += 'l'.repeat(count)
+    remaining -= count
+  }
+  expect(remaining).toBe(0)
+  validateProposal(maximum)
+  for (let index = 0; index < 8; index++) {
+    const id = `maximum-${index}`
+    data.put('proposals', id, pending.scope, {
+      ...pending,
+      id,
+      createdAt: 2000 + index,
+      input: maximum,
+    })
+  }
+  capture('live', '/b')
+  const live = store.claimJob(store.createJob('/b', model).id)
+  const seen = new Set<string>()
+  for (let page = 0; page < 9; page++) {
+    const snapshot = store.snapshot()
+    expect(Buffer.byteLength(JSON.stringify(snapshot))).toBeLessThanOrEqual(8_600_000)
+    expect(snapshot.evidence.some((item) => item.id === source.id)).toBe(true)
+    expect(snapshot.jobs[0]!.id).toBe(live.id)
+    const visible = snapshot.proposals.filter((proposal) => proposal.state === 'pending')
+    if (!visible.length) break
+    for (const proposal of visible) {
+      if (proposal.id.startsWith('maximum-')) expect(proposal.input).toEqual(maximum)
+      seen.add(proposal.id)
+      store.review(proposal.id, false, snapshot)
+    }
+  }
+  expect(seen.size).toBe(9)
+})
