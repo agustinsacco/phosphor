@@ -7,7 +7,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
 import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({ MonacoDiff: () => null }))
 vi.mock('./FilesPane', () => ({
   FilesPane: () => {

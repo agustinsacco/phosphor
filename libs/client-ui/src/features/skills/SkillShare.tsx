@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { useRef, useState } from 'react'
 import type { ResolvedSkill } from '@shared/skills'
+import { hostIdOfPath } from '@phosphor/shared/remote-host'
 import { PopupMenu } from '@/components/PopupMenu'
 import { Button } from '@/components/form'
 import { CheckIcon, Spinner, WarningIcon } from '@/components/icons'
@@ -9,7 +10,6 @@ import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import {
   rereadSkillNames,
   shareMachineLabel,
-  sourceMachine,
   useShareMachines,
   useSkillPresence,
   type Presence,
@@ -34,7 +34,7 @@ export function SkillShareActions({
   disabled: boolean
   onExport: () => void
 }): React.JSX.Element {
-  const source = sourceMachine(workspacePath)
+  const source = hostIdOfPath(workspacePath) ?? 'local'
   const machines = useShareMachines(source)
   const presence = useSkillPresence(skill.name, machines)
   const share = useSkillCopy(skill, source)
@@ -112,7 +112,7 @@ export function SkillMachines({
   skill: ResolvedSkill
   workspacePath: string
 }): React.JSX.Element | null {
-  const machines = useShareMachines(sourceMachine(workspacePath))
+  const machines = useShareMachines(hostIdOfPath(workspacePath) ?? 'local')
   const presence = useSkillPresence(skill.name, machines)
   const labels = (state: Presence) =>
     machines.filter((machine) => presence[machine.id] === state).map((machine) => machine.label)

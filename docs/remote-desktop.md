@@ -187,8 +187,9 @@ Files lists tracked and untracked non-ignored paths; a folder outside git lists
 through the Host's bounded walk ([Host](host.md#machine-features)). A file list
 the Host refuses names why in fixed text: `too-large` reads "Too many files to
 list: the Host stops at 20,000." and `internal` reads "The Host couldn't list
-this folder."; any other failure keeps "Not available on remote lanes yet."
-Host text never reaches the pane. Controllers with
+this folder."; any other failure reads "Could not read files.", and a failed file
+read "Could not read this file.", as in the browser. Host text never reaches the
+pane. Controllers with
 `workspaces.write` and `sessions.control` can edit text, create files and folders,
 rename, copy, move and trash entries inside the lane. Saves compare the SHA-256
 revision read by the editor; conflicts preserve edits and require a refresh.
@@ -218,7 +219,9 @@ polling and manual app refresh do not bypass the Host's 60-second upstream cache
 the details label app-refresh age rather than claiming fresh GitHub data.
 The live chat picker keeps the lane's full pi model list through `lane.models`,
 requiring `sessions.read`. Stopped lanes do not fall back to a machine catalogue.
-Skills requires `skills.read`. Remote Skills shows the installed list
+Skills requires `skills.read`; without it Skills says "This Host does not offer
+skills to this device." and the start and routine model pickers say "This Host
+does not offer models to this device.". Remote Skills shows the installed list
 and SKILL.md read-only, with no export, upload, discovery installs or in-place edits.
 
 ### Skill sharing

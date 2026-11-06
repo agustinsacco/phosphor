@@ -25,7 +25,7 @@ vi.hoisted(() => {
     }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 const machine = { id: '11111111-1111-4111-8111-111111111111', label: 'bee1' }
 const invoke = vi.fn()
 let root: Root, container: HTMLDivElement

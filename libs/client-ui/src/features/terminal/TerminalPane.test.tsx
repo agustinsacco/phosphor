@@ -8,7 +8,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useTerminalStore } from '@/stores/terminal'
 import { TerminalPane } from './TerminalPane'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./TerminalView', () => ({
   TerminalView: ({ readOnly }: { readOnly: boolean }) => <div data-readonly={String(readOnly)} />,
 }))

@@ -102,7 +102,7 @@ it('down and capability-lost composer targets stay remote on submit', async () =
   )
   expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('unavailable')
   click('Send draft')
-  expect(container.textContent).toContain('Not available on remote lanes yet.')
+  expect(container.textContent).toContain('This Host does not offer lanes to this device.')
   expect(startChat).not.toHaveBeenCalled()
   expect(useDraftsStore.getState().drafts[homeDraftKey('/ws')]?.text).toBe('Keep my draft')
 })

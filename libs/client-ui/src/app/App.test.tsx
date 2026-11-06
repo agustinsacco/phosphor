@@ -29,7 +29,7 @@ vi.mock('./useGlobalShortcuts', async (original) => {
   const actual = await original<{ useGlobalShortcuts: typeof useGlobalShortcuts }>()
   return { useGlobalShortcuts: vi.fn(actual.useGlobalShortcuts) }
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
 vi.mock('@/stores/remoteLanes', async (original) => ({
   ...(await original<object>()),

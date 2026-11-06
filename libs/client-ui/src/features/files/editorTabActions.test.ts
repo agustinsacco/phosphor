@@ -3,7 +3,7 @@ import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { usePromptStore } from '@/stores/prompt'
 import { closeEditorFiles, editorTabLabel, saveAllEditorFiles } from './editorTabActions'
 import { releaseFileModel } from '@/features/files/MonacoEditor'
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
 const invoke = vi.fn().mockResolvedValue({ content: 'disk', size: 4, mtimeMs: 1 })
 const store = () => useFilesStore.getState()

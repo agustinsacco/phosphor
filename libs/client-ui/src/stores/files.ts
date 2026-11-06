@@ -1,8 +1,11 @@
 import { create } from 'zustand'
 import type { DirEntry } from '@shared/models'
 import { isTextPreview } from '@shared/file-kinds'
-import { languageForPath } from '@/lib/monaco'
+import { languageForPath } from '@/lib/languages'
 import { keyedSlice } from './keyedSlice'
+
+/** Which side of a file that is both text and renderable (HTML, SVG, Markdown) is showing. */
+export type FileView = 'preview' | 'source'
 
 /**
  * Where to put the cursor in a file being opened: a line, or an exact range
@@ -48,12 +51,8 @@ export interface OpenFile {
   diskConflict?: boolean
   /** The latest place asked for; the editor applies each `seq` once. */
   pendingReveal?: PendingReveal
-  /**
-   * For files that are both text and previewable (HTML, SVG): which of the
-   * two is showing. Absent means the preview — opening one is usually to
-   * look at it.
-   */
-  view?: 'preview' | 'source'
+  /** Absent means the preview: opening one is usually to look at it. */
+  view?: FileView
 }
 
 /**
@@ -114,7 +113,7 @@ interface FilesState {
   /** Drop a workspace's editors/explorer state and release its Monaco models. */
   releaseWorkspace: (workspacePath: string) => void
   setActive: (workspacePath: string, path: string) => void
-  setView: (workspacePath: string, path: string, view: 'preview' | 'source') => void
+  setView: (workspacePath: string, path: string, view: FileView) => void
   updateBuffer: (workspacePath: string, path: string, content: string) => void
   saveFile: (workspacePath: string, path: string) => Promise<void>
   /** Called on chokidar changes: reload clean buffers, flag dirty ones. */

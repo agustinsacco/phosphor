@@ -10,7 +10,7 @@ import { suggestedFileName } from './artifactKinds'
  * write replaces only the revision it names (null: a new file); This Mac's write ignores it.
  * A failure is a toast.
  */
-export function openArtifactInFiles(
+function openArtifactInFiles(
   workspacePath: string,
   fileName: string,
   content: string,

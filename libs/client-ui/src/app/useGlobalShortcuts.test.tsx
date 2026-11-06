@@ -143,7 +143,7 @@ vi.hoisted(() => {
     value: () => ({ matches: false, addEventListener: () => {} }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
 
 vi.mock('@/components/search/findTargets', () => ({

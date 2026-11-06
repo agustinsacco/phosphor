@@ -20,7 +20,7 @@ import {
   useRemoteLanesStore,
 } from './remoteLanes'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 let push: ((push: SessionPush) => void) | undefined
 let text = 'First history'
 const invoke = vi.fn()

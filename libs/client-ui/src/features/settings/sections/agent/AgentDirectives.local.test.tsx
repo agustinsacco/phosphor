@@ -13,7 +13,7 @@ vi.hoisted(() => {
     value: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('../../useAccount', () => ({
   useAccount: () => ({ view: { account: { status: 'signed-in' } }, error: null, generation: 0 }),
 }))
