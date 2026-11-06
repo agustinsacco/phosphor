@@ -103,3 +103,28 @@ it("opens a lane from This Mac's account lane list", async () => {
   await act(async () => buttonNamed('Open lane')!.click())
   await vi.waitFor(() => expect(useSessionsStore.getState().activeSessionId).toBe('lane'))
 })
+
+it('reads a stale project copy beside a current global one as outdated, as main refuses it', async () => {
+  const copy = (scope: 'global' | 'project', version: string) => ({
+    spec: 'npm:@saccolabs/pi-claude-cli',
+    scope,
+    kind: 'npm',
+    filtered: false,
+    name: '@saccolabs/pi-claude-cli',
+    version,
+    installed: true,
+    resources: {},
+  })
+  const base = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'packages:list'
+      ? [copy('global', '0.10.2'), copy('project', '0.8.0')]
+      : base(channel),
+  )
+  try {
+    await act(async () => root.render(<LocalClaudeProvider />))
+    await vi.waitFor(() => expect(buttonNamed('Update provider')).toBeDefined())
+  } finally {
+    invoke.mockImplementation(base)
+  }
+})
