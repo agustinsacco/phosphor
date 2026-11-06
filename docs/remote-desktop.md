@@ -123,9 +123,9 @@ leaves the plain card. A receipt is used only when its outcome matches the event
 and `settledAt` is within 30 seconds of the attention time. A newer attention
 event for that lane supersedes a pending publication. Replies from replaced
 connections, removed lanes or connections without `sessions.read` are discarded.
-The browser reads the receipt through the same helpers
-(`libs/host-client/src/attention.ts`) with the same wait and matching rules, for
-every such attention, since it raises no OS notification.
+Desktop and the browser share one receiver for these rules
+(`createAttentionReceiver` in `libs/host-client/src/attention.ts`). The browser
+raises no OS notification, so it waits for the receipt of every such attention.
 
 The Host reports provider-error completions as failed, not finished.
 [Lane notices](chat.md#lane-notices) own card contents and fact meanings. Host OS

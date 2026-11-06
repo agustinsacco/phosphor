@@ -252,3 +252,33 @@ it('does not reuse an evicted lane counter while its old publication is pending'
   expect(t.publish.mock.calls.every(([published]) => published.kind === 'needs-input')).toBe(true)
   expect(t.notify).toHaveBeenCalledTimes(257)
 })
+
+it.each([
+  ['finished', 'Done'],
+  ['failed', 'Stopped'],
+  ['needs-input', 'needs-input'],
+  ['routine-finished', 'routine'],
+  ['routine-paused', 'routine'],
+] as const)('uses fixed notification text for unenriched %s', (kind, body) => {
+  const t = setup()
+  t.attention.receive('host', { ...event, kind })
+  expect(t.notify).toHaveBeenCalledWith('bee1 · Lane', body, expect.any(Function))
+  t.notify.mock.calls[0]?.[2]()
+  expect(t.open).toHaveBeenCalledWith('host', 'lane')
+})
+
+it.each(['done', 'error'] as const)(
+  'publishes receipt facts but never private receipt text in the OS body for %s',
+  async (outcome) => {
+    const value = { ...facts, outcome }
+    const t = setup(async () => value)
+    t.attention.receive('host', { ...event, kind: outcome === 'error' ? 'failed' : 'finished' })
+    await vi.waitFor(() => expect(t.publish).toHaveBeenCalledTimes(1))
+    expect(t.publish.mock.calls[0]?.[0].receipt).toEqual(value)
+    expect(t.notify).toHaveBeenCalledWith(
+      'bee1 · Lane',
+      `${outcome === 'error' ? 'Stopped' : 'Done'} in 4s · 1 file changed · tests pass`,
+      expect.any(Function),
+    )
+  },
+)

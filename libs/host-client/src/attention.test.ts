@@ -1,7 +1,13 @@
-import { expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import type { AttentionEvent } from '@phosphor/shared/host-protocol'
 import type { LaneReceipt } from '@phosphor/shared/lane-receipt'
-import { makeAttention, readHostReceipt, receiptForEvent } from './attention'
+import type { HostAttention } from '@phosphor/shared/ipc'
+import {
+  createAttentionReceiver,
+  makeAttention,
+  readHostReceipt,
+  receiptForEvent,
+} from './attention'
 
 const event: AttentionEvent = {
   id: 'event',
@@ -99,4 +105,84 @@ it('routes the optional read with read authorization and drops detached or repla
     return { ok: true, data: receipt }
   })
   expect(await readHostReceipt(current, 'host', 'lane')).toBeUndefined()
+})
+
+afterEach(() => {
+  vi.clearAllTimers()
+  vi.useRealTimers()
+})
+function receiver(read?: (hostId: string, laneId: string) => Promise<unknown>) {
+  const publish = vi.fn<(attention: HostAttention) => void>()
+  return { publish, attention: createAttentionReceiver({ receipt: read, publish }) }
+}
+
+it.each(['resolved', 'rejected'] as const)(
+  'cleans the receipt timer and the lane read after it is %s',
+  async (settlement) => {
+    vi.useFakeTimers()
+    const read = vi.fn(() =>
+      settlement === 'resolved' ? Promise.resolve(receipt) : Promise.reject(new Error('refused')),
+    )
+    const t = receiver(read)
+    t.attention.receive('host', event)
+    expect(vi.getTimerCount()).toBe(1)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(vi.getTimerCount()).toBe(0)
+    expect(t.publish).toHaveBeenCalledTimes(1)
+    expect(t.publish.mock.calls[0]?.[0].receipt).toEqual(
+      settlement === 'resolved' ? receipt : undefined,
+    )
+    t.attention.receive('host', { ...event, id: 'two' })
+    expect(read).toHaveBeenCalledTimes(2)
+  },
+)
+
+it('times out at two seconds and shares the lane read until it settles', async () => {
+  vi.useFakeTimers()
+  let resolve: (value: unknown) => void = () => {}
+  const read = vi.fn(
+    () =>
+      new Promise<unknown>((done) => {
+        resolve = done
+      }),
+  )
+  const t = receiver(read)
+  t.attention.receive('host', event)
+  await vi.advanceTimersByTimeAsync(1999)
+  expect(t.publish).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1)
+  expect(t.publish).toHaveBeenCalledTimes(1)
+  expect(vi.getTimerCount()).toBe(0)
+  t.attention.receive('host', { ...event, id: 'two' })
+  expect(read).toHaveBeenCalledTimes(1)
+  resolve(receipt)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(t.publish).toHaveBeenCalledTimes(2)
+  expect(t.publish.mock.calls[1]?.[0].receipt).toEqual(receipt)
+  t.attention.receive('host', { ...event, id: 'three' })
+  expect(read).toHaveBeenCalledTimes(2)
+})
+
+it.each(['a newer arrival', 'clear'] as const)(
+  'cleans timers without publishing a superseded wait after %s',
+  async (invalidation) => {
+    vi.useFakeTimers()
+    const t = receiver(async () => receipt)
+    t.attention.receive('host', event)
+    if (invalidation === 'clear') t.attention.clear()
+    else t.attention.receive('host', { ...event, id: 'two', title: 'Newer' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.publish.mock.calls.map(([published]) => published.title)).toEqual(
+      invalidation === 'clear' ? [] : ['Newer'],
+    )
+    expect(vi.getTimerCount()).toBe(0)
+  },
+)
+
+it('publishes a focused lane at once without reading its receipt', () => {
+  const read = vi.fn(async () => receipt),
+    publish = vi.fn()
+  createAttentionReceiver({ receipt: read, focused: () => true, publish }).receive('host', event)
+  expect(read).not.toHaveBeenCalled()
+  expect(publish).toHaveBeenCalledWith(makeAttention('host', event))
 })
