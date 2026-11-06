@@ -1,4 +1,4 @@
-import type { IpcInvokeMap } from '@phosphor/shared/ipc'
+import type { IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import type { WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { laneMarks } from '@phosphor/host-client/lane-marks'
 import {
@@ -94,7 +94,7 @@ function laneHandlers(lanes: RemoteLanes) {
  * path that is not a Host path is refused.
  */
 function laneWriteHandlers(lanes: RemoteLanes) {
-  async function write<C extends WriteChannel>(channel: C, args: IpcInvokeMap[C]['args']) {
+  async function write<C extends IpcInvokeChannel>(channel: C, args: IpcInvokeMap[C]['args']) {
     const routed = routeRemoteWrite(channel, args, (key) => lanes.readLane(1, key))
     if (!routed) throw new Error(REMOTE_UNAVAILABLE)
     return (await routed.result) as IpcInvokeMap[C]['result']
@@ -113,8 +113,6 @@ function laneWriteHandlers(lanes: RemoteLanes) {
     },
   } satisfies Partial<BrowserHandlers>
 }
-type WriteChannel =
-  'fs:writeFile' | 'fs:createFile' | 'fs:createDir' | 'fs:rename' | 'fs:trash' | 'fs:transfer'
 /** Device preferences this browser keeps (preferences.ts): validated, allowlisted, small. */
 function preferenceHandlers(prefs: ReturnType<typeof createBrowserPreferences>) {
   return {

@@ -48,6 +48,7 @@ it('refuses a write to a path that is not a Host path, without reaching a lane',
   await expect(s.handlers['fs:writeFile']!('/Users/local/a', 'bytes', null)).rejects.toThrow(
     REMOTE_UNAVAILABLE,
   )
+  expect(s.readLane).not.toHaveBeenCalled()
   expect(l.write).not.toHaveBeenCalled()
 })
 
