@@ -35,8 +35,8 @@ import {
   clearLaneSelection,
   selectLanes,
   toggleLane,
-  useLaneSelection,
   useSelectedKeys,
+  useSelectingGroup,
 } from './laneSelection'
 import { confirmSessionDelete, deleteLocalRow } from './localLaneDelete'
 import { LocalBulkDelete, LocalDeleteDialogs } from './LocalBulkDelete'
@@ -477,7 +477,7 @@ export function Sidebar({
   )
 
   /** Multi-select for bulk delete, one group at a time: see `laneSelection.ts`. */
-  const selectingGroup = useLaneSelection((s) => s.group)
+  const selectingGroup = useSelectingGroup(groups.map((group) => group.workspacePath))
   const selectedPaths = useSelectedKeys(selectingGroup)
 
   const toggleGroup = (group: GroupedSessions, wasCollapsed: boolean): void => {

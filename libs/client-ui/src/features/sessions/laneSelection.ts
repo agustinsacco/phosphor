@@ -81,6 +81,11 @@ export function useSelectedKeys(group: string | null): readonly string[] {
   return useLaneSelection((s) => (group !== null && s.group === group ? s.keys : NO_KEYS))
 }
 
+/** Which of `groups` is selecting, if any; another list's selection reads as null. */
+export function useSelectingGroup(groups: readonly string[]): string | null {
+  return useLaneSelection((s) => (s.group !== null && groups.includes(s.group) ? s.group : null))
+}
+
 /**
  * A list's hold on the selection: which of its `groups` is selecting, if any.
  *
@@ -90,9 +95,7 @@ export function useSelectedKeys(group: string | null): readonly string[] {
  * long as the list that made it, so unmounting the list drops it.
  */
 export function useSelectionOwner(groups: readonly string[], paused: boolean): string | null {
-  const owned = useLaneSelection((s) =>
-    s.group !== null && groups.includes(s.group) ? s.group : null,
-  )
+  const owned = useSelectingGroup(groups)
   const latest = useRef(groups)
   latest.current = groups
   useEffect(
