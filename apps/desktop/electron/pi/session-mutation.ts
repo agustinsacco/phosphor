@@ -1,7 +1,8 @@
 import { access } from 'node:fs/promises'
 import { registry } from '../registry'
 import { isRoutineSession, routineSessionForPath } from '../routines/ownership'
-import { sessionPathKey, withSessionPath } from './session-path-lock'
+import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
+import { withSessionPath } from './session-path-lock'
 
 /**
  * Phosphor's own edits to pi's transcripts (labels, branch jumps, forks) run

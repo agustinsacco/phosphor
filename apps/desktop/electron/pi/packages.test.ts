@@ -16,10 +16,10 @@ import {
   checkClaudeCliUpdate,
   checkPackageUpdates,
   detectBinaries,
-  parseClaudeAuthStatus,
   resolveBinary,
   runClaudeUpdate,
 } from './packages'
+import { parseClaudeAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
 import type { JobSender } from './packages'
 import type * as Packages from './packages'
 import type * as PrintMode from './print-mode'

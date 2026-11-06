@@ -71,10 +71,8 @@ vi.mock('node:fs/promises', () => ({ access: m.access }))
 vi.mock('../sandbox', () => ({}))
 vi.mock('../sandbox-service', () => ({}))
 vi.mock('../registry', () => ({ registry: { list: m.live, get: m.session } }))
-vi.mock('../pi/context-budget', () => ({
-  syncContextBudget: m.sync,
-  withBudgetCompaction: m.serialize,
-}))
+vi.mock('@phosphor/session-runtime/pi/context-budget', () => ({ syncContextBudget: m.sync }))
+vi.mock('../pi/context-budget', () => ({ withBudgetCompaction: m.serialize }))
 vi.mock('../pi/context-files', () => ({ setLaneContextFile: m.context }))
 vi.mock('../pi/stub', () => ({ piStubPath: m.stub }))
 vi.mock('../routines/ownership', () => ({ isRoutineSession: m.routine }))

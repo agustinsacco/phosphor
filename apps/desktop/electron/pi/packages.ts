@@ -12,7 +12,6 @@ import { failedJob, startJob, startPrintModeJob, type JobSender } from './packag
 
 export { failedJob, startJob, disposePackageJobs, type JobSender } from './package-jobs'
 export { claudeStatus } from './claude-status'
-export { parseClaudeAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
 export { resolveBinary } from './binary-lookup'
 
 /** One tiny print-mode turn: the bound a session title run gets. */

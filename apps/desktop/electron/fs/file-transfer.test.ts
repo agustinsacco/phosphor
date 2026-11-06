@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it } from 'vitest'
 import { mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { transferEntry } from './file-transfer'
+import { transferEntry } from '@phosphor/session-runtime/files/mutations'
 
 let root: string, ws: string, source: string, dir: string
 beforeEach(async () => {

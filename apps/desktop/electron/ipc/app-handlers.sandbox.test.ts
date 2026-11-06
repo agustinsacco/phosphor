@@ -43,7 +43,7 @@ vi.mock('../pi/pi-paths', () => ({
   sessionDirForCwd: mocks.sessionDir,
   claudeProjectDirForCwd: mocks.claudeDir,
 }))
-vi.mock('../pi/session-cwd', () => ({ repointSessionCwd: mocks.repoint }))
+vi.mock('@phosphor/session-runtime/pi/session-cwd', () => ({ repointSessionCwd: mocks.repoint }))
 vi.mock('../registry', () => ({ registry: { list: mocks.live } }))
 vi.mock('../pi/context-budget', () => ({}))
 vi.mock('../pi/context-files', () => ({}))
