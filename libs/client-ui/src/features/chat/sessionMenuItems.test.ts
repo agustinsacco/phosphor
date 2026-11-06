@@ -1,6 +1,7 @@
 import { beforeEach, expect, it } from 'vitest'
 import { mockRemoteHosts, MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
-import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { featureNotOffered } from '@/stores/hostRefusals'
+import { REMOTE_NOT_READY, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { TAKE_CONTROL_FIRST } from '@/features/sessions/remoteLaneActions'
@@ -87,5 +88,7 @@ it('says why when the Host is down or does not offer control', () => {
   lane((host) => {
     host.capabilities = ['sessions.read']
   })
-  expect(currentSessionMenuItems(SESSION, true)[1]!.hint).toBe(REMOTE_UNAVAILABLE)
+  expect(currentSessionMenuItems(SESSION, true)[1]!.hint).toBe(
+    featureNotOffered('sessions.control'),
+  )
 })

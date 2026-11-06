@@ -7,6 +7,7 @@ import type { GhPullRequest } from '@shared/models'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useChatStore } from '@/stores/chat'
 import { usePullRequestsStore } from '@/stores/pullRequests'
+import { featureNotOffered } from '@/stores/hostRefusals'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { groupRemoteLanes } from './groupRemoteLanes'
@@ -195,4 +196,14 @@ it("selecting an open Host folder's lanes leaves the collapsed-groups pref alone
   await act(async () => select.click())
   expect(container.querySelectorAll('[role=checkbox]').length).toBe(2)
   expect(invoke).not.toHaveBeenCalledWith('app:setCollapsedWorkspaces', expect.anything())
+})
+
+it("names the Host's missing lane control on a folder's New lane, after the readiness check", async () => {
+  const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+  hosts[MOCK_HOST_ID]!.capabilities = ['sessions.read']
+  useRemoteLanesStore.setState({ hosts })
+  await act(async () => render())
+  const plus = container.querySelector<HTMLButtonElement>('[aria-label^="New lane in"]')!
+  expect(plus.disabled).toBe(true)
+  expect(plus.getAttribute('aria-description')).toBe(featureNotOffered('sessions.control'))
 })

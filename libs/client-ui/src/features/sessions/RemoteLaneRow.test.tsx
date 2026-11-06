@@ -9,7 +9,8 @@ import { RemoteLaneRow, remoteLaneTitle } from './RemoteLaneRow'
 import { ONLY_WHILE_RUNNING, remoteControlHint, TAKE_CONTROL_FIRST } from './remoteLaneActions'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
-import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { featureNotOffered } from '@/stores/hostRefusals'
+import { REMOTE_NOT_READY, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { NavigationProvider } from '@/navigation/Navigation'
@@ -123,11 +124,11 @@ it('uses the local context-menu host and gates controller actions for a viewer',
   // A viewer is told how to get the action, not that it does not exist.
   for (const action of ['Rename', 'Stop', 'Delete'])
     expect(button(action).textContent).toContain(TAKE_CONTROL_FIRST)
-  expect(document.body.textContent).not.toContain(REMOTE_UNAVAILABLE)
+  expect(document.body.textContent).not.toContain(featureNotOffered('sessions.control'))
 })
 it('names the one obstacle a disabled controller action has', () => {
   expect(remoteControlHint(false, true, true)).toBe(REMOTE_NOT_READY)
-  expect(remoteControlHint(true, false, true)).toBe(REMOTE_UNAVAILABLE)
+  expect(remoteControlHint(true, false, true)).toBe(featureNotOffered('sessions.control'))
   expect(remoteControlHint(true, true, false)).toBe(TAKE_CONTROL_FIRST)
   expect(remoteControlHint(true, true, true)).toBeUndefined()
 })
@@ -206,7 +207,7 @@ it('delete requires workspace-write capability even for the current controller',
   render()
   menu()
   expect(button('Delete').disabled).toBe(true)
-  expect(button('Delete').textContent).toContain(REMOTE_UNAVAILABLE)
+  expect(button('Delete').textContent).toContain(featureNotOffered('workspaces.write'))
 })
 
 it.each([false, true])(
