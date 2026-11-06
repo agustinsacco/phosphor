@@ -1,4 +1,5 @@
 import { access } from 'node:fs/promises'
+import { assertNotBrainSource } from '@phosphor/session-runtime/pi/brain-session-admission'
 import { registry } from '../registry'
 import {
   isRoutineSession,
@@ -48,6 +49,7 @@ async function assertExists(path: string): Promise<void> {
  */
 export function withOfflineSessionMutation<T>(path: string, write: () => Promise<T>): Promise<T> {
   return withSessionPath(path, async () => {
+    await assertNotBrainSource(path, process.cwd(), registry)
     assertNoOwner(path)
     await assertExists(path)
     return write()
@@ -62,6 +64,7 @@ export function withOfflineSessionMutation<T>(path: string, write: () => Promise
  */
 export function withSessionForkSource<T>(path: string, fork: () => Promise<T>): Promise<T> {
   return withSessionPath(path, async () => {
+    await assertNotBrainSource(path, process.cwd(), registry)
     await assertExists(path)
     return fork()
   })

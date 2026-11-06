@@ -1,5 +1,5 @@
 import '../maintenance/__fixtures__/memory-history'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
@@ -105,6 +105,21 @@ vi.mock('../debug-log', () => ({ log: vi.fn() }))
 import { registerPiSessionHandlers } from './pi-session-handlers'
 import { cancelSessionOpens } from '../pi/session-path-lock'
 
+const fixtureDirectories: string[] = []
+function ordinaryTranscript(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'brain-admission-fixture-'))
+  fixtureDirectories.push(dir)
+  const path = join(dir, 'ordinary.jsonl')
+  writeFileSync(
+    path,
+    JSON.stringify({ type: 'session', version: 3, id: 'ordinary', cwd: '/repo' }) + '\n',
+  )
+  return path
+}
+afterEach(() => {
+  for (const dir of fixtureDirectories.splice(0)) rmSync(dir, { recursive: true, force: true })
+})
+
 const event = { sender: { isDestroyed: () => false, send: vi.fn() } }
 const pkg = (version: string) => [{ name: '@saccolabs/pi-claude-cli', version, installed: true }]
 
@@ -148,22 +163,22 @@ describe('session context policy integration', () => {
   )
 
   it('serializes concurrent resumes and reuses the first writer', async () => {
+    const path = ordinaryTranscript()
     state.create.mockImplementation(() => {
-      state.list.mockReturnValue([
-        { sessionId: 'live-1', workspacePath: '/repo', diskPath: '/repo/session.jsonl' },
-      ])
+      state.list.mockReturnValue([{ sessionId: 'live-1', workspacePath: '/repo', diskPath: path }])
       return state.session
     })
     const open = () =>
       state.handlers.get('pi:createSession')!(event, {
         workspacePath: '/repo',
-        sessionPath: '/repo/session.jsonl',
+        sessionPath: path,
       })
     await Promise.all([open(), open(), open()])
     expect(state.create).toHaveBeenCalledTimes(1)
   })
 
   it('interrupts startup RPC when deletion cancels a resume', async () => {
+    const path = ordinaryTranscript()
     let reject!: (error: Error) => void
     state.session.client.request.mockReturnValue(
       new Promise((_resolve, fail) => {
@@ -177,12 +192,12 @@ describe('session context policy integration', () => {
     const opening = Promise.resolve(
       state.handlers.get('pi:createSession')!(event, {
         workspacePath: '/repo',
-        sessionPath: '/repo/hung.jsonl',
+        sessionPath: path,
       }),
     )
     const result = opening.catch((error: Error) => error.name)
     await vi.waitFor(() => expect(state.session.client.request).toHaveBeenCalled())
-    cancelSessionOpens('/repo/hung.jsonl')
+    cancelSessionOpens(path)
     expect(await result).toBe('AbortError')
     expect(state.dispose).toHaveBeenCalledWith('live-1')
   })
