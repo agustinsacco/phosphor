@@ -4,6 +4,7 @@ import { formatBytes } from '@/lib/format'
 import type { ArtifactToolDetails } from '@/stores/artifacts'
 import { diffStats, parseDisplayDiff, unifiedPatchStats, type DiffStats } from '../diff'
 import { subagentCall, subagentRun, summarizeSubagentCall } from '../subagentRuns'
+import { SUBAGENTS_ENABLE_TOOL } from '../subagentRuns'
 
 export interface EditDetails {
   diff?: string
@@ -277,14 +278,13 @@ export function summarizeTool(tool: ToolState, workspacePath?: string): ToolSumm
       // pi-subagents, in both providers. The verb is what the model did, the
       // object is the agent, the hint is what it is on right now or what it
       // cost (see subagentRuns.ts).
-      const settled = !running
       return summarizeSubagentCall(
         subagentCall(args),
-        subagentRun(toolDetails(tool), settled),
+        subagentRun(toolDetails(tool), !running),
         running,
       )
     }
-    case 'subagents_enable':
+    case SUBAGENTS_ENABLE_TOOL:
       return { label: running ? 'Enabling' : 'Enabled', object: 'sub-agents' }
     default:
       return { label: running ? 'Running' : 'Used', object: tool.toolName, mono: true }
