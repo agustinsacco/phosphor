@@ -3,6 +3,8 @@ import { BRAIN_EMBEDDING_MODEL } from '@phosphor/shared/brain'
 import { adapterFixture, deferred } from './__fixtures__/adapter-fixture'
 import { createBrainIndexer } from './indexer'
 
+vi.mock('electron', () => ({ utilityProcess: { fork: vi.fn() } }))
+const { assembleBrainService } = await import('./service')
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close()
@@ -95,6 +97,54 @@ it.each(['forget', 'policy', 'correction'] as const)(
     pending.resolve([Array.from({ length: 768 }, () => 1)])
     await indexing
     expect(f.engine.snapshot().counts.vectors).toBe(0)
+  },
+)
+it('drains a newer explicit indexing request after a stale in-flight completion', async () => {
+  const f = await reviewedFixture()
+  const pending = deferred<number[][]>()
+  f.embeddings.embed.mockReturnValueOnce(pending.promise)
+  const first = f.indexer.index()
+  await vi.waitFor(() => expect(f.embeddings.embed).toHaveBeenCalledOnce())
+  const claim = f.engine.snapshot().claims[0]!
+  f.engine.correct(
+    claim.id,
+    {
+      subjectId: claim.subjectId,
+      predicate: 'about',
+      objectId: null,
+      literal: 'Neptune',
+      summary: 'Atlas now depends on Neptune',
+      validFrom: null,
+      validTo: null,
+      reason: 'Human correction during local indexing',
+    },
+    f.engine.snapshot(),
+  )
+  const next = f.indexer.index()
+  pending.resolve([Array.from({ length: 768 }, (_, i) => (i === 0 ? 1 : 0))])
+  await Promise.all([first, next])
+  expect(f.embeddings.embed).toHaveBeenCalledWith(
+    ['Atlas now depends on Neptune'],
+    'document',
+    expect.any(AbortSignal),
+  )
+  expect(f.engine.snapshot().counts.vectors).toBe(1)
+  expect(f.engine.embeddingItems(BRAIN_EMBEDDING_MODEL.id, 8)).toEqual([])
+})
+it.each(['startup', 'enable'] as const)(
+  'indexes reviewed backlog when the local model is ready on %s',
+  async (when) => {
+    const f = await reviewedFixture()
+    if (when === 'enable') f.engine.setPrefs({ ...f.engine.snapshot().prefs, enabled: false })
+    const service = await assembleBrainService({ ...f.options, embeddings: f.embeddings }, f.store)
+    cleanup.push(() => service.dispose())
+    if (when === 'enable') {
+      expect(f.embeddings.embed).not.toHaveBeenCalled()
+      await service.ui['brain:setPrefs']({ ...f.engine.snapshot().prefs, enabled: true })
+    }
+    expect(f.engine.snapshot().counts.vectors).toBe(1)
+    expect(f.embeddings.download).not.toHaveBeenCalled()
+    expect(f.options.sessions.create).not.toHaveBeenCalled()
   },
 )
 it('exposes semantic degradation without silently substituting another embedding model', async () => {
