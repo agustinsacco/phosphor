@@ -37,6 +37,16 @@ it('registers exactly the public review/settings channels and forwards typed arg
   expect(registrations.has('brain:dispose')).toBe(false)
   expect(registrations.has('brain:putVectors')).toBe(false)
 })
+it('registers lazily and retries service acquisition after a failed first load', async () => {
+  const service = { ui: { 'brain:status': vi.fn(async () => 'ready') } } as unknown as BrainService
+  const get = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(service)
+  registerBrainHandlers(get)
+  expect(get).not.toHaveBeenCalled()
+  const status = () => Promise.resolve().then(() => registrations.get('brain:status')!({}))
+  await expect(status()).rejects.toThrow('offline')
+  await expect(status()).resolves.toBe('ready')
+  expect(get).toHaveBeenCalledTimes(2)
+})
 it('refuses oversized IPC payloads before entering the adapter', () => {
   const ui = Object.fromEntries(channels.map((channel) => [channel, vi.fn()])) as unknown as BrainUI
   registerBrainHandlers({ ui } as BrainService)
