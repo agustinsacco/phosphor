@@ -112,22 +112,30 @@ function usePiDefaults(override: ModelPick | undefined) {
     void window.phosphor
       .invoke('pi:agentSettings')
       .then((settings) => {
-        const defaultThinking = settings.defaultThinkingLevel
+        const defaults = piStartDefaults(settings)
         // An override (a restored draft's model) has already been applied.
         if (!override) {
-          if (typeof settings.defaultProvider === 'string') setProvider(settings.defaultProvider)
-          if (typeof settings.defaultModel === 'string') setModelId(settings.defaultModel)
+          if (defaults.provider !== undefined) setProvider(defaults.provider)
+          if (defaults.model !== undefined) setModelId(defaults.model)
         }
-        if (
-          typeof defaultThinking === 'string' &&
-          ALL_THINKING_LEVELS.includes(defaultThinking as ThinkingLevel)
-        ) {
-          setThinking(defaultThinking as ThinkingLevel)
-        }
+        if (defaults.thinking) setThinking(defaults.thinking)
       })
       .catch(() => undefined)
   }, [])
   return { provider, modelId, thinking, setProvider, setModelId, setThinking }
+}
+
+/** pi's start defaults in its settings.json; a value pi would not take is undefined. */
+export function piStartDefaults(settings: Record<string, unknown>): {
+  provider: string | undefined
+  model: string | undefined
+  thinking: ThinkingLevel | undefined
+} {
+  return {
+    provider: typeof settings.defaultProvider === 'string' ? settings.defaultProvider : undefined,
+    model: typeof settings.defaultModel === 'string' ? settings.defaultModel : undefined,
+    thinking: ALL_THINKING_LEVELS.find((level) => level === settings.defaultThinkingLevel),
+  }
 }
 
 /** A failed write keeps the pick on screen; the next session reads pi's file as it is. */
