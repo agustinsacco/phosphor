@@ -55,3 +55,39 @@ it('keeps the last-known lanes while a Host reconnects, and only a down Host cle
     useRemoteLanesStore.setState({ hosts: {}, snapshotStatus: 'idle' })
   }
 })
+
+/* Before the first Host snapshot arrives the Host is unknown, not down: the sidebar shows skeletons there too. */
+it('shows skeletons, not "not connected", while the first Host snapshot loads', async () => {
+  useMachinesStore.setState({
+    machines: [{ ...MACHINE, id: MOCK_HOST_ID }],
+    loading: false,
+    error: null,
+  })
+  useRemoteLanesStore.setState({ hosts: {}, snapshotStatus: 'loading' })
+  const element = document.createElement('div')
+  document.body.append(element)
+  const root = createRoot(element)
+  try {
+    await act(async () =>
+      root.render(
+        <NavigationProvider value={{ location: { to: 'lanes' }, navigate: vi.fn() }}>
+          <CompactLanes />
+        </NavigationProvider>,
+      ),
+    )
+    expect(element.querySelector('[data-testid=workspace-groups-loading]')).not.toBeNull()
+    expect(element.textContent).not.toContain('Machine not connected')
+    await act(async () =>
+      useRemoteLanesStore.setState({
+        hosts: { [MOCK_HOST_ID]: mockRemoteHosts[MOCK_HOST_ID]! },
+        snapshotStatus: 'ready',
+      }),
+    )
+    expect(element.querySelector('[data-testid=workspace-groups-loading]')).toBeNull()
+    expect(element.textContent).toContain('Remote demo lane')
+  } finally {
+    await act(async () => root.unmount())
+    element.remove()
+    useRemoteLanesStore.setState({ hosts: {}, snapshotStatus: 'idle' })
+  }
+})
