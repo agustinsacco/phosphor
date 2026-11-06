@@ -88,12 +88,7 @@ import {
 import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from './nameTransition'
 import { committedRename } from './inlineRename'
-import {
-  cloneSession,
-  exportSidebarSession,
-  markSidebarSessionRead,
-  renameSidebarSession,
-} from './sidebarActions'
+import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 import {
   applySessionRename,
   copySessionDebugInfo,
@@ -1474,7 +1469,7 @@ function SessionRow({
           ]
         : []),
       ...(unseen
-        ? [{ label: 'Mark read', onClick: () => markSidebarSessionRead(meta.path, livePhosphorId) }]
+        ? [{ label: 'Mark read', onClick: () => store.markRead(meta.path, livePhosphorId) }]
         : []),
       {
         label: 'Fork',

@@ -64,11 +64,3 @@ export async function exportSidebarSession(
   const phosphorId = livePhosphorId ?? (await store.openDiskSession(workspacePath, meta))
   await exportSessionHtml(phosphorId, meta.name ?? 'session')
 }
-
-/** Mark a lane read without opening it: its activity is seen, its unread count cleared. */
-export function markSidebarSessionRead(sessionPath: string, livePhosphorId?: string): void {
-  const store = useSessionsStore.getState()
-  store.markSeen(sessionPath)
-  if (livePhosphorId && store.unread[livePhosphorId])
-    useSessionsStore.setState((s) => ({ unread: { ...s.unread, [livePhosphorId]: 0 } }))
-}

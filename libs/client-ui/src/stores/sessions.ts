@@ -59,9 +59,7 @@ export function shouldRefreshStatsOn(
   // carry — the authoritative post-turn context estimate and
   // the post-compaction reset. Without it, the old per-sub-step polling is
   // the only thing that moves the meter mid-turn, so it stays.
-  if (usageArrivesOnDeltas) {
-    return eventType === 'agent_end' || eventType === 'compaction_end'
-  }
+  if (usageArrivesOnDeltas) return eventType === 'agent_end' || eventType === 'compaction_end'
   return (
     eventType === 'agent_end' ||
     eventType === 'compaction_end' ||
@@ -178,6 +176,8 @@ interface SessionsState {
   hydratePinned: () => Promise<void>
   /** Record that the user is looking at this session right now. */
   markSeen: (sessionPath: string) => void
+  /** Mark a lane read without opening it: its file seen, its live session's unread count cleared. */
+  markRead: (sessionPath: string, phosphorId?: string) => void
   /** Refresh batched git summaries for these cwds. */
   refreshGitInfo: (cwds: string[]) => Promise<void>
   refreshDisk: (workspacePath: string) => Promise<void>
@@ -887,6 +887,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     void window.phosphor.invoke('app:markSessionSeen', sessionPath)
   },
 
+  markRead: (sessionPath, phosphorId) => {
+    get().markSeen(sessionPath)
+    if (phosphorId) set((s) => ({ unread: drop(s.unread, phosphorId) }))
+  },
+
   refreshGitInfo: async (cwds) => {
     const unique = [...new Set(cwds)].filter(Boolean)
     if (unique.length === 0) return
@@ -1064,7 +1069,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         },
         ...(takesScreen ? { activeSessionId: phosphorId } : {}),
         opening: s.opening?.nav === nav ? null : s.opening,
-        unread: { ...s.unread, [phosphorId]: 0 },
+        unread: drop(s.unread, phosphorId),
       }))
       // Resumed sessions already know their file; fresh ones learn it from
       // get_state in bootstrapSession, which persists it then.
@@ -1162,7 +1167,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           laneId: info?.laneId,
         },
       },
-      unread: { ...s.unread, [sessionId]: 0 },
+      unread: drop(s.unread, sessionId),
     }))
     try {
       // A resumed lane replays its history; a freshly spawned one has none.
@@ -1185,9 +1190,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     get().markSeen(meta.path)
     // Reopening clears the suspended marker; the resume path below re-spawns pi
     // and the transcript shows its skeleton while history replays.
-    if (get().suspendedPaths.includes(meta.path)) {
+    if (get().suspendedPaths.includes(meta.path))
       set((s) => ({ suspendedPaths: s.suspendedPaths.filter((p) => p !== meta.path) }))
-    }
     // Already live? Just activate.
     const existing = Object.values(get().live).find((l) => l.diskPath === meta.path)
     if (existing) {
@@ -1249,7 +1253,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       activeSessionId: sessionId,
       navSeq: s.navSeq + 1,
       opening: null,
-      unread: sessionId ? { ...s.unread, [sessionId]: 0 } : s.unread,
+      unread: sessionId ? drop(s.unread, sessionId) : s.unread,
     }))
     // Remember where to reopen next launch. Clearing the session (New) also
     // clears the memory, so we land on the home screen instead.
@@ -1271,9 +1275,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // Keep the persisted workspace paired with the persisted session —
     // resumeTarget reunites the two on launch, and a stale lastWorkspacePath
     // would resume this session against another project's cwd.
-    if (live?.workspacePath) {
-      void window.phosphor.invoke('app:recordWorkspace', live.workspacePath)
-    }
+    if (live?.workspacePath) void window.phosphor.invoke('app:recordWorkspace', live.workspacePath)
   },
 
   disposeSession: async (sessionId) => {
@@ -1371,9 +1373,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
             }
           })
           // A deleted successor must not keep its old file folded away.
-          if (rewound !== rewoundBefore) {
+          if (rewound !== rewoundBefore)
             void window.phosphor.invoke('app:setRewoundSessions', rewound)
-          }
           void window.phosphor.invoke('app:setPinnedSessions', get().pinned)
           void window.phosphor.invoke('app:setLaneMarkers', get().laneMarkers)
         }
@@ -1479,9 +1480,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
               force: options.discardChanges,
               deleteBranch: options.deleteBranch,
             })
-            if (!outcome.removed) {
+            if (!outcome.removed)
               throw new Error(`worktree kept, ${outcome.dirtyCount} uncommitted changes`)
-            }
             branchError = outcome.branchError
           }
           const cwd =
