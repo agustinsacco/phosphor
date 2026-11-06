@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
-import { expect, it, vi } from 'vitest'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, expect, it, vi } from 'vitest'
 import { useGroupSearch, type GroupSearch } from './groupSearch'
+
+let root: Root | undefined
+afterEach(() => {
+  act(() => root?.unmount())
+  root = undefined
+  vi.unstubAllGlobals()
+})
 
 function renderSearch(): () => GroupSearch {
   let current: GroupSearch | undefined
@@ -11,8 +18,9 @@ function renderSearch(): () => GroupSearch {
     return null
   }
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  const root = createRoot(document.createElement('div'))
-  act(() => root.render(<Probe />))
+  const mounted = createRoot(document.createElement('div'))
+  root = mounted
+  act(() => mounted.render(<Probe />))
   return () => current!
 }
 
