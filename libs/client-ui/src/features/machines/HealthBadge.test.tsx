@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 import type { HostsSnapshot } from '@shared/ipc'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { CLAUDE_PROVIDER, MACHINE } from './__fixtures__/control'
+import { LOCAL_READS, MACHINE } from './__fixtures__/control'
 import { HealthBadge } from './HealthBadge'
 import { useMachineHealthStore } from './healthStore'
 
@@ -28,14 +28,11 @@ const hosts: HostsSnapshot = {
 const invoke = vi.fn(async (channel: string): Promise<unknown> => {
   if (channel === 'control:machines')
     return { ok: true, machines: [machine], serverTime: new Date().toISOString() }
-  if (channel === 'hosts:tailscaleStatus') return { code: 'ready' }
   if (channel === 'pi:health') return { ok: true, version: '1.2.0' }
   if (channel === 'hosts:snapshot') return hosts
   if (channel === 'pi:subscriptionAuth') return [{ id: 'a', name: 'A', status: 'ready' }]
   if (channel === 'pi:catalogueModels') return { models: [{ id: 'm' }], source: 'pi' }
-  if (channel === 'packages:list') return [CLAUDE_PROVIDER]
-  if (channel === 'packages:claudeStatus')
-    return { binary: { found: true }, auth: { ok: true, loggedIn: true } }
+  if (channel in LOCAL_READS) return LOCAL_READS[channel]
   if (channel === 'skills:list') return { skills: [] }
   if (channel === 'routines:list') return { routines: [] }
   return undefined

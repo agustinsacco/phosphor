@@ -8,9 +8,9 @@ import type {
   ClaudeUsageSnapshotResult,
   PiPackageEntry,
 } from '@shared/models'
-import { MIN_CLAUDE_CONTEXT_VERSION } from '@shared/models'
+import { claudeProviderState } from '@shared/models'
 import { errorText } from '@shared/errors'
-import { isNewerVersion, meetsMinimum } from '@shared/version'
+import { isNewerVersion } from '@shared/version'
 import { basename } from '@/lib/path'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { viewCandidate } from '@/lib/claudeGateway'
@@ -31,6 +31,7 @@ const CLAUDE_PROVIDER_SPEC = 'npm:@saccolabs/pi-claude-cli'
 
 interface LocalClaudeState {
   pkg: PiPackageEntry | null | undefined
+  entries: PiPackageEntry[]
   status: ClaudeStatus | null
   accounts: ClaudeAccountsResult | null
   latest: string | null
@@ -41,6 +42,7 @@ interface LocalClaudeState {
 function useLocalClaudeState() {
   const [state, setState] = useState<LocalClaudeState>({
     pkg: undefined,
+    entries: [],
     status: null,
     accounts: null,
     latest: null,
@@ -56,7 +58,7 @@ function useLocalClaudeState() {
       ])
       const pkg = entries.find((e) => e.spec.includes('pi-claude-cli')) ?? null
       setError(null)
-      setState((s) => ({ ...s, pkg, status, accounts }))
+      setState((s) => ({ ...s, pkg, entries, status, accounts }))
       // Both version checks hit the network, so neither blocks the health rows.
       if (pkg)
         void window.phosphor
@@ -78,11 +80,16 @@ function useLocalClaudeState() {
 const newer = (latest: string | null, current: string | undefined): string | null =>
   latest !== null && current !== undefined && isNewerVersion(latest, current) ? latest : null
 
-function healthOf({ pkg, status, latest, cliLatest }: LocalClaudeState): ClaudeHealthModel {
-  // Main refuses a Claude session on a copy this old, so the row must not read
-  // as healthy beside it. Same rule as the refusal (provider-detect.ts).
-  const tooOld = pkg?.installed === true && !meetsMinimum(pkg.version, MIN_CLAUDE_CONTEXT_VERSION)
+function healthOf({
+  pkg,
+  entries,
+  status,
+  latest,
+  cliLatest,
+}: LocalClaudeState): ClaudeHealthModel {
   const cliVersion = status?.binary.version
+  // Main's refusal rule over every copy, as Machines reads it; the row shows the copy it refuses.
+  const shown = entries.find((e) => claudeProviderState([e]) === 'outdated') ?? pkg
   return {
     provider:
       pkg === undefined
@@ -91,11 +98,11 @@ function healthOf({ pkg, status, latest, cliLatest }: LocalClaudeState): ClaudeH
           ? 'missing'
           : !pkg.installed
             ? 'declared'
-            : tooOld
-              ? 'outdated'
-              : 'installed',
-    ...(pkg ? { package: { name: pkg.name, version: pkg.version, scope: pkg.scope } } : {}),
-    providerLatest: newer(latest, pkg?.version),
+            : claudeProviderState(entries) === 'ok'
+              ? 'installed'
+              : 'outdated',
+    ...(shown ? { package: { name: shown.name, version: shown.version, scope: shown.scope } } : {}),
+    providerLatest: newer(latest, shown?.version),
     cli: status === null ? 'checking' : status.binary.found ? 'installed' : 'missing',
     cliVersion,
     cliPath: status?.binary.path,

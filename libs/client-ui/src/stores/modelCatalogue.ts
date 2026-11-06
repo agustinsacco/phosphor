@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { SubscriptionProviderStatus } from '@shared/models'
 import type { ModelCost, ThinkingLevelMap } from '@shared/rpc'
+import { readLocalSubscriptionAuth } from './localSubscriptionAuth'
 
 /**
  * The model catalogue every session-less picker reads.
@@ -93,7 +94,7 @@ export const useModelCatalogueStore = create<ModelCatalogueState>((set, get) => 
         // there must not turn a good model list into an error.
         const [catalogue, providers] = await Promise.all([
           window.phosphor.invoke('pi:catalogueModels'),
-          window.phosphor.invoke('pi:subscriptionAuth').catch(() => []),
+          readLocalSubscriptionAuth().catch(() => []),
         ])
         set({
           status: 'ready',

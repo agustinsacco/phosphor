@@ -5,12 +5,8 @@ import {
   type Readiness,
 } from '@shared/control-api'
 import type { MachineClaude } from '@shared/host-protocol-machine'
-import {
-  claudeProviderState,
-  type ClaudeStatus,
-  type PiHealth,
-  type PiPackageEntry,
-} from '@shared/models'
+import type { PhosphorApi } from '@shared/ipc'
+import { claudeProviderState, type PiHealth } from '@shared/models'
 import type { TailscaleCode, TailscaleStatus } from '@shared/tailscale-status'
 
 export const HOST_GUIDE = 'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md'
@@ -24,7 +20,7 @@ export const PI_INSTALL = 'npm install -g @earendil-works/pi-coding-agent'
  * The one fix for a missing or outdated Claude Code on any machine: its
  * Settings page installs the provider and the CLI, or says how.
  */
-export const CLAUDE_SETUP = 'Set it up in Settings → Extensions → Claude Code.'
+const CLAUDE_SETUP = 'Set it up in Settings → Extensions → Claude Code.'
 /** A Host that cannot open its Settings installs Claude Code with its own setup. */
 const HOST_CLAUDE_SETUP = 'Run phosphor setup on this machine.'
 function claudeSetup(configurable: boolean): { text: string; command?: string } {
@@ -41,6 +37,10 @@ function claudeSignIn(configurable: boolean): { text: string; command?: string }
         command: 'phosphor providers login claude',
       }
 }
+/** A ready Tailscale, on This Mac or a Host. */
+export const TAILSCALE_READY = 'Connected with HTTPS available'
+/** This computer's Tailscale while the account reaches no Hosts: optional, never a problem. */
+export const TAILSCALE_OPTIONAL = 'Needed only to reach your Hosts'
 /** What this computer's Tailscale needs, by its read-only status. */
 export const TAILSCALE_FIXES: Record<TailscaleCode, string> = {
   ready: 'Tailscale is running and logged in. MagicDNS and HTTPS certificates are available.',
@@ -172,7 +172,7 @@ export function readinessChecks(
       detail: unpublished
         ? 'Running, but its address is not published'
         : tailscale === 'ok'
-          ? 'Connected with HTTPS available'
+          ? TAILSCALE_READY
           : tailscale === 'stopped'
             ? 'Start Tailscale on this machine.'
             : tailscale === 'no-https'
@@ -189,11 +189,15 @@ export function readinessChecks(
     },
   ]
 }
-/** This computer's Claude Code in a Host's terms, by the Host's provider rule. */
-export function localClaude(
-  packages: readonly PiPackageEntry[],
-  status: ClaudeStatus,
-): MachineClaude {
+/**
+ * This computer's Claude Code in a Host's terms (the counterpart of `hosts:claude`),
+ * by the Host's provider rule.
+ */
+export async function readLocalClaude(invoke: PhosphorApi['invoke']): Promise<MachineClaude> {
+  const [packages, status] = await Promise.all([
+    invoke('packages:list'),
+    invoke('packages:claudeStatus'),
+  ])
   return {
     provider: claudeProviderState(packages),
     cli: status.binary.found ? 'ok' : 'missing',
@@ -241,8 +245,8 @@ export function claudeReadiness(detail: MachineClaude, configurable = true): Rea
         name,
         ok: false,
         short: 'Claude Code unknown',
-        detail: `Claude Code sign-in status is unknown. ${configurable ? 'Check it under Settings → Extensions → Claude Code.' : 'Run phosphor setup on this machine.'}`,
-        command: configurable ? undefined : 'phosphor setup',
+        detail: `Claude Code sign-in status is unknown. ${configurable ? 'Check it under Settings → Extensions → Claude Code.' : setup.text}`,
+        command: setup.command,
       }
 }
 
@@ -252,6 +256,17 @@ export interface LocalReadings {
   claude?: MachineClaude | null
   tailscale?: TailscaleStatus
   failed: boolean
+}
+
+/**
+ * Why This Mac's pi cannot run lanes, without a command: the row offers
+ * `PI_INSTALL`, and main's messages for these two reasons end with their own.
+ * The health check's pi step says the same.
+ */
+export function piUnavailable(health: PiHealth): string {
+  if (health.reason === 'too-old') return `pi ${health.version} is older than ${health.minVersion}.`
+  if (health.reason === 'not-found') return 'pi was not found on your PATH.'
+  return health.message ?? 'Install pi to run lanes.'
 }
 
 /**
@@ -271,7 +286,7 @@ export function localChecks(
       detail: health
         ? health.ok
           ? `Ready · ${health.version}`
-          : (health.message ?? health.reason ?? 'Install pi to run lanes.')
+          : piUnavailable(health)
         : 'Could not check pi.',
       command: health && !health.ok ? PI_INSTALL : undefined,
     },
@@ -292,8 +307,8 @@ export function localChecks(
       short: TAILSCALE_SHORT[tailscale?.code ?? 'check-failed'],
       detail:
         tailscale?.code === 'ready'
-          ? 'Connected with HTTPS available'
-          : `${reachesHosts ? '' : 'Needed only to reach your Hosts. '}${TAILSCALE_FIXES[tailscale?.code ?? 'check-failed']}`,
+          ? TAILSCALE_READY
+          : `${reachesHosts ? '' : `${TAILSCALE_OPTIONAL}. `}${TAILSCALE_FIXES[tailscale?.code ?? 'check-failed']}`,
     },
   ]
 }
