@@ -48,6 +48,7 @@ it('stops capture when the native transcript identity changes instead of importi
   nativeId = 'old-different-transcript'
   entries = [entry('historical', 'user', null)]
   client.emit('event', { type: 'agent_end' })
-  await new Promise((resolve) => setTimeout(resolve, 40))
+  await vi.waitFor(() => expect(client.request.mock.calls.length).toBeGreaterThanOrEqual(3))
+  await new Promise((resolve) => setImmediate(resolve))
   expect(f.engine.snapshot().counts.evidence).toBe(1)
 })
