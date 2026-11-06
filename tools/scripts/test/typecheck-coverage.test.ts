@@ -154,7 +154,7 @@ describe('comprehensive typecheck runner', () => {
       args: ['run', 'check'],
       cwd: join(root, 'apps/site'),
     })
-    expect(typecheckProjects).toHaveLength(18)
+    expect(typecheckProjects).toHaveLength(20)
   })
 
   it.each([
