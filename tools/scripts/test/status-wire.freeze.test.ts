@@ -29,7 +29,7 @@ const fixture = {
     {
       key: 'phosphor-brain-audit',
       producer: 'libs/pi-extensions/pi-ext/brain-processor.ts',
-      consumer: 'apps/desktop/electron/pi/brain-tool-audit.ts',
+      consumer: 'libs/brain-runtime/src/tool-audit.ts',
     },
   ],
   statuses: frozenFixture.statuses.map((entry) => ({
@@ -295,7 +295,7 @@ const auditedTexts = new Map(
     ...sourceFiles('apps/desktop/src'),
     ...sourceFiles('libs/client-ui/src'),
     ...sourceFiles('apps/web/src'),
-    'apps/desktop/electron/pi/brain-tool-audit.ts',
+    'libs/brain-runtime/src/tool-audit.ts',
     'libs/session-runtime/src/pi/lane-reload.ts',
     'libs/session-runtime/src/pi/mcp-lane.ts',
     'libs/shared/src/mcp-inspection.ts',
