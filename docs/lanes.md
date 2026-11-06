@@ -522,8 +522,9 @@ Remote Delete needs control and workspace-write capability, in Desktop and the
 browser alike. A disabled action's hint names its obstacle: “Take control
 first.” for a viewer, “Only while running.” for rename and spend on a stopped
 lane, “Send a first message before stopping this lane.” for Stop on an open lane
-with no first message (the Host refuses it), and “Not available on remote lanes
-yet.” only when the Host lacks the capability. Delete uses the
+with no first message (the Host refuses it), and “This Host does not offer lane
+control to this device.” (or file editing, for Delete; routines, for Make
+routine…) when a ready Host does not grant the capability. Delete uses the
 same resource confirmation, keeps failures visible, and closes the lane on
 success. A shared worktree gets transcript-only deletion. The Host keeps trashed
 transcripts for 30 days; worktree removal and merged-branch deletion are optional.

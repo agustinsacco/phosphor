@@ -1,6 +1,6 @@
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { featureNotOffered } from '@/stores/hostRefusals'
-import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import type { LanePrefs } from '@shared/models'
 
@@ -21,7 +21,7 @@ export function remoteControlHint(
   self: boolean,
 ): string | undefined {
   if (!ready) return REMOTE_NOT_READY
-  if (!canControl) return REMOTE_UNAVAILABLE
+  if (!canControl) return featureNotOffered('sessions.control')
   return self ? undefined : TAKE_CONTROL_FIRST
 }
 
@@ -73,7 +73,7 @@ export function remoteLaneAccess({ lane, host, ready }: RemoteLaneActionState) {
       : host?.laneMarks !== true
         ? LANE_MARKS_NEED_UPDATE
         : !canControl
-          ? REMOTE_UNAVAILABLE
+          ? featureNotOffered('sessions.control')
           : undefined,
   }
 }
@@ -140,7 +140,7 @@ export function remoteLaneActions(
       danger: true,
       separatorAbove: true,
       disabled: !controlled || !canWrite || busy,
-      hint: controlHint ?? (!canWrite ? REMOTE_UNAVAILABLE : undefined),
+      hint: controlHint ?? (!canWrite ? featureNotOffered('workspaces.write') : undefined),
       onClick: handlers.delete,
     },
   )

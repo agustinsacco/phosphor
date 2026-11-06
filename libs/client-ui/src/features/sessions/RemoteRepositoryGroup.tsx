@@ -4,12 +4,8 @@ import { SearchIcon, PlusIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
 import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { useNavigation } from '@/navigation/Navigation'
-import {
-  REMOTE_NOT_READY,
-  REMOTE_UNAVAILABLE,
-  canReadHost,
-  useRemoteLanesStore,
-} from '@/stores/remoteLanes'
+import { featureNotOffered } from '@/stores/hostRefusals'
+import { REMOTE_NOT_READY, canReadHost, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import type { HostLaneView } from '@shared/ipc'
 import { RemoteBulkDelete, selectableLanes } from './RemoteBulkDelete'
@@ -296,7 +292,13 @@ function NewLaneButton({
     <TooltipButton
       className={className}
       aria-label={`New lane in ${group.name}`}
-      title={!ready ? REMOTE_NOT_READY : !canStart ? REMOTE_UNAVAILABLE : 'New session here'}
+      title={
+        !ready
+          ? REMOTE_NOT_READY
+          : !canStart
+            ? featureNotOffered('sessions.control')
+            : 'New session here'
+      }
       disabled={!canStart}
       onClick={() => {
         openRemoteComposer(hostId, group.repositoryId)
