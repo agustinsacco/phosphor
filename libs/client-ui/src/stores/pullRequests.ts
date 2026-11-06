@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GhBranchCoverage, GhPullRequest } from '@shared/models'
+import type { GhBranchCoverage, GhPullRequest, GitInfo, SessionMeta } from '@shared/models'
 import { pullRequestInterests } from './pullRequestInterests'
 import { mergePullRequestRead, pullRequestPages } from './pullRequestReads'
 import { keyedSlice } from './keyedSlice'
@@ -25,8 +25,8 @@ export interface RepoPullRequests {
   branchAttemptedAt?: Record<string, number>
   /** Epoch ms of the last successful app refresh (not upstream freshness); 0 when never fetched. */
   fetchedAt: number
-  /** Only an untruncated successful listing can confirm a missing PR. */
-  complete: boolean
+  /** Never set or read: kept only because a frozen characterization fixture spells it. */
+  complete?: boolean
   /** Last app attempt failed; known PRs remain available. */
   failed?: boolean
   /** Last attempt, including failures, for retry throttling. */
@@ -39,7 +39,6 @@ const repos = keyedSlice<RepoPullRequests>({
   byBranch: {},
   fetchedAt: 0,
   attemptedAt: 0,
-  complete: false,
   loading: false,
   failed: false,
 })
@@ -146,4 +145,13 @@ export function pullRequestFor(
 ): GhPullRequest | undefined {
   if (!branch) return undefined
   return repos.read(state.byRepo, repoPath).byBranch[branch]
+}
+
+/** A This Mac lane's pull request. A worktree's PRs live under its main repository. */
+export function localLanePullRequest(
+  state: Pick<PullRequestsState, 'byRepo'>,
+  meta: Pick<SessionMeta, 'cwd'>,
+  git: Pick<GitInfo, 'mainRepoPath' | 'branch'> | undefined,
+): GhPullRequest | undefined {
+  return pullRequestFor(state, git?.mainRepoPath ?? meta.cwd, git?.branch)
 }

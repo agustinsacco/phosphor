@@ -123,6 +123,9 @@ leaves the plain card. A receipt is used only when its outcome matches the event
 and `settledAt` is within 30 seconds of the attention time. A newer attention
 event for that lane supersedes a pending publication. Replies from replaced
 connections, removed lanes or connections without `sessions.read` are discarded.
+Desktop and the browser share one receiver for these rules
+(`createAttentionReceiver` in `libs/host-client/src/attention.ts`). The browser
+raises no OS notification, so it waits for the receipt of every such attention.
 
 The Host reports provider-error completions as failed, not finished.
 [Lane notices](chat.md#lane-notices) own card contents and fact meanings. Host OS
@@ -413,7 +416,8 @@ The button summarizes only machines other than the selected one.
 Reconnecting uses an amber pulsing status dot, and the sidebar says
 "Connecting…" for a Host that is connecting, reconnecting or not yet in the
 first Host snapshot, never "Not reachable"; while that first snapshot loads, This
-Mac's group skeletons (`SidebarPrimitives`) stand under it. Down machines show a grey dot,
+Mac's group skeletons (`SidebarPrimitives`) stand under it, there and on the phone's
+Lanes page. Down machines show a grey dot,
 the directory's last-seen age, and last-known groups with disabled lane and
 creation actions. A Host that is enrolled but not yet connected shows the
 reachability rule's short phrase (for example "Not reachable yet" or "Never

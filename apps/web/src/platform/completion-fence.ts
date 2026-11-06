@@ -1,5 +1,6 @@
 import type { HostsSnapshot, IpcInvokeChannel } from '@phosphor/shared/ipc'
 import type { LiveSessionInfo } from '@phosphor/shared/models'
+import { hostIdOfPath } from '@phosphor/shared/remote-host'
 
 /** Only transports actually used by an operation may invalidate its completion. */
 export function captureCompletionFence(
@@ -21,7 +22,7 @@ export function captureCompletionFence(
       session?.target?.kind === 'remote'
         ? session.target.hostId
         : typeof key === 'string' && key.startsWith('host:')
-          ? /^host:([^/]+)/.exec(key)?.[1]
+          ? hostIdOfPath(key)
           : channel.startsWith('hosts:') && typeof key === 'string'
             ? key
             : undefined

@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
 import { remotePrKey } from '@shared/host-protocol-github'
-import { repoPullRequests, usePullRequestsStore } from '@/stores/pullRequests'
+import { pullRequestFor, usePullRequestsStore } from '@/stores/pullRequests'
 import { useSessionsStore } from '@/stores/sessions'
 import { laneHaystack, laneMatches, laneQueryTerms } from './laneSearch'
 import { useLiveSessionNames } from './useLiveSessionNames'
 import { sessionTitle } from '@/lib/sessionTitle'
+
+const NONE: Readonly<Record<string, never>> = Object.freeze({})
 
 /**
  * A Host folder's lane search: the draft being typed, the applied query and the
@@ -17,10 +19,12 @@ export function useRemoteGroupSearch(hostId: string, repositoryId: string, lanes
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('')
   const terms = laneQueryTerms(query)
-  const prs = usePullRequestsStore((s) => repoPullRequests(s, remotePrKey(hostId, repositoryId)))
-  const live = useSessionsStore((s) => s.live)
+  // Nothing below is read until a search is applied, so nothing is subscribed before.
+  const applied = terms.length > 0
+  const byRepo = usePullRequestsStore((s) => (applied ? s.byRepo : NONE))
+  const live = useSessionsStore((s) => (applied ? s.live : NONE))
   // This Host's open lanes, by lane id: their live names lead the Host summary.
-  const liveNames = useLiveSessionNames(terms.length > 0, (sessionId) => {
+  const liveNames = useLiveSessionNames(applied, (sessionId) => {
     const entry = live[sessionId]
     return entry?.target?.kind === 'remote' && entry.target.hostId === hostId
       ? entry.laneId
@@ -30,7 +34,7 @@ export function useRemoteGroupSearch(hostId: string, repositoryId: string, lanes
     searching,
     draft,
     query,
-    visible: terms.length
+    visible: applied
       ? lanes.filter((lane) =>
           laneMatches(
             laneHaystack({
@@ -40,7 +44,7 @@ export function useRemoteGroupSearch(hostId: string, repositoryId: string, lanes
                   { elide: false },
                 ) ?? '',
               branch: lane.branch ?? undefined,
-              pr: lane.branch ? prs.byBranch[lane.branch] : undefined,
+              pr: pullRequestFor({ byRepo }, remotePrKey(hostId, repositoryId), lane.branch),
             }),
             terms,
           ),

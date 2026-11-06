@@ -78,12 +78,12 @@ function showLaneNotice(
  * The lane is in front of the user: on screen in a focused window. A lane on
  * screen in a background window still gets its notice, on every machine.
  */
-export function laneInView(sessionId: string | undefined): boolean {
+function laneInView(sessionId: string | undefined): boolean {
   return !!sessionId && laneOnScreen(sessionId) && document.hasFocus()
 }
 
 /** A settled run's line: the reply's excerpt, or why it stopped. One wording for every machine. */
-export function settledNotice(outcome: { kind: 'done' | 'error'; excerpt?: string | null }): {
+function settledNotice(outcome: { kind: 'done' | 'error'; excerpt?: string | null }): {
   kind: Toast['kind']
   message: string
 } {
@@ -106,7 +106,7 @@ const ATTENTION_NOTICE: Record<HostAttention['kind'], ReturnType<typeof settledN
   routine: { kind: 'info', message: 'Routine update.' },
 }
 
-/** A settled run's receipt words the notice, as on This Mac; Desktop attaches one only to a settled run. */
+/** A settled run's receipt words the notice, as on This Mac; a Host's attention carries one only for a settled run. */
 function attentionNotice(event: HostAttention): ReturnType<typeof settledNotice> {
   return event.receipt && event.kind !== 'needs-input'
     ? settledNotice({ kind: event.receipt.outcome, excerpt: event.receipt.excerpt })
@@ -145,7 +145,7 @@ export function noticeHostAttention(
 }
 
 /** Is this lane the one on screen right now? A global page covers it. */
-export function laneOnScreen(sessionId: string): boolean {
+function laneOnScreen(sessionId: string): boolean {
   return (
     useSessionsStore.getState().activeSessionId === sessionId &&
     useLayoutStore.getState().page === null

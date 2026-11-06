@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { branchHasNoPullRequest, mergePullRequestRead } from './pullRequestReads'
+import { mergePullRequestRead } from './pullRequestReads'
 import type { RepoPullRequests } from './pullRequests'
 
 const pr = {
@@ -10,7 +10,6 @@ const pr = {
 }
 const current: RepoPullRequests = {
   byBranch: { known: pr },
-  complete: false,
   fetchedAt: 20,
   attemptedAt: 20,
   loading: false,
@@ -20,8 +19,6 @@ const current: RepoPullRequests = {
   },
 }
 it('confirms absence per branch and revokes only the failed page, preserving successful observation ages', () => {
-  expect(branchHasNoPullRequest(current, 'absent')).toBe(true)
-  expect(branchHasNoPullRequest(current, 'uncovered')).toBe(false)
   const failed = mergePullRequestRead(current, null, ['known', 'absent'], 30)
   expect(failed.byBranch.known).toEqual(pr)
   expect(failed.coverage?.known).toEqual({
@@ -30,7 +27,7 @@ it('confirms absence per branch and revokes only the failed page, preserving suc
     attemptedAt: 30,
     reason: 'unavailable',
   })
-  expect(branchHasNoPullRequest(failed, 'absent')).toBe(false)
+  expect(failed.coverage?.absent?.state).toBe('unavailable')
   const recovered = mergePullRequestRead(
     failed,
     {
@@ -44,12 +41,13 @@ it('confirms absence per branch and revokes only the failed page, preserving suc
     41,
   )
   expect(recovered.byBranch.known).toBeUndefined()
-  expect(branchHasNoPullRequest(recovered, 'known')).toBe(true)
+  expect(recovered.coverage?.known?.state).toBe('absent')
   expect(recovered.coverage?.absent?.state).toBe('unavailable')
 })
 it('retains successful absence and chips outside a failed page', () => {
   const next = mergePullRequestRead(current, null, ['uncovered'], 30)
   expect(next.byBranch.known).toEqual(pr)
-  expect(branchHasNoPullRequest(next, 'absent')).toBe(true)
+  expect(next.coverage?.absent?.state).toBe('absent')
+  expect(next.coverage?.uncovered?.state).toBe('unavailable')
   expect(next.coverage?.known).toEqual(current.coverage?.known)
 })

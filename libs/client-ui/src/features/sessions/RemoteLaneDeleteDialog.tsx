@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
-import { hostResourceKey } from '@shared/remote-host'
+import { remoteLaneResourceKey } from '@shared/remote-host'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { forgetRemoteSession } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -95,7 +95,7 @@ function WorktreeLaneDelete({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const preflight: LanePreflight = {
-    path: hostResourceKey({ kind: 'remote', hostId }, 'session', lane.laneId),
+    path: remoteLaneResourceKey(hostId, lane.laneId),
     title,
     marker: lane.marker ?? '',
     dirtyCount: 0,

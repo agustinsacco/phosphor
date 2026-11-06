@@ -4,12 +4,8 @@ import { SearchIcon, PlusIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
 import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { useNavigation } from '@/navigation/Navigation'
-import {
-  REMOTE_NOT_READY,
-  REMOTE_UNAVAILABLE,
-  canReadHost,
-  useRemoteLanesStore,
-} from '@/stores/remoteLanes'
+import { featureNotOffered } from '@/stores/hostRefusals'
+import { REMOTE_NOT_READY, canReadHost, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import type { HostLaneView } from '@shared/ipc'
 import { RemoteBulkDelete, selectableLanes } from './RemoteBulkDelete'
@@ -24,10 +20,9 @@ import {
 import { TAKE_CONTROL_FIRST } from './remoteLaneActions'
 import { RemoteWorkspaceOptions } from './RemoteWorkspaceOptions'
 import type { LaneSelectMode } from './LaneSelectionRows'
-import { RemoteLaneRow } from './RemoteLaneRow'
+import { RemoteLaneList } from './RemoteLaneList'
 import { useRemotePullRequests } from './remotePullRequests'
-import { orderedRemoteLanes, remoteLaneOrderKey, type RemoteLaneGroup } from './groupRemoteLanes'
-import { SessionList } from './SessionList'
+import { orderedRemoteLanes, type RemoteLaneGroup } from './groupRemoteLanes'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { useRemoteGroupSearch } from './remoteGroupSearch'
@@ -95,10 +90,7 @@ export function RemoteRepositoryGroup({
             collapsed={collapsed}
             className={controlClass}
             onCollapse={setCollapsed}
-            onSelect={(mode) => {
-              if (mode !== 'clear') setCollapsed(false)
-              selection.select(mode)
-            }}
+            onSelect={selection.select}
           />
         )}
         {available && <NewLaneButton hostId={hostId} group={group} className={controlClass} />}
@@ -136,7 +128,12 @@ export function useRemoteLaneOrder(hostId: string, lanes: HostLaneView[]): HostL
 function useFolderCollapse(groupKey: string): [boolean, (collapsed: boolean) => void] {
   useEffect(ensureSidebarPrefs, [])
   const collapsed = useGroupCollapse((s) => s.collapsed?.[groupKey] ?? false)
-  return [collapsed, (next) => setGroupCollapsed(groupKey, next)]
+  return [
+    collapsed,
+    (next) => {
+      if (next !== collapsed) setGroupCollapsed(groupKey, next)
+    },
+  ]
 }
 
 interface FolderRowsSelection {
@@ -252,39 +249,21 @@ function GroupLanes({
   query: string
   select?: FolderRowsSelection
 }): React.JSX.Element {
-  const active = useSessionsStore((s) =>
-    s.activeSessionId ? s.live[s.activeSessionId] : undefined,
-  )
-  const deleting = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   return (
     <div className={!ready ? 'opacity-50' : undefined}>
-      <SessionList
-        disabled={!ready || !!query || !!select?.selecting || deleting}
-        items={lanes.map((lane) => ({
-          id: lane.laneId,
-          path: remoteLaneOrderKey(hostId, lane.laneId),
-          content: (
-            <RemoteLaneRow
-              hostId={hostId}
-              lane={lane}
-              ready={ready}
-              active={
-                active?.target?.kind === 'remote' &&
-                active.target.hostId === hostId &&
-                active.laneId === lane.laneId
-              }
-              select={
-                select && {
-                  selected: select.selected.includes(lane.laneId),
-                  selecting: select.selecting,
-                  blocked: canDeleteRemoteLane(hostId, lane) ? undefined : TAKE_CONTROL_FIRST,
-                  onToggle: (shiftKey) =>
-                    toggleLane(select.group, select.order, lane.laneId, shiftKey),
-                }
-              }
-            />
-          ),
-        }))}
+      <RemoteLaneList
+        hostId={hostId}
+        lanes={lanes}
+        ready={ready}
+        disabled={!!query || !!select?.selecting}
+        row={(lane) => ({
+          select: select && {
+            selected: select.selected.includes(lane.laneId),
+            selecting: select.selecting,
+            blocked: canDeleteRemoteLane(hostId, lane) ? undefined : TAKE_CONTROL_FIRST,
+            onToggle: (shiftKey) => toggleLane(select.group, select.order, lane.laneId, shiftKey),
+          },
+        })}
       />
       {!lanes.length && (
         <p className="text-text-tertiary px-2 py-2 text-sm">
@@ -313,7 +292,13 @@ function NewLaneButton({
     <TooltipButton
       className={className}
       aria-label={`New lane in ${group.name}`}
-      title={!ready ? REMOTE_NOT_READY : !canStart ? REMOTE_UNAVAILABLE : 'New session here'}
+      title={
+        !ready
+          ? REMOTE_NOT_READY
+          : !canStart
+            ? featureNotOffered('sessions.control')
+            : 'New session here'
+      }
       disabled={!canStart}
       onClick={() => {
         openRemoteComposer(hostId, group.repositoryId)

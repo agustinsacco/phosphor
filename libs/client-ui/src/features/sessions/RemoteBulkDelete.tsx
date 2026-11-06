@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { remoteLaneResourceKey } from '@shared/remote-host'
 import type { HostLaneView } from '@shared/ipc'
 import { remotePrKey } from '@shared/host-protocol-github'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -6,7 +7,7 @@ import { pullRequestFor, usePullRequestsStore } from '@/stores/pullRequests'
 import { useSessionsStore } from '@/stores/sessions'
 import { BulkDeleteModal } from './BulkDeleteModal'
 import { lanesOwningWorktree, type LanePreflight, type PreflightSummary } from './deletePreflight'
-import { canDeleteRemoteLane, deleteRemoteLanes, remoteLaneKey } from './deleteRemoteLanes'
+import { canDeleteRemoteLane, deleteRemoteLanes } from './deleteRemoteLanes'
 import { LaneBulkBar } from './LaneSelect'
 import { clearLaneSelection, useSelectedKeys, useSelectionOwner } from './laneSelection'
 
@@ -86,7 +87,7 @@ function preflight(hostId: string, lanes: HostLaneView[]): PreflightSummary {
   const rows = lanes.map((l): LanePreflight => {
     const pr = pullRequestFor(prs, remotePrKey(hostId, l.repositoryId), l.branch)
     return {
-      path: remoteLaneKey(hostId, l.laneId),
+      path: remoteLaneResourceKey(hostId, l.laneId),
       title: l.title || 'Untitled lane',
       marker: '',
       dirtyCount: 0,

@@ -132,6 +132,10 @@ export function hostResourceKey(
   ])
 }
 
+/** A Host lane's `hostResourceKey`: its pins, markers and bulk-delete entry in the sessions store. */
+export const remoteLaneResourceKey = (hostId: string, laneId: string): string =>
+  hostResourceKey({ kind: 'remote', hostId }, 'session', laneId)
+
 /** The Host id of a `host:<hostId>/…` path or key; undefined for anything else. */
 export function hostIdOfPath(path: string): string | undefined {
   if (!path.startsWith('host:')) return undefined

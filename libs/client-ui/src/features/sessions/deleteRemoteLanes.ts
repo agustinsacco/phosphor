@@ -1,10 +1,8 @@
 import type { HostLaneView } from '@shared/ipc'
-import { hostResourceKey } from '@shared/remote-host'
+import { remoteLaneResourceKey } from '@shared/remote-host'
 import { forgetRemoteSession, useSessionsStore, type LaneDeleteResult } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 
-export const remoteLaneKey = (hostId: string, laneId: string): string =>
-  hostResourceKey({ kind: 'remote', hostId }, 'session', laneId)
 export function canDeleteRemoteLane(hostId: string, lane: HostLaneView): boolean {
   const host = useRemoteLanesStore.getState().hosts[hostId]
   return (
@@ -54,7 +52,7 @@ export async function deleteRemoteLanes(
 ): Promise<void> {
   if (useSessionsStore.getState().bulkDelete?.running) return
   const targets = lanes.map((lane) => ({
-    path: remoteLaneKey(hostId, lane.laneId),
+    path: remoteLaneResourceKey(hostId, lane.laneId),
     title: lane.title || 'Untitled lane',
   }))
   useSessionsStore.setState({

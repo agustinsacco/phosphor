@@ -40,7 +40,8 @@ import {
 } from '../hosts/remote-lanes'
 import { createRemoteTerminals } from '@phosphor/host-client/terminals/terminals'
 import { createRemoteRoutines } from '../hosts/routines'
-import { createHostAttention, readHostReceipt } from '../hosts/attention'
+import { readHostReceipt } from '@phosphor/host-client/attention'
+import { createHostAttention } from '../hosts/attention'
 import { trafficLog } from '../hosts/traffic-log'
 import { tappedLog } from '../hosts/traffic-tap'
 

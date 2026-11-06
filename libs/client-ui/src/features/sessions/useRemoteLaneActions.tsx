@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
-import { hostResourceKey } from '@shared/remote-host'
+import { remoteLaneResourceKey } from '@shared/remote-host'
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { piCall, piCallOk } from '@/lib/rpc'
 import { remoteLaneMarker } from './remoteLaneView'
@@ -83,6 +83,7 @@ export function useRemoteLaneActions({
     navigate: withOpen ? navigate : undefined,
     pr,
     act: runner.act,
+    sessionId: entry?.phosphorId,
     session,
     exportAs: { title, nativeFiles },
     onRename,
@@ -133,7 +134,7 @@ function useLaneActionState(
   running: boolean,
 ) {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const key = hostResourceKey({ kind: 'remote', hostId }, 'session', lane.laneId)
+  const key = remoteLaneResourceKey(hostId, lane.laneId)
   const deletingInBulk = useSessionsStore((s) => laneIsBeingDeleted(s.bulkDelete, key))
   // pi writes nothing to resume until a first message, so the Host refuses Stop before one.
   const unprompted = useChatStore(
@@ -200,6 +201,7 @@ function laneHandlers({
   navigate,
   pr,
   act,
+  sessionId,
   session,
   exportAs: { title, nativeFiles },
   onRename,
@@ -211,6 +213,8 @@ function laneHandlers({
   navigate: Navigation['navigate'] | undefined
   pr: Parameters<typeof openPullRequest>[0] | null | undefined
   act: (action: () => Promise<unknown>) => Promise<boolean>
+  /** The lane's open session, if any; `session()` opens one when absent. */
+  sessionId: string | undefined
   session: () => Promise<string>
   /** The export's file name, and whether this device saves through a dialog or a download. */
   exportAs: { title: string; nativeFiles: boolean }
@@ -242,7 +246,8 @@ function laneHandlers({
     makeRoutine: () => void act(async () => routineFromLane(hostId, lane, await session())),
     exportHtml: () =>
       void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),
-    copyDebugInfo: () => void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane))),
+    copyDebugInfo: () =>
+      void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane, sessionId))),
     copySpend: () => void act(async () => copySpend(await sessionCost(await session()))),
     delete: () => openDialog('delete'),
   }
@@ -344,11 +349,12 @@ async function sessionCost(sessionId: string): Promise<number> {
  * Host summary's model) and where it runs. Never a Host path: the lane's folder
  * and session file stay on the Host.
  */
-function remoteLaneDebugSource(hostId: string, lane: HostLaneView): SessionDebugSource {
-  const live = Object.values(useSessionsStore.getState().live).find(
-    (e) => e.target?.kind === 'remote' && e.target.hostId === hostId && e.laneId === lane.laneId,
-  )
-  const meta = live ? useChatStore.getState().sessions[live.phosphorId]?.meta : null
+function remoteLaneDebugSource(
+  hostId: string,
+  lane: HostLaneView,
+  sessionId: string | undefined,
+): SessionDebugSource {
+  const meta = sessionId ? useChatStore.getState().sessions[sessionId]?.meta : null
   const model = meta?.model ?? lane.model
   return {
     sessionId: meta?.sessionId,

@@ -106,7 +106,6 @@ it('continues after a failed page without dropping its known chips or successful
     byRepo: {
       '/repo': {
         byBranch: { b0: pr, b20: pr },
-        complete: false,
         loading: false,
         fetchedAt: 10,
         attemptedAt: 0,

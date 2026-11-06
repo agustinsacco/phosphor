@@ -39,6 +39,7 @@ import { isArtifactWriteTool } from '@/lib/artifactTools'
 import { useLayoutStore } from './layout'
 import { lanePrefs } from './lanePrefs'
 import { cleanupInFlight, trackCleanup } from './sessionCleanup'
+import { applyDiskScans, scanWorkspace } from './sessionDiskScan'
 import { ipcErrorText } from '@shared/errors'
 
 /**
@@ -179,6 +180,8 @@ interface SessionsState {
   hydratePinned: () => Promise<void>
   /** Record that the user is looking at this session right now. */
   markSeen: (sessionPath: string) => void
+  /** Mark a lane read without opening it: its file seen, its live session's unread count cleared. */
+  markRead: (sessionPath: string, phosphorId?: string) => void
   /** Refresh batched git summaries for these cwds. */
   refreshGitInfo: (cwds: string[]) => Promise<void>
   refreshDisk: (workspacePath: string) => Promise<void>
@@ -888,6 +891,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     void window.phosphor.invoke('app:markSessionSeen', sessionPath)
   },
 
+  markRead: (sessionPath, phosphorId) => {
+    get().markSeen(sessionPath)
+    if (phosphorId) set((s) => ({ unread: drop(s.unread, phosphorId) }))
+  },
+
   refreshGitInfo: async (cwds) => {
     const unique = [...new Set(cwds)].filter(Boolean)
     if (unique.length === 0) return
@@ -900,19 +908,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   refreshDisk: async (workspacePath) => {
-    try {
-      const metas = await window.phosphor.invoke('sessions:list', workspacePath)
-      set((s) => ({
-        disk: { ...s.disk, [workspacePath]: metas },
-        scanStatus: { ...s.scanStatus, [workspacePath]: 'ok' },
-      }))
-    } catch {
-      // Leave the previous `disk` intact and record the failure so the
-      // sidebar can show a retry instead of a permanent fake "Loading…".
-      set((s) => ({
-        scanStatus: { ...s.scanStatus, [workspacePath]: 'error' },
-      }))
-    }
+    const scan = await scanWorkspace(workspacePath)
+    set((s) => applyDiskScans(s, [scan]))
   },
 
   /**
@@ -932,37 +929,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
    * the sidebar calls it for every folder of an EXPANDED group, uncapped.
    */
   refreshAllDisk: async (workspacePaths, limit = 8) => {
-    const targets = workspacePaths.slice(0, limit)
-    // Capture each `path` explicitly — a rejected inner promise would
-    // otherwise drop the `{ path, metas }` wrapper (allSettled's `reason` has
-    // no path), making per-workspace status impossible to record.
-    const results = await Promise.all(
-      targets.map(async (path) => {
-        try {
-          return {
-            path,
-            status: 'ok' as const,
-            metas: await window.phosphor.invoke('sessions:list', path),
-          }
-        } catch {
-          return { path, status: 'error' as const }
-        }
-      }),
-    )
-    set((s) => {
-      const disk = { ...s.disk }
-      const scanStatus = { ...s.scanStatus }
-      for (const result of results) {
-        // A workspace that has been deleted just yields no sessions.
-        if (result.status === 'ok') {
-          disk[result.path] = result.metas
-          scanStatus[result.path] = 'ok'
-        } else {
-          scanStatus[result.path] = 'error'
-        }
-      }
-      return { disk, scanStatus }
-    })
+    const scans = await Promise.all(workspacePaths.slice(0, limit).map(scanWorkspace))
+    set((s) => applyDiskScans(s, scans))
   },
 
   /**
@@ -1067,7 +1035,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         },
         ...(takesScreen ? { activeSessionId: phosphorId } : {}),
         opening: s.opening?.nav === nav ? null : s.opening,
-        unread: { ...s.unread, [phosphorId]: 0 },
+        unread: drop(s.unread, phosphorId),
       }))
       // Resumed sessions already know their file; fresh ones learn it from
       // get_state in bootstrapSession, which persists it then.
@@ -1142,7 +1110,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           laneId: info?.laneId,
         },
       },
-      unread: { ...s.unread, [sessionId]: 0 },
+      unread: drop(s.unread, sessionId),
     }))
     try {
       // A resumed lane replays its history; a freshly spawned one has none.
@@ -1229,7 +1197,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       activeSessionId: sessionId,
       navSeq: s.navSeq + 1,
       opening: null,
-      unread: sessionId ? { ...s.unread, [sessionId]: 0 } : s.unread,
+      unread: sessionId ? drop(s.unread, sessionId) : s.unread,
     }))
     // Remember where to reopen next launch. Clearing the session (New) also
     // clears the memory, so we land on the home screen instead.

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
-import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { featureNotOffered } from '@/stores/hostRefusals'
+import { REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import {
   LANE_MARKS_NEED_UPDATE,
   ONLY_WHILE_RUNNING,
@@ -120,8 +121,8 @@ describe('remoteLaneActions', () => {
       LANE_MARKS_NEED_UPDATE,
     ])
     expect(marks({ host: { capabilities: ['sessions.read'], laneMarks: true } })).toEqual([
-      REMOTE_UNAVAILABLE,
-      REMOTE_UNAVAILABLE,
+      featureNotOffered('sessions.control'),
+      featureNotOffered('sessions.control'),
     ])
     const pinned = remoteLaneActions(state({ lane: { ...LANE, pinned: true } }), handlers())
     expect(item(pinned, 'Unpin')).toBeDefined()
@@ -132,7 +133,10 @@ describe('remoteLaneActions', () => {
       state({ host: { capabilities: ['sessions.read', 'sessions.control'], laneMarks: true } }),
       handlers(),
     )
-    expect(item(items, 'Delete')).toMatchObject({ disabled: true, hint: REMOTE_UNAVAILABLE })
+    expect(item(items, 'Delete')).toMatchObject({
+      disabled: true,
+      hint: featureNotOffered('workspaces.write'),
+    })
   })
 })
 

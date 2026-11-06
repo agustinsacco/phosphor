@@ -49,7 +49,7 @@ import {
 import { laneMarker } from '@/lib/laneMarker'
 import { formatCost } from '@/lib/format'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
-import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
+import { usePullRequestsStore, localLanePullRequest } from '@/stores/pullRequests'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { makeRoutine, useRoutineLaneIndex } from '@/stores/routines'
 import {
@@ -83,12 +83,7 @@ import {
 import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from './nameTransition'
 import { committedRename } from './inlineRename'
-import {
-  cloneSession,
-  exportSidebarSession,
-  markSidebarSessionRead,
-  renameSidebarSession,
-} from './sidebarActions'
+import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
 import {
   applySessionRename,
   copySessionDebugInfo,
@@ -540,7 +535,7 @@ export function Sidebar({
             }) ?? 'Untitled session',
           marker: laneMarker(explicit, git?.branch, meta.cwd, markerPrefMode),
           git,
-          pr: pullRequestFor(prState, git?.mainRepoPath ?? meta.cwd, git?.branch),
+          pr: localLanePullRequest(prState, meta, git),
           isLive: Boolean(livePhosphorId),
           isStreaming: livePhosphorId
             ? (chat.sessions[livePhosphorId]?.isStreaming ?? false)
@@ -611,12 +606,8 @@ export function Sidebar({
   const anySearchApplied = Object.values(searchApplied).some(Boolean)
   const liveNames = useLiveSessionNames(anySearchApplied)
 
-  /** A lane's pull request: its branch's, in its repository. */
-  const lanePullRequest = (meta: SessionMeta) => {
-    const git = gitByCwd[meta.cwd || workspacePath]
-    const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
-    return pullRequestFor({ byRepo: prByRepo }, repoPath, git?.branch)
-  }
+  const lanePullRequest = (meta: SessionMeta) =>
+    localLanePullRequest({ byRepo: prByRepo }, meta, gitByCwd[meta.cwd || workspacePath])
   /** The three identities one lane can be found by. */
   const laneFields = (meta: SessionMeta): LaneSearchFields => {
     const livePhosphorId = liveByDisk.get(meta.path)
@@ -1351,17 +1342,10 @@ function SessionRow({
     (s) => laneIsBeingDeleted(s.bulkDelete, meta.path) || s.deletingSessionKeys.includes(meta.path),
   )
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
-  // A worktree lane's PRs live under the MAIN repo, which is also the key the
-  // sidebar group and `gh:prsForRepo` use. Derived here rather than threaded
-  // through `rowProps` so a Pinned row — which may belong to a different
-  // project than the one on screen — still resolves against its own repo.
-  const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
-  const pullRequest = usePullRequestsStore((s) => pullRequestFor(s, repoPath, git?.branch))
+  // Derived here rather than threaded through `rowProps` so a Pinned row — which
+  // may belong to a different project than the one on screen — resolves its own.
+  const pullRequest = usePullRequestsStore((s) => localLanePullRequest(s, meta, git))
   const showPrStatus = useLanePrefsStore((s) => s.lanes.prStatus)
-  // Only render a chip that has something to say. A non-worktree branch with
-  // no confirmed PR gets none — gating on the raw preference instead would put
-  // an empty chip on every plain-main session the moment the flag is on.
-  const showChip = showPrStatus && Boolean(pullRequest)
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
   const markerMode = useLanePrefsStore((s) => s.lanes.markers)
   // Keyed on the branch, not the title: Phosphor names a session only after its
@@ -1461,7 +1445,7 @@ function SessionRow({
           ]
         : []),
       ...(unseen
-        ? [{ label: 'Mark read', onClick: () => markSidebarSessionRead(meta.path, livePhosphorId) }]
+        ? [{ label: 'Mark read', onClick: () => store.markRead(meta.path, livePhosphorId) }]
         : []),
       {
         label: 'Fork',
@@ -1584,7 +1568,7 @@ function SessionRow({
             </span>
           )}
           <SubtitleSegments segments={subtitle} activity={activity} />
-          {showChip && pullRequest && <PrBadge pr={pullRequest} />}
+          {showPrStatus && pullRequest && <PrBadge pr={pullRequest} />}
         </span>
       </span>
       {deleting && (

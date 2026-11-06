@@ -4,7 +4,8 @@ import { createBrowserApi } from './index'
 import { createFakeHost, createLoopbackPair } from '@phosphor/shared/host-protocol-testing'
 import { formatKeyFingerprint, type MachineView } from '@phosphor/shared/control-api'
 import { type GrantPayload } from '@phosphor/shared/host-grant'
-import type { ClientFrame } from '@phosphor/shared/host-protocol'
+import type { ClientFrame, FrameSocket } from '@phosphor/shared/host-protocol'
+import type { HostAttention } from '@phosphor/shared/ipc'
 import { browserCrypto } from '@phosphor/host-client/crypto'
 
 const disposals: (() => void)[] = []
@@ -19,13 +20,33 @@ const lifecycle = {
 }
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } })
-async function setup(
-  options: {
-    grant?: 'deny' | 'wrong-endpoint' | 'wrong-key' | 'expired'
-    proof?: () => Promise<boolean>
-    expires?: number
-  } = {},
-) {
+interface SetupOptions {
+  grant?: 'deny' | 'wrong-endpoint' | 'wrong-key' | 'expired'
+  proof?: () => Promise<boolean>
+  expires?: number
+  /** Answers `lane.receipt` as a Host that keeps receipts would; the fake Host keeps none. */
+  receipt?: (laneId: string) => unknown
+}
+/** The client side of a socket whose `lane.receipt` calls `receipt` answers. */
+function answeringReceipts(socket: FrameSocket, receipt: (laneId: string) => unknown): FrameSocket {
+  const listeners: ((text: string) => void)[] = []
+  return {
+    ...socket,
+    send: (text) => {
+      const frame = JSON.parse(text) as ClientFrame
+      if (frame.type !== 'call' || frame.method !== 'lane.receipt') return socket.send(text)
+      void Promise.resolve(receipt((frame.params as { laneId: string }).laneId)).then((data) => {
+        const result = JSON.stringify({ type: 'result', id: frame.id, ok: true, data })
+        setTimeout(() => listeners.forEach((listener) => listener(result)), 0)
+      })
+    },
+    onMessage: (listener) => {
+      listeners.push(listener)
+      socket.onMessage(listener)
+    },
+  }
+}
+async function setup(options: SetupOptions = {}) {
   const owner = randomUUID(),
     clientId = randomUUID()
   const machines: MachineView[] = []
@@ -130,7 +151,7 @@ async function setup(
     )!.id
     pair.server.onMessage((text) => frames.push({ host: id, frame: JSON.parse(text) }))
     host.attach(pair.server)
-    return {
+    const client: FrameSocket = {
       ...pair.client,
       onMessage: (listener: (text: string) => void) =>
         pair.client.onMessage((text) => {
@@ -138,6 +159,7 @@ async function setup(
           else listener(text)
         }),
     }
+    return options.receipt ? answeringReceipts(client, options.receipt) : client
   })
   const adapter = createBrowserApi({
     fetch,
@@ -378,3 +400,83 @@ it.each(['reconnect', 'logout'] as const)(
     expect(await result).not.toHaveProperty('data')
   },
 )
+it("words a failed Host lane's notice from the run's receipt, with its excerpt", async () => {
+  const s = await setup({
+    receipt: () => ({
+      title: 'Lane',
+      repository: null,
+      branch: null,
+      settledAt: Date.now(),
+      durationMs: 1000,
+      files: 0,
+      added: 0,
+      removed: 0,
+      tests: null,
+      artifacts: 0,
+      excerpt: 'Build broke on step 3',
+      outcome: 'error',
+    }),
+  })
+  await s.ready()
+  const host = s.machines[0]!.id
+  const lane = await s.api.invoke('hosts:createLane', host, { repositoryId: '0123456789abcdef' })
+  const attention: HostAttention[] = []
+  s.api.onHostAttention((event) => attention.push(event))
+  s.hosts[0]!.failLane(lane.laneId!)
+  await vi.waitFor(() => expect(attention).toHaveLength(1))
+  expect(attention[0]).toMatchObject({
+    hostId: host,
+    laneId: lane.laneId,
+    kind: 'failed',
+    receipt: { outcome: 'error', excerpt: 'Build broke on step 3' },
+  })
+})
+
+/** A Host lane whose `lane.receipt` answers only when `answer()` runs, and the notices it emits. */
+async function heldReceipt() {
+  let answer = () => {}
+  const gate = new Promise<void>((resolve) => (answer = resolve))
+  let reads = 0
+  const s = await setup({
+    receipt: async () => {
+      reads++
+      await gate
+      return undefined
+    },
+  })
+  await s.ready()
+  const host = s.machines[0]!.id
+  const lane = await s.api.invoke('hosts:createLane', host, { repositoryId: '0123456789abcdef' })
+  const attention: HostAttention[] = []
+  s.api.onHostAttention((event) => attention.push(event))
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 20))
+  return { s, lane: lane.laneId!, attention, answer, reads: () => reads, settle }
+}
+it('a newer Host notice for a lane supersedes one still waiting for its receipt', async () => {
+  const h = await heldReceipt()
+  h.s.hosts[0]!.failLane(h.lane)
+  await vi.waitFor(() => expect(h.reads()).toBe(1))
+  h.s.hosts[0]!.failLane(h.lane)
+  await h.settle()
+  h.answer()
+  await vi.waitFor(() => expect(h.attention).toHaveLength(1))
+  await h.settle()
+  expect(h.attention).toHaveLength(1)
+})
+it('drops a Host notice whose receipt answers after sign-out', async () => {
+  const h = await heldReceipt()
+  h.s.hosts[0]!.failLane(h.lane)
+  await vi.waitFor(() => expect(h.reads()).toBe(1))
+  await h.s.api.invoke('account:signOut')
+  h.answer()
+  await h.settle()
+  expect(h.attention).toEqual([])
+})
+it('emits a plain Host notice when the receipt does not answer within two seconds', async () => {
+  const h = await heldReceipt()
+  h.s.hosts[0]!.failLane(h.lane)
+  await vi.waitFor(() => expect(h.attention).toHaveLength(1), { timeout: 3000 })
+  expect(h.attention[0]).toMatchObject({ laneId: h.lane, kind: 'failed' })
+  expect(h.attention[0]).not.toHaveProperty('receipt')
+  h.answer()
+})

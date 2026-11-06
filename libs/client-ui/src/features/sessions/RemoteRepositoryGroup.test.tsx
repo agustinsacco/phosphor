@@ -7,6 +7,7 @@ import type { GhPullRequest } from '@shared/models'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useChatStore } from '@/stores/chat'
 import { usePullRequestsStore } from '@/stores/pullRequests'
+import { featureNotOffered } from '@/stores/hostRefusals'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { groupRemoteLanes } from './groupRemoteLanes'
@@ -74,7 +75,6 @@ it('finds a Host lane by its PR number and title, normalized, as This Mac does',
     byRepo: {
       [remotePrKey(MOCK_HOST_ID, REPO)]: {
         byBranch: { b: pr },
-        complete: true,
         attemptedAt: Date.now(),
         fetchedAt: Date.now(),
         loading: false,
@@ -176,4 +176,34 @@ it("reads a Host folder's saved lane order where no This Mac sidebar has (the br
   await act(async () => render())
   await act(async () => {})
   expect(titles()).toEqual(['Other', 'Fix the login'])
+})
+
+it("selecting an open Host folder's lanes leaves the collapsed-groups pref alone, as This Mac does", async () => {
+  const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+  hosts[MOCK_HOST_ID]!.capabilities.push('workspaces.write')
+  useRemoteLanesStore.setState({ hosts })
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'app:getPrefs' ? { collapsedWorkspaces: [] } : undefined,
+  )
+  await act(async () => render())
+  act(() =>
+    container.querySelector<HTMLButtonElement>('[aria-label^="Workspace options for"]')!.click(),
+  )
+  const select = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+    (b) => b.textContent === 'Select all lanes',
+  )!
+  expect(select.disabled).toBe(false)
+  await act(async () => select.click())
+  expect(container.querySelectorAll('[role=checkbox]').length).toBe(2)
+  expect(invoke).not.toHaveBeenCalledWith('app:setCollapsedWorkspaces', expect.anything())
+})
+
+it("names the Host's missing lane control on a folder's New lane, after the readiness check", async () => {
+  const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+  hosts[MOCK_HOST_ID]!.capabilities = ['sessions.read']
+  useRemoteLanesStore.setState({ hosts })
+  await act(async () => render())
+  const plus = container.querySelector<HTMLButtonElement>('[aria-label^="New lane in"]')!
+  expect(plus.disabled).toBe(true)
+  expect(plus.getAttribute('aria-description')).toBe(featureNotOffered('sessions.control'))
 })

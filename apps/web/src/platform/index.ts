@@ -1,6 +1,7 @@
 import type { PhosphorApi, IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import { IPC_WEB, type WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { createRemoteLanes } from '@phosphor/host-client/remote-lanes'
+import { createAttentionReceiver, readHostReceipt } from '@phosphor/host-client/attention'
 import type { FrameSocket } from '@phosphor/shared/host-protocol'
 import type { IdentityCrypto } from '@phosphor/host-client/crypto'
 import { createBrowserControl } from './control'
@@ -113,6 +114,14 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       prefs.clearOwner()
       drafts.clearOwner()
       events.clearSessions()
+      attention.clear()
+    },
+  })
+  // As on Desktop, without an OS notification: an account change drops every receipt wait.
+  const attention = createAttentionReceiver({
+    receipt: (hostId, laneId) => readHostReceipt(hosts.connection, hostId, laneId),
+    publish: (notice) => {
+      if (!stopped) events.emit('attention', notice)
     },
   })
   const drafts = createBrowserDrafts(() => control.session() !== null)
@@ -126,14 +135,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       events.emit('hosts', undefined)
     },
     routinesChanged: (hostId) => events.emit('routines', { machine: `host:${hostId}` }),
-    attention: (hostId, event) =>
-      events.emit('attention', {
-        hostId,
-        laneId: event.laneId,
-        title: event.title ?? 'Untitled lane',
-        at: event.at,
-        kind: event.kind.startsWith('routine-') ? 'routine' : event.kind,
-      }),
+    attention: attention.receive,
   })
   const lanes = createRemoteLanes({
     identity: options.identity,

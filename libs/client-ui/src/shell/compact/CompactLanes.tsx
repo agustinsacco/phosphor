@@ -8,6 +8,7 @@ import {
   hostReconnecting,
 } from '@/stores/remoteLanes'
 import { RemoteHostLanes } from '@/features/sessions/RemoteHostLanes'
+import { WorkspaceGroupSkeletons } from '@/features/sessions/SidebarPrimitives'
 import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
 import '@/features/home/remoteStart.css'
@@ -67,6 +68,8 @@ function MachineLaneList({
     (host.state === 'ready' || hostReconnecting(host.state)) &&
     host.capabilities.includes('sessions.read')
   const lanes = readable ? host.lanes : []
+  // Before the first snapshot the Host is unknown, not down: skeletons, as in the sidebar.
+  const firstLoad = useRemoteLanesStore((s) => !host && s.snapshotStatus === 'loading')
   return (
     <section key={machine.id} className="space-y-3">
       <h2 className="font-semibold">
@@ -75,7 +78,9 @@ function MachineLaneList({
       {hostReconnecting(host?.state) && (
         <WaitingNote>{connectingTo(machine.id, host?.state)}</WaitingNote>
       )}
-      {!readable ? (
+      {firstLoad ? (
+        <WorkspaceGroupSkeletons />
+      ) : !readable ? (
         !hostReconnecting(host?.state) && (
           <p role="status">
             {host?.state === 'ready'

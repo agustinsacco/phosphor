@@ -15,6 +15,7 @@ import {
   otherMachineActivity,
 } from './MachineSwitcher'
 import { RemoteLanes } from './RemoteLanes'
+import { stubSidebarPhosphor } from './__fixtures__/sidebarHarness'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -32,16 +33,7 @@ const invoke = vi.fn()
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   Element.prototype.scrollIntoView = vi.fn()
-  Object.defineProperty(window, 'phosphor', {
-    configurable: true,
-    value: {
-      invoke,
-      onUpdateEvent: () => () => {},
-      onAccountChanged: () => () => {},
-      onRoutinesChanged: () => () => {},
-      onSessionsChanged: () => () => {},
-    },
-  })
+  stubSidebarPhosphor(invoke)
   invoke.mockReset().mockRejectedValue(new Error('unavailable'))
   localStorage.clear()
   useMachinesStore.setState({ remoteEnabled: true, machines: [], adding: false })

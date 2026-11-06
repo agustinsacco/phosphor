@@ -2,7 +2,7 @@ import type { LaneMarksChange } from '@shared/host-protocol-lane-marks'
 import { HOST_TOO_OLD } from '@shared/host-protocol-repositories'
 import { needsNewerHost } from './hostRefusals'
 import type { HostConnectionView, HostsSnapshot } from '@shared/ipc'
-import { hostResourceKey } from '@shared/remote-host'
+import { remoteLaneResourceKey } from '@shared/remote-host'
 import { useExtensionUiStore } from './extensionUi'
 import { useSessionsStore } from './sessions'
 
@@ -60,7 +60,7 @@ async function migrateHost(hostId: string, host: HostConnectionView): Promise<vo
   // The prefs read may still be in flight at startup; a setter must never persist an empty list.
   await useSessionsStore.getState().hydratePinned()
   for (const lane of host.lanes) {
-    const key = hostResourceKey({ kind: 'remote', hostId }, 'session', lane.laneId)
+    const key = remoteLaneResourceKey(hostId, lane.laneId)
     const { pinned, laneMarkers } = useSessionsStore.getState()
     const legacy: LaneMarksChange = {
       ...(pinned.includes(key) ? { pinned: true } : {}),

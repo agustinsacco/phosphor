@@ -41,7 +41,7 @@ it('keeps shared cache through navigation, refreshes a throttled summary change,
     )
     expect(read).toHaveBeenCalledTimes(1)
     await act(async () => root.render(<Group key="sidebar" />))
-    expect(usePullRequestsStore.getState().byRepo[key]?.complete).toBe(true)
+    expect(usePullRequestsStore.getState().byRepo[key]?.fetchedAt).toBeGreaterThan(0)
     await act(async () =>
       useRemoteLanesStore.setState({
         hosts: { [MOCK_HOST_ID]: { ...host, lanes: [...host.lanes] } },

@@ -68,3 +68,23 @@ it('defaults legacy global and project machine awareness on, dropping retired fr
   expect(prefs.agentDirectives).not.toHaveProperty('custom')
   expect(prefs.agentDirectivesByProject['/legacy-project']).not.toHaveProperty('custom')
 })
+
+it('reads Host folder collapse keys back verbatim, never as a path under the working directory', async () => {
+  const { mkdirSync, mkdtempSync, realpathSync, rmSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { setCollapsedWorkspaces } = await import('./store')
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'phosphor-store-')))
+  const key = 'host:h1/repo:r1'
+  // A relative path spelled like the key, which realpath would resolve.
+  mkdirSync(join(root, key), { recursive: true })
+  const cwd = process.cwd()
+  process.chdir(root)
+  try {
+    setCollapsedWorkspaces([key])
+    expect(getPrefs().collapsedWorkspaces).toEqual([key])
+  } finally {
+    process.chdir(cwd)
+    rmSync(root, { recursive: true, force: true })
+  }
+})

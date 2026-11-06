@@ -507,8 +507,9 @@ branch, and `LanePrefs.markers` applies as on This Mac: `manual` derives
 nothing and `off` removes the slot and Lane marker. Without `laneMarks`, Pin
 and Lane marker are disabled with “Update this
 Host to pin and mark lanes.” A pinned Host lane shows the pin icon and sits in a
-Pinned section above that Host's folders, newest first, with its folder named,
-as local pinned lanes sit above local groups. Pins stay per Host: one Host's
+Pinned section above that Host's folders, newest first until you reorder them
+([Remote Desktop](remote-desktop.md)), with its folder named, as local pinned
+lanes sit above local groups. Pins stay per Host: one Host's
 pinned lanes never mix with another's or with local ones.
 
 Copy debug info writes This Mac's block (`formatSessionDebugInfo`: pi's id and
@@ -522,8 +523,9 @@ Remote Delete needs control and workspace-write capability, in Desktop and the
 browser alike. A disabled action's hint names its obstacle: “Take control
 first.” for a viewer, “Only while running.” for rename and spend on a stopped
 lane, “Send a first message before stopping this lane.” for Stop on an open lane
-with no first message (the Host refuses it), and “Not available on remote lanes
-yet.” only when the Host lacks the capability. Delete uses the
+with no first message (the Host refuses it), and “This Host does not offer lane
+control to this device.” (or file editing, for Delete; routines, for Make
+routine…) when a ready Host does not grant the capability. Delete uses the
 same resource confirmation, keeps failures visible, and closes the lane on
 success. A shared worktree gets transcript-only deletion. The Host keeps trashed
 transcripts for 30 days; worktree removal and merged-branch deletion are optional.

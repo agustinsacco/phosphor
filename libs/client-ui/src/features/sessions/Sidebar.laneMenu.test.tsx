@@ -5,11 +5,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SessionMeta } from '@shared/models'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { useChatStore } from '@/stores/chat'
-import { useMachinesStore } from '@/stores/machines'
 import { usePullRequestsStore } from '@/stores/pullRequests'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { useWorkspacesStore } from '@/stores/workspaces'
+import { resetSidebarStores, stubSidebarPhosphor } from './__fixtures__/sidebarHarness'
 import { Sidebar } from './Sidebar'
 
 vi.mock('@/lib/monaco', () => ({}))
@@ -45,16 +43,7 @@ const SEEN = { '/repo/s2.jsonl': Date.parse(UNSEEN_AT) - 60_000 }
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   Element.prototype.scrollIntoView = vi.fn()
-  Object.defineProperty(window, 'phosphor', {
-    configurable: true,
-    value: {
-      invoke,
-      onUpdateEvent: () => () => {},
-      onAccountChanged: () => () => {},
-      onRoutinesChanged: () => () => {},
-      onSessionsChanged: () => () => {},
-    },
-  })
+  stubSidebarPhosphor(invoke)
   invoke
     .mockReset()
     .mockImplementation(async (channel: string) =>
@@ -68,12 +57,7 @@ beforeEach(() => {
               ? (useSessionsStore.getState().disk['/repo'] ?? [])
               : null,
     )
-  useMachinesStore.setState({ remoteEnabled: false, machines: [], adding: false })
-  useRemoteLanesStore.setState({ hosts: {}, filter: 'local', error: null })
-  useWorkspacesStore.setState({
-    recents: [{ path: '/repo', name: 'repo', lastOpenedAt: 0 }],
-    hydrated: true,
-  })
+  resetSidebarStores()
   useSessionsStore.setState({
     live: { live1: { phosphorId: 'live1', workspacePath: '/repo', diskPath: '/repo/s1.jsonl' } },
     unread: {},
@@ -143,7 +127,6 @@ it('selects merged lanes from a This Mac group menu, through the same rows as a 
         byBranch: { 'merged-branch': pr(1, 'MERGED'), 'open-branch': pr(2, 'OPEN') },
         fetchedAt: Date.now(),
         attemptedAt: Date.now(),
-        complete: true,
         loading: false,
       },
     },
@@ -200,4 +183,61 @@ it('finds a This Mac lane by its live session name, ahead of the disk scan', asy
   )
   expect(rows).toHaveLength(1)
   expect(rows[0]).toContain('Renamed just now')
+})
+
+it("shows a lane's PR chip from its main repository's listing, and none for a lane without one", async () => {
+  usePullRequestsStore.setState({
+    byRepo: {
+      '/repo': {
+        byBranch: {
+          'wt-branch': {
+            number: 7,
+            title: 'PR 7',
+            url: 'https://example.test/7',
+            state: 'OPEN',
+          } as never,
+        },
+        fetchedAt: Date.now(),
+        attemptedAt: Date.now(),
+        loading: false,
+      },
+    },
+  })
+  useSessionsStore.setState({
+    live: {},
+    disk: { '/repo': [meta(1), { ...meta(2), cwd: '/wt2' }] },
+    gitByCwd: {
+      '/repo': { branch: 'main', mainRepoPath: '/repo' } as never,
+      '/wt2': { branch: 'wt-branch', mainRepoPath: '/repo', isWorktree: true } as never,
+    },
+  })
+  await act(async () => root.render(<Sidebar workspacePath="/repo" />))
+  await act(async () => {})
+  const chips = [...container.querySelectorAll('[data-testid=session-row]')].map((row) => [
+    row.textContent?.includes('Lane 1') ? 'Lane 1' : 'Lane 2',
+    row.querySelector('[data-testid=session-pr-badge]')?.textContent ?? null,
+  ])
+  expect(chips).toEqual([
+    ['Lane 1', null],
+    ['Lane 2', expect.stringContaining('#7')],
+  ])
+})
+
+it('Mark read on a live This Mac lane clears its unread count as well as marking it seen', async () => {
+  useSessionsStore.setState((s) => ({
+    live: {
+      ...s.live,
+      live2: { phosphorId: 'live2', workspacePath: '/repo', diskPath: '/repo/s2.jsonl' },
+    },
+    unread: { live2: 3 },
+  }))
+  const rows = await menuFor('Lane 2')
+  expect(rows).toContain('Mark read')
+  act(() =>
+    [...document.querySelectorAll<HTMLButtonElement>('[data-testid=context-menu] button')]
+      .find((b) => b.textContent === 'Mark read')!
+      .click(),
+  )
+  expect(useSessionsStore.getState().unread.live2 ?? 0).toBe(0)
+  expect(invoke).toHaveBeenCalledWith('app:markSessionSeen', '/repo/s2.jsonl')
 })
