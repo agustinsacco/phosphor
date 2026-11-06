@@ -1,3 +1,4 @@
+import { mockBrainCall } from '../features/brain/mockBrain'
 import {
   mockRemoteLaneInvoke,
   onMockRemoteChanged,
@@ -973,6 +974,7 @@ export function installMockPhosphor(): void {
         : 'linux',
 
     invoke: (channel: string, ...args: unknown[]) => {
+      if (channel.startsWith('brain:')) return mockBrainCall(channel, args)
       if (channel.startsWith('routines:')) {
         if (args.some((arg) => typeof arg === 'string' && arg.startsWith('host:')))
           return Promise.reject(
