@@ -134,6 +134,29 @@ describe('HomeModelPicker', () => {
     expect(chip().getAttribute('data-tooltip')).toBe("one is not in pi's catalogue")
   })
 
+  it("leaves no unhandled rejection when pi's settings cannot be read or written", async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'app:getPrefs') return {}
+      throw new Error(`${channel} failed`)
+    })
+    try {
+      await draw(<HomeModelPicker override={{ provider: 'p', id: 'one' }} />)
+      act(() => chip().click())
+      act(() =>
+        [...document.querySelectorAll<HTMLElement>('[data-testid="model-row"]')]
+          .find((r) => r.textContent?.includes('Model Two'))!
+          .click(),
+      )
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+      expect(chip().textContent).toBe('Model Two')
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+  })
+
   it('offers no source action while the catalogue has models', async () => {
     await draw(<HomeModelPicker />)
     expect(actions()).toEqual([])
