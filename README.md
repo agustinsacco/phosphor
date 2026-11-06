@@ -316,7 +316,7 @@ Six facts that explain the rest:
    files for bookmarks, branch jumps and forks, which is only safe while no pi
    process owns the file.
 5. **Six extensions run inside pi's process** (`libs/pi-extensions/pi-ext/`, loaded with `-e` into
-   every session): `artifacts`, `context-breakdown`, `headroom`, `lane-reload`,
+   ordinary sessions): `artifacts`, `context-breakdown`, `headroom`, `lane-reload`,
    `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
    the model did: [docs/extensions.md](docs/extensions.md).
 6. **Failure is reported, not hidden.** Failures land on the session's chat;
@@ -385,6 +385,8 @@ the same full unit suites without running them.
 | `host`          | `apps/host/`, the plain-Node Host CLI ([host.md](docs/host.md))                       |
 | `runtime`       | `libs/session-runtime/src/`, including plain-Node and fake-pi tests                   |
 | `shared`        | `libs/shared/`                                                                        |
+| `memory-engine` | `libs/memory-engine/`, Node-only cited memory graph and retrieval                     |
+| `brain-client`  | `libs/brain-client/`, private bounded Brain protocol and client                       |
 | `pi-extensions` | `libs/pi-extensions/pi-ext/`, including optional extension tests                      |
 | `site`          | `apps/site/`, with its independent install and lockfile                               |
 | `schema`        | `supabase/`, with explicit start/test/stop lifecycle                                  |
@@ -414,7 +416,7 @@ acyclic. `tools/scripts/nx-projects.test.ts` checks the effective graph and targ
 including missing-edge/target fixtures. App-relative `out/`, packaging metadata and resource destinations are unchanged.
 Root npm aliases delegate to Desktop; the app owns its Electron postinstall.
 The root npm workspaces contain `libs/shared`, `libs/session-runtime`, `libs/host-client`,
-`libs/pi-extensions` and `libs/client-ui`. Desktop, Control, Web and the site retain independent locks and real
+`libs/pi-extensions`, `libs/client-ui`, `libs/memory-engine` and `libs/brain-client`. Desktop, Control, Web and the site retain independent locks and real
 installation directories. The [installation contract](docs/installations.md)
 defines the supported scoped source-production recipe, script suppression,
 source bundling and native ABI separation. This is not universal single-lock
@@ -478,14 +480,16 @@ apps/desktop/electron/            main process — owns every side effect
   main.ts            app lifecycle, window creation, quit teardown
   preload.ts         the contextBridge surface (one typed `subscribe` helper)
   ipc.ts             composition root: calls the per-domain handler registrars
-  ipc/               one module per channel-prefix family: 23 modules today
-                     (account, app, artifacts, claude-auth, clipboard, control, feedback, fs, git,
+  ipc/               handlers by channel-prefix family
+                     (account, app, artifacts, brain, claude-auth, clipboard, control, feedback, fs, git,
                       maintenance, mcp, optimization, packages, pi-auth,
                       pi-config, pi-session, pty, routines, sessions, skills,
                       updates, voice, writing) plus handle.ts, the
                       envelope unwrapper. The contract lives in libs/shared/src/ipc.ts;
                       ipc.ts is the composition root, so a handler module
                       never imports it back.
+  brain/             opt-in local memory, database/embedding utility workers,
+                     isolated manual processor and session-memory adapter (docs/brain.md)
   registry.ts        the live pi session registry
   routines/          local scheduler, SQLite run ledger, unattended execution,
                      background tray; never manages interactive lanes
@@ -527,6 +531,8 @@ libs/session-runtime/src/  Electron-free source modules, not a separate service
   file-log.ts        injected file logging
   git/               the one git runner, repository/worktree info and its cache
   bundled-extensions.ts  bundled extension paths
+libs/memory-engine/src/  Node-only SQLite evidence, temporal claims and retrieval
+libs/brain-client/src/  bounded private protocol, formatting and local transport
 libs/host-client/src/  browser-safe Host transport, asynchronous identity-proof gate,
                      lane projection and remote-lane delivery; Desktop supplies
                      Node crypto through compatibility facades
@@ -543,7 +549,7 @@ libs/client-ui/src/  shared React UI over PhosphorApi; Desktop and compact entri
   app/               expanded shell: App, TopBar, workspace picker, shortcuts
   shell/compact/     remote-only phone shell, account lifecycle and navigation
   navigation/        typed locations, screen registry and history adapter
-  features/          one folder per surface (20): chat, sessions, files,
+  features/          one folder per surface: brain, chat, sessions, files,
                      terminal, artifacts, settings, home, worktrees,
                      workspaces, palette, updates, connectors, extension-ui,
                      skills, routines, feedback, machines, account, voice,
@@ -557,8 +563,9 @@ libs/client-ui/src/  shared React UI over PhosphorApi; Desktop and compact entri
   assets/            the bundled fonts
   dev/               browser-only mock of the preload API (never bundled)
 libs/pi-extensions/pi-ext/  the six pi extensions that run inside pi's process,
-                     bundled into every session: artifacts, context-breakdown,
-                     headroom, lane-reload, tool-name-guard, worktree-paths
+                     loaded into ordinary sessions: artifacts, context-breakdown,
+                     headroom, lane-reload, tool-name-guard, worktree-paths;
+                     optional Brain entries ship separately as brain-ext/*.mjs
 apps/desktop/e2e/                 Playwright-Electron smoke tests + deterministic pi stub
 apps/control/        plain-Node site and control API server; enrollment, machines,
                      clients, grants and Host routes (docs/control-plane.md)
