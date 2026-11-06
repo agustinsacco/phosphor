@@ -276,7 +276,7 @@ it('processes only after explicit per-run consent and passes the exact enrolled 
     (container.querySelector('input[type="checkbox"]') as HTMLInputElement).click(),
   )
   await click('Process workspace')
-  expect(invoke).toHaveBeenCalledWith('brain:process', '/synthetic')
+  expect(invoke).toHaveBeenCalledWith('brain:process', '/synthetic', { policyEpoch: 2, model: { provider: 'exact-provider', id: 'exact-model' } })
   expect(
     [...container.querySelectorAll('button')].find((b) => b.textContent === 'Process workspace')!
       .disabled,
@@ -341,5 +341,7 @@ it('keeps a refused review visible across successful background status polls', a
     expect(container.textContent).toContain('Stale review: refresh and review again')
     await act(async () => vi.advanceTimersByTimeAsync(3000))
     expect(container.textContent).toContain('Stale review: refresh and review again')
-  } finally { vi.useRealTimers() }
+  } finally {
+    vi.useRealTimers()
+  }
 })
