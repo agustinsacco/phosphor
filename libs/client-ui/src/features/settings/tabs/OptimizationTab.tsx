@@ -1,5 +1,5 @@
 import { TooltipButton } from '@/components/Tooltip'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import clsx from 'clsx'
 import type { AdvisorFinding, HeadroomStatus, OptimizationStats } from '@shared/models'
 import { Button, Row, SectionTitle, Toggle } from '@/components/form'
@@ -9,7 +9,7 @@ import { sessionTitle } from '@/lib/sessionTitle'
 import { useSettingsWorkspace } from '../SettingsMachineScope'
 import { useSettingsUiStore, type SettingsTab } from '../settingsUiStore'
 import { usePackageJob } from '../usePackageJob'
-import { useOnLocalRefresh } from '../machine/ScopeRefresh'
+import { useLocalRead } from '../machine/ScopeRefresh'
 
 /**
  * Settings → Optimization: manage Headroom (tool-result compression), show
@@ -34,10 +34,7 @@ export function OptimizationTab(): React.JSX.Element {
 
   const install = usePackageJob(() => void refresh())
 
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-  useOnLocalRefresh(refresh)
+  useLocalRead(refresh)
 
   /** Run one lifecycle action, then re-read both status and stats. */
   const act = async (action: () => Promise<HeadroomStatus>): Promise<void> => {

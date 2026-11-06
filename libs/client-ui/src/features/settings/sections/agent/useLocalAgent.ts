@@ -13,7 +13,7 @@ import { useAccount } from '../../useAccount'
 import { useLocalAgentPrefs } from './useLocalPrefs'
 import type { SectionStatus } from '../sectionStatus'
 import { modelChoices, modelValue, type AgentSource, type AgentValues } from './source'
-import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
+import { useLocalRead } from '../../machine/ScopeRefresh'
 
 type Scoped = { global: AgentValues; project: AgentValues | null }
 const ALL_FIELDS = Object.keys(AGENT_FIELDS) as AgentFieldKey[]
@@ -77,8 +77,7 @@ function useLocalSettingsFile(folder: string | null, loadPrefs: () => Promise<vo
     setError(null)
     load().catch((e: unknown) => setError(errorText(e)))
   }, [load])
-  useEffect(() => read(), [read])
-  useOnLocalRefresh(read)
+  useLocalRead(read)
   /** Saves `patch`, then applies `apply` to this scope's values as they are by then. */
   const write = async (
     patch: AgentValues,

@@ -38,3 +38,11 @@ export function useOnLocalRefresh(read: () => unknown): void {
     void run()
   }, [rereads])
 }
+
+/** A This Mac section's read: on mount, whenever `read` changes, and on each Refresh. */
+export function useLocalRead(read: () => unknown): void {
+  useEffect(() => {
+    void read()
+  }, [read])
+  useOnLocalRefresh(read)
+}

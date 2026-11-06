@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { PiPackageEntry } from '@shared/models'
 import { errorText } from '@shared/errors'
 import { promptChoice } from '@/stores/prompt'
@@ -6,7 +6,7 @@ import { JobOutput } from '../../JobOutput'
 import { usePackageJob } from '../../usePackageJob'
 import { openSkillsOn } from './openSkillsOn'
 import type { PackageAction, PackageCaps, PackageItem, PackageSource } from './packageSource'
-import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
+import { useLocalRead } from '../../machine/ScopeRefresh'
 import { publishPackageList } from './extensionPackageLists'
 
 const LOCAL_CAPS: PackageCaps = {
@@ -76,10 +76,7 @@ export function useLocalPackages(
     }
   }, [folder, workspace, versions])
 
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-  useOnLocalRefresh(refresh)
+  useLocalRead(refresh)
 
   const job = usePackageJob(() => void refresh())
   const run = (
