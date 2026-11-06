@@ -29,6 +29,8 @@ export interface Platform {
   cancelSignIn: boolean
   /** Dictation runs on this device with a local speech model (Settings → Voice). */
   localVoice: boolean
+  /** Personal Brain prototype runs only on this Desktop machine. */
+  localBrain: boolean
 }
 export const DESKTOP_PLATFORM: Platform = Object.freeze({
   formFactor: 'expanded',
@@ -48,6 +50,7 @@ export const DESKTOP_PLATFORM: Platform = Object.freeze({
   installableApp: false,
   cancelSignIn: true,
   localVoice: true,
+  localBrain: true,
 })
 export const COMPACT_PLATFORM: Platform = Object.freeze({
   formFactor: 'compact',
@@ -69,6 +72,7 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   installableApp: true,
   cancelSignIn: false,
   localVoice: false,
+  localBrain: false,
 })
 /** A wide browser changes presentation, never its authority or native capabilities. */
 export const WIDE_BROWSER_PLATFORM: Platform = Object.freeze({
