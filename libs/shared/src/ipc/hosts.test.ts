@@ -5,6 +5,7 @@ import type { TailscaleStatus } from '../tailscale-status'
 import type { MachineClaude, MachineModel, MachineProvider } from '../host-protocol-machine'
 import type { SkillsListResult } from '../skills'
 import type { SkillBundle, SkillInstallResult } from '../host-protocol-skill-share'
+import type { LaneMovePlan, LaneMoveRequest, LaneMoveResult } from '../lane-move'
 import type { ClaudeUsageSnapshotResult, LiveSessionInfo } from '../models'
 import type {
   MachineSettings,
@@ -50,6 +51,10 @@ export interface BaselineHostsInvokeMap {
     args: [machine: string, bundle: SkillBundle, overwrite: boolean]
     result: SkillInstallResult
   }
+
+  // Lane moves: a plan that reads only, then the copy.
+  'hosts:laneMovePlan': { args: [request: LaneMoveRequest]; result: LaneMovePlan }
+  'hosts:laneMove': { args: [request: LaneMoveRequest]; result: LaneMoveResult }
 
   'hosts:providerLogin': {
     args: [

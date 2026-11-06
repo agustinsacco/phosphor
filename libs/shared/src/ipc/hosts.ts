@@ -3,6 +3,7 @@ import type { TailscaleStatus } from '../tailscale-status'
 import type { MachineClaude, MachineModel, MachineProvider } from '../host-protocol-machine'
 import type { SkillsListResult } from '../skills'
 import type { SkillBundle, SkillInstallResult } from '../host-protocol-skill-share'
+import type { LaneMovePlan, LaneMoveRequest, LaneMoveResult } from '../lane-move'
 import type {
   MachineSettings,
   MachineSettingsPatch,
@@ -45,6 +46,10 @@ export interface HostsInvokeMap {
     args: [machine: string, bundle: SkillBundle, overwrite: boolean]
     result: SkillInstallResult
   }
+  /** What moving a lane would do, or why it cannot. Reads only. */
+  'hosts:laneMovePlan': { args: [request: LaneMoveRequest]; result: LaneMovePlan }
+  /** Copy a stopped lane to another workspace or machine; the source is never changed. */
+  'hosts:laneMove': { args: [request: LaneMoveRequest]; result: LaneMoveResult }
   'hosts:providerLogin': {
     args: [
       hostId: string,

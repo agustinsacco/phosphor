@@ -22,7 +22,8 @@ export interface SourceInput {
   attachmentAllowed(path: string): boolean
 }
 
-async function headerCwd(sessionFile: string): Promise<string> {
+/** The cwd a transcript's header records. */
+export async function headerCwd(sessionFile: string): Promise<string> {
   const handle = await open(sessionFile, 'r').catch(() => refuse('This lane has no saved transcript to move.'))
   try {
     const buffer = Buffer.alloc(8192)
