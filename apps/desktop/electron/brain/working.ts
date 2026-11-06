@@ -7,7 +7,7 @@ import type { BrainServiceOptions } from './service-types'
 import type { DesktopMemoryClient } from './memory-client'
 import type { BrainCapability, createBrainBridge } from './bridge'
 import type { createBrainIndexer } from './indexer'
-import { bounded, identifier, laneAuthority } from './authority'
+import { bounded, brainQuery, fields, identifier, laneAuthority } from './authority'
 import { attachBrainCapture } from './capture'
 
 type Bridge = Awaited<ReturnType<typeof createBrainBridge>>
@@ -29,7 +29,6 @@ class BrainWorking {
     options.registry.on('disposed', this.disposed)
   }
   private readonly cleanups = new Map<string, () => void>()
-  private readonly nativeIds = new Map<string, string>()
   private stopped = false
   authority = async (capability: BrainCapability) => {
     const snapshot = await this.store.snapshot()
@@ -52,27 +51,34 @@ class BrainWorking {
     capability: BrainCapability,
     evidenceIds: string[],
     claimIds: string[],
+    branch: string,
   ): Promise<void> => {
-    await this.authority(capability)
+    if ((await this.authority(capability)).branch !== branch)
+      throw new Error('Brain branch changed during delivery')
     const runtimeId = capability.sessionId!
-    const nativeId = this.nativeIds.get(runtimeId)
+    const live = this.options.registry.get(runtimeId)!
+    const state = await live.client.request({ type: 'get_state' })
+    const nativeId = state.success ? state.data?.sessionId : undefined
     if (!nativeId) throw new Error('Brain recipient identity unavailable')
     for (const sessionId of new Set([runtimeId, nativeId]))
       await this.store.recordDelivery({ sessionId, evidenceIds, claimIds })
+    if ((await this.authority(capability)).branch !== branch)
+      throw new Error('Brain branch changed during delivery')
   }
   invoke = async (capability: BrainCapability, method: BrainAgentMethod, raw: unknown) => {
     const bound = await this.authority(capability)
     const params = bounded(raw) as Record<string, unknown>
     if (!params || typeof params !== 'object') throw new Error('Invalid Brain request')
     if (method === 'read') {
+      fields(params, ['evidenceId'])
       const evidence = await this.store.read(identifier(params.evidenceId as string), [bound.scope])
       if (evidence.branch !== null && evidence.branch !== bound.branch)
         throw new Error('Brain evidence branch unavailable')
-      await this.delivery(capability, [evidence.id], [])
+      await this.delivery(capability, [evidence.id], [], bound.branch)
       return evidence
     }
     if (method !== 'search' && method !== 'brief') throw new Error('Unsupported Brain operation')
-    const query = params as unknown as BrainQuery
+    const query = brainQuery(params as unknown as BrainQuery)
     if (
       (query.scopes && (query.scopes.length !== 1 || query.scopes[0] !== bound.scope)) ||
       (query.branch !== undefined && query.branch !== bound.branch)
@@ -93,6 +99,7 @@ class BrainWorking {
       capability,
       result.results.flatMap((hit) => hit.evidence.map((item) => item.id)),
       result.results.map((hit) => hit.claim.id),
+      bound.branch,
     )
     return result
   }
@@ -135,10 +142,6 @@ class BrainWorking {
           return
         }
         grant?.bind(live.sessionId)
-        const state = await live.client.request({ type: 'get_state' })
-        if (!state.success || !state.data?.sessionId)
-          throw new Error('Brain recipient identity unavailable')
-        this.nativeIds.set(live.sessionId, state.data.sessionId)
         const detach = await attachBrainCapture(
           live,
           this.store,
@@ -148,7 +151,6 @@ class BrainWorking {
         cleanup = () => {
           grant?.revoke()
           detach()
-          this.nativeIds.delete(live.sessionId)
           this.cleanups.delete(live.sessionId)
         }
         this.cleanups.set(live.sessionId, cleanup)

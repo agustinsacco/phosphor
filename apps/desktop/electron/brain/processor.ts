@@ -1,5 +1,8 @@
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fields } from './authority'
+import { readOwnedTranscript } from './transcripts'
+import { compareVersions } from '@phosphor/session-runtime/pi/versions'
 import { abortable, promptProcessor } from './processor-wait'
 import type { BrainJob, BrainProcessConsent, BrainProposalInput } from '@phosphor/shared/brain'
 import type { LiveSession } from '@phosphor/session-runtime/pi/session-registry'
@@ -56,6 +59,7 @@ class BrainProcessor {
     if (
       !snapshot.prefs.enabled ||
       snapshot.policyEpoch !== capability.policyEpoch ||
+      snapshot.graphRevision !== job.graphRevision ||
       job.fence !== capability.fence ||
       !['running', 'proposed'].includes(job.state) ||
       snapshot.prefs.processor?.provider !== job.model.provider ||
@@ -82,8 +86,23 @@ class BrainProcessor {
     if (this.active?.job.id === jobId) await this.stop(this.active, 'Brain job cancelled')
     const job = await this.store.job(jobId)
     if (['queued', 'running', 'interrupted'].includes(job.state))
-      await this.store.updateJob(job.id, job.fence, { state: 'cancelled' })
+      await this.settle(job.id, job.fence, 'cancelled')
   }
+  private settle = async (
+    id: string,
+    fence: number,
+    state: 'cancelled' | 'failed',
+    error?: string,
+  ): Promise<void> => {
+    const job = await this.store.job(id)
+    if (job.fence !== fence || !['queued', 'running', 'interrupted'].includes(job.state)) return
+    try {
+      await this.store.updateJob(id, fence, { state, ...(error ? { error } : {}) })
+    } catch (failure) {
+      if ((await this.store.job(id)).fence === fence) throw failure
+    }
+  }
+
   private run = async (current: Active): Promise<void> => {
     const timer = setTimeout(() => {
       void this.stop(current, 'Brain whole-job deadline exceeded').catch(
@@ -96,12 +115,12 @@ class BrainProcessor {
       await this.launch(current, root)
       await abortable(this.execute(current), current.abort.signal)
     } catch (error) {
-      const job = await this.store.job(current.job.id)
-      if (job.state === 'running' && job.fence === current.job.fence)
-        await this.store.updateJob(job.id, job.fence, {
-          state: current.abort.signal.aborted ? 'cancelled' : 'failed',
-          error: String(error).slice(0, 2000),
-        })
+      await this.settle(
+        current.job.id,
+        current.job.fence,
+        current.abort.signal.aborted ? 'cancelled' : 'failed',
+        String(error).slice(0, 2000),
+      )
       this.options.onError?.(error)
     } finally {
       clearTimeout(timer)
@@ -115,7 +134,7 @@ class BrainProcessor {
       this.options.processor.resolve(current.job.model),
       current.abort.signal,
     )
-    if (!/^(?:[2-9]|[1-9]\d+)\.|^1\.(?:[4-9]|[1-9]\d+)\./.test(resolved.version))
+    if (!/^\d+\.\d+\.\d+$/.test(resolved.version) || compareVersions(resolved.version, '1.4.0') < 0)
       throw new Error('Brain requires pi >=1.4.0')
     if (!['anthropic', 'openai'].includes(current.job.model.provider))
       throw new Error(
@@ -188,11 +207,7 @@ class BrainProcessor {
       const state = await live.client.request({ type: 'get_state' })
       const path = state.success ? state.data?.sessionFile : undefined
       if (!path) throw new Error('Brain processor transcript path unavailable')
-      // The path is immutable in the engine; the owned directory is checked before persistence.
-      const { sessionPathKey } = await import('@phosphor/session-runtime/pi/session-path-lock')
-      const { isWithinFolder } = await import('@phosphor/shared/paths')
-      if (!isWithinFolder(sessionPathKey(path), sessionPathKey(this.sessionDir)))
-        throw new Error('Brain transcript escaped owned directory')
+      await readOwnedTranscript(path, current.job.id, this.sessionDir)
       await this.store.updateJob(current.job.id, current.job.fence, { sessionPath: path })
       const retry = await live.client.request({ type: 'set_auto_retry', enabled: false })
       if (!retry.success) throw new Error('Brain cannot disable retries')
@@ -206,6 +221,8 @@ class BrainProcessor {
   }
   process = async (scope: string, consent: BrainProcessConsent): Promise<BrainJob> => {
     if (this.disposed || this.active) throw new Error('One Brain processor may run at a time')
+    fields(consent, ['policyEpoch', 'model'])
+    fields(consent.model, ['provider', 'id'])
     if (!consent || !Number.isSafeInteger(consent.policyEpoch) || consent.policyEpoch < 0)
       throw new Error('A current processing consent epoch is required')
     const queued = await this.store.createJob(scope, consent.model, consent.policyEpoch)

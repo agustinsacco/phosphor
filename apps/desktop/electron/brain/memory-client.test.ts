@@ -6,9 +6,26 @@ function fixture() {
   let message!: (message: MemoryResponse) => void
   let exit!: () => void
   const posts: MemoryRequest[] = []
-  const child: MemoryProcess = { post: (request) => { posts.push(request) }, onMessage: (listener) => { message = listener }, onExit: (listener) => { exit = listener }, kill: vi.fn() }
+  const child: MemoryProcess = {
+    post: (request) => {
+      posts.push(request)
+    },
+    onMessage: (listener) => {
+      message = listener
+    },
+    onExit: (listener) => {
+      exit = listener
+    },
+    kill: vi.fn(),
+  }
   const client = createMemoryClient(child, 100)
-  return { child, client, posts, message: (response: MemoryResponse) => message(response), exit: () => exit() }
+  return {
+    child,
+    client,
+    posts,
+    message: (response: MemoryResponse) => message(response),
+    exit: () => exit(),
+  }
 }
 afterEach(() => vi.useRealTimers())
 it('correlates typed replies and closes once, rejecting subsequent requests', async () => {
@@ -16,7 +33,8 @@ it('correlates typed replies and closes once, rejecting subsequent requests', as
   const request = f.client.pendingPurges()
   f.message({ id: f.posts[0]!.id, ok: true, data: [] })
   await expect(request).resolves.toEqual([])
-  const first = f.client.close(), second = f.client.close()
+  const first = f.client.close(),
+    second = f.client.close()
   expect(first).toBe(second)
   f.message({ id: f.posts[1]!.id, ok: true, data: undefined })
   await first
@@ -33,7 +51,9 @@ it('poisons timed-out work so a late mutation cannot share a reused connection',
 })
 it('rejects all pending requests on worker exit and bounds its queue', async () => {
   const f = fixture()
-  const pending = Array.from({ length: 64 }, () => expect(f.client.snapshot()).rejects.toThrow('exited'))
+  const pending = Array.from({ length: 64 }, () =>
+    expect(f.client.snapshot()).rejects.toThrow('exited'),
+  )
   await expect(f.client.snapshot()).rejects.toThrow('exceeds limit')
   f.exit()
   await Promise.all(pending)
