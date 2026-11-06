@@ -80,6 +80,31 @@ it.each([COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM])(
     expect(invoke).not.toHaveBeenCalled()
   },
 )
+it.each(['all', 'remote-host'])(
+  'binds initial %s selection to the explicit local-only boundary',
+  async (filter) => {
+    useRemoteLanesStore.setState({ filter })
+    await act(async () =>
+      root.render(
+        <PlatformProvider value={DESKTOP_PLATFORM}>
+          <BrainPage />
+        </PlatformProvider>,
+      ),
+    )
+    expect(container.textContent).toContain('Brain · This Mac')
+    if (filter === 'all') {
+      expect(invoke).toHaveBeenCalledWith('brain:status')
+      expect(
+        invoke.mock.calls.every(
+          ([channel]) => typeof channel === 'string' && channel.startsWith('brain:'),
+        ),
+      ).toBe(true)
+    } else {
+      expect(container.textContent).toContain('unavailable')
+      expect(invoke).not.toHaveBeenCalled()
+    }
+  },
+)
 it('drops local data on remote selection and reloads when local returns', async () => {
   await act(async () =>
     root.render(
@@ -97,6 +122,9 @@ it('drops local data on remote selection and reloads when local returns', async 
   expect(invoke).toHaveBeenCalledWith('brain:status')
 })
 it('requires separate explicit terms consent before downloading and does not process on mount', async () => {
+  const enabled = brainFixture()
+  enabled.snapshot.prefs.enabled = true
+  invoke.mockResolvedValueOnce(enabled)
   await act(async () => root.render(<BrainPage />))
   expect(invoke.mock.calls.some(([c]) => c === 'brain:process' || c === 'brain:download')).toBe(
     false,
@@ -133,6 +161,30 @@ it('requires saved enablement before a model download, even after terms consent'
   )!
   expect(download.disabled).toBe(true)
   expect(invoke.mock.calls.some(([channel]) => channel === 'brain:download')).toBe(false)
+})
+it('lets a person search an explicit evidence branch without widening the empty default', async () => {
+  await act(async () => root.render(<BrainPage />))
+  const branch = container.querySelector(
+    '[aria-label="Evidence branch"]',
+  ) as HTMLInputElement | null
+  expect(branch).not.toBeNull()
+  const query = container.querySelector('form input') as HTMLInputElement
+  const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+  await act(async () => {
+    set.call(query, 'Synthetic')
+    query.dispatchEvent(new Event('input', { bubbles: true }))
+    set.call(branch, 'feature/synthetic')
+    branch!.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await act(async () =>
+    container
+      .querySelector('form')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+  )
+  expect(invoke).toHaveBeenCalledWith(
+    'brain:search',
+    expect.objectContaining({ query: 'Synthetic', branch: 'feature/synthetic' }),
+  )
 })
 it('reviews original evidence before enabling revision-checked approval', async () => {
   await act(async () => root.render(<BrainPage />))
