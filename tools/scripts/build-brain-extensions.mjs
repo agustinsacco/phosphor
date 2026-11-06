@@ -4,15 +4,20 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 
+/** The pi-ext sources that ship only as these bundles, never as raw TypeScript. */
+export const BRAIN_EXTENSION_SOURCES = ['brain.ts', 'brain-processor.ts']
+
 /** One staging path for dev, Desktop packaging and Host resources. No workspace imports survive. */
 export async function buildBrainExtensions({ root, outDir }) {
   await mkdir(outDir, { recursive: true })
   const result = await build({
     absWorkingDir: root,
-    entryPoints: {
-      brain: 'libs/pi-extensions/pi-ext/brain.ts',
-      'brain-processor': 'libs/pi-extensions/pi-ext/brain-processor.ts',
-    },
+    entryPoints: Object.fromEntries(
+      BRAIN_EXTENSION_SOURCES.map((file) => [
+        file.slice(0, -'.ts'.length),
+        `libs/pi-extensions/pi-ext/${file}`,
+      ]),
+    ),
     outdir: outDir,
     outExtension: { '.js': '.mjs' },
     bundle: true,
