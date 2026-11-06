@@ -5,11 +5,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SessionMeta } from '@shared/models'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { useChatStore } from '@/stores/chat'
-import { useMachinesStore } from '@/stores/machines'
 import { usePullRequestsStore } from '@/stores/pullRequests'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { useWorkspacesStore } from '@/stores/workspaces'
+import { resetSidebarStores, stubSidebarPhosphor } from './__fixtures__/sidebarHarness'
 import { Sidebar } from './Sidebar'
 
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
@@ -45,16 +43,7 @@ const SEEN = { '/repo/s2.jsonl': Date.parse(UNSEEN_AT) - 60_000 }
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   Element.prototype.scrollIntoView = vi.fn()
-  Object.defineProperty(window, 'phosphor', {
-    configurable: true,
-    value: {
-      invoke,
-      onUpdateEvent: () => () => {},
-      onAccountChanged: () => () => {},
-      onRoutinesChanged: () => () => {},
-      onSessionsChanged: () => () => {},
-    },
-  })
+  stubSidebarPhosphor(invoke)
   invoke
     .mockReset()
     .mockImplementation(async (channel: string) =>
@@ -68,12 +57,7 @@ beforeEach(() => {
               ? (useSessionsStore.getState().disk['/repo'] ?? [])
               : null,
     )
-  useMachinesStore.setState({ remoteEnabled: false, machines: [], adding: false })
-  useRemoteLanesStore.setState({ hosts: {}, filter: 'local', error: null })
-  useWorkspacesStore.setState({
-    recents: [{ path: '/repo', name: 'repo', lastOpenedAt: 0 }],
-    hydrated: true,
-  })
+  resetSidebarStores()
   useSessionsStore.setState({
     live: { live1: { phosphorId: 'live1', workspacePath: '/repo', diskPath: '/repo/s1.jsonl' } },
     unread: {},

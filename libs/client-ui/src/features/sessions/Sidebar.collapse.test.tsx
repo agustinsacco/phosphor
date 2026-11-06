@@ -2,11 +2,9 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { useMachinesStore } from '@/stores/machines'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { useWorkspacesStore } from '@/stores/workspaces'
 import { setGroupCollapsed } from './groupCollapse'
+import { resetSidebarStores, stubSidebarPhosphor } from './__fixtures__/sidebarHarness'
 import { Sidebar } from './Sidebar'
 
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
@@ -17,16 +15,7 @@ const invoke = vi.fn()
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   Element.prototype.scrollIntoView = vi.fn()
-  Object.defineProperty(window, 'phosphor', {
-    configurable: true,
-    value: {
-      invoke,
-      onUpdateEvent: () => () => {},
-      onAccountChanged: () => () => {},
-      onRoutinesChanged: () => () => {},
-      onSessionsChanged: () => () => {},
-    },
-  })
+  stubSidebarPhosphor(invoke)
   invoke
     .mockReset()
     .mockImplementation(async (channel: string) =>
@@ -38,12 +27,7 @@ beforeEach(() => {
             ? []
             : null,
     )
-  useMachinesStore.setState({ remoteEnabled: false, machines: [], adding: false })
-  useRemoteLanesStore.setState({ hosts: {}, filter: 'local', error: null })
-  useWorkspacesStore.setState({
-    recents: [{ path: '/repo', name: 'repo', lastOpenedAt: 0 }],
-    hydrated: true,
-  })
+  resetSidebarStores()
   useSessionsStore.setState({
     live: {},
     disk: { '/repo': [] },
