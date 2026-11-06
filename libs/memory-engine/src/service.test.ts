@@ -111,6 +111,15 @@ describe('memory engine consent, provenance and recovery', () => {
     expect(() => store.review(pending.id, true, pending)).toThrow()
     expect(store.snapshot().claims).toHaveLength(0)
   })
+  it('atomically rejects stale processing consent even when the model is unchanged', () => {
+    const { store } = setup()
+    store.capture(capture)
+    const consentEpoch = store.snapshot().policyEpoch
+    store.setPrefs({ ...prefs, recall: false })
+    expect(() => store.createJob('/a', model, consentEpoch)).toThrow('Stale processing consent')
+    expect(store.snapshot().jobs).toHaveLength(0)
+    expect(store.createJob('/a', model, store.snapshot().policyEpoch).state).toBe('queued')
+  })
   it('validates references, quotes, typed predicates and same-scope existing entities', () => {
     const { store } = setup()
     const evidence = store.capture(capture)!
