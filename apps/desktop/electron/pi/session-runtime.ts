@@ -55,7 +55,13 @@ const service = createSessionService<Electron.WebContents>({
   spawn: (options, target, execution = {}) =>
     spawn(
       options,
-      (id) => desktopSessionSink(id, target, () => execution.unattended ?? false),
+      (id) =>
+        desktopSessionSink(
+          id,
+          target,
+          () => execution.unattended ?? false,
+          Boolean(execution.brain),
+        ),
       execution,
     ),
   isStub: () => Boolean(piStubPath()),

@@ -1,5 +1,6 @@
 /** Brain v1: machine-local, opt-in, reviewed memory. No credentials or database paths. */
 export const BRAIN_PROTOCOL = 1
+export const BRAIN_PROCESSOR_TOOLS = ['brain_job', 'brain_propose'] as const
 /** Pinned local validation candidate. No hosted embedding or silent model fallback. */
 export const BRAIN_EMBEDDING_MODEL = {
   id: 'embeddinggemma-300m-q4@5090578d9565bb06545b4552f76e6bc2c93e4a66',
