@@ -3,6 +3,7 @@ import { localMachineLabel } from '@/lib/localMachine'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
+import { hostIdOfPath } from '@phosphor/shared/remote-host'
 import { useMachinePagesStore, pageMachine } from '@/stores/machinePages'
 import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
@@ -75,7 +76,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
       }
     : null
   const hosts = useRemoteLanesStore((s) => s.hosts)
-  const hostId = machine.startsWith('host:') ? machine.slice(5) : null
+  const hostId = hostIdOfPath(machine)
   const refusal = hostId ? hostFeatureRefusal(hosts[hostId], 'routines') : undefined
   const unavailable = !!refusal
   const setMachine = (routinesMachine: string): void =>

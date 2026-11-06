@@ -3,12 +3,13 @@ import { useEffect } from 'react'
 import { useMachineCatalogue, useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { catalogueEmptyText, useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
+import { hostIdOfPath } from '@phosphor/shared/remote-host'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 
 /** Routine model choices belong to their execution machine, not the active lane. */
 export function useRoutineModels(machineId?: string) {
   const { localLanes } = usePlatform()
-  const hostId = machineId?.startsWith('host:') ? machineId.slice(5) : null
+  const hostId = hostIdOfPath(machineId ?? '') ?? null
   const host = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
   const remote = useMachineCatalogue(hostId)
   const models = useModelCatalogueStore((s) => s.models)
