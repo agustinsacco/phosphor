@@ -9,8 +9,8 @@ export interface PiFacts {
   version?: string
   /** Where pi is installed. */
   location: string
-  /** The oldest pi Phosphor supports; This Mac reports it. */
-  minVersion?: string
+  /** The oldest pi Phosphor supports (`MIN_PI_VERSION`). */
+  minVersion: string
   /** Why pi is unusable, when it is. */
   problem?: string
 }

@@ -51,11 +51,7 @@ function PiHealthRow({ pi }: { pi: PiFacts | null }): React.JSX.Element {
   return (
     <Row
       title="pi health"
-      description={
-        pi
-          ? `${pi.location}${pi.minVersion ? ` — minimum supported ${pi.minVersion}` : ''}`
-          : 'checking…'
-      }
+      description={pi ? `${pi.location} — minimum supported ${pi.minVersion}` : 'checking…'}
     >
       <span
         className={clsx(
