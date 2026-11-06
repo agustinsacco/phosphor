@@ -5,6 +5,7 @@ import { expect, it, vi } from 'vitest'
 import { useRoutineModels } from './useRoutineModels'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useModelCatalogueStore } from '@/stores/modelCatalogue'
+import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 it('uses only Host models for a Host routine, refusing a down Host instead of local catalogue data', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -160,6 +161,32 @@ it.each([
     expect(invoke).not.toHaveBeenCalled()
   } finally {
     act(() => root.unmount())
+    vi.unstubAllGlobals()
+  }
+})
+
+it('a Host routine whose model read fails says the models could not be read', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const invoke = vi.fn(async (channel: string) => {
+    if (channel === 'hosts:skills') return { skills: [], probe: 'rpc', userRoot: 'opaque' }
+    throw new Error('Connection closed.')
+  })
+  vi.stubGlobal('phosphor', { invoke })
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  host.capabilities.push('skills.read')
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  function Harness() {
+    return <p>{useRoutineModels(`host:${MOCK_HOST_ID}`).emptyText}</p>
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<Harness />))
+    await act(async () => useMachineCataloguesStore.getState().load(MOCK_HOST_ID))
+    expect(container.textContent).toBe('Could not read models.')
+  } finally {
+    act(() => root.unmount())
+    useMachineCataloguesStore.setState({ catalogues: {} })
     vi.unstubAllGlobals()
   }
 })

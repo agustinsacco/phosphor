@@ -30,3 +30,23 @@ it('a ready Host without skills.read says it does not offer models', async () =>
   act(() => root.unmount())
   expect(invoke.mock.calls.map(([channel]) => channel)).not.toContain('hosts:models')
 })
+
+it('a Host whose model read fails says the models could not be read', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const invoke = vi.fn(async (channel: string) => {
+    if (channel === 'hosts:skills') return { skills: [], probe: 'rpc', userRoot: 'opaque' }
+    throw new Error('Connection closed.')
+  })
+  vi.stubGlobal('phosphor', { invoke })
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  host.capabilities.push('skills.read')
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  function Hint() {
+    return <p>{useRemoteModel(MOCK_HOST_ID).hint}</p>
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  await act(async () => root.render(<Hint />))
+  expect(container.textContent).toBe('Could not read models.')
+  act(() => root.unmount())
+})
