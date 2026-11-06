@@ -131,7 +131,7 @@ export function openMemoryStore(options: MemoryStoreOptions): MemoryStorePort {
       setPrefs: (prefs) => serve(() => preferences(data, evidence, prefs)),
       capture: (input) => serve(() => evidence.capture(input)),
       read: (id, scopes) => serve(() => evidence.read(id, scopes)),
-      createJob: (scope, model) => serve(() => jobs.create(scope, model)),
+      createJob: (scope, model, epoch) => serve(() => jobs.create(scope, model, epoch)),
       claimJob: (id) => serve(() => jobs.claim(id)),
       updateJob: (id, fence, patch) => serve(() => jobs.update(id, fence, patch)),
       job: (id) => serve(() => jobs.get(id)),

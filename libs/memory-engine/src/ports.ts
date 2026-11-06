@@ -34,7 +34,8 @@ export interface MemoryStorePort {
   setPrefs(prefs: BrainPrefs): BrainSnapshot
   capture(input: BrainCapture): BrainEvidence | null
   read(evidenceId: string, allowedScopes: string[]): BrainEvidence
-  createJob(scope: string, model: BrainModel): BrainJob
+  /** Manual callers must pass the acknowledged epoch; checked in the same worker operation. */
+  createJob(scope: string, model: BrainModel, expectedPolicyEpoch?: number): BrainJob
   claimJob(jobId: string): BrainJob
   updateJob(
     jobId: string,
