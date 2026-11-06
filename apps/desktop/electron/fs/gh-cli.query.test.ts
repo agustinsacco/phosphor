@@ -112,8 +112,8 @@ describe('merged-PR proof lookups', () => {
 
   it('returns only well-formed head commits of merged PRs for the branch', async () => {
     respond = () => JSON.stringify([{ headRefOid: oid }, { headRefOid: 'nope' }, {}, null])
-    const { ghMergedPrHeads } = await import('./gh-cli')
-    expect(await ghMergedPrHeads('/work/repo', 'team/lane')).toEqual([oid])
+    const { ghEvidence } = await import('./gh-cli')
+    expect(await ghEvidence('/work/repo').mergedPrHeads('team/lane')).toEqual([oid])
     expect(listCalls()[0]?.[1]).toEqual(expect.arrayContaining(['--head', 'team/lane', 'merged']))
   })
 
@@ -121,19 +121,19 @@ describe('merged-PR proof lookups', () => {
     'answers null, never [], on %s',
     async (out) => {
       respond = () => out
-      const { ghMergedPrHeads } = await import('./gh-cli')
-      expect(await ghMergedPrHeads('/work/repo', 'team/lane')).toBeNull()
+      const { ghEvidence } = await import('./gh-cli')
+      expect(await ghEvidence('/work/repo').mergedPrHeads('team/lane')).toBeNull()
     },
   )
 
   it('looks a commit tree up once and rejects anything that is not an object id', async () => {
     respond = () => `${'b'.repeat(40)}\n`
-    const { ghCommitTree } = await import('./gh-cli')
-    expect(await ghCommitTree('/work/repo', oid)).toBe('b'.repeat(40))
-    expect(await ghCommitTree('/work/repo', oid)).toBe('b'.repeat(40))
-    expect(await ghCommitTree('/work/repo', '../../etc')).toBeNull()
+    const { ghEvidence } = await import('./gh-cli')
+    expect(await ghEvidence('/work/repo').commitTree(oid)).toBe('b'.repeat(40))
+    expect(await ghEvidence('/work/repo').commitTree(oid)).toBe('b'.repeat(40))
+    expect(await ghEvidence('/work/repo').commitTree('../../etc')).toBeNull()
     expect(exec.mock.calls.filter(([, args]) => args[0] === 'api')).toHaveLength(1)
     respond = () => 'Not Found'
-    expect(await ghCommitTree('/work/repo', 'c'.repeat(40))).toBeNull()
+    expect(await ghEvidence('/work/repo').commitTree('c'.repeat(40))).toBeNull()
   })
 })
