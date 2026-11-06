@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { existsSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { basename, join } from 'node:path'
 import { launch, openWorkspace, shutdown } from './fixtures/local-app'
 import { remoteHostFixture, REMOTE_TEST_TIMEOUT } from './fixtures/remote-host'
@@ -8,6 +9,27 @@ import { selectMachine } from './fixtures/remote-ui'
 test('Brain boots the real database worker, stays opt-in, and persists reviewed settings', async () => {
   const h = await launch()
   try {
+    execFileSync('git', ['init', '-b', 'main', h.workspace], { stdio: 'ignore' })
+    execFileSync(
+      'git',
+      [
+        '-C',
+        h.workspace,
+        '-c',
+        'user.name=Test',
+        '-c',
+        'user.email=test@example.test',
+        '-c',
+        'commit.gpgsign=false',
+        '-c',
+        'core.hooksPath=/dev/null',
+        'commit',
+        '--allow-empty',
+        '-m',
+        'Synthetic Brain fixture',
+      ],
+      { stdio: 'ignore' },
+    )
     await openWorkspace(h.page)
     await h.page.getByRole('button', { name: 'Brain', exact: true }).click()
     await expect(
