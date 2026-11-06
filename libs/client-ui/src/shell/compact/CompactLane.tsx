@@ -14,7 +14,7 @@ import { SessionMenu } from '@/features/chat/SessionMenu'
 import { ReadOnlyFilesPane } from '@/features/files/ReadOnlyFilesPane'
 import { SCREENS } from '@/navigation/screens'
 import { usePlatform } from '@/platform/Platform'
-import { hostFeatureRefusal } from '@/stores/hostRefusals'
+import { useTerminalRefusal } from '@/stores/terminal'
 import { COMPACT_LANE_PANES } from './CompactLaneHeader'
 import { useRemoteLaneSession } from '@/features/sessions/useRemoteLaneActions'
 import type { Location } from '@/navigation/location'
@@ -117,12 +117,7 @@ function LanePanes({
   // A phone switches panes from the lane menu in its header (CompactLaneHeader), which
   // also carries the lane's controls; wider browsers keep tabs and Desktop's control row.
   const tabs = usePlatform().formFactor !== 'compact'
-  const terminalRefusal = useRemoteLanesStore((s) =>
-    hostFeatureRefusal(
-      'hostId' in location.lane ? s.hosts[location.lane.hostId] : undefined,
-      'terminal',
-    ),
-  )
+  const terminalRefusal = useTerminalRefusal(session.phosphorId)
   return (
     <div className="flex h-full min-h-0 flex-col">
       {tabs && (
