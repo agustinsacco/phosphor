@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import { useRoutineModels } from './useRoutineModels'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
@@ -184,6 +184,34 @@ it('a Host routine whose model read fails says the models could not be read', as
     await act(async () => root.render(<Harness />))
     await act(async () => useMachineCataloguesStore.getState().load(MOCK_HOST_ID))
     expect(container.textContent).toBe('Could not read models.')
+  } finally {
+    act(() => root.unmount())
+    useMachineCataloguesStore.setState({ catalogues: {} })
+    vi.unstubAllGlobals()
+  }
+})
+
+it('a Host routine whose model read lists no models says none is signed in, not that the read failed', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const invoke = vi.fn(async (channel: string) =>
+    channel === 'hosts:skills' ? { skills: [], probe: 'rpc', userRoot: 'opaque' } : [],
+  )
+  vi.stubGlobal('phosphor', { invoke })
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  host.capabilities.push('skills.read')
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  function Harness() {
+    return <p>{useRoutineModels(`host:${MOCK_HOST_ID}`).emptyText}</p>
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<Harness />))
+    await act(async () => useMachineCataloguesStore.getState().load(MOCK_HOST_ID))
+    expect(Object.values(useMachineCataloguesStore.getState().catalogues)).toMatchObject([
+      { status: 'ready', models: [] },
+    ])
+    expect(container.textContent).toBe(`No signed-in model on ${machineLabel(MOCK_HOST_ID)}.`)
   } finally {
     act(() => root.unmount())
     useMachineCataloguesStore.setState({ catalogues: {} })
