@@ -5,7 +5,7 @@ import {
   type DraftAttachment,
 } from '@phosphor/shared/models'
 
-import { hostResourceKey } from '@phosphor/shared/remote-host'
+import { remoteLaneResourceKey } from '@phosphor/shared/remote-host'
 
 export const BROWSER_DRAFT_LIMITS = {
   recordBytes: 256 * 1024,
@@ -32,7 +32,7 @@ function key(value: unknown): value is string {
       typeof tuple[3] !== 'string'
     )
       return false
-    return hostResourceKey({ kind: 'remote', hostId: tuple[1] }, 'session', tuple[3]) === value
+    return remoteLaneResourceKey(tuple[1], tuple[3]) === value
   } catch {
     // Invalid JSON/identifiers are refused, never normalized into another draft's identity.
     return false
