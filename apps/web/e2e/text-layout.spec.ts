@@ -69,6 +69,7 @@ test('the Host start composer shows the whole model name when there is room', as
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
+  await expect(page.getByTestId('remote-model-picker')).toBeVisible()
   await page.goto(`${stack.origin}/new/${stack.hostId}`)
   const label = page.getByTestId('remote-model-picker').getByTestId('model-label')
   await expect(label).toContainText('HOST_A_ONLY')
