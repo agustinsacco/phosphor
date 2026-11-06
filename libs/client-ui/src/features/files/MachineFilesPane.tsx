@@ -5,7 +5,12 @@ import { RepositoryFilePreview } from './RepositoryFilePreview'
 import { RemoteFileTree } from './RemoteFileTree'
 import { releaseFileModel } from './MonacoEditor'
 import { useEffect, useState } from 'react'
-import { useHostFiles, useLocalFiles, type MachineFilesSource } from './machineFilesSource'
+import {
+  useHostFiles,
+  useLocalFiles,
+  type MachineFileReads,
+  type MachineFilesSource,
+} from './machineFilesSource'
 
 /**
  * A machine's files, read only: This Mac's (`'local'`) recent folders or a
@@ -24,22 +29,21 @@ function LocalMachineFiles(): React.JSX.Element {
 function HostMachineFiles({ hostId }: { hostId: string }): React.JSX.Element {
   return <MachineFilesView source={useHostFiles(hostId)} />
 }
-/** A repository's files, read again with the source, the repository or readiness; `path` is the one selected. */
-function useMachineFileList(source: MachineFilesSource, repositoryId: string) {
+type Repository = MachineFilesSource['repositories'][number]
+
+/** A repository's files, read again with the reads or the repository; `path` is the one selected. */
+function useMachineFileList(reads: MachineFileReads, repository: Repository | undefined) {
   const [files, setFiles] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [path, setPath] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const ready = source.unavailable === null
-  const repository = source.repositories.find((r) => r.id === repositoryId)
-  const { reads } = source
   useEffect(() => {
     let current = true
-    setLoading(Boolean(ready && repository))
+    setLoading(Boolean(repository))
     setFiles([])
     setPath('')
     setError(null)
-    if (ready && repository)
+    if (repository)
       void reads.list(repository.id).then(
         (result) => {
           if (current) {
@@ -57,26 +61,27 @@ function useMachineFileList(source: MachineFilesSource, repositoryId: string) {
     return () => {
       current = false
     }
-  }, [reads, repository?.id, ready])
+  }, [reads, repository?.id])
   return { files, loading, path, setPath, error }
 }
 
 /** The selected file's contents, and its editor model while the native editor shows it. */
-function useMachineFilePreview(source: MachineFilesSource, repositoryId: string, path: string) {
+function useMachineFilePreview(
+  reads: MachineFileReads,
+  repository: Repository | undefined,
+  path: string,
+) {
   const nativeEditor = usePlatform().fileEditing
   const [reading, setReading] = useState(false)
   const [binary, setBinary] = useState(false)
   const [preview, setPreview] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const ready = source.unavailable === null
-  const repository = source.repositories.find((r) => r.id === repositoryId)
-  const { reads } = source
   useEffect(() => {
     let current = true
     setPreview('')
-    setReading(Boolean(ready && repository && path))
+    setReading(Boolean(repository && path))
     setError(null)
-    if (ready && repository && path)
+    if (repository && path)
       void reads.read(repository.id, path).then(
         (result) => {
           if (current) {
@@ -95,8 +100,8 @@ function useMachineFilePreview(source: MachineFilesSource, repositoryId: string,
     return () => {
       current = false
     }
-  }, [reads, repository?.id, ready, path])
-  const modelPath = path ? reads.modelPath(repositoryId, path) : ''
+  }, [reads, repository?.id, path])
+  const modelPath = repository && path ? reads.modelPath(repository.id, path) : ''
   useEffect(() => {
     if (!modelPath || !nativeEditor) return
     return () => releaseFileModel(modelPath)
@@ -106,8 +111,11 @@ function useMachineFilePreview(source: MachineFilesSource, repositoryId: string,
 
 function MachineFilesView({ source }: { source: MachineFilesSource }): React.JSX.Element {
   const [repositoryId, setRepositoryId] = useState('')
-  const { files, loading, path, setPath, ...list } = useMachineFileList(source, repositoryId)
-  const file = useMachineFilePreview(source, repositoryId, path)
+  // No repository while the machine is unavailable, so neither hook reads.
+  const repository =
+    source.unavailable === null ? source.repositories.find((r) => r.id === repositoryId) : undefined
+  const { files, loading, path, setPath, ...list } = useMachineFileList(source.reads, repository)
+  const file = useMachineFilePreview(source.reads, repository, path)
   const error = list.error ?? file.error
   const { noun } = source
   if (source.unavailable !== null) return <p className="p-4">{source.unavailable}</p>
