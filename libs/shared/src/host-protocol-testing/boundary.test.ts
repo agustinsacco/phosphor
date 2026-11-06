@@ -7,7 +7,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { basename, dirname, join, relative, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import ts from 'typescript'
 import { expect, it } from 'vitest'
@@ -41,6 +41,9 @@ function sources(directory: string): string[] {
   })
 }
 function forbiddenImports(file: string, text: string, kitDirectory = kit): string[] {
+  // Any specifier that reaches the kit from outside it spells the kit's folder name,
+  // so a source without that name needs no syntax tree.
+  if (!text.includes('host-protocol-testing') && !text.includes(basename(kitDirectory))) return []
   if (file.endsWith('.astro')) {
     const frontmatter = /^---[^\S\r\n]*\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
     // A quoted attribute may hold `>`, so the opening tag is read quote by quote.
