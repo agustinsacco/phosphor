@@ -14,14 +14,11 @@ export function RunCommandRow({
   command,
   label = 'Run',
   workspacePath,
-  onRun,
 }: {
   command: string
   label?: string
   /** Spawn cwd fallback for the terminal; omit to disable the play button. */
   workspacePath?: string
-  /** Called after the command is sent (e.g. to retry the failed turn). */
-  onRun?: () => void
 }): React.JSX.Element {
   const [ran, setRan] = useState(false)
 
@@ -31,7 +28,6 @@ export function RunCommandRow({
     void import('@/stores/terminal').then(({ runInTerminal }) =>
       runInTerminal(workspacePath, command, { execute: true }),
     )
-    onRun?.()
   }
 
   return (
