@@ -11,7 +11,7 @@ import { createSessionPathRuntime } from '@phosphor/session-runtime/pi/session-p
 import type { SessionPolicyRuntime } from '@phosphor/session-runtime/pi/session-policy'
 import type { BrainExecutionProfile } from '@phosphor/session-runtime/pi/brain-execution-profile'
 import { brainOwnerFromEntry } from '@phosphor/session-runtime/pi/brain-session-owner'
-import { verifyBrainTools } from './brain-tool-audit'
+import { verifyBrainTools } from '@phosphor/brain-runtime/tool-audit'
 import { assertTranscriptOwnership, plannedTranscriptExists } from '../brain/transcripts'
 
 const entry = process.env.PHOSPHOR_BRAIN_PI_ENTRY

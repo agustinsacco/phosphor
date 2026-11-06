@@ -626,8 +626,9 @@ prompt. Its `phosphor-brain-audit` status contains `{ version: 1, nonce, jobId,
 tools }`. Main requires the nonce, owner and exact `brain_job` / `brain_propose`
 active tool set, plus a `handled` prompt disposition. Every processor tool
 rechecks that active set. Missing, malformed, timed-out or mismatched audits
-fail closed. Processor pushes never enter ordinary lane UI channels; this
-status has no renderer consumer.
+fail closed. The shared verifier lives in `libs/brain-runtime/src/tool-audit.ts`;
+Desktop supplies its client, owned job and audited extension path. Processor
+pushes never enter ordinary lane UI channels; this status has no renderer consumer.
 
 ### The status channel is a wire contract
 

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { verifyBrainTools } from './brain-tool-audit'
+import { verifyBrainTools } from './tool-audit'
 
 const EXTENSION = '/owned/brain-processor.mjs'
 function setup() {

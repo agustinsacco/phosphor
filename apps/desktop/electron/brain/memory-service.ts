@@ -1,8 +1,11 @@
 import { utilityProcess } from 'electron'
-import { createMemoryClient, type DesktopMemoryClient } from './memory-client'
-import type { MemoryResponse } from './memory-protocol'
+import { isAbsolute } from 'node:path'
+import { createMemoryClient, type BrainMemoryClient } from '@phosphor/brain-runtime/memory-client'
+import type { MemoryResponse } from '@phosphor/brain-runtime/memory-protocol'
 
-export function createDesktopMemory(directory: string, workerPath: string): DesktopMemoryClient {
+export function createDesktopMemory(directory: string, workerPath: string): BrainMemoryClient {
+  if (!isAbsolute(directory) || !isAbsolute(workerPath))
+    throw new Error('Brain requires absolute owned resource paths')
   const child = utilityProcess.fork(workerPath, [directory], {
     serviceName: 'Phosphor Brain Database',
     stdio: 'ignore',

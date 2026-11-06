@@ -116,11 +116,25 @@ resume/fork/edit/delete controls refuse its owned transcript.
 ## Storage, retention and forgetting
 
 `libs/memory-engine` owns the SQLite/WAL/FTS5 graph and retained evidence through
-an injected Node `DatabaseSync` port. Desktop runs it in a database utility
-process. `apps/desktop/electron/brain` binds that port, the embedding worker,
-private capability transport and existing session service. `libs/brain-client`
-contains the bounded protocol/client used by the standalone pi extensions.
-There is no new public listener, graph server, scheduler or Python service.
+an injected Node `DatabaseSync` port. `libs/brain-runtime` owns the Node-side
+service, capture, manual processor, tool audit, indexing, private capability
+transport and owned-transcript lifecycle. Its plain `BrainApi` methods have no
+Electron or UI-channel dependency. Storage creation, embeddings and the existing
+session service/registry/path locks are injected ports.
+
+`apps/desktop/electron/brain` only binds Electron utility processes, application
+paths, local provider resolution and shutdown. Desktop IPC maps the unchanged
+`brain:*` channels to the backend API. Native Transformers loading remains in
+the Desktop embedding worker; the portable embedding controller receives its
+worker transport and model loader through ports. `libs/brain-client` contains
+the bounded protocol/client used by the standalone pi extensions.
+
+This separation does not enable Brain on the Host or in the PWA. A future Host
+adapter must supply machine-owned storage/workers and authorized, scoped API
+routing; the browser would use that Host, not run SQLite, native embeddings or
+pi. No data is shared across machines. There is no new public listener, session
+manager, scheduler or Python service. The extraction changes no existing data
+paths, schema, consent defaults or public wire contracts.
 
 Storage is under Electron `userData/brain`: `memory.sqlite`, `evidence/`, owned
 `sessions/`, and `embeddings/`. Initialization is lazy, after userData redirection;

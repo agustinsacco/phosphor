@@ -1,7 +1,33 @@
 import type { BrainInvokeMap } from '@phosphor/shared/brain'
-import type { BrainService } from '../brain/service-types'
-import { bounded } from '../brain/authority'
+import type { BrainApi, BrainService } from '@phosphor/brain-runtime/service-types'
+import { bounded } from '@phosphor/brain-runtime/authority'
 import { handle } from './handle'
+
+type BrainCommands = {
+  [K in keyof BrainInvokeMap]: (
+    ...args: BrainInvokeMap[K]['args']
+  ) => Promise<BrainInvokeMap[K]['result']>
+}
+
+/** The wire vocabulary belongs to Desktop, not the Node backend. */
+function commands(api: BrainApi): BrainCommands {
+  return {
+    'brain:status': api.status,
+    'brain:setPrefs': api.setPrefs,
+    'brain:download': api.download,
+    'brain:removeModel': api.removeModel,
+    'brain:search': api.search,
+    'brain:read': api.read,
+    'brain:evidence': api.evidence,
+    'brain:graph': api.graph,
+    'brain:process': api.process,
+    'brain:cancel': api.cancel,
+    'brain:review': api.review,
+    'brain:correct': api.correct,
+    'brain:forget': api.forget,
+    'brain:transcript': api.transcript,
+  }
+}
 
 /** Desktop review/settings only. Lazy acquisition keeps failed startup retryable. */
 export function registerBrainHandlers(service: BrainService | (() => Promise<BrainService>)): void {
@@ -9,8 +35,8 @@ export function registerBrainHandlers(service: BrainService | (() => Promise<Bra
     channel: K,
     ...args: BrainInvokeMap[K]['args']
   ): Promise<BrainInvokeMap[K]['result']> => {
-    const { ui } = typeof service === 'function' ? await service() : service
-    const method = ui[channel] as (
+    const { api } = typeof service === 'function' ? await service() : service
+    const method = commands(api)[channel] as (
       ...args: BrainInvokeMap[K]['args']
     ) => Promise<BrainInvokeMap[K]['result']>
     return method(...args)
