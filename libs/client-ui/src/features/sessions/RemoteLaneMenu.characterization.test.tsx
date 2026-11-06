@@ -165,3 +165,18 @@ it("opens the Host lane menu's copies and Delete with a separator, as This Mac d
     .map((b) => b.textContent)
   expect(separated).toEqual(['Export HTML…', 'Delete'])
 })
+
+it('offers Lane marker… on a Host lane only while markers are on', async () => {
+  const { useLanePrefsStore } = await import('@/stores/lanePrefs')
+  render(host(true))
+  expect(menuRows().map(([label]) => label)).toContain('Lane marker…')
+  act(() => root.unmount())
+  root = createRoot(container)
+  act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'off' }))
+  try {
+    render(host(true))
+    expect(menuRows().map(([label]) => label)).not.toContain('Lane marker…')
+  } finally {
+    act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'auto' }))
+  }
+})
