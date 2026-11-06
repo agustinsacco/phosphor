@@ -18,7 +18,7 @@ const MODELS: CatalogueModel[] = [
 
 let root: Root
 let el: HTMLDivElement
-let invoke: ReturnType<typeof vi.fn>
+let invoke: ReturnType<typeof vi.fn<(channel: string) => Promise<unknown>>>
 let refresh: ReturnType<typeof vi.fn<() => Promise<void>>>
 
 function catalogue(state: Partial<ReturnType<typeof useModelCatalogueStore.getState>>): void {
