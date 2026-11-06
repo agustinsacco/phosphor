@@ -4,7 +4,14 @@ import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { expect, it } from 'vitest'
+import { ESLint } from 'eslint'
 import { BRAIN_EXTENSION_SOURCES, buildBrainExtensions } from './build-brain-extensions.mjs'
+
+it('lints source extensions, not their generated standalone bundles', async () => {
+  const lint = new ESLint()
+  expect(await lint.isPathIgnored('libs/pi-extensions/brain-ext/brain.mjs')).toBe(true)
+  expect(await lint.isPathIgnored('libs/pi-extensions/pi-ext/brain.ts')).toBe(false)
+})
 
 it('names the pi-ext sources that ship only as bundles', () => {
   expect(BRAIN_EXTENSION_SOURCES).toEqual(['brain.ts', 'brain-processor.ts'])
