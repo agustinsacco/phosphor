@@ -15,9 +15,23 @@ const connectorConfig = unsupported(
   'Connector configuration and credentials belong to the Host or Desktop.',
 )
 const hostFilesOnly = unsupported('Browser file access goes through Host reads and writes only.')
+const localBrain = unsupported('Brain is a local Desktop prototype; remote access is unavailable.')
 
 /** Every new IPC channel requires an explicit browser admission decision. */
 export const IPC_WEB = {
+  'brain:status': localBrain,
+  'brain:setPrefs': localBrain,
+  'brain:download': localBrain,
+  'brain:removeModel': localBrain,
+  'brain:search': localBrain,
+  'brain:read': localBrain,
+  'brain:graph': localBrain,
+  'brain:process': localBrain,
+  'brain:cancel': localBrain,
+  'brain:review': localBrain,
+  'brain:correct': localBrain,
+  'brain:forget': localBrain,
+  'brain:transcript': localBrain,
   'hosts:tailscaleStatus': native,
   'hosts:models': remote,
   'hosts:claude': remote,

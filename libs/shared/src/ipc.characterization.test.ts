@@ -33,7 +33,9 @@ import type {
   BaselineClipboardInvokeMap,
   BaselineWritingInvokeMap,
 } from './ipc/services.test'
-type BaselineInvokeMap = BaselineHostsInvokeMap &
+import type { BaselineBrainInvokeMap } from './ipc/brain.test'
+type BaselineInvokeMap = BaselineBrainInvokeMap &
+  BaselineHostsInvokeMap &
   BaselineAppInvokeMap &
   BaselinePiInvokeMap &
   BaselineClaudeInvokeMap &
@@ -65,6 +67,19 @@ it('freezes every invoke key without a string index signature', () => {
   }>()
 })
 const baselineScope = {
+  'brain:status': 'app',
+  'brain:setPrefs': 'app',
+  'brain:download': 'app',
+  'brain:removeModel': 'app',
+  'brain:search': 'app',
+  'brain:read': 'app',
+  'brain:graph': 'app',
+  'brain:process': 'app',
+  'brain:cancel': 'app',
+  'brain:review': 'app',
+  'brain:correct': 'app',
+  'brain:forget': 'app',
+  'brain:transcript': 'app',
   'hosts:tailscaleStatus': 'app',
   'hosts:models': 'machine',
   'hosts:claude': 'machine',
