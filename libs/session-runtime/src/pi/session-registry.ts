@@ -96,7 +96,7 @@ export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
     // Keep ownership visible until exit. A concurrent delete must not trash a
     // file while an earlier dispose is still waiting for its writer to stop.
     const operation = Promise.resolve().then(async () => {
-      await invalidateSessionInput(session)
+      if (session.memoryInput) await invalidateSessionInput(session)
       await session.client.dispose()
       this.sessions.delete(sessionId)
       this.emit('disposed', { sessionId })
