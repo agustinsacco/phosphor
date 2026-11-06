@@ -24,19 +24,15 @@ function LocalMachineFiles(): React.JSX.Element {
 function HostMachineFiles({ hostId }: { hostId: string }): React.JSX.Element {
   return <MachineFilesView source={useHostFiles(hostId)} />
 }
-function MachineFilesView({ source }: { source: MachineFilesSource }): React.JSX.Element {
-  const nativeEditor = usePlatform().fileEditing
-  const [repositoryId, setRepositoryId] = useState('')
+/** A repository's files, read again with the source, the repository or readiness; `path` is the one selected. */
+function useMachineFileList(source: MachineFilesSource, repositoryId: string) {
   const [files, setFiles] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
-  const [reading, setReading] = useState(false)
-  const [binary, setBinary] = useState(false)
-  const [preview, setPreview] = useState('')
   const [path, setPath] = useState('')
   const [error, setError] = useState<string | null>(null)
   const ready = source.unavailable === null
   const repository = source.repositories.find((r) => r.id === repositoryId)
-  const { reads, noun } = source
+  const { reads } = source
   useEffect(() => {
     let current = true
     setLoading(Boolean(ready && repository))
@@ -62,6 +58,19 @@ function MachineFilesView({ source }: { source: MachineFilesSource }): React.JSX
       current = false
     }
   }, [reads, repository?.id, ready])
+  return { files, loading, path, setPath, error }
+}
+
+/** The selected file's contents, and its editor model while the native editor shows it. */
+function useMachineFilePreview(source: MachineFilesSource, repositoryId: string, path: string) {
+  const nativeEditor = usePlatform().fileEditing
+  const [reading, setReading] = useState(false)
+  const [binary, setBinary] = useState(false)
+  const [preview, setPreview] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const ready = source.unavailable === null
+  const repository = source.repositories.find((r) => r.id === repositoryId)
+  const { reads } = source
   useEffect(() => {
     let current = true
     setPreview('')
@@ -92,7 +101,16 @@ function MachineFilesView({ source }: { source: MachineFilesSource }): React.JSX
     if (!modelPath || !nativeEditor) return
     return () => releaseFileModel(modelPath)
   }, [modelPath, nativeEditor])
-  if (!ready) return <p className="p-4">{source.unavailable}</p>
+  return { nativeEditor, reading, binary, preview, modelPath, error }
+}
+
+function MachineFilesView({ source }: { source: MachineFilesSource }): React.JSX.Element {
+  const [repositoryId, setRepositoryId] = useState('')
+  const { files, loading, path, setPath, ...list } = useMachineFileList(source, repositoryId)
+  const file = useMachineFilePreview(source, repositoryId, path)
+  const error = list.error ?? file.error
+  const { noun } = source
+  if (source.unavailable !== null) return <p className="p-4">{source.unavailable}</p>
   return (
     <section className="flex h-full flex-col gap-3 p-4" aria-label="Machine files">
       <h2 className="font-medium">
@@ -122,12 +140,12 @@ function MachineFilesView({ source }: { source: MachineFilesSource }): React.JSX
           detail={(back) => (
             <RepositoryFilePreview
               back={back}
-              nativeEditor={nativeEditor}
+              nativeEditor={file.nativeEditor}
               path={path}
-              resourcePath={modelPath}
-              preview={preview}
-              reading={reading}
-              binary={binary}
+              resourcePath={file.modelPath}
+              preview={file.preview}
+              reading={file.reading}
+              binary={file.binary}
             />
           )}
         />
