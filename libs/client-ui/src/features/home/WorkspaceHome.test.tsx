@@ -102,7 +102,7 @@ it('down and capability-lost composer targets stay remote on submit', async () =
   )
   expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('unavailable')
   click('Send draft')
-  expect(container.textContent).toContain('Not available on remote lanes yet.')
+  expect(container.textContent).toContain('This Host does not offer lanes to this device.')
   expect(startChat).not.toHaveBeenCalled()
   expect(useDraftsStore.getState().drafts[homeDraftKey('/ws')]?.text).toBe('Keep my draft')
 })
@@ -193,3 +193,46 @@ it('keeps the Host home and its machine picker when the composer picks This Mac�
   expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain(MOCK_HOST_ID)
   expect(container.textContent).toContain('Send draft')
 })
+
+it('keeps Host home A when the composer picks Host B while This Mac shows its setup', async () => {
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  useRemoteLanesStore.setState({
+    filter: MOCK_HOST_ID,
+    hosts: { [MOCK_HOST_ID]: host, 'host-b': structuredClone(host) },
+  })
+  const setup = <p>This Mac setup</p>
+  await act(async () => root.render(<WorkspaceHome workspacePath="" localSetup={setup} />))
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label=Machine]')!.click())
+  click('host-b')
+  expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('host-b')
+  const homes = [...container.querySelectorAll('section[aria-label="Host home"] h2')]
+  expect(homes.map((h) => h.textContent)).toEqual([MOCK_HOST_ID])
+  expect(container.textContent).not.toContain('This Mac setup')
+})
+
+it.each(['local', 'all'])(
+  'the %s home that shows This Mac’s setup puts the composer’s machine picker above it',
+  async (filter) => {
+    const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+    useRemoteLanesStore.setState({ filter, hosts: { [MOCK_HOST_ID]: host } })
+    const setup = <p>This Mac setup</p>
+    await act(async () => root.render(<WorkspaceHome workspacePath="" localSetup={setup} />))
+    const picker = container.querySelector<HTMLButtonElement>('[aria-label=Machine]')
+    const shown = [...container.querySelectorAll('p')].find(
+      (p) => p.textContent === 'This Mac setup',
+    )
+    expect(picker).not.toBeNull()
+    expect(picker!.textContent).toContain('This computer')
+    expect(
+      shown && picker!.compareDocumentPosition(shown) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    act(() => picker!.click())
+    click(MOCK_HOST_ID)
+    expect(container.textContent).not.toContain('This Mac setup')
+    const homes = [...container.querySelectorAll('section[aria-label="Host home"] h2')]
+    expect(homes.map((h) => h.textContent)).toEqual([MOCK_HOST_ID])
+    expect(container.textContent).toContain('Send draft')
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label=Machine]')!.click())
+    expect(container.querySelector('[role=listbox]')?.className).toContain('bottom-full')
+  },
+)

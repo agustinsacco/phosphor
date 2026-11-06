@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'typescript' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
 import { entryPath, trashEntry } from './fileActions'
 import { useFilesStore } from '@/stores/files'

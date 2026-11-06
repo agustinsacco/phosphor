@@ -24,9 +24,15 @@ export function needsNewerHost(subject: string): string {
   return `${subject} a newer Host. ${HOST_TOO_OLD}`
 }
 
-/** A ready Host that does not grant this device `capability`, in the words both shells show. */
-export function featureNotOffered(capability: GrantedCapability): string {
-  return `This Host does not offer ${FEATURE_NAMES[capability]} to this device.`
+/**
+ * A ready Host that does not grant this device `capability`, in the words both shells show.
+ * `feature` names what the reader shows when it is narrower than the grant (models, under skills).
+ */
+export function featureNotOffered(
+  capability: GrantedCapability,
+  feature = FEATURE_NAMES[capability],
+): string {
+  return `This Host does not offer ${feature} to this device.`
 }
 
 /**
@@ -37,8 +43,9 @@ export function featureNotOffered(capability: GrantedCapability): string {
 export function hostFeatureRefusal(
   host: Pick<HostConnectionView, 'state' | 'capabilities'> | undefined,
   capability: GrantedCapability,
+  feature?: string,
 ): string | undefined {
   if (host?.state !== 'ready') return REMOTE_NOT_READY
   if (host.capabilities.includes(capability)) return undefined
-  return featureNotOffered(capability)
+  return featureNotOffered(capability, feature)
 }

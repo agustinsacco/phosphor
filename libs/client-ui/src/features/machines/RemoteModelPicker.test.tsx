@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/features/chat/composer/ComposerInput', () => ({
   ComposerInput: ({
     onSubmit,

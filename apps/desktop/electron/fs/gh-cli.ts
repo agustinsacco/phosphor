@@ -7,10 +7,7 @@ import {
 import { piProcessEnv } from '../pi/shell-env'
 import { createGithubReader } from '@phosphor/session-runtime/git/github-reader'
 import { runGithubCommand } from '@phosphor/session-runtime/git/github-command'
-import {
-  ghCommitTree as commitTree,
-  ghMergedPrHeads as mergedPrHeads,
-} from '@phosphor/session-runtime/git/branch-landed'
+import { githubEvidence } from '@phosphor/session-runtime/git/branch-landed'
 import type { GhPrReadOptions } from '@shared/models'
 
 const reader = createGithubReader({
@@ -69,6 +66,4 @@ export const ghPrForBranch = (repoPath: string, branch: string) => queryBranch(g
 export const ghPrsForRepo = (repoPath: string, limit = 100) => queryRepo(gh, repoPath, limit)
 
 /** Read-only merge evidence; callers must also prove the local branch is covered. */
-export const ghMergedPrHeads = (repoPath: string, branch: string) =>
-  mergedPrHeads(gh, repoPath, branch)
-export const ghCommitTree = (repoPath: string, oid: string) => commitTree(gh, repoPath, oid)
+export const ghEvidence = (repoPath: string) => githubEvidence(gh, repoPath)

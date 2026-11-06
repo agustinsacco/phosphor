@@ -21,6 +21,16 @@ it('keeps local skills unchanged and gates remote lane reads', async () => {
   useRemoteLanesStore.setState({ hosts: structuredClone(mockRemoteHosts) })
   await useSkillsStore.getState().refresh(workspace)
   expect(invoke).not.toHaveBeenCalled()
+  expect(useSkillsStore.getState().error[workspace]).toBe(
+    'This Host does not offer skills to this device.',
+  )
+  const hosts = structuredClone(mockRemoteHosts)
+  hosts[MOCK_HOST_ID]!.state = 'down'
+  useRemoteLanesStore.setState({ hosts })
+  await useSkillsStore.getState().refresh(workspace)
+  expect(useSkillsStore.getState().error[workspace]).toBe(
+    'Machine not connected. Wait for reconnection.',
+  )
 })
 it('ignores stale lane skills after reconnect instead of replacing the inventory', async () => {
   invoke.mockImplementation(async () => {

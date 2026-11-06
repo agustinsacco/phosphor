@@ -20,7 +20,7 @@ vi.hoisted(() =>
     value: () => ({ matches: false, addEventListener: () => {} }),
   }),
 )
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 let root: Root
 let container: HTMLDivElement
 let fake: ReturnType<typeof createFakePhosphor>

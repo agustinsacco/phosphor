@@ -3,7 +3,7 @@ import type { LoginFlowState, SubscriptionProviderStatus } from '@shared/models'
 import { errorText } from '@shared/errors'
 import { readLocalSubscriptionAuth } from '@/stores/localSubscriptionAuth'
 import type { ProviderAccountsSource } from './accountsModel'
-import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
+import { useLocalRead } from '../../machine/ScopeRefresh'
 
 /** Has this sign-in stopped, for better or worse? */
 const isFlowEnded = (state: LoginFlowState): boolean =>
@@ -45,10 +45,7 @@ export function useLocalProviders(): ProviderAccountsSource {
       setLoadError(errorText(caught))
     }
   }, [])
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-  useOnLocalRefresh(refresh)
+  useLocalRead(refresh)
   useEffect(
     () =>
       window.phosphor.onPiLoginState((state) => {

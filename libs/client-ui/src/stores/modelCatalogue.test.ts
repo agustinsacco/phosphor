@@ -220,3 +220,17 @@ describe('catalogueEmptyText', () => {
     expect(catalogueEmptyText('error', [])).toContain('Could not read')
   })
 })
+
+it("shares its sign-in read with This Mac's other readers", async () => {
+  const signedIn = [{ id: 'anthropic', name: 'Anthropic', status: 'ready' }]
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'pi:catalogueModels') return { models: [MODEL], source: 'pi' }
+    if (channel === 'pi:subscriptionAuth') return signedIn
+    throw new Error(`unexpected channel ${channel}`)
+  })
+  const { useModelCatalogueStore } = await import('./modelCatalogue')
+  const { lastLocalSubscriptionAuth } = await import('./localSubscriptionAuth')
+  await useModelCatalogueStore.getState().refresh()
+  expect(await lastLocalSubscriptionAuth()).toEqual(signedIn)
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'pi:subscriptionAuth')).toHaveLength(1)
+})

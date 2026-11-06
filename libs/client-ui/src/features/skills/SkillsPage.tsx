@@ -17,6 +17,7 @@ import { useSkillsStore } from '@/stores/skills'
 import { promptChoice } from '@/stores/prompt'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
+import { hostIdOfPath } from '@phosphor/shared/remote-host'
 import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
 import { PaneTitle } from '@/components/PaneShell'
@@ -112,11 +113,10 @@ const SkillsInventory = memo(function SkillsInventory({
   machinePicker: ReactNode
   catalogue: ReactNode
 }): React.JSX.Element {
-  const remote = workspacePath.startsWith('host:')
+  const hostId = hostIdOfPath(workspacePath)
+  const remote = hostId !== undefined
   const refusal = useRemoteLanesStore((s) =>
-    remote
-      ? hostFeatureRefusal(s.hosts[workspacePath.slice(5).split('/')[0] ?? ''], 'skills.read')
-      : undefined,
+    remote ? hostFeatureRefusal(s.hosts[hostId], 'skills.read') : undefined,
   )
   const result = useSkillsStore((s) => s.byWorkspace[workspacePath])
   const loading = useSkillsStore((s) => s.loading[workspacePath] ?? false)
@@ -146,7 +146,7 @@ const SkillsInventory = memo(function SkillsInventory({
         <div className="flex items-center gap-1.5">
           {machinePicker}
           {remote ? (
-            <span>Read-only</span>
+            <span>Read only</span>
           ) : (
             <>
               <Button size="sm" onClick={() => void pickImport()}>

@@ -53,6 +53,51 @@ interface CodeBlockProps {
   /** While the fence is still open we show plain mono (no flicker). */
   streaming?: boolean
   actions?: React.ReactNode
+  /** False in a file preview: no Open as artifact and no Run in terminal, as This Mac's viewer. */
+  chatActions?: boolean
+}
+
+/** The chat's own code-block actions: Open as artifact and, for shell code, Run in terminal. */
+function ChatCodeActions({
+  code,
+  language,
+}: {
+  code: string
+  language: string
+}): React.JSX.Element {
+  const platform = usePlatform()
+  return (
+    <>
+      <TooltipButton
+        title="Open as artifact"
+        onClick={() => void promoteToArtifact(code, language)}
+        className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-sm transition-colors"
+      >
+        <ArtifactsIcon size={12} />
+      </TooltipButton>
+      {platform.terminal && SHELL_LANGUAGES.has(language.toLowerCase()) && (
+        <TooltipButton
+          title="Run in terminal (pastes, doesn't execute)"
+          onClick={() => {
+            const workspacePath = getActiveWorkspace()
+            if (workspacePath) void runInTerminal(workspacePath, code)
+          }}
+          className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-sm transition-colors"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="m5 7 5 5-5 5M13 17h6" />
+          </svg>
+        </TooltipButton>
+      )}
+    </>
+  )
 }
 
 export const CodeBlock = memo(function CodeBlock({
@@ -60,8 +105,8 @@ export const CodeBlock = memo(function CodeBlock({
   language,
   streaming = false,
   actions,
+  chatActions = true,
 }: CodeBlockProps): React.JSX.Element {
-  const platform = usePlatform()
   const [html, setHtml] = useState<string | null>(null)
   const requestRef = useRef(0)
 
@@ -98,34 +143,7 @@ export const CodeBlock = memo(function CodeBlock({
         </span>
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/code:opacity-100">
           {actions}
-          <TooltipButton
-            title="Open as artifact"
-            onClick={() => void promoteToArtifact(code, language)}
-            className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-sm transition-colors"
-          >
-            <ArtifactsIcon size={12} />
-          </TooltipButton>
-          {platform.terminal && SHELL_LANGUAGES.has(language.toLowerCase()) && (
-            <TooltipButton
-              title="Run in terminal (pastes, doesn't execute)"
-              onClick={() => {
-                const workspacePath = getActiveWorkspace()
-                if (workspacePath) void runInTerminal(workspacePath, code)
-              }}
-              className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-sm transition-colors"
-            >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="m5 7 5 5-5 5M13 17h6" />
-              </svg>
-            </TooltipButton>
-          )}
+          {chatActions && <ChatCodeActions code={code} language={language} />}
           <CopyButton text={code} />
         </div>
       </div>

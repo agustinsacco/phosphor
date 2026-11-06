@@ -2,12 +2,10 @@ import { lazy, Suspense, useState } from 'react'
 import clsx from 'clsx'
 import { isTextPreview, previewKindForPath } from '@shared/file-kinds'
 import { TooltipButton } from '@/components/Tooltip'
-import type { PendingReveal } from '@/stores/files'
+import type { FileView, PendingReveal } from '@/stores/files'
 
 // The renderers bring the markdown stack and the theme store; a Files pane loads them on use.
 const TextFileRender = lazy(() => import('./TextFileRender'))
-
-export type FileView = 'preview' | 'source'
 
 /** The Preview | Source switch for a file that is both text and renderable. */
 export function ViewTabs({

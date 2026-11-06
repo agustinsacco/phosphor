@@ -10,8 +10,18 @@ import { mockRemoteInfo, mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteL
 import { PlatformProvider, COMPACT_PLATFORM } from '@/platform/Platform'
 
 vi.mock('@/components/markdown/CodeBlock', () => ({
-  CodeBlock: ({ code, language }: { code: string; language: string }) => (
-    <pre data-language={language}>{code}</pre>
+  CodeBlock: ({
+    code,
+    language,
+    chatActions,
+  }: {
+    code: string
+    language: string
+    chatActions?: boolean
+  }) => (
+    <pre data-language={language} data-chat-actions={String(chatActions ?? true)}>
+      {code}
+    </pre>
   ),
 }))
 
@@ -111,4 +121,9 @@ it.each(['site/page.html', 'art/logo.svg'])('renders %s in the sandboxed frame',
   )
   expect(container.querySelector('iframe')?.getAttribute('data-html')).toContain(source)
   expect(button(container, 'Preview')?.getAttribute('aria-pressed')).toBe('true')
+})
+
+it("shows a lane's file without the chat code block's actions", async () => {
+  const container = await openFromChat('scripts/setup.sh')
+  expect(container.querySelector('pre')?.getAttribute('data-chat-actions')).toBe('false')
 })

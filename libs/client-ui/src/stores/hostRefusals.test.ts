@@ -20,6 +20,12 @@ it('names a missing feature in words, never its capability id', () => {
   expect(hostFeatureRefusal(ready, 'artifacts.read')).not.toContain('artifacts.read')
 })
 
+it('names what a model reader shows, not the skills grant behind it', () => {
+  expect(hostFeatureRefusal(ready, 'skills.read', 'models')).toBe(
+    'This Host does not offer models to this device.',
+  )
+})
+
 it('refuses nothing a ready Host offers', () => {
   expect(hostFeatureRefusal(ready, 'sessions.read')).toBeUndefined()
 })

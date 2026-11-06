@@ -1,9 +1,5 @@
-import {
-  REMOTE_NOT_READY,
-  REMOTE_UNAVAILABLE,
-  useRemoteLanesStore,
-  useActiveMachine,
-} from '@/stores/remoteLanes'
+import { useRemoteLanesStore, useActiveMachine } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { SessionLaneLocation } from '@/features/machines/LaneLocation'
 import { TooltipButton } from '@/components/Tooltip'
@@ -114,17 +110,12 @@ function MachineFilesButton({
   toggle: () => void
 }): React.JSX.Element {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const reason =
-    host?.state !== 'ready'
-      ? REMOTE_NOT_READY
-      : !host.capabilities.includes('workspaces.read')
-        ? REMOTE_UNAVAILABLE
-        : null
+  const reason = hostFeatureRefusal(host, 'workspaces.read')
   return (
     <TooltipButton
       title={reason ?? 'Files pane'}
       aria-label="Files pane"
-      disabled={reason !== null}
+      disabled={reason !== undefined}
       onClick={toggle}
       className={clsx(
         'titlebar-no-drag flex h-7 w-7 shrink-0 items-center justify-center rounded-md',

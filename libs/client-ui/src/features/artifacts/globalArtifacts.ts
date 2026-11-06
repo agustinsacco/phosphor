@@ -3,6 +3,7 @@ import type { HostsSnapshot } from '@shared/ipc'
 import type { ArtifactListing } from '@shared/artifacts'
 import { normalizeArtifactType, type Artifact } from '@/stores/artifacts'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
+import { hostIdOfPath } from '@phosphor/shared/remote-host'
 
 /**
  * The global Artifacts page's rows: the artifact store's listing, merged with
@@ -134,8 +135,8 @@ function foldForks(rows: Array<{ row: GlobalArtifactRow; revision: string }>): G
 
 /** Why a stored artifact's Host cannot show it now, or undefined when it can. */
 export function storedArtifactRefusal(key: string, hosts: HostsSnapshot): string | undefined {
-  if (!key.startsWith('host:')) return undefined
-  return hostFeatureRefusal(hosts[key.slice(5).split('/')[0] ?? ''], 'artifacts.read')
+  const hostId = hostIdOfPath(key)
+  return hostId === undefined ? undefined : hostFeatureRefusal(hosts[hostId], 'artifacts.read')
 }
 
 export function canViewStoredArtifact(key: string, hosts: HostsSnapshot): boolean {

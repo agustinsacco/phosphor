@@ -25,7 +25,7 @@ vi.hoisted(() => {
     }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./sections/agent', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   LocalAgent: () => <p>Local agent controls</p>,

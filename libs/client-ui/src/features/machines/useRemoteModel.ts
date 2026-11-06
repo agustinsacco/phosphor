@@ -15,9 +15,9 @@ import {
   machineCatalogueKey,
   EMPTY_MACHINE_CATALOGUE,
 } from '@/stores/machineCatalogues'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import {
   useRemoteLanesStore,
-  REMOTE_NOT_READY,
   hostReconnecting,
   REMOTE_UNAVAILABLE,
   machineLabel,
@@ -56,13 +56,12 @@ export function useRemoteModel(hostId: string) {
   const missingModel = host?.state === 'ready' && catalogue.status === 'ready' && !model
   const hint = hostReconnecting(host?.state)
     ? 'Connecting…'
-    : host?.state !== 'ready'
-      ? REMOTE_NOT_READY
-      : missingModel
+    : (hostFeatureRefusal(host, 'skills.read', 'models') ??
+      (missingModel
         ? `No signed-in model on ${machineLabel(hostId)}.`
         : catalogue.status === 'loading'
           ? 'Loading models…'
-          : REMOTE_UNAVAILABLE
+          : REMOTE_UNAVAILABLE))
   return {
     hostId,
     missingModel,

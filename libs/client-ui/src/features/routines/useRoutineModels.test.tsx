@@ -135,3 +135,31 @@ it('preserves local catalogue discovery and refresh for Desktop routines', async
     vi.unstubAllGlobals()
   }
 })
+
+it.each([
+  ['down', 'Machine not connected. Wait for reconnection.'],
+  ['without skills.read', 'This Host does not offer models to this device.'],
+] as const)('a Host routine on a Host %s says why it has no models', async (which, refusal) => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const invoke = vi.fn(async () => [])
+  vi.stubGlobal('phosphor', { invoke })
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  if (which === 'down') {
+    host.state = 'down'
+    host.capabilities.push('skills.read')
+  }
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  function Harness() {
+    return <p>{useRoutineModels(`host:${MOCK_HOST_ID}`).emptyText}</p>
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<Harness />))
+    expect(container.textContent).toBe(refusal)
+    expect(invoke).not.toHaveBeenCalled()
+  } finally {
+    act(() => root.unmount())
+    vi.unstubAllGlobals()
+  }
+})

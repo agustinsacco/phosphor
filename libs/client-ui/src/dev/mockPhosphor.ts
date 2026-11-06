@@ -990,6 +990,15 @@ export function installMockPhosphor(): void {
             path: ['/Users/dev/.local/bin', '/opt/homebrew/bin', '/usr/bin', '/bin'],
             agentDir: '/Users/dev/.pi/agent',
           })
+        case 'app:about':
+          return Promise.resolve({
+            appVersion: '0.0.0-dev',
+            electron: 'n/a',
+            chrome: 'n/a',
+            node: 'n/a',
+            platform: api.platform,
+            arch: 'arm64',
+          })
         case 'app:getPrefs':
           return Promise.resolve({
             theme: DEFAULT_APP_PREFS.theme,

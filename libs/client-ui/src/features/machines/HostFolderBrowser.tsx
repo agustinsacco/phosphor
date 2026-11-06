@@ -3,13 +3,8 @@ import type { HostConnectionView, IpcInvokeMap } from '@shared/ipc'
 import { ModalOverlay, ModalPanel, useEscapeKey } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { fixedRefusal, isFolderName } from '@shared/host-protocol-repositories'
-import { needsNewerHost } from '@/stores/hostRefusals'
-import {
-  useRemoteLanesStore,
-  machineLabel,
-  REMOTE_NOT_READY,
-  REMOTE_UNAVAILABLE,
-} from '@/stores/remoteLanes'
+import { hostFeatureRefusal, needsNewerHost } from '@/stores/hostRefusals'
+import { useRemoteLanesStore, machineLabel, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 
 /** Inline name entry; its own Escape cancels the name, not the whole dialog. */
@@ -179,7 +174,7 @@ export function HostFolderBrowser({
             </Button>
           </div>
           {!available ? (
-            <p role="alert">{host?.state !== 'ready' ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}</p>
+            <p role="alert">{hostFeatureRefusal(host, 'workspaces.write')}</p>
           ) : (
             <div className="border-border max-h-72 min-h-40 overflow-y-auto rounded-md border">
               {naming && (

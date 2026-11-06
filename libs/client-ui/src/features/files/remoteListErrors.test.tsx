@@ -8,7 +8,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteInfo, mockRemoteHosts } from '@/dev/mockRemoteLanes'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
   MonacoEditor: () => null,
@@ -18,6 +18,8 @@ vi.mock('./MonacoEditor', () => ({
 const TOO_MANY = 'Too many files to list: the Host stops at 20,000.'
 const FAILED = "The Host couldn't list this folder."
 const UNAVAILABLE = 'Not available on remote lanes yet.'
+const NOT_LISTED = 'Could not read files.'
+const NOT_READ = 'Could not read this file.'
 const hostId = mockRemoteInfo.target?.kind === 'remote' ? mockRemoteInfo.target.hostId : ''
 const repositoryId = '1234567890abcdef'
 /** What Electron's IPC makes of an Error thrown in main. */
@@ -67,8 +69,8 @@ it.each([
   [ipcError('fs:listFiles', TOO_MANY), TOO_MANY],
   [ipcError('fs:listFiles', FAILED), FAILED],
   [new Error(FAILED), FAILED],
-  [ipcError('fs:listFiles', UNAVAILABLE), UNAVAILABLE],
-  [ipcError('fs:listFiles', '/private/host/output'), UNAVAILABLE],
+  [ipcError('fs:listFiles', UNAVAILABLE), NOT_LISTED],
+  [ipcError('fs:listFiles', '/private/host/output'), NOT_LISTED],
 ])('the lane Files pane names a failed listing: %s', async (error, shown) => {
   failListing('fs:listFiles', error)
   await act(async () =>
@@ -87,7 +89,7 @@ it.each([
 it.each([
   [ipcError('hosts:repositoryFiles', TOO_MANY), TOO_MANY],
   [ipcError('hosts:repositoryFiles', FAILED), FAILED],
-  [ipcError('hosts:repositoryFiles', '/private/host/output'), UNAVAILABLE],
+  [ipcError('hosts:repositoryFiles', '/private/host/output'), NOT_LISTED],
 ])('Machine files names a failed listing: %s', async (error, shown) => {
   failListing('hosts:repositoryFiles', error)
   await act(async () => root.render(<MachineFilesPane hostId={hostId} />))
@@ -98,5 +100,50 @@ it.each([
     select.dispatchEvent(new Event('change', { bubbles: true }))
   })
   expect(container.querySelector('[role="alert"]')?.textContent).toBe(shown)
+  expect(container.textContent).not.toContain('/private')
+})
+
+function failReading(listChannel: string, readChannel: string): void {
+  vi.stubGlobal('phosphor', {
+    invoke: vi.fn(async (called: string) => {
+      if (called === listChannel) return ['a.ts']
+      if (called === 'git:statusMap') return {}
+      if (called === readChannel) throw ipcError(readChannel, '/private/host/output')
+      throw new Error(`Unexpected channel ${called}`)
+    }),
+    onSessionPush: () => () => {},
+  })
+}
+
+const fileButton = () =>
+  [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('a.ts'))
+
+it("the lane Files pane names a failed read in This Mac's words", async () => {
+  failReading('fs:listFiles', 'fs:readFile')
+  await act(async () =>
+    root.render(
+      <RemoteFilesPane
+        workspacePath={mockRemoteInfo.workspacePath}
+        sessionId={mockRemoteInfo.sessionId}
+        changes={false}
+      />,
+    ),
+  )
+  await act(async () => fileButton()?.click())
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe(NOT_READ)
+  expect(container.textContent).not.toContain('/private')
+})
+
+it("Machine files names a failed read in This Mac's words", async () => {
+  failReading('hosts:repositoryFiles', 'hosts:repositoryFile')
+  await act(async () => root.render(<MachineFilesPane hostId={hostId} />))
+  const select = container.querySelector('select')
+  if (!select) throw new Error('missing select')
+  await act(async () => {
+    select.value = repositoryId
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await act(async () => fileButton()?.click())
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe(NOT_READ)
   expect(container.textContent).not.toContain('/private')
 })

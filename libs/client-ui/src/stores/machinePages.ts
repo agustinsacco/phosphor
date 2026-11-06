@@ -18,7 +18,7 @@ export function openMachinePage(page: GlobalPage, machine: string | null): void 
   if (page === 'skills') useMachinePagesStore.setState({ skillsMachine: machine })
   if (page === 'routines')
     useMachinePagesStore.setState({
-      routinesMachine: machine === null ? '' : machine === 'local' ? 'local' : `host:${machine}`,
+      routinesMachine: machine === null ? '' : routineScope(machine),
     })
   if (page === 'artifacts') useMachinePagesStore.setState({ artifactsMachine: machine ?? '' })
   useLayoutStore.getState().setPage(page)
@@ -33,6 +33,13 @@ useRemoteLanesStore.subscribe((state, previous) => {
       artifactsMachine: '',
     })
 })
+
+/** The routines scope of a machine: `'local'` and `'all'` as they are, a Host id as `host:<id>`. */
+export function routineScope(machine: string): string {
+  return machine === 'local' || machine === 'all' || machine.startsWith('host:')
+    ? machine
+    : `host:${machine}`
+}
 
 export function pageMachine(filter: string, override: string | null, all = false): string {
   return override || (filter === 'all' ? (all ? 'all' : 'local') : filter)

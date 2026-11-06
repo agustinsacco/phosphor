@@ -10,12 +10,14 @@ const mocks = vi.hoisted(() => ({
   page: null,
   setRightPane: vi.fn(),
   dismissToast: vi.fn(),
+  machines: [] as { id: string; platform: string }[],
 }))
 vi.mock('@/stores/sessions', () => ({ useSessionsStore: { getState: () => mocks } }))
 vi.mock('@/stores/layout', () => ({ useLayoutStore: { getState: () => mocks } }))
 vi.mock('@/stores/extensionUi', () => ({ useExtensionUiStore: { getState: () => mocks } }))
 vi.mock('@/stores/machines', () => ({
-  useMachinesStore: (selector: (s: { machines: [] }) => unknown) => selector({ machines: [] }),
+  useMachinesStore: (selector: (s: { machines: typeof mocks.machines }) => unknown) =>
+    selector({ machines: mocks.machines }),
 }))
 const toast = (): Toast => ({
   id: 1,
@@ -51,6 +53,7 @@ afterEach(() => {
   vi.clearAllMocks()
   mocks.activeSessionId = 'lane'
   mocks.page = null
+  mocks.machines = []
 })
 it('renders receipt facts and hides empty facts independently', async () => {
   const root = createRoot(container)
@@ -134,4 +137,12 @@ it('waits for navigation, changes only the destination, skips failures, and Retr
   await openReceiptAction(t, 'retry')
   expect(document.activeElement).toBe(composer)
   composer.remove()
+})
+
+it("names a Host's platform in words, Windows included", async () => {
+  mocks.machines = [{ id: 'host-1', platform: 'win32' }]
+  const t = toast()
+  t.receipt = { ...t.receipt!, machine: 'bee1', machineId: 'host-1' }
+  await act(async () => createRoot(container).render(<LaneReceiptCard toast={t} />))
+  expect(container.textContent).toContain('bee1 · Windows')
 })

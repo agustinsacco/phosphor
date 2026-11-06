@@ -8,8 +8,18 @@ vi.mock('./MonacoEditor', () => ({
   MonacoEditor: ({ language }: { language: string }) => <textarea data-language={language} />,
 }))
 vi.mock('@/components/markdown/CodeBlock', () => ({
-  CodeBlock: ({ code, language }: { code: string; language: string }) => (
-    <pre data-language={language}>{code}</pre>
+  CodeBlock: ({
+    code,
+    language,
+    chatActions,
+  }: {
+    code: string
+    language: string
+    chatActions?: boolean
+  }) => (
+    <pre data-language={language} data-chat-actions={String(chatActions ?? true)}>
+      {code}
+    </pre>
   ),
 }))
 
@@ -45,3 +55,22 @@ it.each([
     )
   },
 )
+
+it("shows a browser file preview without the chat code block's actions", async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const container = document.createElement('div')
+  root = createRoot(container)
+  await act(async () =>
+    root!.render(
+      <RepositoryFilePreview
+        nativeEditor={false}
+        path="scripts/setup.sh"
+        resourcePath="host:bee/repository:r/scripts/setup.sh"
+        preview="rm -rf build"
+        reading={false}
+        binary={false}
+      />,
+    ),
+  )
+  expect(container.querySelector('pre')?.getAttribute('data-chat-actions')).toBe('false')
+})

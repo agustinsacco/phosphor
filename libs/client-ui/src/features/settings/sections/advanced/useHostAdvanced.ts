@@ -1,5 +1,4 @@
-import { MIN_PI_VERSION } from '@shared/models'
-import { isNewerVersion } from '@shared/version'
+import { isPiTooOld, MIN_PI_VERSION } from '@shared/models'
 import { useHostSection } from '../../machine/HostSection'
 import type { AdvancedSource, PiFacts } from './source'
 
@@ -10,7 +9,7 @@ const CAPS = { rawFiles: false, maintenance: false } as const
  * check holds it. A Host that could not read its version is not judged.
  */
 function hostPi(pi: { version?: string; path: string }): PiFacts {
-  const tooOld = pi.version !== undefined && isNewerVersion(MIN_PI_VERSION, pi.version)
+  const tooOld = pi.version !== undefined && isPiTooOld(pi.version)
   return {
     ok: !tooOld,
     version: pi.version,

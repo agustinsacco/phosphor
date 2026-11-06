@@ -13,7 +13,7 @@ import { HOST_SETTINGS_PLATFORM } from './__fixtures__/hostSettingsSurface'
 import { SettingsSurface } from './SettingsSurface'
 import { useSettingsUiStore, type SettingsTab } from './settingsUiStore'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/stores/prompt', () => ({
   promptChoice: vi.fn(async () => undefined),
   promptText: vi.fn(),

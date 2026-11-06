@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   HOST_CAPABILITIES,
   HOST_PROTOCOL_VERSION,
+  hostIdOfPath,
   hostResourceKey,
   remoteLaneKey,
   validateHostHello,
@@ -162,4 +163,21 @@ describe('remoteLaneKey', () => {
   it('spells a Host lane as host:<hostId>/lane:<laneId>', () => {
     expect(remoteLaneKey('h-1', 'lane-7')).toBe('host:h-1/lane:lane-7')
   })
+})
+
+describe('hostIdOfPath', () => {
+  it.each([
+    ['host:h-1/lane:lane-7', 'h-1'],
+    ['host:h-1/machine/skills', 'h-1'],
+    ['host:h-1', 'h-1'],
+  ])('reads the Host id of %s', (path, hostId) => {
+    expect(hostIdOfPath(path)).toBe(hostId)
+  })
+
+  it.each(['/Users/me/repo', 'remote-abc', 'host:', 'host:/x', ''])(
+    'is undefined for %j, which names no Host',
+    (path) => {
+      expect(hostIdOfPath(path)).toBeUndefined()
+    },
+  )
 })

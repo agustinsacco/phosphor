@@ -4,9 +4,8 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MarkdownLink } from './MarkdownLink'
 
-// The files store imports `languageForPath` eagerly, and the real module pulls
-// in monaco-editor's worker entry points, which vitest cannot resolve.
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'markdown', peekMonaco: () => null }))
+// The real module pulls in monaco-editor's worker entry points, which vitest cannot resolve.
+vi.mock('@/lib/monaco', () => ({ peekMonaco: () => null }))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: () => {} }))
 import { sessionPanes, useLayoutStore } from '@/stores/layout'
 import { useFilesStore, workspaceFiles } from '@/stores/files'

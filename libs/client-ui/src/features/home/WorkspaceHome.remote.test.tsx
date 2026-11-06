@@ -313,7 +313,7 @@ it.each(['down', 'capability'] as const)(
     }))
     await render()
     expect(el.textContent).toContain(
-      state === 'down' ? 'Machine not connected' : 'Not available on remote lanes yet.',
+      state === 'down' ? 'Machine not connected' : 'This Host does not offer lanes to this device.',
     )
     expect(el.textContent).not.toContain('Mac-only lane')
     expect(el.textContent).not.toContain('Remote demo lane')
