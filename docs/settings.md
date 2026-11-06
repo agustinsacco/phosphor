@@ -110,7 +110,8 @@ is `settingsUiStore.folder` (null is the whole machine); it resets when the dial
 opens, when the browser page is entered and when another machine is chosen. Views
 read it and never render a scope switch of their own. The line ends with one
 **Refresh** on every machine (`ScopeRefresh`), which reads the open section again: on
-This Mac each section's own read (`useLocalRead`; Subagents and Computer use
+This Mac each section's own read (`useLocalRead`, or `useOnLocalRefresh` where a
+loader makes the first read; Subagents and Computer use
 read nothing there, so it changes nothing), on a Host its settings read once
 configuration access is granted, or for Folders the link's folders.
 
