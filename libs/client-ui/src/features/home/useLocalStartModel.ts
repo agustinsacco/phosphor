@@ -64,16 +64,11 @@ export function useLocalStartModel({
       setProvider(model.provider)
       setModelId(model.id)
       onPick?.({ provider: model.provider, id: model.id })
-      void window.phosphor.invoke('pi:patchAgentSettings', 'global', undefined, {
-        defaultProvider: model.provider,
-        defaultModel: model.id,
-      })
+      patchPiDefaults({ defaultProvider: model.provider, defaultModel: model.id })
     },
     setThinking: (level) => {
       setThinking(level)
-      void window.phosphor.invoke('pi:patchAgentSettings', 'global', undefined, {
-        defaultThinkingLevel: level,
-      })
+      patchPiDefaults({ defaultThinkingLevel: level })
     },
     // Opening the picker is when the list matters, so a degraded one gets one
     // more attempt at pi. Cheap: main serves a good answer from its cache and
@@ -114,22 +109,30 @@ function usePiDefaults(override: ModelPick | undefined) {
     // Usually a no-op — App hydrates this at boot, well before the home
     // screen renders. It stays here so the picker still works if it does not.
     void useModelCatalogueStore.getState().hydrate()
-    void window.phosphor.invoke('pi:agentSettings').then((settings) => {
-      const defaultThinking = settings.defaultThinkingLevel
-      // An override (a restored draft's model) has already been applied.
-      if (!override) {
-        if (typeof settings.defaultProvider === 'string') setProvider(settings.defaultProvider)
-        if (typeof settings.defaultModel === 'string') setModelId(settings.defaultModel)
-      }
-      if (
-        typeof defaultThinking === 'string' &&
-        ALL_THINKING_LEVELS.includes(defaultThinking as ThinkingLevel)
-      ) {
-        setThinking(defaultThinking as ThinkingLevel)
-      }
-    })
+    void window.phosphor
+      .invoke('pi:agentSettings')
+      .then((settings) => {
+        const defaultThinking = settings.defaultThinkingLevel
+        // An override (a restored draft's model) has already been applied.
+        if (!override) {
+          if (typeof settings.defaultProvider === 'string') setProvider(settings.defaultProvider)
+          if (typeof settings.defaultModel === 'string') setModelId(settings.defaultModel)
+        }
+        if (
+          typeof defaultThinking === 'string' &&
+          ALL_THINKING_LEVELS.includes(defaultThinking as ThinkingLevel)
+        ) {
+          setThinking(defaultThinking as ThinkingLevel)
+        }
+      })
+      .catch(() => undefined)
   }, [])
   return { provider, modelId, thinking, setProvider, setModelId, setThinking }
+}
+
+/** A failed write keeps the pick on screen; the next session reads pi's file as it is. */
+function patchPiDefaults(patch: Record<string, unknown>): void {
+  window.phosphor.invoke('pi:patchAgentSettings', 'global', undefined, patch).catch(() => undefined)
 }
 
 /** The chip's words: a pick pi cannot run, or a catalogue only models.json fed, warns. */
