@@ -165,7 +165,9 @@ async function listSessionsInDir(dir: string): Promise<SessionMeta[]> {
     }
   }
 
-  return metas.filter((m): m is SessionMeta => m !== null).sort(compareSessionsByCreation)
+  return metas
+    .filter((m): m is SessionMeta => m !== null && !m.brainOwner)
+    .sort(compareSessionsByCreation)
 }
 
 /**
