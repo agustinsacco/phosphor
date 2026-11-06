@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   registry: {},
   sessions: {},
   paths: {},
+  openStore: vi.fn(),
   packaged: false,
 }))
 vi.mock('electron', () => ({
@@ -29,10 +30,11 @@ vi.mock('../pi/session-runtime', () => ({
   setSessionMemory: state.setMemory,
 }))
 vi.mock('../pi/session-path-lock', () => ({ sessionPaths: state.paths }))
-vi.mock('../pi/brain-tool-audit', () => ({ verifyBrainTools: state.audit }))
+vi.mock('@phosphor/brain-runtime/tool-audit', () => ({ verifyBrainTools: state.audit }))
 vi.mock('../debug-log', () => ({ log: state.log }))
 vi.mock('./embedding-service', () => ({ createBrainEmbeddings: state.embeds }))
-vi.mock('./service', () => ({ createBrainService: state.factory }))
+vi.mock('@phosphor/brain-runtime/service', () => ({ createBrainService: state.factory }))
+vi.mock('./memory-service', () => ({ createDesktopMemory: state.openStore }))
 vi.mock('./processor-resolver', () => ({ resolveBrainProcessor: vi.fn() }))
 beforeEach(() => {
   vi.resetModules()
@@ -42,7 +44,7 @@ beforeEach(() => {
   state.dispose.mockReset().mockResolvedValue(undefined)
   state.embeds.mockReturnValue({ dispose: state.stopEmbeddings })
   state.factory.mockReset().mockResolvedValue({
-    ui: {},
+    api: {},
     memory: { prepare: state.prepare },
     dispose: state.dispose,
   })
@@ -65,8 +67,14 @@ it('is lazy, shares the real session service and locks, and closes before furthe
         workingExtension: '/repo/libs/pi-extensions/brain-ext/brain.mjs',
         processorExtension: '/repo/libs/pi-extensions/brain-ext/brain-processor.mjs',
       },
-      memoryWorkerPath: expect.stringMatching(/brain-memory-worker\.js$/),
+      openStore: expect.any(Function) as unknown,
     }),
+  )
+  const options = state.factory.mock.calls[0]![0] as { openStore(directory: string): unknown }
+  options.openStore('/profile/brain')
+  expect(state.openStore).toHaveBeenCalledWith(
+    '/profile/brain',
+    expect.stringMatching(/brain-memory-worker\.js$/),
   )
   expect(state.embeds).toHaveBeenCalledWith(
     expect.objectContaining({ directory: '/profile/brain/embeddings' }),

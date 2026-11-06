@@ -3,10 +3,11 @@ import { join } from 'node:path'
 import { registry } from '../registry'
 import { desktopSessions, setSessionMemory } from '../pi/session-runtime'
 import { sessionPaths } from '../pi/session-path-lock'
-import { verifyBrainTools } from '../pi/brain-tool-audit'
+import { verifyBrainTools } from '@phosphor/brain-runtime/tool-audit'
 import { log } from '../debug-log'
 import { createBrainEmbeddings } from './embedding-service'
-import { createBrainService, type BrainService } from './service'
+import { createBrainService, type BrainService } from '@phosphor/brain-runtime/service'
+import { createDesktopMemory } from './memory-service'
 import { resolveBrainProcessor } from './processor-resolver'
 
 let pending: Promise<BrainService> | undefined
@@ -36,7 +37,8 @@ async function construct(): Promise<BrainService> {
     return await createBrainService({
       directory,
       embeddings,
-      memoryWorkerPath: join(import.meta.dirname, 'brain-memory-worker.js'),
+      openStore: (directory) =>
+        createDesktopMemory(directory, join(import.meta.dirname, 'brain-memory-worker.js')),
       resources: { workingExtension: join(resources, 'brain-ext/brain.mjs'), processorExtension },
       sessions: desktopSessions,
       registry,

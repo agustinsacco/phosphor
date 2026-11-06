@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
 import type { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
-import { BRAIN_PROCESSOR_TOOLS } from '@shared/brain'
-import type { ExtensionUIRequest, PiEvent } from '@shared/rpc'
+import { BRAIN_PROCESSOR_TOOLS } from '@phosphor/shared/brain'
+import type { ExtensionUIRequest, PiEvent } from '@phosphor/shared/rpc'
 import { BRAIN_AUDIT_COMMAND, BRAIN_AUDIT_STATUS_KEY } from '@phosphor/pi-extensions/status-keys'
 
 type AuditClient = Pick<PiRpcClient, 'request' | 'on' | 'off'>

@@ -83,12 +83,17 @@ Bulk source tests retain all >200 inputs and assertions, with explicit 30-second
 timeouts for hundreds of fsync operations; ordinary test timeouts are unchanged.
 
 ```bash
-node_modules/.bin/vitest run libs/memory-engine libs/brain-client \
+node_modules/.bin/vitest run libs/memory-engine libs/brain-client libs/brain-runtime \
   apps/desktop/electron/brain libs/session-runtime/src/pi --maxWorkers=2
 npm run build
 node_modules/.bin/playwright test --config apps/desktop/playwright.config.ts brain.spec.ts
 node_modules/.bin/playwright test --config apps/web/playwright.config.ts browser.spec.ts -g Brain
 ```
+
+`libs/brain-runtime` contains the portable service/embedding suites. Its boundary
+test rejects Electron/app imports and checks plain-Node bundle loading without
+opening storage, starting pi or loading a model. Desktop retains tests for its
+utility-process bindings, lazy lifecycle and unchanged IPC-to-backend mapping.
 
 The Desktop cases exercise the real DB worker, default-off settings, separate
 consent, persistence and Host/All boundaries. Browser checks cover compact/wide

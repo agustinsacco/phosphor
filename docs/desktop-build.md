@@ -19,7 +19,7 @@ explicitly rebuilds node-pty for Electron and repeats that repair.
 Root has no node-pty, Electron or Electron rebuild lifecycle of its own.
 Failures in the nested app install propagate to the root install.
 
-The root lock includes the seven private source-library workspaces.
+The root lock includes the eight private source-library workspaces.
 Nonnative JavaScript dependencies remain in the root installation for portable
 library tests as well as in Desktop. Desktop, Control, Web and the site keep independent
 installations and lockfiles; this is bounded library consolidation, not one

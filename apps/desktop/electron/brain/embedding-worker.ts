@@ -1,5 +1,8 @@
-import type { FromEmbeddingWorker, ToEmbeddingWorker } from './embedding-protocol'
-import { createEmbeddingWorkerHandler } from './embedding-worker-handler'
+import type {
+  FromEmbeddingWorker,
+  ToEmbeddingWorker,
+} from '@phosphor/brain-runtime/embedding/embedding-protocol'
+import { createEmbeddingWorkerHandler } from '@phosphor/brain-runtime/embedding/embedding-worker-handler'
 
 /**
  * Entry of the Brain embedding utility process (`utilityProcess.fork`, see

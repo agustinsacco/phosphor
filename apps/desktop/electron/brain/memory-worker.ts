@@ -1,7 +1,7 @@
 import { openMemoryStore } from '@phosphor/memory-engine/service'
 import { loadSqlite } from '@phosphor/session-runtime/sqlite'
-import { createMemoryHandler } from './memory-worker-handler'
-import type { MemoryRequest } from './memory-protocol'
+import { createMemoryHandler } from '@phosphor/brain-runtime/memory-worker-handler'
+import type { MemoryRequest } from '@phosphor/brain-runtime/memory-protocol'
 
 const port = process.parentPort
 if (!port) throw new Error('Brain database requires a utility-process parent')

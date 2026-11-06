@@ -1,11 +1,20 @@
 import { availableParallelism } from 'node:os'
 import { utilityProcess } from 'electron'
 import { log } from '../debug-log'
-import type { EmbeddingProcess } from './embedding-client'
-import { createEmbeddingController } from './embedding-controller'
-import type { BrainEmbeddingOptions, BrainEmbeddings } from './embedding-port'
-import type { FromEmbeddingWorker, ToEmbeddingWorker } from './embedding-protocol'
-import { embeddingPlatformSupported, embeddingThreads } from './model-manifest'
+import type { EmbeddingProcess } from '@phosphor/brain-runtime/embedding/embedding-client'
+import { createEmbeddingController } from '@phosphor/brain-runtime/embedding/embedding-controller'
+import type {
+  BrainEmbeddingOptions,
+  BrainEmbeddings,
+} from '@phosphor/brain-runtime/embedding/embedding-port'
+import type {
+  FromEmbeddingWorker,
+  ToEmbeddingWorker,
+} from '@phosphor/brain-runtime/embedding/embedding-protocol'
+import {
+  embeddingPlatformSupported,
+  embeddingThreads,
+} from '@phosphor/brain-runtime/embedding/model-manifest'
 
 /**
  * Brain's local embeddings, bound to Electron. Nothing here loads the native
