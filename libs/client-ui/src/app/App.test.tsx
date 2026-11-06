@@ -12,6 +12,13 @@ import { useDraftsStore } from '@/stores/drafts'
 import { useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
+import {
+  openRestoreWorktree,
+  openSidebarConversation,
+  useRestoreWorktree,
+  useSavedConversation,
+} from '@/features/sessions/completionActions'
+import type { SessionMeta } from '@shared/models'
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -60,6 +67,12 @@ vi.mock('@/features/files/MachineFilesPane', () => ({
   ),
 }))
 vi.mock('@/features/sessions/Sidebar', () => ({ Sidebar: () => null }))
+vi.mock('@/features/sessions/SavedConversationModal', () => ({
+  SavedConversationModal: () => <div>Saved conversation dialog</div>,
+}))
+vi.mock('@/features/sessions/RestoreWorktreeModal', () => ({
+  RestoreWorktreeModal: () => <div>Restore worktree dialog</div>,
+}))
 vi.mock('@/features/sessions/BulkDeleteModal', () => ({ BulkDeleteProgressPopover: () => null }))
 vi.mock('@/features/skills/SkillsPage', () => ({ SkillsPage: () => null }))
 vi.mock('@/features/routines/RoutinesPage', () => ({ RoutinesPage: () => null }))
@@ -283,4 +296,28 @@ it('restores the last session only after the recommendations that follow a pi in
     await act(async () => button(container, 'Recommendations done')?.click())
     expect(createSession).toHaveBeenCalledWith('/mac', { sessionPath: '/mac/last.jsonl' })
   })
+})
+
+it('shows the saved-conversation and restore-worktree dialogs while the sidebar is hidden', async () => {
+  stubApi({ ok: true, version: '1.2.0' })
+  useWorkspacesStore.setState({ homePath: '/mac' })
+  const meta = { path: '/s/gone.jsonl', cwd: '/mac/gone', worktreeRemoved: true } as SessionMeta
+  const container = document.createElement('div'),
+    root = createRoot(container)
+  document.body.append(container)
+  try {
+    await act(async () => root.render(<App />))
+    // What This Mac's lane preview and a completion notification call for a worktree-removed lane.
+    await act(async () => openSidebarConversation('/mac', meta))
+    await vi.waitFor(() => expect(container.textContent).toContain('Saved conversation dialog'))
+    await act(async () => openRestoreWorktree('/mac', meta))
+    await vi.waitFor(() => expect(container.textContent).toContain('Restore worktree dialog'))
+  } finally {
+    useSavedConversation.setState({ meta: null })
+    useRestoreWorktree.setState({ target: null })
+    act(() => root.unmount())
+    container.remove()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  }
 })
