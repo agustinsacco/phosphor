@@ -8,6 +8,11 @@ interface AccountRow {
   plan?: string
 }
 
+/** A cooldown holds while its end is still ahead; a missing or past one holds nothing. */
+export function holdActive(until: number | null | undefined, nowMs: number): until is number {
+  return until !== null && until !== undefined && until > nowMs
+}
+
 /**
  * The account a session spends, as every surface describes it: This Mac's
  * session runtime (`claude:sessionAccount`) and a Host lane's switcher, from the
@@ -25,7 +30,7 @@ export function claudeSessionAccount(
   if (!account) return null
   const hold = (id: string): number | null => {
     const until = holdUntil(id)
-    return until !== null && until !== undefined && until > nowMs ? until : null
+    return holdActive(until, nowMs) ? until : null
   }
   const other = accounts.find((a) => a.id !== account.id && hold(a.id) === null)
   return {

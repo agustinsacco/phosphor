@@ -11,6 +11,7 @@
  * "ordered" means *start* on the first account that is not exhausted, not fail
  * over mid-turn — a session that hits its limit is a session the user restarts.
  */
+import { holdActive } from '@shared/claude-session-account'
 import type { ClaudeAccount, ClaudeAccountPrefs, ClaudeAuthStatus } from '@shared/models'
 
 /**
@@ -110,8 +111,7 @@ export function isCoolingDown(
   accountId: string,
   nowMs: number,
 ): boolean {
-  const until = prefs.cooldowns[accountId]
-  return until !== undefined && until > nowMs
+  return holdActive(prefs.cooldowns[accountId], nowMs)
 }
 
 /**
@@ -189,6 +189,6 @@ export function pruneCooldowns(
   nowMs: number,
 ): Record<string, number> {
   return Object.fromEntries(
-    Object.entries(cooldowns).filter(([id, until]) => knownIds.has(id) && until > nowMs),
+    Object.entries(cooldowns).filter(([id, until]) => knownIds.has(id) && holdActive(until, nowMs)),
   )
 }
