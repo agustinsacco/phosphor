@@ -345,7 +345,13 @@ it('isolates branch-tagged evidence before lexical, vector and relationship reca
     entryId: 'mixed',
     rootIds: ['other-root'],
   })!
-  const proposal = extraction(source.id)
+  const freshFeature = store.capture({
+    ...input,
+    branch: 'feature',
+    entryId: 'fresh-feature',
+    rootIds: ['fresh-feature-root'],
+  })!
+  const proposal = extraction(freshFeature.id)
   proposal.claims[0]!.summary = 'Mixed branch report'
   proposal.claims[0]!.citations.push({ evidenceId: mixed.id, quote: 'Alice owns Project' })
   process(store, '/a', proposal)
@@ -433,8 +439,12 @@ it('enforces one processor copy per job, exposes no forgotten transcript path, a
 })
 it('bounds snapshot and graph outputs explicitly, with truncation, while retaining authoritative counts', () => {
   const { store } = fixture()
-  const source = store.capture(input)!
   for (let batch = 0; batch < 3; batch++) {
+    const source = store.capture({
+      ...input,
+      entryId: `batch-${batch}`,
+      rootIds: [`batch-root-${batch}`],
+    })!
     const entities = Array.from({ length: 100 }, (_, index) => ({
       key: `key-${index}`,
       label: `Entity ${batch}-${index}`,
