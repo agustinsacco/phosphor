@@ -59,3 +59,37 @@ it('rejects oversized processor transcript input', async () => {
   await writeFile(path, 'x'.repeat(2_000_001))
   await expect(readOwnedTranscript(path, 'job', sessionDir)).rejects.toThrow('Unsafe')
 })
+it('keeps unsafe missing-parent and symlink-parent purge records pending', async () => {
+  const f = await adapterFixture()
+  cleanup.push(f.cleanup)
+  const sessionDir = join(f.directory, 'sessions')
+  await mkdir(sessionDir)
+  const job = f.engine.claimJob(f.engine.createJob(f.scope, f.model, f.snapshot.policyEpoch).id)
+  const path = join(sessionDir, 'missing-parent', 'missing.jsonl')
+  f.engine.updateJob(job.id, job.fence, { sessionPath: path })
+  f.engine.forget([f.evidence.id])
+  const transcripts = createBrainTranscripts(f.options, f.store, sessionDir, async () => {})
+  await transcripts.purge()
+  expect(f.engine.pendingPurges()).toHaveLength(1)
+  await symlink(f.root, join(sessionDir, 'missing-parent'))
+  await transcripts.purge()
+  expect(f.engine.pendingPurges()).toHaveLength(1)
+})
+it('accepts only real nested parents for a missing planned leaf and checks ownership once it exists', async () => {
+  const f = await adapterFixture()
+  cleanup.push(f.cleanup)
+  const sessionDir = join(f.directory, 'sessions')
+  const parent = join(sessionDir, 'nested')
+  await mkdir(parent, { recursive: true })
+  const path = join(parent, 'buffered.jsonl')
+  await expect(readOwnedTranscript(path, 'job', sessionDir)).rejects.toThrow('not been written yet')
+  await writeFile(
+    path,
+    '{"type":"custom","customType":"phosphor-brain-owner","data":{"kind":"brain","jobId":"foreign"}}\n',
+  )
+  await expect(readOwnedTranscript(path, 'job', sessionDir)).rejects.toThrow('ownership')
+  await symlink(parent, join(sessionDir, 'alias'))
+  await expect(
+    readOwnedTranscript(join(sessionDir, 'alias', 'missing.jsonl'), 'job', sessionDir),
+  ).rejects.toThrow('Unsafe')
+})

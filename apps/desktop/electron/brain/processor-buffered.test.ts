@@ -178,3 +178,23 @@ it.each([
   expect(f.engine.job(job.id).sessionPath).toBeNull()
   expect(f.client.request.mock.calls.some(([command]) => command.type === 'prompt')).toBe(false)
 })
+it('rechecks registry ownership after the audited hook before admitting buffered entries', async () => {
+  const f = await fixture()
+  vi.mocked(f.options.processor.verifyTools).mockImplementation(async (live) => {
+    live.owner = { kind: 'brain', jobId: 'foreign' }
+  })
+  const job = await f.start()
+  await vi.waitFor(() => expect(f.engine.job(job.id).state).toBe('failed'))
+  expect(f.engine.job(job.id).sessionPath).toBeNull()
+  expect(f.client.request.mock.calls.some(([command]) => command.type === 'prompt')).toBe(false)
+})
+it('accepts repeated matching live owner markers without requiring a persisted file', async () => {
+  const f = await fixture()
+  f.setEntries([marker('matching'), marker('matching')])
+  const job = await f.start()
+  await vi.waitFor(() =>
+    expect(f.client.request.mock.calls.some(([command]) => command.type === 'prompt')).toBe(true),
+  )
+  expect(f.engine.job(job.id).sessionPath).toBe(f.path)
+  await expect(readFile(f.path)).rejects.toMatchObject({ code: 'ENOENT' })
+})
