@@ -248,6 +248,14 @@
       "types": "./src/pi/session-service.ts",
       "default": "./src/pi/session-service.ts"
     },
+    "./pi/session-input": {
+      "types": "./src/pi/session-input.ts",
+      "default": "./src/pi/session-input.ts"
+    },
+    "./pi/session-memory": {
+      "types": "./src/pi/session-memory.ts",
+      "default": "./src/pi/session-memory.ts"
+    },
     "./pi/session-startup": {
       "types": "./src/pi/session-startup.ts",
       "default": "./src/pi/session-startup.ts"
