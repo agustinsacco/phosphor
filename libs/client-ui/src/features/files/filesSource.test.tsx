@@ -5,7 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { hostLaneSession, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { useHostFilesSource, useLocalFilesSource, type FilesSource } from './filesSource'
+import { useHostFilesSource, localFilesSource, type FilesSource } from './filesSource'
 
 afterEach(() => {
   useRemoteLanesStore.setState({ hosts: {} })
@@ -40,7 +40,7 @@ const update = (change: (host: NonNullable<ReturnType<typeof current>>) => objec
 const current = () => useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]
 
 it('This Mac’s folder is a watched tree with every feature and no refusal', () => {
-  expect(useLocalFilesSource('/repo')).toEqual({
+  expect(localFilesSource('/repo')).toEqual({
     workspacePath: '/repo',
     unavailable: null,
     writeRefusal: null,
