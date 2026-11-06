@@ -94,10 +94,7 @@ export function RemoteRepositoryGroup({
             collapsed={collapsed}
             className={controlClass}
             onCollapse={setCollapsed}
-            onSelect={(mode) => {
-              if (mode !== 'clear') setCollapsed(false)
-              selection.select(mode)
-            }}
+            onSelect={selection.select}
           />
         )}
         {available && <NewLaneButton hostId={hostId} group={group} className={controlClass} />}
@@ -135,7 +132,12 @@ export function useRemoteLaneOrder(hostId: string, lanes: HostLaneView[]): HostL
 function useFolderCollapse(groupKey: string): [boolean, (collapsed: boolean) => void] {
   useEffect(ensureSidebarPrefs, [])
   const collapsed = useGroupCollapse((s) => s.collapsed?.[groupKey] ?? false)
-  return [collapsed, (next) => setGroupCollapsed(groupKey, next)]
+  return [
+    collapsed,
+    (next) => {
+      if (next !== collapsed) setGroupCollapsed(groupKey, next)
+    },
+  ]
 }
 
 interface FolderRowsSelection {
