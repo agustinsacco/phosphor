@@ -9,7 +9,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { usePromptStore } from '@/stores/prompt'
 import { FilesChangedPane } from './FilesChangedPane'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({ MonacoDiff: () => null }))
 const invoke = vi.fn()
 let root: Root

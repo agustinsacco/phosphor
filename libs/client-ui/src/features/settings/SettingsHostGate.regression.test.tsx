@@ -23,7 +23,7 @@ vi.hoisted(() => {
     }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/stores/prompt', () => ({
   promptChoice: vi.fn(async () => undefined),
   promptText: vi.fn(),

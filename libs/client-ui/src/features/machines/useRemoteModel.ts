@@ -8,15 +8,16 @@ import {
 } from '@/stores/remoteModelPicks'
 import type { ThinkingLevel } from '@shared/rpc'
 import type { MachineModel } from '@shared/host-protocol-machine'
-import { ALL_THINKING_LEVELS, clampThinkingLevel } from '@shared/thinking'
+import { clampThinkingLevel } from '@shared/thinking'
+import { piStartDefaults } from '@/features/home/useLocalStartModel'
 import {
   useMachineCataloguesStore,
   machineCatalogueKey,
   EMPTY_MACHINE_CATALOGUE,
 } from '@/stores/machineCatalogues'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import {
   useRemoteLanesStore,
-  REMOTE_NOT_READY,
   hostReconnecting,
   REMOTE_UNAVAILABLE,
   machineLabel,
@@ -55,13 +56,12 @@ export function useRemoteModel(hostId: string) {
   const missingModel = host?.state === 'ready' && catalogue.status === 'ready' && !model
   const hint = hostReconnecting(host?.state)
     ? 'Connecting…'
-    : host?.state !== 'ready'
-      ? REMOTE_NOT_READY
-      : missingModel
+    : (hostFeatureRefusal(host, 'skills.read', 'models') ??
+      (missingModel
         ? `No signed-in model on ${machineLabel(hostId)}.`
         : catalogue.status === 'loading'
           ? 'Loading models…'
-          : REMOTE_UNAVAILABLE
+          : REMOTE_UNAVAILABLE))
   return {
     hostId,
     missingModel,
@@ -98,13 +98,12 @@ function useDesktopDefaults(hostId: string, generation: number) {
       .invoke('pi:agentSettings')
       .then((settings) => {
         if (!current) return
-        const thinking =
-          ALL_THINKING_LEVELS.find((level) => level === settings.defaultThinkingLevel) ?? 'off'
-        const model =
-          typeof settings.defaultProvider === 'string' && typeof settings.defaultModel === 'string'
-            ? { provider: settings.defaultProvider, id: settings.defaultModel }
-            : undefined
-        setDefaults({ model, thinking })
+        const { provider, model, thinking = 'off' } = piStartDefaults(settings)
+        setDefaults({
+          model:
+            provider !== undefined && model !== undefined ? { provider, id: model } : undefined,
+          thinking,
+        })
       })
       .catch(() => undefined)
     return () => {

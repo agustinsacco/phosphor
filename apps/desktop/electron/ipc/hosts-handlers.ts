@@ -6,6 +6,7 @@ import { registerHostSettingsHandlers } from './host-settings-handlers'
 import { uploadAttachments } from '../hosts/attachments'
 import { routeRemoteWrite } from '../hosts/write-features'
 import type { SessionPush } from '@shared/models'
+import { hostIdOfPath } from '@phosphor/shared/remote-host'
 import { app, BrowserWindow, Notification } from 'electron'
 import { hostname } from 'node:os'
 import { accountUserId, onAccountChange } from '../account'
@@ -203,7 +204,7 @@ export function registerHostsHandlers(): void {
     if (channel === 'gh:prsForRepo' && typeof key === 'string' && key.startsWith('host:'))
       return { result: repositories.pullRequests(key, args[1]) }
     if (typeof key === 'string' && /^host:[^/]+\/machine(?:\/|$)/.test(key))
-      return routeRemoteRead(channel, args, () => catalogues.lane(key.slice(5).split('/')[0] ?? ''))
+      return routeRemoteRead(channel, args, () => catalogues.lane(hostIdOfPath(key) ?? ''))
     if (
       channel === 'artifacts:forSession' &&
       typeof key === 'string' &&

@@ -9,7 +9,7 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mixedRemoteHosts } from '@/dev/mockRemoteLanes'
 import { mockSettingsRead } from '@/dev/mockMachineSettings'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -101,6 +101,18 @@ it("holds a Host's pi to the minimum This Mac's is held to (B19)", async () => {
   expect(text).not.toContain('v1.1.9')
 })
 
+it("passes a Host's prerelease pi at the minimum, as the Host's own gate does (settings F1)", async () => {
+  hostRead = (hostId, section) => {
+    const read = mockSettingsRead(hostId, section as never)
+    if (read.advanced?.pi) read.advanced.pi.version = `${MIN_PI_VERSION}-rc.1`
+    return read
+  }
+  await showHostSettings(root, machine.id, 'advanced')
+  const text = container.textContent ?? ''
+  expect(text).toContain(`v${MIN_PI_VERSION}-rc.1`)
+  expect(text).not.toContain('too-old')
+})
+
 it("shows This Mac's own version and update where a Host shows its own (B23)", async () => {
   await showHostSettings(root, 'local', 'advanced')
   await act(async () => {})
@@ -126,35 +138,40 @@ it('names the platform the same way on This Mac and on a Host', async () => {
   expect(container.textContent).toContain('Linux')
 })
 
-it("keeps This Mac's update row when its version cannot be read", async () => {
-  const about = invoke.getMockImplementation()!
-  invoke.mockImplementation(async (channel: string, hostId?: string, section?: string) => {
-    if (channel === 'app:about') throw new Error('no about')
-    return about(channel, hostId, section)
+/** Runs `run` while `channel` rejects, then answers it again. */
+async function withFailing(channel: string, run: () => Promise<void>): Promise<void> {
+  const answer = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (name: string, hostId?: string, section?: string) => {
+    if (name === channel) throw new Error(`no ${channel}`)
+    return answer(name, hostId, section)
   })
   try {
+    await run()
+  } finally {
+    invoke.mockImplementation(answer)
+  }
+}
+
+it("keeps This Mac's update row when its version cannot be read", () =>
+  withFailing('app:about', async () => {
     await showHostSettings(root, 'local', 'advanced')
     await act(async () => {})
     const text = container.textContent ?? ''
     expect(text).toContain('Phosphor updates')
     expect(text).toContain('Phosphor version')
     expect(text).toContain('unknown')
-  } finally {
-    invoke.mockImplementation(about)
-  }
-})
+  }))
 
-it('says in About that the version is unknown when the app cannot report it', async () => {
-  const about = invoke.getMockImplementation()!
-  invoke.mockImplementation(async (channel: string, hostId?: string, section?: string) => {
-    if (channel === 'app:about') throw new Error('no about')
-    return about(channel, hostId, section)
-  })
-  try {
+it('says in About that the version is unknown when the app cannot report it', () =>
+  withFailing('app:about', async () => {
     await showHostSettings(root, 'local', 'about')
     await act(async () => {})
     expect(container.textContent).toMatch(/Phosphor version\s*unknown/)
-  } finally {
-    invoke.mockImplementation(about)
-  }
-})
+  }))
+
+it("says in About that pi's version is unknown when the health check fails", () =>
+  withFailing('pi:health', async () => {
+    await showHostSettings(root, 'local', 'about')
+    await act(async () => {})
+    expect(container.textContent).toMatch(/pi version\s*unknown/)
+  }))

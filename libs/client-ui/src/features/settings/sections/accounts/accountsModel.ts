@@ -104,7 +104,7 @@ export interface ClaudeAccountsSource {
   moveLane: (laneId: string, accountId: string) => Promise<void>
   /** Why lanes cannot be restarted or moved from here, when they cannot. */
   moveBlocked?: string | null
-  openLane?: (laneId: string) => void
+  openLane: (laneId: string) => void
   submitCode?: (code: string) => void
   cancelLogin?: () => void
   install: (what: ClaudeInstallable) => void

@@ -5,6 +5,8 @@ import { useSessionsStore } from './sessions'
 import { useRemoteLanesStore, canControlSession } from './remoteLanes'
 import { hostFeatureRefusal } from './hostRefusals'
 import { ipcErrorText } from '@shared/errors'
+import type { HostsSnapshot } from '@shared/ipc'
+import type { LiveSessionInfo } from '@shared/models'
 
 export interface TerminalTab {
   ptyId: string
@@ -236,11 +238,22 @@ export async function runInTerminal(
   useTerminalStore.getState().queuePaste(ptyId, command.replace(/[\r\n]+$/, ''), !!options.execute)
 }
 
+const targetTerminalRefusal = (
+  target: LiveSessionInfo['target'],
+  hosts: HostsSnapshot,
+): string | undefined =>
+  target?.kind === 'remote' ? hostFeatureRefusal(hosts[target.hostId], 'terminal') : undefined
+
 /** Why this device cannot open a shell on the lane's Host, or undefined (This Mac always can). */
 export function terminalRefusal(sessionId: string): string | undefined {
   const target = useSessionsStore.getState().live[sessionId]?.target
-  if (target?.kind !== 'remote') return undefined
-  return hostFeatureRefusal(useRemoteLanesStore.getState().hosts[target.hostId], 'terminal')
+  return targetTerminalRefusal(target, useRemoteLanesStore.getState().hosts)
+}
+
+/** terminalRefusal, re-rendering when the lane's target or its Host changes. */
+export function useTerminalRefusal(sessionId: string): string | undefined {
+  const target = useSessionsStore((s) => s.live[sessionId]?.target)
+  return useRemoteLanesStore((s) => targetTerminalRefusal(target, s.hosts))
 }
 
 /** Remote terminals use the same tabs, but never inherit local input authority. */

@@ -124,3 +124,14 @@ it('keeps add failure inside the modal with a fixed error', async () => {
   expect(document.querySelector('[role=alert]')?.textContent).toContain('could not add')
   expect(document.body.textContent).not.toContain('/private/path')
 })
+it.each([
+  ['down', 'Machine not connected. Wait for reconnection.'],
+  ['without workspaces.write', 'This Host does not offer file editing to this device.'],
+] as const)('refuses a Host %s in the shared words', async (which, refusal) => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  if (which === 'down') host.state = 'down'
+  else host.capabilities = host.capabilities.filter((cap) => cap !== 'workspaces.write')
+  await render()
+  expect(document.querySelector('[role=alert]')?.textContent).toBe(refusal)
+  expect(invoke).not.toHaveBeenCalled()
+})

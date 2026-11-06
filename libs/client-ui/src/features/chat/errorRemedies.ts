@@ -2,9 +2,9 @@
  * Actionable remediation for provider/auth errors surfaced in the transcript.
  *
  * A turn that dies on "token expired" is not a modelling problem — it is a
- * one-command fix the user has to go find. Matching the handful of errors we
- * know the shell fix for turns each into a play button, while anything
- * unrecognized still renders as plain text (never a guessed command).
+ * fix the user has to go find. Matching the handful of errors we know the fix
+ * for turns each into that fix (a sign-in, a command, a docs link), while
+ * anything unrecognized still renders as plain text (never a guessed command).
  */
 
 export interface ErrorRemedy {
@@ -55,6 +55,9 @@ function awsLoginCommand(profile: string | undefined): { command: string; hint: 
     hint: 'Refreshes the expired SSO token, then retry. Add --profile <name> if you use named profiles.',
   }
 }
+
+/** The sign-in fix's label, wherever a machine offers it. */
+export const signInLabel = (machine: string): string => `Sign in on ${machine}`
 
 /**
  * Map an error message to a fix. Ordered most-specific first; returns null
@@ -129,7 +132,7 @@ export function matchErrorRemedy(
   // rejected credential: Settings → Accounts holds both, on every machine.
   if (/oauth|refresh token|login|unauthorized|\b401\b|invalid.*api.?key/.test(text)) {
     return {
-      label: `Sign in on ${context.machine ?? 'this machine'}`,
+      label: signInLabel(context.machine ?? 'this machine'),
       hint: 'Sign in again in Settings → Accounts for this machine, then retry the failed turn.',
       retryAfter: true,
       signIn: true,

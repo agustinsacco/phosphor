@@ -27,3 +27,9 @@ it('keeps control signed out by default and supports first-class enrollment', as
     error: { code: 'signed-out' },
   })
 })
+it("answers app:about, so This Mac's Details and Settings → Advanced show a version", async () => {
+  expect(await window.phosphor.invoke('app:about')).toMatchObject({
+    appVersion: '0.0.0-dev',
+    platform: window.phosphor.platform,
+  })
+})

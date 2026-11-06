@@ -187,11 +187,11 @@ function ReadOnlyFileView({
       {typeof before === 'string' && (
         <>
           <h3>HEAD</h3>
-          <CodeBlock code={before} language={language} />
+          <CodeBlock code={before} language={language} chatActions={false} />
         </>
       )}
       {before !== undefined && <h3>Working copy</h3>}
-      <CodeBlock code={content} language={language} />
+      <CodeBlock code={content} language={language} chatActions={false} />
     </div>
   )
   if (before !== undefined) return text

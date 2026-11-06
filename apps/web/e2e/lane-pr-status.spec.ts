@@ -26,6 +26,7 @@ test('a Slack thread the Host lane mentions becomes a header quick link', async 
   const thread = 'https://acme.slack.com/archives/C0123ABC/p1730563200123456'
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
   await page.goto(`${stack.origin}/lanes/${stack.hostId}/${stack.laneId}/chat`)
   const slack = page.locator('header').getByTestId('lane-slack-threads')
   await expect(page.getByTestId('transcript-scroll')).toBeVisible()

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MachineFilesPane } from './MachineFilesPane'
 import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
   MonacoEditor: ({ value }: { value: string }) => <pre>{value}</pre>,
@@ -111,7 +111,7 @@ it('clears selection and preview on machine A -> B -> A switches', async () => {
     expect(container.textContent).toContain('Remote preview')
   }
 })
-it("chooses among the Host's registered repositories, not its home folder", async () => {
+it("chooses among the Host's registered repositories", async () => {
   await act(async () => root.render(<MachineFilesPane hostId="host" />))
   const select = container.querySelector<HTMLSelectElement>('select[aria-label="Repository"]')
   expect([...(select?.options ?? [])].map((o) => [o.value, o.textContent])).toEqual([
@@ -171,6 +171,41 @@ it('names what it browses: This Mac its folders, a Host its repositories', async
       'Repository files',
     ])
   } finally {
+    useWorkspacesStore.setState({ recents: [] })
+  }
+})
+it('shows a failed list or read as an alert until the folder changes', async () => {
+  const { useWorkspacesStore } = await import('@/stores/workspaces')
+  useWorkspacesStore.setState({ recents: [{ path: '/work/app', name: 'app', lastOpenedAt: 1 }] })
+  const base = invoke.getMockImplementation()!
+  const fail = (failing: string) =>
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === failing) throw new Error('failed')
+      return (channel === 'fs:listFiles' ? ['README.md'] : { content: 'Local' }) as never
+    })
+  const choose = async (value: string) => {
+    const select = container.querySelector('select')!
+    await act(async () => {
+      select.value = value
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+  }
+  const alert = () => container.querySelector('[role="alert"]')?.textContent ?? null
+  try {
+    await act(async () => root.render(<MachineFilesPane hostId="local" />))
+    fail('fs:listFiles')
+    await choose('/work/app')
+    expect(alert()).toBe('Could not list these files.')
+    await choose('')
+    expect(alert()).toBeNull()
+    fail('fs:readFile')
+    await choose('/work/app')
+    await act(async () => container.querySelector<HTMLButtonElement>('nav button')?.click())
+    expect(alert()).toBe('Could not read this file.')
+    await choose('')
+    expect(alert()).toBeNull()
+  } finally {
+    invoke.mockImplementation(base)
     useWorkspacesStore.setState({ recents: [] })
   }
 })

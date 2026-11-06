@@ -79,9 +79,6 @@ export interface ShareMachine {
   readable: boolean
 }
 
-export const sourceMachine = (workspacePath: string): string =>
-  workspacePath.startsWith('host:') ? (workspacePath.slice(5).split('/')[0] ?? '') : 'local'
-
 export const shareMachineLabel = (machine: string): string =>
   machine === 'local' ? localMachineLabel() : machineLabel(machine)
 

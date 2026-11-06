@@ -526,9 +526,11 @@ close it; focus moves into the sheet and returns to the element on close.
   recommendations (`GettingStartedScreen`, which the restore of the last
   session waits for); no open folder → the
   folder picker with recents (`WorkspacePicker`). Only local lane creation
-  waits: a Host composer target shows the Host's start page, and on a Host
-  home the setup takes only the composer slot, under the composer's machine
-  picker. This Mac's Machines readiness row shows the same install command. No
+  waits: the setup sits under the composer's machine picker
+  (`HomeComposerSlot`), filling a local home, or only the composer slot on a
+  Host home, which stays whatever the composer targets. On a local home a Host
+  composer target shows the Host's start page. This Mac's Machines readiness
+  row shows the same install command. No
   sessions → "Describe a task…" hero.
 
 ## Home workbench
@@ -669,6 +671,8 @@ archived. The health check counts skills and routines the same way.
 This computer's On this machine is the same card: its newest lanes from the sidebar's
 sessions, with the same content (state dot, title, time, branch) on the same row
 primitive but without the lane menu, and its own skills, routines and artifact counts.
+Its lane count (View all N lanes) covers the folders the sidebar has scanned, while a
+Host's counts all of that Host's lanes.
 A never-connected Host shows "Waiting for X to finish setup" with
 `phosphor setup` (it resumes where it stopped) and a Troubleshooting disclosure
 with `phosphor service status`, `phosphor service install` and `phosphor run`.
@@ -684,15 +688,17 @@ start fresh.
 This computer's detail is the same view without what needs enrollment: its
 platform label as the heading (no Rename), the pill its checks add up to, and a
 Machine actions menu with Check again, which re-reads pi, Claude Code, Tailscale
-and its providers, and **Update Phosphor…**, which opens Settings → About where the
-app can check for updates. The same Overview / Settings / Machine files navigation
-follows: Settings opens Settings → Accounts for this computer, and Machine files
-browses its recent folders read-only in the same dialog and tree. Readiness lists pi, Claude Code and Tailscale; Providers lists its subscriptions
-with Settings → Accounts' rows and **Provider settings**, opening on the last read by
-Accounts or the health check, or one still in flight (each read runs one `pi auth check`
-per provider), and reading again on a Check again made while it is open; Details holds its
-platform and architecture, Phosphor version, pi version and live lane count; the terminal opens a shell at home. It
-has no Connection row or Remove.
+and its providers, and **Update Phosphor…**, which opens Settings → Advanced, as a
+Host's **Update Host…** does, where the app can check for updates. The same
+Overview / Settings / Machine files navigation follows: Settings opens Settings →
+Accounts for this computer, and Machine files browses its recent folders
+read-only in the same dialog and tree. Readiness lists pi, Claude Code and
+Tailscale; Providers lists its subscriptions with Settings → Accounts' rows and
+**Provider settings**, opening on the last read by Accounts, the health check or
+the model catalogue, or one still in flight (each read runs one `pi auth check`
+per provider), and reading again on a Check again made while it is open; Details
+holds its platform and architecture, Phosphor version, pi version and live lane
+count; the terminal opens a shell at home. It has no Connection row or Remove.
 
 ### Health check and debug log
 
@@ -704,7 +710,9 @@ check directly. The check only reads (nothing restarts): the control plane
 (reloading the directory), then this computer's Tailscale, pi, providers, models,
 Claude Code, skills, routines and live lanes, then per Host its heartbeat and
 connection and, when connected and granted, the same providers, models, Claude
-Code, skills, routines and lanes. Each step shows its time in ms. A Host that is not
+Code, skills, routines and lanes. This computer's Tailscale step says what its
+readiness row says: until the account has a Host it reads "Needed only to reach
+your Hosts" and adds no issue to the badge. Each step shows its time in ms. A Host that is not
 connected gets one "Skipped until connected" line instead of six. Each Host
 section has Reconnect (`hosts:reconnect`), which re-reads the directory, then
 drops and reopens that Host's connection; open lanes resync. The popover links to the log.

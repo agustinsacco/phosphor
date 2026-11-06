@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePlatform } from '@/platform/Platform'
-import { useRemoteModel } from '@/features/machines/RemoteModelPicker'
+import { useRemoteModel } from '@/features/machines/useRemoteModel'
 import type { PendingAttachment } from '@/features/chat/attachments'
 import { useDraftsStore } from '@/stores/drafts'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'

@@ -11,7 +11,7 @@ import { useMachinePagesStore } from '@/stores/machinePages'
 import { useSessionsStore } from '@/stores/sessions'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 const invoke = vi.fn()
 let root: Root
 let container: HTMLDivElement

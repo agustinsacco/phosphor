@@ -7,6 +7,7 @@
  * offering an account that cannot serve it (signed out) would cost the user a
  * spawn and give them a dead lane back.
  */
+import { activeHold } from '@shared/claude-session-account'
 import type { MachineAccount } from '@shared/machine-settings'
 import type { ClaudeAccountView } from '@shared/models'
 
@@ -46,7 +47,7 @@ export function moveTargets(
     .map((account) => ({
       id: account.id,
       label: account.label,
-      held: account.cooldownUntil !== null && account.cooldownUntil > nowMs,
+      held: activeHold(account.cooldownUntil, nowMs) !== null,
     }))
     .sort((a, b) => Number(a.held) - Number(b.held))
 }

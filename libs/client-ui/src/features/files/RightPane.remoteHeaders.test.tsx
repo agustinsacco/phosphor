@@ -14,7 +14,7 @@ vi.hoisted(() => {
     value: () => ({ matches: false, addEventListener: () => {} }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./RemoteFilesPane', () => ({ RemoteFilesPane: () => <p>remote files body</p> }))
 vi.mock('@/features/artifacts/RemoteArtifactsPane', () => ({
   RemoteArtifactsPane: () => <header>Artifacts own header</header>,

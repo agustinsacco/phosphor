@@ -80,27 +80,11 @@ export function StartModelPicker({ source }: { source: StartModelSource }): Reac
           }
         />
         {levels.length > 1 && (
-          // Its own anchor: the picker spans the footer's free width, so a
-          // menu placed against it opens under the model chip, not this one.
-          <div className="relative shrink-0">
-            <ThinkingChip
-              testId={`${source.testIdPrefix}-thinking-picker`}
-              active={open === 'thinking'}
-              onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
-              label={thinkingLabel(source.thinking)}
-            />
-            {open === 'thinking' && (
-              <ThinkingMenu
-                levels={levels}
-                current={source.thinking}
-                onPick={(level) => {
-                  setOpen(null)
-                  source.setThinking(level)
-                }}
-                onClose={() => setOpen(null)}
-              />
-            )}
-          </div>
+          <ThinkingPick
+            source={source}
+            open={open === 'thinking'}
+            setOpen={(next) => setOpen(next ? 'thinking' : null)}
+          />
         )}
         {open === 'model' && (
           <ModelMenu
@@ -124,6 +108,41 @@ export function StartModelPicker({ source }: { source: StartModelSource }): Reac
           {action.label}
         </Button>
       ))}
+    </div>
+  )
+}
+
+/** The thinking chip and its menu, on its own anchor. */
+function ThinkingPick({
+  source,
+  open,
+  setOpen,
+}: {
+  source: StartModelSource
+  open: boolean
+  setOpen: (open: boolean) => void
+}): React.JSX.Element {
+  return (
+    // Its own anchor: the picker spans the footer's free width, so a menu
+    // placed against it opens under the model chip, not this one.
+    <div className="relative shrink-0">
+      <ThinkingChip
+        testId={`${source.testIdPrefix}-thinking-picker`}
+        active={open}
+        onClick={() => setOpen(!open)}
+        label={thinkingLabel(source.thinking)}
+      />
+      {open && (
+        <ThinkingMenu
+          levels={source.levels}
+          current={source.thinking}
+          onPick={(level) => {
+            setOpen(false)
+            source.setThinking(level)
+          }}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </div>
   )
 }

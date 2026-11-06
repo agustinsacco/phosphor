@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { claudeContextProviderShortfall } from '@phosphor/shared/models'
 import {
   assertClaudeContextProvider,
-  claudeContextProviderShortfall,
   claudeOneShotEnv,
   claudeProviderSpawnEnv,
   usesClaudeCliProvider,

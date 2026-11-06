@@ -24,12 +24,7 @@ import { SessionList, useSessionOrderActions } from './SessionList'
 import { useLiveSessionNames } from './useLiveSessionNames'
 import { orderedSessions } from './sessionOrder'
 import { sessionSubtitle } from './sessionSubtitle'
-import {
-  completionActions,
-  openSidebarConversation,
-  useRestoreWorktree,
-  useSavedConversation,
-} from './completionActions'
+import { completionActions, openSidebarConversation } from './completionActions'
 import { PrBadge, openPullRequest } from './PrBadge'
 import { useRepoPrRefresh } from './repoPrRefresh'
 import { useLayoutStore } from '@/stores/layout'
@@ -103,13 +98,6 @@ const MarkerPickerModal = lazy(() =>
   import('./MarkerPickerModal').then((module) => ({ default: module.MarkerPickerModal })),
 )
 
-const SavedConversationModal = lazy(() =>
-  import('./SavedConversationModal').then((module) => ({ default: module.SavedConversationModal })),
-)
-const RestoreWorktreeModal = lazy(() =>
-  import('./RestoreWorktreeModal').then((module) => ({ default: module.RestoreWorktreeModal })),
-)
-
 const SIDEBAR_WIDTH_KEY = 'phosphor:sidebarWidth'
 const SIDEBAR_MIN = 208
 const SIDEBAR_MAX = 420
@@ -128,8 +116,6 @@ export function Sidebar({
   workspacePath: string
   onInitialReady?: (ready: boolean) => void
 }): React.JSX.Element {
-  const savedConversation = useSavedConversation((s) => s.meta)
-  const restoringWorktree = useRestoreWorktree((s) => s.target)
   const machineFilter = useRemoteLanesStore((s) => s.filter)
   const disk = useSessionsStore((s) => s.disk)
   const scanStatus = useSessionsStore((s) => s.scanStatus)
@@ -1090,16 +1076,6 @@ export function Sidebar({
 
       <SidebarFooter />
 
-      {savedConversation && (
-        <Suspense fallback={null}>
-          <SavedConversationModal />
-        </Suspense>
-      )}
-      {restoringWorktree && (
-        <Suspense fallback={null}>
-          <RestoreWorktreeModal />
-        </Suspense>
-      )}
       {treeFor && (
         <TreeViewModal
           meta={treeFor}

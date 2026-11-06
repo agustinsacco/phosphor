@@ -4,6 +4,7 @@ import type { SkillsListResult } from '@shared/skills'
 import { parseMachineModels, parseMachineProviders } from '@shared/host-protocol-machine'
 import { create } from 'zustand'
 import type { MachineModel, MachineProvider } from '@shared/host-protocol-machine'
+import { hostFeatureRefusal } from './hostRefusals'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from './remoteLanes'
 import { useSkillsStore } from './skills'
 
@@ -47,8 +48,9 @@ export const useMachineCataloguesStore = create<{
         set((s) => ({ catalogues: { ...s.catalogues, [key]: { ...entry, ...patch } } }))
     }
     const host = useRemoteLanesStore.getState().hosts[hostId]
-    if (host?.state !== 'ready' || !host.capabilities.includes('skills.read')) {
-      finish({ error: REMOTE_UNAVAILABLE, status: 'error' })
+    const refusal = hostFeatureRefusal(host, 'skills.read', 'models')
+    if (refusal) {
+      finish({ error: refusal, status: 'error' })
       return
     }
     try {

@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { machineStatus, type MachineStatus, type MachineView } from '@shared/control-api'
 import type { HostConnectionView } from '@shared/ipc'
-import type { AboutInfo } from '@shared/models'
 import type { TailscaleStatus } from '@shared/tailscale-status'
+import { platformName } from '@shared/platform-name'
 import { localMachineLabel } from '@/lib/localMachine'
 import { usePlatform } from '@/platform/Platform'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
+import { useAboutInfo } from '@/features/updates/useAboutInfo'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import {
   claudeReadiness,
   localChecks,
-  localClaude,
-  platformName,
   readinessChecks,
   readinessFreshness,
+  readLocalClaude,
   relativeTime,
   type LocalReadings,
   type ReadinessCheck,
@@ -23,6 +23,7 @@ import {
 import { machineHeadline, type Headline } from './machineReachability'
 import { localLiveEntries } from './localLive'
 import { useLocalTasks } from './MachineTasks'
+import { useHostClaude } from './useHostClaude'
 import { useHostPiVersion } from './useHostPiVersion'
 import { hostTasks, taskCounts, type MachineTask } from './runningTasks'
 
@@ -67,7 +68,7 @@ export interface MachineOverview extends MachineSummary {
   notice?: 'setup' | 'offline'
   check: Recheck
   reconnect?: { busy: boolean; run: () => void }
-  /** Where this machine updates: This Mac's About, a Host's Advanced. */
+  /** Where this machine updates: its Settings → Advanced. */
   update?: { label: string; run: () => void }
   /** Opens Settings → Accounts for this machine, where providers sign in. */
   configure?: () => void
@@ -97,7 +98,6 @@ function useLive(): React.RefObject<boolean> {
 }
 
 interface LocalReads extends LocalReadings {
-  about?: AboutInfo | null
   busy: boolean
   at: number | null
 }
@@ -115,20 +115,11 @@ function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () 
     const failed = (): void => merge({ failed: true })
     void Promise.allSettled([
       window.phosphor.invoke('pi:health').then((health) => merge({ health }), failed),
-      Promise.all([
-        window.phosphor.invoke('packages:list'),
-        window.phosphor.invoke('packages:claudeStatus'),
-      ])
-        .then(([packages, status]) => merge({ claude: localClaude(packages, status) }))
-        .catch(failed),
+      readLocalClaude(window.phosphor.invoke).then((claude) => merge({ claude }), failed),
       window.phosphor
         .invoke('hosts:tailscaleStatus')
         .catch((): TailscaleStatus => ({ code: 'check-failed' }))
         .then((tailscale) => merge({ tailscale })),
-      window.phosphor.invoke('app:about').then(
-        (about) => merge({ about }),
-        () => merge({ about: null }),
-      ),
     ]).then(() => merge(round ? { busy: false, at: Date.now() } : {}))
     return () => {
       live = false
@@ -145,6 +136,7 @@ function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () 
 export function useLocalOverview(): MachineOverview | null {
   const { localLanes, appInfo } = usePlatform()
   const reads = useLocalReads(localLanes)
+  const about = useAboutInfo(localLanes)
   const tasks = useLocalTasks()
   const liveHere = useSessionsStore((s) => localLiveEntries(s.live).length)
   const reachesHosts = useMachinesStore((s) => s.remoteEnabled && s.machines.length > 0)
@@ -171,11 +163,14 @@ export function useLocalOverview(): MachineOverview | null {
       ? { text: 'Could not read all local checks. Check again to retry.', alert: true }
       : undefined,
     facts: [
-      { label: 'Platform', value: reads.about ? `${platform} ${reads.about.arch}` : platform },
+      {
+        label: 'Platform',
+        value: about && about !== 'unknown' ? `${platform} ${about.arch}` : platform,
+      },
       {
         label: 'Phosphor version',
         value:
-          reads.about === undefined ? 'Checking…' : (reads.about?.appVersion ?? 'Not available'),
+          about === null ? 'Checking…' : about === 'unknown' ? 'Not available' : about.appVersion,
       },
       {
         label: 'pi',
@@ -187,7 +182,7 @@ export function useLocalOverview(): MachineOverview | null {
     connected: true,
     check: { busy: reads.busy, at: reads.at, round: reads.round, run: reads.run },
     update: appInfo
-      ? { label: 'Update Phosphor…', run: () => openSettings('local', 'about') }
+      ? { label: 'Update Phosphor…', run: () => openSettings('local', 'advanced') }
       : undefined,
     configure: () => openSettings('local', 'accounts'),
   }
@@ -240,36 +235,13 @@ export function useClaudeReadiness(
   refresh: number,
 ): { check: ReadinessCheck | null; loading: boolean } {
   const connection = useRemoteLanesStore((s) => s.hosts[hostId])
-  const connected = connection?.state === 'ready'
+  const { detail, loading } = useHostClaude(
+    hostId,
+    `${connection?.connectionToken}:${refresh}`,
+    connection?.state === 'ready',
+  )
   const configurable = connection?.configurationSupported === true
-  const [state, setState] = useState<{
-    hostId: string
-    check: ReadinessCheck | null
-    loading: boolean
-  } | null>(null)
-  useEffect(() => {
-    let live = true
-    setState(connected ? { hostId, check: null, loading: true } : null)
-    if (connected)
-      void window.phosphor.invoke('hosts:claude', hostId).then(
-        (detail) => {
-          if (live)
-            setState({
-              hostId,
-              check: detail ? claudeReadiness(detail, configurable) : null,
-              loading: false,
-            })
-        },
-        () => {
-          if (live) setState({ hostId, check: null, loading: false })
-        },
-      )
-    return () => {
-      live = false
-    }
-  }, [hostId, connected, configurable, connection?.connectionToken, refresh])
-  const current = connected && state?.hostId === hostId ? state : null
-  return { check: current?.check ?? null, loading: current?.loading ?? false }
+  return { check: !loading && detail ? claudeReadiness(detail, configurable) : null, loading }
 }
 
 /** Check again reloads the directory, then the Host's own reads follow `round`. */

@@ -14,7 +14,7 @@ vi.hoisted(() => {
     value: () => ({ matches: false, addEventListener: () => {} }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/features/files/MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
   MonacoEditor: () => null,
@@ -71,7 +71,7 @@ it('offers only readable Host files on home and resets browsing on switch or lan
     expect(container.querySelector('select')).toBeNull()
     for (const [state, capabilities, reason] of [
       ['down', ['workspaces.read'], 'Machine not connected. Wait for reconnection.'],
-      ['ready', [], 'Not available on remote lanes yet.'],
+      ['ready', [], 'This Host does not offer files to this device.'],
     ] as const) {
       await act(async () =>
         useRemoteLanesStore.setState({

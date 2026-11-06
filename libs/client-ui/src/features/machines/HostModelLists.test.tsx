@@ -18,7 +18,8 @@ import { useModelPicksStore } from '@/stores/modelPicks'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { ModelPicker } from '@/features/chat/composer/ModelPicker'
-import { RemoteModelPicker, useRemoteModel } from './RemoteModelPicker'
+import { RemoteModelPicker } from './RemoteModelPicker'
+import { useRemoteModel } from './useRemoteModel'
 
 const facts = { contextWindow: 200_000, input: ['text'] }
 const MODELS: MachineModel[] = [

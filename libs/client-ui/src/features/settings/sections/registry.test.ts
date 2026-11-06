@@ -9,7 +9,7 @@ vi.hoisted(() => {
     value: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 
 describe('the section registry', () => {
   it.each([...TABS, ...EXTENSION_TABS].map((section) => [section.id, section] as const))(

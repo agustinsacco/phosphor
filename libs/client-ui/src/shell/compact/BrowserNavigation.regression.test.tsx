@@ -21,7 +21,7 @@ vi.mock('@/navigation/screens', async (importOriginal) => ({
 vi.mock('./CompactLane', () => ({ CompactLane: () => <p>Lane surface</p> }))
 vi.mock('./CompactNew', () => ({ CompactNew: () => <p>New lane surface</p> }))
 vi.mock('./CompactSettings', () => ({ CompactSettings: () => <p>Settings surface</p> }))
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 
 const LANE = mockRemoteHosts[MOCK_HOST_ID]!.lanes[0]!
 let root: Root

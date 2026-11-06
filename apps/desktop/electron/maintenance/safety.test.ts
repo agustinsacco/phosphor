@@ -24,7 +24,9 @@ const state = vi.hoisted(() => ({
 vi.mock('../store', () => ({ getPrefs: () => state.prefs }))
 vi.mock('../registry', () => ({ registry: { list: () => state.live } }))
 vi.mock('../pi/session-watcher', () => ({ notifyWorkspaceSessions: vi.fn() }))
-vi.mock('../fs/gh-cli', () => ({ ghMergedPrHeads: async () => [], ghCommitTree: async () => null }))
+vi.mock('../fs/gh-cli', () => ({
+  ghEvidence: () => ({ mergedPrHeads: async () => [], commitTree: async () => null }),
+}))
 
 const exec = promisify(execFile)
 const HOUR = 3_600_000

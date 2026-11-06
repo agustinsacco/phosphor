@@ -1,11 +1,6 @@
 import { useMachinesStore } from '@/stores/machines'
-import {
-  useRemoteLanesStore,
-  connectionLabel,
-  hostPending,
-  REMOTE_NOT_READY,
-  REMOTE_UNAVAILABLE,
-} from '@/stores/remoteLanes'
+import { useRemoteLanesStore, connectionLabel, hostPending } from '@/stores/remoteLanes'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { RemoteHostLanes } from '@/features/sessions/RemoteHostLanes'
 import { WaitingNote } from '@/components/Waiting'
 import './remoteStart.css'
@@ -16,12 +11,7 @@ export function HostHome({ hostId }: { hostId: string }): React.JSX.Element {
   const label = useMachinesStore((s) => s.machines.find((m) => m.id === hostId)?.label ?? hostId)
   const error = useRemoteLanesStore((s) => s.error)
   const pending = useRemoteLanesStore((s) => hostPending(s, hostId))
-  const refusal =
-    host?.state !== 'ready'
-      ? REMOTE_NOT_READY
-      : !host.capabilities.includes('sessions.read')
-        ? REMOTE_UNAVAILABLE
-        : null
+  const refusal = hostFeatureRefusal(host, 'sessions.read')
   return (
     <section aria-label="Host home">
       <p className="text-text-secondary mb-2 font-mono text-xs uppercase tracking-wider">

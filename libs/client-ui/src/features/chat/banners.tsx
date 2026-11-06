@@ -6,7 +6,6 @@ import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { machineLabel } from '@/stores/remoteLanes'
 import { useLaneControl } from '@/features/machines/useLaneControl'
-import { remoteControlHint } from '@/features/sessions/remoteLaneActions'
 import { sessionTitle } from '@/lib/sessionTitle'
 import {
   latestRewoundVersion,
@@ -37,9 +36,7 @@ function useCrash(sessionId: string, workspacePath: string): Crash | null {
     return {
       message: `pi exited unexpectedly on ${machineLabel(control.hostId)}. The session file is preserved.`,
       resume: () => control.act('hosts:resumeLane'),
-      blocked: control.busy
-        ? 'Resuming…'
-        : remoteControlHint(control.hostState === 'ready', control.enabled, control.controlling),
+      blocked: control.busy ? 'Resuming…' : control.hint,
       error: control.error,
     }
   }

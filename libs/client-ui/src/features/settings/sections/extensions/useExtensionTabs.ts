@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { usePlatform } from '@/platform/Platform'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { installedExtensionTabs, type EXTENSION_TABS, type MachineKind } from '../../settingsIndex'
 import { useSettingsUiStore, type SettingsMachine } from '../../settingsUiStore'
 import { canConfigureHost } from '../../machine/useHostSettings'
+import { useLocalRead } from '../../machine/ScopeRefresh'
 import { SETTINGS_SECTIONS } from '../registry'
 import {
   packageListKey,
@@ -37,28 +38,21 @@ export function useExtensionTabs(machine: SettingsMachine | null): ExtensionTabs
 }
 
 /**
- * This Mac's packages in the scope line's folder, as the Extensions page lists
- * them, read again whenever the tab changes or on Refresh: installing from Extensions shows
- * the package's own item without reopening Settings.
+ * This Mac's packages in the scope line's folder: read once per scope and on
+ * Refresh, then whatever the Extensions page reads after a job.
  */
 function useLocalPackageRead(enabled: boolean, folder: string | null): void {
-  const tab = useSettingsUiStore((s) => s.tab)
-  const rereads = useSettingsUiStore((s) => s.rereads)
-  useEffect(() => {
+  const latest = useRef(0)
+  const read = useCallback(async (): Promise<void> => {
     if (!enabled) return
-    let cancelled = false
-    window.phosphor
+    const call = ++latest.current
+    const entries = await window.phosphor
       .invoke('packages:list', folder ?? undefined)
-      .then((entries) => {
-        if (!cancelled) publishPackageList('local', folder, entries)
-      })
-      .catch(() => {
-        if (!cancelled) publishPackageList('local', folder, [])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [enabled, tab, folder, rereads])
+      .catch(() => [])
+    // Only the newest read publishes, as a Refresh mid-read supersedes it.
+    if (call === latest.current) publishPackageList('local', folder, entries)
+  }, [enabled, folder])
+  useLocalRead(read)
 }
 
 /**

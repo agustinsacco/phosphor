@@ -8,7 +8,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore } from '@/stores/layout'
 import { remoteLaneGroupKey, useLaneReveal, useLaneRevealStore } from './laneReveal'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/features/artifacts/remoteArtifactRefresh', () => ({
   bindRemoteHostView: () => {},
   refreshRemoteArtifacts: async () => {},

@@ -46,7 +46,7 @@ The composer is one small field with several ways in.
   is the "pi crashed" banner above the transcript, on This Mac and on a Host
   lane whose activity is `failed`; there it resumes the lane on the Host
   (`hosts:resumeLane`) and, like every lane action, needs lane control. The
-  control row above the composer then offers no Resume of its own.
+  control row above the transcript then offers no Resume of its own.
 - **Markdown list primitives.** Shift+Enter continues the list the caret is on
   (renumbering; an empty item steps out a level, then exits). Tab/Shift+Tab
   nest and un-nest inside a list (Tab takes an autocomplete suggestion first
@@ -250,7 +250,8 @@ The composer is one small field with several ways in.
 - Code blocks carry three hover actions (`components/markdown/CodeBlock.tsx`):
   **Open as artifact** (typed from the language: html/svg/mermaid/chart/
   markdown, else `code`), **Run in terminal** (shell languages only; pastes
-  without executing) and copy.
+  without executing) and copy. A browser file preview uses the same block with
+  copy only.
 - User messages: **Rewind to here**, plus a branch button opening the
   multi-message rewind picker (Esc Esc). Both run pi's `fork` RPC
   (`features/chat/rewind.ts`), which branches the live session onto a **new
@@ -875,9 +876,11 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   This Mac's reads and writes pi's own `defaultProvider` / `defaultModel` /
   `defaultThinkingLevel` (`useLocalStartModel`); a Host's reads its catalogue
   and the picks remembered for it (`RemoteModelPicker`). A source's actions are
-  rendered after the chips: a Host's are Retry models and, with no usable
-  signed-in model, Sign in on it (Settings → Accounts for that Host). The picker
-  grows into the toolbar's free width on every machine.
+  rendered after the chips, on every machine: **Retry models** when the source
+  has no model to run (This Mac's: when pi's catalogue could not be read), and
+  **Sign in on <machine>** (Settings → Accounts for that machine,
+  `useSignInAction`) when its list is read and has no usable signed-in model.
+  The picker grows into the toolbar's free width on every machine.
   Both owners render `composer/ModelChip.tsx`: the model name as the left segment,
   the thinking level (with a caret) as the right. The provider is not on the
   chip: it is in the chip's tooltip and, in a session, in the strip, named only

@@ -10,7 +10,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { resetSidebarStores, stubSidebarPhosphor } from './__fixtures__/sidebarHarness'
 import { Sidebar } from './Sidebar'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 let root: Root
 let container: HTMLDivElement
 const invoke = vi.fn()

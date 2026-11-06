@@ -1,5 +1,5 @@
 import { rememberRemoteModel, rememberRemoteThinking } from '@/stores/remoteModelPicks'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useSessionHostLane } from '@/stores/remoteLanes'
 import { useState } from 'react'
 import type { Model, ThinkingLevel } from '@shared/rpc'
 import { supportedThinkingLevels } from '@shared/thinking'
@@ -31,12 +31,10 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
 }
 
 function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const session = useSessionsStore((s) => s.live[sessionId])
-  const hostId = session?.target?.kind === 'remote' ? session.target.hostId : null
+  const hostLane = useSessionHostLane(sessionId)
+  const hostId = hostLane?.hostId ?? null
   const remote = hostId !== null
-  const summaryModel = useRemoteLanesStore((s) =>
-    hostId ? s.hosts[hostId]?.lanes.find((lane) => lane.laneId === session?.laneId)?.model : null,
-  )
+  const summaryModel = hostLane?.lane?.model
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const models = useChatStore((s) => s.sessions[sessionId]?.models) ?? NO_MODELS
   const modelsLoaded = useChatStore((s) => s.sessions[sessionId]?.modelsLoaded ?? false)

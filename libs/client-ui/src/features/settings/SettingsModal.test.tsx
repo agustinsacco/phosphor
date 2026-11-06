@@ -23,7 +23,7 @@ vi.hoisted(() => {
     }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./tabs/AppearanceTab', () => ({ AppearanceTab: () => <p>Appearance</p> }))
 vi.mock('./sections/agent', async (importOriginal) => ({
   ...(await importOriginal<object>()),

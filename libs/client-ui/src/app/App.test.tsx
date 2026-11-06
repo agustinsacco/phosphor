@@ -12,6 +12,13 @@ import { useDraftsStore } from '@/stores/drafts'
 import { useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
+import {
+  openRestoreWorktree,
+  openSidebarConversation,
+  useRestoreWorktree,
+  useSavedConversation,
+} from '@/features/sessions/completionActions'
+import type { SessionMeta } from '@shared/models'
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -22,7 +29,7 @@ vi.mock('./useGlobalShortcuts', async (original) => {
   const actual = await original<{ useGlobalShortcuts: typeof useGlobalShortcuts }>()
   return { useGlobalShortcuts: vi.fn(actual.useGlobalShortcuts) }
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
 vi.mock('@/stores/remoteLanes', async (original) => ({
   ...(await original<object>()),
@@ -60,6 +67,12 @@ vi.mock('@/features/files/MachineFilesPane', () => ({
   ),
 }))
 vi.mock('@/features/sessions/Sidebar', () => ({ Sidebar: () => null }))
+vi.mock('@/features/sessions/SavedConversationModal', () => ({
+  SavedConversationModal: () => <div>Saved conversation dialog</div>,
+}))
+vi.mock('@/features/sessions/RestoreWorktreeModal', () => ({
+  RestoreWorktreeModal: () => <div>Restore worktree dialog</div>,
+}))
 vi.mock('@/features/sessions/BulkDeleteModal', () => ({ BulkDeleteProgressPopover: () => null }))
 vi.mock('@/features/skills/SkillsPage', () => ({ SkillsPage: () => null }))
 vi.mock('@/features/routines/RoutinesPage', () => ({ RoutinesPage: () => null }))
@@ -107,6 +120,21 @@ function stubApi(health: { ok: boolean; reason?: string; message?: string; versi
   useLayoutStore.setState({ sidebarVisible: false })
 }
 
+async function renderApp(test: (container: HTMLElement) => Promise<void>) {
+  const container = document.createElement('div'),
+    root = createRoot(container)
+  document.body.append(container)
+  try {
+    await act(async () => root.render(<App />))
+    await test(container)
+  } finally {
+    act(() => root.unmount())
+    container.remove()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  }
+}
+
 it.each([
   [
     'pi is missing',
@@ -120,46 +148,21 @@ it.each([
   async (_case, health, homePath, setup) => {
     stubApi(health)
     useWorkspacesStore.setState({ homePath })
-    const container = document.createElement('div'),
-      root = createRoot(container)
-    document.body.append(container)
-    try {
-      await act(async () => root.render(<App />))
+    await renderApp(async (container) => {
       const shell = container.querySelector('[data-testid="app-shell"]')
       expect(shell).not.toBeNull()
       expect(shell?.textContent).toContain(setup)
       expect(shell?.hasAttribute('inert')).toBe(false)
       expect(container.textContent).toContain('Palette mounted')
       expect(useGlobalShortcuts).toHaveBeenLastCalledWith(true)
-    } finally {
-      act(() => root.unmount())
-      container.remove()
-      vi.restoreAllMocks()
-      vi.unstubAllGlobals()
-    }
+    })
   },
 )
 
 it.each([true, false])(
   'mounts target-correct global surfaces (lane active: %s)',
   async (laneActive) => {
-    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    Object.assign(window, {
-      phosphor: {
-        invoke: vi.fn(async (channel: string) =>
-          channel === 'pi:health'
-            ? { ok: true, version: '1.2.0' }
-            : channel === 'pi:listLiveSessions'
-              ? []
-              : { kind: 'none' },
-        ),
-        onPtyStatus: () => () => {},
-      },
-    })
-    vi.spyOn(useWorkspacesStore.getState(), 'hydrate').mockResolvedValue()
-    vi.spyOn(useWorktreesStore.getState(), 'hydratePrefs').mockResolvedValue()
-    vi.spyOn(useDraftsStore.getState(), 'hydrate').mockResolvedValue()
-    vi.spyOn(useModelCatalogueStore.getState(), 'hydrate').mockResolvedValue()
+    stubApi({ ok: true, version: '1.2.0' })
     const id = mockRemoteInfo.sessionId
     useSessionsStore.setState({
       activeSessionId: laneActive ? id : null,
@@ -167,12 +170,7 @@ it.each([true, false])(
     })
     useWorkspacesStore.setState({ homePath: '/mac' })
     useRemoteLanesStore.setState({ filter: 'bee1-home' })
-    useLayoutStore.setState({ sidebarVisible: false })
-    const container = document.createElement('div'),
-      root = createRoot(container)
-    document.body.append(container)
-    try {
-      await act(async () => root.render(<App />))
+    await renderApp(async (container) => {
       expect(container.textContent).toContain('Finder mounted')
       expect(container.textContent).toContain('Palette mounted')
       expect(useGlobalShortcuts).toHaveBeenLastCalledWith(true)
@@ -191,12 +189,7 @@ it.each([true, false])(
         await act(async () => useRemoteLanesStore.setState({ filter: 'local' }))
         expect(container.textContent).not.toContain('Host repositories')
       }
-    } finally {
-      act(() => root.unmount())
-      container.remove()
-      vi.restoreAllMocks()
-      vi.unstubAllGlobals()
-    }
+    })
   },
 )
 
@@ -225,21 +218,6 @@ function stubInstall(resumeTarget: object = { kind: 'none' }) {
   useWorkspacesStore.setState({ homePath: '/mac' })
   useRemoteLanesStore.setState({ filter: 'local' })
   return { invoke, job, installed: () => (health = { ok: true, version: '1.2.0' }) }
-}
-
-async function renderApp(test: (container: HTMLElement) => Promise<void>) {
-  const container = document.createElement('div'),
-    root = createRoot(container)
-  document.body.append(container)
-  try {
-    await act(async () => root.render(<App />))
-    await test(container)
-  } finally {
-    act(() => root.unmount())
-    container.remove()
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
-  }
 }
 
 const button = (container: HTMLElement, text: string) =>
@@ -283,4 +261,28 @@ it('restores the last session only after the recommendations that follow a pi in
     await act(async () => button(container, 'Recommendations done')?.click())
     expect(createSession).toHaveBeenCalledWith('/mac', { sessionPath: '/mac/last.jsonl' })
   })
+})
+
+it('shows the saved-conversation and restore-worktree dialogs while the sidebar is hidden', async () => {
+  stubApi({ ok: true, version: '1.2.0' })
+  useWorkspacesStore.setState({ homePath: '/mac' })
+  const meta = { path: '/s/gone.jsonl', cwd: '/mac/gone', worktreeRemoved: true } as SessionMeta
+  const container = document.createElement('div'),
+    root = createRoot(container)
+  document.body.append(container)
+  try {
+    await act(async () => root.render(<App />))
+    // What This Mac's lane preview and a completion notification call for a worktree-removed lane.
+    await act(async () => openSidebarConversation('/mac', meta))
+    await vi.waitFor(() => expect(container.textContent).toContain('Saved conversation dialog'))
+    await act(async () => openRestoreWorktree('/mac', meta))
+    await vi.waitFor(() => expect(container.textContent).toContain('Restore worktree dialog'))
+  } finally {
+    useSavedConversation.setState({ meta: null })
+    useRestoreWorktree.setState({ target: null })
+    act(() => root.unmount())
+    container.remove()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  }
 })

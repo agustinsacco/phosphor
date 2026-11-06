@@ -31,7 +31,7 @@ vi.hoisted(() => {
     }),
   })
 })
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/features/terminal/TerminalView', () => ({ TerminalView: () => null }))
 
 const machine = { id: '11111111-1111-4111-8111-111111111111', label: 'bee1' }

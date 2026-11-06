@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('@/features/chat/composer/ComposerInput', () => ({
   ComposerInput: ({
     onSubmit,
@@ -19,7 +19,8 @@ vi.mock('@/features/chat/composer/ComposerInput', () => ({
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
-import { useRemoteModel, RemoteModelPicker } from './RemoteModelPicker'
+import { RemoteModelPicker } from './RemoteModelPicker'
+import { useRemoteModel } from './useRemoteModel'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { useDraftsStore, homeDraftKey } from '@/stores/drafts'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'

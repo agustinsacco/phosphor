@@ -11,7 +11,7 @@ import { RemoteFilesToolbar, type RemoteFileAction } from './RemoteFilesToolbar'
 import { useEffect, useState, useRef } from 'react'
 import { MonacoDiff, MonacoEditor, releaseFileModel } from './MonacoEditor'
 import { languageForPath } from '@/lib/languages'
-import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLaneWriteRefusal } from './laneWriteRefusal'
@@ -104,7 +104,7 @@ function RemoteFilesView({
         (error: unknown) => {
           if (!alive) return
           setLoading(false)
-          setError(fileListErrorText(error, REMOTE_UNAVAILABLE))
+          setError(fileListErrorText(error, 'Could not read files.'))
         },
       )
     return () => {
@@ -144,7 +144,7 @@ function RemoteFilesView({
           }
         },
         () => {
-          if (alive) setError(REMOTE_UNAVAILABLE)
+          if (alive) setError('Could not read this file.')
         },
       )
     return () => {

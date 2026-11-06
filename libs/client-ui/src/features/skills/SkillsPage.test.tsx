@@ -141,6 +141,8 @@ it('keeps remote skills read-only, gates capability and never offers local insta
   expect(container.textContent).not.toContain('Discover')
   expect(container.textContent).not.toContain('New skill')
   expect(container.textContent).not.toContain('Upload')
+  // Spelled as Host Files' and Machine files' tag.
+  expect(container.textContent).toContain('Read only')
   await act(async () => useSkillsStore.getState().select(`${workspacePath}/skill:remote-skill`))
   expect(invoke).toHaveBeenCalledWith(
     'skills:readFile',

@@ -4,12 +4,10 @@ import { RunCommandRow } from '@/components/RunCommandRow'
 import { piCallOk } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSessionsStore } from '@/stores/sessions'
 import { terminalAccess } from '@/stores/terminal'
-import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { useLaneControl } from '@/features/machines/useLaneControl'
-import { useCanControlSession } from '@/features/sessions/useCanControlSession'
 import type { ErrorRemedy } from './errorRemedies'
+import { useSignInAction } from './useSignInAction'
 
 /**
  * A known failure's fix, the same on every machine: sign in again in Settings →
@@ -20,20 +18,22 @@ export function ErrorRemedyActions({
   remedy,
   message,
   sessionId,
+  hostId,
   workspacePath,
 }: {
   remedy: ErrorRemedy
   message: string | undefined
   sessionId: string | undefined
+  /** The lane's Host; undefined on This Mac. */
+  hostId: string | undefined
   workspacePath: string | null | undefined
 }): React.JSX.Element {
-  const openSettings = useOpenSettings()
-  const entry = useSessionsStore((s) => (sessionId ? s.live[sessionId] : undefined))
-  const hostId = entry?.target?.kind === 'remote' ? entry.target.hostId : undefined
   // The play button runs where this window may type into the lane's terminal.
   const canRun = useRemoteLanesStore(() =>
     sessionId ? terminalAccess(sessionId) === 'control' : true,
   )
+  // The label is the remedy's own, like every other remedy's button.
+  const signIn = useSignInAction(hostId ?? 'local').run
 
   return (
     <>
@@ -42,7 +42,7 @@ export function ErrorRemedyActions({
         <RetryFailedTurn sessionId={sessionId} message={message} />
       )}
       {remedy.signIn && (
-        <Button size="sm" onClick={() => openSettings(hostId ?? 'local', 'accounts')}>
+        <Button size="sm" onClick={signIn}>
           {remedy.label}
         </Button>
       )}
@@ -89,7 +89,7 @@ function RetryFailedTurn({
   message: string | undefined
 }): React.JSX.Element | null {
   const control = useLaneControl(sessionId)
-  const controlling = useCanControlSession(sessionId)
+  const controlling = control ? control.controlling : true
   // A Host lane is idle when its Host says so; This Mac's when no turn streams.
   const idle = control ? control.activity === 'idle' : true
   const chat = useChatStore((s) => s.sessions[sessionId])

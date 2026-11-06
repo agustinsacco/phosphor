@@ -12,7 +12,8 @@ import { MachinesPage } from './MachinesPage'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { useLayoutStore } from '@/stores/layout'
 import { OnlineAndProviders } from './onboarding/OnlineAndProviders'
-import { CLAUDE_PROVIDER, MACHINE } from './__fixtures__/control'
+import { LOCAL_READS, MACHINE } from './__fixtures__/control'
+import { useSavedConversation } from '@/features/sessions/completionActions'
 
 // B6: the Machines page drew This Mac and a Host with two rows and two details,
 // and they drifted apart. Each case failed on the two-copy page.
@@ -53,9 +54,8 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
       { id: 'openai-codex', name: 'ChatGPT', status: 'not_ready' },
     ]
   if (channel === 'hosts:claude') return hostClaude
-  if (channel === 'packages:list') return [CLAUDE_PROVIDER]
   if (channel === 'hosts:tailscaleStatus') return { code: tailscale }
-  if (channel === 'app:about') return { appVersion: '1.4.0', platform: 'darwin', arch: 'arm64' }
+  if (channel in LOCAL_READS) return LOCAL_READS[channel]
   if (channel === 'hosts:settingsRead') return { advanced: { pi: { version: '0.70.1' } } }
   if (channel === 'skills:list') return { skills: [{ name: 'a' }, { name: 'b' }] }
   if (channel === 'routines:list') return { routines: [{ archived: false }, { archived: true }] }
@@ -261,12 +261,12 @@ it("C5d: a Host's own Tailscale row is never muted", async () => {
   expect(tailscaleRow()?.querySelector('[aria-label="Needs attention"]')).not.toBeNull()
 })
 
-it("C8: This Mac's actions menu updates Phosphor through Settings → About, where the app can", async () => {
+it("C8: This Mac's actions menu updates Phosphor through Settings → Advanced, as a Host's does", async () => {
   await openThisMac()
   await click(container.querySelector<HTMLElement>('[aria-label="Machine actions"]'))
   expect(button('Update Host…')).toBeUndefined()
   await click(button('Update Phosphor…'))
-  expect(useSettingsUiStore.getState()).toMatchObject({ tab: 'about' })
+  expect(useSettingsUiStore.getState()).toMatchObject({ tab: 'advanced', machine: 'local' })
   act(() => root.unmount())
   root = createRoot(container)
   await render(
@@ -288,6 +288,21 @@ it("C9a: This Mac's Details add its architecture and Phosphor version", async ()
   expect(fact('Platform')).toBe('macOS arm64')
   expect(fact('Phosphor version')).toBe('1.4.0')
   expect(fact('pi')).toBe('1.2.0')
+})
+
+it("characterize: This Mac's Details say Not available when app:about fails", async () => {
+  const base = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'app:about') throw new Error('no about')
+    return base(channel)
+  })
+  try {
+    await openThisMac()
+    expect(fact('Platform')).toBe('macOS')
+    expect(fact('Phosphor version')).toBe('Not available')
+  } finally {
+    invoke.mockImplementation(base)
+  }
 })
 
 it("C9b: a Host's Details show its pi version where this device may read its settings", async () => {
@@ -426,6 +441,45 @@ it("characterize: This Mac's On this machine lists its own live lane, not a Host
     const card = container.querySelector('[aria-label="On this machine"]')
     expect(card?.textContent).toContain('1 lane')
     expect(card?.querySelectorAll('.machine-lane-preview .lane-row')).toHaveLength(1)
+  } finally {
+    useSessionsStore.setState({ live: {} })
+  }
+})
+
+it("F1: This Mac's preview opens a worktree-removed lane as its saved conversation, as the sidebar does", async () => {
+  const meta = {
+    path: '/sessions/gone.jsonl',
+    sessionId: 'gone',
+    cwd: '/work/app-wt',
+    name: 'Removed lane',
+    mtimeMs: 1,
+    worktreeRemoved: true,
+  }
+  const openDiskSession = vi.fn(async () => 'opened')
+  const original = useSessionsStore.getState()
+  useSessionsStore.setState({
+    disk: { '/work/app': [meta] } as never,
+    openDiskSession: openDiskSession as never,
+  })
+  try {
+    await openThisMac()
+    await click(container.querySelector<HTMLElement>('.machine-lane-preview .lane-row'))
+    expect(openDiskSession).not.toHaveBeenCalled()
+    expect(useSavedConversation.getState()).toMatchObject({ meta, workspace: '/work/app' })
+  } finally {
+    useSavedConversation.setState({ meta: null })
+    useSessionsStore.setState({ disk: original.disk, openDiskSession: original.openDiskSession })
+  }
+})
+
+it("F10: This Mac's preview titles a live lane with no file yet 'New session', as the sidebar does", async () => {
+  useSessionsStore.setState({
+    live: { fresh: { phosphorId: 'fresh', workspacePath: '/work/app' } } as never,
+  })
+  try {
+    await openThisMac()
+    const row = container.querySelector('.machine-lane-preview .lane-row')
+    expect(row?.getAttribute('aria-label')).toBe('New session')
   } finally {
     useSessionsStore.setState({ live: {} })
   }

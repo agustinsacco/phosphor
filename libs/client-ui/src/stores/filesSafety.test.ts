@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useFilesStore, workspaceFiles } from './files'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext', peekMonaco: () => null }))
+vi.mock('@/lib/monaco', () => ({ peekMonaco: () => null }))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: () => {} }))
 const invoke = vi.fn()
 const store = () => useFilesStore.getState()

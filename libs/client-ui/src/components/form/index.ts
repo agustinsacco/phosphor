@@ -17,4 +17,5 @@ export {
   type SettingsNoticeProps,
 } from './SettingsNotice'
 export { SourceBadge, type SettingSource } from './SourceBadge'
+export { Tag } from './Tag'
 export { SaveStatus, type SaveState } from './SaveStatus'

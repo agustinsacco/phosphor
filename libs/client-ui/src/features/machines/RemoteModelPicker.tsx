@@ -1,10 +1,7 @@
 import { supportedThinkingLevels } from '@shared/thinking'
-import { machineLabel } from '@/stores/remoteLanes'
-import { useOpenSettings } from '@/features/settings/useOpenSettings'
+import { useSignInAction } from '@/features/chat/useSignInAction'
 import { StartModelPicker, type StartModelSource } from '@/features/home/StartModelPicker'
 import type { useRemoteModel } from './useRemoteModel'
-
-export { useRemoteModel } from './useRemoteModel'
 
 type HostModelSelection = ReturnType<typeof useRemoteModel>
 
@@ -14,21 +11,19 @@ export function RemoteModelPicker({
 }: {
   selection: HostModelSelection
 }): React.JSX.Element {
-  const openSettings = useOpenSettings()
-  return (
-    <StartModelPicker
-      source={hostStartModel(selection, () => openSettings(selection.hostId, 'accounts'))}
-    />
-  )
+  const signIn = useSignInAction(selection.hostId)
+  return <StartModelPicker source={hostStartModel(selection, signIn)} />
 }
 
 /** Sign in goes where the chat's sign-in remedy goes: Settings → Accounts for the Host. */
-function hostStartModel(selection: HostModelSelection, signIn: () => void): StartModelSource {
-  const { model, hostId } = selection
+function hostStartModel(
+  selection: HostModelSelection,
+  signIn: StartModelSource['actions'][number],
+): StartModelSource {
+  const { model } = selection
   const actions: StartModelSource['actions'] = []
   if (selection.canRetry) actions.push({ label: 'Retry models', run: () => void selection.retry() })
-  if (selection.missingModel)
-    actions.push({ label: `Sign in on ${machineLabel(hostId)}`, run: signIn })
+  if (selection.missingModel) actions.push(signIn)
   return {
     testIdPrefix: 'remote',
     models: selection.models,

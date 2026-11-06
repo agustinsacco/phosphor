@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'text' }))
+vi.mock('@/lib/monaco', () => ({}))
 import { useFilesStore } from '@/stores/files'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { topLevelPaths, transferFiles } from './fileTransfers'

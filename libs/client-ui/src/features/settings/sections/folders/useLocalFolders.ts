@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ipcErrorText } from '@shared/errors'
 import { localMachineLabel } from '@/lib/localMachine'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { confirmFolderRemoval } from './confirmFolderRemoval'
 import type { FolderSource } from './source'
-import { useOnLocalRefresh } from '../../machine/ScopeRefresh'
+import { useLocalRead } from '../../machine/ScopeRefresh'
 
 const CAPS = { add: true, remove: 'forget', trustReview: false, sandboxes: true } as const
 
@@ -16,13 +16,15 @@ export function useLocalFolders(): FolderSource {
   const [error, setError] = useState<string | null>(null)
   // Item counts change whenever a session writes, so the list is re-read on
   // open rather than trusted from launch.
-  const read = (): void =>
-    void useWorkspacesStore
-      .getState()
-      .refreshSandboxes()
-      .catch((reason: unknown) => setError(ipcErrorText(reason)))
-  useEffect(read, [])
-  useOnLocalRefresh(read)
+  const read = useCallback(
+    (): Promise<void> =>
+      useWorkspacesStore
+        .getState()
+        .refreshSandboxes()
+        .catch((reason: unknown) => setError(ipcErrorText(reason))),
+    [],
+  )
+  useLocalRead(read)
   // A sandbox IS a recent workspace, but listing it twice would mean two
   // Remove buttons for one folder; it belongs to its own list. Both sides are
   // resolved paths (main answers recents that way and reads sandboxes off

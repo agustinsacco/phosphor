@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 import { act } from 'react'
-import { createRoot, type Root } from 'react-dom/client'
+import type { Root } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { HostCapability } from '@shared/remote-host'
-import { RemoteFilesPane } from './RemoteFilesPane'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { mockRemoteInfo, mockRemoteHosts } from '@/dev/mockRemoteLanes'
+import { renderRemoteFilesPane } from './__fixtures__/renderRemoteFilesPane'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
   MonacoEditor: () => null,
@@ -26,42 +25,15 @@ afterEach(() => {
 })
 
 async function renderToolbar(capabilities: HostCapability[]): Promise<HTMLDivElement> {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  const target = mockRemoteInfo.target
-  if (target?.kind !== 'remote') throw new Error('Missing remote fixture')
-  const sessionId = mockRemoteInfo.sessionId
-  useSessionsStore.setState({ live: { [sessionId]: { phosphorId: sessionId, ...mockRemoteInfo } } })
-  const fixture = mockRemoteHosts[target.hostId]!
-  useRemoteLanesStore.setState({
-    hosts: {
-      [target.hostId]: {
-        ...fixture,
-        capabilities,
-        lanes: fixture.lanes.map((lane) => ({
-          ...lane,
-          control: {
-            ...lane.control,
-            controller: { self: true, label: 'Desktop', connected: true },
-          },
-        })),
-      },
+  const pane = await renderRemoteFilesPane({
+    capabilities,
+    controller: true,
+    phosphor: {
+      invoke: vi.fn(async (channel: string) => (channel === 'fs:listFiles' ? ['a.ts'] : {})),
     },
   })
-  vi.stubGlobal('phosphor', {
-    invoke: vi.fn(async (channel: string) => (channel === 'fs:listFiles' ? ['a.ts'] : {})),
-  })
-  const container = document.createElement('div')
-  root = createRoot(container)
-  await act(async () =>
-    root!.render(
-      <RemoteFilesPane
-        workspacePath={mockRemoteInfo.workspacePath}
-        sessionId={sessionId}
-        changes={false}
-      />,
-    ),
-  )
-  return container
+  root = pane.root
+  return pane.container
 }
 
 it('gives every file action its own icon', async () => {
@@ -82,6 +54,15 @@ it('marks a lane without write access with a read-only tag', async () => {
   const container = await renderToolbar(['sessions.read', 'workspaces.read'])
   const tag = [...container.querySelectorAll('span')].find((s) => s.textContent === 'Read only')
   expect(tag).toBeDefined()
+  // The settings SourceBadge's chip, in its secondary colours.
+  for (const name of [
+    'rounded-full',
+    'px-1.5',
+    'text-2xs',
+    'bg-bg-secondary',
+    'text-text-secondary',
+  ])
+    expect(tag!.classList).toContain(name)
   for (const label of ACTIONS)
     expect(container.querySelector(`button[aria-label="${label}"]`)).toBeNull()
 })

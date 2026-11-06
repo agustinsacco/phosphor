@@ -10,7 +10,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useMachinesStore } from '@/stores/machines'
 import { useFilesStore } from '@/stores/files'
 
-vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/lib/monaco', () => ({}))
 let root: Root
 let container: HTMLDivElement
 const invoke = vi.fn().mockResolvedValue(undefined)

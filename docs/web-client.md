@@ -131,7 +131,9 @@ machine picker offers All machines and each Host; New under All machines asks fo
 a Host. Incomplete
 artifact aggregation reports an error rather than a misleading complete list.
 Files and HEAD/working-copy comparisons are read-only, coloured by the file's
-language, and a chat link scrolls to its line. New lanes and existing
+language, and a chat link scrolls to its line. Like This Mac's viewer, a file
+offers Copy but no chat code-block actions (Open as artifact, Run in terminal),
+here and in Machine files. New lanes and existing
 lane composers accept inline images; other browser file attachments are refused
 before any lane creation/upload. The start screen's Repository menu offers Add
 folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
