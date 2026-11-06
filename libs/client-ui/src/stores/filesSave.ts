@@ -1,5 +1,12 @@
 import type { StoreApi } from 'zustand'
-import { patchFile, patchWorkspace, workspaceFiles, type FilesState } from './files'
+import {
+  filesSourceTraits,
+  patchFile,
+  patchWorkspace,
+  workspaceFiles,
+  type FilesState,
+  type OpenFile,
+} from './files'
 
 type SetFiles = StoreApi<FilesState>['setState']
 type GetFiles = StoreApi<FilesState>['getState']
@@ -61,7 +68,10 @@ async function saveFile(
   path: string,
 ): Promise<void> {
   const file = workspaceFiles(get(), workspacePath).openFiles.find((f) => f.path === path)
-  if (!file || !file.dirty) return
+  if (!file || !file.dirty || file.saving || file.saveUncertain) return
+  const refusal = filesSourceTraits(workspacePath).writeRefusal
+  if (refusal) throw new Error(refusal)
+  if (file.revision !== undefined) return saveAtRevision(set, workspacePath, file)
   // Serialize writes to the same disk path, but capture each requested revision
   // now. A later keystroke must never be marked saved by an earlier write.
   const write = (fileWrites.get(path) ?? Promise.resolve())
@@ -94,6 +104,47 @@ async function saveFile(
   }
 }
 
+/**
+ * Save over the revision this buffer was read at. A remounted pane sees `saving` and sends nothing
+ * more; a changed file is a conflict; any other failure may have landed, so it is never retried.
+ */
+async function saveAtRevision(set: SetFiles, workspacePath: string, file: OpenFile): Promise<void> {
+  const settle = (fields: Partial<OpenFile> | ((f: OpenFile) => Partial<OpenFile>)) =>
+    set((s) =>
+      patchWorkspace(s, workspacePath, (w) => ({
+        ...w,
+        openFiles: w.openFiles.map((f) =>
+          f.path === file.path && f.instanceId === file.instanceId
+            ? { ...f, ...(typeof fields === 'function' ? fields(f) : fields) }
+            : f,
+        ),
+      })),
+    )
+  settle({ saving: true })
+  try {
+    const saved = await window.phosphor.invoke(
+      'fs:writeFile',
+      file.path,
+      file.content,
+      file.revision,
+    )
+    settle((f) => ({
+      saving: false,
+      savedContent: file.content,
+      dirty: f.content !== file.content,
+      revision: saved.revision,
+      mtimeMs: saved.mtimeMs,
+      size: new TextEncoder().encode(file.content).length,
+      diskConflict: false,
+    }))
+  } catch (error) {
+    const conflict = error instanceof Error && error.message.includes('changed-on-disk')
+    settle(
+      conflict ? { saving: false, diskConflict: true } : { saving: false, saveUncertain: true },
+    )
+  }
+}
+
 async function reloadFromDisk(
   set: SetFiles,
   get: GetFiles,
@@ -121,8 +172,10 @@ async function reloadFromDisk(
             size: file.size,
             binary: file.binary,
             tooLarge: file.tooLarge,
+            ...('revision' in file ? { revision: file.revision } : {}),
             dirty: false,
             diskConflict: false,
+            saveUncertain: false,
           }
         }),
       })),

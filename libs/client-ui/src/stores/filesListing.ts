@@ -1,5 +1,8 @@
 import type { StoreApi } from 'zustand'
-import { patchWorkspace, type FilesState } from './files'
+import { fileListErrorText } from '@shared/host-protocol-files'
+import { foldFileList } from '@/features/files/fileListTree'
+import { filesSourceTraits, patchWorkspace, type FilesState } from './files'
+import { REMOTE_UNAVAILABLE } from './remoteLanes'
 
 type SetFiles = StoreApi<FilesState>['setState']
 type GetFiles = StoreApi<FilesState>['getState']
@@ -55,6 +58,9 @@ export function fileListingActions(
     },
 
     refreshLoadedDirs: async (workspacePath) => {
+      // One flat list re-reads every folder.
+      if (filesSourceTraits(workspacePath).listing === 'flat')
+        return get().refreshDir(workspacePath, workspacePath)
       const dirs = new Set([
         workspacePath,
         ...Object.keys(get().entries).filter((dir) => atOrBelow(dir, workspacePath)),
@@ -81,12 +87,61 @@ export function fileListingActions(
   }
 }
 
+/** Lists in flight per flat workspace, and the one list a caller asked for meanwhile. */
+const flatLists = new Map<string, { run: Promise<void>; again?: Promise<void> }>()
+
+/**
+ * Read a flat workspace's whole list once and fold it into every folder's listing. A request
+ * during a list waits for it and shares one more, so it never sees a list sent before it asked.
+ */
+function listFlat(set: SetFiles, workspacePath: string): Promise<void> {
+  const running = flatLists.get(workspacePath)
+  if (running) return (running.again ??= running.run.then(() => listFlat(set, workspacePath)))
+  const run = foldFlatList(set, workspacePath).finally(() => flatLists.delete(workspacePath))
+  flatLists.set(workspacePath, { run })
+  return run
+}
+
+async function foldFlatList(set: SetFiles, workspacePath: string): Promise<void> {
+  let listings: ReturnType<typeof foldFileList>
+  try {
+    listings = foldFileList(
+      workspacePath,
+      await window.phosphor.invoke('fs:listFiles', workspacePath),
+    )
+  } catch (error) {
+    const listError = fileListErrorText(error, 'Could not read files.')
+    set((s) => ({
+      entries: { ...s.entries, [workspacePath]: s.entries[workspacePath] ?? [] },
+      listErrors: { ...s.listErrors, [workspacePath]: listError },
+    }))
+    return
+  }
+  set((s) => {
+    const below = (key: string) => key === workspacePath || key.startsWith(`${workspacePath}/`)
+    const outside = <T>(record: Record<string, T>) =>
+      Object.fromEntries(Object.entries(record).filter(([key]) => !below(key)))
+    return {
+      // Past the fold's caps the tree is refused, never drawn partially.
+      entries: { ...outside(s.entries), ...(listings ?? { [workspacePath]: [] }) },
+      expanded: {
+        ...outside(s.expanded),
+        ...Object.fromEntries(
+          Object.entries(s.expanded).filter(([key]) => below(key) && listings?.[key]),
+        ),
+      },
+      listErrors: { ...s.listErrors, [workspacePath]: listings ? undefined : REMOTE_UNAVAILABLE },
+    }
+  })
+}
+
 async function readDir(
   set: SetFiles,
   get: GetFiles,
   workspacePath: string,
   dirPath: string,
 ): Promise<void> {
+  if (filesSourceTraits(workspacePath).listing === 'flat') return listFlat(set, workspacePath)
   const { showHidden, respectGitignore } = get()
   try {
     const list = await window.phosphor.invoke('fs:readDir', workspacePath, dirPath, {

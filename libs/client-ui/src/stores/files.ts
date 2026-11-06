@@ -1,8 +1,10 @@
 import { create } from 'zustand'
-import type { DirEntry } from '@shared/models'
+import type { DirEntry, FileContent } from '@shared/models'
 import { isTextPreview } from '@shared/file-kinds'
 import { languageForPath } from '@/lib/languages'
+import type { FilesSource } from '@/features/files/filesSource'
 import { keyedSlice } from './keyedSlice'
+import { REMOTE_UNAVAILABLE } from './remoteLanes'
 import { fileListingActions } from './filesListing'
 import { fileSaveActions } from './filesSave'
 import { fileTabActions } from './filesTabs'
@@ -50,6 +52,12 @@ export interface OpenFile {
   tooLarge?: boolean
   /** Set when the file changed on disk while dirty (conflict bar). */
   diskConflict?: boolean
+  /** The revision read or saved; a write is refused when the file moved past it. Absent: unchecked. */
+  revision?: string | null
+  /** A revision-checked save is in flight; another is not sent until it settles. */
+  saving?: boolean
+  /** A revision-checked save failed without saying whether it landed; it is never retried. */
+  saveUncertain?: boolean
   /** The latest place asked for; the editor applies each `seq` once. */
   pendingReveal?: PendingReveal
   /** Absent means the preview: opening one is usually to look at it. */
@@ -90,6 +98,8 @@ export interface FilesState {
   respectGitignore: boolean
   /** workspacePath → that workspace's editors and git status. */
   byWorkspace: Record<string, WorkspaceFiles>
+  /** workspacePath → why its flat file list could not be read. */
+  listErrors: Record<string, string | undefined>
 
   toggleDir: (workspacePath: string, dirPath: string) => Promise<void>
   refreshDir: (workspacePath: string, dirPath: string) => Promise<void>
@@ -123,6 +133,19 @@ export interface FilesState {
   keepBuffer: (workspacePath: string, path: string) => void
 }
 
+/** What the store needs from a workspace's Files source; This Mac's tree until one is attached. */
+type FilesSourceTraits = Pick<FilesSource, 'listing' | 'writeRefusal'>
+const sourceTraits = new Map<string, FilesSourceTraits>()
+
+/** The Files pane attaches its source, so listing and saving follow the lane's machine. */
+export function attachFilesSource({ workspacePath, listing, writeRefusal }: FilesSource): void {
+  sourceTraits.set(workspacePath, { listing, writeRefusal })
+}
+
+export function filesSourceTraits(workspacePath: string): FilesSourceTraits {
+  return sourceTraits.get(workspacePath) ?? { listing: 'tree', writeRefusal: null }
+}
+
 /** Files state for a workspace; the shared empty value when none exists yet. */
 export function workspaceFiles(state: FilesState, workspacePath: string): WorkspaceFiles {
   return workspaces.read(state.byWorkspace, workspacePath)
@@ -131,6 +154,24 @@ export function workspaceFiles(state: FilesState, workspacePath: string): Worksp
 function relativeTo(workspacePath: string, path: string): string {
   const prefix = workspacePath.endsWith('/') ? workspacePath : workspacePath + '/'
   return path.startsWith(prefix) ? path.slice(prefix.length) : path
+}
+
+/** A tab for a file just read. */
+function openedFile(workspacePath: string, path: string, file: FileContent): OpenFile {
+  return {
+    instanceId: ++fileSeq,
+    path,
+    relativePath: relativeTo(workspacePath, path),
+    language: languageForPath(path),
+    savedContent: file.content,
+    content: file.content,
+    mtimeMs: file.mtimeMs,
+    size: file.size,
+    dirty: false,
+    binary: file.binary,
+    tooLarge: file.tooLarge,
+    ...('revision' in file ? { revision: file.revision } : {}),
+  }
 }
 
 /** Apply a patch to one workspace's slice, creating it if absent. */
@@ -165,11 +206,14 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   showHidden: false,
   respectGitignore: true,
   byWorkspace: {},
+  listErrors: {},
 
   ...fileListingActions(set, get),
 
   openFile: async (workspacePath, path, target) => {
-    if (workspacePath.startsWith('host:')) throw new Error('Not available on remote lanes yet.')
+    // A Host key routes IPC to the Host; a path outside it would read this device's disk.
+    if (workspacePath.startsWith('host:') && !path.startsWith(`${workspacePath}/`))
+      throw new Error(REMOTE_UNAVAILABLE)
     const reveal: Partial<OpenFile> = {}
     if (target !== undefined) {
       reveal.pendingReveal = {
@@ -204,23 +248,9 @@ export const useFilesStore = create<FilesState>((set, get) => ({
             activeRequest: (w.activeRequest ?? 0) + 1,
           }
         }
-        const openFile: OpenFile = {
-          instanceId: ++fileSeq,
-          path,
-          relativePath: relativeTo(workspacePath, path),
-          language: languageForPath(path),
-          savedContent: file.content,
-          content: file.content,
-          mtimeMs: file.mtimeMs,
-          size: file.size,
-          dirty: false,
-          binary: file.binary,
-          tooLarge: file.tooLarge,
-          ...reveal,
-        }
         return {
           ...w,
-          openFiles: [...w.openFiles, openFile],
+          openFiles: [...w.openFiles, { ...openedFile(workspacePath, path, file), ...reveal }],
           activePath: path,
           activeRequest: (w.activeRequest ?? 0) + 1,
         }
@@ -283,9 +313,12 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   releaseWorkspace: (workspacePath) => {
     const slice = get().byWorkspace[workspacePath]
     const paths = slice?.openFiles.map((f) => f.path) ?? []
+    sourceTraits.delete(workspacePath)
     set((s) => {
       const byWorkspace = { ...s.byWorkspace }
       delete byWorkspace[workspacePath]
+      const listErrors = { ...s.listErrors }
+      delete listErrors[workspacePath]
       // Explorer listings and expansion flags are keyed by absolute dir path,
       // so they are pruned by prefix rather than by workspace key.
       const prefix = workspacePath.endsWith('/') ? workspacePath : workspacePath + '/'
@@ -295,7 +328,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
       const directoryMtimes = Object.fromEntries(
         Object.entries(s.directoryMtimes).filter(([k]) => keep(k)),
       )
-      return { byWorkspace, entries, expanded, directoryMtimes }
+      return { byWorkspace, listErrors, entries, expanded, directoryMtimes }
     })
     if (paths.length > 0) {
       void import('@/features/files/MonacoEditor').then(({ releaseFileModel }) => {
