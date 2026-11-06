@@ -4,7 +4,11 @@ import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { expect, it } from 'vitest'
-import { buildBrainExtensions } from './build-brain-extensions.mjs'
+import { BRAIN_EXTENSION_SOURCES, buildBrainExtensions } from './build-brain-extensions.mjs'
+
+it('names the pi-ext sources that ship only as bundles', () => {
+  expect(BRAIN_EXTENSION_SOURCES).toEqual(['brain.ts', 'brain-processor.ts'])
+})
 
 it('stages standalone working and processor extensions with no workspace dependency', async () => {
   const root = await mkdtemp(join(tmpdir(), 'brain-resource-'))
