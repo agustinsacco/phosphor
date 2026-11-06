@@ -5,6 +5,7 @@ import type {
   BrainQuery,
   BrainSearchResult,
   BrainEvidence,
+  BrainEvidencePage,
   BrainGraph,
   BrainJob,
   BrainRevision,
@@ -20,6 +21,7 @@ export interface BrainInvokeMap {
   'brain:removeModel': { args: []; result: BrainStatus }
   'brain:search': { args: [query: BrainQuery]; result: BrainSearchResult }
   'brain:read': { args: [evidenceId: string]; result: BrainEvidence }
+  'brain:evidence': { args: [scope: string, afterId?: string]; result: BrainEvidencePage }
   'brain:graph': { args: [entityId?: string]; result: BrainGraph }
   'brain:process': { args: [scope: string, consent: BrainProcessConsent]; result: BrainJob }
   'brain:cancel': { args: [jobId: string]; result: void }

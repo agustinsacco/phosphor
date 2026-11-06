@@ -54,6 +54,7 @@ const expectedEntries = [
   ['brain:cancel', 'app'],
   ['brain:correct', 'app'],
   ['brain:download', 'app'],
+  ['brain:evidence', 'app'],
   ['brain:forget', 'app'],
   ['brain:graph', 'app'],
   ['brain:process', 'app'],

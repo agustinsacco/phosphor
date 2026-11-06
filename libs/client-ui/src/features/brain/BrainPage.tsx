@@ -71,7 +71,8 @@ function LocalBrain(): React.JSX.Element {
           )}
           {status.snapshot.truncated && (
             <p role="status">
-              Partial snapshot: more data exists than shown. Search to narrow results.
+              Partial snapshot: row or byte limits hide some data. Search narrows claims; Activity
+              prioritizes pending work and provides pages of captured evidence.
             </p>
           )}
           {tab === 'Explore' && <BrainExplore snapshot={status.snapshot} busy={busy} act={act} />}

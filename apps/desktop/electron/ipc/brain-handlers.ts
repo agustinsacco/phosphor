@@ -21,6 +21,7 @@ export function registerBrainHandlers(service: BrainService | (() => Promise<Bra
   handle('brain:removeModel', () => invoke('brain:removeModel'))
   handle('brain:search', (_event, query) => invoke('brain:search', bounded(query)))
   handle('brain:read', (_event, id) => invoke('brain:read', id))
+  handle('brain:evidence', (_event, scope, cursor) => invoke('brain:evidence', scope, cursor))
   handle('brain:graph', (_event, id) => invoke('brain:graph', id))
   handle('brain:process', (_event, scope, consent) =>
     invoke('brain:process', scope, bounded(consent)),

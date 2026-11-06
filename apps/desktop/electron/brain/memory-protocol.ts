@@ -17,6 +17,7 @@ export const MEMORY_METHODS: readonly (keyof MemoryOperations)[] = [
   'setPrefs',
   'capture',
   'read',
+  'evidencePage',
   'createJob',
   'claimJob',
   'updateJob',
