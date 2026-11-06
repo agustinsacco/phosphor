@@ -1,4 +1,4 @@
-import clsx from 'clsx'
+import { Tag } from './Tag'
 
 /** Where a shown value comes from: this scope's own file, the machine scope, or pi itself. */
 export type SettingSource = 'set-here' | 'inherited' | 'pi-default'
@@ -13,14 +13,8 @@ const SOURCES: Record<SettingSource, { label: string; className: string }> = {
 export function SourceBadge({ source }: { source: SettingSource }): React.JSX.Element {
   const { label, className } = SOURCES[source]
   return (
-    <span
-      data-setting-source={source}
-      className={clsx(
-        'shrink-0 whitespace-nowrap rounded-full px-1.5 py-0.5 text-2xs font-medium',
-        className,
-      )}
-    >
+    <Tag data-setting-source={source} className={className}>
       {label}
-    </span>
+    </Tag>
   )
 }
