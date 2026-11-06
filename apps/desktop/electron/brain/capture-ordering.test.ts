@@ -88,7 +88,7 @@ it('captures a unique successful input when its response and agent_end are coale
     {
       cwd: import.meta.dirname,
       binaryPath: process.execPath,
-      prefixArgs: ['-e', source],
+      prefixArgs: ['-e', source, '--'],
       inheritEnv: false,
       env: {},
     },
