@@ -8,7 +8,7 @@ import {
   REMOTE_NOT_READY,
   useSessionHostLane,
 } from '@/stores/remoteLanes'
-import type { SessionHostLane } from '@/stores/sessionHostLane'
+import type { SessionHostLane } from '@/stores/hostLaneOf'
 
 /** pi writes nothing to resume until a first message; the Host refuses Stop before then. */
 export const STOP_NEEDS_PROMPT = 'Send a first message before stopping this lane.'
