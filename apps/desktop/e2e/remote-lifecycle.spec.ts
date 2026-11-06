@@ -3,7 +3,16 @@ import { execFileSync } from 'node:child_process'
 import { writeFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
-import { openRemote, takeControl, sendTurn, files, file, edit } from './fixtures/remote-ui'
+import {
+  openRemote,
+  takeControl,
+  sendTurn,
+  files,
+  file,
+  edit,
+  save,
+  unsaved,
+} from './fixtures/remote-ui'
 
 test('Control takeover guards remote mutations and explicit take restores send and save', async () => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
@@ -41,7 +50,7 @@ test('Control takeover guards remote mutations and explicit take restores send a
     await files(h)
     await file(h, 'remote.txt')
     await edit(h, 'HOST_A_ONLY regained save')
-    await h.page.getByRole('button', { name: 'Save', exact: true }).click()
+    await save(h)
     await expect.poll(() => h.readHostFile('remote.txt')).toBe('HOST_A_ONLY regained save')
     await file(h, 'nested/guide.md')
     await file(h, 'remote.txt')
@@ -152,7 +161,7 @@ test('Dirty file editor survives connection interruption', async () => {
     await expect(h.page.locator('.monaco-editor .view-lines')).toContainText(
       'HOST_A_ONLY retained dirty',
     )
-    await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
+    await expect(unsaved(h)).toBeVisible()
     expect(await h.readHostFile('remote.txt')).toContain('modified')
     await h.slowTurn.release()
   } finally {
