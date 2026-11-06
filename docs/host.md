@@ -1702,8 +1702,12 @@ request under `hostStateDirectory()/artifacts`. `artifacts.list {laneId?}` retur
 current-branch metadata for one lane or all admitted lanes, capped at 2,000 artifacts
 and 1,000 versions per artifact, with 4 MiB of metadata per list.
 `artifacts.read {laneId, slug, version?}` returns
-one version, defaulting to the latest, capped at 2 MiB of UTF-8 content. Session
-scans cap at 32 MiB. Calls run in FIFO order with at most eight waiting calls;
+one version, defaulting to the latest, capped at 2 MiB of UTF-8 content. A scan
+resumes from the lane's saved index and reads at most 32 MiB per call, so a long
+session keeps indexing as it grows; a first scan past that answers `too-large`. A
+lane that cannot be scanned fails a request naming it, but the all-lanes list leaves
+it out and logs `artifact-lane-skipped` rather than hiding every other lane.
+Calls run in FIFO order with at most eight waiting calls;
 additional calls answer `internal` because call errors have no `busy` code.
 The portable indexer and library live in `libs/session-runtime/src/artifacts/`.
 No client names a session file, blob hash or storage path. Removed lanes are
