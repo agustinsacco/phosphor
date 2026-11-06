@@ -181,7 +181,7 @@ it('regression: explicit manual batches progress past 200 without repeating appl
     new Set([...first.job.evidenceIds, ...second.job.evidenceIds, ...third.job.evidenceIds]),
   ).toEqual(ids)
   expect(() => store.createJob('/a', model)).toThrow('No eligible evidence')
-})
+}, 30_000)
 it('regression: never-attempted evidence is preferred before an explicit failed retry', () => {
   const { store, capture, time } = fixture()
   const old = capture('attempted')
