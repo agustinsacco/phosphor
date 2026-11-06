@@ -176,6 +176,7 @@ it('lets a person search an explicit evidence branch without widening the empty 
     set.call(branch, 'feature/synthetic')
     branch!.dispatchEvent(new Event('input', { bubbles: true }))
   })
+  invoke.mockResolvedValueOnce({ results: [], status: 'ready', degradation: [], truncated: false })
   await act(async () =>
     container
       .querySelector('form')!

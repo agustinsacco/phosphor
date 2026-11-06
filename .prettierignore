@@ -2,6 +2,7 @@
 .phosphor/
 .pidex/
 node_modules/
+libs/pi-extensions/brain-ext/
 out/
 dist/
 release/
