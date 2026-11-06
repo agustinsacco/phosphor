@@ -1,3 +1,4 @@
+import { invalidateSessionInput, withSessionInput } from './session-input'
 import { access } from 'node:fs/promises'
 import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
@@ -173,7 +174,7 @@ async function dispatchCommand<Delivery>(
   if (command.type === 'switch_session')
     await assertNotBrainSource(command.sessionPath, live.workspacePath, admission.registry)
   await preflightCommand(runtime, live, id, command)
-  const result = await live.client.request(command)
+  const result = await withSessionInput(live, command, () => live.client.request(command))
   if (!runtime.isStub() && command.type === 'set_auto_compaction' && result.success) {
     await syncContextBudget(live.client, runtime.readBudget())
   }
@@ -191,6 +192,7 @@ async function command<Delivery>(
   assertManualCommand(admission, id, command)
   // Interactive compaction/reload callbacks must never send work into a processor.
   if (live.owner) return live.client.request(command)
+  await invalidateSessionInput(live, command)
   const mutating = !observes(command)
   if (mutating) admission.mutating.set(id, (admission.mutating.get(id) ?? 0) + 1)
   try {

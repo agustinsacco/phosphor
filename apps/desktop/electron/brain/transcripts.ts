@@ -2,6 +2,7 @@ import { constants } from 'node:fs'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { lstat, open, realpath, unlink } from 'node:fs/promises'
 import { isWithinFolder } from '@phosphor/shared/paths'
+import { assertPurgeOwnership } from './transcript-ownership'
 import { bounded } from './authority'
 import {
   BRAIN_OWNER_CUSTOM_TYPE,
@@ -44,13 +45,7 @@ export async function plannedTranscriptExists(path: string, sessionDir: string):
     throw error
   })
   if (!stat) return false
-  if (
-    stat.isSymbolicLink() ||
-    !stat.isFile() ||
-    stat.size > MAX_TRANSCRIPT ||
-    (await realpath(path)) !== path
-  )
-    throw unsafe()
+  if (stat.isSymbolicLink() || !stat.isFile() || (await realpath(path)) !== path) throw unsafe()
   return true
 }
 
@@ -80,10 +75,11 @@ export async function readOwnedTranscript(
   try {
     const info = await file.stat()
     if (!info.isFile() || info.size > MAX_TRANSCRIPT)
-      throw new Error('Brain transcript exceeds limit')
+      throw new Error('Unsafe Brain processor transcript exceeds display limit')
     const buffer = Buffer.alloc(MAX_TRANSCRIPT + 1)
     const { bytesRead } = await file.read(buffer, 0, buffer.length, 0)
-    if (bytesRead > MAX_TRANSCRIPT) throw new Error('Brain transcript exceeds limit')
+    if (bytesRead > MAX_TRANSCRIPT)
+      throw new Error('Unsafe Brain processor transcript exceeds display limit')
     const text = buffer.subarray(0, bytesRead).toString('utf8')
     const entries = text
       .split('\n')
@@ -91,6 +87,34 @@ export async function readOwnedTranscript(
       .map((line) => JSON.parse(line) as Record<string, unknown>)
     assertTranscriptOwnership(entries, jobId)
     return text
+  } finally {
+    await file.close()
+  }
+}
+
+async function purgeOwnedTranscript(
+  path: string,
+  jobId: string,
+  sessionDir: string,
+): Promise<void> {
+  if (!(await plannedTranscriptExists(path, sessionDir))) return
+  const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
+  try {
+    const initial = await file.stat()
+    if (!initial.isFile()) throw new Error('Unsafe Brain processor transcript')
+    await assertPurgeOwnership(file, jobId)
+    const current = await lstat(path)
+    if (
+      current.isSymbolicLink() ||
+      !current.isFile() ||
+      current.ino !== initial.ino ||
+      current.dev !== initial.dev ||
+      current.size !== initial.size ||
+      current.mtimeMs !== initial.mtimeMs
+    )
+      throw new Error('Brain processor transcript changed during purge')
+    await plannedTranscriptExists(path, sessionDir)
+    await unlink(path)
   } finally {
     await file.close()
   }
@@ -115,8 +139,7 @@ export function createBrainTranscripts(
               await options.sessions.disposeBrain(live.sessionId, live.owner)
           }
           try {
-            await checked(item.sessionPath, item.jobId)
-            await unlink(item.sessionPath)
+            await purgeOwnedTranscript(item.sessionPath, item.jobId, sessionDir)
           } catch (error) {
             if (
               (error as NodeJS.ErrnoException).code !== 'ENOENT' ||

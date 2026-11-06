@@ -1,3 +1,6 @@
+import { attachSessionMemory } from './session-memory'
+import type { SessionUserInput, SessionInputReceipt } from './session-input'
+export type { SessionUserInput, SessionInputReceipt } from './session-input'
 import { basename } from 'node:path'
 import type { CreateSessionOptions, LiveSessionInfo, SessionPush } from '@shared/models'
 import { RATE_LIMIT_STATUS_KEY, accountExhaustedUntil } from '@shared/claude-limits'
@@ -22,6 +25,8 @@ export interface SessionMemoryAugmentation {
   env?: Record<string, string>
   extensions?: string[]
   onCreated: (session: LiveSession) => void | Promise<void>
+  beforeInput?: (command: SessionUserInput) => Promise<SessionInputReceipt | undefined>
+  invalidateInput?: () => void
   /** Must be idempotent: startup failure and registry disposal may both revoke it. */
   dispose: () => void | Promise<void>
 }
@@ -183,7 +188,7 @@ async function spawnSession(
   if (execution.signal?.aborted) stopOnAbort()
   try {
     execution.signal?.throwIfAborted()
-    if (memory) await memory.onCreated(session)
+    if (memory) await attachSessionMemory(session, memory, runtime.log)
     execution.signal?.throwIfAborted()
     bindStartupEvents(runtime, session, sink, accountId)
     if (execution.brain) await verifyBrainModel(session.client, execution.brain)
