@@ -5,10 +5,11 @@ import {
 } from '@/features/artifacts/remoteArtifactRefresh'
 import { create } from 'zustand'
 import { localMachineLabel } from '@/lib/localMachine'
-import type { HostConnectionView, HostLaneView, HostsSnapshot } from '@shared/ipc'
+import type { HostConnectionView, HostsSnapshot } from '@shared/ipc'
 import type { LiveSessionInfo } from '@shared/models'
 import type { HostTarget } from '@shared/remote-host'
 import { forgetRemoteSession, useSessionsStore } from './sessions'
+import { hostLaneOf, type SessionHostLane } from './sessionHostLane'
 import { useMachinesStore } from './machines'
 import { migrateLegacyLaneMarks } from './remoteLaneMarks'
 import { bindHostsSnapshotRead } from './hostsSnapshotRead'
@@ -83,36 +84,11 @@ export function connectingTo(hostId: string, state: HostConnectionView['state'] 
   return `${state === 'reconnecting' ? 'Reconnecting' : 'Connecting'} to ${machineLabel(hostId)}…`
 }
 
-/** A Host lane's session: its Host and lane, each undefined until the Host lists it. */
-export interface SessionHostLane {
-  hostId: string
-  laneId: string | undefined
-  host: HostConnectionView | undefined
-  lane: HostLaneView | undefined
-}
-
-type LaneBinding = Pick<LiveSessionInfo, 'target' | 'laneId'>
-
-function hostLaneOf(
-  entry: LaneBinding | undefined,
-  host: HostConnectionView | undefined,
-): SessionHostLane | null {
-  if (entry?.target?.kind !== 'remote') return null
-  const lane = host?.lanes.find((item) => item.laneId === entry.laneId)
-  return { hostId: entry.target.hostId, laneId: entry.laneId, host, lane }
-}
-
 /** Null for This Mac's session. Otherwise its Host and lane, read from the stores now. */
-export function sessionHostLane(
-  sessionId: string,
-  live: Record<string, LaneBinding> = useSessionsStore.getState().live,
-  hosts: HostsSnapshot = useRemoteLanesStore.getState().hosts,
-): SessionHostLane | null {
-  const entry = live[sessionId]
-  return hostLaneOf(
-    entry,
-    entry?.target?.kind === 'remote' ? hosts[entry.target.hostId] : undefined,
-  )
+export function sessionHostLane(sessionId: string): SessionHostLane | null {
+  const entry = useSessionsStore.getState().live[sessionId]
+  const hostId = entry?.target?.kind === 'remote' ? entry.target.hostId : undefined
+  return hostLaneOf(entry, hostId ? useRemoteLanesStore.getState().hosts[hostId] : undefined)
 }
 
 /** `sessionHostLane` for a component: it re-renders when the session or its Host moves. */

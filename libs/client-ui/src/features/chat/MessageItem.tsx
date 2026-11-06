@@ -1,6 +1,5 @@
 import { useSessionsStore } from '@/stores/sessions'
-import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
-import { machineLabel } from '@/stores/remoteLanes'
+import { machineLabel, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { localMachineLabel } from '@/lib/localMachine'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useState } from 'react'
