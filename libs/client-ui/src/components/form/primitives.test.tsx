@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Row, SaveStatus, Segmented, Select, SettingsNotice, SourceBadge } from '.'
 
+const CHIP_CLASSES = ['rounded-full', 'px-1.5', 'py-0.5', 'text-2xs', 'font-medium']
+
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
@@ -147,6 +149,13 @@ describe('SourceBadge', () => {
   ] as const)('labels %s', (source, label) => {
     render(<SourceBadge source={source} />)
     expect(container.textContent).toBe(label)
+  })
+
+  it('is a small rounded chip in its source colours', () => {
+    render(<SourceBadge source="set-here" />)
+    const chip = container.querySelector('[data-setting-source="set-here"]')!
+    for (const name of CHIP_CLASSES.concat('bg-accent-soft', 'text-accent'))
+      expect(chip.classList).toContain(name)
   })
 })
 

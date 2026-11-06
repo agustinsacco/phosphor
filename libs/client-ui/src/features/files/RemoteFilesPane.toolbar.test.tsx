@@ -82,6 +82,15 @@ it('marks a lane without write access with a read-only tag', async () => {
   const container = await renderToolbar(['sessions.read', 'workspaces.read'])
   const tag = [...container.querySelectorAll('span')].find((s) => s.textContent === 'Read only')
   expect(tag).toBeDefined()
+  // The settings SourceBadge's chip, in its secondary colours.
+  for (const name of [
+    'rounded-full',
+    'px-1.5',
+    'text-2xs',
+    'bg-bg-secondary',
+    'text-text-secondary',
+  ])
+    expect(tag!.classList).toContain(name)
   for (const label of ACTIONS)
     expect(container.querySelector(`button[aria-label="${label}"]`)).toBeNull()
 })
