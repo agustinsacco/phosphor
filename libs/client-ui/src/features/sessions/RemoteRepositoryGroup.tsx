@@ -1,5 +1,4 @@
 import { useEffect, useId } from 'react'
-import { remoteLaneKey } from '@shared/remote-host'
 import clsx from 'clsx'
 import { SearchIcon, PlusIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
@@ -25,10 +24,9 @@ import {
 import { TAKE_CONTROL_FIRST } from './remoteLaneActions'
 import { RemoteWorkspaceOptions } from './RemoteWorkspaceOptions'
 import type { LaneSelectMode } from './LaneSelectionRows'
-import { RemoteLaneRow } from './RemoteLaneRow'
+import { RemoteLaneList } from './RemoteLaneList'
 import { useRemotePullRequests } from './remotePullRequests'
 import { orderedRemoteLanes, type RemoteLaneGroup } from './groupRemoteLanes'
-import { SessionList } from './SessionList'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { useRemoteGroupSearch } from './remoteGroupSearch'
@@ -253,39 +251,21 @@ function GroupLanes({
   query: string
   select?: FolderRowsSelection
 }): React.JSX.Element {
-  const active = useSessionsStore((s) =>
-    s.activeSessionId ? s.live[s.activeSessionId] : undefined,
-  )
-  const deleting = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   return (
     <div className={!ready ? 'opacity-50' : undefined}>
-      <SessionList
-        disabled={!ready || !!query || !!select?.selecting || deleting}
-        items={lanes.map((lane) => ({
-          id: lane.laneId,
-          path: remoteLaneKey(hostId, lane.laneId),
-          content: (
-            <RemoteLaneRow
-              hostId={hostId}
-              lane={lane}
-              ready={ready}
-              active={
-                active?.target?.kind === 'remote' &&
-                active.target.hostId === hostId &&
-                active.laneId === lane.laneId
-              }
-              select={
-                select && {
-                  selected: select.selected.includes(lane.laneId),
-                  selecting: select.selecting,
-                  blocked: canDeleteRemoteLane(hostId, lane) ? undefined : TAKE_CONTROL_FIRST,
-                  onToggle: (shiftKey) =>
-                    toggleLane(select.group, select.order, lane.laneId, shiftKey),
-                }
-              }
-            />
-          ),
-        }))}
+      <RemoteLaneList
+        hostId={hostId}
+        lanes={lanes}
+        ready={ready}
+        disabled={!!query || !!select?.selecting}
+        row={(lane) => ({
+          select: select && {
+            selected: select.selected.includes(lane.laneId),
+            selecting: select.selecting,
+            blocked: canDeleteRemoteLane(hostId, lane) ? undefined : TAKE_CONTROL_FIRST,
+            onToggle: (shiftKey) => toggleLane(select.group, select.order, lane.laneId, shiftKey),
+          },
+        })}
       />
       {!lanes.length && (
         <p className="text-text-tertiary px-2 py-2 text-sm">

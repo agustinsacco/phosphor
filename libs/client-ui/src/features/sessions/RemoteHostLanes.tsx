@@ -1,13 +1,10 @@
 import { useState } from 'react'
-import { remoteLaneKey } from '@shared/remote-host'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import { Button } from '@/components/form'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { canReadHost, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSessionsStore } from '@/stores/sessions'
 import { compareLanesByCreation, groupRemoteLanes } from './groupRemoteLanes'
-import { SessionList } from './SessionList'
-import { RemoteLaneRow } from './RemoteLaneRow'
+import { RemoteLaneList } from './RemoteLaneList'
 import {
   RemoteRepositoryGroup,
   useRemoteLaneOrder,
@@ -68,32 +65,16 @@ function PinnedRemoteLanes({
 }): React.JSX.Element {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const ready = !!host && canReadHost(host) && host.state === 'ready'
-  const active = useSessionsStore((s) =>
-    s.activeSessionId ? s.live[s.activeSessionId] : undefined,
-  )
-  const deleting = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   return (
     <section aria-label="Pinned" className={!ready ? 'opacity-50' : undefined}>
       <SectionLabel>Pinned</SectionLabel>
-      <SessionList
-        disabled={!ready || deleting}
-        items={lanes.map((lane) => ({
-          id: lane.laneId,
-          path: remoteLaneKey(hostId, lane.laneId),
-          content: (
-            <RemoteLaneRow
-              hostId={hostId}
-              lane={lane}
-              ready={ready}
-              workspaceName={repositories.find((r) => r.id === lane.repositoryId)?.name}
-              active={
-                active?.target?.kind === 'remote' &&
-                active.target.hostId === hostId &&
-                active.laneId === lane.laneId
-              }
-            />
-          ),
-        }))}
+      <RemoteLaneList
+        hostId={hostId}
+        lanes={lanes}
+        ready={ready}
+        row={(lane) => ({
+          workspaceName: repositories.find((r) => r.id === lane.repositoryId)?.name,
+        })}
       />
     </section>
   )
