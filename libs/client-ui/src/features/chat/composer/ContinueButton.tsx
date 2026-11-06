@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { sessionTransitionPending } from '@/features/sessions/sessionTransition'
 import { useSessionsStore } from '@/stores/sessions'
 import { canControlSession } from '@/stores/remoteLanes'
 import { useCanControlSession } from '@/features/sessions/useCanControlSession'
@@ -38,6 +39,7 @@ export function ContinueButton({ sessionId }: { sessionId: string }): React.JSX.
     // synchronously, before React renders or pi acknowledges the first prompt.
     if (
       busy(chat.sessions[sessionId]) ||
+      sessionTransitionPending(sessionId) ||
       sending.current ||
       (remote && !canControlSession(sessionId))
     )

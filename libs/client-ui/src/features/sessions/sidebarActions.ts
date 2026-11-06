@@ -1,7 +1,6 @@
 import type { SessionMeta } from '@shared/models'
-import { bootstrapSession, useSessionsStore } from '@/stores/sessions'
-import { useChatStore } from '@/stores/chat'
-import { piCall } from '@/lib/rpc'
+import { useSessionsStore } from '@/stores/sessions'
+import { changeSessionBranch } from './sessionTransition'
 import { exportSessionHtml, applySessionRename } from './sessionActions'
 
 /**
@@ -27,28 +26,7 @@ export async function cloneSession(
   livePhosphorId?: string,
 ): Promise<void> {
   if (livePhosphorId) {
-    // The `success &&` guard used to swallow the failure branch entirely, so a
-    // clone that never happened still refreshed the sidebar and looked done.
-    const result = await piCall(livePhosphorId, { type: 'clone' })
-    if (!result) return
-    if (result.cancelled) {
-      useChatStore.getState().setError(livePhosphorId, 'Clone was cancelled by an extension.')
-      return
-    }
-    // pi's `clone` is a same-file-branching `fork` under the hood, so it
-    // swaps this live session onto the new file too — relearn it (see
-    // bootstrapSession's doc comment), or `live.diskPath` keeps pointing at
-    // the pre-clone file and the sidebar tracks the wrong row as live.
-    await bootstrapSession(livePhosphorId)
-    // A clone gets a new pi session id, which orphans a pi-claude-cli
-    // session's CLI counterpart — the provider's next turn would reimport the
-    // whole conversation as a full-context cache write. Fork the CLI ledger
-    // onto the new id first. Awaited so the pairing is on disk before the
-    // user can send the clone's first prompt; a false result is the normal
-    // not-a-Claude-session case, so it is not surfaced.
-    const clonePath = useSessionsStore.getState().live[livePhosphorId]?.diskPath
-    if (clonePath) await window.phosphor.invoke('sessions:forkClaudeLedger', clonePath)
-    void useSessionsStore.getState().refreshDisk(workspacePath)
+    await changeSessionBranch(livePhosphorId, { type: 'clone' })
   } else {
     await useSessionsStore.getState().createSession(workspacePath, { forkFrom: meta.path })
   }
