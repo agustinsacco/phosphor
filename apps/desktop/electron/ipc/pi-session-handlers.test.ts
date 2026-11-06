@@ -21,6 +21,7 @@ const state = vi.hoisted(() => {
   }
   return {
     signedIn: false,
+    brainIds: new Set<string>(),
     remote: {
       command: vi.fn(),
       respond: vi.fn(),
@@ -51,7 +52,10 @@ vi.mock('./handle', () => ({
 vi.mock('../registry', () => ({
   registry: {
     create: state.create,
-    get: () => state.session,
+    get: (id: string) =>
+      state.brainIds.has(id)
+        ? { ...state.session, owner: { kind: 'brain', jobId: 'job-1' } }
+        : state.session,
     list: state.list,
     dispose: state.dispose,
   },
@@ -107,6 +111,7 @@ const pkg = (version: string) => [{ name: '@saccolabs/pi-claude-cli', version, i
 beforeEach(() => {
   vi.clearAllMocks()
   state.signedIn = false
+  state.brainIds.clear()
   state.handlers.clear()
   state.list.mockReturnValue([])
   state.session.client.alive = true
@@ -123,6 +128,13 @@ beforeEach(() => {
 })
 
 describe('session context policy integration', () => {
+  it('hides internal Brain processors from the ordinary live-lane projection', () => {
+    const ordinary = { sessionId: 'live-1', workspacePath: '/repo' }
+    state.brainIds.add('brain-1')
+    state.list.mockReturnValue([ordinary, { sessionId: 'brain-1', workspacePath: '/isolated' }])
+    expect(state.handlers.get('pi:listLiveSessions')!(event)).toEqual([ordinary])
+  })
+
   it.each([false, true])(
     'gives local lanes machine context only when signed in: %s',
     async (signedIn) => {
