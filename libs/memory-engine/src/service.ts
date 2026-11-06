@@ -7,34 +7,8 @@ import { Proposals } from './proposals'
 import { Corrections } from './corrections'
 import { Retrieval } from './retrieval'
 import * as validate from './validation'
+import { memorySnapshot as snapshot } from './snapshot'
 
-function snapshot(data: Data): BrainSnapshot {
-  const limit = 200
-  const scopes = data.prefs().workspaces.filter((scope) => data.enrolled(scope))
-  const entities = data.all('entities', scopes, limit + 1)
-  const claims = data.all('claims', scopes, limit + 1)
-  const proposals = data.all('proposals', scopes, limit + 1)
-  const jobs = data.all('jobs', scopes, limit + 1)
-  const evidence = data.all('evidence', scopes, limit + 1)
-  return {
-    ...data.revision(),
-    prefs: data.prefs(),
-    entities: entities.slice(0, limit),
-    claims: claims.slice(0, limit),
-    proposals: proposals.slice(0, limit),
-    jobs: jobs.slice(0, limit),
-    evidence: evidence
-      .slice(0, limit)
-      .map(({ id, scope, label, role, observedAt }) => ({ id, scope, label, role, observedAt })),
-    counts: {
-      evidence: data.count('evidence'),
-      claims: data.count('claims'),
-      entities: data.count('entities'),
-      vectors: Number(data.db.prepare('SELECT count(*) AS n FROM vectors').get()?.n),
-    },
-    truncated: [entities, claims, proposals, jobs, evidence].some((items) => items.length > limit),
-  }
-}
 function preferences(data: Data, evidence: Evidence, prefs: BrainPrefs): BrainSnapshot {
   validate.preferences(prefs)
   if (stable(prefs) === stable(data.prefs())) return snapshot(data)

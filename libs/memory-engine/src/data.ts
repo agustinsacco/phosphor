@@ -174,6 +174,27 @@ export class Data {
       .all(...params)
       .map((row) => JSON.parse(String(row.value)) as Documents[K])
   }
+  activity<K extends 'jobs' | 'proposals'>(
+    kind: K,
+    scopes: string[],
+    limit: number,
+  ): Documents[K][] {
+    if (!scopes.length) return []
+    const order =
+      kind === 'proposals'
+        ? `CASE json_extract(value,'$.state') WHEN 'pending' THEN 0 ELSE 1 END,
+          json_extract(value,'$.createdAt') DESC,id`
+        : `CASE json_extract(value,'$.state') WHEN 'running' THEN 0 WHEN 'queued' THEN 1
+          WHEN 'interrupted' THEN 2 WHEN 'proposed' THEN 3 ELSE 4 END,
+          json_extract(value,'$.updatedAt') DESC,json_extract(value,'$.createdAt') DESC,id`
+    return this.db
+      .prepare(
+        `SELECT value FROM documents WHERE kind=? AND scope IN
+      (${scopes.map(() => '?').join(',')}) ORDER BY ${order} LIMIT ?`,
+      )
+      .all(kind, ...scopes, limit)
+      .map((row) => JSON.parse(String(row.value)) as Documents[K])
+  }
   count(kind: keyof Documents): number {
     return Number(this.db.prepare('SELECT count(*) AS n FROM documents WHERE kind=?').get(kind)?.n)
   }

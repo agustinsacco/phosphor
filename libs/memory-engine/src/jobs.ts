@@ -2,6 +2,7 @@ import type { BrainJob, BrainModel } from '@phosphor/shared/brain'
 import { basename } from 'node:path'
 import { type Data, identifier, stable } from './data'
 import * as validate from './validation'
+import { manualBatch } from './job-batches'
 
 export class Jobs {
   constructor(readonly data: Data) {}
@@ -35,28 +36,18 @@ export class Jobs {
       stable(model) === stable(this.data.prefs().processor),
       'Processor requires explicit consent',
     )
-    const evidenceIds = this.data
-      .all('evidence', [scope], 201)
-      .map((evidence) => evidence.id)
-      .sort()
+    const selection = manualBatch(this.data, scope, model)
+    if (selection.active) return selection.active
+    const evidenceIds = selection.evidenceIds
     validate.check(
-      evidenceIds.length > 0 && evidenceIds.length <= 200,
-      'Processing requires 1–200 evidence items',
+      evidenceIds.length > 0,
+      'No eligible evidence; review pending work or capture new sources',
     )
     const revision = this.data.revision()
     const batchId = identifier('job', scope, model, evidenceIds, revision)
     const batch = this.data.db
       .prepare('SELECT attempt,job_id FROM job_batches WHERE id=?')
       .get(batchId)
-    const existing = batch ? this.data.get('jobs', String(batch.job_id)) : undefined
-    if (existing && ['queued', 'running'].includes(existing.state)) return existing
-    if (
-      existing?.state === 'proposed' &&
-      this.data
-        .all('proposals', [scope])
-        .some((proposal) => proposal.jobId === existing.id && proposal.state !== 'rejected')
-    )
-      return existing
     const attempt = batch ? Number(batch.attempt) + 1 : 0
     const id = identifier(batchId, attempt)
     const job: BrainJob = {
