@@ -138,6 +138,8 @@ export function usePendingLaneActions({
     markers: 'auto',
     pr: null,
     unseen: false,
+    // A pending lane is a live process with no file yet. It gets no stop or resume
+    // handler, so neither item shows whatever `running` says.
     running: true,
     busy: deleting,
     refusals: {},
