@@ -1,14 +1,13 @@
 import type { HostLaneView } from '@shared/ipc'
 import { remoteLaneResourceKey } from '@shared/remote-host'
 import { forgetRemoteSession, useSessionsStore, type LaneDeleteResult } from '@/stores/sessions'
+import { machineCaps } from '@/stores/machineCaps'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 
 export function canDeleteRemoteLane(hostId: string, lane: HostLaneView): boolean {
   const host = useRemoteLanesStore.getState().hosts[hostId]
   return (
-    host?.state === 'ready' &&
-    host.capabilities.includes('sessions.control') &&
-    host.capabilities.includes('workspaces.write') &&
+    machineCaps(host).can('sessions.control', 'workspaces.write') &&
     lane.control.controller?.self === true
   )
 }

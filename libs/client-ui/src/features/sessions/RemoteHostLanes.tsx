@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
 import { Button } from '@/components/form'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
-import { canReadHost, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useMachineCaps } from '@/stores/machineCaps'
+import { machineLabel } from '@/stores/remoteLanes'
 import { compareLanesByCreation, groupRemoteLanes } from './groupRemoteLanes'
 import { RemoteLaneList } from './RemoteLaneList'
 import {
@@ -27,7 +28,7 @@ export function RemoteHostLanes({
   hostId: string
   density?: RemoteLaneDensity
 }): React.JSX.Element {
-  const ready = useRemoteLanesStore((s) => s.hosts[hostId]?.state === 'ready')
+  const ready = useMachineCaps(hostId).ready
   const pinned = useRemoteLaneOrder(
     hostId,
     lanes.filter((lane) => lane.pinned).sort(compareLanesByCreation),
@@ -63,8 +64,7 @@ function PinnedRemoteLanes({
   repositories: HostConnectionView['repositories']
   lanes: HostLaneView[]
 }): React.JSX.Element {
-  const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const ready = !!host && canReadHost(host) && host.state === 'ready'
+  const ready = useMachineCaps(hostId).can('sessions.read')
   return (
     <section aria-label="Pinned" className={!ready ? 'opacity-50' : undefined}>
       <SectionLabel>Pinned</SectionLabel>
@@ -82,9 +82,8 @@ function PinnedRemoteLanes({
 
 /** A ready Host with no folders: the one next step is adding one, so offer it right here. */
 function NoFolders({ hostId }: { hostId: string }): React.JSX.Element {
-  const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const [adding, setAdding] = useState(false)
-  const writable = !!host?.capabilities.includes('workspaces.write')
+  const writable = useMachineCaps(hostId).granted('workspaces.write')
   return (
     <div className="text-text-tertiary flex flex-col items-start gap-2 px-2 py-3 text-sm">
       <span>No folders yet</span>
