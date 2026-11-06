@@ -33,7 +33,11 @@ beforeAll(() => {
   fixture = setupBundleFixture()
 }, 60000)
 afterAll(() => disposeBundleFixture(fixture))
-const withoutPublicReleaseUrl = (text: string) => text.replaceAll(HOST_RELEASE_BASE_URL, '')
+// Exact public constants only. Never exempt arbitrary URLs or a username globally.
+const withoutKnownPublicUrls = (text: string) =>
+  text
+    .replaceAll(HOST_RELEASE_BASE_URL, '')
+    .replaceAll('https://github.com/agustinsacco/pi-claude-cli', '')
 
 describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it('keeps release bundles independent of TMPDIR and untracked machine files', () => {
@@ -102,20 +106,31 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
         expect(text, `${file} contains ${forbidden}`).not.toContain(forbidden)
       // A user name is also a word (CI's is `runner`); forbid it only as a path segment.
       expect(
-        withoutPublicReleaseUrl(text),
+        withoutKnownPublicUrls(text),
         `${file} contains a path through the user name`,
       ).not.toMatch(userSegment)
     }
   })
   it('excludes only the exact public URL, never private username paths alongside it', () => {
-    expect(withoutPublicReleaseUrl(HOST_RELEASE_BASE_URL)).toBe('')
+    expect(withoutKnownPublicUrls(HOST_RELEASE_BASE_URL)).toBe('')
     const user = userInfo().username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const segment = new RegExp(`[/\\\\]${user}(?![A-Za-z0-9_.-])`)
     for (const path of [`/Users/${userInfo().username}/x`, `/home/${userInfo().username}/x`]) {
-      const scanned = withoutPublicReleaseUrl(`${HOST_RELEASE_BASE_URL} ${path}`)
+      const scanned = withoutKnownPublicUrls(`${HOST_RELEASE_BASE_URL} ${path}`)
       expect(scanned).not.toContain(HOST_RELEASE_BASE_URL)
       expect(scanned).toContain(path)
       expect(scanned).toMatch(segment)
+    }
+  })
+  it('allows the public provider docs without hiding private paths or other URLs', () => {
+    const docs = 'https://github.com/agustinsacco/pi-claude-cli'
+    expect(withoutKnownPublicUrls(docs)).toBe('')
+    for (const privatePath of [
+      '/Users/agustinsacco/private',
+      '/home/agustinsacco/private',
+      'https://private.example/agustinsacco/private',
+    ]) {
+      expect(withoutKnownPublicUrls(`${docs} ${privatePath}`)).toBe(` ${privatePath}`)
     }
   })
   it('recognizes both CLI entry points through paths containing spaces and percent signs', () => {

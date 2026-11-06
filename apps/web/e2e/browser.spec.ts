@@ -426,3 +426,31 @@ test('actual compact SandboxedHtml contains hostile HTML/SVG without script, net
   expect(dialogs).toEqual([])
   expect(escaped).toEqual([])
 })
+
+test('Brain stays unavailable in compact and wide browsers and rejects direct IPC', async ({
+  page,
+  stack,
+}) => {
+  await signIn(page, stack.origin)
+  await navigatePage(page, 'Brain')
+  await expect(page.getByText(/Brain is unavailable on this machine/)).toBeVisible()
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await expect(page.getByText(/Brain is unavailable on this machine/)).toBeVisible()
+  const failures = await page.evaluate(async () =>
+    Promise.all(
+      [
+        () => window.phosphor.invoke('brain:status'),
+        () => window.phosphor.invoke('brain:evidence', '/synthetic'),
+      ].map(async (request) => {
+        try {
+          await request()
+          return ''
+        } catch (error) {
+          return String(error)
+        }
+      }),
+    ),
+  )
+  expect(failures).toHaveLength(2)
+  for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
+})

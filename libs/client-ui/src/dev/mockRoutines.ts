@@ -15,6 +15,13 @@ export function onMockRoutinesChanged(listener: () => void): () => void {
   }
 }
 
+/** Scope admission belongs beside the browser-only routine implementation. */
+export function mockLocalRoutineCall(channel: string, args: unknown[]): Promise<unknown> {
+  if (args.some((arg) => typeof arg === 'string' && arg.startsWith('host:')))
+    return Promise.reject(new Error('Machine routines are unavailable in the browser harness.'))
+  return mockRoutineCall(channel, args)
+}
+
 /** Browser-only simulation. Never creates processes or external side effects. */
 export async function mockRoutineCall(channel: string, args: unknown[]): Promise<unknown> {
   const routine = (): Routine => {

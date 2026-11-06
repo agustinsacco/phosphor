@@ -154,7 +154,8 @@ describe('comprehensive typecheck runner', () => {
       args: ['run', 'check'],
       cwd: join(root, 'apps/site'),
     })
-    expect(typecheckProjects).toHaveLength(18)
+    expect(typecheckProjects).toContain('libs/brain-runtime/tsconfig.json')
+    expect(typecheckProjects).toHaveLength(21)
   })
 
   it.each([

@@ -19,10 +19,19 @@ import {
 import { MCP_INSPECTION_STATUS_KEY } from '../../../libs/shared/src/mcp-inspection'
 import { useExtensionUiStore } from '../../../libs/client-ui/src/stores/extensionUi'
 import frozenFixture from './__fixtures__/status-wire.json'
+import { BRAIN_AUDIT_STATUS_KEY } from '../../../libs/pi-extensions/pi-ext/status-keys'
 
 // Existing wire keys stay intact. MCP inspection deliberately adds a native host reply.
 const fixture = {
   ...frozenFixture,
+  // Private processor replies never enter the renderer status strip.
+  internalStatuses: [
+    {
+      key: 'phosphor-brain-audit',
+      producer: 'libs/pi-extensions/pi-ext/brain-processor.ts',
+      consumer: 'libs/brain-runtime/src/tool-audit.ts',
+    },
+  ],
   statuses: frozenFixture.statuses.map((entry) => ({
     ...entry,
     consumer: entry.consumer.replace('apps/desktop/src/', 'libs/client-ui/src/'),
@@ -41,6 +50,7 @@ describe('status wire runtime characterization', () => {
       SUBAGENTS_STATUS_KEY,
       MCP_INSPECTION_STATUS_KEY,
     ]).toEqual(fixture.statuses.map(({ key }) => key))
+    expect(BRAIN_AUDIT_STATUS_KEY).toBe(fixture.internalStatuses[0]!.key)
     expect(RENDERER_HEADROOM_KEY).toBe(HEADROOM_STATUS_KEY)
     expect(SUBAGENT_ASYNC_WIDGET_KEY).toBe(fixture.asyncWidget.key)
     expect(SUBAGENT_INSPECT_WIDGET_KEY).toBe(fixture.structuredWidgets[1])
@@ -285,6 +295,7 @@ const auditedTexts = new Map(
     ...sourceFiles('apps/desktop/src'),
     ...sourceFiles('libs/client-ui/src'),
     ...sourceFiles('apps/web/src'),
+    'libs/brain-runtime/src/tool-audit.ts',
     'libs/session-runtime/src/pi/lane-reload.ts',
     'libs/session-runtime/src/pi/mcp-lane.ts',
     'libs/shared/src/mcp-inspection.ts',
@@ -298,15 +309,16 @@ const auditedTexts = new Map(
 const baseAudit = literalAudit(auditedTexts)
 
 function checkWire(audit: ReturnType<typeof literalAudit>, contract = fixture): void {
+  const allStatuses = [...contract.statuses, ...contract.internalStatuses]
   assertWireKeys(
     [...audit.producers.values()].flat(),
-    contract.statuses.filter(({ producer }) => producer).map(({ key }) => key),
+    allStatuses.filter(({ producer }) => producer).map(({ key }) => key),
   )
   assertWireKeys(
     [...audit.consumers.values()].flat(),
-    contract.statuses.map(({ key }) => key),
+    allStatuses.map(({ key }) => key),
   )
-  for (const { key, producer, consumer } of contract.statuses) {
+  for (const { key, producer, consumer } of allStatuses) {
     if (producer) expect(audit.producers.get(producer), producer).toContain(key)
     expect(audit.consumers.get(consumer), consumer).toContain(key)
   }

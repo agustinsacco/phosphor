@@ -91,8 +91,16 @@ export type SessionPush =
   | { kind: 'stderr'; text: string }
   | { kind: 'exit'; code: number | null; signal: string | null; expected: boolean }
 
+/** Internal processor ownership, never an interactive lane or routine. */
+export interface BrainSessionOwner {
+  kind: 'brain'
+  jobId: string
+}
+
 /** Parsed metadata for one on-disk session file (sidebar row + stats). */
 export interface SessionMeta {
+  /** Persisted by the trusted Brain extension; excludes processors from ordinary capture. */
+  brainOwner?: BrainSessionOwner
   /** Explicit user completion, never inferred from Git or model output. */
   completedAt?: number
   worktreeRemoved?: boolean

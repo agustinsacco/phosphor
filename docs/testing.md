@@ -74,6 +74,61 @@ clipboard during that run. Synthetic paste/drop tests need no opt-in and never
 write to the system clipboard. We do not save and restore the clipboard: restoring
 an old snapshot could overwrite something you copied while the suite was running.
 
+## Brain acceptance
+
+[Brain](brain.md) is a default-off Desktop prototype. Its fast suites use
+synthetic evidence and fake embedding/provider ports, not private transcripts
+or paid inference. The database and filesystem durability paths are real.
+Bulk source tests retain all >200 inputs and assertions, with explicit 30-second
+timeouts for hundreds of fsync operations; ordinary test timeouts are unchanged.
+
+```bash
+node_modules/.bin/vitest run libs/memory-engine libs/brain-client libs/brain-runtime \
+  apps/desktop/electron/brain libs/session-runtime/src/pi --maxWorkers=2
+npm run build
+node_modules/.bin/playwright test --config apps/desktop/playwright.config.ts brain.spec.ts
+node_modules/.bin/playwright test --config apps/web/playwright.config.ts browser.spec.ts -g Brain
+```
+
+`libs/brain-runtime` contains the portable service/embedding suites. Its boundary
+test rejects Electron/app imports and checks plain-Node bundle loading without
+opening storage, starting pi or loading a model. Desktop retains tests for its
+utility-process bindings, lazy lifecycle and unchanged IPC-to-backend mapping.
+
+The Desktop cases exercise the real DB worker, default-off settings, separate
+consent, persistence and Host/All boundaries. Browser checks cover compact/wide
+unavailability and direct status/evidence IPC refusal. Runtime tests include
+ordinary command ordering, identity/branch admission, failed optional capture,
+streaming transcript ownership and owned purge. An optional real-pi audit
+integration test uses `PHOSPHOR_BRAIN_PI_ENTRY` and
+`PHOSPHOR_BRAIN_PI_SANDBOX` to verify the extension command handshake without
+inference; it is skipped unless explicitly configured.
+
+`libs/memory-engine/src/__fixtures__/retrieval-eval.json` is frozen at SHA-256
+`dc2776f90f9f7e2bd515e466ef9e565f3f114922b5702cfa970cb571458c40d3`.
+The always-on harness checks integrity and mechanics, not a quality threshold.
+The opt-in native comparison requires an existing synthetic vector receipt:
+
+```bash
+PHOSPHOR_BRAIN_EVAL_VECTORS=/absolute/path/to/receipt.json \
+PHOSPHOR_BRAIN_EVAL_REPORT=/absolute/path/to/report.json \
+node_modules/.bin/vitest run libs/memory-engine/src/retrieval-eval.native.test.ts
+```
+
+Do not generate/download assets implicitly, change labels after scoring or
+represent the tiny synthetic set as production validity. The
+[measured limits](brain.md#local-embeddings-and-retrieval-limits) include weak
+fusion/graph ranking and absent abstention.
+
+Native probes used an Apple M4 Pro, Electron 43.8.3 and the fixed local Q4
+model under OS-denied networking. A development utility-process run measured
+813 ms warm load, 9.9 ms median query embedding and about 514 MB sampled peak
+RSS; it produced 27 document and 37 unique query vectors. Development and
+packaged-asar-layout probes establish only darwin-arm64 runtime feasibility.
+They do not validate real reasoning-provider extraction, signed/notarized
+release execution, other platforms, large stores or complete redistribution
+notices. Ordinary test runs leave model/eval/real-pi opt-in variables unset.
+
 ## Layout and helpers
 
 Tests currently live beside their subjects as `*.test.ts` or `*.test.tsx` across

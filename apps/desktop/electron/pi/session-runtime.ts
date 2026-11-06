@@ -1,7 +1,10 @@
 import { registry } from '../registry'
 import { access } from 'node:fs/promises'
 import { decideSession, recordWorkspaceIntent, withWorkspace } from '../maintenance/history'
-import { createSessionStartup } from '@phosphor/session-runtime/pi/session-startup'
+import {
+  createSessionStartup,
+  type SessionStartupRuntime,
+} from '@phosphor/session-runtime/pi/session-startup'
 import { createSessionService } from '@phosphor/session-runtime/pi/session-service'
 import { sessionPaths } from './session-path-lock'
 import { piStubPath } from './stub'
@@ -33,8 +36,15 @@ const laneReload = createLaneReload({
   },
 })
 
+let memory: SessionStartupRuntime['memory']
+/** Trusted Desktop composition only; never renderer input. */
+export function setSessionMemory(value: SessionStartupRuntime['memory']): void {
+  memory = value
+}
+
 const spawn = createSessionStartup({
   registry,
+  memory: { prepare: (options) => memory?.prepare(options) ?? Promise.resolve(undefined) },
   resolveWorkspace: realPathOrNull,
   launch: prepareDesktopSessionLaunch,
   policy: desktopSessionPolicy,
@@ -55,7 +65,13 @@ const service = createSessionService<Electron.WebContents>({
   spawn: (options, target, execution = {}) =>
     spawn(
       options,
-      (id) => desktopSessionSink(id, target, () => execution.unattended ?? false),
+      (id) =>
+        desktopSessionSink(
+          id,
+          target,
+          () => execution.unattended ?? false,
+          Boolean(execution.brain),
+        ),
       execution,
     ),
   isStub: () => Boolean(piStubPath()),
@@ -82,6 +98,7 @@ export const desktopSessions = {
     target?: Electron.WebContents,
     execution: SessionExecution = {},
   ) => {
+    if (execution.brain) return service.create(options, target, execution)
     // Record intent before queueing behind a sweep. A resumed conversation is unfinished.
     recordWorkspaceIntent(options.workspacePath)
     if (options.sessionPath) decideSession(options.sessionPath, false)

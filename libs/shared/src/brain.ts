@@ -1,0 +1,238 @@
+/** Brain v1: machine-local, opt-in, reviewed memory. No credentials or database paths. */
+export const BRAIN_PROTOCOL = 1
+export const BRAIN_PROCESSOR_TOOLS = ['brain_job', 'brain_propose'] as const
+/** Pinned local validation candidate. No hosted embedding or silent model fallback. */
+export const BRAIN_EMBEDDING_MODEL = {
+  id: 'embeddinggemma-300m-q4@5090578d9565bb06545b4552f76e6bc2c93e4a66',
+  label: 'EmbeddingGemma 300M · Q4',
+  dimensions: 768,
+  downloadBytes: 218_726_989,
+  modelUrl: 'https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX',
+  termsUrl: 'https://ai.google.dev/gemma/terms',
+  usePolicyUrl: 'https://ai.google.dev/gemma/prohibited_use_policy',
+} as const
+export const BRAIN_PREDICATES = [
+  'owns',
+  'depends_on',
+  'blocks',
+  'affects',
+  'decided',
+  'about',
+] as const
+export type BrainPredicate = (typeof BRAIN_PREDICATES)[number]
+export type BrainEntityKind =
+  'person' | 'team' | 'project' | 'customer' | 'component' | 'incident' | 'contract' | 'concept'
+export type BrainEpistemicKind = 'observed' | 'reported' | 'inferred'
+export interface BrainModel {
+  provider: string
+  id: string
+}
+export interface BrainPrefs {
+  enabled: boolean
+  recall: boolean
+  /** Explicitly enrolled canonical workspaces; new evidence only by default. */
+  workspaces: string[]
+  processor: BrainModel | null
+  retentionDays: number
+}
+export const DEFAULT_BRAIN_PREFS: BrainPrefs = {
+  enabled: false,
+  recall: false,
+  workspaces: [],
+  processor: null,
+  retentionDays: 30,
+}
+export interface BrainRevision {
+  graphRevision: number
+  policyEpoch: number
+}
+export interface BrainEvidence {
+  id: string
+  scope: string
+  sessionId: string
+  entryId: string
+  parentId: string | null
+  /** Original independent roots, not the number of copies or summaries. */
+  rootIds: string[]
+  branch: string | null
+  role: 'user' | 'toolResult' | 'assistant'
+  label: string
+  observedAt: number
+  text: string
+  hash: string
+}
+export type BrainCapture = Omit<BrainEvidence, 'id' | 'hash'>
+export type BrainEvidenceSummary = Pick<
+  BrainEvidence,
+  'id' | 'scope' | 'label' | 'role' | 'observedAt'
+>
+export interface BrainEvidencePage {
+  items: BrainEvidenceSummary[]
+  nextCursor: string | null
+}
+export interface BrainEntity {
+  id: string
+  scope: string
+  label: string
+  kind: BrainEntityKind
+  aliases: string[]
+}
+export interface BrainCitation {
+  evidenceId: string
+  quote: string
+}
+export interface BrainClaim {
+  id: string
+  scope: string
+  subjectId: string
+  predicate: BrainPredicate
+  objectId: string | null
+  literal: string | null
+  summary: string
+  kind: BrainEpistemicKind
+  state: 'active' | 'contested' | 'superseded'
+  citations: BrainCitation[]
+  conflictIds: string[]
+  validFrom: number | null
+  validTo: number | null
+  recordedAt: number
+  retractedAt: number | null
+  revision: number
+}
+export interface BrainEntityProposal {
+  key: string
+  existingId?: string
+  label: string
+  kind: BrainEntityKind
+  aliases: string[]
+  evidenceIds: string[]
+}
+export interface BrainClaimProposal {
+  subject: string
+  predicate: BrainPredicate
+  object?: string
+  literal?: string
+  summary: string
+  kind: BrainEpistemicKind
+  citations: BrainCitation[]
+  validFrom: number | null
+  validTo: number | null
+  supersedes?: string
+}
+export interface BrainProposalInput {
+  entities: BrainEntityProposal[]
+  claims: BrainClaimProposal[]
+  rationale: string
+}
+export interface BrainProposal extends BrainRevision {
+  id: string
+  jobId: string
+  scope: string
+  createdAt: number
+  state: 'pending' | 'applied' | 'rejected'
+  input: BrainProposalInput
+}
+export interface BrainJob extends BrainRevision {
+  id: string
+  scope: string
+  evidenceIds: string[]
+  model: BrainModel
+  state: 'queued' | 'running' | 'proposed' | 'failed' | 'cancelled' | 'interrupted'
+  fence: number
+  createdAt: number
+  updatedAt: number
+  sessionPath: string | null
+  error: string | null
+}
+export interface BrainSnapshot extends BrainRevision {
+  prefs: BrainPrefs
+  entities: BrainEntity[]
+  claims: BrainClaim[]
+  proposals: BrainProposal[]
+  jobs: BrainJob[]
+  evidence: BrainEvidenceSummary[]
+  counts: { evidence: number; claims: number; entities: number; vectors: number }
+  truncated: boolean
+}
+export interface BrainEmbeddingStatus {
+  phase:
+    'off' | 'missing' | 'downloading' | 'verifying' | 'testing' | 'ready' | 'error' | 'unsupported'
+  receivedBytes: number
+  totalBytes: number
+  error?: string
+  modelId: string
+  dimensions: number
+}
+export interface BrainProcessConsent {
+  policyEpoch: number
+  model: BrainModel
+}
+export interface BrainStatus {
+  supported: boolean
+  snapshot: BrainSnapshot
+  embedding: BrainEmbeddingStatus
+  /** Explicitly separate local embeddings from reasoning-provider disclosure. */
+  notice: string
+}
+export interface BrainQuery {
+  query: string
+  /** Omitted/null means project-wide evidence only. Agent bridge binds this from its lane. */
+  branch?: string | null
+  entityIds?: string[]
+  scopes?: string[]
+  validAt?: number
+  knownAt?: number
+  limit?: number
+  tokenBudget?: number
+  mode?: 'lexical' | 'hybrid'
+}
+export interface BrainSearchHit {
+  claim: BrainClaim
+  evidence: BrainEvidence[]
+  reasons: ('exact' | 'lexical' | 'semantic' | 'relationship')[]
+  score: number
+}
+export interface BrainSearchResult extends BrainRevision {
+  status: 'ok' | 'no_match' | 'partial' | 'unavailable' | 'needs_disambiguation'
+  results: BrainSearchHit[]
+  entities: BrainEntity[]
+  degradation: string[]
+  truncated: boolean
+}
+/** Replacing a claim is an explicit human edit, not a model's direct write. */
+export type BrainCorrection = Pick<
+  BrainClaim,
+  'subjectId' | 'predicate' | 'objectId' | 'literal' | 'summary' | 'validFrom' | 'validTo'
+> & { reason: string }
+export interface BrainGraph {
+  nodes: BrainEntity[]
+  edges: BrainClaim[]
+  truncated: boolean
+}
+export interface BrainForgetResult {
+  evidence: number
+  claims: number
+  affectedSessions: string[]
+}
+export interface BrainDelivery {
+  sessionId: string
+  evidenceIds: string[]
+  claimIds: string[]
+}
+export type { BrainInvokeMap } from './ipc/brain'
+/** Agent transport is separate from UI review/settings permissions. */
+export interface BrainAgentMap {
+  search: { request: BrainQuery; result: BrainSearchResult }
+  read: { request: { evidenceId: string }; result: BrainEvidence }
+  brief: { request: { query: string }; result: BrainSearchResult }
+  job: { request: Record<string, never>; result: { job: BrainJob; evidence: BrainEvidence[] } }
+  propose: { request: { input: BrainProposalInput }; result: { proposalId: string } }
+}
+export type BrainAgentMethod = keyof BrainAgentMap
+export interface BrainAgentRequest {
+  version: 1
+  token: string
+  method: BrainAgentMethod
+  params: unknown
+}
+export type BrainAgentResponse = { ok: true; data: unknown } | { ok: false; error: string }

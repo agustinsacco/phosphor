@@ -1,0 +1,17 @@
+{
+  "name": "@phosphor/memory-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./ports": "./src/ports.ts",
+    "./service": "./src/service.ts",
+    "./validation": "./src/validation.ts"
+  },
+  "nx": {
+    "includedScripts": []
+  },
+  "dependencies": {
+    "@phosphor/shared": "0.0.0"
+  }
+}

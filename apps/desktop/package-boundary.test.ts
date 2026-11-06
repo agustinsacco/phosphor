@@ -1,7 +1,10 @@
 import { readFileSync, lstatSync, existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
+import { FileMatcher } from 'app-builder-lib/out/fileMatcher'
+import type { Configuration, PlatformSpecificBuildOptions } from 'app-builder-lib'
 import { getConfig } from 'app-builder-lib/out/util/config/config'
+import { expandMacro } from 'app-builder-lib/out/util/macroExpander'
 import { describe, expect, it } from 'vitest'
 
 const app = import.meta.dirname
@@ -23,13 +26,27 @@ describe('Desktop application and native install boundary', () => {
     expect(config.appId).toBe('works.phosphor.app')
     expect(config.productName).toBe('Phosphor')
     expect(config.directories).toMatchObject({ buildResources: 'build', output: 'release' })
-    expect(config.files).toEqual([{ filter: ['out/**', 'package.json', '!**/*.map'] }])
+    expect(config.files).toEqual([
+      {
+        filter: [
+          'out/**',
+          'package.json',
+          '!**/*.map',
+          '!**/node_modules/onnxruntime-web{,/**}',
+          '!**/node_modules/@img/sharp-wasm32{,/**}',
+        ],
+      },
+    ])
     expect(config.extraResources).toContainEqual({
       from: '../../libs/pi-extensions/skills',
       to: 'skills',
       filter: ['**/*.md'],
     })
-    expect(config.asarUnpack).toEqual(['**/node_modules/node-pty/**'])
+    expect(config.asarUnpack).toEqual([
+      '**/node_modules/node-pty/**',
+      '**/node_modules/onnxruntime-node/bin/**',
+      '**/node_modules/@img/**',
+    ])
     expect(config.npmRebuild).toBe(true)
     expect(config.afterPack).toBe('scripts/adhoc-sign-mac.mjs')
     expect(config.mac?.target).toEqual([
@@ -43,6 +60,8 @@ describe('Desktop application and native install boundary', () => {
     // out/main/main.js (the manifest's `main`) and the voice utility process beside it.
     expect(vite).toContain("main: 'electron/main.ts'")
     expect(vite).toContain("'voice-worker': 'electron/voice/worker.ts'")
+    expect(vite).toContain("'brain-embedding-worker': 'electron/brain/embedding-worker.ts'")
+    expect(vite).toContain("'brain-memory-worker': 'electron/brain/memory-worker.ts'")
     expect(vite).toContain("lib: { entry: 'electron/preload.ts' }")
     expect(vite).toContain("format: 'cjs'")
     expect(vite).toContain("entryFileNames: '[name].cjs'")
@@ -164,5 +183,114 @@ describe('Desktop application and native install boundary', () => {
         "'@phosphor/shared': resolve(import.meta.dirname, '../../libs/shared/src')",
       )
     }
+  })
+})
+
+type Filter = (file: string, stat: object) => boolean
+/** electron-builder's own node_modules matcher (internal; not in its typings). */
+const { getNodeModuleFileMatcher } = createRequire(join(app, 'package.json'))(
+  'app-builder-lib/out/fileMatcher',
+) as {
+  getNodeModuleFileMatcher(
+    appDir: string,
+    destination: string,
+    expand: (pattern: string) => string,
+    options: PlatformSpecificBuildOptions,
+    packager: { config: Configuration; debugLogger: { isEnabled: boolean } },
+  ): FileMatcher
+}
+const file = (path: string) => ({ isDirectory: () => false, moduleFullFilePath: path })
+const ORT = 'node_modules/onnxruntime-node/bin/napi-v6'
+
+describe('Brain resources and native packaging', () => {
+  it('ships the standalone Brain bundles and never the raw Brain sources', async () => {
+    const config = await getConfig(app, null, null)
+    const piExt = {
+      from: '../../libs/pi-extensions/pi-ext',
+      to: 'pi-ext',
+      filter: ['**/*.ts', '!**/*.test.ts', '!brain.ts', '!brain-processor.ts'],
+    }
+    expect(config.extraResources).toContainEqual(piExt)
+    expect(config.extraResources).toContainEqual({
+      from: '../../libs/pi-extensions/brain-ext',
+      to: 'brain-ext',
+      filter: ['brain.mjs', 'brain-processor.mjs'],
+    })
+    expect(config.extraResources).toContainEqual({
+      from: 'build/brain-third-party-notices.md',
+      to: 'brain-third-party-notices.md',
+    })
+    const dir = join(root, 'libs/pi-extensions/pi-ext')
+    const copies = new FileMatcher(dir, '/dest', (p) => p, piExt.filter).createFilter() as Filter
+    const kept = (name: string) => copies(join(dir, name), file(name))
+    expect(['artifacts.ts', 'brain.ts', 'brain-processor.ts', 'brain.test.ts'].map(kept)).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ])
+    expect(kept('optional/brain.ts')).toBe(true)
+  })
+
+  it('bundles the portable Brain source while keeping native Transformers in Desktop', () => {
+    const vite = readFileSync(join(app, 'electron.vite.config.ts'), 'utf8')
+    const main = vite.slice(vite.indexOf('  main: {'), vite.indexOf('  preload: {'))
+    expect(main).toContain("'@phosphor/brain-runtime',")
+    expect(main).toContain(
+      "'@phosphor/brain-runtime': resolve(import.meta.dirname, '../../libs/brain-runtime/src')",
+    )
+    // externalizeDepsPlugin retains the dynamic native runtime; only source
+    // packages belong in its exclude list. Existing unpack assertions cover ORT.
+    expect(main).not.toContain('@huggingface/transformers')
+    expect(manifest.dependencies['@huggingface/transformers']).toBe('4.3.2')
+    expect(facade.dependencies['@huggingface/transformers']).toBe('4.3.2')
+    expect(readFileSync(join(app, 'electron/brain/embedding-worker.ts'), 'utf8')).toContain(
+      "await import('@huggingface/transformers')",
+    )
+    const runtime = json(join(root, 'libs/brain-runtime/package.json'))
+    expect(runtime.dependencies['@huggingface/transformers']).toBeUndefined()
+  })
+
+  it('bundles the extensions in every main build without a runtime import', () => {
+    const vite = readFileSync(join(app, 'electron.vite.config.ts'), 'utf8')
+    expect(vite).toContain('tools/scripts/build-brain-extensions.mjs')
+    expect(vite).toContain('libs/pi-extensions/brain-ext')
+    expect(readFileSync(join(app, 'electron/main.ts'), 'utf8')).not.toContain('brain-ext')
+  })
+
+  it.each([
+    ['mac', 'arm64', `${ORT}/darwin/arm64/libonnxruntime.1.dylib`, `${ORT}/darwin/x64/x.node`],
+    ['mac', 'x64', `${ORT}/darwin/x64/x.node`, `${ORT}/darwin/arm64/libonnxruntime.1.dylib`],
+    ['linux', 'x64', `${ORT}/linux/x64/libonnxruntime.so.1`, `${ORT}/linux/arm64/x.node`],
+    ['linux', 'arm64', `${ORT}/linux/arm64/x.node`, `${ORT}/linux/x64/libonnxruntime.so.1`],
+    ['win', 'x64', `${ORT}/win32/x64/DirectML.dll`, `${ORT}/win32/arm64/onnxruntime.dll`],
+  ] as const)('packs only the %s-%s ONNX Runtime binary', async (os, arch, own, other) => {
+    const config = await getConfig(app, null, null)
+    const matcher = getNodeModuleFileMatcher(
+      app,
+      '/dest',
+      (pattern) => expandMacro(pattern, arch, {} as never),
+      config[os] ?? {},
+      { config, debugLogger: { isEnabled: false } },
+    )
+    const filter = matcher.createFilter() as Filter
+    const packs = (path: string) => filter('/elsewhere', file(path))
+    const foreign = ['darwin', 'linux', 'win32'].filter((name) => !own.includes(`/${name}/`))
+    expect(packs(own)).toBe(true)
+    expect(packs(other)).toBe(false)
+    for (const name of foreign) expect(packs(`${ORT}/${name}/${arch}/x.node`)).toBe(false)
+    // No web/WASM fallback ships; licences and the Node entry points do.
+    expect(packs('node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm')).toBe(false)
+    expect(packs('node_modules/@img/sharp-wasm32/lib/sharp-wasm32.node.wasm')).toBe(false)
+    for (const kept of [
+      'node_modules/@huggingface/transformers/LICENSE',
+      'node_modules/@huggingface/transformers/dist/transformers.node.mjs',
+      'node_modules/@huggingface/tokenizers/LICENSE',
+      'node_modules/onnxruntime-node/dist/index.js',
+      'node_modules/sharp/LICENSE',
+      'node_modules/@img/sharp-darwin-arm64/LICENSE',
+      'node_modules/node-pty/lib/index.js',
+    ])
+      expect(packs(kept)).toBe(true)
   })
 })

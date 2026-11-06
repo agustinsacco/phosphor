@@ -1,6 +1,41 @@
 import { expect, it } from 'vitest'
 import { IPC_SCOPE } from './ipc-scope'
 import { IPC_WEB } from './ipc-web'
+it('characterizes the local pi refusal policy before consolidating repeated declarations', () => {
+  for (const channel of [
+    'pi:health',
+    'pi:createSession',
+    'pi:generateTitle',
+    'pi:agentSettings',
+    'pi:agentSettingsScoped',
+    'pi:commands',
+    'pi:catalogueModels',
+    'pi:readConfigFile',
+    'pi:writeConfigFile',
+    'pi:readInstructions',
+    'pi:writeInstructions',
+    'pi:webSearchConfig',
+    'pi:patchWebSearchConfig',
+    'pi:patchAgentSettings',
+    'pi:checkAgentSettings',
+    'pi:listResources',
+    'pi:subscriptionAuth',
+    'pi:codexUsage',
+    'pi:loginTerminal',
+    'pi:startLogin',
+    'pi:cancelLogin',
+  ] as const)
+    expect(IPC_WEB[channel]).toEqual({
+      kind: 'unsupported',
+      reason: 'Local pi processes and machine configuration are unavailable in the browser.',
+    })
+  for (const [channel, entry] of Object.entries(IPC_WEB))
+    if (channel.startsWith('brain:'))
+      expect(entry).toEqual({
+        kind: 'unsupported',
+        reason: 'Brain is a local Desktop prototype; remote access is unavailable.',
+      })
+})
 it('classifies every invoke channel and gives every refusal a reason', () => {
   expect(Object.keys(IPC_WEB).sort()).toEqual(Object.keys(IPC_SCOPE).sort())
   for (const entry of Object.values(IPC_WEB)) {
