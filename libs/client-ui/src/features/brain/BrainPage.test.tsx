@@ -114,6 +114,26 @@ it('requires separate explicit terms consent before downloading and does not pro
   await click('Download local embedding model')
   expect(invoke).toHaveBeenCalledWith('brain:download', true)
 })
+it('requires saved enablement before a model download, even after terms consent', async () => {
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'app:getPrefs') return { recentWorkspaces: [] }
+    const status = brainFixture()
+    status.snapshot.prefs.enabled = false
+    return status
+  })
+  await act(async () => root.render(<BrainPage />))
+  await click('Settings')
+  await act(async () =>
+    (
+      container.querySelector('[aria-label="Accept embedding model terms"]') as HTMLInputElement
+    ).click(),
+  )
+  const download = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent === 'Download local embedding model',
+  )!
+  expect(download.disabled).toBe(true)
+  expect(invoke.mock.calls.some(([channel]) => channel === 'brain:download')).toBe(false)
+})
 it('reviews original evidence before enabling revision-checked approval', async () => {
   await act(async () => root.render(<BrainPage />))
   await click('Activity')
