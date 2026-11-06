@@ -33,7 +33,11 @@ beforeAll(() => {
   fixture = setupBundleFixture()
 }, 60000)
 afterAll(() => disposeBundleFixture(fixture))
-const withoutKnownPublicUrls = (text: string) => text.replaceAll(HOST_RELEASE_BASE_URL, '')
+// Exact public constants only. Never exempt arbitrary URLs or a username globally.
+const withoutKnownPublicUrls = (text: string) =>
+  text
+    .replaceAll(HOST_RELEASE_BASE_URL, '')
+    .replaceAll('https://github.com/agustinsacco/pi-claude-cli', '')
 
 describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it('keeps release bundles independent of TMPDIR and untracked machine files', () => {
