@@ -23,7 +23,10 @@ import { parseClaudeAuthStatus } from '@phosphor/session-runtime/claude/auth-sta
 import type { JobSender } from './packages'
 import type * as Packages from './packages'
 import type * as PrintMode from './print-mode'
-import { claudeOneShotEnv, claudeProviderSpawnEnv } from './provider-detect'
+import {
+  claudeOneShotEnv,
+  claudeProviderSpawnEnv,
+} from '@phosphor/session-runtime/pi/provider-detect'
 import { resetShellPathCache } from './shell-env'
 
 // Real print mode unless a test says otherwise, so the proof's delegation is

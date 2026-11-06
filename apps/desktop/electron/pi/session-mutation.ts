@@ -1,6 +1,9 @@
 import { access } from 'node:fs/promises'
 import { registry } from '../registry'
-import { isRoutineSession, routineSessionForPath } from '../routines/ownership'
+import {
+  isRoutineSession,
+  routineSessionForPath,
+} from '@phosphor/session-runtime/routines/ownership'
 import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 import { withSessionPath } from './session-path-lock'
 

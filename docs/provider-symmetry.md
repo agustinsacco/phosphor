@@ -155,7 +155,7 @@ None of these change what the model sees, and none should: a provider branch
 that alters the prompt, the tools or compaction breaks the first table.
 
 - `usesClaudeCliProvider` and `assertClaudeContextProvider`
-  (`libs/session-runtime/src/pi/provider-detect.ts`, with a Desktop re-export): the version check
+  (`libs/session-runtime/src/pi/provider-detect.ts`): the version check
   before a spawn (`session-policy.ts`), a model switch and a prompt
   (`libs/session-runtime/src/pi/session-service.ts`, used by Desktop IPC), and before a
   routine runs (`apps/desktop/electron/routines/runner.ts`).

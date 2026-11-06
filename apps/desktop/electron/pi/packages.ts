@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os'
 import type { PiPackageEntry } from '@shared/models'
 import { listPackages, npmNameFromSpec } from '@phosphor/session-runtime/pi/packages'
 import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
-import { claudeOneShotEnv, claudeProviderSpawnEnv } from './provider-detect'
+import {
+  claudeOneShotEnv,
+  claudeProviderSpawnEnv,
+} from '@phosphor/session-runtime/pi/provider-detect'
 import { piProcessEnv } from './shell-env'
 import { PiUnavailableError, resolvePiInvoker } from './invoker'
 import { resolveBinary, windowsWhereOutput } from './binary-lookup'

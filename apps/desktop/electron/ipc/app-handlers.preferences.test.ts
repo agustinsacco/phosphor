@@ -75,7 +75,7 @@ vi.mock('@phosphor/session-runtime/pi/context-budget', () => ({ syncContextBudge
 vi.mock('../pi/context-budget', () => ({ withBudgetCompaction: m.serialize }))
 vi.mock('../pi/context-files', () => ({ setLaneContextFile: m.context }))
 vi.mock('../pi/stub', () => ({ piStubPath: m.stub }))
-vi.mock('../routines/ownership', () => ({ isRoutineSession: m.routine }))
+vi.mock('@phosphor/session-runtime/routines/ownership', () => ({ isRoutineSession: m.routine }))
 vi.mock('../window-chrome', () => ({
   applyThemeSource: m.theme,
   applyTitleBarOverlay: m.overlay,
