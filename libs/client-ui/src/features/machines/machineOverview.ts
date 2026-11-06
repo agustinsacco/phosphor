@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { machineStatus, type MachineStatus, type MachineView } from '@shared/control-api'
 import type { HostConnectionView } from '@shared/ipc'
-import type { AboutInfo } from '@shared/models'
 import type { TailscaleStatus } from '@shared/tailscale-status'
 import { platformName } from '@shared/platform-name'
 import { localMachineLabel } from '@/lib/localMachine'
 import { usePlatform } from '@/platform/Platform'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
+import { useAboutInfo } from '@/features/updates/useAboutInfo'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -98,7 +98,6 @@ function useLive(): React.RefObject<boolean> {
 }
 
 interface LocalReads extends LocalReadings {
-  about?: AboutInfo | null
   busy: boolean
   at: number | null
 }
@@ -121,10 +120,6 @@ function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () 
         .invoke('hosts:tailscaleStatus')
         .catch((): TailscaleStatus => ({ code: 'check-failed' }))
         .then((tailscale) => merge({ tailscale })),
-      window.phosphor.invoke('app:about').then(
-        (about) => merge({ about }),
-        () => merge({ about: null }),
-      ),
     ]).then(() => merge(round ? { busy: false, at: Date.now() } : {}))
     return () => {
       live = false
@@ -141,6 +136,7 @@ function useLocalReads(enabled: boolean): LocalReads & { round: number; run: () 
 export function useLocalOverview(): MachineOverview | null {
   const { localLanes, appInfo } = usePlatform()
   const reads = useLocalReads(localLanes)
+  const about = useAboutInfo(localLanes)
   const tasks = useLocalTasks()
   const liveHere = useSessionsStore((s) => localLiveEntries(s.live).length)
   const reachesHosts = useMachinesStore((s) => s.remoteEnabled && s.machines.length > 0)
@@ -167,11 +163,14 @@ export function useLocalOverview(): MachineOverview | null {
       ? { text: 'Could not read all local checks. Check again to retry.', alert: true }
       : undefined,
     facts: [
-      { label: 'Platform', value: reads.about ? `${platform} ${reads.about.arch}` : platform },
+      {
+        label: 'Platform',
+        value: about && about !== 'unknown' ? `${platform} ${about.arch}` : platform,
+      },
       {
         label: 'Phosphor version',
         value:
-          reads.about === undefined ? 'Checking…' : (reads.about?.appVersion ?? 'Not available'),
+          about === null ? 'Checking…' : about === 'unknown' ? 'Not available' : about.appVersion,
       },
       {
         label: 'pi',
