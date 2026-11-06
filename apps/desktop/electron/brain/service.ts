@@ -103,6 +103,7 @@ export async function assembleBrainService(
   }
   try {
     await options.embeddings.setEnabled(enabled)
+    await indexer.index()
   } catch (error) {
     options.onError?.(error)
   }

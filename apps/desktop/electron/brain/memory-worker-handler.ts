@@ -40,12 +40,20 @@ export function createMemoryHandler(
         throw new Error('Manual processing requires an acknowledged policy epoch')
       // Discriminated requests retain their method-specific tuple on the sending side.
       const operation = operations[request.method] as (...args: unknown[]) => unknown
-      return { id: request.id, ok: true, data: operation(...request.args) }
+      const response: MemoryResponse = {
+        id: request.id,
+        ok: true,
+        data: operation(...request.args),
+      }
+      if (Buffer.byteLength(JSON.stringify(response)) > MEMORY_MAX_BYTES)
+        throw new Error('Brain database response exceeds limit')
+      return response
     } catch (error) {
       return {
         id: request.id,
         ok: false,
-        error: error instanceof Error ? error.message : 'Brain database operation failed',
+        error:
+          error instanceof Error ? error.message.slice(0, 8000) : 'Brain database operation failed',
       }
     }
   }
