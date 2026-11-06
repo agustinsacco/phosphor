@@ -83,7 +83,10 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
     ['apps/host/project.json', host],
     ['libs/pi-extensions/pi-ext/headroom.ts', extensions],
     // Site reads extension source inputs, but never the Node-only agent client.
-    ['libs/brain-client/src/client.ts', [...extensions.filter((p) => p !== 'site'), 'brain-client']],
+    [
+      'libs/brain-client/src/client.ts',
+      [...extensions.filter((p) => p !== 'site'), 'brain-client'],
+    ],
     ['libs/memory-engine/src/service.ts', [...desktop, 'memory-engine']],
     ['libs/session-runtime/src/pi/session-service.ts', runtime],
     [

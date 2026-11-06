@@ -18,7 +18,7 @@ import { mockSessionMaintenance } from './mockSessionMaintenance'
  */
 import type { AccountView } from '@shared/account'
 import type { PhosphorApi } from '@shared/ipc'
-import { mockRoutineCall, onMockRoutinesChanged } from './mockRoutines'
+import { mockLocalRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import { mockTraffic } from './mockTraffic'
 import { base64ToBytes, bytesToBase64 } from '@phosphor/shared/base64'
 import type {
@@ -975,13 +975,7 @@ export function installMockPhosphor(): void {
 
     invoke: (channel: string, ...args: unknown[]) => {
       if (channel.startsWith('brain:')) return mockBrainCall(channel, args)
-      if (channel.startsWith('routines:')) {
-        if (args.some((arg) => typeof arg === 'string' && arg.startsWith('host:')))
-          return Promise.reject(
-            new Error('Machine routines are unavailable in the browser harness.'),
-          )
-        return mockRoutineCall(channel, args)
-      }
+      if (channel.startsWith('routines:')) return mockLocalRoutineCall(channel, args)
       switch (channel) {
         case 'pi:health':
           return Promise.resolve({
