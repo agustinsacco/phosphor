@@ -33,9 +33,7 @@ beforeEach(() => {
   pi.mockResolvedValue(true)
   swarm.mockResolvedValue(undefined)
   refresh.mockResolvedValue(undefined)
-  invoke.mockImplementation(async (channel) =>
-    channel === 'hosts:snapshot' ? mockRemoteHosts : mockRemoteInfo,
-  )
+  invoke.mockResolvedValue(mockRemoteInfo)
 })
 it('creates with Host choices, opens and sends before clearing the draft', async () => {
   pi.mockImplementation(async () => {
@@ -74,7 +72,7 @@ it('retries only definitive fresh collisions with the next bounded candidate', a
   invoke.mockImplementation(async (channel, _host, input) => {
     if (channel === 'hosts:createLane' && input.worktree.branch === 'phosphor/fix-bug')
       throw new Error("Error invoking remote method 'hosts:createLane': Error: branch-exists")
-    return channel === 'hosts:snapshot' ? mockRemoteHosts : mockRemoteInfo
+    return mockRemoteInfo
   })
   await startRemoteChat(
     MOCK_HOST_ID,
