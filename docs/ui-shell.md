@@ -666,6 +666,8 @@ archived. The health check counts skills and routines the same way.
 This computer's On this machine is the same card: its newest lanes from the sidebar's
 sessions, with the same content (state dot, title, time, branch) on the same row
 primitive but without the lane menu, and its own skills, routines and artifact counts.
+Its lane count (View all N lanes) covers the folders the sidebar has scanned, while a
+Host's counts all of that Host's lanes.
 A never-connected Host shows "Waiting for X to finish setup" with
 `phosphor setup` (it resumes where it stopped) and a Troubleshooting disclosure
 with `phosphor service status`, `phosphor service install` and `phosphor run`.
