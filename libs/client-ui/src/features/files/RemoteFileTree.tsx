@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { ChevronIcon } from '@/components/icons'
 import { FileTreeRow, FolderGlyph } from './FileTreeRow'
+import { foldFileList } from './fileListTree'
 
 /** A Host list is relative paths, not a local directory handle. */
 export function RemoteFileTree({
@@ -23,36 +24,17 @@ export function RemoteFileTree({
 }): React.JSX.Element {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const nodes = useMemo(() => {
-    const entries = new Map<
-      string,
-      { path: string; name: string; directory: boolean; depth: number }
-    >()
-    for (const file of files) {
-      const parts = file.split('/')
-      if (parts.length > 64) return null
-      for (let i = 0; i < parts.length; i++) {
-        const path = parts.slice(0, i + 1).join('/')
-        if (entries.size >= 50000) return null
-        entries.set(path, {
-          path,
-          name: parts[i] ?? '',
-          directory: i < parts.length - 1,
-          depth: i,
-        })
+    const listings = foldFileList('', files)
+    if (!listings) return null
+    const nodes: { path: string; name: string; directory: boolean; depth: number }[] = []
+    const walk = (dir: string, depth: number): void => {
+      for (const entry of listings[dir] ?? []) {
+        nodes.push({ path: entry.path, name: entry.name, directory: entry.isDirectory, depth })
+        if (entry.isDirectory) walk(entry.path, depth + 1)
       }
     }
-    return [...entries.values()].sort((a, b) => {
-      const ap = a.path.split('/'),
-        bp = b.path.split('/')
-      for (let i = 0; i < Math.min(ap.length, bp.length); i++) {
-        if (ap[i] === bp[i]) continue
-        const ad = i < ap.length - 1 || a.directory,
-          bd = i < bp.length - 1 || b.directory
-        if (ad !== bd) return ad ? -1 : 1
-        return (ap[i] ?? '').localeCompare(bp[i] ?? '')
-      }
-      return ap.length - bp.length
-    })
+    walk('', 0)
+    return nodes
   }, [files])
   if (loading)
     return (
