@@ -323,3 +323,206 @@ it('expires during an open app on search without a preferences change or schedul
   expect(store.snapshot().counts.evidence).toBe(0)
   expect(store.capture(input)).toBeNull()
 })
+
+it('isolates branch-tagged evidence before lexical, vector and relationship recall', () => {
+  const { store } = fixture()
+  const source = store.capture({ ...input, branch: 'feature' })!
+  process(store, '/a', extraction(source.id))
+  const claim = store.snapshot().claims[0]!
+  store.putVectors([{ claimId: claim.id, modelId: 'local', values: [1, 0] }])
+  expect(store.search({ query: 'Al', mode: 'lexical' }, ['/a']).results).toHaveLength(0)
+  expect(store.graph().edges).toHaveLength(0)
+  const matching = { query: 'Al', mode: 'hybrid' as const, branch: 'feature' }
+  const other = { ...matching, branch: 'main' }
+  expect(store.search(matching, ['/a'], { modelId: 'local', values: [1, 0] }).results).toHaveLength(
+    1,
+  )
+  expect(store.search(other, ['/a'], { modelId: 'local', values: [1, 0] }).results).toHaveLength(0)
+  expect(store.read(source.id, ['/a']).branch).toBe('feature')
+  const mixed = store.capture({
+    ...input,
+    branch: 'main',
+    entryId: 'mixed',
+    rootIds: ['other-root'],
+  })!
+  const proposal = extraction(source.id)
+  proposal.claims[0]!.summary = 'Mixed branch report'
+  proposal.claims[0]!.citations.push({ evidenceId: mixed.id, quote: 'Alice owns Project' })
+  process(store, '/a', proposal)
+  expect(store.search(matching, ['/a']).results.map((hit) => hit.claim.summary)).not.toContain(
+    'Mixed branch report',
+  )
+})
+it('keeps contradictions visible without silently replacing either human-approved claim', () => {
+  const { store, time } = fixture()
+  const first = store.capture(input)!
+  process(store, '/a', extraction(first.id))
+  time(2000)
+  const next = store.capture({
+    ...input,
+    entryId: 'contradiction',
+    rootIds: ['other-root'],
+    text: 'Alice owns Library.',
+  })!
+  const proposal = extraction(next.id)
+  proposal.entities[1]!.label = 'Library'
+  proposal.claims[0]!.summary = 'Alice owns Library'
+  proposal.claims[0]!.citations[0]!.quote = 'Alice owns Library'
+  process(store, '/a', proposal)
+  const claims = store.snapshot().claims
+  expect(
+    claims.every((claim) => claim.state === 'contested' && claim.conflictIds.length === 1),
+  ).toBe(true)
+  const historical = store.search({ query: 'Al', knownAt: 1500, validAt: 1000, mode: 'lexical' }, [
+    '/a',
+  ])
+  expect(historical.results[0]!.claim.state).toBe('active')
+  expect(historical.results[0]!.claim.conflictIds).toEqual([])
+})
+it('forgets correction evidence and all derived versions, not merely vector indexes', () => {
+  const { store } = fixture()
+  const first = store.capture(input)!
+  process(store, '/a', extraction(first.id))
+  const original = store.snapshot().claims[0]!
+  const corrected = store.correct(
+    original.id,
+    {
+      subjectId: original.subjectId,
+      predicate: original.predicate,
+      objectId: original.objectId,
+      literal: null,
+      summary: 'Corrected ownership',
+      validFrom: 0,
+      validTo: null,
+      reason: 'Human verified',
+    },
+    store.snapshot(),
+  )
+  store.forget([first.id])
+  expect(() => store.read(corrected.citations[0]!.evidenceId, ['/a'])).toThrow()
+  expect(store.snapshot().counts.claims).toBe(0)
+  expect(store.snapshot().counts.evidence).toBe(0)
+  expect(
+    store.search({ query: 'Al', knownAt: 1000, mode: 'lexical' }, ['/a']).results,
+  ).toHaveLength(0)
+})
+
+it('enforces one processor copy per job, exposes no forgotten transcript path, and permits a new manual job after failure', () => {
+  const { store, open } = fixture()
+  const source = store.capture(input)!
+  const job = store.claimJob(store.createJob('/a', model).id)
+  store.updateJob(job.id, job.fence, { sessionPath: '/owned/stamp_processor.jsonl' })
+  expect(() => store.updateJob(job.id, job.fence, { sessionPath: '/owned/other.jsonl' })).toThrow(
+    'immutable',
+  )
+  expect(() => store.updateJob(job.id, job.fence, { sessionPath: null })).toThrow('immutable')
+  store.updateJob(job.id, job.fence, { state: 'failed', error: 'Visible failure' })
+  const next = store.createJob('/a', model)
+  expect(next.id).not.toBe(job.id)
+  expect(store.createJob('/a', model).id).toBe(next.id)
+  store.forget([source.id])
+  expect(store.job(job.id).sessionPath).toBeNull()
+  expect(store.pendingPurges()).toEqual([
+    { jobId: job.id, sessionPath: '/owned/stamp_processor.jsonl' },
+  ])
+  store.close()
+  const restarted = open()
+  expect(
+    restarted.capture({ ...input, sessionId: 'processor', entryId: 'echo', rootIds: ['fresh'] }),
+  ).toBeNull()
+})
+it('bounds snapshot and graph outputs explicitly, with truncation, while retaining authoritative counts', () => {
+  const { store } = fixture()
+  const source = store.capture(input)!
+  for (let batch = 0; batch < 3; batch++) {
+    const entities = Array.from({ length: 100 }, (_, index) => ({
+      key: `key-${index}`,
+      label: `Entity ${batch}-${index}`,
+      kind: 'concept' as const,
+      aliases: [],
+      evidenceIds: [source.id],
+    }))
+    const claims = entities.slice(1).map((entity, index) => ({
+      subject: entities[index]!.key,
+      predicate: 'about' as const,
+      object: entity.key,
+      summary: `Link ${batch}-${index}`,
+      kind: 'reported' as const,
+      citations: [{ evidenceId: source.id, quote: 'Alice owns Project' }],
+      validFrom: 0,
+      validTo: null,
+    }))
+    process(store, '/a', { entities, claims, rationale: 'Synthetic bound test' })
+  }
+  const snapshot = store.snapshot()
+  expect(snapshot.counts.entities).toBe(300)
+  expect(snapshot.entities).toHaveLength(200)
+  expect(snapshot.claims).toHaveLength(200)
+  expect(snapshot.truncated).toBe(true)
+  const graph = store.graph()
+  expect(graph.nodes.length).toBeLessThanOrEqual(200)
+  expect(graph.truncated).toBe(true)
+  expect(
+    graph.edges.every(
+      (edge) =>
+        graph.nodes.some((node) => node.id === edge.subjectId) &&
+        graph.nodes.some((node) => node.id === edge.objectId),
+    ),
+  ).toBe(true)
+})
+it('expands exactly two typed hops, even when a third and fourth edge are eligible', () => {
+  const { store, time } = fixture()
+  const source = store.capture(input)!
+  const names = ['Alice', 'Project', 'Library', 'Customer', 'Team']
+  const entities = names.map((label, index) => ({
+    key: String(index),
+    label,
+    kind: 'concept' as const,
+    aliases: index === 0 ? ['Al'] : [],
+    evidenceIds: [source.id],
+  }))
+  const claims = entities.slice(1).map((entity, index) => ({
+    subject: String(index),
+    predicate: 'about' as const,
+    object: entity.key,
+    summary: `Relation ${index}`,
+    kind: 'reported' as const,
+    citations: [{ evidenceId: source.id, quote: 'Alice owns Project' }],
+    validFrom: 0,
+    validTo: null,
+  }))
+  process(store, '/a', { entities, claims, rationale: 'Synthetic relationship test' })
+  time(3000)
+  const recalled = store.search({ query: 'Al', mode: 'lexical', tokenBudget: 16000 }, ['/a'])
+  expect(recalled.results.map((hit) => hit.claim.summary).sort()).toEqual([
+    'Relation 0',
+    'Relation 1',
+  ])
+  const root = store.snapshot().entities.find((entity) => entity.label === 'Alice')!
+  expect(
+    store
+      .graph(root.id)
+      .edges.map((claim) => claim.summary)
+      .sort(),
+  ).toEqual(['Relation 0', 'Relation 1'])
+})
+
+it('regression: correction runtime input cannot override claim scope with untyped fields', () => {
+  const { store } = fixture()
+  const source = store.capture(input)!
+  process(store, '/a', extraction(source.id))
+  const claim = store.snapshot().claims[0]!
+  const correction = {
+    subjectId: claim.subjectId,
+    predicate: claim.predicate,
+    objectId: claim.objectId,
+    literal: claim.literal,
+    summary: 'Corrected',
+    validFrom: 0,
+    validTo: null,
+    reason: 'Human',
+    scope: '/b',
+  }
+  expect(() => store.correct(claim.id, correction, store.snapshot())).toThrow()
+  expect(store.snapshot().claims.every((item) => item.scope === '/a')).toBe(true)
+})
