@@ -22,8 +22,10 @@ const nodeLibraries = [
   'libs/session-runtime',
   'libs/host-client',
   'libs/pi-extensions',
+  'libs/memory-engine',
+  'libs/brain-client',
 ]
-const libraries = [...nodeLibraries, 'libs/client-ui']
+const libraries = [...nodeLibraries.slice(0, 4), 'libs/client-ui', ...nodeLibraries.slice(4)]
 
 describe('workspace installation closure', () => {
   it('shares only source libraries, never the native Desktop or independently locked site', () => {

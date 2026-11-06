@@ -8,6 +8,8 @@ import { beforeAll, describe, expect, it } from 'vitest'
 const root = resolve(import.meta.dirname, '../..')
 const readJson = (path: string) => JSON.parse(readFileSync(join(root, path), 'utf8'))
 const projects = {
+  'brain-client': 'libs/brain-client',
+  'memory-engine': 'libs/memory-engine',
   'client-ui': 'libs/client-ui',
   web: 'apps/web',
   desktop: 'apps/desktop',
@@ -22,6 +24,8 @@ const projects = {
   tooling: 'tools/scripts',
 }
 const commands = {
+  'brain-client': { test: 'vitest run libs/brain-client' },
+  'memory-engine': { test: 'vitest run libs/memory-engine' },
   'client-ui': {
     typecheck: 'tsc --noEmit -p libs/client-ui/tsconfig.json',
     test: 'vitest run libs/client-ui',
@@ -84,18 +88,30 @@ const commands = {
 // Nothing depends on `tooling` (the whole-workspace checks). The site declares
 // consumed sources as deploy inputs instead of implicit project dependencies.
 const dependencies = {
+  'brain-client': ['shared'],
+  'memory-engine': ['shared'],
   'client-ui': ['shared', 'pi-extensions'],
   web: ['client-ui', 'host-client', 'shared', 'host', 'control'],
-  desktop: ['runtime', 'shared', 'host-client', 'pi-extensions', 'client-ui'],
+  desktop: [
+    'runtime',
+    'shared',
+    'host-client',
+    'pi-extensions',
+    'client-ui',
+    'brain-client',
+    'memory-engine',
+  ],
   host: ['runtime', 'shared', 'pi-extensions'],
   control: ['shared', 'desktop'],
   runtime: ['shared', 'host-client', 'pi-extensions'],
   'host-client': ['shared'],
   shared: [],
-  'pi-extensions': ['shared'],
+  'pi-extensions': ['shared', 'brain-client'],
   site: [],
   schema: [],
   tooling: [
+    'brain-client',
+    'memory-engine',
     'desktop',
     'host',
     'control',
@@ -112,6 +128,8 @@ const dependencies = {
 // Workspace-wide checks read everything. Everything else reads its own root,
 // its dependencies, and the specific root files it actually consumes.
 const inputs: Record<string, Record<string, string[]>> = {
+  'brain-client': { '*': ['default', '^default', 'rootUnitRunner'] },
+  'memory-engine': { '*': ['default', '^default', 'rootUnitRunner'] },
   'client-ui': {
     typecheck: ['default', '^default', 'rootInstall'],
     test: ['default', '^default', 'rootUnitRunner'],
