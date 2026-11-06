@@ -8,9 +8,9 @@ interface AccountRow {
   plan?: string
 }
 
-/** A cooldown holds while its end is still ahead; a missing or past one holds nothing. */
-export function holdActive(until: number | null | undefined, nowMs: number): until is number {
-  return until !== null && until !== undefined && until > nowMs
+/** A cooldown's end while it still holds; null for a missing or past one. */
+export function activeHold(until: number | null | undefined, nowMs: number): number | null {
+  return until !== null && until !== undefined && until > nowMs ? until : null
 }
 
 /**
@@ -28,10 +28,7 @@ export function claudeSessionAccount(
 ): ClaudeSessionAccount | null {
   const account = accounts.find((a) => a.id === accountId)
   if (!account) return null
-  const hold = (id: string): number | null => {
-    const until = holdUntil(id)
-    return holdActive(until, nowMs) ? until : null
-  }
+  const hold = (id: string): number | null => activeHold(holdUntil(id), nowMs)
   const other = accounts.find((a) => a.id !== account.id && hold(a.id) === null)
   return {
     id: account.id,

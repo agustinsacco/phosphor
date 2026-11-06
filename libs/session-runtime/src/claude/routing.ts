@@ -11,7 +11,7 @@
  * "ordered" means *start* on the first account that is not exhausted, not fail
  * over mid-turn — a session that hits its limit is a session the user restarts.
  */
-import { holdActive } from '@shared/claude-session-account'
+import { activeHold } from '@shared/claude-session-account'
 import type { ClaudeAccount, ClaudeAccountPrefs, ClaudeAuthStatus } from '@shared/models'
 
 /**
@@ -111,7 +111,7 @@ export function isCoolingDown(
   accountId: string,
   nowMs: number,
 ): boolean {
-  return holdActive(prefs.cooldowns[accountId], nowMs)
+  return activeHold(prefs.cooldowns[accountId], nowMs) !== null
 }
 
 /**
@@ -179,7 +179,7 @@ export function cooldownFromUsage(
   if (!fiveHour || fiveHour.percentUsed < 100) return null
   // No parsed reset stamp still means exhausted; hold it for one window.
   const resetsAt = fiveHour.resetsAt ?? nowMs + 5 * 60 * 60 * 1000
-  return resetsAt > nowMs ? resetsAt : null
+  return activeHold(resetsAt, nowMs)
 }
 
 /** Drop cooldowns that have expired, so the stored map cannot grow forever. */
@@ -189,6 +189,8 @@ export function pruneCooldowns(
   nowMs: number,
 ): Record<string, number> {
   return Object.fromEntries(
-    Object.entries(cooldowns).filter(([id, until]) => knownIds.has(id) && holdActive(until, nowMs)),
+    Object.entries(cooldowns).filter(
+      ([id, until]) => knownIds.has(id) && activeHold(until, nowMs) !== null,
+    ),
   )
 }

@@ -1,4 +1,5 @@
 import { mkdirSync } from 'node:fs'
+import { activeHold } from '@shared/claude-session-account'
 import type {
   ClaudeAccount,
   ClaudeAccountPrefs,
@@ -75,7 +76,7 @@ export function createAccountUsage({ loadAccounts, save }: AccountUsagePorts) {
             ? reconcileAuthIdentity(account, status.auth)
             : { ok: false, error: 'status check failed' },
           usage: cachedUsageSnapshot(account.id, now),
-          cooldownUntil: cooldown !== undefined && cooldown > now ? cooldown : null,
+          cooldownUntil: activeHold(cooldown, now),
         }
       }),
     )
