@@ -25,8 +25,8 @@ export interface InstallInput {
   cwd: string
   paths: MachinePaths
   labels: LaneMoveNotice
-  /** Where copied attachments go. Null on the source's own machine, where the old paths still work. */
-  attachmentsDir: string | null
+  /** Where copied attachments go, given the copy's session id. Null on the source's own machine, where the old paths still work. */
+  attachmentsDir: ((sessionId: string) => string) | null
   /** Whether a pi session with this id already exists on this machine. */
   sessionTaken(sessionId: string): Promise<boolean>
   now?: () => Date
@@ -133,7 +133,7 @@ export async function installLane(input: InstallInput): Promise<InstalledLane> {
         return join(stateDir, 'sysprompt', `${cli}.txt`)
       case 'attachment':
         if (!input.attachmentsDir) refuse('The lane bundle is damaged.')
-        return join(input.attachmentsDir, part.path)
+        return join(input.attachmentsDir(sessionId), part.path)
     }
   }
   const plan = manifest.parts.map((part, index) => ({ part, index, to: destination(part) }))

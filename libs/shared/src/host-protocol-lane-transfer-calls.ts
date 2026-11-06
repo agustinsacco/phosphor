@@ -39,6 +39,8 @@ export type LaneTransferParams =
       repositoryId: string
       source: LaneSourceFacts
       branchPrefix: string
+      /** The lane comes from this same Host. */
+      sameMachine: boolean
     }
   | {
       method: 'laneTransfer.begin'
@@ -46,6 +48,7 @@ export type LaneTransferParams =
       size: number
       sha256: string
       branchPrefix: string
+      sameMachine: boolean
       notice: LaneMoveNotice
       marks: LaneMoveMarks
     }
@@ -81,22 +84,38 @@ export function parseLaneTransferParams(method: string, v: unknown): LaneTransfe
         : null
     case 'laneTransfer.check': {
       const source = parseLaneSourceFacts(v.source)
-      return keys(v, ['repositoryId', 'source', 'branchPrefix']) &&
+      return keys(v, ['repositoryId', 'source', 'branchPrefix', 'sameMachine']) &&
         repositoryId(v.repositoryId) &&
         source &&
-        isBranchPrefix(v.branchPrefix)
-        ? { method, repositoryId: v.repositoryId, source, branchPrefix: v.branchPrefix }
+        isBranchPrefix(v.branchPrefix) &&
+        typeof v.sameMachine === 'boolean'
+        ? {
+            method,
+            repositoryId: v.repositoryId,
+            source,
+            branchPrefix: v.branchPrefix,
+            sameMachine: v.sameMachine,
+          }
         : null
     }
     case 'laneTransfer.begin': {
       const notice = parseLaneMoveNotice(v.notice)
       const marks = parseLaneMoveMarks(v.marks)
-      return keys(v, ['repositoryId', 'size', 'sha256', 'branchPrefix', 'notice', 'marks']) &&
+      return keys(v, [
+        'repositoryId',
+        'size',
+        'sha256',
+        'branchPrefix',
+        'sameMachine',
+        'notice',
+        'marks',
+      ]) &&
         repositoryId(v.repositoryId) &&
         offset(v.size) &&
         typeof v.sha256 === 'string' &&
         /^[a-f0-9]{64}$/.test(v.sha256) &&
         isBranchPrefix(v.branchPrefix) &&
+        typeof v.sameMachine === 'boolean' &&
         notice &&
         marks
         ? {
@@ -105,6 +124,7 @@ export function parseLaneTransferParams(method: string, v: unknown): LaneTransfe
             size: v.size,
             sha256: v.sha256,
             branchPrefix: v.branchPrefix,
+            sameMachine: v.sameMachine,
             notice,
             marks,
           }
@@ -141,6 +161,13 @@ export function parseLaneExportStarted(v: unknown): LaneExportStarted | null {
     /^[a-f0-9]{64}$/.test(v.sha256)
     ? { exportId: v.exportId, size: v.size, sha256: v.sha256 }
     : null
+}
+
+/** A commit's answer: the new lane, or why nothing was created. */
+export function parseLaneImported(v: unknown): { laneId: string } | { blockers: string[] } | null {
+  if (isRecord(v) && keys(v, ['laneId']) && isUuid(v.laneId)) return { laneId: v.laneId }
+  const refused = parseLaneInspection(v)
+  return refused && 'blockers' in refused ? refused : null
 }
 
 export function parseLaneChunk(v: unknown): string | null {

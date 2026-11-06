@@ -48,7 +48,7 @@ async function moveFolderLane(sameMachine: boolean) {
     cwd: prepared.folder.cwd,
     paths: to,
     labels,
-    attachmentsDir: sameMachine ? null : join(to.home, 'attachments'),
+    attachmentsDir: sameMachine ? null : () => join(to.home, 'attachments'),
     sessionTaken: sessionTaken(to),
   })
   return { from, to, lane, sourceCwd, targetRoot, installed, prepared }
@@ -123,7 +123,7 @@ describe('moving a lane in a folder git does not track', () => {
       cwd: root,
       paths: to,
       labels,
-      attachmentsDir: join(to.home, 'attachments'),
+      attachmentsDir: () => join(to.home, 'attachments'),
       sessionTaken: async () => {
         writeFileSync(join(dir, lane.fileName), 'someone else')
         return false
@@ -150,7 +150,7 @@ describe('moving a lane in a folder git does not track', () => {
     const archivePath = join(from.home, 'bundle')
     await exportLane({ sessionFile: lane.sessionFile, workspace: 's', paths: from, attachmentAllowed: () => true }, archivePath)
     const bytes = readFileSync(archivePath)
-    bytes[bytes.length - 1] ^= 1
+    bytes.writeUInt8(bytes.readUInt8(bytes.length - 1) ^ 1, bytes.length - 1)
     writeFileSync(archivePath, bytes)
     await expect(openArchive(archivePath)).rejects.toThrow('The lane bundle is damaged.')
   })
