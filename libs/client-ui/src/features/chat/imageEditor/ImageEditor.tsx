@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { ipcErrorText } from '@shared/errors'
 import { ModalOverlay } from '@/components/Modal'
 import { Button } from '@/components/form'
-import { bytesToBase64 } from '@/lib/base64'
+import { bytesToBase64 } from '@phosphor/shared/base64'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { annotatedName, type PendingImage } from '../attachments'
