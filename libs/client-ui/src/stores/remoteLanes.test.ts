@@ -40,6 +40,7 @@ beforeEach(() => {
   useChatStore.setState({ sessions: {} })
   useLayoutStore.setState({ page: 'skills' })
   useExtensionUiStore.setState({ toasts: [] })
+  useMachinesStore.setState({ machines: [] })
   useLaneRevealStore.setState({ seq: 0, groupKey: null })
   const hosts = structuredClone(mockRemoteHosts)
   hosts[MOCK_HOST_ID]!.capabilities.push('artifacts.read')
