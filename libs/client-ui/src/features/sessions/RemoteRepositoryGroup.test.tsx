@@ -176,3 +176,23 @@ it("reads a Host folder's saved lane order where no This Mac sidebar has (the br
   await act(async () => {})
   expect(titles()).toEqual(['Other', 'Fix the login'])
 })
+
+it("selecting an open Host folder's lanes leaves the collapsed-groups pref alone, as This Mac does", async () => {
+  const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+  hosts[MOCK_HOST_ID]!.capabilities.push('workspaces.write')
+  useRemoteLanesStore.setState({ hosts })
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'app:getPrefs' ? { collapsedWorkspaces: [] } : undefined,
+  )
+  await act(async () => render())
+  act(() =>
+    container.querySelector<HTMLButtonElement>('[aria-label^="Workspace options for"]')!.click(),
+  )
+  const select = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+    (b) => b.textContent === 'Select all lanes',
+  )!
+  expect(select.disabled).toBe(false)
+  await act(async () => select.click())
+  expect(container.querySelectorAll('[role=checkbox]').length).toBe(2)
+  expect(invoke).not.toHaveBeenCalledWith('app:setCollapsedWorkspaces', expect.anything())
+})
