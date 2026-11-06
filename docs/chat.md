@@ -880,6 +880,9 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   has no model to run (This Mac's: when pi's catalogue could not be read), and
   **Sign in on <machine>** (Settings → Accounts for that machine,
   `useSignInAction`) when its list is read and has no usable signed-in model.
+  A live lane whose model list comes back empty shows the no-models banner with
+  the same two actions (`useSessionModelActions`), plus **Open terminal with
+  `pi`** when the platform has a terminal and the lane runs on This Mac.
   The picker grows into the toolbar's free width on every machine.
   Both owners render `composer/ModelChip.tsx`: the model name as the left segment,
   the thinking level (with a caret) as the right. The provider is not on the
