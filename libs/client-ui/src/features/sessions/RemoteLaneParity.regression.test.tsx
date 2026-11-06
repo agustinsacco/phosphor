@@ -81,14 +81,14 @@ function render(name: Surface, platform = DESKTOP_PLATFORM): void {
 const row = (): HTMLButtonElement =>
   el.querySelector<HTMLButtonElement>('[data-testid=remote-session-row]')!
 /** A mouse right-click: a press starts the gesture, so each click opens its own menu. */
-function rightClick(): void {
+function rightClick(target: HTMLElement = row()): void {
   act(() => {
     for (const type of ['pointerdown', 'pointerup']) {
       const event = new MouseEvent(type, { bubbles: true, cancelable: true })
       Object.defineProperty(event, 'pointerType', { value: 'mouse' })
-      row().dispatchEvent(event)
+      target.dispatchEvent(event)
     }
-    row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
   })
 }
 function menuRows(): HTMLButtonElement[] {
@@ -305,3 +305,62 @@ it('the browser offers Add folder on a ready Host with no folders, as Desktop do
     [...el.querySelectorAll('button')].some((b) => b.textContent?.startsWith('Add folder')),
   ).toBe(true)
 })
+
+it.each(['desktop', 'browser'] as const)(
+  '%s marks the open lane in Pinned and in its folder, and locks both lists while a bulk delete runs',
+  (name) => {
+    host((view) => {
+      const first = { ...view.lanes[0]!, activity: 'stopped' as const }
+      view.lanes = [
+        { ...first, laneId: 'pin-a', title: 'Pin A', pinned: true },
+        { ...first, laneId: 'pin-b', title: 'Pin B', pinned: true },
+        { ...first, laneId: 'lane-a', title: 'Lane A', pinned: false },
+        { ...first, laneId: 'lane-b', title: 'Lane B', pinned: false },
+      ]
+    })
+    const open = (laneId: string) => ({
+      phosphorId: laneId,
+      workspacePath: `host:${MOCK_HOST_ID}/lane:${laneId}`,
+      target: { kind: 'remote' as const, hostId: MOCK_HOST_ID },
+      laneId,
+    })
+    useSessionsStore.setState({
+      live: { 'pin-b': open('pin-b'), 'lane-b': open('lane-b') },
+      activeSessionId: 'pin-b',
+    })
+    render(name)
+    const rowNamed = (title: string) =>
+      [...el.querySelectorAll<HTMLButtonElement>('[data-testid=remote-session-row]')].find(
+        (r) => r.getAttribute('aria-label') === title,
+      )!
+    const current = () =>
+      [...el.querySelectorAll('[data-testid=remote-session-row][aria-current=page]')].map((r) =>
+        r.getAttribute('aria-label'),
+      )
+    expect(current()).toEqual(['Pin B'])
+    act(() => useSessionsStore.setState({ activeSessionId: 'lane-b' }))
+    expect(current()).toEqual(['Lane B'])
+    const moveUp = (title: string) => {
+      rightClick(rowNamed(title))
+      const disabled = menuRow('Move up')?.disabled
+      act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+      return disabled
+    }
+    expect([moveUp('Pin B'), moveUp('Lane B')]).toEqual([false, false])
+    act(() =>
+      useSessionsStore.setState({
+        bulkDelete: {
+          total: 1,
+          done: 0,
+          current: '',
+          currentPath: '',
+          lanes: [],
+          results: [],
+          running: true,
+          cancelled: false,
+        },
+      }),
+    )
+    expect([moveUp('Pin B'), moveUp('Lane B')]).toEqual([true, true])
+  },
+)
