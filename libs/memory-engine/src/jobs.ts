@@ -23,7 +23,11 @@ export class Jobs {
       )
     }
   }
-  create(scope: string, model: BrainModel): BrainJob {
+  create(scope: string, model: BrainModel, expectedPolicyEpoch?: number): BrainJob {
+    validate.check(
+      expectedPolicyEpoch === undefined || expectedPolicyEpoch === this.data.revision().policyEpoch,
+      'Stale processing consent',
+    )
     validate.text(scope)
     validate.model(model)
     this.data.consent(scope)
