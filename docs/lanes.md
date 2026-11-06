@@ -507,8 +507,9 @@ branch, and `LanePrefs.markers` applies as on This Mac: `manual` derives
 nothing and `off` removes the slot and Lane marker. Without `laneMarks`, Pin
 and Lane marker are disabled with “Update this
 Host to pin and mark lanes.” A pinned Host lane shows the pin icon and sits in a
-Pinned section above that Host's folders, newest first, with its folder named,
-as local pinned lanes sit above local groups. Pins stay per Host: one Host's
+Pinned section above that Host's folders, newest first until you reorder them
+([Remote Desktop](remote-desktop.md)), with its folder named, as local pinned
+lanes sit above local groups. Pins stay per Host: one Host's
 pinned lanes never mix with another's or with local ones.
 
 Copy debug info writes This Mac's block (`formatSessionDebugInfo`: pi's id and
