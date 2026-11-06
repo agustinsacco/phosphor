@@ -51,6 +51,8 @@ function NewFolderRow({
   )
 }
 
+const FOLDERS_READ_FAILED = 'Could not read folders.'
+
 /** This device may add a folder on the Host: it is ready and grants `workspaces.write`. */
 export function canAddHostFolder(host: HostConnectionView | undefined): boolean {
   return host?.state === 'ready' && host.capabilities.includes('workspaces.write')
@@ -87,8 +89,7 @@ export function HostFolderBrowser({
         })
         .catch(() => {
           // Only a Host that predates hidden listings refuses this where a plain one works.
-          if (alive)
-            setError(hidden ? needsNewerHost('Hidden folders need') : 'Could not read folders.')
+          if (alive) setError(hidden ? needsNewerHost('Hidden folders need') : FOLDERS_READ_FAILED)
         })
     return () => {
       alive = false
