@@ -15,7 +15,7 @@ export interface BrainServiceOptions {
   memoryWorkerPath: string
   embeddings: BrainEmbeddings
   resources: { workingExtension: string; processorExtension: string }
-  sessions: Pick<ReturnType<typeof createSessionService>, 'create' | 'disposeBrain'>
+  sessions: Pick<ReturnType<typeof createSessionService<undefined>>, 'create' | 'disposeBrain'>
   registry: Pick<SessionRegistry, 'get' | 'list' | 'on' | 'off'>
   sessionPaths: SessionPathRuntime
   processor: {

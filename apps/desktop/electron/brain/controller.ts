@@ -4,7 +4,7 @@ import type { BrainStatus } from '@phosphor/shared/brain'
 import type { createBrainIndexer } from './indexer'
 import type { createBrainProcessor } from './processor'
 import type { createBrainTranscripts } from './transcripts'
-import { bounded, canonicalPrefs, identifier, laneAuthority } from './authority'
+import { bounded, brainQuery, canonicalPrefs, identifier, laneAuthority } from './authority'
 
 interface Controller {
   options: BrainServiceOptions
@@ -44,7 +44,7 @@ export function createBrainUI(controller: Controller): BrainUI {
       return status()
     },
     'brain:search': async (query) => {
-      bounded(query)
+      brainQuery(query)
       const snapshot = await store.snapshot()
       const scopes = query.scopes ?? snapshot.prefs.workspaces
       if (

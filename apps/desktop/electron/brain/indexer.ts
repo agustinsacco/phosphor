@@ -3,6 +3,7 @@ import {
   type BrainQuery,
   type BrainSearchResult,
 } from '@phosphor/shared/brain'
+import { brainQuery } from './authority'
 import type { DesktopMemoryClient } from './memory-client'
 import type { BrainEmbeddings } from './embedding-port'
 
@@ -44,6 +45,7 @@ export function createBrainIndexer(store: DesktopMemoryClient, embeddings: Brain
       return running
     },
     async search(query: BrainQuery, scopes: string[]): Promise<BrainSearchResult> {
+      brainQuery(query)
       const revision = await store.snapshot()
       let vector: { modelId: string; values: number[] } | undefined
       let degraded = false

@@ -19,6 +19,7 @@ export async function promptProcessor(
   message: string,
   signal: AbortSignal,
 ): Promise<void> {
+  signal.throwIfAborted()
   let event: (value: PiEvent) => void = () => {}
   let exit = (): void => {}
   const completed = new Promise<void>((resolve, reject) => {

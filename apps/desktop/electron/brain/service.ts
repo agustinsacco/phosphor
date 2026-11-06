@@ -11,7 +11,7 @@ import { createBrainLifecycle } from './service-lifecycle'
 import { createBrainUI } from './controller'
 import type { BrainService, BrainServiceOptions } from './service-types'
 import type { DesktopMemoryClient } from './memory-client'
-export type { BrainService, BrainServiceOptions } from './service-types'
+export type { BrainService, BrainServiceOptions, BrainUI } from './service-types'
 
 /** Local Desktop binding. No startup downloads, ambient auth, or alternative session spawner. */
 export async function createBrainService(options: BrainServiceOptions): Promise<BrainService> {

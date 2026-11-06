@@ -33,6 +33,7 @@ export function newUserCaptures(
       (typeof entry.parentId !== 'string' || !known.has(entry.parentId))
     )
       continue
+    seen.add(entry.id)
     known.add(entry.id)
     const message = entry.message
     if (
@@ -98,6 +99,11 @@ export async function attachBrainCapture(
     if (disposed) return
     const snapshot = await store.snapshot()
     if (!snapshot.prefs.enabled || snapshot.policyEpoch !== epoch) {
+      disposed = true
+      return
+    }
+    const current = await live.client.request({ type: 'get_state' })
+    if (!current.success || current.data?.sessionId !== nativeId) {
       disposed = true
       return
     }
