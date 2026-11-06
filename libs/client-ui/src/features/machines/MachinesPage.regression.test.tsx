@@ -12,7 +12,7 @@ import { MachinesPage } from './MachinesPage'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { useLayoutStore } from '@/stores/layout'
 import { OnlineAndProviders } from './onboarding/OnlineAndProviders'
-import { CLAUDE_PROVIDER, MACHINE } from './__fixtures__/control'
+import { LOCAL_READS, MACHINE } from './__fixtures__/control'
 import { useSavedConversation } from '@/features/sessions/completionActions'
 
 // B6: the Machines page drew This Mac and a Host with two rows and two details,
@@ -54,9 +54,8 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
       { id: 'openai-codex', name: 'ChatGPT', status: 'not_ready' },
     ]
   if (channel === 'hosts:claude') return hostClaude
-  if (channel === 'packages:list') return [CLAUDE_PROVIDER]
   if (channel === 'hosts:tailscaleStatus') return { code: tailscale }
-  if (channel === 'app:about') return { appVersion: '1.4.0', platform: 'darwin', arch: 'arm64' }
+  if (channel in LOCAL_READS) return LOCAL_READS[channel]
   if (channel === 'hosts:settingsRead') return { advanced: { pi: { version: '0.70.1' } } }
   if (channel === 'skills:list') return { skills: [{ name: 'a' }, { name: 'b' }] }
   if (channel === 'routines:list') return { routines: [{ archived: false }, { archived: true }] }

@@ -6,7 +6,7 @@ import type { AccountView } from '@shared/account'
 import { MachinesPage } from './MachinesPage'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
-import { CLAUDE_PROVIDER, MACHINE, LOOKUP } from './__fixtures__/control'
+import { LOCAL_READS, MACHINE, LOOKUP } from './__fixtures__/control'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 
 const originalRefresh = useMachinesStore.getState().refresh
@@ -22,8 +22,7 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
     return { ok: true, machine: MACHINE }
   if (channel === 'control:removeMachine') return { ok: true }
   if (channel === 'pi:subscriptionAuth') return []
-  if (channel === 'packages:list') return [CLAUDE_PROVIDER]
-  if (channel === 'hosts:tailscaleStatus') return { code: 'ready' }
+  if (channel in LOCAL_READS) return LOCAL_READS[channel]
   return null
 })
 beforeEach(() => {
@@ -138,8 +137,7 @@ it('shows loading rows for local checks until each read settles, then the verdic
       })
     if (channel === 'packages:claudeStatus')
       return { binary: { found: true }, auth: { loggedIn: false } }
-    if (channel === 'packages:list') return [CLAUDE_PROVIDER]
-    if (channel === 'hosts:tailscaleStatus') return { code: 'ready' }
+    if (channel in LOCAL_READS) return LOCAL_READS[channel]
     return null
   })
   await render()
