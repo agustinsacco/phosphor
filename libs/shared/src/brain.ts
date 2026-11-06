@@ -62,6 +62,14 @@ export interface BrainEvidence {
   hash: string
 }
 export type BrainCapture = Omit<BrainEvidence, 'id' | 'hash'>
+export type BrainEvidenceSummary = Pick<
+  BrainEvidence,
+  'id' | 'scope' | 'label' | 'role' | 'observedAt'
+>
+export interface BrainEvidencePage {
+  items: BrainEvidenceSummary[]
+  nextCursor: string | null
+}
 export interface BrainEntity {
   id: string
   scope: string
@@ -142,7 +150,7 @@ export interface BrainSnapshot extends BrainRevision {
   claims: BrainClaim[]
   proposals: BrainProposal[]
   jobs: BrainJob[]
-  evidence: Pick<BrainEvidence, 'id' | 'scope' | 'label' | 'role' | 'observedAt'>[]
+  evidence: BrainEvidenceSummary[]
   counts: { evidence: number; claims: number; entities: number; vectors: number }
   truncated: boolean
 }
