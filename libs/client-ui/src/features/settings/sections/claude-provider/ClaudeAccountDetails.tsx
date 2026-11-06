@@ -217,14 +217,12 @@ function LaneRow({
         )}
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-2">
-        {source.openLane && (
-          <TooltipButton
-            onClick={() => source.openLane?.(lane.id)}
-            className="text-text-secondary hover:text-text text-sm"
-          >
-            Open lane
-          </TooltipButton>
-        )}
+        <TooltipButton
+          onClick={() => source.openLane(lane.id)}
+          className="text-text-secondary hover:text-text text-sm"
+        >
+          Open lane
+        </TooltipButton>
         <TooltipButton
           onClick={() => go(self, true)}
           disabled={disabled}

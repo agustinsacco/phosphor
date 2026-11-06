@@ -60,9 +60,6 @@ const TAILSCALE_SHORT: Record<TailscaleCode, string> = {
   'https-unavailable': 'No Tailscale HTTPS',
   'check-failed': 'Tailscale not checked',
 }
-export function platformName(platform: string): string {
-  return { darwin: 'macOS', linux: 'Linux', win32: 'Windows' }[platform] ?? platform
-}
 export function relativeTime(at: string, now: number): string {
   const seconds = Math.max(0, Math.floor((now - Date.parse(at)) / 1000))
   if (seconds < 60) return 'just now'

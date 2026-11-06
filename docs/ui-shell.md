@@ -523,9 +523,11 @@ close it; focus moves into the sheet and returns to the element on close.
   recommendations (`GettingStartedScreen`, which the restore of the last
   session waits for); no open folder → the
   folder picker with recents (`WorkspacePicker`). Only local lane creation
-  waits: a Host composer target shows the Host's start page, and on a Host
-  home the setup takes only the composer slot, under the composer's machine
-  picker. This Mac's Machines readiness row shows the same install command. No
+  waits: the setup sits under the composer's machine picker
+  (`HomeComposerSlot`), filling a local home, or only the composer slot on a
+  Host home, which stays whatever the composer targets. On a local home a Host
+  composer target shows the Host's start page. This Mac's Machines readiness
+  row shows the same install command. No
   sessions → "Describe a task…" hero.
 
 ## Home workbench

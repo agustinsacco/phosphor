@@ -2,8 +2,8 @@ import { constants } from 'node:fs'
 import { access, open, readFile, realpath, stat } from 'node:fs/promises'
 import { delimiter, dirname, extname, isAbsolute, join } from 'node:path'
 import { errorText } from '@phosphor/shared/errors'
-import { MIN_PI_VERSION } from '@phosphor/shared/models'
-import { compareVersions, extractVersion } from '@phosphor/session-runtime/pi/versions'
+import { isPiTooOld, MIN_PI_VERSION } from '@phosphor/shared/models'
+import { extractVersion } from '@phosphor/session-runtime/pi/versions'
 import { EXIT, fail, pass, type Check } from '../checks'
 import type { HostConfigV1 } from '../config/schema'
 import { errnoIs } from '../fs-safety'
@@ -290,7 +290,7 @@ export async function resolvePi(
     timeoutMs,
   )
   if ('problem' in run) return done(fail('pi', run.problem))
-  if (compareVersions(run.version, MIN_PI_VERSION) < 0) {
+  if (isPiTooOld(run.version)) {
     return done(
       fail('pi', `${piPath} is pi ${run.version}; Phosphor needs ${MIN_PI_VERSION} or newer`),
     )

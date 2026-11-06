@@ -4,8 +4,9 @@ import { PhosphorLockup } from '@/components/PhosphorMark'
 import { piInstallLocation, type PiHealth } from '@shared/models'
 import { useEffect, useState } from 'react'
 import { usePlatform } from '@/platform/Platform'
-import { MachineUpdateRow, useAppUpdate } from '../sections/advanced/MachineRuntimeRows'
-import { useAboutInfo } from '../sections/advanced/useLocalAdvanced'
+import { useAppUpdate } from '@/features/updates/useAppUpdate'
+import { MachineUpdateRow } from '../sections/advanced/MachineRuntimeRows'
+import { useAboutInfo } from '@/features/updates/useAboutInfo'
 import { VERIFIED_PI_LINE, isPiNewerThanVerified } from '@/lib/piDrift'
 import interLicense from '@/assets/fonts/Inter-OFL.txt?raw'
 import monoLicense from '@/assets/fonts/JetBrainsMono-OFL.txt?raw'
@@ -46,11 +47,13 @@ function AppInfoRows(): React.JSX.Element {
   const read = useAboutInfo(true)
   const about = read === 'unknown' ? null : read
   const pending = read === 'unknown' ? 'unknown' : '…'
-  const [health, setHealth] = useState<PiHealth | null>(null)
+  const [piRead, setPiRead] = useState<PiHealth | 'unknown' | null>(null)
+  const health = piRead === 'unknown' ? null : piRead
+  const piPending = piRead === 'unknown' ? 'unknown' : '…'
   const update = useAppUpdate()
 
   useEffect(() => {
-    void window.phosphor.invoke('pi:health').then(setHealth)
+    window.phosphor.invoke('pi:health').then(setPiRead, () => setPiRead('unknown'))
   }, [])
 
   const drift = isPiNewerThanVerified(health?.version)
@@ -63,7 +66,7 @@ function AppInfoRows(): React.JSX.Element {
       <MachineUpdateRow title="Updates" update={update} />
       <Row title="pi version" description={health ? piInstallLocation(health) : undefined}>
         <span className="font-mono text-base">
-          {health?.version ?? (health ? 'not found' : '…')}
+          {health ? (health.version ?? 'not found') : piPending}
         </span>
       </Row>
       <Row title="Platform">

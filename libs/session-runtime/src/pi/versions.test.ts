@@ -1,19 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compareVersions, extractVersion } from './versions'
-
-describe('version comparison', () => {
-  it('orders versions numerically, not lexically', () => {
-    expect(compareVersions('0.78.0', '0.9.0')).toBeGreaterThan(0)
-    expect(compareVersions('0.78.0', '0.78.0')).toBe(0)
-    expect(compareVersions('0.77.9', '0.78.0')).toBeLessThan(0)
-    expect(compareVersions('1.0.0', '0.99.99')).toBeGreaterThan(0)
-  })
-
-  it('tolerates differing segment counts', () => {
-    expect(compareVersions('1.2', '1.2.0')).toBe(0)
-    expect(compareVersions('1.2.1', '1.2')).toBeGreaterThan(0)
-  })
-})
+import { extractVersion } from './versions'
 
 describe('version extraction', () => {
   it('reads a bare version line', () => {

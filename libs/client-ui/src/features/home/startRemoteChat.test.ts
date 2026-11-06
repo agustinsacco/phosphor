@@ -3,11 +3,12 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { startRemoteChat } from './startRemoteChat'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-const { adopt, pi, control, swarm } = vi.hoisted(() => ({
+const { adopt, pi, control, swarm, refresh } = vi.hoisted(() => ({
   adopt: vi.fn(),
   pi: vi.fn(),
   control: vi.fn(),
   swarm: vi.fn(),
+  refresh: vi.fn(),
 }))
 vi.mock('@/stores/sessions', () => ({
   useSessionsStore: { getState: () => ({ claimNav: () => 1 }) },
@@ -17,6 +18,7 @@ vi.mock('@/stores/remoteLanes', async (original) => ({
   adoptRemoteLane: adopt,
   canControlSession: control,
 }))
+vi.mock('@/stores/hostsSnapshotRead', () => ({ refreshHostsSnapshot: refresh }))
 vi.mock('@/lib/rpc', () => ({ piCallOk: pi }))
 vi.mock('@/lib/swarm', () => ({ requestSwarm: swarm }))
 const invoke = vi.fn()
@@ -30,9 +32,8 @@ beforeEach(() => {
   adopt.mockResolvedValue(undefined)
   pi.mockResolvedValue(true)
   swarm.mockResolvedValue(undefined)
-  invoke.mockImplementation(async (channel) =>
-    channel === 'hosts:snapshot' ? mockRemoteHosts : mockRemoteInfo,
-  )
+  refresh.mockResolvedValue(undefined)
+  invoke.mockResolvedValue(mockRemoteInfo)
 })
 it('creates with Host choices, opens and sends before clearing the draft', async () => {
   pi.mockImplementation(async () => {
@@ -71,7 +72,7 @@ it('retries only definitive fresh collisions with the next bounded candidate', a
   invoke.mockImplementation(async (channel, _host, input) => {
     if (channel === 'hosts:createLane' && input.worktree.branch === 'phosphor/fix-bug')
       throw new Error("Error invoking remote method 'hosts:createLane': Error: branch-exists")
-    return channel === 'hosts:snapshot' ? mockRemoteHosts : mockRemoteInfo
+    return mockRemoteInfo
   })
   await startRemoteChat(
     MOCK_HOST_ID,
@@ -138,4 +139,16 @@ it('never sends the first prompt when Swarm could not be turned on', async () =>
 it('leaves Swarm alone unless the draft chose it', async () => {
   await startRemoteChat(MOCK_HOST_ID, input, 'Plain', [], accepted)
   expect(swarm).not.toHaveBeenCalled()
+})
+
+it('checks control again only once the Host snapshot read after taking it has landed', async () => {
+  let landed = false
+  refresh.mockImplementation(async () => {
+    await Promise.resolve()
+    landed = true
+  })
+  control.mockReturnValueOnce(false).mockImplementation(() => landed)
+  await startRemoteChat(MOCK_HOST_ID, input, 'Take it', [], accepted)
+  expect(invoke).toHaveBeenCalledWith('hosts:takeControl', MOCK_HOST_ID, mockRemoteInfo.laneId)
+  expect(accepted).toHaveBeenCalledOnce()
 })

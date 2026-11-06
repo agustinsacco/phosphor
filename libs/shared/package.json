@@ -188,6 +188,10 @@
       "types": "./src/models.ts",
       "default": "./src/models.ts"
     },
+    "./platform-name": {
+      "types": "./src/platform-name.ts",
+      "default": "./src/platform-name.ts"
+    },
     "./paths": {
       "types": "./src/paths.ts",
       "default": "./src/paths.ts"
