@@ -94,11 +94,11 @@ export function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.
   const platform = usePlatform()
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const models = useChatStore((s) => s.sessions[sessionId]?.models)
-  const live = useSessionsStore((s) => s.live[sessionId])
-  const actions = useSessionModelActions(sessionId)
+  const lanePath = useSessionsStore((s) => s.live[sessionId]?.workspacePath)
+  const { machine, actions } = useSessionModelActions(sessionId)
   if (!meta || models === undefined || models === null) return null
   if (models.length > 0) return null
-  const workspacePath = live?.target?.kind === 'remote' ? undefined : live?.workspacePath
+  const workspacePath = machine === 'local' ? lanePath : undefined
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 pt-2">
