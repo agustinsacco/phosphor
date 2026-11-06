@@ -19,8 +19,9 @@ function setup(lane: WriteLane | null) {
   } as never) as unknown as Record<string, ((...args: unknown[]) => Promise<unknown>) | undefined>
   return { handlers, readLane }
 }
-function lane(data: unknown): WriteLane & { write: ReturnType<typeof vi.fn> } {
-  return { laneId: 'lane', workspacePath: root, call: vi.fn(), write: vi.fn(async () => data) }
+function lane(data: unknown) {
+  const write = vi.fn(async (_op: { type: string }): Promise<unknown> => data)
+  return { laneId: 'lane', workspacePath: root, call: vi.fn(), write } satisfies WriteLane
 }
 
 it("writes a Host file through the focused lane's write port", async () => {
