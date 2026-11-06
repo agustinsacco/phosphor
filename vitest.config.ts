@@ -5,6 +5,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@shared': resolve(import.meta.dirname, 'libs/shared/src'),
+      '@phosphor/memory-engine': resolve(import.meta.dirname, 'libs/memory-engine/src'),
+      '@phosphor/brain-client': resolve(import.meta.dirname, 'libs/brain-client/src'),
       '@phosphor/shared': resolve(import.meta.dirname, 'libs/shared/src'),
       '@phosphor/host-client': resolve(import.meta.dirname, 'libs/host-client/src'),
       '@phosphor/session-runtime': resolve(import.meta.dirname, 'libs/session-runtime/src'),
@@ -24,6 +26,8 @@ export default defineConfig({
       'apps/web/src/**/*.test.tsx',
       'apps/control/scripts/**/*.test.ts',
       'apps/host/scripts/**/*.test.ts',
+      'libs/memory-engine/src/**/*.test.ts',
+      'libs/brain-client/src/**/*.test.ts',
       'libs/session-runtime/src/**/*.test.ts',
       'libs/host-client/src/**/*.test.ts',
       'libs/shared/src/**/*.test.ts',

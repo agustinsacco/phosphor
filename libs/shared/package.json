@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./brain": {
+      "types": "./src/brain.ts",
+      "default": "./src/brain.ts"
+    },
     "./web-auth": {
       "types": "./src/web-auth.ts",
       "default": "./src/web-auth.ts"
