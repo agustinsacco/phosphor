@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { saveToDevice } from './saveToDevice'
+import { saveActionLabel, saveToDevice } from './saveToDevice'
 
 const invoke = vi.fn()
 const file = { name: 'a.svg', title: 'Save diagram', content: vi.fn(() => '<svg/>') }
@@ -48,4 +48,13 @@ it('without nativeFiles: downloads as an octet stream, with no native channel', 
   } finally {
     vi.useRealTimers()
   }
+})
+
+it.each([
+  [true, undefined, 'Save SVG'],
+  [true, 'This Mac', 'Save SVG to This Mac…'],
+  [false, undefined, 'Download SVG'],
+  [false, 'This Mac', 'Download SVG'],
+] as const)('saveActionLabel: nativeFiles %s, to %s gives %s', (nativeFiles, to, label) => {
+  expect(saveActionLabel('SVG', nativeFiles, to)).toBe(label)
 })
