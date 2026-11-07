@@ -36,5 +36,10 @@ export function sourceRuntime(
   runtime: TransferRuntime,
   model: { provider: string | null; model: string | null },
 ): LaneRuntimeFacts {
-  return { piVersion: runtime.piVersion, claudeVersion: runtime.claudeVersion, ...model }
+  return {
+    piVersion: runtime.piVersion,
+    claudeVersion: runtime.claudeVersion,
+    provider: model.provider,
+    model: model.model,
+  }
 }

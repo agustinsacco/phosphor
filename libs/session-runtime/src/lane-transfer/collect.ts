@@ -159,7 +159,14 @@ export async function collectLane(
       claude,
       parts,
       source: {
-        ...(input.runtime ? { runtime: sourceRuntime(input.runtime, facts) } : {}),
+        ...(input.runtime
+          ? {
+              runtime: sourceRuntime(input.runtime, {
+                provider: facts.provider ?? (claude ? 'pi-claude-cli' : null),
+                model: facts.model,
+              }),
+            }
+          : {}),
         sessionId: header.id,
         title: facts.title,
         workspace: input.workspace.slice(0, 255) || 'folder',

@@ -81,7 +81,9 @@ test('Move to… copies a stopped no-git lane to another folder without touching
     const files = await readdir(sessionDir(agent, target))
     const copy = join(
       sessionDir(agent, target),
-      files.find((name) => name.endsWith('.jsonl'))!,
+      files.find(
+        (name) => name.startsWith('2026-08-22T22-56-30-785Z_') && name.endsWith('.jsonl'),
+      )!,
     )
     const copied = (await readFile(copy, 'utf8'))
       .trim()

@@ -30,6 +30,7 @@ async function moveFolderLane(sameMachine: boolean) {
     sessionFile: lane.sessionFile,
     workspace: 'scratch',
     paths: from,
+    runtime: async () => ({ piVersion: '0.86.0', claudeVersion: '0.10.0', models: null }),
     attachmentAllowed: () => !sameMachine,
   }
   const archivePath = join(from.home, 'bundle')
@@ -137,12 +138,15 @@ describe('moving a lane in a folder git does not track', () => {
   it('rediscovers the relocated attachment when a moved lane moves again', async () => {
     const { to, installed, targetRoot } = await moveFolderLane(false)
     const archivePath = join(to.home, 'second.bundle')
-    await exportLane({
-      sessionFile: installed.sessionFile,
-      workspace: 'elsewhere',
-      paths: to,
-      attachmentAllowed: (path) => path.startsWith(join(to.home, 'attachments') + '/'),
-    }, archivePath)
+    await exportLane(
+      {
+        sessionFile: installed.sessionFile,
+        workspace: 'elsewhere',
+        paths: to,
+        attachmentAllowed: (path) => path.startsWith(join(to.home, 'attachments') + '/'),
+      },
+      archivePath,
+    )
     const archive = await openArchive(archivePath)
     const attachments = archive.manifest.parts.filter((p) => p.kind === 'attachment')
     expect(attachments).toHaveLength(1)
