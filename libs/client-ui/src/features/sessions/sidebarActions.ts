@@ -69,7 +69,12 @@ export function copyActions(
     const { pinned, laneMarkers } = useSessionsStore.getState()
     openLaneMove({ machine: 'local', sessionPath: meta.path }, meta.name ?? 'Lane', {
       pinned: pinned.includes(meta.path),
-      marker: laneMarker(laneMarkers[meta.path], branch, meta.cwd, useLanePrefsStore.getState().lanes.markers),
+      marker: laneMarker(
+        laneMarkers[meta.path],
+        branch,
+        meta.cwd,
+        useLanePrefsStore.getState().lanes.markers,
+      ),
     })
   }
   return [

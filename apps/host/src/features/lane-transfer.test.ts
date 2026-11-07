@@ -28,6 +28,7 @@ async function host(name: string, running = false) {
   const announced: string[] = []
   const context: FeatureContext = { store, env, home, log: () => {} }
   const [exporter, importer] = createLaneTransferFeatures(context, store, {
+    runtime: async () => ({ piVersion: '0.86.0', claudeVersion: '0.10.0', models: [] }),
     sessionFor: () => (running ? 'live' : null),
     announce: (laneId) => announced.push(laneId),
   }) as [HostFeature, HostFeature]
@@ -124,7 +125,9 @@ describe('moving a lane between two Hosts', () => {
       branchPrefix: '',
       sameMachine: false,
     })
-    expect(plan.blockers).toContain('This Host cannot preserve a lane name longer than 80 characters.')
+    expect(plan.blockers).toContain(
+      'This Host cannot preserve a lane name longer than 80 characters.',
+    )
   })
 
   it('refuses a running lane and a bundle that does not match its hash', async () => {

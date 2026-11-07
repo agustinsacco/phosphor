@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { claudeProjectDirForCwd, sessionDirForCwd } from '../pi/pi-paths'
@@ -154,6 +162,46 @@ describe('moving a lane in a folder git does not track', () => {
     expect(archive.manifest.source.cwd).toBe(targetRoot)
   })
 
+  it('skips an attachment changed after a prior move instead of exporting different bytes', async () => {
+    const { to, installed } = await moveFolderLane(false)
+    writeFileSync(join(to.home, 'attachments', '0', 'notes.txt'), 'changed since the move')
+    const archivePath = join(to.home, 'changed.bundle')
+    await exportLane(
+      {
+        sessionFile: installed.sessionFile,
+        workspace: 'elsewhere',
+        paths: to,
+        attachmentAllowed: () => true,
+      },
+      archivePath,
+    )
+    const archive = await openArchive(archivePath)
+    expect(archive.manifest.parts.filter((p) => p.kind === 'attachment')).toEqual([])
+  })
+
+  it('skips a file modified after the user attached it', async () => {
+    const from = machine('changed-original')
+    const cwd = join(from.home, 'notes')
+    mkdirSync(cwd)
+    const lane = writeLane(from, cwd)
+    const entries = lines(lane.sessionFile)
+    entries[2]!.timestamp = '2000-01-01T00:00:00Z'
+    writeFileSync(lane.sessionFile, entries.map((e) => JSON.stringify(e)).join('\n') + '\n')
+    const archivePath = join(from.home, 'bundle')
+    await exportLane(
+      {
+        sessionFile: lane.sessionFile,
+        workspace: 'notes',
+        paths: from,
+        attachmentAllowed: () => true,
+      },
+      archivePath,
+    )
+    expect(
+      (await openArchive(archivePath)).manifest.parts.filter((p) => p.kind === 'attachment'),
+    ).toEqual([])
+  })
+
   it('writes nothing when part of the lane already exists there', async () => {
     const from = machine('undo-from')
     const to = machine('undo-to')
@@ -188,6 +236,42 @@ describe('moving a lane in a folder git does not track', () => {
     expect(readFileSync(join(dir, lane.fileName), 'utf8')).toBe('someone else')
     expect(existsSync(join(to.home, 'attachments'))).toBe(false)
     expect(existsSync(join(to.home, '.pi/agent/pi-claude-cli/session-map.json'))).toBe(false)
+  })
+
+  it('never follows a symlink in a destination ancestor', async () => {
+    const from = machine('symlink-from')
+    const to = machine('symlink-to')
+    const cwd = join(from.home, 'notes')
+    const target = join(to.home, 'notes')
+    mkdirSync(cwd)
+    mkdirSync(target)
+    const lane = writeLane(from, cwd)
+    const bundle = join(from.home, 'bundle')
+    await exportLane(
+      {
+        sessionFile: lane.sessionFile,
+        workspace: 'notes',
+        paths: from,
+        attachmentAllowed: () => false,
+      },
+      bundle,
+    )
+    const outside = join(to.home, 'outside')
+    mkdirSync(outside)
+    mkdirSync(join(to.home, '.pi', 'agent'), { recursive: true })
+    symlinkSync(outside, join(to.home, '.pi', 'agent', 'sessions'))
+    await expect(
+      installLane({
+        archive: await openArchive(bundle),
+        plan: { mode: 'folder', branch: null, workspace: 'notes', blockers: [] },
+        cwd: target,
+        paths: to,
+        labels,
+        attachmentsDir: null,
+        sessionTaken: async () => false,
+      }),
+    ).rejects.toThrow('symlink')
+    expect(readdirSync(outside)).toEqual([])
   })
 
   it('reports why a lane cannot leave instead of throwing', async () => {

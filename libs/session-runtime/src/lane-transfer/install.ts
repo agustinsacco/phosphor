@@ -232,7 +232,7 @@ async function writeParts(
   out: Writer,
   plan: Awaited<ReturnType<typeof placeParts>>,
 ) {
-  const moved: { from: string; to: string }[] = []
+  const moved: { from: string; to: string; sha256: string }[] = []
   for (const { part, index, to } of plan) {
     if (part.kind === 'transcript') continue
     const bytes = await input.archive.read(index)
@@ -250,7 +250,7 @@ async function writeParts(
       await out.put(to, rewriteCli(bytes.toString('utf8'), ids.oldCli!, ids.cli!))
     else if (part.kind === 'attachment') {
       await out.put(to, bytes, 0o600)
-      moved.push({ from: part.from!, to })
+      moved.push({ from: part.from!, to, sha256: part.sha256 })
     } else await out.put(to, bytes)
   }
   return moved

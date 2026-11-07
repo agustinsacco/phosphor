@@ -139,8 +139,8 @@ for Claude lanes. The dialog asks you to acknowledge that skills, extensions,
 context files, MCP setup and accounts belong to the target, not the copy.
 
 The bundle contains pi JSONL, its child runs and referenced subagent files,
-Claude's paired ledger, prompt and sidecar, and available attachments. Missing
-or oversized attachments are skipped. Earlier transcript text is not globally
+Claude's paired ledger, prompt and sidecar, and available attachments. Missing,
+changed or oversized attachments are skipped. Earlier transcript text is not globally
 path-rewritten. Only the header location, child headers matching the source cwd,
 colliding session identities and self-qualified artifact URLs are repaired.
 Artifacts are rebuilt from the transcript. Credentials, terminal processes,

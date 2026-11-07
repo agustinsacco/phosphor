@@ -11,7 +11,7 @@ import {
 } from '@phosphor/shared/host-protocol-lane-transfer'
 import { claudeProjectDirForCwd, claudeProviderStateDir } from '../pi/pi-paths'
 import { refuse, regularSize, sha256File, walkFiles } from './files'
-import { parseHeader, splitTranscript, transcriptFacts } from './transcript'
+import { parseHeader, splitTranscript, transcriptFacts, type TranscriptFacts } from './transcript'
 import { sourceRuntime, type TransferRuntime } from './runtime'
 
 /** Where one machine keeps what a lane is made of. */
@@ -92,12 +92,16 @@ async function addClaude(
 }
 
 /** Attached files this machine allows out; a missing or oversized one is skipped, not fatal. */
-async function addAttachments(input: CollectInput, attachments: string[], add: AddPart) {
+async function addAttachments(input: CollectInput, facts: TranscriptFacts, add: AddPart) {
   let index = 0
-  for (const from of attachments) {
+  for (const from of facts.attachments) {
     if (!input.attachmentAllowed(from)) continue
     const size = await regularSize(from)
     if (size === null || size > LIMIT.attachmentBytes) continue
+    const expected = facts.attachmentHashes.get(from)
+    if (expected && (await sha256File(from).catch(() => '')) !== expected) continue
+    const at = facts.attachmentTimes.get(from)
+    if (!expected && at !== undefined && (await stat(from)).mtimeMs > at) continue
     const name =
       basename(from)
         .replace(/[^A-Za-z0-9._-]/g, '_')
@@ -145,7 +149,7 @@ export async function collectLane(
   if (parts[0]?.size !== transcriptBytes) refuse('This lane changed while it was being read.')
   await addRuns(sessionFile, text, add)
   const claude = await addClaude(paths, header, add)
-  await addAttachments(input, facts.attachments, add)
+  await addAttachments(input, facts, add)
 
   const bytes = parts.reduce((sum, part) => sum + part.size, 0)
   if (bytes > LIMIT.bundleBytes) refuse('This lane is too large to move (over 256 MiB).')

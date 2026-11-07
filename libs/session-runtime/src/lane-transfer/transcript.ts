@@ -46,6 +46,7 @@ interface Entry {
   name?: unknown
   provider?: unknown
   modelId?: unknown
+  timestamp?: unknown
   customType?: unknown
   details?: { attachments?: unknown }
   message?: { role?: unknown; content?: unknown }
@@ -89,6 +90,8 @@ export interface TranscriptFacts {
   leafId: string | null
   /** Paths from `<attached-files>` blocks in user messages, first mention first. */
   attachments: string[]
+  attachmentTimes: Map<string, number>
+  attachmentHashes: Map<string, string>
 }
 
 /** What a move reads from a transcript body, without trusting any of it as a path to write. */
@@ -98,6 +101,8 @@ export function transcriptFacts(rest: string): TranscriptFacts {
   let model: string | null = null
   let leafId: string | null = null
   const attachments = new Set<string>()
+  const attachmentTimes = new Map<string, number>()
+  const attachmentHashes = new Map<string, string>()
   for (const entry of entries(rest)) {
     if (
       entry.type === 'model_change' &&
@@ -118,7 +123,7 @@ export function transcriptFacts(rest: string): TranscriptFacts {
       if (Array.isArray(moved))
         for (const mapping of moved) {
           if (!mapping || typeof mapping !== 'object') continue
-          const { from, to } = mapping as { from?: unknown; to?: unknown }
+          const { from, to, sha256 } = mapping as { from?: unknown; to?: unknown; sha256?: unknown }
           if (
             typeof from !== 'string' ||
             typeof to !== 'string' ||
@@ -128,14 +133,31 @@ export function transcriptFacts(rest: string): TranscriptFacts {
             continue
           attachments.delete(from)
           attachments.add(to)
+          attachmentHashes.delete(from)
+          if (typeof sha256 === 'string' && /^[0-9a-f]{64}$/.test(sha256))
+            attachmentHashes.set(to, sha256)
         }
     }
     if (entry.type !== 'message' || entry.message?.role !== 'user') continue
     for (const block of userText(entry.message.content).matchAll(
       /<attached-files>\n([\s\S]*?)\n<\/attached-files>/g,
     ))
-      for (const path of block[1]!.split('\n'))
-        if (path.startsWith('/') && path.length <= 4096) attachments.add(path)
+      for (const path of block[1]!.split('\n')) {
+        if (!path.startsWith('/') || path.length > 4096) continue
+        attachments.add(path)
+        if (typeof entry.timestamp === 'string') {
+          const at = Date.parse(entry.timestamp)
+          if (Number.isFinite(at)) attachmentTimes.set(path, at)
+        }
+      }
   }
-  return { title, provider, model, leafId, attachments: [...attachments] }
+  return {
+    title,
+    provider,
+    model,
+    leafId,
+    attachments: [...attachments],
+    attachmentTimes,
+    attachmentHashes,
+  }
 }

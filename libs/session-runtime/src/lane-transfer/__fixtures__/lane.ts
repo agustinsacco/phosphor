@@ -49,7 +49,12 @@ export function writeLane(paths: { home: string; env: NodeJS.ProcessEnv }, cwd: 
       parentId: 'a2',
       message: {
         role: 'assistant',
-        content: [{ type: 'text', text: `see subagent-artifacts/outputs/report.md and artifact://${SESSION_ID}/report` }],
+        content: [
+          {
+            type: 'text',
+            text: `see subagent-artifacts/outputs/report.md and artifact://${SESSION_ID}/report`,
+          },
+        ],
       },
     },
   ]

@@ -189,6 +189,22 @@ describe('a lane moving to another repository or a plain folder', () => {
   })
 })
 
+it('refuses detached/default-branch sources and detects merge state in a worktree', async () => {
+  const { source, lane } = repositories()
+  const trunk = await inspectSourceGit(source)
+  expect(trunk.kind === 'git' && trunk.blockers.join(' ')).toContain('default branch')
+  sh(lane, 'checkout', '--detach')
+  const detached = await inspectSourceGit(lane)
+  expect(detached.kind === 'git' && detached.blockers.join(' ')).toContain('detached HEAD')
+  sh(lane, 'checkout', 'phosphor/feature')
+  const merge = sh(lane, 'rev-parse', '--git-path', 'MERGE_HEAD')
+  writeFileSync(merge, sh(lane, 'rev-parse', 'HEAD') + '\n')
+  const merging = await inspectSourceGit(lane)
+  expect(merging.kind === 'git' && merging.blockers.join(' ')).toContain(
+    'merge, rebase or cherry-pick',
+  )
+})
+
 it('normalizes the spellings of one origin and nothing else', () => {
   const one = 'github.com/owner/repo'
   expect(normalizeOrigin('git@github.com:Owner/Repo.git')).toBe(one)

@@ -131,7 +131,19 @@ export async function prepareImport(
     source: archive.manifest.source,
     worktrees: input.worktrees,
   })
-  return { archive, plan, folder }
+  try {
+    if (input.runtime && folder.cwd !== input.root) {
+      const blockers = runtimeBlockers(
+        archive.manifest.source,
+        await input.runtime(true, folder.cwd),
+      )
+      if (blockers.length) refuse(blockers[0]!)
+    }
+    return { archive, plan, folder }
+  } catch (error) {
+    await folder.undo()
+    throw error
+  }
 }
 
 /** Whether any pi session on this machine already uses `sessionId`. */
