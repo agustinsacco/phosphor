@@ -84,7 +84,18 @@ function setup(
 const outcome = (quote: string, role = 'user') =>
   JSON.stringify({
     type: 'findings',
-    findings: [{ summary: 'durable learning', kind: 'reported', citations: [{ role, quote }] }],
+    findings: [
+      {
+        subject: { label: 'Synthetic component', kind: 'component' },
+        predicate: 'about',
+        literal: 'durable learning',
+        validFrom: null,
+        validTo: null,
+        summary: 'durable learning',
+        kind: 'reported',
+        citations: [{ role, quote }],
+      },
+    ],
   })
 
 describe('brain-learning pi-side one logical generation', () => {
@@ -92,6 +103,17 @@ describe('brain-learning pi-side one logical generation', () => {
     const { request, port } = setup()
     const context = projectLearningContext(request, port)
     const wire = JSON.stringify(context.messages)
+    expect(context.evidence.find((item) => item.entryId === 'answer')?.rootIds).toEqual([
+      'old',
+      'keep',
+      'omit',
+    ])
+    expect(context.evidence.find((item) => item.sourceType === 'compaction')?.rootIds).toEqual([
+      'old',
+      'keep',
+      'omit',
+    ])
+    expect(context.checkpoint.rootIds).toEqual(['keep', 'old', 'omit'])
     expect(wire).toContain('final assistant fact')
     expect(wire).toContain('retained reasoning')
     expect(wire).toContain('sig')
