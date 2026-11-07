@@ -10,6 +10,7 @@ import { useContextFilesPrefStore } from '@/stores/contextFilesPref'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useSessionsStore } from '@/stores/sessions'
+import { NavigationProvider } from '@/navigation/Navigation'
 
 beforeAll(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -245,6 +246,33 @@ describe('ContextSourcesMenu', () => {
     await render('s1')
     expect(box('linear').closest('label')!.textContent).toContain('40 tools')
     expect(box('slack').closest('label')!.textContent).not.toContain('tools')
+  })
+
+  it('opens Settings › Connectors on the lane’s machine, or the default machine without a lane', async () => {
+    const navigate = vi.fn()
+    const manage = async (sessionId?: string): Promise<void> => {
+      await act(async () =>
+        root.render(
+          <NavigationProvider value={{ location: { to: 'chat' } as never, navigate }}>
+            <ContextSourcesMenu workspacePath="/repo" sessionId={sessionId} />
+          </NavigationProvider>,
+        ),
+      )
+      await act(async () => trigger().click())
+      const link = [...container.querySelectorAll('button')].find(
+        (b) => b.textContent === 'Manage connectors…',
+      )!
+      await act(async () => link.click())
+    }
+    await manage()
+    expect(navigate).toHaveBeenLastCalledWith({ to: 'page', page: 'settings' })
+    useSessionsStore.setState({
+      live: { s1: { workspacePath: '/repo', target: { kind: 'local' } } } as never,
+    })
+    await manage('s1')
+    expect(navigate).toHaveBeenLastCalledWith({ to: 'page', page: 'settings', machine: 'local' })
+    expect(useSettingsUiStore.getState().tab).toBe('connectors')
+    useSessionsStore.setState({ live: {} })
   })
 
   it('re-reads the servers when Settings closes, since it edits the same files', async () => {
