@@ -19,7 +19,7 @@ vi.mock('./print-mode', () => ({
   killProcessTree: vi.fn(),
   runPrintMode: h.proof,
 }))
-vi.mock('./provider-detect', () => ({
+vi.mock('@phosphor/session-runtime/pi/provider-detect', () => ({
   claudeProviderSpawnEnv: () => ({ PROVIDER: 'policy' }),
   claudeOneShotEnv: () => ({ ONE_SHOT: '1' }),
 }))

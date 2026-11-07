@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import type { SessionTree, SessionTreeEntry } from '@shared/ipc'
-import { extractText } from './session-content'
+import { extractText } from '@phosphor/session-runtime/pi/session-content'
 
 /**
  * Read a persisted session file into the branch structure the tree view

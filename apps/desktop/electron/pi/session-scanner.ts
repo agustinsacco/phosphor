@@ -13,7 +13,7 @@ import {
   metaFromFold,
   readSignature,
   type FoldState,
-} from './session-fold'
+} from '@phosphor/session-runtime/pi/session-fold'
 
 export { piAgentDir, piSessionsRoot, sessionDirForCwd, sessionDirNameForCwd } from './pi-paths'
 

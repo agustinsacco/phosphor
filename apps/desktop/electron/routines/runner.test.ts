@@ -5,7 +5,10 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { newRoutine, type RoutineRun } from '@shared/routines'
 import { executeRoutine } from './runner'
-import { observeRoutineSession, isRoutineSession } from './ownership'
+import {
+  observeRoutineSession,
+  isRoutineSession,
+} from '@phosphor/session-runtime/routines/ownership'
 
 const h = vi.hoisted(() => ({
   spawn: vi.fn(),
@@ -27,7 +30,9 @@ vi.mock('../pi/session-accounts', () => ({
   spawnAccountFor: () => 'account',
   forgetSpawnAccount: vi.fn(),
 }))
-vi.mock('../pi/provider-detect', () => ({ assertClaudeContextProvider: vi.fn() }))
+vi.mock('@phosphor/session-runtime/pi/provider-detect', () => ({
+  assertClaudeContextProvider: vi.fn(),
+}))
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: vi.fn() }))
 vi.mock('../pi/stub', () => ({ piStubPath: () => '/stub' }))
 vi.mock('../broadcast', () => ({ broadcast: h.broadcast }))

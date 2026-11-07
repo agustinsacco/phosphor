@@ -3,6 +3,7 @@ import { Select } from '@/components/form'
 import { usePlatform } from '@/platform/Platform'
 import { RepositoryFilePreview } from './RepositoryFilePreview'
 import { RemoteFileTree } from './RemoteFileTree'
+import { useTreeFolders } from './useTreeFolders'
 import { releaseFileModel } from './MonacoEditor'
 import { useEffect, useState } from 'react'
 import {
@@ -36,12 +37,16 @@ function useMachineFileList(reads: MachineFileReads, repository: Repository | un
   const [files, setFiles] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [path, setPath] = useState('')
+  // Held here, not in the tree, so a list that unmounts behind a preview keeps its folders.
+  const folders = useTreeFolders(path || null)
+  const { collapseAll } = folders
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     let current = true
     setLoading(Boolean(repository))
     setFiles([])
     setPath('')
+    collapseAll()
     setError(null)
     if (repository)
       void reads.list(repository.id).then(
@@ -61,8 +66,8 @@ function useMachineFileList(reads: MachineFileReads, repository: Repository | un
     return () => {
       current = false
     }
-  }, [reads, repository?.id])
-  return { files, loading, path, setPath, error }
+  }, [reads, repository?.id, collapseAll])
+  return { files, loading, path, setPath, error, folders }
 }
 
 /** The selected file's contents, and its editor model while the native editor shows it. */
@@ -140,7 +145,13 @@ function MachineFilesView({ source }: { source: MachineFilesSource }): React.JSX
           listLabel={`${noun.one} files`}
           detailLabel="File preview"
           list={
-            <RemoteFileTree files={files} selected={path} onSelect={setPath} loading={loading} />
+            <RemoteFileTree
+              files={files}
+              selected={path}
+              onSelect={setPath}
+              loading={loading}
+              folders={list.folders}
+            />
           }
           open={!!path}
           onBack={() => setPath('')}
