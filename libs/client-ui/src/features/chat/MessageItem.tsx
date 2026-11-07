@@ -1,6 +1,6 @@
 import { useSessionsStore } from '@/stores/sessions'
-import { machineLabel, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
-import { localMachineLabel } from '@/lib/localMachine'
+import { REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
+import { machineLabel } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useState } from 'react'
 import clsx from 'clsx'
@@ -396,7 +396,7 @@ export function ErrorBlock({
   // appear in fields the human sentence does not carry.
   const remedy = matchErrorRemedy(message, {
     awsProfile: hostId ? undefined : awsProfile,
-    machine: hostId ? machineLabel(hostId) : localMachineLabel(),
+    machine: machineLabel(hostId ?? 'local'),
   })
   const parsed = parseErrorMessage(message)
 

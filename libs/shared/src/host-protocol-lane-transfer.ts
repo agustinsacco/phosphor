@@ -12,7 +12,7 @@ export const LANE_TRANSFER_LIMITS = {
   /** Decoded bytes per `laneTransfer.read` / `laneTransfer.chunk`. */
   chunkBytes: 1024 * 1024,
   bundleBytes: 256 * 1024 * 1024,
-  /** A Host indexes artifacts from at most this much transcript. */
+  /** Conservative ceiling for a transcript moved onto a Host. */
   transcriptBytes: 32 * 1024 * 1024,
   attachmentBytes: 20 * 1024 * 1024,
   parts: 4000,

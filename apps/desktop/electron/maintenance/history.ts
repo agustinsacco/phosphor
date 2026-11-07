@@ -1,6 +1,6 @@
 import Store from 'electron-store'
 import type { SessionMeta } from '@shared/models'
-import { sessionPathKey } from '../pi/session-path-lock'
+import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 
 export interface RemovalRecord {
   id: string

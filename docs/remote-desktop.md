@@ -290,13 +290,16 @@ never retried. The browser has no
 `'local'`.
 Unsupported panes retain the not-available state. Remote attachments require a
 ready Host with `workspaces.write` and `sessions.control` and the current controller.
-Main uploads document bytes with fenced begin/chunk/commit receipts before sending
-the prompt. Upload failure or uncertainty never sends the prompt and never resends
+The bridge uploads document bytes with fenced begin/chunk/commit receipts before
+sending the prompt (`libs/host-client/src/attachments.ts`; Desktop main and the
+browser share it). Upload failure or uncertainty never sends the prompt and never resends
 a chunk. The committed Host path is the sole attachment-path exception: it appears
 in the same `<attached-files>` prompt block as a local document, not in a new UI
 surface. Local file paths are never sent to Host pi. See [Host attachments](host.md#attachments)
 for limits, quota, storage and cleanup.
-The six `fs:` mutation channels route to fenced Host commands, not local I/O.
+The six `fs:` mutation channels route to fenced Host commands, not local I/O
+(`libs/host-client/src/write-features.ts`, shared with the browser). A path that is
+not a `host:` path is refused in the browser.
 
 Workspace reads resolve through the window's focused open lane. The opaque
 workspace key must match that lane, so two worktrees in one repository are not

@@ -1,5 +1,5 @@
 import type { IpcInvokeChannel } from './ipc'
-import { connectorConfig, LANE_TRANSFER_WEB, readOnlyFiles } from './ipc-web-exclusions'
+import { connectorConfig, LANE_TRANSFER_WEB } from './ipc-web-exclusions'
 
 export type WebIpcClassification =
   { kind: 'remote-supported' } | { kind: 'browser-local' } | { kind: 'unsupported'; reason: string }
@@ -12,6 +12,7 @@ const native = unsupported('This native or mutating Host feature is unavailable 
 const localRoutines = unsupported(
   'Local routine execution and native background services require Desktop.',
 )
+const hostFilesOnly = unsupported('Browser file access goes through Host reads and writes only.')
 
 /** Every new IPC channel requires an explicit browser admission decision. */
 export const IPC_WEB = {
@@ -34,7 +35,7 @@ export const IPC_WEB = {
   'hosts:machineTask': remote,
   'hosts:machineShell': remote,
   'hosts:claudeAccount': remote,
-  'hosts:uploadAttachments': native,
+  'hosts:uploadAttachments': remote,
   'hosts:snapshot': remote,
   'hosts:reconnect': remote,
   'hosts:traffic': native,
@@ -446,22 +447,22 @@ export const IPC_WEB = {
   'git:checkoutBranch': unsupported(
     'Only Host-scoped read-only status and file comparisons are available.',
   ),
-  'fs:readDir': readOnlyFiles,
+  'fs:readDir': hostFilesOnly,
   'fs:readFile': remote,
-  'fs:previewUrl': readOnlyFiles,
-  'fs:openInDefaultApp': readOnlyFiles,
-  'fs:quickLook': readOnlyFiles,
-  'fs:writeFile': readOnlyFiles,
-  'fs:createFile': readOnlyFiles,
-  'fs:createDir': readOnlyFiles,
-  'fs:rename': readOnlyFiles,
-  'fs:trash': readOnlyFiles,
-  'fs:transfer': readOnlyFiles,
-  'fs:pickEntries': readOnlyFiles,
-  'fs:watchWorkspace': readOnlyFiles,
-  'fs:statDirs': readOnlyFiles,
-  'fs:searchWorkspace': readOnlyFiles,
-  'fs:cancelWorkspaceSearch': readOnlyFiles,
+  'fs:previewUrl': hostFilesOnly,
+  'fs:openInDefaultApp': hostFilesOnly,
+  'fs:quickLook': hostFilesOnly,
+  'fs:writeFile': remote,
+  'fs:createFile': remote,
+  'fs:createDir': remote,
+  'fs:rename': remote,
+  'fs:trash': remote,
+  'fs:transfer': remote,
+  'fs:pickEntries': hostFilesOnly,
+  'fs:watchWorkspace': hostFilesOnly,
+  'fs:statDirs': hostFilesOnly,
+  'fs:searchWorkspace': hostFilesOnly,
+  'fs:cancelWorkspaceSearch': hostFilesOnly,
   'pty:create': remote,
   'pty:attach': remote,
   'pty:write': remote,

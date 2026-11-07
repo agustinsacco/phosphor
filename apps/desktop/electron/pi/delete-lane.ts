@@ -5,7 +5,7 @@ import { deleteDraftBlobs } from '../drafts-blobs'
 import { forgetSpawnAccount } from './session-accounts'
 import { deleteSession } from './session-deleter'
 import { sessionPaths } from './session-path-lock'
-import { isRoutineSession } from '../routines/ownership'
+import { isRoutineSession } from '@phosphor/session-runtime/routines/ownership'
 
 /** The runtime stops writers; Desktop retains its existing Trash and draft policy. */
 export const deleteLane = createSessionDeletion({

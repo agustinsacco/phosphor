@@ -7,6 +7,7 @@ import { remoteLaneMarker } from './remoteLaneView'
 import { useNavigation, type Navigation } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'
 import { useChatStore } from '@/stores/chat'
+import { useMachineCaps } from '@/stores/machineCaps'
 import { setRemoteLaneMarks } from '@/stores/remoteLaneMarks'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
@@ -16,12 +17,8 @@ import { STOP_NEEDS_PROMPT } from '@/features/machines/useLaneControl'
 import { openPullRequest } from './PrBadge'
 import { useRemotePr } from './remotePullRequests'
 import { useRemoteLaneTitle } from './RemoteLanePresentation'
-import {
-  remoteLaneAccess,
-  remoteLaneActions,
-  type RemoteLaneActionHandlers,
-  type RemoteLaneActionState,
-} from './remoteLaneActions'
+import { laneActions, type LaneActionHandlers } from './laneActions'
+import { hostLaneContext, remoteLaneAccess, type RemoteLaneActionState } from './remoteLaneActions'
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
 import { copyDebugInfo, copySpend, exportRemoteLaneHtml } from './sessionActions'
 import { openLaneMove } from './sidebarActions'
@@ -113,14 +110,14 @@ export function useRemoteLaneActions({
     />
   )
   return {
-    items: (): ContextMenuItem[] => remoteLaneActions(state, handlers, orderActions),
+    items: (): ContextMenuItem[] => laneActions(hostLaneContext(state), handlers, orderActions),
     dialogs,
     title,
     busy: state.busy,
     error: runner.error,
     deletingInBulk,
     saveName,
-    pickMarker: access.canMark && state.markers !== 'off' ? handlers.pickMarker : undefined,
+    pickMarker: access.canMark && state.markers !== 'off' ? handlers.marker : undefined,
     marker,
     ...access,
   }
@@ -135,7 +132,7 @@ function useLaneActionState(
   running: boolean,
   nativeFiles: boolean,
 ) {
-  const host = useRemoteLanesStore((s) => s.hosts[hostId])
+  const caps = useMachineCaps(hostId)
   const key = remoteLaneResourceKey(hostId, lane.laneId)
   const deletingInBulk = useSessionsStore((s) => laneIsBeingDeleted(s.bulkDelete, key))
   // pi writes nothing to resume until a first message, so the Host refuses Stop before one.
@@ -146,7 +143,7 @@ function useLaneActionState(
   const markers = useLanePrefsStore((s) => s.lanes.markers)
   const state: RemoteLaneActionState = {
     lane,
-    host,
+    caps,
     ready,
     busy: running || deletingInBulk,
     stopBlocked: unprompted ? STOP_NEEDS_PROMPT : null,
@@ -224,7 +221,7 @@ function laneHandlers({
   onRename: () => void
   openDialog: (dialog: LaneDialog) => void
   onMarked: () => void
-}): RemoteLaneActionHandlers {
+}): LaneActionHandlers {
   const send = (channel: HostLaneChannel) => () =>
     void act(() => window.phosphor.invoke(channel, hostId, lane.laneId))
   // setRemoteLaneMarks reports its own failure, including the "update the Host" case.
@@ -244,8 +241,8 @@ function laneHandlers({
     stop: send('hosts:stopLane'),
     resume: send('hosts:resumeLane'),
     markRead: send('hosts:markRead'),
-    togglePin: () => mark({ pinned: !lane.pinned }),
-    pickMarker: () => openDialog('marker'),
+    pin: () => mark({ pinned: !lane.pinned }),
+    marker: () => openDialog('marker'),
     makeRoutine: () => void act(async () => routineFromLane(hostId, lane, await session())),
     exportHtml: () =>
       void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),

@@ -1726,8 +1726,12 @@ request under `hostStateDirectory()/artifacts`. `artifacts.list {laneId?}` retur
 current-branch metadata for one lane or all admitted lanes, capped at 2,000 artifacts
 and 1,000 versions per artifact, with 4 MiB of metadata per list.
 `artifacts.read {laneId, slug, version?}` returns
-one version, defaulting to the latest, capped at 2 MiB of UTF-8 content. Session
-scans cap at 32 MiB. Calls run in FIFO order with at most eight waiting calls;
+one version, defaulting to the latest, capped at 2 MiB of UTF-8 content. A scan
+resumes from the lane's saved index and reads at most 32 MiB per call, so a long
+session keeps indexing as it grows; a first scan past that answers `too-large`. A
+lane that cannot be scanned fails a request naming it, but the all-lanes list leaves
+it out and logs `artifact-lane-skipped` rather than hiding every other lane.
+Calls run in FIFO order with at most eight waiting calls;
 additional calls answer `internal` because call errors have no `busy` code.
 The portable indexer and library live in `libs/session-runtime/src/artifacts/`.
 No client names a session file, blob hash or storage path. Removed lanes are
@@ -1774,9 +1778,10 @@ require `workspaces.write` and `sessions.control`, the current fence and control
 of the lane. Upload ids bind to the creating client, lane and fence. A control
 change deletes open uploads. Chunks are strictly ordered, at most 256 KiB decoded;
 a duplicate or gap aborts the upload. Commit verifies declared size and SHA-256
-against both received and stored bytes. No unknown outcome is retried by Desktop.
+against both received and stored bytes. No unknown outcome is retried by the client
+(Desktop or the browser).
 
-Files are at most 20 MiB. Desktop allows ten attachments per prompt. The Host
+Files are at most 20 MiB. The client allows ten attachments per prompt. The Host
 bounds concurrency to ten open uploads per lane, rather than counting files per
 message. It charges begun bytes, with a minimum 64 KiB per begin, against a 64 MiB
 rolling hour per lane. A private, atomically replaced ledger retains 61 minute
@@ -1794,11 +1799,11 @@ before atomic rename; as with file writes, Node cannot eliminate same-user
 ancestor-swap races without portable openat support.
 
 Commit returns a small Host-local path. This is the documented path exception:
-Desktop uses it in the prompt's `<attached-files>` block, exactly like local
+The client uses it in the prompt's `<attached-files>` block, exactly like local
 non-image attachments, so pi on the Host can read the file. The path is visible
 only where local attachment paths are visible, including the sent message.
 Bytes, paths and upload ids are not logged. Inline images keep the normal pi
-`images[]` flow; Desktop main refuses encoded image prompt frames above the
+`images[]` flow; the client refuses encoded image prompt frames above the
 inbound frame limit minus a 1 KiB margin before sending, preserving the image draft.
 
 ### Host terminals

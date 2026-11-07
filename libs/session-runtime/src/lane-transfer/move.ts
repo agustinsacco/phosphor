@@ -87,7 +87,7 @@ export interface TargetInput {
   workspace: string
   branchPrefix: string
   sameMachine: boolean
-  /** A Host indexes artifacts from a bounded transcript; This Mac sets none. */
+  /** A Host bounds imported transcripts; This Mac sets none. */
   maxTranscriptBytes?: number
   /** Refuse rather than shorten a name this target cannot store. */
   maxTitleLength?: number
@@ -99,7 +99,7 @@ export async function checkTarget(
 ): Promise<LaneTargetPlan> {
   const plan = planMove({ ...input, source, target: await inspectTargetGit(input.root) })
   if (input.maxTranscriptBytes !== undefined && source.transcriptBytes > input.maxTranscriptBytes)
-    plan.blockers.push('This lane’s transcript is over 32 MiB, more than a Host can index.')
+    plan.blockers.push('This Host limits moved transcripts to 32 MiB.')
   if (input.maxTitleLength !== undefined && (source.title?.length ?? 0) > input.maxTitleLength)
     plan.blockers.push(
       `This Host cannot preserve a lane name longer than ${input.maxTitleLength} characters.`,

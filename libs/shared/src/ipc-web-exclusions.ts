@@ -1,8 +1,3 @@
-export const readOnlyFiles = {
-  kind: 'unsupported',
-  reason: 'Browser file access is read-only and explicitly Host-scoped.',
-} as const
-
 export const connectorConfig = {
   kind: 'unsupported',
   reason: 'Connector configuration and credentials belong to the Host or Desktop.',
