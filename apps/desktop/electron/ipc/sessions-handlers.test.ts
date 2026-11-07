@@ -53,7 +53,10 @@ vi.mock('../routines', () => ({ cancelRoutineSession: vi.fn() }))
 
 import { registerSessionsHandlers } from './sessions-handlers'
 import { openSessionPath } from '../pi/session-path-lock'
-import { ownRoutineSession, releaseRoutineSession } from '../routines/ownership'
+import {
+  ownRoutineSession,
+  releaseRoutineSession,
+} from '@phosphor/session-runtime/routines/ownership'
 
 const line = (value: unknown): string => JSON.stringify(value) + '\n'
 const SOURCE =

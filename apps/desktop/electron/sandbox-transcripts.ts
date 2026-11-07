@@ -1,7 +1,7 @@
 import { shell } from 'electron'
 import { access, readdir, rename } from 'node:fs/promises'
 import { join } from 'node:path'
-import { repointSessionCwd } from './pi/session-cwd'
+import { repointSessionCwd } from '@phosphor/session-runtime/pi/session-cwd'
 
 /** True when the path is reachable — used to validate persisted locations. */
 export async function pathExists(path: string): Promise<boolean> {
@@ -40,7 +40,7 @@ export async function moveIfPresent(from: string, to: string): Promise<void> {
  *
  * Moving the directory is not enough: pi stores the cwd INSIDE each session
  * file and refuses to resume one whose stored cwd is gone, exiting 1 before
- * the RPC loop starts (`electron/pi/session-cwd.ts`). Without this a renamed
+ * the RPC loop starts (`repointSessionCwd` repairs it). Without this a renamed
  * sandbox kept all its chats in the sidebar and none of them would open.
  *
  * Best-effort per file, like the moves above — one unreadable transcript is

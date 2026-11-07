@@ -251,7 +251,7 @@ test('Folder policy disabled refuses browsing without changing configuration', a
       .click()
     await h.page.getByRole('button', { name: 'Add folder on bee1…', exact: true }).click()
     const modal = h.page.locator('[data-modal-overlay]')
-    await expect(modal.getByRole('alert')).toContainText('Not available on remote lanes yet.')
+    await expect(modal.getByRole('alert')).toContainText('Could not read folders.')
     await expect(modal.getByRole('button', { name: 'Add this folder', exact: true })).toBeDisabled()
     expect(
       JSON.parse(await readFile(join(h.root, 'conf/config.json'), 'utf8')).repositories,

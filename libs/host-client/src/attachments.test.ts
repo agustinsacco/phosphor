@@ -1,8 +1,11 @@
 import { expect, it, vi } from 'vitest'
-import { ATTACHMENT_LIMITS as L, type AttachmentOp } from '@shared/host-protocol-attachments'
-import type { FileWriteOp } from '@shared/host-protocol-writes'
+import {
+  ATTACHMENT_LIMITS as L,
+  type AttachmentOp,
+} from '@phosphor/shared/host-protocol-attachments'
+import type { FileWriteOp } from '@phosphor/shared/host-protocol-writes'
 import { uploadAttachments } from './attachments'
-import type { WriteLane } from './write-features'
+import type { WriteLane } from './ports'
 const id = 'a'.repeat(32)
 const file = (data = 'abc') => ({
   name: 'report.pdf',

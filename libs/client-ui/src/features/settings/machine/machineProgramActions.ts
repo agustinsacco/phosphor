@@ -1,6 +1,7 @@
 import { promptChoice } from '@/stores/prompt'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import type { MachineView } from '@shared/control-api'
+import { CLAUDE_PROVIDER_PACKAGE } from '@shared/models'
 import type { ProviderLoginOp } from '@shared/host-protocol-providers'
 import type { MachineTaskOp } from '@shared/machine-settings'
 import type { RefObject } from 'react'
@@ -86,7 +87,7 @@ export async function runHostTask(
     input.task === 'claude.installCli'
       ? 'Download Anthropic’s official https://claude.ai/install.sh over HTTPS and run it as the Host user. No sudo is requested by Phosphor.'
       : input.task === 'claude.installProvider'
-        ? 'Run pi install npm:@saccolabs/pi-claude-cli on the Host. npm packages and their install scripts can run code as the Host user.'
+        ? `Run pi install npm:${CLAUDE_PROVIDER_PACKAGE} on the Host. npm packages and their install scripts can run code as the Host user.`
         : input.task.startsWith('package.')
           ? `Run pi ${input.task.slice(8)} ${input.name} on the Host. Package install/update scripts can execute code as that user.`
           : input.task === 'folder.trust'
