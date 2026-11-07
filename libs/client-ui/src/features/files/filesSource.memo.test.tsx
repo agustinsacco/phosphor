@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
+import type * as FilesStore from '@/stores/files'
+import type * as Explorer from './FileExplorer'
 import { lanes, renderLaneFiles, resetLaneFiles, updateHost } from './__fixtures__/renderLaneFiles'
 
 const counts = vi.hoisted(() => ({ attach: 0, explorer: 0 }))
@@ -15,7 +17,7 @@ vi.mock('@/features/artifacts/ArtifactsPane', () => ({ ArtifactsPane: () => null
 vi.mock('@/features/artifacts/RemoteArtifactsPane', () => ({ RemoteArtifactsPane: () => null }))
 vi.mock('@/features/chat/SubagentPanel', () => ({ SubagentPanel: () => null }))
 vi.mock('@/stores/files', async (importOriginal) => {
-  const files = await importOriginal<typeof import('@/stores/files')>()
+  const files = await importOriginal<typeof FilesStore>()
   return {
     ...files,
     attachFilesSource: (...args: Parameters<typeof files.attachFilesSource>) => {
@@ -25,7 +27,7 @@ vi.mock('@/stores/files', async (importOriginal) => {
   }
 })
 vi.mock('./FileExplorer', async (importOriginal) => {
-  const { FileExplorer } = await importOriginal<typeof import('./FileExplorer')>()
+  const { FileExplorer } = await importOriginal<typeof Explorer>()
   return {
     FileExplorer: (props: Parameters<typeof FileExplorer>[0]) => {
       counts.explorer++
