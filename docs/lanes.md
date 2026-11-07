@@ -456,7 +456,9 @@ user is **not** looking at never takes the screen.
 
 A magnifier in the workspace header opens a search field **under** that
 header. It filters that group only: search is per project because the header
-it hangs off is. A Host folder's search is the same, through the same matcher.
+it hangs off is. This Mac's groups and Host folders are one group shell
+(`LaneGroup.tsx`) with one search (`useGroupSearch`), so a Host folder's search
+is the same, through the same matcher.
 
 `laneSearch.ts` matches against the three identities the row shows: **title,
 branch, and PR (number and title)**, because those are what you remember a lane
@@ -557,14 +559,14 @@ Selection is scoped to **one group**, which is one repo, on This Mac and on
 every Host: `laneSelection.ts` holds one selection at a time, so selecting in
 another group starts over. A destructive confirm spanning two repos is how you
 delete the wrong branch. The Pinned list mixes projects and is not selectable.
-A Host folder shown in two lists at once keeps a selection to the list that made
-it.
+Each group on screen holds its own claim on that selection (`useGroupSelection`),
+so a folder shown in two lists at once keeps a selection to the list that made it.
 
 The checkbox replaces the indicator dot in the same gutter, so entering select
 mode shifts nothing (`SelectableIndicator` in `LaneSelect.tsx`, on both lists).
 "Select all lanes", "Select merged lanes" (lanes whose pull request merged)
-and "Collapse lanes" live in the workspace `⋯` menu, the same rows
-(`LaneSelectionRows`) on This Mac's groups and Host folders. The bulk bar
+and "Collapse lanes" live in the workspace `⋯` menu (`LaneGroupOptions`), above
+the machine's own folder rows, on This Mac's groups and Host folders. The bulk bar
 (`LaneBulkBar`) shows only in select mode.
 
 Deleting is three resources, and all three default on. The branch default is

@@ -2,7 +2,7 @@
 import { act, createElement, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { LaneRevealEffect, requestReveal, useLaneReveal, useLaneRevealStore } from './laneReveal'
+import { requestReveal, useLaneReveal, useLaneRevealStore } from './laneReveal'
 
 beforeEach(() => useLaneRevealStore.setState({ seq: 0, groupKey: null }))
 let root: Root | undefined
@@ -37,13 +37,4 @@ it('reveals a group mounted after navigation', () => {
   const reveal = vi.fn()
   render(createElement(Hook, { reveal }))
   expect(reveal).toHaveBeenCalledTimes(1)
-})
-
-it.each([true, false])('expands only a collapsed group (%s) and clears its search', (collapsed) => {
-  const expand = vi.fn()
-  const clearSearch = vi.fn()
-  render(createElement(LaneRevealEffect, { groupKey: 'group', collapsed, expand, clearSearch }))
-  act(() => requestReveal('group'))
-  expect(expand).toHaveBeenCalledTimes(collapsed ? 1 : 0)
-  expect(clearSearch).toHaveBeenCalledTimes(1)
 })

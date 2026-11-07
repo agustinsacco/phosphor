@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { create } from 'zustand'
 
 /**
@@ -79,6 +79,21 @@ export function clearLaneSelection(): void {
 /** The selected keys when `group` is the selecting group, else a shared frozen empty list. */
 export function useSelectedKeys(group: string | null): readonly string[] {
   return useLaneSelection((s) => (group !== null && s.group === group ? s.keys : NO_KEYS))
+}
+
+/**
+ * One mounted group's hold on the selection, on any machine. A folder can show
+ * in two lists at once (Desktop's sidebar and Host home), so each mount keys
+ * its own: `selecting` and `selected` never read another list's selection.
+ */
+export function useGroupSelection(groupKey: string): {
+  key: string
+  selecting: boolean
+  selected: readonly string[]
+} {
+  const key = `${groupKey}@${useId()}`
+  const selecting = useLaneSelection((s) => s.group === key)
+  return { key, selecting, selected: useSelectedKeys(key) }
 }
 
 /** Which of `groups` is selecting, if any; another list's selection reads as null. */

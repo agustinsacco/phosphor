@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import type { LanePrefs } from '@shared/models'
 
@@ -51,6 +52,15 @@ export type LaneActionHandlers = Partial<
     releaseControl: () => void
   }
 >
+
+/** What a machine's lane-actions hook gives its row: the menu, the dialogs it opens, the marker picker. */
+export interface LaneActions {
+  items: () => ContextMenuItem[]
+  /** Rendered beside the row; the dialogs portal through `ModalOverlay`. */
+  dialogs: ReactNode
+  /** Opens the marker picker; absent where this lane cannot be marked now. */
+  pickMarker?: () => void
+}
 
 /**
  * A lane's menu on every machine and surface: This Mac's order, with a Host's
