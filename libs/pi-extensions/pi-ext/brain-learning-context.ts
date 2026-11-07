@@ -74,6 +74,7 @@ export function projectLearningContext(
   const messages: LearningMessage[] = [],
     evidence: BrainLearningEvidence[] = []
   const covered = []
+  const dependencyRootIds = new Set<string>()
   for (const projected of projection.entries) {
     const source = byId.get(projected.sourceEntry.id)
     if (!source || learningHash(projected.sourceEntry) !== source.entryHash)
@@ -81,6 +82,10 @@ export function projectLearningContext(
     const wire = port.convertToLlm(projected.messages)
     messages.push(...wire)
     if (!wire.length) continue
+    const rootIds = roots.get(source.entryId) ?? []
+    if (wire.some((message) => message.role !== 'system') && !rootIds.length)
+      throw new Error('Learning derived source has unverifiable provenance')
+    for (const rootId of rootIds) dependencyRootIds.add(rootId)
     const coverage = { ...source, projectedHash: learningHash(wire) }
     covered.push(coverage)
     const eligible = !request.alreadyCovered.some(
@@ -96,8 +101,6 @@ export function projectLearningContext(
       for (const [blockIndex, block] of blocks.entries()) {
         if (!block || block.type !== 'text' || typeof block.text !== 'string' || !block.text)
           continue
-        const rootIds = roots.get(source.entryId)
-        if (!rootIds?.length) throw new Error('Learning derived source has unverifiable provenance')
         evidence.push({
           ...coverage,
           rootIds: [...rootIds],
@@ -121,7 +124,7 @@ export function projectLearningContext(
       source: request.source,
       covered,
       projectionDigest: learningHash(messages),
-      rootIds: [...new Set(evidence.flatMap((item) => item.rootIds))].sort(),
+      rootIds: [...dependencyRootIds].sort(),
     },
   }
 }

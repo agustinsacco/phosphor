@@ -4,6 +4,7 @@ import type {
   BrainLearningCheckpoint,
   BrainLearningCoverage,
   BrainLearningEvidence,
+  BrainLearningEntry,
   BrainLearningResult,
   BrainLearningSource,
   BrainLearningUsage,
@@ -68,6 +69,8 @@ export interface BrainLearningStart {
   checkpoint: BrainLearningCheckpointSummary
   covered: BrainLearningCoverage[]
   dependencyRootIds: string[]
+  /** Frozen original-input descriptors, including nontext inputs; never extra witnesses. */
+  dependencies: BrainLearningEntry[]
   evidence: BrainLearningEvidence[]
   expectedPolicyEpoch: number
   retryJobId?: string

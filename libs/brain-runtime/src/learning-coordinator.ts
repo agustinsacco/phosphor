@@ -106,8 +106,11 @@ class BrainLearning {
         target: flight.preview.target,
         binding: request.binding,
         checkpoint: flight.preview.checkpoint,
-        covered: request.source.entries.length ? flight.prepared.checkpoint.covered : [],
+        covered: flight.prepared.checkpoint.covered,
         dependencyRootIds: flight.prepared.checkpoint.rootIds,
+        dependencies: flight.prepared.checkpoint.source.entries.filter((entry) =>
+          flight.prepared.checkpoint.rootIds.includes(entry.entryId),
+        ),
         evidence: this.evidence(flight, request),
         expectedPolicyEpoch: consent.policyEpoch,
         ...(consent.retryJobId ? { retryJobId: consent.retryJobId } : {}),
