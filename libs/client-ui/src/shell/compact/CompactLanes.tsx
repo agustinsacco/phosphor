@@ -13,45 +13,61 @@ import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
 import '@/features/home/remoteStart.css'
 import { Button } from '@/components/form'
+import { MachineScopeChips } from './MachineScopeChips'
 
-/** The phone's lane list, and where a lane's Back goes: the same Host lane lists as Desktop's sidebar. */
+/** The browser's lane list for one machine, or every machine's lists: Desktop's sidebar lists. */
 export function CompactLanes({ machine }: { machine?: string }): React.JSX.Element {
   const machines = useMachinesStore((s) => s.machines)
-  const loading = useMachinesStore((s) => s.loading)
-  const error = useMachinesStore((s) => s.error)
-  const snapshotStatus = useRemoteLanesStore((s) => s.snapshotStatus)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const selected = machines.filter((m) => !machine || m.id === machine)
   return (
     <PageShell title="Lanes" dismissible={false}>
+      <MachineScopeChips machine={machine} />
       <PageBody>
         <section className="space-y-4" aria-label="Lanes">
-          {loading && <p role="status">Loading machines…</p>}
-          {snapshotStatus === 'error' && (
-            <p role="alert">
-              Host status could not be refreshed. These are last-known lanes; reconnect from
-              Machines.
-            </p>
-          )}
-          {error && (
-            <p role="alert">
-              Could not refresh machines.{' '}
-              <Button onClick={() => void useMachinesStore.getState().refresh()}>Retry</Button>
-            </p>
-          )}
-          {!loading && !error && selected.length === 0 && (
-            <p>
-              {machine
-                ? 'This machine is no longer available.'
-                : 'No machines yet. Add a Host from Machines.'}
-            </p>
-          )}
+          <LaneListNotices empty={selected.length === 0} machine={machine} />
           {selected.map((machine) => (
             <MachineLaneList key={machine.id} machine={machine} host={hosts[machine.id]} />
           ))}
         </section>
       </PageBody>
     </PageShell>
+  )
+}
+
+/** Loading, refresh failures and an empty account: the same words over every lane list. */
+export function LaneListNotices({
+  empty,
+  machine,
+}: {
+  empty: boolean
+  machine?: string
+}): React.JSX.Element {
+  const loading = useMachinesStore((s) => s.loading)
+  const error = useMachinesStore((s) => s.error)
+  const snapshotStatus = useRemoteLanesStore((s) => s.snapshotStatus)
+  return (
+    <>
+      {loading && <p role="status">Loading machines…</p>}
+      {snapshotStatus === 'error' && (
+        <p role="alert">
+          Host status could not be refreshed. These are last-known lanes; reconnect from Machines.
+        </p>
+      )}
+      {error && (
+        <p role="alert">
+          Could not refresh machines.{' '}
+          <Button onClick={() => void useMachinesStore.getState().refresh()}>Retry</Button>
+        </p>
+      )}
+      {!loading && !error && empty && (
+        <p>
+          {machine
+            ? 'This machine is no longer available.'
+            : 'No machines yet. Add a Host from Machines.'}
+        </p>
+      )}
+    </>
   )
 }
 
