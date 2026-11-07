@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -60,8 +61,22 @@ describe('learning-source immutable selected leaf', () => {
     })
     expect(copy.source.contentDigest).toBe(original.source.contentDigest)
   })
+  it('deduplicates native fork roots even when a removed label re-chains parents', () => {
+    const label = { type: 'label', id: 'label', parentId: 'u', targetId: 'u', label: 'checkpoint' }
+    const withLabel = freezeLearningSource(
+      text([entries[0], label, { ...entries[1], parentId: 'label' }]),
+      selection,
+    )
+    const withoutLabel = freezeLearningSource(text(), selection)
+    expect(withLabel.source.entries.at(-1)?.rootId).toBe(withoutLabel.source.entries.at(-1)?.rootId)
+    expect(withLabel.source.entries.at(-1)?.entryHash).not.toBe(
+      withoutLabel.source.entries.at(-1)?.entryHash,
+    )
+  })
   it.each([
     ['torn tail', text() + '{'],
+    ['unknown context role', text([entry('a', null, 'unsupported', 'unknown')])],
+    ['unknown entry type', text([{ type: 'future', id: 'a', parentId: null }])],
     ['missing leaf', text(entries.slice(0, 1))],
     ['duplicate ID', text([...entries, entries[0]])],
     ['missing parent', text([entry('a', 'absent', 'bad')])],
@@ -77,6 +92,12 @@ describe('learning-source immutable selected leaf', () => {
     const inspect = async () => ({ ...selection, settled: true, fence: 'fence-1' })
     const result = await writeLearningSnapshot({ sourcePath, snapshotPath, selection, inspect })
     expect(await readFile(sourcePath, 'utf8')).toBe(text())
+    expect(
+      createHash('sha256')
+        .update(await readFile(sourcePath))
+        .digest('hex'),
+    ).toBe(result.source.sourceDigest)
+    expect((await stat(snapshotPath)).mode & 0o777).toBe(0o600)
     expect((await readFile(snapshotPath, 'utf8')).split('\n').slice(1, -1)).toEqual(result.lines)
     await expect(
       writeLearningSnapshot({ sourcePath, snapshotPath, selection, inspect }),
@@ -89,8 +110,13 @@ describe('learning-source immutable selected leaf', () => {
       snapshotPath = join(dir, 'snapshot.jsonl')
     const inspect = async () => ({ ...selection, settled: false, fence: 'fence-1' })
     await expect(
-      writeLearningSnapshot({ sourcePath, snapshotPath, selection, inspect }),
-    ).rejects.toThrow()
+      writeLearningSnapshot({
+        sourcePath,
+        snapshotPath,
+        selection,
+        inspect: async () => ({ ...selection, settled: true, fence: 'missing' }),
+      }),
+    ).rejects.toThrow(/ENOENT/)
     await writeFile(sourcePath, text())
     await expect(
       writeLearningSnapshot({ sourcePath, snapshotPath, selection, inspect }),

@@ -9,7 +9,21 @@
       "message": {
         "role": "system",
         "content": "original system",
-        "timestamp": 1
+        "timestamp": 1,
+        "toolsAdded": [
+          {
+            "name": "bash",
+            "description": "Historical inert schema",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -35,8 +49,19 @@
       }
     },
     {
-      "id": "answer",
+      "id": "omit",
       "parentId": "keep",
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "user",
+        "content": "explicitly context-omitted fact",
+        "timestamp": 1
+      }
+    },
+    {
+      "id": "answer",
+      "parentId": "omit",
       "type": "message",
       "timestamp": "2026-01-01T00:00:00.000Z",
       "message": {
@@ -52,7 +77,14 @@
             "text": "final assistant fact"
           }
         ],
-        "timestamp": 1
+        "timestamp": 1,
+        "usage": {
+          "input": 50000,
+          "output": 2000,
+          "cacheRead": 100000,
+          "cacheWrite": 30000,
+          "totalTokens": 182000
+        }
       }
     },
     {
@@ -77,7 +109,21 @@
       "systemMessage": {
         "role": "system",
         "content": "original system",
-        "timestamp": 1
+        "timestamp": 1,
+        "toolsAdded": [
+          {
+            "name": "bash",
+            "description": "Historical inert schema",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -86,11 +132,21 @@
       "type": "context_edit",
       "timestamp": "2026-01-01T00:00:00.000Z",
       "targetId": "keep",
-      "replacement": "edited eligible fact"
+      "replacement": {
+        "content": "edited eligible fact"
+      }
+    },
+    {
+      "id": "omit-edit",
+      "parentId": "edit",
+      "type": "context_edit",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "targetId": "omit",
+      "replacement": null
     },
     {
       "id": "metadata",
-      "parentId": "edit",
+      "parentId": "omit-edit",
       "type": "session_info",
       "timestamp": "2026-01-01T00:00:00.000Z",
       "name": "renamed"
@@ -111,14 +167,42 @@
           "systemMessage": {
             "role": "system",
             "content": "original system",
-            "timestamp": 1
+            "timestamp": 1,
+            "toolsAdded": [
+              {
+                "name": "bash",
+                "description": "Historical inert schema",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "command": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            ]
           }
         },
         "messages": [
           {
             "role": "system",
             "content": "original system",
-            "timestamp": 1
+            "timestamp": 1,
+            "toolsAdded": [
+              {
+                "name": "bash",
+                "description": "Historical inert schema",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "command": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            ]
           },
           {
             "role": "compactionSummary",
@@ -143,14 +227,29 @@
         "messages": [
           {
             "role": "user",
+            "content": "edited eligible fact",
             "timestamp": 1
           }
         ]
       },
       {
         "sourceEntry": {
-          "id": "answer",
+          "id": "omit",
           "parentId": "keep",
+          "type": "message",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "message": {
+            "role": "user",
+            "content": "explicitly context-omitted fact",
+            "timestamp": 1
+          }
+        },
+        "messages": []
+      },
+      {
+        "sourceEntry": {
+          "id": "answer",
+          "parentId": "omit",
           "type": "message",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "message": {
@@ -166,7 +265,14 @@
                 "text": "final assistant fact"
               }
             ],
-            "timestamp": 1
+            "timestamp": 1,
+            "usage": {
+              "input": 50000,
+              "output": 2000,
+              "cacheRead": 100000,
+              "cacheWrite": 30000,
+              "totalTokens": 182000
+            }
           }
         },
         "messages": [
@@ -183,7 +289,14 @@
                 "text": "final assistant fact"
               }
             ],
-            "timestamp": 1
+            "timestamp": 1,
+            "usage": {
+              "input": 50000,
+              "output": 2000,
+              "cacheRead": 100000,
+              "cacheWrite": 30000,
+              "totalTokens": 182000
+            }
           }
         ]
       },
@@ -194,14 +307,27 @@
           "type": "context_edit",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "targetId": "keep",
-          "replacement": "edited eligible fact"
+          "replacement": {
+            "content": "edited eligible fact"
+          }
+        },
+        "messages": []
+      },
+      {
+        "sourceEntry": {
+          "id": "omit-edit",
+          "parentId": "edit",
+          "type": "context_edit",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "targetId": "omit",
+          "replacement": null
         },
         "messages": []
       },
       {
         "sourceEntry": {
           "id": "metadata",
-          "parentId": "edit",
+          "parentId": "omit-edit",
           "type": "session_info",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "name": "renamed"
@@ -213,7 +339,21 @@
       {
         "role": "system",
         "content": "original system",
-        "timestamp": 1
+        "timestamp": 1,
+        "toolsAdded": [
+          {
+            "name": "bash",
+            "description": "Historical inert schema",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
       },
       {
         "role": "compactionSummary",
@@ -223,6 +363,7 @@
       },
       {
         "role": "user",
+        "content": "edited eligible fact",
         "timestamp": 1
       },
       {
@@ -238,7 +379,14 @@
             "text": "final assistant fact"
           }
         ],
-        "timestamp": 1
+        "timestamp": 1,
+        "usage": {
+          "input": 50000,
+          "output": 2000,
+          "cacheRead": 100000,
+          "cacheWrite": 30000,
+          "totalTokens": 182000
+        }
       }
     ],
     "thinkingLevel": "off",
@@ -249,7 +397,21 @@
       {
         "role": "system",
         "content": "original system",
-        "timestamp": 1
+        "timestamp": 1,
+        "toolsAdded": [
+          {
+            "name": "bash",
+            "description": "Historical inert schema",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
       },
       {
         "role": "user",
@@ -265,9 +427,11 @@
     [
       {
         "role": "user",
+        "content": "edited eligible fact",
         "timestamp": 1
       }
     ],
+    [],
     [
       {
         "role": "assistant",
@@ -282,9 +446,17 @@
             "text": "final assistant fact"
           }
         ],
-        "timestamp": 1
+        "timestamp": 1,
+        "usage": {
+          "input": 50000,
+          "output": 2000,
+          "cacheRead": 100000,
+          "cacheWrite": 30000,
+          "totalTokens": 182000
+        }
       }
     ],
+    [],
     [],
     []
   ]

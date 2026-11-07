@@ -26,7 +26,7 @@ function setup(
   const branch: unknown[] = []
   let id: string | null = fixture.leafId
   while (id) {
-    const entry = byId.get(id)!
+    const entry: (typeof fixture.entries)[number] = byId.get(id)!
     branch.unshift(entry)
     id = entry.parentId
   }
@@ -97,7 +97,12 @@ describe('brain-learning pi-side one logical generation', () => {
     expect(wire).toContain('sig')
     expect(wire).toContain('summary-only fact')
     expect(wire).toContain('edited eligible fact')
-    for (const omitted of ['omitted ancient fact', 'abandoned fact', 'before edit'])
+    for (const omitted of [
+      'omitted ancient fact',
+      'abandoned fact',
+      'before edit',
+      'explicitly context-omitted fact',
+    ])
       expect(wire).not.toContain(omitted)
     expect(context.checkpoint.covered.map((entry) => entry.entryId)).toEqual([
       'compact',
@@ -114,6 +119,7 @@ describe('brain-learning pi-side one logical generation', () => {
       'omitted ancient fact',
       'abandoned fact',
       'before edit',
+      'explicitly context-omitted fact',
       'retained reasoning',
     ])
       expect(() => resolveLearningOutcome(outcome(quote), context.evidence)).toThrow(/citation/)
@@ -156,6 +162,34 @@ describe('brain-learning pi-side one logical generation', () => {
       networkAttempts: null,
       serializedPrefixIdentical: false,
     })
+  })
+  it('freezes request identity while the response is in flight', async () => {
+    const { request, port } = setup()
+    const pending = runBrainLearning(request, port, new AbortController().signal)
+    request.jobId = 'changed-job'
+    request.binding.accountId = 'changed-slot'
+    const result = await pending
+    expect(result.jobId).toBe('job-1')
+    expect(result.binding.accountId).toBe('slot-1')
+  })
+  it('returns exact resolved evidence for a valid finding without any executor', async () => {
+    const { request, port, streamSimple, execute } = setup({
+      role: 'assistant',
+      stopReason: 'stop',
+      content: [{ type: 'text', text: outcome('final assistant fact', 'assistant') }],
+    })
+    Object.assign(port, { executeTool: execute })
+    const result = await runBrainLearning(request, port, new AbortController().signal)
+    expect(result.outcome.type).toBe('findings')
+    if (result.outcome.type !== 'findings') throw new Error('Expected findings')
+    const citation = result.outcome.findings[0]!.citations[0]!
+    expect(result.evidence.find((item) => item.evidenceId === citation.evidenceId)).toMatchObject({
+      entryId: 'answer',
+      text: citation.quote,
+    })
+    expect(result.binding).toEqual(binding)
+    expect(execute).not.toHaveBeenCalled()
+    expect(streamSimple).toHaveBeenCalledTimes(1)
   })
   it('sends the opted-in Claude metadata only on the attested Claude port', async () => {
     const { request, port, streamSimple } = setup()
@@ -223,6 +257,22 @@ describe('brain-learning pi-side one logical generation', () => {
       resolveLearningOutcome(outcome('edited eligible fact'), covered.evidence),
     ).toThrow()
     expect(learningSuffix(covered.evidence)).toContain('[]')
+  })
+  it('has the same projection digest before and after a metadata-only append', () => {
+    const { request, port } = setup()
+    const after = projectLearningContext(request, port)
+    const branch = port.sessionManager.getBranch().slice(0, -1)
+    request.source.entries.pop()
+    request.source.contentDigest = learningHash(request.source.entries)
+    request.source.selectedLeafId = 'omit-edit'
+    port.sessionManager.getBranch = () => branch
+    port.sessionManager.getLeafId = () => 'omit-edit'
+    const projection = structuredClone(fixture.projection)
+    projection.entries.pop()
+    port.sessionManager.buildSessionProjection = () => projection
+    expect(projectLearningContext(request, port).checkpoint.projectionDigest).toBe(
+      after.checkpoint.projectionDigest,
+    )
   })
   it('does not treat metadata or copied roots as new eligibility', async () => {
     const { request, port, streamSimple } = setup()
