@@ -505,7 +505,7 @@ it('refuses an append beyond the exclude cap without modifying exact-cap content
   const content = Buffer.alloc(1024 * 1024, '#')
   writeFileSync(exclude, content)
   await expect(prepare('append-cap')).rejects.toThrow('The worktree could not be created.')
-  expect(readFileSync(exclude)).toEqual(content)
+  expect(readFileSync(exclude).equals(content)).toBe(true)
   expect(existsSync(join(root, '.phosphor', 'worktrees', 'append-cap'))).toBe(false)
 })
 

@@ -102,7 +102,18 @@ export function fileRow(h: RemoteFixture, name: string) {
   return row
 }
 
+/** Host trees open collapsed: open each folder above `name` that is closed. */
+export async function openFolders(h: RemoteFixture, name: string) {
+  const parts = name.split('/')
+  for (let i = 1; i < parts.length; i++) {
+    const folder = fileRow(h, parts.slice(0, i).join('/'))
+    if ((await folder.getAttribute('aria-expanded')) === 'false') await folder.click()
+    await expect(folder).toHaveAttribute('aria-expanded', 'true')
+  }
+}
+
 export async function file(h: RemoteFixture, name: string) {
+  await openFolders(h, name)
   const row = fileRow(h, name)
   await row.click()
   await expect(row).toHaveClass(/bg-accent-soft/)

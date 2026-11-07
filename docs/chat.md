@@ -1068,7 +1068,7 @@ internal upstream endpoint, so schema drift can make usage unavailable.
 **Plan usage** is the always-on percent per window (5-hour, weekly, per-model
 weekly), the same numbers the CLI's `/usage` and Claude Desktop show, fetched
 live (no quota, no key) when the popover opens and cached ~60 s in main
-(`apps/desktop/electron/claude/usage.ts` parses the CLI's rendered text; a parse that yields
+(`libs/session-runtime/src/claude/usage.ts` parses the CLI's rendered text; a parse that yields
 nothing hides the section). The poll passes `--no-session-persistence`; without
 it every refresh left a transcript under `~/.claude/projects`. **Plan limits** is the binding constraint as the
 provider relays it mid-turn: one window, only once the CLI's warning threshold
