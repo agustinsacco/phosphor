@@ -1,19 +1,12 @@
 import { realpathSync } from 'node:fs'
 import { basename, sep } from 'node:path'
+import { isWorktreeFolder } from '@phosphor/shared/worktree-segment'
 import type { AppPrefs, WorkspaceInfo } from '@shared/models'
 import { repointPath, resumeTargetRemoved, type PathMove } from '../prefs-utils'
 import type { PrefsGetter } from './backend'
 
-/**
- * True for a path inside a repo's internal worktree folder
- * (`<repo>/.phosphor/worktrees/<name>`). A worktree is a branch of an existing
- * workspace, not a workspace itself, so it must never persist as one.
- */
-// `.pidex` is the pre-rename (2026-09-08) folder; existing lanes still live there.
-const WORKTREE_SEGMENT = /[/\\]\.(?:phosphor|pidex)[/\\]worktrees[/\\]/
-export function isWorktreeFolder(path: string): boolean {
-  return WORKTREE_SEGMENT.test(path)
-}
+// The frozen worktree-segment characterization imports isWorktreeFolder from here.
+export { isWorktreeFolder }
 
 /**
  * A folder's real path, or null when it is gone.

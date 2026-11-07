@@ -1,6 +1,7 @@
 import { isFilePath } from '@shared/host-protocol-files'
 import { useSessionsStore } from '@/stores/sessions'
-import { sessionHostLane, useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
+import { sessionHostLane, useRemoteLanesStore } from '@/stores/remoteLanes'
 import type { RevealTarget } from '@/stores/files'
 let sequence = 0
 import { useRemoteFileSelection } from './remoteFileSelectionStore'

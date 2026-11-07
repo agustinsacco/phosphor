@@ -83,7 +83,8 @@ exit 1.
 
 `packages:installPi` runs `npm install -g @earendil-works/pi-coding-agent`
 through `piProcessEnv()` (login-shell PATH, so fnm/nvm work from a GUI launch)
-and reports plainly when npm itself is unreachable.
+and reports plainly when npm itself is unreachable. One install runs at a time: a
+second request while it runs ends at once with "pi is already being installed."
 
 ## Surfaces
 

@@ -1,5 +1,6 @@
 import {
   indexSessionFile,
+  readIndex,
   writeIndex,
   type SessionArtifactIndex,
 } from '@phosphor/session-runtime/artifacts/artifact-indexer'
@@ -17,6 +18,20 @@ export interface ArtifactLanePorts {
   store: Pick<HostStore, 'getLane' | 'listLanes'>
   admitted(laneId: string): boolean
   requireLane(laneId: string): void
+  /** A lane the all-lanes list left out, and why. */
+  skipped?(laneId: string, reason: string): void
+}
+
+/** pi names session files `<timestamp>_<session id>.jsonl`; the store keys on that id. */
+const PI_SESSION_FILE = /_([0-9A-Za-z-]{8,128})\.jsonl$/
+
+/**
+ * The index this file was last saved under, to resume from. A wrong guess only
+ * costs a full scan: the indexer resumes only an index of this very file.
+ */
+function savedIndex(root: string, sessionFile: string): SessionArtifactIndex | null {
+  const id = PI_SESSION_FILE.exec(sessionFile)?.[1]
+  return id ? readIndex(root, id) : null
 }
 
 export async function indexArtifacts(
@@ -27,9 +42,35 @@ export async function indexArtifacts(
   const lane = store.getLane(laneId)
   if (!lane || lane.removedAt !== null) throw new FeatureFailure('unknown-lane')
   if (!lane.sessionFile) return null
-  const saved = await indexSessionFile(root, lane.sessionFile, null, ARTIFACT_LIMITS.sessionBytes)
-  if (saved) await writeIndex(root, saved)
+  const previous = savedIndex(root, lane.sessionFile)
+  const saved = await indexSessionFile(
+    root,
+    lane.sessionFile,
+    previous,
+    ARTIFACT_LIMITS.sessionBytes,
+  )
+  if (saved && saved !== previous) await writeIndex(root, saved)
   return saved
+}
+
+/**
+ * One lane's index for the all-lanes list. A lane that cannot be scanned (its
+ * first scan is past the cap, its file unreadable) is left out and logged, so
+ * it never blanks every other lane on this Host.
+ */
+async function indexForList(
+  root: string,
+  ports: ArtifactLanePorts,
+  laneId: string,
+): Promise<SessionArtifactIndex | null> {
+  try {
+    return await indexArtifacts(root, ports.store, laneId)
+  } catch (error) {
+    if (error instanceof FeatureFailure) throw error
+    const tooLarge = error instanceof Error && error.message === 'session-too-large'
+    ports.skipped?.(laneId, tooLarge ? 'too-large' : 'internal')
+    return null
+  }
 }
 
 export async function listArtifacts(
@@ -48,7 +89,9 @@ export async function listArtifacts(
   let metadataBytes = 0
   for (const laneId of lanes) {
     if (!requestedLaneId && !ports.admitted(laneId)) continue
-    const saved = await indexArtifacts(root, ports.store, laneId)
+    const saved = requestedLaneId
+      ? await indexArtifacts(root, ports.store, laneId)
+      : await indexForList(root, ports, laneId)
     if (!saved) continue
     for (const a of Object.values(saved.artifacts)) {
       const versions = a.versions.filter((v) => v.onBranch).sort((a, b) => a.version - b.version)
