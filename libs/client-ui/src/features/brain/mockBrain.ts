@@ -12,6 +12,9 @@ import {
   type BrainStatus,
 } from '@shared/brain'
 
+import type { BrainLearningConsent, BrainLearningTarget } from '@shared/brain-learning-jobs'
+import { createMockBrainLearning } from './mockBrainLearning'
+
 /** Synthetic browser-harness simulation. Never reads files, downloads, or runs models. */
 const state: BrainStatus = {
   supported: true,
@@ -36,6 +39,7 @@ const state: BrainStatus = {
     truncated: false,
   },
 }
+const learning = createMockBrainLearning(state)
 let evidence: BrainEvidence[] = []
 function checkRevision(revision: BrainRevision): void {
   if (
@@ -232,6 +236,16 @@ export async function mockBrainCall(channel: string, args: unknown[]): Promise<u
       state.embedding.phase = 'missing'
       state.embedding.receivedBytes = 0
       return structuredClone(state)
+    case 'brain:learnPreview':
+      return structuredClone(learning.preview(args[0] as BrainLearningTarget))
+    case 'brain:learn':
+      return structuredClone(
+        learning.learn(args[0] as BrainLearningTarget, args[1] as BrainLearningConsent),
+      )
+    case 'brain:learningJobs':
+      return structuredClone(learning.list(args[0] as string | undefined))
+    case 'brain:learningDetail':
+      return structuredClone(learning.detail(String(args[0])))
     case 'brain:process':
       return structuredClone(process(String(args[0]), args[1] as BrainProcessConsent))
     case 'brain:review':

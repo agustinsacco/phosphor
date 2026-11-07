@@ -1,3 +1,6 @@
+import { LearningIndicator } from '@/features/brain/LearningIndicator'
+import { useLaneLearning } from '@/features/brain/useLaneLearning'
+import { laneActions } from './laneActions'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { MachineLabelLine } from './MachineSwitcher'
 import { SidebarFooter, SidebarNavigation } from './SidebarNavigation'
@@ -1406,85 +1409,70 @@ function SessionRow({
   const rowWorkspaceName = projectName(meta.cwd || workspacePath, git)
 
   const open = (): void => openSidebarConversation(workspacePath, meta)
+  const { learning, learn } = useLaneLearning(
+    meta.cwd,
+    meta.path,
+    livePhosphorId,
+    isStreaming || delegated || booting || opening || deleting || bulkDeleteRunning,
+    git?.mainRepoPath || meta.cwd,
+  )
   const menuItems = (): ContextMenuItem[] => {
     const store = useSessionsStore.getState()
-    return [
-      { label: 'Open', onClick: open },
-      ...orderActions,
-      { label: 'Session tree…', onClick: onOpenTree },
-      ...completionActions(workspacePath, meta),
+    const completion = completionActions(workspacePath, meta)
+    return laneActions(
       {
-        label: 'Make routine…',
-        onClick: () => makeRoutine(workspacePath, meta.name ?? '', meta.firstUserText ?? ''),
+        pinned: isPinned,
+        markers: markerMode,
+        pr: pullRequest ?? null,
+        unseen,
+        running: !!livePhosphorId,
+        completed: !!meta.completedAt,
+        worktreeRemoved: meta.worktreeRemoved,
+        learning,
+        spend: meta.cost > 0 ? { hint: formatCost(meta.cost) } : undefined,
+        busy: deleting,
+        refusals: bulkDeleteRunning ? { delete: 'another delete is running' } : {},
+        hints: { stop: '~200 MB', delete: 'to trash' },
       },
       {
-        label: isPinned ? 'Unpin' : 'Pin',
-        onClick: () => store.togglePin(meta.path),
+        open,
+        tree: onOpenTree,
+        learn,
+        completion: completion[0]?.onClick,
+        restoreWorktree: completion[1]?.onClick,
+        makeRoutine: () => makeRoutine(workspacePath, meta.name ?? '', meta.firstUserText ?? ''),
+        pin: () => store.togglePin(meta.path),
+        marker: () => setPickingMarker(true),
+        openPullRequest: pullRequest
+          ? () => {
+              void openPullRequest(pullRequest)
+            }
+          : undefined,
+        stop: livePhosphorId
+          ? () => {
+              void store.suspendSession(livePhosphorId)
+            }
+          : undefined,
+        markRead: () => store.markRead(meta.path, livePhosphorId),
+        fork: () => {
+          void store.createSession(workspacePath, { forkFrom: meta.path })
+        },
+        clone: () => {
+          void cloneSession(workspacePath, meta, livePhosphorId)
+        },
+        exportHtml: () => {
+          void exportSidebarSession(workspacePath, meta, livePhosphorId)
+        },
+        copyDebugInfo: () => {
+          void copySessionDebugInfo(meta, livePhosphorId)
+        },
+        copySpend: () => {
+          void copySpend(meta.cost)
+        },
+        delete: () => onDelete(title),
       },
-      ...(markerMode === 'off'
-        ? []
-        : [{ label: 'Lane marker…', onClick: () => setPickingMarker(true) }]),
-      // Keyboard route for the PR chip (see PrBadge).
-      ...(pullRequest
-        ? [
-            {
-              label: `Open pull request #${pullRequest.number}`,
-              hint: pullRequest.state.toLowerCase(),
-              onClick: () => void openPullRequest(pullRequest),
-            },
-          ]
-        : []),
-      // "Stop", as on a Host lane: the process ends, the transcript stays.
-      ...(livePhosphorId
-        ? [
-            {
-              label: 'Stop',
-              hint: '~200 MB',
-              onClick: () => void store.suspendSession(livePhosphorId),
-            },
-          ]
-        : []),
-      ...(unseen
-        ? [{ label: 'Mark read', onClick: () => store.markRead(meta.path, livePhosphorId) }]
-        : []),
-      {
-        label: 'Fork',
-        hint: 'new branch',
-        separatorAbove: true,
-        onClick: () => void store.createSession(workspacePath, { forkFrom: meta.path }),
-      },
-      {
-        label: 'Clone',
-        onClick: () => void cloneSession(workspacePath, meta, livePhosphorId),
-      },
-      {
-        label: 'Export HTML…',
-        onClick: () => void exportSidebarSession(workspacePath, meta, livePhosphorId),
-      },
-      {
-        label: 'Copy debug info',
-        onClick: () => void copySessionDebugInfo(meta, livePhosphorId),
-      },
-      // Spend left the row itself: it is a detail you go looking for, so it
-      // waits here (and in the Home ledger) rather than trailing every lane.
-      ...(meta.cost > 0
-        ? [
-            {
-              label: 'Copy spend',
-              hint: formatCost(meta.cost),
-              onClick: () => void copySpend(meta.cost),
-            },
-          ]
-        : []),
-      {
-        label: 'Delete',
-        hint: bulkDeleteRunning ? 'another delete is running' : 'to trash',
-        danger: true,
-        separatorAbove: true,
-        disabled: bulkDeleteRunning,
-        onClick: () => onDelete(title),
-      },
-    ]
+      orderActions,
+    )
   }
   const menu = useMenuTriggers(menuItems, { title })
 
@@ -1634,28 +1622,31 @@ function SessionRow({
 
   return (
     <>
-      <LaneRow
-        onClick={open}
-        {...menu}
-        onDoubleClick={beginRename}
-        disabled={deleting}
-        aria-busy={deleting}
-        data-testid="session-row"
-        data-workspace={rowWorkspaceName}
-        data-activity={activity}
-        data-deleting={deleting || undefined}
-        tooltip={deleting ? 'Deleting lane' : title}
-        title={
-          deleting
-            ? 'This lane is being deleted'
-            : meta.branchCount > 0
-              ? `${meta.branchCount + 1} branches`
-              : undefined
-        }
-        className={rowClassName}
-      >
-        {body}
-      </LaneRow>
+      <div className="flex items-center">
+        <LaneRow
+          onClick={open}
+          {...menu}
+          onDoubleClick={beginRename}
+          disabled={deleting}
+          aria-busy={deleting}
+          data-testid="session-row"
+          data-workspace={rowWorkspaceName}
+          data-activity={activity}
+          data-deleting={deleting || undefined}
+          tooltip={deleting ? 'Deleting lane' : title}
+          title={
+            deleting
+              ? 'This lane is being deleted'
+              : meta.branchCount > 0
+                ? `${meta.branchCount + 1} branches`
+                : undefined
+          }
+          className={rowClassName}
+        >
+          {body}
+        </LaneRow>
+        <LearningIndicator sessionPath={meta.path} />
+      </div>
       {markerPicker}
     </>
   )

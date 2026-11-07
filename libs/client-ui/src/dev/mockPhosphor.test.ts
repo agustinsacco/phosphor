@@ -49,3 +49,24 @@ it("lists This Mac's Claude provider by its package name, as the provider row ma
     CLAUDE_PROVIDER_PACKAGE,
   )
 })
+it('dispatches the four typed synthetic learning channels without a manual processor', async () => {
+  const { DEFAULT_BRAIN_PREFS } = await import('@shared/brain')
+  await window.phosphor.invoke('brain:setPrefs', {
+    ...DEFAULT_BRAIN_PREFS,
+    enabled: true,
+    workspaces: ['/synthetic'],
+    processor: null,
+  })
+  const target = { workspacePath: '/synthetic', sessionPath: '/synthetic/mock.jsonl' }
+  const preview = await window.phosphor.invoke('brain:learnPreview', target)
+  const job = await window.phosphor.invoke('brain:learn', target, {
+    policyEpoch: preview.policyEpoch,
+    fingerprint: preview.fingerprint,
+  })
+  expect(
+    (await window.phosphor.invoke('brain:learningJobs')).items.some((item) => item.id === job.id),
+  ).toBe(true)
+  expect((await window.phosphor.invoke('brain:learningDetail', job.id)).outcome?.type).toBe(
+    'no_findings',
+  )
+})

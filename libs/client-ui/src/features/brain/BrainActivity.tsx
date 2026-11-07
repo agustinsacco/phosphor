@@ -5,6 +5,7 @@ import { Button } from '@/components/form'
 import { BrainEvidence } from './BrainEvidence'
 import { BrainCapturedEvidence } from './BrainCapturedEvidence'
 import type { BrainAction } from './useBrain'
+import { inspectLearning } from './learningUi'
 
 type ActivityProps = { snapshot: BrainSnapshot; busy: boolean; act: BrainAction }
 export function BrainActivity(props: ActivityProps): React.JSX.Element {
@@ -42,14 +43,16 @@ export function BrainActivity(props: ActivityProps): React.JSX.Element {
               </Button>
             )}
             <Button
-              disabled={busy || !job.sessionPath}
+              disabled={busy || (!job.learning && !job.sessionPath)}
               onClick={() => {
-                void act(async () =>
-                  setTranscript(await window.phosphor.invoke('brain:transcript', job.id)),
-                )
+                if (job.learning) inspectLearning(job.id)
+                else
+                  void act(async () =>
+                    setTranscript(await window.phosphor.invoke('brain:transcript', job.id)),
+                  )
               }}
             >
-              Read-only transcript
+              {job.learning ? 'Private learning inspector' : 'Read-only transcript'}
             </Button>
           </div>
         </article>
@@ -68,7 +71,7 @@ export function BrainActivity(props: ActivityProps): React.JSX.Element {
       {snapshot.proposals
         .filter((p) => p.state === 'pending')
         .map((proposal) => (
-          <Proposal
+          <BrainProposalReview
             key={`${proposal.id}:${proposal.graphRevision}:${proposal.policyEpoch}`}
             proposal={proposal}
             current={snapshot}
@@ -144,7 +147,7 @@ function ProcessWorkspace({ snapshot, busy, act }: ActivityProps): React.JSX.Ele
   )
 }
 
-function Proposal({
+export function BrainProposalReview({
   proposal,
   current,
   busy,
@@ -193,7 +196,7 @@ function Proposal({
       <p>
         Approval uses graph revision {revision.graphRevision}, policy epoch {revision.policyEpoch}.
         {stale
-          ? ' This proposal is stale. Process again with current consent to produce a new review.'
+          ? ' This proposal is stale; approval is refused. Refresh the review before deciding whether to explicitly reprocess. No generation starts from review.'
           : ' Stale approval is refused.'}
         {stale && samePolicy && ' You can reject this graph-stale proposal.'}
       </p>

@@ -12,7 +12,11 @@ export function BrainEvidenceRecord({
       </h3>
       <p>
         {e.scope} · observed {new Date(e.observedAt).toLocaleString()} · {e.rootIds.length}{' '}
-        independent root(s)
+        source/dependency root(s)
+      </p>
+      <p>
+        Dependency roots do not establish independent corroboration. Assistant text and compaction
+        summaries are generated context, not independent observations.
       </p>
       <p>
         Branch: {e.branch ?? 'project-wide'} · session {e.sessionId} · entry {e.entryId}

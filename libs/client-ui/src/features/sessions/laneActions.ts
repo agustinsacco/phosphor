@@ -5,6 +5,7 @@ export type LaneActionId =
   | 'open'
   | 'rename'
   | 'tree'
+  | 'learn'
   | 'completion'
   | 'restoreWorktree'
   | 'makeRoutine'
@@ -25,6 +26,8 @@ export type LaneActionId =
 /** One lane, machine-blind: data and refusals only. */
 export interface LaneActionContext {
   pinned: boolean
+  /** Only a capable shell with an actual local persisted source supplies this. */
+  learning?: { localSource: boolean; ready: boolean; private: boolean; busy: boolean }
   markers: LanePrefs['markers']
   pr: { number: number; state?: string } | null
   unseen: boolean
@@ -75,6 +78,7 @@ export function laneActions(
     ...order,
     ...offer('rename', 'Rename…', handlers.rename),
     ...offer('tree', 'Session tree…', handlers.tree),
+    ...learningAction(ctx, handlers.learn),
     ...(ctx.completed === undefined
       ? []
       : offer(
@@ -118,6 +122,17 @@ export function laneActions(
     danger: true,
   }))
   return [...lane, ...section(copies), ...section(remove)]
+}
+
+function learningAction(ctx: LaneActionContext, onClick?: () => void): ContextMenuItem[] {
+  const source = ctx.learning
+  if (!source?.localSource || source.private || !onClick) return []
+  const refusal =
+    ctx.refusals.learn ??
+    (!source.ready ? 'Source not ready' : source.busy ? 'Source is busy' : undefined)
+  return [
+    { label: 'Learn from this lane…', onClick, disabled: ctx.busy || !!refusal, hint: refusal },
+  ]
 }
 
 /** A section opens with a separator, whichever of its items the machine offers first. */

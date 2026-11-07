@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrainStatus } from '@shared/brain'
+import { setLearningPolicy } from './learningUi'
 
 export type BrainAction = (operation: () => Promise<unknown>) => Promise<boolean>
 
@@ -25,6 +26,7 @@ export function useBrain(): {
       const next = await window.phosphor.invoke('brain:status')
       if (mounted.current) {
         setStatus(next)
+        setLearningPolicy(next)
         setLoadError('')
       }
     } catch (cause) {
