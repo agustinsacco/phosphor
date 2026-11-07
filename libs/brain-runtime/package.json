@@ -4,6 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./learning-source": {
+      "types": "./src/learning-source.ts",
+      "default": "./src/learning-source.ts"
+    },
+    "./learning-port": {
+      "types": "./src/learning-port.ts",
+      "default": "./src/learning-port.ts"
+    },
     "./authority": {
       "types": "./src/authority.ts",
       "default": "./src/authority.ts"

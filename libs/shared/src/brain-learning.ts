@@ -1,4 +1,4 @@
-import type { BrainEpistemicKind } from './brain'
+import type { BrainEntityKind, BrainEpistemicKind, BrainPredicate } from './brain'
 import type { ThinkingLevel } from './rpc'
 
 /** Private learning contract; not a public IPC channel or an ordinary Brain processor. */
@@ -35,6 +35,8 @@ export interface BrainLearningCheckpoint {
   source: BrainLearningSource
   projectionDigest: string
   covered: BrainLearningCoverage[]
+  /** Original input dependencies of all projected text, including generated summaries. */
+  rootIds: string[]
 }
 export interface BrainLearningRequest {
   version: 1
@@ -51,13 +53,25 @@ export interface BrainLearningCitation {
   role: 'user' | 'assistant' | 'toolResult'
   quote: string
 }
+export interface BrainLearningEntity {
+  label: string
+  kind: BrainEntityKind
+}
 export interface BrainLearningFinding {
+  subject: BrainLearningEntity
+  predicate: BrainPredicate
+  object?: BrainLearningEntity
+  literal?: string
+  validFrom: number | null
+  validTo: number | null
   summary: string
   kind: BrainEpistemicKind
   citations: BrainLearningCitation[]
 }
 export interface BrainLearningEvidence extends BrainLearningCoverage {
   evidenceId: string
+  /** Dependency roots, not a count of independent corroborating observations. */
+  rootIds: string[]
   role: BrainLearningCitation['role']
   text: string
   /** Summaries are evidence of the summary, never of omitted raw entries. */

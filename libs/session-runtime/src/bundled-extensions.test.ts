@@ -20,6 +20,10 @@ describe('bundledExtensions', () => {
       'subagent-snapshot.ts',
       'status-keys.ts',
       'pi-api.ts',
+      'brain-learning.ts',
+      'brain-learning-context.ts',
+      'brain-learning-result.ts',
+      'brain-learning-provenance.ts',
     ])
     // Opt-in Brain resources are bundled separately, never added to every session.
     const optional = new Set(['brain.ts', 'brain-processor.ts'])

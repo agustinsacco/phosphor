@@ -208,7 +208,7 @@ describe('Brain resources and native packaging', () => {
     const piExt = {
       from: '../../libs/pi-extensions/pi-ext',
       to: 'pi-ext',
-      filter: ['**/*.ts', '!**/*.test.ts', '!brain.ts', '!brain-processor.ts'],
+      filter: ['**/*.ts', '!**/*.test.ts', '!brain*.ts'],
     }
     expect(config.extraResources).toContainEqual(piExt)
     expect(config.extraResources).toContainEqual({

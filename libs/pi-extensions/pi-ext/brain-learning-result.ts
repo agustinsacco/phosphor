@@ -1,4 +1,7 @@
+import { BRAIN_ENTITY_KINDS, BRAIN_PREDICATES } from '@phosphor/shared/brain'
 import type {
+  BrainLearningEntity,
+  BrainLearningFinding,
   BrainLearningEvidence,
   BrainLearningResult,
   BrainLearningUsage,
@@ -19,6 +22,39 @@ function boundedText(value: unknown, max: number): string {
     throw new Error('Invalid learning text')
   return value
 }
+function entity(value: unknown): BrainLearningEntity {
+  const raw = object(value, ['label', 'kind'])
+  if (!BRAIN_ENTITY_KINDS.includes(raw.kind as BrainLearningEntity['kind']))
+    throw new Error('Invalid learning entity kind')
+  return { label: boundedText(raw.label, 500), kind: raw.kind as BrainLearningEntity['kind'] }
+}
+function semantics(
+  raw: Record<string, unknown>,
+): Pick<
+  BrainLearningFinding,
+  'subject' | 'predicate' | 'object' | 'literal' | 'validFrom' | 'validTo'
+> {
+  if (!BRAIN_PREDICATES.includes(raw.predicate as BrainLearningFinding['predicate']))
+    throw new Error('Invalid learning predicate')
+  if (Object.hasOwn(raw, 'object') === Object.hasOwn(raw, 'literal'))
+    throw new Error('Learning requires exactly one object or literal')
+  for (const key of ['validFrom', 'validTo'])
+    if (raw[key] !== null && (!Number.isSafeInteger(raw[key]) || Number(raw[key]) < 0))
+      throw new Error('Invalid learning time')
+  const validFrom = raw.validFrom as number | null
+  const validTo = raw.validTo as number | null
+  if (validFrom !== null && validTo !== null && validFrom >= validTo)
+    throw new Error('Invalid learning time range')
+  return {
+    subject: entity(raw.subject),
+    predicate: raw.predicate as BrainLearningFinding['predicate'],
+    ...(Object.hasOwn(raw, 'object')
+      ? { object: entity(raw.object) }
+      : { literal: boundedText(raw.literal, 2000) }),
+    validFrom,
+    validTo,
+  }
+}
 export function resolveLearningOutcome(
   text: string,
   evidence: BrainLearningEvidence[],
@@ -34,7 +70,18 @@ export function resolveLearningOutcome(
   )
     throw new Error('Invalid learning findings')
   const findings = raw.findings.map((value: unknown) => {
-    const finding = object(value, ['summary', 'kind', 'citations'])
+    const finding = object(value, [
+      'summary',
+      'kind',
+      'citations',
+      'subject',
+      'predicate',
+      'object',
+      'literal',
+      'validFrom',
+      'validTo',
+    ])
+    const semantic = semantics(finding)
     const summary = boundedText(finding.summary, 2000)
     if (finding.kind !== 'observed' && finding.kind !== 'reported' && finding.kind !== 'inferred')
       throw new Error('Invalid learning epistemic kind')
@@ -55,7 +102,7 @@ export function resolveLearningOutcome(
       return { evidenceId: matches[0]!.evidenceId, quote }
     })
     const kind: 'observed' | 'reported' | 'inferred' = finding.kind
-    return { summary, kind, citations }
+    return { ...semantic, summary, kind, citations }
   })
   return { type: 'findings', findings }
 }

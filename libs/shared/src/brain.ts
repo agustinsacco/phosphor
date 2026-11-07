@@ -1,3 +1,5 @@
+import type { BrainLearningJobMetadata } from './brain-learning-jobs'
+
 /** Brain v1: machine-local, opt-in, reviewed memory. No credentials or database paths. */
 export const BRAIN_PROTOCOL = 1
 export const BRAIN_PROCESSOR_TOOLS = ['brain_job', 'brain_propose'] as const
@@ -20,8 +22,17 @@ export const BRAIN_PREDICATES = [
   'about',
 ] as const
 export type BrainPredicate = (typeof BRAIN_PREDICATES)[number]
-export type BrainEntityKind =
-  'person' | 'team' | 'project' | 'customer' | 'component' | 'incident' | 'contract' | 'concept'
+export const BRAIN_ENTITY_KINDS = [
+  'person',
+  'team',
+  'project',
+  'customer',
+  'component',
+  'incident',
+  'contract',
+  'concept',
+] as const
+export type BrainEntityKind = (typeof BRAIN_ENTITY_KINDS)[number]
 export type BrainEpistemicKind = 'observed' | 'reported' | 'inferred'
 export interface BrainModel {
   provider: string
@@ -137,7 +148,8 @@ export interface BrainJob extends BrainRevision {
   scope: string
   evidenceIds: string[]
   model: BrainModel
-  state: 'queued' | 'running' | 'proposed' | 'failed' | 'cancelled' | 'interrupted'
+  state: 'queued' | 'running' | 'proposed' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
+  learning?: BrainLearningJobMetadata
   fence: number
   createdAt: number
   updatedAt: number

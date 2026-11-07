@@ -28,7 +28,7 @@ extraResources:
   # resolve from an installed app; they ship only as brain-ext's bundles.
   - from: ../../libs/pi-extensions/pi-ext
     to: pi-ext
-    filter: ['**/*.ts', '!**/*.test.ts', '!brain.ts', '!brain-processor.ts']
+    filter: ['**/*.ts', '!**/*.test.ts', '!brain*.ts']
   # Staged by the main build (electron.vite.config.ts). Nothing enables them.
   - from: ../../libs/pi-extensions/brain-ext
     to: brain-ext

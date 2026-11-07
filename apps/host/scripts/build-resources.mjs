@@ -2,7 +2,7 @@
 // folder is given, pi's bundled extensions with Desktop's filter, the
 // skills, copied whole, and Brain's standalone bundles in brain-ext/. The
 // build fails when pi-ext lacks one of the six or a Brain source.
-import { cpSync, existsSync, statSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { build } from 'esbuild'
 import { validateNative } from '../../../tools/host-release/build-native.mjs'
@@ -36,7 +36,11 @@ export async function stageResources(stage, { root, native, target }) {
   if (native) stageNative(stage, native, target)
   const piExt = join(root, 'libs/pi-extensions/pi-ext')
   // Brain's sources import workspace packages; only their bundles ship.
-  const brainSources = new Set(BRAIN_EXTENSION_SOURCES.map((file) => join(piExt, file)))
+  const brainSources = new Set(
+    readdirSync(piExt)
+      .filter((file) => file.startsWith('brain') && file.endsWith('.ts'))
+      .map((file) => join(piExt, file)),
+  )
   // Every session loads these from <bundle folder>/pi-ext, with Desktop's filter.
   cpSync(piExt, join(stage, 'pi-ext'), {
     recursive: true,

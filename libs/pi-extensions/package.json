@@ -4,6 +4,22 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./brain-learning": {
+      "types": "./pi-ext/brain-learning.ts",
+      "default": "./pi-ext/brain-learning.ts"
+    },
+    "./brain-learning-context": {
+      "types": "./pi-ext/brain-learning-context.ts",
+      "default": "./pi-ext/brain-learning-context.ts"
+    },
+    "./brain-learning-result": {
+      "types": "./pi-ext/brain-learning-result.ts",
+      "default": "./pi-ext/brain-learning-result.ts"
+    },
+    "./brain-learning-provenance": {
+      "types": "./pi-ext/brain-learning-provenance.ts",
+      "default": "./pi-ext/brain-learning-provenance.ts"
+    },
     "./brain": {
       "types": "./pi-ext/brain.ts",
       "default": "./pi-ext/brain.ts"

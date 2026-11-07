@@ -4,6 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./brain-learning": {
+      "types": "./src/brain-learning.ts",
+      "default": "./src/brain-learning.ts"
+    },
+    "./brain-learning-jobs": {
+      "types": "./src/brain-learning-jobs.ts",
+      "default": "./src/brain-learning-jobs.ts"
+    },
     "./base64": {
       "types": "./src/base64.ts",
       "default": "./src/base64.ts"

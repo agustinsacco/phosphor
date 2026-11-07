@@ -10,6 +10,7 @@ const evidence: BrainLearningEvidence[] = [
     rootId: 'root',
     projectedHash: 'projection',
     evidenceId: 'evidence',
+    rootIds: ['source'],
     role: 'user',
     text: 'Atlas depends on Mercury.',
     sourceType: 'message',
