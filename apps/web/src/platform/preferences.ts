@@ -108,7 +108,7 @@ function sidebarPreferences(
     })
   // A write waits for the owner check, so a clear can never land after it.
   const setter = (field: SidebarField) => async (value: string[]) => {
-    await owner.checked()
+    if (!(await owner.writable())) return
     prefs[field] = sidebarKeys(value)
     save()
   }
@@ -146,17 +146,24 @@ async function ownerTag(owner: string | null): Promise<string | null> {
 /**
  * Records that belong to the signed-in owner stay withheld until the owner is known: kept when
  * the stored tag matches, cleared (and re-tagged, or untagged when signed out) otherwise.
+ * The page's stores hold the first signed-in owner's records in memory, so when a different
+ * owner signs in on the open page its owner-scoped writes are dropped and the page reloads once.
  */
-function ownerRecords(storage: PreferenceStorage | undefined) {
+function ownerRecords(storage: PreferenceStorage | undefined, reload: () => void) {
   const records: OwnedRecords[] = []
   let checked = Promise.resolve()
   let latest = 0
+  let pageOwner: string | null = null
+  let switching = false
   return {
     own: (record: OwnedRecords) => void records.push(record),
     adopt(owner: string | null) {
       const run = ++latest
       checked = ownerTag(owner).then((tag) => {
         if (run !== latest) return
+        const reloading = !switching && !!tag && !!pageOwner && tag !== pageOwner
+        switching ||= reloading
+        pageOwner ||= tag
         let stored: string | null = null
         try {
           stored = storage?.getItem(OWNER_KEY) ?? null
@@ -170,11 +177,19 @@ function ownerRecords(storage: PreferenceStorage | undefined) {
         } catch {
           /* Memory-only fallback. */
         }
+        try {
+          // At most once per page, so a stubbed or failing reload cannot spin.
+          if (reloading) reload()
+        } catch {
+          /* The writes stay dropped until the page reloads. */
+        }
       })
       return checked
     },
     /** Settles once the latest owner check has restored or cleared the owner's records. */
     checked: () => checked,
+    /** After the latest owner check: false once another owner signed in on this page. */
+    writable: () => checked.then(() => !switching),
   }
 }
 interface OwnedRecords {
@@ -206,13 +221,17 @@ function lanePreferences(prefs: AppPrefs, storage: PreferenceStorage | undefined
   }
 }
 
-export function createBrowserPreferences(storage?: PreferenceStorage) {
+/** `reload` runs once when a different owner signs in on the open page. */
+export function createBrowserPreferences(
+  storage?: PreferenceStorage,
+  reload: () => void = () => {},
+) {
   const prefs: AppPrefs = structuredClone(DEFAULT_APP_PREFS)
   // Learning prompts and native background services are never enabled by browser defaults.
   prefs.writing = { spellcheck: true, autocomplete: false }
   const theme = String(storedRecord(storage, KEY, APPEARANCE_MAX_CHARS)?.theme)
   if (['light', 'dark', 'system'].includes(theme)) prefs.theme = theme as ThemePreference
-  const owner = ownerRecords(storage)
+  const owner = ownerRecords(storage, reload)
   const sidebar = sidebarPreferences(prefs, storage, owner)
   return {
     ...lanePreferences(prefs, storage),

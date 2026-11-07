@@ -26,13 +26,17 @@ function memoryStorage(initial: Record<string, string> = {}) {
 function bridge(
   storage: ReturnType<typeof memoryStorage>,
   user: () => string | null,
-  reload = vi.fn(),
+  { reload = vi.fn(), client = (id: string) => id } = {},
 ) {
   const fetch = vi.fn<typeof globalThis.fetch>(async (path) => {
     const id = user()
     if (path === '/api/auth/session')
       return id
-        ? json({ user: { id, login: 'fixture' }, clientId: id, csrfToken: id.replace(/-/g, '') })
+        ? json({
+            user: { id, login: 'fixture' },
+            clientId: client(id),
+            csrfToken: client(id).replace(/-/g, ''),
+          })
         : new Response('', { status: 401 })
     if (path === '/api/v1/machines')
       return json({ machines: [], serverTime: new Date().toISOString() })
@@ -44,7 +48,7 @@ function bridge(
     navigate: () => {},
     invalidation: null,
     lifecycle: { subscribe: () => () => {} },
-    ...{ reload },
+    reload,
   })
   disposals.push(adapter.dispose)
   return adapter
@@ -122,7 +126,7 @@ it("reloads once, and writes none of A's keys under B's tag, when B signs in on 
   const storage = memoryStorage()
   const reload = vi.fn()
   let user: string | null = A
-  const adapter = bridge(storage, () => user, reload)
+  const adapter = bridge(storage, () => user, { reload })
   await adapter.start()
   await adapter.api.invoke('app:setSessionOrder', ORDER)
   user = null
@@ -135,5 +139,54 @@ it("reloads once, and writes none of A's keys under B's tag, when B signs in on 
   expect(reload).toHaveBeenCalledTimes(1)
   expect(storage.items.get(OWNER_KEY)).toBe(await tag(B))
   expect(storage.items.get(SIDEBAR_KEY)).not.toContain(ORDER[0])
+  expect((await adapter.api.invoke('app:getPrefs')).sessionOrder).toEqual([])
+})
+
+/** A bridge that sees `owners` in turn on one open page, then writes A's order back. */
+async function openPage(owners: (string | null)[], options: Parameters<typeof bridge>[2] = {}) {
+  const storage = await storedForA()
+  const appearance = storage.items.get(APPEARANCE_KEY)
+  let user = owners[0] ?? null
+  const adapter = bridge(storage, () => user, options)
+  for (const owner of owners) {
+    user = owner
+    await adapter.start()
+    await adapter.api.invoke('app:getPrefs')
+  }
+  await adapter.api.invoke('app:setSessionOrder', ORDER)
+  expect(storage.items.get(APPEARANCE_KEY)).toBe(appearance)
+  return { storage, adapter }
+}
+
+it.each([
+  ['a fresh load', [A]],
+  ['A, signed out, then A', [A, null, A]],
+  ['signed out, then A', [null, A]],
+])('does not reload, and keeps the write, for %s', async (_, owners) => {
+  const reload = vi.fn()
+  const { storage } = await openPage(owners, { reload })
+  expect(reload).not.toHaveBeenCalled()
+  expect(sidebarIn(storage).sessionOrder).toEqual(ORDER)
+})
+
+it('does not reload for the same owner with a new client id and CSRF token', async () => {
+  const reload = vi.fn()
+  let session = 0
+  const { storage } = await openPage([A, A], {
+    reload,
+    client: (id) => `${id.slice(0, -2)}${++session}0`,
+  })
+  expect(session).toBeGreaterThan(1)
+  expect(reload).not.toHaveBeenCalled()
+  expect(sidebarIn(storage).sessionOrder).toEqual(ORDER)
+})
+
+it('reloads at most once and keeps dropping writes when the reload fails', async () => {
+  const reload = vi.fn(() => {
+    throw new Error('Reload blocked.')
+  })
+  const { storage, adapter } = await openPage([A, B, null, A], { reload })
+  expect(reload).toHaveBeenCalledTimes(1)
+  expect(sidebarIn(storage).sessionOrder).toEqual([])
   expect((await adapter.api.invoke('app:getPrefs')).sessionOrder).toEqual([])
 })

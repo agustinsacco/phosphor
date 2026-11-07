@@ -284,9 +284,10 @@ email or a token. Until the first session read after a load names the owner, the
 prefs read withholds them (and waits for that check once it has started). The
 same owner keeps them across reloads; another owner, a signed-out load, sign-out
 and an unknown owner (no platform crypto) clear them, and the tag is rewritten,
-or emptied when signed out. A page that stays open across the change keeps its
-in-memory order and collapse and may write them back; those keys name the
-previous owner's Hosts, so they match no row. Browser font changes
+or emptied when signed out. When a different account signs in while a tab is
+open, the tab reloads, so nothing from the previous account carries over; until
+it does, the owner-scoped writes are dropped, and it reloads at most once. An
+unsent draft is lost on that reload, since drafts never persist in the browser. Browser font changes
 last until reload. Owner loss also clears remembered creation targets/model
 choices and resets browser isolation. Unsupported native file attachments are
 rejected.
