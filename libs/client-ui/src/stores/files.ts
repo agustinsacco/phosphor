@@ -135,6 +135,7 @@ export interface FilesState {
 
 /** What the store needs from a workspace's Files source; This Mac's tree until one is attached. */
 type FilesSourceTraits = Pick<FilesSource, 'listing' | 'writeRefusal'>
+// Not store state: only actions read it, after the pane's layout effect attached it.
 const sourceTraits = new Map<string, FilesSourceTraits>()
 
 /** The Files pane attaches its source, so listing and saving follow the lane's machine. */
