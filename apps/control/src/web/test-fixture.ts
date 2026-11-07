@@ -65,17 +65,28 @@ export function fixture(rpc?: (name: string, args: Record<string, unknown>) => u
   function access(id = userId, sessionId = sid) {
     return `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(now / 1000) + 120, aud: 'authenticated', sub: id, session_id: sessionId })).toString('base64url')}.c2ln`
   }
+  // Like Supabase, every refresh token is single-use and rotates on refresh.
+  let issued = 0
+  const spent = new Set<string>()
   const provider = () => ({
     access_token: access(refreshedUser, refreshedSid),
-    refresh_token: 'refresh-secret',
+    refresh_token: `refresh-secret-${++issued}`,
     expires_in: 120,
     user: { id: refreshedUser },
     provider_token: 'DISCARD-GITHUB-SECRET',
   })
-  deps.fetch = vi.fn(async (url) => {
+  deps.fetch = vi.fn(async (url, init?: RequestInit) => {
     if (unavailable) throw new Error('secret upstream diagnostic')
     if (String(url).includes('logout')) return new Response(null, { status: 204 })
-    if (String(url).includes('refresh_token')) await gate
+    if (String(url).includes('refresh_token')) {
+      await gate
+      const used = String(
+        (JSON.parse(String(init?.body)) as { refresh_token: string }).refresh_token,
+      )
+      if (spent.has(used))
+        return Response.json({ error_code: 'refresh_token_already_used' }, { status: 400 })
+      spent.add(used)
+    }
     return Response.json(provider())
   })
   deps.supabase.rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {

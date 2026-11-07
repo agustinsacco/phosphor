@@ -87,4 +87,3 @@ export function remoteSkillShare(connection: Connection) {
     },
   }
 }
-export type RemoteSkillShare = ReturnType<typeof remoteSkillShare>

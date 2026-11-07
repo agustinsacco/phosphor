@@ -2,7 +2,8 @@
 import { act, createElement, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { requestReveal, useLaneReveal, useLaneRevealStore } from './laneReveal'
+import { remotePrKey } from '@shared/host-protocol-github'
+import { remoteLaneGroupKey, requestReveal, useLaneReveal, useLaneRevealStore } from './laneReveal'
 
 beforeEach(() => useLaneRevealStore.setState({ seq: 0, groupKey: null }))
 let root: Root | undefined
@@ -37,4 +38,11 @@ it('reveals a group mounted after navigation', () => {
   const reveal = vi.fn()
   render(createElement(Hook, { reveal }))
   expect(reveal).toHaveBeenCalledTimes(1)
+})
+
+it('keys a Host folder group as its pull request key', () => {
+  const hostId = '00000000-0000-4000-8000-000000000001'
+  expect(remoteLaneGroupKey(hostId, '0123456789abcdef')).toBe(
+    remotePrKey(hostId, '0123456789abcdef'),
+  )
 })

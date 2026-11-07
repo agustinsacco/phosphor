@@ -1,3 +1,5 @@
+import { CLAUDE_PROVIDER_PACKAGE } from './models/claude-provider'
+
 /**
  * The pi packages Phosphor recommends, on every machine. pi packages run with
  * full system access, so an entry here says we have read that package's
@@ -20,8 +22,8 @@ export interface StandardPackage {
 
 export const STANDARD_PACKAGES: readonly StandardPackage[] = [
   {
-    name: '@saccolabs/pi-claude-cli',
-    spec: 'npm:@saccolabs/pi-claude-cli',
+    name: CLAUDE_PROVIDER_PACKAGE,
+    spec: `npm:${CLAUDE_PROVIDER_PACKAGE}`,
     title: 'Claude Code provider',
     description:
       'Use your Claude Pro/Max subscription as a model provider — routes LLM calls through the Claude Code CLI. Claude models appear in the model picker.',

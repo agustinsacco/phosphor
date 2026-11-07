@@ -16,7 +16,11 @@ import {
 import { readLinesFrom, readSignature } from '../pi/session-fold'
 import { extractText } from '../pi/session-content'
 
-export { blobFile, type SessionArtifactIndex } from '@phosphor/pi-extensions/artifact-store'
+export {
+  blobFile,
+  readIndex,
+  type SessionArtifactIndex,
+} from '@phosphor/pi-extensions/artifact-store'
 
 /**
  * Reads a pi session file into its artifact index, writing each distinct
@@ -252,6 +256,8 @@ function cloneArtifacts(artifacts: Record<string, StoredArtifact>): Record<strin
  *
  * Returns `previous` itself when nothing changed (callers skip the write), a
  * new index otherwise, and null when the file is missing or is not a session.
+ * `maxBytes` bounds what one call reads: a resumed scan reads only the append,
+ * so a long session keeps indexing past it.
  */
 export async function indexSessionFile(
   root: string,
@@ -266,8 +272,6 @@ export async function indexSessionFile(
     return null
   }
 
-  if (info.size > maxBytes) throw new Error('session-too-large')
-
   const resumable =
     previous !== null &&
     previous.format === ARTIFACT_INDEX_FORMAT &&
@@ -276,13 +280,10 @@ export async function indexSessionFile(
     (await readSignature(path, previous.scan.offset)) === previous.scan.signature
   if (resumable && info.size === previous.scan.offset && !previous.deleted) return previous
 
+  const start = resumable ? previous.scan.offset : 0
+  if (info.size - start > maxBytes) throw new Error('session-too-large')
   const state = emptyScan()
-  const offset = await readLinesFrom(
-    path,
-    resumable ? previous.scan.offset : 0,
-    (line) => scanLine(state, line),
-    maxBytes,
-  )
+  const offset = await readLinesFrom(path, start, (line) => scanLine(state, line), start + maxBytes)
 
   let onBranch: Set<string>
   if (resumable) {
