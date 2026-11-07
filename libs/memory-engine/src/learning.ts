@@ -40,7 +40,13 @@ export class Learning implements BrainLearningStoreOperations {
     validate.text(projectionDigest, 200)
     sourceAllowed(this.data, scope, sessionId, dependencyRootIds)
     const covered = requestedCoverage(this.data, scope, contributions)
-    const job = this.previous(scope, contributions)
+    const exact = previous(this.data, attemptKey(scope, contributions))
+    const allCovered = contributions.every((item) =>
+      covered.some(
+        (pair) => pair.rootId === item.rootId && pair.projectedHash === item.projectedHash,
+      ),
+    )
+    const job = exact ?? (allCovered ? this.previous(scope, contributions) : undefined)
     if (job) receipt(this.data, job)
     return { covered, previousJobId: job?.id ?? null }
   }

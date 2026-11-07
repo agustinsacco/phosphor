@@ -6,6 +6,7 @@ import { attemptKey, type LearningReceipt } from './learning-receipts'
 import { LEARNING_BYTES } from './learning-validation'
 import * as validate from './validation'
 import { createHash } from 'node:crypto'
+import { saveDependencies } from './learning-dependencies'
 
 /** 1999 UTF-16 code units of overlap cover every supported <=2000-unit quote. */
 function chunks(text: string): string[] {
@@ -71,6 +72,12 @@ export function prepareInputs(
       100000,
     'Local learning coverage capacity reached',
   )
+  validate.check(
+    Number(data.db.prepare('SELECT count(*) AS n FROM learning_dependencies').get()?.n) +
+      input.dependencies.length <=
+      100000,
+    'Local learning dependency capacity reached',
+  )
   const { evidence: _evidence, ...metadata } = input
   const receipt: LearningReceipt = {
     ...metadata,
@@ -122,4 +129,5 @@ export function saveInputs(
 ): void {
   for (const source of sources) evidence.write(source)
   data.put('learningInputs', input.jobId, input.scope, { hash: identifier(input), value: input })
+  saveDependencies(data, input)
 }

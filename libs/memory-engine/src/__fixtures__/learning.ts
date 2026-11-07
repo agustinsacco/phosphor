@@ -7,6 +7,12 @@ import type {
   BrainLearningStart,
 } from '@phosphor/shared/brain-learning-jobs'
 import { openMemoryStore } from '../service'
+import type { BrainLearningEntry } from '@phosphor/shared/brain-learning'
+
+export function dependency(entry: BrainLearningEntry): BrainLearningEntry {
+  const { entryId, parentId, entryHash, rootId } = entry
+  return { entryId, parentId, entryHash, rootId }
+}
 
 export const scope = '/learning'
 export const usage = { input: 101, output: 20, cacheRead: null, cacheWrite: 0, reasoning: 5 }
@@ -51,6 +57,7 @@ export function start(jobId = 'owner-1'): BrainLearningStart {
     },
     covered: [contribution],
     dependencyRootIds: ['input'],
+    dependencies: [dependency(contribution)],
     evidence: [
       {
         ...contribution,

@@ -4,6 +4,7 @@ import type { BrainLearningStart } from '@phosphor/shared/brain-learning-jobs'
 import { type Data, identifier, stable } from './data'
 import { excludedSource } from './source-exclusion'
 import * as validate from './validation'
+import { assertDependencies } from './learning-dependencies'
 
 export interface LearningInputMap extends Omit<BrainLearningEvidence, 'text'> {
   chunks: Array<{ id: string; metadataHash: string }>
@@ -51,6 +52,7 @@ export function receipt(data: Data, job: BrainJob): LearningReceipt {
     'Learning source receipt integrity failure',
   )
   const input = stored.value
+  assertDependencies(data, input)
   validate.check(
     job.learning &&
       input.jobId === job.id &&
@@ -163,6 +165,16 @@ export function forgetLearning(data: Data, jobId: string, roots: Set<string>): v
         data.tombstone(
           identifier('learning-projection', input.scope, source.rootId, source.projectedHash),
         )
+  if (input)
+    for (const dependency of input.dependencies)
+      if (roots.has(identifier('root', input.scope, dependency.entryId))) {
+        const source = input.covered.find((item) => item.entryId === dependency.entryId)
+        if (source)
+          data.tombstone(
+            identifier('learning-projection', input.scope, source.rootId, source.projectedHash),
+          )
+      }
+  data.db.prepare('DELETE FROM learning_dependencies WHERE job_id=?').run(jobId)
   data.remove('learningInputs', jobId)
   data.remove('learningResults', jobId)
   data.db.prepare('DELETE FROM learning_coverage WHERE job_id=?').run(jobId)

@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { findings, learningFixture, prefs, scope, start, usage } from './__fixtures__/learning'
+import {
+  dependency,
+  findings,
+  learningFixture,
+  prefs,
+  scope,
+  start,
+  usage,
+} from './__fixtures__/learning'
 
 const fixtures: ReturnType<typeof learningFixture>[] = []
 function setup() {
@@ -40,6 +48,7 @@ describe('durable selective learning', () => {
     fork.evidence[0]!.entryId = 'fork-input'
     fork.evidence[0]!.rootIds = ['fork-input']
     fork.dependencyRootIds = ['fork-input']
+    fork.dependencies = [dependency(fork.covered[0]!)]
     expect(store.createLearning(fork)).toEqual({ job: first.job, created: false })
   })
   it('requires an explicit matching terminal retry and never reclaims failed learning implicitly', () => {
@@ -175,6 +184,7 @@ describe('durable selective learning', () => {
     store.review(first.proposalId!, true, store.snapshot())
     const next = start('owner-2')
     next.checkpoint.projectionDigest = 'new-projection'
+    next.checkpoint.sourceEntryCount = 2
     const newSource = {
       ...next.evidence[0]!,
       entryId: 'new-input',
@@ -190,6 +200,7 @@ describe('durable selective learning', () => {
     next.evidence[0]!.eligible = false
     next.evidence.push(newSource)
     next.dependencyRootIds.push('new-input')
+    next.dependencies.push(dependency(newSource))
     const job = store.claimJob(store.createLearning(next).job.id)
     const completion = findings()
     if (completion.outcome.type !== 'findings') throw new Error('fixture')

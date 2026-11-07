@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { findings, learningFixture, scope, start } from './__fixtures__/learning'
+import { dependency, findings, learningFixture, scope, start } from './__fixtures__/learning'
 
 const fixtures: ReturnType<typeof learningFixture>[] = []
 function setup() {
@@ -45,6 +45,7 @@ it('refuses forgotten contribution pairs after receipt deletion/reopen without t
     projectedHash: 'second-projection',
   }
   input.covered.push(second)
+  input.checkpoint.sourceEntryCount = 2
   input.evidence.push({
     ...second,
     evidenceId: 'second-wire',
@@ -55,6 +56,7 @@ it('refuses forgotten contribution pairs after receipt deletion/reopen without t
     eligible: true,
   })
   input.dependencyRootIds.push('second')
+  input.dependencies.push(dependency(second))
   const job = f.store.claimJob(f.store.createLearning(input).job.id)
   f.store.completeLearning(job.id, job.fence, findings())
   f.store.forget([job.evidenceIds[0]!])
@@ -77,6 +79,7 @@ it('refuses forgotten contribution pairs after receipt deletion/reopen without t
   surviving.covered = [second]
   surviving.evidence = [input.evidence[1]!]
   surviving.dependencyRootIds = ['second']
+  surviving.dependencies = [dependency(second)]
   expect(reopened.createLearning(surviving).created).toBe(true)
 })
 

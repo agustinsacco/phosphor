@@ -1,6 +1,7 @@
 import type { BrainLearningStart } from '@phosphor/shared/brain-learning-jobs'
 import type { BrainLearningUsage } from '@phosphor/shared/brain-learning'
 import * as validate from './validation'
+import { validateDependencies } from './learning-dependencies'
 
 export const LEARNING_BYTES = 4_000_000
 function fields(value: object, keys: string[]): void {
@@ -52,6 +53,7 @@ function metadata(input: BrainLearningStart): void {
     'checkpoint',
     'covered',
     'dependencyRootIds',
+    'dependencies',
     'evidence',
     'expectedPolicyEpoch',
     'retryJobId',
@@ -110,6 +112,7 @@ export function start(input: BrainLearningStart): void {
       new Set(input.dependencyRootIds).size === input.dependencyRootIds.length,
     'Invalid learning dependencies',
   )
+  validateDependencies(input)
   evidence(input)
 }
 function evidence(input: BrainLearningStart): void {
@@ -119,8 +122,7 @@ function evidence(input: BrainLearningStart): void {
     input.evidence.filter((item) => item.eligible).length <= 200,
     'Learning eligible context exceeds limit',
   )
-  const ids = new Set<string>(),
-    roots = new Set<string>()
+  const ids = new Set<string>()
   for (const item of input.evidence) {
     validate.text(item.evidenceId, 500)
     validate.text(item.text, LEARNING_BYTES)
@@ -130,7 +132,6 @@ function evidence(input: BrainLearningStart): void {
         item.rootIds.every((root) => input.dependencyRootIds.includes(root)),
       'Unbound learning provenance',
     )
-    item.rootIds.forEach((root) => roots.add(root))
     validate.check(!ids.has(item.evidenceId), 'Duplicate learning evidence identity')
     ids.add(item.evidenceId)
     const contribution = input.covered.find((value) => value.entryId === item.entryId)
@@ -157,10 +158,6 @@ function evidence(input: BrainLearningStart): void {
         'Original learning evidence needs original input ID',
       )
   }
-  validate.check(
-    roots.size === input.dependencyRootIds.length,
-    'Learning dependencies differ from projected context',
-  )
 }
 
 function binding(binding: BrainLearningStart['binding']): void {

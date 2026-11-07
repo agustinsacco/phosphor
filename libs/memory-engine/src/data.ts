@@ -75,6 +75,9 @@ export class Data {
       CREATE TABLE IF NOT EXISTS retained (id TEXT PRIMARY KEY, retained_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS learning_coverage (scope TEXT NOT NULL,root_id TEXT NOT NULL,
         projected_hash TEXT NOT NULL,job_id TEXT NOT NULL,PRIMARY KEY(scope,root_id,projected_hash,job_id));
+      CREATE TABLE IF NOT EXISTS learning_dependencies (job_id TEXT NOT NULL,scope TEXT NOT NULL,
+        root_id TEXT NOT NULL,retained_at INTEGER NOT NULL,PRIMARY KEY(job_id,root_id));
+      CREATE INDEX IF NOT EXISTS learning_dependency_retention ON learning_dependencies(retained_at);
       CREATE TABLE IF NOT EXISTS evidence_sources (source_id TEXT NOT NULL,derived_id TEXT NOT NULL,PRIMARY KEY(source_id,derived_id));
       CREATE TABLE IF NOT EXISTS entity_sources (seq INTEGER PRIMARY KEY,entity_id TEXT NOT NULL,
         source_id TEXT UNIQUE NOT NULL,scope TEXT NOT NULL,recorded_at INTEGER NOT NULL,value TEXT NOT NULL);

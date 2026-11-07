@@ -24,6 +24,7 @@ import * as validate from './validation'
 import { forgetEntitySources } from './entities'
 import { dependentEvidence, forgetLearning } from './learning-receipts'
 import { excludedSource } from './source-exclusion'
+import { expiredDependencyRoots } from './learning-dependencies'
 
 export function blobName(evidence: Pick<BrainEvidence, 'id' | 'hash'>): string {
   return `${evidence.id}.${evidence.hash}.txt`
@@ -154,11 +155,16 @@ export class Evidence {
       const expired = this.data.db
         .prepare('SELECT id FROM retained WHERE retained_at<=? ORDER BY id LIMIT 500')
         .all(cutoff)
-      if (!expired.length) return
-      this.forget(expired.map((row) => String(row.id)))
+      const ids = expired.map((row) => String(row.id))
+      const roots = expiredDependencyRoots(this.data, cutoff, ids)
+      if (!ids.length && !roots.size) return
+      this.forgetSources(ids, roots)
     }
     validate.check(
-      !this.data.db.prepare('SELECT id FROM retained WHERE retained_at<=? LIMIT 1').get(cutoff),
+      !this.data.db.prepare('SELECT id FROM retained WHERE retained_at<=? LIMIT 1').get(cutoff) &&
+        !this.data.db
+          .prepare('SELECT job_id FROM learning_dependencies WHERE retained_at<=? LIMIT 1')
+          .get(cutoff),
       'Expiry backlog; retry before serving memory',
     )
   }
@@ -171,8 +177,11 @@ export class Evidence {
   }
   forget(ids: string[]): BrainForgetResult {
     validate.strings(ids, 500)
+    return this.forgetSources(ids, new Set())
+  }
+  private forgetSources(ids: string[], initialRoots: Set<string>): BrainForgetResult {
     const selected = new Set(ids)
-    const { removed, roots } = this.relatedEvidence(selected)
+    const { removed, roots } = this.relatedEvidence(selected, initialRoots)
     const derived = new Set(
       this.data.db
         .prepare('SELECT claim_id,evidence_id FROM claim_sources')
@@ -220,15 +229,17 @@ export class Evidence {
     this.data.db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
     return { evidence: removed.length, claims: claims.length, affectedSessions }
   }
-  private relatedEvidence(selected: Set<string>): {
+  private relatedEvidence(
+    selected: Set<string>,
+    roots: Set<string>,
+  ): {
     removed: Omit<BrainEvidence, 'text'>[]
     roots: Set<string>
   } {
     const evidence = this.data.all('evidence')
     const originals = evidence.filter((item) => selected.has(item.id))
-    const roots = new Set(
-      originals.flatMap((item) => item.rootIds.map((root) => identifier('root', item.scope, root))),
-    )
+    for (const item of originals)
+      for (const root of item.rootIds) roots.add(identifier('root', item.scope, root))
     // A multi-root derived copy is removed, but its other independent roots are not forgotten.
     const dependent = dependentEvidence(this.data, roots, selected)
     const removed = evidence.filter(

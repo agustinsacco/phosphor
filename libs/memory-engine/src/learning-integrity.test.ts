@@ -93,6 +93,13 @@ describe('learning receipts, provenance and bounded payloads', () => {
     input.evidence[0]!.sourceType = 'compaction'
     input.evidence[0]!.rootIds = Array.from({ length: 1000 }, (_, i) => `original-${i}`)
     input.dependencyRootIds = input.evidence[0]!.rootIds
+    input.dependencies = input.dependencyRootIds.map((entryId) => ({
+      entryId,
+      parentId: null,
+      entryHash: `hash-${entryId}`,
+      rootId: `content-${entryId}`,
+    }))
+    input.checkpoint.sourceEntryCount = 1001
     const { job } = run(f, input)
     expect(f.store.read(job.evidenceIds[0]!, [scope]).rootIds).toHaveLength(1000)
     const completion = findings()
