@@ -1,6 +1,6 @@
 import type { DirEntry } from '@shared/models'
 import { dirname } from '@/lib/path'
-import { useFilesStore } from '@/stores/files'
+import { filesSourceTraits, useFilesStore } from '@/stores/files'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 
 export const FILE_DRAG = 'application/x-phosphor-explorer'
@@ -22,6 +22,8 @@ export async function transferFiles(
   cut: boolean,
 ): Promise<void> {
   const store = useFilesStore.getState()
+  // One flat list re-reads every folder, so the refresh after the loop covers the sources.
+  const flat = filesSourceTraits(workspace).listing === 'flat'
   const failures: string[] = []
   const remaining: string[] = []
   let completed = 0
@@ -35,7 +37,7 @@ export async function transferFiles(
         cut ? 'move' : 'copy',
       )
       if (cut && to !== path) store.reconcilePath(workspace, path, to)
-      if (cut) await store.refreshDir(workspace, dirname(path))
+      if (cut && !flat) await store.refreshDir(workspace, dirname(path))
       completed++
     } catch (error) {
       remaining.push(path)
