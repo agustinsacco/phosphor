@@ -2,8 +2,6 @@ import { SessionRegistry as CoreSessionRegistry } from '@phosphor/session-runtim
 import { PiRpcClient } from './desktop-rpc-client'
 import { shutdownApproval } from '../shutdown-approval'
 
-export type { LiveSession } from '@phosphor/session-runtime/pi/session-registry'
-
 /** Desktop bindings. electron/registry.ts remains the only live desktop registry. */
 export class SessionRegistry extends CoreSessionRegistry {
   constructor() {

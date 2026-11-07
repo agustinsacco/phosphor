@@ -12,7 +12,7 @@ import { account, type createUserAuth } from '../auth/user'
 import { ControlFailure, type Env } from '../http'
 import { RateLimiter } from '../limits'
 import { outcome, parsed, record } from '../routes/shared'
-import { BrowserSessions } from './session'
+import { BrowserSessions, SESSION_LIFETIME_MS } from './session'
 
 export function isWebHost(c: Context<Env>, deps: AppDeps): boolean {
   const configured = deps.config.web
@@ -164,7 +164,7 @@ export function browserAuth(deps: AppDeps, auth: ReturnType<typeof createUserAut
         ...tokens,
         clientId: client.id,
         csrf: random(),
-        until: deps.clock() + 86_400_000,
+        until: deps.clock() + SESSION_LIFETIME_MS,
       })
       return c.redirect(
         returnPath(typeof transaction.path === 'string' ? transaction.path : undefined),

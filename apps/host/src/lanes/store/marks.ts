@@ -10,8 +10,6 @@ import { check } from '../validation'
 import type { Row } from './rows'
 import type { StoredLane } from './types'
 
-export type { LaneMarksChange } from '@phosphor/shared/host-protocol-lane-marks'
-
 const controls = Array.from({ length: 31 }, (_, i) => i + 1)
   .concat(127)
   .join(',')

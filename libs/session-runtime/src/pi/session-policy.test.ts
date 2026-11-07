@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { machinePromptBlock } from './machine-prompt'
+import { machinePromptBlock } from '@phosphor/shared/machine-prompt'
 import { prepareSessionPolicy, type SessionPolicyRuntime } from './session-policy'
 
 const launch = {

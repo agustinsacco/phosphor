@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
+import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
 import { refusesMachineResourceArgs } from './machine-resource-args'
 import { admitSender } from './sender-policy'
 import type { IpcInvokeChannel, IpcInvokeMap } from '@shared/ipc'

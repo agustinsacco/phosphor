@@ -181,7 +181,7 @@ export function isPiTooOld(version: string): boolean {
  * The first `@saccolabs/pi-claude-cli` release a Claude session starts on.
  * 0.9.0 runs on pi's context alone; 0.10.0 sends pi's thinking level as pi
  * would (below it `off` still thinks and a level change restarts the CLI).
- * Main refuses anything older (`apps/desktop/electron/pi/provider-detect.ts`) and
+ * Main refuses anything older (`libs/session-runtime/src/pi/provider-detect.ts`) and
  * Settings → Claude Code flags it.
  */
 export const MIN_CLAUDE_CONTEXT_VERSION = '0.10.0'
