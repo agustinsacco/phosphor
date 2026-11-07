@@ -10,13 +10,16 @@ export interface IdentityCrypto {
   randomHex(bytes: number): string
   verify(key: string, message: Uint8Array, proof: string): boolean | Promise<boolean>
 }
+const hex = (bytes: Uint8Array) =>
+  Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+/** SHA-256 as lowercase hex, through platform crypto (Node ≥ 22 and secure browser contexts). */
+export async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
+  return hex(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes)))
+}
 /** No fallback: identity randomness and proof verification require platform crypto. */
 export const browserCrypto: IdentityCrypto = {
   randomUUID: () => globalThis.crypto.randomUUID(),
-  randomHex: (bytes) =>
-    Array.from(globalThis.crypto.getRandomValues(new Uint8Array(bytes)), (byte) =>
-      byte.toString(16).padStart(2, '0'),
-    ).join(''),
+  randomHex: (bytes) => hex(globalThis.crypto.getRandomValues(new Uint8Array(bytes))),
   async verify(key, message, proof) {
     const signature = decodeBase64url(proof)
     if (!signature || signature.length !== 64) return false

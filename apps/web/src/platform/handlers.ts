@@ -1,4 +1,4 @@
-import type { IpcInvokeMap } from '@phosphor/shared/ipc'
+import type { IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
 import type { WebSupportedChannel } from '@phosphor/shared/ipc-web'
 import { laneMarks } from '@phosphor/host-client/lane-marks'
 import {
@@ -7,6 +7,9 @@ import {
   laneSubagentInspect,
 } from '@phosphor/host-client/lane-reads'
 import { remoteSkillShare } from '@phosphor/host-client/skill-share'
+import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
+import { routeRemoteWrite } from '@phosphor/host-client/write-features'
+import { uploadAttachments } from '@phosphor/host-client/attachments'
 import type { RemoteLanes, RemoteWindow } from '@phosphor/host-client/remote-lanes'
 import type { BrowserControl } from './control'
 import type { BrowserHosts } from './hosts'
@@ -72,9 +75,10 @@ function settingsHandlers(settings: () => ReturnType<typeof createBrowserSetting
     'hosts:claudeAccount': (...args) => settings().moveAccount(...args),
   } satisfies Partial<BrowserHandlers>
 }
-/** Lanes this tab opened, by handle: pi commands and the Host's reads. The tab is window 1. */
+/** Lanes this tab opened, by handle: pi commands, Host reads and writes. The tab is window 1. */
 function laneHandlers(lanes: RemoteLanes) {
   return {
+    ...laneWriteHandlers(lanes),
     'hosts:exportLaneHtml': (id) => lanes.onLane(1, id, exportLaneHtml),
     'hosts:subagentHistory': (id) => lanes.onLane(1, id, laneSubagentHistory),
     'hosts:subagentInspect': (id, request) => lanes.onLane(1, id, laneSubagentInspect(request)),
@@ -82,6 +86,31 @@ function laneHandlers(lanes: RemoteLanes) {
     'pi:extensionUiResponse': (id, response) => lanes.respond(1, id, response),
     'pi:disposeSession': (id) => lanes.dispose(1, id),
     'pi:listLiveSessions': () => lanes.list(1),
+  } satisfies Partial<BrowserHandlers>
+}
+/**
+ * Host file writes and uploads through the focused lane's write port, as Desktop routes them.
+ * The port rechecks focus, `workspaces.write`, `sessions.control` and the control fence; a
+ * path that is not a Host path is refused.
+ */
+function laneWriteHandlers(lanes: RemoteLanes) {
+  async function write<C extends IpcInvokeChannel>(channel: C, args: IpcInvokeMap[C]['args']) {
+    const routed = routeRemoteWrite(channel, args, (key) => lanes.readLane(1, key))
+    if (!routed) throw new Error(REMOTE_UNAVAILABLE)
+    return (await routed.result) as IpcInvokeMap[C]['result']
+  }
+  return {
+    'fs:writeFile': (...args) => write('fs:writeFile', args),
+    'fs:createFile': (...args) => write('fs:createFile', args),
+    'fs:createDir': (...args) => write('fs:createDir', args),
+    'fs:rename': (...args) => write('fs:rename', args),
+    'fs:trash': (...args) => write('fs:trash', args),
+    'fs:transfer': (...args) => write('fs:transfer', args),
+    'hosts:uploadAttachments': async (id, files) => {
+      const lane = lanes.readLane(1, id)
+      if (!lane) throw new Error(REMOTE_UNAVAILABLE)
+      return uploadAttachments(files, lane)
+    },
   } satisfies Partial<BrowserHandlers>
 }
 /** Device preferences this browser keeps (preferences.ts): validated, allowlisted, small. */

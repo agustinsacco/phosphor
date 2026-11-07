@@ -1,4 +1,4 @@
-import { bytesToBase64 } from '@/lib/base64'
+import { bytesToBase64 } from '@phosphor/shared/base64'
 import {
   TEXT_LINE_HEIGHT,
   bounds,

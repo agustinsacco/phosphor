@@ -1,4 +1,5 @@
 import { MenuRow } from '@/components/PopupMenu'
+import { machineCaps } from '@/stores/machineCaps'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { moveRemoteRepository } from './remoteRepositoryOrder'
 
@@ -21,7 +22,7 @@ export function RemoteFolderMenuRows({
   onDone: () => void
 }): React.JSX.Element {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const writable = host?.state === 'ready' && host.capabilities.includes('workspaces.write')
+  const writable = machineCaps(host).can('workspaces.write')
   const ids = host?.repositories.map((r) => r.id) ?? []
   const index = ids.indexOf(repositoryId)
   const move = (direction: 'up' | 'down'): void => {

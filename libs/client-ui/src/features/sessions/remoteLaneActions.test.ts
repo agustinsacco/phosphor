@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import type { HostCapability } from '@shared/remote-host'
 import { featureNotOffered } from '@/stores/hostRefusals'
+import { machineCaps } from '@/stores/machineCaps'
 import { REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import {
   LANE_MARKS_NEED_UPDATE,
@@ -12,6 +14,9 @@ import {
 } from './remoteLaneActions'
 
 const LANE = mockRemoteHosts[MOCK_HOST_ID]!.lanes[0]!
+const BASE_CAPS: HostCapability[] = ['sessions.read', 'sessions.control', 'workspaces.write']
+const caps = (capabilities: HostCapability[], laneMarks?: boolean) =>
+  machineCaps({ state: 'ready', capabilities, laneMarks })
 
 function handlers(): RemoteLaneActionHandlers {
   return {
@@ -41,10 +46,7 @@ function state(edit: Partial<RemoteLaneActionState> = {}, self = true): RemoteLa
         controller: self ? { label: 'You', connected: true, self: true } : null,
       },
     },
-    host: {
-      capabilities: ['sessions.read', 'sessions.control', 'workspaces.write'],
-      laneMarks: true,
-    },
+    caps: caps(BASE_CAPS, true),
     ready: true,
     busy: false,
     stopBlocked: null,
@@ -116,11 +118,11 @@ describe('remoteLaneActions', () => {
       return [item(items, 'Pin')?.hint, item(items, 'Lane marker')?.hint]
     }
     expect(marks({ ready: false })).toEqual([REMOTE_NOT_READY, REMOTE_NOT_READY])
-    expect(marks({ host: { capabilities: ['sessions.control'] } })).toEqual([
+    expect(marks({ caps: caps(['sessions.control']) })).toEqual([
       LANE_MARKS_NEED_UPDATE,
       LANE_MARKS_NEED_UPDATE,
     ])
-    expect(marks({ host: { capabilities: ['sessions.read'], laneMarks: true } })).toEqual([
+    expect(marks({ caps: caps(['sessions.read'], true) })).toEqual([
       featureNotOffered('sessions.control'),
       featureNotOffered('sessions.control'),
     ])
@@ -130,7 +132,7 @@ describe('remoteLaneActions', () => {
 
   it('holds Delete without workspaces.write even for the controller', () => {
     const items = remoteLaneActions(
-      state({ host: { capabilities: ['sessions.read', 'sessions.control'], laneMarks: true } }),
+      state({ caps: caps(['sessions.read', 'sessions.control'], true) }),
       handlers(),
     )
     expect(item(items, 'Delete')).toMatchObject({
@@ -147,11 +149,11 @@ it("gates Make routine… on the Host's routines capability, saying the Host doe
     disabled: true,
     hint: 'This Host does not offer routines to this device.',
   })
-  const base = state().host!
-  const host = { ...base, capabilities: [...base.capabilities, 'routines' as const] }
-  const withRoutines = remoteLaneActions(state({ host }), handlers())
+  const routines = caps([...BASE_CAPS, 'routines'], true)
+  const withRoutines = remoteLaneActions(state({ caps: routines }), handlers())
   expect(item(withRoutines, 'Make routine…')).toMatchObject({ disabled: false, hint: undefined })
   expect(
-    item(remoteLaneActions(state({ host, ready: false }), handlers()), 'Make routine…')?.hint,
+    item(remoteLaneActions(state({ caps: routines, ready: false }), handlers()), 'Make routine…')
+      ?.hint,
   ).toBe(REMOTE_NOT_READY)
 })
