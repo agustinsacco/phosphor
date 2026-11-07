@@ -13,6 +13,7 @@ import type {
 } from '../mcp'
 import type { SkillImportPreview, SkillScope, SkillsListResult } from '../skills'
 import type { ClaudeStatus, PackageJobAction, PiPackageEntry } from '../models'
+import type { SkillBundle } from '../host-protocol-skill-share'
 export interface BaselineSkillsInvokeMap {
   /**
    * pi packages (settings.json `packages` arrays + install dirs). Mutations
@@ -58,6 +59,8 @@ export interface BaselineSkillsInvokeMap {
 
   /** Zip the bundle and offer a save dialog. Null when the user cancelled. */
   'skills:export': { args: [dir: string]; result: { savedTo: string } | null }
+
+  'skills:saveBundle': { args: [bundle: SkillBundle]; result: { savedTo: string } | null }
 
   /** Install one skill from the pinned catalog into the user root. */
   'skills:install': {

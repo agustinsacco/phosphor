@@ -1,4 +1,5 @@
 import { writeFile } from 'node:fs/promises'
+import { zipSkillBundle } from '@phosphor/shared/zip-store'
 import { invalidatePiCommands } from './catalogue'
 import { requireCommands } from './commands'
 import { installLocalSkill } from './skills/share'
@@ -95,12 +96,22 @@ export function confirmSkillImportAction(options: ConfirmImportOptions) {
   return mutateSkills(() => confirmSkillImport(options))
 }
 
+type ChooseDestination = (fileName: string) => Promise<string | null>
+
 /** Build before asking where to save; cancellation never writes an archive. */
-export async function exportSkill(
-  dir: string,
-  chooseDestination: (fileName: string) => Promise<string | null>,
+export async function exportSkill(dir: string, chooseDestination: ChooseDestination) {
+  return saveArchive(await buildSkillZip(dir), chooseDestination)
+}
+
+/** Another machine's bundle, from the renderer: validated and zipped before anything is asked. */
+export function saveSkillBundle(bundle: unknown, chooseDestination: ChooseDestination) {
+  return saveArchive(zipSkillBundle(bundle), chooseDestination)
+}
+
+async function saveArchive(
+  { fileName, data }: { fileName: string; data: Uint8Array },
+  chooseDestination: ChooseDestination,
 ) {
-  const { fileName, data } = await buildSkillZip(dir)
   const destination = await chooseDestination(fileName)
   if (!destination) return null
   await writeFile(destination, data)

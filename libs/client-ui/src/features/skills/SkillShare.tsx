@@ -20,7 +20,7 @@ import { useSkillCopy, type SkillCopy } from './useSkillCopy'
 type Share = ReturnType<typeof useSkillCopy>
 
 /**
- * Detail actions for sharing: Export (This Mac only) and Share, which clones the skill into
+ * Detail actions for sharing: Export, which keeps a zip on this device, and Share, which clones the skill into
  * another machine's global skills folder. The copy is independent: nothing stays linked.
  */
 export function SkillShareActions({
@@ -32,7 +32,8 @@ export function SkillShareActions({
   skill: ResolvedSkill
   workspacePath: string
   disabled: boolean
-  onExport: () => void
+  /** Called with the skill's machine: `'local'` or a Host id. */
+  onExport: (source: string) => void
 }): React.JSX.Element {
   const source = hostIdOfPath(workspacePath) ?? 'local'
   const machines = useShareMachines(source)
@@ -50,11 +51,9 @@ export function SkillShareActions({
   }
   return (
     <>
-      {source === 'local' && (
-        <Button size="sm" disabled={disabled} onClick={onExport}>
-          Export
-        </Button>
-      )}
+      <Button size="sm" disabled={disabled} onClick={() => onExport(source)}>
+        Export
+      </Button>
       <div className="relative">
         <Button
           ref={trigger}

@@ -260,6 +260,7 @@ const expectedEntries = [
   ['skills:list', 'machine'],
   ['skills:readFile', 'machine'],
   ['skills:restoreBundled', 'machine'],
+  ['skills:saveBundle', 'machine'],
   ['skills:writeFile', 'machine'],
   ['updates:check', 'app'],
   ['updates:restartAndInstall', 'app'],

@@ -12,6 +12,10 @@
       "types": "./src/download.ts",
       "default": "./src/download.ts"
     },
+    "./zip-store": {
+      "types": "./src/zip-store.ts",
+      "default": "./src/zip-store.ts"
+    },
     "./web-auth": {
       "types": "./src/web-auth.ts",
       "default": "./src/web-auth.ts"

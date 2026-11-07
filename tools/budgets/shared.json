@@ -5,7 +5,7 @@
     "src/host-protocol-testing/fake-host.test.ts::it[2]": 90,
     "src/host-protocol.test.ts::describe[1]/it[5]": 100,
     "src/host-protocol.test.ts::describe[2]/it[5]": 107,
-    "src/ipc-web.ts::file": 482
+    "src/ipc-web.ts::file": 444
   },
   "exemptions": [],
   "renames": {}

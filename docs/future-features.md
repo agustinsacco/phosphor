@@ -14,7 +14,7 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Chat and lanes  | Fork, clone, rewind/tree editing, the Session tree, local rules/MCP controls, worktree Merge into main                                             |
 | Files           | Content search, media/PDF previews, quick look, external imports, open-in-app, per-file Revert in Changes, Host file-list truncation flags         |
-| Skills          | Catalogue install, upload, export to a file, discovery and in-place edits                                                                          |
+| Skills          | Catalogue install, upload, discovery and in-place edits                                                                                            |
 | Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync |
 | Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                               |
 | Clients         | Web Push to a closed browser or installed PWA                                                                                                      |
