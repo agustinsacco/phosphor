@@ -16,13 +16,6 @@ const reader = createGithubReader({
 export const readRepositoryPrs = (repoPath: string, options?: GhPrReadOptions) =>
   reader.read(repoPath, options)
 
-export {
-  summarizeChecks,
-  toPullRequest,
-  preferPr,
-  indexPrsByBranch,
-} from '@phosphor/session-runtime/git/github'
-
 const execFileAsync = promisify(execFile)
 
 /** Login-shell PATH for GUI launches; gh owns credentials, never Phosphor. */

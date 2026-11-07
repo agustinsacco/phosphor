@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import type { HostConnectionSnapshot } from './connection'
+import type { HostConnectionSnapshot } from '@phosphor/host-client/connection'
 import { createHostConnection } from './connection'
 import { createHostManagerState, hostManagerSnapshot } from './manager-state'
 

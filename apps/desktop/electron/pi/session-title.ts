@@ -11,7 +11,7 @@ import {
   type TitleRunResult,
 } from '@phosphor/session-runtime/pi/title-run'
 import { claudeAccountEnv, primaryAccount } from '../claude/accounts'
-import { usesClaudeCliProvider } from './provider-detect'
+import { usesClaudeCliProvider } from '@phosphor/session-runtime/pi/provider-detect'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { log } from '../debug-log'
 

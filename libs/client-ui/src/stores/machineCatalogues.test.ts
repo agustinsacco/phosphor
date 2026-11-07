@@ -167,6 +167,20 @@ it.each(['reply', 'failure'] as const)(
   },
 )
 
+it('names what failed when a model read fails or replies with something unreadable', async () => {
+  invoke.mockImplementation(async (method) => {
+    if (method === 'hosts:skills') return { skills: [], probe: 'rpc', userRoot: 'opaque' }
+    throw new Error('Connection closed.')
+  })
+  await useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
+  expect(catalogue().error).toBe('Could not read models.')
+  invoke.mockImplementation(async (method) =>
+    method === 'hosts:skills' ? { skills: [], probe: 'rpc', userRoot: 'opaque' } : 'unreadable',
+  )
+  await useMachineCataloguesStore.getState().load(MOCK_HOST_ID, undefined, true)
+  expect(catalogue().error).toBe('Could not read models.')
+})
+
 function catalogue() {
   return (
     useMachineCataloguesStore.getState().catalogues[machineCatalogueKey(MOCK_HOST_ID)] ??
