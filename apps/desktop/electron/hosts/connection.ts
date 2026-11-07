@@ -6,12 +6,6 @@ import { isEndpoint } from '@shared/control-api'
 export function hostEndpoint(value: unknown, testEndpoint?: string): value is string {
   return portableEndpoint(value) || (isEndpoint(value) && value === testEndpoint)
 }
-export type {
-  HostConnectionSnapshot,
-  NotSent,
-  CommandResult,
-  LaneFrame,
-} from '@phosphor/host-client/connection'
 
 /** Desktop retains synchronous Node proof verification and cryptographic randomness. */
 export const desktopIdentity: IdentityCrypto = {
