@@ -1,7 +1,6 @@
-import { parseFileWriteOp, parseWriteResult } from '@shared/host-protocol-writes'
-import type { IpcInvokeChannel } from '@shared/ipc'
-import type { WriteLane } from '@phosphor/host-client/ports'
-export type { WriteLane } from '@phosphor/host-client/ports'
+import { parseFileWriteOp, parseWriteResult } from '@phosphor/shared/host-protocol-writes'
+import type { IpcInvokeChannel } from '@phosphor/shared/ipc'
+import type { WriteLane } from './ports'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
 
 export const WRITE_CHANNELS = new Set<IpcInvokeChannel>([

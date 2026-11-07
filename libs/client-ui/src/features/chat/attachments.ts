@@ -1,5 +1,5 @@
 import type { ImageContent } from '@shared/rpc'
-import { bytesToBase64 } from '@/lib/base64'
+import { bytesToBase64 } from '@phosphor/shared/base64'
 import type { Scene } from './imageEditor/scene'
 
 /**
