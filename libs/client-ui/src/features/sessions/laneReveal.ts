@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { create } from 'zustand'
+import { remotePrKey } from '@shared/host-protocol-github'
 
 export const useLaneRevealStore = create<{ seq: number; groupKey: string | null }>(() => ({
   seq: 0,
@@ -8,8 +9,7 @@ export const useLaneRevealStore = create<{ seq: number; groupKey: string | null 
 
 export const localLaneGroupKey = (workspacePath: string): string => workspacePath
 /** A Host folder's group: its reveal, its selection and its collapse in the sidebar pref. */
-export const remoteLaneGroupKey = (hostId: string, repositoryId: string): string =>
-  `host:${hostId}/repo:${repositoryId}`
+export const remoteLaneGroupKey = remotePrKey
 
 export function requestReveal(groupKey: string): void {
   useLaneRevealStore.setState((state) => ({ seq: state.seq + 1, groupKey }))

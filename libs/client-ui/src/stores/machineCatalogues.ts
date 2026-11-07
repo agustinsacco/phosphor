@@ -4,9 +4,12 @@ import type { SkillsListResult } from '@shared/skills'
 import { parseMachineModels, parseMachineProviders } from '@shared/host-protocol-machine'
 import { create } from 'zustand'
 import type { MachineModel, MachineProvider } from '@shared/host-protocol-machine'
-import { hostFeatureRefusal, REMOTE_UNAVAILABLE } from './hostRefusals'
+import { hostFeatureRefusal } from './hostRefusals'
 import { useRemoteLanesStore } from './remoteLanes'
 import { useSkillsStore } from './skills'
+
+/** A Host model read that failed or replied with something unreadable, in every reader's words. */
+export const MODELS_READ_FAILED = 'Could not read models.'
 
 export interface MachineCatalogue {
   models: MachineModel[]
@@ -70,10 +73,10 @@ export const useMachineCataloguesStore = create<{
         await window.phosphor.invoke('hosts:providers', hostId),
       )
       if (!current()) return
-      if (!models || !providers) throw new Error(REMOTE_UNAVAILABLE)
+      if (!models || !providers) throw new Error(MODELS_READ_FAILED)
       finish({ models, providers, status: 'ready' })
     } catch {
-      if (current()) finish({ error: REMOTE_UNAVAILABLE, status: 'error' })
+      if (current()) finish({ error: MODELS_READ_FAILED, status: 'error' })
     }
   },
 }))

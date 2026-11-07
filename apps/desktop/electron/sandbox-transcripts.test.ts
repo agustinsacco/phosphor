@@ -9,7 +9,7 @@ const io = vi.hoisted(() => ({
 }))
 vi.mock('electron', () => ({ shell: { trashItem: io.trash } }))
 vi.mock('node:fs/promises', () => ({ access: io.access, rename: io.rename, readdir: io.readdir }))
-vi.mock('./pi/session-cwd', () => ({ repointSessionCwd: io.repoint }))
+vi.mock('@phosphor/session-runtime/pi/session-cwd', () => ({ repointSessionCwd: io.repoint }))
 import {
   moveIfPresent,
   pathExists,

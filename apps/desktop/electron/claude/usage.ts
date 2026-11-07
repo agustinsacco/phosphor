@@ -3,13 +3,6 @@ import { createClaudeUsage } from '@phosphor/session-runtime/claude/usage'
 import { runPrintMode } from '../pi/print-mode'
 import { resolveBinary } from '../pi/packages'
 import { piProcessEnv } from '../pi/shell-env'
-export {
-  parseResetStamp,
-  windowKind,
-  parseUsageText,
-  parseUsageOutput,
-} from '@phosphor/session-runtime/claude/usage'
-export type { UsageRunner } from '@phosphor/session-runtime/claude/usage'
 
 async function defaultRunner(binaryPath: string, env: NodeJS.ProcessEnv): Promise<string | null> {
   // `--no-session-persistence`: without it every poll saved a transcript under

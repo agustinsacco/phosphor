@@ -76,6 +76,14 @@
       "types": "./src/terminals/terminals.ts",
       "default": "./src/terminals/terminals.ts"
     },
+    "./write-features": {
+      "types": "./src/write-features.ts",
+      "default": "./src/write-features.ts"
+    },
+    "./attachments": {
+      "types": "./src/attachments.ts",
+      "default": "./src/attachments.ts"
+    },
     "./skill-share": {
       "types": "./src/skill-share.ts",
       "default": "./src/skill-share.ts"

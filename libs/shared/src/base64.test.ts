@@ -1,6 +1,5 @@
-// @vitest-environment jsdom
 import { describe, it, expect } from 'vitest'
-import { bytesToBase64 } from './base64'
+import { base64ToBytes, bytesToBase64 } from './base64'
 
 function bufferOf(...bytes: number[]): ArrayBuffer {
   return new Uint8Array(bytes).buffer
@@ -60,5 +59,24 @@ describe('bytesToBase64', () => {
     for (let i = 0; i < bytes.length; i++) bytes[i] = i % 256
     const decoded = Uint8Array.from(atob(bytesToBase64(bytes.buffer)), (c) => c.charCodeAt(0))
     expect([...decoded]).toEqual([...bytes])
+  })
+
+  it('encodes a view of part of a buffer, not the whole buffer', () => {
+    const bytes = new Uint8Array([0, 72, 105, 0])
+    expect(bytesToBase64(bytes.subarray(1, 3))).toBe('SGk=')
+  })
+})
+
+describe('base64ToBytes', () => {
+  it('decodes empty, padded and high-byte input', () => {
+    expect([...base64ToBytes('')]).toEqual([])
+    expect([...base64ToBytes('SGk=')]).toEqual([72, 105])
+    expect([...base64ToBytes('iVBORw==')]).toEqual([0x89, 0x50, 0x4e, 0x47])
+  })
+
+  it('round-trips every byte value across a chunk boundary', () => {
+    const bytes = new Uint8Array(0x8000 + 1)
+    for (let i = 0; i < bytes.length; i++) bytes[i] = i % 256
+    expect([...base64ToBytes(bytesToBase64(bytes))]).toEqual([...bytes])
   })
 })
