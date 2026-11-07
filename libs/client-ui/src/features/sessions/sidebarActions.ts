@@ -1,12 +1,10 @@
 import type { LaneMoveMarks } from '@shared/host-protocol-lane-transfer'
 import type { LaneMoveSource } from '@shared/lane-move'
 import type { SessionMeta } from '@shared/models'
-import type { ContextMenuItem } from '@/components/ContextMenu'
 import { laneMarker } from '@/lib/laneMarker'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { useLaneMoveStore } from '@/stores/laneMove'
 import { useSessionsStore } from '@/stores/sessions'
-import { STOP_BEFORE_MOVE } from './remoteLaneActions'
 import { changeSessionBranch } from './sessionTransition'
 import { exportSessionHtml, applySessionRename } from './sessionActions'
 
@@ -55,35 +53,16 @@ export function openLaneMove(source: LaneMoveSource, title: string, marks: LaneM
   useLaneMoveStore.getState().open({ source, title, marks })
 }
 
-/**
- * A row's two copy actions. Move makes its visible marker explicit so moving
- * to another folder or changing branches cannot change the copy's icon.
- */
-export function copyActions(
-  workspacePath: string,
-  meta: SessionMeta,
-  livePhosphorId: string | undefined,
-  branch: string | null | undefined,
-): ContextMenuItem[] {
-  const move = () => {
-    const { pinned, laneMarkers } = useSessionsStore.getState()
-    openLaneMove({ machine: 'local', sessionPath: meta.path }, meta.name ?? 'Lane', {
-      pinned: pinned.includes(meta.path),
-      marker: laneMarker(
-        laneMarkers[meta.path],
-        branch,
-        meta.cwd,
-        useLanePrefsStore.getState().lanes.markers,
-      ),
-    })
-  }
-  return [
-    { label: 'Clone', onClick: () => void cloneSession(workspacePath, meta, livePhosphorId) },
-    {
-      label: 'Move to…',
-      disabled: !!livePhosphorId,
-      ...(livePhosphorId ? { hint: STOP_BEFORE_MOVE } : {}),
-      onClick: move,
-    },
-  ]
+/** Carry the visible marker explicitly so a new folder or branch cannot change it. */
+export function moveSidebarSession(meta: SessionMeta, branch: string | null | undefined): void {
+  const { pinned, laneMarkers } = useSessionsStore.getState()
+  openLaneMove({ machine: 'local', sessionPath: meta.path }, meta.name ?? 'Lane', {
+    pinned: pinned.includes(meta.path),
+    marker: laneMarker(
+      laneMarkers[meta.path],
+      branch,
+      meta.cwd,
+      useLanePrefsStore.getState().lanes.markers,
+    ),
+  })
 }

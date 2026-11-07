@@ -448,11 +448,11 @@ Host with an empty repository shows “No lanes yet” and its capability-gated 
 ready Host with no folders shows “No folders yet” and, with `workspaces.write`,
 an Add folder on MACHINE… button that opens the Host folder browser.
 A Host's folders are listed in the Host config's order. Each current folder's
-Workspace options menu offers Add folder on MACHINE…, Remove from MACHINE, Move
-up and Move down (`RemoteFolderMenuRows`), then Select all lanes, Select merged
-lanes and Collapse lanes. A folder's collapse persists in the sidebar's one
+Workspace options menu takes This Mac's order: Select all lanes, Select merged
+lanes and Collapse lanes, then Move up, Move down, Remove from MACHINE and Add
+folder on MACHINE… (`RemoteFolderMenuRows`). A folder's collapse persists in the sidebar's one
 `collapsedWorkspaces` pref (key `host:<id>/repo:<repositoryId>`), as This Mac's
-groups do. The folder header (`RemoteRepositoryGroup`) and the
+groups do. The folder group (`RemoteRepositoryGroup`, on the shared `LaneGroup`) and the
 Host's list (`RemoteHostLanes`, pinned lanes first) are the same components the
 web client's Lanes page and Host home render ([web client](web-client.md#one-lane-row-list-and-menu)). A move
 sends the whole new order (`hosts:orderRepositories`), so every client sees it

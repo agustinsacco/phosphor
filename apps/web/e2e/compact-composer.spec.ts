@@ -59,7 +59,7 @@ function toolbarLayout(page: Page) {
 async function signIn(page: Page, origin: string): Promise<void> {
   await page.goto(origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByTestId('remote-model-picker')).toBeVisible()
+  await expect(page.getByTestId('home-board')).toBeVisible()
 }
 
 test('the phone lane composer keeps one control row, one scroller and the caret in view', async ({
