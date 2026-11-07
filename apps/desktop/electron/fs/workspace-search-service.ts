@@ -11,7 +11,10 @@ import {
   type WorkspaceSearchResult,
 } from '@shared/workspace-search'
 import { listWorkspaceFileList } from './list-files'
-import type { SearchJob, SearchWorkerMessage } from './workspace-search'
+import type {
+  SearchJob,
+  SearchWorkerMessage,
+} from '@phosphor/session-runtime/files/workspace-search'
 import createSearchWorker from './workspace-search-worker?nodeWorker'
 
 /**

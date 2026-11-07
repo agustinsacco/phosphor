@@ -291,6 +291,10 @@
     "./files/walk": {
       "types": "./src/files/walk.ts",
       "default": "./src/files/walk.ts"
+    },
+    "./files/workspace-search": {
+      "types": "./src/files/workspace-search.ts",
+      "default": "./src/files/workspace-search.ts"
     }
   },
   "nx": {

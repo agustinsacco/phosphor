@@ -1,5 +1,9 @@
 import { parentPort, workerData } from 'node:worker_threads'
-import { searchFiles, type SearchJob, type SearchWorkerMessage } from './workspace-search'
+import {
+  searchFiles,
+  type SearchJob,
+  type SearchWorkerMessage,
+} from '@phosphor/session-runtime/files/workspace-search'
 
 /**
  * Worker entry for one workspace search (see workspace-search-service.ts).
