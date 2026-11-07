@@ -46,7 +46,7 @@ it('answers each delegated channel group from its owning mock module', async () 
     { id: 'claude-sonnet-4-5' },
   ])
   await expect(
-    (async () => window.phosphor.invoke('hosts:machineTask', host, 'claude-login'))(),
+    (async () => window.phosphor.invoke('hosts:machineTask', host, {} as never))(),
   ).rejects.toThrow('Private setup terminals')
   expect(
     await window.phosphor.invoke('hosts:skillExport', { machine: host, name: 'demo' }),
