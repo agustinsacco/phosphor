@@ -134,8 +134,9 @@ Files and HEAD/working-copy comparisons are read-only, coloured by the file's
 language, and a chat link scrolls to its line. Like This Mac's viewer, a file
 offers Copy but no chat code-block actions (Open as artifact, Run in terminal),
 here and in Machine files. New lanes and existing
-lane composers accept inline images; other browser file attachments are refused
-before any lane creation/upload. The start screen's Repository menu offers Add
+lane composers accept any file, as Desktop's Host lanes do: images go inline and
+other files upload to the Host before the prompt, which names their Host path. A
+reload drops a pending attachment. The start screen's Repository menu offers Add
 folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
 and adds folders under the Host's home over the same Host connection
 (`hosts:listFolders`, `hosts:createFolder`, `hosts:addRepository`, through
@@ -188,7 +189,7 @@ copies ([Lanes](lanes.md#remote-lanes) owns their rules):
   the ContextMenu key, Shift+F10 or a touch long-press (one short vibration
   where the device can) opens its menu; below 900px the menu is a bottom sheet
   titled with the lane.
-- The menu comes from `remoteLaneActions`, the same items and hints Desktop
+- The menu comes from `laneActions`, the same items and hints Desktop
   shows. Delete, Rename and Stop need control (“Take control first.”); Delete
   also needs `workspaces.write`. Rows carry This Mac's select box
   (`LaneSelect.tsx`), and bulk delete is the shared bar and confirm
@@ -289,8 +290,7 @@ open, the tab reloads, so nothing from the previous account carries over; until
 it does, the owner-scoped writes are dropped, and it reloads at most once. An
 unsent draft is lost on that reload, since drafts never persist in the browser. Browser font changes
 last until reload. Owner loss also clears remembered creation targets/model
-choices and resets browser isolation. Unsupported native file attachments are
-rejected.
+choices and resets browser isolation.
 
 The production service worker caches anonymous shell/static resources only.
 API routes, OAuth callbacks, Host requests and non-GET requests bypass it.
@@ -350,7 +350,7 @@ and a separate authenticated fixture that maps only socket transport to a dispos
 real Host. It exercises cookie/CSRF boundaries, Host proof, control/send, owner cleanup,
 resource isolation, hostile previews and app-framing refusal. Responsive coverage
 captures shared pages at 360/412/768/1440px in both themes, verifies Inter readiness
-and containment, and rejects unsupported first-prompt files before mutation.
+and containment, and sends a first-prompt document's Host path.
 `reconnect.spec.ts` holds the Host unreachable (`holdHost`) and checks that the
 lane, landing, start and lane-list screens wait, locked and labelled, at 400 and
 1100px, then that the lane unlocks with its draft once the Host answers.

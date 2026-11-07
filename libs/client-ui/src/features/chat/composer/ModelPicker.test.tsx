@@ -7,7 +7,7 @@ import type { HostsSnapshot } from '@shared/ipc'
 import { ModelPicker } from './ModelPicker'
 import { useChatStore } from '@/stores/chat'
 import { useModelPicksStore } from '@/stores/modelPicks'
-import { useSessionsStore } from '@/stores/sessions'
+import { bootstrapSession, useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 
@@ -247,3 +247,31 @@ it.each(['remote-ok', 'remote-failed', 'local-ok'] as const)(
     )
   },
 )
+
+it('says a failed model read failed and recovers through Retry models', async () => {
+  const meta = { ...useChatStore.getState().sessions[SESSION]!.meta!, model: undefined }
+  useChatStore.setState({ sessions: {} })
+  useChatStore.getState().ensure(SESSION)
+  useSessionsStore.setState({
+    live: { [SESSION]: { phosphorId: SESSION, sessionId: SESSION, workspacePath: '/w' } } as never,
+  })
+  let models: unknown = { success: false, error: 'pi is busy' }
+  piCommand.mockImplementation(async (_id: string, command: { type: string }) =>
+    command.type === 'get_state'
+      ? { success: true, data: meta }
+      : command.type === 'get_available_models'
+        ? models
+        : { success: false, error: 'unsupported' },
+  )
+  await bootstrapSession(SESSION)
+  render()
+  expect(chip().textContent).toBe('Could not read models.')
+  const retry = () =>
+    [...document.querySelectorAll('button')].find((b) => b.textContent === 'Retry models')
+  expect(retry()).toBeDefined()
+  models = { success: true, data: { models: [CODEX, CLAUDE] } }
+  await act(async () => retry()?.click())
+  expect(retry()).toBeUndefined()
+  act(() => chip().click())
+  expect(document.querySelector('[data-testid=model-row]')).not.toBeNull()
+})
