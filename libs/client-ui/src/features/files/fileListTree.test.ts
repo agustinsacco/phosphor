@@ -33,3 +33,18 @@ it('refuses a list past the depth or size cap instead of a partial tree', () => 
     ),
   ).toBeNull()
 })
+
+it('folds folders that hold no file as empty folders', () => {
+  const listings = foldFileList('r', ['src/a.ts'], ['src', 'src/empty', 'new/deep'])
+  const names = (dir: string) => listings?.[dir]?.map((e) => [e.name, e.isDirectory])
+  expect(names('r')).toEqual([
+    ['new', true],
+    ['src', true],
+  ])
+  expect(names('r/src')).toEqual([
+    ['empty', true],
+    ['a.ts', false],
+  ])
+  expect(listings?.['r/src/empty']).toEqual([])
+  expect(names('r/new')).toEqual([['deep', true]])
+})

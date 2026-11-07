@@ -6,7 +6,8 @@ import { languageForPath } from '@/lib/languages'
 import type { FilesSource } from '@/features/files/filesSource'
 import { keyedSlice } from './keyedSlice'
 import { REMOTE_UNAVAILABLE } from './remoteLanes'
-import { fileListingActions } from './filesListing'
+import { atOrBelow, fileListingActions } from './filesListing'
+import { createdDirActions } from './filesCreatedDirs'
 import { fileSaveActions } from './filesSave'
 import { fileTabActions } from './filesTabs'
 
@@ -76,6 +77,8 @@ interface WorkspaceFiles {
   /** Changes on navigation, including reopening the current file. */
   activeRequest?: number
   closedPaths?: string[]
+  /** Folders this client made on a flat listing that the list does not show yet (no file in them). */
+  createdDirs?: string[]
   gitStatus: Record<string, string>
   /** The last git status read failed. */
   gitUnavailable?: boolean
@@ -113,6 +116,8 @@ export interface FilesState {
   /** Stat loaded directories and re-read only those whose membership may have changed. */
   pollWorkspace: (workspacePath: string) => Promise<void>
   refreshGitStatus: (workspacePath: string) => Promise<void>
+  /** Show a folder just made on a flat listing, which lists files only, until the list does. */
+  addCreatedDir: (workspacePath: string, dirPath: string) => void
   setShowHidden: (workspacePath: string, value: boolean) => void
   setRespectGitignore: (workspacePath: string, value: boolean) => void
 
@@ -178,6 +183,13 @@ function relativeTo(workspacePath: string, path: string): string {
   return path.startsWith(prefix) ? path.slice(prefix.length) : path
 }
 
+/** `paths` after `from` moved to `to`, or was removed when `to` is absent. */
+function movedPaths(paths: string[] | undefined, from: string, to?: string): string[] | undefined {
+  return paths?.flatMap((path) =>
+    atOrBelow(path, from) ? (to ? [to + path.slice(from.length)] : []) : [path],
+  )
+}
+
 /** A tab for a file just read. */
 function openedFile(workspacePath: string, path: string, file: FileContent): OpenFile {
   return {
@@ -231,6 +243,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   listErrors: {},
 
   ...fileListingActions(set, get),
+  ...createdDirActions(set),
 
   openFile: async (workspacePath, path, target) => {
     // A Host key routes IPC to the Host; a path outside it would read this device's disk.
@@ -281,8 +294,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   },
 
   reconcilePath: (workspacePath, from, to) => {
-    const matches = (path: string): boolean =>
-      path === from || path.startsWith(from + '/') || path.startsWith(from + '\\')
+    const matches = (path: string): boolean => atOrBelow(path, from)
     const paths = workspaceFiles(get(), workspacePath).openFiles.filter((f) => matches(f.path))
     set((s) => ({
       ...patchWorkspace(s, workspacePath, (w) => {
@@ -305,9 +317,8 @@ export const useFilesStore = create<FilesState>((set, get) => ({
         return {
           ...w,
           openFiles,
-          closedPaths: w.closedPaths?.flatMap((path) =>
-            matches(path) ? (to ? [to + path.slice(from.length)] : []) : [path],
-          ),
+          closedPaths: movedPaths(w.closedPaths, from, to),
+          createdDirs: movedPaths(w.createdDirs, from, to),
           activePath:
             w.activePath && matches(w.activePath)
               ? to
