@@ -56,6 +56,145 @@ const worktrees: WorktreePort = {
   },
 }
 
+type Params<M extends LaneTransferParams['method']> = Extract<LaneTransferParams, { method: M }>
+
+interface ImportScope {
+  context: FeatureContext
+  ports: LaneImportPorts
+  paths: { env: FeatureContext['env']; home: FeatureContext['home'] }
+}
+
+function repositoryTarget(
+  ports: LaneImportPorts,
+  p: { repositoryId: string; branchPrefix: string; sameMachine: boolean },
+): TargetInput {
+  const repository = ports.store.listRepositories().find((r) => r.id === p.repositoryId)
+  if (!repository) throw new FeatureFailure('bad-request')
+  return {
+    root: repository.path,
+    workspace: repository.name,
+    branchPrefix: p.branchPrefix,
+    sameMachine: p.sameMachine,
+    maxTranscriptBytes: LIMIT.transcriptBytes,
+  }
+}
+
+function applyMarks(store: LaneImportPorts['store'], laneId: string, marks: LaneMoveMarks) {
+  if (marks.pinned || marks.marker !== null)
+    store.setLaneMarks(laneId, {
+      ...(marks.pinned ? { pinned: true } : {}),
+      ...(marks.marker !== null ? { marker: marks.marker } : {}),
+    })
+}
+
+/** Check the received bytes, then add the lane; any failure undoes every write it made. */
+async function admit(
+  scope: ImportScope,
+  staged: Staged,
+  upload: Upload,
+): Promise<{ laneId: string }> {
+  const { ports, paths } = scope
+  if (upload.received !== upload.begin.size || upload.hash.digest('hex') !== upload.begin.sha256)
+    refuse('The lane bundle is damaged.')
+  const { begin } = upload
+  const input = repositoryTarget(ports, begin)
+  const prepared = await prepareImport({ ...input, archivePath: staged.path, worktrees })
+  let laneId: string | undefined
+  let undo: (() => Promise<void>) | undefined
+  try {
+    const source = prepared.archive.manifest.source
+    const id = ports.store.ensureLane({
+      repositoryId: begin.repositoryId,
+      cwd: prepared.folder.cwd,
+      sessionFile: null,
+      worktree: prepared.folder.worktree,
+      title: source.title?.slice(0, 80) ?? null,
+      branch: prepared.folder.branch,
+    }).laneId
+    laneId = id
+    const installed = await installLane({
+      archive: prepared.archive,
+      plan: prepared.plan,
+      cwd: prepared.folder.cwd,
+      paths,
+      labels: begin.notice,
+      attachmentsDir: () => join(ports.attachmentsRoot, id),
+      sessionTaken: sessionTaken(paths),
+    })
+    undo = installed.undo
+    ports.store.bindSessionFile(id, installed.sessionFile)
+    applyMarks(ports.store, id, begin.marks)
+    ports.published(id)
+    scope.context.log('lane.imported', { mode: prepared.plan.mode, bytes: begin.size })
+    return { laneId: id }
+  } catch (error) {
+    if (laneId) ports.store.markRemoved(laneId)
+    await undo?.()
+    await prepared.folder.undo()
+    throw error
+  }
+}
+
+function writeChunk(
+  upload: Upload | undefined,
+  staged: Staged | undefined,
+  p: Params<'laneTransfer.chunk'>,
+) {
+  if (!upload || !staged || p.offset !== upload.received) throw new FeatureFailure('bad-request')
+  const bytes = Buffer.from(p.data, 'base64')
+  if (upload.received + bytes.length > upload.begin.size) throw new FeatureFailure('bad-request')
+  const fd = openSync(staged.path, constants.O_WRONLY | constants.O_APPEND | constants.O_NOFOLLOW)
+  try {
+    if (fstatSync(fd).size !== upload.received) throw new FeatureFailure('bad-request')
+    let written = 0
+    while (written < bytes.length) written += writeSync(fd, bytes, written)
+  } finally {
+    closeSync(fd)
+  }
+  upload.hash.update(bytes)
+  upload.received += bytes.length
+  return ok({})
+}
+
+/** The import calls over one map of uploads in flight and one commit queue. */
+function importCalls(scope: ImportScope) {
+  const { ports, context } = scope
+  const uploads = new Map<string, Upload>()
+  let tail: Promise<unknown> = Promise.resolve()
+  /** The bytes go once the commit ends either way; the job's answer stays for polling. */
+  const commit = (staged: Staged, upload: Upload) =>
+    admit(scope, staged, upload).finally(() => rmSync(staged.path, { force: true }))
+  return {
+    begin(p: Params<'laneTransfer.begin'>) {
+      repositoryTarget(ports, p)
+      for (const [id] of uploads) if (!ports.staging.get(id)) uploads.delete(id)
+      const staged = ports.staging.create(2)
+      if (!staged) throw new FeatureFailure('internal')
+      closeSync(openSync(staged.entry.path, 'wx', 0o600))
+      uploads.set(staged.id, { received: 0, hash: createHash('sha256'), begin: p })
+      return ok({ importId: staged.id })
+    },
+    chunk: (p: Params<'laneTransfer.chunk'>) =>
+      writeChunk(uploads.get(p.importId), ports.staging.get(p.importId), p),
+    commit(p: { importId: string; method: string }) {
+      const upload = uploads.get(p.importId)
+      const staged = ports.staging.get(p.importId)
+      if (!upload || !staged) throw new FeatureFailure('bad-request')
+      uploads.delete(p.importId)
+      // One commit at a time: two lanes racing for one branch or folder would each pass the checks.
+      const job = tail.then(() => commit(staged, upload))
+      tail = job.catch(() => undefined)
+      ports.staging.track(staged, job, (error) => {
+        if (error instanceof TransferRefusal || error instanceof LaneFolderError)
+          return [error.message]
+        context.log('feature.failed', { method: p.method, reason: 'internal' })
+        return ['This Host could not add the lane. Nothing was kept.']
+      })
+      return ok({})
+    },
+  }
+}
+
 /**
  * `laneTransfer.check`, `.begin`, `.chunk` and `.commit`: receive a bundle and
  * add it as a lane of a configured repository. Creating a lane needs
@@ -66,129 +205,20 @@ export function createLaneImportFeature(
   context: FeatureContext,
   ports: LaneImportPorts,
 ): HostFeature {
-  const uploads = new Map<string, Upload>()
-  let tail: Promise<unknown> = Promise.resolve()
-  const paths = { env: context.env, home: context.home }
-  function target(repositoryId: string, branchPrefix: string, sameMachine: boolean): TargetInput {
-    const repository = ports.store.listRepositories().find((r) => r.id === repositoryId)
-    if (!repository) throw new FeatureFailure('bad-request')
-    return {
-      root: repository.path,
-      workspace: repository.name,
-      branchPrefix,
-      sameMachine,
-      maxTranscriptBytes: LIMIT.transcriptBytes,
-    }
-  }
-  /** The bytes go once the commit ends either way; the job's answer stays for polling. */
-  async function commit(staged: Staged, upload: Upload): Promise<{ laneId: string }> {
-    try {
-      return await admit(staged, upload)
-    } finally {
-      rmSync(staged.path, { force: true })
-    }
-  }
-  async function admit(staged: Staged, upload: Upload): Promise<{ laneId: string }> {
-    if (upload.received !== upload.begin.size || upload.hash.digest('hex') !== upload.begin.sha256)
-      refuse('The lane bundle is damaged.')
-    const { begin } = upload
-    const input = target(begin.repositoryId, begin.branchPrefix, begin.sameMachine)
-    const prepared = await prepareImport({ ...input, archivePath: staged.path, worktrees })
-    let laneId: string | undefined
-    let undo: (() => Promise<void>) | undefined
-    try {
-      const source = prepared.archive.manifest.source
-      const id = ports.store.ensureLane({
-        repositoryId: begin.repositoryId,
-        cwd: prepared.folder.cwd,
-        sessionFile: null,
-        worktree: prepared.folder.worktree,
-        title: source.title?.slice(0, 80) ?? null,
-        branch: prepared.folder.branch,
-      }).laneId
-      laneId = id
-      const installed = await installLane({
-        archive: prepared.archive,
-        plan: prepared.plan,
-        cwd: prepared.folder.cwd,
-        paths,
-        labels: begin.notice,
-        attachmentsDir: () => join(ports.attachmentsRoot, id),
-        sessionTaken: sessionTaken(paths),
-      })
-      undo = installed.undo
-      ports.store.bindSessionFile(id, installed.sessionFile)
-      applyMarks(id, begin.marks)
-      ports.published(id)
-      context.log('lane.imported', { mode: prepared.plan.mode, bytes: begin.size })
-      return { laneId: id }
-    } catch (error) {
-      if (laneId) ports.store.markRemoved(laneId)
-      await undo?.()
-      await prepared.folder.undo()
-      throw error
-    }
-  }
-  function applyMarks(laneId: string, marks: LaneMoveMarks) {
-    if (marks.pinned || marks.marker !== null)
-      ports.store.setLaneMarks(laneId, {
-        ...(marks.pinned ? { pinned: true } : {}),
-        ...(marks.marker !== null ? { marker: marks.marker } : {}),
-      })
-  }
-  function chunk(p: Extract<LaneTransferParams, { method: 'laneTransfer.chunk' }>) {
-    const upload = uploads.get(p.importId)
-    const staged = ports.staging.get(p.importId)
-    if (!upload || !staged || p.offset !== upload.received) throw new FeatureFailure('bad-request')
-    const bytes = Buffer.from(p.data, 'base64')
-    if (upload.received + bytes.length > upload.begin.size) throw new FeatureFailure('bad-request')
-    const fd = openSync(staged.path, constants.O_WRONLY | constants.O_APPEND | constants.O_NOFOLLOW)
-    try {
-      if (fstatSync(fd).size !== upload.received) throw new FeatureFailure('bad-request')
-      let written = 0
-      while (written < bytes.length) written += writeSync(fd, bytes, written)
-    } finally {
-      closeSync(fd)
-    }
-    upload.hash.update(bytes)
-    upload.received += bytes.length
-    return ok({})
-  }
+  const scope: ImportScope = { context, ports, paths: { env: context.env, home: context.home } }
+  const calls = importCalls(scope)
   async function run(method: string, params: unknown): Promise<FeatureOutcome> {
     const p = parseLaneTransferParams(method, params)
     if (!p) throw new FeatureFailure('bad-request')
     switch (p.method) {
       case 'laneTransfer.check':
-        return ok(
-          await checkTarget(target(p.repositoryId, p.branchPrefix, p.sameMachine), p.source),
-        )
-      case 'laneTransfer.begin': {
-        target(p.repositoryId, p.branchPrefix, p.sameMachine)
-        for (const [id] of uploads) if (!ports.staging.get(id)) uploads.delete(id)
-        const staged = ports.staging.create(2)
-        if (!staged) throw new FeatureFailure('internal')
-        closeSync(openSync(staged.entry.path, 'wx', 0o600))
-        uploads.set(staged.id, { received: 0, hash: createHash('sha256'), begin: p })
-        return ok({ importId: staged.id })
-      }
+        return ok(await checkTarget(repositoryTarget(ports, p), p.source))
+      case 'laneTransfer.begin':
+        return calls.begin(p)
       case 'laneTransfer.chunk':
-        return chunk(p)
-      case 'laneTransfer.commit': {
-        const upload = uploads.get(p.importId)
-        const staged = ports.staging.get(p.importId)
-        if (!upload || !staged) throw new FeatureFailure('bad-request')
-        uploads.delete(p.importId)
-        // One commit at a time: two lanes racing for one branch or folder would each pass the checks.
-        const job = tail.then(() => commit(staged, upload))
-        tail = job.catch(() => undefined)
-        ports.staging.track(staged, job, (error) => {
-          if (error instanceof TransferRefusal || error instanceof LaneFolderError)
-            return [error.message]
-          context.log('feature.failed', { method, reason: 'internal' })
-          return ['This Host could not add the lane. Nothing was kept.']
-        })
-        return ok({})
-      }
+        return calls.chunk(p)
+      case 'laneTransfer.commit':
+        return calls.commit(p)
       case 'laneTransfer.importStatus': {
         const staged = ports.staging.get(p.importId)
         if (!staged) throw new FeatureFailure('bad-request')

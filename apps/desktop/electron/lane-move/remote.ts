@@ -36,12 +36,10 @@ export const LANE_MOVE_ERRORS = {
 const POLL_MS = 400
 const JOB_DEADLINE_MS = 15 * 60 * 1000
 
-/**
- * One Host's half of a lane move. A replaced connection, a lost capability or
- * an answer that does not parse fails closed, and a write whose outcome is in
- * doubt is reported as unconfirmed, never retried.
- */
-export function remoteLaneTransfer(connection: Connection, hostId: string) {
+type Channel = ReturnType<typeof hostChannel>
+
+/** Calls to one Host that fail closed when its connection or grants change mid-move. */
+function hostChannel(connection: Connection, hostId: string) {
   const c = connection(hostId)
   const generation = c?.incarnation().generation
   const ready = (capability: HostCapability) =>
@@ -67,6 +65,7 @@ export function remoteLaneTransfer(connection: Connection, hostId: string) {
       throw new Error(result.error.code === 'unsupported' ? LANE_MOVE_ERRORS.outdated : doubt)
     return result.data
   }
+  /** Poll a job until it is done or refused; past the deadline its outcome is in doubt. */
   async function settle<T>(
     capability: HostCapability,
     method: string,
@@ -84,17 +83,127 @@ export function remoteLaneTransfer(connection: Connection, hostId: string) {
     }
     throw new Error(doubt)
   }
-  return {
-    available,
-    async inspect(laneId: string): Promise<LaneInspection> {
-      const data = await call(
-        'sessions.read',
-        'laneTransfer.inspect',
-        { laneId },
-        LANE_MOVE_ERRORS.failed,
+  return { available, call, settle }
+}
+
+async function readExport(
+  host: Channel,
+  exportId: string,
+  path: string,
+): Promise<{ size: number; sha256: string } | { blockers: string[] }> {
+  const fail = LANE_MOVE_ERRORS.failed
+  const status = await host.settle(
+    'sessions.read',
+    'laneTransfer.exportStatus',
+    { exportId },
+    parseLaneExported,
+    fail,
+  )
+  if (!('state' in status)) return status
+  const { size, sha256 } = status.value
+  if (size > LIMIT.bundleBytes) throw new Error(fail)
+  const file = await open(path, 'wx', 0o600)
+  try {
+    for (let offset = 0; offset < size;) {
+      const data = parseLaneChunk(
+        await host.call('sessions.read', 'laneTransfer.read', { exportId, offset }, fail),
       )
+      if (!data) throw new Error(fail)
+      const bytes = Buffer.from(data, 'base64')
+      if (offset + bytes.length > size) throw new Error(fail)
+      await file.write(bytes, 0, bytes.length, offset)
+      offset += bytes.length
+    }
+  } finally {
+    await file.close()
+  }
+  return { size, sha256 }
+}
+
+/** Copy a lane's bundle from its Host into `path` on this Mac. */
+async function download(
+  host: Channel,
+  laneId: string,
+  path: string,
+): Promise<{ size: number; sha256: string } | { blockers: string[] }> {
+  const fail = LANE_MOVE_ERRORS.failed
+  const started = await host.call('sessions.read', 'laneTransfer.export', { laneId }, fail)
+  const refused = parseLaneInspection(started)
+  if (refused && 'blockers' in refused) return refused
+  const exportId = parseTransferStarted(started, 'exportId')
+  if (!exportId) throw new Error(fail)
+  try {
+    return await readExport(host, exportId, path)
+  } finally {
+    await host
+      .call('sessions.read', 'laneTransfer.release', { exportId }, fail)
+      .catch(() => undefined)
+  }
+}
+
+export interface LaneUpload {
+  path: string
+  size: number
+  sha256: string
+  repositoryId: string
+  branchPrefix: string
+  sameMachine: boolean
+  notice: LaneMoveNotice
+  marks: LaneMoveMarks
+}
+
+/** Send the bundle at `path` and add it as a lane of `repositoryId`. */
+async function upload(
+  host: Channel,
+  input: LaneUpload,
+): Promise<{ laneId: string } | { blockers: string[] }> {
+  const { path, ...begin } = input
+  const fail = LANE_MOVE_ERRORS.failed
+  const importId = parseTransferStarted(
+    await host.call('sessions.control', 'laneTransfer.begin', begin, fail),
+    'importId',
+  )
+  if (!importId) throw new Error(fail)
+  const file = await open(path, 'r')
+  try {
+    const buffer = Buffer.alloc(LIMIT.chunkBytes)
+    for (let offset = 0; offset < input.size;) {
+      const { bytesRead } = await file.read(buffer, 0, buffer.length, offset)
+      if (!bytesRead) throw new Error(fail)
+      const data = buffer.subarray(0, bytesRead).toString('base64')
+      await host.call('sessions.control', 'laneTransfer.chunk', { importId, offset, data }, fail)
+      offset += bytesRead
+    }
+  } finally {
+    await file.close()
+  }
+  // From here the Host may be writing: any doubt is "unconfirmed", never a retry.
+  const doubt = LANE_MOVE_ERRORS.unconfirmed
+  await host.call('sessions.control', 'laneTransfer.commit', { importId }, doubt)
+  const status = await host.settle(
+    'sessions.control',
+    'laneTransfer.importStatus',
+    { importId },
+    parseLaneImported,
+    doubt,
+  )
+  return 'state' in status ? status.value : status
+}
+
+/**
+ * One Host's half of a lane move. A replaced connection, a lost capability or
+ * an answer that does not parse fails closed, and a write whose outcome is in
+ * doubt is reported as unconfirmed, never retried.
+ */
+export function remoteLaneTransfer(connection: Connection, hostId: string) {
+  const host = hostChannel(connection, hostId)
+  const fail = LANE_MOVE_ERRORS.failed
+  return {
+    available: host.available,
+    async inspect(laneId: string): Promise<LaneInspection> {
+      const data = await host.call('sessions.read', 'laneTransfer.inspect', { laneId }, fail)
       const parsed = parseLaneInspection(data)
-      if (!parsed) throw new Error(LANE_MOVE_ERRORS.failed)
+      if (!parsed) throw new Error(fail)
       return parsed
     },
     async check(
@@ -103,102 +212,14 @@ export function remoteLaneTransfer(connection: Connection, hostId: string) {
       branchPrefix: string,
       sameMachine: boolean,
     ): Promise<LaneTargetPlan> {
-      const data = await call(
-        'sessions.control',
-        'laneTransfer.check',
-        { repositoryId, source, branchPrefix, sameMachine },
-        LANE_MOVE_ERRORS.failed,
+      const params = { repositoryId, source, branchPrefix, sameMachine }
+      const plan = parseLaneTargetPlan(
+        await host.call('sessions.control', 'laneTransfer.check', params, fail),
       )
-      const plan = parseLaneTargetPlan(data)
-      if (!plan) throw new Error(LANE_MOVE_ERRORS.failed)
+      if (!plan) throw new Error(fail)
       return plan
     },
-    /** Copy the lane's bundle into `path` on this Mac. */
-    async download(
-      laneId: string,
-      path: string,
-    ): Promise<{ size: number; sha256: string } | { blockers: string[] }> {
-      const fail = LANE_MOVE_ERRORS.failed
-      const started = await call('sessions.read', 'laneTransfer.export', { laneId }, fail)
-      const refused = parseLaneInspection(started)
-      if (refused && 'blockers' in refused) return refused
-      const exportId = parseTransferStarted(started, 'exportId')
-      if (!exportId) throw new Error(fail)
-      try {
-        const status = await settle(
-          'sessions.read',
-          'laneTransfer.exportStatus',
-          { exportId },
-          parseLaneExported,
-          fail,
-        )
-        if (!('state' in status)) return status
-        const { size, sha256 } = status.value
-        if (size > LIMIT.bundleBytes) throw new Error(fail)
-        const file = await open(path, 'wx', 0o600)
-        try {
-          for (let offset = 0; offset < size;) {
-            const data = parseLaneChunk(
-              await call('sessions.read', 'laneTransfer.read', { exportId, offset }, fail),
-            )
-            if (!data) throw new Error(fail)
-            const bytes = Buffer.from(data, 'base64')
-            if (offset + bytes.length > size) throw new Error(fail)
-            await file.write(bytes, 0, bytes.length, offset)
-            offset += bytes.length
-          }
-        } finally {
-          await file.close()
-        }
-        return { size, sha256 }
-      } finally {
-        await call('sessions.read', 'laneTransfer.release', { exportId }, fail).catch(
-          () => undefined,
-        )
-      }
-    },
-    /** Send the bundle at `path` and add it as a lane of `repositoryId`. */
-    async upload(input: {
-      path: string
-      size: number
-      sha256: string
-      repositoryId: string
-      branchPrefix: string
-      sameMachine: boolean
-      notice: LaneMoveNotice
-      marks: LaneMoveMarks
-    }): Promise<{ laneId: string } | { blockers: string[] }> {
-      const { path, ...begin } = input
-      const fail = LANE_MOVE_ERRORS.failed
-      const importId = parseTransferStarted(
-        await call('sessions.control', 'laneTransfer.begin', begin, fail),
-        'importId',
-      )
-      if (!importId) throw new Error(fail)
-      const file = await open(path, 'r')
-      try {
-        const buffer = Buffer.alloc(LIMIT.chunkBytes)
-        for (let offset = 0; offset < input.size;) {
-          const { bytesRead } = await file.read(buffer, 0, buffer.length, offset)
-          if (!bytesRead) throw new Error(fail)
-          const data = buffer.subarray(0, bytesRead).toString('base64')
-          await call('sessions.control', 'laneTransfer.chunk', { importId, offset, data }, fail)
-          offset += bytesRead
-        }
-      } finally {
-        await file.close()
-      }
-      // From here the Host may be writing: any doubt is "unconfirmed", never a retry.
-      const doubt = LANE_MOVE_ERRORS.unconfirmed
-      await call('sessions.control', 'laneTransfer.commit', { importId }, doubt)
-      const status = await settle(
-        'sessions.control',
-        'laneTransfer.importStatus',
-        { importId },
-        parseLaneImported,
-        doubt,
-      )
-      return 'state' in status ? status.value : status
-    },
+    download: (laneId: string, path: string) => download(host, laneId, path),
+    upload: (input: LaneUpload) => upload(host, input),
   }
 }

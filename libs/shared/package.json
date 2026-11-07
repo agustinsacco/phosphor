@@ -320,6 +320,10 @@
       "types": "./src/host-protocol-lane-transfer-calls.ts",
       "default": "./src/host-protocol-lane-transfer-calls.ts"
     },
+    "./ipc-web-exclusions": {
+      "types": "./src/ipc-web-exclusions.ts",
+      "default": "./src/ipc-web-exclusions.ts"
+    },
     "./lane-move": {
       "types": "./src/lane-move.ts",
       "default": "./src/lane-move.ts"

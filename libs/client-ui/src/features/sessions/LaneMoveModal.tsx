@@ -154,32 +154,10 @@ function PlanView({ check }: { check: Check }): React.JSX.Element | null {
   )
 }
 
-function LaneMoveModal({
-  draft,
-  onClose,
-}: {
-  draft: LaneMoveDraft
-  onClose: () => void
-}): React.JSX.Element {
-  const hosts = useRemoteLanesStore((s) => s.hosts)
-  const recents = useWorkspacesStore((s) => s.recents)
-  const sandboxes = useWorkspacesStore((s) => s.sandboxes)
-  const machines = useMemo(
-    () => moveMachines({ hosts, labelOf: machineLabel, recents, sandboxes }),
-    [hosts, recents, sandboxes],
-  )
-  const unavailable = sourceHint(hosts, draft.source)
-  const [machine, setMachine] = useState(
-    () => machines.find((m) => !m.disabled)?.machine ?? 'local',
-  )
-  const [workspace, setWorkspace] = useState('')
-  const chosen = machines.find((m) => m.machine === machine)
-  const picked = chosen?.workspaces.find((w) => w.key === workspace)
-  const check = useMovePlan(draft, picked?.target, unavailable)
+function useMoveExecution(draft: LaneMoveDraft) {
   const [moving, setMoving] = useState(false)
   const [done, setDone] = useState<Done | null>(null)
   const [error, setError] = useState<string | null>(null)
-
   async function move(target: LaneMoveTarget): Promise<void> {
     setMoving(true)
     setError(null)
@@ -200,6 +178,37 @@ function LaneMoveModal({
       setMoving(false)
     }
   }
+  return { moving, done, error, setError, move }
+}
+
+function useMoveMachines() {
+  const hosts = useRemoteLanesStore((s) => s.hosts)
+  const recents = useWorkspacesStore((s) => s.recents)
+  const sandboxes = useWorkspacesStore((s) => s.sandboxes)
+  const machines = useMemo(
+    () => moveMachines({ hosts, labelOf: machineLabel, recents, sandboxes }),
+    [hosts, recents, sandboxes],
+  )
+  return { hosts, machines }
+}
+
+function LaneMoveModal({
+  draft,
+  onClose,
+}: {
+  draft: LaneMoveDraft
+  onClose: () => void
+}): React.JSX.Element {
+  const { hosts, machines } = useMoveMachines()
+  const unavailable = sourceHint(hosts, draft.source)
+  const [machine, setMachine] = useState(
+    () => machines.find((m) => !m.disabled)?.machine ?? 'local',
+  )
+  const [workspace, setWorkspace] = useState('')
+  const chosen = machines.find((m) => m.machine === machine)
+  const picked = chosen?.workspaces.find((w) => w.key === workspace)
+  const check = useMovePlan(draft, picked?.target, unavailable)
+  const { moving, done, error, setError, move } = useMoveExecution(draft)
   const blocked = check.state !== 'ready' || check.plan.blockers.length > 0
   const open = () => {
     if (done) void openMoved(done).then(onClose, (cause: unknown) => setError(errorText(cause)))

@@ -1,4 +1,5 @@
 import type { IpcInvokeChannel } from './ipc'
+import { connectorConfig, LANE_TRANSFER_WEB, readOnlyFiles } from './ipc-web-exclusions'
 
 export type WebIpcClassification =
   { kind: 'remote-supported' } | { kind: 'browser-local' } | { kind: 'unsupported'; reason: string }
@@ -11,10 +12,6 @@ const native = unsupported('This native or mutating Host feature is unavailable 
 const localRoutines = unsupported(
   'Local routine execution and native background services require Desktop.',
 )
-const connectorConfig = unsupported(
-  'Connector configuration and credentials belong to the Host or Desktop.',
-)
-const readOnlyFiles = unsupported('Browser file access is read-only and explicitly Host-scoped.')
 
 /** Every new IPC channel requires an explicit browser admission decision. */
 export const IPC_WEB = {
@@ -28,12 +25,7 @@ export const IPC_WEB = {
   'hosts:skills': remote,
   'hosts:skillExport': remote,
   'hosts:skillInstall': remote,
-  'hosts:laneMovePlan': unsupported(
-    'Moving lanes needs Desktop, which carries the lane between machines.',
-  ),
-  'hosts:laneMove': unsupported(
-    'Moving lanes needs Desktop, which carries the lane between machines.',
-  ),
+  ...LANE_TRANSFER_WEB,
   'hosts:providerLogin': remote,
   'hosts:settingsAccess': remote,
   'hosts:settingsRead': remote,

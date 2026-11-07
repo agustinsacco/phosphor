@@ -110,6 +110,23 @@ describe('moving a lane between two Hosts', () => {
     expect(a.store.getLane(laneId)?.removedAt).toBeNull()
   })
 
+  it('refuses names the Host cannot preserve rather than silently shortening them', async () => {
+    const a = await host('long-name')
+    const b = await host('long-target')
+    const laneId = admitLane(a)
+    const path = a.store.getLane(laneId)!.sessionFile!
+    const text = readFileSync(path, 'utf8').replace('Sort The Notes', 'x'.repeat(81))
+    writeFileSync(path, text)
+    const { facts } = await a.call(a.exporter, 'laneTransfer.inspect', { laneId })
+    const plan = await b.call(b.importer, 'laneTransfer.check', {
+      repositoryId: b.store.listRepositories()[0]!.id,
+      source: facts,
+      branchPrefix: '',
+      sameMachine: false,
+    })
+    expect(plan.blockers).toContain('This Host cannot preserve a lane name longer than 80 characters.')
+  })
+
   it('refuses a running lane and a bundle that does not match its hash', async () => {
     const running = await host('running', true)
     expect(

@@ -83,9 +83,10 @@ describe('moving a lane in a folder git does not track', () => {
       'attached bytes',
     )
     // The row keeps its age and order.
-    expect(Math.floor(statSync(installed.sessionFile).mtimeMs)).toBe(
-      Math.floor(statSync(lane.sessionFile).mtimeMs),
-    )
+    // Filesystems may round `utimes` by a fraction of a millisecond.
+    expect(
+      Math.abs(statSync(installed.sessionFile).mtimeMs - statSync(lane.sessionFile).mtimeMs),
+    ).toBeLessThan(2)
 
     const dir = sessionDirForCwd(targetRoot, join(to.home, '.pi/agent/sessions'))
     const child = lines(
@@ -124,6 +125,22 @@ describe('moving a lane in a folder git does not track', () => {
     expect(copied[0]).toMatchObject({ sessionId: cli })
     const notice = lines(installed.sessionFile).at(-1)!
     expect(notice.content).not.toContain('Attached files')
+  })
+
+  it('rediscovers the relocated attachment when a moved lane moves again', async () => {
+    const { to, installed, targetRoot } = await moveFolderLane(false)
+    const archivePath = join(to.home, 'second.bundle')
+    await exportLane({
+      sessionFile: installed.sessionFile,
+      workspace: 'elsewhere',
+      paths: to,
+      attachmentAllowed: (path) => path.startsWith(join(to.home, 'attachments') + '/'),
+    }, archivePath)
+    const archive = await openArchive(archivePath)
+    const attachments = archive.manifest.parts.filter((p) => p.kind === 'attachment')
+    expect(attachments).toHaveLength(1)
+    expect(attachments[0]?.from).toBe(join(to.home, 'attachments', '0', 'notes.txt'))
+    expect(archive.manifest.source.cwd).toBe(targetRoot)
   })
 
   it('writes nothing when part of the lane already exists there', async () => {
