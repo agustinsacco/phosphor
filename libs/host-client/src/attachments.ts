@@ -1,20 +1,21 @@
-import { createHash } from 'node:crypto'
+import { base64ToBytes, bytesToBase64 } from '@phosphor/shared/base64'
 import {
   ATTACHMENT_LIMITS as LIMIT,
   attachmentBase64,
   parseAttachmentOp,
   parseAttachmentResult,
   type AttachmentOp,
-} from '@shared/host-protocol-attachments'
-import type { WriteLane } from './write-features'
+} from '@phosphor/shared/host-protocol-attachments'
+import type { WriteLane } from './ports'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
+import { sha256Hex } from './crypto'
 
 /** Never retry a receipt operation, including an unknown chunk outcome. */
 export async function uploadAttachments(input: unknown, lane: WriteLane): Promise<string[]> {
   if (!Array.isArray(input) || input.length > LIMIT.files) throw new Error(REMOTE_UNAVAILABLE)
   const files: {
     begin: Extract<AttachmentOp, { type: 'attachments.begin' }>
-    bytes: Buffer
+    bytes: Uint8Array<ArrayBuffer>
   }[] = []
   let total = 0
   for (const file of input) {
@@ -28,7 +29,7 @@ export async function uploadAttachments(input: unknown, lane: WriteLane): Promis
       !attachmentBase64(file.data, LIMIT.fileBytes)
     )
       throw new Error(REMOTE_UNAVAILABLE)
-    const bytes = Buffer.from(file.data, 'base64')
+    const bytes = base64ToBytes(file.data)
     total += bytes.length
     if (total > LIMIT.hourlyBytes) throw new Error(REMOTE_UNAVAILABLE)
     const begin = parseAttachmentOp({
@@ -49,7 +50,7 @@ export async function uploadAttachments(input: unknown, lane: WriteLane): Promis
         type: 'attachments.chunk',
         uploadId: result.uploadId,
         index,
-        data: bytes.subarray(offset, offset + LIMIT.chunkBytes).toString('base64'),
+        data: bytesToBase64(bytes.subarray(offset, offset + LIMIT.chunkBytes)),
       })
       if (data !== undefined) throw new Error(REMOTE_UNAVAILABLE)
     }
@@ -57,7 +58,7 @@ export async function uploadAttachments(input: unknown, lane: WriteLane): Promis
       await lane.write({
         type: 'attachments.commit',
         uploadId: result.uploadId,
-        sha256: createHash('sha256').update(bytes).digest('hex'),
+        sha256: await sha256Hex(bytes),
       }),
     )
     if (!committed || !('path' in committed)) throw new Error(REMOTE_UNAVAILABLE)

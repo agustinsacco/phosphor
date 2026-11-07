@@ -19,7 +19,7 @@ import type { AccountView } from '@shared/account'
 import type { PhosphorApi } from '@shared/ipc'
 import { mockRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import { mockTraffic } from './mockTraffic'
-import { bytesToBase64 } from '../lib/base64'
+import { base64ToBytes, bytesToBase64 } from '@phosphor/shared/base64'
 import type {
   ConnectorAuthPush,
   ConnectorAuthState,
@@ -29,7 +29,7 @@ import type {
 import { mockMcpInspection, mockMcpList } from './mockMcpInspection'
 import type { ArtifactListing, ArtifactSnapshot } from '@shared/artifacts'
 import { normalizeContextFilePrefs, type ContextFilePrefs } from '@shared/context-files'
-import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
+import { CLAUDE_PROVIDER_PACKAGE, DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
 import {
   compileSearch,
   EMPTY_SEARCH_RESULT,
@@ -905,7 +905,7 @@ async function mockClipboardWriteImage(image: { data: string; mimeType: string }
     navigator.clipboard.write([new ClipboardItem({ [mime]: blob })])
   try {
     if (image.mimeType === 'image/png' || image.mimeType === 'image/jpeg') {
-      const bytes = Uint8Array.from(atob(image.data), (c) => c.charCodeAt(0))
+      const bytes = base64ToBytes(image.data)
       await write(image.mimeType, new Blob([bytes], { type: image.mimeType }))
     } else {
       const img = new Image()
@@ -1301,7 +1301,7 @@ export function installMockPhosphor(): void {
               scope: 'global',
               kind: 'npm',
               filtered: false,
-              name: 'pi-claude-cli',
+              name: CLAUDE_PROVIDER_PACKAGE,
               version: '0.5.0',
               description: 'Claude Code CLI as a pi model provider',
               installed: true,
