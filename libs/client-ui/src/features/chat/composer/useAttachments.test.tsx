@@ -3,6 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useAttachments, type AttachmentsApi } from './useAttachments'
+import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 import type { PendingAttachment } from '../attachments'
 let root: Root
 let container: HTMLDivElement
@@ -126,4 +127,18 @@ it('sends a local session its image as it is', async () => {
     vi.unstubAllGlobals()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   }
+})
+it('a browser accepts a PDF for a Host lane, as Desktop does', async () => {
+  await act(async () =>
+    root.render(
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <Harness />
+      </PlatformProvider>,
+    ),
+  )
+  await act(async () => pick(file()))
+  expect(reject).not.toHaveBeenCalled()
+  expect(change).toHaveBeenCalledWith([
+    { kind: 'file', path: '', name: 'a.pdf', size: 3, data: 'YWJj', mime: 'application/pdf' },
+  ])
 })

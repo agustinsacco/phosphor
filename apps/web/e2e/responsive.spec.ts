@@ -74,7 +74,7 @@ test('shared full pages fit phone, tablet and wide layouts with consistent font 
   expect(failures).toEqual([])
 })
 
-test('browser creation rejects file uploads before mutation and offers no isolation toggle', async ({
+test('browser creation attaches any file, sends its Host path and offers no isolation toggle', async ({
   stack,
   page,
 }) => {
@@ -89,8 +89,9 @@ test('browser creation rejects file uploads before mutation and offers no isolat
   await (
     await picking
   ).setFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('synthetic') })
-  await expect(page.getByRole('alert')).toContainText('Only images can be attached in this browser')
-  await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeDisabled()
+  // Any file attaches as a chip, as on Desktop; nothing reaches the Host before Start lane.
+  await expect(page.getByTestId('attachment-chips')).toContainText('notes.txt')
+  await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeEnabled()
   const checkbox = page.locator('.remote-start input[type="checkbox"]')
   // The first folder is not a git repository: no branch, the lane runs in it.
   await expect(page.getByText('no git · runs in folder', { exact: true })).toBeVisible()
@@ -135,9 +136,15 @@ test('browser creation rejects file uploads before mutation and offers no isolat
       'base64',
     ),
   })
+  await page.getByRole('textbox', { name: 'Chat message', exact: true }).fill('PHX-hostinputs')
   await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: 'Start lane', exact: true }).click()
   await expect(page.getByText('Controlled by you', { exact: true })).toBeVisible()
+  // The document was uploaded to the Host; the prompt names its Host path.
+  await expect(page.locator('main').getByText(/\/attachments\/[^\s]+-notes\.txt/)).toBeVisible()
+  await expect(
+    page.locator('main').getByText('Attachments: synthetic | 1 image/png', { exact: true }),
+  ).toBeVisible()
   await expect
     .poll(
       async () =>
