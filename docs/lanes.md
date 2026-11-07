@@ -486,12 +486,14 @@ mid-turn is findable under the name on screen.
 
 One Host lane row (`features/sessions/RemoteLaneRow`) and one menu serve every
 surface: Desktop's sidebar, the browser's navigation and Lanes page, Host home and the
-machine preview. `remoteLaneActions` builds the menu as a pure list (Open, Move up and Move
-down where the row sits in an ordered list, Rename,
-Take or Release control, Stop or Resume, Mark read, Make routine…, Pin, Lane
-marker, Export HTML…, Copy debug info, Copy spend, Delete, plus Open pull request when the lane has one) and
-`useRemoteLaneActions` runs it; the phone's lane sheet lists the same items
-without Open. The row's menu opens on right-click, the ContextMenu key or
+machine preview. `laneActions` builds the menu as a pure list in This Mac's
+order and labels, from the context `hostLaneContext` maps (Open, Move up and
+Move down where the row sits in an ordered list, Rename…, Make routine…, Pin,
+Lane marker…, Open pull request when the lane has one, Take or Release control,
+Stop or Resume, Mark read on an unseen lane, then Export HTML…, Copy debug
+info and Copy spend, then Delete), and `useRemoteLaneActions` runs it; the
+phone's lane sheet lists the same items without Open. Absent data hides an
+item; a refusal disables it and names itself. The row's menu opens on right-click, the ContextMenu key or
 Shift+F10, and a touch long-press; on a phone it is a bottom sheet. The row
 renames inline, the sheet through a prompt. Opening a row navigates to the lane
 without naming a pane, so Desktop restores that lane's pane and the browser opens
