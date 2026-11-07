@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ArtifactsPane } from './ArtifactsPane'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { useChatStore } from '@/stores/chat'
+import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -66,4 +67,32 @@ it('Desktop: a cancelled Save source writes nothing', async () => {
   invoke.mockResolvedValue(null)
   await clickSaveSource()
   expect(invoke.mock.calls.map(([channel]) => channel)).not.toContain('fs:writeFile')
+})
+
+it('a browser shows Save source and downloads it, and keeps PDF export hidden', async () => {
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  URL.createObjectURL = vi.fn(() => 'blob:x')
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  try {
+    await act(async () =>
+      root.render(
+        <PlatformProvider value={COMPACT_PLATFORM}>
+          <ArtifactsPane sessionId="lane" workspacePath="/repo" />
+        </PlatformProvider>,
+      ),
+    )
+    expect(container.querySelector('[data-tooltip^="Export preview to PDF"]')).toBeNull()
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-tooltip="Save source to file…"]')?.click(),
+    )
+    expect(invoke.mock.calls.map(([channel]) => channel)).not.toContain('app:saveDialog')
+    expect(click).toHaveBeenCalledOnce()
+    expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('field-guide.md')
+  } finally {
+    act(() => root.unmount())
+    container.remove()
+    click.mockRestore()
+  }
 })

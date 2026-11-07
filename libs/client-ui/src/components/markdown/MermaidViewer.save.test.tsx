@@ -3,6 +3,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MermaidViewer } from './MermaidViewer'
+import { COMPACT_PLATFORM, DESKTOP_PLATFORM, PlatformProvider } from '@/platform/Platform'
 
 const invoke = vi.fn()
 beforeEach(() => {
@@ -19,17 +20,19 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
-async function clickSave(): Promise<void> {
+async function clickSave(platform = DESKTOP_PLATFORM): Promise<void> {
   const container = document.createElement('div')
   document.body.append(container)
   const root = createRoot(container)
   await act(async () =>
     root.render(
-      <MermaidViewer
-        svg='<svg viewBox="0 0 10 10"><g/></svg>'
-        code="graph TD"
-        onClose={() => {}}
-      />,
+      <PlatformProvider value={platform}>
+        <MermaidViewer
+          svg='<svg viewBox="0 0 10 10"><g/></svg>'
+          code="graph TD"
+          onClose={() => {}}
+        />
+      </PlatformProvider>,
     ),
   )
   const save = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Save SVG')
@@ -58,4 +61,14 @@ it('Desktop: a cancelled Save SVG writes nothing', async () => {
   invoke.mockResolvedValue(null)
   await clickSave()
   expect(invoke.mock.calls.map(([channel]) => channel)).toEqual(['app:saveDialog'])
+})
+
+it('a browser shows Save SVG and downloads the diagram, with no native channel', async () => {
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  URL.createObjectURL = vi.fn(() => 'blob:x')
+  await clickSave(COMPACT_PLATFORM)
+  expect(invoke).not.toHaveBeenCalled()
+  expect(click).toHaveBeenCalledOnce()
+  expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('diagram.svg')
+  click.mockRestore()
 })
