@@ -96,7 +96,8 @@ describe('artifact facade frozen contract', () => {
       feature
         .call(
           i === 1 ? 'artifacts.read' : 'artifacts.list',
-          i === 1 ? { laneId, slug: 'guide' } : {},
+          // One lane's too-large scan fails a request for that lane; the all-lanes list skips it.
+          i === 0 ? { laneId } : i === 1 ? { laneId, slug: 'guide' } : {},
         )
         .then((result) => {
           completed.push(i)

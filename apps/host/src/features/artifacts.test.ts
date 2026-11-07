@@ -125,10 +125,12 @@ describe('Host artifacts', () => {
     )
     expect(await feature.call('artifacts.list', {})).toEqual({ ok: true, data: [] })
     await appendFile(join(dir, 'session.jsonl'), ' ')
-    expect(await feature.call('artifacts.list', {})).toMatchObject({
+    expect(await feature.call('artifacts.list', { laneId })).toMatchObject({
       ok: false,
       error: { code: 'too-large' },
     })
+    // The all-lanes list leaves the unscannable lane out rather than failing.
+    expect(await feature.call('artifacts.list', {})).toEqual({ ok: true, data: [] })
   })
   it('serializes one active call and eight FIFO waiters, rejecting the next', async () => {
     const original = indexer.indexSessionFile
