@@ -31,14 +31,14 @@ vi.mock('../hosts/socket', () => ({
 }))
 vi.mock('./control-handlers', () => ({ controlClient: () => ({}), onMachinesChanged: vi.fn() }))
 vi.mock('./handle', () => ({ handle: mocks.handle, setRemoteReadRouter: mocks.router }))
-vi.mock('../hosts/artifacts', () => ({
+vi.mock('@phosphor/host-client/artifacts', () => ({
   createArtifactHost: vi.fn(),
   remoteSessionArtifacts: vi.fn(),
   remoteArtifactListings: mocks.remoteList,
   remoteArtifactRead: vi.fn(),
 }))
 vi.mock('../artifacts/artifact-sync', () => ({ artifactLibrary: { list: mocks.localList } }))
-vi.mock('../hosts/read-features', () => ({ routeRemoteRead: vi.fn() }))
+vi.mock('@phosphor/host-client/read-features', () => ({ routeRemoteRead: vi.fn() }))
 vi.mock('../hosts/remote-lanes', () => ({
   createRemoteLanes: () => ({ readLane: mocks.readLane }),
 }))

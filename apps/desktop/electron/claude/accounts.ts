@@ -5,7 +5,8 @@ import { getClaudeAccountPrefs, setClaudeAccountPrefs } from '../store'
 import { claudeStatus } from '../pi/packages'
 import { logoutClaude } from '../pi/claude-login'
 import { cachedUsageSnapshot, clearUsageCache, fetchUsageSnapshot } from './usage'
-export { claudeAccountEnv } from './routing'
+// Desktop callers and the frozen accounts characterization import claudeAccountEnv from here.
+export { claudeAccountEnv } from '@phosphor/session-runtime/claude/routing'
 
 export const {
   accountUsageEnv,

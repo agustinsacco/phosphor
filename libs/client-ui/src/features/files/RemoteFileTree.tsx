@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
 import { ChevronIcon } from '@/components/icons'
 import { FileTreeRow, FolderGlyph } from './FileTreeRow'
+import { useTreeFolders, type TreeFolders } from './useTreeFolders'
 
 /** A Host list is relative paths, not a local directory handle. */
 export function RemoteFileTree({
@@ -12,6 +13,7 @@ export function RemoteFileTree({
   disabled = false,
   loading = false,
   changes = false,
+  folders,
 }: {
   files: string[]
   selected: string | null
@@ -20,8 +22,11 @@ export function RemoteFileTree({
   disabled?: boolean
   loading?: boolean
   changes?: boolean
+  /** Folder state a pane owns, for a toolbar's collapse-all; the tree's own otherwise. */
+  folders?: TreeFolders
 }): React.JSX.Element {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const own = useTreeFolders(selected, changes)
+  const { isOpen, toggle } = folders ?? own
   const nodes = useMemo(() => {
     const entries = new Map<
       string,
@@ -73,30 +78,23 @@ export function RemoteFileTree({
   return (
     <div role="tree" aria-label={changes ? 'Changed files' : 'Files'} className="py-1">
       {nodes
-        .filter(
-          (n) =>
-            !n.path
-              .split('/')
-              .slice(0, -1)
-              .some((_p, i, parts) => collapsed.has(parts.slice(0, i + 1).join('/'))),
+        .filter((n) =>
+          n.path
+            .split('/')
+            .slice(0, -1)
+            .every((_p, i, parts) => isOpen(parts.slice(0, i + 1).join('/'))),
         )
         .map((n) => (
           <FileTreeRow
             key={n.path}
             role="treeitem"
             aria-level={n.depth + 1}
-            aria-expanded={n.directory ? !collapsed.has(n.path) : undefined}
+            aria-expanded={n.directory ? isOpen(n.path) : undefined}
             active={selected === n.path}
             depth={n.depth}
             disabled={disabled}
             onClick={() => {
-              if (n.directory)
-                setCollapsed((old) => {
-                  const next = new Set(old)
-                  if (next.has(n.path)) next.delete(n.path)
-                  else next.add(n.path)
-                  return next
-                })
+              if (n.directory) toggle(n.path)
               else onSelect(n.path)
             }}
           >
@@ -105,10 +103,10 @@ export function RemoteFileTree({
                 <ChevronIcon
                   size={9}
                   strokeWidth={3}
-                  expanded={!collapsed.has(n.path)}
+                  expanded={isOpen(n.path)}
                   className="text-text-tertiary"
                 />
-                <FolderGlyph open={!collapsed.has(n.path)} />
+                <FolderGlyph open={isOpen(n.path)} />
               </>
             ) : (
               <span className="w-[13px]" />

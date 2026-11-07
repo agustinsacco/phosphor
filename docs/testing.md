@@ -22,7 +22,9 @@ Root `npm ci` also installs Desktop, Control and Web through postinstall. The si
 an independent dependency domain, not a root workspace. Both the comprehensive
 typecheck and the whole-repository typecheck-coverage unit test require its local
 TypeScript and Astro tools. A missing install fails, rather than falling back to
-an ancestor's tools or skipping a domain.
+an ancestor's tools or skipping a domain. The unit suite also needs `jq` on PATH:
+`site-deploy-policy.test.ts` runs the deploy workflow's own shell, and fails
+with "jq is required" without it.
 
 `npm run typecheck` runs the all-file coverage audit, then Desktop main/preload,
 renderer, shared client-ui, browser-safe host-client and its Node test project,

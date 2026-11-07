@@ -2,7 +2,7 @@ import { piSessionsRoot } from '../pi/pi-paths'
 import { onBeforeSessionDelete } from '../pi/session-deleter'
 import { registry } from '../registry'
 import { log } from '../debug-log'
-import { ArtifactLibrary } from './artifact-library'
+import { ArtifactLibrary } from '@phosphor/session-runtime/artifacts/artifact-library'
 import { artifactStoreRoot } from './artifact-store-root'
 
 export const artifactLibrary = new ArtifactLibrary(artifactStoreRoot, log)
