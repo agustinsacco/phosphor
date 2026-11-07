@@ -55,9 +55,10 @@ that the Host could not read says so ("Too many files to list: the Host stops at
 agent-touched view: the files the lane's edit and write tools touched, each with
 an inline diff read through the Host. Revert needs a session baseline the Host
 does not keep yet, so a Host lane hides it. Binary and oversized files use
-placeholders; a Host reads text up to 2 MB, and a failed read is an error toast
-that opens no tab, as on This Mac. Markdown, HTML and SVG files open on Preview with Source one click
-away, in Desktop and the browser, rendered from the text the Host sent (HTML and
+placeholders; a Host reads text up to 2 MB, and a read the Host could not do is
+the error toast "Could not read this file." that opens no tab, as on This Mac.
+Markdown, HTML and SVG files open on Preview with Source one click away, in
+Desktop and the browser, rendered from the text the Host sent (HTML and
 SVG in the artifact sandbox). The pane refreshes on focused lane summary changes,
 reconnects, a new Host runtime and its Refresh button, never a local filesystem
 watcher. Dirty buffers are not reloaded. During a disconnect the open files stay

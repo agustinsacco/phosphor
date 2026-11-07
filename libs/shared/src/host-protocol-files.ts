@@ -7,6 +7,8 @@ export const FILE_LIMITS = { entries: 20_000, textBytes: 2 * 1024 * 1024, pathCh
 export const FILE_LIST_TOO_LARGE = `Too many files to list: the Host stops at ${FILE_LIMITS.entries.toLocaleString('en-US')}.`
 /** A Host that answered `internal` for a file list. */
 export const FILE_LIST_FAILED = "The Host couldn't list this folder."
+/** A Host that answered `internal` for a file read, as This Mac words a failed read. */
+export const FILE_READ_FAILED = 'Could not read this file.'
 /**
  * The fixed text a client shows for a failed file list's Host code, or null for
  * "unavailable". The Host's own message never crosses IPC.

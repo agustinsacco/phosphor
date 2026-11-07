@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
+import { FILE_READ_FAILED } from '@phosphor/shared/host-protocol-files'
 import { forgetRemoteSession } from '@/stores/sessions'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { usePromptStore } from '@/stores/prompt'
@@ -187,7 +188,8 @@ it('a failed Host read is an error toast, as on This Mac, and opens no tab', asy
   const lane = await renderLaneFiles({
     invoke: (channel, ...args) =>
       channel === 'fs:readFile'
-        ? Promise.reject(new Error('Could not read this file.'))
+        ? // The bridge's text for a Host that could not read the file (read-features.ts).
+          Promise.reject(new Error(FILE_READ_FAILED))
         : invoke(channel, ...args),
   })
   try {
