@@ -275,6 +275,74 @@ describe('ContextSourcesMenu', () => {
     useSessionsStore.setState({ live: {} })
   })
 
+  const hostLane = (breakdown?: object): void => {
+    useSessionsStore.setState({
+      live: {
+        h1: { workspacePath: 'host:bee1/lane', target: { kind: 'remote', hostId: 'bee1' } },
+      } as never,
+    })
+    useExtensionUiStore.setState({
+      statuses: breakdown
+        ? { h1: { [CONTEXT_BREAKDOWN_STATUS_KEY]: JSON.stringify(breakdown) } }
+        : {},
+    })
+  }
+
+  it('shows a Host lane’s rules and connected servers from its breakdown, with no toggle', async () => {
+    hostLane({
+      parts: {},
+      contextFiles: LANE,
+      mcpByServer: {
+        linear: { tokens: 0, count: 0, toolCount: 40 },
+        slack: { tokens: 0, count: 0, toolCount: 1 },
+      },
+    })
+    useContextFilesPrefStore.setState({ prefs: { claude: false, agents: false } })
+    await render('h1')
+    expect(trigger().textContent).toBe('Rules 1/2 · MCP 2')
+    expect(container.querySelectorAll('input')).toHaveLength(0)
+    expect(container.textContent).toContain('this lane')
+    expect(container.textContent).toContain('connected in this lane')
+    expect(container.textContent).not.toContain('Each checkbox')
+    const marks = [...container.querySelectorAll('[role="img"]')].map((el) =>
+      el.getAttribute('aria-label'),
+    )
+    expect(marks).toEqual(['On', 'Off'])
+    expect(container.textContent).toContain('40 tools')
+    expect(container.textContent).toContain('1 tool')
+    expect(invoke).not.toHaveBeenCalledWith('mcp:readConfigs', expect.anything())
+    const navigate = vi.fn()
+    await act(async () =>
+      root.render(
+        <NavigationProvider value={{ location: { to: 'chat' } as never, navigate }}>
+          <ContextSourcesMenu workspacePath="/repo" sessionId="h1" />
+        </NavigationProvider>,
+      ),
+    )
+    await act(async () => trigger().click())
+    const link = [...container.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Manage connectors…',
+    )!
+    await act(async () => link.click())
+    expect(navigate).toHaveBeenLastCalledWith({ to: 'page', page: 'settings', machine: 'bee1' })
+    useSessionsStore.setState({ live: {} })
+    useContextFilesPrefStore.setState({ prefs: { claude: true, agents: true } })
+  })
+
+  it.each([
+    ['no breakdown', undefined],
+    ['an older breakdown', { parts: {} }],
+  ])('invents nothing for a Host lane with %s', async (_name, breakdown) => {
+    hostLane(breakdown)
+    await render('h1')
+    expect(trigger().textContent).toBe('Rules')
+    expect(container.textContent).toContain('Not yet reported by this lane.')
+    expect(container.querySelectorAll('input, [role="img"]')).toHaveLength(0)
+    expect(container.textContent).not.toContain('Connectors')
+    expect(invoke).not.toHaveBeenCalled()
+    useSessionsStore.setState({ live: {} })
+  })
+
   it('re-reads the servers when Settings closes, since it edits the same files', async () => {
     servers = [server('linear', { url: 'https://mcp.linear.app/mcp' })]
     await render()
