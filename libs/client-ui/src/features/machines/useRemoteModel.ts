@@ -14,8 +14,9 @@ import {
   useMachineCataloguesStore,
   machineCatalogueKey,
   EMPTY_MACHINE_CATALOGUE,
+  MODELS_READ_FAILED,
 } from '@/stores/machineCatalogues'
-import { hostFeatureRefusal, REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
+import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useRemoteLanesStore, hostReconnecting, machineLabel } from '@/stores/remoteLanes'
 import {
   defaultRemoteModel,
@@ -54,9 +55,9 @@ export function useRemoteModel(hostId: string) {
     : (hostFeatureRefusal(host, 'skills.read', 'models') ??
       (missingModel
         ? `No signed-in model on ${machineLabel(hostId)}.`
-        : catalogue.status === 'loading'
+        : catalogue.status === 'idle' || catalogue.status === 'loading'
           ? 'Loading models…'
-          : REMOTE_UNAVAILABLE))
+          : MODELS_READ_FAILED))
   return {
     hostId,
     missingModel,

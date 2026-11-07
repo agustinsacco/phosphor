@@ -60,6 +60,9 @@ export function createArtifactsFeature(
     requireLane(laneId) {
       if (!lanes.admitted(laneId)) throw new FeatureFailure('unknown-lane')
     },
+    skipped(laneId, reason) {
+      context.log('artifact-lane-skipped', { laneId, reason })
+    },
   }
   return {
     capability: 'artifacts.read',

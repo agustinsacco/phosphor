@@ -158,7 +158,17 @@ it('keeps feature views behind the shared startup until font metrics settle', as
   }
 })
 
-it('captures install offers with the mobile drawer closed and retains completion across drawer remounts', async () => {
+/** Crosses the expanded width, as rotating a tablet or resizing a window does. */
+async function resizeTo(width: number): Promise<void> {
+  vi.stubGlobal('innerWidth', width)
+  await act(async () => window.dispatchEvent(new Event('resize')))
+}
+const installButton = (): HTMLButtonElement | undefined =>
+  [...document.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Install Phosphor',
+  )
+
+it('captures install offers on a phone, before any Install button mounts, and keeps completion across remounts', async () => {
   vi.stubGlobal('innerWidth', 412)
   account = signedIn()
   await act(async () => root.render(<CompactApp />))
@@ -169,29 +179,20 @@ it('captures install offers with the mobile drawer closed and retains completion
     window.dispatchEvent(event)
   })
   expect(event.defaultPrevented).toBe(true)
-  const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Open navigation"]')!
-  await act(async () => trigger.click())
-  await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
-  await act(async () => trigger.click())
-  const install = [...document.querySelectorAll('button')].find(
-    (button) => button.textContent === 'Install Phosphor',
-  )!
-  await act(async () => install.click())
+  expect(installButton()).toBeUndefined()
+  await resizeTo(1200)
+  await act(async () => installButton()!.click())
   expect(prompt).toHaveBeenCalledOnce()
   await act(async () => {
     window.dispatchEvent(new Event('appinstalled'))
   })
-  await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
-  await act(async () => trigger.click())
-  expect(
-    [...document.querySelectorAll('button')].some(
-      (button) => button.textContent === 'Install Phosphor',
-    ),
-  ).toBe(false)
+  await resizeTo(412)
+  await resizeTo(1200)
+  expect(installButton()).toBeUndefined()
 })
 
 it('preserves the browser installation offer across sign-in without retaining account authority', async () => {
-  vi.stubGlobal('innerWidth', 412)
+  vi.stubGlobal('innerWidth', 1200)
   await act(async () => root.render(<CompactApp />))
   const prompt = vi.fn(async () => undefined)
   const event = new Event('beforeinstallprompt', { cancelable: true })
@@ -200,30 +201,27 @@ it('preserves the browser installation offer across sign-in without retaining ac
     window.dispatchEvent(event)
   })
   await publishAccount(signedIn())
-  await act(async () =>
-    container.querySelector<HTMLButtonElement>('[aria-label="Open navigation"]')?.click(),
-  )
-  const install = [...document.querySelectorAll('button')].find(
-    (button) => button.textContent === 'Install Phosphor',
-  )!
-  await act(async () => install.click())
+  await act(async () => installButton()!.click())
   expect(prompt).toHaveBeenCalledOnce()
 })
 
-it('uses a keyboard-contained drawer on phones and restores trigger focus on Escape', async () => {
+it('a phone navigates by its tab bar, with no drawer and nothing made inert', async () => {
   vi.stubGlobal('innerWidth', 412)
   account = signedIn()
   await act(async () => root.render(<CompactApp />))
-  const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Open navigation"]')!
-  trigger.focus()
-  await act(async () => trigger.click())
-  const drawer = document.querySelector('[role="dialog"][aria-label="Navigation"]')!
-  expect(drawer).not.toBeNull()
-  expect(drawer.contains(document.activeElement)).toBe(true)
-  expect(container.querySelector('.browser-content')?.hasAttribute('inert')).toBe(true)
-  await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
-  expect(document.querySelector('[aria-label="Navigation"]')).toBeNull()
-  expect(document.activeElement).toBe(trigger)
+  const tabs = container.querySelector('nav[aria-label="Tabs"]')!
+  expect([...tabs.querySelectorAll('button')].map((b) => b.textContent)).toEqual([
+    'Home',
+    'Machines',
+    'Library',
+    'Settings',
+  ])
+  expect(container.querySelector('[aria-label="Open navigation"]')).toBeNull()
+  expect(container.querySelector('aside.browser-navigation')).toBeNull()
+  expect(container.querySelector('[inert]')).toBeNull()
+  await resizeTo(1200)
+  expect(container.querySelector('nav[aria-label="Tabs"]')).toBeNull()
+  expect(container.querySelector('aside.browser-navigation')).not.toBeNull()
 })
 
 it('boots only remote subscriptions, follows history, and returns to sign-in on account loss', async () => {

@@ -69,26 +69,40 @@ configure grant from Control; this change does not widen what Control signs.
 
 ## Shared pages and responsive shells
 
-Browser presentation switches at 900px: drawer navigation below that width,
-persistent sidebar above it. Both hold one navigation body: the Phosphor
-brand, Desktop's sidebar top (`SidebarNavigation`: New, the global page links,
+Browser presentation switches at 900px: a bottom tab bar below that width,
+a persistent sidebar above it. The sidebar holds the Phosphor brand, Desktop's sidebar top (`SidebarNavigation`: New, the global page links,
 then the **Lanes on** machine scope), the Host lane tree for
 that scope (`RemoteLanes`, the same component and density as Desktop's sidebar),
 Desktop's sidebar footer (`SidebarFooter`: the account menu and the Settings
 gear), **Install Phosphor** where `installableApp` allows it, and a short note.
-There is no Lanes link: the tree is in the navigation, and `/lanes` (the lane
-header's Back, deep links) renders the same list as a page. The browser offers
+There is no Lanes link: the tree is in the navigation, and `/lanes/:machine`
+(the lane header's Back, deep links) renders the same list as a page. The browser offers
 the same pages as Desktop and no others: `SidebarNavigation` takes no shell
-rows, there is no Inbox, and an old `/inbox` link opens the lane list. A lane
+rows, there is no Inbox, and an old `/inbox` link opens Home. A lane
 that needs you is marked on its row and in the machine scope, as on Desktop. The
 machine scope is the only machine control; the header has none. It offers each
 known Host and All machines, never This Mac (that needs `localLanes`), and lives
 in the URL, so a choice replaces the location's `machine` (from a lane, it opens
 that machine's lane list) and back, forward and deep links keep it. New opens
-the New page for the machine in scope, or asks for one under All machines. In
-the phone drawer, opening a page, a lane, New or Settings closes the drawer;
-choosing a machine keeps it open on that machine's lanes. The header keeps Back
-and New lane.
+the New page for the machine in scope, or asks for one under All machines. The
+wide header keeps Back and New lane.
+
+A phone has four tabs (`shell/compact/BottomTabs.tsx`): **Home**, **Machines**,
+**Library** and **Settings**. `/` and `/lanes` open Home, the shared Home board
+(`features/home/HomeBoard.tsx`, also Desktop's All machines home): every
+machine's lanes in Needs you, Working and Recent, each row the Host's
+`RemoteLaneRow` or This Mac's lane preview, labelled with its machine and
+folder. The Home tab badges lanes that need you. Machine chips under the title
+scope the list to one machine's `/lanes/:machine` page, the same Host lane tree
+as the sidebar; they appear once there are two machines or one is chosen.
+Library is Skills, Routines and Artifacts behind one segmented switcher, and
+reopens the last of them. A floating **New lane** button sits above the tabs
+on every tab: it opens the New page on the machine in view, else the last
+machine you looked at, else the first that can start a lane, and the start
+page then offers that machine's last folder. The tabs and the button give way
+to a lane and to the New page, which have their own Back. Install Phosphor is in
+Settings → App installation. This memory (the last list, machine and Library
+page) is per document and holds only opaque IDs; sign-out clears it.
 `Platform.formFactor` controls presentation only, so only primitives
 (`components/`), `platform/` and the shells (`shell/`) read it; the
 `phosphor/form-factor-in-layout` lint rule refuses it in features, navigation and
@@ -115,7 +129,7 @@ not the machine filter, and share repository refreshes with visible groups.
 The [Slack thread links](lanes.md#slack-thread-links) follow the PR button in
 both headers once the lane's transcript mentions a thread.
 A confirmed action closes the sheet; a refusal stays to say why.
-There is no drawer button, machine filter or pane tab strip inside a lane. A
+There are no tabs, machine filter or pane tab strip inside a lane. A
 reader sees a Take control bar where the composer would be. Wider browsers keep
 the pane tabs, which end with the Session options button, and the control row
 above the transcript; their header follows the lane title with its repository
@@ -134,8 +148,9 @@ Files and HEAD/working-copy comparisons are read-only, coloured by the file's
 language, and a chat link scrolls to its line. Like This Mac's viewer, a file
 offers Copy but no chat code-block actions (Open as artifact, Run in terminal),
 here and in Machine files. New lanes and existing
-lane composers accept inline images; other browser file attachments are refused
-before any lane creation/upload. The start screen's Repository menu offers Add
+lane composers accept any file, as Desktop's Host lanes do: images go inline and
+other files upload to the Host before the prompt, which names their Host path. A
+reload drops a pending attachment. The start screen's Repository menu offers Add
 folder on MACHINE…, which opens Desktop's Host folder browser: it lists, creates
 and adds folders under the Host's home over the same Host connection
 (`hosts:listFolders`, `hosts:createFolder`, `hosts:addRepository`, through
@@ -188,7 +203,7 @@ copies ([Lanes](lanes.md#remote-lanes) owns their rules):
   the ContextMenu key, Shift+F10 or a touch long-press (one short vibration
   where the device can) opens its menu; below 900px the menu is a bottom sheet
   titled with the lane.
-- The menu comes from `remoteLaneActions`, the same items and hints Desktop
+- The menu comes from `laneActions`, the same items and hints Desktop
   shows. Delete, Rename and Stop need control (“Take control first.”); Delete
   also needs `workspaces.write`. Rows carry This Mac's select box
   (`LaneSelect.tsx`), and bulk delete is the shared bar and confirm
@@ -198,9 +213,9 @@ copies ([Lanes](lanes.md#remote-lanes) owns their rules):
 and its input is `StartComposer`, the one new-lane composer This Mac uses too
 ([remote creation](remote-desktop.md#machine-context-and-lane-creation)).
 `RemoteStartView` supplies the Host target: it validates remembered
-repositories, usable model choices and submission receipts. The root URL opens
-New; one ready control-capable Host is selected and pinned into the URL, while
-multiple targets require a choice. An explicit missing Host never silently
+repositories, usable model choices and submission receipts. New without a
+machine in the URL is pinned to the scoped machine described above; with no
+Host at all it asks for one. An explicit missing Host never silently
 switches. Model precedence is last valid choice, a validated native preference
 when available, then the first usable catalogue model. At every width the model
 and thinking pickers are the lane composer's own split chip and searchable model
@@ -216,8 +231,12 @@ it waits; only the model picker restarts with a new connection.
 Both clients use bundled Inter and the same tokens. The shared loading surface
 appears during browser account initialization, with explicit sanitized recovery;
 fonts settle with the same bounded readiness as Desktop before feature views
-mount. Phone controls retain 44px hit targets and 16px text-entry fields without
-inflating all interface copy; wide screens use compact desktop density. Safe-area
+mount. Phone type follows the iOS Dynamic Type scale (body 15px, large titles 28px)
+through the compact `--text-*` tokens; wide screens and Desktop keep compact
+desktop density. Borderless phone controls are 44px; drawn ones (buttons, pills,
+the composer's Swarm and model chips) stay 32px tall with a transparent 44px
+hit-slop (`.hit-slop`), and text-entry fields are 16px. A phone page header
+keeps its actions beside a large title while they fit. Safe-area
 insets and visual-viewport resize/scroll follow the on-screen keyboard.
 
 On a phone the composer is the shared card, tightened (`client-shell.css`):
@@ -282,8 +301,7 @@ when the owner changes. A page that stays open across the change keeps its
 in-memory order and collapse until reload and may write them back; those keys
 name the previous owner's Hosts, so they match no row. Browser font changes
 last until reload. Owner loss also clears remembered creation targets/model
-choices and resets browser isolation. Unsupported native file attachments are
-rejected.
+choices and resets browser isolation.
 
 The production service worker caches anonymous shell/static resources only.
 API routes, OAuth callbacks, Host requests and non-GET requests bypass it.
@@ -343,7 +361,7 @@ and a separate authenticated fixture that maps only socket transport to a dispos
 real Host. It exercises cookie/CSRF boundaries, Host proof, control/send, owner cleanup,
 resource isolation, hostile previews and app-framing refusal. Responsive coverage
 captures shared pages at 360/412/768/1440px in both themes, verifies Inter readiness
-and containment, and rejects unsupported first-prompt files before mutation.
+and containment, and sends a first-prompt document's Host path.
 `reconnect.spec.ts` holds the Host unreachable (`holdHost`) and checks that the
 lane, landing, start and lane-list screens wait, locked and labelled, at 400 and
 1100px, then that the lane unlocks with its draft once the Host answers.
