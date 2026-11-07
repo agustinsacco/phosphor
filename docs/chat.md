@@ -118,7 +118,7 @@ The composer is one small field with several ways in.
   GIF, an image that already fits, or one the browser cannot re-encode smaller is
   sent as it is; local lanes always send the original. Main refuses encoded image
   prompt frames above the Host inbound limit
-  minus a 1 KiB margin without sending or clearing the image draft; documents upload through main before the prompt, at most 20 MiB each
+  minus a 1 KiB margin without sending or clearing the image draft; documents upload through the Host bridge before the prompt, in Desktop and the browser alike, at most 20 MiB each
   and ten attachments per message. The Host path appears only in the normal
   `<attached-files>` block. Failure or uncertainty sends no prompt and never
   retries chunks. Remote document bytes stay in memory, bounded to 64 MiB across
@@ -141,7 +141,8 @@ The composer is one small field with several ways in.
   workspace, and survive switching and quitting. Image bytes go to
   `userData/drafts/`, never into prefs.
 - The model chip has an explicit loading state; an empty list before the
-  catalogue answers is never shown as "no models configured".
+  catalogue answers is never shown as "no models configured", and a failed read
+  shows "Could not read models." instead of loading forever.
 - `!command` → RPC `bash` (output in chat, enters model context on the next
   prompt). `!!command` → same with `excludeFromContext: true` and a "not sent
   to model" badge.
@@ -880,6 +881,12 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   has no model to run (This Mac's: when pi's catalogue could not be read), and
   **Sign in on <machine>** (Settings → Accounts for that machine,
   `useSignInAction`) when its list is read and has no usable signed-in model.
+  A live lane whose model list comes back empty, or whose read fails ("Could
+  not read models."), offers the same two actions (`useSessionModelActions`)
+  beside the chat picker's chip and in the no-models banner, which adds **Open
+  terminal with `pi`** when the platform has a terminal and the lane runs on
+  This Mac. Retry models reads through `stores/sessionModels.ts`, as the lane's
+  bootstrap does.
   The picker grows into the toolbar's free width on every machine.
   Both owners render `composer/ModelChip.tsx`: the model name as the left segment,
   the thinking level (with a caret) as the right. The provider is not on the

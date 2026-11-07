@@ -62,19 +62,19 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it('characterizes the Desktop Host lane menu for a reader: control first, then the rest', () => {
+it("characterizes the Desktop Host lane menu for a reader: This Mac's order, control before Stop", () => {
   render(host(false))
   expect(menuRows()).toEqual([
     ['Open', false],
     ['Move upAlt+↑', true],
     ['Move downAlt+↓', true],
-    ['RenameTake control first.', true],
+    ['Rename…Take control first.', true],
+    ['Make routine…This Host does not offer routines to this device.', true],
+    ['Pin', false],
+    ['Lane marker…', false],
     ['Take control', false],
     ['StopTake control first.', true],
     ['Mark read', false],
-    ['Make routine…This Host does not offer routines to this device.', true],
-    ['Pin', false],
-    ['Lane marker', false],
     ['Export HTML…', false],
     ['Copy debug info', false],
     ['Copy spend', false],
@@ -88,13 +88,13 @@ it('characterizes the Desktop Host lane menu for the controller', () => {
     ['Open', false],
     ['Move upAlt+↑', true],
     ['Move downAlt+↓', true],
-    ['Rename', false],
+    ['Rename…', false],
+    ['Make routine…This Host does not offer routines to this device.', true],
+    ['Pin', false],
+    ['Lane marker…', false],
     ['Release control', false],
     ['Stop', false],
     ['Mark read', false],
-    ['Make routine…This Host does not offer routines to this device.', true],
-    ['Pin', false],
-    ['Lane marker', false],
     ['Export HTML…', false],
     ['Copy debug info', false],
     ['Copy spend', false],
@@ -148,4 +148,35 @@ it('drops Lane marker from the Host lane menu when markers are off', async () =>
   render(host(true))
   expect(menuRows().map(([label]) => label)).not.toContain('Lane marker')
   act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'auto' }))
+})
+
+it('hides Mark read on a read Host lane, as This Mac does', () => {
+  const view = host(true)
+  view.lanes[0] = { ...view.lanes[0]!, read: view.lanes[0]!.attention }
+  render(view)
+  expect(menuRows().map(([label]) => label)).not.toContain('Mark read')
+})
+
+it("opens the Host lane menu's copies and Delete with a separator, as This Mac does", () => {
+  render(host(true))
+  menuRows()
+  const separated = [...document.querySelectorAll('[data-testid=context-menu] button')]
+    .filter((b) => b.previousElementSibling !== null)
+    .map((b) => b.textContent)
+  expect(separated).toEqual(['Export HTML…', 'Delete'])
+})
+
+it('offers Lane marker… on a Host lane only while markers are on', async () => {
+  const { useLanePrefsStore } = await import('@/stores/lanePrefs')
+  render(host(true))
+  expect(menuRows().map(([label]) => label)).toContain('Lane marker…')
+  act(() => root.unmount())
+  root = createRoot(container)
+  act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'off' }))
+  try {
+    render(host(true))
+    expect(menuRows().map(([label]) => label)).not.toContain('Lane marker…')
+  } finally {
+    act(() => useLanePrefsStore.getState().applyLanePrefs({ markers: 'auto' }))
+  }
 })
