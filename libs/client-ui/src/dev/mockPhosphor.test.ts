@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { installMockPhosphor } from './mockPhosphor'
+import { CLAUDE_PROVIDER_PACKAGE } from '@shared/models'
 beforeEach(() => {
   localStorage.clear()
   installMockPhosphor()
@@ -32,4 +33,10 @@ it("answers app:about, so This Mac's Details and Settings → Advanced show a ve
     appVersion: '0.0.0-dev',
     platform: window.phosphor.platform,
   })
+})
+it("lists This Mac's Claude provider by its package name, as the provider row matches it", async () => {
+  const packages = await window.phosphor.invoke('packages:list')
+  expect(packages.find((entry) => entry.spec === `npm:${CLAUDE_PROVIDER_PACKAGE}`)?.name).toBe(
+    CLAUDE_PROVIDER_PACKAGE,
+  )
 })
