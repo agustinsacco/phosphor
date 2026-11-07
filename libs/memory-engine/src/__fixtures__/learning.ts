@@ -28,6 +28,7 @@ export function start(jobId = 'owner-1'): BrainLearningStart {
   return {
     jobId,
     scope,
+    branch: null,
     target: { workspacePath: scope, sessionPath: '/sessions/source.jsonl' },
     binding: {
       provider: 'native',
