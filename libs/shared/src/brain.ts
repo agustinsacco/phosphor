@@ -63,7 +63,7 @@ export interface BrainEvidence {
   sessionId: string
   entryId: string
   parentId: string | null
-  /** Original independent roots, not the number of copies or summaries. */
+  /** Original input roots; multiple dependencies do not prove independent corroboration. */
   rootIds: string[]
   branch: string | null
   role: 'user' | 'toolResult' | 'assistant'

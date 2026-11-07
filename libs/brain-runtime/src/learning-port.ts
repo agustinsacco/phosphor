@@ -11,6 +11,8 @@ import type {
 export interface PreparedBrainLearning {
   scope: string
   binding: BrainLearningBinding
+  /** Supported selected-model output ceiling, bounded at 32768; never a model fallback. */
+  maxOutputTokens: number
   checkpoint: BrainLearningCheckpoint
   evidence: BrainLearningEvidence[]
   /** Exactly one direct-provider request; no agent scheduler or attached executors. */

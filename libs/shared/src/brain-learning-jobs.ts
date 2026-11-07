@@ -22,6 +22,8 @@ export interface BrainLearningCheckpointSummary {
 export interface BrainLearningJobMetadata extends BrainLearningCheckpointSummary {
   target: BrainLearningTarget
   binding: BrainLearningBinding
+  /** Explicitly acknowledged predecessor; repeat acknowledgments reuse their successor. */
+  retryOf?: string
   coveredCount: number
   newCount: number
   usage: BrainLearningUsage | null
