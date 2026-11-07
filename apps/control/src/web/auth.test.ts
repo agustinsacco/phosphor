@@ -209,6 +209,43 @@ describe('browser authentication boundary', () => {
     expect(res.status).toBe(503)
     expect(res.headers.get('set-cookie')).toBeNull()
   })
+  it('keeps the session when the browser misses a rotated cookie and replays the old one', async () => {
+    const f = fixture(),
+      l = await f.login()
+    const session = (sealed: string) =>
+      f.app.request(origin + '/api/auth/session', { headers: { cookie: sealed } })
+    f.advance()
+    // The rotated cookie is lost: an aborted fetch, a suspended PWA, or an older
+    // re-seal landing after it. The browser keeps the pre-rotation cookie.
+    const rotated = await session(l.sealed)
+    expect(rotated.status).toBe(200)
+    for (let i = 0; i < 3; i++) f.advance()
+    const stale = await session(l.sealed)
+    expect(stale.status).toBe(200)
+    expect(cookie(stale, cookieName)).not.toBe(l.sealed)
+    expect((await session(cookie(rotated, cookieName))).status).toBe(200)
+    const refreshed = vi
+      .mocked(f.deps.fetch)
+      .mock.calls.filter(([url]) => String(url).includes('refresh_token'))
+      .map(
+        ([, init]) => (JSON.parse(String(init?.body)) as { refresh_token: string }).refresh_token,
+      )
+    // Never hand Supabase a spent refresh token: reuse detection would revoke the session.
+    expect(new Set(refreshed).size).toBe(refreshed.length)
+  })
+  it('keeps an active session past a day, until its absolute lifetime', async () => {
+    const f = fixture(),
+      l = await f.login()
+    let sealed = l.sealed
+    for (let i = 0; i < 1235; i++) f.advance()
+    const day = await f.app.request(origin + '/api/auth/session', { headers: { cookie: sealed } })
+    expect(day.status).toBe(200)
+    sealed = cookie(day, cookieName)
+    expect(day.headers.get('set-cookie')).toMatch(/Max-Age=1\d{6};/)
+    for (let i = 0; i < 1235 * 13; i++) f.advance()
+    const res = await f.app.request(origin + '/api/auth/session', { headers: { cookie: sealed } })
+    expect(res.status).toBe(401)
+  })
   it('refuses re-registration, client substitution and all API use after device revoke', async () => {
     const f = fixture(),
       l = await f.login()
@@ -323,7 +360,7 @@ describe('browser authentication boundary', () => {
   it('expires the sealed session absolutely and clears invalid cookies for a new sign-in', async () => {
     const f = fixture(),
       l = await f.login()
-    for (let i = 0; i < 1235; i++) f.advance()
+    for (let i = 0; i < 1235 * 14; i++) f.advance()
     const res = await f.app.request(origin + '/api/auth/session', { headers: { cookie: l.sealed } })
     expect(res.status).toBe(401)
     expect(res.headers.get('set-cookie')).toContain('Max-Age=0')

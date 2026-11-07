@@ -19,7 +19,7 @@ import type { AccountView } from '@shared/account'
 import type { PhosphorApi } from '@shared/ipc'
 import { mockRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import { mockTraffic } from './mockTraffic'
-import { bytesToBase64 } from '../lib/base64'
+import { base64ToBytes, bytesToBase64 } from '@phosphor/shared/base64'
 import type {
   ConnectorAuthPush,
   ConnectorAuthState,
@@ -905,7 +905,7 @@ async function mockClipboardWriteImage(image: { data: string; mimeType: string }
     navigator.clipboard.write([new ClipboardItem({ [mime]: blob })])
   try {
     if (image.mimeType === 'image/png' || image.mimeType === 'image/jpeg') {
-      const bytes = Uint8Array.from(atob(image.data), (c) => c.charCodeAt(0))
+      const bytes = base64ToBytes(image.data)
       await write(image.mimeType, new Blob([bytes], { type: image.mimeType }))
     } else {
       const img = new Image()
