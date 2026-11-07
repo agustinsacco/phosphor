@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { forgetRemoteSession } from '@/stores/sessions'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { usePromptStore } from '@/stores/prompt'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 import { closeEditorFile } from './closeEditorFile'
 import { lanes, renderLaneFiles, resetLaneFiles } from './__fixtures__/renderLaneFiles'
 
@@ -179,5 +180,26 @@ it('switching lanes or closing the pane never drops a lane’s files', async () 
     expect(tabs()[0]).toMatchObject({ content: 'edited', dirty: true })
   } finally {
     lane.unmount()
+  }
+})
+
+it('a failed Host read is an error toast, as on This Mac, and opens no tab', async () => {
+  const lane = await renderLaneFiles({
+    invoke: (channel, ...args) =>
+      channel === 'fs:readFile'
+        ? Promise.reject(new Error('Could not read this file.'))
+        : invoke(channel, ...args),
+  })
+  try {
+    await lane.clickTreeRow('a.ts')
+    await act(async () => {})
+    expect(useExtensionUiStore.getState().toasts).toEqual([
+      expect.objectContaining({ kind: 'error', message: 'Error: Could not read this file.' }),
+    ])
+    expect(tabs()).toHaveLength(0)
+    expect(lane.text()).not.toContain('Loading')
+  } finally {
+    lane.unmount()
+    useExtensionUiStore.setState({ toasts: [] })
   }
 })
