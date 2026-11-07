@@ -1,4 +1,5 @@
 import { isSessionId } from '@phosphor/shared/host-protocol-lane-transfer'
+import { LANE_MOVED_TYPE } from './notice'
 
 /** The only transcript format this code rewrites. Anything else is refused, not guessed. */
 export const SESSION_FORMAT = 3
@@ -43,6 +44,8 @@ interface Entry {
   type?: unknown
   id?: unknown
   name?: unknown
+  customType?: unknown
+  details?: { attachments?: unknown }
   message?: { role?: unknown; content?: unknown }
 }
 
@@ -94,7 +97,18 @@ export function transcriptFacts(rest: string): TranscriptFacts {
       leafId = entry.id
     if (entry.type === 'session_info' && typeof entry.name === 'string') {
       const name = entry.name.trim()
-      title = name ? name.slice(0, 200) : null
+      title = name || null
+    }
+    if (entry.type === 'custom_message' && entry.customType === LANE_MOVED_TYPE) {
+      const moved = entry.details?.attachments
+      if (Array.isArray(moved))
+        for (const mapping of moved) {
+          if (!mapping || typeof mapping !== 'object') continue
+          const { from, to } = mapping as { from?: unknown; to?: unknown }
+          if (typeof from !== 'string' || typeof to !== 'string' || !to.startsWith('/') || to.length > 4096) continue
+          attachments.delete(from)
+          attachments.add(to)
+        }
     }
     if (entry.type !== 'message' || entry.message?.role !== 'user') continue
     for (const block of userText(entry.message.content).matchAll(

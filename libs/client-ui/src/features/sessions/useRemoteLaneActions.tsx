@@ -250,7 +250,7 @@ function laneHandlers({
     moveTo: () =>
       openLaneMove({ machine: hostId, laneId: lane.laneId }, title, {
         pinned: lane.pinned === true,
-        marker: lane.marker ?? null,
+        marker: remoteLaneMarker(lane, useLanePrefsStore.getState().lanes.markers),
       }),
     copyDebugInfo: () =>
       void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane, sessionId))),

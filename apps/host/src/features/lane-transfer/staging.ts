@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { lstatSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { LANE_TRANSFER_LIMITS as LIMIT } from '@phosphor/shared/host-protocol-lane-transfer'
 import type { LaneJobStatus } from '@phosphor/shared/host-protocol-lane-transfer-calls'
@@ -36,7 +36,7 @@ export function createStaging(root: string, now: () => number = Date.now) {
     create(max: number): { id: string; entry: Staged } | null {
       sweep()
       const running = [...entries.values()].filter(
-        (e) => 'state' in e.status && e.status.state === 'running',
+        (e) => ('state' in e.status && e.status.state === 'running') || existsSync(e.path),
       )
       if (running.length >= max) return null
       const id = randomBytes(16).toString('hex')

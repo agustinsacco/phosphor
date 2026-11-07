@@ -2,7 +2,7 @@ import type { LaneMoveMarks } from '@shared/host-protocol-lane-transfer'
 import type { LaneMoveSource } from '@shared/lane-move'
 import type { SessionMeta } from '@shared/models'
 import type { ContextMenuItem } from '@/components/ContextMenu'
-import { autoMarker } from '@/lib/laneMarker'
+import { laneMarker } from '@/lib/laneMarker'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { useLaneMoveStore } from '@/stores/laneMove'
 import { useSessionsStore } from '@/stores/sessions'
@@ -56,9 +56,8 @@ export function openLaneMove(source: LaneMoveSource, title: string, marks: LaneM
 }
 
 /**
- * A row's two copy actions. Move carries the marker on screen: one derived
- * from a lane's folder (it has no branch) would change with the folder, so it
- * becomes an explicit choice on the copy.
+ * A row's two copy actions. Move makes its visible marker explicit so moving
+ * to another folder or changing branches cannot change the copy's icon.
  */
 export function copyActions(
   workspacePath: string,
@@ -68,10 +67,9 @@ export function copyActions(
 ): ContextMenuItem[] {
   const move = () => {
     const { pinned, laneMarkers } = useSessionsStore.getState()
-    const derived = !branch && useLanePrefsStore.getState().lanes.markers === 'auto'
     openLaneMove({ machine: 'local', sessionPath: meta.path }, meta.name ?? 'Lane', {
       pinned: pinned.includes(meta.path),
-      marker: laneMarkers[meta.path] ?? (derived ? autoMarker(meta.cwd) : null),
+      marker: laneMarker(laneMarkers[meta.path], branch, meta.cwd, useLanePrefsStore.getState().lanes.markers),
     })
   }
   return [

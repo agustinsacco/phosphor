@@ -76,6 +76,7 @@ function repositoryTarget(
     branchPrefix: p.branchPrefix,
     sameMachine: p.sameMachine,
     maxTranscriptBytes: LIMIT.transcriptBytes,
+    maxTitleLength: 80,
   }
 }
 
@@ -108,7 +109,7 @@ async function admit(
       cwd: prepared.folder.cwd,
       sessionFile: null,
       worktree: prepared.folder.worktree,
-      title: source.title?.slice(0, 80) ?? null,
+      title: source.title,
       branch: prepared.folder.branch,
     }).laneId
     laneId = id

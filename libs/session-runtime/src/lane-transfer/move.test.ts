@@ -127,6 +127,13 @@ describe('moving a lane in a folder git does not track', () => {
     expect(notice.content).not.toContain('Attached files')
   })
 
+  it('rekeys its own artifact links when the session id collides', async () => {
+    const { installed } = await moveFolderLane(true)
+    const text = readFileSync(installed.sessionFile, 'utf8')
+    expect(text).toContain(`artifact://${installed.sessionId}/report`)
+    expect(text).not.toContain(`artifact://${SESSION_ID}/report`)
+  })
+
   it('rediscovers the relocated attachment when a moved lane moves again', async () => {
     const { to, installed, targetRoot } = await moveFolderLane(false)
     const archivePath = join(to.home, 'second.bundle')

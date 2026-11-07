@@ -25,6 +25,7 @@ import {
 import type { ArchiveReader } from './archive'
 import type { MachinePaths } from './collect'
 import { refuse, sha256File } from './files'
+import { writeFileAtomic } from '../artifacts/artifact-indexer'
 import { noticeEntry, noticeText } from './notice'
 import { parseHeader, splitTranscript, transcriptFacts } from './transcript'
 
@@ -197,7 +198,7 @@ function writer(ids: LandingIds) {
       const map = await readMap(ids.mapPath)
       map[ids.sessionId] = ids.cli
       await ensureDir(ids.stateDir)
-      await writeFile(ids.mapPath, JSON.stringify(map, null, 2), 'utf8')
+      await writeFileAtomic(ids.mapPath, JSON.stringify(map, null, 2))
       mapped = true
     },
     async undo() {
@@ -209,7 +210,7 @@ function writer(ids: LandingIds) {
       const map = await readMap(ids.mapPath)
       if (map[ids.sessionId] !== ids.cli) return
       delete map[ids.sessionId]
-      await writeFile(ids.mapPath, JSON.stringify(map, null, 2), 'utf8').catch(() => undefined)
+      await writeFileAtomic(ids.mapPath, JSON.stringify(map, null, 2)).catch(() => undefined)
     },
   }
 }
@@ -268,7 +269,7 @@ async function publishTranscript(
     at: ids.now,
   })
   const body = text.endsWith('\n') ? text : `${text}\n`
-  const entry = noticeEntry(notice, transcriptFacts(split.rest).leafId, ids.now)
+  const entry = noticeEntry(notice, transcriptFacts(split.rest).leafId, ids.now, moved)
   const temporary = join(ids.sessionDir, `.${ids.fileName}.${randomBytes(6).toString('hex')}.tmp`)
   await out.put(temporary, `${body}${entry}\n`)
   await utimes(temporary, ids.now, new Date(manifest.modifiedAt))

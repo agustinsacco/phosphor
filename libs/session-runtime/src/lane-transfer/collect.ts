@@ -127,6 +127,7 @@ async function readTranscript(sessionFile: string) {
 export async function collectLane(input: CollectInput): Promise<CollectedLane> {
   const { sessionFile, paths } = input
   const { fileName, transcriptBytes, text, header, facts } = await readTranscript(sessionFile)
+  if ((facts.title?.length ?? 0) > 200) refuse('This lane’s name is too long to move without changing it.')
   const parts: LanePart[] = []
   const files: string[] = []
   const add: AddPart = async (kind, path, file, from) => {

@@ -47,11 +47,17 @@ export function noticeText(input: NoticeInput): string {
 }
 
 /** The JSONL line for the notice, chained after `parentId` the way pi appends its own entries. */
-export function noticeEntry(text: string, parentId: string | null, at: Date): string {
+export function noticeEntry(
+  text: string,
+  parentId: string | null,
+  at: Date,
+  attachments: { from: string; to: string }[] = [],
+): string {
   return JSON.stringify({
     type: 'custom_message',
     customType: LANE_MOVED_TYPE,
     content: text,
+    details: { attachments },
     display: true,
     id: randomBytes(4).toString('hex'),
     parentId,
