@@ -82,7 +82,7 @@ export function LocalWorkspaceGroup({
       collapse={[collapsed, setCollapsed]}
       search={search}
       total={group.metas.length}
-      shown={visible.length + shownPending.length}
+      shown={visible.length}
       controls={(className) => (
         <LocalGroupControls
           group={group}
