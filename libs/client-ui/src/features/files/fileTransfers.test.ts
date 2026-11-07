@@ -1,10 +1,14 @@
 import { afterEach, expect, it, vi } from 'vitest'
 vi.mock('@/lib/monaco', () => ({}))
-import { useFilesStore } from '@/stores/files'
+import { attachFilesSource, useFilesStore } from '@/stores/files'
+import type { FilesSource } from './filesSource'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { topLevelPaths, transferFiles } from './fileTransfers'
 
+// setState copies spied actions into the next state, so each test starts from the real ones.
+const initialFiles = useFilesStore.getState()
 afterEach(() => {
+  useFilesStore.setState(initialFiles, true)
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -47,4 +51,21 @@ it('keeps a target folder the user opened while the transfer ran open', async ()
   await transferFiles('/repo', ['/repo/a'], '/repo/dir', false)
   expect(toggle).not.toHaveBeenCalled()
   expect(useFilesStore.getState().expanded['/repo/dir']).toBe(true)
+})
+it('lists a flat workspace once for a drag of several items', async () => {
+  const lane = 'host:h/lane:l'
+  attachFilesSource({ workspacePath: lane, listing: 'flat', writeRefusal: null } as FilesSource)
+  vi.spyOn(useExtensionUiStore.getState(), 'pushToast').mockImplementation(() => 0)
+  const invoke = vi.fn(async (channel: string, ...args: unknown[]) => {
+    if (channel === 'fs:transfer') return `${lane}/dir/${String(args[1]).split('/').pop()}`
+    if (channel === 'fs:listFiles') return ['dir/a', 'dir/b']
+    if (channel === 'clipboard:readFiles') return { paths: [], cut: false }
+  })
+  vi.stubGlobal('window', { phosphor: { invoke } })
+  try {
+    await transferFiles(lane, [`${lane}/a`, `${lane}/b`], `${lane}/dir`, true)
+    expect(invoke.mock.calls.filter(([channel]) => channel === 'fs:listFiles')).toHaveLength(1)
+  } finally {
+    useFilesStore.getState().releaseWorkspace(lane)
+  }
 })
