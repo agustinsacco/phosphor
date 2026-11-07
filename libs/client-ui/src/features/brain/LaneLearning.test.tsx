@@ -385,3 +385,32 @@ it('refreshes accepted job metadata after consent is dismissed without reopening
   expect(document.querySelector('[aria-label="Private learning inspector"]')).toBeNull()
   expect(document.querySelector('[data-testid=learning-indicator]')).not.toBeNull()
 })
+it('keeps exact outcome citations readable when a proposal is omitted from the bounded snapshot', async () => {
+  detail.mockResolvedValue({
+    job: learningJob({ state: 'proposed' }),
+    proposalId: 'omitted-proposal',
+    outcome: {
+      type: 'findings',
+      findings: [
+        {
+          subject: { label: 'Synthetic project', kind: 'project' },
+          predicate: 'about',
+          literal: 'test',
+          validFrom: null,
+          validTo: null,
+          summary: 'Outcome with exact source',
+          kind: 'inferred',
+          citations: [{ evidenceId: 'evidence', quote: 'Exact outcome quotation' }],
+        },
+      ],
+    },
+  })
+  await mount()
+  await act(async () => useLearningUi.setState({ jobId: 'learning-job' }))
+  expect(document.body.textContent).toContain('not in the bounded snapshot')
+  expect(document.body.textContent).toContain('Exact outcome quotation')
+  expect(document.body.textContent).toContain('inferred')
+  const buttons = [...document.querySelectorAll('button')].map((button) => button.textContent)
+  expect(buttons).toContain('Read original evidence')
+  expect(buttons).not.toContain('Approve')
+})
