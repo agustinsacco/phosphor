@@ -347,3 +347,19 @@ it('labels explicitly reprocessed job contributions rather than newly arrived co
   expect(document.body.textContent).toContain('eligible for this run (reprocessed inputs)')
   expect(document.body.textContent).not.toContain('3 new')
 })
+it('does not offer a paid retry while the prior private job is queued or running', async () => {
+  preview.mockResolvedValue({ ...learningPreview, previousJobId: 'active-job' })
+  detail.mockResolvedValue({
+    job: learningJob({ id: 'active-job', state: 'running' }),
+    outcome: null,
+    proposalId: null,
+  })
+  await mount()
+  await open()
+  const start = [...document.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Learning already active',
+  )
+  expect(start?.disabled).toBe(true)
+  await click('Inspect previous attempt')
+  expect(learn).not.toHaveBeenCalled()
+})
