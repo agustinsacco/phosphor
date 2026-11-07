@@ -8,7 +8,7 @@ import { localLanePullRequest, usePullRequestsStore } from '@/stores/pullRequest
 import { useSessionsStore } from '@/stores/sessions'
 import { setGroupCollapsed } from './groupCollapse'
 import { useGroupSearch } from './groupSearch'
-import type { GroupedSessions } from './groupSessions'
+import { liveByDiskPath, type GroupedSessions } from './groupSessions'
 import { LaneGroup, LaneGroupOptions } from './LaneGroup'
 import { localLaneGroupKey } from './laneReveal'
 import type { LaneSearchFields } from './laneSearch'
@@ -283,17 +283,6 @@ function LocalGroupScanState({ group }: { group: GroupedSessions }): React.JSX.E
       </div>
     )
   return <SessionRowSkeletons />
-}
-
-/** Live session id by session file, for the live sessions that have one. */
-export function liveByDiskPath(
-  live: Readonly<Record<string, { phosphorId: string; diskPath?: string }>>,
-): Map<string, string> {
-  const map = new Map<string, string>()
-  for (const entry of Object.values(live)) {
-    if (entry.diskPath) map.set(entry.diskPath, entry.phosphorId)
-  }
-  return map
 }
 
 /**
