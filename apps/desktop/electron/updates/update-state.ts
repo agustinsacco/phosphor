@@ -6,9 +6,6 @@
  * feeds events in here.
  */
 
-// Version comparison is shared with the renderer's package tabs.
-export { isNewerVersion } from '@shared/version'
-
 export type UpdatePhase =
   | 'idle'
   | 'checking'

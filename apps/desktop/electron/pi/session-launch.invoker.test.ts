@@ -17,7 +17,9 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('electron', () => ({ app: h.app }))
 vi.mock('./invoker', () => ({ resolvePiInvoker: h.resolve }))
-vi.mock('./provider-detect', () => ({ claudeProviderSpawnEnv: h.provider }))
+vi.mock('@phosphor/session-runtime/pi/provider-detect', () => ({
+  claudeProviderSpawnEnv: h.provider,
+}))
 vi.mock('../artifacts/artifact-store-root', () => ({ artifactStoreEnv: h.artifacts }))
 
 const originalResources = Object.getOwnPropertyDescriptor(process, 'resourcesPath')

@@ -170,7 +170,7 @@ build orphans the Claude transcript.** Only sessions recorded before provider
 `apps/desktop/electron/pi/session-deleter.ts` derives
 the CLI's copy from the cwd frozen in pi's own header, so a stale header sends
 `trashIfPresent` where nothing is and leaves a megabytes-sized file behind.
-Mostly closed: `apps/desktop/electron/pi/session-cwd.ts` now rewrites that header for the
+Mostly closed: `libs/session-runtime/src/pi/session-cwd.ts` now rewrites that header for the
 whole subtree during `app:renameSandbox`, and again on resume for anything the
 rename missed. What is left is the session that predates both and is deleted
 without ever being opened — its header is still stale and nothing can un-mangle

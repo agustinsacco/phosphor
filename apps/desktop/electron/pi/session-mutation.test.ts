@@ -9,7 +9,10 @@ import { readFileSync, readdirSync, rmSync } from 'node:fs'
 import { withOfflineSessionMutation, withSessionForkSource } from './session-mutation'
 import { openSessionPath, withSessionPath } from './session-path-lock'
 import { registry } from '../registry'
-import { ownRoutineSession, releaseRoutineSession } from '../routines/ownership'
+import {
+  ownRoutineSession,
+  releaseRoutineSession,
+} from '@phosphor/session-runtime/routines/ownership'
 
 /**
  * Offline edits to pi's own transcripts. The first block pins what the writer

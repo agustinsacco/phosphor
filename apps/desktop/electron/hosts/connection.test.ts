@@ -10,7 +10,8 @@ import {
   type ClientFrame,
 } from '@shared/host-protocol'
 import type { GrantPayload } from '@shared/host-grant'
-import { createHostConnection, hostEndpoint, type LaneFrame } from './connection'
+import { createHostConnection, hostEndpoint } from './connection'
+import type { LaneFrame } from '@phosphor/host-client/connection'
 import { createTrafficLog } from './traffic-log'
 
 beforeEach(() => vi.useFakeTimers())

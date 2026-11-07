@@ -1,4 +1,4 @@
-import { CheckIcon, ReloadIcon } from '@/components/icons'
+import { CheckIcon, CollapseAllIcon, ReloadIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
 import { IconToggle } from '@/components/IconToggle'
 import { Tag } from '@/components/form'
@@ -35,6 +35,7 @@ export function RemoteFilesToolbar({
   editable,
   selected,
   onRefresh,
+  onCollapseAll,
   onAction,
   onSave,
   onDiscard,
@@ -47,6 +48,7 @@ export function RemoteFilesToolbar({
   editable: boolean
   selected: string | null
   onRefresh: () => void
+  onCollapseAll: () => void
   onAction: (kind: RemoteFileAction) => void
   onSave: () => void
   onDiscard: () => void
@@ -59,6 +61,9 @@ export function RemoteFilesToolbar({
       {!writable && <Tag>Read only</Tag>}
       <IconToggle title="Refresh" onClick={onRefresh}>
         <ReloadIcon />
+      </IconToggle>
+      <IconToggle title="Collapse all folders" onClick={onCollapseAll}>
+        <CollapseAllIcon />
       </IconToggle>
       {writable && !changes && (
         <>

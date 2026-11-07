@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { AgentMessage, PiEvent, ToolResultMessage } from '@shared/rpc'
 import { trimForRenderer } from './event-trim'
 
+/**
+ * The trim is safe only while the renderer ignores these fields. A reducer that starts reading
+ * `agent_end.messages` or `turn_end.toolResults` reads an empty array, so these cases pin the
+ * fields that must survive.
+ */
+
 const message: AgentMessage = { role: 'assistant', content: [{ type: 'text', text: 'done' }] }
 const result: ToolResultMessage = {
   role: 'toolResult',

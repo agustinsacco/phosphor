@@ -6,14 +6,18 @@ import { createLaneWorkspace } from '../fs/lane-workspace'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import { bindSession } from '../claude/accounts'
 import { spawnAccountFor, forgetSpawnAccount } from '../pi/session-accounts'
-import { assertClaudeContextProvider } from '../pi/provider-detect'
+import { assertClaudeContextProvider } from '@phosphor/session-runtime/pi/provider-detect'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { piStubPath } from '../pi/stub'
 import { broadcast } from '../broadcast'
 import { routinePrompt, type RoutineRun } from '@shared/routines'
 import type { AgentMessage, RpcCommand, RpcResponse } from '@shared/rpc'
-import { ownRoutineSession, releaseRoutineSession, routineSessionObserved } from './ownership'
-import { outcomeForMessages, type RunOutcome } from './outcome'
+import {
+  ownRoutineSession,
+  releaseRoutineSession,
+  routineSessionObserved,
+} from '@phosphor/session-runtime/routines/ownership'
+import { outcomeForMessages, type RunOutcome } from '@phosphor/session-runtime/routines/outcome'
 import { folderTaskObstacle } from './preflight'
 
 export type RunProgress = (patch: Partial<RoutineRun>) => void
