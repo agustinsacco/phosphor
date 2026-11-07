@@ -68,3 +68,30 @@ it('refuses with the source’s write refusal before sending', async () => {
   expect(writes()).toHaveLength(0)
   expect(file().dirty).toBe(true)
 })
+
+it('settles a save on its buffer after a rename moves the file', async () => {
+  let settle!: (value: unknown) => void
+  invoke.mockReturnValueOnce(new Promise((resolve) => (settle = resolve)))
+  const saving = store().saveFile(lane, path)
+  store().reconcilePath(lane, path, `${lane}/b.ts`)
+  settle({ mtimeMs: 2, revision: 'r2' })
+  await saving
+  expect(file()).toMatchObject({ path: `${lane}/b.ts`, saving: false, revision: 'r2' })
+})
+
+it('shows an uncertain save after a folder above the file moves, and blocks Save', async () => {
+  const nested = `${lane}/src/a.ts`
+  invoke.mockResolvedValueOnce({ content: 'disk', size: 4, mtimeMs: 1, revision: 'r1' })
+  await store().openFile(lane, nested)
+  store().updateBuffer(lane, nested, 'edited')
+  let fail!: (error: Error) => void
+  invoke.mockReturnValueOnce(new Promise((_resolve, reject) => (fail = reject)))
+  const saving = store().saveFile(lane, nested)
+  store().reconcilePath(lane, `${lane}/src`, `${lane}/lib`)
+  fail(new Error('timeout'))
+  await saving
+  const moved = workspaceFiles(store(), lane).openFiles.find((f) => f.path === `${lane}/lib/a.ts`)
+  expect(moved).toMatchObject({ saving: false, saveUncertain: true, dirty: true })
+  await store().saveFile(lane, `${lane}/lib/a.ts`)
+  expect(writes()).toHaveLength(1)
+})
