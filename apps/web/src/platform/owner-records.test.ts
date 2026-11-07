@@ -23,7 +23,11 @@ function memoryStorage(initial: Record<string, string> = {}) {
   }
 }
 /** A browser bridge whose session read answers as `user` (or signed out when null). */
-function bridge(storage: ReturnType<typeof memoryStorage>, user: () => string | null) {
+function bridge(
+  storage: ReturnType<typeof memoryStorage>,
+  user: () => string | null,
+  reload = vi.fn(),
+) {
   const fetch = vi.fn<typeof globalThis.fetch>(async (path) => {
     const id = user()
     if (path === '/api/auth/session')
@@ -40,6 +44,7 @@ function bridge(storage: ReturnType<typeof memoryStorage>, user: () => string | 
     navigate: () => {},
     invalidation: null,
     lifecycle: { subscribe: () => () => {} },
+    ...{ reload },
   })
   disposals.push(adapter.dispose)
   return adapter
@@ -111,4 +116,24 @@ it('treats the owner as unknown, and clears, without platform crypto', async () 
   }
   expect(sidebarIn(storage).sessionOrder).toEqual([])
   expect(storage.items.get(OWNER_KEY)).toBe('')
+})
+
+it("reloads once, and writes none of A's keys under B's tag, when B signs in on an open page", async () => {
+  const storage = memoryStorage()
+  const reload = vi.fn()
+  let user: string | null = A
+  const adapter = bridge(storage, () => user, reload)
+  await adapter.start()
+  await adapter.api.invoke('app:setSessionOrder', ORDER)
+  user = null
+  await adapter.start()
+  user = B
+  await adapter.start()
+  // The page's stores still hold A's arrangement and write it back.
+  await adapter.api.invoke('app:setSessionOrder', ORDER)
+  await adapter.api.invoke('app:setCollapsedWorkspaces', ORDER)
+  expect(reload).toHaveBeenCalledTimes(1)
+  expect(storage.items.get(OWNER_KEY)).toBe(await tag(B))
+  expect(storage.items.get(SIDEBAR_KEY)).not.toContain(ORDER[0])
+  expect((await adapter.api.invoke('app:getPrefs')).sessionOrder).toEqual([])
 })
