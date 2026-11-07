@@ -1,7 +1,7 @@
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: async () => [] }))
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, writeFile, rm, symlink } from 'node:fs/promises'
 import * as fsPromises from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -74,7 +74,7 @@ beforeEach(async () => {
   const script = join(root, 'pi.cjs')
   await writeFile(
     script,
-    `let text='';process.stdin.on('data', c=>text+=c);process.stdin.on('data',()=>{if(!text.includes('\\n'))return;const q=JSON.parse(text);const data=q.type==='get_commands'?{commands:JSON.parse(process.env.COMMANDS)}:{models:JSON.parse(process.env.MODELS)}; console.log((process.env.PAYLOAD?require('node:fs').readFileSync(process.env.PAYLOAD,'utf8'):undefined)||JSON.stringify({type:'response',id:q.id,success:true,data}));});`,
+    `let text='';process.stdin.on('data', c=>text+=c);process.stdin.on('data',()=>{if(!text.includes('\\n'))return;const q=JSON.parse(text);const data=q.type==='get_commands'?{commands:JSON.parse(process.env.COMMANDS).map(c=>c.name==='$cwd'?{...c,description:process.cwd()}:c)}:{models:JSON.parse(process.env.MODELS)}; console.log((process.env.PAYLOAD?require('node:fs').readFileSync(process.env.PAYLOAD,'utf8'):undefined)||JSON.stringify({type:'response',id:q.id,success:true,data}));});`,
   )
   const context: FeatureContext = {
     home: root,
@@ -153,6 +153,50 @@ describe('createSkillsFeature', () => {
     })
     for (const params of [{ binaryPath: '/bin/sh' }, { env: {} }, { laneId }])
       expect(await feature.call('machine.models', params)).toEqual(error('bad-request'))
+  })
+  it('lists commands in a configured repository, else the home, and never a caller path', async () => {
+    const projected = {
+      name: 'skill:demo',
+      description: 'Example',
+      source: 'skill',
+      sourceInfo: {
+        path: join(repo, '.pi', 'skills', 'local', 'SKILL.md'),
+        source: 'local',
+        scope: 'project',
+        origin: 'top-level',
+      },
+    }
+    commands = [
+      { name: '$cwd', source: 'extension', secret: 'private' },
+      { ...projected, sourceInfo: { ...projected.sourceInfo, baseDir: undefined, extra: 1 } },
+    ]
+    expect(await feature.call('machine.commands', { repositoryId: 'a'.repeat(16) })).toEqual({
+      ok: true,
+      data: {
+        commands: [
+          { name: '$cwd', description: await realpath(repo), source: 'extension' },
+          projected,
+        ],
+      },
+    })
+    expect(await feature.call('machine.commands', {})).toEqual({
+      ok: true,
+      data: {
+        commands: [
+          { name: '$cwd', description: await realpath(root), source: 'extension' },
+          projected,
+        ],
+      },
+    })
+    expect(await feature.call('machine.commands', { repositoryId: 'b'.repeat(16) })).toEqual(
+      error('bad-request'),
+    )
+    for (const params of [{ repositoryId: repo }, { cwd: repo }, { laneId }])
+      expect(await feature.call('machine.commands', params)).toEqual(error('bad-request'))
+    commands = [{ name: 'x', source: 'native' }]
+    expect(await feature.call('machine.commands', {})).toEqual(error('internal'))
+    commands = Array(2001).fill({ name: 'x', source: 'prompt' })
+    expect(await feature.call('machine.commands', {})).toEqual(error('too-large'))
   })
   it('returns only provider names and readiness, not diagnostics or credentials', async () => {
     expect(await feature.call('machine.providers', {})).toEqual({

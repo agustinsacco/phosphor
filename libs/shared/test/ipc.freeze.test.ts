@@ -125,6 +125,7 @@ const expectedEntries = [
   ['hosts:claude', 'machine'],
   ['hosts:claudeAccount', 'app'],
   ['hosts:claudeUsage', 'machine'],
+  ['hosts:commands', 'machine'],
   ['hosts:createFolder', 'app'],
   ['hosts:createLane', 'app'],
   ['hosts:deleteLane', 'app'],

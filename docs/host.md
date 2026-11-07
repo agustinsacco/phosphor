@@ -1666,6 +1666,11 @@ The `skills.read` feature answers `machine.models` with the Host pi's model
 catalogue and `machine.providers` with provider names and readiness only. It
 never returns credentials or provider diagnostic text. Probes use the Host's
 validated pi binary and configured environment, not call parameters.
+`machine.commands {repositoryId?}` answers pi's `get_commands` run in that
+configured repository (its project skills, prompts and extensions included), or
+in the Host's home without one, projected to the fields the `/` menu reads
+(`parseMachineCommands`, at most 2,000 entries). The repository is one of the
+Host's own; a path is never accepted, and an unknown id is `bad-request`.
 
 Each model or command probe is one `pi --mode rpc --no-session` with a 15 s
 deadline. Once pi answers, the Host closes its stdin (pi's orderly shutdown),

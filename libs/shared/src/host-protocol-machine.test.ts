@@ -28,6 +28,17 @@ describe('host-protocol-machine', () => {
       expect(parseMachineParams('skills.read', value)).toBeNull()
     expect(parseMachineParams('unknown.method', {})).toBeNull()
     expect(parseMachineParams('machine.providers', {})).toEqual({})
+    expect(parseMachineParams('machine.commands', {})).toEqual({})
+    expect(parseMachineParams('machine.commands', { repositoryId: '0123456789abcdef' })).toEqual({
+      repositoryId: '0123456789abcdef',
+    })
+    for (const value of [
+      { repositoryId: '/repo' },
+      { repositoryId: 'ABCDEF0123456789' },
+      { laneId: '12345678-1234-4234-8234-123456789abc' },
+    ])
+      expect(parseMachineParams('machine.commands', value)).toBeNull()
+    expect(parseMachineParams('machine.models', { repositoryId: '0123456789abcdef' })).toBeNull()
     expect(isSkillFile('a'.repeat(1024))).toBe(true)
     expect(isSkillFile('a'.repeat(1025))).toBe(false)
     for (const value of ['', '/x', '../x', 'a/../x', '.git/config', 'a\0', 'a\\b', './a', 'a//b'])
