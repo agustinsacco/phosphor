@@ -1,0 +1,291 @@
+{
+  "piVersion": "1.4.0",
+  "entries": [
+    {
+      "id": "system",
+      "parentId": null,
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "system",
+        "content": "original system",
+        "timestamp": 1
+      }
+    },
+    {
+      "id": "old",
+      "parentId": "system",
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "user",
+        "content": "omitted ancient fact",
+        "timestamp": 1
+      }
+    },
+    {
+      "id": "keep",
+      "parentId": "old",
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "user",
+        "content": "before edit",
+        "timestamp": 1
+      }
+    },
+    {
+      "id": "answer",
+      "parentId": "keep",
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "retained reasoning",
+            "thinkingSignature": "sig"
+          },
+          {
+            "type": "text",
+            "text": "final assistant fact"
+          }
+        ],
+        "timestamp": 1
+      }
+    },
+    {
+      "id": "abandoned",
+      "parentId": "old",
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "user",
+        "content": "abandoned fact",
+        "timestamp": 1
+      }
+    },
+    {
+      "id": "compact",
+      "parentId": "answer",
+      "type": "compaction",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "summary": "summary-only fact",
+      "firstKeptEntryId": "keep",
+      "tokensBefore": 1000,
+      "systemMessage": {
+        "role": "system",
+        "content": "original system",
+        "timestamp": 1
+      }
+    },
+    {
+      "id": "edit",
+      "parentId": "compact",
+      "type": "context_edit",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "targetId": "keep",
+      "replacement": "edited eligible fact"
+    },
+    {
+      "id": "metadata",
+      "parentId": "edit",
+      "type": "session_info",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "name": "renamed"
+    }
+  ],
+  "leafId": "metadata",
+  "projection": {
+    "entries": [
+      {
+        "sourceEntry": {
+          "id": "compact",
+          "parentId": "answer",
+          "type": "compaction",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "summary": "summary-only fact",
+          "firstKeptEntryId": "keep",
+          "tokensBefore": 1000,
+          "systemMessage": {
+            "role": "system",
+            "content": "original system",
+            "timestamp": 1
+          }
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "original system",
+            "timestamp": 1
+          },
+          {
+            "role": "compactionSummary",
+            "summary": "summary-only fact",
+            "tokensBefore": 1000,
+            "timestamp": 1767225600000
+          }
+        ]
+      },
+      {
+        "sourceEntry": {
+          "id": "keep",
+          "parentId": "old",
+          "type": "message",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "message": {
+            "role": "user",
+            "content": "before edit",
+            "timestamp": 1
+          }
+        },
+        "messages": [
+          {
+            "role": "user",
+            "timestamp": 1
+          }
+        ]
+      },
+      {
+        "sourceEntry": {
+          "id": "answer",
+          "parentId": "keep",
+          "type": "message",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "thinking",
+                "thinking": "retained reasoning",
+                "thinkingSignature": "sig"
+              },
+              {
+                "type": "text",
+                "text": "final assistant fact"
+              }
+            ],
+            "timestamp": 1
+          }
+        },
+        "messages": [
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "thinking",
+                "thinking": "retained reasoning",
+                "thinkingSignature": "sig"
+              },
+              {
+                "type": "text",
+                "text": "final assistant fact"
+              }
+            ],
+            "timestamp": 1
+          }
+        ]
+      },
+      {
+        "sourceEntry": {
+          "id": "edit",
+          "parentId": "compact",
+          "type": "context_edit",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "targetId": "keep",
+          "replacement": "edited eligible fact"
+        },
+        "messages": []
+      },
+      {
+        "sourceEntry": {
+          "id": "metadata",
+          "parentId": "edit",
+          "type": "session_info",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "name": "renamed"
+        },
+        "messages": []
+      }
+    ],
+    "messages": [
+      {
+        "role": "system",
+        "content": "original system",
+        "timestamp": 1
+      },
+      {
+        "role": "compactionSummary",
+        "summary": "summary-only fact",
+        "tokensBefore": 1000,
+        "timestamp": 1767225600000
+      },
+      {
+        "role": "user",
+        "timestamp": 1
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "retained reasoning",
+            "thinkingSignature": "sig"
+          },
+          {
+            "type": "text",
+            "text": "final assistant fact"
+          }
+        ],
+        "timestamp": 1
+      }
+    ],
+    "thinkingLevel": "off",
+    "model": {}
+  },
+  "wireByEntry": [
+    [
+      {
+        "role": "system",
+        "content": "original system",
+        "timestamp": 1
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "The conversation history before this point was compacted into the following summary:\n\n<summary>\nsummary-only fact\n</summary>"
+          }
+        ],
+        "timestamp": 1767225600000
+      }
+    ],
+    [
+      {
+        "role": "user",
+        "timestamp": 1
+      }
+    ],
+    [
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "retained reasoning",
+            "thinkingSignature": "sig"
+          },
+          {
+            "type": "text",
+            "text": "final assistant fact"
+          }
+        ],
+        "timestamp": 1
+      }
+    ],
+    [],
+    []
+  ]
+}
