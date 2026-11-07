@@ -8,6 +8,10 @@
       "types": "./src/base64.ts",
       "default": "./src/base64.ts"
     },
+    "./download": {
+      "types": "./src/download.ts",
+      "default": "./src/download.ts"
+    },
     "./web-auth": {
       "types": "./src/web-auth.ts",
       "default": "./src/web-auth.ts"

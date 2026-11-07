@@ -41,7 +41,7 @@ async function clickSave(platform = DESKTOP_PLATFORM): Promise<void> {
   container.remove()
 }
 
-it('Desktop: Save SVG asks where, then writes the serialized diagram there', async () => {
+it('Desktop: Save SVG asks where, writes the serialized diagram there and reveals it', async () => {
   invoke.mockImplementation(async (channel: string) =>
     channel === 'app:saveDialog' ? '/out/diagram.svg' : undefined,
   )
@@ -55,6 +55,7 @@ it('Desktop: Save SVG asks where, then writes the serialized diagram there', asy
     '/out/diagram.svg',
     expect.stringContaining('<svg'),
   )
+  expect(invoke).toHaveBeenLastCalledWith('app:revealPath', '/out/diagram.svg')
 })
 
 it('Desktop: a cancelled Save SVG writes nothing', async () => {
