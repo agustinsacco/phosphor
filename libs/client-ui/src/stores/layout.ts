@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { drop, keyedSlice } from './keyedSlice'
 import { useSessionsStore } from './sessions'
+import { REMOTE_UNAVAILABLE } from './hostRefusals'
 import type { RevealTarget } from './files'
 
 export type RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | 'subagents' | null
@@ -213,8 +214,10 @@ export async function openFileInWorkspace(
 ): Promise<void> {
   const sessions = useSessionsStore.getState()
   const explicit = sessionId ? sessions.live[sessionId] : null
-  const [{ useFilesStore, laneFilePath }, { sessionHostLane, REMOTE_UNAVAILABLE }] =
-    await Promise.all([import('./files'), import('./remoteLanes')])
+  const [{ useFilesStore, laneFilePath }, { sessionHostLane }] = await Promise.all([
+    import('./files'),
+    import('./remoteLanes'),
+  ])
   let file = path.startsWith('/') ? path : `${workspacePath}/${path}`
   if (workspacePath.startsWith('host:') || explicit?.target?.kind === 'remote') {
     // A Host path opens only through the lane whose transcript named it, never on this disk.

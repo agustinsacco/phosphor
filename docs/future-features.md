@@ -96,7 +96,7 @@ transfer and a common machine engine must back these operations:
 
 - Skills copy whole into the target's global folder today. Still open: project
   scope as a target and a content comparison before Replace.
-- Artifacts have indexes and version blobs (`electron/artifacts/artifact-library.ts`
+- Artifacts have indexes and version blobs (`libs/session-runtime/src/artifacts/artifact-library.ts`
   and `libs/pi-extensions/pi-ext/artifact-store.ts`). Copy must preserve referenced
   versions and integrity, not send temporary preview URLs or overwrite identity.
 - Routines are SQLite rows, schedules and run history (`libs/session-runtime/src/routines/repository.ts`).
@@ -141,7 +141,7 @@ relationships, not a renderer projection. Transfer committed work through the
 branch, and uncommitted work as a verified patch or git bundle with an explicit
 plan for untracked files. Include artifact versions, durable attachments the
 transcript references, and lane metadata such as name, branch and markers.
-`electron/pi/session-cwd.ts`, `session-writer.ts`, `electron/fs/git-worktrees.ts` and
+`libs/session-runtime/src/pi/session-cwd.ts`, `session-writer.ts`, `electron/fs/git-worktrees.ts` and
 `stores/sessions.ts` are relevant seams, not a ready migration API.
 
 Do not transfer provider credentials, live tool processes or terminals. Absolute

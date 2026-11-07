@@ -154,3 +154,33 @@ it('names the stale copy in the outdated warning, as main names the copy it refu
     invoke.mockImplementation(base)
   }
 })
+
+it('finds the provider by its package name, as main does, not by a spec that mentions it', async () => {
+  const entry = (spec: string, name: string, version: string) => ({
+    spec,
+    scope: 'global',
+    kind: spec.startsWith('git:') ? 'git' : 'npm',
+    filtered: false,
+    name,
+    version,
+    installed: true,
+    resources: {},
+  })
+  const base = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'packages:list'
+      ? [
+          entry('git:github.com/someone/pi-claude-cli', 'pi-claude-cli', '1.0.0'),
+          entry('npm:@saccolabs/pi-claude-cli', '@saccolabs/pi-claude-cli', '0.10.2'),
+        ]
+      : base(channel),
+  )
+  try {
+    await act(async () => root.render(<LocalClaudeProvider />))
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain('@saccolabs/pi-claude-cli v0.10.2 (global)'),
+    )
+  } finally {
+    invoke.mockImplementation(base)
+  }
+})

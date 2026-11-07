@@ -148,7 +148,6 @@ It merges only at 12/12 CI, squash, with `--match-head-commit`.
 
 - Adopt the new shared helpers in the apps:
   - `runPrintMode` from `@phosphor/session-runtime/pi/print-mode`;
-  - `@phosphor/shared/worktree-segment`;
   - the shared `resolvePiInvoker` in `pi/mcp-actions.ts` and `pi/auth-actions.ts`.
 - `ttl-cache` `invalidate()` does not detach a load already in flight.
 - The fake-host test helper is copied four times; move it into one `__fixtures__/` file.

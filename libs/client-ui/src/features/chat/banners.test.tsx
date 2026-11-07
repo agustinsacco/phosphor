@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { hostLaneSession, MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSessionsStore } from '@/stores/sessions'
+import { bootstrapSession, useSessionsStore } from '@/stores/sessions'
 import type { HostLaneView } from '@phosphor/shared/ipc'
 import { ChatView } from './ChatView'
 
@@ -102,4 +102,73 @@ it("keeps the control row's Resume for a stopped Host lane, with no crash banner
     b.textContent?.startsWith('Resume'),
   )
   expect(resumes.map((b) => b.textContent)).toEqual(['Resume'])
+})
+
+function noModels(sessionId: string): void {
+  useChatStore.getState().ensure(sessionId)
+  useChatStore.getState().setMeta(sessionId, { sessionId } as never)
+  useChatStore.getState().setModels(sessionId, [])
+}
+const buttonTexts = (el: HTMLElement): string[] =>
+  [...el.querySelectorAll('button')].map((b) => b.textContent ?? '')
+
+it("offers This Mac's start picker actions and pi's terminal when a lane has no models", async () => {
+  useSessionsStore.setState({
+    live: { local: { phosphorId: 'local', sessionId: 'local', workspacePath: '/w' } } as never,
+  })
+  noModels('local')
+  const el = await render('local', '/w')
+  expect(el.textContent).toContain('No models configured')
+  expect(el.textContent).not.toContain('/login')
+  expect(buttonTexts(el)).toEqual(
+    expect.arrayContaining(['Retry models', 'Open terminal with `pi`']),
+  )
+  expect(buttonTexts(el).some((text) => text.startsWith('Sign in on '))).toBe(true)
+})
+
+it("offers a Host lane's Sign in on the Host and never This Mac's terminal", async () => {
+  const { hosts, live } = hostLaneSession({ self: true })
+  useRemoteLanesStore.setState({ hosts })
+  useSessionsStore.setState({ live })
+  noModels(mockRemoteInfo.sessionId)
+  const el = await render(mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath)
+  expect(buttonTexts(el)).toContain('Retry models')
+  expect(buttonTexts(el)).toContain(`Sign in on ${MOCK_HOST_ID}`)
+  expect(buttonTexts(el)).not.toContain('Open terminal with `pi`')
+})
+
+it('Retry models reads the lane models again and drops the banner once some arrive', async () => {
+  const piCommand = vi.fn(async () => ({
+    success: true,
+    data: { models: [{ id: 'm', name: 'Model', provider: 'p', reasoning: false }] },
+  }))
+  vi.stubGlobal('phosphor', { invoke, piCommand })
+  useSessionsStore.setState({
+    live: { local: { phosphorId: 'local', sessionId: 'local', workspacePath: '/w' } } as never,
+  })
+  noModels('local')
+  const el = await render('local', '/w')
+  const retry = [...el.querySelectorAll('button')].find((b) => b.textContent === 'Retry models')
+  expect(retry).toBeDefined()
+  await act(async () => retry?.click())
+  expect(piCommand).toHaveBeenCalledWith('local', { type: 'get_available_models' })
+  expect(el.textContent).not.toContain('No models configured')
+})
+
+it('says a failed model read failed, with Retry models, instead of "No models configured"', async () => {
+  const piCommand = vi.fn(async (_id: string, command: { type: string }) =>
+    command.type === 'get_state'
+      ? { success: true, data: { sessionId: 'local' } }
+      : { success: false, error: 'pi is busy' },
+  )
+  vi.stubGlobal('phosphor', { invoke, piCommand })
+  useSessionsStore.setState({
+    live: { local: { phosphorId: 'local', sessionId: 'local', workspacePath: '/w' } } as never,
+  })
+  useChatStore.getState().ensure('local')
+  await bootstrapSession('local')
+  const el = await render('local', '/w')
+  expect(el.textContent).toContain('Could not read models.')
+  expect(el.textContent).not.toContain('No models configured')
+  expect(buttonTexts(el)).toContain('Retry models')
 })

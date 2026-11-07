@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, shell } from 'electron'
 import { grantPreview } from '../fs/file-protocol'
-import { transferEntry } from '../fs/file-transfer'
+import { transferEntry } from '@phosphor/session-runtime/files/mutations'
 import { openInDefaultApp } from '../fs/open-file'
 import { handle } from './handle'
 import { listWorkspaceFiles } from '../fs/list-files'

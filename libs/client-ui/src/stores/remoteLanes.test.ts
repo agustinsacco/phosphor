@@ -17,8 +17,11 @@ import {
   openRemoteLane,
   navigateToLane,
   alignLaneMachineFilter,
+  machineLabel,
   useRemoteLanesStore,
 } from './remoteLanes'
+import { useMachinesStore } from './machines'
+import { localMachineLabel } from '@/lib/localMachine'
 
 vi.mock('@/lib/monaco', () => ({}))
 let push: ((push: SessionPush) => void) | undefined
@@ -37,6 +40,7 @@ beforeEach(() => {
   useChatStore.setState({ sessions: {} })
   useLayoutStore.setState({ page: 'skills' })
   useExtensionUiStore.setState({ toasts: [] })
+  useMachinesStore.setState({ machines: [] })
   useLaneRevealStore.setState({ seq: 0, groupKey: null })
   const hosts = structuredClone(mockRemoteHosts)
   hosts[MOCK_HOST_ID]!.capabilities.push('artifacts.read')
@@ -634,4 +638,11 @@ it('words a routine neutrally without a receipt, since it may have paused, and f
   await vi.waitFor(() => expect(toast()?.message).toBe('Shipped it'))
   expect(toast()?.kind).toBe('success')
   detach()
+})
+
+it("names This Mac for 'local', a Host by its directory label, else by its raw id", () => {
+  useMachinesStore.setState({ machines: [{ id: 'h1', label: 'Studio' } as never] })
+  expect(machineLabel('local')).toBe(localMachineLabel())
+  expect(machineLabel('h1')).toBe('Studio')
+  expect(machineLabel('h2')).toBe('h2')
 })

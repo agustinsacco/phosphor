@@ -1,7 +1,8 @@
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { featureNotOffered } from '@/stores/hostRefusals'
+import type { MachineCaps } from '@/stores/machineCaps'
 import { REMOTE_NOT_READY } from '@/stores/remoteLanes'
-import type { HostConnectionView, HostLaneView } from '@shared/ipc'
+import type { HostLaneView } from '@shared/ipc'
 import type { LanePrefs } from '@shared/models'
 
 export const TAKE_CONTROL_FIRST = 'Take control first.'
@@ -27,7 +28,7 @@ export function remoteControlHint(
 
 export interface RemoteLaneActionState {
   lane: HostLaneView
-  host: Pick<HostConnectionView, 'capabilities' | 'laneMarks'> | undefined
+  caps: MachineCaps
   /** The Host is connected and ready for actions. */
   ready: boolean
   /** An action on this lane is in flight. */
@@ -59,18 +60,18 @@ export interface RemoteLaneActionHandlers {
 }
 
 /** What this client may do to the lane, and why not. One rule for every surface. */
-export function remoteLaneAccess({ lane, host, ready }: RemoteLaneActionState) {
-  const canControl = !!host?.capabilities.includes('sessions.control')
+export function remoteLaneAccess({ lane, caps, ready }: RemoteLaneActionState) {
+  const canControl = caps.granted('sessions.control')
   const self = lane.control.controller?.self === true
   return {
     controlled: ready && canControl && self,
     running: lane.activity !== 'stopped' && lane.activity !== 'failed',
-    canWrite: !!host?.capabilities.includes('workspaces.write'),
-    canMark: ready && host?.laneMarks === true && canControl,
+    canWrite: caps.granted('workspaces.write'),
+    canMark: ready && caps.laneMarks && canControl,
     controlHint: remoteControlHint(ready, canControl, self),
     markHint: !ready
       ? REMOTE_NOT_READY
-      : host?.laneMarks !== true
+      : !caps.laneMarks
         ? LANE_MARKS_NEED_UPDATE
         : !canControl
           ? featureNotOffered('sessions.control')
@@ -115,7 +116,7 @@ export function remoteLaneActions(
         }
       : {
           label: 'Take control',
-          disabled: !ready || !state.host?.capabilities.includes('sessions.control') || busy,
+          disabled: !ready || !state.caps.granted('sessions.control') || busy,
           hint: notReady,
           onClick: handlers.takeControl,
         },
@@ -156,9 +157,7 @@ function keepActions(
   const { running, canMark, markHint } = remoteLaneAccess(state)
   const notReady = !ready ? REMOTE_NOT_READY : undefined
   // The lane's own readiness gates first; the capability alone says whether routines exist here.
-  const noRoutines = state.host?.capabilities.includes('routines')
-    ? undefined
-    : featureNotOffered('routines')
+  const noRoutines = state.caps.granted('routines') ? undefined : featureNotOffered('routines')
   return [
     {
       label: 'Make routine…',
