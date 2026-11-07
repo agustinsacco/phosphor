@@ -2,7 +2,6 @@ import { SCREENS } from '@/navigation/screens'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
-import type { HostConnectionView } from '@shared/ipc'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo } from 'react'
@@ -10,7 +9,7 @@ import clsx from 'clsx'
 import { useLayoutStore, sessionPanes, type RightPane as RightPaneId } from '@/stores/layout'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { FilesPane } from './FilesPane'
-import { useLaneFilesSource, type FilesSource } from './filesSource'
+import { useLaneFilesSource } from './filesSource'
 import { FilesChangedPane } from './FilesChangedPane'
 import { TerminalPane } from '@/features/terminal/TerminalPane'
 import { RemoteArtifactsPane } from '@/features/artifacts/RemoteArtifactsPane'
@@ -31,9 +30,6 @@ export const RightPane = memo(function RightPane({
   // is already told which session it renders, and the two must not disagree.
   const target = useSessionsStore((s) => s.live[sessionId]?.target)
   const remote = target?.kind === 'remote'
-  const host = useRemoteLanesStore((s) =>
-    target?.kind === 'remote' ? s.hosts[target.hostId] : undefined,
-  )
   const rightPane = useLayoutStore((s) => sessionPanes(s, sessionId).pane)
   const side = useLayoutStore((s) => sessionPanes(s, sessionId).side)
   const expanded = useLayoutStore((s) => sessionPanes(s, sessionId).expanded)
@@ -53,26 +49,26 @@ export const RightPane = memo(function RightPane({
         data-testid="right-pane"
         className="border-border bg-surface flex h-full flex-col overflow-hidden rounded-md border"
       >
-        {remote && (
-          // Same card and headers as This Mac. Terminal, Artifacts and Subagents bring
-          // their own header; Files/Changes and the fixed refusals add the machine chip.
-          <RemotePaneBody
-            pane={rightPane}
-            sessionId={sessionId}
-            workspacePath={workspacePath}
-            host={host}
-            files={files}
-          />
-        )}
-        {!remote && rightPane === 'files' && (
-          <PaneShell title={<PaneSwitcher active="files" />}>
-            <FilesPane source={files} />
+        {(rightPane === 'files' || rightPane === 'changes') && (
+          <PaneShell
+            title={
+              <>
+                <PaneSwitcher active={rightPane} />
+                {remote && <MachineChip sessionId={sessionId} />}
+              </>
+            }
+          >
+            {rightPane === 'files' ? (
+              <FilesPane source={files} />
+            ) : (
+              <FilesChangedPane source={files} />
+            )}
           </PaneShell>
         )}
-        {!remote && rightPane === 'changes' && (
-          <PaneShell title={<PaneSwitcher active="changes" />}>
-            <FilesChangedPane source={files} />
-          </PaneShell>
+        {remote && rightPane !== 'files' && rightPane !== 'changes' && (
+          // Same card and headers as This Mac. Terminal, Artifacts and Subagents bring their own
+          // header; the fixed refusals add the machine chip.
+          <RemotePaneBody pane={rightPane} sessionId={sessionId} workspacePath={workspacePath} />
         )}
         {!remote && rightPane === 'terminal' && (
           <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
@@ -90,28 +86,15 @@ function RemotePaneBody({
   pane,
   sessionId,
   workspacePath,
-  host,
-  files,
 }: {
-  pane: NonNullable<RightPaneId>
+  pane: Exclude<NonNullable<RightPaneId>, 'files' | 'changes'>
   sessionId: string
   workspacePath: string
-  host: HostConnectionView | undefined
-  files: FilesSource
 }): React.JSX.Element {
-  if (pane === 'files' || pane === 'changes')
-    return (
-      <PaneShell
-        title={
-          <>
-            <PaneSwitcher active={pane} />
-            <MachineChip sessionId={sessionId} />
-          </>
-        }
-      >
-        {pane === 'files' ? <FilesPane source={files} /> : <FilesChangedPane source={files} />}
-      </PaneShell>
-    )
+  const target = useSessionsStore((s) => s.live[sessionId]?.target)
+  const host = useRemoteLanesStore((s) =>
+    target?.kind === 'remote' ? s.hosts[target.hostId] : undefined,
+  )
   // The agent list is the transcript this window holds, so it stays while the Host
   // reconnects; inspection and history ask the Host and report their own failures.
   if (pane === 'subagents') return <SubagentPanel sessionId={sessionId} />
