@@ -68,4 +68,8 @@ it('recovers from a failed first check and requires acknowledgement before Move'
   )
   expect(move.disabled).toBe(false)
   expect(invoke).toHaveBeenCalledTimes(2)
+  // Refreshed Host/workspace snapshots must not repeat an unchanged preflight.
+  folders.recents = [...folders.recents]
+  await act(async () => root!.render(<LaneMoveHost />))
+  expect(invoke).toHaveBeenCalledTimes(2)
 })

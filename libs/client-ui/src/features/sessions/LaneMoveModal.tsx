@@ -66,12 +66,18 @@ function useMovePlan(
   const [check, setCheck] = useState<Check>({ state: 'idle' })
   const run = useRef(0)
   const [attempt, setAttempt] = useState(0)
+  const machine = target?.machine
+  const workspace = target && 'workspace' in target ? target.workspace : undefined
+  const repositoryId = target && 'repositoryId' in target ? target.repositoryId : undefined
   useEffect(() => {
     const id = ++run.current
-    if (!target || unavailable) {
+    if (!machine || (!workspace && !repositoryId) || unavailable) {
       setCheck({ state: 'idle' })
       return
     }
+    const target: LaneMoveTarget = workspace
+      ? { machine: 'local', workspace }
+      : { machine, repositoryId: repositoryId! }
     setCheck({ state: 'checking' })
     void window.phosphor
       .invoke('hosts:laneMovePlan', { source: draft.source, target, marks: draft.marks })
@@ -86,7 +92,7 @@ function useMovePlan(
     return () => {
       run.current++
     }
-  }, [target, draft, unavailable, attempt])
+  }, [machine, workspace, repositoryId, draft, unavailable, attempt])
   return { check, retry: () => setAttempt((n) => n + 1) }
 }
 
