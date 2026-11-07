@@ -205,3 +205,23 @@ it('a failed Host read is an error toast, as on This Mac, and opens no tab', asy
     useExtensionUiStore.setState({ toasts: [] })
   }
 })
+
+it('Host folders start collapsed, and Collapse all folders closes an open one', async () => {
+  const lane = await renderLaneFiles({
+    invoke: (channel, ...args) =>
+      channel === 'fs:listFiles' ? Promise.resolve(['src/a.ts']) : invoke(channel, ...args),
+  })
+  const folder = () => lane.container.querySelector(`[data-path="${workspace}/src"]`)
+  try {
+    expect(folder()?.getAttribute('aria-expanded')).toBe('false')
+    await lane.clickTreeRow('src')
+    expect(folder()?.getAttribute('aria-expanded')).toBe('true')
+    const collapse = lane.container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Collapse all folders"]',
+    )
+    await act(async () => collapse?.click())
+    expect(folder()?.getAttribute('aria-expanded')).toBe('false')
+  } finally {
+    lane.unmount()
+  }
+})
