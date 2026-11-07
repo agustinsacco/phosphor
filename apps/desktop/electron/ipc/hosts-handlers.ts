@@ -1,7 +1,7 @@
 import { laneMarks } from '@phosphor/host-client/lane-marks'
 import { repositoryManagement } from '@phosphor/host-client/repository-management'
-import { repositoryReads } from '../hosts/repository-reads'
-import { machineReads } from '../hosts/machine-reads'
+import { repositoryReads } from '@phosphor/host-client/repository-reads'
+import { machineReads } from '@phosphor/host-client/machine-reads'
 import { registerHostSettingsHandlers } from './host-settings-handlers'
 import { uploadAttachments } from '@phosphor/host-client/attachments'
 import { routeRemoteWrite } from '@phosphor/host-client/write-features'
@@ -27,19 +27,19 @@ import {
   remoteArtifactListings,
   remoteArtifactRead,
   type ArtifactHost,
-} from '../hosts/artifacts'
+} from '@phosphor/host-client/artifacts'
 import { artifactLibrary } from '../artifacts/artifact-sync'
-import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
-import { routeRemoteRead } from '../hosts/read-features'
+import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
+import { routeRemoteRead } from '@phosphor/host-client/read-features'
+import { createRemoteLanes } from '../hosts/remote-lanes'
+import type { RemoteLanes } from '@phosphor/host-client/remote-lanes'
 import {
-  createRemoteLanes,
   exportLaneHtml,
   laneSubagentHistory,
   laneSubagentInspect,
-  type RemoteLanes,
-} from '../hosts/remote-lanes'
+} from '@phosphor/host-client/lane-reads'
 import { createRemoteTerminals } from '@phosphor/host-client/terminals/terminals'
-import { createRemoteRoutines } from '../hosts/routines'
+import { createRemoteRoutines } from '@phosphor/host-client/routines'
 import { readHostReceipt } from '@phosphor/host-client/attention'
 import { createHostAttention } from '../hosts/attention'
 import { trafficLog } from '../hosts/traffic-log'

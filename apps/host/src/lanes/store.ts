@@ -8,11 +8,12 @@ import {
   type Receipt,
   type RepositorySummary,
 } from '@phosphor/shared/host-protocol'
+import type { LaneMarksChange } from '@phosphor/shared/host-protocol-lane-marks'
 import { SCHEMA } from './schema'
 import { errnoIs } from '../fs-safety'
 import { openStoreDatabase } from './store/open'
 import { validateRepositoryIdentity } from './store/identity'
-import { LANE_SELECT, writeLaneMarks, type LaneMarksChange } from './store/marks'
+import { LANE_SELECT, writeLaneMarks } from './store/marks'
 import {
   laneFromRow,
   repositoryFromRow,

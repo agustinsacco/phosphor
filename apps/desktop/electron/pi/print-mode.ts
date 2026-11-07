@@ -3,6 +3,7 @@ import {
   type PrintModeOptions,
 } from '@phosphor/session-runtime/pi/print-mode'
 
+// The frozen packages.characterization.test.ts mocks these through './print-mode'.
 export { OWN_GROUP, killProcessTree } from '@phosphor/session-runtime/pi/print-mode'
 export type { PrintModeOptions }
 

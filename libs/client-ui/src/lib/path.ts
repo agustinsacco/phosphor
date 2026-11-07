@@ -30,19 +30,8 @@ export function workspaceName(workspacePath: string): string {
   return workspacePath.split(SEPARATORS).filter(Boolean).pop() ?? workspacePath
 }
 
-/**
- * True for a path inside a repo's internal worktree folder
- * (`<repo>/.phosphor/worktrees/<name>`).
- *
- * A worktree is a *branch* of an existing workspace, not a workspace of its
- * own, so it must never be persisted as one — otherwise the sidebar and the
- * workspace switcher fill with a header per chat instead of one header per
- * project.
- */
-export function isWorktreeFolder(path: string): boolean {
-  // `.pidex` is the pre-rename (2026-09-08) folder; existing lanes still live there.
-  return /[/\\]\.(?:phosphor|pidex)[/\\]worktrees[/\\]/.test(path)
-}
+// The frozen worktree-segment characterization imports isWorktreeFolder from here.
+export { isWorktreeFolder } from '@phosphor/shared/worktree-segment'
 
 /**
  * The project a path belongs to: the repo root for a linked worktree, the path

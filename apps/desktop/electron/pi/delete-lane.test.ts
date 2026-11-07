@@ -21,7 +21,7 @@ vi.mock('./session-deleter', () => ({ deleteSession: mocks.trash }))
 vi.mock('../store', () => ({ clearDraft: mocks.clearDraft }))
 vi.mock('../drafts-blobs', () => ({ deleteDraftBlobs: mocks.blobs }))
 vi.mock('./session-accounts', () => ({ forgetSpawnAccount: vi.fn() }))
-vi.mock('../routines/ownership', () => ({ isRoutineSession: mocks.routine }))
+vi.mock('@phosphor/session-runtime/routines/ownership', () => ({ isRoutineSession: mocks.routine }))
 vi.mock('../routines', () => ({ cancelRoutineSession: mocks.cancelRoutine }))
 import { deleteLane } from './delete-lane'
 import { openSessionPath, withSessionPath } from './session-path-lock'
