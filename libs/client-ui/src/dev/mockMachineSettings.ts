@@ -227,6 +227,18 @@ function mockProviderSamples(tag: string): NonNullable<MachineSettings['provider
   }
 }
 
+export const MACHINE_SETTINGS_MOCK: ReadonlySet<string> = new Set([
+  'hosts:settingsAccess',
+  'hosts:settingsRead',
+  'hosts:settingsPatch',
+  'hosts:settingsCheck',
+  'hosts:machineTask',
+  'hosts:claudeAccount',
+  'hosts:models',
+  'hosts:claude',
+  'hosts:claudeUsage',
+  'hosts:providers',
+])
 export function mockMachineSettingsInvoke(channel: string, args: unknown[]): unknown {
   switch (channel) {
     case 'hosts:settingsAccess':
