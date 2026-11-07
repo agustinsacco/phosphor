@@ -109,7 +109,8 @@ async function saveFile(
  * more; a changed file is a conflict; any other failure may have landed, so it is never retried.
  */
 async function saveAtRevision(set: SetFiles, workspacePath: string, file: OpenFile): Promise<void> {
-  // A lane forgotten mid-save has released its files; its reply then changes nothing.
+  // A lane forgotten mid-save has released its files; its reply then changes nothing. Match the
+  // buffer by instance alone: a rename or move during the save changes its path.
   const settle = (fields: Partial<OpenFile> | ((f: OpenFile) => Partial<OpenFile>)) =>
     set((s) =>
       !s.byWorkspace[workspacePath]
@@ -117,7 +118,7 @@ async function saveAtRevision(set: SetFiles, workspacePath: string, file: OpenFi
         : patchWorkspace(s, workspacePath, (w) => ({
             ...w,
             openFiles: w.openFiles.map((f) =>
-              f.path === file.path && f.instanceId === file.instanceId
+              f.instanceId === file.instanceId
                 ? { ...f, ...(typeof fields === 'function' ? fields(f) : fields) }
                 : f,
             ),

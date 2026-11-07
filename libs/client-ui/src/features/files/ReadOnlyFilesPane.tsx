@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { RemoteFileTree } from './RemoteFileTree'
+import { useTreeFolders } from './useTreeFolders'
+import { useLaneFileList } from './useLaneFileList'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
@@ -39,13 +41,12 @@ export function ReadOnlyFilesPane({
   )
   const link = useLinkedFile(entry?.workspacePath)
   const [selected, setSelected] = useState(link?.relativePath ?? '')
-  const [files, setFiles] = useState<string[]>([])
-  const [status, setStatus] = useState<Record<string, string>>({})
+  // Held here: the tree unmounts while a file is open, and "← Files" keeps its folders.
+  const folders = useTreeFolders(selected || null, changes)
   const [content, setContent] = useState('')
   const [before, setBefore] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
   const [reading, setReading] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const workspace = entry?.workspacePath
@@ -56,35 +57,12 @@ export function ReadOnlyFilesPane({
   useEffect(() => {
     if (link) setSelected(link.relativePath)
   }, [link])
-  useEffect(() => {
-    let current = true
-    setError('')
-    setFiles([])
-    setStatus({})
-    setLoading(!refusal)
-    if (canRead && workspace)
-      void Promise.all([
-        window.phosphor.invoke('fs:listFiles', workspace),
-        changes ? window.phosphor.invoke('git:statusMap', workspace) : Promise.resolve({}),
-      ]).then(
-        ([files, status]) => {
-          if (current) {
-            setFiles(files)
-            setStatus(status)
-            setLoading(false)
-          }
-        },
-        () => {
-          if (current) {
-            setError('Could not read files.')
-            setLoading(false)
-          }
-        },
-      )
-    return () => {
-      current = false
-    }
-  }, [workspace, refusal, canRead, epoch, token, changes, refresh])
+  const { files, status, loading } = useLaneFileList(
+    workspace,
+    { canRead, loading: !refusal, changes },
+    { epoch, token, refresh },
+    setError,
+  )
   useEffect(() => {
     let current = true
     setContent('')
@@ -138,6 +116,7 @@ export function ReadOnlyFilesPane({
         <span className="min-w-0 flex-1 truncate">
           {selected || (changes ? 'Changes' : 'Files')} · Read only
         </span>
+        {!selected && <Button onClick={folders.collapseAll}>Collapse all</Button>}
         <Button onClick={() => setRefresh((n) => n + 1)}>Refresh</Button>
       </header>
       {error ? (
@@ -148,6 +127,7 @@ export function ReadOnlyFilesPane({
       <div className="min-h-0 flex-1 overflow-auto">
         {!selected ? (
           <RemoteFileTree
+            folders={folders}
             files={changes ? Object.keys(status) : files}
             status={status}
             selected={null}

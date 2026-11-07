@@ -39,6 +39,8 @@ conflict keeps the buffer and offers Reload, not Keep mine, which the revision
 check would refuse again. An uncertain save keeps the edits under "Save not
 confirmed. Your edits are kept. Do not retry an uncertain save." and is never
 retried; Reload file reads the file again and discards the edited buffer.
+Folders start collapsed and the toolbar's Collapse all folders closes every one,
+as on This Mac; a file opened from search or a chat link opens its folders.
 Opening another file opens a tab, as on This Mac; one path is one buffer, and
 closing a dirty tab asks first. Open files and unsaved edits live in the files
 store per lane, survive lane switches and closing the pane, and are dropped when
@@ -64,8 +66,10 @@ read for unsaved edits.
 Chat links, tool path chips and the finder open through an explicit remote lane
 and can reveal a line. Host absolute paths must be inside that lane's cwd.
 Editor models and caches are lane-qualified. Machine-level Files browses
-configured Host repositories read-only without opening a lane, and the browser's
-Files pane is read-only until it gains this pane.
+configured Host repositories read-only without opening a lane. The browser's
+Files pane is read-only. Its folders, and Machine-level Files', start collapsed
+and open for a selected file; the browser's Files has Collapse all, and its
+Changes starts expanded.
 [Remote surface gaps](future-features.md#remote-surface-gaps) lists unavailable
 operations. Without the capability, the pane shows “This Host does not offer files to this
 device.”, and “Machine not connected. Wait for reconnection.” while the Host is away.
