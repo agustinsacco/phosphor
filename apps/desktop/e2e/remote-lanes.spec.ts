@@ -55,7 +55,7 @@ test('Create on bee1 with a usable default and name the first turn', async ({
     await remoteRow(h, 'HOST_A_ONLY title').click({ button: 'right' })
     await h.page
       .getByTestId('context-menu')
-      .getByRole('button', { name: 'Rename', exact: true })
+      .getByRole('button', { name: 'Rename…', exact: true })
       .click()
     await h.page.getByRole('textbox', { name: 'Lane name', exact: true }).fill('HOST_A_ONLY manual')
     await captures(h, info, 'remote-inline-rename')
@@ -145,19 +145,19 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
     await row.click({ button: 'right' })
     for (const name of [
       'Open',
-      'Rename',
+      'Rename…',
+      'Pin',
+      'Lane marker…',
       'Release control',
       /^Stop/, // Until the lane's first message, Stop's name carries why it waits.
-      'Mark read',
-      'Pin',
-      'Lane marker',
       'Export HTML…',
       'Copy debug info',
       'Copy spend',
       'Delete',
     ])
       await expect(menuItem(name)).toBeVisible()
-    for (const name of ['Session tree', 'Fork', 'Clone'])
+    // Mark read shows only on an unseen lane, and this lane has not run a turn yet.
+    for (const name of ['Session tree', 'Fork', 'Clone', 'Mark read'])
       await expect(menuItem(name)).toHaveCount(0)
     await captures(h, info, 'remote-row-menu')
     await menuItem('Pin').click()
@@ -176,7 +176,7 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
     expect(clipboard).toContain('bee1')
     expect(clipboard).not.toContain(h.root)
     await row.press('Shift+F10')
-    await menuItem('Lane marker').click()
+    await menuItem('Lane marker…').click()
     const picker = h.page.getByRole('dialog', { name: 'Lane marker', exact: true })
     await picker.getByRole('textbox', { name: 'Search icons', exact: true }).fill('rocket')
     await picker.getByRole('button', { name: 'rocket', exact: true }).click()
@@ -184,7 +184,7 @@ test('Remote row menu is complete, gated and durable @system-clipboard', async (
     await captures(h, info, 'remote-row-marker')
 
     await row.click({ button: 'right' })
-    await menuItem('Rename').click()
+    await menuItem('Rename…').click()
     await h.page
       .getByRole('textbox', { name: 'Lane name', exact: true })
       .fill('HOST_A_ONLY renamed')
@@ -220,7 +220,7 @@ test('A manual Host name wins while first-prompt auto-naming is pending', async 
     await row.click({ button: 'right' })
     await h.page
       .getByTestId('context-menu')
-      .getByRole('button', { name: 'Rename', exact: true })
+      .getByRole('button', { name: 'Rename…', exact: true })
       .click()
     await h.page
       .getByRole('textbox', { name: 'Lane name', exact: true })
