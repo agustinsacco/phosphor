@@ -237,7 +237,6 @@ export function createBrowserPreferences(
     ...lanePreferences(prefs, storage),
     sessionOrder: sidebar.sessionOrder,
     collapsedWorkspaces: sidebar.collapsedWorkspaces,
-    get: () => structuredClone(prefs),
     theme(theme: ThemePreference) {
       if (!['light', 'dark', 'system'].includes(theme)) throw new Error('Invalid theme.')
       prefs.theme = theme
