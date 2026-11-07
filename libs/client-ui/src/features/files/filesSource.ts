@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { MAX_TEXT_FILE_BYTES } from '@shared/file-kinds'
+import { FILE_LIMITS } from '@shared/host-protocol-files'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -36,6 +38,8 @@ export interface FilesSource {
   listing: 'tree' | 'flat'
   /** Changes when the files may have changed without a watcher event. */
   refreshKey: string
+  /** The largest file the machine reads as text. */
+  textLimitBytes: number
   features: FilesFeatures
 }
 
@@ -69,6 +73,7 @@ export function localFilesSource(workspacePath: string): FilesSource {
     writeRefusal: null,
     listing: 'tree',
     refreshKey: '',
+    textLimitBytes: MAX_TEXT_FILE_BYTES,
     features: LOCAL_FEATURES,
   }
 }
@@ -101,6 +106,7 @@ export function useHostFilesSource(sessionId: string, workspacePath: string): Fi
       writeRefusal,
       listing: 'flat',
       refreshKey,
+      textLimitBytes: FILE_LIMITS.textBytes,
       features: HOST_FEATURES,
     }),
     [workspacePath, pathRoot, unavailable, writeRefusal, refreshKey],

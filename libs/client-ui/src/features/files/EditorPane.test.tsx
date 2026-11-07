@@ -153,7 +153,7 @@ it('This Mac says an oversized file is larger than its 4 MB read limit', async (
 
 it('a Host names its own read limit, without a size it did not send', async () => {
   open({ path: '/lane/big.txt', tooLarge: true, size: 0 })
-  await render({ ...lane(), textLimitBytes: FILE_LIMITS.textBytes } as FilesSource)
+  await render({ ...lane(), textLimitBytes: FILE_LIMITS.textBytes })
   expect(container.textContent).toContain('Larger than 2 MB — too big to open as text.')
   expect(container.textContent).not.toContain('0 B')
 })

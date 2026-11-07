@@ -99,7 +99,11 @@ function ActiveView({ file, source }: { file: OpenFile; source: FilesSource }): 
   const kind = previewKindForPath(file.path)
   const text =
     file.binary || file.tooLarge ? (
-      <FileFallback file={file} osActions={features.osActions} />
+      <FileFallback
+        file={file}
+        osActions={features.osActions}
+        textLimitBytes={source.textLimitBytes}
+      />
     ) : (
       <ActiveEditor file={file} workspacePath={workspacePath} readOnly={!!source.writeRefusal} />
     )
@@ -111,6 +115,7 @@ function ActiveView({ file, source }: { file: OpenFile; source: FilesSource }): 
       textPreview={isTextPreview(file.path)}
       workspacePath={workspacePath}
       features={features}
+      textLimitBytes={source.textLimitBytes}
       source={text}
     />
   )
