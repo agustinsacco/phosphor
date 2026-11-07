@@ -156,6 +156,8 @@ the same enabled checkbox (`mcp:setEnabled`), flags a server with direct tools,
 and shows `N tools` for a server the current lane has connected (from its
 [context breakdown](#in-a-session)). Inside a lane it reads the lane's own
 folder, so a worktree lane's project file is the worktree's `.pi/mcp.json`.
+In a Host lane the chip is read-only: it lists the servers the lane connected
+([chat.md](chat.md#context-files)).
 
 ## Status
 
