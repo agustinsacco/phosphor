@@ -120,8 +120,8 @@ export async function create(h: RemoteFixture, kind: 'file' | 'folder', name: st
   if (kind === 'file') await expect(fileRow(h, name)).toBeVisible()
 }
 
-/** One item of a row's context menu. */
-export async function rowMenu(h: RemoteFixture, name: string, item: string) {
+/** One item of a row's context menu; a pattern matches an item that carries a hint. */
+export async function rowMenu(h: RemoteFixture, name: string, item: string | RegExp) {
   await fileRow(h, name).click({ button: 'right' })
   await h.page.getByTestId('context-menu').getByRole('button', { name: item, exact: true }).click()
 }
@@ -132,7 +132,8 @@ export async function rename(h: RemoteFixture, name: string, to: string) {
 }
 
 export async function trash(h: RemoteFixture, name: string) {
-  await rowMenu(h, name, 'Delete')
+  // "Delete" carries its "to trash" hint in its name.
+  await rowMenu(h, name, /^Delete\b/)
   await h.page
     .getByRole('dialog')
     .getByRole('button', { name: 'Move to Trash', exact: true })
