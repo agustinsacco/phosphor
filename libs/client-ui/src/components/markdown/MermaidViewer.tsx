@@ -4,7 +4,7 @@ import { ModalOverlay } from '../Modal'
 import { Button } from '../form'
 import { CopyButton } from '../CopyButton'
 import { errorText } from '@shared/errors'
-import { saveToDevice } from '@/lib/saveToDevice'
+import { saveActionLabel, saveToDevice } from '@/lib/saveToDevice'
 import { fitDiagram, zoomDiagram, type DiagramView } from './diagramViewport'
 
 export function MermaidViewer({
@@ -160,7 +160,7 @@ export function MermaidViewer({
           </Button>
           <CopyButton text={code} label="Copy source" />
           <Button size="sm" disabled={saving} onClick={() => void save()}>
-            {saving ? 'Saving…' : 'Save SVG'}
+            {saving ? 'Saving…' : saveActionLabel('SVG', platform.nativeFiles)}
           </Button>
           <Button size="sm" aria-label="Close diagram" onClick={onClose}>
             Close

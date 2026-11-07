@@ -25,3 +25,10 @@ export async function saveToDevice(file: DeviceFile, nativeFiles: boolean): Prom
   await window.phosphor.invoke('fs:writeFile', path, await file.content())
   await window.phosphor.invoke('app:revealPath', path)
 }
+
+/**
+ * A save action's one name, for its label, tooltip and aria-label: `Save <what>`, ending with
+ * ` to <to>…` when a place is given; a browser has no save dialog, so `Download <what>`.
+ */
+export const saveActionLabel = (what: string, nativeFiles: boolean, to?: string): string =>
+  !nativeFiles ? `Download ${what}` : to ? `Save ${what} to ${to}…` : `Save ${what}`
