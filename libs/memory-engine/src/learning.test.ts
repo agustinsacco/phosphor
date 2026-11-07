@@ -38,6 +38,8 @@ describe('durable selective learning', () => {
     fork.checkpoint.source.contentDigest = 'fork-content'
     fork.covered[0]!.entryId = 'fork-input'
     fork.evidence[0]!.entryId = 'fork-input'
+    fork.evidence[0]!.rootIds = ['fork-input']
+    fork.dependencyRootIds = ['fork-input']
     expect(store.createLearning(fork)).toEqual({ job: first.job, created: false })
   })
   it('requires an explicit matching terminal retry and never reclaims failed learning implicitly', () => {
@@ -183,7 +185,8 @@ describe('durable selective learning', () => {
       rootIds: ['new-input'],
       text: 'Bob owns Project.',
     }
-    next.covered.push(newSource)
+    const { entryId, parentId, entryHash, rootId, projectedHash } = newSource
+    next.covered.push({ entryId, parentId, entryHash, rootId, projectedHash })
     next.evidence[0]!.eligible = false
     next.evidence.push(newSource)
     next.dependencyRootIds.push('new-input')
