@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { BrainJob, BrainSnapshot } from '@phosphor/shared/brain'
 import type { BrainLearningRequest } from '@phosphor/shared/brain-learning'
+import type { BrainLearningStart } from '@phosphor/shared/brain-learning-jobs'
 import type { PreparedBrainLearning } from './learning-port'
 import { createBrainLearning } from './learning-coordinator'
 
@@ -11,7 +12,7 @@ function deferred<T>() {
   })
   return { promise, resolve }
 }
-function setup() {
+function sourceFixture() {
   const target = { workspacePath: '/synthetic/workspace', sessionPath: '/synthetic/session.jsonl' }
   const pair = { rootId: 'root-hash', projectedHash: 'projection-hash' }
   const entry = { ...pair, entryId: 'input', parentId: null, entryHash: 'entry-hash' }
@@ -66,7 +67,9 @@ function setup() {
     policyEpoch: 2,
     graphRevision: 3,
   }
-  const done = deferred<void>()
+  return { target, pair, checkpoint, evidence, snapshot, job, binding }
+}
+function requestFixture({ checkpoint, evidence }: ReturnType<typeof sourceFixture>) {
   const run = vi.fn(async (request: BrainLearningRequest) => ({
     version: 1 as const,
     jobId: request.jobId,
@@ -88,6 +91,37 @@ function setup() {
       history: 'pi-projected-context' as const,
     },
   }))
+  return run
+}
+function storeFixture(
+  { snapshot, job }: ReturnType<typeof sourceFixture>,
+  done: ReturnType<typeof deferred<void>>,
+) {
+  return {
+    snapshot: vi.fn(async () => structuredClone(snapshot)),
+    learningCoverage: vi.fn(async () => ({
+      covered: [] as ReturnType<typeof sourceFixture>['pair'][],
+      previousJobId: null as string | null,
+    })),
+    createLearning: vi.fn(async (_input: BrainLearningStart) => ({ job, created: true })),
+    claimJob: vi.fn(async () => job),
+    completeLearning: vi.fn(async () => {
+      done.resolve()
+      return { job, outcome: null, proposalId: null }
+    }),
+    failLearning: vi.fn(async () => {
+      done.resolve()
+      return job
+    }),
+    learningDetail: vi.fn(async () => ({ job, outcome: null, proposalId: null })),
+    learningJobs: vi.fn(async () => ({ items: [], truncated: false })),
+  }
+}
+function setup() {
+  const fixture = sourceFixture()
+  const { target, pair, checkpoint, evidence, snapshot, job, binding } = fixture
+  const done = deferred<void>(),
+    run = requestFixture(fixture)
   const dispose = vi.fn(async () => {})
   const prepared: PreparedBrainLearning = {
     scope: target.workspacePath,
@@ -107,25 +141,7 @@ function setup() {
       dispose,
     } as PreparedBrainLearning
   }
-  const store = {
-    snapshot: vi.fn(async () => structuredClone(snapshot)),
-    learningCoverage: vi.fn(async () => ({
-      covered: [] as (typeof pair)[],
-      previousJobId: null as string | null,
-    })),
-    createLearning: vi.fn(async () => ({ job, created: true })),
-    claimJob: vi.fn(async () => job),
-    completeLearning: vi.fn(async () => {
-      done.resolve()
-      return { job, outcome: null, proposalId: null }
-    }),
-    failLearning: vi.fn(async () => {
-      done.resolve()
-      return job
-    }),
-    learningDetail: vi.fn(async () => ({ job, outcome: null, proposalId: null })),
-    learningJobs: vi.fn(async () => ({ items: [], truncated: false })),
-  }
+  const store = storeFixture(fixture, done)
   const authority = vi.fn(async () => ({
     scope: target.workspacePath,
     branch: null as string | null,
