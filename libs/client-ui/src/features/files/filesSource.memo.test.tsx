@@ -58,9 +58,9 @@ it('an update to another lane on the Host re-renders nothing in this lane’s Fi
   const lane = await renderLaneFiles({ invoke })
   expect(lane.files()).toEqual(['a.ts'])
   counts.attach = counts.explorer = 0
-  await touchLane(lanes.b.laneId)
+  await touchLane(lanes.b.laneId!)
   expect(counts).toEqual({ attach: 0, explorer: 0 })
-  await touchLane(lanes.a.laneId)
+  await touchLane(lanes.a.laneId!)
   expect(counts.attach).toBe(1)
   lane.unmount()
 })
