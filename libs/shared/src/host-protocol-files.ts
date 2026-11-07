@@ -28,7 +28,6 @@ export const FILE_METHODS = [
   'git.diff',
   'git.show',
 ] as const
-export type FileMethod = (typeof FILE_METHODS)[number]
 export interface FileParams {
   laneId?: string
   repositoryId?: string

@@ -5,7 +5,7 @@ import { usePlatform } from '@/platform/Platform'
 import { localMachineLabel } from '@/lib/localMachine'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useMachinesStore } from '@/stores/machines'
-import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSkillsStore } from '@/stores/skills'
 
 /**
@@ -78,9 +78,6 @@ export interface ShareMachine {
   /** Its skills can be listed right now. */
   readable: boolean
 }
-
-export const shareMachineLabel = (machine: string): string =>
-  machine === 'local' ? localMachineLabel() : machineLabel(machine)
 
 /** Every other machine with a Skills page: This Mac where there is one, and Hosts with skills.read. */
 export function useShareMachines(source: string): ShareMachine[] {

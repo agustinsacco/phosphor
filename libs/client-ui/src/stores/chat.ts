@@ -30,6 +30,8 @@ export interface ChatSession extends ChatSessionState {
    * models configured" while the answer is still in flight.
    */
   modelsLoaded: boolean
+  /** The last read of `models` failed; the list keeps what it had. */
+  modelsFailed: boolean
   commands: RpcSlashCommand[]
   /**
    * Levels the current model supports, straight from pi
@@ -53,6 +55,7 @@ const emptySession = (): ChatSession => ({
   stats: null,
   models: [],
   modelsLoaded: false,
+  modelsFailed: false,
   commands: [],
   thinkingLevels: null,
   resuming: false,
@@ -87,7 +90,8 @@ interface ChatStore {
   setMeta: (sessionId: string, meta: RpcSessionState) => void
   patchMeta: (sessionId: string, patch: Partial<RpcSessionState>) => void
   setStats: (sessionId: string, stats: SessionStats) => void
-  setModels: (sessionId: string, models: Model[]) => void
+  /** A model read's answer; `null` when the read failed. */
+  setModels: (sessionId: string, models: Model[] | null) => void
   setCommands: (sessionId: string, commands: RpcSlashCommand[]) => void
   setThinkingLevels: (sessionId: string, levels: ThinkingLevel[] | null) => void
   remove: (sessionId: string) => void
@@ -99,6 +103,12 @@ function patchSession(
   patch: Partial<ChatSession>,
 ): Record<string, ChatSession> {
   return chats.patch(sessions, sessionId, (session) => ({ ...session, ...patch }))
+}
+
+function modelsRead(models: Model[] | null): Partial<ChatSession> {
+  return models
+    ? { models, modelsLoaded: true, modelsFailed: false }
+    : { modelsLoaded: true, modelsFailed: true }
 }
 
 export const useChatStore = create<ChatStore>((set) => ({
@@ -224,7 +234,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   setStats: (sessionId, stats) =>
     set((s) => ({ sessions: patchSession(s.sessions, sessionId, { stats }) })),
   setModels: (sessionId, models) =>
-    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { models, modelsLoaded: true }) })),
+    set((s) => ({ sessions: patchSession(s.sessions, sessionId, modelsRead(models)) })),
   setCommands: (sessionId, commands) =>
     set((s) => ({ sessions: patchSession(s.sessions, sessionId, { commands }) })),
   setThinkingLevels: (sessionId, levels) =>

@@ -10,9 +10,10 @@ import {
 import type { GrantPayload } from '@shared/host-grant'
 import type { SessionPush } from '@shared/models'
 import { createHostConnection } from './connection'
-import { createRemoteLanes, exportLaneHtml } from './remote-lanes'
+import { createRemoteLanes } from './remote-lanes'
+import { exportLaneHtml } from '@phosphor/host-client/lane-reads'
 import { createHostAttention } from './attention'
-import { REMOTE_UNAVAILABLE, UNKNOWN_OUTCOME } from './lane-ops'
+import { REMOTE_UNAVAILABLE, UNKNOWN_OUTCOME } from '@phosphor/host-client/lane-ops'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => {
@@ -565,8 +566,7 @@ it('holds live pushes during resync and flushes each once after snapshot history
   expect(history.success && history.data).toMatchObject({ messages: expect.any(Array) })
   expect(t.pushes.map(({ push }) => push.kind)).toEqual(['resync'])
   await drain()
-  const kinds = t.pushes.map(({ push }) => push.kind)
-  expect(kinds[1]).toBe('extension-ui')
+  expect(t.pushes.map(({ push }) => push.kind)[1]).toBe('extension-ui')
   const end = t.pushes.filter(
     ({ push }) => push.kind === 'event' && push.event.type === 'message_end',
   )

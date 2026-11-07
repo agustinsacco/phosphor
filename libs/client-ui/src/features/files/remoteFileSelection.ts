@@ -1,5 +1,6 @@
 import { useSessionsStore } from '@/stores/sessions'
-import { sessionHostLane, useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
+import { sessionHostLane, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { laneFilePath, type RevealTarget } from '@/stores/files'
 let sequence = 0
 import { useRemoteFileSelection } from './remoteFileSelectionStore'

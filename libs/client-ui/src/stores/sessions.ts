@@ -12,6 +12,7 @@ import type {
 } from '@shared/models'
 import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
+import { readSessionModels } from './sessionModels'
 import { useNamingStore } from './naming'
 import { usePiCommandsStore } from './piCommands'
 import { drop } from './keyedSlice'
@@ -357,7 +358,7 @@ const pendingOpens = new Map<string, Promise<string>>()
 const closingSessions = new Set<string>()
 const pendingDeletes = new Map<string, Promise<void>>()
 
-function sessionIsOpen(id: string): boolean {
+export function sessionIsOpen(id: string): boolean {
   return Boolean(useSessionsStore.getState().live[id]) && !closingSessions.has(id)
 }
 /** Workspaces already being watched, so repeat calls are no-ops. */
@@ -441,7 +442,7 @@ export async function bootstrapSession(phosphorId: string): Promise<boolean> {
   // relaunch e2e caught on Linux CI once a fifth call joined the batch.
   const statePromise = window.phosphor.piCommand(phosphorId, { type: 'get_state' })
   const restPromise = Promise.allSettled([
-    window.phosphor.piCommand(phosphorId, { type: 'get_available_models' }),
+    readSessionModels(phosphorId),
     window.phosphor.piCommand(phosphorId, { type: 'get_commands' }),
     window.phosphor.piCommand(phosphorId, { type: 'get_session_stats' }),
     window.phosphor.piCommand(phosphorId, { type: 'get_available_thinking_levels' }),
@@ -489,9 +490,7 @@ export async function bootstrapSession(phosphorId: string): Promise<boolean> {
   }
   const [models, commands, stats, thinkingLevels] = await restPromise
   if (!sessionIsOpen(phosphorId)) return false
-  if (models.status === 'fulfilled' && models.value.success && models.value.data) {
-    chat.setModels(phosphorId, models.value.data.models)
-  }
+  if (models.status === 'fulfilled') chat.setModels(phosphorId, models.value)
   if (commands.status === 'fulfilled' && commands.value.success && commands.value.data) {
     chat.setCommands(phosphorId, commands.value.data.commands)
     commandsRefreshedAt.set(phosphorId, Date.now())

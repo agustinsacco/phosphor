@@ -5,7 +5,7 @@ import type { FrameSocket, LaneSummary } from '@shared/host-protocol'
 import { createClientIds, type RemoteClients } from './client-id'
 import { createGrants } from './grants'
 import { controlFailure } from '../control/client'
-import type { HostConnectionSnapshot } from './connection'
+import type { HostConnectionSnapshot } from '@phosphor/host-client/connection'
 import { createHostConnection } from './connection'
 import { createHostManager } from './manager'
 

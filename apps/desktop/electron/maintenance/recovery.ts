@@ -14,7 +14,7 @@ import {
   worktreeRootFor,
 } from '../fs/git-worktrees'
 import { sessionDirForCwd } from '../pi/pi-paths'
-import { sessionPathKey } from '../pi/session-path-lock'
+import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 import { notifyWorkspaceSessions } from '../pi/session-watcher'
 import { registry } from '../registry'
 import { getPrefs } from '../store'

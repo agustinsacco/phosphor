@@ -11,6 +11,7 @@ import type { HostTarget } from '@shared/remote-host'
 import { forgetRemoteSession, useSessionsStore } from './sessions'
 import { hostLaneOf, type SessionHostLane } from './hostLaneOf'
 import { useMachinesStore } from './machines'
+import { machineCaps } from './machineCaps'
 import { migrateLegacyLaneMarks } from './remoteLaneMarks'
 import { bindHostsSnapshotRead } from './hostsSnapshotRead'
 import { useExtensionUiStore } from './extensionUi'
@@ -39,8 +40,6 @@ export function connectionLabel(state: HostConnectionView['state'] | undefined):
         : 'Down'
 }
 
-export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
-
 export function useActiveMachine(): HostTarget {
   return useSessionsStore((s) =>
     s.activeSessionId ? (s.live[s.activeSessionId]?.target ?? LOCAL) : LOCAL,
@@ -58,14 +57,14 @@ export function useNavigationHostId(): string | undefined {
   return filter !== 'local' && filter !== 'all' ? filter : undefined
 }
 
-export function machineLabel(hostId: string): string {
-  return (
-    useMachinesStore.getState().machines.find((machine) => machine.id === hostId)?.label ?? hostId
-  )
+/** A machine's name: `'local'`, the sentinel the switcher, skill share and sign-in use, is This Mac. */
+export function machineLabel(machine: string): string {
+  if (machine === 'local') return localMachineLabel()
+  return useMachinesStore.getState().machines.find((m) => m.id === machine)?.label ?? machine
 }
 
 export function canReadHost(host: HostConnectionView): boolean {
-  return host.capabilities.includes('sessions.read')
+  return machineCaps(host).granted('sessions.read')
 }
 
 /** These retry on their own; every other state that is not ready needs the user. */
@@ -105,7 +104,7 @@ function heldLane(sessionId: string) {
   if (!remote) return null
   const { host, lane } = remote
   const held =
-    !!host?.capabilities.includes('sessions.control') && lane?.control.controller?.self === true
+    machineCaps(host).granted('sessions.control') && lane?.control.controller?.self === true
   return { state: host?.state, held }
 }
 

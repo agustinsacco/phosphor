@@ -9,8 +9,9 @@
  * `scrollTop = scrollHeight` lands on geometry nobody had read yet. On CI's
  * ~1 fps xvfb renderer that frame is a full second, and a wheel that arrived
  * inside it was undone by the late write (the "never fought" smoke test).
- * Whether a mount lands inside the 150 ms window is build timing, which made
- * the failure deterministic per head.
+ * Whether a mount lands inside the 150 ms window is render timing. (That test
+ * also waits for the view to rest at its tail before reading back: see
+ * apps/desktop/e2e/fixtures/transcript-scroll.ts.)
  *
  * `size` is the virtualizer's own measurer. It returns the cached size for a
  * row it has seen before, so a remount is a no-op here and only a first mount
