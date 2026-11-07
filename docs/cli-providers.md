@@ -23,7 +23,11 @@ host guards and managed policy remain in force; bare mode is not used.
 
 One warm CLI process serves matching follow-ups and pi tool handoffs. It is a
 disposable cache: model switches, changed prompts/tools, branch rewrites and
-compaction retire it. A thinking-level change does not: the provider applies it
+compaction retire it. Phosphor parks it for an hour between turns
+(`PI_CLAUDE_CLI_KEEPALIVE_MS` in `claudeProviderSpawnEnv`, over the provider's
+ten-minute default) because that is how long Claude Code keeps a
+subscription's prompt cache, and a retired process costs the next turn a full
+cache write ([provider-symmetry.md](provider-symmetry.md#cost-and-process-lifetime)). A thinking-level change does not: the provider applies it
 to the warm process before the next turn, as the request pi's own Anthropic
 provider would send (`off` disables thinking, other levels send pi's budget or
 effort, with thinking summaries). The picker lists the levels pi reports for
