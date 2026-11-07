@@ -29,9 +29,13 @@ function render(ui: React.ReactNode): void {
 
 const link = (): HTMLAnchorElement => document.querySelector('a') as HTMLAnchorElement
 
+// A file link opens through `openFileInWorkspace`, which loads its stores with
+// dynamic imports. Wait for those to load, not for one microtask: whether a
+// store is already in the module cache depends on what else this file imported.
 async function click(element: HTMLElement): Promise<void> {
   await act(async () => {
     element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    await vi.dynamicImportSettled()
     await Promise.resolve()
   })
 }
