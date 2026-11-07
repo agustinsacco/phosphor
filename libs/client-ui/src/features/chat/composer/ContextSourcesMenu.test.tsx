@@ -77,6 +77,17 @@ describe('contextFileToggleState', () => {
     })
     expect(contextFileToggleState('claude', true, lane, false).checked).toBe(false)
   })
+
+  it('only describes a lane that cannot be changed from here', () => {
+    expect(
+      contextFileToggleState('agents', true, { off: [], files: [] }, undefined, false).title,
+    ).toBe('This lane has no AGENTS.md.')
+    const claude = contextFileToggleState('claude', true, LANE, undefined, false)
+    expect(claude.title).toBe('CLAUDE.md · ~5.5k tokens\n/r/CLAUDE.md\n\nSent on every request.')
+    expect(contextFileToggleState('agents', true, LANE, undefined, false).title).toMatch(
+      /Left out of this lane\.$/,
+    )
+  })
 })
 
 describe('ContextSourcesMenu', () => {

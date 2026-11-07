@@ -18,13 +18,15 @@ export interface ContextFileToggleState {
  *
  * `lane` is what the running lane reported (null on the home composer, or
  * before the lane has said anything); it wins over the preference, because a
- * lane started before the last toggle elsewhere keeps its own state.
+ * lane started before the last toggle elsewhere keeps its own state. A
+ * lane that cannot be changed from here (`writable` false) is only described.
  */
 export function contextFileToggleState(
   kind: ContextFileKind,
   pref: boolean,
   lane: ContextBreakdown['contextFiles'],
   pending: boolean | undefined,
+  writable = true,
 ): ContextFileToggleState {
   const label = CONTEXT_FILE_LABELS[kind]
   const checked = pending ?? (lane ? !lane.off.includes(kind) : pref)
@@ -46,7 +48,9 @@ export function contextFileToggleState(
       missing: true,
       tokens: null,
       files,
-      title: `This lane has no ${label}. The setting still carries to new lanes.`,
+      title: writable
+        ? `This lane has no ${label}. The setting still carries to new lanes.`
+        : `This lane has no ${label}.`,
     }
   }
   const tokens = files.reduce((sum, file) => sum + file.tokens, 0)
@@ -56,8 +60,10 @@ export function contextFileToggleState(
     missing: false,
     tokens,
     files,
-    title: checked
-      ? `${head}\n\nSent on every request. Uncheck to leave it out from the next one; new lanes start the same way.`
-      : `${head}\n\nLeft out of this lane. Check to send it again from the next request; new lanes start the same way.`,
+    title: !writable
+      ? `${head}\n\n${checked ? 'Sent on every request.' : 'Left out of this lane.'}`
+      : checked
+        ? `${head}\n\nSent on every request. Uncheck to leave it out from the next one; new lanes start the same way.`
+        : `${head}\n\nLeft out of this lane. Check to send it again from the next request; new lanes start the same way.`,
   }
 }

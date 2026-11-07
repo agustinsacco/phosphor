@@ -1,4 +1,4 @@
-import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
@@ -8,15 +8,19 @@ import {
 } from '@shared/context-files'
 import { exposesDirectTools } from '@shared/mcp'
 import { ipcErrorText } from '@shared/errors'
-import { formatTokens } from '@/lib/format'
 import { PopupMenu } from '@/components/PopupMenu'
 import { useContextFilesPrefStore } from '@/stores/contextFilesPref'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSessionsStore } from '@/stores/sessions'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
-import { useMcpServers } from '@/features/connectors/useMcpServers'
-import { CONTEXT_BREAKDOWN_STATUS_KEY, parseContextBreakdown } from './contextBreakdown'
+import {
+  CONTEXT_BREAKDOWN_STATUS_KEY,
+  parseContextBreakdown,
+  type ContextBreakdown,
+} from './contextBreakdown'
 import { contextFileToggleState } from './contextFileToggle'
+import { useLaneContextSource, type LaneContextSource } from './laneContextSource'
+import { RuleRows, ServerRows, type RuleRow, type ServerRow } from './ContextSourceRows'
 
 /**
  * What a lane loads besides the conversation: instruction files (CLAUDE.md /
@@ -36,6 +40,9 @@ import { contextFileToggleState } from './contextFileToggle'
  * read from the lane's own folder, a worktree's included, since that is the
  * `.pi/mcp.json` its pi loads. A lane also says which servers it has
  * connected, through its context breakdown.
+ *
+ * Without a write source (`useLaneContextSource`) the menu is read-only: rules
+ * and connected servers come from the lane's breakdown alone, with no toggles.
  */
 /** Settings › Connectors on the lane's own machine; the default machine without a lane. */
 function useOpenLaneConnectors(sessionId: string | undefined): () => void {
@@ -54,23 +61,25 @@ export function ContextSourcesMenu({
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const rules = useRuleToggles(sessionId)
-  const laneFolder = useSessionsStore((s) =>
-    sessionId ? s.live[sessionId]?.workspacePath : undefined,
-  )
-  const openConnectors = useOpenLaneConnectors(sessionId)
-  const mcp = useMcpServers(laneFolder ?? workspacePath)
-  const servers = mcp.servers ?? []
+  const source = useLaneContextSource(workspacePath, sessionId)
   const breakdownText = useExtensionUiStore((s) =>
     sessionId ? s.statuses[sessionId]?.[CONTEXT_BREAKDOWN_STATUS_KEY] : undefined,
   )
-  const connected = useMemo(
-    () => parseContextBreakdown(breakdownText)?.mcpByServer,
-    [breakdownText],
-  )
+  const breakdown = useMemo(() => parseContextBreakdown(breakdownText), [breakdownText])
+  const rules = useRuleRows(sessionId, breakdown?.contextFiles ?? null, source)
+  const servers = serverRows(source, breakdown?.mcpByServer)
+  const openConnectors = useOpenLaneConnectors(sessionId)
+  const readOnly = !source
 
-  const rulesOn = rules.filter((rule) => rule.state.checked).length
-  const label = `Rules ${rulesOn}/${rules.length}${servers.length > 0 ? ` · MCP ${mcp.enabled}/${servers.length}` : ''}`
+  const rulesOn = rules?.filter((rule) => rule.state.checked).length
+  const enabled = servers.filter((server) => server.enabled).length
+  const label = `Rules${rules ? ` ${rulesOn}/${rules.length}` : ''}${
+    servers.length === 0
+      ? ''
+      : readOnly
+        ? ` · MCP ${enabled}`
+        : ` · MCP ${enabled}/${servers.length}`
+  }`
 
   return (
     <div className="relative">
@@ -79,7 +88,7 @@ export function ContextSourcesMenu({
         type="button"
         data-testid="context-sources"
         onClick={() => {
-          if (!open) void mcp.refresh()
+          if (!open) void source?.mcp.refresh()
           setOpen((current) => !current)
         }}
         aria-expanded={open}
@@ -103,129 +112,31 @@ export function ContextSourcesMenu({
         >
           <SectionHeading
             title="Instruction files"
-            note={sessionId ? 'from the next request' : 'new lanes'}
+            note={readOnly ? 'this lane' : sessionId ? 'from the next request' : 'new lanes'}
           />
-          <p className="text-text-tertiary px-3 py-1 text-sm">
-            Each checkbox controls all files of that type, global and project.
-          </p>
-          <div className="max-h-60 overflow-y-auto" role="group" aria-label="Context files">
-            {rules.map(({ kind, state, toggle }) => (
-              <div key={kind}>
-                <TooltipLabel data-tooltip={state.title} className={ROW_CLASS}>
-                  <input
-                    type="checkbox"
-                    checked={state.checked}
-                    aria-label={CONTEXT_FILE_LABELS[kind]}
-                    onChange={(event) => toggle(event.target.checked)}
-                    className="accent-[var(--px-accent)]"
-                    data-tooltip={CONTEXT_FILE_LABELS[kind]}
-                  />
-                  <span
-                    className={clsx(
-                      'min-w-0 flex-1 truncate',
-                      state.missing ? 'text-text-tertiary' : 'text-text',
-                      !state.checked && 'line-through',
-                    )}
-                  >
-                    {CONTEXT_FILE_LABELS[kind]}
-                  </span>
-                  <span className="text-text-tertiary shrink-0 font-mono text-sm tabular-nums">
-                    {state.missing
-                      ? 'none'
-                      : state.tokens !== null
-                        ? `~${formatTokens(state.tokens)}`
-                        : ''}
-                  </span>
-                </TooltipLabel>
-                {state.files && state.files.length > 0 && (
-                  <ul
-                    className="space-y-2 px-3 pb-2 pl-9"
-                    aria-label={`${CONTEXT_FILE_LABELS[kind]} sources`}
-                  >
-                    {state.files.map((file) => (
-                      <li key={file.path} className="text-text-secondary text-sm">
-                        <div className="flex items-center justify-between gap-2">
-                          <span
-                            className="font-medium"
-                            data-tooltip={
-                              file.scope === 'global'
-                                ? 'User instructions from pi’s agent directory, shared across projects.'
-                                : file.scope === 'project'
-                                  ? 'Instructions from the working directory or an ancestor directory.'
-                                  : 'This lane’s extension has not reported the file’s scope.'
-                            }
-                          >
-                            {file.scope === 'global'
-                              ? 'Global'
-                              : file.scope === 'project'
-                                ? 'Project'
-                                : 'Scope unknown'}
-                          </span>
-                          <span className="text-text-tertiary">
-                            {state.checked ? 'Included' : 'Excluded'} · ~{formatTokens(file.tokens)}
-                          </span>
-                        </div>
-                        <div className="break-all font-mono text-xs" data-tooltip={file.path}>
-                          {file.path}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {state.files === null && (
-                  <p className="text-text-tertiary px-3 pb-2 pl-9 text-sm">
-                    {sessionId
-                      ? 'File details not yet reported by this lane.'
-                      : 'Paths and scopes appear after a lane starts.'}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
+          {rules ? (
+            <RuleRows rules={rules} sessionId={sessionId} readOnly={readOnly} />
+          ) : (
+            <p className="text-text-tertiary px-3 py-1 text-sm">Not yet reported by this lane.</p>
+          )}
 
           {servers.length > 0 && (
             <>
               <SectionHeading
                 title="Connectors"
-                note={sessionId ? 'from your next message' : 'new lanes'}
+                note={
+                  readOnly
+                    ? 'connected in this lane'
+                    : sessionId
+                      ? 'from your next message'
+                      : 'new lanes'
+                }
                 divided
               />
-              <div className="max-h-60 overflow-y-auto" role="group" aria-label="Connectors">
-                {servers.map((server) => {
-                  const direct = exposesDirectTools(server.config)
-                  const tools = connected?.[server.name]?.toolCount
-                  return (
-                    <TooltipLabel key={server.name} className={ROW_CLASS}>
-                      <input
-                        type="checkbox"
-                        checked={server.config.enabled !== false}
-                        onChange={(event) => void mcp.setEnabled(server, event.target.checked)}
-                        className="accent-[var(--px-accent)]"
-                      />
-                      <span className="text-text min-w-0 flex-1 truncate font-mono">
-                        {server.name}
-                      </span>
-                      {typeof tools === 'number' && (
-                        <span
-                          className="text-text-tertiary shrink-0 text-sm"
-                          data-tooltip="Connected in this lane"
-                        >
-                          {tools} tool{tools === 1 ? '' : 's'}
-                        </span>
-                      )}
-                      {direct && (
-                        <span
-                          className="text-warning shrink-0 text-sm"
-                          data-tooltip="Direct tools are declared on every request and cost their full schema each time. Change it in Settings → Connectors."
-                        >
-                          direct
-                        </span>
-                      )}
-                    </TooltipLabel>
-                  )
-                })}
-              </div>
-              {mcp.error && <div className="text-danger px-3 py-1 text-sm">{mcp.error}</div>}
+              <ServerRows servers={servers} />
+              {source?.mcp.error && (
+                <div className="text-danger px-3 py-1 text-sm">{source.mcp.error}</div>
+              )}
             </>
           )}
 
@@ -246,9 +157,6 @@ export function ContextSourcesMenu({
     </div>
   )
 }
-
-const ROW_CLASS =
-  'hover:bg-bg-secondary flex cursor-pointer items-center gap-2 px-3 py-1.5 text-base'
 
 function SectionHeading({
   title,
@@ -272,40 +180,67 @@ function SectionHeading({
   )
 }
 
-/** Each rule file's checkbox state, with the lane's report and an optimistic click folded in. */
-function useRuleToggles(sessionId: string | undefined): Array<{
-  kind: ContextFileKind
-  state: ReturnType<typeof contextFileToggleState>
-  toggle: (included: boolean) => void
-}> {
+/**
+ * The configured servers where the source can write them, else the servers the lane's breakdown
+ * says it connected: only those are known, so each counts as on.
+ */
+function serverRows(
+  source: LaneContextSource | null,
+  connected: ContextBreakdown['mcpByServer'] | undefined,
+): ServerRow[] {
+  if (!source)
+    return Object.entries(connected ?? {}).map(([name, cost]) => ({
+      name,
+      enabled: true,
+      direct: false,
+      tools: cost.toolCount,
+    }))
+  return (source.mcp.servers ?? []).map((server) => ({
+    name: server.name,
+    enabled: server.config.enabled !== false,
+    direct: exposesDirectTools(server.config),
+    tools: connected?.[server.name]?.toolCount,
+    toggle: (on: boolean) => void source.mcp.setEnabled(server, on),
+  }))
+}
+
+/**
+ * Each rule file's state, with the lane's report and an optimistic click folded in. Read-only,
+ * the state is the lane's report alone: null until it reports, never This Mac's preference.
+ */
+function useRuleRows(
+  sessionId: string | undefined,
+  lane: ContextBreakdown['contextFiles'],
+  source: LaneContextSource | null,
+): RuleRow[] | null {
   const prefs = useContextFilesPrefStore((s) => s.prefs)
-  const statusText = useExtensionUiStore((s) =>
-    sessionId ? s.statuses[sessionId]?.[CONTEXT_BREAKDOWN_STATUS_KEY] : undefined,
-  )
-  const lane = useMemo(() => parseContextBreakdown(statusText)?.contextFiles ?? null, [statusText])
   const [pending, setPending] = useState<Partial<Record<ContextFileKind, boolean>>>({})
 
   // The lane's next report settles any optimistic value.
   const reported = lane?.off.join(',')
   useEffect(() => setPending({}), [reported, sessionId])
 
+  if (!source)
+    return lane
+      ? CONTEXT_FILE_KINDS.map((kind) => ({
+          kind,
+          state: contextFileToggleState(kind, true, lane, undefined, false),
+        }))
+      : null
   return CONTEXT_FILE_KINDS.map((kind) => ({
     kind,
     state: contextFileToggleState(kind, prefs[kind], lane, pending[kind]),
     toggle: (included: boolean) => {
       setPending((current) => ({ ...current, [kind]: included }))
-      useContextFilesPrefStore
-        .getState()
-        .set(kind, included, sessionId)
-        .catch((error: unknown) => {
-          setPending((current) => ({ ...current, [kind]: undefined }))
-          useExtensionUiStore
-            .getState()
-            .pushToast(
-              `Couldn't change ${CONTEXT_FILE_LABELS[kind]}. ${ipcErrorText(error)}`,
-              'error',
-            )
-        })
+      source.setRule(kind, included).catch((error: unknown) => {
+        setPending((current) => ({ ...current, [kind]: undefined }))
+        useExtensionUiStore
+          .getState()
+          .pushToast(
+            `Couldn't change ${CONTEXT_FILE_LABELS[kind]}. ${ipcErrorText(error)}`,
+            'error',
+          )
+      })
     },
   }))
 }
