@@ -110,11 +110,14 @@ export async function file(h: RemoteFixture, name: string) {
   await expect(row).toHaveAttribute('aria-current', 'true')
 }
 
-/** New file or folder from the explorer header, in the selected folder or the root. */
+/**
+ * New file or folder from the explorer header, in the selected folder or the root. A Host lists
+ * files, so a new empty folder has no row until it holds one.
+ */
 export async function create(h: RemoteFixture, kind: 'file' | 'folder', name: string) {
   await h.page.getByRole('button', { name: `New ${kind}`, exact: true }).click()
   await answerPrompt(h, name)
-  await expect(fileRow(h, name)).toBeVisible()
+  if (kind === 'file') await expect(fileRow(h, name)).toBeVisible()
 }
 
 /** One item of a row's context menu. */
