@@ -32,7 +32,7 @@
  * this hook (the CLI's control protocol denies `mcp__custom-tools__*` so pi
  * executes them) — Claude Code's internal tools are allowed to run inside the
  * CLI and never touch pi's tool layer. Both observed sessions read through
- * pi's `read`; the prompt block in `electron/pi/workspace-prompt.ts` is the
+ * pi's `read`; `worktreePromptBlock` in `libs/shared/src/agent-directives.ts` is the
  * only cover for the other path.
  *
  * It blocks rather than rewrites: a silent correction trades one invisible
