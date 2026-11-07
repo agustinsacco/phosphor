@@ -1,11 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  enforceContextBudget,
-  syncContextBudget,
-  watchContextBudget,
-  withBudgetCompaction,
-} from './context-budget'
+import { enforceContextBudget, watchContextBudget, withBudgetCompaction } from './context-budget'
+import { syncContextBudget } from '@phosphor/session-runtime/pi/context-budget'
 import type { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import type { RpcCommand } from '@shared/rpc'
 

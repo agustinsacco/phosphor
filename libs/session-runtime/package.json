@@ -60,10 +60,6 @@
       "types": "./src/pi/mcp-config.ts",
       "default": "./src/pi/mcp-config.ts"
     },
-    "./pi/machine-prompt": {
-      "types": "./src/pi/machine-prompt.ts",
-      "default": "./src/pi/machine-prompt.ts"
-    },
     "./bundled-skills": {
       "types": "./src/bundled-skills.ts",
       "default": "./src/bundled-skills.ts"
@@ -127,10 +123,6 @@
     "./pi/context-budget": {
       "types": "./src/pi/context-budget.ts",
       "default": "./src/pi/context-budget.ts"
-    },
-    "./pi/directives": {
-      "types": "./src/pi/directives.ts",
-      "default": "./src/pi/directives.ts"
     },
     "./pi/forwarded-env": {
       "types": "./src/pi/forwarded-env.ts",
@@ -243,10 +235,6 @@
     "./pi/versions": {
       "types": "./src/pi/versions.ts",
       "default": "./src/pi/versions.ts"
-    },
-    "./pi/workspace-prompt": {
-      "types": "./src/pi/workspace-prompt.ts",
-      "default": "./src/pi/workspace-prompt.ts"
     },
     "./lanes/projection": {
       "types": "./src/lanes/projection.ts",

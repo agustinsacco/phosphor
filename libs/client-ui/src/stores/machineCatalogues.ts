@@ -4,8 +4,8 @@ import type { SkillsListResult } from '@shared/skills'
 import { parseMachineModels, parseMachineProviders } from '@shared/host-protocol-machine'
 import { create } from 'zustand'
 import type { MachineModel, MachineProvider } from '@shared/host-protocol-machine'
-import { hostFeatureRefusal } from './hostRefusals'
-import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from './remoteLanes'
+import { hostFeatureRefusal, REMOTE_UNAVAILABLE } from './hostRefusals'
+import { useRemoteLanesStore } from './remoteLanes'
 import { useSkillsStore } from './skills'
 
 export interface MachineCatalogue {

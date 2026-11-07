@@ -175,6 +175,15 @@ describe('summarizeTool', () => {
     expect(summarizeTool(t)).toMatchObject({ label: 'Searched tools for', object: 'linear issues' })
   })
 
+  it('summarizes subagents_enable as enabling sub-agents', () => {
+    const t = tool({ toolName: 'subagents_enable' })
+    expect(summarizeTool({ ...t, status: 'running' })).toEqual({
+      label: 'Enabling',
+      object: 'sub-agents',
+    })
+    expect(summarizeTool(t)).toEqual({ label: 'Enabled', object: 'sub-agents' })
+  })
+
   it('treats error status as not-running', () => {
     expect(summarizeTool(tool({ toolName: 'read', status: 'error' })).label).toBe('Read')
   })
