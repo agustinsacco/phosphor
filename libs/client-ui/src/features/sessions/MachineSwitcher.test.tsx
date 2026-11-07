@@ -17,6 +17,7 @@ import {
 import { RemoteLanes } from './RemoteLanes'
 import { stubSidebarPhosphor } from './__fixtures__/sidebarHarness'
 import { useMachinesStore } from '@/stores/machines'
+import { localMachineLabel } from '@/lib/localMachine'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore } from '@/stores/layout'
@@ -160,6 +161,17 @@ it('labels the scope and spells out the selected machine state, not colour alone
   expect(state()).toBe('1 new')
   choose('All machines')
   expect(state()).toBe('1 new')
+})
+it('names the selected scope on the trigger: This Mac, a Host by its label, All machines', () => {
+  useMachinesStore.setState({ machines: [{ id: MOCK_HOST_ID, label: 'Studio' } as MachineView] })
+  act(() => root.render(<MachineSwitcher />))
+  const name = () =>
+    container.querySelector('[aria-label="Machine filter"] span.font-medium')?.textContent
+  expect(name()).toBe(localMachineLabel())
+  choose('Studio')
+  expect(name()).toBe('Studio')
+  choose('All machines')
+  expect(name()).toBe('All machines')
 })
 it('puts elsewhere activity on the Machines nav row', async () => {
   invoke.mockImplementation(async (channel) =>

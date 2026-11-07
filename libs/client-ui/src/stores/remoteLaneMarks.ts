@@ -1,6 +1,7 @@
 import type { LaneMarksChange } from '@shared/host-protocol-lane-marks'
 import { HOST_TOO_OLD } from '@shared/host-protocol-repositories'
 import { needsNewerHost } from './hostRefusals'
+import { machineCaps } from './machineCaps'
 import type { HostConnectionView, HostsSnapshot } from '@shared/ipc'
 import { remoteLaneResourceKey } from '@shared/remote-host'
 import { useExtensionUiStore } from './extensionUi'
@@ -44,13 +45,8 @@ const migrated = new Set<string>()
  */
 export function migrateLegacyLaneMarks(hosts: HostsSnapshot): void {
   for (const [hostId, host] of Object.entries(hosts)) {
-    if (
-      migrated.has(hostId) ||
-      host.state !== 'ready' ||
-      host.laneMarks !== true ||
-      !host.capabilities.includes('sessions.control')
-    )
-      continue
+    const caps = machineCaps(host)
+    if (migrated.has(hostId) || !caps.laneMarks || !caps.can('sessions.control')) continue
     migrated.add(hostId)
     void migrateHost(hostId, host).catch(() => migrated.delete(hostId))
   }
