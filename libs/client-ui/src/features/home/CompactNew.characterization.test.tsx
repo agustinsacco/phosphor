@@ -218,14 +218,21 @@ it('sends an image-only browser draft through the shared remote attachment path'
   await act(async () => complete())
 })
 
-it('refuses unsupported browser file drafts before creating a lane', async () => {
+it('sends a browser file draft through the shared remote attachment path', async () => {
   useDraftsStore
     .getState()
     .setAttachments(key, [{ kind: 'file', name: 'notes.txt', path: '', size: 4, data: 'dGVzdA==' }])
   await render()
   await send()
-  expect(startRemoteChat).not.toHaveBeenCalled()
-  expect(el.textContent).toContain('Only images can be attached in this browser')
+  expect(startRemoteChat).toHaveBeenCalledWith(
+    MOCK_HOST_ID,
+    expect.any(Object),
+    expect.any(String),
+    [{ kind: 'file', name: 'notes.txt', path: '', size: 4, data: 'dGVzdA==' }],
+    expect.any(Function),
+  )
+  expect(el.textContent).not.toContain('Only images can be attached in this browser')
+  await act(async () => complete())
 })
 
 it('does not release a replacement owner submission when an old receipt settles', async () => {
