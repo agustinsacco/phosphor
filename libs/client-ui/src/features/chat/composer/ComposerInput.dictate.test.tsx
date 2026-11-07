@@ -29,6 +29,7 @@ function Harness() {
       attachments={[]}
       onAttachmentsChange={() => {}}
       onWarning={() => {}}
+      swarm={null}
       slash={slash}
       modelPicker={null}
       actions={null}
