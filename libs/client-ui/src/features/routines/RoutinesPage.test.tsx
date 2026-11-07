@@ -484,11 +484,43 @@ it('shows Host execution guidance without This Mac background controls', async (
   expect(container.querySelector('footer input')).toBeNull()
 })
 
-it('labels aggregate activity as the local machine and retains local background controls', async () => {
+it('shows aggregate activity and retains local background controls', async () => {
   await renderHostWithLocalActivity()
   await act(async () => useMachinePagesStore.setState({ routinesMachine: 'all' }))
-  expect(container.textContent).toContain('This computer activity')
+  expect(container.textContent).toContain('Activity')
+  expect(container.textContent).not.toContain('This computer activity')
   expect(container.querySelector('footer input')).not.toBeNull()
+})
+
+it('shows Host runs in their own activity and under All machines, as local runs render', async () => {
+  const hostRun: RoutineRun = {
+    ...localRun,
+    id: `${host}/run`,
+    routineId: remote.id,
+    status: 'finished',
+    definition: remote,
+    workspacePath: null,
+    summary: '',
+  }
+  invoke.mockImplementation(async (channel, target) => {
+    if (channel === 'routines:list')
+      return target
+        ? { ...snapshot, routines: [remote], runs: [hostRun] }
+        : { ...snapshot, routines: [local], runs: [localRun] }
+    return defaultInvoke(channel, target)
+  })
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await act(async () => useMachinePagesStore.setState({ routinesMachine: host }))
+  const activity = () => container.querySelectorAll('[aria-label="Show run details"]').length
+  expect(container.textContent).toContain('Activity')
+  expect(container.textContent).toContain('Remote task')
+  expect(container.textContent).toContain('Output not available from this machine yet')
+  expect(activity()).toBe(1)
+  await act(async () => useMachinePagesStore.setState({ routinesMachine: 'all' }))
+  expect(activity()).toBe(2)
+  await act(async () => useMachinePagesStore.setState({ routinesMachine: 'local' }))
+  expect(activity()).toBe(1)
+  expect(container.textContent).not.toContain('Output not available from this machine yet')
 })
 
 it('clears local detail and its running state after a sidebar switch to a Host', async () => {

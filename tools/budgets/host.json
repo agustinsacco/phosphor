@@ -17,7 +17,7 @@
     "src/commands/guided-setup.ts::runGuidedSetup[1]": 162,
     "src/commands/login.ts::runLoginCommand[1]": 182,
     "src/commands/login.ts::runLoginCommand[1]/withCommandLock[1]": 171,
-    "src/commands/run.runtime.test.ts::describe[1]/%3Canonymous%3E[1]": 125,
+    "src/commands/run.runtime.test.ts::describe[1]/%3Canonymous%3E[1]": 120,
     "src/commands/run.ts::file": 522,
     "src/commands/run.ts::runHostCommand[1]": 398,
     "src/commands/run.ts::runHostCommand[1]/%3Canonymous%3E[1]": 260,

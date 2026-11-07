@@ -1848,8 +1848,9 @@ The Host bundle uses only builtin SQLite, with bundled pure-JavaScript calendar
 helpers. Desktop's local routines use the same engine with their existing
 Electron shutdown approval, runner and notifications.
 
-`routines.list {}` and `routines.history {routineId, offset?}` require `routines`.
-They return bounded definitions and history metadata without Host paths.
+`routines.list {}`, `routines.history {routineId, offset?}` and
+`routines.activity {offset?}` require `routines`. They return bounded definitions,
+one routine's history metadata and every routine's newest 50 runs, without Host paths.
 Machine commands are `routine.save`, `routine.run`, `routine.cancel`,
 `routine.skipNext`, `routine.archive`, `routine.delete` and `routine.pauseAll`.
 They have no lane id or fence and use the same durable request receipts as lanes.
