@@ -25,7 +25,7 @@ test('shared full pages fit phone, tablet and wide layouts with consistent font 
   page.on('pageerror', (error) => failures.push(error.message))
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
+  await expect(page.getByTestId('home-board')).toBeVisible()
   for (const width of [360, 412, 768, 1440]) {
     await page.setViewportSize({ width, height: 924 })
     await expect(page.locator('html')).toHaveAttribute(
@@ -82,6 +82,9 @@ test('browser creation attaches any file, sends its Host path and offers no isol
   page.on('pageerror', (error) => failures.push(error.message))
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
+  // Home lands on every machine's lanes; New lane opens the start page on the one Host.
+  await page.getByRole('button', { name: 'New lane', exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`/new/${stack.hostId}$`))
   await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
   const before = await page.evaluate(() => window.phosphor.invoke('hosts:snapshot'))
   const picking = page.waitForEvent('filechooser')

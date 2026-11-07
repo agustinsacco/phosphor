@@ -24,13 +24,54 @@
 .startup-mark {
   border-radius: 12px;
 }
+/*
+ * The phone type scale. Desktop scales its px steps with page zoom; a phone has no
+ * zoom, so the steps take iOS's default Dynamic Type sizes instead (Caption 2 11,
+ * Caption 1 12, Footnote 13, Subheadline 15, Body 17, Title 3 20, Title 2 22,
+ * Title 1 28, Large Title 34). Line heights stay inherited, as on Desktop.
+ */
 html[data-form-factor='compact'] {
   overscroll-behavior: none;
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+  --text-4xl: 34px;
 }
-/* Hit areas grow, not every glyph. Text entry stays 16px to avoid iOS focus zoom. */
-[data-form-factor='compact'] :is(button, [role='button'], [role='option'], select, summary) {
+/*
+ * Hit areas grow, not every glyph. Borderless controls simply take 44px. A control
+ * whose box is visible (a `Button`, a composer pill) keeps its drawn size and gets a
+ * transparent 44px hit-slop instead, so a pill reads as a pill and not a 44px oval.
+ * Text entry stays 16px to avoid iOS focus zoom.
+ */
+[data-form-factor='compact']
+  :is(button, [role='button'], [role='option'], select, summary):not(
+    .hit-slop,
+    .composer-toolbar button
+  ) {
   min-height: 44px;
   min-width: 44px;
+}
+[data-form-factor='compact'] :is(.hit-slop, .composer-toolbar button) {
+  min-height: 32px;
+}
+/* Every browser width: a wide touch browser needs the same targets (below), and a mouse never notices. */
+:is([data-form-factor='compact'], .browser-shell)
+  :is(.hit-slop, .composer-toolbar button):not(.absolute, .fixed) {
+  position: relative;
+}
+:is([data-form-factor='compact'], .browser-shell) :is(.hit-slop, .composer-toolbar button)::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
 }
 [data-form-factor='compact'] :is(textarea, input, select) {
   font-size: 16px;
@@ -427,7 +468,7 @@ html[data-form-factor='compact'] {
   padding: 10px 12px 2px;
 }
 [data-form-factor='compact'] .composer-toolbar {
-  gap: 4px;
+  gap: 6px;
   padding: 0 4px;
 }
 [data-form-factor='compact'] .composer-status {
@@ -451,9 +492,122 @@ html[data-form-factor='compact'] {
   align-items: center;
   min-height: 44px;
 }
+/* A wide browser on a touch screen: borderless targets grow; drawn ones keep their hit-slop. */
 @media (pointer: coarse) {
-  .browser-shell :is(button, select, summary) {
+  .browser-shell :is(button, select, summary):not(.hit-slop, .composer-toolbar button) {
     min-height: 44px;
     min-width: 44px;
   }
+}
+/*
+ * The phone's tab bar and its New lane button. The bar sits on the home indicator's
+ * safe area; the button floats above it in thumb reach, and pages scroll under both.
+ */
+.browser-tabs {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: space-around;
+  padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+  border-top: 1px solid var(--px-border);
+  background: var(--px-sidebar);
+}
+.browser-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 0 2px;
+  color: var(--px-text-tertiary);
+  font-size: var(--text-2xs);
+  font-weight: 550;
+}
+.browser-tab-icon {
+  position: relative;
+  display: grid;
+  width: 56px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+}
+.browser-tab[aria-current='page'] {
+  color: var(--px-text);
+}
+.browser-tab[aria-current='page'] .browser-tab-icon {
+  background: var(--px-accent-soft);
+  color: var(--px-accent);
+}
+.browser-tab-badge {
+  position: absolute;
+  top: -2px;
+  right: 8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--px-warning);
+  color: var(--px-bg);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+}
+.browser-content {
+  position: relative;
+}
+.new-lane-fab {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.35);
+}
+/* A tab's scrollers end above the New lane button, so their last row is reachable. */
+.compact-main[data-tabs] :is(.page-body-scroll > .page-body-content, .settings-panel) {
+  padding-bottom: 88px;
+}
+.machine-chips {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px var(--page-gutter, 12px) 10px;
+  scrollbar-width: none;
+}
+.machine-chip {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--px-border);
+  border-radius: 999px;
+  color: var(--px-text-secondary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.machine-chip-on {
+  border-color: color-mix(in srgb, var(--px-accent) 45%, var(--px-border));
+  background: var(--px-accent-soft);
+  color: var(--px-text);
+}
+.library-screen {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.library-switcher {
+  display: flex;
+  justify-content: center;
+  padding: 10px var(--page-gutter, 12px) 0;
+}
+.home-board-section + .home-board-section {
+  margin-top: 8px;
 }

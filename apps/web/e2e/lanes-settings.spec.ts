@@ -4,7 +4,7 @@ import { test, expect } from './fixture'
 test('the browser keeps its Lanes preferences across a reload', async ({ page, stack }) => {
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
+  await expect(page.getByTestId('home-board')).toBeVisible()
   const open = async () => {
     await page.goto(`${stack.origin}/pages/settings/${stack.hostId}`)
     const settings = page.getByTestId('settings-surface')
