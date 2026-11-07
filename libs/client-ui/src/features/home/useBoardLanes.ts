@@ -7,7 +7,7 @@ import { machineCaps } from '@/stores/machineCaps'
 import { useMachinesStore } from '@/stores/machines'
 import { hostReconnecting, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { hostLaneUrgency, laneTime, type BoardLane } from './homeBoard'
+import { hostLaneUrgency, laneTime, type BoardLane } from './boardSections'
 
 /**
  * Every lane this client can see: This Mac's (none in a browser) and each Host's. A Host

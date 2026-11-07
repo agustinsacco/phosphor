@@ -3,7 +3,7 @@ import { RemoteLaneRow } from '@/features/sessions/RemoteLaneRow'
 import { SectionLabel, WorkspaceGroupSkeletons } from '@/features/sessions/SidebarPrimitives'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { homeSections, type BoardLane } from './homeBoard'
+import { homeSections, type BoardLane } from './boardSections'
 import { useBoardLanes } from './useBoardLanes'
 
 function BoardRow({ entry }: { entry: BoardLane }): React.JSX.Element {

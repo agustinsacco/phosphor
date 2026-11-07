@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import type { HostLaneView } from '@shared/ipc'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
-import { homeSections, hostLaneUrgency, laneTime, type BoardLane } from './homeBoard'
+import { homeSections, hostLaneUrgency, laneTime, type BoardLane } from './boardSections'
 
 const base = mockRemoteHosts[MOCK_HOST_ID]!.lanes[0]!
 const lane = (activity: HostLaneView['activity']): HostLaneView => ({ ...base, activity })
