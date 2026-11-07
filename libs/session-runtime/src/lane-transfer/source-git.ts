@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import { isLaneBranchName } from '@phosphor/shared/host-protocol'
 import type { LaneGitFacts } from '@phosphor/shared/host-protocol-lane-transfer'
 import { resolveDefaultBranch } from '../git/default-branch'
@@ -101,12 +101,15 @@ export async function inspectSourceGit(cwd: string): Promise<SourceGit> {
   }
   for (const marker of IN_PROGRESS) {
     const path = await optional(['rev-parse', '--git-path', marker])
-    if (path && existsSync(join(cwd, path))) {
+    if (path && existsSync(isAbsolute(path) ? path : join(cwd, path))) {
       blockers.push('A merge, rebase or cherry-pick is in progress here.')
       break
     }
   }
   const trunk = await resolveDefaultBranch(run).catch(() => null)
+  if (!branch) blockers.push('This lane has detached HEAD. Check out its branch before moving it.')
+  if (branch && branch === trunk)
+    blockers.push('This lane is on the default branch. Move a lane branch instead.')
   const origin = await repositoryOrigin(cwd)
   let pushed = false
   if (branch && origin) {

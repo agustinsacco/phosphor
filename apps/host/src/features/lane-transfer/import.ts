@@ -23,9 +23,11 @@ import type { HostStore } from '../../lanes/store'
 import { LaneFolderError, prepareLaneFolder } from '../../lanes/worktree'
 import type { FeatureContext, FeatureOutcome, HostFeature } from '../feature'
 import { FeatureFailure, featureError } from '../machine'
+import type { RuntimeProbe } from '@phosphor/session-runtime/lane-transfer/runtime'
 import type { Staged, Staging } from './staging'
 
 export interface LaneImportPorts {
+  runtime?: RuntimeProbe
   staging: Staging
   attachmentsRoot: string
   store: Pick<
@@ -72,6 +74,7 @@ function repositoryTarget(
   if (!repository) throw new FeatureFailure('bad-request')
   return {
     root: repository.path,
+    runtime: ports.runtime,
     workspace: repository.name,
     branchPrefix: p.branchPrefix,
     sameMachine: p.sameMachine,

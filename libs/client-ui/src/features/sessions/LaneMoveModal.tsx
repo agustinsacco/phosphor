@@ -65,6 +65,7 @@ function useMovePlan(
 ) {
   const [check, setCheck] = useState<Check>({ state: 'idle' })
   const run = useRef(0)
+  const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     const id = ++run.current
     if (!target || unavailable) {
@@ -82,8 +83,11 @@ function useMovePlan(
           if (run.current === id) setCheck({ state: 'failed', message: errorText(cause) })
         },
       )
-  }, [target, draft, unavailable])
-  return check
+    return () => {
+      run.current++
+    }
+  }, [target, draft, unavailable, attempt])
+  return { check, retry: () => setAttempt((n) => n + 1) }
 }
 
 function TargetFields(props: {
@@ -134,9 +138,25 @@ function TargetFields(props: {
   )
 }
 
-function PlanView({ check }: { check: Check }): React.JSX.Element | null {
+function PlanView({
+  check,
+  accepted,
+  onAccept,
+  retry,
+}: {
+  check: Check
+  accepted: boolean
+  onAccept: (accepted: boolean) => void
+  retry: () => void
+}): React.JSX.Element | null {
   if (check.state === 'checking') return <p className="text-text-secondary">Checking…</p>
-  if (check.state === 'failed') return <p className="text-danger">{check.message}</p>
+  if (check.state === 'failed')
+    return (
+      <div>
+        <p className="text-danger">{check.message}</p>
+        <Button onClick={retry}>Retry check</Button>
+      </div>
+    )
   if (check.state !== 'ready') return null
   const { plan } = check
   if (plan.blockers.length)
@@ -148,9 +168,18 @@ function PlanView({ check }: { check: Check }): React.JSX.Element | null {
       </ul>
     )
   return (
-    <p>
-      {planSummary(plan)} {formatMoveBytes(plan.bytes)} to copy. The original stays where it is.
-    </p>
+    <div className="space-y-3">
+      <p>
+        {planSummary(plan)} {formatMoveBytes(plan.bytes)} to copy. The original stays where it is.
+      </p>
+      <label className="flex items-start gap-2">
+        <input type="checkbox" checked={accepted} onChange={(e) => onAccept(e.target.checked)} />
+        <span>
+          I understand this uses the target’s skills, extensions, context files, MCP setup and
+          account. They aren’t copied and may differ.
+        </span>
+      </label>
+    </div>
   )
 }
 
@@ -192,6 +221,40 @@ function useMoveMachines() {
   return { hosts, machines }
 }
 
+function MoveFooter({
+  done,
+  moving,
+  blocked,
+  onClose,
+  onOpen,
+  onStart,
+}: {
+  done: boolean
+  moving: boolean
+  blocked: boolean
+  onClose: () => void
+  onOpen: () => void
+  onStart: () => void
+}) {
+  return done ? (
+    <>
+      <Button onClick={onClose}>Done</Button>
+      <Button variant="primary" onClick={onOpen}>
+        Open
+      </Button>
+    </>
+  ) : (
+    <>
+      <Button onClick={onClose} disabled={moving}>
+        Cancel
+      </Button>
+      <Button variant="primary" onClick={onStart} disabled={moving || blocked}>
+        {moving ? 'Moving…' : 'Move'}
+      </Button>
+    </>
+  )
+}
+
 function LaneMoveModal({
   draft,
   onClose,
@@ -205,33 +268,28 @@ function LaneMoveModal({
     () => machines.find((m) => !m.disabled)?.machine ?? 'local',
   )
   const [workspace, setWorkspace] = useState('')
+  const [acceptedTarget, setAcceptedTarget] = useState('')
   const chosen = machines.find((m) => m.machine === machine)
   const picked = chosen?.workspaces.find((w) => w.key === workspace)
-  const check = useMovePlan(draft, picked?.target, unavailable)
+  const { check, retry } = useMovePlan(draft, picked?.target, unavailable)
   const { moving, done, error, setError, move } = useMoveExecution(draft)
-  const blocked = check.state !== 'ready' || check.plan.blockers.length > 0
+  const blocked =
+    check.state !== 'ready' || check.plan.blockers.length > 0 || acceptedTarget !== picked?.key
   const open = () => {
     if (done) void openMoved(done).then(onClose, (cause: unknown) => setError(errorText(cause)))
   }
   const start = () => {
     if (picked) void move(picked.target)
   }
-  const footer = done ? (
-    <>
-      <Button onClick={onClose}>Done</Button>
-      <Button variant="primary" onClick={open}>
-        Open
-      </Button>
-    </>
-  ) : (
-    <>
-      <Button onClick={onClose} disabled={moving}>
-        Cancel
-      </Button>
-      <Button variant="primary" onClick={start} disabled={moving || blocked}>
-        {moving ? 'Moving…' : 'Move'}
-      </Button>
-    </>
+  const footer = (
+    <MoveFooter
+      done={!!done}
+      moving={moving}
+      blocked={blocked}
+      onClose={onClose}
+      onOpen={open}
+      onStart={start}
+    />
   )
   return (
     // A move in flight finishes either way; the dialog stays to say how it ended.
@@ -262,7 +320,12 @@ function LaneMoveModal({
                 }}
                 onWorkspace={setWorkspace}
               />
-              <PlanView check={check} />
+              <PlanView
+                check={check}
+                retry={retry}
+                accepted={acceptedTarget === picked?.key}
+                onAccept={(yes) => setAcceptedTarget(yes ? picked!.key : '')}
+              />
             </>
           )}
           {error && <p className="text-danger">{error}</p>}

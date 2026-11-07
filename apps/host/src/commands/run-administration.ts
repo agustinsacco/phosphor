@@ -23,6 +23,7 @@ import { createArtifactsFeature } from '../features/artifacts'
 import { createSkillsFeature } from '../features/skills'
 import { createSkillInstallFeature } from '../features/skill-install'
 import { createLaneTransferFeatures } from '../features/lane-transfer'
+import { hostTransferRuntime } from '../features/lane-transfer/runtime'
 import { checkReadiness, readinessPorts } from '../machine/readiness'
 import { hostUpdateProgram } from '../update/handoff'
 
@@ -83,6 +84,7 @@ function features(
       skillsRoot: join(settings.agentDir, 'skills'),
     }),
     ...createLaneTransferFeatures(context, options.store, {
+      runtime: hostTransferRuntime(context, options.configPath),
       sessionFor: options.live.sessionFor,
       announce: (laneId) => {
         const summary = options.live.summaryFor(laneId)

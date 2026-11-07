@@ -18,11 +18,8 @@ export interface LaneMovePorts {
 
 const LOCAL = 'This Mac'
 // eslint-disable-next-line no-control-regex
-const label = (text: string) =>
-  text
-    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ')
-    .trim()
-    .slice(0, 80) || 'a Host'
+const controls = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g
+const label = (text: string) => text.replace(controls, ' ').trim().slice(0, 80) || 'a Host'
 
 const refused = (blockers: string[]): LaneMovePlan => ({
   mode: 'folder',

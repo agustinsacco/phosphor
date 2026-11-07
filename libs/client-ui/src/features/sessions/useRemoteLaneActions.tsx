@@ -74,8 +74,8 @@ export function useRemoteLaneActions({
     ready,
     entry?.phosphorId,
     runner.busy,
+    nativeFiles,
   )
-  const busy = state.busy
   const access = remoteLaneAccess(state)
   const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
   const handlers = laneHandlers({
@@ -97,7 +97,7 @@ export function useRemoteLaneActions({
 
   /** Names the lane through its live session; resolves false when the Host refused. */
   const saveName = async (name: string): Promise<boolean> =>
-    access.controlled && access.running && !!name.trim() && !busy
+    access.controlled && access.running && !!name.trim() && !state.busy
       ? runner.act(async () => renameLane(await session(), name.trim()))
       : false
   const dialogs = (
@@ -116,7 +116,7 @@ export function useRemoteLaneActions({
     items: (): ContextMenuItem[] => remoteLaneActions(state, handlers, orderActions),
     dialogs,
     title,
-    busy,
+    busy: state.busy,
     error: runner.error,
     deletingInBulk,
     saveName,
@@ -133,6 +133,7 @@ function useLaneActionState(
   ready: boolean,
   sessionId: string | undefined,
   running: boolean,
+  nativeFiles: boolean,
 ) {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const key = remoteLaneResourceKey(hostId, lane.laneId)
@@ -151,6 +152,7 @@ function useLaneActionState(
     stopBlocked: unprompted ? STOP_NEEDS_PROMPT : null,
     pr: pr ?? null,
     markers,
+    ...(!nativeFiles ? { moveBlocked: 'Moving lanes requires Desktop.' } : {}),
   }
   /** The row's marker: the explicit Host choice, else derived from the branch, as on This Mac. */
   const marker = markers === 'off' ? null : remoteLaneMarker(lane, markers)

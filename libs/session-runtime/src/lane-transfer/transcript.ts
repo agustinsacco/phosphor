@@ -44,6 +44,8 @@ interface Entry {
   type?: unknown
   id?: unknown
   name?: unknown
+  provider?: unknown
+  modelId?: unknown
   customType?: unknown
   details?: { attachments?: unknown }
   message?: { role?: unknown; content?: unknown }
@@ -81,6 +83,8 @@ function userText(content: unknown): string {
 
 export interface TranscriptFacts {
   title: string | null
+  provider: string | null
+  model: string | null
   /** The last entry's id: pi resumes there, so a note appended after it is the next message. */
   leafId: string | null
   /** Paths from `<attached-files>` blocks in user messages, first mention first. */
@@ -90,9 +94,19 @@ export interface TranscriptFacts {
 /** What a move reads from a transcript body, without trusting any of it as a path to write. */
 export function transcriptFacts(rest: string): TranscriptFacts {
   let title: string | null = null
+  let provider: string | null = null
+  let model: string | null = null
   let leafId: string | null = null
   const attachments = new Set<string>()
   for (const entry of entries(rest)) {
+    if (
+      entry.type === 'model_change' &&
+      typeof entry.provider === 'string' &&
+      typeof entry.modelId === 'string'
+    ) {
+      provider = entry.provider
+      model = entry.modelId
+    }
     if (typeof entry.id === 'string' && entry.id.length > 0 && entry.id.length <= 64)
       leafId = entry.id
     if (entry.type === 'session_info' && typeof entry.name === 'string') {
@@ -105,7 +119,13 @@ export function transcriptFacts(rest: string): TranscriptFacts {
         for (const mapping of moved) {
           if (!mapping || typeof mapping !== 'object') continue
           const { from, to } = mapping as { from?: unknown; to?: unknown }
-          if (typeof from !== 'string' || typeof to !== 'string' || !to.startsWith('/') || to.length > 4096) continue
+          if (
+            typeof from !== 'string' ||
+            typeof to !== 'string' ||
+            !to.startsWith('/') ||
+            to.length > 4096
+          )
+            continue
           attachments.delete(from)
           attachments.add(to)
         }
@@ -117,5 +137,5 @@ export function transcriptFacts(rest: string): TranscriptFacts {
       for (const path of block[1]!.split('\n'))
         if (path.startsWith('/') && path.length <= 4096) attachments.add(path)
   }
-  return { title, leafId, attachments: [...attachments] }
+  return { title, provider, model, leafId, attachments: [...attachments] }
 }

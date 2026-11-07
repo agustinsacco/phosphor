@@ -40,6 +40,8 @@ export interface RemoteLaneActionState {
   pr: { number: number } | null
   /** The marker preference: `off` drops the marker slot and its menu item, as on This Mac. */
   markers: LanePrefs['markers']
+  /** Desktop relays bundles; the browser cannot. */
+  moveBlocked?: string
 }
 
 export interface RemoteLaneActionHandlers {
@@ -211,7 +213,9 @@ function keepActions(
 
 /** Why this lane cannot be moved from its Host right now, or undefined. */
 function moveHint(state: RemoteLaneActionState, running: boolean): string | undefined {
+  if (state.moveBlocked) return state.moveBlocked
   if (state.host?.laneTransfer !== true) return LANE_MOVE_NEEDS_UPDATE
-  if (!state.host.capabilities.includes('sessions.read')) return featureNotOffered('sessions.read')
+  if (!state.host.capabilities.includes('sessions.control'))
+    return featureNotOffered('sessions.control')
   return running ? STOP_BEFORE_MOVE : undefined
 }

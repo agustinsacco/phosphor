@@ -20,7 +20,7 @@ export const MOVE_HINTS = {
   offline: 'Not connected.',
   outdated: 'Update this Host to move lanes to it.',
   control: 'This Host does not let this device create lanes.',
-  read: 'This Host does not let this device read its lanes.',
+  read: 'This Host does not let this device move its lanes.',
   noWorkspaces: 'No workspaces here yet.',
 } as const
 
@@ -30,7 +30,7 @@ export function sourceHint(hosts: HostsSnapshot, source: LaneMoveSource): string
   const host = hosts[source.machine]
   if (host?.state !== 'ready') return MOVE_HINTS.offline
   if (host.laneTransfer !== true) return MOVE_HINTS.outdated
-  return host.capabilities.includes('sessions.read') ? undefined : MOVE_HINTS.read
+  return host.capabilities.includes('sessions.control') ? undefined : MOVE_HINTS.read
 }
 
 /**

@@ -110,6 +110,49 @@ describe ancestry, not permission to hide the source):
 Rewinds made before this record existed are not folded: their duplicate rows
 stay until you rename or delete one.
 
+## Moving a lane
+
+Desktop's row menus offer **Move to…** for stopped lanes, local and remote. Pick
+This Mac or a connected Host, then one of its workspaces. A checked plan explains
+what will land there and any blockers. The browser cannot relay transfers.
+
+A move is a snapshot copy. The original is untouched, keeps its row, and is
+never deleted automatically. The new lane keeps its conversation, exact supported
+name, artifact versions, child-run history, pin and visible marker, without a
+copy suffix or badge. It is not resumed automatically. **Open** continues it at
+the destination. A fixed, model-visible notice records both locations, warns
+about stale paths, and lists the attachments' new paths.
+
+- **Folders without git:** the conversation moves, not the folder's files.
+- **Same origin on another machine:** the target fetches the source branch and
+  requires its exact commit. A clean matching Phosphor worktree can be reused;
+  conflicting branches or folders are refused.
+- **Another git workspace:** a fresh worktree/branch starts from the target's
+  default branch. The source code stays behind; a taken branch name is refused.
+- **Same repository on the same machine:** use Clone instead.
+
+Uncommitted tracked or untracked work blocks a git lane; ignored files neither
+block nor move. Detached/in-progress git state is refused. Submodules and LFS
+cannot accompany a same-repository transfer yet. The target must have a pi at
+least as new as the source's, the saved provider/model, and pi-claude-cli 0.10.0+
+for Claude lanes. The dialog asks you to acknowledge that skills, extensions,
+context files, MCP setup and accounts belong to the target, not the copy.
+
+The bundle contains pi JSONL, its child runs and referenced subagent files,
+Claude's paired ledger, prompt and sidecar, and available attachments. Missing
+or oversized attachments are skipped. Earlier transcript text is not globally
+path-rewritten. Only the header location, child headers matching the source cwd,
+colliding session identities and self-qualified artifact URLs are repaired.
+Artifacts are rebuilt from the transcript. Credentials, terminal processes,
+routine schedules and workspace files are never copied.
+
+Limits: 256 MiB per bundle, 4,000 parts, 20 MiB per attachment, and 32 MiB per
+transcript imported by a Host. Host lane names above 80 characters are refused,
+not shortened; other transfers support names up to 200 characters. Both Hosts
+must stay connected for Host-to-Host moves; Desktop carries a private temporary
+bundle between them. An unconfirmed result is never automatically retried:
+check the destination before trying again.
+
 ## Markers
 
 An emoji pinned left of the title. Two rules, both about the **column**:

@@ -182,7 +182,16 @@ function writer(ids: LandingIds) {
   const dirs = new Set<string>()
   let mapped = false
   const ensureDir = async (dir: string, mode?: number) => {
-    for (let at = dir; !(await present(at)); at = dirname(at)) dirs.add(at)
+    for (let at = dir; ; at = dirname(at)) {
+      const stat = await lstat(at).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== 'ENOENT') throw error
+        return null
+      })
+      if (stat && (!stat.isDirectory() || stat.isSymbolicLink()))
+        refuse('A lane destination contains a symlink or is not a folder.')
+      if (!stat) dirs.add(at)
+      if (dirname(at) === at) break
+    }
     await mkdir(dir, { recursive: true, ...(mode ? { mode } : {}) })
   }
   return {
@@ -257,7 +266,12 @@ async function publishTranscript(
   const { manifest } = input.archive
   const transcript = manifest.parts.findIndex((part) => part.kind === 'transcript')
   const raw = (await input.archive.read(transcript)).toString('utf8')
-  const text = rewriteHeader(raw, input.cwd, ids.sessionId)
+  // Only self-qualified artifact URLs change; prose and foreign artifact refs stay intact.
+  const linked = raw.replaceAll(
+    `artifact://${manifest.source.sessionId}/`,
+    `artifact://${ids.sessionId}/`,
+  )
+  const text = rewriteHeader(linked, input.cwd, ids.sessionId)
   const split = splitTranscript(text)
   if (!split) refuse('The lane bundle is damaged.')
   const notice = noticeText({

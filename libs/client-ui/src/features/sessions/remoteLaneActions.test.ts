@@ -107,7 +107,7 @@ describe('remoteLaneActions', () => {
     const move = (edit: Partial<RemoteLaneActionState>) =>
       item(remoteLaneActions(state(edit), handlers()), 'Move to…')
     expect(move({})).toMatchObject({ disabled: true, hint: LANE_MOVE_NEEDS_UPDATE })
-    const host = { capabilities: ['sessions.read' as const], laneTransfer: true }
+    const host = { capabilities: ['sessions.control' as const], laneTransfer: true }
     expect(move({ host })).toMatchObject({ disabled: true, hint: STOP_BEFORE_MOVE })
     expect(move({ host, lane: stopped })).toMatchObject({ disabled: false, hint: undefined })
   })

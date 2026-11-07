@@ -18,7 +18,7 @@ import { mockSessionMaintenance } from './mockSessionMaintenance'
 import type { AccountView } from '@shared/account'
 import type { PhosphorApi } from '@shared/ipc'
 import { mockRoutineCall, onMockRoutinesChanged } from './mockRoutines'
-import { mockTraffic } from './mockTraffic'
+import { mockHostConnectionInvoke } from './mockHostConnectionInvoke'
 import { bytesToBase64 } from '../lib/base64'
 import type {
   ConnectorAuthPush,
@@ -1488,11 +1488,13 @@ export function installMockPhosphor(): void {
           mockClaudeAuth = { loggedIn: false }
           return Promise.resolve(undefined as never)
         case 'hosts:tailscaleStatus':
-          return { code: 'not-installed' } as never
         case 'hosts:traffic':
-          return mockTraffic(Number(args[0]) || 0)
         case 'hosts:reconnect':
-          return undefined as never
+        case 'hosts:providerLogin':
+        case 'hosts:uploadAttachments':
+        case 'hosts:laneMovePlan':
+        case 'hosts:laneMove':
+          return mockHostConnectionInvoke(channel, args) as never
         case 'hosts:settingsAccess':
         case 'hosts:settingsRead':
         case 'hosts:settingsPatch':
@@ -1512,10 +1514,6 @@ export function installMockPhosphor(): void {
         case 'hosts:skillExport':
         case 'hosts:skillInstall':
           return mockSkillShareInvoke(channel, args) as never
-        case 'hosts:providerLogin':
-          throw new Error('Provider sign-in needs a connected Host.')
-        case 'hosts:uploadAttachments':
-          throw new Error('Attachment uploads require a live Host.')
         case 'hosts:snapshot':
           return localStorage.getItem('mock:remoteLanes') === '1'
             ? localStorage.getItem('mock:remoteMixed') === '1'

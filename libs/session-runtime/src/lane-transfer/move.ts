@@ -19,8 +19,10 @@ import {
   type WorktreePort,
 } from './target'
 import { parseHeader } from './transcript'
+import { runtimeBlockers, type RuntimeProbe } from './runtime'
 
 export interface SourceInput {
+  runtime?: RuntimeProbe
   sessionFile: string
   /** The source workspace's folder name. */
   workspace: string
@@ -47,10 +49,15 @@ export async function headerCwd(sessionFile: string): Promise<string> {
 
 /** Read a stopped lane: its facts, or every reason it cannot leave. Changes nothing. */
 async function readSource(input: SourceInput): Promise<CollectedLane | { blockers: string[] }> {
-  const git = await inspectSourceGit(await headerCwd(input.sessionFile))
+  const cwd = await headerCwd(input.sessionFile)
+  const git = await inspectSourceGit(cwd)
   if (git.kind === 'unreadable') return { blockers: ['Git could not read this lane’s folder.'] }
   if (git.kind === 'git' && git.blockers.length) return { blockers: git.blockers }
-  return collectLane({ ...input, git: git.kind === 'git' ? git.facts : null })
+  return collectLane({
+    ...input,
+    runtime: await input.runtime?.(false, cwd),
+    git: git.kind === 'git' ? git.facts : null,
+  })
 }
 
 export async function inspectLane(input: SourceInput): Promise<LaneInspection> {
@@ -74,6 +81,7 @@ export async function exportLane(
 }
 
 export interface TargetInput {
+  runtime?: RuntimeProbe
   /** The target workspace's resolved path. */
   root: string
   workspace: string
@@ -93,7 +101,11 @@ export async function checkTarget(
   if (input.maxTranscriptBytes !== undefined && source.transcriptBytes > input.maxTranscriptBytes)
     plan.blockers.push('This lane’s transcript is over 32 MiB, more than a Host can index.')
   if (input.maxTitleLength !== undefined && (source.title?.length ?? 0) > input.maxTitleLength)
-    plan.blockers.push(`This Host cannot preserve a lane name longer than ${input.maxTitleLength} characters.`)
+    plan.blockers.push(
+      `This Host cannot preserve a lane name longer than ${input.maxTitleLength} characters.`,
+    )
+  if (input.runtime)
+    plan.blockers.push(...runtimeBlockers(source, await input.runtime(true, input.root)))
   plan.blockers.splice(LIMIT.messages)
   return plan
 }

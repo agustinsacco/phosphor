@@ -324,6 +324,10 @@
       "types": "./src/ipc-web-exclusions.ts",
       "default": "./src/ipc-web-exclusions.ts"
     },
+    "./lane-transfer-runtime": {
+      "types": "./src/lane-transfer-runtime.ts",
+      "default": "./src/lane-transfer-runtime.ts"
+    },
     "./lane-move": {
       "types": "./src/lane-move.ts",
       "default": "./src/lane-move.ts"

@@ -93,7 +93,7 @@ async function readExport(
 ): Promise<{ size: number; sha256: string } | { blockers: string[] }> {
   const fail = LANE_MOVE_ERRORS.failed
   const status = await host.settle(
-    'sessions.read',
+    'sessions.control',
     'laneTransfer.exportStatus',
     { exportId },
     parseLaneExported,
@@ -106,12 +106,12 @@ async function readExport(
   try {
     for (let offset = 0; offset < size;) {
       const data = parseLaneChunk(
-        await host.call('sessions.read', 'laneTransfer.read', { exportId, offset }, fail),
+        await host.call('sessions.control', 'laneTransfer.read', { exportId, offset }, fail),
       )
       if (!data) throw new Error(fail)
       const bytes = Buffer.from(data, 'base64')
       if (offset + bytes.length > size) throw new Error(fail)
-      await file.write(bytes, 0, bytes.length, offset)
+      await file.writeFile(bytes)
       offset += bytes.length
     }
   } finally {
@@ -127,7 +127,7 @@ async function download(
   path: string,
 ): Promise<{ size: number; sha256: string } | { blockers: string[] }> {
   const fail = LANE_MOVE_ERRORS.failed
-  const started = await host.call('sessions.read', 'laneTransfer.export', { laneId }, fail)
+  const started = await host.call('sessions.control', 'laneTransfer.export', { laneId }, fail)
   const refused = parseLaneInspection(started)
   if (refused && 'blockers' in refused) return refused
   const exportId = parseTransferStarted(started, 'exportId')
@@ -136,7 +136,7 @@ async function download(
     return await readExport(host, exportId, path)
   } finally {
     await host
-      .call('sessions.read', 'laneTransfer.release', { exportId }, fail)
+      .call('sessions.control', 'laneTransfer.release', { exportId }, fail)
       .catch(() => undefined)
   }
 }
@@ -201,7 +201,7 @@ export function remoteLaneTransfer(connection: Connection, hostId: string) {
   return {
     available: host.available,
     async inspect(laneId: string): Promise<LaneInspection> {
-      const data = await host.call('sessions.read', 'laneTransfer.inspect', { laneId }, fail)
+      const data = await host.call('sessions.control', 'laneTransfer.inspect', { laneId }, fail)
       const parsed = parseLaneInspection(data)
       if (!parsed) throw new Error(fail)
       return parsed

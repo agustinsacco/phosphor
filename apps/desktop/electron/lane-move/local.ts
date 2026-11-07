@@ -25,6 +25,7 @@ import { piSessionsRoot } from '../pi/pi-paths'
 import { sessionPathKey, withSessionPath } from '../pi/session-path-lock'
 import { registry } from '../registry'
 import { laneAttachmentsDir } from './attachments-dir'
+import { localTransferRuntime } from './runtime'
 
 const paths = () => ({ env: process.env, home: homedir() })
 const STOP_FIRST = 'Stop this lane before moving it. Its saved transcript is what moves.'
@@ -84,6 +85,7 @@ async function source(sessionPath: string, crossMachine: boolean): Promise<Sourc
   const cwd = await headerCwd(sessionFile)
   return {
     sessionFile,
+    runtime: localTransferRuntime,
     workspace: await workspaceName(cwd),
     paths: paths(),
     // On This Mac the attached files are still where the transcript says.
@@ -120,7 +122,10 @@ export const localLanes = {
     sameMachine: boolean,
   ): Promise<LaneTargetPlan> {
     const root = await workspaceRoot(workspace)
-    return checkTarget({ root, workspace: basename(root), branchPrefix, sameMachine }, facts)
+    return checkTarget(
+      { root, workspace: basename(root), branchPrefix, sameMachine, runtime: localTransferRuntime },
+      facts,
+    )
   },
   async import(input: {
     archive: string
@@ -136,6 +141,7 @@ export const localLanes = {
       branchPrefix: input.branchPrefix,
       sameMachine: input.sameMachine,
       archivePath: input.archive,
+      runtime: localTransferRuntime,
       worktrees,
     })
     try {

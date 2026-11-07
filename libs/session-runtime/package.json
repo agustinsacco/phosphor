@@ -328,6 +328,14 @@
       "types": "./src/lane-transfer/install.ts",
       "default": "./src/lane-transfer/install.ts"
     },
+    "./lane-transfer/runtime": {
+      "types": "./src/lane-transfer/runtime.ts",
+      "default": "./src/lane-transfer/runtime.ts"
+    },
+    "./lane-transfer/claude-version": {
+      "types": "./src/lane-transfer/claude-version.ts",
+      "default": "./src/lane-transfer/claude-version.ts"
+    },
     "./lane-transfer/move": {
       "types": "./src/lane-transfer/move.ts",
       "default": "./src/lane-transfer/move.ts"

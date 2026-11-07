@@ -4,6 +4,7 @@
  * workspace; the source is never changed. Both ends validate everything here,
  * and every refusal is a fixed sentence, never free text from git or pi.
  */
+import { parseLaneRuntimeFacts, type LaneRuntimeFacts } from './lane-transfer-runtime'
 import { isLaneMarker } from './host-protocol-lane-marks'
 import { isLaneBranchName } from './host-protocol/primitives'
 
@@ -58,6 +59,7 @@ export interface LaneGitFacts {
 }
 
 export interface LaneSourceFacts {
+  runtime?: LaneRuntimeFacts
   sessionId: string
   title: string | null
   /** The source workspace's folder name. */
@@ -188,7 +190,11 @@ function parseGit(v: unknown): LaneGitFacts | null | undefined {
 export function parseLaneSourceFacts(v: unknown): LaneSourceFacts | null {
   if (
     !isRecord(v) ||
-    !exact(v, ['sessionId', 'title', 'workspace', 'cwd', 'git', 'bytes', 'transcriptBytes']) ||
+    !exact(
+      v,
+      ['sessionId', 'title', 'workspace', 'cwd', 'git', 'bytes', 'transcriptBytes'],
+      ['runtime'],
+    ) ||
     !isSessionId(v.sessionId) ||
     !(v.title === null || transferText(v.title, 200)) ||
     !transferText(v.workspace, 255) ||
@@ -198,8 +204,10 @@ export function parseLaneSourceFacts(v: unknown): LaneSourceFacts | null {
   )
     return null
   const git = parseGit(v.git)
-  if (git === undefined) return null
+  const runtime = v.runtime === undefined ? undefined : parseLaneRuntimeFacts(v.runtime)
+  if (git === undefined || runtime === null) return null
   return {
+    ...(runtime ? { runtime } : {}),
     sessionId: v.sessionId,
     title: v.title,
     workspace: v.workspace,

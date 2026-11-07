@@ -6,8 +6,10 @@ import type { FeatureContext, HostFeature } from './feature'
 import { createLaneExportFeature } from './lane-transfer/export'
 import { createLaneImportFeature } from './lane-transfer/import'
 import { createStaging } from './lane-transfer/staging'
+import type { RuntimeProbe } from '@phosphor/session-runtime/lane-transfer/runtime'
 
 export interface LaneTransferLive {
+  runtime?: RuntimeProbe
   sessionFor(laneId: string): string | null
   /** Publish one lane's current summary to every subscriber. */
   announce(laneId: string): void
@@ -33,12 +35,14 @@ export function createLaneTransferFeatures(
       staging: createStaging(join(root, 'exports')),
       attachmentsRoot,
       sessionFor: live.sessionFor,
+      runtime: live.runtime,
     }),
     createLaneImportFeature(context, {
       staging: createStaging(join(root, 'imports')),
       attachmentsRoot,
       store,
       published: live.announce,
+      runtime: live.runtime,
     }),
   ]
 }

@@ -13,9 +13,11 @@ import {
 } from '@phosphor/session-runtime/lane-transfer/move'
 import type { FeatureContext, FeatureOutcome, HostFeature } from '../feature'
 import { FeatureFailure, featureError } from '../machine'
+import type { RuntimeProbe } from '@phosphor/session-runtime/lane-transfer/runtime'
 import type { Staging } from './staging'
 
 export interface LaneExportPorts {
+  runtime?: RuntimeProbe
   staging: Staging
   /** Where this Host stores lane attachments: only those may leave with a lane. */
   attachmentsRoot: string
@@ -40,6 +42,7 @@ function laneSource(
   const own = join(ports.attachmentsRoot, laneId)
   return {
     sessionFile: lane.sessionFile,
+    runtime: ports.runtime,
     workspace: repository ? basename(repository.path) : 'workspace',
     paths: { env: context.env, home: context.home },
     attachmentAllowed: (path) => {
@@ -86,7 +89,8 @@ function readPart(staging: Staging, exportId: string, offset: number) {
 /**
  * `laneTransfer.inspect`, `.export`, `.read` and `.release`: read one stopped
  * lane into a bundle a client can carry to another machine. Reading it is
- * reading the lane, so `sessions.read` is enough; nothing here changes it.
+ * more than its rendered messages (CLI ledgers and attached files included),
+ * so it requires `sessions.control`, as HTML export does. Nothing here changes it.
  */
 export function createLaneExportFeature(
   context: FeatureContext,
@@ -120,7 +124,7 @@ export function createLaneExportFeature(
     }
   }
   return {
-    capability: 'sessions.read',
+    capability: 'sessions.control',
     methods: LANE_EXPORT_METHODS,
     async call(method, params, authorized = () => false) {
       if (!authorized()) return featureError(new FeatureFailure('forbidden'))

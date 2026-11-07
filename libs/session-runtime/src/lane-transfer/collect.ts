@@ -12,6 +12,7 @@ import {
 import { claudeProjectDirForCwd, claudeProviderStateDir } from '../pi/pi-paths'
 import { refuse, regularSize, sha256File, walkFiles } from './files'
 import { parseHeader, splitTranscript, transcriptFacts } from './transcript'
+import { sourceRuntime, type TransferRuntime } from './runtime'
 
 /** Where one machine keeps what a lane is made of. */
 export interface MachinePaths {
@@ -124,10 +125,13 @@ async function readTranscript(sessionFile: string) {
  * that are gone, changed type or grew past the limit are left out: they are
  * history, not something the lane needs to continue.
  */
-export async function collectLane(input: CollectInput): Promise<CollectedLane> {
+export async function collectLane(
+  input: CollectInput & { runtime?: TransferRuntime },
+): Promise<CollectedLane> {
   const { sessionFile, paths } = input
   const { fileName, transcriptBytes, text, header, facts } = await readTranscript(sessionFile)
-  if ((facts.title?.length ?? 0) > 200) refuse('This lane’s name is too long to move without changing it.')
+  if ((facts.title?.length ?? 0) > 200)
+    refuse('This lane’s name is too long to move without changing it.')
   const parts: LanePart[] = []
   const files: string[] = []
   const add: AddPart = async (kind, path, file, from) => {
@@ -155,6 +159,7 @@ export async function collectLane(input: CollectInput): Promise<CollectedLane> {
       claude,
       parts,
       source: {
+        ...(input.runtime ? { runtime: sourceRuntime(input.runtime, facts) } : {}),
         sessionId: header.id,
         title: facts.title,
         workspace: input.workspace.slice(0, 255) || 'folder',
