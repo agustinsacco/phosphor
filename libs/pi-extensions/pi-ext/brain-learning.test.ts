@@ -146,6 +146,66 @@ describe('brain-learning pi-side one logical generation', () => {
     ])
       expect(() => resolveLearningOutcome(outcome(quote), context.evidence)).toThrow(/citation/)
   })
+  it('retains dependencies for image-only inputs and thinking-only generated context', () => {
+    const { request, port } = setup()
+    const branch = [
+      {
+        id: 'system',
+        parentId: null,
+        type: 'message',
+        message: { role: 'system', content: 'system' },
+      },
+      {
+        id: 'image',
+        parentId: 'system',
+        type: 'message',
+        message: {
+          role: 'user',
+          content: [{ type: 'image', mimeType: 'image/png', data: 'synthetic' }],
+        },
+      },
+      {
+        id: 'thinking',
+        parentId: 'image',
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'thinking', thinking: 'retained internal plaintext' }],
+        },
+      },
+    ]
+    const entries = branch.map((entry) => ({
+      entryId: entry.id,
+      parentId: entry.parentId,
+      entryHash: learningHash(entry),
+      rootId: learningHash(entry),
+    }))
+    request.source = {
+      ...request.source,
+      selectedLeafId: 'thinking',
+      entries,
+      contentDigest: learningHash(entries),
+    }
+    port.sessionManager = {
+      getLeafId: () => 'thinking',
+      getBranch: () => branch,
+      buildSessionProjection: () => ({
+        entries: branch.map((entry) => ({ sourceEntry: entry, messages: [entry.message] })),
+      }),
+    }
+    port.convertToLlm = (messages) =>
+      structuredClone(messages) as ReturnType<typeof port.convertToLlm>
+    const projected = projectLearningContext(request, port)
+    expect(projected.evidence).toEqual([])
+    expect(projected.checkpoint.rootIds).toEqual(['image'])
+    expect(projected.checkpoint.covered.map((entry) => entry.entryId)).toEqual([
+      'system',
+      'image',
+      'thinking',
+    ])
+    expect(JSON.stringify(projected.messages)).toContain('retained internal plaintext')
+    expect(JSON.stringify(projected.messages)).toContain('image/png')
+  })
   it('appends one deterministic final USER suffix, never edits source or replaces system/tools', async () => {
     const { request, port, streamSimple } = setup()
     const before = JSON.stringify({
