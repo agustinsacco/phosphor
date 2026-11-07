@@ -363,3 +363,25 @@ it('does not offer a paid retry while the prior private job is queued or running
   await click('Inspect previous attempt')
   expect(learn).not.toHaveBeenCalled()
 })
+it('refreshes accepted job metadata after consent is dismissed without reopening stale modal content', async () => {
+  let resolve!: (value: ReturnType<typeof learningJob>) => void
+  learn.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done
+      }),
+  )
+  await mount()
+  await open()
+  await act(async () =>
+    (document.querySelector('input[type=checkbox]') as HTMLInputElement).click(),
+  )
+  await click('Learn once')
+  await click('Close')
+  const count = jobs.mock.calls.length
+  jobs.mockResolvedValue({ items: [learningJob()], truncated: false })
+  await act(async () => resolve(learningJob()))
+  expect(jobs.mock.calls.length).toBe(count + 1)
+  expect(document.querySelector('[aria-label="Private learning inspector"]')).toBeNull()
+  expect(document.querySelector('[data-testid=learning-indicator]')).not.toBeNull()
+})
