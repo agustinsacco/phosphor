@@ -43,7 +43,9 @@ export async function transferFiles(
     }
   }
   await store.refreshDir(workspace, dir)
-  if (dir !== workspace && !store.expanded[dir]) await store.toggleDir(workspace, dir)
+  // Read expansion now: the user may have opened the folder while the transfer ran.
+  if (dir !== workspace && !useFilesStore.getState().expanded[dir])
+    await store.toggleDir(workspace, dir)
   useExtensionUiStore
     .getState()
     .pushToast(
