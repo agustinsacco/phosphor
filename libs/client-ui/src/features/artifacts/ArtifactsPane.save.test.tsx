@@ -69,7 +69,7 @@ it('Desktop: a cancelled Save source writes nothing', async () => {
   expect(invoke.mock.calls.map(([channel]) => channel)).not.toContain('fs:writeFile')
 })
 
-it('a browser shows Save source and downloads it, and keeps PDF export hidden', async () => {
+it('a browser offers Download source on a Host lane, downloads it, and keeps PDF export hidden', async () => {
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
   URL.createObjectURL = vi.fn(() => 'blob:x')
   const container = document.createElement('div')
@@ -79,14 +79,14 @@ it('a browser shows Save source and downloads it, and keeps PDF export hidden', 
     await act(async () =>
       root.render(
         <PlatformProvider value={COMPACT_PLATFORM}>
-          <ArtifactsPane sessionId="lane" workspacePath="/repo" />
+          <ArtifactsPane sessionId="lane" workspacePath="host:h-1/repo" />
         </PlatformProvider>,
       ),
     )
     expect(container.querySelector('[data-tooltip^="Export preview to PDF"]')).toBeNull()
-    await act(async () =>
-      container.querySelector<HTMLButtonElement>('[data-tooltip="Save source to file…"]')?.click(),
-    )
+    const download = container.querySelector<HTMLButtonElement>('[data-tooltip="Download source"]')
+    expect(download?.getAttribute('aria-label')).toBe('Download source')
+    await act(async () => download?.click())
     expect(invoke.mock.calls.map(([channel]) => channel)).not.toContain('app:saveDialog')
     expect(click).toHaveBeenCalledOnce()
     expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('field-guide.md')
