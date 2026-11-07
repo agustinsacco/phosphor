@@ -258,7 +258,13 @@ describe('selected lane learning coordinator', () => {
     await f.done.promise
     await f.learning.dispose()
     expect(f.store.completeLearning).not.toHaveBeenCalled()
-    expect(f.store.failLearning).toHaveBeenCalledWith('job', 1, 'failed', expect.any(String), null)
+    expect(f.store.failLearning).toHaveBeenCalledWith('job', 1, 'failed', expect.any(String), {
+      input: 9,
+      output: 4,
+      cacheRead: null,
+      cacheWrite: null,
+      reasoning: null,
+    })
   })
   it('cancels a noncooperative request and refuses its late result', async () => {
     const f = setup(),

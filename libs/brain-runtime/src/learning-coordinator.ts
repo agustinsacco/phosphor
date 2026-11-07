@@ -28,6 +28,9 @@ interface LearningOptions extends LearningPreflightOptions {
 interface Active {
   id: string
   abort: AbortController
+  admission: Promise<void>
+  admitted(): void
+  timer: ReturnType<typeof setTimeout>
   done?: Promise<void>
   preflight?: LearningPreflight
   job?: BrainJob
@@ -61,40 +64,31 @@ export function createBrainLearning(options: LearningOptions) {
 }
 class BrainLearning {
   private active?: Active
-  private previewing = false
   private closed = false
   constructor(private readonly options: LearningOptions) {}
   preview = async (target: BrainLearningTarget): Promise<BrainLearningPreview> => {
-    if (this.closed || this.active || this.previewing)
-      throw new Error('Learning is unavailable or busy')
-    this.previewing = true
-    let preflight: LearningPreflight | undefined
+    const active = this.reserve()
     try {
-      preflight = await learningPreflight(
+      active.preflight = await learningPreflight(
         this.options,
         target,
-        (this.options.jobId ?? randomUUID)(),
-        AbortSignal.timeout(120_000),
+        active.id,
+        active.abort.signal,
       )
-      return preflight.preview
+      active.abort.signal.throwIfAborted()
+      return active.preflight.preview
     } finally {
       try {
-        await preflight?.prepared.dispose()
+        await this.release(active)
       } finally {
-        this.previewing = false
+        active.admitted()
       }
     }
   }
   start = async (target: BrainLearningTarget, input: BrainLearningConsent): Promise<BrainJob> => {
     consentInput(input)
     const consent = structuredClone(input)
-    if (this.closed || this.active || this.previewing)
-      throw new Error('Learning is unavailable or busy')
-    const active: Active = {
-      id: (this.options.jobId ?? randomUUID)(),
-      abort: new AbortController(),
-    }
-    this.active = active
+    const active = this.reserve()
     try {
       const flight = await learningPreflight(this.options, target, active.id, active.abort.signal)
       active.preflight = flight
@@ -129,7 +123,21 @@ class BrainLearning {
     } catch (error) {
       await this.release(active)
       throw error
+    } finally {
+      active.admitted()
     }
+  }
+  private reserve(): Active {
+    if (this.closed || this.active) throw new Error('Learning is unavailable or busy')
+    let admitted!: () => void
+    const admission = new Promise<void>((resolve) => {
+      admitted = resolve
+    })
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(new Error('Learning deadline exceeded')), 120_000)
+    const active = { id: (this.options.jobId ?? randomUUID)(), abort, admission, admitted, timer }
+    this.active = active
+    return active
   }
   private request(active: Active, consent: BrainLearningConsent): BrainLearningRequest {
     const flight = active.preflight!
@@ -170,27 +178,28 @@ class BrainLearning {
     )
       throw new Error('Learning result does not match admitted source and binding')
   }
-  private execute = async (active: Active, request: BrainLearningRequest): Promise<void> => {
-    const timer = setTimeout(
-      () => active.abort.abort(new Error('Learning deadline exceeded')),
-      120_000,
+  private async assertAuthority(flight: LearningPreflight): Promise<void> {
+    const current = await (this.options.authority ?? laneAuthority)(
+      flight.preview.target.workspacePath,
     )
+    if (current.scope !== flight.preview.scope || current.branch !== flight.preview.branch)
+      throw new Error('Learning workspace authority changed')
+  }
+  private execute = async (active: Active, request: BrainLearningRequest): Promise<void> => {
+    let usage: BrainLearningUsage | null = null
     try {
       active.job = await this.options.store.claimJob(active.id)
       active.abort.signal.throwIfAborted()
       const flight = active.preflight!
+      await this.assertAuthority(flight)
+      active.abort.signal.throwIfAborted()
       const result = await abortable(
         flight.prepared.run(request, active.abort.signal),
         active.abort.signal,
       )
+      usage = failureUsage({ learningUsage: result.usage })
       this.assertResult(active, request, result)
-      const current = await (this.options.authority ?? laneAuthority)(
-        flight.preview.target.workspacePath,
-      )
-      if (current.scope !== flight.preview.scope || current.branch !== flight.preview.branch)
-        throw Object.assign(new Error('Learning workspace authority changed before completion'), {
-          learningUsage: result.usage,
-        })
+      await this.assertAuthority(flight)
       active.abort.signal.throwIfAborted()
       await this.options.store.completeLearning(active.id, active.job.fence, {
         outcome: result.outcome,
@@ -203,15 +212,15 @@ class BrainLearning {
           active.job.fence,
           active.abort.signal.aborted ? 'cancelled' : 'failed',
           (error instanceof Error ? error.message : 'Learning failed').slice(0, 2000),
-          failureUsage(error),
+          failureUsage(error) ?? usage,
         )
       this.options.report?.(error)
     } finally {
-      clearTimeout(timer)
       await this.release(active)
     }
   }
   private async release(active: Active): Promise<void> {
+    clearTimeout(active.timer)
     await active.preflight?.prepared.dispose()
     if (this.active === active) this.active = undefined
   }
@@ -220,6 +229,7 @@ class BrainLearning {
     if (this.active?.id !== id) throw new Error('Learning job is not active')
     const active = this.active
     active.abort.abort(new Error('Learning cancelled'))
+    await active.admission
     if (active.done) await active.done
   }
   revoke = async (): Promise<void> => {
