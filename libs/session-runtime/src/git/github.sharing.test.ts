@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { indexPrsByBranch } from './gh-cli'
+import { indexPrsByBranch } from './github'
 
 it('keeps open PRs ahead of newer closed PRs and summarizes checks for shared clients', () => {
   expect(

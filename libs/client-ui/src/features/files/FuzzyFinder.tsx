@@ -1,4 +1,5 @@
-import { REMOTE_UNAVAILABLE, useNavigationHostId } from '@/stores/remoteLanes'
+import { REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
+import { useNavigationHostId } from '@/stores/remoteLanes'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSessionsStore } from '@/stores/sessions'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'

@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { newRoutine } from '@shared/routines'
 import { shutdownApproval } from '../shutdown-approval'
-import { RoutineRepository } from './repository'
-import { RoutineScheduler, type RoutineExecutor } from './scheduler'
+import { RoutineRepository } from '@phosphor/session-runtime/routines/repository'
+import { RoutineScheduler } from './scheduler'
+import type { RoutineExecutor } from '@phosphor/session-runtime/routines/scheduler'
 
 const fixtures: { repo: RoutineRepository; scheduler: RoutineScheduler }[] = []
 function harness(

@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { ThinkingLevel } from '@shared/rpc'
-import { Button } from '@/components/form'
 import { ModelMenu, type ModelMenuEntry } from '@/features/chat/composer/ModelMenu'
 import { ThinkingMenu, thinkingLabel } from '@/features/chat/composer/ThinkingMenu'
 import { ModelChip, ModelChipSkeleton, ThinkingChip } from '@/features/chat/composer/ModelChip'
+import { ModelActionButtons, type ModelAction } from '@/features/chat/composer/ModelActionButtons'
 import './startModelPicker.css'
 
 /**
@@ -38,7 +38,7 @@ export interface StartModelSource {
     unavailable?: ReadonlyMap<string, { detail: string }> | undefined
   }
   /** What the machine offers when it has no usable model: Retry models, Sign in on it. */
-  actions: { label: string; run: () => void }[]
+  actions: ModelAction[]
 }
 
 /**
@@ -103,11 +103,7 @@ export function StartModelPicker({ source }: { source: StartModelSource }): Reac
           />
         )}
       </div>
-      {source.actions.map((action) => (
-        <Button key={action.label} size="sm" onClick={action.run}>
-          {action.label}
-        </Button>
-      ))}
+      <ModelActionButtons actions={source.actions} />
     </div>
   )
 }

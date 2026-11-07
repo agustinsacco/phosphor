@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { isWorktreeFolder as rendererIsWorktreeFolder } from '../../client-ui/src/lib/path'
 import { isWorktreeFolder, WORKTREE_SEGMENT } from '@phosphor/shared/worktree-segment'
 
 describe('worktree-segment', () => {
@@ -14,7 +13,6 @@ describe('worktree-segment', () => {
         for (const middle of ['/', '\\']) {
           for (const after of ['/', '\\']) {
             const path = `repo${before}.${name}${middle}worktrees${after}task`
-            expect(rendererIsWorktreeFolder(path)).toBe(true)
             expect(isWorktreeFolder(path)).toBe(true)
             expect(WORKTREE_SEGMENT.test(path)).toBe(true)
           }
@@ -49,7 +47,6 @@ describe('worktree-segment', () => {
     ['/repo/.claude/worktrees/task', false],
     ['/repo/.pi/agent/sessions/task', false],
   ] as const)('classifies %j as %s without normalization', (path, expected) => {
-    expect(rendererIsWorktreeFolder(path)).toBe(expected)
     expect(isWorktreeFolder(path)).toBe(expected)
     expect(WORKTREE_SEGMENT.test(path)).toBe(expected)
   })
