@@ -289,6 +289,34 @@ describe('selected lane learning coordinator', () => {
     expect(f.host.prepare).toHaveBeenCalledTimes(2)
     expect(f.run).not.toHaveBeenCalled()
   })
+  it.each(['preview', 'start'] as const)(
+    'shutdown waits for late %s preparation and purges it',
+    async (operation) => {
+      const f = setup(),
+        consent = await f.consent()
+      const blocked = deferred<PreparedBrainLearning>()
+      f.host.prepare.mockImplementation(() => blocked.promise)
+      const pending = (
+        operation === 'preview' ? f.learning.preview(f.target) : f.learning.start(f.target, consent)
+      ).then(
+        () => null,
+        (error: unknown) => error,
+      )
+      await vi.waitFor(() => expect(f.host.prepare).toHaveBeenCalledTimes(2))
+      let closed = false
+      const closing = f.learning.dispose().then(() => {
+        closed = true
+      })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(closed).toBe(false)
+      blocked.resolve(f.prepared)
+      expect(await pending).toBeInstanceOf(Error)
+      await closing
+      expect(f.dispose).toHaveBeenCalledTimes(2)
+      expect(f.run).not.toHaveBeenCalled()
+      expect(f.store.createLearning).not.toHaveBeenCalled()
+    },
+  )
   it('retains only safe known response usage on failure without completion or retry', async () => {
     const f = setup(),
       consent = await f.consent()
