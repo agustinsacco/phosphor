@@ -305,7 +305,7 @@ palette or the shortcuts above.
 
 The artifacts toolbar carries **two exports that are not the same thing**, and
 they no longer share a glyph: a tray saves the _source_ (a save dialog on
-Desktop, a download in the browser), a page prints the _preview_ to a PDF in
+Desktop, "Download source" in the browser), a page prints the _preview_ to a PDF in
 Downloads. PDF export is Desktop-only: printing in the page would render model
 HTML in the app's own origin. The PDF prints what the preview
 renders, so it returns to the Preview tab and waits for an async render first,

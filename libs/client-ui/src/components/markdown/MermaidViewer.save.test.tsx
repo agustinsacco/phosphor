@@ -20,7 +20,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
-async function clickSave(platform = DESKTOP_PLATFORM): Promise<void> {
+async function clickSave(platform = DESKTOP_PLATFORM, label = 'Save SVG'): Promise<void> {
   const container = document.createElement('div')
   document.body.append(container)
   const root = createRoot(container)
@@ -35,7 +35,8 @@ async function clickSave(platform = DESKTOP_PLATFORM): Promise<void> {
       </PlatformProvider>,
     ),
   )
-  const save = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Save SVG')
+  const save = [...document.querySelectorAll('button')].find((b) => b.textContent === label)
+  expect(save).toBeDefined()
   await act(async () => save?.click())
   act(() => root.unmount())
   container.remove()
@@ -64,10 +65,10 @@ it('Desktop: a cancelled Save SVG writes nothing', async () => {
   expect(invoke.mock.calls.map(([channel]) => channel)).toEqual(['app:saveDialog'])
 })
 
-it('a browser shows Save SVG and downloads the diagram, with no native channel', async () => {
+it('a browser shows Download SVG and downloads the diagram, with no native channel', async () => {
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
   URL.createObjectURL = vi.fn(() => 'blob:x')
-  await clickSave(COMPACT_PLATFORM)
+  await clickSave(COMPACT_PLATFORM, 'Download SVG')
   expect(invoke).not.toHaveBeenCalled()
   expect(click).toHaveBeenCalledOnce()
   expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('diagram.svg')
