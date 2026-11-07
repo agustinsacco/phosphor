@@ -63,6 +63,12 @@ export async function learningPreflight(
     if (prepared.scope !== authority.scope || prepared.branch !== authority.branch)
       throw new Error('Learning workspace authority changed')
     if (
+      typeof prepared.authIdentityFence !== 'string' ||
+      !prepared.authIdentityFence ||
+      prepared.authIdentityFence.length > 4096
+    )
+      throw new Error('Learning account identity fence unavailable')
+    if (
       !Number.isSafeInteger(prepared.maxOutputTokens) ||
       prepared.maxOutputTokens < 1 ||
       prepared.maxOutputTokens > 32768
@@ -103,7 +109,7 @@ export async function learningPreflight(
       covered: prior.covered,
       preview: {
         ...identity,
-        fingerprint: learningDigest(identity),
+        fingerprint: learningDigest([identity, prepared.authIdentityFence]),
         coveredCount: covered.length - newCount,
         newCount,
         previousJobId: prior.previousJobId,

@@ -13,6 +13,8 @@ export interface PreparedBrainLearning {
   /** Fresh acknowledged workspace authority, never an inferred historical branch. */
   branch: string | null
   binding: BrainLearningBinding
+  /** Opaque account-identity epoch, unchanged by ordinary provider-owned token refresh. */
+  authIdentityFence: string
   /** Supported selected-model output ceiling, bounded at 32768; never a model fallback. */
   maxOutputTokens: number
   checkpoint: BrainLearningCheckpoint
