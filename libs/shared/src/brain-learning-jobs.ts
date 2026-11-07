@@ -21,6 +21,7 @@ export interface BrainLearningCheckpointSummary {
 }
 export interface BrainLearningJobMetadata extends BrainLearningCheckpointSummary {
   target: BrainLearningTarget
+  branch: string | null
   binding: BrainLearningBinding
   /** Explicitly acknowledged predecessor; repeat acknowledgments reuse their successor. */
   retryOf?: string
@@ -32,6 +33,7 @@ export interface BrainLearningJobMetadata extends BrainLearningCheckpointSummary
 export interface BrainLearningPreview extends BrainRevision {
   target: BrainLearningTarget
   scope: string
+  branch: string | null
   checkpoint: BrainLearningCheckpointSummary
   binding: BrainLearningBinding
   /** Hash of the verified source, selected billing slot and current consent epoch. */
@@ -60,6 +62,7 @@ export interface BrainLearningDetail {
 export interface BrainLearningStart {
   jobId: string
   scope: string
+  branch: string | null
   target: BrainLearningTarget
   binding: BrainLearningBinding
   checkpoint: BrainLearningCheckpointSummary

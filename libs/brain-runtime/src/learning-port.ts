@@ -10,6 +10,8 @@ import type {
 /** Main-process ownership, projection and billing binding. Never a renderer or model port. */
 export interface PreparedBrainLearning {
   scope: string
+  /** Fresh acknowledged workspace authority, never an inferred historical branch. */
+  branch: string | null
   binding: BrainLearningBinding
   /** Supported selected-model output ceiling, bounded at 32768; never a model fallback. */
   maxOutputTokens: number
