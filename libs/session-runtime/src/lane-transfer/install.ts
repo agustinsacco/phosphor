@@ -41,6 +41,8 @@ export interface InstallInput {
   /** Whether a pi session with this id already exists on this machine. */
   sessionTaken(sessionId: string): Promise<boolean>
   now?: () => Date
+  /** Target indexing ceiling, including the appended move notice. */
+  maxTranscriptBytes?: number
 }
 
 export interface InstalledLane {
@@ -284,6 +286,11 @@ async function publishTranscript(
   })
   const body = text.endsWith('\n') ? text : `${text}\n`
   const entry = noticeEntry(notice, transcriptFacts(split.rest).leafId, ids.now, moved)
+  if (
+    input.maxTranscriptBytes !== undefined &&
+    Buffer.byteLength(`${body}${entry}\n`) > input.maxTranscriptBytes
+  )
+    refuse('The moved transcript including its notice exceeds this Host’s 32 MiB limit.')
   const temporary = join(ids.sessionDir, `.${ids.fileName}.${randomBytes(6).toString('hex')}.tmp`)
   await out.put(temporary, `${body}${entry}\n`)
   await utimes(temporary, ids.now, new Date(manifest.modifiedAt))

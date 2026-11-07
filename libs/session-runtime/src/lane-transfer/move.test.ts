@@ -238,6 +238,40 @@ describe('moving a lane in a folder git does not track', () => {
     expect(existsSync(join(to.home, '.pi/agent/pi-claude-cli/session-map.json'))).toBe(false)
   })
 
+  it('counts the move notice toward the destination transcript ceiling and rolls back', async () => {
+    const from = machine('cap-from')
+    const to = machine('cap-to')
+    const cwd = join(from.home, 'notes')
+    const target = join(to.home, 'notes')
+    mkdirSync(cwd)
+    mkdirSync(target)
+    const lane = writeLane(from, cwd)
+    const bundle = join(from.home, 'bundle')
+    await exportLane(
+      {
+        sessionFile: lane.sessionFile,
+        workspace: 'notes',
+        paths: from,
+        attachmentAllowed: () => false,
+      },
+      bundle,
+    )
+    const archive = await openArchive(bundle)
+    await expect(
+      installLane({
+        archive,
+        plan: { mode: 'folder', branch: null, workspace: 'notes', blockers: [] },
+        cwd: target,
+        paths: to,
+        labels,
+        attachmentsDir: null,
+        sessionTaken: async () => false,
+        maxTranscriptBytes: archive.manifest.source.transcriptBytes,
+      }),
+    ).rejects.toThrow('including its notice')
+    expect(existsSync(sessionDirForCwd(target, join(to.home, '.pi/agent/sessions')))).toBe(false)
+  })
+
   it('never follows a symlink in a destination ancestor', async () => {
     const from = machine('symlink-from')
     const to = machine('symlink-to')

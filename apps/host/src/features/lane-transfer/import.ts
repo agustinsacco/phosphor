@@ -123,6 +123,7 @@ async function admit(
       paths,
       labels: begin.notice,
       attachmentsDir: () => join(ports.attachmentsRoot, id),
+      maxTranscriptBytes: LIMIT.transcriptBytes,
       sessionTaken: sessionTaken(paths),
     })
     undo = installed.undo
