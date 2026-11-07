@@ -2,9 +2,9 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
-import { SessionFileTarget } from './SessionFileTarget'
-import { RightPane } from './RightPane'
-import { PathLink } from '@/features/chat/tools/PathLink'
+import { SessionFileTarget } from '@/features/files/SessionFileTarget'
+import { RightPane } from '@/features/files/RightPane'
+import { PathLink } from './PathLink'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { openFileInWorkspace, useLayoutStore } from '@/stores/layout'
@@ -14,7 +14,7 @@ vi.hoisted(() => {
   window.matchMedia = () => ({ matches: false, addEventListener() {} }) as unknown as MediaQueryList
 })
 vi.mock('@/lib/monaco', () => ({}))
-vi.mock('./MonacoEditor', () => ({
+vi.mock('@/features/files/MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
   MonacoDiff: () => null,
   MonacoEditor: ({
