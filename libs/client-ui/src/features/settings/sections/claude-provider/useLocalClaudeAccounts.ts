@@ -8,7 +8,7 @@ import type {
   ClaudeUsageSnapshotResult,
   PiPackageEntry,
 } from '@shared/models'
-import { claudeProviderState } from '@shared/models'
+import { CLAUDE_PROVIDER_PACKAGE, claudeProviderState } from '@shared/models'
 import { errorText } from '@shared/errors'
 import { isNewerVersion } from '@shared/version'
 import { basename } from '@/lib/path'
@@ -27,7 +27,7 @@ import {
 import type { ClaudeHealthModel, ClaudeInstallable } from './ClaudeHealth'
 import { useLocalRead } from '../../machine/ScopeRefresh'
 
-const CLAUDE_PROVIDER_SPEC = 'npm:@saccolabs/pi-claude-cli'
+const CLAUDE_PROVIDER_SPEC = `npm:${CLAUDE_PROVIDER_PACKAGE}`
 
 interface LocalClaudeState {
   pkg: PiPackageEntry | null | undefined
@@ -56,7 +56,7 @@ function useLocalClaudeState() {
         window.phosphor.invoke('packages:claudeStatus'),
         window.phosphor.invoke('claude:accounts'),
       ])
-      const pkg = entries.find((e) => e.spec.includes('pi-claude-cli')) ?? null
+      const pkg = entries.find((e) => e.name === CLAUDE_PROVIDER_PACKAGE) ?? null
       setError(null)
       setState((s) => ({ ...s, pkg, entries, status, accounts }))
       // Both version checks hit the network, so neither blocks the health rows.

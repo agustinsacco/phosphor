@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test'
 import { chmod, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { scratchDir } from './fixtures/scratch'
+import { restAtTail } from './fixtures/transcript-scroll'
 import { basename, join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -4173,11 +4174,8 @@ test('transcript: reading back through a finished transcript is never fought', a
 
     const scroller = page.getByTestId('transcript-scroll')
     await expect(page.getByText('many turns complete')).toBeVisible({ timeout: 60_000 })
-    await expect
-      .poll(async () => await scroller.evaluate((el) => el.scrollHeight - el.clientHeight), {
-        timeout: 30_000,
-      })
-      .toBeGreaterThan(2000)
+    // Read back only from where the follow left the view, not mid-catch-up.
+    await restAtTail(scroller, 2000)
 
     const box = (await scroller.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
@@ -4190,15 +4188,16 @@ test('transcript: reading back through a finished transcript is never fought', a
     let previous = await scroller.evaluate((el) => el.scrollTop)
     const start = previous
     let fought = 0
+    const tops = [start]
     for (let i = 0; i < 25; i++) {
       await page.mouse.wheel(0, -120)
       await page.waitForTimeout(80)
       const top = await scroller.evaluate((el) => el.scrollTop)
       if (top > previous + 1) fought += 1
-      previous = top
+      tops.push((previous = top))
     }
 
-    expect(fought).toBe(0)
+    expect(fought, `scrollTop per notch: ${tops.join(' ')}`).toBe(0)
     expect(previous).toBeLessThan(start - 1000)
 
     // Nothing re-pins it afterwards either.

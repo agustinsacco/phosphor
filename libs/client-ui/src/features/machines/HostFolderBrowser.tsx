@@ -3,7 +3,7 @@ import type { HostConnectionView, IpcInvokeMap } from '@shared/ipc'
 import { ModalOverlay, ModalPanel, useEscapeKey } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { fixedRefusal, isFolderName } from '@shared/host-protocol-repositories'
-import { hostFeatureRefusal, needsNewerHost, REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
+import { hostFeatureRefusal, needsNewerHost } from '@/stores/hostRefusals'
 import { useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
 import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 
@@ -51,6 +51,11 @@ function NewFolderRow({
   )
 }
 
+/** Only a Host that predates hidden listings refuses a hidden listing where a plain one works. */
+function listingError(hidden: boolean): string {
+  return hidden ? needsNewerHost('Hidden folders need') : 'Could not read folders.'
+}
+
 /** This device may add a folder on the Host: it is ready and grants `workspaces.write`. */
 export function canAddHostFolder(host: HostConnectionView | undefined): boolean {
   return host?.state === 'ready' && host.capabilities.includes('workspaces.write')
@@ -86,8 +91,7 @@ export function HostFolderBrowser({
           if (alive) setListing(result)
         })
         .catch(() => {
-          // Only a Host that predates hidden listings refuses this where a plain one works.
-          if (alive) setError(hidden ? needsNewerHost('Hidden folders need') : REMOTE_UNAVAILABLE)
+          if (alive) setError(listingError(hidden))
         })
     return () => {
       alive = false

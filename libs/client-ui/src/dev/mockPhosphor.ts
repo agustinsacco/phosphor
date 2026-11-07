@@ -29,7 +29,7 @@ import type {
 import { mockMcpInspection, mockMcpList } from './mockMcpInspection'
 import type { ArtifactListing, ArtifactSnapshot } from '@shared/artifacts'
 import { normalizeContextFilePrefs, type ContextFilePrefs } from '@shared/context-files'
-import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
+import { CLAUDE_PROVIDER_PACKAGE, DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
 import {
   compileSearch,
   EMPTY_SEARCH_RESULT,
@@ -1301,7 +1301,7 @@ export function installMockPhosphor(): void {
               scope: 'global',
               kind: 'npm',
               filtered: false,
-              name: 'pi-claude-cli',
+              name: CLAUDE_PROVIDER_PACKAGE,
               version: '0.5.0',
               description: 'Claude Code CLI as a pi model provider',
               installed: true,
