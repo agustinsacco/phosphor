@@ -1,7 +1,6 @@
 import { laneMarks } from '@phosphor/host-client/lane-marks'
 import { repositoryManagement } from '@phosphor/host-client/repository-management'
-import { repositoryReads } from '@phosphor/host-client/repository-reads'
-import { machineReads } from '@phosphor/host-client/machine-reads'
+import { registerHostReadHandlers } from './hosts-read-handlers'
 import { registerHostSettingsHandlers } from './host-settings-handlers'
 import { uploadAttachments } from '@phosphor/host-client/attachments'
 import { routeRemoteWrite } from '@phosphor/host-client/write-features'
@@ -51,14 +50,6 @@ let remote: RemoteLanes | undefined
 export function remoteLanes(): RemoteLanes {
   if (!remote) throw new Error('Remote lanes are not ready.')
   return remote
-}
-
-function registerCatalogueHandlers(catalogues: ReturnType<typeof machineReads>): void {
-  handle('hosts:models', (_event, hostId) => catalogues.models(hostId))
-  handle('hosts:claude', (_event, hostId) => catalogues.claude(hostId))
-  handle('hosts:claudeUsage', (_event, ...args) => catalogues.claudeUsage(...args))
-  handle('hosts:providers', (_event, hostId) => catalogues.providers(hostId))
-  handle('hosts:skills', (_event, hostId) => catalogues.skills(hostId))
 }
 
 /** Folders, lane deletion and lane pins and markers: changes a Host keeps for every client. */
@@ -151,15 +142,7 @@ export function registerHostsHandlers(): void {
       }),
   })
   registerManagementHandlers(manager.connection)
-  const repositories = repositoryReads(manager.connection)
-  handle('hosts:repositoryFiles', (_event, hostId, repositoryId) =>
-    repositories.list(hostId, repositoryId),
-  )
-  handle('hosts:repositoryFile', (_event, hostId, repositoryId, path) =>
-    repositories.read(hostId, repositoryId, path),
-  )
-  const catalogues = machineReads(manager.connection)
-  registerCatalogueHandlers(catalogues)
+  const { repositories, catalogues } = registerHostReadHandlers(manager.connection)
   remote = createRemoteLanes({
     connection: manager.connection,
     present: manager.present,
