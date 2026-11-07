@@ -12,7 +12,7 @@ import { create } from 'zustand'
  * the way the list does.
  */
 export interface LaneSelectionState {
-  /** The selecting group: a local workspace path, or a Host folder's key per list. */
+  /** The selecting group: one mounted group's key (`useGroupSelection`). */
   group: string | null
   /** Session files on This Mac, lane ids on a Host. */
   keys: readonly string[]
@@ -97,7 +97,7 @@ export function useGroupSelection(groupKey: string): {
 }
 
 /** Which of `groups` is selecting, if any; another list's selection reads as null. */
-export function useSelectingGroup(groups: readonly string[]): string | null {
+function useSelectingGroup(groups: readonly string[]): string | null {
   return useLaneSelection((s) => (s.group !== null && groups.includes(s.group) ? s.group : null))
 }
 
