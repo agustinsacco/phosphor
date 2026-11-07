@@ -194,11 +194,12 @@ that launch. No CDN, font installation requirement, or preference reset.
 heading, width (56rem maximum), gutters and scroll containment. Remote creation
 uses one `RemoteWorkspacePage` in both clients, capped at 48rem, around the same
 `StartComposer` This Mac uses.
-Browser navigation is a drawer below 900px and a 256px sidebar above it, the
-width of Desktop's default sidebar. Phone
-hit targets are at least 44px; text-entry fields are 16px to avoid iOS focus zoom,
-while labels and secondary copy keep the shared compact scale. Larger hit areas
-do not imply larger type everywhere. Width never enables native capabilities.
+Browser navigation is a bottom tab bar below 900px and a 256px sidebar above
+it, the width of Desktop's default sidebar. Phone type follows the iOS Dynamic
+Type scale through the compact `--text-*` tokens. Phone hit targets are at least
+44px: borderless controls grow to it, drawn ones keep a 32px body and a
+transparent 44px hit-slop. Text-entry fields are 16px to avoid iOS focus zoom.
+Larger hit areas do not imply larger controls. Width never enables native capabilities.
 
 **Scale:** nine steps in `@theme`. Every step pins its line-height to `inherit`
 rather than carrying Tailwind's default; set leading explicitly with `leading-*`

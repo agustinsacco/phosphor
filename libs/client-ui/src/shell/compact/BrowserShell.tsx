@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react'
 import { Button } from '@/components/form'
 import { WaitingNote, WaitingPane } from '@/components/Waiting'
-import { PlusIcon, SidebarToggleIcon } from '@/components/icons'
 import { useNavigation } from '@/navigation/Navigation'
 import { GlobalScreen } from '@/navigation/screens'
 import { useMachinesStore } from '@/stores/machines'
@@ -13,64 +11,61 @@ import { RemoteLaneLinks } from '@/features/sessions/LaneLinks'
 import { BrowserNavigation } from './BrowserNavigation'
 import { CompactLane } from './CompactLane'
 import { CompactLaneHeader } from './CompactLaneHeader'
+import { CompactHome } from './CompactHome'
 import { CompactLanes } from './CompactLanes'
 import { CompactNew } from './CompactNew'
 import { CompactSettings } from './CompactSettings'
+import { BottomTabs } from './BottomTabs'
+import { isLibraryPage, useBrowserMemory } from './browserMemory'
+import { LibrarySwitcher } from './LibrarySwitcher'
+import { NewLaneAction } from './NewLaneAction'
+import { useRememberWhere } from './useBrowserScope'
 
 export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Element {
   const { location } = useNavigation()
   const compact = usePlatform().formFactor === 'compact'
-  const [drawer, setDrawer] = useState(false)
   const machine = locationMachine(location)
-  // A route opened through a store (the account menu's Machines, a lane menu) closes the
-  // phone drawer too; a machine scope change alone keeps it open.
-  const route = JSON.stringify({ ...location, machine: undefined })
-  useEffect(() => setDrawer(false), [route])
+  useRememberWhere(location)
+  // A phone's lane and start page own the bottom of the screen: the composer is there.
+  const tabs = compact && location.to !== 'lane' && location.to !== 'new'
   return (
     <div className="compact-shell browser-shell" data-testid="compact-shell">
-      {!compact && <BrowserNavigation machine={machine} onClose={() => setDrawer(false)} />}
-      <div className="browser-content" inert={compact && drawer ? true : undefined}>
+      {!compact && <BrowserNavigation machine={machine} />}
+      <div className="browser-content">
         {compact && location.to === 'lane' ? (
           <CompactLaneHeader location={location} />
         ) : (
-          <BrowserHeader machine={machine} onMenu={() => setDrawer(true)} />
+          (!compact || location.to === 'new') && <BrowserHeader machine={machine} />
         )}
-        <main className="compact-main" data-route={location.to}>
+        <main className="compact-main" data-route={location.to} data-tabs={tabs || undefined}>
           <BrowserScreen machine={machine} pending={pending} />
         </main>
+        {tabs && <NewLaneAction floating />}
+        {tabs && <BottomTabs />}
       </div>
-      {compact && drawer && (
-        <BrowserNavigation drawer machine={machine} onClose={() => setDrawer(false)} />
-      )}
     </div>
   )
 }
 
-function BrowserHeader({
-  machine,
-  onMenu,
-}: {
-  machine?: string
-  onMenu: () => void
-}): React.JSX.Element {
+/** A wide browser's top bar; on a phone, the start page's way back to its lanes. */
+function BrowserHeader({ machine }: { machine?: string }): React.JSX.Element {
   const { location, navigate } = useNavigation()
   const compact = usePlatform().formFactor === 'compact'
+  const lanes = useBrowserMemory((s) => s.lanes)
   const title = useRemoteLanesStore((s) =>
     location.to === 'lane' && 'hostId' in location.lane
       ? s.hosts[location.lane.hostId]?.lanes.find(
           (lane) => 'laneId' in location.lane && lane.laneId === location.lane.laneId,
         )?.title || 'Lane'
-      : 'Phosphor',
+      : compact && location.to === 'new'
+        ? 'New lane'
+        : 'Phosphor',
   )
+  const back = compact ? (lanes ?? { to: 'lanes' as const }) : { to: 'lanes' as const, machine }
   return (
     <header className="compact-header">
-      {compact && (
-        <Button aria-label="Open navigation" onClick={onMenu}>
-          <SidebarToggleIcon size={18} />
-        </Button>
-      )}
-      {location.to === 'lane' && (
-        <Button aria-label="Back to lanes" onClick={() => navigate({ to: 'lanes', machine })}>
+      {(location.to === 'lane' || compact) && (
+        <Button aria-label="Back to lanes" onClick={() => navigate(back)}>
           ←
         </Button>
       )}
@@ -81,9 +76,7 @@ function BrowserHeader({
       {location.to === 'lane' && 'laneId' in location.lane && (
         <LaneLocation hostId={location.lane.hostId} laneId={location.lane.laneId} />
       )}
-      <Button aria-label="New lane" onClick={() => navigate({ to: 'new', machine })}>
-        <PlusIcon size={17} />
-      </Button>
+      {!compact && <NewLaneAction />}
     </header>
   )
 }
@@ -96,6 +89,7 @@ function BrowserScreen({
   pending: boolean
 }): React.JSX.Element {
   const { location, navigate } = useNavigation()
+  const compact = usePlatform().formFactor === 'compact'
   const machines = useMachinesStore((s) => s.machines)
   const loading = useMachinesStore((s) => s.loading || !s.remoteEnabled)
   const error = useMachinesStore((s) => s.error)
@@ -123,8 +117,16 @@ function BrowserScreen({
   if (location.to === 'page') {
     if (location.page === 'settings') return <CompactSettings machine={machine} />
     if (!machine && ['skills', 'routines'].includes(location.page)) return <ChooseMachine />
-    return (
+    const screen = (
       <GlobalScreen page={location.page} workspacePath={machine ? `host:${machine}/machine` : ''} />
+    )
+    return compact && isLibraryPage(location.page) ? (
+      <div className="library-screen">
+        <LibrarySwitcher page={location.page} machine={machine} />
+        {screen}
+      </div>
+    ) : (
+      screen
     )
   }
   if (location.to === 'unavailable')
@@ -133,24 +135,23 @@ function BrowserScreen({
         This link is unavailable. Open Lanes or Machines to continue.
       </p>
     )
-  return <CompactLanes machine={machine} />
+  return machine ? <CompactLanes machine={machine} /> : <CompactHome />
 }
 
+/**
+ * A screen that needs a machine before one is pinned: `useDefaultMachine` pins the scoped
+ * machine as soon as the list loads, so this only stays while loading or with no machines.
+ */
 function ChooseMachine(): React.JSX.Element {
   const { navigate } = useNavigation()
   const loading = useMachinesStore((s) => s.loading)
-  const machines = useMachinesStore((s) => s.machines)
   return (
     <section className="compact-list browser-empty" aria-label="Choose a machine">
       <h1>Your workspace, wherever you are.</h1>
       {loading ? (
         <WaitingNote>Checking your machines…</WaitingNote>
       ) : (
-        <p>
-          {machines.length
-            ? 'Choose a machine above to continue.'
-            : 'No machines yet. Add a Host from Machines.'}
-        </p>
+        <p>No machines yet. Add a Host from Machines.</p>
       )}
       <Button onClick={() => navigate({ to: 'page', page: 'machines' })}>Machines</Button>
     </section>
