@@ -50,26 +50,34 @@ it('Desktop close uncovers the active lane without deactivating it', () => {
   expect(useSessionsStore.getState().activeSessionId).toBe('existing-lane')
 })
 
-it.each([COMPACT_PLATFORM, { ...COMPACT_PLATFORM, formFactor: 'expanded' as const }])(
-  'browser close navigates back to machine lanes without mutating Desktop state at $formFactor width',
-  (platform) => {
-    const navigate = vi.fn()
-    act(() =>
-      root.render(
-        <PlatformProvider value={platform}>
-          <NavigationProvider
-            value={{ location: { to: 'page', page: 'machines', machine: 'bee1' }, navigate }}
-          >
-            <PageShell title="Machines">Inventory</PageShell>
-          </NavigationProvider>
-        </PlatformProvider>,
-      ),
-    )
-    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Close page"]')?.click())
-    expect(navigate).toHaveBeenCalledWith({ to: 'lanes', machine: 'bee1' })
-    expect(useLayoutStore.getState().page).toBe('machines')
-    expect(useSessionsStore.getState().activeSessionId).toBe('existing-lane')
-  },
-)
+it('a wide browser close navigates back to machine lanes without mutating Desktop state', () => {
+  const navigate = vi.fn()
+  act(() =>
+    root.render(
+      <PlatformProvider value={{ ...COMPACT_PLATFORM, formFactor: 'expanded' }}>
+        <NavigationProvider
+          value={{ location: { to: 'page', page: 'machines', machine: 'bee1' }, navigate }}
+        >
+          <PageShell title="Machines">Inventory</PageShell>
+        </NavigationProvider>
+      </PlatformProvider>,
+    ),
+  )
+  act(() => container.querySelector<HTMLButtonElement>('[aria-label="Close page"]')?.click())
+  expect(navigate).toHaveBeenCalledWith({ to: 'lanes', machine: 'bee1' })
+  expect(useLayoutStore.getState().page).toBe('machines')
+  expect(useSessionsStore.getState().activeSessionId).toBe('existing-lane')
+})
+
+it('a phone page is a tab root, so it has no close button', () => {
+  act(() =>
+    root.render(
+      <PlatformProvider value={COMPACT_PLATFORM}>
+        <PageShell title="Machines">Inventory</PageShell>
+      </PlatformProvider>,
+    ),
+  )
+  expect(container.querySelector('[aria-label="Close page"]')).toBeNull()
+})
 
 import { NavigationProvider } from '@/navigation/Navigation'

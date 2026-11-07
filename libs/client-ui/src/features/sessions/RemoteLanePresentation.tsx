@@ -9,6 +9,7 @@ import { REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { LaneRow, SubtitleSegments } from './SidebarPrimitives'
 import { SelectableIndicator, type LaneSelect } from './LaneSelect'
 import { PinIcon } from '@/components/icons'
+import { LaneWorkspaceBadge } from './LaneWorkspaceBadge'
 import { remoteLanePresentation, remoteLaneTitle } from './remoteLaneView'
 
 /** Read-only title projection: subscribed transcript metadata wins over a lagging Host scan. */
@@ -100,14 +101,7 @@ export function RemoteLanePresentation({
             {showPr && pr && <PrBadge pr={pr} />}
           </span>
         </span>
-        {workspaceName && (
-          <span
-            data-testid="session-workspace-badge"
-            className="bg-chip text-text-secondary shrink-0 rounded px-1.5 py-px text-2xs font-medium"
-          >
-            {workspaceName}
-          </span>
-        )}
+        {workspaceName && <LaneWorkspaceBadge name={workspaceName} />}
         {pinned && (
           <span data-testid="lane-pin" className="shrink-0">
             <PinIcon className="text-text-tertiary" />

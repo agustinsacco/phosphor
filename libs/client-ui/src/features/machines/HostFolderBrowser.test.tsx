@@ -135,3 +135,11 @@ it.each([
   expect(document.querySelector('[role=alert]')?.textContent).toBe(refusal)
   expect(invoke).not.toHaveBeenCalled()
 })
+
+it('says the folders could not be read when the Host listing fails', async () => {
+  invoke.mockImplementation(async (channel) => {
+    if (channel === 'hosts:listFolders') throw new Error('Connection closed.')
+  })
+  await render()
+  expect(document.querySelector('[role="alert"]')?.textContent).toBe('Could not read folders.')
+})
