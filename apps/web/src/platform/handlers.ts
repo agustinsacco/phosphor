@@ -229,7 +229,7 @@ export function createBrowserHandlers(ports: {
     'routines:archive': (...args) => routine('routines:archive', args),
     'routines:delete': (...args) => routine('routines:delete', args),
     'routines:pauseAll': (...args) => routine('routines:pauseAll', args),
-    'app:getPrefs': () => ({ ...prefs.get(), drafts: drafts.snapshot() }),
+    'app:getPrefs': async () => ({ ...(await prefs.read()), drafts: drafts.snapshot() }),
     'app:setDraft': drafts.set,
     'app:clearDraft': drafts.clear,
     'app:writeDraftBlob': drafts.writeBlob,

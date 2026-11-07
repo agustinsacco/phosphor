@@ -9,6 +9,7 @@ import {
   type ModelPicks,
   type WorktreePrefs,
 } from '@phosphor/shared/models'
+import { sha256Hex } from '@phosphor/host-client/crypto'
 
 export interface PreferenceStorage {
   getItem(key: string): string | null
@@ -93,34 +94,94 @@ function sidebarKeys(value: unknown): string[] {
   return [...new Set(keys)].slice(0, SIDEBAR_MAX_ENTRIES)
 }
 
-/** Restore the stored lane order and collapsed groups into `prefs`, and the setters that store them. */
-function sidebarPreferences(prefs: AppPrefs, storage: PreferenceStorage | undefined) {
+/** The stored lane order and collapsed groups (restored once the owner matches), and their setters. */
+function sidebarPreferences(
+  prefs: AppPrefs,
+  storage: PreferenceStorage | undefined,
+  owner: OwnerRecords,
+) {
   const fields: SidebarField[] = ['sessionOrder', 'collapsedWorkspaces']
-  const saved = storedRecord(storage, SIDEBAR_KEY, SIDEBAR_MAX_CHARS)
-  for (const field of fields) {
-    const value = saved?.[field]
-    if (Array.isArray(value)) prefs[field] = sidebarKeys(value)
-  }
   const save = () =>
     saveRecord(storage, SIDEBAR_KEY, {
       sessionOrder: prefs.sessionOrder,
       collapsedWorkspaces: prefs.collapsedWorkspaces,
     })
-  const setter = (field: SidebarField) => (value: string[]) => {
+  // A write waits for the owner check, so a clear can never land after it.
+  const setter = (field: SidebarField) => async (value: string[]) => {
+    await owner.checked()
     prefs[field] = sidebarKeys(value)
     save()
   }
-  return {
-    sessionOrder: setter('sessionOrder'),
-    collapsedWorkspaces: setter('collapsedWorkspaces'),
-    /** Another owner's arrangement is not this one's. */
-    clearSidebar() {
-      if (fields.every((field) => !prefs[field].length)) return
+  owner.own({
+    restore() {
+      const saved = storedRecord(storage, SIDEBAR_KEY, SIDEBAR_MAX_CHARS)
+      for (const field of fields) {
+        const value = saved?.[field]
+        if (Array.isArray(value)) prefs[field] = sidebarKeys(value)
+      }
+    },
+    /** Another owner's arrangement is not this one's: memory and storage both empty. */
+    clear() {
       for (const field of fields) prefs[field] = []
       save()
     },
+  })
+  return {
+    sessionOrder: setter('sessionOrder'),
+    collapsedWorkspaces: setter('collapsedWorkspaces'),
   }
 }
+
+/** Where the owner tag lives: a domain-separated SHA-256 of the Control user id, never the id. */
+const OWNER_KEY = 'phosphor.web.owner.v1'
+async function ownerTag(owner: string | null): Promise<string | null> {
+  if (!owner) return null
+  try {
+    return await sha256Hex(new TextEncoder().encode(`phosphor.web.owner.v1\0${owner}`))
+  } catch {
+    return null // No platform crypto: the owner is unknown, so the records clear.
+  }
+}
+
+/**
+ * Records that belong to the signed-in owner stay withheld until the owner is known: kept when
+ * the stored tag matches, cleared (and re-tagged, or untagged when signed out) otherwise.
+ */
+function ownerRecords(storage: PreferenceStorage | undefined) {
+  const records: OwnedRecords[] = []
+  let checked = Promise.resolve()
+  let latest = 0
+  return {
+    own: (record: OwnedRecords) => void records.push(record),
+    adopt(owner: string | null) {
+      const run = ++latest
+      checked = ownerTag(owner).then((tag) => {
+        if (run !== latest) return
+        let stored: string | null = null
+        try {
+          stored = storage?.getItem(OWNER_KEY) ?? null
+        } catch {
+          /* Unreadable: treated as another owner. */
+        }
+        if (tag && tag === stored) return records.forEach((record) => record.restore())
+        records.forEach((record) => record.clear())
+        try {
+          storage?.setItem(OWNER_KEY, tag ?? '')
+        } catch {
+          /* Memory-only fallback. */
+        }
+      })
+      return checked
+    },
+    /** Settles once the latest owner check has restored or cleared the owner's records. */
+    checked: () => checked,
+  }
+}
+interface OwnedRecords {
+  restore(): void
+  clear(): void
+}
+type OwnerRecords = ReturnType<typeof ownerRecords>
 
 /** Restore the stored lane and branch prefs into `prefs`, and the setters that store them. */
 function lanePreferences(prefs: AppPrefs, storage: PreferenceStorage | undefined) {
@@ -151,7 +212,8 @@ export function createBrowserPreferences(storage?: PreferenceStorage) {
   prefs.writing = { spellcheck: true, autocomplete: false }
   const theme = String(storedRecord(storage, KEY, APPEARANCE_MAX_CHARS)?.theme)
   if (['light', 'dark', 'system'].includes(theme)) prefs.theme = theme as ThemePreference
-  const sidebar = sidebarPreferences(prefs, storage)
+  const owner = ownerRecords(storage)
+  const sidebar = sidebarPreferences(prefs, storage, owner)
   return {
     ...lanePreferences(prefs, storage),
     sessionOrder: sidebar.sessionOrder,
@@ -197,9 +259,15 @@ export function createBrowserPreferences(storage?: PreferenceStorage) {
         groupMode: value.groupMode,
       }
     },
-    clearOwner() {
+    /** The next owner (null when signed out): its records are restored, anyone else's cleared. */
+    adoptOwner(next: string | null) {
       prefs.modelPicks = structuredClone(DEFAULT_APP_PREFS.modelPicks)
-      sidebar.clearSidebar()
+      return owner.adopt(next)
+    },
+    /** The prefs once the latest owner check has settled. */
+    async read() {
+      await owner.checked()
+      return structuredClone(prefs)
     },
   }
 }

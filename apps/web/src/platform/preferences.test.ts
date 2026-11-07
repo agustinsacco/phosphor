@@ -51,48 +51,66 @@ const SIDEBAR_KEY = 'phosphor.web.sidebar.v1'
 const LANE = 'host:11111111-1111-4111-8111-111111111111/lane:22222222-2222-4222-8222-222222222222'
 const FOLDER = 'host:11111111-1111-4111-8111-111111111111/repo:0123456789abcdef'
 
-it('keeps Host lane order and Host folder collapse, Host keys only, and reads them back', () => {
-  const storage = memoryStorage()
+const USER = '33333333-3333-4333-8333-333333333333'
+/** Preferences once `owner` is signed in: owner-scoped records are withheld until then. */
+async function signedIn(storage: ReturnType<typeof memoryStorage>, owner = USER) {
   const prefs = createBrowserPreferences(storage)
-  prefs.sessionOrder([LANE, '/Users/me/repo/s1.jsonl', LANE])
-  prefs.collapsedWorkspaces([FOLDER, '/Users/me/repo'])
+  await prefs.adoptOwner(owner)
+  return prefs
+}
+
+it('keeps Host lane order and Host folder collapse, Host keys only, and reads them back', async () => {
+  const storage = memoryStorage()
+  const prefs = await signedIn(storage)
+  await prefs.sessionOrder([LANE, '/Users/me/repo/s1.jsonl', LANE])
+  await prefs.collapsedWorkspaces([FOLDER, '/Users/me/repo'])
   expect(prefs.get()).toMatchObject({ sessionOrder: [LANE], collapsedWorkspaces: [FOLDER] })
   expect(JSON.parse(storage.items.get(SIDEBAR_KEY)!)).toEqual({
     sessionOrder: [LANE],
     collapsedWorkspaces: [FOLDER],
   })
-  expect(createBrowserPreferences(storage).get()).toMatchObject({
+  expect((await signedIn(storage)).get()).toMatchObject({
     sessionOrder: [LANE],
     collapsedWorkspaces: [FOLDER],
   })
 })
 
-it('drops malformed and oversized sidebar entries, on write and on read', () => {
-  const storage = memoryStorage({
-    [SIDEBAR_KEY]: JSON.stringify({
+it('drops malformed and oversized sidebar entries, on write and on read', async () => {
+  const storage = memoryStorage()
+  await signedIn(storage)
+  storage.items.set(
+    SIDEBAR_KEY,
+    JSON.stringify({
       sessionOrder: [LANE, 42, `host:${'x'.repeat(600)}`, 'host:a\u0000b'],
       collapsedWorkspaces: 'nope',
     }),
-  })
-  const prefs = createBrowserPreferences(storage)
+  )
+  const prefs = await signedIn(storage)
   expect(prefs.get()).toMatchObject({ sessionOrder: [LANE], collapsedWorkspaces: [] })
-  expect(() => prefs.sessionOrder('x' as never)).toThrow('Invalid sidebar preferences.')
-  prefs.collapsedWorkspaces(Array.from({ length: 2000 }, (_, i) => `${FOLDER}${i}`))
+  await expect(prefs.sessionOrder('x' as never)).rejects.toThrow('Invalid sidebar preferences.')
+  await prefs.collapsedWorkspaces(Array.from({ length: 2000 }, (_, i) => `${FOLDER}${i}`))
   expect(prefs.get().collapsedWorkspaces).toHaveLength(500)
-  expect(
-    createBrowserPreferences(memoryStorage({ [SIDEBAR_KEY]: 'not json' })).get(),
-  ).toMatchObject({ sessionOrder: [], collapsedWorkspaces: [] })
+  storage.items.set(SIDEBAR_KEY, 'not json')
+  expect((await signedIn(storage)).get()).toMatchObject({
+    sessionOrder: [],
+    collapsedWorkspaces: [],
+  })
 })
 
-it('forgets sidebar order and collapse when the owner changes', () => {
+it('withholds the sidebar until the owner is known, and clears it for another owner', async () => {
   const storage = memoryStorage()
-  const prefs = createBrowserPreferences(storage)
-  prefs.sessionOrder([LANE])
-  prefs.collapsedWorkspaces([FOLDER])
-  prefs.clearOwner()
-  expect(prefs.get()).toMatchObject({ sessionOrder: [], collapsedWorkspaces: [] })
+  const prefs = await signedIn(storage)
+  await prefs.sessionOrder([LANE])
+  await prefs.collapsedWorkspaces([FOLDER])
   expect(createBrowserPreferences(storage).get()).toMatchObject({
     sessionOrder: [],
     collapsedWorkspaces: [],
   })
+  const other = await signedIn(storage, '44444444-4444-4444-8444-444444444444')
+  expect(other.get()).toMatchObject({ sessionOrder: [], collapsedWorkspaces: [] })
+  expect(JSON.parse(storage.items.get(SIDEBAR_KEY)!)).toEqual({
+    sessionOrder: [],
+    collapsedWorkspaces: [],
+  })
+  expect((await signedIn(storage)).get()).toMatchObject({ sessionOrder: [] })
 })

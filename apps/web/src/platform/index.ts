@@ -106,12 +106,12 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       events.emit('account', view)
       events.emit('machines', undefined)
     },
-    invalidate: () => {
+    invalidate: (owner) => {
       terminals.clear()
       lanes.clear()
       hosts.clear()
       resources.clear()
-      prefs.clearOwner()
+      void prefs.adoptOwner(owner)
       drafts.clearOwner()
       events.clearSessions()
       attention.clear()

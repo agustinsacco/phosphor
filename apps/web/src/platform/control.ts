@@ -23,8 +23,11 @@ export interface ControlPorts {
   fetch: typeof fetch
   navigate: (path: string) => void
   changed: (view: AccountView) => void
-  /** Drops all owner-scoped memory before publishing the next account. */
-  invalidate: () => void
+  /**
+   * Drops all owner-scoped memory before publishing the next account: `owner` is the next
+   * signed-in Control user's id, or null when the account is signed out or unknown.
+   */
+  invalidate: (owner: string | null) => void
 }
 class ControlFailure extends Error {
   constructor(readonly code: DesktopControlErrorCode) {
@@ -76,13 +79,13 @@ export function createBrowserControl(ports: ControlPorts) {
   const requests = new Set<AbortController>()
   const configurationHosts = new Set<string>()
   const publish = () => ports.changed(structuredClone(view))
-  function invalidate(error?: string) {
+  function invalidate(error?: string, owner: string | null = null) {
     generation++
     current = null
     configurationHosts.clear()
     for (const request of requests) request.abort()
     requests.clear()
-    ports.invalidate()
+    ports.invalidate(owner)
     view = { account: { status: 'signed-out', ...(error ? { error } : {}) } }
     publish()
   }
@@ -211,7 +214,7 @@ export function createBrowserControl(ports: ControlPorts) {
           current.clientId !== next.clientId ||
           current.csrfToken !== next.csrfToken
         ) {
-          invalidate()
+          invalidate(undefined, next.user.id)
         }
         current = next
         view = {
