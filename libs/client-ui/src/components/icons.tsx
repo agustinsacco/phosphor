@@ -265,6 +265,25 @@ export function GearIcon({ size = 14, className }: IconProps): React.JSX.Element
   )
 }
 
+/** A house: the browser's Home tab, every machine's lanes. */
+export function HomeIcon({ size = 16, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...strokeProps(size)} className={className} aria-hidden="true">
+      <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z" />
+    </svg>
+  )
+}
+
+/** Stacked books: the browser's Library tab (skills, routines, artifacts). */
+export function LibraryIcon({ size = 16, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...strokeProps(size)} className={className} aria-hidden="true">
+      <path d="M5 4h3v16H5zM10 4h3v16h-3z" />
+      <path d="m15.5 5.2 2.9-.8 3.6 14.5-2.9.8z" />
+    </svg>
+  )
+}
+
 /** A person: the signed-out account avatar. */
 export function UserIcon({ size = 14, className }: IconProps): React.JSX.Element {
   return (
