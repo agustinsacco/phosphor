@@ -104,7 +104,7 @@
     "src/features/files/FilesChangedPane.tsx::FileDiffView[1]": 112,
     "src/features/files/FuzzyFinder.tsx::FinderDialog[1]": 145,
     "src/features/files/MonacoEditor.tsx::MonacoEditor[1]": 144,
-    "src/features/files/RemoteFileTree.tsx::RemoteFileTree[1]": 99,
+    "src/features/files/RemoteFileTree.tsx::RemoteFileTree[1]": 93,
     "src/features/files/WorkspaceSearch.tsx::file": 505,
     "src/features/files/WorkspaceSearch.tsx::WorkspaceSearch[1]": 190,
     "src/features/files/useExplorer.ts::useExplorer[1]": 232,
