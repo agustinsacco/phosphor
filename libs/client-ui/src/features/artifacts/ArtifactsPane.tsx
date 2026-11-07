@@ -27,7 +27,7 @@ import { relativeTimeShort } from '@/lib/time'
 import { useSettingsStore } from '@/stores/settings'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { ipcErrorText } from '@shared/errors'
-import { saveToDevice } from '@/lib/saveToDevice'
+import { saveActionLabel, saveToDevice } from '@/lib/saveToDevice'
 import { artifactGlyph, artifactLanguage, suggestedFileName } from './artifactKinds'
 import {
   needsRenderedPreview,
@@ -145,7 +145,9 @@ export function ArtifactWorkspace({
   const latest = artifact.versions[artifact.versions.length - 1]!
   const platform = usePlatform()
   // A Host artifact downloads to this machine, so its actions name it.
-  const downloads = remote ? `${localMachineLabel()} Downloads` : 'Downloads'
+  const here = remote ? localMachineLabel() : null
+  const downloads = here ? `${here} Downloads` : 'Downloads'
+  const saveTitle = saveActionLabel('source', platform.nativeFiles, here ?? 'file')
   const writeIn = useOpenArtifactInFiles(workspacePath, sessionId)
   const [mode, setMode] = useState<ViewMode>('preview')
   const [exporting, setExporting] = useState(false)
@@ -322,10 +324,7 @@ export function ArtifactWorkspace({
           >
             <LinkIcon />
           </ActionIcon>
-          <ActionIcon
-            title={remote ? `Save source to ${localMachineLabel()}…` : 'Save source to file…'}
-            onClick={() => void save()}
-          >
+          <ActionIcon title={saveTitle} onClick={() => void save()}>
             <DownloadIcon />
           </ActionIcon>
           {/* PDF prints model HTML, which a browser could only do in the app's own origin. */}
