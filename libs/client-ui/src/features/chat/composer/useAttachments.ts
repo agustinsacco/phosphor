@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { usePlatform } from '@/platform/Platform'
 import {
   placeAnnotated,
   isInlineableImage,
@@ -46,19 +45,14 @@ export interface AttachmentsApi {
 }
 
 /**
- * Validate transport support before reading bytes or mutating a draft. A
+ * Validate size before reading bytes or mutating a draft. A
  * Host-bound image is shrunk first, so a phone photo fits instead of being refused.
  */
 async function readAttachment(
   picked: File,
   remote: boolean,
-  nativeFiles: boolean,
   onReject?: (message: string) => void,
 ): Promise<PendingAttachment | null> {
-  if (!nativeFiles && !isInlineableImage(picked.type)) {
-    onReject?.('Only images can be attached in this browser. Use Desktop for other files.')
-    return null
-  }
   const file = remote && isInlineableImage(picked.type) ? await shrinkImage(picked) : picked
   const limit = remote && !isInlineableImage(file.type) ? 20 * 1024 * 1024 : MAX_IMAGE_BYTES
   if (file.size > limit) {
@@ -92,7 +86,6 @@ export function useAttachments({
   /** Told why a file was refused, so the composer can say so out loud. */
   onReject?: (message: string) => void
 }): AttachmentsApi {
-  const { nativeFiles } = usePlatform()
   const [dragging, setDragging] = useState(false)
   const active = useRef(true)
   const currentRemote = useRef(remote)
@@ -112,7 +105,7 @@ export function useAttachments({
     (files: File[]) => {
       for (const file of files) {
         void (async () => {
-          const attachment = await readAttachment(file, remote, nativeFiles, onReject)
+          const attachment = await readAttachment(file, remote, onReject)
           if (!attachment || !active.current || currentRemote.current !== remote) return
           const next = [...latest.current, attachment]
           if ((remote && next.length > 10) || totalAttachmentBytes(next) > MAX_ATTACHMENT_BYTES) {
@@ -128,7 +121,7 @@ export function useAttachments({
         })()
       }
     },
-    [nativeFiles, onChange, onReject, remote],
+    [onChange, onReject, remote],
   )
 
   const remove = useCallback(
