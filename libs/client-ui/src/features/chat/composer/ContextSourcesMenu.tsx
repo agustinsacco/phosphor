@@ -115,7 +115,7 @@ export function ContextSourcesMenu({
             note={readOnly ? 'this lane' : sessionId ? 'from the next request' : 'new lanes'}
           />
           {rules ? (
-            <RuleRows rules={rules} sessionId={sessionId} readOnly={readOnly} />
+            <RuleRows rules={rules} sessionId={sessionId} />
           ) : (
             <p className="text-text-tertiary px-3 py-1 text-sm">Not yet reported by this lane.</p>
           )}

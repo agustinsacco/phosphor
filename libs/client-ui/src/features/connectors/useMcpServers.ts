@@ -6,7 +6,6 @@ import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 export interface McpServersState {
   /** Null until the first read; empty when nothing is configured or readable. */
   servers: McpResolvedServer[] | null
-  enabled: number
   error: string | null
   refresh: () => Promise<void>
   setEnabled: (server: McpResolvedServer, on: boolean) => Promise<void>
@@ -58,6 +57,5 @@ export function useMcpServers(workspacePath: string | null): McpServersState {
     await refresh()
   }
 
-  const enabled = servers?.filter((server) => server.config.enabled !== false).length ?? 0
-  return { servers, enabled, error, refresh, setEnabled }
+  return { servers, error, refresh, setEnabled }
 }

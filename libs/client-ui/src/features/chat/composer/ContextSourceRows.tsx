@@ -53,15 +53,13 @@ function RowMark({
 export function RuleRows({
   rules,
   sessionId,
-  readOnly,
 }: {
   rules: RuleRow[]
   sessionId: string | undefined
-  readOnly: boolean
 }): React.JSX.Element {
   return (
     <>
-      {!readOnly && (
+      {rules.some((rule) => rule.toggle) && (
         <p className="text-text-tertiary px-3 py-1 text-sm">
           Each checkbox controls all files of that type, global and project.
         </p>
