@@ -532,6 +532,9 @@ close it; focus moves into the sheet and returns to the element on close.
   composer target shows the Host's start page. This Mac's Machines readiness
   row shows the same install command. No
   sessions → "Describe a task…" hero.
+- **All machines:** the shared Home board in place of This Mac's lane grid:
+  every machine's lanes in Needs you, Working and Recent, the same board a
+  phone's Home tab shows ([web client](web-client.md#shared-pages-and-responsive-shells)).
 
 ## Home workbench
 
