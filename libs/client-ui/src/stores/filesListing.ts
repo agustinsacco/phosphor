@@ -2,7 +2,7 @@ import type { StoreApi } from 'zustand'
 import { fileListErrorText } from '@shared/host-protocol-files'
 import { foldFileList } from '@/features/files/fileListTree'
 import { filesSourceTraits, patchWorkspace, type FilesState } from './files'
-import { REMOTE_UNAVAILABLE } from './remoteLanes'
+import { REMOTE_UNAVAILABLE } from './hostRefusals'
 
 type SetFiles = StoreApi<FilesState>['setState']
 type GetFiles = StoreApi<FilesState>['getState']
