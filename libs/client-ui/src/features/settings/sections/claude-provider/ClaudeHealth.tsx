@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { MIN_CLAUDE_CONTEXT_VERSION } from '@shared/models'
+import { CLAUDE_PROVIDER_PACKAGE, MIN_CLAUDE_CONTEXT_VERSION } from '@shared/models'
 import { Button } from '@/components/form'
 import { JobOutput } from '../../JobOutput'
 
@@ -109,7 +109,7 @@ function providerDetail({ provider, package: pkg }: ClaudeHealthModel): string {
   if (provider === 'checking') return 'checking…'
   if (provider === 'missing') return 'not in pi packages'
   if (provider === 'declared') return 'declared — installs on next session start'
-  if (!pkg) return '@saccolabs/pi-claude-cli'
+  if (!pkg) return CLAUDE_PROVIDER_PACKAGE
   return pkg.version ? `${pkg.name} v${pkg.version}${pkg.scope ? ` (${pkg.scope})` : ''}` : pkg.name
 }
 

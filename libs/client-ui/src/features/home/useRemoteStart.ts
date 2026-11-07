@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { usePlatform } from '@/platform/Platform'
 import { useRemoteModel } from '@/features/machines/useRemoteModel'
 import type { PendingAttachment } from '@/features/chat/attachments'
 import { useDraftsStore } from '@/stores/drafts'
@@ -12,7 +11,6 @@ const EMPTY_ATTACHMENTS: PendingAttachment[] = []
 
 /** Both shells resolve the same remembered target and submit through the same receipt fence. */
 export function useRemoteStart(hostId: string, draftKey: string) {
-  const { nativeFiles } = usePlatform()
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const remembered = useRemoteComposer((s) => s.repositories[hostId])
   const repository =
@@ -40,10 +38,6 @@ export function useRemoteStart(hostId: string, draftKey: string) {
     ready && !!repositoryId && !!selection.model && (!!text.trim() || !!attachments.length)
   const send = async (): Promise<void> => {
     if (!canSend || !selection.model || useHomeSubmissionsStore.getState().pending[draftKey]) return
-    if (!nativeFiles && attachments.some((attachment) => attachment.kind !== 'image')) {
-      setWarning('Only images can be attached in this browser. Remove other files before starting.')
-      return
-    }
     setWarning(null)
     await submitRemoteHome({
       hostId,

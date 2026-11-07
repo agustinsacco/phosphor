@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
-import { WRITE_CHANNELS, writeFeature, routeRemoteWrite, type WriteLane } from './write-features'
+import { WRITE_CHANNELS, writeFeature, routeRemoteWrite } from './write-features'
+import type { WriteLane } from './ports'
 const root = 'host:12345678-1234-4234-8234-123456789012/0123456789abcdef'
 function lane(data?: unknown): WriteLane {
   return {

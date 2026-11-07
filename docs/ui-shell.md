@@ -194,7 +194,7 @@ Signed-out windows have no machine switcher or remote groups.
   "continue in current cwd" prompt, and no flag answers it up front). So a
   renamed sandbox listed all its chats, handed pi the right `cwd`, and every
   one of them still died on click with nothing on the chat to say why.
-  `apps/desktop/electron/pi/session-cwd.ts` rewrites the header: `app:renameSandbox` does it
+  `libs/session-runtime/src/pi/session-cwd.ts` rewrites the header: `app:renameSandbox` does it
   for the whole subtree as part of the rename, and `spawnSession` repeats it on
   resume for anything the rename never covered — a sandbox renamed by an older
   build, or a folder moved in Finder. The resume-time pass fires only when the

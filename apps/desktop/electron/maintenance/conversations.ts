@@ -6,7 +6,7 @@ import { listSessions } from '../pi/session-scanner'
 import { registry } from '../registry'
 import { getPrefs } from '../store'
 import { decideSession, history, sessionDecision, withWorkspace } from './history'
-import { sessionPathKey } from '../pi/session-path-lock'
+import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 
 function conversationPrefs() {
   const prefs = getPrefs()

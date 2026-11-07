@@ -1,6 +1,7 @@
 import type { MachinesResponse } from '@shared/control-api'
 import type { ControlResult, HostsSnapshot } from '@shared/ipc'
-import type { createHostConnection, HostConnectionSnapshot } from './connection'
+import type { createHostConnection } from './connection'
+import type { HostConnectionSnapshot } from '@phosphor/host-client/connection'
 
 export type HostManagerPorts = {
   testEndpoint?: string

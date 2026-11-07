@@ -84,7 +84,7 @@ the library's Nx test target and whole-workspace unit target discover its tests.
 
 ## Shared UI and Web builds
 
-`libs/client-ui` exports Desktop and compact entries, typed navigation, platform capabilities and shared CSS. Colocated tests/assets move with it; `@/` resolves to this library. `apps/desktop/src` retains native bootstrap and HTML only. Root checks include UI/Web types and tests; `npm run web:build` produces `apps/web/dist`. The browser build rejects Node/Electron/runtime/test modules. Its cron-parser alias selects the identical expression parser class without the package barrel's Node-only file reader. Browser assets/workers require Vite, so the Node source-closure bundler deliberately does not treat UI exports as Node entrypoints.
+`libs/client-ui` exports Desktop, compact and bootstrap entries, platform capabilities and shared CSS. Colocated tests/assets move with it; `@/` resolves to this library. `apps/desktop/src` retains native bootstrap and HTML only. Root checks include UI/Web types and tests; `npm run web:build` produces `apps/web/dist`. The browser build rejects Node/Electron/runtime/test modules. Its cron-parser alias selects the identical expression parser class without the package barrel's Node-only file reader. Browser assets/workers require Vite, so the Node source-closure bundler deliberately does not treat UI exports as Node entrypoints.
 
 ## Desktop bundling and native isolation
 

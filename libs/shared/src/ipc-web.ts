@@ -14,7 +14,7 @@ const localRoutines = unsupported(
 const connectorConfig = unsupported(
   'Connector configuration and credentials belong to the Host or Desktop.',
 )
-const readOnlyFiles = unsupported('Browser file access is read-only and explicitly Host-scoped.')
+const hostFilesOnly = unsupported('Browser file access goes through Host reads and writes only.')
 
 /** Every new IPC channel requires an explicit browser admission decision. */
 export const IPC_WEB = {
@@ -36,7 +36,7 @@ export const IPC_WEB = {
   'hosts:machineTask': remote,
   'hosts:machineShell': remote,
   'hosts:claudeAccount': remote,
-  'hosts:uploadAttachments': native,
+  'hosts:uploadAttachments': remote,
   'hosts:snapshot': remote,
   'hosts:reconnect': remote,
   'hosts:traffic': native,
@@ -448,22 +448,22 @@ export const IPC_WEB = {
   'git:checkoutBranch': unsupported(
     'Only Host-scoped read-only status and file comparisons are available.',
   ),
-  'fs:readDir': readOnlyFiles,
+  'fs:readDir': hostFilesOnly,
   'fs:readFile': remote,
-  'fs:previewUrl': readOnlyFiles,
-  'fs:openInDefaultApp': readOnlyFiles,
-  'fs:quickLook': readOnlyFiles,
-  'fs:writeFile': readOnlyFiles,
-  'fs:createFile': readOnlyFiles,
-  'fs:createDir': readOnlyFiles,
-  'fs:rename': readOnlyFiles,
-  'fs:trash': readOnlyFiles,
-  'fs:transfer': readOnlyFiles,
-  'fs:pickEntries': readOnlyFiles,
-  'fs:watchWorkspace': readOnlyFiles,
-  'fs:statDirs': readOnlyFiles,
-  'fs:searchWorkspace': readOnlyFiles,
-  'fs:cancelWorkspaceSearch': readOnlyFiles,
+  'fs:previewUrl': hostFilesOnly,
+  'fs:openInDefaultApp': hostFilesOnly,
+  'fs:quickLook': hostFilesOnly,
+  'fs:writeFile': remote,
+  'fs:createFile': remote,
+  'fs:createDir': remote,
+  'fs:rename': remote,
+  'fs:trash': remote,
+  'fs:transfer': remote,
+  'fs:pickEntries': hostFilesOnly,
+  'fs:watchWorkspace': hostFilesOnly,
+  'fs:statDirs': hostFilesOnly,
+  'fs:searchWorkspace': hostFilesOnly,
+  'fs:cancelWorkspaceSearch': hostFilesOnly,
   'pty:create': remote,
   'pty:attach': remote,
   'pty:write': remote,

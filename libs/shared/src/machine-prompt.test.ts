@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { machinePromptBlock } from './machine-prompt'
-import { composeDirectives } from '../../session-runtime/src/pi/directives'
+import { composeDirectives } from './agent-directives'
 import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
 
 const host = { kind: 'host', label: 'bee1', os: 'Linux', repositories: ['Phosphor'] } as const

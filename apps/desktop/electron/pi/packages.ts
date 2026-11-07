@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os'
 import type { PiPackageEntry } from '@shared/models'
 import { listPackages, npmNameFromSpec } from '@phosphor/session-runtime/pi/packages'
 import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
-import { claudeOneShotEnv, claudeProviderSpawnEnv } from './provider-detect'
+import {
+  claudeOneShotEnv,
+  claudeProviderSpawnEnv,
+} from '@phosphor/session-runtime/pi/provider-detect'
 import { piProcessEnv } from './shell-env'
 import { PiUnavailableError, resolvePiInvoker } from './invoker'
 import { resolveBinary, windowsWhereOutput } from './binary-lookup'
@@ -12,7 +15,6 @@ import { failedJob, startJob, startPrintModeJob, type JobSender } from './packag
 
 export { failedJob, startJob, disposePackageJobs, type JobSender } from './package-jobs'
 export { claudeStatus } from './claude-status'
-export { parseClaudeAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
 export { resolveBinary } from './binary-lookup'
 
 /** One tiny print-mode turn: the bound a session title run gets. */
@@ -83,21 +85,35 @@ export async function runPackageAction(
   })
 }
 
+/** Set from the first click until its npm job exits, so two clicks never run two global installs. */
+let piInstallRunning = false
+
 /** One-click pi install/update via the user's own npm. */
 export async function runPiInstall(sender: JobSender): Promise<{ jobId: string }> {
-  const npm = await resolveLaunch('npm')
-  if (!npm) {
-    return failedJob(
-      sender,
-      'npm was not found on your PATH. Install Node.js 22+ first (https://nodejs.org), then retry.',
-    )
+  if (piInstallRunning) return failedJob(sender, 'pi is already being installed.')
+  piInstallRunning = true
+  const release = (): void => {
+    piInstallRunning = false
   }
-  return startJob(
-    sender,
-    npm.file,
-    [...npm.prefixArgs, 'install', '-g', '@earendil-works/pi-coding-agent'],
-    { env: await piProcessEnv() },
-  )
+  try {
+    const npm = await resolveLaunch('npm')
+    if (!npm) {
+      release()
+      return failedJob(
+        sender,
+        'npm was not found on your PATH. Install Node.js 22+ first (https://nodejs.org), then retry.',
+      )
+    }
+    return startJob(
+      sender,
+      npm.file,
+      [...npm.prefixArgs, 'install', '-g', '@earendil-works/pi-coding-agent'],
+      { env: await piProcessEnv(), onExit: release },
+    )
+  } catch (error) {
+    release()
+    throw error
+  }
 }
 
 /**
