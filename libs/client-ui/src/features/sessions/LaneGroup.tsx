@@ -26,7 +26,11 @@ export interface LaneGroupProps {
   menu?: () => ContextMenuItem[]
   collapse: [boolean, (collapsed: boolean) => void]
   search: GroupSearch
-  /** Lanes in the group, and those the search shows. */
+  /**
+   * Lanes in the group, and those the search keeps: the search bar's count.
+   * Rows a machine shows beside them (This Mac's pending rows) are not
+   * counted, so its `empty` decides what a group with only those shows.
+   */
   total: number
   shown: number
   density?: LaneGroupDensity
