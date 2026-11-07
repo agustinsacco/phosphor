@@ -8,6 +8,16 @@ import { record } from '../routes/shared'
 import { WebCookies } from './cookies'
 import { tokenClaims, webProvider, type ProviderSession } from './provider'
 
+/** Absolute browser session lifetime from sign-in. Durable client status still gates every request. */
+export const SESSION_LIFETIME_MS = 14 * 86_400_000
+/**
+ * How long a spent refresh token still resolves to its successor. A browser can miss
+ * the rotated cookie (aborted fetch, suspended PWA, an older re-seal landing last) and
+ * replay the previous one; Supabase would refuse the spent token, or revoke the session.
+ */
+const ROTATION_MEMORY_MS = 86_400_000
+const ROTATION_LIMIT = 10_000
+
 export interface BrowserSession extends ProviderSession {
   clientId: string
   csrf: string
@@ -16,7 +26,7 @@ export interface BrowserSession extends ProviderSession {
 export class BrowserSessions {
   readonly cookies: WebCookies
   readonly provider: ReturnType<typeof webProvider>
-  private readonly refreshes = new Map<
+  private readonly rotations = new Map<
     string,
     { promise: Promise<ProviderSession>; until: number }
   >()
@@ -60,29 +70,14 @@ export class BrowserSessions {
   async resolve(c: Context<Env>, original: BrowserSession): Promise<BrowserSession> {
     await this.active(original)
     let session = original
-    if (session.expires <= this.deps.clock() + 60_000) {
-      const key = createHash('sha256').update(session.refreshToken).digest('hex')
-      for (const [id, item] of this.refreshes)
-        if (item.until <= this.deps.clock()) this.refreshes.delete(id)
-      let entry = this.refreshes.get(key)
-      if (!entry) {
-        if (this.refreshes.size >= 1000) throw new ControlFailure('too-many-requests')
-        entry = {
-          promise: this.provider.refresh(session.refreshToken),
-          until: this.deps.clock() + 60_000,
-        }
-        this.refreshes.set(key, entry)
-      }
-      let refreshed: ProviderSession
-      try {
-        refreshed = await entry.promise
-      } catch (error) {
-        this.refreshes.delete(key)
-        throw error
-      }
+    // A stale cookie may sit several remembered rotations behind; follow them to the head.
+    for (let hop = 0; session.expires <= this.deps.clock() + 60_000; hop++) {
+      if (hop > ROTATION_LIMIT) throw new ControlFailure('unavailable')
+      const { refreshed, remembered } = await this.rotate(session.refreshToken)
       if (refreshed.userId !== session.userId || refreshed.sid !== session.sid)
         throw new ControlFailure('unauthenticated')
       session = { ...session, ...refreshed }
+      if (!remembered) break
     }
     const user = await this.auth(`Bearer ${session.accessToken}`, c.get('ip'))
     if (user.userId !== session.userId) throw new ControlFailure('unauthenticated')
@@ -90,6 +85,27 @@ export class BrowserSessions {
     // Re-seal with the primary key on every admitted request, including key rotation.
     this.cookies.write(c, 'session', { ...session })
     return session
+  }
+  /** One refresh per token, shared by concurrent callers and remembered for late replays. */
+  private async rotate(refreshToken: string) {
+    const key = createHash('sha256').update(refreshToken).digest('hex')
+    const now = this.deps.clock()
+    for (const [id, item] of this.rotations) if (item.until <= now) this.rotations.delete(id)
+    let entry = this.rotations.get(key)
+    const remembered = entry !== undefined
+    if (!entry) {
+      // Bounded memory: forget the oldest rotation rather than refuse a live refresh.
+      while (this.rotations.size >= ROTATION_LIMIT)
+        this.rotations.delete(this.rotations.keys().next().value!)
+      entry = { promise: this.provider.refresh(refreshToken), until: now + ROTATION_MEMORY_MS }
+      this.rotations.set(key, entry)
+    }
+    try {
+      return { refreshed: await entry.promise, remembered }
+    } catch (error) {
+      if (this.rotations.get(key) === entry) this.rotations.delete(key)
+      throw error
+    }
   }
   async logout(c: Context<Env>, session: BrowserSession) {
     this.cookies.clear(c, 'session')

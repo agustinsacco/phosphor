@@ -255,28 +255,6 @@ export function ChangesIcon({ size = 14, className }: IconProps): React.JSX.Elem
   )
 }
 
-/**
- * The orchestrator: one node coordinating three others.
- *
- * Deliberately not a spark. `✳` was doing double duty — it is the "pi is
- * working" mark (see `PhosphorLoader`, and the activity rows in `ActivityGroup`), so
- * the orchestrator's *identity* and every session's *busy state* were the same
- * glyph, and the header button swapped between the two renderings of it. A
- * hub-and-spoke says what this thread actually is: the one that manages the
- * others.
- */
-export function OrchestratorIcon({ size = 14, className }: IconProps): React.JSX.Element {
-  return (
-    <svg {...strokeProps(size)} strokeLinecap="round" className={className}>
-      <path d="M12 9V5M12 15v4M14.6 13.5l3.4 2M9.4 13.5l-3.4 2" />
-      <circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="3.6" r="1.6" />
-      <circle cx="19.4" cy="16.4" r="1.6" />
-      <circle cx="4.6" cy="16.4" r="1.6" />
-    </svg>
-  )
-}
-
 /** Settings cog. */
 export function GearIcon({ size = 14, className }: IconProps): React.JSX.Element {
   return (

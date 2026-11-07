@@ -1,121 +1,15 @@
 /**
- * `claude -p /usage` parsing, cached fetching, and error mapping.
- *
- * The live fixture (`__fixtures__/usage-live.json`) is a real capture from
- * Claude Code 2.1.231 against a signed-in Max account — the wire this module
- * exists to mirror. Epoch assertions are deliberately relational: the CLI
- * renders reset stamps in the *machine's* local timezone, so a test machine
- * in a different one must still pass.
+ * Desktop's `claude -p /usage` binding: cached fetching and error mapping.
+ * The parser and its live fixture are tested beside the lib.
  */
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  clearUsageCache,
-  fetchUsageSnapshot,
-  parseResetStamp,
-  parseUsageOutput,
-  parseUsageText,
-  windowKind,
-} from './usage'
+import { clearUsageCache, fetchUsageSnapshot } from './usage'
 
-const FIXTURE = readFileSync(join(__dirname, '__fixtures__', 'usage-live.json'), 'utf8')
+const OUTPUT = JSON.stringify({ result: 'Current session: 20% used' })
 
 /** A fixed "now" in local-time components so timezone choice doesn't matter. */
 const nowAt = (year: number, monthIndex: number, day: number, hour = 12): number =>
   new Date(year, monthIndex, day, hour, 0, 0, 0).getTime()
-
-describe('parseUsageText', () => {
-  it('parses the live capture: three windows, kinds, percents, contributing', () => {
-    const snapshot = parseUsageOutput(FIXTURE, nowAt(2026, 7, 30, 12))
-    expect(snapshot).not.toBeNull()
-    const windows = snapshot!.windows
-    expect(windows.map((w) => w.kind)).toEqual(['five_hour', 'weekly', 'weekly_model'])
-    expect(windows.map((w) => w.percentUsed)).toEqual([48, 51, 37])
-    expect(windows[0]?.label).toBe('Current session')
-    expect(windows[2]?.label).toBe('Current week (Fable)')
-    expect(snapshot!.stale).toBe(false)
-    // The reset stamps parse and land in the future of the fixed now.
-    for (const w of windows) expect(w.resetsAt).not.toBeNull()
-    expect(windows[0]?.resetsAt).toBeGreaterThan(nowAt(2026, 7, 30, 12))
-    // The behavioral block is carried verbatim, without the heading.
-    expect(snapshot!.contributing).toMatch(/^Approximate, based on local sessions/)
-    expect(snapshot!.contributing).toContain('Last 24h')
-  })
-
-  it('marks last-known data as stale and keeps its windows', () => {
-    const snapshot = parseUsageText(
-      [
-        'Showing last-known usage (could not refresh)',
-        '',
-        'Current session: 40% used · resets Aug 30 at 2:50pm',
-      ].join('\n'),
-      nowAt(2026, 7, 30, 12),
-    )
-    expect(snapshot?.stale).toBe(true)
-    expect(snapshot?.windows[0]?.percentUsed).toBe(40)
-  })
-
-  it('returns null when refresh failed and nothing parsed — never zeros', () => {
-    expect(parseUsageText('Could not refresh usage data', nowAt(2026, 7, 30))).toBeNull()
-  })
-
-  it('returns null for non-subscription output (signed out, API key, drift)', () => {
-    expect(parseUsageText('You are not using a subscription.', nowAt(2026, 7, 30))).toBeNull()
-  })
-
-  it('keeps unknown window labels as kind "other" rather than dropping them', () => {
-    const snapshot = parseUsageText('Claude Code and Cowork credit: 12% used', nowAt(2026, 7, 30))
-    expect(snapshot?.windows[0]).toMatchObject({ kind: 'other', percentUsed: 12 })
-  })
-
-  it('drops implausible percents instead of rendering them', () => {
-    const snapshot = parseUsageText(
-      ['Current session: 250% used', 'Current week (all models): 3% used'].join('\n'),
-      nowAt(2026, 7, 30),
-    )
-    expect(snapshot?.windows.map((w) => w.percentUsed)).toEqual([3])
-  })
-})
-
-describe('parseResetStamp', () => {
-  it('parses with and without minutes', () => {
-    expect(parseResetStamp('Aug 30 at 2:49pm', nowAt(2026, 7, 30, 12))).not.toBeNull()
-    expect(parseResetStamp('Aug 30 at 4pm', nowAt(2026, 7, 30, 12))).not.toBeNull()
-  })
-
-  it('parses the comma form of Claude Code 2.1.283', () => {
-    const at = parseResetStamp('Oct 25, 7:59pm', nowAt(2026, 9, 19, 2))
-    expect(at).toBe(new Date(2026, 9, 25, 19, 59, 0, 0).getTime())
-    expect(parseResetStamp('Oct 25, 8pm', nowAt(2026, 9, 19, 2))).not.toBeNull()
-  })
-
-  it('rolls the year across December → January', () => {
-    const at = parseResetStamp('Jan 2 at 9am', nowAt(2026, 11, 30, 12))
-    expect(at).not.toBeNull()
-    expect(new Date(at!).getFullYear()).toBe(2027)
-  })
-
-  it('resolves a same-day stamp in the same year, without rolling', () => {
-    const at = parseResetStamp('Aug 30 at 2:49pm', nowAt(2026, 7, 30, 12))
-    expect(new Date(at!).getHours()).toBe(14)
-    expect(new Date(at!).getFullYear()).toBe(2026)
-  })
-
-  it('rejects shapes it does not know', () => {
-    expect(parseResetStamp('2026-08-30T14:49:00Z', nowAt(2026, 7, 30))).toBeNull()
-    expect(parseResetStamp('soon', nowAt(2026, 7, 30))).toBeNull()
-  })
-})
-
-describe('windowKind', () => {
-  it('maps the known labels and passes unknown ones through', () => {
-    expect(windowKind('Current session')).toBe('five_hour')
-    expect(windowKind('Current week (all models)')).toBe('weekly')
-    expect(windowKind('Current week (Sonnet only)')).toBe('weekly_model')
-    expect(windowKind('One-time credit')).toBe('other')
-  })
-})
 
 describe('fetchUsageSnapshot', () => {
   beforeEach(() => {
@@ -148,7 +42,7 @@ describe('fetchUsageSnapshot', () => {
     let calls = 0
     const runner = async (): Promise<string> => {
       calls++
-      return FIXTURE
+      return OUTPUT
     }
     const t0 = nowAt(2026, 7, 30, 12)
     const first = await fetchUsageSnapshot({ claudeOverride: '/x/claude', runner, nowMs: t0 })
@@ -192,7 +86,7 @@ describe('fetchUsageSnapshot', () => {
     let calls = 0
     const runner = async (): Promise<string> => {
       calls++
-      return FIXTURE
+      return OUTPUT
     }
     const t0 = nowAt(2026, 7, 30, 12)
     await fetchUsageSnapshot({ claudeOverride: '/x/claude', runner, nowMs: t0 })
@@ -221,7 +115,7 @@ describe('fetchUsageSnapshot', () => {
     const runner = async (): Promise<string> => {
       calls++
       await gate
-      return FIXTURE
+      return OUTPUT
     }
     const a = fetchUsageSnapshot({ claudeOverride: '/x/claude', runner })
     const b = fetchUsageSnapshot({ claudeOverride: '/x/claude', runner })

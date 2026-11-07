@@ -3,7 +3,6 @@ import {
   ALL_THINKING_LEVELS,
   supportedThinkingLevels,
   clampThinkingLevel,
-  hasThinkingChoice,
   type ThinkingCapableModel,
 } from './thinking.js'
 
@@ -69,14 +68,5 @@ describe('clampThinkingLevel', () => {
   })
   it('clamps down when reasoning is off and user asks for thinking', () => {
     expect(clampThinkingLevel({ reasoning: false }, 'high')).toBe('off')
-  })
-})
-
-describe('hasThinkingChoice', () => {
-  it('false for single-level model', () => {
-    expect(hasThinkingChoice({ reasoning: false })).toBe(false)
-  })
-  it('true for standard reasoning model', () => {
-    expect(hasThinkingChoice({ reasoning: true })).toBe(true)
   })
 })

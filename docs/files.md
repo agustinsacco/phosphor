@@ -29,6 +29,9 @@ mtime: a conflict keeps the buffer until the user discards and refreshes.
 Uncertain saves keep edits and disable both Save and Cmd/Ctrl+S until Reload file
 reads the file again. Reload file discards the edited buffer.
 Files uses a nested tree and the same row and icon controls as the local explorer.
+Folders start collapsed, as the local explorer's do, and the toolbar's Collapse all
+folders closes every one; Changes starts expanded. Selecting a file from search or a
+chat link opens its folders.
 An empty tree says "No files yet". A failed git status does not hide the file
 list, and configured non-git folders can be browsed: the Host skips the hidden,
 dependency and build folders This Mac's Go to file skips and lists at most 20,000
