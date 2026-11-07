@@ -458,9 +458,14 @@ a hints line and one note line. `useLocalStart` and the Host target in
 `RemoteStartView` supply only what differs. On a Host, `@` lists the chosen
 repository's files through `hosts:repositoryFiles` (with `workspaces.read`).
 The repository picker wears This Mac's folder chip (`workspaces/folderChip.tsx`).
-The Host has no command list or context-file preference before a lane exists,
-so a new Host lane offers no `/` menu or Rules readout; inside a Host lane `/`
-lists the lane's own commands. The Swarm switch records its choice on the draft,
+`/` lists pi's commands for that repository as This Mac's does for its folder:
+one `usePiCommandsStore` slot per machine folder, loaded on the first `/`
+(`pi:commands` on This Mac, `hosts:commands` → the Host's `machine.commands
+{repositoryId}` under `skills.read`), so a project's skills, prompts and
+extensions are offered before the first prompt. A Host without `skills.read`, or
+without a repository chosen, offers no `/`. Inside a Host lane `/` lists the
+lane's own commands. The Host has no context-file preference before a lane
+exists, so a new Host lane offers no Rules readout. The Swarm switch records its choice on the draft,
 as on This Mac. After `hosts:createLane` the client turns Swarm on in the new
 lane (`get_commands`, then `/phosphor-swarm on`) before it sends the first
 prompt. If the Host's pi lacks pi-subagents or refuses, the lane exists but gets

@@ -67,6 +67,7 @@ it('freezes every invoke key without a string index signature', () => {
 const baselineScope = {
   'hosts:tailscaleStatus': 'app',
   'hosts:models': 'machine',
+  'hosts:commands': 'machine',
   'hosts:claude': 'machine',
   'hosts:claudeUsage': 'machine',
   'hosts:providers': 'machine',

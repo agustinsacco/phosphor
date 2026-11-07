@@ -7,6 +7,7 @@ import {
 import type { MachineView } from '@shared/control-api'
 import { mockMachineSettingsInvoke } from './mockMachineSettings'
 import { mockSkillShareInvoke } from './mockSkillShare'
+import { MOCK_PI_COMMANDS } from './mockPiCommands'
 import { mockInstructionsInvoke } from './mockInstructions'
 import { mockSessionMaintenance } from './mockSessionMaintenance'
 /**
@@ -1506,6 +1507,8 @@ export function installMockPhosphor(): void {
           return mockMachineSettingsInvoke(channel, args) as never
         case 'hosts:repositoryFiles':
           return ['README.md', 'src/index.ts']
+        case 'hosts:commands':
+          return MOCK_PI_COMMANDS as never
         case 'hosts:repositoryFile':
           return { binary: false, size: 20, content: '# Remote repository\n', revision: null }
         case 'hosts:skills':
@@ -1748,74 +1751,8 @@ export function installMockPhosphor(): void {
             path: '/Users/dev/.pi/agent/mcp.json',
             content: '{\n  "mcpServers": {}\n}\n',
           })
-        // Shaped like a real pi answer: skills are `skill:<name>`, every entry
-        // carries `sourceInfo`, and pi's own `/mcp` and `/llama` are built in —
-        // so the menu's grouping and origin labels are exercised in the
-        // browser harness.
-        case 'pi:commands': {
-          const pkg = (name: string, file: string) => ({
-            path: `/Users/dev/.pi/agent/npm/node_modules/${name}/${file}`,
-            source: `npm:${name}`,
-            scope: 'user' as const,
-            origin: 'package' as const,
-            baseDir: `/Users/dev/.pi/agent/npm/node_modules/${name}`,
-          })
-          return Promise.resolve({
-            commands: [
-              {
-                name: 'websearch',
-                description: 'Open web search curator',
-                source: 'extension' as const,
-                sourceInfo: pkg('pi-web-access', 'index.ts'),
-              },
-              {
-                name: 'mcp',
-                description:
-                  'Manage MCP servers: sign in, reconnect, enable or disable, and change exposure',
-                source: 'extension' as const,
-                sourceInfo: {
-                  path: 'builtin:mcp',
-                  source: 'builtin',
-                  scope: 'temporary' as const,
-                  origin: 'top-level' as const,
-                },
-              },
-              {
-                name: 'llama',
-                description: 'Manage llama.cpp router models',
-                source: 'extension' as const,
-                sourceInfo: {
-                  path: '<inline:llama.cpp>',
-                  source: 'inline',
-                  scope: 'temporary' as const,
-                  origin: 'top-level' as const,
-                },
-              },
-              {
-                name: 'plan',
-                description: 'Draft an implementation plan',
-                source: 'prompt' as const,
-                sourceInfo: {
-                  path: '/Users/dev/.pi/agent/prompts/plan.md',
-                  source: 'local',
-                  scope: 'user' as const,
-                  origin: 'top-level' as const,
-                },
-              },
-              {
-                name: 'skill:review',
-                description: 'Review the working tree and report what would block a merge.',
-                source: 'skill' as const,
-                sourceInfo: {
-                  path: '/mock/workspace/.claude/skills/review/SKILL.md',
-                  source: 'local',
-                  scope: 'project' as const,
-                  origin: 'top-level' as const,
-                },
-              },
-            ],
-          })
-        }
+        case 'pi:commands':
+          return Promise.resolve({ commands: MOCK_PI_COMMANDS })
         case 'pi:catalogueModels':
           return Promise.resolve({
             source: 'pi',
