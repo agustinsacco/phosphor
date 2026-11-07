@@ -1,7 +1,7 @@
 import { delimiter } from 'node:path'
 import { handle } from './handle'
 import { remoteLanes } from './hosts-handlers'
-import { isRemoteHandle } from '../hosts/remote-lanes'
+import { isRemoteHandle } from '@phosphor/host-client/remote-lanes'
 import { desktopSessions } from '../pi/session-runtime'
 import { cachedPiHealth } from '../pi/health'
 import { piAgentDir } from '../pi/pi-paths'

@@ -89,14 +89,3 @@ export function clampThinkingLevel(
   }
   return available[0] ?? 'off'
 }
-
-/**
- * Whether a thinking chip is worth showing.
- *
- * `reasoning` alone is not enough: a model whose only level is `off` has
- * nothing to choose between, and a chip reading "No thinking" that opens a
- * one-item menu is noise.
- */
-export function hasThinkingChoice(model: ThinkingCapableModel): boolean {
-  return supportedThinkingLevels(model).length > 1
-}

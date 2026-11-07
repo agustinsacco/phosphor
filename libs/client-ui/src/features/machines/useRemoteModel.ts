@@ -15,13 +15,8 @@ import {
   machineCatalogueKey,
   EMPTY_MACHINE_CATALOGUE,
 } from '@/stores/machineCatalogues'
-import { hostFeatureRefusal } from '@/stores/hostRefusals'
-import {
-  useRemoteLanesStore,
-  hostReconnecting,
-  REMOTE_UNAVAILABLE,
-  machineLabel,
-} from '@/stores/remoteLanes'
+import { hostFeatureRefusal, REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
+import { useRemoteLanesStore, hostReconnecting, machineLabel } from '@/stores/remoteLanes'
 import {
   defaultRemoteModel,
   hostModelUnavailability,

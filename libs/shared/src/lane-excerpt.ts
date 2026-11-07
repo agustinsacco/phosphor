@@ -1,5 +1,13 @@
+/** Long enough to recognise the answer, short enough for two lines of card. */
 export const EXCERPT_MAX = 140
 
+/**
+ * The first meaningful line of some markdown, flattened to plain text.
+ *
+ * Deliberately crude — this is a preview, not a renderer. It drops code
+ * fences, headings' hashes, list bullets and inline emphasis, keeps link text,
+ * and clamps on a word boundary.
+ */
 export function excerptOf(markdown: string, max = EXCERPT_MAX): string | undefined {
   const withoutFences = markdown.replace(/```[\s\S]*?(```|$)/g, '\n')
   const line = withoutFences

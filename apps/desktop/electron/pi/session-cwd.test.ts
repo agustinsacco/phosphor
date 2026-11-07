@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { repointSessionCwd } from './session-cwd'
+import { repointSessionCwd } from '@phosphor/session-runtime/pi/session-cwd'
 import { parseSessionFile } from './session-scanner'
 
 let temp: string

@@ -4,8 +4,7 @@ import { SearchIcon, PlusIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
 import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { useNavigation } from '@/navigation/Navigation'
-import { featureNotOffered } from '@/stores/hostRefusals'
-import { REMOTE_NOT_READY, canReadHost, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useMachineCaps } from '@/stores/machineCaps'
 import { useSessionsStore } from '@/stores/sessions'
 import type { HostLaneView } from '@shared/ipc'
 import { RemoteBulkDelete, selectableLanes } from './RemoteBulkDelete'
@@ -47,17 +46,14 @@ export function RemoteRepositoryGroup({
   density?: RemoteLaneDensity
 }): React.JSX.Element {
   const { repositoryId, name, available } = group
-  const host = useRemoteLanesStore((s) => s.hosts[hostId])
+  const caps = useMachineCaps(hostId)
   const lanes = useRemoteLaneOrder(hostId, group.lanes)
   const groupKey = remoteLaneGroupKey(hostId, repositoryId)
   const [collapsed, setCollapsed] = useFolderCollapse(groupKey)
   useRemotePullRequests(hostId, repositoryId, !collapsed && available)
   const search = useRemoteGroupSearch(hostId, repositoryId, lanes)
-  const ready = !!host && canReadHost(host) && host.state === 'ready'
-  const canSelect =
-    ready &&
-    host.capabilities.includes('workspaces.write') &&
-    host.capabilities.includes('sessions.control')
+  const ready = caps.can('sessions.read')
+  const canSelect = caps.can('sessions.read', 'workspaces.write', 'sessions.control')
   const selection = useFolderSelection(hostId, groupKey, canSelect, search.visible)
   useLaneReveal(groupKey, () => {
     setCollapsed(false)
@@ -285,21 +281,14 @@ function NewLaneButton({
   className: string
 }): React.JSX.Element {
   const { navigate } = useNavigation()
-  const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const ready = host?.state === 'ready'
-  const canStart = ready && host.capabilities.includes('sessions.control')
+  const caps = useMachineCaps(hostId)
+  const refusal = caps.refusal('sessions.control')
   return (
     <TooltipButton
       className={className}
       aria-label={`New lane in ${group.name}`}
-      title={
-        !ready
-          ? REMOTE_NOT_READY
-          : !canStart
-            ? featureNotOffered('sessions.control')
-            : 'New session here'
-      }
-      disabled={!canStart}
+      title={refusal ?? 'New session here'}
+      disabled={refusal !== undefined}
       onClick={() => {
         openRemoteComposer(hostId, group.repositoryId)
         navigate({ to: 'new', machine: hostId })

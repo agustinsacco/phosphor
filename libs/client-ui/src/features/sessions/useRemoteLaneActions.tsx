@@ -7,6 +7,7 @@ import { remoteLaneMarker } from './remoteLaneView'
 import { useNavigation, type Navigation } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'
 import { useChatStore } from '@/stores/chat'
+import { useMachineCaps } from '@/stores/machineCaps'
 import { setRemoteLaneMarks } from '@/stores/remoteLaneMarks'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
@@ -133,7 +134,7 @@ function useLaneActionState(
   sessionId: string | undefined,
   running: boolean,
 ) {
-  const host = useRemoteLanesStore((s) => s.hosts[hostId])
+  const caps = useMachineCaps(hostId)
   const key = remoteLaneResourceKey(hostId, lane.laneId)
   const deletingInBulk = useSessionsStore((s) => laneIsBeingDeleted(s.bulkDelete, key))
   // pi writes nothing to resume until a first message, so the Host refuses Stop before one.
@@ -144,7 +145,7 @@ function useLaneActionState(
   const markers = useLanePrefsStore((s) => s.lanes.markers)
   const state: RemoteLaneActionState = {
     lane,
-    host,
+    caps,
     ready,
     busy: running || deletingInBulk,
     stopBlocked: unprompted ? STOP_NEEDS_PROMPT : null,

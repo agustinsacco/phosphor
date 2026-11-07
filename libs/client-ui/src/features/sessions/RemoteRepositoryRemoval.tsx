@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { Button } from '@/components/form'
-import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useMachineCaps } from '@/stores/machineCaps'
+import { machineLabel } from '@/stores/remoteLanes'
 
 /** Mirrors the main process's last-repository refusal (electron/hosts/repository-management.ts). */
 export const LAST_FOLDER_REFUSAL = 'A machine needs at least one folder. Add another first.'
@@ -17,10 +18,9 @@ export function RemoteRepositoryRemoval({
   name: string
   onClose: () => void
 }): React.JSX.Element {
-  const host = useRemoteLanesStore((s) => s.hosts[hostId])
+  const allowed = useMachineCaps(hostId).can('workspaces.write')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const allowed = host?.state === 'ready' && host.capabilities.includes('workspaces.write')
   return (
     <ModalOverlay
       onClose={() => {

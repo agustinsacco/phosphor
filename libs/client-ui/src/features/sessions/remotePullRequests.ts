@@ -1,6 +1,7 @@
 import { parseRemotePrKey, remotePrKey } from '@shared/host-protocol-github'
 import type { HostLaneView } from '@shared/ipc'
 import { useRepoPrRefresh } from './repoPrRefresh'
+import { machineCaps } from '@/stores/machineCaps'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { pullRequestFor, usePullRequestsStore } from '@/stores/pullRequests'
 
@@ -22,7 +23,7 @@ export function useRemotePullRequests(
 ): void {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const key = remotePrKey(hostId, repositoryId)
-  const ready = host?.state === 'ready' && host.capabilities.includes('workspaces.read')
+  const ready = machineCaps(host).can('workspaces.read')
   useRepoPrRefresh(ready && expanded ? [key] : [], host?.lanes)
 }
 export function useRemotePr(hostId: string | undefined, lane: HostLaneView) {

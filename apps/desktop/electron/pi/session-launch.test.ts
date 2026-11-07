@@ -25,7 +25,9 @@ vi.mock('./health', async () => {
   return { cachedPiHealth: () => cache.get().catch((health: PiHealth) => health) }
 })
 vi.mock('./shell-env', () => ({ piProcessEnv: h.environment }))
-vi.mock('./provider-detect', () => ({ claudeProviderSpawnEnv: h.provider }))
+vi.mock('@phosphor/session-runtime/pi/provider-detect', () => ({
+  claudeProviderSpawnEnv: h.provider,
+}))
 const prepare = async () => (await import('./session-launch')).prepareDesktopSessionLaunch()
 
 const originalResources = Object.getOwnPropertyDescriptor(process, 'resourcesPath')

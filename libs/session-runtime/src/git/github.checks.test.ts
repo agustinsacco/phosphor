@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { summarizeChecks, indexPrsByBranch } from './gh-cli'
+import { summarizeChecks, indexPrsByBranch } from './github'
 
 describe('summarizeChecks', () => {
   it('is undefined when there are no checks at all', () => {

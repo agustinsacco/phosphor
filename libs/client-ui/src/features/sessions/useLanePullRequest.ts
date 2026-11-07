@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { remotePrKey } from '@shared/host-protocol-github'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
+import { machineCaps } from '@/stores/machineCaps'
 import { useSessionHostLane } from '@/stores/remoteLanes'
 import { repoPullRequests, usePullRequestsStore } from '@/stores/pullRequests'
 import { useRepoPrRefresh } from './repoPrRefresh'
@@ -19,7 +20,7 @@ export function useLanePullRequest(sessionId: string) {
   const lane = hostLane?.lane
   const repository = host?.repositories.find((item) => item.id === lane?.repositoryId)
   const ready = remote
-    ? host?.state === 'ready' && host.capabilities.includes('workspaces.read') && !!repository
+    ? machineCaps(host).can('workspaces.read') && !!repository
     : !!entry && git?.isRepo === true
   const repoPath = remote
     ? repository

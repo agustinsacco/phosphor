@@ -2,7 +2,8 @@ import { basename } from 'node:path'
 import { prefs } from './prefs/backend'
 import * as drafts from './prefs/drafts'
 import * as workspaces from './prefs/workspaces'
-import { isWorktreeFolder, realPathOrNull, resolvedOrSame } from './prefs/workspaces'
+import { isWorktreeFolder } from '@phosphor/shared/worktree-segment'
+import { realPathOrNull, resolvedOrSame } from './prefs/workspaces'
 import {
   canonicalPaths,
   type PathMove,

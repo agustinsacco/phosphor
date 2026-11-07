@@ -1,4 +1,4 @@
-import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useEffect } from 'react'
 import { clampUiScale } from '@shared/models'

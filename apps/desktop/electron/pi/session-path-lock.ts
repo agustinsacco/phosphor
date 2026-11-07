@@ -1,5 +1,4 @@
 import { createSessionPathRuntime } from '@phosphor/session-runtime/pi/session-path-lock'
-export { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 
 /** The Desktop owner shares this lock domain across startup and deletion. */
 export const sessionPaths = createSessionPathRuntime()

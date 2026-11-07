@@ -9,6 +9,7 @@ import {
   files,
   file,
   fileRow,
+  openFolders,
   edit,
   pathPrompt,
   captures,
@@ -38,6 +39,7 @@ test('Remote file mutations preserve conflicts and isolation', async () => {
     await file(h, 'created/renamed.txt')
     await pathPrompt(h, 'Trash', 'created/renamed.txt')
     await expect(fileRow(h, 'created/renamed.txt')).toHaveCount(0)
+    await openFolders(h, 'nested/renamed.txt')
     await expect(fileRow(h, 'nested/renamed.txt')).toBeVisible()
     await h.page.getByRole('button', { name: 'Refresh', exact: true }).click()
     await file(h, 'nested/renamed.txt')

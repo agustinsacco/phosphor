@@ -1,13 +1,8 @@
 import { BrowserWindow, app, shell } from 'electron'
 import { log } from '../debug-log'
 import { shutdownApproval } from '../shutdown-approval'
-import {
-  IDLE,
-  isNewerVersion,
-  reduceUpdate,
-  type UpdateEvent,
-  type UpdateState,
-} from './update-state'
+import { isNewerVersion } from '@shared/version'
+import { IDLE, reduceUpdate, type UpdateEvent, type UpdateState } from './update-state'
 import {
   computeUpdatePath,
   macBundlePath,

@@ -16,7 +16,7 @@ import {
   isRoutineSession,
   routineSessionForPath,
   observeRoutineSession,
-} from '../routines/ownership'
+} from '@phosphor/session-runtime/routines/ownership'
 import { getPrefs, recordWorkspace, realPathOrNull } from '../store'
 import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
 import { log } from '../debug-log'

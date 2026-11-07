@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os'
 import type { PiPackageEntry } from '@shared/models'
 import { listPackages, npmNameFromSpec } from '@phosphor/session-runtime/pi/packages'
 import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
-import { claudeOneShotEnv, claudeProviderSpawnEnv } from './provider-detect'
+import {
+  claudeOneShotEnv,
+  claudeProviderSpawnEnv,
+} from '@phosphor/session-runtime/pi/provider-detect'
 import { piProcessEnv } from './shell-env'
 import { PiUnavailableError, resolvePiInvoker } from './invoker'
 import { resolveBinary, windowsWhereOutput } from './binary-lookup'
@@ -12,7 +15,6 @@ import { failedJob, startJob, startPrintModeJob, type JobSender } from './packag
 
 export { failedJob, startJob, disposePackageJobs, type JobSender } from './package-jobs'
 export { claudeStatus } from './claude-status'
-export { parseClaudeAuthStatus } from '@phosphor/session-runtime/claude/auth-status'
 export { resolveBinary } from './binary-lookup'
 
 /** One tiny print-mode turn: the bound a session title run gets. */
