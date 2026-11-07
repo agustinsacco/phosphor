@@ -92,13 +92,19 @@ export function fileRow(h: RemoteFixture, name: string) {
     .locator(`xpath=.//*[substring-after(substring-after(@data-path, "/lane:"), "/") = "${name}"]`)
 }
 
-/** Opens a file from the explorer, expanding its folders first. */
-export async function file(h: RemoteFixture, name: string) {
+/** Host trees open collapsed: open each folder above `name` that is closed. */
+export async function openFolders(h: RemoteFixture, name: string) {
   const parts = name.split('/')
   for (let i = 1; i < parts.length; i++) {
     const folder = fileRow(h, parts.slice(0, i).join('/'))
-    if ((await folder.getAttribute('aria-expanded')) !== 'true') await folder.click()
+    if ((await folder.getAttribute('aria-expanded')) === 'false') await folder.click()
+    await expect(folder).toHaveAttribute('aria-expanded', 'true')
   }
+}
+
+/** Opens a file from the explorer, expanding its folders first. */
+export async function file(h: RemoteFixture, name: string) {
+  await openFolders(h, name)
   const row = fileRow(h, name)
   await row.click()
   await expect(row).toHaveAttribute('aria-current', 'true')

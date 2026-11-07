@@ -197,7 +197,7 @@ rename, move, copy and trash entries inside the lane, in This Mac's Files pane.
 Saves compare the SHA-256 revision read by the editor; conflicts preserve edits
 and offer a reload. Uncertain saves preserve edits and are never retried.
 Unsaved edits stay in renderer memory per lane, survive lane switches, and clear
-on reload, successful save or lane forget.
+on reload, successful save, lane forget or closing the tab without saving.
 Changes lists the files the lane's tools touched, each with an inline read-only
 diff. Binary files and oversized text use placeholders. Remote text uses in-memory
 Monaco models, never `phosphor-file://` grants or filesystem watchers. Markdown,

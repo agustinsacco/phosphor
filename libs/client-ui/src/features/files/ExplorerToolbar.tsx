@@ -72,7 +72,15 @@ export function ExplorerToolbar({
         </IconToggle>
         <IconToggle
           title="Refresh explorer"
-          onClick={() => runFileAction(useFilesStore.getState().refreshLoadedDirs(workspacePath))}
+          onClick={() => {
+            const store = useFilesStore.getState()
+            runFileAction(
+              Promise.all([
+                store.refreshLoadedDirs(workspacePath),
+                store.refreshGitStatus(workspacePath),
+              ]),
+            )
+          }}
         >
           <ReloadIcon />
         </IconToggle>

@@ -47,6 +47,7 @@ it('This Mac’s folder is a watched tree with every feature and no refusal', ()
     writeRefusal: null,
     listing: 'tree',
     refreshKey: '',
+    textLimitBytes: 4 * 1024 * 1024,
     features: {
       watch: true,
       search: true,
@@ -68,6 +69,7 @@ it('a Host lane is a flat list without the local-only features', async () => {
     unavailable: null,
     writeRefusal: null,
     listing: 'flat',
+    textLimitBytes: 2 * 1024 * 1024,
   })
   expect(Object.values(source.read().features).every((on) => !on)).toBe(true)
   source.done()

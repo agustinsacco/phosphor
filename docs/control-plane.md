@@ -483,10 +483,10 @@ entries: unique 1–64-character letters/digits/underscore/hyphen ids and canoni
 base64url 32-byte AES keys, at most 4096 characters total. They are deployment
 secrets, never implicitly generated. First key encrypts; all keys decrypt.
 Append a new key before promoting it to first, and retain previous keys for the
-24-hour maximum browser session lifetime after their last use for encryption.
+14-day maximum browser session lifetime after their last use for encryption.
 Cookies are AES-256-GCM sealed with random nonces and origin/purpose-bound
 additional authenticated data. There is no session/refresh-token database or
-process-memory session dependency. Supabase credentials exist only server-side
+process-memory dependency for a current cookie. Supabase credentials exist only server-side
 and in the sealed HttpOnly cookie, never in JS, localStorage, service workers,
 JSON responses or logs. GitHub provider tokens are discarded.
 
@@ -494,7 +494,7 @@ Production cookies are `__Host-phosphor-session` and
 `__Host-phosphor-transaction`: Secure, HttpOnly, SameSite=Lax, Path=/, no Domain.
 Explicit loopback HTTP fixtures instead use `phosphor-dev-session` and
 `phosphor-dev-transaction`, without Secure. Session cookies expire absolutely
-24 hours after sign-in; transaction cookies expire in ten minutes. Invalid and
+14 days after sign-in; transaction cookies expire in ten minutes. Invalid and
 expired cookies are cleared with a sanitized 401 response. Unavailable services
 do not clear an otherwise valid session.
 
@@ -565,7 +565,11 @@ A revoked cookie never automatically re-registers; a fresh interactive sign-in
 is required to create another device identity.
 
 Refresh begins within 60 seconds of access-token expiry, coalesced by refresh
-credential hash for at most 60 seconds and 1000 entries per process. Both owner
+credential hash. Each rotation is remembered for 24 hours (10,000 entries per
+process, oldest forgotten first), so a browser that missed the rotated cookie (an
+aborted fetch, a suspended PWA, or an older re-seal landing last) and replays the
+previous one follows the remembered rotations to the current session instead of
+sending Supabase a spent refresh token, which would sign it out. Both owner
 and Auth session id must remain unchanged; the refreshed access token is also
 verified via Auth. Upstream requests refuse redirects, use five-second deadlines
 and 64 KB response caps. Replay records retain consumed callback transactions

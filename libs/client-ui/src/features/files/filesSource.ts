@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { MAX_TEXT_FILE_BYTES } from '@shared/file-kinds'
+import { FILE_LIMITS } from '@shared/host-protocol-files'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -36,6 +38,8 @@ export interface FilesSource {
   listing: 'tree' | 'flat'
   /** Changes when the files may have changed without a watcher event. */
   refreshKey: string
+  /** The largest file the machine reads as text. */
+  textLimitBytes: number
   features: FilesFeatures
 }
 
@@ -69,6 +73,7 @@ export function localFilesSource(workspacePath: string): FilesSource {
     writeRefusal: null,
     listing: 'tree',
     refreshKey: '',
+    textLimitBytes: MAX_TEXT_FILE_BYTES,
     features: LOCAL_FEATURES,
   }
 }
@@ -77,22 +82,35 @@ export function localFilesSource(workspacePath: string): FilesSource {
 export function useHostFilesSource(sessionId: string, workspacePath: string): FilesSource {
   const target = useSessionsStore((s) => s.live[sessionId]?.target)
   const laneId = useSessionsStore((s) => s.live[sessionId]?.laneId)
-  const host = useRemoteLanesStore((s) =>
-    target?.kind === 'remote' ? s.hosts[target.hostId] : undefined,
+  // The Host object is replaced by unrelated lanes and stream updates: select only strings, so the
+  // source, and the memos of the panes it feeds, change when this lane's files may have.
+  const hostOf = (s: ReturnType<typeof useRemoteLanesStore.getState>) =>
+    target?.kind === 'remote' ? s.hosts[target.hostId] : undefined
+  const laneOf = (s: ReturnType<typeof useRemoteLanesStore.getState>) =>
+    hostOf(s)?.lanes.find((l) => l.laneId === laneId)
+  const pathRoot = useRemoteLanesStore((s) => laneOf(s)?.cwd) ?? workspacePath
+  const unavailable = useRemoteLanesStore(
+    (s) => hostFeatureRefusal(hostOf(s), 'workspaces.read') ?? null,
   )
-  const writeRefusal = useLaneWriteRefusal(sessionId)
-  const lane = host?.lanes.find((l) => l.laneId === laneId)
-  return {
-    workspacePath,
-    pathRoot: lane?.cwd ?? workspacePath,
-    unavailable: hostFeatureRefusal(host, 'workspaces.read') ?? null,
-    writeRefusal: writeRefusal ?? null,
-    listing: 'flat',
-    // The Host object is replaced by unrelated lanes and stream updates; only this lane's
-    // summary, the connection and the Host runtime say the files may have changed.
-    refreshKey: JSON.stringify([lane, host?.state, host?.connectionToken, host?.cursor?.epoch]),
-    features: HOST_FEATURES,
-  }
+  // This lane's summary, the connection and the Host runtime say the files may have changed.
+  const refreshKey = useRemoteLanesStore((s) => {
+    const host = hostOf(s)
+    return JSON.stringify([laneOf(s), host?.state, host?.connectionToken, host?.cursor?.epoch])
+  })
+  const writeRefusal = useLaneWriteRefusal(sessionId) ?? null
+  return useMemo(
+    () => ({
+      workspacePath,
+      pathRoot,
+      unavailable,
+      writeRefusal,
+      listing: 'flat',
+      refreshKey,
+      textLimitBytes: FILE_LIMITS.textBytes,
+      features: HOST_FEATURES,
+    }),
+    [workspacePath, pathRoot, unavailable, writeRefusal, refreshKey],
+  )
 }
 
 /** The lane's files on the machine that runs it. */

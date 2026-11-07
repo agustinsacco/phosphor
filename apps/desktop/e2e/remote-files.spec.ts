@@ -9,6 +9,7 @@ import {
   files,
   file,
   fileRow,
+  openFolders,
   edit,
   create,
   rename,
@@ -27,6 +28,8 @@ test('Remote file mutations preserve conflicts and isolation', async () => {
     await openRemote(h)
     await takeControl(h)
     await files(h)
+    // Folders start collapsed, as on This Mac.
+    await expect(fileRow(h, 'nested')).toHaveAttribute('aria-expanded', 'false')
     // This Mac's explorer: header buttons, row menus and drag within the tree.
     await create(h, 'folder', 'created')
     await create(h, 'file', 'draft.txt')
@@ -38,12 +41,16 @@ test('Remote file mutations preserve conflicts and isolation', async () => {
     await file(h, 'renamed.txt')
     await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY saved')
     await dropInto(h, 'renamed.txt', 'created', true)
+    await openFolders(h, 'created/renamed.txt')
     await expect(fileRow(h, 'created/renamed.txt')).toBeVisible()
     await dropInto(h, 'renamed.txt', 'nested')
     await expect(fileRow(h, 'renamed.txt')).toHaveCount(0)
     await trash(h, 'created/renamed.txt')
+    await openFolders(h, 'nested/renamed.txt')
     await expect(fileRow(h, 'nested/renamed.txt')).toBeVisible()
     await h.page.getByRole('button', { name: 'Refresh explorer', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Collapse all folders', exact: true }).click()
+    await expect(fileRow(h, 'nested')).toHaveAttribute('aria-expanded', 'false')
     await file(h, 'nested/renamed.txt')
     await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY saved')
     await edit(h, 'HOST_A_ONLY dirty conflict')

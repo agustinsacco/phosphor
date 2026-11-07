@@ -39,6 +39,8 @@ conflict keeps the buffer and offers Reload, not Keep mine, which the revision
 check would refuse again. An uncertain save keeps the edits under "Save not
 confirmed. Your edits are kept. Do not retry an uncertain save." and is never
 retried; Reload file reads the file again and discards the edited buffer.
+Folders start collapsed and the toolbar's Collapse all folders closes every one,
+as on This Mac; a file opened from search or a chat link opens its folders.
 Opening another file opens a tab, as on This Mac; one path is one buffer, and
 closing a dirty tab asks first. Open files and unsaved edits live in the files
 store per lane, survive lane switches and closing the pane, and are dropped when
@@ -53,7 +55,8 @@ that the Host could not read says so ("Too many files to list: the Host stops at
 agent-touched view: the files the lane's edit and write tools touched, each with
 an inline diff read through the Host. Revert needs a session baseline the Host
 does not keep yet, so a Host lane hides it. Binary and oversized files use
-placeholders. Markdown, HTML and SVG files open on Preview with Source one click
+placeholders; a Host reads text up to 2 MB, and a failed read is an error toast
+that opens no tab, as on This Mac. Markdown, HTML and SVG files open on Preview with Source one click
 away, in Desktop and the browser, rendered from the text the Host sent (HTML and
 SVG in the artifact sandbox). The pane refreshes on focused lane summary changes,
 reconnects, a new Host runtime and its Refresh button, never a local filesystem
@@ -64,8 +67,10 @@ read for unsaved edits.
 Chat links, tool path chips and the finder open through an explicit remote lane
 and can reveal a line. Host absolute paths must be inside that lane's cwd.
 Editor models and caches are lane-qualified. Machine-level Files browses
-configured Host repositories read-only without opening a lane, and the browser's
-Files pane is read-only until it gains this pane.
+configured Host repositories read-only without opening a lane. The browser's
+Files pane is read-only. Its folders, and Machine-level Files', start collapsed
+and open for a selected file; the browser's Files has Collapse all, and its
+Changes starts expanded.
 [Remote surface gaps](future-features.md#remote-surface-gaps) lists unavailable
 operations. Without the capability, the pane shows “This Host does not offer files to this
 device.”, and “Machine not connected. Wait for reconnection.” while the Host is away.
