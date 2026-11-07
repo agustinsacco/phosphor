@@ -173,7 +173,7 @@
     "src/stores/artifacts.ts::useArtifactsStore[1]": 139,
     "src/stores/chat.ts::useChatStore[1]": 135,
     "src/stores/extensionUi.ts::useExtensionUiStore[1]": 199,
-    "src/stores/files.ts::useFilesStore[1]": 141,
+    "src/stores/files.ts::useFilesStore[1]": 140,
     "src/stores/remoteLanes.ts::navigateToLane[1]": 84,
     "src/stores/remoteLanes.ts::attachRemoteLanesListener[1]": 120,
     "src/stores/sessions.ts::file": 1507,

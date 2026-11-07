@@ -24,10 +24,12 @@ A Host lane's Files and Changes are This Mac's panes over the lane's files
 source: the same explorer, editor tabs, viewer and Changes list. What a Host
 offers is data on that source, not a separate pane. With `workspaces.read`,
 Files lists the lane's tracked and untracked non-ignored files, one list per
-refresh folded into the tree, so an empty folder shows once it holds a file. With `workspaces.write` and `sessions.control`, the
+refresh folded into the tree. A folder made in Files shows at once; one made
+elsewhere (by the agent or on the Host) shows once it holds a file, since the
+Host lists files. With `workspaces.write` and `sessions.control`, the
 controller edits text and saves with Cmd/Ctrl+S or Save all, creates files and
-folders, renames, deletes to trash with This Mac's confirm, and moves entries by
-dragging them in the tree (Option/Ctrl copies). Without them the explorer shows a
+folders, renames, deletes to trash with This Mac's confirm, and moves entries
+by dragging them in the tree (Option/Ctrl copies). Without them the explorer shows a
 "Read only" tag naming the reason and the editor is read-only. A Host lane hides
 what needs a local folder: content search, the hidden-file and .gitignore
 toggles, the OS clipboard and file import, Reveal, Quick Look, Open in default
@@ -55,9 +57,10 @@ that the Host could not read says so ("Too many files to list: the Host stops at
 agent-touched view: the files the lane's edit and write tools touched, each with
 an inline diff read through the Host. Revert needs a session baseline the Host
 does not keep yet, so a Host lane hides it. Binary and oversized files use
-placeholders; a Host reads text up to 2 MB, and a failed read is an error toast
-that opens no tab, as on This Mac. Markdown, HTML and SVG files open on Preview with Source one click
-away, in Desktop and the browser, rendered from the text the Host sent (HTML and
+placeholders; a Host reads text up to 2 MB, and a read the Host could not do is
+the error toast "Could not read this file." that opens no tab, as on This Mac.
+Markdown, HTML and SVG files open on Preview with Source one click away, in
+Desktop and the browser, rendered from the text the Host sent (HTML and
 SVG in the artifact sandbox). The pane refreshes on focused lane summary changes,
 reconnects, a new Host runtime and its Refresh button, never a local filesystem
 watcher. Dirty buffers are not reloaded. During a disconnect the open files stay

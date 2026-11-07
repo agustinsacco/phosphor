@@ -8,6 +8,7 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { openFileInWorkspace, useLayoutStore } from '@/stores/layout'
 import { useFilesStore } from '@/stores/files'
+import { usePromptStore } from '@/stores/prompt'
 import { RightPane } from '../RightPane'
 
 /**
@@ -200,6 +201,20 @@ function paneActions(container: HTMLElement) {
       await act(async () => button.click())
     },
     content: async (path: string): Promise<string | undefined> => (await showEditor(path))?.value,
+    /** The toolbar's New file or New folder, in the selected row's folder, named `name`. */
+    create: async (kind: 'file' | 'folder', name: string): Promise<void> => {
+      const button = container.querySelector<HTMLButtonElement>(`button[aria-label="New ${kind}"]`)
+      if (!button) throw new Error(`No New ${kind} button`)
+      const stop = usePromptStore.subscribe((state) => {
+        for (const request of state.requests) usePromptStore.getState().dismiss(request, name)
+      })
+      try {
+        await act(async () => button.click())
+        await act(async () => {})
+      } finally {
+        stop()
+      }
+    },
     /** The explorer marks this file as modified in git. */
     marked: (path: string): boolean => !!row(path)?.querySelector('[data-tooltip="modified"]'),
   }

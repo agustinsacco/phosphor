@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
+import { FILE_READ_FAILED } from '@phosphor/shared/host-protocol-files'
 import { forgetRemoteSession } from '@/stores/sessions'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { usePromptStore } from '@/stores/prompt'
@@ -187,7 +188,8 @@ it('a failed Host read is an error toast, as on This Mac, and opens no tab', asy
   const lane = await renderLaneFiles({
     invoke: (channel, ...args) =>
       channel === 'fs:readFile'
-        ? Promise.reject(new Error('Could not read this file.'))
+        ? // The bridge's text for a Host that could not read the file (read-features.ts).
+          Promise.reject(new Error(FILE_READ_FAILED))
         : invoke(channel, ...args),
   })
   try {
@@ -201,5 +203,25 @@ it('a failed Host read is an error toast, as on This Mac, and opens no tab', asy
   } finally {
     lane.unmount()
     useExtensionUiStore.setState({ toasts: [] })
+  }
+})
+
+it('Host folders start collapsed, and Collapse all folders closes an open one', async () => {
+  const lane = await renderLaneFiles({
+    invoke: (channel, ...args) =>
+      channel === 'fs:listFiles' ? Promise.resolve(['src/a.ts']) : invoke(channel, ...args),
+  })
+  const folder = () => lane.container.querySelector(`[data-path="${workspace}/src"]`)
+  try {
+    expect(folder()?.getAttribute('aria-expanded')).toBe('false')
+    await lane.clickTreeRow('src')
+    expect(folder()?.getAttribute('aria-expanded')).toBe('true')
+    const collapse = lane.container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Collapse all folders"]',
+    )
+    await act(async () => collapse?.click())
+    expect(folder()?.getAttribute('aria-expanded')).toBe('false')
+  } finally {
+    lane.unmount()
   }
 })
