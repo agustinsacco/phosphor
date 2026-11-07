@@ -20,7 +20,7 @@ interface Entry {
 export function newUserCaptures(
   entries: unknown[],
   seen: Set<string>,
-  authority: { scope: string; branch: string },
+  authority: { scope: string; branch: string | null },
   sessionId: string,
 ): BrainCapture[] {
   bounded(entries, 1_000_000)
@@ -77,7 +77,7 @@ export function newUserCaptures(
 
 interface PendingInput {
   text: string
-  authority: { scope: string; branch: string }
+  authority: { scope: string; branch: string | null }
   admittedAt: number
   accepted: boolean
   baselineSequence: number

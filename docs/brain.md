@@ -14,7 +14,7 @@ API. `Platform.localBrain`, not screen width, chooses the capability.
 
 Settings separate four choices:
 
-1. Enable Brain and enroll canonical local Git repositories. Default is off.
+1. Enable Brain and enroll canonical local workspaces. Default is off.
 2. Optionally enable recall into newly admitted interactive lanes.
 3. Acknowledge the model's terms, then explicitly download local embeddings.
 4. Choose a reasoning model and explicitly consent to each processing run.
@@ -23,6 +23,14 @@ Enablement never downloads a model or starts reasoning. Disablement and removing
 an enrollment revoke access, but preserve stored data and installed model files.
 Removing the model is not forgetting evidence. Retention defaults to 30 days,
 accepts 1–3650 days, and decreasing it needs confirmation.
+
+Workspaces include ordinary folders and Phosphor sandboxes, not only Git
+repositories. Symlink spellings resolve to one scope. Git lanes still share
+their canonical repository scope, including linked worktrees, and require a
+known branch. A confirmed non-Git folder has no branch and recalls only
+workspace-wide evidence. Broken Git metadata, detached checkouts and failed Git
+queries are not treated as branchless folders. Inherited Git environment
+variables cannot select a different repository for Brain authority.
 
 Explore offers lexical/hybrid search, evidence-branch and time filters, an
 accessible entity list, a bounded graph, citations and revision-checked

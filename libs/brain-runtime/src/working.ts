@@ -51,7 +51,7 @@ class BrainWorking {
     capability: BrainCapability,
     evidenceIds: string[],
     claimIds: string[],
-    branch: string,
+    branch: string | null,
   ): Promise<void> => {
     if ((await this.authority(capability)).branch !== branch)
       throw new Error('Brain branch changed during delivery')

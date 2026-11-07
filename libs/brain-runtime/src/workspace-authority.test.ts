@@ -40,7 +40,15 @@ it('does not enroll a regular file as a workspace', async () => {
   const f = await fixture()
   const file = join(f.folder, 'not-a-folder')
   await writeFile(file, 'synthetic')
-  await expect(canonicalPrefs({ ...f.snapshot.prefs, workspaces: [file] })).rejects.toThrow()
+  await expect(canonicalPrefs({ ...f.snapshot.prefs, workspaces: [file] })).rejects.toThrow(
+    'directory',
+  )
+})
+
+it('recognizes an unborn Git branch without misclassifying its repository', async () => {
+  const f = await fixture()
+  execFileSync('git', ['init', '-b', 'main', f.folder], { stdio: 'ignore' })
+  expect(await laneAuthority(f.folder)).toEqual({ scope: f.folder, branch: 'main' })
 })
 
 it('keeps detached Git checkouts unavailable instead of reclassifying them as plain folders', async () => {
