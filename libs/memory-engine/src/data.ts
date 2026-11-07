@@ -14,6 +14,7 @@ import type {
   BrainRevision,
 } from '@phosphor/shared/brain'
 import type { MemoryStoreOptions } from './ports'
+import type { LearningReceipt, LearningResultReceipt } from './learning-receipts'
 
 export interface Documents {
   evidence: Omit<BrainEvidence, 'text'>
@@ -24,6 +25,8 @@ export interface Documents {
   deliveries: BrainDelivery
   receipts: { id: string; value: string; result: string | null }
   purges: { jobId: string; sessionPath: string }
+  learningInputs: { hash: string; value: LearningReceipt }
+  learningResults: LearningResultReceipt
 }
 export function stable(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`
@@ -70,6 +73,8 @@ export class Data {
       CREATE TABLE IF NOT EXISTS tombstones (id TEXT PRIMARY KEY);
       CREATE TABLE IF NOT EXISTS job_batches (id TEXT PRIMARY KEY,attempt INTEGER NOT NULL,job_id TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS retained (id TEXT PRIMARY KEY, retained_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS learning_coverage (scope TEXT NOT NULL,root_id TEXT NOT NULL,
+        projected_hash TEXT NOT NULL,job_id TEXT NOT NULL,PRIMARY KEY(scope,root_id,projected_hash,job_id));
       CREATE TABLE IF NOT EXISTS evidence_sources (source_id TEXT NOT NULL,derived_id TEXT NOT NULL,PRIMARY KEY(source_id,derived_id));
       CREATE TABLE IF NOT EXISTS entity_sources (seq INTEGER PRIMARY KEY,entity_id TEXT NOT NULL,
         source_id TEXT UNIQUE NOT NULL,scope TEXT NOT NULL,recorded_at INTEGER NOT NULL,value TEXT NOT NULL);
@@ -94,7 +99,7 @@ export class Data {
       .run(this.now())
     this.transaction(() => {
       for (const job of this.all('jobs')) {
-        if (job.state === 'running')
+        if (job.state === 'running' || (job.learning && job.state === 'queued'))
           this.put('jobs', job.id, job.scope, {
             ...job,
             state: 'interrupted',

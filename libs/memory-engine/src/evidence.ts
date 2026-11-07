@@ -10,7 +10,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 import type {
   BrainCapture,
   BrainDelivery,
@@ -22,6 +22,8 @@ import type {
 import { type Data, identifier } from './data'
 import * as validate from './validation'
 import { forgetEntitySources } from './entities'
+import { dependentEvidence, forgetLearning } from './learning-receipts'
+import { excludedSource } from './source-exclusion'
 
 export function blobName(evidence: Pick<BrainEvidence, 'id' | 'hash'>): string {
   return `${evidence.id}.${evidence.hash}.txt`
@@ -86,18 +88,7 @@ export class Evidence {
     return evidence
   }
   excluded(sessionId: string): boolean {
-    if (
-      this.data.get('deliveries', sessionId) ||
-      this.data.tombstoned(identifier('processor-session', sessionId))
-    )
-      return true
-    return this.data
-      .all('jobs')
-      .some(
-        (job) =>
-          job.id === sessionId ||
-          (job.sessionPath !== null && basename(job.sessionPath, '.jsonl') === sessionId),
-      )
+    return excludedSource(this.data, sessionId)
   }
   read(id: string, allowedScopes: string[]): BrainEvidence {
     validate.text(id)
@@ -222,7 +213,7 @@ export class Evidence {
         this.data.db.prepare('DELETE FROM claim_versions WHERE claim_id=?').run(claim.id)
       }
       forgetEntitySources(this.data, selected)
-      this.invalidateDerived(selected, claimIds)
+      this.invalidateDerived(selected, claimIds, roots)
       if (removed.length || claims.length) this.data.bump()
     })
     this.cleanOrphans()
@@ -239,9 +230,11 @@ export class Evidence {
       originals.flatMap((item) => item.rootIds.map((root) => identifier('root', item.scope, root))),
     )
     // A multi-root derived copy is removed, but its other independent roots are not forgotten.
+    const dependent = dependentEvidence(this.data, roots, selected)
     const removed = evidence.filter(
       (item) =>
         selected.has(item.id) ||
+        dependent.has(item.id) ||
         item.rootIds.some((root) => roots.has(identifier('root', item.scope, root))),
     )
     for (const item of removed) selected.add(item.id)
@@ -263,9 +256,14 @@ export class Evidence {
       }
     return { removed, roots }
   }
-  private invalidateDerived(evidenceIds: Set<string>, claimIds: Set<string>): void {
+  private invalidateDerived(
+    evidenceIds: Set<string>,
+    claimIds: Set<string>,
+    roots: Set<string>,
+  ): void {
     for (const job of this.data.all('jobs')) {
       if (job.evidenceIds.some((id) => evidenceIds.has(id))) {
+        if (job.learning) forgetLearning(this.data, job.id, roots)
         if (job.sessionPath)
           this.data.put('purges', job.id, job.scope, {
             jobId: job.id,
@@ -273,6 +271,7 @@ export class Evidence {
           })
         this.data.put('jobs', job.id, job.scope, {
           ...job,
+          ...(job.learning ? { learning: { ...job.learning, outcome: null } } : {}),
           state: 'cancelled',
           sessionPath: null,
           evidenceIds: job.evidenceIds.filter((id) => !evidenceIds.has(id)),

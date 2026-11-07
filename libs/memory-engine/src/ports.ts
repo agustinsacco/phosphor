@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
+import type { BrainLearningStoreOperations } from '@phosphor/shared/brain-learning-jobs'
 import type {
   BrainCapture,
   BrainClaim,
@@ -30,7 +31,7 @@ export interface MemoryVector {
   values: number[]
 }
 /** Synchronous operations run only in the database worker. */
-export interface MemoryStorePort {
+export interface MemoryStorePort extends BrainLearningStoreOperations {
   snapshot(): BrainSnapshot
   setPrefs(prefs: BrainPrefs): BrainSnapshot
   capture(input: BrainCapture): BrainEvidence | null

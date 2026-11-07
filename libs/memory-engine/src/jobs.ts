@@ -3,9 +3,15 @@ import { basename } from 'node:path'
 import { type Data, identifier, stable } from './data'
 import * as validate from './validation'
 import { manualBatch } from './job-batches'
+import { receipt } from './learning-receipts'
+import type { Evidence } from './evidence'
+import { activeProcessor } from './source-exclusion'
 
 export class Jobs {
-  constructor(readonly data: Data) {}
+  constructor(
+    readonly data: Data,
+    readonly evidence: Evidence,
+  ) {}
   get(id: string): BrainJob {
     validate.text(id)
     return this.data.require('jobs', id)
@@ -13,10 +19,14 @@ export class Jobs {
   authorize(job: BrainJob): void {
     this.data.consent(job.scope)
     this.data.assertRevision(job)
-    validate.check(
-      stable(job.model) === stable(this.data.prefs().processor),
-      'Processor consent changed',
-    )
+    if (job.learning) {
+      receipt(this.data, job)
+      for (const id of job.evidenceIds) this.evidence.read(id, [job.scope])
+    } else
+      validate.check(
+        stable(job.model) === stable(this.data.prefs().processor),
+        'Processor consent changed',
+      )
     for (const id of job.evidenceIds) {
       validate.check(
         this.data.require('evidence', id).scope === job.scope,
@@ -25,6 +35,9 @@ export class Jobs {
     }
   }
   create(scope: string, model: BrainModel, expectedPolicyEpoch?: number): BrainJob {
+    return this.data.transaction(() => this.createAdmitted(scope, model, expectedPolicyEpoch))
+  }
+  private createAdmitted(scope: string, model: BrainModel, expectedPolicyEpoch?: number): BrainJob {
     validate.check(
       expectedPolicyEpoch === undefined || expectedPolicyEpoch === this.data.revision().policyEpoch,
       'Stale processing consent',
@@ -63,18 +76,18 @@ export class Jobs {
       sessionPath: null,
       error: null,
     }
-    this.data.transaction(() => {
-      this.data.put('jobs', id, scope, job)
-      this.data.db
-        .prepare('INSERT OR REPLACE INTO job_batches VALUES (?,?,?)')
-        .run(batchId, attempt, id)
-    })
+    this.data.put('jobs', id, scope, job)
+    this.data.db
+      .prepare('INSERT OR REPLACE INTO job_batches VALUES (?,?,?)')
+      .run(batchId, attempt, id)
     return job
   }
   claim(id: string): BrainJob {
     return this.data.transaction(() => {
       const job = this.get(id)
       this.authorize(job)
+      validate.check(!activeProcessor(this.data, id), 'Another processor job is active')
+      validate.check(!job.learning || job.state === 'queued', 'Learning requires explicit retry')
       validate.check(
         ['queued', 'interrupted', 'failed'].includes(job.state),
         'Job cannot be claimed',

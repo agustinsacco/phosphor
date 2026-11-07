@@ -69,19 +69,8 @@ export class Proposals {
       this.validateReferences(input, job, true)
       return existing
     }
-    this.jobs.fenced(jobId, fence)
-    validate.check(job.state === 'running', 'Processor is not running')
-    this.validateReferences(input, job)
-    const proposal: BrainProposal = {
-      id,
-      jobId,
-      scope: job.scope,
-      createdAt: this.data.now(),
-      state: 'pending',
-      input,
-      graphRevision: job.graphRevision,
-      policyEpoch: job.policyEpoch,
-    }
+    validate.check(!job.learning, 'Learning results require atomic completion')
+    const proposal = this.prepare(job, fence, input)
     this.data.transaction(() => {
       this.data.put('proposals', id, job.scope, proposal)
       this.data.put('jobs', jobId, job.scope, {
@@ -91,6 +80,22 @@ export class Proposals {
       })
     })
     return proposal
+  }
+  prepare(job: BrainJob, fence: number, input: BrainProposalInput): BrainProposal {
+    validate.proposal(input)
+    this.jobs.fenced(job.id, fence)
+    validate.check(job.state === 'running', 'Processor is not running')
+    this.validateReferences(input, job)
+    return {
+      id: identifier('proposal', job.id, input),
+      jobId: job.id,
+      scope: job.scope,
+      createdAt: this.data.now(),
+      state: 'pending',
+      input,
+      graphRevision: job.graphRevision,
+      policyEpoch: job.policyEpoch,
+    }
   }
   review(id: string, approve: boolean, revision: BrainRevision): void {
     validate.text(id)

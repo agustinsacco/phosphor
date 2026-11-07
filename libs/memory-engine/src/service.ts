@@ -3,6 +3,7 @@ import type { MemoryStoreOptions, MemoryStorePort, MemoryVector } from './ports'
 import { Data, stable } from './data'
 import { Evidence } from './evidence'
 import { Jobs } from './jobs'
+import { Learning } from './learning'
 import { Proposals } from './proposals'
 import { Corrections } from './corrections'
 import { Retrieval } from './retrieval'
@@ -96,8 +97,9 @@ export function openMemoryStore(options: MemoryStoreOptions): MemoryStorePort {
       evidence.expire()
       return fn()
     }
-    const jobs = new Jobs(data)
+    const jobs = new Jobs(data, evidence)
     const proposals = new Proposals(data, evidence, jobs)
+    const learning = new Learning(data, evidence, jobs, proposals)
     const corrections = new Corrections(data, evidence, proposals)
     const retrieval = new Retrieval(data, evidence)
     return {
@@ -107,6 +109,12 @@ export function openMemoryStore(options: MemoryStoreOptions): MemoryStorePort {
       read: (id, scopes) => serve(() => evidence.read(id, scopes)),
       evidencePage: (scope, afterId) => serve(() => evidence.evidencePage(scope, afterId)),
       createJob: (scope, model, epoch) => serve(() => jobs.create(scope, model, epoch)),
+      learningCoverage: (...args) => serve(() => learning.learningCoverage(...args)),
+      createLearning: (input) => serve(() => learning.createLearning(input)),
+      completeLearning: (...args) => serve(() => learning.completeLearning(...args)),
+      failLearning: (...args) => serve(() => learning.failLearning(...args)),
+      learningDetail: (id) => serve(() => learning.learningDetail(id)),
+      learningJobs: (scope) => serve(() => learning.learningJobs(scope)),
       claimJob: (id) => serve(() => jobs.claim(id)),
       updateJob: (id, fence, patch) => serve(() => jobs.update(id, fence, patch)),
       job: (id) => serve(() => jobs.get(id)),

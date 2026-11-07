@@ -4,6 +4,7 @@ import { lstatSync } from 'node:fs'
 import { join } from 'node:path'
 import { blobName } from './evidence'
 import { check } from './validation'
+import { activeProcessor } from './source-exclusion'
 
 function boundedSources(data: Data, candidates: { id: string; hash: string }[]): string[] {
   const ids: string[] = []
@@ -34,11 +35,22 @@ export function manualBatch(
     stable(job.model) === stable(model) &&
     job.evidenceIds.every((id) => data.get('evidence', id)?.scope === scope)
   const active = jobs
-    .filter((job) => ['queued', 'running'].includes(job.state) && current(job))
+    .filter((job) => !job.learning && ['queued', 'running'].includes(job.state) && current(job))
     .sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))[0]
   if (active) return { active, evidenceIds: active.evidenceIds }
+  check(!activeProcessor(data), 'Another processor job is active')
   const byId = new Map(jobs.map((job) => [job.id, job]))
-  const blocked = new Set<string>()
+  const blocked = new Set<string>(
+    jobs.filter((job) => job.learning).flatMap((job) => job.evidenceIds),
+  )
+  const processedRoots = new Set(
+    data
+      .all('learningInputs', [scope])
+      .filter((input) => data.get('learningResults', input.value.jobId))
+      .flatMap((input) => input.value.dependencyRootIds),
+  )
+  for (const source of data.all('evidence', [scope]))
+    if (source.rootIds.some((root) => processedRoots.has(root))) blocked.add(source.id)
   for (const proposal of data.all('proposals', [scope])) {
     const job = byId.get(proposal.jobId)
     if (!job) continue
