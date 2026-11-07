@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { siteDeployDecision } from './site-deploy-policy.mjs'
 
 const sha = 'a'.repeat(40)
@@ -223,9 +223,24 @@ describe('deploy-site workflow trust and path wiring', () => {
     expect(source).toContain('exit 1')
   })
 
+  beforeAll(() => {
+    // The workflow shell runs real jq; without it the polling cases fail or pass for the wrong reason.
+    if (spawnSync('which', ['jq']).status !== 0) throw new Error('jq is required')
+  })
+
+  // The static case above pins the 360-poll bound; the shell runs with a bound of 3.
+  function withPollBound(shell: string, bound: number) {
+    let bounded = shell
+    for (const literal of ['seq 1 360', '-lt 360']) {
+      expect(bounded.split(literal)).toHaveLength(2)
+      bounded = bounded.replace(literal, literal.replace('360', String(bound)))
+    }
+    return bounded
+  }
+
   it.each([
-    { successAt: 45, expectedExit: 0, polls: 45, mockPolicy: true, failure: false },
-    { successAt: 361, expectedExit: 1, polls: 360, mockPolicy: true, failure: false },
+    { successAt: 2, expectedExit: 0, polls: 2, mockPolicy: true, failure: false },
+    { successAt: 4, expectedExit: 1, polls: 3, mockPolicy: true, failure: false },
     { successAt: 1, expectedExit: 0, polls: 1, mockPolicy: false, failure: false },
     { successAt: 1, expectedExit: 1, polls: 1, mockPolicy: false, failure: true },
   ])(
@@ -275,8 +290,8 @@ case "$2" in
 esac
 `,
         )
-        // Long-loop coverage isolates the policy CLI to avoid hundreds of Node startups.
-        // The two short cases below compose this same shell with the real policy CLI.
+        // The multi-poll cases isolate the policy CLI to avoid a Node startup per poll.
+        // The two single-poll cases below compose this same shell with the real policy CLI.
         if (mockPolicy)
           binary(
             'node',
@@ -303,7 +318,7 @@ fi
         const mocks =
           'gh() { source "$RUNNER_TEMP/gh"; }; sleep() { source "$RUNNER_TEMP/sleep"; };\n' +
           (mockPolicy ? 'node() { source "$RUNNER_TEMP/node"; };\n' : '')
-        const outcome = spawnSync('bash', ['-c', mocks + shell], {
+        const outcome = spawnSync('bash', ['-c', mocks + withPollBound(shell, 3)], {
           encoding: 'utf8',
           env: {
             ...process.env,

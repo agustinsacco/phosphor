@@ -74,6 +74,9 @@ it.each([false, true])(
         expect(container.textContent).not.toContain('MAC VIEW')
         expect(container.textContent).not.toContain('BEE1 A')
         expect(container.textContent).not.toContain('BEE1 B')
+        // Files open collapsed; the changes view opens expanded.
+        const folder = container.querySelector<HTMLElement>('[role=treeitem][aria-expanded=false]')
+        if (folder?.textContent === 'src') await act(async () => folder.click())
         const button = [...container.querySelectorAll('button')].find((b) =>
           b.textContent?.includes('same.ts'),
         )
