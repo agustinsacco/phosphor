@@ -8,7 +8,7 @@ import { loadGroupCollapse, setGroupCollapsed, useGroupCollapse } from './groupC
 import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import type { GitInfo, SessionMeta, WorktreeInfo } from '@shared/models'
+import type { GitInfo, SessionMeta } from '@shared/models'
 import { compareSessionsByCreation } from '@shared/session-order'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
@@ -17,8 +17,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { hasDelegatedWork, SUBAGENT_ASYNC_WIDGET_KEY } from '@/features/chat/subagentRuns'
 import { useWorktreeDiscovery, type WorktreeDir } from './useWorktreeDiscovery'
 import { useSessionBooting } from '@/features/chat/BootingIndicator'
-import { promptRenameSandbox } from '@/features/workspaces/promptRenameSandbox'
-import { useMenuTriggers, type ContextMenuItem } from '@/components/ContextMenu'
+import { useMenuTriggers } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { SessionList } from './SessionList'
 import { useLiveSessionNames } from './useLiveSessionNames'
@@ -41,6 +40,12 @@ import {
 } from './laneSelection'
 import { confirmSessionDelete, deleteLocalRow } from './localLaneDelete'
 import { LocalBulkDelete, LocalDeleteDialogs } from './LocalBulkDelete'
+import {
+  LocalFolderMenuRows,
+  localGroupMenuItems,
+  startLocalSession,
+  type LocalWorktreeModal,
+} from './LocalFolderMenuRows'
 import { laneMarker } from '@/lib/laneMarker'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, localLanePullRequest } from '@/stores/pullRequests'
@@ -120,11 +125,7 @@ export function Sidebar({
   const [initialSidebarReady, setInitialSidebarReady] = useState(false)
   const [worktreeDiscoverySettled, setWorktreeDiscoverySettled] = useState(false)
   const [treeFor, setTreeFor] = useState<SessionMeta | null>(null)
-  const [worktreeModal, setWorktreeModal] = useState<{
-    kind: 'remove' | 'merge'
-    repoPath: string
-    worktree: WorktreeInfo
-  } | null>(null)
+  const [worktreeModal, setWorktreeModal] = useState<LocalWorktreeModal | null>(null)
   /** Explicit collapse choices (prefs + this run); null until prefs load. */
   const collapsed = useGroupCollapse((s) => s.collapsed)
   /**
@@ -152,17 +153,7 @@ export function Sidebar({
   const [worktreeDirs, setWorktreeDirs] = useState<WorktreeDir[]>([])
   const [workspaceMenuFor, setWorkspaceMenuFor] = useState<string | null>(null)
   const workspaceMenuTriggerRef = useRef<HTMLButtonElement>(null)
-  /** Which group's "Delete sandbox…" row is waiting for its second click. */
-  const [confirmSandboxDelete, setConfirmSandboxDelete] = useState<string | null>(null)
-  /** Which group's "Remove from sidebar" row is waiting for its second click. */
-  const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
-  const sandboxes = useWorkspacesStore((s) => s.sandboxes)
-  const sandboxPaths = useMemo(() => new Set(sandboxes.map((sandbox) => sandbox.path)), [sandboxes])
-  const closeWorkspaceMenu = (): void => {
-    setWorkspaceMenuFor(null)
-    setConfirmSandboxDelete(null)
-    setConfirmRemove(null)
-  }
+  const closeWorkspaceMenu = (): void => setWorkspaceMenuFor(null)
   const [worktreeDiscoveryEpoch, setWorktreeDiscoveryEpoch] = useState(0)
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
@@ -572,53 +563,6 @@ export function Sidebar({
     void store.refreshMissing(open.flatMap((g) => g.unscannedPaths))
   }, [groups, collapsed])
 
-  const groupMenuItems = (group: GroupedSessions): ContextMenuItem[] => {
-    const git = gitByCwd[group.workspacePath]
-    const openWorktreeModal = async (kind: 'remove' | 'merge'): Promise<void> => {
-      const repoPath = git?.mainRepoPath
-      if (!repoPath) return
-      const worktrees = await window.phosphor.invoke('git:listWorktrees', repoPath)
-      const worktree = worktrees.find(
-        (w) => w.path === group.workspacePath || w.realPath === group.workspacePath,
-      )
-      if (worktree) setWorktreeModal({ kind, repoPath, worktree })
-    }
-    return [
-      {
-        label: 'New session',
-        onClick: () => {
-          useWorkspacesStore.getState().openWorkspace(group.workspacePath)
-          useSessionsStore.getState().activate(null)
-        },
-      },
-      // Only offered when the group's own representative folder is itself a
-      // worktree — i.e. its main repo isn't a known workspace to fold into.
-      // Once both are known and merged, this lives on the top bar's branch
-      // control instead of the ambiguous, multi-folder group.
-      ...(git?.isWorktree && git.mainRepoPath
-        ? [
-            {
-              label: 'Merge into main…',
-              separatorAbove: true,
-              onClick: () => void openWorktreeModal('merge'),
-            },
-            {
-              label: 'Remove worktree…',
-              danger: true,
-              onClick: () => void openWorktreeModal('remove'),
-            },
-          ]
-        : []),
-    ]
-  }
-
-  const moveGroup = (group: GroupedSessions, direction: 'up' | 'down'): void => {
-    // A merged worktree group is represented by its main-repo workspace path,
-    // which is the entry the user sees and orders in the sidebar.
-    useWorkspacesStore.getState().moveWorkspace(group.workspacePath, direction)
-    closeWorkspaceMenu()
-  }
-
   const rowProps = (meta: SessionMeta) => {
     const livePhosphorId = liveByDisk.get(meta.path)
     // Selection follows the CLICK, not the process. A lane whose pi is still
@@ -703,7 +647,12 @@ export function Sidebar({
                     expand={() => toggleGroup(group, true)}
                     clearSearch={() => closeSearch(group.workspacePath)}
                   />
-                  <WorkspaceGroupHeader menu={() => groupMenuItems(group)} menuTitle={group.name}>
+                  <WorkspaceGroupHeader
+                    menu={() =>
+                      localGroupMenuItems(group, gitByCwd[group.workspacePath], setWorktreeModal)
+                    }
+                    menuTitle={group.name}
+                  >
                     <WorkspaceGroupTitle
                       name={group.name}
                       collapsed={isCollapsed}
@@ -764,103 +713,16 @@ export function Sidebar({
                           onSelect={(mode) => selectGroupLanes(group.workspacePath, visible, mode)}
                           onDone={closeWorkspaceMenu}
                         />
-                        <MenuRow
-                          active={false}
-                          disabled={groups.indexOf(group) === 0}
-                          onClick={() => moveGroup(group, 'up')}
-                        >
-                          Move up
-                        </MenuRow>
-                        <MenuRow
-                          active={false}
-                          disabled={groups.indexOf(group) === groups.length - 1}
-                          onClick={() => moveGroup(group, 'down')}
-                        >
-                          Move down
-                        </MenuRow>
-                        {/* Only a sandbox is renamed or deleted from here: it is
-                          Phosphor's own scratch folder, so its name and its
-                          removal are ours to offer. A project folder is the
-                          user's, so it is only ever forgotten: it leaves the
-                          sidebar and nothing on disk changes. This used to be
-                          Settings-only, and people could not find it. */}
-                        {!sandboxPaths.has(group.workspacePath) && (
-                          <MenuRow
-                            active={false}
-                            testId="workspace-group-remove"
-                            onClick={() => {
-                              // Second click confirms, in place, like a sandbox
-                              // delete: it is undone by opening the folder again.
-                              if (confirmRemove !== group.workspacePath) {
-                                setConfirmRemove(group.workspacePath)
-                                return
-                              }
-                              closeWorkspaceMenu()
-                              void useWorkspacesStore
-                                .getState()
-                                .removeWorkspace([
-                                  group.workspacePath,
-                                  ...group.paths.filter((path) => path !== group.workspacePath),
-                                ])
-                            }}
-                          >
-                            <span
-                              className={confirmRemove === group.workspacePath ? 'text-danger' : ''}
-                            >
-                              {confirmRemove === group.workspacePath
-                                ? 'Remove? Files stay on disk'
-                                : 'Remove from sidebar'}
-                            </span>
-                          </MenuRow>
-                        )}
-                        {sandboxPaths.has(group.workspacePath) && (
-                          <>
-                            <MenuRow
-                              active={false}
-                              testId="workspace-group-rename-sandbox"
-                              onClick={() => {
-                                closeWorkspaceMenu()
-                                void promptRenameSandbox(group.workspacePath)
-                              }}
-                            >
-                              Rename sandbox…
-                            </MenuRow>
-                            <MenuRow
-                              active={false}
-                              testId="workspace-group-delete-sandbox"
-                              onClick={() => {
-                                // Second click confirms, in place — a sandbox goes
-                                // to the Trash, so a modal would cost more than the
-                                // mistake it prevents.
-                                if (confirmSandboxDelete !== group.workspacePath) {
-                                  setConfirmSandboxDelete(group.workspacePath)
-                                  return
-                                }
-                                closeWorkspaceMenu()
-                                void useWorkspacesStore
-                                  .getState()
-                                  .deleteSandbox(group.workspacePath)
-                              }}
-                            >
-                              <span
-                                className={
-                                  confirmSandboxDelete === group.workspacePath ? 'text-danger' : ''
-                                }
-                              >
-                                {confirmSandboxDelete === group.workspacePath
-                                  ? 'Delete, with its chats?'
-                                  : 'Delete sandbox…'}
-                              </span>
-                            </MenuRow>
-                          </>
-                        )}
+                        <LocalFolderMenuRows
+                          group={group}
+                          first={groups.indexOf(group) === 0}
+                          last={groups.indexOf(group) === groups.length - 1}
+                          onDone={closeWorkspaceMenu}
+                        />
                       </PopupMenu>
                     )}
                     <TooltipButton
-                      onClick={() => {
-                        useWorkspacesStore.getState().openWorkspace(group.workspacePath)
-                        useSessionsStore.getState().activate(null)
-                      }}
+                      onClick={() => startLocalSession(group.workspacePath)}
                       data-testid="workspace-group-new-session"
                       title="New session here"
                       className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90"
