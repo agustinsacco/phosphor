@@ -4,7 +4,7 @@ import {
   projectLearningContext,
   type BrainLearningPort,
 } from './brain-learning-context'
-import { learningResponse, resolveLearningOutcome } from './brain-learning-result'
+import { learningFailure, learningResponse, resolveLearningOutcome } from './brain-learning-result'
 
 export type { BrainLearningPort } from './brain-learning-context'
 function admit(request: BrainLearningRequest, port: BrainLearningPort): void {
@@ -111,13 +111,19 @@ export async function runBrainLearning(
     const raw = await Promise.race([stream.result(), cancelled])
     controller.signal.throwIfAborted()
     const response = learningResponse(raw)
+    let outcome: BrainLearningResult['outcome']
+    try {
+      outcome = resolveLearningOutcome(response.text, evidence)
+    } catch (error) {
+      throw learningFailure(error, response.usage)
+    }
     return {
       version: 1,
       jobId: request.jobId,
       binding: request.binding,
       checkpoint,
       evidence,
-      outcome: resolveLearningOutcome(response.text, evidence),
+      outcome,
       usage: response.usage,
       execution: {
         logicalGenerations: 1,

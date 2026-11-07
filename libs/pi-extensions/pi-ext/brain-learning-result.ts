@@ -121,7 +121,22 @@ export function learningUsage(value: unknown): BrainLearningUsage {
     reasoning: output !== null && reasoning !== null && reasoning <= output ? reasoning : null,
   }
 }
+/** Usage can be charged even when the response cannot produce a valid checkpoint. */
+export function learningFailure(error: unknown, usage: BrainLearningUsage): Error {
+  const failure = error instanceof Error ? error : new Error(String(error))
+  return Object.assign(failure, { learningUsage: usage })
+}
 export function learningResponse(value: unknown): { text: string; usage: BrainLearningUsage } {
+  const usage = learningUsage(
+    value && typeof value === 'object' ? (value as Record<string, unknown>).usage : undefined,
+  )
+  try {
+    return { text: responseText(value), usage }
+  } catch (error) {
+    throw learningFailure(error, usage)
+  }
+}
+function responseText(value: unknown): string {
   if (!value || typeof value !== 'object') throw new Error('Missing learning response')
   const response = value as Record<string, unknown>
   if (
@@ -145,5 +160,5 @@ export function learningResponse(value: unknown): { text: string; usage: BrainLe
       throw new Error('Learning emitted a tool or unsupported block')
     text += block.text
   }
-  return { text, usage: learningUsage(response.usage) }
+  return text
 }
