@@ -4,6 +4,7 @@ import type { BrainJob } from '@shared/brain'
 export const learningPreview: BrainLearningPreview = {
   target: { workspacePath: '/synthetic', sessionPath: '/synthetic/source.jsonl' },
   scope: '/synthetic',
+  branch: null,
   graphRevision: 3,
   policyEpoch: 2,
   checkpoint: {
@@ -48,6 +49,7 @@ export function learningJob(patch: Partial<BrainJob> = {}): BrainJob {
     learning: {
       ...learningPreview.checkpoint,
       target: learningPreview.target,
+      branch: learningPreview.branch,
       binding: learningPreview.binding,
       coveredCount: 2,
       newCount: 3,

@@ -39,6 +39,7 @@ export function createMockBrainLearning(state: BrainStatus): {
     return {
       target,
       scope: target.workspacePath,
+      branch: null,
       graphRevision: snapshot.graphRevision,
       policyEpoch: snapshot.policyEpoch,
       checkpoint: {
@@ -117,6 +118,8 @@ function startSynthetic(
     learning: {
       ...preview.checkpoint,
       target: preview.target,
+      branch: preview.branch,
+      ...(consent.retryJobId ? { retryOf: consent.retryJobId } : {}),
       binding: preview.binding,
       coveredCount: preview.coveredCount,
       newCount: preview.newCount,

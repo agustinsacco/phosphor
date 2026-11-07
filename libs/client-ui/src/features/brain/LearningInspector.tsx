@@ -104,7 +104,7 @@ function LearningJobDetail({ detail }: { detail: BrainLearningDetail }): React.J
           <LearningSource
             checkpoint={learning}
             {...learning}
-            reprocessed={'retryOf' in learning && typeof learning.retryOf === 'string'}
+            reprocessed={learning.retryOf !== undefined}
           />
           <LearningUsage usage={learning.usage} />
         </>

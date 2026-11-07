@@ -16,6 +16,7 @@ export function LearningTerms({
         Scope: {preview.scope} · policy epoch {preview.policyEpoch}
       </p>
       <LearningSource {...preview} />
+      <p>Consent fingerprint: {preview.fingerprint}</p>
       <p>
         One logical generation with this source binding. The whole preserved pi-projected context,
         including system/tool history, thinking and completed assistant work, is sent. Original
@@ -35,8 +36,8 @@ export function LearningTerms({
       )}
       {previous && (
         <p>
-          Previous attempt: {previous.job.state}. Exact repeats, including rejected proposals, reuse
-          prior processing; rejection is not failure.
+          Previous attempt {previous.job.id}: {previous.job.state}. Exact repeats, including
+          rejected proposals, reuse prior processing; rejection is not failure.
         </p>
       )}
       {reprocess && (

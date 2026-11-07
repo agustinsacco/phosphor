@@ -76,9 +76,10 @@ function ConsentReady({ preview, previous }: ReadyProps): React.JSX.Element {
       alive.current = false
     }
   }, [])
-  const reprocess = previous !== null
+  const active = previous !== null && ['queued', 'running'].includes(previous.job.state)
+  const reprocess = previous !== null && !active
   const start = async (): Promise<void> => {
-    if (!consent || busy) return
+    if (!consent || busy || active) return
     setBusy(true)
     setError('')
     try {
@@ -87,10 +88,8 @@ function ConsentReady({ preview, previous }: ReadyProps): React.JSX.Element {
         fingerprint: preview.fingerprint,
         ...(previous ? { retryJobId: previous.job.id } : {}),
       })
-      if (alive.current) {
-        refreshLearning()
-        inspectLearning(job.id)
-      }
+      refreshLearning()
+      if (alive.current) inspectLearning(job.id)
     } catch (cause) {
       if (alive.current) {
         setError(String(cause))
@@ -107,6 +106,7 @@ function ConsentReady({ preview, previous }: ReadyProps): React.JSX.Element {
         <span>
           <input
             type="checkbox"
+            disabled={active || busy}
             checked={consent}
             onChange={(event) => setConsent(event.target.checked)}
           />{' '}
@@ -122,12 +122,16 @@ function ConsentReady({ preview, previous }: ReadyProps): React.JSX.Element {
         </p>
       )}
       <Button
-        disabled={!consent || busy}
+        disabled={!consent || busy || active}
         onClick={() => {
           void start()
         }}
       >
-        {reprocess ? 'Retry / reprocess explicitly' : 'Learn once'}
+        {active
+          ? 'Learning already active'
+          : reprocess
+            ? 'Retry / reprocess explicitly'
+            : 'Learn once'}
       </Button>
       {previous && (
         <Button disabled={busy} onClick={() => inspectLearning(previous.job.id)}>
