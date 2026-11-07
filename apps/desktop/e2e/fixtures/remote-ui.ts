@@ -140,7 +140,7 @@ export async function trash(h: RemoteFixture, name: string) {
   await expect(fileRow(h, name)).toHaveCount(0)
 }
 
-/** Drags an entry onto a folder: a move, or a copy with Option/Ctrl held. */
+/** Drags an entry onto a folder: a move, or a copy with Option/Ctrl held. Waits for its toast. */
 export async function dropInto(h: RemoteFixture, name: string, folder: string, copy = false) {
   const modifier = process.platform === 'darwin' ? 'Alt' : 'Control'
   if (copy) await h.page.keyboard.down(modifier)
@@ -149,6 +149,7 @@ export async function dropInto(h: RemoteFixture, name: string, folder: string, c
   } finally {
     if (copy) await h.page.keyboard.up(modifier)
   }
+  await expect(h.page.getByText(`1 item ${copy ? 'copied' : 'moved'}.`).last()).toBeVisible()
 }
 
 async function answerPrompt(h: RemoteFixture, value: string) {
