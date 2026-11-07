@@ -128,6 +128,7 @@ function setup() {
     branch: null,
     binding,
     maxOutputTokens: 1024,
+    authIdentityFence: 'account-identity-epoch',
     checkpoint,
     evidence,
     run,
@@ -199,7 +200,7 @@ describe('selected lane learning coordinator', () => {
     })
     expect(f.dispose).toHaveBeenCalledTimes(2)
   })
-  it.each(['binding', 'source', 'branch', 'policy'] as const)(
+  it.each(['binding', 'source', 'branch', 'policy', 'authIdentity'] as const)(
     'refuses changed %s before inference',
     async (change) => {
       const f = setup(),
@@ -209,6 +210,7 @@ describe('selected lane learning coordinator', () => {
       if (change === 'branch')
         f.authority.mockResolvedValue({ scope: f.target.workspacePath, branch: 'changed' })
       if (change === 'policy') f.snapshot.policyEpoch++
+      if (change === 'authIdentity') f.prepared.authIdentityFence = 'replaced-account-same-slot'
       await expect(f.learning.start(f.target, consent)).rejects.toThrow()
       expect(f.run).not.toHaveBeenCalled()
       expect(f.store.createLearning).not.toHaveBeenCalled()
