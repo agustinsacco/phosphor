@@ -31,3 +31,20 @@ it('reconciles successful moves and leaves only failures on the cut clipboard', 
   expect(toast).toHaveBeenCalledWith(expect.stringContaining('1 completed; 1 failed'), 'error')
   expect(refresh).toHaveBeenCalledWith('/repo', '/repo')
 })
+it('keeps a target folder the user opened while the transfer ran open', async () => {
+  useFilesStore.setState({ expanded: {} })
+  vi.spyOn(useFilesStore.getState(), 'refreshDir').mockResolvedValue()
+  vi.spyOn(useExtensionUiStore.getState(), 'pushToast').mockImplementation(() => 0)
+  const toggle = vi.spyOn(useFilesStore.getState(), 'toggleDir')
+  const invoke = vi.fn(async (channel: string) => {
+    if (channel === 'fs:transfer') {
+      useFilesStore.setState({ expanded: { '/repo/dir': true } })
+      return '/repo/dir/a'
+    }
+    if (channel === 'clipboard:readFiles') return { paths: [], cut: false }
+  })
+  vi.stubGlobal('window', { phosphor: { invoke } })
+  await transferFiles('/repo', ['/repo/a'], '/repo/dir', false)
+  expect(toggle).not.toHaveBeenCalled()
+  expect(useFilesStore.getState().expanded['/repo/dir']).toBe(true)
+})
