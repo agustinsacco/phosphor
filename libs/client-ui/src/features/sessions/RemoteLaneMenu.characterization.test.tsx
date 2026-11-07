@@ -121,13 +121,13 @@ it('characterizes the Desktop Host group header: search, options, new lane', () 
     ...document.querySelector('[data-popup-menu]')!.querySelectorAll<HTMLButtonElement>('button'),
   ].map((b) => [b.textContent, b.disabled])
   expect(rows).toEqual([
-    ['Add folder on 00000000-0000-4000-8000-000000000099…', false],
-    ['Remove from 00000000-0000-4000-8000-000000000099', false],
-    ['Move up', true],
-    ['Move down', true],
     ['Select all lanes', false],
     ['Select merged lanes', false],
     ['Collapse lanes', false],
+    ['Move up', true],
+    ['Move down', true],
+    ['Remove from 00000000-0000-4000-8000-000000000099', false],
+    ['Add folder on 00000000-0000-4000-8000-000000000099…', false],
   ])
 })
 
