@@ -80,6 +80,44 @@ it('refuses forgotten contribution pairs after receipt deletion/reopen without t
   expect(reopened.createLearning(surviving).created).toBe(true)
 })
 
+it('interrupts orphaned queued learning only and requires an explicit successor after reopen', () => {
+  const f = setup()
+  const first = f.store.createLearning(start()).job
+  f.store.close()
+  const reopened = f.open()
+  const repeated = reopened.createLearning(start('owner-2'))
+  expect(repeated.created).toBe(false)
+  expect(repeated.job.state).toBe('interrupted')
+  expect(repeated.job.fence).toBe(first.fence + 1)
+  expect(() => reopened.completeLearning(first.id, first.fence, findings())).toThrow()
+  expect(reopened.createLearning({ ...start('owner-3'), retryJobId: first.id }).created).toBe(true)
+})
+
+it('does not repurchase completed no-findings through an ordinary copy of its original input', () => {
+  const f = setup()
+  const original = f.store.capture({
+    scope,
+    sessionId: 'source',
+    entryId: 'input',
+    parentId: null,
+    rootIds: ['input'],
+    branch: null,
+    role: 'user',
+    label: 'ordinary',
+    observedAt: 1000,
+    text: 'Alice owns Project.',
+  })!
+  const job = f.store.claimJob(f.store.createLearning(start()).job.id)
+  f.store.completeLearning(job.id, job.fence, {
+    outcome: { type: 'no_findings' },
+    usage: { input: null, output: null, cacheRead: null, cacheWrite: null, reasoning: null },
+  })
+  const model = { provider: 'manual', id: 'manual' }
+  f.store.setPrefs({ ...f.store.snapshot().prefs, processor: model })
+  expect(f.store.read(original.id, [scope]).text).toBe('Alice owns Project.')
+  expect(() => f.store.createJob(scope, model)).toThrow(/eligible/)
+})
+
 it('detects tampered evidence metadata even when its replaced blob matches its new checksum', () => {
   const f = setup()
   const { job } = f.store.createLearning(start())
