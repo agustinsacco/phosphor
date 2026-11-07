@@ -17,12 +17,8 @@ import { STOP_NEEDS_PROMPT } from '@/features/machines/useLaneControl'
 import { openPullRequest } from './PrBadge'
 import { useRemotePr } from './remotePullRequests'
 import { useRemoteLaneTitle } from './RemoteLanePresentation'
-import {
-  remoteLaneAccess,
-  remoteLaneActions,
-  type RemoteLaneActionHandlers,
-  type RemoteLaneActionState,
-} from './remoteLaneActions'
+import { laneActions, type LaneActionHandlers } from './laneActions'
+import { hostLaneContext, remoteLaneAccess, type RemoteLaneActionState } from './remoteLaneActions'
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
 import { copyDebugInfo, copySpend, exportRemoteLaneHtml } from './sessionActions'
 import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
@@ -113,14 +109,14 @@ export function useRemoteLaneActions({
     />
   )
   return {
-    items: (): ContextMenuItem[] => remoteLaneActions(state, handlers, orderActions),
+    items: (): ContextMenuItem[] => laneActions(hostLaneContext(state), handlers, orderActions),
     dialogs,
     title,
     busy,
     error: runner.error,
     deletingInBulk,
     saveName,
-    pickMarker: access.canMark && state.markers !== 'off' ? handlers.pickMarker : undefined,
+    pickMarker: access.canMark && state.markers !== 'off' ? handlers.marker : undefined,
     marker,
     ...access,
   }
@@ -222,7 +218,7 @@ function laneHandlers({
   onRename: () => void
   openDialog: (dialog: LaneDialog) => void
   onMarked: () => void
-}): RemoteLaneActionHandlers {
+}): LaneActionHandlers {
   const send = (channel: HostLaneChannel) => () =>
     void act(() => window.phosphor.invoke(channel, hostId, lane.laneId))
   // setRemoteLaneMarks reports its own failure, including the "update the Host" case.
@@ -242,8 +238,8 @@ function laneHandlers({
     stop: send('hosts:stopLane'),
     resume: send('hosts:resumeLane'),
     markRead: send('hosts:markRead'),
-    togglePin: () => mark({ pinned: !lane.pinned }),
-    pickMarker: () => openDialog('marker'),
+    pin: () => mark({ pinned: !lane.pinned }),
+    marker: () => openDialog('marker'),
     makeRoutine: () => void act(async () => routineFromLane(hostId, lane, await session())),
     exportHtml: () =>
       void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),
