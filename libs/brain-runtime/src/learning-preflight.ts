@@ -45,6 +45,25 @@ export async function canonicalLearningTarget(
     sessionPath: await realpath(value.sessionPath),
   }
 }
+function assertPrepared(
+  prepared: PreparedBrainLearning,
+  authority: { scope: string; branch: string | null },
+): void {
+  if (prepared.scope !== authority.scope || prepared.branch !== authority.branch)
+    throw new Error('Learning workspace authority changed')
+  if (
+    typeof prepared.authIdentityFence !== 'string' ||
+    !prepared.authIdentityFence ||
+    prepared.authIdentityFence.length > 4096
+  )
+    throw new Error('Learning account identity fence unavailable')
+  if (
+    !Number.isSafeInteger(prepared.maxOutputTokens) ||
+    prepared.maxOutputTokens < 1 ||
+    prepared.maxOutputTokens > 32768
+  )
+    throw new Error('Learning selected model output limit unavailable')
+}
 export async function learningPreflight(
   options: LearningPreflightOptions,
   input: BrainLearningTarget,
@@ -60,20 +79,7 @@ export async function learningPreflight(
   const prepared = await options.host.prepare(target, jobId, signal)
   try {
     signal.throwIfAborted()
-    if (prepared.scope !== authority.scope || prepared.branch !== authority.branch)
-      throw new Error('Learning workspace authority changed')
-    if (
-      typeof prepared.authIdentityFence !== 'string' ||
-      !prepared.authIdentityFence ||
-      prepared.authIdentityFence.length > 4096
-    )
-      throw new Error('Learning account identity fence unavailable')
-    if (
-      !Number.isSafeInteger(prepared.maxOutputTokens) ||
-      prepared.maxOutputTokens < 1 ||
-      prepared.maxOutputTokens > 32768
-    )
-      throw new Error('Learning selected model output limit unavailable')
+    assertPrepared(prepared, authority)
     const { source, covered, projectionDigest, rootIds } = prepared.checkpoint
     bounded({ covered, evidence: prepared.evidence, rootIds }, 4_000_000)
     const prior = await options.store.learningCoverage(
