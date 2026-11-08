@@ -66,6 +66,10 @@
       return at > 0 ? bare.slice(0, at) : bare
     }
 
+    if (argv.includes('-p') && argv.includes('--fork')) {
+      require('./pi-stub-fork.cjs').runFork(argv)
+      return
+    }
     if (argv.includes('-p')) {
       // Print mode has two callers. Session auto-naming sends a prompt that
       // starts "You name coding sessions"; everything else is the

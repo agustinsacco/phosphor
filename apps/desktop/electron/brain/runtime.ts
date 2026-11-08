@@ -10,6 +10,7 @@ import { prepareDesktopSessionLaunch } from '../pi/session-launch'
 import { desktopSessionPolicy } from '../pi/session-policy'
 import { setSessionRecall } from '../pi/session-runtime'
 import { createBrainEmbeddings } from './embedding-service'
+import { testEmbeddings } from './test-embeddings'
 
 let pending: Promise<BrainService> | undefined
 let closing = false
@@ -52,10 +53,12 @@ export function brainService(): Promise<BrainService> {
 async function construct(): Promise<BrainService> {
   const directory = join(app.getPath('userData'), 'brain')
   const root = resources()
-  const embeddings = createBrainEmbeddings({
-    directory: join(directory, 'embeddings'),
-    workerPath: join(import.meta.dirname, 'brain-embedding-worker.js'),
-  })
+  const embeddings =
+    testEmbeddings() ??
+    createBrainEmbeddings({
+      directory: join(directory, 'embeddings'),
+      workerPath: join(import.meta.dirname, 'brain-embedding-worker.js'),
+    })
   try {
     return await createBrainService({
       directory,
