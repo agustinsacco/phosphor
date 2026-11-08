@@ -131,13 +131,6 @@ about stale paths, and lists the attachments' new paths.
   default branch. The source code stays behind; a taken branch name is refused.
 - **Same repository on the same machine:** use Clone instead.
 
-This Mac refuses sources its local Brain store knows as memory recipients
-(including empty recall results) or private processors, even after Brain or recall
-is disabled. Inspection and locked export check the saved native session identity;
-an unavailable existing exclusion authority blocks the move. Fresh profiles do
-not create a Brain store for this check. This is a machine-local safeguard, not
-portable Brain provenance or aggregation of another machine's delivery records.
-
 Uncommitted tracked or untracked work blocks a git lane; ignored files neither
 block nor move. Detached/in-progress git state is refused. Submodules and LFS
 cannot accompany a same-repository transfer yet. The target must have a pi at

@@ -437,46 +437,24 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
   stack,
 }) => {
   await signIn(page, stack.origin)
-  // The phone's four tabs no longer include this Desktop-only prototype.
-  // Its deep link still has to refuse, as does the wide navigation entry.
+  // Brain is Desktop-only: no tab, no nav entry, and its deep link refuses.
   await page.goto(`${stack.origin}/pages/brain`)
   await expect(page.getByText(/Brain is unavailable on this machine/)).toBeVisible()
   await page.setViewportSize({ width: 1280, height: 800 })
-  await navigatePage(page, 'Brain')
-  await expect(page.getByText(/Brain is unavailable on this machine/)).toBeVisible()
-  const failures = await page.evaluate(async () =>
-    Promise.all(
-      [
-        () => window.phosphor.invoke('brain:status'),
-        () => window.phosphor.invoke('brain:evidence', '/synthetic'),
-      ].map(async (request) => {
-        try {
-          await request()
-          return ''
-        } catch (error) {
-          return String(error)
-        }
-      }),
-    ),
-  )
-  expect(failures).toHaveLength(2)
-  for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
-})
-
-test('all selected-lane learning IPC refuses in the browser', async ({ page, stack }) => {
-  await signIn(page, stack.origin)
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Main navigation' })
+      .getByRole('button', { name: 'Brain' }),
+  ).toHaveCount(0)
   const failures = await page.evaluate(async () => {
-    const target = { workspacePath: '/synthetic', sessionPath: '/synthetic/source.jsonl' }
+    const lane = { sessionPath: '/synthetic/source.jsonl', title: 'Synthetic' }
     return Promise.all(
       [
-        () => window.phosphor.invoke('brain:learnPreview', target),
-        () =>
-          window.phosphor.invoke('brain:learn', target, {
-            policyEpoch: 1,
-            fingerprint: 'synthetic',
-          }),
-        () => window.phosphor.invoke('brain:learningJobs'),
-        () => window.phosphor.invoke('brain:learningDetail', 'synthetic-job'),
+        () => window.phosphor.invoke('brain:status'),
+        () => window.phosphor.invoke('brain:knowledge'),
+        () => window.phosphor.invoke('brain:queue', lane),
+        () => window.phosphor.invoke('brain:review', 'synthetic-job', null, 0),
+        () => window.phosphor.invoke('brain:forget', 'synthetic-memory'),
       ].map(async (request) => {
         try {
           await request()
@@ -487,6 +465,6 @@ test('all selected-lane learning IPC refuses in the browser', async ({ page, sta
       }),
     )
   })
-  expect(failures).toHaveLength(4)
+  expect(failures).toHaveLength(5)
   for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
 })

@@ -378,20 +378,20 @@ explicit current-path ownership graph; `npx nx show project tooling --json`
 shows effective targets. `npm run nx:test -- --configuration=inventory` lists
 the same full unit suites without running them.
 
-| Project         | Current paths / ownership                                                              |
-| --------------- | -------------------------------------------------------------------------------------- |
-| `desktop`       | `apps/desktop/`, plus screenshot assets at `docs/img/`                                 |
-| `control`       | `apps/control/`, the site and control API ([control-plane.md](docs/control-plane.md))  |
-| `host`          | `apps/host/`, the plain-Node Host CLI ([host.md](docs/host.md))                        |
-| `runtime`       | `libs/session-runtime/src/`, including plain-Node and fake-pi tests                    |
-| `shared`        | `libs/shared/`                                                                         |
-| `memory-engine` | `libs/memory-engine/`, Node-only cited memory graph and retrieval                      |
-| `brain-client`  | `libs/brain-client/`, private bounded Brain protocol and client                        |
-| `brain-runtime` | `libs/brain-runtime/`, Node-side capture, processing, indexing and embedding lifecycle |
-| `pi-extensions` | `libs/pi-extensions/pi-ext/`, including optional extension tests                       |
-| `site`          | `apps/site/`, with its independent install and lockfile                                |
-| `schema`        | `supabase/`, with explicit start/test/stop lifecycle                                   |
-| `tooling`       | `tools/scripts/`, including workspace-wide checks                                      |
+| Project         | Current paths / ownership                                                             |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `desktop`       | `apps/desktop/`, plus screenshot assets at `docs/img/`                                |
+| `control`       | `apps/control/`, the site and control API ([control-plane.md](docs/control-plane.md)) |
+| `host`          | `apps/host/`, the plain-Node Host CLI ([host.md](docs/host.md))                       |
+| `runtime`       | `libs/session-runtime/src/`, including plain-Node and fake-pi tests                   |
+| `shared`        | `libs/shared/`                                                                        |
+| `memory-engine` | `libs/memory-engine/`, Node-only Brain store, knowledge graph and search              |
+| `brain-client`  | `libs/brain-client/`, private bounded Brain protocol and client                       |
+| `brain-runtime` | `libs/brain-runtime/`, Node-side queue, lane forks, quote checks, embeddings, recall  |
+| `pi-extensions` | `libs/pi-extensions/pi-ext/`, including optional extension tests                      |
+| `site`          | `apps/site/`, with its independent install and lockfile                               |
+| `schema`        | `supabase/`, with explicit start/test/stop lifecycle                                  |
+| `tooling`       | `tools/scripts/`, including workspace-wide checks                                     |
 
 Every target remains uncached, with conservative whole-workspace inputs,
 including nested projects. Nx runs at most three tasks by default and bounds
@@ -489,8 +489,8 @@ apps/desktop/electron/            main process — owns every side effect
                       envelope unwrapper. The contract lives in libs/shared/src/ipc.ts;
                       ipc.ts is the composition root, so a handler module
                       never imports it back.
-  brain/             thin Electron Brain bindings: utility workers, app paths,
-                     local model resolution and lifecycle (docs/brain.md)
+  brain/             thin Electron Brain bindings: embedding worker, app paths,
+                     lane launch and busy state (docs/brain.md)
   registry.ts        the live pi session registry
   routines/          local scheduler, SQLite run ledger, unattended execution,
                      background tray; never manages interactive lanes
@@ -532,11 +532,11 @@ libs/session-runtime/src/  Electron-free source modules, not a separate service
   file-log.ts        injected file logging
   git/               the one git runner, repository/worktree info and its cache
   bundled-extensions.ts  bundled extension paths
-libs/brain-runtime/src/  Node-only Brain service, capture, processor, tool audit,
-                     indexing and owned transcript lifecycle over injected ports
+libs/brain-runtime/src/  Node-only Brain service: queue, private lane forks,
+                     extraction, quote checks and recall over injected ports
   embedding/         portable model setup, validation and worker protocol;
                      native loading stays in the platform worker
-libs/memory-engine/src/  Node-only SQLite evidence, temporal claims and retrieval
+libs/memory-engine/src/  Node-only SQLite store: queue, proposals, graph, search
 libs/brain-client/src/  bounded private protocol, formatting and local transport
 libs/host-client/src/  browser-safe Host transport, asynchronous identity-proof gate,
                      lane projection and remote-lane delivery; Desktop supplies
