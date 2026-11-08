@@ -147,7 +147,8 @@ The search runs in main, in a worker thread
 the window's last one, and a regex that backtracks without end is terminated
 with its worker instead of freezing the app. The query and globs are compiled
 once, by the same code in the panel and in main (`libs/shared/src/workspace-search.ts`),
-so a bad regex or glob says so as you type. It reads the files the fuzzy finder
+so a bad regex or glob says so as you type. The worker runs the search core in
+`libs/session-runtime/src/files/workspace-search.ts`. It reads the files the fuzzy finder
 lists: git's tracked and untracked files without the ignored ones, or a bounded
 walk outside a repository. It never follows a symlink, to a file or through a
 folder out of the workspace. Binary files (a NUL in the first 8 KB), images,
