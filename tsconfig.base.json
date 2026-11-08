@@ -17,6 +17,9 @@
     "paths": {
       "@phosphor/host-client/*": ["./libs/host-client/src/*"],
       "@phosphor/session-runtime/*": ["./libs/session-runtime/src/*"],
+      "@phosphor/memory-engine/*": ["./libs/memory-engine/src/*"],
+      "@phosphor/brain-client/*": ["./libs/brain-client/src/*"],
+      "@phosphor/brain-runtime/*": ["./libs/brain-runtime/src/*"],
       "@phosphor/shared/*": ["./libs/shared/src/*"],
       "@shared/*": ["./libs/shared/src/*"],
       "@/*": ["./libs/client-ui/src/*"]

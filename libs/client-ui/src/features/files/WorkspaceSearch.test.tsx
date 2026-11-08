@@ -4,6 +4,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type { LineMatch, WorkspaceSearchResult } from '@shared/workspace-search'
 import { FilesPane } from './FilesPane'
+import { localFilesSource } from './filesSource'
 import { useWorkspaceSearchStore, type workspaceSearch } from './workspaceSearchStore'
 
 const { openFileInWorkspace } = vi.hoisted(() => ({
@@ -61,7 +62,7 @@ function render(): void {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  act(() => root!.render(<FilesPane workspacePath={WS} />))
+  act(() => root!.render(<FilesPane source={localFilesSource(WS)} />))
 }
 
 /** Open the search on an answer already in, as if typed and searched. */
@@ -255,7 +256,7 @@ describe('WorkspaceSearch', () => {
     act(() => (document.activeElement as HTMLElement).blur())
     act(() => root!.unmount())
     root = createRoot(container!)
-    act(() => root!.render(<FilesPane workspacePath={WS} />))
+    act(() => root!.render(<FilesPane source={localFilesSource(WS)} />))
     expect(document.activeElement).toBe(document.body)
   })
 

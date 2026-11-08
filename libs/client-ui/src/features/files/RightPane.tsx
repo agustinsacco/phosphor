@@ -5,11 +5,12 @@ import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import type { HostConnectionView } from '@shared/ipc'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { TooltipButton } from '@/components/Tooltip'
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import clsx from 'clsx'
 import { useLayoutStore, sessionPanes, type RightPane as RightPaneId } from '@/stores/layout'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { FilesPane } from './FilesPane'
+import { localFilesSource } from './filesSource'
 import { RemoteFilesPane } from './RemoteFilesPane'
 import { FilesChangedPane } from './FilesChangedPane'
 import { TerminalPane } from '@/features/terminal/TerminalPane'
@@ -37,6 +38,7 @@ export const RightPane = memo(function RightPane({
   const rightPane = useLayoutStore((s) => sessionPanes(s, sessionId).pane)
   const side = useLayoutStore((s) => sessionPanes(s, sessionId).side)
   const expanded = useLayoutStore((s) => sessionPanes(s, sessionId).expanded)
+  const localFiles = useMemo(() => localFilesSource(workspacePath), [workspacePath])
   if (!rightPane) return null
   return (
     // Gutter + rounded card so the pane reads as a panel resting on the app
@@ -64,7 +66,7 @@ export const RightPane = memo(function RightPane({
         )}
         {!remote && rightPane === 'files' && (
           <PaneShell title={<PaneSwitcher active="files" />}>
-            <FilesPane workspacePath={workspacePath} />
+            <FilesPane source={localFiles} />
           </PaneShell>
         )}
         {!remote && rightPane === 'changes' && (

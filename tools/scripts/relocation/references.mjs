@@ -4,6 +4,7 @@ const aliases = [
   ['@phosphor/host-client/', 'libs/host-client/src/'],
   ['@phosphor/client-ui/', 'libs/client-ui/src/'],
   ['@phosphor/session-runtime/', 'libs/session-runtime/src/'],
+  ['@phosphor/brain-runtime/', 'libs/brain-runtime/src/'],
   ['@phosphor/pi-extensions/', 'libs/pi-extensions/pi-ext/'],
   ['@phosphor/shared/', 'libs/shared/src/'],
   ['@shared/', 'libs/shared/src/'],
