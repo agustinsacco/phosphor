@@ -1,4 +1,9 @@
+import type { LaneMoveMarks } from '@shared/host-protocol-lane-transfer'
+import type { LaneMoveSource } from '@shared/lane-move'
 import type { SessionMeta } from '@shared/models'
+import { laneMarker } from '@/lib/laneMarker'
+import { useLanePrefsStore } from '@/stores/lanePrefs'
+import { useLaneMoveStore } from '@/stores/laneMove'
 import { useSessionsStore } from '@/stores/sessions'
 import { changeSessionBranch } from './sessionTransition'
 import { exportSessionHtml, applySessionRename } from './sessionActions'
@@ -41,4 +46,23 @@ export async function exportSidebarSession(
   const store = useSessionsStore.getState()
   const phosphorId = livePhosphorId ?? (await store.openDiskSession(workspacePath, meta))
   await exportSessionHtml(phosphorId, meta.name ?? 'session')
+}
+
+/** Open "Move to…" for a lane, carrying the pin and marker the user sees on it. */
+export function openLaneMove(source: LaneMoveSource, title: string, marks: LaneMoveMarks): void {
+  useLaneMoveStore.getState().open({ source, title, marks })
+}
+
+/** Carry the visible marker explicitly so a new folder or branch cannot change it. */
+export function moveSidebarSession(meta: SessionMeta, branch: string | null | undefined): void {
+  const { pinned, laneMarkers } = useSessionsStore.getState()
+  openLaneMove({ machine: 'local', sessionPath: meta.path }, meta.name ?? 'Lane', {
+    pinned: pinned.includes(meta.path),
+    marker: laneMarker(
+      laneMarkers[meta.path],
+      branch,
+      meta.cwd,
+      useLanePrefsStore.getState().lanes.markers,
+    ),
+  })
 }

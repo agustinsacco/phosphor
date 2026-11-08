@@ -5,15 +5,17 @@ import type { createRemoteTerminals } from '@phosphor/host-client/terminals/term
 import { ptyManager } from '../pty/pty-manager'
 import { handle } from './handle'
 import { registerSkillShareHandlers } from './skill-share-handlers'
+import { registerLaneMoveHandlers } from './lane-move-handlers'
 
 /** Feature-only registrars, leaving the deferred Host runtime/router refactor untouched. */
 export function registerHostSettingsHandlers(
-  manager: Pick<ReturnType<typeof createHostManager>, 'connection' | 'reconnect'>,
+  manager: Pick<ReturnType<typeof createHostManager>, 'connection' | 'reconnect' | 'label'>,
   grants: Pick<ReturnType<typeof createGrants>, 'configure' | 'grantFor'>,
   terminals: Pick<ReturnType<typeof createRemoteTerminals>, 'task' | 'signIn' | 'shell'>,
 ): void {
   const settings = machineSettings(manager.connection)
   registerSkillShareHandlers(manager)
+  registerLaneMoveHandlers(manager)
   handle('hosts:providerLogin', (event, hostId, provider, account) =>
     terminals.signIn(event.sender.id, hostId, provider, account),
   )

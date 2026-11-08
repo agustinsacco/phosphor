@@ -834,6 +834,11 @@ thousands of tokens on every request.
   A checkbox controls its filename category in the project scope, not an
   individual file. The global file always stays: it is what the user wrote for
   every lane ([Global instructions](#global-instructions)). The readout's count is enabled categories, not files.
+  In a worktree lane, a file pi inherited from the repository's main checkout
+  (an ancestor of `<repo>/.phosphor/worktrees/<name>`, on another branch) is
+  never sent, whatever the checkbox: it is listed as **Excluded · main checkout**
+  and the worktree's own copy is the one sent
+  ([extensions.md](extensions.md#bundled-extensions-phosphors-own)).
 - **Routines** always send every context file, whatever the preference: an
   unattended run keeps the project's rules ([routines.md](routines.md)). A
   routine-owned lane refuses a toggle, like any other manual command, until

@@ -7,10 +7,12 @@ import { FOLDER_CHIP_CLASS, FolderIcon } from '@/features/workspaces/folderChip'
 import { homeDraftKey } from '@/stores/drafts'
 import { connectingTo, hostPending, machineLabel } from '@/stores/remoteLanes'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
+import { hostCommandSource } from '@/stores/piCommands'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { NoGitNote } from './IsolateToggle'
 import { StartComposer, type StartTarget } from './StartComposer'
 import { useRemoteStart } from './useRemoteStart'
+import { useStartCommands } from './useStartCommands'
 
 interface Props {
   hostId: string
@@ -35,7 +37,7 @@ function RemoteStartComposer({
   machinePicker,
 }: Props): React.JSX.Element {
   const field = useRef<HTMLTextAreaElement>(null)
-  const target = useHostStart(hostId, draftKey)
+  const target = useHostStart(hostId, draftKey, textareaRef ?? field)
   return (
     <StartComposer
       target={target}
@@ -47,8 +49,12 @@ function RemoteStartComposer({
   )
 }
 
-/** A Host as a start target. No `/` or context sources until the Host offers them. */
-function useHostStart(hostId: string, draftKey: string): StartTarget {
+/** A Host as a start target. `/` and `@` read the chosen repository; no context sources until the Host offers them. */
+function useHostStart(
+  hostId: string,
+  draftKey: string,
+  textareaRef: RefObject<HTMLTextAreaElement | null>,
+): StartTarget {
   const c = useRemoteStart(hostId, draftKey)
   // The model picker reads per-connection catalogues, so it alone restarts with one.
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
@@ -58,6 +64,13 @@ function useHostStart(hostId: string, draftKey: string): StartTarget {
     hostId,
     c.ready && !!c.host?.capabilities.includes('workspaces.read') ? c.repositoryId : '',
   )
+  const commands = useStartCommands(
+    useMemo(() => hostCommandSource(hostId, c.repositoryId), [hostId, c.repositoryId]),
+    c.setText,
+    textareaRef,
+  )
+  const offersCommands =
+    c.ready && !!c.repositoryId && !!c.host?.capabilities.includes('skills.read')
   return {
     text: c.text,
     setText: c.setText,
@@ -65,7 +78,7 @@ function useHostStart(hostId: string, draftKey: string): StartTarget {
     setAttachments: c.setAttachments,
     remoteAttachments: true,
     files,
-    slash: null,
+    ...(offersCommands ? commands : { slash: null }),
     swarm: { enabled: c.swarm, onChange: c.setSwarm },
     modelPicker: <RemoteModelPicker key={generation} selection={c.selection} />,
     targets: <HostStartTargets hostId={hostId} controller={c} />,
