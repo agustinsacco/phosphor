@@ -25,6 +25,10 @@ export interface PreparedBrainLearning {
   dispose(): Promise<void>
 }
 export interface BrainLearningHost {
+  /** Real hosts inventory owned interrupted copies and refuse uncertain live writers. */
+  recover?(): Promise<void>
+  /** Abort/wait owned work and perform ownership-checked cleanup, retryable on failure. */
+  dispose?(): Promise<void>
   /** Snapshot and attest only. No inference, credential fallback or mutation of the source. */
   prepare(
     target: BrainLearningTarget,
