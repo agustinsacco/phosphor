@@ -12,6 +12,8 @@ import { BrainInbox } from './BrainInbox'
 import { BrainReview } from './BrainReview'
 import { BrainGraph } from './BrainGraph'
 import { BrainMemoryDetail, MEMORY_LABELS, memoryRelation } from './BrainMemory'
+import { formatCount } from '@/lib/format'
+import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 
 export function BrainPage(): React.JSX.Element {
   useBrainSync()
@@ -24,9 +26,10 @@ export function BrainPage(): React.JSX.Element {
       title={
         <span>
           Brain{' '}
-          {status && (
+          {status && status.counts.memories > 0 && (
             <span className="text-text-tertiary ml-3 text-sm font-normal">
-              {status.counts.memories} memories · {status.counts.entities} things
+              {formatCount(status.counts.memories, 'memory', 'memories')} ·{' '}
+              {formatCount(status.counts.entities, 'thing')}
             </span>
           )}
         </span>
@@ -176,9 +179,9 @@ function MemoryList({
         return (
           group.length > 0 && (
             <section key={type}>
-              <h2 className="text-text-tertiary mb-1 text-sm font-medium">
+              <SectionLabel>
                 {MEMORY_LABELS[type]} · {group.length}
-              </h2>
+              </SectionLabel>
               {group.map((memory) => (
                 <TooltipButton
                   key={memory.id}
@@ -228,7 +231,7 @@ function KnowledgeView({
   onForget: () => void
 }): React.JSX.Element {
   return (
-    <div className="p-3">
+    <div className="flex h-full min-h-0 flex-col gap-3 p-3">
       {data.entities.length > 0 && (
         <BrainGraph
           entities={data.entities}

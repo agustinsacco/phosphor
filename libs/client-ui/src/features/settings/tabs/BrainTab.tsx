@@ -1,7 +1,7 @@
 import { BRAIN_EMBEDDING_MODEL, type BrainPrefs, type BrainStatus } from '@shared/brain'
 import { Button, Row, SectionTitle, Toggle } from '@/components/form'
 import { useBrain, useBrainSync } from '@/features/brain/useBrain'
-import { formatBytes } from '@/lib/format'
+import { formatBytes, formatCount } from '@/lib/format'
 import { useNavigation } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'
 import { useSettingsUiStore } from '../settingsUiStore'
@@ -63,7 +63,7 @@ export function BrainTab(): React.JSX.Element {
             title="Knowledge"
             description={
               status.counts.memories
-                ? `${status.counts.memories} memories about ${status.counts.entities} things. Stored on this computer.`
+                ? `${formatCount(status.counts.memories, 'memory', 'memories')} about ${formatCount(status.counts.entities, 'thing')}. Stored on this computer.`
                 : 'Nothing yet. Right-click a lane and choose Queue for knowledge extraction.'
             }
           >
@@ -125,8 +125,11 @@ function BrainModelState(): React.JSX.Element | null {
   ) : (
     <div className="text-text-secondary mt-3 flex items-center gap-3 text-sm">
       <p>
-        EmbeddingGemma ({formatBytes(BRAIN_EMBEDDING_MODEL.downloadBytes)}) and your{' '}
-        {status.counts.memories} memories are kept on this computer.
+        EmbeddingGemma ({formatBytes(BRAIN_EMBEDDING_MODEL.downloadBytes)})
+        {status.counts.memories
+          ? ` and your ${formatCount(status.counts.memories, 'memory', 'memories')} are kept`
+          : ' is kept'}{' '}
+        on this computer.
       </p>
       <Button
         disabled={saving}

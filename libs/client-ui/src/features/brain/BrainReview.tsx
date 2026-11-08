@@ -6,6 +6,7 @@ import { basename } from '@/lib/path'
 import { useBrain } from './useBrain'
 import { useBrainResource } from './useBrainResource'
 import { MEMORY_LABELS, MemoryQuotes, MemoryTags } from './BrainMemory'
+import { formatCount } from '@/lib/format'
 
 export function elapsedTime(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000))
@@ -132,7 +133,7 @@ function ProposalMemories({
                   <MemoryTags memory={memory} />
                   <details>
                     <TooltipSummary className="text-text-tertiary cursor-pointer text-sm">
-                      {quotes.length} quotes
+                      {formatCount(quotes.length, 'quote')}
                     </TooltipSummary>
                     <div className="mt-2">
                       <MemoryQuotes quotes={quotes} />

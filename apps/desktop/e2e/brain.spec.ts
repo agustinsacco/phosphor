@@ -98,7 +98,7 @@ test('Brain learns only from a queued lane, after approval, and keeps the lane u
     await page.getByRole('button', { name: 'Approve 1', exact: true }).click()
 
     await expect(page.getByText(fact).first()).toBeVisible()
-    await expect(page.locator('[data-graph] svg')).toBeVisible()
+    await expect(page.getByLabel('Memory relationships')).toBeVisible()
     const knowledge = await page.evaluate(() => window.phosphor.invoke('brain:knowledge'))
     expect(knowledge.memories.map((memory) => memory.summary)).toEqual([fact])
     expect(knowledge.entities.map((entity) => entity.label).sort()).toEqual([

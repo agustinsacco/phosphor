@@ -105,8 +105,9 @@ export function fitGraph(nodes: GraphNode[], width = GRAPH_WIDTH, height = GRAPH
   const right = Math.max(...nodes.map((n) => n.x + n.width / 2))
   const top = Math.min(...nodes.map((n) => n.y - LABEL_HEIGHT / 2))
   const bottom = Math.max(...nodes.map((n) => n.y + LABEL_HEIGHT / 2))
+  // Never magnify: a two-node graph keeps its labels at their real size.
   const scale = Math.min(
-    1.5,
+    1,
     (width - 64) / Math.max(1, right - left),
     (height - 64) / Math.max(1, bottom - top),
   )

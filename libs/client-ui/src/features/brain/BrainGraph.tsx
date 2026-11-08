@@ -70,7 +70,7 @@ export function BrainGraph({
   return (
     <section
       aria-label="Knowledge graph"
-      className="border-border bg-bg-secondary/40 rounded-lg border"
+      className="border-border bg-bg-secondary/40 flex min-h-64 flex-1 flex-col rounded-lg border"
     >
       <GraphToolbar
         kinds={[...new Set(entities.map((e) => e.kind))]}
@@ -80,7 +80,7 @@ export function BrainGraph({
       <svg
         ref={svg}
         aria-label="Memory relationships"
-        className="h-80 w-full touch-none select-none"
+        className="min-h-0 w-full flex-1 touch-none select-none"
         viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`}
         {...gestures}
       >

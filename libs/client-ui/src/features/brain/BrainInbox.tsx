@@ -4,6 +4,8 @@ import { Button } from '@/components/form'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { elapsedTime } from './BrainReview'
 import { useBrain } from './useBrain'
+import { formatCount } from '@/lib/format'
+import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 
 function jobLine(job: BrainJob, ahead: number, now: number): string {
   switch (job.state) {
@@ -14,7 +16,7 @@ function jobLine(job: BrainJob, ahead: number, now: number): string {
     case 'running':
       return `Reading a private copy · ${elapsedTime(now - (job.startedAt ?? now))}`
     case 'review':
-      return `${job.memories} memories to review`
+      return `${formatCount(job.memories, 'memory', 'memories')} to review`
     case 'empty':
       return 'Nothing new worth keeping'
     case 'failed':
@@ -30,7 +32,7 @@ export function BrainInbox({
 }: {
   jobs: BrainJob[]
   onReview: (id: string) => void
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const [now, setNow] = useState(Date.now())
   const running = jobs.some((job) => job.state === 'running')
   const saving = useBrain((s) => s.saving)
@@ -39,9 +41,10 @@ export function BrainInbox({
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [running])
+  if (!jobs.length) return null
   return (
     <section aria-label="Inbox" className="space-y-1 p-3">
-      <h2 className="text-text-tertiary mb-2 text-sm font-medium">Inbox</h2>
+      <SectionLabel>Inbox</SectionLabel>
       {jobs.map((job, index) => (
         <article key={job.id} className="border-border flex items-start gap-2 border-b py-3">
           {job.state === 'running' ? (
