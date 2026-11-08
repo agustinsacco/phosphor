@@ -60,6 +60,8 @@ const DEMOTED: Record<string, string> = {
   'phosphor-context-files': 'Phosphor runs this for you from the CLAUDE.md / AGENTS.md checkboxes.',
   'phosphor-reload': 'Phosphor runs this for you before your next message when connectors change.',
   'phosphor-swarm': 'Use the Swarm switch in the composer to change lane authorization.',
+  'phosphor-release':
+    'Use the Release switch in the composer, shown where the repository has a release policy.',
 }
 
 /**
