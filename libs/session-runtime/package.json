@@ -324,6 +324,10 @@
       "types": "./src/files/walk.ts",
       "default": "./src/files/walk.ts"
     },
+    "./files/workspace-search": {
+      "types": "./src/files/workspace-search.ts",
+      "default": "./src/files/workspace-search.ts"
+    },
     "./git/default-branch": {
       "types": "./src/git/default-branch.ts",
       "default": "./src/git/default-branch.ts"

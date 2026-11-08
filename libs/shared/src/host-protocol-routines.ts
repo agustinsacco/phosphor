@@ -181,14 +181,12 @@ export function parseRoutineParams(
 ): { routineId?: string; offset: number } | null {
   if (!record(v)) return null
   if (method === 'routines.list') return keys(v, []) ? { offset: 0 } : null
-  if (
-    method !== 'routines.history' ||
-    !keys(v, ['routineId', 'offset']) ||
-    !uuid(v.routineId) ||
-    (v.offset !== undefined && !integer(v.offset, 0, ROUTINE_LIMITS.offset))
-  )
+  const offset = v.offset === undefined ? 0 : v.offset
+  if (!integer(offset, 0, ROUTINE_LIMITS.offset)) return null
+  if (method === 'routines.activity') return keys(v, ['offset']) ? { offset } : null
+  if (method !== 'routines.history' || !keys(v, ['routineId', 'offset']) || !uuid(v.routineId))
     return null
-  return { routineId: v.routineId, offset: v.offset ?? 0 }
+  return { routineId: v.routineId, offset }
 }
 export function parseRoutineList(v: unknown): RemoteRoutine[] | null {
   if (!Array.isArray(v) || v.length > ROUTINE_LIMITS.routines) return null

@@ -389,8 +389,10 @@ it('refuses unknown machine ids without forwarding and routes only to the reques
   )
   expect(s.call).not.toHaveBeenCalled()
   await s.invoke('routines:list', [s.machine])
-  expect(s.call).toHaveBeenCalledTimes(1)
-  expect(s.call).toHaveBeenCalledWith('routines.list', {})
+  expect(s.call.mock.calls).toEqual([
+    ['routines.list', {}],
+    ['routines.activity', {}],
+  ])
 })
 
 it('refuses changing an existing routine to another admitted machine', () => {

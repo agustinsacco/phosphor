@@ -107,6 +107,14 @@ describe('Host routine wire contract', () => {
   it('bounds queries and untrusted results and rejects path-bearing shapes', () => {
     expect(parseRoutineParams('routines.list', {})).not.toBeNull()
     expect(parseRoutineParams('routines.list', { path: '/private' })).toBeNull()
+    expect(parseRoutineParams('routines.activity', {})).toEqual({ offset: 0 })
+    expect(parseRoutineParams('routines.activity', { offset: 50 })).toEqual({ offset: 50 })
+    expect(parseRoutineParams('routines.activity', { offset: null })).toBeNull()
+    expect(parseRoutineParams('routines.activity', { routineId: id })).toBeNull()
+    expect(
+      parseRoutineParams('routines.activity', { offset: ROUTINE_LIMITS.offset + 1 }),
+    ).toBeNull()
+    expect(parseRoutineParams('routines.history', { routineId: id, offset: null })).toBeNull()
     expect(
       parseRoutineParams('routines.history', { routineId: id, offset: ROUTINE_LIMITS.offset }),
     ).not.toBeNull()

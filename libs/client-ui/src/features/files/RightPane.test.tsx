@@ -7,18 +7,12 @@ import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
 import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
 
+// The settings store reads the colour scheme when the Files pane's modules load.
+vi.hoisted(() => {
+  window.matchMedia = () => ({ matches: false, addEventListener() {} }) as unknown as MediaQueryList
+})
 vi.mock('@/lib/monaco', () => ({}))
-vi.mock('./MonacoEditor', () => ({ MonacoDiff: () => null }))
-vi.mock('./FilesPane', () => ({
-  FilesPane: () => {
-    throw new Error('Local Files mounted')
-  },
-}))
-vi.mock('./FilesChangedPane', () => ({
-  FilesChangedPane: () => {
-    throw new Error('Local Changes mounted')
-  },
-}))
+vi.mock('./MonacoEditor', () => ({ MonacoDiff: () => null, releaseFileModel: () => {} }))
 vi.mock('@/features/terminal/TerminalPane', () => ({
   TerminalPane: () => {
     throw new Error('Local Terminal mounted')
@@ -33,7 +27,7 @@ vi.mock('@/features/chat/SubagentPanel', () => ({
   SubagentPanel: ({ sessionId }: { sessionId: string }) => <p>Subagents of {sessionId}</p>,
 }))
 
-it('never mounts local pane contents for a remote handle', () => {
+it('a Host lane’s panes say it is not connected, and never mount This Mac’s terminal or artifacts', () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('phosphor', { onSessionPush: () => () => {} })
   Object.assign(window, { phosphor: { onSessionPush: () => () => {} } })
@@ -105,6 +99,8 @@ it('reloads a different lane in the same repository instead of retaining the fir
   const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
   const hostId = mockRemoteInfo.target?.kind === 'remote' ? mockRemoteInfo.target.hostId : ''
   const otherId = 'remote-fedcba9876543210'
+  // Each Host lane has its own key, as remoteLaneKey gives it.
+  const otherWorkspace = `${mockRemoteInfo.workspacePath}-other`
   const invoke = vi.fn(async (channel: string) => (channel === 'fs:listFiles' ? ['file.ts'] : {}))
   vi.stubGlobal('phosphor', { invoke, onSessionPush: () => () => {} })
   const first = {
@@ -114,7 +110,10 @@ it('reloads a different lane in the same repository instead of retaining the fir
     laneId: mockRemoteInfo.laneId,
   }
   useSessionsStore.setState({
-    live: { [mockRemoteInfo.sessionId]: first, [otherId]: { ...first, phosphorId: otherId } },
+    live: {
+      [mockRemoteInfo.sessionId]: first,
+      [otherId]: { ...first, phosphorId: otherId, workspacePath: otherWorkspace },
+    },
   })
   useRemoteLanesStore.setState({
     hosts: {
@@ -130,15 +129,19 @@ it('reloads a different lane in the same repository instead of retaining the fir
   const container = document.createElement('div')
   const root = createRoot(container)
   try {
-    for (const sessionId of [mockRemoteInfo.sessionId, otherId]) {
+    for (const [sessionId, workspacePath] of [
+      [mockRemoteInfo.sessionId, mockRemoteInfo.workspacePath],
+      [otherId, otherWorkspace],
+    ] as const) {
       useLayoutStore.getState().setRightPane('files', sessionId)
       await act(async () =>
-        root.render(
-          <RightPane sessionId={sessionId} workspacePath={mockRemoteInfo.workspacePath} />,
-        ),
+        root.render(<RightPane sessionId={sessionId} workspacePath={workspacePath} />),
       )
     }
-    expect(invoke.mock.calls.filter(([channel]) => channel === 'fs:listFiles')).toHaveLength(2)
+    expect(invoke.mock.calls.filter(([channel]) => channel === 'fs:listFiles')).toEqual([
+      ['fs:listFiles', mockRemoteInfo.workspacePath],
+      ['fs:listFiles', otherWorkspace],
+    ])
   } finally {
     act(() => root.unmount())
     useRemoteLanesStore.setState({ hosts: {} })
@@ -154,6 +157,7 @@ it('blocks remote pane reads while down and recovers without reload', async () =
     channel === 'fs:listFiles' ? ['recovered.ts'] : {},
   )
   vi.stubGlobal('phosphor', { invoke, onSessionPush: () => () => {} })
+  Element.prototype.scrollIntoView = () => {}
   const host = mockRemoteHosts[MOCK_HOST_ID]
   if (!host) throw new Error('Missing host')
   const ready = { ...host, capabilities: ['workspaces.read' as const] }

@@ -78,11 +78,12 @@ export async function query(
   if (!result.ok) throw new Error(UNAVAILABLE)
   return result.data
 }
-export async function list(
+/** The Host's routines, mapped and cached; no activity read. */
+async function definitions(
   state: RemoteRoutineState,
   ports: RemoteRoutinePorts,
   host: string,
-): Promise<RoutinesSnapshot> {
+): Promise<Routine[]> {
   const connection = admitted(ports, host)
   const incarnation = connection.snapshot().connectionToken
   const rows = parseRoutineList(await query(ports, host, 'routines.list', {}))
@@ -90,7 +91,37 @@ export async function list(
   if (!rows) throw new Error(UNAVAILABLE)
   const routines = rows.map((r) => mapRoutine(ports, host, r))
   cacheDefinitions(state, host, routines)
-  return { routines, runs: [], background: false, error: null }
+  return routines
+}
+/** Recent runs of every routine. An older Host refuses the call: no runs, the list still loads. */
+async function activity(
+  ports: RemoteRoutinePorts,
+  host: string,
+  routines: Routine[],
+): Promise<RoutineRun[]> {
+  const connection = admitted(ports, host)
+  const incarnation = connection.snapshot().connectionToken
+  let rows: ReturnType<typeof parseRoutineHistory> = null
+  try {
+    rows = parseRoutineHistory(await query(ports, host, 'routines.activity', {}))
+  } catch {
+    /* An older Host answers unsupported; a failed read shows no runs. */
+  }
+  admitted(ports, host, false, connection, incarnation)
+  const byId = new Map(routines.map((r) => [r.id, r]))
+  return (rows ?? []).flatMap((r) => {
+    const definition = byId.get(routineKey(host, r.routineId))
+    return definition ? [runRecord(host, r, definition)] : []
+  })
+}
+export async function list(
+  state: RemoteRoutineState,
+  ports: RemoteRoutinePorts,
+  host: string,
+): Promise<RoutinesSnapshot> {
+  const routines = await definitions(state, ports, host)
+  const runs = await activity(ports, host, routines)
+  return { routines, runs, background: false, error: null }
 }
 export async function history(
   state: RemoteRoutineState,
@@ -106,9 +137,9 @@ export async function history(
   )
   admitted(ports, host, false, connection, incarnation)
   if (!rows || rows.some((r) => r.routineId !== id)) throw new Error(UNAVAILABLE)
-  const snapshot = await list(state, ports, host)
+  const routines = await definitions(state, ports, host)
   admitted(ports, host, false, connection, incarnation)
-  const definition = snapshot.routines.find((r) => r.id === routineKey(host, id))
+  const definition = routines.find((r) => r.id === routineKey(host, id))
   if (!definition) throw new Error(UNAVAILABLE)
   return rows.map((r) => runRecord(host, r, definition))
 }

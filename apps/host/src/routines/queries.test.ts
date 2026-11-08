@@ -73,7 +73,7 @@ describe('routine queries', () => {
   it('declares exactly the routine capability and query methods', () => {
     expect(createRoutineQueries(state)).toMatchObject({
       capability: 'routines',
-      methods: ['routines.list', 'routines.history'],
+      methods: ['routines.list', 'routines.history', 'routines.activity'],
     })
   })
 
@@ -136,6 +136,38 @@ describe('routine queries', () => {
     expect(history).toHaveBeenLastCalledWith(routine.id, 0, 50)
   })
 
+  it('answers activity with the runs of every routine, newest first, at most fifty, path-free', async () => {
+    const first = seed()
+    const second = seed()
+    for (let i = 0; i < 60; i++) {
+      const run = state.repository.manual(i % 2 ? first.id : second.id, randomUUID(), now + i)
+      state.repository.patchRun(run.id, {
+        workspacePath: directory,
+        sessionPath: join(directory, 'private.jsonl'),
+        summary: 'private output',
+      })
+      state.repository.finish(run.id, 'finished', 'private diagnostic', now + i + 1)
+    }
+    const history = vi.spyOn(state.repository, 'history')
+    const query = createRoutineQueries(state)
+    const result = await query.call('routines.activity', {})
+    expect(history).toHaveBeenCalledWith(undefined, 0, 50)
+    if (!result.ok) throw new Error('activity failed')
+    const runs = result.data as { routineId: string; scheduledAt: number }[]
+    expect(runs).toHaveLength(50)
+    expect(runs.map((r) => r.scheduledAt)).toEqual(
+      Array.from({ length: 50 }, (_, i) => now + 59 - i),
+    )
+    expect(new Set(runs.map((r) => r.routineId))).toEqual(new Set([first.id, second.id]))
+    expect(Object.keys(runs[0] ?? {}).sort()).toEqual(
+      ['endedAt', 'id', 'routineId', 'scheduledAt', 'startedAt', 'status'].sort(),
+    )
+    expect(JSON.stringify(result)).not.toContain('private')
+    expect(JSON.stringify(result)).not.toContain(directory)
+    expect(await query.call('routines.activity', { offset: 55 })).toMatchObject({ ok: true })
+    expect(history).toHaveBeenLastCalledWith(undefined, 55, 50)
+  })
+
   it.each([
     ['routines.list', { extra: true }],
     ['routines.history', {}],
@@ -143,6 +175,9 @@ describe('routine queries', () => {
     ['routines.history', { routineId: '00000000-0000-4000-8000-000000000000', offset: -1 }],
     ['routines.history', { routineId: '00000000-0000-4000-8000-000000000000', offset: 100001 }],
     ['routines.history', { routineId: '00000000-0000-4000-8000-000000000000', offset: 0.5 }],
+    ['routines.activity', { routineId: '00000000-0000-4000-8000-000000000000' }],
+    ['routines.activity', { offset: -1 }],
+    ['routines.activity', { offset: null }],
     ['routines.unknown', {}],
   ])('rejects invalid query %s %j before reading the repository', async (method, params) => {
     const list = vi.spyOn(state.repository, 'routines')
