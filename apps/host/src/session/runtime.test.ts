@@ -232,7 +232,12 @@ describe('the Host runtime', { timeout: 20_000 }, () => {
     )
     // macOS gives every process this one, whatever its parent passed.
     expect(names.filter((name) => name !== '__CF_USER_TEXT_ENCODING')).toEqual(
-      [...environment.names, 'PI_CLAUDE_CLI_CONTEXT', 'PI_CLAUDE_CLI_KEEPALIVE_MS'].sort(),
+      [
+        ...environment.names,
+        'PI_CLAUDE_CLI_CONTEXT',
+        'PI_CLAUDE_CLI_KEEPALIVE_MS',
+        'PI_SUBAGENT_CACHE_RETENTION',
+      ].sort(),
     )
     const path = await until(() => sink.stderr('FAKE_PI_PATH ').at(0)?.slice(13), 'PATH')
     expect(path).toBe(environment.env.PATH)

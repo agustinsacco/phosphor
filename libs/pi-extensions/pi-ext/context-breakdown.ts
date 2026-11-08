@@ -31,6 +31,7 @@ import swarm from './swarm'
 import contextFiles, { contextFilesIn, type ContextFileInfo } from './context-files'
 import globalContext from './global-context'
 import { measureMessages, type LedgerEntry } from './message-ledger'
+import { registerSubagentChildren } from './subagent-children'
 
 export { entryChars, measureMessages } from './message-ledger'
 
@@ -171,6 +172,7 @@ function toolList(raw: unknown): ToolLike[] {
 
 export default function contextBreakdownExtension(pi: PiExtensionApi): void {
   contextBudget(pi)
+  registerSubagentChildren(pi)
   // Before the filter: it must see the global file as it is now.
   const live = globalContext(pi)
   // A toggle runs no turn, so publish from the command itself.

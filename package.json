@@ -9,7 +9,10 @@
     "libs/session-runtime",
     "libs/host-client",
     "libs/pi-extensions",
-    "libs/client-ui"
+    "libs/client-ui",
+    "libs/memory-engine",
+    "libs/brain-client",
+    "libs/brain-runtime"
   ],
   "scripts": {
     "dev": "npm run dev --prefix apps/desktop --",
@@ -103,6 +106,7 @@
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",
+    "@huggingface/transformers": "4.3.2",
     "@tanstack/react-virtual": "^3.14.9",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-search": "^0.16.0",

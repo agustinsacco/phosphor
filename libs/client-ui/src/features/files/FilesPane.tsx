@@ -5,19 +5,22 @@ import { EditorPane } from './EditorPane'
 import { WorkspaceSearch } from './WorkspaceSearch'
 import { useWorkspaceSearchStore, workspaceSearch } from './workspaceSearchStore'
 import { useFilesStore } from '@/stores/files'
+import type { FilesSource } from './filesSource'
 
 const FALLBACK_POLL_MS = 2_000
 
 /**
  * Files region: explorer tree (or, while open, the workspace search in its
- * place) + Monaco editor tabs, with live fs updates.
+ * place) + Monaco editor tabs, with live fs updates where the machine watches.
  */
 export const FilesPane = memo(function FilesPane({
-  workspacePath,
+  source,
 }: {
-  workspacePath: string
+  source: FilesSource
 }): React.JSX.Element {
+  const { workspacePath, features } = source
   useEffect(() => {
+    if (!features.watch) return
     const store = useFilesStore.getState()
     void window.phosphor.invoke('fs:watchWorkspace', workspacePath)
     const unsubscribe = window.phosphor.onFsChanged((payload) => {
@@ -40,9 +43,11 @@ export const FilesPane = memo(function FilesPane({
       window.clearInterval(poll)
       unsubscribe()
     }
-  }, [workspacePath])
+  }, [workspacePath, features.watch])
 
-  const searchOpen = useWorkspaceSearchStore((s) => workspaceSearch(s, workspacePath).open)
+  const searchOpen = useWorkspaceSearchStore(
+    (s) => features.search && workspaceSearch(s, workspacePath).open,
+  )
   const explorerFocusRequest = useWorkspaceSearchStore(
     (s) => workspaceSearch(s, workspacePath).explorerFocusRequest,
   )
@@ -67,13 +72,13 @@ export const FilesPane = memo(function FilesPane({
           <WorkspaceSearch workspacePath={workspacePath} />
         ) : (
           <div ref={explorerRef} className="contents">
-            <FileExplorer workspacePath={workspacePath} />
+            <FileExplorer source={source} />
           </div>
         )}
       </Panel>
       <PanelResizeHandle className="pane-handle" />
       <Panel minSize={30}>
-        <EditorPane workspacePath={workspacePath} />
+        <EditorPane source={source} />
       </Panel>
     </PanelGroup>
   )

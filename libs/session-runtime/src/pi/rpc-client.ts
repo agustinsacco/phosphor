@@ -2,6 +2,8 @@ import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child
 import { EventEmitter } from 'node:events'
 import { JsonlDecoder } from './jsonl'
 import { SessionActivity } from './session-activity'
+import { learningOutputGuard, learningSpawnArgs } from './learning-execution-profile'
+import { brainSpawnArgs } from './brain-execution-profile'
 import type { RuntimeLog } from '../file-log'
 import type {
   ExtensionUIRequest,
@@ -53,6 +55,10 @@ export interface PiSpawnOptions {
    * CLAUDE.md of its own, so pi's copy is the only one the model sees.
    */
   noContextFiles?: boolean
+  /** Internal restricted Brain launch; fixed tools/resources policy, not arbitrary CLI args. */
+  brainSessionDir?: string
+  /** Dedicated no-executor learning control session, not the ordinary Brain tool profile. */
+  learningSessionDir?: string
   /** Owned process group: disposal must also stop nested CLI/tools. */
   ownProcessGroup?: boolean
   /** Environment variables, merged over the inherited ones unless `inheritEnv` is false. */
@@ -94,6 +100,7 @@ interface PendingRequest {
  */
 export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
   readonly activity = new SessionActivity()
+  private readonly acceptOutput: (chunk: Buffer) => boolean
   private child: ChildProcessWithoutNullStreams | null = null
   private readonly stdoutDecoder = new JsonlDecoder()
   private readonly stderrDecoder = new JsonlDecoder()
@@ -107,6 +114,10 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     private readonly runtime: PiRpcRuntime,
   ) {
     super()
+    this.acceptOutput = learningOutputGuard(Boolean(options.learningSessionDir), () => {
+      this.failAllPending(new Error('Learning carrier output exceeds limit'))
+      this.dispose(0).catch(() => this.killNow())
+    })
   }
 
   private learnedSessionFile: string | undefined
@@ -137,7 +148,11 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     if (o.provider) args.push('--provider', o.provider)
     if (o.thinkingLevel) args.push('--thinking', o.thinkingLevel)
     if (o.noSession) args.push('--no-session')
-    if (o.noContextFiles) args.push('--no-context-files')
+    if (o.noContextFiles && !o.brainSessionDir) args.push('--no-context-files')
+    if (o.brainSessionDir && o.learningSessionDir)
+      throw new Error('Conflicting private spawn profiles')
+    if (o.brainSessionDir) args.push(...brainSpawnArgs(o.brainSessionDir))
+    if (o.learningSessionDir) args.push(...learningSpawnArgs(o.learningSessionDir))
     for (const ext of o.extensions ?? []) args.push('-e', ext)
     if (o.appendSystemPrompt) args.push('--append-system-prompt', o.appendSystemPrompt)
 
@@ -162,13 +177,13 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     })
 
     child.stdout.on('data', (chunk: Buffer) => {
-      for (const line of this.stdoutDecoder.push(chunk)) this.handleLine(line)
+      this.consumeOutput(chunk, this.stdoutDecoder, (line) => this.handleLine(line))
     })
     child.stdout.on('end', () => {
       for (const line of this.stdoutDecoder.end()) this.handleLine(line)
     })
     child.stderr.on('data', (chunk: Buffer) => {
-      for (const line of this.stderrDecoder.push(chunk)) this.emit('stderr', line)
+      this.consumeOutput(chunk, this.stderrDecoder, (line) => this.emit('stderr', line))
     })
     // A write to a child whose stdin already closed (EIO/EPIPE) fails its own
     // callback, and the stream also emits 'error'. With no listener, Node
@@ -311,6 +326,15 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
         /* already gone */
       }
     }
+  }
+
+  private consumeOutput(
+    chunk: Buffer,
+    decoder: JsonlDecoder,
+    consume: (line: string) => void,
+  ): void {
+    if (!this.acceptOutput(chunk)) return
+    for (const line of decoder.push(chunk)) consume(line)
   }
 
   private handleLine(line: string): void {

@@ -1,18 +1,18 @@
 # Dependency installation and source closure
 
-The Nx project graph is not one installation domain. npm shares five private source libraries, while Desktop, Control, Web and the site keep independent locks.
+The Nx project graph is not one installation domain. npm shares eight private source libraries, while Desktop, Control, Web and the site keep independent locks.
 All targets remain uncached. The Host (`apps/host`, [host.md](host.md)) has no
 manifest of its own: it is checked and tested from the root install and imports
 Node builtins, `ws` and the source libraries. Signed Host releases stage their
 own pinned Node runtime and target-specific node-pty resources, separate from
 Desktop's Electron ABI ([Host releases](host.md#build)).
 
-| Domain                            | Manifest / lock                                                                                                                                   | Ownership                                                               |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Root tooling and source libraries | `package.json`, `package-lock.json`; workspaces `libs/shared`, `libs/session-runtime`, `libs/host-client`, `libs/pi-extensions`, `libs/client-ui` | JavaScript tools and library dependencies                               |
-| Desktop                           | `apps/desktop/package.json`, `apps/desktop/package-lock.json`                                                                                     | Application production dependencies, Electron and Electron-ABI node-pty |
-| Control                           | `apps/control/package.json`, `apps/control/package-lock.json`                                                                                     | Hono HTTP server, bundled for plain Node                                |
-| Site                              | `apps/site/package.json`, `apps/site/package-lock.json`                                                                                           | Astro, social-image tools and site checks/browser tests                 |
+| Domain                            | Manifest / lock                                                                                                                                                                                                    | Ownership                                                               |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Root tooling and source libraries | `package.json`, `package-lock.json`; workspaces `libs/shared`, `libs/session-runtime`, `libs/host-client`, `libs/pi-extensions`, `libs/client-ui`, `libs/memory-engine`, `libs/brain-client`, `libs/brain-runtime` | JavaScript tools and library dependencies                               |
+| Desktop                           | `apps/desktop/package.json`, `apps/desktop/package-lock.json`                                                                                                                                                      | Application production dependencies, Electron and Electron-ABI node-pty |
+| Control                           | `apps/control/package.json`, `apps/control/package-lock.json`                                                                                                                                                      | Hono HTTP server, bundled for plain Node                                |
+| Site                              | `apps/site/package.json`, `apps/site/package-lock.json`                                                                                                                                                            | Astro, social-image tools and site checks/browser tests                 |
 
 The Web domain uses `apps/web/package.json` and its own lock for Vite/React. It builds the compact shell from `libs/client-ui`; Desktop imports that library's expanded entry. The UI also consumes the self-contained `lane-reload`, `swarm` and `subagent-snapshot` wire helpers from `libs/pi-extensions`. The Web image builder copies only those three helper sources, not the extension runtime.
 
@@ -22,7 +22,7 @@ Run `npm ci` from the root. Its postinstall runs an independent
 `npm ci --prefix apps/desktop && npm ci --prefix apps/control && npm ci --prefix apps/web`; failure propagates.
 All four installations must be
 real local directories, never links to another checkout's mutable installation.
-The links npm creates for the five source-library packages point to source in
+The links npm creates for the eight source-library packages point to source in
 this checkout, not another installation. Desktop builds use the root's declared
 TypeScript, Vite plugins and test tooling plus the app's declared Electron build
 and production dependencies. An app-only production install is not a complete
@@ -44,7 +44,7 @@ identities are retained; adding workspace links is not a toolchain upgrade.
 
 ## Scoped source-library production closure
 
-In a **separate staging directory** containing the root manifest/lock, all five
+In a **separate staging directory** containing the root manifest/lock, all eight
 workspace manifests, library sources and TypeScript configuration, the supported
 source-dependency install is:
 
@@ -88,13 +88,16 @@ the library's Nx test target and whole-workspace unit target discover its tests.
 
 ## Desktop bundling and native isolation
 
-Desktop bundles shared/session-runtime/host-client sources rather than shipping runtime
+Desktop bundles shared/session-runtime/host-client/memory-engine/brain-client/brain-runtime sources rather than shipping runtime
 TypeScript workspace links. Main/preload explicitly exclude these packages from
 externalization; renderer/browser resolution deduplicates React, React DOM, zustand, cron-parser and luxon
 onto app-owned copies. `@shared/*` remains a compatibility spelling in configured
 builds. Source-package export tests also exercise canonical npm subpath exports.
-The pi extensions remain standalone TypeScript resources loaded by pi, not Node
-workspace runtime dependencies.
+The ordinary pi extensions remain standalone TypeScript resources loaded by pi,
+not Node workspace runtime dependencies. The optional Brain entrypoints instead
+ship as standalone bundles, including their brain-client/shared dependencies;
+raw source imports cannot resolve from an installed app. See
+[Desktop resources](desktop-build.md#resources-and-release).
 
 Desktop's Electron bootstrap/rebuild stays app-local. Never rebuild that
 node-pty for Node, share its mutable installation, or infer Node ABI compatibility

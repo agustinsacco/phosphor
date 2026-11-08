@@ -7,6 +7,7 @@ import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { localLanePullRequest, usePullRequestsStore } from '@/stores/pullRequests'
 import { useSessionsStore } from '@/stores/sessions'
 import type { DeleteSessionTarget } from './DeleteSessionModal'
+import { liveByDiskPath } from './groupSessions'
 import {
   classifyLane,
   lanesOwningWorktree,
@@ -43,9 +44,7 @@ export function buildLaneDelete(paths: string[], workspacePath: string): Preflig
   const markerPrefMode = useLanePrefsStore.getState().lanes.markers
   const allMetas = Object.values(sessions.disk).flat()
   const metaByPath = new Map(allMetas.map((meta) => [meta.path, meta] as const))
-  const liveByDisk = new Map(
-    Object.values(sessions.live).flatMap((l) => (l.diskPath ? [[l.diskPath, l.phosphorId]] : [])),
-  )
+  const liveByDisk = liveByDiskPath(sessions.live)
   // A worktree goes only with the last session using it.
   const owners = lanesOwningWorktree(
     paths.flatMap((path) => {

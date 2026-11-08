@@ -41,9 +41,24 @@ export function assertClaudeContextProvider(
   )
 }
 
-/** Enforce pi ownership even if the launcher inherited legacy provider settings. */
+/**
+ * Enforce pi ownership even if the launcher inherited legacy provider settings.
+ *
+ * `PI_SUBAGENT_CACHE_RETENTION=short` makes pi-subagents ask for five-minute
+ * cache entries on a child's requests, the split Claude Code makes for its own
+ * sub-agents. Native providers already default to `short`. On Claude (from
+ * pi-claude-cli 0.11.0) it replaces the subscription's one-hour entries, whose
+ * writes cost 2x input instead of 1.25x: 98% of children's requests came within
+ * five minutes of the last, so over 30 days it cuts their write cost by a third
+ * (about 25M input tokens' worth), and a finished child's process parks for
+ * five minutes, not an hour.
+ */
 export function claudeProviderSpawnEnv(): Record<string, string> {
-  return { PI_CLAUDE_CLI_CONTEXT: 'pi', PI_CLAUDE_CLI_KEEPALIVE_MS: String(CLAUDE_KEEPALIVE_MS) }
+  return {
+    PI_CLAUDE_CLI_CONTEXT: 'pi',
+    PI_CLAUDE_CLI_KEEPALIVE_MS: String(CLAUDE_KEEPALIVE_MS),
+    PI_SUBAGENT_CACHE_RETENTION: 'short',
+  }
 }
 
 /**

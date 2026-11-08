@@ -12,5 +12,8 @@ test-results/
 apps/site/.astro/
 apps/site/shots-raw/
 
+# Self-contained Brain extension bundles, staged per checkout.
+libs/pi-extensions/brain-ext/
+
 # Per-worktree Nx state (never shared or committed).
 .nx/

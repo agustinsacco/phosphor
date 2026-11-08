@@ -14,7 +14,7 @@ export type PaneSide = 'left' | 'right'
  * and the page is the cross-session index. Machines exists only while its
  * preview is on (stores/machines.ts).
  */
-export type GlobalPage = 'artifacts' | 'skills' | 'routines' | 'machines'
+export type GlobalPage = 'artifacts' | 'skills' | 'routines' | 'machines' | 'brain'
 
 const PANE_IDS = ['files', 'changes', 'terminal', 'artifacts', 'subagents'] as const
 

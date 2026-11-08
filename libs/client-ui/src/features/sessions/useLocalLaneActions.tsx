@@ -7,7 +7,7 @@ import { navigateToLane } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import type { GhPullRequest, GitInfo, SessionMeta } from '@shared/models'
 import { changeCompletion, openRestoreWorktree, openSidebarConversation } from './completionActions'
-import { laneActions, type LaneActionContext } from './laneActions'
+import { laneActions, type LaneActionContext, type LaneActions } from './laneActions'
 import { openPullRequest } from './PrBadge'
 import { copySessionDebugInfo, copySpend, exportSessionHtml } from './sessionActions'
 import { useSessionOrderActions } from './SessionList'
@@ -33,32 +33,16 @@ interface LocalLane {
   onRename: () => void
   onOpenTree: () => void
   onDelete: (title: string) => void
+  learning?: { learning: LaneActionContext['learning']; learn: () => void }
 }
 
-/**
- * A This Mac lane's actions and the marker picker they open, for its sidebar
- * row: the shared `laneActions` list over This Mac's handlers. The row owns
- * how a rename is asked for (inline), the tree and the delete confirm.
- */
-export function useLocalLaneActions({
-  meta,
-  workspacePath,
-  livePhosphorId,
-  title,
-  unseen,
-  pinned,
-  git,
-  pullRequest,
-  deleting,
-  onRename,
-  onOpenTree,
-  onDelete,
-}: LocalLane) {
-  const orderActions = useSessionOrderActions()
-  const markers = useLanePrefsStore((s) => s.lanes.markers)
-  const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
-  const [pickingMarker, setPickingMarker] = useState(false)
-  const context: LaneActionContext = {
+function localContext(
+  lane: LocalLane,
+  markers: LaneActionContext['markers'],
+  bulkDeleteRunning: boolean,
+): LaneActionContext {
+  const { meta, livePhosphorId, unseen, pinned, pullRequest, deleting, learning } = lane
+  return {
     pinned,
     markers,
     pr: pullRequest ?? null,
@@ -66,16 +50,40 @@ export function useLocalLaneActions({
     running: livePhosphorId !== undefined,
     completed: Boolean(meta.completedAt),
     worktreeRemoved: meta.worktreeRemoved,
-    // Spend is a detail you go looking for, so it waits here (and in the Home ledger).
+    learning: learning?.learning,
     spend: meta.cost > 0 ? { hint: formatCost(meta.cost) } : undefined,
     busy: deleting,
     refusals: {
       delete: bulkDeleteRunning ? 'another delete is running' : undefined,
       moveTo: livePhosphorId ? STOP_BEFORE_MOVE : undefined,
     },
-    // Stop ends the process and keeps the transcript, as on a Host lane.
     hints: { stop: '~200 MB', delete: 'to trash' },
   }
+}
+
+/**
+ * A This Mac lane's actions and the marker picker they open, for its sidebar
+ * row: the shared `laneActions` list over This Mac's handlers. The row owns
+ * how a rename is asked for (inline), the tree and the delete confirm.
+ */
+export function useLocalLaneActions(lane: LocalLane): LaneActions {
+  const {
+    meta,
+    workspacePath,
+    livePhosphorId,
+    title,
+    git,
+    pullRequest,
+    learning,
+    onRename,
+    onOpenTree,
+    onDelete,
+  } = lane
+  const orderActions = useSessionOrderActions()
+  const markers = useLanePrefsStore((s) => s.lanes.markers)
+  const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
+  const [pickingMarker, setPickingMarker] = useState(false)
+  const context = localContext(lane, markers, bulkDeleteRunning)
   const store = () => useSessionsStore.getState()
   const items = (): ContextMenuItem[] =>
     laneActions(
@@ -84,6 +92,7 @@ export function useLocalLaneActions({
         open: () => openSidebarConversation(workspacePath, meta),
         rename: onRename,
         tree: onOpenTree,
+        learn: learning?.learn,
         completion: () => void changeCompletion(workspacePath, meta),
         restoreWorktree: () => openRestoreWorktree(workspacePath, meta),
         makeRoutine: () => makeRoutine(workspacePath, meta.name ?? '', meta.firstUserText ?? ''),

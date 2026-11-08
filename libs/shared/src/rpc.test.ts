@@ -15,6 +15,7 @@ type ExpectedCommand =
   | { id?: string; type: 'abort' }
   | { id?: string; type: 'new_session'; parentSession?: string }
   | { id?: string; type: 'get_state' }
+  | { id?: string; type: 'get_auth_binding' }
   | { id?: string; type: 'set_model'; provider: string; modelId: string }
   | { id?: string; type: 'cycle_model' }
   | { id?: string; type: 'get_available_models' }
@@ -53,6 +54,21 @@ interface ExpectedResponses {
   abort: undefined
   new_session: { cancelled: boolean }
   get_state: Rpc.RpcSessionState
+  get_auth_binding:
+    | { available: false; reason: 'unavailable' | 'changed' }
+    | {
+        available: true
+        sourceSessionId: string
+        binding: {
+          provider: string
+          modelId: string
+          api: string
+          endpoint: string
+          authMode: 'oauth' | 'api-key' | 'cli'
+          accountId: string
+        }
+        authIdentityFence: string
+      }
   set_model: Rpc.Model
   cycle_model: { model: Rpc.Model; thinkingLevel: Rpc.ThinkingLevel; isScoped: boolean } | null
   get_available_models: { models: Rpc.Model[] }

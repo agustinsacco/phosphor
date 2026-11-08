@@ -88,7 +88,7 @@ screen.
 The sidebar's top rows and footer are shared with the browser's navigation
 ([web client](web-client.md#shared-pages-and-responsive-shells)).
 `features/sessions/SidebarNavigation.tsx` renders New, the global page links
-(Artifacts, Skills, Routines, Machines) and the machine scope; New goes through
+(Artifacts, Skills, Routines, Machines, Brain) and the machine scope; New goes through
 `useNavigation()` with the Host in scope, which on Desktop opens that Host's
 composer, or home under This Mac and All machines. `SidebarFooter` renders the
 update notice (where `appInfo` allows native updates) and the account footer,
@@ -96,6 +96,10 @@ whose Settings gear and menu entry call `navigate({ to: 'page', page: 'settings'
 Desktop maps that to the Settings dialog. The shell supplies only what a page
 link does (Desktop toggles the page; Machines opens its list) and where a chosen
 scope goes (Desktop: `useRemoteLanesStore.filter`).
+
+[Brain](brain.md) is below Machines. Its local Desktop page labels This Mac and
+All as “Brain · This Mac”; an explicit Host or a browser gets an unavailable
+page, never a fallback to local data or an all-machine memory view.
 
 Signed-in windows show a lane scope control beneath the main navigation
 (`MachineSwitcher`, the only machine-scope control on either client): a
