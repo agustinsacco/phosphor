@@ -8,9 +8,8 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSessionsStore } from '@/stores/sessions'
-import { openRemoteFile } from './remoteFileSelection'
-import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
-vi.mock('./remoteFileSelection', () => ({ openRemoteFile: vi.fn().mockResolvedValue(undefined) }))
+import { useFilesStore } from '@/stores/files'
+import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 
 it('refreshes Mac → Host → Mac indexes, opens Host line jumps through the remote route only', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -28,6 +27,8 @@ it('refreshes Mac → Host → Mac indexes, opens Host line jumps through the re
     activeSessionId: id,
     live: { [id]: { ...mockRemoteInfo, phosphorId: id } },
   })
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: mockRemoteHosts[MOCK_HOST_ID]! } })
+  const openFile = vi.spyOn(useFilesStore.getState(), 'openFile').mockResolvedValue(undefined)
   try {
     useFinderStore.setState({ open: true })
     await act(async () => root.render(<FuzzyFinder workspacePath="/mac" />))
@@ -46,9 +47,9 @@ it('refreshes Mac → Host → Mac indexes, opens Host line jumps through the re
     await act(async () =>
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
     )
-    expect(openRemoteFile).toHaveBeenCalledWith(
-      id,
-      'host-only.ts',
+    expect(openFile).toHaveBeenCalledWith(
+      mockRemoteInfo.workspacePath,
+      `${mockRemoteInfo.workspacePath}/host-only.ts`,
       expect.objectContaining({ line: 17, column: 3 }),
     )
     expect(invoke.mock.calls).toEqual([
@@ -65,6 +66,8 @@ it('refreshes Mac → Host → Mac indexes, opens Host line jumps through the re
     act(() => root.unmount())
     host.remove()
     useFinderStore.setState({ open: false })
+    useRemoteLanesStore.setState({ hosts: {} })
+    openFile.mockRestore()
     vi.unstubAllGlobals()
   }
 })
