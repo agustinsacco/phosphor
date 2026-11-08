@@ -17,7 +17,7 @@ import { STOP_NEEDS_PROMPT } from '@/features/machines/useLaneControl'
 import { openPullRequest } from './PrBadge'
 import { useRemotePr } from './remotePullRequests'
 import { useRemoteLaneTitle } from './RemoteLanePresentation'
-import { laneActions, type LaneActionHandlers } from './laneActions'
+import { laneActions, type LaneActionHandlers, type LaneActions } from './laneActions'
 import { hostLaneContext, remoteLaneAccess, type RemoteLaneActionState } from './remoteLaneActions'
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
 import { copyDebugInfo, copySpend, exportRemoteLaneHtml } from './sessionActions'
@@ -34,6 +34,18 @@ type HostLaneChannel =
   | 'hosts:stopLane'
   | 'hosts:resumeLane'
   | 'hosts:markRead'
+
+/** The shared lane actions, plus what a Host lane's surfaces also show: control, the rename and a refusal. */
+export interface RemoteLaneActions extends LaneActions, ReturnType<typeof remoteLaneAccess> {
+  title: string
+  busy: boolean
+  /** The last refused action's reason, for a sheet that stays open to explain it. */
+  error: string | null
+  deletingInBulk: boolean
+  /** Names the lane through its live session; resolves false when the Host refused. */
+  saveName: (name: string) => Promise<boolean>
+  marker: string | null
+}
 
 /**
  * One Host lane's actions and the dialogs they open, for any surface that
@@ -57,7 +69,7 @@ export function useRemoteLaneActions({
   withOpen?: boolean
   onRename: () => void
   onDone?: () => void
-}) {
+}): RemoteLaneActions {
   const { navigate } = useNavigation()
   const { nativeFiles } = usePlatform()
   const orderActions = useSessionOrderActions()

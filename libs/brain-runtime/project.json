@@ -1,0 +1,23 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "brain-runtime",
+  "root": "libs/brain-runtime",
+  "sourceRoot": "libs/brain-runtime/src",
+  "projectType": "library",
+  "tags": ["scope:runtime"],
+  "implicitDependencies": ["shared", "runtime", "memory-engine", "pi-extensions"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^default", "rootUnitRunner"],
+      "options": {
+        "command": "vitest run libs/brain-runtime",
+        "cwd": ".",
+        "env": {
+          "VITEST_MAX_WORKERS": "2"
+        }
+      }
+    }
+  }
+}

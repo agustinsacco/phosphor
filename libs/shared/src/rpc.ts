@@ -5,6 +5,9 @@
  *   dist/modes/rpc/rpc-types.d.ts
  *   docs/rpc.md
  *
+ * get_auth_binding additionally mirrors the optional source-scoped bound-request
+ * core capability; stock pi 1.4 does not necessarily implement it.
+ *
  * Self-contained on purpose — Phosphor spawns pi as a subprocess and never
  * imports its code. Public fixtures and leaf tests pin this local mirror;
  * compiler mutation tests exercise both key-agreement guards.

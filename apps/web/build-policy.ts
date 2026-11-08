@@ -7,7 +7,7 @@ export function assertBrowserModule(id: string): void {
     isBuiltin(id) ||
     path.includes('__vite-browser-external') ||
     /(?:^|\/)apps\/desktop\/(?:electron|src)\//.test(path) ||
-    /(?:^|\/)libs\/session-runtime\//.test(path) ||
+    /(?:^|\/)libs\/(?:session-runtime|brain-runtime)\//.test(path) ||
     /(?:^|\/)node_modules\/(?:electron|electron-store|electron-updater|node-pty)(?:\/|$)/.test(
       path,
     ) ||

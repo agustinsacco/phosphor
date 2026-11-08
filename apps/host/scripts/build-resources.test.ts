@@ -46,11 +46,16 @@ function write(path: string, text: string) {
 /** Every entry under `at`, folders included, sorted. */
 const tree = (at: string) => readdirSync(at, { recursive: true, encoding: 'utf8' }).sort()
 
-/** A root whose pi-ext holds the six extensions and `extra`, and whose skills hold one skill. */
+/**
+ * A root whose pi-ext holds the six extensions, the two Brain sources and
+ * `extra`, and whose skills hold one skill.
+ */
 function root(extra: Record<string, string> = {}): string {
   const at = join(dir, 'root')
   const ext = 'root/libs/pi-extensions/pi-ext'
   for (const file of BUNDLED_EXTENSION_FILES) write(`${ext}/${file}`, `// ${file}\n`)
+  for (const file of ['brain', 'brain-processor', 'brain-learning-carrier'])
+    write(`${ext}/${file}.ts`, `export default () => '${file}'\n`)
   for (const [path, text] of Object.entries(extra)) write(`${ext}/${path}`, text)
   write('root/libs/pi-extensions/skills/one/SKILL.md', '# One\n')
   write('root/libs/pi-extensions/skills/one/notes.test.ts', 'kept\n')
@@ -125,21 +130,27 @@ describe('stageNative', () => {
 })
 
 describe('stageResources', () => {
-  it("copies pi-ext with Desktop's filter and the skills whole", async () => {
+  it("copies pi-ext with Desktop's filter, Brain as bundles, and the skills whole", async () => {
     const at = root({
       'helper.ts': 'h\n',
       'helper.test.ts': 't\n',
       'README.md': 'r\n',
       'nested/deep.ts': 'd\n',
+      'nested/brain.ts': 'b\n',
       'only-tests/a.test.ts': 't\n',
     })
     await stageResources(stage, { root: at, native: undefined, target: undefined })
     expect(tree(stage)).toEqual(
       [
+        'brain-ext',
+        'brain-ext/brain.mjs',
+        'brain-ext/brain-processor.mjs',
+        'brain-ext/brain-learning-carrier.mjs',
         'pi-ext',
         ...BUNDLED_EXTENSION_FILES.map((file) => `pi-ext/${file}`),
         'pi-ext/helper.ts',
         'pi-ext/nested',
+        'pi-ext/nested/brain.ts',
         'pi-ext/nested/deep.ts',
         'pi-ext/only-tests',
         'skills',
@@ -153,7 +164,17 @@ describe('stageResources', () => {
   it('copies node-pty first when a folder is named', async () => {
     const at = root()
     await stageResources(stage, { root: at, native: native(), target: undefined })
-    expect(readdirSync(stage).sort()).toEqual(['native', 'pi-ext', 'skills'])
+    expect(readdirSync(stage).sort()).toEqual(['brain-ext', 'native', 'pi-ext', 'skills'])
+  })
+
+  it('stages Brain as standalone modules the Host never loads by default', async () => {
+    await stageResources(stage, { root: root(), native: undefined, target: undefined })
+    for (const file of ['brain', 'brain-processor', 'brain-learning-carrier']) {
+      const code = readFileSync(join(stage, 'brain-ext', `${file}.mjs`), 'utf8')
+      expect(code).toContain(`"${file}"`)
+      expect(code).not.toContain('@phosphor/')
+    }
+    expect(BUNDLED_EXTENSION_FILES.some((file) => file.startsWith('brain'))).toBe(false)
   })
 
   it('copies nothing else when the node-pty folder is refused', async () => {
@@ -172,9 +193,17 @@ describe('stageResources', () => {
     await expect(failing).rejects.toThrow(new Error('pi-ext lacks artifacts.ts, lane-reload.ts'))
   })
 
+  it('fails closed, before bundling, when a Brain source is missing', async () => {
+    const at = root()
+    rmSync(join(at, 'libs/pi-extensions/pi-ext/brain.ts'))
+    const failing = stageResources(stage, { root: at, native: undefined, target: undefined })
+    await expect(failing).rejects.toThrow(new Error('pi-ext lacks brain.ts'))
+    expect(existsSync(join(stage, 'brain-ext'))).toBe(false)
+  })
+
   it('treats an empty node-pty name as none', async () => {
     await stageResources(stage, { root: root(), native: '', target: 'other-target' })
-    expect(readdirSync(stage).sort()).toEqual(['pi-ext', 'skills'])
+    expect(readdirSync(stage).sort()).toEqual(['brain-ext', 'pi-ext', 'skills'])
   })
 })
 

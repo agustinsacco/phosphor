@@ -1,14 +1,12 @@
-import { useRef, useState } from 'react'
-import { PopupMenu } from '@/components/PopupMenu'
-import { MoreIcon } from '@/components/icons'
-import { TooltipButton } from '@/components/Tooltip'
+import { useState } from 'react'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import type { RemoteLaneGroup } from './groupRemoteLanes'
 import { RemoteFolderMenuRows } from './RemoteFolderMenuRows'
 import { RemoteRepositoryRemoval } from './RemoteRepositoryRemoval'
-import { LaneSelectionRows, type LaneSelectMode } from './LaneSelectionRows'
+import { LaneGroupOptions } from './LaneGroup'
+import type { LaneSelectMode } from './LaneSelectionRows'
 
-/** The "⋯" menu in This Mac's order: lane selection for bulk delete, collapse, then the Host's folder rows. */
+/** A Host folder's "⋯" menu on the shared `LaneGroupOptions`: its folder rows and the dialogs they open. */
 export function RemoteWorkspaceOptions({
   hostId,
   group,
@@ -29,10 +27,8 @@ export function RemoteWorkspaceOptions({
   onCollapse: (collapsed: boolean) => void
   onSelect: (mode: LaneSelectMode) => void
 }): React.JSX.Element {
-  const [menu, setMenu] = useState(false)
   const [adding, setAdding] = useState(false)
   const [removing, setRemoving] = useState(false)
-  const trigger = useRef<HTMLButtonElement>(null)
   return (
     <>
       {adding && <HostFolderBrowser hostId={hostId} onClose={() => setAdding(false)} />}
@@ -44,39 +40,20 @@ export function RemoteWorkspaceOptions({
           onClose={() => setRemoving(false)}
         />
       )}
-      <TooltipButton
-        ref={trigger}
+      <LaneGroupOptions
+        name={group.name}
         className={className}
-        aria-label={`Workspace options for ${group.name}`}
-        aria-expanded={menu}
-        title="Workspace options"
-        onClick={() => setMenu(!menu)}
-      >
-        <MoreIcon size={14} />
-      </TooltipButton>
-      {menu && (
-        <PopupMenu
-          triggerRef={trigger}
-          onClose={() => setMenu(false)}
-          className="absolute right-1 top-full z-40 mt-1 min-w-44 py-1"
-        >
-          <LaneSelectionRows
-            canSelect={canSelect}
-            selecting={selecting}
-            collapsed={collapsed}
-            onCollapse={onCollapse}
-            onSelect={onSelect}
-            onDone={() => setMenu(false)}
-          />
+        selection={{ canSelect, selecting, collapsed, onCollapse, onSelect }}
+        folderRows={(close) => (
           <RemoteFolderMenuRows
             hostId={hostId}
             repositoryId={group.repositoryId}
             onAdd={() => setAdding(true)}
             onRemove={() => setRemoving(true)}
-            onDone={() => setMenu(false)}
+            onDone={close}
           />
-        </PopupMenu>
-      )}
+        )}
+      />
     </>
   )
 }

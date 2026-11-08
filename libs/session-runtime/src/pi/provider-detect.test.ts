@@ -53,6 +53,10 @@ describe('claudeProviderSpawnEnv', () => {
       '0',
     )
   })
+
+  it("asks for sub-agents' five-minute cache, as Claude Code splits its own", () => {
+    expect(claudeProviderSpawnEnv().PI_SUBAGENT_CACHE_RETENTION).toBe('short')
+  })
 })
 
 describe('Claude context provider version gate', () => {

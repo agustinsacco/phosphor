@@ -11,6 +11,7 @@ const fake = vi.hoisted(() => ({
   processHandlers: new Map<string, (...args: unknown[]) => void>(),
   quit: (): void => {},
   disposePackageJobs: (): Promise<void> => Promise.resolve(),
+  disposeBrain: (): Promise<void> => Promise.resolve(),
   dialogResponse: 1,
 }))
 
@@ -37,6 +38,7 @@ vi.mock('electron', () => ({
   protocol: { registerSchemesAsPrivileged: vi.fn() },
 }))
 vi.mock('./packages', () => ({ disposePackageJobs: () => fake.disposePackageJobs() }))
+vi.mock('../brain/runtime', () => ({ disposeBrain: () => fake.disposeBrain() }))
 vi.mock('../routines', () => ({
   startRoutines: vi.fn(),
   stopRoutines: () => Promise.resolve(),
@@ -99,6 +101,7 @@ vi.mock('../dev-renderer-url', () => ({ devRendererUrl: () => undefined }))
 
 const quit = vi.fn()
 const disposePackageJobs = vi.fn(() => Promise.resolve())
+const disposeBrain = vi.fn(() => Promise.resolve())
 
 /** Loads main.ts once, capturing its app and process handlers. */
 async function loadMain(): Promise<void> {
@@ -106,6 +109,7 @@ async function loadMain(): Promise<void> {
   fake.processHandlers.clear()
   fake.quit = quit
   fake.disposePackageJobs = disposePackageJobs
+  fake.disposeBrain = disposeBrain
   vi.stubEnv('PHOSPHOR_TEST_USER_DATA', undefined)
   vi.resetModules()
   // main.ts installs signal and crash handlers; keep them out of this worker.
@@ -136,6 +140,7 @@ const flush = async (): Promise<void> => {
 
 beforeEach(async () => {
   quit.mockReset()
+  disposeBrain.mockReset().mockResolvedValue()
   disposePackageJobs.mockReset()
   disposePackageJobs.mockImplementation(() => Promise.resolve())
   fake.dialogResponse = 1
@@ -183,6 +188,31 @@ describe('quit and package jobs', () => {
 
     settle()
     await flush()
+    expect(quit).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for Brain disposal before quitting', async () => {
+    let settle = (): void => {}
+    disposeBrain.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          settle = resolve
+        }),
+    )
+    requestQuit()
+    await flush()
+    expect(disposeBrain).toHaveBeenCalledTimes(1)
+    expect(quit).not.toHaveBeenCalled()
+    settle()
+    await flush()
+    expect(quit).toHaveBeenCalledTimes(1)
+  })
+
+  it('still quits if Brain disposal fails', async () => {
+    disposeBrain.mockRejectedValue(new Error('Brain worker exit failed'))
+    requestQuit()
+    await flush()
+    expect(disposeBrain).toHaveBeenCalledTimes(1)
     expect(quit).toHaveBeenCalledTimes(1)
   })
 

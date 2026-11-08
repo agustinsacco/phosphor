@@ -8,17 +8,36 @@ const remote = { kind: 'remote-supported' } as const
 const browser = { kind: 'browser-local' } as const
 const unsupported = (reason: string) => ({ kind: 'unsupported', reason }) as const
 
+const localPi = unsupported(
+  'Local pi processes and machine configuration are unavailable in the browser.',
+)
 const native = unsupported('This native or mutating Host feature is unavailable in the browser.')
 const localRoutines = unsupported(
   'Local routine execution and native background services require Desktop.',
 )
 const hostFilesOnly = unsupported('Browser file access goes through Host reads and writes only.')
-const localPi = unsupported(
-  'Local pi processes and machine configuration are unavailable in the browser.',
-)
+const localBrain = unsupported('Brain is a local Desktop prototype; remote access is unavailable.')
 
 /** Every new IPC channel requires an explicit browser admission decision. */
 export const IPC_WEB = {
+  'brain:status': localBrain,
+  'brain:setPrefs': localBrain,
+  'brain:download': localBrain,
+  'brain:removeModel': localBrain,
+  'brain:search': localBrain,
+  'brain:read': localBrain,
+  'brain:evidence': localBrain,
+  'brain:graph': localBrain,
+  'brain:process': localBrain,
+  'brain:learnPreview': localBrain,
+  'brain:learn': localBrain,
+  'brain:learningJobs': localBrain,
+  'brain:learningDetail': localBrain,
+  'brain:cancel': localBrain,
+  'brain:review': localBrain,
+  'brain:correct': localBrain,
+  'brain:forget': localBrain,
+  'brain:transcript': localBrain,
   'hosts:tailscaleStatus': native,
   'hosts:models': remote,
   'hosts:commands': remote,

@@ -17,6 +17,8 @@ describe('Location codec', () => {
     { to: 'new', machine: 'host-two' },
     { to: 'page', page: 'skills', machine: 'host-one' },
     { to: 'page', page: 'settings' },
+    { to: 'page', page: 'brain' },
+    { to: 'page', page: 'brain', machine: 'remote-host' },
     { to: 'lane', lane: { hostId: 'host-one', laneId: 'lane-one' }, pane: 'changes' },
   ])('round trips %j without local paths', (location) => {
     expect(decodeLocation(encodeLocation(location))).toEqual(location)

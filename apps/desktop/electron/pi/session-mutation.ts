@@ -1,4 +1,8 @@
 import { access } from 'node:fs/promises'
+import {
+  assertNoBrainControl,
+  assertNotBrainSource,
+} from '@phosphor/session-runtime/pi/brain-session-admission'
 import { registry } from '../registry'
 import {
   isRoutineSession,
@@ -29,6 +33,8 @@ function assertNoOwner(path: string): void {
   if (routineSessionForPath(path) ?? routineSessionForPath(key)) throw new Error(ROUTINE)
   for (const session of registry.list()) {
     if (!session.diskPath || sessionPathKey(session.diskPath) !== key) continue
+    const live = registry.get(session.sessionId)
+    if (live) assertNoBrainControl(live)
     throw new Error(isRoutineSession(session.sessionId) ? ROUTINE : OPEN)
   }
 }
@@ -48,6 +54,9 @@ async function assertExists(path: string): Promise<void> {
  */
 export function withOfflineSessionMutation<T>(path: string, write: () => Promise<T>): Promise<T> {
   return withSessionPath(path, async () => {
+    // Admission must refuse a disposing owner before the async transcript scan.
+    assertNoOwner(path)
+    await assertNotBrainSource(path, process.cwd(), registry)
     assertNoOwner(path)
     await assertExists(path)
     return write()
@@ -62,6 +71,7 @@ export function withOfflineSessionMutation<T>(path: string, write: () => Promise
  */
 export function withSessionForkSource<T>(path: string, fork: () => Promise<T>): Promise<T> {
   return withSessionPath(path, async () => {
+    await assertNotBrainSource(path, process.cwd(), registry)
     await assertExists(path)
     return fork()
   })

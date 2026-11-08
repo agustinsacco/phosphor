@@ -7,7 +7,7 @@ export const LANE_PANES = [
   'terminal',
 ] as const
 export type LanePane = (typeof LANE_PANES)[number]
-export const PAGES = ['machines', 'routines', 'skills', 'artifacts', 'settings'] as const
+export const PAGES = ['machines', 'routines', 'skills', 'artifacts', 'brain', 'settings'] as const
 export type Page = (typeof PAGES)[number]
 export type LaneKey = { hostId: string; laneId: string } | { sessionId: string }
 export type Location =

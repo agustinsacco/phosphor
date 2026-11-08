@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { DirEntry } from '@shared/models'
 import { useFilesStore } from '@/stores/files'
 import { FileExplorer } from './FileExplorer'
+import { localFilesSource } from './filesSource'
 
 vi.mock('@/lib/monaco', () => ({}))
 
@@ -52,7 +53,7 @@ afterEach(() => {
 })
 
 it('reveals lazy ancestors, selects and scrolls the active file without moving focus', async () => {
-  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   await act(async () => row('/repo/a.ts')!.click())
   row('/repo/a.ts')!.focus()
   const focused = document.activeElement
@@ -81,7 +82,7 @@ it('reveals lazy ancestors, selects and scrolls the active file without moving f
 })
 
 it('preserves manual multi-selection until the next file navigation', async () => {
-  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   await open('/repo/a.ts')
   act(() => {
     row('/repo/other')!.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }))
@@ -109,7 +110,7 @@ const press = async (key: string, options: KeyboardEventInit = {}) => {
 
 it('walks to parents and first children, and collapses before moving up', async () => {
   await open('/repo/src/nested/b.ts')
-  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   row('/repo/src/nested/b.ts')!.focus()
   await press('ArrowLeft')
   expect(document.activeElement).toBe(row('/repo/src/nested'))
@@ -124,7 +125,7 @@ it('walks to parents and first children, and collapses before moving up', async 
 })
 
 it('extends and shrinks a keyboard range from a stable anchor', async () => {
-  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   row('/repo/src')!.focus()
   await press('ArrowDown', { shiftKey: true })
   expect(container.querySelectorAll('[data-path][aria-pressed="true"]')).toHaveLength(2)
@@ -136,7 +137,7 @@ it('extends and shrinks a keyboard range from a stable anchor', async () => {
 })
 
 it('starts a keyboard range at the new file after editor navigation', async () => {
-  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   await act(async () => row('/repo/a.ts')!.click())
   await open('/repo/src/nested/b.ts')
   row('/repo/src/nested/b.ts')!.focus()
@@ -148,7 +149,7 @@ it('starts a keyboard range at the new file after editor navigation', async () =
 })
 
 it('finds visible filenames by typing without opening the file', async () => {
-  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   container.querySelector<HTMLElement>('[data-testid="file-explorer"]')!.focus()
   await press('s')
   await press('r')
@@ -161,7 +162,7 @@ it('finds visible filenames by typing without opening the file', async () => {
 it('collapses this workspace only and explicitly reveals the active file again', async () => {
   await open('/repo/src/nested/b.ts')
   useFilesStore.setState({ expanded: { '/other/src': true } })
-  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   await act(async () =>
     container.querySelector<HTMLButtonElement>('[data-tooltip="Collapse all folders"]')!.click(),
   )
@@ -175,12 +176,12 @@ it('collapses this workspace only and explicitly reveals the active file again',
 
 it('reveals a file opened while the explorer was unmounted', async () => {
   await open('/repo/src/nested/b.ts')
-  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   expect(row('/repo/src/nested/b.ts')?.getAttribute('aria-pressed')).toBe('true')
 })
 
 it('does not expand unrelated paths or bypass filtered listings', async () => {
-  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   await open('/repo-other/src/b.ts')
   await open('/repo/.hidden/b.ts')
   expect(useFilesStore.getState().expanded).toEqual({})
@@ -188,7 +189,7 @@ it('does not expand unrelated paths or bypass filtered listings', async () => {
 })
 
 it('stops an old reveal when navigation changes during a directory read', async () => {
-  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   let finish!: (entries: DirEntry[]) => void
   invoke.mockImplementation(async (channel: string, _workspace: string, dir: string) => {
     if (channel === 'fs:readDir' && dir === '/repo/src')
@@ -206,7 +207,7 @@ it('stops an old reveal when navigation changes during a directory read', async 
 
 it('announces Show hidden files and Respect .gitignore as on/off toggles', async () => {
   useFilesStore.setState({ showHidden: false, respectGitignore: true })
-  await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
+  await act(async () => root.render(<FileExplorer source={localFilesSource('/repo')} />))
   const pressed = (label: string) =>
     container.querySelector(`button[aria-label="${label}"]`)?.getAttribute('aria-pressed')
   expect(pressed('Show hidden files')).toBe('false')
