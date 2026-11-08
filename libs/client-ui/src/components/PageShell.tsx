@@ -6,7 +6,10 @@ import { PaneIconButton } from '@/components/PaneShell'
 import { CloseIcon } from '@/components/icons'
 import './PageShell.css'
 
-/** Shared page title/actions; native close uncovers a lane, browser close uses its router. */
+/**
+ * Shared page title/actions; native close uncovers a lane, browser close uses its router.
+ * A phone reaches every page from its tab bar, so there is nothing under a page to close to.
+ */
 export const PageShell = memo(function PageShell({
   title,
   actions,
@@ -18,7 +21,7 @@ export const PageShell = memo(function PageShell({
   children: React.ReactNode
   dismissible?: boolean
 }): React.JSX.Element {
-  const { localLanes } = usePlatform()
+  const { localLanes, formFactor } = usePlatform()
   const { location, navigate } = useNavigation()
   const close = (): void => {
     if (localLanes) useLayoutStore.getState().setPage(null)
@@ -29,7 +32,7 @@ export const PageShell = memo(function PageShell({
       <header className="page-shell-header">
         <h1 className="page-shell-title">{title}</h1>
         <div className="page-shell-actions">{actions}</div>
-        {dismissible && (
+        {dismissible && formFactor !== 'compact' && (
           <PaneIconButton title="Close page" onClick={close}>
             <CloseIcon size={13} />
           </PaneIconButton>

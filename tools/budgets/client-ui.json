@@ -197,8 +197,7 @@
     "src/components/PaneShell.tsx::PaneShell[1]": 84,
     "src/features/files/ReadOnlyFilesPane.tsx::ReadOnlyFilesPane[1]": 147,
     "src/shell/compact/CompactApp.tsx::CompactShell[1]": 130,
-    "src/shell/compact/CompactNew.tsx::CompactNew[1]": 106,
-    "src/shell/compact/useBrowserNavigation.ts::useBrowserNavigation[1]": 155,
+    "src/shell/compact/useBrowserNavigation.ts::useBrowserNavigation[1]": 153,
     "src/shell/compact/useBrowserNavigation.ts::useBrowserNavigation[1]/useEffect[2]": 102,
     "src/stores/drafts.ts::useDraftsStore[1]": 85
   },

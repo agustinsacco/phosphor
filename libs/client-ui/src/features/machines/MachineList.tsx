@@ -14,10 +14,13 @@ const ROW =
 /** A fixed status column, so readiness dots line up from row to row. */
 const STATUS = 'flex w-44 shrink-0 items-center justify-end gap-3'
 
-/** Three tiny indicators instead of a wall of chips: green, or amber with the reason. */
+/**
+ * Three tiny indicators instead of a wall of chips: green, or amber with the reason. A
+ * narrow row puts them on their own line under the name rather than dropping them.
+ */
 function ReadinessDots({ checks }: { checks: ReadinessCheck[] }): React.JSX.Element {
   return (
-    <span className="hidden items-center gap-3 md:flex">
+    <span className="order-last col-span-full mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 md:order-none md:col-span-1 md:mt-0">
       {checks.map((check) => (
         <span
           key={check.name}
