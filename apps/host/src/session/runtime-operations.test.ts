@@ -58,7 +58,6 @@ function harness(options: RuntimeOptions = {}) {
     respond: vi.fn(),
     mcpControl: vi.fn(async () => ({ ok: false as const, message: 'Not used in this fixture.' })),
     dispose: vi.fn(async () => {}),
-    disposeBrain: vi.fn(async () => {}),
     list: () => [],
   }
   const deletion = vi.fn(async () => [] as string[])

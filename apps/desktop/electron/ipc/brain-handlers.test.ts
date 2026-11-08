@@ -1,109 +1,69 @@
-import { expect, it, vi } from 'vitest'
-import type { BrainInvokeMap } from '@phosphor/shared/brain'
-import type { BrainService, BrainApi } from '@phosphor/brain-runtime/service-types'
+import { beforeEach, expect, it, vi } from 'vitest'
+import type { BrainService } from '@phosphor/brain-runtime/types'
 
-const registrations = vi.hoisted(() => new Map<string, (...args: unknown[]) => unknown>())
+const handlers = new Map<string, (...args: unknown[]) => unknown>()
 vi.mock('./handle', () => ({
-  handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
-    registrations.set(channel, handler),
+  handle: (channel: string, fn: (...args: unknown[]) => unknown) => handlers.set(channel, fn),
 }))
-const { registerBrainHandlers } = await import('./brain-handlers')
-const channels = [
-  'brain:status',
-  'brain:setPrefs',
-  'brain:download',
-  'brain:removeModel',
-  'brain:search',
-  'brain:read',
-  'brain:evidence',
-  'brain:graph',
-  'brain:process',
-  'brain:learnPreview',
-  'brain:learn',
-  'brain:learningJobs',
-  'brain:learningDetail',
-  'brain:cancel',
-  'brain:review',
-  'brain:correct',
-  'brain:forget',
-  'brain:transcript',
-] satisfies (keyof BrainInvokeMap)[]
-it('registers exactly the public review/settings channels and forwards typed arguments', async () => {
-  const api = Object.fromEntries(
-    channels.map((channel) => [channel.slice('brain:'.length), vi.fn(async () => 'result')]),
-  ) as unknown as BrainApi
-  registerBrainHandlers({ api } as BrainService)
-  expect([...registrations.keys()].sort()).toEqual([...channels].sort())
-  const consent = { policyEpoch: 4, model: { provider: 'openai', id: 'explicit-model' } }
-  await expect(registrations.get('brain:process')!({}, '/workspace', consent)).resolves.toBe(
-    'result',
-  )
-  expect(api.process).toHaveBeenCalledWith('/workspace', consent)
-  await registrations.get('brain:evidence')!({}, '/workspace', 'a'.repeat(64))
-  expect(api.evidence).toHaveBeenCalledWith('/workspace', 'a'.repeat(64))
-  expect(registrations.has('brain:dispose')).toBe(false)
-  expect(registrations.has('brain:putVectors')).toBe(false)
+
+const { checkKeep, checkLane, checkPrefs, registerBrainHandlers } = await import('./brain-handlers')
+
+const api = {
+  status: vi.fn(async () => 'status'),
+  setPrefs: vi.fn(async () => 'saved'),
+  queue: vi.fn(async () => 'queued'),
+  review: vi.fn(async () => 'reviewed'),
+}
+const call = (channel: string, ...args: unknown[]) => handlers.get(channel)!({}, ...args)
+
+beforeEach(() => {
+  handlers.clear()
+  registerBrainHandlers(async () => ({ api }) as unknown as BrainService)
 })
-it.each<[keyof BrainInvokeMap, unknown[]]>([
-  ['brain:status', []],
-  ['brain:setPrefs', [{}]],
-  ['brain:download', [true]],
-  ['brain:removeModel', []],
-  ['brain:search', [{ query: 'Atlas' }]],
-  ['brain:read', ['evidence']],
-  ['brain:evidence', ['/workspace', 'a'.repeat(64)]],
-  ['brain:graph', ['entity']],
-  ['brain:process', ['/workspace', {}]],
-  ['brain:learnPreview', [{ workspacePath: '/workspace', sessionPath: '/source' }]],
-  [
-    'brain:learn',
-    [
-      { workspacePath: '/workspace', sessionPath: '/source' },
-      { policyEpoch: 1, fingerprint: 'f'.repeat(64) },
-    ],
-  ],
-  ['brain:learningJobs', ['/workspace']],
-  ['brain:learningDetail', ['job']],
-  ['brain:cancel', ['job']],
-  ['brain:review', ['proposal', false, {}]],
-  ['brain:correct', ['claim', {}, {}]],
-  ['brain:forget', [['evidence']]],
-  ['brain:transcript', ['job']],
-])('maps %s to its distinct backend method without changing arguments', async (channel, args) => {
-  const api = Object.fromEntries(
-    channels.map((name) => [name.slice('brain:'.length), vi.fn(async () => name)]),
-  ) as unknown as BrainApi
-  registerBrainHandlers({ api } as BrainService)
-  await expect(registrations.get(channel)!({}, ...args)).resolves.toBe(channel)
-  expect(api[channel.slice('brain:'.length) as keyof BrainApi]).toHaveBeenCalledWith(...args)
+
+it('registers every Brain channel', () => {
+  expect([...handlers.keys()].sort()).toEqual([
+    'brain:cancel',
+    'brain:download',
+    'brain:forget',
+    'brain:knowledge',
+    'brain:memory',
+    'brain:proposal',
+    'brain:queue',
+    'brain:removeModel',
+    'brain:review',
+    'brain:setPrefs',
+    'brain:status',
+  ])
 })
-it('registers lazily and retries service acquisition after a failed first load', async () => {
-  const service = { api: { status: vi.fn(async () => 'ready') } } as unknown as BrainService
-  const get = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(service)
-  registerBrainHandlers(get)
-  expect(get).not.toHaveBeenCalled()
-  const status = () => Promise.resolve().then(() => registrations.get('brain:status')!({}))
-  await expect(status()).rejects.toThrow('offline')
-  await expect(status()).resolves.toBe('ready')
-  expect(get).toHaveBeenCalledTimes(2)
+
+it('accepts exactly the three Brain switches', async () => {
+  const prefs = { enabled: true, recall: false, review: true }
+  expect(checkPrefs(prefs)).toEqual(prefs)
+  await expect(call('brain:setPrefs', prefs)).resolves.toBe('saved')
+  for (const bad of [
+    null,
+    { enabled: true },
+    { ...prefs, retentionDays: 30 },
+    { ...prefs, recall: 1 },
+  ])
+    expect(() => checkPrefs(bad)).toThrow('Invalid Brain settings.')
 })
-it('rejects oversized processing consent without even acquiring the lazy backend', () => {
-  const acquire = vi.fn(async () => {
-    throw new Error('Backend must not be acquired')
-  })
-  registerBrainHandlers(acquire)
-  expect(() =>
-    registrations.get('brain:process')!({}, '/workspace', { text: 'x'.repeat(256_001) }),
-  ).toThrow('exceeds limit')
-  expect(acquire).not.toHaveBeenCalled()
+
+it('passes a lane reference and refuses empty or oversized fields', async () => {
+  const lane = { sessionPath: '/s/harbor.jsonl', title: 'Harbor billing' }
+  await expect(call('brain:queue', { ...lane, extra: 1 })).resolves.toBe('queued')
+  expect(api.queue).toHaveBeenCalledWith(lane)
+  expect(() => checkLane({ sessionPath: '', title: 'x' })).toThrow('Invalid Brain request.')
+  expect(() => checkLane({ sessionPath: '/s', title: 'x'.repeat(501) })).toThrow()
 })
-it('refuses oversized IPC payloads before entering the adapter', () => {
-  const api = Object.fromEntries(
-    channels.map((channel) => [channel.slice('brain:'.length), vi.fn()]),
-  ) as unknown as BrainApi
-  registerBrainHandlers({ api } as BrainService)
-  expect(() => registrations.get('brain:search')!({}, { query: 'x'.repeat(256_001) })).toThrow(
-    'exceeds limit',
-  )
-  expect(api.search).not.toHaveBeenCalled()
+
+it('checks review selections and revisions before the service sees them', async () => {
+  expect(checkKeep(null)).toBeNull()
+  expect(checkKeep([0, 2])).toEqual([0, 2])
+  for (const bad of [[1, 1], [-1], [1.5], [200], 'all'])
+    expect(() => checkKeep(bad)).toThrow('Invalid review selection.')
+  await expect(call('brain:review', 'job-1', [0], 3)).resolves.toBe('reviewed')
+  expect(api.review).toHaveBeenCalledWith('job-1', [0], 3)
+  await expect(call('brain:review', 'job-1', [0], -1)).rejects.toThrow('Invalid Brain revision.')
 })

@@ -110,24 +110,35 @@ describe('portable startup', () => {
     )
     await h.registry.disposeAll()
   })
-})
-it('keeps optional memory baseline failures from refusing an ordinary resume', async () => {
-  const h = sessionFixture()
-  const dispose = vi.fn(async () => {})
-  h.runtime.memory = {
-    prepare: async () => ({
-      onCreated: async () => {
-        throw new Error('Optional baseline exceeded')
-      },
-      dispose,
-    }),
-  }
-  const live = await h.spawn(
-    { workspacePath: '/repo', sessionPath: '/repo/ordinary.jsonl' },
-    h.sink,
-  )
-  expect(h.registry.get(live.sessionId)).toBeDefined()
-  expect(dispose).toHaveBeenCalled()
-  expect(h.runtime.log).toHaveBeenCalledWith('brain', expect.any(String), expect.any(Object))
-  await h.registry.disposeAll()
+
+  it('adds Brain recall to a lane, and starts the lane without it when recall fails', async () => {
+    const h = sessionFixture()
+    h.runtime.recall = vi.fn(async () => ({
+      env: { PHOSPHOR_BRAIN_TOKEN: 't' },
+      extensions: ['/res/brain.mjs'],
+      skills: ['/res/skills/brain'],
+    }))
+    await h.spawn({ workspacePath: '/repo' }, h.sink)
+    expect(h.clients[0]!.options).toMatchObject({
+      env: { PHOSPHOR_BRAIN_TOKEN: 't' },
+      extensions: ['/res/brain.mjs'],
+      skills: ['/res/skills/brain'],
+    })
+    h.runtime.recall = vi.fn(async () => Promise.reject(new Error('worker down')))
+    await h.spawn({ workspacePath: '/repo' }, h.sink)
+    expect(h.clients[1]!.options.skills).toBeUndefined()
+    expect(h.runtime.log).toHaveBeenCalledWith('brain', 'recall unavailable', {
+      error: 'Error: worker down',
+    })
+    await h.registry.disposeAll()
+  })
+
+  it('gives the pi stub no recall', async () => {
+    const h = sessionFixture()
+    vi.mocked(h.runtime.launch).mockResolvedValue({ stub: true, env: {}, extensions: [] } as never)
+    h.runtime.recall = vi.fn(async () => ({ env: {}, extensions: ['/x'], skills: [] }))
+    await h.spawn({ workspacePath: '/repo' }, h.sink).catch(() => undefined)
+    expect(h.runtime.recall).not.toHaveBeenCalled()
+    await h.registry.disposeAll()
+  })
 })

@@ -112,20 +112,6 @@ it.each(['spawn', 'observer'])(
   },
 )
 
-it('does not insert an optional-memory wait before ordinary client disposal', async () => {
-  const { registry } = owner()
-  const live = registry.create(cwd, options)
-  await live.client.request({ type: 'get_state' })
-  const stop = vi.spyOn(live.client, 'dispose')
-  const disposing = registry.dispose(live.sessionId)
-  try {
-    await Promise.resolve()
-    expect(stop).toHaveBeenCalledOnce()
-  } finally {
-    await disposing
-  }
-})
-
 it('keeps the synchronous signal-shutdown path', async () => {
   const { registry } = owner()
   const live = registry.create(cwd, options)

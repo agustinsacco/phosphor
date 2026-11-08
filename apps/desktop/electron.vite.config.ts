@@ -59,7 +59,6 @@ export default defineConfig({
           'voice-worker': 'electron/voice/worker.ts',
           // The Brain embedding utility process (electron/brain/embedding-service.ts forks it).
           'brain-embedding-worker': 'electron/brain/embedding-worker.ts',
-          'brain-memory-worker': 'electron/brain/memory-worker.ts',
         },
       },
     },

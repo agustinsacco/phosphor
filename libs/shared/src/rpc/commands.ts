@@ -28,8 +28,6 @@ export type RpcCommand =
   | { id?: string; type: 'abort' }
   | { id?: string; type: 'new_session'; parentSession?: string }
   | { id?: string; type: 'get_state' }
-  /** Optional metadata-only capability; the source session owns the scope. */
-  | { id?: string; type: 'get_auth_binding' }
   | { id?: string; type: 'set_model'; provider: string; modelId: string }
   | { id?: string; type: 'cycle_model' }
   | { id?: string; type: 'get_available_models' }

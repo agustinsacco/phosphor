@@ -144,30 +144,6 @@ describe('session edit IPCs refuse a transcript another process-local owner hold
   })
 })
 
-describe('Brain processor transcripts stay in the Brain owner boundary', () => {
-  it.each([
-    ['sessions:appendLabel', ['aaaa0001', 'mark']],
-    ['sessions:jump', ['aaaa0001']],
-    ['sessions:forkAt', ['aaaa0001']],
-    ['sessions:delete', []],
-    ['sessions:readTree', []],
-    ['sessions:readTranscript', []],
-  ])('refuses %s through a symlink without changing the owned file', async (channel, args) => {
-    const content =
-      SOURCE +
-      line({
-        type: 'custom',
-        id: 'owner',
-        customType: 'phosphor-brain-owner',
-        data: { kind: 'brain', jobId: 'job-1' },
-      })
-    await writeFile(source, content)
-    await expect(invoke(channel as string, alias, ...args)).rejects.toThrow(/Brain/)
-    expect(await readFile(source, 'utf8')).toBe(content)
-    expect(state.trash).not.toHaveBeenCalled()
-  })
-})
-
 describe('session edit IPCs queue with resume and deletion on one path lock', () => {
   it('a resume that already holds the path makes a later edit refuse', async () => {
     const hold = barrier()

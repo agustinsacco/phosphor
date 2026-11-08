@@ -1,79 +1,65 @@
-import type { BrainInvokeMap } from '@phosphor/shared/brain'
-import type { BrainApi, BrainService } from '@phosphor/brain-runtime/service-types'
-import { bounded } from '@phosphor/brain-runtime/authority'
+import type { BrainLaneRef, BrainPrefs } from '@phosphor/shared/brain'
+import type { BrainApi, BrainService } from '@phosphor/brain-runtime/types'
 import { handle } from './handle'
 
-type BrainCommands = {
-  [K in keyof BrainInvokeMap]: (
-    ...args: BrainInvokeMap[K]['args']
-  ) => Promise<BrainInvokeMap[K]['result']>
+const fail = (message: string): never => {
+  throw new Error(message)
+}
+const text = (value: unknown, max = 4096): string =>
+  typeof value === 'string' && value.length > 0 && value.length <= max
+    ? value
+    : fail('Invalid Brain request.')
+
+/** Exactly the three switches; anything else is refused rather than stored. */
+export function checkPrefs(value: unknown): BrainPrefs {
+  const prefs = value as Partial<Record<keyof BrainPrefs, unknown>>
+  if (
+    !prefs ||
+    typeof prefs !== 'object' ||
+    Object.keys(prefs).sort().join() !== 'enabled,recall,review' ||
+    Object.values(prefs).some((flag) => typeof flag !== 'boolean')
+  )
+    fail('Invalid Brain settings.')
+  return prefs as BrainPrefs
 }
 
-/** The wire vocabulary belongs to Desktop, not the Node backend. */
-function commands(api: BrainApi): BrainCommands {
-  return {
-    'brain:status': api.status,
-    'brain:setPrefs': api.setPrefs,
-    'brain:download': api.download,
-    'brain:removeModel': api.removeModel,
-    'brain:search': api.search,
-    'brain:read': api.read,
-    'brain:evidence': api.evidence,
-    'brain:graph': api.graph,
-    'brain:process': api.process,
-    'brain:learnPreview': api.learnPreview,
-    'brain:learn': api.learn,
-    'brain:learningJobs': api.learningJobs,
-    'brain:learningDetail': api.learningDetail,
-    'brain:cancel': api.cancel,
-    'brain:review': api.review,
-    'brain:correct': api.correct,
-    'brain:forget': api.forget,
-    'brain:transcript': api.transcript,
-  }
+export function checkLane(value: unknown): BrainLaneRef {
+  const lane = value as Partial<BrainLaneRef> | null
+  return { sessionPath: text(lane?.sessionPath), title: text(lane?.title, 500) }
 }
 
-/** Desktop review/settings only. Lazy acquisition keeps failed startup retryable. */
-export function registerBrainHandlers(
-  service: BrainService | (() => Promise<BrainService>),
-  inventory?: BrainApi['learningJobs'],
-): void {
-  const invoke = async <K extends keyof BrainInvokeMap>(
-    channel: K,
-    ...args: BrainInvokeMap[K]['args']
-  ): Promise<BrainInvokeMap[K]['result']> => {
-    const { api } = typeof service === 'function' ? await service() : service
-    const method = commands(api)[channel] as (
-      ...args: BrainInvokeMap[K]['args']
-    ) => Promise<BrainInvokeMap[K]['result']>
-    return method(...args)
-  }
-  handle('brain:status', () => invoke('brain:status'))
-  handle('brain:setPrefs', (_event, prefs) => invoke('brain:setPrefs', bounded(prefs)))
-  handle('brain:download', (_event, acceptTerms) => invoke('brain:download', acceptTerms))
-  handle('brain:removeModel', () => invoke('brain:removeModel'))
-  handle('brain:search', (_event, query) => invoke('brain:search', bounded(query)))
-  handle('brain:read', (_event, id) => invoke('brain:read', id))
-  handle('brain:evidence', (_event, scope, cursor) => invoke('brain:evidence', scope, cursor))
-  handle('brain:graph', (_event, id) => invoke('brain:graph', id))
-  handle('brain:process', (_event, scope, consent) =>
-    invoke('brain:process', scope, bounded(consent)),
+/** Proposal indexes: unique, in range of what a proposal can hold. Null rejects the proposal. */
+export function checkKeep(value: unknown): number[] | null {
+  if (value === null) return null
+  if (
+    !Array.isArray(value) ||
+    value.length > 200 ||
+    new Set(value).size !== value.length ||
+    value.some((index) => !Number.isInteger(index) || index < 0 || index >= 200)
   )
-  handle('brain:learnPreview', (_event, target) => invoke('brain:learnPreview', bounded(target)))
-  handle('brain:learn', (_event, target, consent) =>
-    invoke('brain:learn', bounded(target), bounded(consent)),
+    fail('Invalid review selection.')
+  return value as number[]
+}
+
+const revisionOf = (value: unknown): number =>
+  Number.isSafeInteger(value) && (value as number) >= 0
+    ? (value as number)
+    : fail('Invalid Brain revision.')
+
+/** Desktop-only. Lazy acquisition keeps a failed startup retryable. */
+export function registerBrainHandlers(service: () => Promise<BrainService>): void {
+  const api = async (): Promise<BrainApi> => (await service()).api
+  handle('brain:status', async () => (await api()).status())
+  handle('brain:setPrefs', async (_event, prefs) => (await api()).setPrefs(checkPrefs(prefs)))
+  handle('brain:download', async () => (await api()).download())
+  handle('brain:removeModel', async () => (await api()).removeModel())
+  handle('brain:queue', async (_event, lane) => (await api()).queue(checkLane(lane)))
+  handle('brain:cancel', async (_event, id) => (await api()).cancel(text(id, 200)))
+  handle('brain:proposal', async (_event, id) => (await api()).proposal(text(id, 200)))
+  handle('brain:review', async (_event, id, keep, revision) =>
+    (await api()).review(text(id, 200), checkKeep(keep), revisionOf(revision)),
   )
-  handle('brain:learningJobs', (_event, scope) =>
-    inventory ? inventory(scope) : invoke('brain:learningJobs', scope),
-  )
-  handle('brain:learningDetail', (_event, id) => invoke('brain:learningDetail', id))
-  handle('brain:cancel', (_event, id) => invoke('brain:cancel', id))
-  handle('brain:review', (_event, id, approve, revision) =>
-    invoke('brain:review', id, approve, bounded(revision)),
-  )
-  handle('brain:correct', (_event, id, correction, revision) =>
-    invoke('brain:correct', id, bounded(correction), bounded(revision)),
-  )
-  handle('brain:forget', (_event, ids) => invoke('brain:forget', bounded(ids)))
-  handle('brain:transcript', (_event, id) => invoke('brain:transcript', id))
+  handle('brain:knowledge', async () => (await api()).knowledge())
+  handle('brain:memory', async (_event, id) => (await api()).memory(text(id, 200)))
+  handle('brain:forget', async (_event, id) => (await api()).forget(text(id, 200)))
 }

@@ -51,22 +51,3 @@ it('keeps per-command disposition, model, cancellation and opaque tree payloads'
     leafId: string | null
   }>()
 })
-
-it('pins the optional source binding receipt and explicit unavailable reasons', () => {
-  expectTypeOf<RpcResponseDataMap['get_auth_binding']>().toEqualTypeOf<
-    | { available: false; reason: 'unavailable' | 'changed' }
-    | {
-        available: true
-        sourceSessionId: string
-        binding: {
-          provider: string
-          modelId: string
-          api: string
-          endpoint: string
-          authMode: 'oauth' | 'api-key' | 'cli'
-          accountId: string
-        }
-        authIdentityFence: string
-      }
-  >()
-})

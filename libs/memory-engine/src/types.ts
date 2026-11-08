@@ -1,3 +1,4 @@
+import type { DatabaseSync } from 'node:sqlite'
 import type {
   BrainEntity,
   BrainEntityKind,
@@ -16,7 +17,7 @@ import type {
 } from '@phosphor/shared/brain'
 
 /** `node:sqlite`'s DatabaseSync, injected so Electron and plain Node load it their own way. */
-export type SqliteDatabase = import('node:sqlite').DatabaseSync
+export type SqliteDatabase = DatabaseSync
 export type SqliteConstructor = new (path: string) => SqliteDatabase
 
 /** One readable piece of a lane transcript: a message, tool output, tool call or summary. */
@@ -86,7 +87,18 @@ export type NewJob = Pick<
   'sessionId' | 'sessionPath' | 'title' | 'scope' | 'branch' | 'model' | 'leafId'
 >
 export type JobPatch = Partial<
-  Pick<BrainJob, 'state' | 'error' | 'startedAt' | 'finishedAt' | 'usage' | 'memories'>
+  Pick<
+    BrainJob,
+    | 'state'
+    | 'error'
+    | 'startedAt'
+    | 'finishedAt'
+    | 'usage'
+    | 'memories'
+    | 'leafId'
+    | 'model'
+    | 'branch'
+  >
 >
 
 /** What the extraction prompt shows the fork, so it reuses entities and skips known memories. */

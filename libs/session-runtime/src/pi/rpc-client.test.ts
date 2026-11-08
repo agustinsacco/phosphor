@@ -124,4 +124,27 @@ describe('headless PiRpcClient', () => {
       delete process.env.PHOSPHOR_RPC_SENTINEL
     }
   })
+
+  it('passes each extension with -e and each skill with --skill', async () => {
+    const probe =
+      "process.stderr.write('ARGS ' + JSON.stringify(process.argv.slice(1)) + '\\n'); process.stdin.resume()"
+    const args = await new Promise<string[]>((resolve) => {
+      const instance = new PiRpcClient(
+        {
+          cwd: import.meta.dirname,
+          binaryPath: process.execPath,
+          prefixArgs: ['-e', probe, '--'],
+          extensions: ['/res/brain.mjs'],
+          skills: ['/res/skills/brain'],
+        },
+        { log: vi.fn(), isClosing: () => false },
+      )
+      clients.push(instance)
+      instance.on('stderr', (line) => {
+        if (line.startsWith('ARGS ')) resolve(JSON.parse(line.slice('ARGS '.length)))
+      })
+      instance.spawn()
+    })
+    expect(args.join(' ')).toContain('-e /res/brain.mjs --skill /res/skills/brain')
+  })
 })

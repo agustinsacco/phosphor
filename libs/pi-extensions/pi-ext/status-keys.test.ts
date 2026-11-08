@@ -101,14 +101,7 @@ describe('status-keys existing wire inventory', () => {
 describe('status-keys published vocabulary', () => {
   it('exports exactly the frozen inventory through the package subpath', async () => {
     const vocabulary = await import('@phosphor/pi-extensions/status-keys')
-    expect({ ...vocabulary }).toEqual({
-      ...goldenInventory,
-      // Private processor attestation, consumed in main rather than rendered as status.
-      BRAIN_AUDIT_COMMAND: 'phosphor-brain-audit',
-      BRAIN_AUDIT_STATUS_KEY: 'phosphor-brain-audit',
-      BRAIN_LEARNING_COMMAND: 'phosphor-brain-learning',
-      BRAIN_LEARNING_STATUS_KEY: 'phosphor-brain-learning',
-    })
+    expect({ ...vocabulary }).toEqual(goldenInventory)
     expect(
       source('libs/pi-extensions/pi-ext/status-keys.ts').trim().split('\n').length,
     ).toBeLessThanOrEqual(100)
