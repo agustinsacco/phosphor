@@ -207,3 +207,14 @@ export function pendingSessionsByGroup(
   }
   return map
 }
+
+/** Live session id by session file, for the live sessions that have one. */
+export function liveByDiskPath(
+  live: Readonly<Record<string, { phosphorId: string; diskPath?: string }>>,
+): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const entry of Object.values(live)) {
+    if (entry.diskPath) map.set(entry.diskPath, entry.phosphorId)
+  }
+  return map
+}

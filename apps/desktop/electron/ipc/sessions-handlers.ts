@@ -43,8 +43,12 @@ export function registerSessionsHandlers(): void {
     deleteLane(sessionFilePath, sessionId),
   )
 
-  handle('sessions:readTree', (_event, sessionFilePath: string) => readSessionTree(sessionFilePath))
-  handle('sessions:readTranscript', (_event, path) => readSavedTranscript(path))
+  handle('sessions:readTree', (_event, path: string) =>
+    withSessionForkSource(path, () => readSessionTree(path)),
+  )
+  handle('sessions:readTranscript', (_event, path) =>
+    withSessionForkSource(path, () => readSavedTranscript(path)),
+  )
 
   // The lock is taken synchronously, before any await, so call order is lock order.
   handle('sessions:appendLabel', async (_event, sessionFilePath, targetId, label) => {

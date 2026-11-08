@@ -1,7 +1,10 @@
+import { guardLearningExecution } from './learning-execution-profile'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import type { PiRpcClient, PiSpawnOptions } from './rpc-client'
 import type { LiveSessionInfo } from '@shared/models'
+import { invalidateSessionInput, type SessionInputObserver } from './session-input'
+import type { BrainSessionOwner } from './brain-session-owner'
 
 export interface SessionRegistryRuntime {
   createClient: (options: PiSpawnOptions) => PiRpcClient
@@ -12,6 +15,12 @@ export interface LiveSession {
   sessionId: string
   workspacePath: string
   client: PiRpcClient
+  /** Set only after startup identity and policy checks finish. */
+  startupComplete?: boolean
+  /** Set before spawn/created so capture observers can exclude internal processors. */
+  owner?: Readonly<BrainSessionOwner>
+  /** Optional trusted input observer; never part of LiveSessionInfo or RPC/IPC. */
+  memoryInput?: SessionInputObserver
 }
 
 interface SessionRegistryEvents {
@@ -37,18 +46,31 @@ export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
     super()
   }
 
-  create(workspacePath: string, spawnOptions: Omit<PiSpawnOptions, 'cwd'>): LiveSession {
+  create(
+    workspacePath: string,
+    spawnOptions: Omit<PiSpawnOptions, 'cwd'>,
+    owner?: BrainSessionOwner,
+  ): LiveSession {
     this.runtime.assertCanStart()
     const sessionId = randomUUID()
     const client = this.runtime.createClient({ ...spawnOptions, cwd: workspacePath })
-    const session: LiveSession = { sessionId, workspacePath, client }
+    const session: LiveSession = {
+      sessionId,
+      workspacePath,
+      client,
+      ...(owner ? { owner: Object.freeze({ ...owner }) } : {}),
+    }
     this.sessions.set(sessionId, session)
 
     // No 'exit' listener on purpose: the entry outlives the child process so the
     // renderer can observe a crash and offer resume. dispose() removes it.
 
     try {
+      const assertExecution = spawnOptions.learningSessionDir
+        ? guardLearningExecution(client)
+        : () => {}
       client.spawn()
+      assertExecution()
       // After spawn, so a listener that immediately sends RPC has a live process.
       this.emit('created', session)
       return session
@@ -81,6 +103,7 @@ export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
     // Keep ownership visible until exit. A concurrent delete must not trash a
     // file while an earlier dispose is still waiting for its writer to stop.
     const operation = Promise.resolve().then(async () => {
+      if (session.memoryInput) await invalidateSessionInput(session)
       await session.client.dispose()
       this.sessions.delete(sessionId)
       this.emit('disposed', { sessionId })

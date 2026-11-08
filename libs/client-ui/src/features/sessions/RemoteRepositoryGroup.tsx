@@ -1,4 +1,4 @@
-import { useEffect, useId } from 'react'
+import { useEffect } from 'react'
 import { PlusIcon } from '@/components/icons'
 import { TooltipButton } from '@/components/Tooltip'
 import { openRemoteComposer } from '@/features/home/remoteComposer'
@@ -11,13 +11,7 @@ import { remotePrKey } from '@shared/host-protocol-github'
 import type { HostLaneView } from '@shared/ipc'
 import { RemoteBulkDelete, selectableLanes } from './RemoteBulkDelete'
 import { canDeleteRemoteLane } from './deleteRemoteLanes'
-import {
-  clearLaneSelection,
-  selectLanes,
-  toggleLane,
-  useLaneSelection,
-  useSelectedKeys,
-} from './laneSelection'
+import { clearLaneSelection, selectLanes, toggleLane, useGroupSelection } from './laneSelection'
 import { TAKE_CONTROL_FIRST } from './remoteLaneActions'
 import { RemoteWorkspaceOptions } from './RemoteWorkspaceOptions'
 import type { LaneSelectMode } from './LaneSelectionRows'
@@ -119,20 +113,14 @@ interface FolderRowsSelection {
   order: string[]
 }
 
-/**
- * This folder's hold on the one lane selection. A folder can show in two lists
- * at once (Desktop's sidebar and Host home), so each list keys its own, as each
- * of This Mac's lists would.
- */
+/** This folder's hold on the one lane selection, over the lanes this client may delete. */
 function useFolderSelection(
   hostId: string,
   groupKey: string,
   canSelect: boolean,
   visible: HostLaneView[],
 ) {
-  const key = `${groupKey}@${useId()}`
-  const selecting = useLaneSelection((s) => s.group === key)
-  const selected = useSelectedKeys(key)
+  const { key, selecting, selected } = useGroupSelection(groupKey)
   const rows: FolderRowsSelection | undefined = canSelect
     ? { group: key, selecting, selected, order: selectableLanes(hostId, visible, 'all') }
     : undefined

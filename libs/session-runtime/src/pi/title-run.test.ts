@@ -231,6 +231,7 @@ it('builds the run env: base, pi-owned Claude context, one-shot exit, then the a
     PI_CLAUDE_CLI_CONTEXT: 'pi',
     PI_CLAUDE_CLI_KEEPALIVE_MS: '0',
     PI_CLAUDE_CLI_EPHEMERAL: '1',
+    PI_SUBAGENT_CACHE_RETENTION: 'short',
     CLAUDE_SECURESTORAGE_CONFIG_DIR: '/accounts/second',
   })
 })

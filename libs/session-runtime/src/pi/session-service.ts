@@ -1,3 +1,4 @@
+import { invalidateSessionInput, withSessionInput } from './session-input'
 import { access } from 'node:fs/promises'
 import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
@@ -8,6 +9,14 @@ import type { SessionExecution, SessionPolicyRuntime } from './session-policy'
 import type { LiveSession, SessionRegistry } from './session-registry'
 import type { LaneReload } from './lane-reload'
 import { controlMcpInLane } from './mcp-lane'
+import type { BrainSessionOwner } from './brain-session-owner'
+import {
+  assertBrainLiveAdmission,
+  assertBrainTranscriptAdmission,
+  assertNotBrainSource,
+  assertNoBrainControl,
+  isBrainObservation,
+} from './brain-session-admission'
 
 export interface SessionServiceRuntime<Delivery> {
   registry: Pick<SessionRegistry, 'get' | 'list' | 'dispose'>
@@ -46,15 +55,23 @@ async function create<Delivery>(
   execution: SessionExecution = {},
 ): Promise<LiveSessionInfo> {
   execution.signal?.throwIfAborted()
+  if (execution.learning && (execution.brain || options.sessionPath || options.forkFrom))
+    throw new Error('Learning requires only its own fresh private control session')
   const ownedId = options.sessionPath ? routines.sessionForPath(options.sessionPath) : undefined
   const owned = ownedId ? registry.get(ownedId) : undefined
-  if (owned)
+  if (owned) {
+    assertBrainLiveAdmission(owned, execution.brain ?? execution.learning)
     return {
       sessionId: owned.sessionId,
       workspacePath: owned.workspacePath,
       pid: owned.client.pid,
     }
-  if (!options.sessionPath) return runtime.spawn(options, delivery, execution)
+  }
+  if (!options.sessionPath) {
+    if (options.forkFrom)
+      await assertNotBrainSource(options.forkFrom, options.workspacePath, registry)
+    return runtime.spawn(options, delivery, execution)
+  }
   const path = sessionPathKey(options.sessionPath)
   return paths.openSessionPath(path, async (openingSignal) => {
     const signal = execution.signal
@@ -63,10 +80,15 @@ async function create<Delivery>(
     signal.throwIfAborted()
     const matches = registry.list().filter((s) => s.diskPath && sessionPathKey(s.diskPath) === path)
     const live = matches.find((s) => registry.get(s.sessionId)?.client.alive)
+    for (const match of matches) {
+      const registered = registry.get(match.sessionId)
+      if (registered) assertBrainLiveAdmission(registered, execution.brain ?? execution.learning)
+    }
     if (live) return live
     for (const session of matches) await registry.dispose(session.sessionId)
     // pi creates a new file for a missing --session. Never resurrect a deleted lane.
     await access(path)
+    await assertBrainTranscriptAdmission(path, execution.brain ?? execution.learning)
     signal.throwIfAborted()
     return runtime.spawn({ ...options, sessionPath: path }, delivery, { ...execution, signal })
   })
@@ -96,10 +118,14 @@ const observes = (command: RpcCommand): boolean =>
   OBSERVATIONS.has(command.type) || command.type.startsWith('get_')
 
 function assertManualCommand(
-  { routines, mcpBusy }: SessionAdmission,
+  { registry, routines, mcpBusy }: SessionAdmission,
   id: string,
   command: RpcCommand,
 ) {
+  if (command.type === 'get_auth_binding')
+    throw new Error('Source auth binding is private to trusted learning readers.')
+  if (registry.get(id)?.owner && !isBrainObservation(command.type))
+    throw new Error('Brain processor sessions are observation-only for manual commands.')
   if (mcpBusy.has(id) && !observes(command) && command.type !== 'abort')
     throw new Error(
       'This lane is reconnecting a connector. Wait for it to finish before sending new work.',
@@ -149,8 +175,10 @@ async function dispatchCommand<Delivery>(
 ) {
   // Ownership may change while a command waits behind compaction.
   assertManualCommand(admission, id, command)
+  if (command.type === 'switch_session')
+    await assertNotBrainSource(command.sessionPath, live.workspacePath, admission.registry)
   await preflightCommand(runtime, live, id, command)
-  const result = await live.client.request(command)
+  const result = await withSessionInput(live, command, () => live.client.request(command))
   if (!runtime.isStub() && command.type === 'set_auto_compaction' && result.success) {
     await syncContextBudget(live.client, runtime.readBudget())
   }
@@ -166,9 +194,12 @@ async function command<Delivery>(
   const live = session(admission, id)
   if (command.type === 'get_messages') admission.routines.observe(id)
   assertManualCommand(admission, id, command)
+  // Interactive compaction/reload callbacks must never send work into a processor.
+  if (live.owner) return live.client.request(command)
   const mutating = !observes(command)
   if (mutating) admission.mutating.set(id, (admission.mutating.get(id) ?? 0) + 1)
   try {
+    if (live.memoryInput) await invalidateSessionInput(live, command)
     return await runtime.withBudgetCompaction(id, command.type, () =>
       dispatchCommand(runtime, admission, live, id, command),
     )
@@ -189,6 +220,7 @@ async function mcpControl(
   operation: 'inspect' | 'reconnect',
 ) {
   const live = session(admission, id)
+  assertNoBrainControl(live)
   if (operation !== 'inspect' && operation !== 'reconnect')
     throw new Error('Invalid MCP operation.')
   if (admission.routines.owns(id))
@@ -202,6 +234,7 @@ async function mcpControl(
       id,
       operation === 'reconnect' ? 'prompt' : 'get_state',
       () => {
+        assertNoBrainControl(live)
         if (admission.routines.owns(id))
           throw new Error('Connector controls are unavailable in a running routine.')
         return controlMcpInLane(live.client, name, operation)
@@ -213,7 +246,9 @@ async function mcpControl(
 }
 
 function respond(admission: SessionAdmission, id: string, response: ExtensionUIResponse): void {
-  session(admission, id).client.respondToExtensionUI(response)
+  const live = session(admission, id)
+  assertNoBrainControl(live)
+  live.client.respondToExtensionUI(response)
 }
 
 async function dispose<Delivery>(
@@ -221,9 +256,25 @@ async function dispose<Delivery>(
   { registry, routines }: SessionAdmission,
   id: string,
 ): Promise<void> {
+  const live = registry.get(id)
+  if (live) assertNoBrainControl(live)
   if (routines.owns(id)) await routines.cancel(id)
   runtime.forgetAccount(id)
   await registry.dispose(id)
+}
+
+/** Trusted controller cleanup, never exposed as a manual RPC/IPC command. */
+async function disposeBrain<Delivery>(
+  runtime: SessionServiceRuntime<Delivery>,
+  id: string,
+  owner: BrainSessionOwner,
+): Promise<void> {
+  const live = runtime.registry.get(id)
+  if (!live) return
+  if (owner.kind !== 'brain' || !live.owner || live.owner.jobId !== owner.jobId)
+    throw new Error('Brain disposal requires the matching processor job owner.')
+  runtime.forgetAccount(id)
+  await runtime.registry.dispose(id)
 }
 
 /** Process-local admission, not a network authorization boundary. */
@@ -244,6 +295,7 @@ export function createSessionService<Delivery>(runtime: SessionServiceRuntime<De
     mcpControl: (id: string, name: string, operation: 'inspect' | 'reconnect') =>
       mcpControl(runtime, admission, id, name, operation),
     dispose: (id: string) => dispose(runtime, admission, id),
+    disposeBrain: (id: string, owner: BrainSessionOwner) => disposeBrain(runtime, id, owner),
     list: () => registry.list(),
   }
 }

@@ -207,3 +207,20 @@ it("names the Host's missing lane control on a folder's New lane, after the read
   expect(plus.disabled).toBe(true)
   expect(plus.getAttribute('aria-description')).toBe(featureNotOffered('sessions.control'))
 })
+
+it('says "No lanes match" only when a searched Host folder has lanes, else "No lanes yet"', async () => {
+  await act(async () => render())
+  search('zzz')
+  expect(container.querySelector('[data-testid=lane-search-empty]')?.textContent).toBe(
+    'No lanes match “zzz”',
+  )
+  act(() => root.unmount())
+  root = createRoot(container)
+  const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+  hosts[MOCK_HOST_ID]!.lanes = []
+  useRemoteLanesStore.setState({ hosts })
+  await act(async () => render())
+  search('zzz')
+  expect(container.querySelector('[data-testid=lane-search-empty]')).toBeNull()
+  expect(container.textContent).toContain('No lanes yet')
+})

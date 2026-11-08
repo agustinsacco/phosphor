@@ -2,7 +2,7 @@ import type { GlobalPage } from '@/stores/layout'
 import { NavigationItem } from './NavigationItem'
 import { SCREENS } from './screens'
 
-const GLOBAL_PAGES = ['artifacts', 'skills', 'routines', 'machines'] as const
+const GLOBAL_PAGES = ['artifacts', 'skills', 'routines', 'machines', 'brain'] as const
 
 /** Shared order, labels and icons. Shells only supply their navigation action. */
 export function PageLinks({

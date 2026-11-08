@@ -36,7 +36,7 @@ Then run `node tools/scripts/pi-live-smoke.mjs`, which drives a real `pi --mode 
 - Useful flags, all of them assembled in `libs/session-runtime/src/pi/rpc-client.ts`: `--session <path|id>`, `--session-id <id>`, `--fork <path|id>`, `--no-session`, `--no-context-files`, `-n <name>`, `--model <pattern>` (supports `provider/id` and `:<thinking>` suffix), `--provider`, `--thinking <level>`, `-e <extension.ts>`, `--append-system-prompt <text|file>`.
 - Spawn-argv logging preserves `--append-system-prompt` but replaces the following
   value with `[redacted]`; it does not log the composed directive text.
-- `-e` is repeatable and every session gets **six** of them — Launch preparation in `libs/session-runtime/src/pi/session-launch.ts` resolves `bundledExtensions()`, and `libs/session-runtime/src/pi/session-policy.ts` passes `artifacts.ts`, `context-breakdown.ts`, `worktree-paths.ts`, `tool-name-guard.ts`, `headroom.ts`, `lane-reload.ts` from `libs/pi-extensions/pi-ext/`. They ship unpacked next to the app resources (`extraResources` in `apps/desktop/electron-builder.yml`) because the pi subprocess reads them off disk, not out of the asar. What each one is for: [extensions.md](extensions.md#bundled-extensions-phosphors-own).
+- `-e` is repeatable and ordinary sessions get **six** default extensions — Launch preparation in `libs/session-runtime/src/pi/session-launch.ts` resolves `bundledExtensions()`, and `libs/session-runtime/src/pi/session-policy.ts` passes `artifacts.ts`, `context-breakdown.ts`, `worktree-paths.ts`, `tool-name-guard.ts`, `headroom.ts`, `lane-reload.ts` from `libs/pi-extensions/pi-ext/`. They ship unpacked next to the app resources (`extraResources` in `apps/desktop/electron-builder.yml`) because the pi subprocess reads them off disk, not out of the asar. What each one is for: [extensions.md](extensions.md#bundled-extensions-phosphors-own).
 - **Framing is strict JSONL, LF only.** Do NOT use Node `readline` (it also splits on U+2028/U+2029, which are legal inside JSON strings). Buffer on `\n`, strip a trailing `\r`. `JsonlDecoder` scans only new chunks and joins an incomplete record's fragments once at its delimiter or stream end, so framing work is linear in input size. Commands go to stdin one JSON object per line; responses and events stream from stdout. The explicit `node tools/scripts/perf/stream-buffers.mjs` benchmark measures framing and PTY-tail costs without running a model.
 - Commands accept optional `id` for correlation; responses echo it. Events never carry `id`.
 - pi requires Node ≥ 22.19 (it runs as its own process, so Electron's Node version is irrelevant).
@@ -57,9 +57,34 @@ owner-local path-lock instance (§Sessions on disk covers the edits). The
 Node subprocess test exercises this complete path without Electron, using a
 fake pi, not a real provider.
 
-## RPC commands (complete set — all 33 in `RpcCommand`, `libs/shared/src/rpc.ts`)
+[Brain](brain.md) adds a private, optional input observer to this same service:
+admission/completion receipts and native-session invalidation are never serialized
+through RPC/IPC. Capture failures revoke augmentation, not ordinary startup or
+commands. Its optional working extension is separate from the six defaults.
+Manual Brain processors instead use an isolated execution profile with only the
+audited processor bundle, native API-key auth and persistent owned transcripts.
+Ordinary controls cannot resume, mutate or delete these files. Display limits do
+not limit owned purge; streaming ownership validation runs inside the existing
+path lock, and failed purges remain durably queued.
 
-Every one drives a UI surface except `get_tree` and `get_fork_messages`: those
+Selective source learning uses another private profile: a read-only frozen copy,
+zero executable tools and one direct, fenced provider response outside the agent
+scheduler. A live native source supplies its current successful request identity
+through optional `get_auth_binding`, bracketed by source/owner/settled-state
+checks. The caller cannot choose a source session in that command. Stock pi 1.4
+lacks it and refuses this capability; current disk credentials never substitute
+for a live source receipt. This is not historical billing proof. Host explicitly
+refuses the command as Desktop-private. See [Brain](brain.md#learn-from-a-selected-lane)
+for consent, dependency qualification and CLI limitations.
+
+## RPC commands
+
+`RpcCommand` and `RpcResponseDataMap` mirror the installed protocol plus the
+optional bound-request `get_auth_binding` capability. Its response is unavailable
+or a session-scoped binding/identity fence, never credentials. Ordinary boot does
+not require or probe this capability.
+
+Every other command drives a UI surface except `get_tree` and `get_fork_messages`: those
 are mirrored so the type union stays whole and the `RpcResponseDataMap` guard
 keeps covering it, but nothing reads them. The session tree is built from the
 `.jsonl` on disk instead (see §Sessions on disk), which needs no live process.

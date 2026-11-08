@@ -103,6 +103,7 @@ export default tseslint.config(
   {
     ignores: [
       '**/out/**',
+      'libs/pi-extensions/brain-ext/**',
       'dist/**',
       '**/node_modules/**',
       '**/release/**',

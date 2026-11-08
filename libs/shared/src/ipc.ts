@@ -5,6 +5,7 @@
  * `IpcInvokeMap`. Streams are pushed from main on per-session channels
  * (`pi:event:<sessionId>`) declared by `sessionEventChannel`.
  */
+import type { BrainInvokeMap } from './ipc/brain'
 import type { HostsInvokeMap } from './ipc/hosts'
 import type { AppInvokeMap } from './ipc/app'
 import type { PiInvokeMap } from './ipc/pi'
@@ -44,7 +45,8 @@ export type {
 } from './ipc/views'
 export type { PhosphorApi, PhosphorPlatform } from './ipc/api'
 
-export type IpcInvokeMap = HostsInvokeMap &
+export type IpcInvokeMap = BrainInvokeMap &
+  HostsInvokeMap &
   AppInvokeMap &
   PiInvokeMap &
   ClaudeInvokeMap &

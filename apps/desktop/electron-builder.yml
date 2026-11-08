@@ -10,6 +10,12 @@ files:
   - out/**
   - package.json
   - '!**/*.map'
+  # Brain embeds only through onnxruntime-node on the CPU. Transformers.js
+  # inlines the onnxruntime-web code it needs and loads the package itself
+  # never, so the 140 MB web/WASM backends and sharp's WASM build stay out:
+  # an unsupported platform reports `unsupported` rather than falling back.
+  - '!**/node_modules/onnxruntime-web{,/**}'
+  - '!**/node_modules/@img/sharp-wasm32{,/**}'
 
 # The bundled pi extension must be readable by the pi subprocess at runtime,
 # so it ships unpacked next to the app resources rather than inside the asar.
@@ -18,15 +24,28 @@ extraResources:
     to: host-install.sh
   - from: build/icons/32x32.png
     to: routine-tray.png
+  # brain.ts and brain-processor.ts import workspace packages pi cannot
+  # resolve from an installed app; they ship only as brain-ext's bundles.
   - from: ../../libs/pi-extensions/pi-ext
     to: pi-ext
-    filter: ['**/*.ts', '!**/*.test.ts']
+    filter: ['**/*.ts', '!**/*.test.ts', '!brain*.ts']
+  # Staged by the main build (electron.vite.config.ts). Nothing enables them.
+  - from: ../../libs/pi-extensions/brain-ext
+    to: brain-ext
+    filter: ['brain.mjs', 'brain-processor.mjs', 'brain-learning-carrier.mjs']
+  - from: build/brain-third-party-notices.md
+    to: brain-third-party-notices.md
   - from: ../../libs/pi-extensions/skills
     to: skills
     filter: ['**/*.md']
 
+# Native code must sit on disk to load. ONNX Runtime's binding finds its
+# dylib beside itself, and sharp's addon finds libvips at
+# ../../sharp-libvips-<target>/lib, so each package's files unpack together.
 asarUnpack:
   - '**/node_modules/node-pty/**'
+  - '**/node_modules/onnxruntime-node/bin/**'
+  - '**/node_modules/@img/**'
 
 npmRebuild: true
 
@@ -37,7 +56,13 @@ npmRebuild: true
 # — that combination shipped a bundle Finder called "damaged". See the script.
 afterPack: scripts/adhoc-sign-mac.mjs
 
+# Each package carries only its own target's ONNX Runtime binary (the npm
+# package ships all five). ${arch} matches onnxruntime-node's folder names.
+# Brain itself runs only where EMBEDDING_PLATFORMS says it was exercised.
 mac:
+  files:
+    - '!**/node_modules/onnxruntime-node/bin/napi-v6/{linux,win32}{,/**}'
+    - '!**/node_modules/onnxruntime-node/bin/napi-v6/darwin/!(${arch}){,/**}'
   category: public.app-category.developer-tools
   icon: build/icon.icns
   # Hardened runtime REQUIRES a real signing identity; with an ad-hoc signature
@@ -81,6 +106,9 @@ linux:
   # closest size per context instead of downscaling 1024 into a 22px tray slot.
   # build/icon.png stays for install.sh, which downloads that exact path.
   icon: build/icons
+  files:
+    - '!**/node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32}{,/**}'
+    - '!**/node_modules/onnxruntime-node/bin/napi-v6/linux/!(${arch}){,/**}'
   category: Development
   synopsis: Desktop coding-agent app powered by the pi coding agent
   # install.sh downloads exactly this name — keep the two in sync.
@@ -96,6 +124,9 @@ linux:
 
 win:
   icon: build/icon.ico
+  files:
+    - '!**/node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}{,/**}'
+    - '!**/node_modules/onnxruntime-node/bin/napi-v6/win32/!(${arch}){,/**}'
   # Same shape as the mac/linux names, so checksums.txt, the release-notes
   # link and the finalize job's asset check can all name it without a space:
   # electron-builder's NSIS default is `Phosphor Setup 0.1.x.exe`.

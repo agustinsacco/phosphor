@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import type { LanePrefs } from '@shared/models'
 
@@ -5,6 +6,7 @@ export type LaneActionId =
   | 'open'
   | 'rename'
   | 'tree'
+  | 'learn'
   | 'completion'
   | 'restoreWorktree'
   | 'makeRoutine'
@@ -26,6 +28,8 @@ export type LaneActionId =
 /** One lane, machine-blind: data and refusals only. */
 export interface LaneActionContext {
   pinned: boolean
+  /** Only a capable shell with an actual local persisted source supplies this. */
+  learning?: { localSource: boolean; ready: boolean; private: boolean; busy: boolean }
   markers: LanePrefs['markers']
   pr: { number: number; state?: string } | null
   unseen: boolean
@@ -53,6 +57,15 @@ export type LaneActionHandlers = Partial<
   }
 >
 
+/** What a machine's lane-actions hook gives its row: the menu, the dialogs it opens, the marker picker. */
+export interface LaneActions {
+  items: () => ContextMenuItem[]
+  /** Rendered beside the row; the dialogs portal through `ModalOverlay`. */
+  dialogs: ReactNode
+  /** Opens the marker picker; absent where this lane cannot be marked now. */
+  pickMarker?: () => void
+}
+
 /**
  * A lane's menu on every machine and surface: This Mac's order, with a Host's
  * control item before Stop. Absent data hides an item (no pull request, not
@@ -76,6 +89,7 @@ export function laneActions(
     ...order,
     ...offer('rename', 'Rename…', handlers.rename),
     ...offer('tree', 'Session tree…', handlers.tree),
+    ...learningAction(ctx, handlers.learn),
     ...(ctx.completed === undefined
       ? []
       : offer(
@@ -120,6 +134,17 @@ export function laneActions(
     danger: true,
   }))
   return [...lane, ...section(copies), ...section(remove)]
+}
+
+function learningAction(ctx: LaneActionContext, onClick?: () => void): ContextMenuItem[] {
+  const source = ctx.learning
+  if (!source?.localSource || source.private || !onClick) return []
+  const refusal =
+    ctx.refusals.learn ??
+    (!source.ready ? 'Source not ready' : source.busy ? 'Source is busy' : undefined)
+  return [
+    { label: 'Learn from this lane…', onClick, disabled: ctx.busy || !!refusal, hint: refusal },
+  ]
 }
 
 /** A section opens with a separator, whichever of its items the machine offers first. */
