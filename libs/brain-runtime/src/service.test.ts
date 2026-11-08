@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
 import { adapterFixture, deferred } from './__fixtures__/adapter-fixture'
 import { assembleBrainService, createBrainService } from './service'
+import type { PreparedBrainLearning } from './learning-port'
 
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -162,6 +163,55 @@ it('preserves initialization errors while diagnosing an injected store cleanup f
   vi.spyOn(f.store, 'close').mockRejectedValueOnce(failure)
   await expect(createBrainService(f.options)).rejects.toThrow('EEXIST')
   expect(f.options.onError).toHaveBeenCalledExactlyOnceWith(failure)
+})
+
+it('does not queue exclusion authority behind blocked learning source admission', async () => {
+  const f = await adapterFixture()
+  cleanup.push(f.cleanup)
+  const source = join(f.scope, 'synthetic-source.jsonl')
+  await writeFile(source, 'Synthetic source')
+  const entered = deferred<void>()
+  const release = deferred<PreparedBrainLearning>()
+  const service = await assembleBrainService(
+    {
+      ...f.options,
+      learningHost: {
+        prepare: () => {
+          entered.resolve()
+          return release.promise
+        },
+      },
+    },
+    f.store,
+  )
+  cleanup.push(() => service.dispose())
+  const preview = service.api.learnPreview({ workspacePath: f.scope, sessionPath: source })
+  const previewSettled = preview.catch(() => {})
+  await entered.promise
+  const read = vi.spyOn(f.store, 'excludedSource')
+  const exclusion = service.excludedSource('clean-source')
+  try {
+    // Drain microtasks, not a timing-based polling loop. The worker read must
+    // be reachable before the path-taking preview is allowed to finish.
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(read).toHaveBeenCalledExactlyOnceWith('clean-source')
+    await expect(exclusion).resolves.toBe(false)
+  } finally {
+    release.reject(new Error('Synthetic source admission released'))
+    await Promise.allSettled([previewSettled, exclusion])
+  }
+})
+
+it('refuses an exclusion result when disposal begins during the worker read', async () => {
+  const f = await fixture()
+  const result = deferred<boolean>()
+  vi.spyOn(f.store, 'excludedSource').mockReturnValue(result.promise)
+  const reading = f.service.excludedSource('clean-source')
+  const refused = expect(reading).rejects.toThrow('disposed')
+  const disposing = f.service.dispose()
+  result.resolve(false)
+  await refused
+  await disposing
 })
 
 it('keeps the historical exclusion query internal to the service and rejects it after disposal', async () => {
