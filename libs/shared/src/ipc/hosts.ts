@@ -2,7 +2,9 @@ import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
 import type { MachineClaude, MachineModel, MachineProvider } from '../host-protocol-machine'
 import type { SkillsListResult } from '../skills'
+import type { RpcSlashCommand } from '../rpc'
 import type { SkillBundle, SkillInstallResult } from '../host-protocol-skill-share'
+import type { LaneMovePlan, LaneMoveRequest, LaneMoveResult } from '../lane-move'
 import type {
   MachineSettings,
   MachineSettingsPatch,
@@ -18,6 +20,8 @@ export interface HostsInvokeMap {
   'hosts:tailscaleStatus': { args: []; result: TailscaleStatus }
   // Read-only machine catalogues, independent of an open lane.
   'hosts:models': { args: [hostId: string]; result: MachineModel[] }
+  /** pi's `/` commands on the Host for one configured repository, so a new lane offers them. */
+  'hosts:commands': { args: [hostId: string, repositoryId?: string]; result: RpcSlashCommand[] }
   'hosts:claude': {
     args: [hostId: string]
     /** null: unavailable, or a Host older than machine.claude. */
@@ -45,6 +49,10 @@ export interface HostsInvokeMap {
     args: [machine: string, bundle: SkillBundle, overwrite: boolean]
     result: SkillInstallResult
   }
+  /** What moving a lane would do, or why it cannot. Reads only. */
+  'hosts:laneMovePlan': { args: [request: LaneMoveRequest]; result: LaneMovePlan }
+  /** Copy a stopped lane to another workspace or machine; the source is never changed. */
+  'hosts:laneMove': { args: [request: LaneMoveRequest]; result: LaneMoveResult }
   'hosts:providerLogin': {
     args: [
       hostId: string,

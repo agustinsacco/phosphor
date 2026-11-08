@@ -140,6 +140,7 @@ export function createSkillsFeature(
   const MAX_WAITING = 8
   const methods = [
     'machine.models',
+    'machine.commands',
     'machine.providers',
     'machine.claude',
     'machine.claudeUsage',

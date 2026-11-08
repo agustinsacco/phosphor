@@ -361,6 +361,18 @@ delegation always goes through the `pi-subagents` extension inside pi, and
 Phosphor renders it from four RPC channels (`features/chat/subagentRuns.ts`,
 every reader defensive, a payload it cannot read leaving the generic row).
 
+**Children run under their session's rules.** pi-subagents children load none
+of the session's `-e` extensions, and foreground ones run inside its pi
+process. `subagent-children.ts`, loaded by the context extension, registers
+itself for each session through pi-subagents' `registerRequiredChildExtensions`,
+so every child (foreground, detached or nested) loads the worktree guard, the
+tool-name guard, the context-file filter (a worktree child no longer receives
+the main checkout's CLAUDE.md/AGENTS.md) and the session's context budget. The
+last two keep their current setting in pi's environment
+(`PHOSPHOR_CONTEXT_FILES`, `PHOSPHOR_CONTEXT_BUDGET`), where a child reads it
+at load. It does not pass Swarm, the UI surfaces or lane reload. A pi-subagents from before
+that API runs children without them.
+
 - **The `subagent` tool call is the row**, in pi's vocabulary: the verb is
   what the model did, the object is the agent, the hint is what it is on
   right now (`read apps/desktop/src/auth.ts · 3 tools`, from the progress pi-subagents
@@ -832,6 +844,11 @@ thousands of tokens on every request.
   A checkbox controls its filename category in the project scope, not an
   individual file. The global file always stays: it is what the user wrote for
   every lane ([Global instructions](#global-instructions)). The readout's count is enabled categories, not files.
+  In a worktree lane, a file pi inherited from the repository's main checkout
+  (an ancestor of `<repo>/.phosphor/worktrees/<name>`, on another branch) is
+  never sent, whatever the checkbox: it is listed as **Excluded · main checkout**
+  and the worktree's own copy is the one sent
+  ([extensions.md](extensions.md#bundled-extensions-phosphors-own)).
 - **Routines** always send every context file, whatever the preference: an
   unattended run keeps the project's rules ([routines.md](routines.md)). A
   routine-owned lane refuses a toggle, like any other manual command, until

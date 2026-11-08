@@ -55,7 +55,8 @@ export function Button({
       className={clsx(
         BUTTON_VARIANTS[variant],
         BUTTON_SIZES[size],
-        'font-medium transition-colors disabled:opacity-50',
+        // A drawn button keeps its size on a phone and takes a 44px hit-slop (client-shell.css).
+        'hit-slop font-medium transition-colors disabled:opacity-50',
         className,
       )}
     />

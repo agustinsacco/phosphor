@@ -41,10 +41,41 @@ export function assertClaudeContextProvider(
   )
 }
 
-/** Enforce pi ownership even if the launcher inherited legacy provider settings. */
+/**
+ * Enforce pi ownership even if the launcher inherited legacy provider settings.
+ *
+ * `PI_SUBAGENT_CACHE_RETENTION=short` makes pi-subagents ask for five-minute
+ * cache entries on a child's requests, the split Claude Code makes for its own
+ * sub-agents. Native providers already default to `short`. On Claude (from
+ * pi-claude-cli 0.11.0) it replaces the subscription's one-hour entries, whose
+ * writes cost 2x input instead of 1.25x: 98% of children's requests came within
+ * five minutes of the last, so over 30 days it cuts their write cost by a third
+ * (about 25M input tokens' worth), and a finished child's process parks for
+ * five minutes, not an hour.
+ */
 export function claudeProviderSpawnEnv(): Record<string, string> {
-  return { PI_CLAUDE_CLI_CONTEXT: 'pi' }
+  return {
+    PI_CLAUDE_CLI_CONTEXT: 'pi',
+    PI_CLAUDE_CLI_KEEPALIVE_MS: String(CLAUDE_KEEPALIVE_MS),
+    PI_SUBAGENT_CACHE_RETENTION: 'short',
+  }
 }
+
+/**
+ * How long a session's parked Claude CLI process waits for the next turn.
+ *
+ * The parked process IS the prompt cache: it holds the conversation in the
+ * shape the API cached, and the next user turn appends to it. Once it is
+ * retired, the next turn starts a fresh CLI and imports pi's history as
+ * role-labelled text, which is a different byte sequence, so the whole context
+ * is written to the cache again even when the API-side cache is still warm.
+ * Claude Code keeps a subscription's cache for an hour; the provider's own
+ * default parks for ten minutes. Over the 30 days before this was set, three
+ * in four user turns that followed a 10-60 minute pause re-wrote their whole
+ * context (22M tokens). An idle `claude` process costs memory, not tokens, so
+ * the park matches the cache. One-shots override it with `claudeOneShotEnv`.
+ */
+export const CLAUDE_KEEPALIVE_MS = 60 * 60 * 1000
 
 /**
  * Extra environment a ONE-SHOT `pi -p` run needs when it may land on the

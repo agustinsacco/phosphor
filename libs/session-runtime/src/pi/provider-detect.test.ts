@@ -44,7 +44,18 @@ describe('usesClaudeCliProvider', () => {
 
 describe('claudeProviderSpawnEnv', () => {
   it('enforces pi ownership without a separate Claude tool/prompt profile', () => {
-    expect(claudeProviderSpawnEnv()).toEqual({ PI_CLAUDE_CLI_CONTEXT: 'pi' })
+    expect(claudeProviderSpawnEnv()).toMatchObject({ PI_CLAUDE_CLI_CONTEXT: 'pi' })
+  })
+
+  it('parks the warm CLI for the hour the subscription prompt cache lives, and a one-shot overrides it', () => {
+    expect(claudeProviderSpawnEnv().PI_CLAUDE_CLI_KEEPALIVE_MS).toBe('3600000')
+    expect({ ...claudeProviderSpawnEnv(), ...claudeOneShotEnv() }.PI_CLAUDE_CLI_KEEPALIVE_MS).toBe(
+      '0',
+    )
+  })
+
+  it("asks for sub-agents' five-minute cache, as Claude Code splits its own", () => {
+    expect(claudeProviderSpawnEnv().PI_SUBAGENT_CACHE_RETENTION).toBe('short')
   })
 })
 

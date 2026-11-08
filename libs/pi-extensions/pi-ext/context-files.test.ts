@@ -10,6 +10,7 @@ import contextFiles, {
   parseProjectContext,
   savedContextFiles,
   CONTEXT_FILES_ENTRY,
+  CONTEXT_FILES_ENV,
   type ContextFileKind,
 } from './context-files'
 
@@ -31,6 +32,14 @@ const CLAUDE = { path: '/repo/CLAUDE.md', content: '# Repo rules\n\nUse tabs.\n'
 const AGENTS = { path: '/repo/pkg/AGENTS.md', content: 'Agents notes' }
 const GLOBAL = { path: '/home/u/.pi/agent/AGENTS.override.md', content: 'Global notes' }
 const off = (...kinds: ContextFileKind[]) => new Set(kinds)
+
+/** A Phosphor worktree lane: the main checkout is an ancestor on another branch. */
+const MAIN = '/home/u/src/phosphor'
+const WT = `${MAIN}/.phosphor/worktrees/read-composer`
+const WORKTREE = { cwd: WT, mainRepoPath: MAIN }
+const MAIN_CLAUDE = { path: `${MAIN}/CLAUDE.md`, content: '# pidex\n\nThe old layout.\n' }
+const WT_AGENTS = { path: `${WT}/AGENTS.md`, content: 'The current rules' }
+const ABOVE = { path: '/home/u/src/AGENTS.md', content: 'Inherited from above the repository' }
 
 describe('contextFileKind', () => {
   it('sorts pi’s context file names into the two toggles, any case', () => {
@@ -108,6 +117,28 @@ describe('filterProjectContext', () => {
     expect(filterProjectContext('<project_context>\n?\n</project_context>', off('claude'))).toBe(
       '<project_context>\n?\n</project_context>',
     )
+  })
+})
+
+describe('filterProjectContext in a worktree lane', () => {
+  it('drops the main checkout’s file and keeps the worktree’s, the rules above the repository and the global file', () => {
+    const section = render([GLOBAL, ABOVE, MAIN_CLAUDE, WT_AGENTS])
+    expect(filterProjectContext(section, off(), '/home/u/.pi/agent', WORKTREE)).toBe(
+      render([GLOBAL, ABOVE, WT_AGENTS]),
+    )
+  })
+
+  it('is a location rule: the toggles still decide the worktree’s own files', () => {
+    const section = render([MAIN_CLAUDE, WT_AGENTS])
+    expect(filterProjectContext(section, off('agents'), '/home/u/.pi/agent', WORKTREE)).toBeNull()
+    expect(filterProjectContext(section, off('claude'), '/home/u/.pi/agent', WORKTREE)).toBe(
+      render([WT_AGENTS]),
+    )
+  })
+
+  it('leaves an ordinary checkout alone', () => {
+    const section = render([MAIN_CLAUDE, WT_AGENTS])
+    expect(filterProjectContext(section, off(), '/home/u/.pi/agent', null)).toBe(section)
   })
 })
 
@@ -190,19 +221,36 @@ describe('contextFilesIn', () => {
     expect(contextFilesIn(render([relative]), off(), 'custom-pi')[0]?.scope).toBe('global')
   })
 
+  it('reports the main checkout’s file as excluded by location, with its kind still on', () => {
+    const prompt = `x\n${render([MAIN_CLAUDE, WT_AGENTS])}\ny`
+    const files = contextFilesIn(prompt, off(), '/home/u/.pi/agent', WORKTREE)
+    expect(files.map((file) => [file.path, file.included, file.excludedBy])).toEqual([
+      [MAIN_CLAUDE.path, false, 'main-checkout'],
+      [WT_AGENTS.path, true, undefined],
+    ])
+    // Outside a worktree the same prompt is all included, with no reason attached.
+    expect(
+      contextFilesIn(prompt, off(), '/home/u/.pi/agent').map((file) => file.excludedBy),
+    ).toEqual([undefined, undefined])
+  })
+
   it('is empty when pi found no context files', () => {
     expect(contextFilesIn('preamble\n\n<cwd>\n/repo\n</cwd>', off())).toEqual([])
   })
 })
 
 describe('context files extension', () => {
-  // '' rather than undefined: the default reads PHOSPHOR_CONTEXT_FILES, which
-  // a run inside Phosphor has set.
-  function fakePi(initial = '') {
+  // Its own environment: the default is pi's, which a run inside Phosphor has set.
+  function fakePi(
+    initial = '',
+    detect: (cwd: string) => string | null = () => null,
+    files = [CLAUDE, AGENTS],
+  ) {
     const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>()
     let command!: (args: string, ctx: unknown) => Promise<void>
     const changes: unknown[] = []
     const entries: unknown[] = []
+    const env: NodeJS.ProcessEnv = { [CONTEXT_FILES_ENV]: initial }
     const state = contextFiles(
       {
         on: (event, handler) => void handlers.set(event, handler),
@@ -212,19 +260,24 @@ describe('context files extension', () => {
         appendEntry: (customType, data) => void entries.push({ type: 'custom', customType, data }),
       },
       (ctx) => changes.push(ctx),
-      initial,
+      env,
+      '/home/u/.pi/agent',
+      detect,
     )
-    const request = () => [
-      { role: 'system', sections: { project_context: render([CLAUDE, AGENTS]) } },
-    ]
+    const request = () => [{ role: 'system', sections: { project_context: render(files) } }]
     return {
       state,
       changes,
       entries,
-      start: (branch: unknown[]) =>
-        handlers.get('session_start')!({}, { sessionManager: { getBranch: () => branch } }),
+      env,
+      start: (branch: unknown[], cwd?: string) =>
+        handlers.get('session_start')!(
+          {},
+          { sessionManager: { getBranch: () => branch }, ...(cwd ? { cwd } : {}) },
+        ),
       command: (args: string) => command(args, 'ctx'),
-      send: () => handlers.get('context_with_system')!({ messages: request() }, {}),
+      send: (ctx: unknown = {}) =>
+        handlers.get('context_with_system')!({ messages: request() }, ctx),
     }
   }
 
@@ -259,6 +312,42 @@ describe('context files extension', () => {
     const untouched = fakePi('agents=off')
     untouched.start([{ type: 'message' }])
     expect([...untouched.state.off()]).toEqual(['agents'])
+  })
+
+  it("hands the lane's current setting to the sub-agents it starts", async () => {
+    const pi = fakePi('claude=off')
+    await pi.command('claude=on agents=off')
+    expect(pi.env[CONTEXT_FILES_ENV]).toBe('agents=off')
+    const restored = fakePi()
+    restored.start([{ type: 'message' }, ...pi.entries])
+    expect(restored.env[CONTEXT_FILES_ENV]).toBe('agents=off')
+    await restored.command('agents=on')
+    expect(restored.env[CONTEXT_FILES_ENV]).toBeUndefined()
+  })
+
+  it('learns the worktree from the session cwd and drops the main checkout’s file with nothing toggled off', () => {
+    const detect = vi.fn((cwd: string) => (cwd === WT ? MAIN : null))
+    const pi = fakePi('', detect, [MAIN_CLAUDE, WT_AGENTS])
+    pi.start([{ type: 'message' }], WT)
+    expect(pi.state.worktree()).toEqual(WORKTREE)
+    const result = pi.send() as { messages: Array<{ sections: Record<string, string> }> }
+    expect(result.messages[0]!.sections.project_context).toBe(render([WT_AGENTS]))
+    // Git is asked once per cwd, not once per request.
+    pi.send({ cwd: WT })
+    expect(detect).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves an ordinary checkout’s requests alone, and asks nothing when no context names a cwd', () => {
+    const detect = vi.fn(() => null)
+    const plain = fakePi('', detect, [MAIN_CLAUDE, WT_AGENTS])
+    plain.start([{ type: 'message' }], MAIN)
+    expect(plain.state.worktree()).toBeNull()
+    expect(plain.send()).toBeUndefined()
+    expect(detect).toHaveBeenCalledTimes(1)
+    const blind = fakePi('', detect, [MAIN_CLAUDE, WT_AGENTS])
+    blind.start([{ type: 'message' }])
+    expect(blind.send()).toBeUndefined()
+    expect(detect).toHaveBeenCalledTimes(1)
   })
 })
 
