@@ -60,6 +60,10 @@
       "types": "./pi-ext/optional/permission-gate.ts",
       "default": "./pi-ext/optional/permission-gate.ts"
     },
+    "./subagent-children": {
+      "types": "./pi-ext/subagent-children.ts",
+      "default": "./pi-ext/subagent-children.ts"
+    },
     "./tool-name-guard": {
       "types": "./pi-ext/tool-name-guard.ts",
       "default": "./pi-ext/tool-name-guard.ts"
