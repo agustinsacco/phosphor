@@ -83,6 +83,7 @@ test('Brain learns only from a queued lane, after approval, and keeps the lane u
     await page.getByRole('button', { name: 'Settings', exact: true }).click()
     await page.getByRole('button', { name: 'Brain', exact: true }).click()
     await page.getByRole('switch', { name: 'Brain', exact: true }).click()
+    await expect(page.getByRole('switch', { name: 'Brain', exact: true })).toBeChecked()
     await expect(page.getByRole('switch', { name: 'Review before saving' })).toBeChecked()
     await expect(page.getByText('EmbeddingGemma is ready.', { exact: false })).toBeVisible()
     await page.keyboard.press('Escape')
