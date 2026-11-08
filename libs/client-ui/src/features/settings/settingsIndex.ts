@@ -24,6 +24,7 @@ import {
 import { FOLDERS_ROWS } from './search/rows/folders'
 import { LANES_ROWS } from './search/rows/lanes'
 import { OPTIMIZATION_ROWS } from './search/rows/optimization'
+import { BRAIN_ROWS } from './search/rows/brain'
 import { VOICE_ROWS } from './search/rows/voice'
 
 /** A Platform flag a section or row needs. Never the form factor. */
@@ -70,6 +71,7 @@ export const TABS: SettingsSection[] = [
   device('writing', 'Writing', ['writingAssist']),
   device('lanes', 'Lanes'),
   device('voice', 'Voice', ['localVoice']),
+  device('brain', 'Brain', ['localBrain']),
   device('keybindings', 'Keybindings', ['appShortcuts']),
   device('account', 'Phosphor account'),
   device('install', 'App installation', ['installableApp']),
@@ -169,6 +171,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ...WRITING_ROWS,
   ...LANES_ROWS,
   ...VOICE_ROWS,
+  ...BRAIN_ROWS,
   ...AGENT_ROWS,
   ...ACCOUNTS_ROWS,
   ...EXTENSIONS_ROWS,

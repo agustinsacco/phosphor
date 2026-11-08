@@ -24,7 +24,7 @@ export function NavigationItem({
       aria-pressed={active}
       aria-current={active ? 'page' : undefined}
       className={clsx(
-        'text-text group flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-left text-lg transition-colors',
+        'text-text group flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-[3px] text-left text-lg transition-colors',
         active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
       )}
     >
@@ -36,7 +36,7 @@ export function NavigationItem({
       >
         {icon}
       </span>
-      <span className="min-w-0 truncate">{label}</span>
+      <span className="min-w-0 truncate leading-5">{label}</span>
       {trailing}
     </TooltipButton>
   )

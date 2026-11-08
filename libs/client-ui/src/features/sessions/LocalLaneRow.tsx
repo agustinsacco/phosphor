@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { LearningIndicator } from '@/features/brain/LearningIndicator'
-import { useLaneLearning } from '@/features/brain/useLaneLearning'
 import clsx from 'clsx'
 import type { GitInfo, SessionMeta } from '@shared/models'
 import { useMenuTriggers } from '@/components/ContextMenu'
@@ -154,14 +152,6 @@ export function SessionRow({
   const rowWorkspaceName = projectName(meta.cwd || workspacePath, git)
 
   const open = (): void => openSidebarConversation(workspacePath, meta)
-  const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
-  const learning = useLaneLearning(
-    meta.cwd,
-    meta.path,
-    livePhosphorId,
-    isStreaming || delegated || booting || opening || deleting || bulkDeleteRunning,
-    git?.mainRepoPath || meta.cwd,
-  )
   const actions = useLocalLaneActions({
     meta,
     workspacePath,
@@ -172,7 +162,6 @@ export function SessionRow({
     git,
     pullRequest,
     deleting,
-    learning,
     onRename: beginRename,
     onOpenTree,
     onDelete,
@@ -313,7 +302,6 @@ export function SessionRow({
             {body}
           </LaneRow>
         )}
-        <LearningIndicator sessionPath={meta.path} />
       </div>
       {actions.dialogs}
     </>

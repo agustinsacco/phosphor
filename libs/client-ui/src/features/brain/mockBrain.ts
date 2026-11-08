@@ -1,319 +1,179 @@
-import {
-  BRAIN_EMBEDDING_MODEL,
-  DEFAULT_BRAIN_PREFS,
-  type BrainClaim,
-  type BrainCorrection,
-  type BrainEvidence,
-  type BrainJob,
-  type BrainPrefs,
-  type BrainProposal,
-  type BrainProcessConsent,
-  type BrainRevision,
-  type BrainStatus,
+import type {
+  BrainKnowledge,
+  BrainLaneRef,
+  BrainMemoryDetail,
+  BrainPrefs,
+  BrainProposalView,
+  BrainStatus,
 } from '@shared/brain'
+import { mockBrainData, mockBrainJob, mockBrainStatus } from './mockBrainData'
 
-import type { BrainLearningConsent, BrainLearningTarget } from '@shared/brain-learning-jobs'
-import { createMockBrainLearning } from './mockBrainLearning'
+class MockBrain {
+  private state = mockBrainStatus()
+  private sample = mockBrainData()
+  private approved: BrainMemoryDetail[] = []
+  private downloading: number | null = null
+  constructor(private now: () => number) {}
 
-/** Synthetic browser-harness simulation. Never reads files, downloads, or runs models. */
-const state: BrainStatus = {
-  supported: true,
-  notice: 'Browser harness: synthetic evidence only; no model or filesystem access.',
-  embedding: {
-    phase: 'missing',
-    receivedBytes: 0,
-    totalBytes: BRAIN_EMBEDDING_MODEL.downloadBytes,
-    modelId: BRAIN_EMBEDDING_MODEL.id,
-    dimensions: BRAIN_EMBEDDING_MODEL.dimensions,
-  },
-  snapshot: {
-    graphRevision: 0,
-    policyEpoch: 0,
-    prefs: structuredClone(DEFAULT_BRAIN_PREFS),
-    entities: [],
-    claims: [],
-    proposals: [],
-    jobs: [],
-    evidence: [],
-    counts: { evidence: 0, claims: 0, entities: 0, vectors: 0 },
-    truncated: false,
-  },
-}
-const learning = createMockBrainLearning(state)
-let evidence: BrainEvidence[] = []
-function checkRevision(revision: BrainRevision): void {
-  if (
-    revision.graphRevision !== state.snapshot.graphRevision ||
-    revision.policyEpoch !== state.snapshot.policyEpoch
-  )
-    throw new Error('Stale review. Refresh and review original evidence again.')
-}
-function setPrefs(prefs: BrainPrefs): BrainStatus {
-  state.snapshot.prefs = structuredClone(prefs)
-  state.snapshot.policyEpoch++
-  if (prefs.enabled && prefs.workspaces[0] && !evidence.length) {
-    evidence = [
-      {
-        id: 'synthetic-evidence',
-        scope: prefs.workspaces[0],
-        sessionId: 'synthetic-session',
-        entryId: 'synthetic-entry',
-        parentId: null,
-        rootIds: ['synthetic-root'],
-        branch: null,
-        role: 'user',
-        label: 'Synthetic example · not a real transcript',
-        observedAt: Date.now(),
-        text: 'Synthetic example: Project Lantern depends on Component Beacon.',
-        hash: 'synthetic',
-      },
-    ]
-    state.snapshot.evidence = evidence.map(({ id, scope, label, role, observedAt }) => ({
-      id,
-      scope,
-      label,
-      role,
-      observedAt,
-    }))
-    state.snapshot.counts.evidence = evidence.length
-  }
-  return state
-}
-function process(scope: string, consent: BrainProcessConsent): BrainJob {
-  const snapshot = state.snapshot
-  const prefs = snapshot.prefs
-  if (
-    !consent ||
-    consent.policyEpoch !== snapshot.policyEpoch ||
-    consent.model?.provider !== prefs.processor?.provider ||
-    consent.model?.id !== prefs.processor?.id
-  )
-    throw new Error('Processing consent changed. Refresh and consent to the exact model again.')
-  if (!prefs.enabled || !prefs.workspaces.includes(scope) || !prefs.processor)
-    throw new Error('Enable Brain, enroll workspace and choose an exact processor first.')
-  const job: BrainJob = {
-    id: crypto.randomUUID(),
-    scope,
-    evidenceIds: evidence.filter((e) => e.scope === scope).map((e) => e.id),
-    model: prefs.processor,
-    state: 'proposed',
-    fence: 1,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    sessionPath: 'synthetic-only',
-    error: null,
-    graphRevision: snapshot.graphRevision,
-    policyEpoch: snapshot.policyEpoch,
-  }
-  if (!job.evidenceIds.length) throw new Error('No synthetic evidence in this workspace.')
-  snapshot.jobs.unshift(job)
-  const proposal: BrainProposal = {
-    id: crypto.randomUUID(),
-    jobId: job.id,
-    scope,
-    createdAt: Date.now(),
-    state: 'pending',
-    graphRevision: snapshot.graphRevision,
-    policyEpoch: snapshot.policyEpoch,
-    input: {
-      rationale: 'Synthetic example for review.',
-      entities: [
-        {
-          key: 'lantern',
-          label: 'Project Lantern',
-          kind: 'project',
-          aliases: [],
-          evidenceIds: job.evidenceIds,
-        },
-        {
-          key: 'beacon',
-          label: 'Component Beacon',
-          kind: 'component',
-          aliases: [],
-          evidenceIds: job.evidenceIds,
-        },
-      ],
-      claims: [
-        {
-          subject: 'lantern',
-          predicate: 'depends_on',
-          object: 'beacon',
-          summary: 'Project Lantern depends on Component Beacon',
-          kind: 'reported',
-          citations: [{ evidenceId: job.evidenceIds[0]!, quote: evidence[0]!.text }],
-          validFrom: null,
-          validTo: null,
-        },
-      ],
-    },
-  }
-  snapshot.proposals.unshift(proposal)
-  return job
-}
-function review(id: string, approve: boolean, revision: BrainRevision): void {
-  if (approve) checkRevision(revision)
-  const snapshot = state.snapshot
-  const proposal = snapshot.proposals.find((p) => p.id === id && p.state === 'pending')
-  if (!proposal) throw new Error('Pending proposal not found.')
-  if (
-    revision.policyEpoch !== snapshot.policyEpoch ||
-    proposal.policyEpoch !== snapshot.policyEpoch
-  )
-    throw new Error('Stale consent.')
-  proposal.state = approve ? 'applied' : 'rejected'
-  if (!approve) return
-  snapshot.entities = proposal.input.entities.map((e) => ({
-    id: e.key,
-    scope: proposal.scope,
-    label: e.label,
-    kind: e.kind,
-    aliases: e.aliases,
-  }))
-  snapshot.claims.push(
-    ...proposal.input.claims.map((c): BrainClaim => ({
-      id: crypto.randomUUID(),
-      scope: proposal.scope,
-      subjectId: c.subject,
-      predicate: c.predicate,
-      objectId: c.object ?? null,
-      literal: c.literal ?? null,
-      summary: c.summary,
-      kind: c.kind,
-      state: 'active',
-      citations: c.citations,
-      conflictIds: [],
-      validFrom: c.validFrom,
-      validTo: c.validTo,
-      recordedAt: Date.now(),
-      retractedAt: null,
-      revision: 1,
-    })),
-  )
-  snapshot.graphRevision++
-  snapshot.counts.entities = snapshot.entities.length
-  snapshot.counts.claims = snapshot.claims.length
-}
-function correct(id: string, correction: BrainCorrection, revision: BrainRevision): void {
-  checkRevision(revision)
-  const claim = state.snapshot.claims.find((c) => c.id === id)
-  if (!claim) throw new Error('Claim not found.')
-  Object.assign(claim, correction, { revision: claim.revision + 1 })
-  state.snapshot.graphRevision++
-}
-function forget(ids: string[]): { evidence: number; claims: number; affectedSessions: string[] } {
-  const removed = evidence.filter((e) => ids.includes(e.id))
-  const claims = state.snapshot.claims.filter((c) =>
-    c.citations.some((cite) => ids.includes(cite.evidenceId)),
-  )
-  evidence = evidence.filter((e) => !ids.includes(e.id))
-  state.snapshot.evidence = state.snapshot.evidence.filter((e) => !ids.includes(e.id))
-  state.snapshot.claims = state.snapshot.claims.filter((c) => !claims.includes(c))
-  state.snapshot.graphRevision++
-  state.snapshot.policyEpoch++
-  state.snapshot.counts.evidence = evidence.length
-  state.snapshot.counts.claims = state.snapshot.claims.length
-  return { evidence: removed.length, claims: claims.length, affectedSessions: [] }
-}
-function cancel(id: string): void {
-  const job = state.snapshot.jobs.find((j) => j.id === id)
-  if (!job) throw new Error('Job not found.')
-  job.state = 'cancelled'
-}
-
-export async function mockBrainCall(channel: string, args: unknown[]): Promise<unknown> {
-  switch (channel) {
-    case 'brain:status':
-      return structuredClone(state)
-    case 'brain:setPrefs':
-      return structuredClone(setPrefs(args[0] as BrainPrefs))
-    case 'brain:download': {
-      if (args[0] !== true) throw new Error('Explicit model terms consent required.')
-      state.embedding.phase = 'ready'
-      state.embedding.receivedBytes = state.embedding.totalBytes
-      return structuredClone(state)
+  private knowledge(): BrainKnowledge {
+    const ids = new Set(this.approved.flatMap(({ memory }) => [memory.subjectId, memory.objectId]))
+    return {
+      entities: this.sample.entities.filter((entity) => ids.has(entity.id)),
+      memories: this.approved.map(({ memory }) => memory),
+      truncated: false,
     }
-    case 'brain:removeModel':
-      state.embedding.phase = 'missing'
-      state.embedding.receivedBytes = 0
-      return structuredClone(state)
-    case 'brain:learnPreview':
-      return structuredClone(learning.preview(args[0] as BrainLearningTarget))
-    case 'brain:learn':
-      return structuredClone(
-        learning.learn(args[0] as BrainLearningTarget, args[1] as BrainLearningConsent),
-      )
-    case 'brain:learningJobs':
-      return structuredClone({
-        ...learning.list(args[0] as string | undefined),
-        policy: {
-          enabled: state.snapshot.prefs.enabled,
-          workspaces: state.snapshot.prefs.workspaces,
-          policyEpoch: state.snapshot.policyEpoch,
-        },
-      })
-    case 'brain:learningDetail':
-      return structuredClone(learning.detail(String(args[0])))
-    case 'brain:process':
-      return structuredClone(process(String(args[0]), args[1] as BrainProcessConsent))
-    case 'brain:review':
-      review(String(args[0]), args[1] === true, args[2] as BrainRevision)
-      return
-    case 'brain:correct':
-      correct(String(args[0]), args[1] as BrainCorrection, args[2] as BrainRevision)
-      return
-    case 'brain:forget':
-      return forget(args[0] as string[])
-    case 'brain:cancel':
-      cancel(String(args[0]))
-      return
-    case 'brain:transcript':
-      return 'Synthetic processing transcript. No provider contacted; no process launched.'
-    default:
-      return readMockBrain(channel, args)
   }
-}
 
-function readMockBrain(channel: string, args: unknown[]): unknown {
-  switch (channel) {
-    case 'brain:evidence': {
-      const items =
-        state.snapshot.prefs.enabled && state.snapshot.prefs.workspaces.includes(String(args[0]))
-          ? state.snapshot.evidence
-              .filter((item) => item.scope === args[0] && (!args[1] || item.id > String(args[1])))
-              .sort((a, b) => a.id.localeCompare(b.id))
-          : []
-      return structuredClone({
-        items: items.slice(0, 50),
-        nextCursor: items.length > 50 ? items[49]!.id : null,
-      })
+  private status(): BrainStatus {
+    this.state.counts = {
+      memories: this.approved.length,
+      entities: this.knowledge().entities.length,
     }
-    case 'brain:graph':
-      return structuredClone({
-        nodes: state.snapshot.entities,
-        edges: state.snapshot.claims,
-        truncated: false,
-      })
-    case 'brain:search':
-      return structuredClone({
-        graphRevision: state.snapshot.graphRevision,
-        policyEpoch: state.snapshot.policyEpoch,
-        status: state.snapshot.claims.length ? 'ok' : 'no_match',
-        results: state.snapshot.claims.map((claim) => ({
-          claim,
-          evidence,
-          reasons: ['lexical'],
-          score: 1,
+    return this.state
+  }
+
+  private review(id: string, keep: number[] | null, revision: number): BrainStatus {
+    if (this.state.revision !== revision)
+      throw new Error('Brain changed while you were reviewing. Reopen the review.')
+    const job = this.state.jobs.find((item) => item.id === id)
+    if (!job || job.state !== 'review') throw new Error('Review not found')
+    this.approved.push(
+      ...this.sample.details
+        .filter((_, index) => keep?.includes(index))
+        .map((detail) => ({
+          ...detail,
+          memory: {
+            ...detail.memory,
+            id: `${id}-${detail.memory.id}`,
+            origin: { sessionId: job.sessionId, title: job.title },
+          },
         })),
-        entities: state.snapshot.entities,
-        degradation: ['Synthetic harness search only'],
-        truncated: false,
-      })
-    case 'brain:read': {
-      const found = evidence.find((e) => e.id === args[0])
-      if (!found) throw new Error('Evidence not found.')
-      return structuredClone(found)
+    )
+    this.state.jobs = this.state.jobs.filter((item) => item.id !== id)
+    this.state.revision++
+    return this.status()
+  }
+
+  private tick(): void {
+    if (this.downloading !== null) {
+      const phases = ['downloading', 'verifying', 'testing', 'ready'] as const
+      const elapsed = this.now() - this.downloading
+      this.state.embedding.phase = phases[Math.min(3, Math.floor(elapsed / 2000))]!
+      this.state.embedding.receivedBytes = Math.min(
+        this.state.embedding.totalBytes,
+        (elapsed / 2000) * this.state.embedding.totalBytes,
+      )
+      if (this.state.embedding.phase === 'ready') this.downloading = null
     }
-    default:
-      throw new Error('This synthetic Brain operation is unavailable.')
+    if (!this.state.prefs.enabled || this.state.embedding.phase !== 'ready') return
+    const active = this.state.jobs.find((job) => job.state === 'running' || job.state === 'queued')
+    if (!active) return
+    if (active.state === 'queued') {
+      active.state = 'running'
+      active.startedAt = this.now()
+      return
+    }
+    if (this.now() - (active.startedAt ?? this.now()) < 4000) return
+    active.state = 'review'
+    active.memories = this.sample.details.length
+    active.finishedAt = this.now()
+    if (!this.state.prefs.review) this.review(active.id, [0, 1], this.state.revision)
+  }
+
+  private download(): BrainStatus {
+    this.downloading = this.now()
+    this.state.embedding.phase = 'downloading'
+    return this.status()
+  }
+
+  private setPrefs(prefs: BrainPrefs): BrainStatus {
+    this.state.prefs = { ...prefs }
+    return prefs.enabled && this.state.embedding.phase === 'missing'
+      ? this.download()
+      : this.status()
+  }
+
+  private removeModel(): BrainStatus {
+    if (this.state.prefs.enabled) throw new Error('Turn Brain off before removing the model.')
+    this.downloading = null
+    this.state.embedding.phase = 'missing'
+    this.state.embedding.receivedBytes = 0
+    return this.status()
+  }
+
+  private queue(lane: BrainLaneRef): BrainStatus {
+    if (!this.state.prefs.enabled) throw new Error('Turn Brain on first.')
+    if (this.state.jobs.some((job) => job.sessionPath === lane.sessionPath))
+      throw new Error('This lane is already queued.')
+    this.state.jobs.push(
+      mockBrainJob({
+        id: crypto.randomUUID(),
+        ...lane,
+        state: 'queued',
+        memories: 0,
+        queuedAt: this.now(),
+        startedAt: null,
+        finishedAt: null,
+      }),
+    )
+    return this.status()
+  }
+
+  private proposal(id: unknown): BrainProposalView {
+    const job = this.state.jobs.find((item) => item.id === id && item.state === 'review')
+    if (!job) throw new Error('Review not found')
+    return {
+      job,
+      summary: 'The lane settled Harbor’s billing database and migration ownership.',
+      revision: this.state.revision,
+      entities: this.sample.entities,
+      memories: this.sample.details,
+    }
+  }
+
+  call(channel: string, args: unknown[]): unknown {
+    this.tick()
+    switch (channel) {
+      case 'brain:status':
+        return this.status()
+      case 'brain:setPrefs':
+        return this.setPrefs(args[0] as BrainPrefs)
+      case 'brain:download':
+        return this.download()
+      case 'brain:removeModel':
+        return this.removeModel()
+      case 'brain:queue':
+        return this.queue(args[0] as BrainLaneRef)
+      case 'brain:cancel':
+        this.state.jobs = this.state.jobs.filter((job) => job.id !== args[0])
+        return this.status()
+      case 'brain:proposal':
+        return this.proposal(args[0])
+      case 'brain:review':
+        return this.review(args[0] as string, args[1] as number[] | null, args[2] as number)
+      case 'brain:knowledge':
+        return this.knowledge()
+      case 'brain:memory': {
+        const detail = this.approved.find(({ memory }) => memory.id === args[0])
+        if (!detail) throw new Error('Memory not found')
+        return detail
+      }
+      case 'brain:forget':
+        this.approved = this.approved.filter(({ memory }) => memory.id !== args[0])
+        this.state.revision++
+        return this.status()
+      default:
+        throw new Error(`Unknown Brain channel: ${channel}`)
+    }
   }
 }
+
+/** All eleven v2 channels, backed by invented notes and a clock-driven download/queue. */
+export function createMockBrain(
+  now: () => number = () => Date.now(),
+): (channel: string, args: unknown[]) => Promise<unknown> {
+  const mock = new MockBrain(now)
+  return async (channel, args) => structuredClone(mock.call(channel, args))
+}
+
+export const mockBrainCall = createMockBrain()
