@@ -171,7 +171,7 @@ The composer is one small field with several ways in.
     alias stays searchable and is named in the tooltip. Matching is on payload
     equality, never on a hardcoded name.
   - **Host controls are demoted**: `/phosphor-context-files`,
-    `/phosphor-reload` and `/phosphor-swarm` are not in the browse list, are
+    `/phosphor-reload`, `/phosphor-swarm` and `/phosphor-release` are not in the browse list, are
     still found when typed, and are described with a pointer to the control
     that sends them.
   - **The list stays fresh.** Main broadcasts `pi:commandsChanged` after a
