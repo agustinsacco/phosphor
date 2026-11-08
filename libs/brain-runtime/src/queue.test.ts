@@ -124,6 +124,22 @@ describe('ExtractionQueue', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('dismisses an empty job as done, retaining its leaf fingerprint instead of removing it', async () => {
+    const s = setup()
+    s.setReady(false)
+    const job = s.enqueue('rina')
+    s.store.updateJob(job.id, { state: 'empty', memories: 0 })
+    const update = vi.spyOn(s.store, 'updateJob')
+    const remove = vi.spyOn(s.store, 'removeJob')
+    s.queue.cancel(job.id)
+    expect(update).toHaveBeenCalledWith(job.id, { state: 'done' })
+    expect(remove).not.toHaveBeenCalled()
+    expect(s.store.job(job.id)).toMatchObject({ state: 'done', leafId: job.leafId })
+    expect(s.store.snapshot().jobs).toEqual([])
+    expect(s.changed).toHaveBeenCalled()
+    await s.queue.dispose()
+  })
+
   it('disposal aborts without failing/removing the job; the next service requeues it', async () => {
     const s = setup()
     const job = s.enqueue('rina')
