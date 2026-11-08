@@ -214,6 +214,13 @@ it('refuses an exclusion result when disposal begins during the worker read', as
   await disposing
 })
 
+it('propagates exclusion worker errors instead of allowing a source move', async () => {
+  const f = await fixture()
+  const failure = new Error('Synthetic exclusion read failure')
+  vi.spyOn(f.store, 'excludedSource').mockRejectedValueOnce(failure)
+  await expect(f.service.excludedSource('clean-source')).rejects.toBe(failure)
+})
+
 it('keeps the historical exclusion query internal to the service and rejects it after disposal', async () => {
   const f = await fixture()
   expect(Object.keys(f.service).sort()).toEqual(['api', 'dispose', 'excludedSource', 'memory'])
