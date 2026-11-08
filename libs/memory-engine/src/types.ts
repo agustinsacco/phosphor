@@ -1,3 +1,4 @@
+import type { DatabaseSync } from 'node:sqlite'
 import type {
   BrainEntity,
   BrainEntityKind,
@@ -16,7 +17,7 @@ import type {
 } from '@phosphor/shared/brain'
 
 /** `node:sqlite`'s DatabaseSync, injected so Electron and plain Node load it their own way. */
-export type SqliteDatabase = import('node:sqlite').DatabaseSync
+export type SqliteDatabase = DatabaseSync
 export type SqliteConstructor = new (path: string) => SqliteDatabase
 
 /** One readable piece of a lane transcript: a message, tool output, tool call or summary. */
