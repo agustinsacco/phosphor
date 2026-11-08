@@ -133,7 +133,9 @@ How each level maps onto the request is in pi-claude-cli's
   One process serves a session's turns and tool handoffs. A model switch
   (including a context-budget change mid-session, which is applied as one),
   a changed prompt or tool list, tree navigation, compaction and a stop all
-  retire it, as does an hour idle: `claudeProviderSpawnEnv` sets
+  retire it (from pi-claude-cli 0.11.0, a prompt-section update, a message sent
+  during a tool, a stop and an extension's own model call keep it), as does an
+  hour idle: `claudeProviderSpawnEnv` sets
   `PI_CLAUDE_CLI_KEEPALIVE_MS` to one hour so the parked process lives as long
   as a subscription's prompt cache (the provider's own default is ten minutes,
   and under it three in four user turns that followed a 10-60 minute pause
