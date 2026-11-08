@@ -25,7 +25,6 @@ import { piSessionsRoot } from '../pi/pi-paths'
 import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 import { withSessionPath } from '../pi/session-path-lock'
 import { registry } from '../registry'
-import { brainSourceExcluded } from '../brain/runtime'
 import { laneAttachmentsDir } from './attachments-dir'
 import { localTransferRuntime } from './runtime'
 
@@ -85,6 +84,7 @@ async function workspaceName(cwd: string): Promise<string> {
 async function source(sessionPath: string, crossMachine: boolean): Promise<SourceInput> {
   const sessionFile = await transcriptPath(sessionPath)
   const { cwd, id } = await readTransferHeader(sessionFile)
+  const { brainSourceExcluded } = await import('../brain/runtime')
   const excluded = await brainSourceExcluded(id).catch(() =>
     refuse('Brain exclusion could not be checked. Try again before moving this lane.'),
   )

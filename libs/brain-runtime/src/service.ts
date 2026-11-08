@@ -105,7 +105,13 @@ export async function assembleBrainService(
     isClosed: lifecycle.isClosed,
   })
   await initializeBrain(options, store, indexer, lifecycle)
-  const excludedSource = (id: string) => lifecycle.serialize(() => store.excludedSource(id))
+  // Move holds a source path: never queue this read behind path-taking preflight work.
+  const excludedSource = async (id: string): Promise<boolean> => {
+    if (lifecycle.isClosed()) throw new Error('Brain is disposed')
+    const excluded = await store.excludedSource(id)
+    if (lifecycle.isClosed()) throw new Error('Brain is disposed')
+    return excluded
+  }
   return { api, memory: working.memory, excludedSource, dispose: lifecycle.dispose }
 }
 /** Optional derived indexes fail open; authoritative startup failures still dispose owners. */
