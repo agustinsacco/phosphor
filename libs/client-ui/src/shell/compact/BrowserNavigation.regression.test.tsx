@@ -120,7 +120,6 @@ function expectSharedNavigation(scope: Element): void {
     'Skills',
     'Routines',
     'Machines',
-    'Brain',
   ])
   const machineScope = byLabel(scope, 'Machine filter')
   const lane = scope.querySelector(`button[aria-label="${LANE.title}"]`) ?? undefined

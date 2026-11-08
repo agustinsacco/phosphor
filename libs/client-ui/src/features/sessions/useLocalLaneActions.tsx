@@ -1,4 +1,6 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
+import { useBrain } from '@/features/brain/useBrain'
+import { usePlatform } from '@/platform/Platform'
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import { formatCost } from '@/lib/format'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
@@ -33,7 +35,6 @@ interface LocalLane {
   onRename: () => void
   onOpenTree: () => void
   onDelete: (title: string) => void
-  learning?: { learning: LaneActionContext['learning']; learn: () => void }
 }
 
 function localContext(
@@ -41,7 +42,7 @@ function localContext(
   markers: LaneActionContext['markers'],
   bulkDeleteRunning: boolean,
 ): LaneActionContext {
-  const { meta, livePhosphorId, unseen, pinned, pullRequest, deleting, learning } = lane
+  const { meta, livePhosphorId, unseen, pinned, pullRequest, deleting } = lane
   return {
     pinned,
     markers,
@@ -50,7 +51,6 @@ function localContext(
     running: livePhosphorId !== undefined,
     completed: Boolean(meta.completedAt),
     worktreeRemoved: meta.worktreeRemoved,
-    learning: learning?.learning,
     spend: meta.cost > 0 ? { hint: formatCost(meta.cost) } : undefined,
     busy: deleting,
     refusals: {
@@ -74,7 +74,6 @@ export function useLocalLaneActions(lane: LocalLane): LaneActions {
     title,
     git,
     pullRequest,
-    learning,
     onRename,
     onOpenTree,
     onDelete,
@@ -83,7 +82,13 @@ export function useLocalLaneActions(lane: LocalLane): LaneActions {
   const markers = useLanePrefsStore((s) => s.lanes.markers)
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   const [pickingMarker, setPickingMarker] = useState(false)
+  const brain = useBrain((s) => s.status)
+  const localBrain = usePlatform().localBrain
+  const job = brain?.jobs.find(
+    (j) => j.sessionPath === meta.path && ['waiting', 'queued', 'running'].includes(j.state),
+  )
   const context = localContext(lane, markers, bulkDeleteRunning)
+  if (localBrain && brain?.prefs.enabled && meta.path) context.knowledge = job ? 'cancel' : 'queue'
   const store = () => useSessionsStore.getState()
   const items = (): ContextMenuItem[] =>
     laneActions(
@@ -92,7 +97,10 @@ export function useLocalLaneActions(lane: LocalLane): LaneActions {
         open: () => openSidebarConversation(workspacePath, meta),
         rename: onRename,
         tree: onOpenTree,
-        learn: learning?.learn,
+        knowledge: () => {
+          if (job) void useBrain.getState().cancel(job.id)
+          else void useBrain.getState().queue({ sessionPath: meta.path, title })
+        },
         completion: () => void changeCompletion(workspacePath, meta),
         restoreWorktree: () => openRestoreWorktree(workspacePath, meta),
         makeRoutine: () => makeRoutine(workspacePath, meta.name ?? '', meta.firstUserText ?? ''),

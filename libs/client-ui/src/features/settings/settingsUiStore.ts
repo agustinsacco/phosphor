@@ -16,6 +16,7 @@ export type SettingsTab =
   | 'folders'
   | 'optimization'
   | 'voice'
+  | 'brain'
   | 'advanced'
   | 'keybindings'
   | 'account'

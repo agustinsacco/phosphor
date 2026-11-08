@@ -118,3 +118,20 @@ describe('laneActions', () => {
     expect(calls.completion).toHaveBeenCalledOnce()
   })
 })
+
+it('offers queue or cancel knowledge only when a local source supplies context and a handler', () => {
+  const knowledge = vi.fn()
+  expect(laneActions(ctx(), { knowledge })).toEqual([])
+  expect(laneActions(ctx({ knowledge: 'queue' }), {})).toEqual([])
+  const queue = laneActions(ctx({ knowledge: 'queue', running: true }), { knowledge })
+  expect(rows(queue)).toEqual(['Queue for knowledge extraction'])
+  expect(queue[0]?.disabled).toBe(false)
+  queue[0]!.onClick()
+  expect(knowledge).toHaveBeenCalledOnce()
+  expect(rows(laneActions(ctx({ knowledge: 'cancel' }), { knowledge }))).toEqual([
+    'Cancel knowledge extraction',
+  ])
+  expect(laneActions(ctx({ knowledge: 'queue', busy: true }), { knowledge })[0]?.disabled).toBe(
+    true,
+  )
+})

@@ -5,8 +5,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SessionMeta } from '@shared/models'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { useChatStore } from '@/stores/chat'
-import { useLearningUi } from '@/features/brain/learningUi'
-import { learningJob } from '@/features/brain/__fixtures__/learning'
+import { useBrain } from '@/features/brain/useBrain'
+import { mockBrainStatus, mockBrainJob } from '@/features/brain/mockBrainData'
 import { usePullRequestsStore } from '@/stores/pullRequests'
 import { useSessionsStore } from '@/stores/sessions'
 import { resetSidebarStores, stubSidebarPhosphor } from './__fixtures__/sidebarHarness'
@@ -60,7 +60,7 @@ beforeEach(() => {
               : null,
     )
   resetSidebarStores()
-  useLearningUi.setState({ enabled: false, workspaces: [], jobs: [], target: null, jobId: null })
+  useBrain.setState({ status: mockBrainStatus() })
   useSessionsStore.setState({
     live: { live1: { phosphorId: 'live1', workspacePath: '/repo', diskPath: '/repo/s1.jsonl' } },
     unread: {},
@@ -94,6 +94,7 @@ async function menuFor(title: string): Promise<string[]> {
     r.textContent?.includes(title),
   )!
   act(() => {
+    row.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 2 }))
     row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
   })
   return [...document.querySelectorAll('[data-testid=context-menu] button')].map(
@@ -101,36 +102,46 @@ async function menuFor(title: string): Promise<string[]> {
   )
 }
 
-it('keeps learning on the lifted worktree row with a separate private inspector button', async () => {
-  useLearningUi.setState({ enabled: true, workspaces: ['/repo'] })
+it('queues knowledge from a lifted local worktree row and cancels an active job', async () => {
+  const status = mockBrainStatus()
+  status.prefs.enabled = true
+  useBrain.setState({ status })
   useSessionsStore.setState({
     live: {},
     disk: { '/repo': [{ ...meta(2), cwd: '/worktree' }] },
-    gitByCwd: {
-      '/worktree': { branch: 'task', mainRepoPath: '/repo', isWorktree: true } as never,
-    },
+    gitByCwd: { '/worktree': { branch: 'task', mainRepoPath: '/repo', isWorktree: true } as never },
   })
   const rows = await menuFor('Lane 2')
-  expect(rows).toContain('Learn from this lane…')
-  const learn = [
+  expect(rows).toContain('Queue for knowledge extraction')
+  const queue = [
     ...document.querySelectorAll<HTMLButtonElement>('[data-testid=context-menu] button'),
-  ].find((button) => button.textContent === 'Learn from this lane…')!
-  act(() => learn.click())
-  expect(useLearningUi.getState().target).toEqual({
-    workspacePath: '/worktree',
+  ].find((button) => button.textContent === 'Queue for knowledge extraction')!
+  const normal = invoke.getMockImplementation()!
+  invoke.mockImplementation((channel: string, ...args: unknown[]) =>
+    channel.startsWith('brain:') ? Promise.resolve(status) : normal(channel, ...args),
+  )
+  await act(async () => queue.click())
+  expect(invoke).toHaveBeenCalledWith('brain:queue', {
     sessionPath: '/repo/s2.jsonl',
+    title: 'Lane 2',
   })
-  const job = learningJob()
-  job.learning!.target = { workspacePath: '/worktree', sessionPath: '/repo/s2.jsonl' }
-  act(() => useLearningUi.setState({ jobs: [job], target: null }))
-  const row = container.querySelector('[data-testid=session-row]')!
-  const indicator = row.parentElement!.querySelector<HTMLButtonElement>(
-    '[data-testid=learning-indicator]',
-  )!
-  expect(indicator).not.toBeNull()
-  expect(indicator.parentElement!.closest('button')).toBeNull()
-  act(() => indicator.click())
-  expect(useLearningUi.getState().jobId).toBe(job.id)
+  const job = mockBrainJob({ sessionPath: '/repo/s2.jsonl', state: 'running' })
+  act(() => useBrain.setState({ status: { ...status, jobs: [job] } }))
+  const next = await menuFor('Lane 2')
+  expect(next).toContain('Cancel knowledge extraction')
+  expect(next).not.toContain('Queue for knowledge extraction')
+  await act(async () =>
+    [...document.querySelectorAll<HTMLButtonElement>('[data-testid=context-menu] button')]
+      .find((button) => button.textContent === 'Cancel knowledge extraction')!
+      .click(),
+  )
+  expect(invoke).toHaveBeenCalledWith('brain:cancel', job.id)
+})
+
+it('hides extraction from lane menus when Brain is off', async () => {
+  expect((await menuFor('Lane 2')).some((label) => label.includes('knowledge extraction'))).toBe(
+    false,
+  )
 })
 
 it("calls stopping a live This Mac lane Stop, as a Host lane's menu does", async () => {

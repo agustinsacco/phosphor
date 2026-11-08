@@ -5,6 +5,7 @@ import { AppearanceTab } from '../tabs/AppearanceTab'
 import { InstallAppTab } from '../tabs/InstallAppTab'
 import { KeybindingsTab } from '../tabs/KeybindingsTab'
 import { OptimizationTab } from '../tabs/OptimizationTab'
+import { BrainTab } from '../tabs/BrainTab'
 import { VoiceTab } from '../tabs/VoiceTab'
 import { WritingTab } from '../tabs/WritingTab'
 import { HostAccounts, LocalAccounts } from './accounts'
@@ -54,5 +55,6 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   folders: { Local: LocalFolders, Host: HostFolders },
   optimization: { Local: OptimizationTab },
   voice: { Device: VoiceTab },
+  brain: { Device: BrainTab },
   advanced: { Local: LocalAdvanced, Host: HostAdvanced },
 }
