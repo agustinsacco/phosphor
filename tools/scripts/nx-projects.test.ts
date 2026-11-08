@@ -91,7 +91,7 @@ const commands = {
 // consumed sources as deploy inputs instead of implicit project dependencies.
 const dependencies = {
   'brain-client': ['shared'],
-  'brain-runtime': ['shared', 'runtime', 'memory-engine', 'pi-extensions'],
+  'brain-runtime': ['shared', 'runtime', 'memory-engine', 'pi-extensions', 'brain-client'],
   'memory-engine': ['shared'],
   'client-ui': ['shared', 'pi-extensions'],
   web: ['client-ui', 'host-client', 'shared', 'host', 'control'],

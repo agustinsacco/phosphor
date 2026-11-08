@@ -5,7 +5,7 @@
   "sourceRoot": "libs/brain-runtime/src",
   "projectType": "library",
   "tags": ["scope:runtime"],
-  "implicitDependencies": ["shared", "runtime", "memory-engine", "pi-extensions"],
+  "implicitDependencies": ["shared", "runtime", "memory-engine", "pi-extensions", "brain-client"],
   "targets": {
     "test": {
       "executor": "nx:run-commands",
