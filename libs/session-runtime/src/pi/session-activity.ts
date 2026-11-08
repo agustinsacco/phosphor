@@ -25,6 +25,11 @@ export class SessionActivity {
     )
   }
 
+  /** Non-secret observation fence for immutable snapshots; undefined is never settled. */
+  get settledRevision(): number | undefined {
+    return this.busy ? undefined : this.revision
+  }
+
   requested(id: string, type: RpcCommandType): void {
     if (!readOnly(type)) this.revision++
     if (['prompt', 'steer', 'follow_up'].includes(type)) this.unsettled = true

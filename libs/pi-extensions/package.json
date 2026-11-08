@@ -4,6 +4,50 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./brain-learning-carrier": {
+      "types": "./pi-ext/brain-learning-carrier.ts",
+      "default": "./pi-ext/brain-learning-carrier.ts"
+    },
+    "./brain-learning-carrier-auth": {
+      "types": "./pi-ext/brain-learning-carrier-auth.ts",
+      "default": "./pi-ext/brain-learning-carrier-auth.ts"
+    },
+    "./brain-learning-carrier-files": {
+      "types": "./pi-ext/brain-learning-carrier-files.ts",
+      "default": "./pi-ext/brain-learning-carrier-files.ts"
+    },
+    "./brain-learning-carrier-operation": {
+      "types": "./pi-ext/brain-learning-carrier-operation.ts",
+      "default": "./pi-ext/brain-learning-carrier-operation.ts"
+    },
+    "./brain-learning-carrier-sdk": {
+      "types": "./pi-ext/brain-learning-carrier-sdk.ts",
+      "default": "./pi-ext/brain-learning-carrier-sdk.ts"
+    },
+    "./brain-learning": {
+      "types": "./pi-ext/brain-learning.ts",
+      "default": "./pi-ext/brain-learning.ts"
+    },
+    "./brain-learning-context": {
+      "types": "./pi-ext/brain-learning-context.ts",
+      "default": "./pi-ext/brain-learning-context.ts"
+    },
+    "./brain-learning-result": {
+      "types": "./pi-ext/brain-learning-result.ts",
+      "default": "./pi-ext/brain-learning-result.ts"
+    },
+    "./brain-learning-provenance": {
+      "types": "./pi-ext/brain-learning-provenance.ts",
+      "default": "./pi-ext/brain-learning-provenance.ts"
+    },
+    "./brain": {
+      "types": "./pi-ext/brain.ts",
+      "default": "./pi-ext/brain.ts"
+    },
+    "./brain-processor": {
+      "types": "./pi-ext/brain-processor.ts",
+      "default": "./pi-ext/brain-processor.ts"
+    },
     "./status-keys": {
       "types": "./pi-ext/status-keys.ts",
       "default": "./pi-ext/status-keys.ts"
@@ -78,6 +122,8 @@
     }
   },
   "dependencies": {
+    "@phosphor/brain-client": "0.0.0",
+    "@phosphor/shared": "0.0.0",
     "typebox": "^1.3.10"
   },
   "nx": {

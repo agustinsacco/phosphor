@@ -321,6 +321,7 @@ it('keeps writing leaf exact and confined to its prefix', () => {
   >()
 })
 
+import type { BrainInvokeMap } from './brain'
 import type { HostsInvokeMap } from './hosts'
 import type { AppInvokeMap } from './app'
 import type { PiInvokeMap } from './pi'
@@ -335,6 +336,7 @@ import type { SessionsInvokeMap, GitInvokeMap, GhInvokeMap, FsInvokeMap } from '
 
 // A duplicate is rejected even when its argument and result types agree.
 type MapKeys = [
+  keyof BrainInvokeMap,
   keyof HostsInvokeMap,
   keyof AppInvokeMap,
   keyof PiInvokeMap,
