@@ -1,5 +1,5 @@
 import { TooltipButton } from '@/components/Tooltip'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { extensionOf, type PreviewKind } from '@shared/file-kinds'
 import { useFilesStore, type OpenFile } from '@/stores/files'
@@ -9,8 +9,9 @@ import { formatBytes } from '@/lib/format'
 import { revealLabel } from '@/lib/reveal'
 import { hostPlatform } from '@/lib/shortcuts'
 import { FileIcon } from '@/components/icons'
-import { ViewTabs } from './TextFilePreview'
+import { TextFileRender, ViewTabs } from './TextFilePreview'
 import { MarkdownPreview } from './MarkdownPreview'
+import type { FilesFeatures } from './filesSource'
 
 /**
  * Viewers for the files Monaco cannot show: images, video, audio, PDFs, and
@@ -56,6 +57,8 @@ export function FileViewer({
   kind,
   textPreview,
   workspacePath,
+  features,
+  textLimitBytes,
   source,
 }: {
   file: OpenFile
@@ -63,6 +66,8 @@ export function FileViewer({
   /** HTML/SVG: also editable, so the bar offers Preview | Source. */
   textPreview: boolean
   workspacePath: string
+  features: FilesFeatures
+  textLimitBytes: number
   /** What Source shows — the editor, owned by EditorPane. */
   source: React.ReactNode
 }): React.JSX.Element {
@@ -81,15 +86,25 @@ export function FileViewer({
           />
         )}
         <span className="text-text-tertiary min-w-0 flex-1 truncate text-sm">
-          {view === 'preview' && file.dirty && kind !== 'markdown'
+          {view === 'preview' && file.dirty && kind !== 'markdown' && features.mediaPreview
             ? 'Unsaved edits — the preview shows the saved file'
             : [detail, formatBytes(file.size)].filter(Boolean).join(' · ')}
         </span>
-        <FileActions path={file.path} compact />
+        {features.osActions && <FileActions path={file.path} compact />}
       </div>
       <div className="min-h-0 flex-1">
         {view === 'source' ? (
           source
+        ) : !features.mediaPreview ? (
+          // No `phosphor-file://` grant on this machine: text renders from the buffer through the
+          // artifact sandbox, and anything else has no viewer here.
+          textPreview && !file.binary && !file.tooLarge ? (
+            <Suspense fallback={null}>
+              <TextFileRender kind={kind} path={file.path} content={file.content} />
+            </Suspense>
+          ) : (
+            <FileFallback file={file} osActions={false} textLimitBytes={textLimitBytes} />
+          )
         ) : (
           <Preview
             // Remount per file: a <video> must not carry playback position,
@@ -99,6 +114,8 @@ export function FileViewer({
             kind={kind}
             workspacePath={workspacePath}
             onDetail={setDetail}
+            osActions={features.osActions}
+            textLimitBytes={textLimitBytes}
           />
         )}
       </div>
@@ -106,40 +123,42 @@ export function FileViewer({
   )
 }
 
+interface PreviewProps {
+  file: OpenFile
+  kind: PreviewKind
+  workspacePath: string
+  onDetail: (detail: string) => void
+  osActions: boolean
+  textLimitBytes: number
+}
+
 function Preview({
   file,
   kind,
   workspacePath,
   onDetail,
-}: {
-  file: OpenFile
-  kind: PreviewKind
-  workspacePath: string
-  onDetail: (detail: string) => void
-}): React.JSX.Element {
+  osActions,
+  textLimitBytes,
+}: PreviewProps): React.JSX.Element {
   const { url, failed } = usePreviewUrl(workspacePath, file.path, file.mtimeMs)
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [url])
+  const fallback = { file, osActions, textLimitBytes }
 
   if (kind === 'markdown') {
     // Rendered from the live buffer, in-app — no iframe, no saved-file lag.
     // The grant URL is only the base relative images resolve against, so a
     // missing grant (browser harness) still renders, just without them.
-    if (file.binary || file.tooLarge) return <FileFallback file={file} />
+    if (file.binary || file.tooLarge) return <FileFallback {...fallback} />
     return <MarkdownPreview text={file.content} urlBase={url ?? undefined} />
   }
 
   if (failed || broken) {
-    return (
-      <FileFallback
-        file={file}
-        reason={
-          kind === 'video' || kind === 'audio'
-            ? 'This format does not play here.'
-            : 'This file could not be shown here.'
-        }
-      />
-    )
+    const playable = kind === 'video' || kind === 'audio'
+    const reason = playable
+      ? 'This format does not play here.'
+      : 'This file could not be shown here.'
+    return <FileFallback {...fallback} reason={reason} />
   }
   if (!url) return <div className="h-full" />
 
@@ -204,19 +223,23 @@ function Preview({
   }
 }
 
-/** For files no viewer covers: say so, and offer the OS's ways to open it. */
+/** For files no viewer covers: say so, and offer the OS's ways to open it where there are some. */
 export function FileFallback({
   file,
   reason,
+  osActions,
+  textLimitBytes,
 }: {
   file: OpenFile
   reason?: string
+  osActions: boolean
+  textLimitBytes: number
 }): React.JSX.Element {
   const ext = extensionOf(file.path)
   const why =
     reason ??
     (file.tooLarge
-      ? 'Larger than 4 MB — too big to open as text.'
+      ? `Larger than ${textLimitBytes / 1024 / 1024} MB — too big to open as text.`
       : ext
         ? `No preview for .${ext} files.`
         : 'No preview for this file.')
@@ -229,10 +252,12 @@ export function FileFallback({
             {basename(file.relativePath)}
           </div>
           <div className="text-text-tertiary mt-0.5 text-sm">
-            {formatBytes(file.size)} · {why}
+            {/* A Host refuses an oversized read without saying the size. */}
+            {file.size > 0 && `${formatBytes(file.size)} · `}
+            {why}
           </div>
         </div>
-        <FileActions path={file.path} />
+        {osActions && <FileActions path={file.path} />}
       </div>
     </div>
   )

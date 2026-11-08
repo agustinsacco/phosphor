@@ -41,6 +41,7 @@ import { fileScheme, isFrameEscape, registerFileProtocol } from './fs/file-proto
 import { externalUrl, isAppNavigation } from './external-links'
 import { installPermissionPolicy } from './voice/permissions'
 import { devRendererUrl } from './dev-renderer-url'
+import { disposeBrain } from './brain/runtime'
 
 const rendererUrl = devRendererUrl(process.env, app.isPackaged)
 const isDev = rendererUrl !== undefined
@@ -348,7 +349,7 @@ function beginQuit(): void {
   ptyManager.killAll()
   // Stop admission and persist interrupted routine outcomes before disposing
   // unrelated sessions. Routine cancellation owns its nested process tree.
-  void stopRoutines().finally(() => {
+  void Promise.allSettled([stopRoutines(), disposeBrain()]).finally(() => {
     void Promise.allSettled([
       registry.disposeAll(),
       settleAccount(),

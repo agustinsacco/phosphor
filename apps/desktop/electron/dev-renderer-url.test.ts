@@ -56,6 +56,7 @@ vi.mock('./routines/background', () => ({
   routinesKeepRunning: () => false,
 }))
 vi.mock('./ipc', () => ({ registerIpcHandlers: vi.fn() }))
+vi.mock('./brain/runtime', () => ({ disposeBrain: vi.fn() }))
 vi.mock('./artifacts/artifact-sync', () => ({ startArtifactSync: vi.fn() }))
 vi.mock('./feedback/feedback-service', () => ({ recordAppLaunch: vi.fn() }))
 vi.mock('./maintenance/runtime', () => ({ maintenanceScheduler: { start: vi.fn() } }))

@@ -228,7 +228,7 @@ it('names a Host file list over the cap with fixed text, and nothing else', asyn
   )
 })
 
-it('names a Host that could not list the folder, from the code alone', async () => {
+it('names a Host that could not list the folder or read the file, from the code alone', async () => {
   const failing = (code: string) => {
     const port = lane(null)
     port.call = vi.fn(async () => {
@@ -246,9 +246,14 @@ it('names a Host that could not list the folder, from the code alone', async () 
     await expect(readFeature('fs:listFiles', [root], failing(code))).rejects.toThrow(
       new Error('Not available on remote lanes yet.'),
     )
+  // A Host that could not read the file (deleted since the list) says so.
   await expect(readFeature('fs:readFile', [`${root}/a`], failing('internal'))).rejects.toThrow(
-    new Error('Not available on remote lanes yet.'),
+    new Error('Could not read this file.'),
   )
+  for (const code of ['bad-request', 'unknown-lane', 'unsupported'])
+    await expect(readFeature('fs:readFile', [`${root}/a`], failing(code))).rejects.toThrow(
+      new Error('Not available on remote lanes yet.'),
+    )
   // The failure's own message is fixed text, for callers that show it as is.
   expect(new HostReadFailure('internal').message).toBe('Not available on remote lanes yet.')
   expect(new HostReadFailure('too-large').message).toBe('too-large')

@@ -46,10 +46,14 @@ const allowed = [
   'export_html',
 ] satisfies RpcCommandType[]
 const moves = ['new_session', 'switch_session', 'fork', 'clone'] satisfies RpcCommandType[]
+const privateCommands = ['get_auth_binding'] satisfies RpcCommandType[]
 // Compile-time inventory: a protocol addition must also be characterized.
 const inventory: Record<RpcCommandType, true> = Object.fromEntries(
-  [...allowed, ...moves].map((type) => [type, true]),
-) as Record<(typeof allowed)[number] | (typeof moves)[number], true>
+  [...allowed, ...moves, ...privateCommands].map((type) => [type, true]),
+) as Record<
+  (typeof allowed)[number] | (typeof moves)[number] | (typeof privateCommands)[number],
+  true
+>
 
 it.each(allowed)('runtime allows %s', (type) => {
   expect(inventory[type]).toBe(true)
@@ -127,4 +131,9 @@ it('runtime never invokes custom deletion for outside, nested, suffix, link or d
   }
   expect(remove).not.toHaveBeenCalled()
   expect(existsSync(target)).toBe(true)
+})
+
+it.each(privateCommands)('runtime refuses Desktop-private %s', (type) => {
+  expect(inventory[type]).toBe(true)
+  expect(commandRefusal({ type } as RpcCommand)).toBe(`${type} is private to Desktop learning`)
 })

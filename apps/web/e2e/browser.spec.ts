@@ -431,3 +431,62 @@ test('actual compact SandboxedHtml contains hostile HTML/SVG without script, net
   expect(dialogs).toEqual([])
   expect(escaped).toEqual([])
 })
+
+test('Brain stays unavailable in compact and wide browsers and rejects direct IPC', async ({
+  page,
+  stack,
+}) => {
+  await signIn(page, stack.origin)
+  // The phone's four tabs no longer include this Desktop-only prototype.
+  // Its deep link still has to refuse, as does the wide navigation entry.
+  await page.goto(`${stack.origin}/pages/brain`)
+  await expect(page.getByText(/Brain is unavailable on this machine/)).toBeVisible()
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await navigatePage(page, 'Brain')
+  await expect(page.getByText(/Brain is unavailable on this machine/)).toBeVisible()
+  const failures = await page.evaluate(async () =>
+    Promise.all(
+      [
+        () => window.phosphor.invoke('brain:status'),
+        () => window.phosphor.invoke('brain:evidence', '/synthetic'),
+      ].map(async (request) => {
+        try {
+          await request()
+          return ''
+        } catch (error) {
+          return String(error)
+        }
+      }),
+    ),
+  )
+  expect(failures).toHaveLength(2)
+  for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
+})
+
+test('all selected-lane learning IPC refuses in the browser', async ({ page, stack }) => {
+  await signIn(page, stack.origin)
+  const failures = await page.evaluate(async () => {
+    const target = { workspacePath: '/synthetic', sessionPath: '/synthetic/source.jsonl' }
+    return Promise.all(
+      [
+        () => window.phosphor.invoke('brain:learnPreview', target),
+        () =>
+          window.phosphor.invoke('brain:learn', target, {
+            policyEpoch: 1,
+            fingerprint: 'synthetic',
+          }),
+        () => window.phosphor.invoke('brain:learningJobs'),
+        () => window.phosphor.invoke('brain:learningDetail', 'synthetic-job'),
+      ].map(async (request) => {
+        try {
+          await request()
+          return ''
+        } catch (error) {
+          return String(error)
+        }
+      }),
+    )
+  })
+  expect(failures).toHaveLength(4)
+  for (const failure of failures) expect(failure).toContain('Brain is a local Desktop prototype')
+})

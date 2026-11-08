@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import contextBudget from './context-budget'
+import contextBudget, { CONTEXT_BUDGET_ENV } from './context-budget'
 
-function setup(window = 1_000_000) {
+function setup(window = 1_000_000, env: NodeJS.ProcessEnv = {}) {
   const original = { provider: 'pi-claude-cli', id: 'opus', contextWindow: window }
   const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>()
   let command!: (args: string, context: typeof ctx) => Promise<void>
@@ -18,19 +18,22 @@ function setup(window = 1_000_000) {
     await handlers.get('model_select')?.({}, ctx)
     return true
   })
-  contextBudget({
-    on: (event, handler) => {
-      handlers.set(event, handler)
+  contextBudget(
+    {
+      on: (event, handler) => {
+        handlers.set(event, handler)
+      },
+      setModel: select,
+      getThinkingLevel: () => thinking,
+      setThinkingLevel: (value) => {
+        thinking = value
+      },
+      registerCommand: (_name, spec) => {
+        command = spec.handler
+      },
     },
-    setModel: select,
-    getThinkingLevel: () => thinking,
-    setThinkingLevel: (value) => {
-      thinking = value
-    },
-    registerCommand: (_name, spec) => {
-      command = spec.handler
-    },
-  })
+    env,
+  )
   return {
     original,
     ctx,
@@ -83,6 +86,18 @@ describe('pi-native budget window', () => {
     await s.command('100000')
     await s.command('off')
     expect(s.ctx.model.contextWindow).toBe(200_000)
+  })
+  it("hands the session's current budget to the sub-agents it starts", async () => {
+    const env: NodeJS.ProcessEnv = {}
+    await setup(1_000_000, env).command('400000')
+    expect(env[CONTEXT_BUDGET_ENV]).toBe('400000')
+    const child = setup(1_000_000, env)
+    await child.event('before_agent_start')
+    expect(child.ctx.model.contextWindow).toBe(400_000)
+    // Garbage in the environment is no budget, never a crash.
+    const stray = setup(1_000_000, { [CONTEXT_BUDGET_ENV]: 'lots' })
+    await stray.event('before_agent_start')
+    expect(stray.select).not.toHaveBeenCalled()
   })
   it.each(['0', 'NaN', '99999', '1000001', '100000.5'])(
     'rejects invalid control %s',

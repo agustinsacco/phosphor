@@ -3,7 +3,8 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import { ReadOnlyFilesPane } from './ReadOnlyFilesPane'
-import { useRemoteFileSelection } from './remoteFileSelection'
+import { openFileInWorkspace } from '@/stores/layout'
+import { useFilesStore } from '@/stores/files'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteInfo, mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
@@ -25,6 +26,7 @@ vi.mock('@/components/markdown/CodeBlock', () => ({
   ),
 }))
 
+vi.mock('./MonacoEditor', () => ({ releaseFileModel: () => {} }))
 vi.mock('@/components/markdown/Markdown', () => ({
   Markdown: ({ text }: { text: string }) => <article>{text}</article>,
 }))
@@ -42,7 +44,7 @@ afterEach(() => {
   act(() => root?.unmount())
   useSessionsStore.setState({ live: {}, activeSessionId: null })
   useRemoteLanesStore.setState({ hosts: {} })
-  useRemoteFileSelection.setState({ bySession: {}, blocked: {} })
+  useFilesStore.setState({ byWorkspace: {} })
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -61,14 +63,13 @@ async function openFromChat(path: string, line?: number): Promise<HTMLDivElement
       },
     },
   })
-  useRemoteFileSelection.setState({
-    bySession: { [sessionId]: { path, ...(line ? { reveal: { line, seq: 1 } } : {}) } },
-  })
   vi.stubGlobal('phosphor', {
     invoke: vi.fn(async (channel: string) =>
       channel === 'fs:listFiles' ? [path] : { content: source, binary: false, tooLarge: false },
     ),
   })
+  // A chat link in this lane's transcript, as PathLink sends it.
+  await openFileInWorkspace(mockRemoteInfo.workspacePath, path, line, sessionId)
   const container = document.createElement('div')
   root = createRoot(container)
   await act(async () =>

@@ -16,12 +16,14 @@ import { CloseIcon } from '@/components/icons'
 import { formatShortcut } from '@/lib/shortcuts'
 import { runFileAction } from './fileActions'
 import { closeEditorFile } from './closeEditorFile'
+import type { FilesSource } from './filesSource'
 
 export const EditorPane = memo(function EditorPane({
-  workspacePath,
+  source,
 }: {
-  workspacePath: string
+  source: FilesSource
 }): React.JSX.Element {
+  const { workspacePath } = source
   const openFiles = useFilesStore((s) => workspaceFiles(s, workspacePath).openFiles)
   const activePath = useFilesStore((s) => workspaceFiles(s, workspacePath).activePath)
   const active = openFiles.find((f) => f.path === activePath)
@@ -33,7 +35,9 @@ export const EditorPane = memo(function EditorPane({
         <div className="text-center">
           <div className="text-text-tertiary text-lg">No file open</div>
           <div className="text-text-tertiary mt-1 text-sm">
-            Pick a file from the explorer or press {formatShortcut('mod', 'P')}
+            {source.features.search
+              ? `Pick a file from the explorer or press ${formatShortcut('mod', 'P')}`
+              : 'Pick a file from the explorer'}
           </div>
         </div>
       </div>
@@ -75,10 +79,12 @@ export const EditorPane = memo(function EditorPane({
           </TooltipButton>
         </div>
       )}
-      {active?.diskConflict && <ConflictBar file={active} workspacePath={workspacePath} />}
-      <div className="min-h-0 flex-1">
-        {active && <ActiveView file={active} workspacePath={workspacePath} />}
-      </div>
+      {active?.saveUncertain ? (
+        <UncertainSaveBar file={active} workspacePath={workspacePath} />
+      ) : (
+        active?.diskConflict && <ConflictBar file={active} workspacePath={workspacePath} />
+      )}
+      <div className="min-h-0 flex-1">{active && <ActiveView file={active} source={source} />}</div>
     </div>
   )
 })
@@ -88,15 +94,19 @@ export const EditorPane = memo(function EditorPane({
  * away); anything else is text in Monaco, or — binary or too large — a card
  * that hands it to the OS.
  */
-function ActiveView({
-  file,
-  workspacePath,
-}: {
-  file: OpenFile
-  workspacePath: string
-}): React.JSX.Element {
+function ActiveView({ file, source }: { file: OpenFile; source: FilesSource }): React.JSX.Element {
+  const { workspacePath, features } = source
   const kind = previewKindForPath(file.path)
-  const text = <TextView file={file} workspacePath={workspacePath} />
+  const text =
+    file.binary || file.tooLarge ? (
+      <FileFallback
+        file={file}
+        osActions={features.osActions}
+        textLimitBytes={source.textLimitBytes}
+      />
+    ) : (
+      <ActiveEditor file={file} workspacePath={workspacePath} readOnly={!!source.writeRefusal} />
+    )
   if (!kind) return text
   return (
     <FileViewer
@@ -104,34 +114,28 @@ function ActiveView({
       kind={kind}
       textPreview={isTextPreview(file.path)}
       workspacePath={workspacePath}
+      features={features}
+      textLimitBytes={source.textLimitBytes}
       source={text}
     />
   )
 }
 
-function TextView({
-  file,
-  workspacePath,
-}: {
-  file: OpenFile
-  workspacePath: string
-}): React.JSX.Element {
-  if (file.binary || file.tooLarge) return <FileFallback file={file} />
-  return <ActiveEditor file={file} workspacePath={workspacePath} />
-}
-
 function ActiveEditor({
   file,
   workspacePath,
+  readOnly,
 }: {
   file: OpenFile
   workspacePath: string
+  readOnly: boolean
 }): React.JSX.Element {
   return (
     <MonacoEditor
       path={file.path}
       language={file.language}
       value={file.content}
+      readOnly={readOnly}
       reveal={file.pendingReveal}
       onChange={(value) => useFilesStore.getState().updateBuffer(workspacePath, file.path, value)}
       onSave={() => runFileAction(useFilesStore.getState().saveFile(workspacePath, file.path))}
@@ -298,11 +302,42 @@ function ConflictBar({
       >
         Reload
       </TooltipButton>
+      {/* A revision-checked save over a changed file is refused again, so only Reload helps. */}
+      {file.revision === undefined && (
+        <TooltipButton
+          onClick={() => useFilesStore.getState().keepBuffer(workspacePath, file.path)}
+          className="border-border hover:bg-bg-secondary rounded-md border px-2 py-0.5 font-medium transition-colors"
+        >
+          Keep mine
+        </TooltipButton>
+      )}
+    </div>
+  )
+}
+
+/** A save that may have landed: the buffer stays, and only a reload from the machine clears it. */
+function UncertainSaveBar({
+  file,
+  workspacePath,
+}: {
+  file: OpenFile
+  workspacePath: string
+}): React.JSX.Element {
+  return (
+    <div
+      role="alert"
+      className="bg-danger/5 border-border flex items-center gap-2 border-b px-3 py-1.5 text-base"
+    >
+      <span className="text-danger flex-1">
+        Save not confirmed. Your edits are kept. Do not retry an uncertain save.
+      </span>
       <TooltipButton
-        onClick={() => useFilesStore.getState().keepBuffer(workspacePath, file.path)}
+        onClick={() =>
+          runFileAction(useFilesStore.getState().reloadFromDisk(workspacePath, file.path))
+        }
         className="border-border hover:bg-bg-secondary rounded-md border px-2 py-0.5 font-medium transition-colors"
       >
-        Keep mine
+        Reload file
       </TooltipButton>
     </div>
   )
