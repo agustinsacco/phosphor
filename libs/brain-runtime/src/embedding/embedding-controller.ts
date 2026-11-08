@@ -186,6 +186,12 @@ class EmbeddingController implements BrainEmbeddings {
   private start(kind: WorkKind, run: (signal: AbortSignal) => Promise<void>): Promise<void> {
     const controller = new AbortController()
     const previous = this.settled
+    // Publish in-flight now: the caller returns this status before the work begins.
+    this.set({
+      phase: kind === 'download' ? 'downloading' : 'verifying',
+      receivedBytes: 0,
+      totalBytes: EMBEDDING_TOTAL_BYTES,
+    })
     const done = (async () => {
       try {
         // A cancelled step or a removal still finishing must not race this one on disk.

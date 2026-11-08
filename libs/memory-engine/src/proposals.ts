@@ -1,6 +1,6 @@
 import type { BrainMemory, BrainProposalView } from '@phosphor/shared/brain'
 import { all, one, run, transaction, type Context } from './database'
-import { referencedEntities } from './entities'
+import { entity, referencedEntities } from './entities'
 import { job, updateJob } from './jobs'
 import { quoteContext } from './knowledge'
 import { revision } from './prefs'
@@ -50,7 +50,12 @@ export function propose(
         ctx,
         'INSERT INTO proposals VALUES (?,?)',
         extraction.jobId,
-        JSON.stringify({ ...extraction, memories, vectors: [] }),
+        JSON.stringify({
+          ...extraction,
+          entities: withReused(ctx, extraction, memories),
+          memories,
+          vectors: [],
+        }),
       )
       vectors.forEach((vector, index) =>
         run(
@@ -68,6 +73,23 @@ export function propose(
     })
   })
   return { kept: memories.length, duplicates: extraction.memories.length - memories.length }
+}
+/** Forgetting can delete an entity a pending proposal reuses; approval recreates it from this copy. */
+function withReused(
+  ctx: Context,
+  extraction: Extraction,
+  memories: Extraction['memories'],
+): Extraction['entities'] {
+  const keys = new Set(extraction.entities.map((item) => item.key))
+  const reused = [...new Set(memories.flatMap((item) => [item.subject, item.object]))].flatMap(
+    (key) => {
+      const found = key && !keys.has(key) ? entity(ctx, key) : undefined
+      return found
+        ? [{ key: found.id, label: found.label, kind: found.kind, aliases: found.aliases }]
+        : []
+    },
+  )
+  return [...extraction.entities, ...reused]
 }
 export function proposedMemory(
   extraction: Extraction,

@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { BrainService, BrainServiceOptions } from './types'
 import { ExtractionQueue } from './queue'
@@ -32,8 +32,23 @@ function modelSetup(options: BrainServiceOptions, changed: () => void, kick: () 
   }
 }
 
+/** What the default-off prototype wrote. This schema cannot read it, so nothing could show or delete it. */
+const PROTOTYPE_FILES = [
+  'memory.sqlite',
+  'memory.sqlite-wal',
+  'memory.sqlite-shm',
+  'evidence',
+  'learning',
+  'sessions',
+]
+
 export async function createBrainService(options: BrainServiceOptions): Promise<BrainService> {
   await mkdir(options.directory, { recursive: true })
+  await Promise.all(
+    PROTOTYPE_FILES.map((name) =>
+      rm(join(options.directory, name), { recursive: true, force: true }),
+    ),
+  )
   const store = options.openStore(join(options.directory, 'brain.sqlite'))
   let disposed = false
   const changed = (): void => {

@@ -3,6 +3,7 @@ import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
 import { runPrintMode } from '@phosphor/session-runtime/pi/print-mode'
+import { claudeOneShotEnv } from '@phosphor/session-runtime/pi/provider-detect'
 import type { BrainJob } from '@phosphor/shared/brain'
 import type { ForkLaunch } from './types'
 import type { LaneMeta } from './lane'
@@ -102,8 +103,9 @@ export async function runFork(
       cwd: existsSync(lane.cwd) ? lane.cwd : directory,
       env: {
         ...launch.env,
+        // A lane parks its Claude process for an hour; a parked fork would never exit.
+        ...claudeOneShotEnv(),
         PI_OFFLINE: '1',
-        PI_CLAUDE_CLI_EPHEMERAL: '1',
         PI_CLAUDE_CLI_STATE_DIR: join(directory, 'provider'),
       },
       timeoutMs: 150_000,

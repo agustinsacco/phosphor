@@ -9,6 +9,7 @@ import {
   type BrainPredicate,
 } from '@phosphor/shared/brain'
 import type { RawEntity, RawExtraction, RawMemory } from '@phosphor/memory-engine/types'
+import { scrubExcerpt } from './secrets'
 
 export interface ExtractionLimits {
   maxEntities?: number
@@ -37,6 +38,9 @@ export function mentions(text: string, label: string): boolean {
   )
 }
 
+/** Names are stored, searched and shown to later forks: one holding a secret is dropped. */
+const clean = (text: string): boolean => scrubExcerpt(text) === text
+
 function entity(value: unknown): RawEntity | undefined {
   if (
     !record(value) ||
@@ -48,12 +52,12 @@ function entity(value: unknown): RawEntity | undefined {
   )
     return
   const kind = vocabulary<BrainEntityKind>(value.kind, BRAIN_ENTITY_KINDS)
-  if (!kind) return
+  if (!kind || !clean(value.label)) return
   return {
     key: value.key.trim(),
     label: value.label.trim(),
     kind,
-    aliases: value.aliases.map((v) => v.trim()).filter(Boolean),
+    aliases: value.aliases.map((v) => v.trim()).filter((v) => v && clean(v)),
   }
 }
 
