@@ -76,6 +76,8 @@ interface WorkspaceFiles {
   activeRequest?: number
   closedPaths?: string[]
   gitStatus: Record<string, string>
+  /** The last git status read failed. */
+  gitUnavailable?: boolean
 }
 
 /**

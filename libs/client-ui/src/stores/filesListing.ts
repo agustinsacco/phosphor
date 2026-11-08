@@ -71,8 +71,17 @@ export function fileListingActions(
     pollWorkspace: (workspacePath) => pollWorkspace(set, get, workspacePath),
 
     refreshGitStatus: async (workspacePath) => {
-      const gitStatus = await window.phosphor.invoke('git:statusMap', workspacePath)
-      set((s) => patchWorkspace(s, workspacePath, (w) => ({ ...w, gitStatus })))
+      // A Host lane may not be a git repository; the explorer says so instead of failing.
+      const gitStatus = await window.phosphor
+        .invoke('git:statusMap', workspacePath)
+        .catch(() => undefined)
+      set((s) =>
+        patchWorkspace(s, workspacePath, (w) => ({
+          ...w,
+          gitStatus: gitStatus ?? {},
+          gitUnavailable: !gitStatus,
+        })),
+      )
     },
 
     setShowHidden: (workspacePath, value) => {

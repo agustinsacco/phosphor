@@ -52,8 +52,8 @@ const HOST_FEATURES: FilesFeatures = {
   clipboardFiles: false,
 }
 
-/** A folder on this device. */
-export function useLocalFilesSource(workspacePath: string): FilesSource {
+/** A folder on this device; it holds no state, so it is not a hook. */
+export function localFilesSource(workspacePath: string): FilesSource {
   return {
     workspacePath,
     unavailable: null,
