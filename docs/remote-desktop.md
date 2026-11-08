@@ -575,7 +575,8 @@ refusal from the Host is a toast. Save and PDF export explicitly target This
 Mac. The top-bar artifact count belongs to the active lane.
 
 Remote slash commands come from the lane, and file mentions search its Host file
-list. Thinking levels derive from the lane model. Local rules/MCP menus are hidden; the
+list. Thinking levels derive from the lane model. The Rules · MCP readout shows the
+lane's own context sources read-only ([chat.md](chat.md#context-files)); the
 Swarm switch works as on This Mac, against the lane's own status. For the lane's
 controller, `!cmd` runs in the Host's shell and a queued message's ✕ drains and
 re-queues on the Host. A `!cmd` still running at the Host's command deadline
