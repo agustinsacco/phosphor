@@ -99,7 +99,9 @@ it('round-trips real composer draft/blob shapes in memory, with detached reads a
   await s.api.invoke('app:clearDraft', draft().key)
   expect(await s.api.invoke('app:sweepDrafts')).toEqual({})
   expect(await s.api.invoke('app:readDraftBlob', blob)).toBeNull()
-  expect(s.storage.setItem).not.toHaveBeenCalled()
+  // Only the owner tag and owner-scoped records reach storage; never a draft.
+  const written = s.storage.setItem.mock.calls.map(([key]: unknown[]) => String(key))
+  expect(written.filter((key) => !/^phosphor\.web\.(owner|sidebar)\.v1$/.test(key))).toEqual([])
 })
 it.each(['owner', 'logout'] as const)(
   'clears drafts/blobs and fences already-issued reads at %s invalidation',
@@ -174,7 +176,9 @@ it('bounds metadata, record count and unreferenced blobs without writing storage
   expect(await s.api.invoke('app:writeDraftBlob', 'overflow-blob', 'YQ==')).toBe(false)
   await s.api.invoke('app:sweepDrafts')
   expect(await s.api.invoke('app:writeDraftBlob', 'overflow-blob', 'YQ==')).toBe(true)
-  expect(s.storage.setItem).not.toHaveBeenCalled()
+  // Only the owner tag and owner-scoped records reach storage; never a draft.
+  const written = s.storage.setItem.mock.calls.map(([key]: unknown[]) => String(key))
+  expect(written.filter((key) => !/^phosphor\.web\.(owner|sidebar)\.v1$/.test(key))).toEqual([])
 })
 it('refuses draft and blob writes while signed out', async () => {
   const s = await setup()

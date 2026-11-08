@@ -9,7 +9,7 @@
     "src/platform/drafts.ts::createBrowserDrafts[1]": 130,
     "src/platform/handlers.ts::createBrowserHandlers[1]": 101,
     "src/platform/hosts.ts::createBrowserHosts[1]": 224,
-    "src/platform/index.ts::createBrowserApi[1]": 217,
+    "src/platform/index.ts::createBrowserApi[1]": 215,
     "src/platform/remote.test.ts::setup[1]": 133,
     "src/platform/resources.ts::createBrowserResources[1]": 103
   },

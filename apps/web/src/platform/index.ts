@@ -27,6 +27,8 @@ export interface BrowserInvalidation {
 export interface BrowserApiOptions {
   fetch?: typeof fetch
   navigate?: (path: string) => void
+  /** Reloads the page once a different owner signs in while it is open. */
+  reload?: () => void
   openExternal?: (url: string) => void
   storage?: PreferenceStorage | null
   lifecycle?: BrowserLifecycle
@@ -75,6 +77,13 @@ function browserStorage(): PreferenceStorage | undefined {
   }
 }
 
+/** The prefs over the page's storage; the page reloads when another owner signs in on it. */
+const browserPreferences = (options: BrowserApiOptions) =>
+  createBrowserPreferences(
+    options.storage === null ? undefined : (options.storage ?? browserStorage()),
+    options.reload ?? (() => location.reload()),
+  )
+
 /** A failed `pi:command` answers as pi would, so the chat shows it. */
 function piFailure(args: unknown[], error: string) {
   const command = args[1] as IpcInvokeMap['pi:command']['args'][1]
@@ -87,9 +96,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
   dispose(): void
 } {
   const events = createBrowserEvents()
-  const prefs = createBrowserPreferences(
-    options.storage === null ? undefined : (options.storage ?? browserStorage()),
-  )
+  const prefs = browserPreferences(options)
   const invalidation =
     options.invalidation === undefined ? browserInvalidation() : options.invalidation
   let stopped = false,
@@ -106,12 +113,12 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       events.emit('account', view)
       events.emit('machines', undefined)
     },
-    invalidate: () => {
+    invalidate: (owner) => {
       terminals.clear()
       lanes.clear()
       hosts.clear()
       resources.clear()
-      prefs.clearOwner()
+      void prefs.adoptOwner(owner)
       drafts.clearOwner()
       events.clearSessions()
       attention.clear()

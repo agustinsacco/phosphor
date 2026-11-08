@@ -298,10 +298,17 @@ small, never credentials, transcripts or draft contents. Those prefs apply to
 every Host's lanes started from this browser. It also keeps the sidebar's Host
 lane order and collapsed Host folders (`app:setSessionOrder` /
 `app:setCollapsedWorkspaces`, browser-local: `host:` keys only, at most 500 of
-each, malformed entries dropped), as Desktop does, and clears them from storage
-when the owner changes. A page that stays open across the change keeps its
-in-memory order and collapse until reload and may write them back; those keys
-name the previous owner's Hosts, so they match no row. Browser font changes
+each, malformed entries dropped), as Desktop does. Those two are owner-scoped
+records: storage also holds an owner tag (`phosphor.web.owner.v1`), the hex
+SHA-256 of `phosphor.web.owner.v1\0` plus the Control user id, never the id, an
+email or a token. Until the first session read after a load names the owner, the
+prefs read withholds them (and waits for that check once it has started). The
+same owner keeps them across reloads; another owner, a signed-out load, sign-out
+and an unknown owner (no platform crypto) clear them, and the tag is rewritten,
+or emptied when signed out. When a different account signs in while a tab is
+open, the tab reloads, so nothing from the previous account carries over; until
+it does, the owner-scoped writes are dropped, and it reloads at most once. An
+unsent draft is lost on that reload, since drafts never persist in the browser. Browser font changes
 last until reload. Owner loss also clears remembered creation targets/model
 choices and resets browser isolation.
 

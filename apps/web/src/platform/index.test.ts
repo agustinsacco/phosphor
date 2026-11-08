@@ -68,7 +68,7 @@ it('has a concrete callable handler for exactly the supported classification', (
   } as never)
   for (const handler of Object.values(concrete)) expect(typeof handler).toBe('function')
 })
-it('persists only an allowlisted theme; preferences never include account/session material', () => {
+it('persists only an allowlisted theme; preferences never include account/session material', async () => {
   const storage = {
     getItem: vi.fn(() =>
       JSON.stringify({ theme: 'light', csrfToken: 'secret', drafts: { private: 'prompt' } }),
@@ -76,8 +76,8 @@ it('persists only an allowlisted theme; preferences never include account/sessio
     setItem: vi.fn(),
   }
   const prefs = createBrowserPreferences(storage)
-  expect(prefs.get().theme).toBe('light')
-  expect(prefs.get().drafts).toEqual({})
+  expect((await prefs.read()).theme).toBe('light')
+  expect((await prefs.read()).drafts).toEqual({})
   prefs.theme('dark')
   expect(storage.setItem).toHaveBeenCalledWith('phosphor.web.appearance.v1', '{"theme":"dark"}')
 })
