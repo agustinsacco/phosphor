@@ -175,6 +175,8 @@ it('shares one bounded projection, links a blue indicator to a readonly inspecto
   expect(jobs).toHaveBeenCalledTimes(1)
   const indicator = document.querySelector('[data-testid=learning-indicator]')!
   expect(indicator.className).toContain('text-blue-')
+  expect(indicator.getAttribute('data-tooltip')).toBe('Open private read-only learning inspector')
+  expect(indicator.hasAttribute('title')).toBe(false)
   expect(document.body.textContent).toContain('Some learning jobs are omitted')
   await click('Learning · running')
   expect(detail).toHaveBeenCalledWith('learning-job')
