@@ -649,6 +649,42 @@ it('awaits an already-started main-side control write before shutdown records st
   await disposal
   expect(await readdir(f.directory)).toEqual([])
 })
+it.each([
+  ['valid response', '{"type":"no_findings"}'],
+  ['invalid response', 'not valid JSON'],
+])(
+  'preserves known response usage when stopped-marker persistence fails after %s',
+  async (_label, text) => {
+    const recovery = await import('./learning-carrier-recovery')
+    const f = await fixture(),
+      prepared = await f.host.prepare(f.target, 'job', new AbortController().signal)
+    f.stream.result.mockResolvedValue({
+      role: 'assistant',
+      stopReason: 'stop',
+      content: [{ type: 'text', text }],
+      usage: { input: 4, output: 2, cacheRead: 0, cacheWrite: 0 },
+    })
+    vi.spyOn(recovery, 'markLearningWriter').mockRejectedValueOnce(
+      new Error('synthetic stopped-marker persistence failure'),
+    )
+    await expect(
+      prepared.run(request(prepared), new AbortController().signal),
+    ).rejects.toMatchObject({
+      message: 'synthetic stopped-marker persistence failure',
+      learningUsage: { input: 4, output: 2, cacheRead: 0, cacheWrite: 0, reasoning: null },
+    })
+    expect(f.stream).toHaveBeenCalledOnce()
+    expect(f.registry.list()).toEqual([])
+    const root = join(f.directory, (await readdir(f.directory))[0]!)
+    expect(JSON.parse(await readFile(join(root, 'owner.json'), 'utf8')).writerState).toBe(
+      'possibly-running',
+    )
+    expect(await readFile(join(root, 'source.jsonl'), 'utf8')).toContain('final assistant fact')
+    await prepared.dispose()
+    expect(await readdir(f.directory)).toEqual([])
+    expect(await readFile(f.target.sessionPath, 'utf8')).toBe(f.original)
+  },
+)
 it('does not record stopped or acknowledge shutdown when a disposal facade leaves the live writer registered', async () => {
   const f = await fixture(),
     prepared = await f.host.prepare(f.target, 'job', new AbortController().signal)
