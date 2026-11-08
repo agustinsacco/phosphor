@@ -41,6 +41,7 @@ function machineHandlers(
   const share = remoteSkillShare(connection)
   return {
     'hosts:models': machines.models,
+    'hosts:commands': machines.commands,
     'hosts:claude': machines.claude,
     'hosts:claudeUsage': machines.claudeUsage,
     'hosts:providers': machines.providers,

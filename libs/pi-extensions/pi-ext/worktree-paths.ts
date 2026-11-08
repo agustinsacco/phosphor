@@ -43,9 +43,9 @@
  *
  * Imports resolve against pi's own runtime when it loads the extension.
  */
-import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
+import { contains, detectMainRepo } from './main-checkout'
 
 // Loose structural types: the real ones live in @earendil-works/pi-coding-agent,
 // which is provided by pi at load time (not a Phosphor dependency).
@@ -64,11 +64,6 @@ interface ExtensionContext {
 
 /** Built-in pi tools whose `path` argument names a file or directory. */
 const PATH_TOOLS = new Set(['read', 'write', 'edit', 'ls', 'grep', 'find'])
-
-/** `parent` contains `child` (or is it). Both must be absolute. */
-function contains(parent: string, child: string): boolean {
-  return child === parent || child.startsWith(parent.endsWith(sep) ? parent : parent + sep)
-}
 
 /**
  * The in-worktree file the model probably meant, or null when the request is
@@ -102,37 +97,6 @@ export function worktreeCounterpart(input: {
   const candidate = join(cwd, relative(mainRepoPath, requested))
   if (candidate === requested) return null
   return input.exists(candidate) ? candidate : null
-}
-
-/**
- * Main checkout for `cwd`, or null when `cwd` is not a linked worktree.
- *
- * Same one-call detection as the app's own `git-info.ts`: in a linked
- * worktree the git dir is `<main>/.git/worktrees/<name>` while the common dir
- * is `<main>/.git`; in an ordinary repo the two are equal.
- *
- * Synchronous inside pi's `tool_call` hook, so a hung git would stall the
- * tool call; the timeout bounds it at one second and a timeout counts as
- * "not a worktree" for this cwd.
- */
-function detectMainRepo(cwd: string): string | null {
-  try {
-    const out = execFileSync('git', ['rev-parse', '--absolute-git-dir', '--git-common-dir'], {
-      cwd,
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 1000,
-    })
-    const [gitDir, commonDirRaw] = out.split('\n').map((line) => line.trim())
-    if (!gitDir || !commonDirRaw) return null
-    // --git-common-dir comes back relative (".git") at a repo root.
-    const commonDir = resolve(cwd, commonDirRaw)
-    if (gitDir === commonDir) return null
-    return dirname(commonDir)
-  } catch {
-    // Not a repo, no git on PATH, or git timed out: nothing to guard against.
-    return null
-  }
 }
 
 export interface ToolCallBlock {

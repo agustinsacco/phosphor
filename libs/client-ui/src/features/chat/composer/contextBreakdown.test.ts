@@ -29,6 +29,34 @@ describe('parseContextBreakdown', () => {
     expect(parseContextBreakdown(LIVE)?.contextFiles).toBeNull()
   })
 
+  it('keeps the main-checkout exclusion reason and drops any other', () => {
+    const payload = JSON.stringify({
+      ...JSON.parse(LIVE),
+      contextFiles: {
+        off: [],
+        files: [
+          {
+            path: '/main/CLAUDE.md',
+            kind: 'claude',
+            tokens: 2600,
+            included: false,
+            excludedBy: 'main-checkout',
+          },
+          {
+            path: '/wt/CLAUDE.md',
+            kind: 'claude',
+            tokens: 2600,
+            included: true,
+            excludedBy: 'other',
+          },
+        ],
+      },
+    })
+    expect(
+      parseContextBreakdown(payload)?.contextFiles?.files.map((file) => file.excludedBy),
+    ).toEqual(['main-checkout', undefined])
+  })
+
   it('preserves reported scopes and leaves missing or invalid scope unknown', () => {
     const payload = JSON.stringify({
       parts: {},

@@ -241,3 +241,14 @@ it('Mark read on a live This Mac lane clears its unread count as well as marking
   expect(useSessionsStore.getState().unread.live2 ?? 0).toBe(0)
   expect(invoke).toHaveBeenCalledWith('app:markSessionSeen', '/repo/s2.jsonl')
 })
+
+it('Rename… on a This Mac lane opens the inline rename, as a double-click does', async () => {
+  await menuFor('Lane 2')
+  act(() =>
+    [...document.querySelectorAll<HTMLButtonElement>('[data-testid=context-menu] button')]
+      .find((b) => b.textContent === 'Rename…')!
+      .click(),
+  )
+  const input = container.querySelector<HTMLInputElement>('input[aria-label="Session name"]')
+  expect(input?.value).toBe('Lane 2')
+})

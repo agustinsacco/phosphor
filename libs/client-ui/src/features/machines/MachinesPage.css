@@ -73,6 +73,8 @@
 /* Running lanes under a machine row, indented to read as that machine's. */
 .machine-tasks {
   display: grid;
+  /* A long lane title truncates inside the card instead of widening the column. */
+  grid-template-columns: minmax(0, 1fr);
   margin: -4px 16px 10px;
   padding-left: 12px;
   border-left: 1px solid var(--px-border);
