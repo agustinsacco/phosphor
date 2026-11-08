@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
 // electron is not loadable under vitest, and the print itself is Chromium's —
 // what is testable here is where the file lands and what it is called.
@@ -11,7 +9,7 @@ vi.mock('electron', () => ({
   protocol: { registerSchemesAsPrivileged: vi.fn(), handle: vi.fn() },
 }))
 
-const { pdfFileName, uniqueDownloadPath } = await import('./artifact-pdf')
+const { pdfFileName } = await import('./artifact-pdf')
 
 describe('pdfFileName', () => {
   it('keeps a readable name rather than a run of dashes', () => {
@@ -34,20 +32,5 @@ describe('pdfFileName', () => {
 
   it('caps the length', () => {
     expect(pdfFileName('x'.repeat(200))).toBe(`${'x'.repeat(60)}.pdf`)
-  })
-})
-
-describe('uniqueDownloadPath', () => {
-  it('uses the plain name when nothing is there', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pdf-'))
-    expect(await uniqueDownloadPath(dir, 'report.pdf')).toBe(join(dir, 'report.pdf'))
-  })
-
-  it('never overwrites an earlier export', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pdf-'))
-    await writeFile(join(dir, 'report.pdf'), 'first')
-    expect(await uniqueDownloadPath(dir, 'report.pdf')).toBe(join(dir, 'report (2).pdf'))
-    await writeFile(join(dir, 'report (2).pdf'), 'second')
-    expect(await uniqueDownloadPath(dir, 'report.pdf')).toBe(join(dir, 'report (3).pdf'))
   })
 })

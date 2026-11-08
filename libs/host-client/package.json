@@ -68,6 +68,10 @@
       "types": "./src/lane-reads.ts",
       "default": "./src/lane-reads.ts"
     },
+    "./file-bytes": {
+      "types": "./src/file-bytes.ts",
+      "default": "./src/file-bytes.ts"
+    },
     "./settings": {
       "types": "./src/settings.ts",
       "default": "./src/settings.ts"

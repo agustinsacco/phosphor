@@ -69,3 +69,12 @@ export function parseFileBytes(
     ? { size: r.size, version: r.version, data: r.data }
     : null
 }
+
+/** Fixed text for a transfer that did not finish; a Host's own words never reach the UI. */
+export const FILE_BYTES_ERRORS = {
+  tooLarge: 'Larger than 1 GB: too big to bring over from its Host.',
+  changed: 'The file changed on its Host during the download. Try again.',
+  outdated: 'Update this machine’s Host to download its files.',
+  failed: 'Could not download this file.',
+  cancelled: 'Download cancelled.',
+} as const
