@@ -12,6 +12,7 @@ import {
   windowLabel,
 } from './rateLimit'
 import { useSessionClaudeAccount } from './useSessionAccount'
+import { ComposerNotice, NOTICE_ICON_BUTTON_CLASS, NOTICE_LABEL_CLASS } from '../ComposerNotice'
 
 /**
  * Account usage warning, directly above the composer.
@@ -27,13 +28,7 @@ import { useSessionClaudeAccount } from './useSessionAccount'
  * (higher percent, or newly capped) reopens the banner rather than staying
  * hidden behind a dismiss aimed at a milder state.
  */
-export function RateLimitBanner({
-  sessionId,
-  className,
-}: {
-  sessionId: string
-  className?: string
-}): React.JSX.Element | null {
+export function RateLimitBanner({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const statusText = useExtensionUiStore((s) => s.statuses[sessionId]?.[RATE_LIMIT_STATUS_KEY])
   const [dismissed, setDismissed] = useState<string | null>(null)
   // Only asked for once this banner is warranted, and only shown once more
@@ -51,32 +46,24 @@ export function RateLimitBanner({
   const signature = `${limit.windowType}:${limit.status}:${percent}`
   if (dismissed === signature) return null
 
+  const tone = capped || over ? 'danger' : 'warning'
   return (
-    <div className={className}>
-      <div
-        className={clsx(
-          'flex items-center gap-3 rounded-lg border px-3.5 py-2.5',
-          capped || over ? 'bg-danger-soft border-danger/25' : 'bg-warning/10 border-warning/30',
-        )}
+    <ComposerNotice tone={tone} testId="rate-limit-banner">
+      <span className={clsx('shrink-0', NOTICE_LABEL_CLASS[tone])}>
+        {windowLabel(limit.windowType)}
+      </span>
+      <span className="min-w-0 flex-1 truncate">
+        {percent !== null && `${percent}% used`}
+        {capped ? ' · limit reached' : reset ? ` · ${reset}` : ''}
+        {account && account.total > 1 && ` · ${account.email ?? account.label}`}
+      </span>
+      <TooltipButton
+        onClick={() => setDismissed(signature)}
+        aria-label="Dismiss"
+        className={NOTICE_ICON_BUTTON_CLASS}
       >
-        <span
-          className={clsx('text-lg font-medium', capped || over ? 'text-danger' : 'text-warning')}
-        >
-          {windowLabel(limit.windowType)}
-        </span>
-        <span className="text-text-secondary flex-1 truncate text-base">
-          {percent !== null && `${percent}% used`}
-          {capped ? ' · limit reached' : reset ? ` · ${reset}` : ''}
-          {account && account.total > 1 && ` · ${account.email ?? account.label}`}
-        </span>
-        <TooltipButton
-          onClick={() => setDismissed(signature)}
-          aria-label="Dismiss"
-          className="text-text-tertiary hover:text-text shrink-0"
-        >
-          <CloseIcon size={11} strokeWidth={2.5} />
-        </TooltipButton>
-      </div>
-    </div>
+        <CloseIcon size={10} strokeWidth={2.5} />
+      </TooltipButton>
+    </ComposerNotice>
   )
 }

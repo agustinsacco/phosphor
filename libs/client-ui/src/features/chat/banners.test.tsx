@@ -11,7 +11,6 @@ import { ChatView } from './ChatView'
 
 vi.mock('./MessageList', () => ({ MessageList: () => null }))
 vi.mock('./Composer', () => ({ Composer: () => null }))
-vi.mock('./composer/RateLimitBanner', () => ({ RateLimitBanner: () => null }))
 vi.mock('@/features/extension-ui/ExtensionUiHosts', () => ({ StatusStrip: () => null }))
 
 let root: Root | undefined

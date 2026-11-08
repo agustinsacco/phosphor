@@ -1,5 +1,6 @@
 import { TooltipButton } from '@/components/Tooltip'
 import { useId, useState } from 'react'
+import clsx from 'clsx'
 import { SubagentWorkRow, WORK_SECTION_CLASS } from './SubagentWorkRow'
 import { activityText, newestWork } from './subagentPresentation'
 import { ChevronIcon } from '@/components/icons'
@@ -8,6 +9,7 @@ import { useSessionBooting } from './BootingIndicator'
 import { openForegroundSubagent, openSubagents } from './subagentView'
 import { useCurrentWork, type WorkEntry } from './currentWork'
 import { useNow } from './useNow'
+import { ComposerNotice, NOTICE_ACTION_CLASS, NOTICE_ICON_BUTTON_CLASS } from './ComposerNotice'
 
 /** Current evidence stays outside the scrolling transcript and the switchable pane. */
 export function BackgroundWorkIndicator({ sessionId }: { sessionId: string }): React.JSX.Element {
@@ -61,62 +63,13 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
     .join(' · ')
 
   return (
-    <div
-      className="@container mx-auto w-full max-w-3xl px-1 pb-2"
-      data-testid="background-work-indicator"
-    >
-      <div className="bg-bg-secondary border-border rounded-lg border text-base">
-        <div className="flex min-w-0 items-center gap-2 px-2 py-1">
-          <TooltipButton
-            type="button"
-            aria-label={expanded ? 'Collapse current work' : 'Expand current work'}
-            aria-expanded={expanded}
-            aria-controls={detailsId}
-            onClick={() => setExpanded(!expanded)}
-            className="text-text hover:bg-bg flex size-6 shrink-0 items-center justify-center rounded focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            <ChevronIcon expanded={expanded} />
-          </TooltipButton>
-          {active > 0 && (
-            <span
-              aria-hidden
-              className={`tool-running-dot size-2 shrink-0 rounded-full ${attention ? 'bg-warning' : 'bg-accent'}`}
-            />
-          )}
-          {/* Only agent counts are announced; parent turns and the ticker are not. */}
-          <span
-            className="text-text min-w-0 truncate font-medium"
-            data-testid="current-work-headline"
-          >
-            <span role="status">{headline}</span> · parent {parentBusy ? 'working' : 'idle'}
-          </span>
-          <span
-            data-testid="current-work-ticker"
-            className="text-text-secondary min-w-0 flex-1 truncate text-sm"
-          >
-            {latest && !expanded && (
-              <>
-                {latest.title ?? latest.label} ·{' '}
-                <span className={latest.currentTool ? 'tool-running-label' : undefined}>
-                  {activityText(latest, now)}
-                </span>
-              </>
-            )}
-          </span>
-          <TooltipButton
-            type="button"
-            aria-label="View subagents"
-            onClick={() => openSubagents(sessionId)}
-            className="text-text-secondary hover:text-text shrink-0 rounded px-1 py-0.5 text-sm underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            {/* A narrow composer keeps the headline readable before the button's label. */}
-            View<span className="@max-[30rem]:hidden"> subagents</span>
-          </TooltipButton>
-        </div>
+    <ComposerNotice
+      testId="background-work-indicator"
+      details={
         <div
           id={detailsId}
           hidden={!expanded}
-          className="border-border max-h-60 overflow-y-auto overscroll-contain border-t p-1"
+          className="border-border max-h-60 overflow-y-auto overscroll-contain border-t p-1 text-base"
         >
           {current.slice(0, 8).map((entry) => (
             <SubagentWorkRow key={entry.id} entry={entry} now={now} onClick={() => open(entry)} />
@@ -150,7 +103,53 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
             </p>
           )}
         </div>
-      </div>
-    </div>
+      }
+    >
+      <TooltipButton
+        type="button"
+        aria-label={expanded ? 'Collapse current work' : 'Expand current work'}
+        aria-expanded={expanded}
+        aria-controls={detailsId}
+        onClick={() => setExpanded(!expanded)}
+        className={NOTICE_ICON_BUTTON_CLASS}
+      >
+        <ChevronIcon expanded={expanded} size={10} />
+      </TooltipButton>
+      {active > 0 && (
+        <span
+          aria-hidden
+          className={`tool-running-dot size-1.5 shrink-0 rounded-full ${attention ? 'bg-warning' : 'bg-accent'}`}
+        />
+      )}
+      {/* Only agent counts are announced; parent turns and the ticker are not. */}
+      <span
+        className={clsx('min-w-0 truncate', active > 0 && 'text-text')}
+        data-testid="current-work-headline"
+      >
+        <span role="status">{headline}</span> · parent {parentBusy ? 'working' : 'idle'}
+      </span>
+      <span
+        data-testid="current-work-ticker"
+        className="text-text-tertiary min-w-0 flex-1 truncate"
+      >
+        {latest && !expanded && (
+          <>
+            {latest.title ?? latest.label} ·{' '}
+            <span className={latest.currentTool ? 'tool-running-label' : undefined}>
+              {activityText(latest, now)}
+            </span>
+          </>
+        )}
+      </span>
+      <TooltipButton
+        type="button"
+        aria-label="View subagents"
+        onClick={() => openSubagents(sessionId)}
+        className={NOTICE_ACTION_CLASS}
+      >
+        {/* A narrow composer keeps the headline readable before the button's label. */}
+        View<span className="@max-[30rem]:hidden"> subagents</span>
+      </TooltipButton>
+    </ComposerNotice>
   )
 }

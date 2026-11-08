@@ -195,7 +195,7 @@ means picking one path identity for a session file and using it on both sides.
 | H3  | One raw `piCommand` site carries no exemption comment, so nobody can tell if it is deliberate (AGENTS.md fact 3) | `libs/client-ui/src/features/chat/composer/queueActions.ts`                 |
 | H4  | `useAsyncAction` is not adopted by `MessageItem`, `ForkPickerModal`, `TreeViewModal`                             | those three files                                                           |
 | H5  | Several public helpers have only one production consumer                                                         | `apps/desktop/electron/pi/agent-settings.ts`, `libs/shared/src/mcp.ts`      |
-| H6  | Three separate banner implementations that a single `Notice` primitive would replace                             | `RetryStrip.tsx`, `banners.tsx`, `composer/RateLimitBanner.tsx`             |
+| H6  | The transcript-top banners do not share the composer notices' `ComposerNotice` shell                             | `libs/client-ui/src/features/chat/banners.tsx`                              |
 | H7  | Two hover-action implementations in one file                                                                     | `libs/client-ui/src/features/chat/MessageItem.tsx`                          |
 | H8  | Per-component cost rows are still missing from the usage popover                                                 | `libs/client-ui/src/features/chat/composer/` — `ContextMeter`               |
 
