@@ -1,5 +1,5 @@
 import type { BrainAgentMap, BrainAgentMethod, BrainInvokeMap } from '@phosphor/shared/brain'
-import type { SqliteConstructor } from '@phosphor/memory-engine/types'
+import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { BrainEmbeddings } from './embedding/embedding-port'
 
 /** The IPC commands without their `brain:` prefix. Desktop's handlers call these. */
@@ -26,7 +26,8 @@ export interface BrainLanes {
 export interface BrainServiceOptions {
   /** `<userData>/brain`. Holds brain.sqlite, the model and short-lived fork directories. */
   directory: string
-  Database: SqliteConstructor
+  /** Opens `<directory>/brain.sqlite`; Desktop passes `openBrainStore` with its SQLite. */
+  openStore: (path: string) => BrainStore
   embeddings: BrainEmbeddings
   lanes: BrainLanes
   /** The guard extension every fork loads: it refuses all tool calls. */
