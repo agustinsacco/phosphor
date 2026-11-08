@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { piCallOk } from '@/lib/rpc'
 import { Spinner } from '@/components/icons'
+import clsx from 'clsx'
+import { ComposerNotice, NOTICE_ACTION_CLASS } from './ComposerNotice'
 
 export function RetryStrip({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const retry = useChatStore((s) => s.sessions[sessionId]?.retry)
@@ -28,23 +30,24 @@ export function RetryStrip({ sessionId }: { sessionId: string }): React.JSX.Elem
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-1 pb-2">
-      <div className="bg-warning/10 border-warning/30 flex items-center gap-2.5 rounded-lg border px-3 py-2 text-base">
-        <Spinner className="text-warning" />
-        <span className="text-text">
-          Retrying ({retry.attempt}/{retry.maxAttempts})
-          {remaining > 0 ? ` in ${Math.ceil(remaining / 1000)}s` : '…'}
-        </span>
-        <span className="text-text-tertiary flex-1 truncate" data-tooltip={retry.errorMessage}>
-          {retry.errorMessage}
-        </span>
-        <TooltipButton
-          onClick={() => void cancel()}
-          className="text-text-secondary hover:text-danger shrink-0 text-base font-medium transition-colors"
-        >
-          Cancel
-        </TooltipButton>
-      </div>
-    </div>
+    <ComposerNotice tone="warning" testId="retry-strip">
+      <Spinner className="text-warning" />
+      <span className="text-text shrink-0">
+        Retrying ({retry.attempt}/{retry.maxAttempts})
+        {remaining > 0 ? ` in ${Math.ceil(remaining / 1000)}s` : '…'}
+      </span>
+      <span
+        className="text-text-tertiary min-w-0 flex-1 truncate"
+        data-tooltip={retry.errorMessage}
+      >
+        {retry.errorMessage}
+      </span>
+      <TooltipButton
+        onClick={() => void cancel()}
+        className={clsx(NOTICE_ACTION_CLASS, 'hover:text-danger')}
+      >
+        Cancel
+      </TooltipButton>
+    </ComposerNotice>
   )
 }

@@ -4,7 +4,6 @@ import { TooltipButton } from '@/components/Tooltip'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ImageContent } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
-import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
 import { ContextMeter } from './composer/ContextMeter'
 import { ContinueButton } from './composer/ContinueButton'
@@ -13,11 +12,9 @@ import { namedProvider } from './composer/ModelChip'
 import { submitBehavior } from './composer/submitBehavior'
 import { buildCommandEntries, type NativeCommand } from './composer/CommandMenu'
 import { useSlashMenu } from './composer/useSlashMenu'
-import { RetryStrip } from './RetryStrip'
 import { recallNext, recallPrevious } from './promptHistory'
-import { AgentLaunchStrip, WorkingIndicator } from './WorkingIndicator'
-import { BackgroundWorkIndicator } from './BackgroundWorkIndicator'
-import { BootingIndicator, useSessionBooting } from './BootingIndicator'
+import { useSessionBooting } from './BootingIndicator'
+import { ComposerStrips } from './ComposerStrips'
 import { Spinner } from '@/components/icons'
 import { StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { useChatUiStore } from './uiState'
@@ -518,29 +515,6 @@ export function Composer({
     </div>
   )
 }
-
-/**
- * The status strips above the field. Memoised on the session id: they read
- * the chat store directly, so the draft changing is never a reason to render
- * them again.
- */
-const ComposerStrips = memo(function ComposerStrips({
-  sessionId,
-}: {
-  sessionId: string
-}): React.JSX.Element {
-  return (
-    <>
-      <WorkingIndicator sessionId={sessionId} />
-      <BootingIndicator sessionId={sessionId} />
-      <BackgroundWorkIndicator sessionId={sessionId} />
-      <AgentLaunchStrip sessionId={sessionId} />
-      <RetryStrip sessionId={sessionId} />
-      <WidgetSlot sessionId={sessionId} placement="aboveEditor" />
-      <QueueChips sessionId={sessionId} />
-    </>
-  )
-})
 
 const BelowEditorWidgets = memo(function BelowEditorWidgets({
   sessionId,

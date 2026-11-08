@@ -281,6 +281,11 @@ The composer is one small field with several ways in.
   configuration failure links its docs. **Retry failed turn** resends the last
   failed prompt once the fix is in, while the lane is idle and controlled.
 - Auto-retry: an inline strip "Retrying (2/3) in 4s — <error>" with cancel.
+- Notices above the composer (account limit, current sub-agent work, auto-retry)
+  share one shell, `ComposerNotice`: a single compact line at the composer's
+  width, tinted only by tone (neutral, warning, danger), with any extra detail
+  folded under the line. They stack in the composer's strip slot, so they read
+  as one quiet family rather than competing banners.
 - Compaction: a system divider "Context compacted — N tokens summarized" with
   an expandable summary, drawn from pi's `compaction_end` on every provider,
   Claude Code included ([cli-providers.md](cli-providers.md#compaction-has-one-owner)),
@@ -1157,7 +1162,8 @@ This is the one figure on the popover that comes from the account rather than
 from a token count, which makes it the one to trust when they disagree.
 
 Crossing the CLI's warning threshold (≥75% utilized, or a hard cap) also opens
-a dismissible banner above the composer (`composer/RateLimitBanner.tsx`), gated
+a dismissible one-line notice in the composer's strip stack
+(`composer/RateLimitBanner.tsx`), gated
 by the same `needsAttention` the popover's colouring uses, so the two surfaces
 cannot disagree about what counts as urgent. It goes quiet once a fresh event
 reports a healthy percentage or `resetsAt` has passed. A dismiss is keyed to

@@ -7,7 +7,6 @@ import { Composer } from './Composer'
 import { ForkPickerModal } from './ForkPickerModal'
 import { StatusStrip } from '@/features/extension-ui/ExtensionUiHosts'
 import { CrashBanner, NoModelsBanner, RewoundBanner } from './banners'
-import { RateLimitBanner } from './composer/RateLimitBanner'
 
 /**
  * The chat column: banners, transcript, composer.
@@ -46,11 +45,6 @@ export function ChatView({
         <NoModelsBanner sessionId={sessionId} />
         <RewoundBanner sessionId={sessionId} />
         <MessageList sessionId={sessionId} />
-        {/* Both share the composer's horizontal gutter and maximum width: a
-          right pane must narrow every surface above the composer together. */}
-        <div className="shrink-0 px-6 pt-1">
-          <RateLimitBanner sessionId={sessionId} className="mx-auto w-full max-w-3xl" />
-        </div>
         {readOnly && header && remote ? (
           <ReadOnlyLaneBar sessionId={sessionId} />
         ) : readOnly ? (
