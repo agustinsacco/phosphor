@@ -1,5 +1,5 @@
-import { lstat, readdir, realpath, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { lstat, open, readdir, realpath, rm, rmdir, unlink, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { readLearningFile } from './learning-source-admission'
 
 export const LEARNING_CARRIER_LIMIT = 2_000_000
@@ -27,7 +27,14 @@ export async function purgeLearningRoot(root: string, jobId: string, nonce: stri
   if (owner.jobId !== jobId || owner.nonce !== nonce)
     throw new Error('Learning cleanup ownership mismatch')
   await auditDirectory(root, jobId)
-  await rm(root, { recursive: true, force: true })
+  // Keep the durable ownership record until every copied payload has been unlinked.
+  for (const name of await readdir(root)) {
+    if (name !== 'owner.json') await rm(join(root, name), { recursive: true, force: true })
+  }
+  await syncLearningDirectory(root)
+  await unlink(join(root, 'owner.json'))
+  await rmdir(root)
+  await syncLearningDirectory(dirname(root))
 }
 async function auditDirectory(directory: string, jobId: string): Promise<void> {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -66,5 +73,14 @@ async function auditDirectory(directory: string, jobId: string): Promise<void> {
       owners.some((row) => row.data?.kind !== 'brain' || row.data.jobId !== jobId)
     )
       throw new Error('Learning cleanup transcript ownership mismatch')
+  }
+}
+
+export async function syncLearningDirectory(path: string): Promise<void> {
+  const file = await open(path, 'r')
+  try {
+    await file.sync()
+  } finally {
+    await file.close()
   }
 }

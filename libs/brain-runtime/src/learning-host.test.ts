@@ -20,6 +20,7 @@ import { createSessionService } from '@phosphor/session-runtime/pi/session-servi
 import { createSessionStartup } from '@phosphor/session-runtime/pi/session-startup'
 import { sessionFixture } from '@phosphor/session-runtime/pi/__fixtures__/session-runtime'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
+import type { LearningHostOptions } from './learning-host'
 import { createLearningHost } from './learning-host'
 
 const cleanups: Array<() => Promise<unknown>> = []
@@ -256,7 +257,7 @@ async function fixture() {
       cancel: async () => {},
     },
   })
-  const host = createLearningHost({
+  const hostOptions: LearningHostOptions = {
     directory,
     extensionPath,
     registry,
@@ -272,8 +273,19 @@ async function fixture() {
     onError: (error) => {
       throw error
     },
-  })
-  return { ...selected, root, host, registry, sessions, stream, directory, capabilities }
+  }
+  const host = createLearningHost(hostOptions)
+  return {
+    ...selected,
+    root,
+    host,
+    hostOptions,
+    registry,
+    sessions,
+    stream,
+    directory,
+    capabilities,
+  }
 }
 function request(
   prepared: Awaited<ReturnType<ReturnType<typeof createLearningHost>['prepare']>>,
@@ -390,9 +402,13 @@ it('cancels startup, purges its copy, handles late readiness and remains retryab
   f.capabilities.stateGate = new Promise<void>((resolve) => {
     ready = resolve
   })
+  const started = new Promise<void>((resolve) => {
+    f.registry.once('created', () => resolve())
+  })
   const preparation = f.host.prepare(f.target, 'job', cancel.signal)
-  await vi.waitFor(() => expect(f.registry.list()).toHaveLength(1))
+  await started
   cancel.abort(new Error('startup cancelled'))
+  ready()
   await expect(preparation).rejects.toThrow()
   expect(f.registry.list()).toEqual([])
   expect(await readdir(f.directory)).toEqual([])
@@ -553,4 +569,97 @@ it('can consume a supplied trusted source-process binding rather than permanentl
   expect(f.registry.list().map((item) => item.sessionId)).toEqual(['original-live'])
   expect(f.stream).not.toHaveBeenCalled()
   expect(await readFile(f.target.sessionPath, 'utf8')).toBe(f.original)
+})
+it('awaits shutdown through a pending startup instead of acknowledging cleanup with future writes reachable', async () => {
+  const f = await fixture()
+  let ready = () => {}
+  f.capabilities.stateGate = new Promise<void>((resolve) => {
+    ready = resolve
+  })
+  const started = new Promise<void>((resolve) => {
+    f.registry.once('created', () => resolve())
+  })
+  const preparation = f.host.prepare(f.target, 'job', new AbortController().signal)
+  const rejected = expect(preparation).rejects.toThrow()
+  await started
+  let finished = false
+  const disposal = f.host.dispose().then(() => {
+    finished = true
+  })
+  await vi.waitFor(() => expect(f.registry.list()).toEqual([]))
+  expect(finished).toBe(false)
+  const root = join(f.directory, (await readdir(f.directory))[0]!)
+  expect(JSON.parse(await readFile(join(root, 'owner.json'), 'utf8')).writerState).toBe(
+    'possibly-running',
+  )
+  ready()
+  await rejected
+  await disposal
+  expect(await readdir(f.directory)).toEqual([])
+})
+it('records stopped before a failed purge, enabling a fresh host to recover preview input without any job receipt', async () => {
+  const files = await import('./learning-carrier-files')
+  const f = await fixture(),
+    prepared = await f.host.prepare(f.target, 'job', new AbortController().signal)
+  const root = join(f.directory, (await readdir(f.directory))[0]!)
+  vi.spyOn(files, 'purgeLearningRoot').mockRejectedValueOnce(
+    new Error('synthetic interrupted purge'),
+  )
+  await expect(prepared.dispose()).rejects.toThrow('interrupted purge')
+  expect(f.registry.list()).toEqual([])
+  expect(JSON.parse(await readFile(join(root, 'owner.json'), 'utf8')).writerState).toBe('stopped')
+  expect(await readFile(join(root, 'source.jsonl'), 'utf8')).toContain('final assistant fact')
+  await createLearningHost(f.hostOptions).recover()
+  expect(await readdir(f.directory)).toEqual([])
+  expect(await readFile(f.target.sessionPath, 'utf8')).toBe(f.original)
+})
+it('awaits an already-started main-side control write before shutdown records stopped or purges the root', async () => {
+  const files = await import('./learning-carrier-files')
+  const f = await fixture(),
+    prepared = await f.host.prepare(f.target, 'job', new AbortController().signal)
+  let entered = () => {},
+    release = () => {}
+  const enteredWrite = new Promise<void>((resolve) => {
+    entered = resolve
+  })
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const write = files.writeLearningControl
+  vi.spyOn(files, 'writeLearningControl').mockImplementationOnce(async (path, value) => {
+    entered()
+    await gate
+    await write(path, value)
+  })
+  const running = prepared.run(request(prepared), new AbortController().signal)
+  const rejected = expect(running).rejects.toThrow()
+  await enteredWrite
+  let finished = false
+  const disposal = f.host.dispose().then(() => {
+    finished = true
+  })
+  await vi.waitFor(() => expect(f.registry.list()).toEqual([]))
+  expect(finished).toBe(false)
+  const root = join(f.directory, (await readdir(f.directory))[0]!)
+  expect(JSON.parse(await readFile(join(root, 'owner.json'), 'utf8')).writerState).toBe(
+    'possibly-running',
+  )
+  release()
+  await rejected
+  await disposal
+  expect(await readdir(f.directory)).toEqual([])
+})
+it('does not record stopped or acknowledge shutdown when a disposal facade leaves the live writer registered', async () => {
+  const f = await fixture(),
+    prepared = await f.host.prepare(f.target, 'job', new AbortController().signal)
+  const root = join(f.directory, (await readdir(f.directory))[0]!)
+  vi.spyOn(f.sessions, 'disposeBrain').mockResolvedValueOnce(undefined)
+  await expect(f.host.dispose()).rejects.toThrow('not confirmed')
+  expect(JSON.parse(await readFile(join(root, 'owner.json'), 'utf8')).writerState).toBe(
+    'possibly-running',
+  )
+  expect(await readFile(join(root, 'source.jsonl'), 'utf8')).toContain('final assistant fact')
+  await f.host.dispose()
+  await prepared.dispose()
+  expect(await readdir(f.directory)).toEqual([])
 })
