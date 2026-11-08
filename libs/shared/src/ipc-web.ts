@@ -1,4 +1,5 @@
 import type { IpcInvokeChannel } from './ipc'
+import { connectorConfig, LANE_TRANSFER_WEB } from './ipc-web-exclusions'
 
 export type WebIpcClassification =
   { kind: 'remote-supported' } | { kind: 'browser-local' } | { kind: 'unsupported'; reason: string }
@@ -13,9 +14,6 @@ const localPi = unsupported(
 const native = unsupported('This native or mutating Host feature is unavailable in the browser.')
 const localRoutines = unsupported(
   'Local routine execution and native background services require Desktop.',
-)
-const connectorConfig = unsupported(
-  'Connector configuration and credentials belong to the Host or Desktop.',
 )
 const hostFilesOnly = unsupported('Browser file access goes through Host reads and writes only.')
 const localBrain = unsupported('Brain is a local Desktop prototype; remote access is unavailable.')
@@ -42,6 +40,7 @@ export const IPC_WEB = {
   'brain:transcript': localBrain,
   'hosts:tailscaleStatus': native,
   'hosts:models': remote,
+  'hosts:commands': remote,
   'hosts:claude': remote,
   'hosts:claudeUsage': remote,
   'hosts:providers': remote,
@@ -50,6 +49,7 @@ export const IPC_WEB = {
   'hosts:skills': remote,
   'hosts:skillExport': remote,
   'hosts:skillInstall': remote,
+  ...LANE_TRANSFER_WEB,
   'hosts:providerLogin': remote,
   'hosts:settingsAccess': remote,
   'hosts:settingsRead': remote,

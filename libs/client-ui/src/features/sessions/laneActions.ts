@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { ContextMenuItem } from '@/components/ContextMenu'
 import type { LanePrefs } from '@shared/models'
 
@@ -18,6 +19,7 @@ export type LaneActionId =
   | 'markRead'
   | 'fork'
   | 'clone'
+  | 'moveTo'
   | 'exportHtml'
   | 'copyDebugInfo'
   | 'copySpend'
@@ -54,6 +56,15 @@ export type LaneActionHandlers = Partial<
     releaseControl: () => void
   }
 >
+
+/** What a machine's lane-actions hook gives its row: the menu, the dialogs it opens, the marker picker. */
+export interface LaneActions {
+  items: () => ContextMenuItem[]
+  /** Rendered beside the row; the dialogs portal through `ModalOverlay`. */
+  dialogs: ReactNode
+  /** Opens the marker picker; absent where this lane cannot be marked now. */
+  pickMarker?: () => void
+}
 
 /**
  * A lane's menu on every machine and surface: This Mac's order, with a Host's
@@ -113,6 +124,7 @@ export function laneActions(
   const copies: ContextMenuItem[] = [
     ...offer('fork', 'Fork', handlers.fork, 'new branch'),
     ...offer('clone', 'Clone', handlers.clone),
+    ...offer('moveTo', 'Move to…', handlers.moveTo),
     ...offer('exportHtml', 'Export HTML…', handlers.exportHtml),
     ...offer('copyDebugInfo', 'Copy debug info', handlers.copyDebugInfo),
     ...(ctx.spend ? offer('copySpend', 'Copy spend', handlers.copySpend, ctx.spend.hint) : []),

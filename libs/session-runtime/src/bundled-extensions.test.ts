@@ -9,10 +9,13 @@ describe('bundledExtensions', () => {
   it('includes production extension entry points, without helpers, tests or optional packages', () => {
     // Modules imported by an extension, not loaded separately with -e:
     // Budget/files/global/ledger helpers belong to context-breakdown; store/snapshot helpers to artifacts;
-    // status-keys is the shared wire vocabulary, imported by producers and consumers.
+    // main-checkout is the worktree detector shared by worktree-paths and context-files;
+    // status-keys is the shared wire vocabulary, imported by producers and consumers;
+    // subagent-children is context-breakdown's, and what pi-subagents children load.
     const imported = new Set([
       'context-budget.ts',
       'context-files.ts',
+      'main-checkout.ts',
       'global-context.ts',
       'message-ledger.ts',
       'swarm.ts',
@@ -20,6 +23,7 @@ describe('bundledExtensions', () => {
       'subagent-snapshot.ts',
       'status-keys.ts',
       'pi-api.ts',
+      'subagent-children.ts',
       'brain-learning.ts',
       'brain-learning-context.ts',
       'brain-learning-result.ts',

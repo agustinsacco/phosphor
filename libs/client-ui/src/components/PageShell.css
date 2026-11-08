@@ -88,3 +88,19 @@
     flex-basis: 100%;
   }
 }
+
+/* A phone page is a tab's root: a large title, its actions beside it while they fit. */
+[data-form-factor='compact'] .page-shell-header {
+  padding-block: 0.75rem 0.25rem;
+}
+[data-form-factor='compact'] .page-shell-title {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+/* Beats the narrow-container rule above: the actions take a row of their own only when they must. */
+[data-form-factor='compact'] .page-shell-actions:not(:empty) {
+  order: 0;
+  flex: 0 1 auto;
+  margin-inline-start: auto;
+}

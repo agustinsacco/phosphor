@@ -17,10 +17,11 @@ import { STOP_NEEDS_PROMPT } from '@/features/machines/useLaneControl'
 import { openPullRequest } from './PrBadge'
 import { useRemotePr } from './remotePullRequests'
 import { useRemoteLaneTitle } from './RemoteLanePresentation'
-import { laneActions, type LaneActionHandlers } from './laneActions'
+import { laneActions, type LaneActionHandlers, type LaneActions } from './laneActions'
 import { hostLaneContext, remoteLaneAccess, type RemoteLaneActionState } from './remoteLaneActions'
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
 import { copyDebugInfo, copySpend, exportRemoteLaneHtml } from './sessionActions'
+import { openLaneMove } from './sidebarActions'
 import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
 import { MarkerPickerModal } from './MarkerPickerModal'
 import { useSessionOrderActions } from './SessionList'
@@ -33,6 +34,18 @@ type HostLaneChannel =
   | 'hosts:stopLane'
   | 'hosts:resumeLane'
   | 'hosts:markRead'
+
+/** The shared lane actions, plus what a Host lane's surfaces also show: control, the rename and a refusal. */
+export interface RemoteLaneActions extends LaneActions, ReturnType<typeof remoteLaneAccess> {
+  title: string
+  busy: boolean
+  /** The last refused action's reason, for a sheet that stays open to explain it. */
+  error: string | null
+  deletingInBulk: boolean
+  /** Names the lane through its live session; resolves false when the Host refused. */
+  saveName: (name: string) => Promise<boolean>
+  marker: string | null
+}
 
 /**
  * One Host lane's actions and the dialogs they open, for any surface that
@@ -56,7 +69,7 @@ export function useRemoteLaneActions({
   withOpen?: boolean
   onRename: () => void
   onDone?: () => void
-}) {
+}): RemoteLaneActions {
   const { navigate } = useNavigation()
   const { nativeFiles } = usePlatform()
   const orderActions = useSessionOrderActions()
@@ -70,8 +83,8 @@ export function useRemoteLaneActions({
     ready,
     entry?.phosphorId,
     runner.busy,
+    nativeFiles,
   )
-  const busy = state.busy
   const access = remoteLaneAccess(state)
   const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
   const handlers = laneHandlers({
@@ -93,7 +106,7 @@ export function useRemoteLaneActions({
 
   /** Names the lane through its live session; resolves false when the Host refused. */
   const saveName = async (name: string): Promise<boolean> =>
-    access.controlled && access.running && !!name.trim() && !busy
+    access.controlled && access.running && !!name.trim() && !state.busy
       ? runner.act(async () => renameLane(await session(), name.trim()))
       : false
   const dialogs = (
@@ -112,7 +125,7 @@ export function useRemoteLaneActions({
     items: (): ContextMenuItem[] => laneActions(hostLaneContext(state), handlers, orderActions),
     dialogs,
     title,
-    busy,
+    busy: state.busy,
     error: runner.error,
     deletingInBulk,
     saveName,
@@ -129,6 +142,7 @@ function useLaneActionState(
   ready: boolean,
   sessionId: string | undefined,
   running: boolean,
+  nativeFiles: boolean,
 ) {
   const caps = useMachineCaps(hostId)
   const key = remoteLaneResourceKey(hostId, lane.laneId)
@@ -147,6 +161,7 @@ function useLaneActionState(
     stopBlocked: unprompted ? STOP_NEEDS_PROMPT : null,
     pr: pr ?? null,
     markers,
+    ...(!nativeFiles ? { moveBlocked: 'Moving lanes requires Desktop.' } : {}),
   }
   /** The row's marker: the explicit Host choice, else derived from the branch, as on This Mac. */
   const marker = markers === 'off' ? null : remoteLaneMarker(lane, markers)
@@ -243,6 +258,11 @@ function laneHandlers({
     makeRoutine: () => void act(async () => routineFromLane(hostId, lane, await session())),
     exportHtml: () =>
       void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),
+    moveTo: () =>
+      openLaneMove({ machine: hostId, laneId: lane.laneId }, title, {
+        pinned: lane.pinned === true,
+        marker: remoteLaneMarker(lane, useLanePrefsStore.getState().lanes.markers),
+      }),
     copyDebugInfo: () =>
       void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane, sessionId))),
     copySpend: () => void act(async () => copySpend(await sessionCost(await session()))),

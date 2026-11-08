@@ -13,6 +13,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useLayoutStore } from '@/stores/layout'
 import { BrowserShell } from './BrowserShell'
 import { useBrowserNavigation } from './useBrowserNavigation'
+import { clearBrowserMemory } from './browserMemory'
 
 vi.mock('@/navigation/screens', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -64,6 +65,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
+  clearBrowserMemory()
   vi.unstubAllGlobals()
 })
 
@@ -99,9 +101,12 @@ async function chooseMachine(scope: ParentNode, text: string): Promise<void> {
   expect(option, text).toBeDefined()
   await act(async () => option!.click())
 }
-async function openDrawer(): Promise<Element> {
-  await act(async () => byLabel(container, 'Open navigation').click())
-  return document.querySelector('[role="dialog"][aria-label="Navigation"]')!
+const tab = (name: string): HTMLButtonElement => {
+  const found = [
+    ...container.querySelectorAll<HTMLButtonElement>('nav[aria-label="Tabs"] button'),
+  ].find((b) => b.textContent === name)
+  expect(found, name).toBeDefined()
+  return found!
 }
 
 /**
@@ -135,22 +140,22 @@ it('wide: the column renders the shared composition, the machine scope and the H
   expect(container.querySelectorAll('button[aria-label="Machine filter"]')).toHaveLength(1)
 })
 
-it('an old /inbox link opens the lane list, since neither client has an Inbox', async () => {
+it('an old /inbox link opens Home, since neither client has an Inbox', async () => {
   window.history.replaceState(null, '', '/inbox')
   await render(WIDE_BROWSER_PLATFORM)
-  expect(container.querySelector('.page-shell h1')?.textContent).toBe('Lanes')
-  expect(container.querySelector('section[aria-label="Lanes"]')).not.toBeNull()
+  expect(container.querySelector('.page-shell h1')?.textContent).toBe('Home')
+  expect(container.querySelector('[data-testid="home-board"]')).not.toBeNull()
 })
 
-it('phone: the drawer renders the same body, and opening a lane from it closes the drawer', async () => {
+it("phone: Home lists every machine's lanes; a lane opens without the tabs and Back returns", async () => {
   await render(COMPACT_PLATFORM)
-  expect(container.querySelector('select[aria-label="Machine filter"]')).toBeNull()
-  const drawer = await openDrawer()
-  expectSharedNavigation(drawer)
-  const lane = drawer.querySelector<HTMLButtonElement>(`button[aria-label="${LANE.title}"]`)!
+  expect(container.querySelector('aside.browser-navigation')).toBeNull()
+  expect(tab('Home').getAttribute('aria-current')).toBe('page')
+  const lane = container.querySelector<HTMLButtonElement>(`button[aria-label="${LANE.title}"]`)!
+  expect(lane.closest('[data-testid="home-board"]')).not.toBeNull()
   await act(async () => lane.click())
   expect(window.location.pathname).toBe(`/lanes/${MOCK_HOST_ID}/${LANE.laneId}/chat`)
-  expect(document.querySelector('[aria-label="Navigation"]')).toBeNull()
+  expect(container.querySelector('nav[aria-label="Tabs"]')).toBeNull()
 })
 
 it('choosing a machine in the scope updates the URL, and This Mac is never offered', async () => {
@@ -169,12 +174,43 @@ it('choosing a machine in the scope updates the URL, and This Mac is never offer
   expect(useRemoteLanesStore.getState().filter).toBe('all')
 })
 
-it('choosing a machine in the drawer keeps it open on that machine', async () => {
+it('phone: a machine chip scopes Home in the URL, and the Home tab returns there', async () => {
   await render(COMPACT_PLATFORM)
-  const drawer = await openDrawer()
-  await chooseMachine(drawer, 'Fixture Host')
+  const chip = [
+    ...container.querySelectorAll<HTMLButtonElement>('[aria-label="Lanes on"] button'),
+  ].find((b) => b.textContent === 'Fixture Host')!
+  await act(async () => chip.click())
   expect(window.location.pathname).toBe(`/lanes/${MOCK_HOST_ID}`)
-  expect(document.querySelector('[aria-label="Navigation"]')).not.toBeNull()
+  expect(useRemoteLanesStore.getState().filter).toBe(MOCK_HOST_ID)
+  await act(async () => tab('Machines').click())
+  expect(window.location.pathname).toBe('/pages/machines')
+  await act(async () => tab('Home').click())
+  expect(window.location.pathname).toBe(`/lanes/${MOCK_HOST_ID}`)
+  await act(async () => tab('Home').click())
+  expect(window.location.pathname).toBe('/lanes')
+})
+
+it('phone: New lane opens on the machine in view, Library keeps it, and Library remembers its page', async () => {
+  window.history.replaceState(null, '', `/lanes/${MACHINE.id}`)
+  await render(COMPACT_PLATFORM)
+  await act(async () =>
+    [...container.querySelectorAll('button')]
+      .find((b) => b.textContent?.trim() === 'New lane')!
+      .click(),
+  )
+  expect(window.location.pathname).toBe(`/new/${MACHINE.id}`)
+  await act(async () => byLabel(container, 'Back to lanes').click())
+  expect(window.location.pathname).toBe(`/lanes/${MACHINE.id}`)
+  await act(async () => tab('Library').click())
+  expect(window.location.pathname).toBe(`/pages/skills/${MACHINE.id}`)
+  const routines = container.querySelector<HTMLButtonElement>(
+    '[role="radiogroup"][aria-label="Library"] [role="radio"]:nth-child(2)',
+  )!
+  await act(async () => routines.click())
+  expect(window.location.pathname).toBe(`/pages/routines/${MACHINE.id}`)
+  await act(async () => tab('Home').click())
+  await act(async () => tab('Library').click())
+  expect(window.location.pathname).toBe(`/pages/routines/${MACHINE.id}`)
 })
 
 it('New and the footer Settings gear navigate through the URL with the current machine', async () => {
@@ -190,11 +226,10 @@ it('New and the footer Settings gear navigate through the URL with the current m
   expect(window.location.pathname).toBe(`/pages/settings/${MOCK_HOST_ID}`)
 })
 
-it('phone: the footer Settings gear closes the drawer and opens Settings for the machine in scope', async () => {
+it('phone: the Settings tab opens Settings for the machine in view', async () => {
   window.history.replaceState(null, '', `/lanes/${MOCK_HOST_ID}`)
   await render(COMPACT_PLATFORM)
-  const drawer = await openDrawer()
-  await act(async () => byLabel(drawer, 'Settings').click())
+  await act(async () => tab('Settings').click())
   expect(window.location.pathname).toBe(`/pages/settings/${MOCK_HOST_ID}`)
-  expect(document.querySelector('[aria-label="Navigation"]')).toBeNull()
+  expect(tab('Settings').getAttribute('aria-current')).toBe('page')
 })

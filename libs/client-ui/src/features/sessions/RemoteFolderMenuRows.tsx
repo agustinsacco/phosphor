@@ -4,8 +4,9 @@ import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { moveRemoteRepository } from './remoteRepositoryOrder'
 
 /**
- * A Host folder's own menu rows, the same on Desktop's sidebar and in the browser: add another
- * folder, remove this one, and move it within the Host's order. All change the Host's config.
+ * A Host folder's own menu rows, the same on Desktop's sidebar and in the browser, in This Mac's
+ * order: move it within the Host's order, remove it, then add another folder. All change the
+ * Host's config.
  */
 export function RemoteFolderMenuRows({
   hostId,
@@ -31,15 +32,15 @@ export function RemoteFolderMenuRows({
   }
   return (
     <>
+      <MenuRow active={false} disabled={!writable || index <= 0} onClick={() => move('up')}>
+        Move up
+      </MenuRow>
       <MenuRow
         active={false}
-        disabled={!writable}
-        onClick={() => {
-          onDone()
-          onAdd()
-        }}
+        disabled={!writable || index < 0 || index >= ids.length - 1}
+        onClick={() => move('down')}
       >
-        Add folder on {machineLabel(hostId)}…
+        Move down
       </MenuRow>
       <MenuRow
         active={false}
@@ -51,15 +52,15 @@ export function RemoteFolderMenuRows({
       >
         Remove from {machineLabel(hostId)}
       </MenuRow>
-      <MenuRow active={false} disabled={!writable || index <= 0} onClick={() => move('up')}>
-        Move up
-      </MenuRow>
       <MenuRow
         active={false}
-        disabled={!writable || index < 0 || index >= ids.length - 1}
-        onClick={() => move('down')}
+        disabled={!writable}
+        onClick={() => {
+          onDone()
+          onAdd()
+        }}
       >
-        Move down
+        Add folder on {machineLabel(hostId)}…
       </MenuRow>
     </>
   )

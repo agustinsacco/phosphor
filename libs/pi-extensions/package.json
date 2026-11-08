@@ -80,6 +80,10 @@
       "types": "./pi-ext/global-context.ts",
       "default": "./pi-ext/global-context.ts"
     },
+    "./main-checkout": {
+      "types": "./pi-ext/main-checkout.ts",
+      "default": "./pi-ext/main-checkout.ts"
+    },
     "./swarm": {
       "types": "./pi-ext/swarm.ts",
       "default": "./pi-ext/swarm.ts"
@@ -99,6 +103,10 @@
     "./optional/permission-gate": {
       "types": "./pi-ext/optional/permission-gate.ts",
       "default": "./pi-ext/optional/permission-gate.ts"
+    },
+    "./subagent-children": {
+      "types": "./pi-ext/subagent-children.ts",
+      "default": "./pi-ext/subagent-children.ts"
     },
     "./tool-name-guard": {
       "types": "./pi-ext/tool-name-guard.ts",

@@ -31,7 +31,7 @@ test('browser Host settings load only after explicit configuration access', asyn
 }, info) => {
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
+  await expect(page.getByTestId('home-board')).toBeVisible()
   let settings = await openSettings(page, stack.origin, 'Accounts')
   // Lane access alone never configures the Host: nothing loads before the opt-in.
   await expect(settings).toContainText('Configuration access is not enabled')

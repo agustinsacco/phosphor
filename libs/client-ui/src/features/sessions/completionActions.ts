@@ -33,7 +33,7 @@ export function openSidebarConversation(workspace: string, meta: SessionMeta): v
   void useSessionsStore.getState().openDiskSession(workspace, meta)
 }
 
-async function changeCompletion(workspace: string, meta: SessionMeta): Promise<void> {
+export async function changeCompletion(workspace: string, meta: SessionMeta): Promise<void> {
   try {
     const complete = !meta.completedAt
     if (
@@ -65,23 +65,4 @@ export async function restoreCheckout(
   if (!resume) return
   useSavedConversation.setState({ meta: null })
   await sessions.openDiskSession(workspace, { ...meta, worktreeRemoved: false })
-}
-
-export function completionActions(workspace: string, meta: SessionMeta) {
-  return [
-    {
-      label: meta.completedAt ? 'Reopen conversation' : 'Finish conversation…',
-      onClick: () => {
-        void changeCompletion(workspace, meta)
-      },
-    },
-    ...(meta.worktreeRemoved
-      ? [
-          {
-            label: 'Restore worktree…',
-            onClick: () => openRestoreWorktree(workspace, meta),
-          },
-        ]
-      : []),
-  ]
 }

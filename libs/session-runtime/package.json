@@ -323,6 +323,58 @@
     "./files/walk": {
       "types": "./src/files/walk.ts",
       "default": "./src/files/walk.ts"
+    },
+    "./git/default-branch": {
+      "types": "./src/git/default-branch.ts",
+      "default": "./src/git/default-branch.ts"
+    },
+    "./git/git-tracking": {
+      "types": "./src/git/git-tracking.ts",
+      "default": "./src/git/git-tracking.ts"
+    },
+    "./lane-transfer/archive": {
+      "types": "./src/lane-transfer/archive.ts",
+      "default": "./src/lane-transfer/archive.ts"
+    },
+    "./lane-transfer/collect": {
+      "types": "./src/lane-transfer/collect.ts",
+      "default": "./src/lane-transfer/collect.ts"
+    },
+    "./lane-transfer/files": {
+      "types": "./src/lane-transfer/files.ts",
+      "default": "./src/lane-transfer/files.ts"
+    },
+    "./lane-transfer/install": {
+      "types": "./src/lane-transfer/install.ts",
+      "default": "./src/lane-transfer/install.ts"
+    },
+    "./lane-transfer/runtime": {
+      "types": "./src/lane-transfer/runtime.ts",
+      "default": "./src/lane-transfer/runtime.ts"
+    },
+    "./lane-transfer/claude-version": {
+      "types": "./src/lane-transfer/claude-version.ts",
+      "default": "./src/lane-transfer/claude-version.ts"
+    },
+    "./lane-transfer/move": {
+      "types": "./src/lane-transfer/move.ts",
+      "default": "./src/lane-transfer/move.ts"
+    },
+    "./lane-transfer/notice": {
+      "types": "./src/lane-transfer/notice.ts",
+      "default": "./src/lane-transfer/notice.ts"
+    },
+    "./lane-transfer/source-git": {
+      "types": "./src/lane-transfer/source-git.ts",
+      "default": "./src/lane-transfer/source-git.ts"
+    },
+    "./lane-transfer/target": {
+      "types": "./src/lane-transfer/target.ts",
+      "default": "./src/lane-transfer/target.ts"
+    },
+    "./lane-transfer/transcript": {
+      "types": "./src/lane-transfer/transcript.ts",
+      "default": "./src/lane-transfer/transcript.ts"
     }
   },
   "nx": {

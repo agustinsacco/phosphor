@@ -116,7 +116,12 @@ it('uses machine-only executable/environment and canonical workspace confinement
     prefixArgs: ['trusted-cli'],
     stub: false,
   })
-  expect(launch.env).toEqual({ ...state.machine.env, PI_CLAUDE_CLI_CONTEXT: 'pi' })
+  expect(launch.env).toEqual({
+    ...state.machine.env,
+    PI_CLAUDE_CLI_CONTEXT: 'pi',
+    PI_CLAUDE_CLI_KEEPALIVE_MS: '3600000',
+    PI_SUBAGENT_CACHE_RETENTION: 'short',
+  })
   expect(launch.extensions).toHaveLength(6)
   expect(state.machine.env).not.toHaveProperty('PI_CLAUDE_CLI_CONTEXT')
   const alias = join(dir, 'alias')

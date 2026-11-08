@@ -31,7 +31,10 @@ async function signIn(page: Page, origin: string) {
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
   await expect(page.getByTestId('compact-shell')).toBeVisible()
 }
-/** The left navigation: the wide column, or the phone drawer opened from the list. */
+/**
+ * The top-level navigation: the wide column, or the phone's tab bar. A phone's lane
+ * covers the tabs with its own header, so its Back comes first.
+ */
 async function openNavigation(page: Page) {
   const compact = (page.viewportSize()?.width ?? 400) < 900
   await expect(page.locator('html')).toHaveAttribute(
@@ -39,27 +42,29 @@ async function openNavigation(page: Page) {
     compact ? 'compact' : 'expanded',
   )
   if (!compact) return page.locator('aside.browser-navigation')
-  // A phone's lane header has only Back and the lane menu; the drawer is on the list.
   const back = page.getByRole('button', { name: 'Back to lanes', exact: true })
   if (await back.isVisible()) await back.click()
-  await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
-  return page.getByRole('dialog', { name: 'Navigation', exact: true })
+  return page.getByRole('navigation', { name: 'Tabs', exact: true })
 }
 async function navigatePage(page: Page, name: string) {
   const navigation = await openNavigation(page)
-  // Settings is the account footer's gear, as on Desktop; the rest are Main navigation rows.
+  const compact = (page.viewportSize()?.width ?? 400) < 900
+  // A phone's tabs name Settings; Desktop's column has it as the account footer's gear.
   await (
-    name === 'Settings'
-      ? navigation.getByRole('button', { name: 'Settings', exact: true })
+    compact || name === 'Settings'
+      ? navigation.getByRole('button', { name, exact: true })
       : navigation
           .getByRole('navigation', { name: 'Main navigation' })
           .getByRole('button', { name, exact: true })
   ).click()
 }
-/** The lane tree is in the navigation, under the machine scope; there is no Lanes link. */
+/** The wide column holds the lane tree; a phone's Home tab holds every machine's lanes. */
 async function openNavigationLane(page: Page, title: string) {
   const navigation = await openNavigation(page)
-  await navigation.getByRole('button', { name: title, exact: true }).click()
+  if ((page.viewportSize()?.width ?? 400) < 900) {
+    await navigation.getByRole('button', { name: 'Home', exact: true }).click()
+    await page.getByTestId('home-board').getByRole('button', { name: title, exact: true }).click()
+  } else await navigation.getByRole('button', { name: title, exact: true }).click()
 }
 async function openPane(page: Page, name: string) {
   if ((page.viewportSize()?.width ?? 400) < 900)
