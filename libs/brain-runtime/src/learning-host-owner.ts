@@ -15,6 +15,7 @@ import {
 import { markLearningWriter } from './learning-carrier-recovery'
 import { commandLearningCarrier, verifyLearningCommand } from './learning-carrier-transport'
 import { abortable } from './processor-wait'
+import { learningFailureUsage } from './learning-usage'
 
 export class OwnedLearningCarrier {
   private readonly controller = new AbortController()
@@ -140,6 +141,7 @@ export class OwnedLearningCarrier {
       )
     }
     signal.addEventListener('abort', stop, { once: true })
+    let usage: BrainLearningUsage | null = null
     try {
       signal.throwIfAborted()
       if (
@@ -163,6 +165,7 @@ export class OwnedLearningCarrier {
       const result = await readLearningControl<BrainLearningResult>(
         join(this.root, 'run-result.json'),
       )
+      usage = learningFailureUsage({ learningUsage: result.usage })
       deadline.throwIfAborted()
       if (
         result.jobId !== this.jobId ||
@@ -171,9 +174,25 @@ export class OwnedLearningCarrier {
       )
         throw new Error('Learning result identity changed')
       return result
+    } catch (error) {
+      usage = learningFailureUsage(error) ?? usage
+      throw error
     } finally {
       signal.removeEventListener('abort', stop)
+      await this.disposeWithUsage(usage)
+    }
+  }
+  private async disposeWithUsage(usage: BrainLearningUsage | null): Promise<void> {
+    try {
       await this.dispose()
+    } catch (error) {
+      if (!usage) throw error
+      throw Object.assign(
+        new Error(error instanceof Error ? error.message : 'Learning cleanup failed', {
+          cause: error,
+        }),
+        { learningUsage: usage },
+      )
     }
   }
   private async stopSession(id: string): Promise<void> {

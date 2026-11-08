@@ -40,6 +40,10 @@
       "types": "./src/learning-source.ts",
       "default": "./src/learning-source.ts"
     },
+    "./learning-usage": {
+      "types": "./src/learning-usage.ts",
+      "default": "./src/learning-usage.ts"
+    },
     "./learning-port": {
       "types": "./src/learning-port.ts",
       "default": "./src/learning-port.ts"

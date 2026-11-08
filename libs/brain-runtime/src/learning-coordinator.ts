@@ -12,6 +12,7 @@ import type {
 } from '@phosphor/shared/brain-learning-jobs'
 import { bounded, fields, identifier, laneAuthority } from './authority'
 import { abortable } from './processor-wait'
+import { learningFailureUsage } from './learning-usage'
 import {
   learningDigest,
   learningPreflight,
@@ -42,24 +43,6 @@ function consentInput(consent: BrainLearningConsent): void {
   if (!Number.isSafeInteger(consent.policyEpoch) || !/^[a-f0-9]{64}$/.test(consent.fingerprint))
     throw new Error('Invalid learning consent')
   if (consent.retryJobId !== undefined) identifier(consent.retryJobId)
-}
-function failureUsage(error: unknown): BrainLearningUsage | null {
-  if (!error || typeof error !== 'object' || !('learningUsage' in error)) return null
-  const raw = error.learningUsage
-  if (!raw || typeof raw !== 'object') return null
-  const count = (key: keyof BrainLearningUsage) => {
-    const value = (raw as Record<string, unknown>)[key]
-    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
-  }
-  const output = count('output'),
-    reasoning = count('reasoning')
-  return {
-    input: count('input'),
-    output,
-    cacheRead: count('cacheRead'),
-    cacheWrite: count('cacheWrite'),
-    reasoning: output !== null && reasoning !== null && reasoning <= output ? reasoning : null,
-  }
 }
 export function createBrainLearning(options: LearningOptions) {
   return new BrainLearning(options)
@@ -204,7 +187,7 @@ class BrainLearning {
         flight.prepared.run(request, active.abort.signal),
         active.abort.signal,
       )
-      usage = failureUsage({ learningUsage: result.usage })
+      usage = learningFailureUsage({ learningUsage: result.usage })
       this.assertResult(active, request, result)
       await this.assertAuthority(flight)
       active.abort.signal.throwIfAborted()
@@ -219,7 +202,7 @@ class BrainLearning {
           active.job.fence,
           active.abort.signal.aborted ? 'cancelled' : 'failed',
           (error instanceof Error ? error.message : 'Learning failed').slice(0, 2000),
-          failureUsage(error) ?? usage,
+          learningFailureUsage(error) ?? usage,
         )
       this.options.report?.(error)
     } finally {
