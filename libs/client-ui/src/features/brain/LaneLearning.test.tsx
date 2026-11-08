@@ -77,6 +77,13 @@ afterEach(async () => {
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
+it('loads the job projection without initializing full Brain status at shell startup', async () => {
+  const invoke = vi.spyOn(window.phosphor, 'invoke')
+  await mount()
+  expect(jobs).toHaveBeenCalledTimes(1)
+  expect(invoke.mock.calls.some(([channel]) => channel === 'brain:status')).toBe(false)
+  invoke.mockRestore()
+})
 it('preflights source binding with no manual processor, exact checkpoint and consent epoch/fingerprint', async () => {
   await mount()
   await open()

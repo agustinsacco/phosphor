@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   paths: {},
   openStore: vi.fn(),
   packaged: false,
+  databaseStat: vi.fn(),
 }))
 vi.mock('electron', () => ({
   app: {
@@ -23,6 +24,10 @@ vi.mock('electron', () => ({
     getPath: () => '/profile',
     getAppPath: () => '/repo/apps/desktop',
   },
+}))
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:fs/promises')>()),
+  stat: state.databaseStat,
 }))
 vi.mock('../registry', () => ({ registry: state.registry }))
 vi.mock('../pi/session-runtime', () => ({
@@ -40,6 +45,9 @@ beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
   state.packaged = false
+  state.databaseStat
+    .mockReset()
+    .mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
   state.prepare.mockReset().mockResolvedValue(undefined)
   state.dispose.mockReset().mockResolvedValue(undefined)
   state.embeds.mockReturnValue({ dispose: state.stopEmbeddings })
@@ -82,6 +90,17 @@ it('is lazy, shares the real session service and locks, and closes before furthe
   await runtime.disposeBrain()
   expect(state.dispose).toHaveBeenCalledOnce()
   await expect(runtime.brainService()).rejects.toThrow('shutting down')
+})
+it('reads empty learning metadata without creating local storage on shell startup', async () => {
+  const runtime = await import('./runtime')
+  expect(await runtime.learningInventory()).toEqual({
+    items: [],
+    truncated: false,
+    policy: { enabled: false, workspaces: [], policyEpoch: 0 },
+  })
+  expect(state.factory).not.toHaveBeenCalled()
+  expect(state.embeds).not.toHaveBeenCalled()
+  expect(state.databaseStat).toHaveBeenCalledWith('/profile/brain/memory.sqlite')
 })
 it('does not fail ordinary startup on an unavailable Brain and retries its next acquisition', async () => {
   const runtime = await import('./runtime')
