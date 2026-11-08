@@ -5,6 +5,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SessionMeta } from '@shared/models'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { useChatStore } from '@/stores/chat'
+import { useLearningUi } from '@/features/brain/learningUi'
+import { learningJob } from '@/features/brain/__fixtures__/learning'
 import { usePullRequestsStore } from '@/stores/pullRequests'
 import { useSessionsStore } from '@/stores/sessions'
 import { resetSidebarStores, stubSidebarPhosphor } from './__fixtures__/sidebarHarness'
@@ -58,6 +60,7 @@ beforeEach(() => {
               : null,
     )
   resetSidebarStores()
+  useLearningUi.setState({ enabled: false, workspaces: [], jobs: [], target: null, jobId: null })
   useSessionsStore.setState({
     live: { live1: { phosphorId: 'live1', workspacePath: '/repo', diskPath: '/repo/s1.jsonl' } },
     unread: {},
@@ -97,6 +100,38 @@ async function menuFor(title: string): Promise<string[]> {
     (b) => b.textContent ?? '',
   )
 }
+
+it('keeps learning on the lifted worktree row with a separate private inspector button', async () => {
+  useLearningUi.setState({ enabled: true, workspaces: ['/repo'] })
+  useSessionsStore.setState({
+    live: {},
+    disk: { '/repo': [{ ...meta(2), cwd: '/worktree' }] },
+    gitByCwd: {
+      '/worktree': { branch: 'task', mainRepoPath: '/repo', isWorktree: true } as never,
+    },
+  })
+  const rows = await menuFor('Lane 2')
+  expect(rows).toContain('Learn from this lane…')
+  const learn = [
+    ...document.querySelectorAll<HTMLButtonElement>('[data-testid=context-menu] button'),
+  ].find((button) => button.textContent === 'Learn from this lane…')!
+  act(() => learn.click())
+  expect(useLearningUi.getState().target).toEqual({
+    workspacePath: '/worktree',
+    sessionPath: '/repo/s2.jsonl',
+  })
+  const job = learningJob()
+  job.learning!.target = { workspacePath: '/worktree', sessionPath: '/repo/s2.jsonl' }
+  act(() => useLearningUi.setState({ jobs: [job], target: null }))
+  const row = container.querySelector('[data-testid=session-row]')!
+  const indicator = row.parentElement!.querySelector<HTMLButtonElement>(
+    '[data-testid=learning-indicator]',
+  )!
+  expect(indicator).not.toBeNull()
+  expect(indicator.parentElement!.closest('button')).toBeNull()
+  act(() => indicator.click())
+  expect(useLearningUi.getState().jobId).toBe(job.id)
+})
 
 it("calls stopping a live This Mac lane Stop, as a Host lane's menu does", async () => {
   const rows = await menuFor('Lane 1')

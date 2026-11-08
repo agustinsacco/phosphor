@@ -1,7 +1,7 @@
 import type { SkillsListResult } from '@phosphor/shared/skills'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { IpcInvokeChannel } from '@phosphor/shared/ipc'
-import { fileListFailure } from '@phosphor/shared/host-protocol-files'
+import { FILE_READ_FAILED, fileListFailure } from '@phosphor/shared/host-protocol-files'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
 import { readFeatureRequest, projectReadFeature } from './read-feature-shapes'
 
@@ -72,17 +72,18 @@ export async function readFeature(
   const root = lane.workspacePath
   const { capability, method, params } = readFeatureRequest(channel, args, root, lane.laneId)
   let data: unknown
-  let listFailure: string | null = null
+  let failure: string | null = null
   try {
     data = await lane.call(capability, method, params)
   } catch (error) {
     const code = failureCode(error)
     if (channel === 'fs:readFile' && code === 'too-large')
       return { path: args[0], content: '', size: 0, mtimeMs: 0, tooLarge: true }
-    // A failed list names its cause in fixed text; nothing else derived from an
-    // error crosses IPC, not even as a cause. Undefined fails the parser below.
-    listFailure = channel === 'fs:listFiles' && code ? fileListFailure(code) : null
+    // A failed list or read names its cause in fixed text; nothing else derived
+    // from an error crosses IPC, not even as a cause. Undefined fails the parser below.
+    if (channel === 'fs:listFiles' && code) failure = fileListFailure(code)
+    if (channel === 'fs:readFile' && code === 'internal') failure = FILE_READ_FAILED
   }
-  if (listFailure) throw new Error(listFailure)
+  if (failure) throw new Error(failure)
   return projectReadFeature(channel, method, args, root, data)
 }

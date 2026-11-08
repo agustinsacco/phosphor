@@ -5,7 +5,7 @@
   "sourceRoot": "libs/pi-extensions/pi-ext",
   "projectType": "library",
   "tags": ["scope:pi-extensions"],
-  "implicitDependencies": ["shared"],
+  "implicitDependencies": ["shared", "brain-client"],
   "targets": {
     "test": {
       "executor": "nx:run-commands",

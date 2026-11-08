@@ -28,6 +28,10 @@ const Artifacts = lazy(() =>
   import('@/features/artifacts/ArtifactsPage').then((m) => ({ default: m.ArtifactsPage })),
 )
 
+const Brain = lazy(() =>
+  import('@/features/brain/BrainPage').then((m) => ({ default: m.BrainPage })),
+)
+
 interface Screen {
   title: string
   icon: ComponentType<{ size?: number; className?: string }>
@@ -50,6 +54,14 @@ export const SCREENS = {
     icon: MachinesIcon,
     component: Machines,
     title: 'Machines',
+    scope: 'both',
+    expanded: 'page',
+    compact: 'page',
+  },
+  brain: {
+    icon: BranchIcon,
+    component: Brain,
+    title: 'Brain',
     scope: 'both',
     expanded: 'page',
     compact: 'page',

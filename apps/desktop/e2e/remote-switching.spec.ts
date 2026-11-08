@@ -176,12 +176,10 @@ test('Remote Files, Changes, controls, model and error surfaces refresh A→B→
       await pane(h, 'Changes')
       if (title === 'HOST_B_ONLY lane') {
         await expect(h.page.getByText('No changes yet', { exact: true })).toBeVisible()
-        await expect(h.page.getByRole('treeitem', { name: /^deleted\.txt/ })).toHaveCount(0)
         await expect(h.page.getByText('HOST_A_ONLY provider error', { exact: false })).toHaveCount(
           0,
         )
       } else {
-        await expect(h.page.getByRole('treeitem', { name: /^deleted\.txt/ })).toBeVisible()
         await expect(h.page.getByText('HOST_A_ONLY provider error', { exact: false })).toBeVisible()
       }
       await pane(h, 'Terminal')

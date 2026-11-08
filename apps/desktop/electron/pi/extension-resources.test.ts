@@ -27,7 +27,8 @@ const root = resolve(appRoot, '../..')
 const library = join(root, 'libs/pi-extensions')
 // This is the existing unpacked production inventory, including the imported
 // budget, context-file and global-instructions helpers, the artifact store format the artifacts extension reads, and
-// the optional gate, and the dependency-free status/widget key vocabulary. Python helpers remain source-only as before.
+// the optional gate, the dependency-free status/widget key vocabulary, and the set
+// pi-subagents children load. Python helpers remain source-only as before.
 const shippedFiles = [
   'artifact-store.ts',
   'artifacts.ts',
@@ -42,10 +43,26 @@ const shippedFiles = [
   'optional/permission-gate.ts',
   'pi-api.ts',
   'status-keys.ts',
+  'subagent-children.ts',
   'subagent-snapshot.ts',
   'swarm.ts',
   'tool-name-guard.ts',
   'worktree-paths.ts',
+]
+// Exported for source, build and test consumers; packaged resources carry only
+// their standalone bundles (brain-ext/), never these TypeScript sources.
+const bundleOnlySources = [
+  'brain.ts',
+  'brain-processor.ts',
+  'brain-learning.ts',
+  'brain-learning-context.ts',
+  'brain-learning-result.ts',
+  'brain-learning-provenance.ts',
+  'brain-learning-carrier.ts',
+  'brain-learning-carrier-auth.ts',
+  'brain-learning-carrier-files.ts',
+  'brain-learning-carrier-operation.ts',
+  'brain-learning-carrier-sdk.ts',
 ]
 
 describe('standalone pi extension resources', () => {
@@ -54,9 +71,9 @@ describe('standalone pi extension resources', () => {
     expect(manifest.name).toBe('@phosphor/pi-extensions')
     expect(manifest.private).toBe(true)
     expect(Object.keys(manifest.exports).sort()).toEqual(
-      shippedFiles.map((name) => `./${name.slice(0, -3)}`).sort(),
+      [...shippedFiles, ...bundleOnlySources].map((name) => `./${name.slice(0, -3)}`).sort(),
     )
-    for (const file of shippedFiles) {
+    for (const file of [...shippedFiles, ...bundleOnlySources]) {
       expect(manifest.exports[`./${file.slice(0, -3)}`]).toEqual({
         types: `./pi-ext/${file}`,
         default: `./pi-ext/${file}`,
@@ -77,7 +94,7 @@ describe('standalone pi extension resources', () => {
       })!
       const matcher = matchers.find((entry) => entry.to === join(resources, 'pi-ext'))!
       expect(matcher.from).toBe(join(library, 'pi-ext'))
-      expect(matcher.patterns).toEqual(['**/*.ts', '!**/*.test.ts'])
+      expect(matcher.patterns).toEqual(['**/*.ts', '!**/*.test.ts', '!brain*.ts'])
       const filter = matcher.createFilter()
       const copied: string[] = []
       for (const relative of readdirSync(matcher.from, { recursive: true }).map(String)) {

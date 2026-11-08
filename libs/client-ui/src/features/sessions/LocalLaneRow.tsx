@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { LearningIndicator } from '@/features/brain/LearningIndicator'
+import { useLaneLearning } from '@/features/brain/useLaneLearning'
 import clsx from 'clsx'
 import type { GitInfo, SessionMeta } from '@shared/models'
 import { useMenuTriggers } from '@/components/ContextMenu'
@@ -35,6 +37,16 @@ import { useLocalLaneActions } from './useLocalLaneActions'
 // second line, so the list re-flowed as the user dragged the divider and a
 // lane stopped being a fixed-height row. The full title stays in the tooltip.
 export const SESSION_TITLE_CLASS = 'text-text block truncate text-lg font-medium leading-5'
+
+function localRowClass(active: boolean, selected: boolean, deleting: boolean): string {
+  return clsx(
+    'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-[color,background-color,opacity]',
+    // Selection stays neutral; working has its own rail and activity label.
+    active ? 'bg-sidebar-active' : !deleting && 'hover:bg-sidebar-hover',
+    selected && 'bg-accent-soft',
+    deleting && 'cursor-wait opacity-45',
+  )
+}
 
 export function SessionRow({
   meta,
@@ -142,6 +154,14 @@ export function SessionRow({
   const rowWorkspaceName = projectName(meta.cwd || workspacePath, git)
 
   const open = (): void => openSidebarConversation(workspacePath, meta)
+  const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
+  const learning = useLaneLearning(
+    meta.cwd,
+    meta.path,
+    livePhosphorId,
+    isStreaming || delegated || booting || opening || deleting || bulkDeleteRunning,
+    git?.mainRepoPath || meta.cwd,
+  )
   const actions = useLocalLaneActions({
     meta,
     workspacePath,
@@ -152,6 +172,7 @@ export function SessionRow({
     git,
     pullRequest,
     deleting,
+    learning,
     onRename: beginRename,
     onOpenTree,
     onDelete,
@@ -169,14 +190,7 @@ export function SessionRow({
         ? 'live'
         : 'disk'
 
-  const rowClassName = clsx(
-    'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-[color,background-color,opacity]',
-    // Selection stays a neutral fill. Working gets a separate inset rail,
-    // beacon and explicit label, even when the lane is not the active one.
-    active ? 'bg-sidebar-active' : !deleting && 'hover:bg-sidebar-hover',
-    selected && 'bg-accent-soft',
-    deleting && 'cursor-wait opacity-45',
-  )
+  const rowClassName = localRowClass(active, selected, deleting)
 
   const body = (
     <>
@@ -259,56 +273,48 @@ export function SessionRow({
     </>
   )
 
-  // While the inline editor is up the row is a <div>, not a <button>. A text
-  // field inside a button is invalid HTML (Chromium tolerates the caret, but
-  // the row is announced as one button containing an unlabelled field, and
-  // Enter/Space inside it are the button's to claim). Swapping the tag also
-  // means there are no row handlers to suppress while editing — no
-  // `renaming ? undefined : open` and no stopPropagation on the input.
-  // The marker picker (`actions.dialogs`) portals through ModalOverlay, so it
-  // is a sibling of the row in the DOM rather than a dialog inside a <button>.
-  if (renaming) {
-    return (
-      <>
-        <div
-          data-testid="session-row"
-          data-workspace={rowWorkspaceName}
-          data-activity={activity}
-          data-deleting={deleting || undefined}
-          aria-disabled={deleting}
-          className={rowClassName}
-        >
-          {body}
-        </div>
-        {actions.dialogs}
-      </>
-    )
-  }
-
+  // The rename input needs a div. The inspector and portalled marker picker
+  // stay siblings of the navigation button, never nested interactive controls.
   return (
     <>
-      <LaneRow
-        onClick={open}
-        {...menu}
-        onDoubleClick={beginRename}
-        disabled={deleting}
-        aria-busy={deleting}
-        data-testid="session-row"
-        data-workspace={rowWorkspaceName}
-        data-activity={activity}
-        data-deleting={deleting || undefined}
-        tooltip={deleting ? 'Deleting lane' : title}
-        title={
-          deleting
-            ? 'This lane is being deleted'
-            : meta.branchCount > 0
-              ? `${meta.branchCount + 1} branches`
-              : undefined
-        }
-        className={rowClassName}
-      >
-        {body}
-      </LaneRow>
+      <div className="flex min-w-0 items-center gap-1">
+        {renaming ? (
+          <div
+            data-testid="session-row"
+            data-workspace={rowWorkspaceName}
+            data-activity={activity}
+            data-deleting={deleting || undefined}
+            aria-disabled={deleting}
+            className={clsx(rowClassName, 'min-w-0 flex-1')}
+          >
+            {body}
+          </div>
+        ) : (
+          <LaneRow
+            onClick={open}
+            {...menu}
+            onDoubleClick={beginRename}
+            disabled={deleting}
+            aria-busy={deleting}
+            data-testid="session-row"
+            data-workspace={rowWorkspaceName}
+            data-activity={activity}
+            data-deleting={deleting || undefined}
+            tooltip={deleting ? 'Deleting lane' : title}
+            title={
+              deleting
+                ? 'This lane is being deleted'
+                : meta.branchCount > 0
+                  ? `${meta.branchCount + 1} branches`
+                  : undefined
+            }
+            className={clsx(rowClassName, 'min-w-0 flex-1')}
+          >
+            {body}
+          </LaneRow>
+        )}
+        <LearningIndicator sessionPath={meta.path} />
+      </div>
       {actions.dialogs}
     </>
   )

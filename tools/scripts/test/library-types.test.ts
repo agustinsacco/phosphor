@@ -141,5 +141,6 @@ it('allows only the Host build modules imported by its TypeScript script tests',
     'tools/host-release/build-native.mjs',
     'tools/host-release/common.mjs',
     'tools/host-release/native-stage.mjs',
+    'tools/scripts/build-brain-extensions.mjs',
   ])
 })

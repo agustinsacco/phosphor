@@ -8,6 +8,7 @@ import { useFilesStore } from '@/stores/files'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { usePromptStore } from '@/stores/prompt'
 import { FilesChangedPane } from './FilesChangedPane'
+import { localFilesSource } from './filesSource'
 
 vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({ MonacoDiff: () => null }))
@@ -59,7 +60,7 @@ it.each([
 ])('blocks revert of an unsaved buffer at $path', async ({ workspace, path }) => {
   await useFilesStore.getState().openFile(workspace, path)
   useFilesStore.getState().updateBuffer(workspace, path, 'unsaved')
-  await act(async () => root.render(<FilesChangedPane workspacePath={workspace} />))
+  await act(async () => root.render(<FilesChangedPane source={localFilesSource(workspace)} />))
   invoke.mockClear()
   await act(async () =>
     container.querySelector<HTMLButtonElement>('[aria-label="Revert nested/a.ts"]')!.click(),
@@ -75,7 +76,7 @@ it.each([
 
 it('allows a clean buffer to revert after confirmation', async () => {
   await useFilesStore.getState().openFile('/repo', '/repo/nested/a.ts')
-  await act(async () => root.render(<FilesChangedPane workspacePath="/repo" />))
+  await act(async () => root.render(<FilesChangedPane source={localFilesSource('/repo')} />))
   invoke.mockClear()
   await act(async () =>
     container.querySelector<HTMLButtonElement>('[aria-label="Revert nested/a.ts"]')!.click(),
@@ -104,7 +105,7 @@ it('characterizes reverse-patch revert without a saved baseline', async () => {
     },
   }))
   try {
-    await act(async () => root.render(<FilesChangedPane workspacePath="/repo" />))
+    await act(async () => root.render(<FilesChangedPane source={localFilesSource('/repo')} />))
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[aria-label="Revert nested/a.ts"]')!.click(),
     )
@@ -116,7 +117,7 @@ it('characterizes reverse-patch revert without a saved baseline', async () => {
 })
 
 async function renderRevert(): Promise<HTMLButtonElement> {
-  await act(async () => root.render(<FilesChangedPane workspacePath="/repo" />))
+  await act(async () => root.render(<FilesChangedPane source={localFilesSource('/repo')} />))
   return container.querySelector<HTMLButtonElement>('[aria-label="Revert nested/a.ts"]')!
 }
 
@@ -180,7 +181,8 @@ it.each(['workspace', 'baseline'])(
       expect(invoke).not.toHaveBeenCalled()
       expect(usePromptStore.getState().requests).toHaveLength(1)
       await act(async () => {
-        if (change === 'workspace') root.render(<FilesChangedPane workspacePath="/other" />)
+        if (change === 'workspace')
+          root.render(<FilesChangedPane source={localFilesSource('/other')} />)
         else useSessionsStore.setState({ baselines: { session: 'new-baseline' } })
       })
       await dismissRevert('revert')
@@ -264,4 +266,31 @@ it('does not revert a changed file path while the choice is queued', async () =>
   )
   await dismissRevert('revert')
   expect(invoke).not.toHaveBeenCalled()
+})
+
+it('a Host lane lists tool paths under its cwd, reads them through the lane, and offers no revert', async () => {
+  const lane = 'host:h/lane:l'
+  useSessionsStore.setState({ baselines: {} })
+  useChatStore.setState((s) => ({
+    sessions: {
+      session: {
+        ...s.sessions.session!,
+        tools: {
+          edit: { ...s.sessions.session!.tools.edit!, args: { path: '/remote/demo/nested/a.ts' } },
+        },
+      },
+    },
+  }))
+  const source = {
+    ...localFilesSource(lane),
+    pathRoot: '/remote/demo',
+    features: { ...localFilesSource(lane).features, revert: false },
+  }
+  await act(async () => root.render(<FilesChangedPane source={source} />))
+  expect(container.querySelector('[aria-label="View diff for nested/a.ts"]')).not.toBeNull()
+  expect(container.querySelector('[aria-label="Revert nested/a.ts"]')).toBeNull()
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="View diff for nested/a.ts"]')!.click(),
+  )
+  expect(invoke).toHaveBeenCalledWith('fs:readFile', `${lane}/nested/a.ts`)
 })

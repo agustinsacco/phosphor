@@ -7,8 +7,10 @@ import { formatShortcut } from '@/lib/shortcuts'
 import { ignoreShortcut } from '@/lib/shortcutContext'
 import { renameEntry, runFileAction, trashEntry } from './fileActions'
 import { entryDirectory, FILE_DRAG, importFiles, pasteFiles, transferFiles } from './fileTransfers'
+import type { FilesSource } from './filesSource'
 
-export function useExplorer(workspace: string) {
+export function useExplorer(source: FilesSource) {
+  const { workspacePath: workspace, features, writeRefusal } = source
   const activePath = useFilesStore((s) => workspaceFiles(s, workspace).activePath)
   const activeRequest = useFilesStore((s) => workspaceFiles(s, workspace).activeRequest)
   const [selectionState, setSelectionState] = useState({
@@ -93,6 +95,9 @@ export function useExplorer(workspace: string) {
       selection(entry).map((e) => e.path),
       cut,
     )
+  // A drag within the explorer moves or copies through fs:transfer; files from the OS need a local lane.
+  const accepts = (type: string): boolean =>
+    !writeRefusal && (type === FILE_DRAG || (type === 'Files' && features.clipboardFiles))
   const directory = (target: EventTarget): string => {
     const row = (target as HTMLElement).closest<HTMLElement>('[data-path]')
     return row
@@ -101,7 +106,10 @@ export function useExplorer(workspace: string) {
         : dirname(row.dataset.path!)
       : workspace
   }
-  const menu = (entry?: DirEntry): ContextMenuItem[] => [
+  // The OS clipboard and picker hold this device's paths, so only a local lane offers them.
+  const menu = (entry?: DirEntry): ContextMenuItem[] =>
+    features.clipboardFiles ? clipboardMenu(entry) : []
+  const clipboardMenu = (entry?: DirEntry): ContextMenuItem[] => [
     {
       label: 'Copy',
       shortcut: formatShortcut('mod', 'C'),
@@ -168,23 +176,24 @@ export function useExplorer(workspace: string) {
         }
       },
       onCopy: (event: React.ClipboardEvent): void => {
-        if (selected.length) {
+        if (features.clipboardFiles && selected.length) {
           event.preventDefault()
           run(() => copy(false))
         }
       },
       onCut: (event: React.ClipboardEvent): void => {
-        if (selected.length) {
+        if (features.clipboardFiles && selected.length) {
           event.preventDefault()
           run(() => copy(true))
         }
       },
       onPaste: (event: React.ClipboardEvent): void => {
+        if (!features.clipboardFiles) return
         event.preventDefault()
         run(() => pasteFiles(workspace, entryDirectory(workspace, selected.at(-1))))
       },
       onDragOver: (event: React.DragEvent): void => {
-        if (!event.dataTransfer.types.some((t) => t === 'Files' || t === FILE_DRAG)) return
+        if (!event.dataTransfer.types.some(accepts)) return
         event.preventDefault()
         event.stopPropagation()
         setDropDir(directory(event.target))
@@ -199,6 +208,7 @@ export function useExplorer(workspace: string) {
       },
       onDragEnd: (): void => setDropDir(null),
       onDrop: (event: React.DragEvent): void => {
+        if (!event.dataTransfer.types.some(accepts)) return
         event.preventDefault()
         event.stopPropagation()
         setDropDir(null)
@@ -216,99 +226,141 @@ export function useExplorer(workspace: string) {
           await transferFiles(workspace, paths, dir, !!raw && !event.altKey && !event.ctrlKey)
         })
       },
-      onKeyDown: (event: React.KeyboardEvent<HTMLElement>): void => {
-        if (ignoreShortcut(event.nativeEvent)) return
-        const entry = selected.at(-1)
-        const mod = event.metaKey || event.ctrlKey
-        let action: (() => Promise<unknown>) | undefined
-        if (mod && event.key.toLowerCase() === 'c' && selected.length) action = () => copy(false)
-        if (mod && event.key.toLowerCase() === 'x' && selected.length) action = () => copy(true)
-        if (mod && event.key.toLowerCase() === 'v')
-          action = () => pasteFiles(workspace, entryDirectory(workspace, entry))
-        if (selected.length === 1 && event.key === 'F2')
-          action = () => renameEntry(workspace, entry!)
-        if (selected.length === 1 && (event.key === 'Delete' || (mod && event.key === 'Backspace')))
-          action = () => trashEntry(workspace, entry!)
-        if (action) {
-          event.preventDefault()
-          event.stopPropagation()
-          run(action)
-          return
-        }
-        const entries = entriesFor(event.currentTarget)
-        if (mod && event.key.toLowerCase() === 'a') {
-          event.preventDefault()
-          event.stopPropagation()
-          setSelected(entries)
-          return
-        }
-        const index = entries.findIndex(
-          (e) =>
-            e.path ===
-            (event.target as HTMLElement).closest<HTMLElement>('[data-path]')?.dataset.path,
-        )
-        const focused = entries[index]
-        const focusEntry = (next: DirEntry): void => {
-          event.preventDefault()
-          event.stopPropagation()
-          if (event.shiftKey && ['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
-            const anchor = entries.findIndex(
-              (e) => e.path === rangeAnchor.current && selected.some((s) => s.path === e.path),
-            )
-            const from = anchor >= 0 ? anchor : Math.max(index, 0)
-            rangeAnchor.current = entries[from]?.path ?? next.path
-            const to = entries.indexOf(next)
-            setSelected(entries.slice(Math.min(from, to), Math.max(from, to) + 1))
-          } else {
-            rangeAnchor.current = next.path
-            setSelected([next])
-          }
-          const rows = event.currentTarget.querySelectorAll<HTMLElement>('[data-path]')
-          rows[entries.indexOf(next)]?.focus()
-        }
-        const next =
-          event.key === 'Home'
-            ? entries[0]
-            : event.key === 'End'
-              ? entries.at(-1)
-              : event.key === 'ArrowDown'
-                ? entries[Math.min(index + 1, entries.length - 1)]
-                : event.key === 'ArrowUp'
-                  ? entries[Math.max(index - 1, 0)]
-                  : undefined
-        if (next) focusEntry(next)
-        if (focused && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
-          event.preventDefault()
-          const store = useFilesStore.getState()
-          const expanded = focused.isDirectory && store.expanded[focused.path]
-          if (
-            (event.key === 'ArrowLeft' && expanded) ||
-            (event.key === 'ArrowRight' && focused.isDirectory && !expanded)
-          ) {
-            run(() => store.toggleDir(workspace, focused.path))
-          } else {
-            const target =
-              event.key === 'ArrowLeft'
-                ? entries.find((e) => e.path === dirname(focused.path))
-                : expanded
-                  ? entries[index + 1]
-                  : undefined
-            if (target && (event.key === 'ArrowLeft' || dirname(target.path) === focused.path))
-              focusEntry(target)
-          }
-        }
-        if (!mod && !event.altKey && event.key.length === 1 && event.key !== ' ') {
-          const previous = typeahead.current
-          const key = event.key.toLocaleLowerCase()
-          const continued = previous.workspace === workspace && Date.now() - previous.time < 800
-          const text = continued && previous.text !== key ? previous.text + key : key
-          typeahead.current = { text, time: Date.now(), workspace }
-          const start = text.length > 1 ? Math.max(index, 0) : index + 1
-          const ordered = [...entries.slice(start), ...entries.slice(0, start)]
-          const match = ordered.find((e) => e.name.toLocaleLowerCase().startsWith(text))
-          if (match) focusEntry(match)
-        }
-      },
+      onKeyDown: (event: React.KeyboardEvent<HTMLElement>): void =>
+        explorerKeyDown(event, {
+          workspace,
+          selected,
+          setSelected,
+          rangeAnchor,
+          typeahead,
+          entriesFor,
+          run,
+          copy: features.clipboardFiles ? copy : undefined,
+          writable: !writeRefusal,
+        }),
     },
+  }
+}
+
+interface ExplorerKeys {
+  workspace: string
+  selected: DirEntry[]
+  setSelected: (entries: DirEntry[]) => void
+  rangeAnchor: React.RefObject<string | null>
+  typeahead: React.RefObject<{ text: string; time: number; workspace: string }>
+  entriesFor: (root: HTMLElement) => DirEntry[]
+  run: (action: () => Promise<unknown>) => void
+  /** Copy to the file clipboard; absent where the lane has none, which also rules out paste. */
+  copy?: (cut: boolean) => Promise<void>
+  writable: boolean
+}
+
+/** The explorer's keys: clipboard, rename, trash, arrows, ranges and type-to-find. */
+function explorerKeyDown(event: React.KeyboardEvent<HTMLElement>, keys: ExplorerKeys): void {
+  const { workspace, selected, setSelected, entriesFor, run, copy, writable } = keys
+  if (ignoreShortcut(event.nativeEvent)) return
+  const entry = selected.at(-1)
+  const mod = event.metaKey || event.ctrlKey
+  let action: (() => Promise<unknown>) | undefined
+  const key = event.key.toLowerCase()
+  if (copy && mod && (key === 'c' || key === 'x') && selected.length)
+    action = () => copy(key === 'x')
+  if (copy && writable && mod && key === 'v')
+    action = () => pasteFiles(workspace, entryDirectory(workspace, entry))
+  if (writable && selected.length === 1 && event.key === 'F2')
+    action = () => renameEntry(workspace, entry!)
+  if (
+    writable &&
+    selected.length === 1 &&
+    (event.key === 'Delete' || (mod && event.key === 'Backspace'))
+  )
+    action = () => trashEntry(workspace, entry!)
+  if (action) {
+    event.preventDefault()
+    event.stopPropagation()
+    run(action)
+    return
+  }
+  const entries = entriesFor(event.currentTarget)
+  if (mod && event.key.toLowerCase() === 'a') {
+    event.preventDefault()
+    event.stopPropagation()
+    setSelected(entries)
+    return
+  }
+  moveExplorerFocus(event, keys, entries)
+}
+
+/** Arrows, Home/End, shift ranges, folder open/close and type-to-find over the visible rows. */
+function moveExplorerFocus(
+  event: React.KeyboardEvent<HTMLElement>,
+  { workspace, selected, setSelected, rangeAnchor, typeahead, run }: ExplorerKeys,
+  entries: DirEntry[],
+): void {
+  const mod = event.metaKey || event.ctrlKey
+  const index = entries.findIndex(
+    (e) =>
+      e.path === (event.target as HTMLElement).closest<HTMLElement>('[data-path]')?.dataset.path,
+  )
+  const focused = entries[index]
+  const focusEntry = (next: DirEntry): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.shiftKey && ['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+      const anchor = entries.findIndex(
+        (e) => e.path === rangeAnchor.current && selected.some((s) => s.path === e.path),
+      )
+      const from = anchor >= 0 ? anchor : Math.max(index, 0)
+      rangeAnchor.current = entries[from]?.path ?? next.path
+      const to = entries.indexOf(next)
+      setSelected(entries.slice(Math.min(from, to), Math.max(from, to) + 1))
+    } else {
+      rangeAnchor.current = next.path
+      setSelected([next])
+    }
+    const rows = event.currentTarget.querySelectorAll<HTMLElement>('[data-path]')
+    rows[entries.indexOf(next)]?.focus()
+  }
+  const next =
+    event.key === 'Home'
+      ? entries[0]
+      : event.key === 'End'
+        ? entries.at(-1)
+        : event.key === 'ArrowDown'
+          ? entries[Math.min(index + 1, entries.length - 1)]
+          : event.key === 'ArrowUp'
+            ? entries[Math.max(index - 1, 0)]
+            : undefined
+  if (next) focusEntry(next)
+  if (focused && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
+    event.preventDefault()
+    const store = useFilesStore.getState()
+    const expanded = focused.isDirectory && store.expanded[focused.path]
+    if (
+      (event.key === 'ArrowLeft' && expanded) ||
+      (event.key === 'ArrowRight' && focused.isDirectory && !expanded)
+    ) {
+      run(() => store.toggleDir(workspace, focused.path))
+    } else {
+      const target =
+        event.key === 'ArrowLeft'
+          ? entries.find((e) => e.path === dirname(focused.path))
+          : expanded
+            ? entries[index + 1]
+            : undefined
+      if (target && (event.key === 'ArrowLeft' || dirname(target.path) === focused.path))
+        focusEntry(target)
+    }
+  }
+  if (!mod && !event.altKey && event.key.length === 1 && event.key !== ' ') {
+    const previous = typeahead.current
+    const key = event.key.toLocaleLowerCase()
+    const continued = previous.workspace === workspace && Date.now() - previous.time < 800
+    const text = continued && previous.text !== key ? previous.text + key : key
+    typeahead.current = { text, time: Date.now(), workspace }
+    const start = text.length > 1 ? Math.max(index, 0) : index + 1
+    const ordered = [...entries.slice(start), ...entries.slice(0, start)]
+    const match = ordered.find((e) => e.name.toLocaleLowerCase().startsWith(text))
+    if (match) focusEntry(match)
   }
 }
