@@ -8,6 +8,14 @@
       "types": "./src/learning-carrier-files.ts",
       "default": "./src/learning-carrier-files.ts"
     },
+    "./learning-carrier-recovery": {
+      "types": "./src/learning-carrier-recovery.ts",
+      "default": "./src/learning-carrier-recovery.ts"
+    },
+    "./learning-host-owner": {
+      "types": "./src/learning-host-owner.ts",
+      "default": "./src/learning-host-owner.ts"
+    },
     "./learning-carrier-transport": {
       "types": "./src/learning-carrier-transport.ts",
       "default": "./src/learning-carrier-transport.ts"
