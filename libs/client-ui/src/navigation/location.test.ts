@@ -3,8 +3,8 @@ import { decodeLocation, encodeLocation, type Location } from './location'
 import { SCREENS } from './screens'
 
 describe('Location codec', () => {
-  it('opens the shared task-first start view at the app root', () => {
-    expect(decodeLocation('/')).toEqual({ to: 'new' })
+  it('opens Home, every machine’s lanes, at the app root', () => {
+    expect(decodeLocation('/')).toEqual({ to: 'lanes' })
     expect(decodeLocation('/lanes')).toEqual({ to: 'lanes' })
   })
   it('opens an old Inbox link on the lane list, as Desktop has no Inbox', () => {

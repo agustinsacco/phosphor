@@ -227,11 +227,14 @@ describe('session context policy integration', () => {
       const options = state.create.mock.calls[0]![1]
       expect(options).not.toHaveProperty('noContextFiles')
       expect(options.ownProcessGroup).toBe(true)
+      // A session parks its Claude CLI for the hour the prompt cache lives; only
+      // one-shots (naming, package checks) set the keepalive to 0.
       expect(options.env).toMatchObject({
         PI_CLAUDE_CLI_CONTEXT: 'pi',
+        PI_CLAUDE_CLI_KEEPALIVE_MS: '3600000',
       })
       expect(options.env).not.toHaveProperty('PI_CLAUDE_CLI_SYSTEM_PROMPT')
-      expect(options.env).not.toHaveProperty('PI_CLAUDE_CLI_KEEPALIVE_MS')
+      expect(options.env).not.toHaveProperty('PI_CLAUDE_CLI_EPHEMERAL')
       expect(options.appendSystemPrompt).toContain('pi subagent: follow its advertised schema')
       expect(state.session.client.request).toHaveBeenLastCalledWith({
         type: 'prompt',

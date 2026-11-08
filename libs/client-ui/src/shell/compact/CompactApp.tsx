@@ -21,7 +21,7 @@ import { useInstallApp } from './useInstallApp'
 
 /** Mount only after the real browser adapter has been installed and started. */
 export function CompactApp(): React.JSX.Element {
-  // Browser-owned installation outlives drawers, route changes and account transitions.
+  // Browser-owned installation outlives tabs, route changes and account transitions.
   useInstallApp()
   const formFactor = useCompactViewport()
   const account = useAccount()

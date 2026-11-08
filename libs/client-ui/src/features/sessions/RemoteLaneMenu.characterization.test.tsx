@@ -75,6 +75,7 @@ it("characterizes the Desktop Host lane menu for a reader: This Mac's order, con
     ['Take control', false],
     ['StopTake control first.', true],
     ['Mark read', false],
+    ['Move to…Update this Host to move lanes.', true],
     ['Export HTML…', false],
     ['Copy debug info', false],
     ['Copy spend', false],
@@ -95,6 +96,7 @@ it('characterizes the Desktop Host lane menu for the controller', () => {
     ['Release control', false],
     ['Stop', false],
     ['Mark read', false],
+    ['Move to…Update this Host to move lanes.', true],
     ['Export HTML…', false],
     ['Copy debug info', false],
     ['Copy spend', false],
@@ -163,7 +165,7 @@ it("opens the Host lane menu's copies and Delete with a separator, as This Mac d
   const separated = [...document.querySelectorAll('[data-testid=context-menu] button')]
     .filter((b) => b.previousElementSibling !== null)
     .map((b) => b.textContent)
-  expect(separated).toEqual(['Export HTML…', 'Delete'])
+  expect(separated).toEqual(['Move to…Update this Host to move lanes.', 'Delete'])
 })
 
 it('offers Lane marker… on a Host lane only while markers are on', async () => {

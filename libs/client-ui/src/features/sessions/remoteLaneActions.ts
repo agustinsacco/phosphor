@@ -9,6 +9,8 @@ export const TAKE_CONTROL_FIRST = 'Take control first.'
 export const ONLY_WHILE_RUNNING = 'Only while running.'
 /** A Host older than `laneMarks` cannot keep pins or markers, and only that Host can. */
 export const LANE_MARKS_NEED_UPDATE = 'Update this Host to pin and mark lanes.'
+export const LANE_MOVE_NEEDS_UPDATE = 'Update this Host to move lanes.'
+export const STOP_BEFORE_MOVE = 'Stop this lane first.'
 
 /**
  * Why a controller-only row action is disabled, or undefined when control is
@@ -38,6 +40,8 @@ export interface RemoteLaneActionState {
   pr: { number: number; state?: string } | null
   /** The marker preference: `off` drops the marker slot and its menu item, as on This Mac. */
   markers: LanePrefs['markers']
+  /** Desktop relays bundles; the browser cannot. */
+  moveBlocked?: string
 }
 
 /** What this client may do to the lane, and why not. One rule for every surface. */
@@ -97,8 +101,17 @@ export function hostLaneContext(state: RemoteLaneActionState): LaneActionContext
       markRead: notReady,
       // A read: any reader of the lane may keep a copy, as with Copy debug info.
       exportHtml: notReady,
+      moveTo: notReady ?? moveHint(state, running),
       copySpend: notReady ?? whileRunning,
       delete: controlHint ?? (canWrite ? undefined : featureNotOffered('workspaces.write')),
     },
   }
+}
+
+/** Why a saved Host lane cannot be copied from this client right now. */
+function moveHint(state: RemoteLaneActionState, running: boolean): string | undefined {
+  if (state.moveBlocked) return state.moveBlocked
+  if (!state.caps.laneTransfer) return LANE_MOVE_NEEDS_UPDATE
+  if (!state.caps.granted('sessions.control')) return featureNotOffered('sessions.control')
+  return running ? STOP_BEFORE_MOVE : undefined
 }

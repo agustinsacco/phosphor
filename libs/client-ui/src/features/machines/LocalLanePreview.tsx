@@ -11,6 +11,7 @@ import { pendingLiveEntries } from '@/features/sessions/groupSessions'
 import { sessionSubtitle } from '@/features/sessions/sessionSubtitle'
 import { LaneRow, SessionIndicator, SubtitleSegments } from '@/features/sessions/SidebarPrimitives'
 import { isUnseen } from '@/features/sessions/unseen'
+import { LaneWorkspaceBadge } from '@/features/sessions/LaneWorkspaceBadge'
 import { localLiveEntries } from './localLive'
 
 /** A This Mac lane: its file (once pi has written one), its live session, or both. */
@@ -53,7 +54,14 @@ export function useLocalLanes(): LocalLane[] {
  * title, time, branch) on the same `LaneRow`. It opens the lane; the sidebar
  * row's menu is not here yet.
  */
-export function LocalLanePreviewRow({ lane }: { lane: LocalLane }): React.JSX.Element {
+export function LocalLanePreviewRow({
+  lane,
+  workspaceName,
+}: {
+  lane: LocalLane
+  /** Machine and folder, where rows from several machines mix (the Home board). */
+  workspaceName?: string
+}): React.JSX.Element {
   const { navigate } = useNavigation()
   const { meta, phosphorId } = lane
   const streaming = useChatStore((s) =>
@@ -105,6 +113,7 @@ export function LocalLanePreviewRow({ lane }: { lane: LocalLane }): React.JSX.El
           />
         </span>
       </span>
+      {workspaceName && <LaneWorkspaceBadge name={workspaceName} />}
     </LaneRow>
   )
 }

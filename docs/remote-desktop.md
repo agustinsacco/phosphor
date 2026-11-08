@@ -4,6 +4,23 @@ Desktop is a client of an enrolled Host. Start with [remote access](remote-acces
 for setup, the end-to-end flow and trust boundaries. This contract owns main-process
 routing and machine selection. Individual panes keep their own UI contracts.
 
+## Moving lanes
+
+**Move to…** supports This Mac → This Mac (another workspace), This Mac → Host,
+Host → This Mac, and Host → Host. Main owns the transfer via `hosts:laneMovePlan`
+and `hosts:laneMove`; the sandboxed renderer chooses a destination and presents
+the checked plan. Desktop relays one bounded bundle and verifies its hash. Both
+Host connections must remain ready in the same incarnation throughout a move.
+A connection replacement or permission loss fails closed; an uncertain commit
+reports an unconfirmed result instead of resending it.
+
+This Mac imports into pi's cwd-mangled sessions folder. Attachments brought from
+a Host live under `<userData>/lane-attachments/<sessionId>/`, are private, and go
+to trash with the lane. Pins, markers and seen state are persisted by main;
+artifacts rebuild from the transcript. No live process, provider credential,
+routine schedule or terminal is transferred. See [lane semantics](lanes.md#moving-a-lane)
+and the [Host calls](remote-protocol.md#lane-snapshot-transfer).
+
 ## Desktop Host connections
 
 The transport, proof barrier, lane projection and remote-lane delivery core live
@@ -44,8 +61,10 @@ may try a fresh action once ready. `closed` means no automatic retry.
 intermediate states are coalesced. Machine reads use it to reject stale replies. Controllers expose only a label, connection
 status and whether they are this Desktop, never a client or user id. Repositories,
 lane summaries, cursors, the last 50 attention events and open lane streams stay
-in memory. No transcript is written to the client's disk, except an export the
-user saves. Remote lane access
+in memory. Normal viewing writes no transcript to the client's disk. Explicit
+HTML exports and [Move to…](lanes.md#moving-a-lane) are exceptions: a move stages
+a private temporary bundle on Desktop, deletes it afterwards, and installs a
+permanent session file only when This Mac is the destination. Remote lane access
 requires `sessions.read` in the Host's authenticated `ready` frame; mutations
 also require `sessions.control`.
 
@@ -458,9 +477,14 @@ a hints line and one note line. `useLocalStart` and the Host target in
 `RemoteStartView` supply only what differs. On a Host, `@` lists the chosen
 repository's files through `hosts:repositoryFiles` (with `workspaces.read`).
 The repository picker wears This Mac's folder chip (`workspaces/folderChip.tsx`).
-The Host has no command list or context-file preference before a lane exists,
-so a new Host lane offers no `/` menu or Rules readout; inside a Host lane `/`
-lists the lane's own commands. The Swarm switch records its choice on the draft,
+`/` lists pi's commands for that repository as This Mac's does for its folder:
+one `usePiCommandsStore` slot per machine folder, loaded on the first `/`
+(`pi:commands` on This Mac, `hosts:commands` → the Host's `machine.commands
+{repositoryId}` under `skills.read`), so a project's skills, prompts and
+extensions are offered before the first prompt. A Host without `skills.read`, or
+without a repository chosen, offers no `/`. Inside a Host lane `/` lists the
+lane's own commands. The Host has no context-file preference before a lane
+exists, so a new Host lane offers no Rules readout. The Swarm switch records its choice on the draft,
 as on This Mac. After `hosts:createLane` the client turns Swarm on in the new
 lane (`get_commands`, then `/phosphor-swarm on`) before it sends the first
 prompt. If the Host's pi lacks pi-subagents or refuses, the lane exists but gets
