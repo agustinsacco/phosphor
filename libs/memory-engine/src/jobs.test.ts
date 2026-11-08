@@ -63,6 +63,20 @@ describe('Brain jobs', () => {
     })
     expect(store.job(waiting.id)?.state).toBe('waiting')
   })
+  it('persists the lane metadata read at startup and compares the stored finished leaf', () => {
+    const { store } = fixture()
+    const job = store.enqueue(lane(), 'queued')
+    const patch = { leafId: 'leaf-at-start', model: 'made-up/new-model', branch: 'settlement' }
+    expect(store.updateJob(job.id, patch)).toMatchObject(patch)
+    expect(store.job(job.id)).toMatchObject(patch)
+    store.updateJob(job.id, { state: 'done' })
+    expect(() => store.enqueue(lane({ leafId: 'leaf-at-start' }), 'queued')).toThrow(
+      'Nothing new in this lane since its last extraction.',
+    )
+    const next = store.enqueue(lane(), 'queued')
+    store.updateJob(next.id, { leafId: null, branch: null })
+    expect(store.job(next.id)).toMatchObject({ leafId: null, branch: null, model: lane().model })
+  })
   it('reports missing jobs explicitly', () => {
     const { store } = fixture()
     expect(() => store.updateJob('absent', { state: 'running' })).toThrow('Brain job not found.')
