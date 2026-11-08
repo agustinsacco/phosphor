@@ -236,3 +236,18 @@ it.each(['local', 'all'])(
     expect(container.querySelector('[role=listbox]')?.className).toContain('bottom-full')
   },
 )
+
+it('All machines shows every machine’s lanes on the shared board, not This Mac’s dashboard', async () => {
+  useMachinesStore.setState({
+    remoteEnabled: true,
+    machines: [{ id: MOCK_HOST_ID, label: 'bee2' } as never],
+    loading: false,
+  })
+  useRemoteLanesStore.setState({ filter: 'all', hosts: structuredClone(mockRemoteHosts) })
+  await act(async () => root.render(<WorkspaceHome workspacePath="/ws" />))
+  const board = container.querySelector('section[aria-label="All machines"]')
+  expect(board?.querySelector('[data-testid=home-board]')).not.toBeNull()
+  expect(board?.textContent).toContain('Remote demo lane')
+  expect(window.phosphor.invoke).not.toHaveBeenCalledWith('sessions:stats', '/ws')
+  useMachinesStore.setState({ remoteEnabled: false, machines: [] })
+})

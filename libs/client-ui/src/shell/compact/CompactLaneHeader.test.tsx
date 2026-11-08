@@ -148,13 +148,14 @@ it('lists the shared lane actions in the sheet, with the same hints as every lan
   expect(
     rows.map((b) => b.querySelector('span:not(.action-sheet-icon) > span')?.textContent),
   ).toEqual([
-    'Rename',
+    'Rename…',
+    'Make routine…',
+    'Pin',
+    'Lane marker…',
     'Take control',
     'Stop',
     'Mark read',
-    'Make routine…',
-    'Pin',
-    'Lane marker',
+    'Move to…',
     'Export HTML…',
     'Copy debug info',
     'Copy spend',

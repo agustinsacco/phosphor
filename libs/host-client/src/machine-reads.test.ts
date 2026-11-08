@@ -38,6 +38,24 @@ it('uses the machine allowlist and parsed models, never a local fallback', async
   connected = undefined
   await expect(reads.models('missing')).rejects.toThrow('Not available')
 })
+it('reads a repository’s commands through the same allowlist and parser', async () => {
+  const command = { name: 'deploy', source: 'skill', secret: 'x' }
+  call.mockResolvedValue({
+    type: 'result',
+    id: 'commands',
+    ok: true,
+    data: { commands: [command] },
+  })
+  expect(await reads.commands('host', '0123456789abcdef')).toEqual([
+    { name: 'deploy', source: 'skill' },
+  ])
+  expect(call).toHaveBeenCalledWith('machine.commands', { repositoryId: '0123456789abcdef' })
+  expect(await reads.commands('host')).toEqual([{ name: 'deploy', source: 'skill' }])
+  expect(call).toHaveBeenLastCalledWith('machine.commands', {})
+  await expect(reads.commands('host', '/not/an/id')).rejects.toThrow('Not available')
+  call.mockResolvedValue({ type: 'result', id: 'commands', ok: true, data: { commands: 'x' } })
+  await expect(reads.commands('host')).rejects.toThrow('Not available')
+})
 it('gates machine reads on current readiness and capability', async () => {
   for (const state of ['down', 'reconnecting', 'ready'] as const) {
     view = { ...view, state, capabilities: state === 'ready' ? [] : ['skills.read'] }

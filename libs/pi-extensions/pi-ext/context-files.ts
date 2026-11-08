@@ -26,12 +26,24 @@
  * a reload (`lane-reload.ts`, which rebuilds every extension) or a lane
  * reopened later would fall back to the preference new lanes start with.
  *
+ * A second rule needs no toggle. pi's parent-directory walk does not stop at
+ * a worktree's root, and Phosphor's worktrees sit inside the checkout they
+ * branch from, so a lane at `<repo>/.phosphor/worktrees/<name>` is also sent
+ * the main checkout's CLAUDE.md / AGENTS.md: another branch's rules (a stale
+ * layout, wrong paths) and, when the worktree has its own copy, the same text
+ * twice. Measured at 2.6k tokens on every request of every Phosphor worktree
+ * lane. In a linked worktree, any file pi found inside the main checkout and
+ * outside the cwd is dropped, whatever the toggles say, and reported with
+ * `excludedBy: 'main-checkout'` so the composer can show why. The detector is
+ * the one `worktree-paths.ts` uses (`main-checkout.ts`).
+ *
  * Self-contained because pi loads this file on its own, outside Phosphor's
  * module graph.
  */
 
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { detectMainRepo, isMainCheckoutPath, type WorktreeInfo } from './main-checkout'
 
 export type ContextFileKind = 'claude' | 'agents'
 
@@ -115,20 +127,24 @@ export function parseProjectContext(section: string): ContextBlock[] | null {
 }
 
 /**
- * The section without the disabled repository files: unchanged when nothing
- * matches or the shape is unknown, null when no file is left. The global file
- * in `agentDir` always stays.
+ * The section without the disabled repository files, nor the main checkout's
+ * when the lane runs in a worktree: unchanged when nothing matches or the
+ * shape is unknown, null when no file is left. The global file in `agentDir`
+ * always stays.
  */
 export function filterProjectContext(
   section: string,
   off: ReadonlySet<ContextFileKind>,
   agentDir = globalAgentDir(),
+  worktree: WorktreeInfo | null = null,
 ): string | null {
   const blocks = parseProjectContext(section)
   if (!blocks) return section
   const kept = blocks.filter((block) => {
+    if (isGlobalContextPath(block.path, agentDir)) return true
+    if (isMainCheckoutPath(block.path, worktree)) return false
     const kind = contextFileKind(block.path)
-    return !kind || !off.has(kind) || isGlobalContextPath(block.path, agentDir)
+    return !kind || !off.has(kind)
   })
   if (kept.length === blocks.length) return section
   if (kept.length === 0) return null
@@ -160,6 +176,7 @@ export function filterSystemMessages(
   messages: unknown[],
   off: ReadonlySet<ContextFileKind>,
   agentDir = globalAgentDir(),
+  worktree: WorktreeInfo | null = null,
 ): boolean {
   let changed = false
   let leading = true
@@ -170,7 +187,7 @@ export function filterSystemMessages(
     leading = false
     const section = m.sections?.project_context
     if (typeof section !== 'string') continue
-    const next = filterProjectContext(section, off, agentDir)
+    const next = filterProjectContext(section, off, agentDir, worktree)
     if (next === section) continue
     changed = true
     if (next !== null) m.sections!.project_context = next
@@ -188,6 +205,8 @@ export interface ContextFileInfo {
   tokens: number
   /** Always true for the global file: the toggles cover repository files only. */
   included: boolean
+  /** Left out by location, not by a toggle: the main checkout's file in a worktree lane. */
+  excludedBy?: 'main-checkout'
 }
 
 /** Context files in a rendered prompt, with what each costs and whether it is sent. */
@@ -195,6 +214,7 @@ export function contextFilesIn(
   systemPrompt: string,
   off: ReadonlySet<ContextFileKind>,
   agentDir?: string,
+  worktree: WorktreeInfo | null = null,
 ): ContextFileInfo[] {
   // Match pi's agent-directory discovery, including custom and ~/ paths.
   // Everything else is inherited from cwd/ancestors, not user-global config.
@@ -206,12 +226,14 @@ export function contextFilesIn(
     const kind = contextFileKind(block.path)
     if (!kind) continue
     const scope = isGlobalContextPath(block.path, globalDir) ? 'global' : 'project'
+    const mainCheckout = scope === 'project' && isMainCheckoutPath(block.path, worktree)
     files.push({
       path: block.path,
       kind,
       scope,
       tokens: Math.ceil(block.text.length / 4),
-      included: scope === 'global' || !off.has(kind),
+      included: scope === 'global' || (!off.has(kind) && !mainCheckout),
+      ...(mainCheckout ? { excludedBy: 'main-checkout' as const } : {}),
     })
   }
   return files
@@ -240,14 +262,29 @@ interface ContextFilesApi {
   ): void
 }
 
-/** Holds the lane's setting; `onChange` lets the breakdown re-publish at once. */
+/**
+ * Holds the lane's setting; `onChange` lets the breakdown re-publish at once.
+ * `detect` is the Git lookup for the worktree rule, injectable so tests never
+ * spawn git; it runs once per cwd, and only when a context carries one.
+ */
 export default function contextFiles(
   pi: ContextFilesApi,
   onChange: (ctx: unknown) => void = () => undefined,
   initial: string | undefined = process.env[CONTEXT_FILES_ENV],
   agentDir: string = globalAgentDir(),
-): { off: () => ReadonlySet<ContextFileKind> } {
+  detect: (cwd: string) => string | null = detectMainRepo,
+): { off: () => ReadonlySet<ContextFileKind>; worktree: () => WorktreeInfo | null } {
   let off = new Set<ContextFileKind>()
+  /** Resolved once per cwd; a session does not move between trees. */
+  const mainRepoByCwd = new Map<string, string | null>()
+  let worktree: WorktreeInfo | null = null
+  const locate = (ctx: unknown): void => {
+    const cwd = (ctx as { cwd?: unknown } | null | undefined)?.cwd
+    if (typeof cwd !== 'string' || !cwd) return
+    if (!mainRepoByCwd.has(cwd)) mainRepoByCwd.set(cwd, detect(cwd))
+    const mainRepoPath = mainRepoByCwd.get(cwd) ?? null
+    worktree = mainRepoPath ? { cwd, mainRepoPath } : null
+  }
   try {
     off = applyContextFileArgs(off, initial ?? '')
   } catch {
@@ -264,16 +301,20 @@ export default function contextFiles(
   // Registered before the breakdown's own session_start handler, which
   // publishes what this restores.
   pi.on('session_start', (_event, ctx) => {
+    locate(ctx)
     const manager = (ctx as { sessionManager?: { getBranch?: () => unknown[] } } | undefined)
       ?.sessionManager
     const saved = savedContextFiles(manager?.getBranch?.() ?? [])
     if (saved) off = saved
   })
-  pi.on('context_with_system', (event) => {
-    if (off.size === 0) return undefined
+  pi.on('context_with_system', (event, ctx) => {
+    locate(ctx)
+    if (off.size === 0 && !worktree) return undefined
     const messages = (event as { messages?: unknown[] }).messages
-    if (!Array.isArray(messages) || !filterSystemMessages(messages, off, agentDir)) return undefined
+    if (!Array.isArray(messages) || !filterSystemMessages(messages, off, agentDir, worktree)) {
+      return undefined
+    }
     return { messages }
   })
-  return { off: () => off }
+  return { off: () => off, worktree: () => worktree }
 }
