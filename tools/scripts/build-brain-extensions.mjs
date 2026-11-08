@@ -5,11 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 
 /** The pi-ext sources that ship only as these bundles, never as raw TypeScript. */
-export const BRAIN_EXTENSION_SOURCES = [
-  'brain.ts',
-  'brain-processor.ts',
-  'brain-learning-carrier.ts',
-]
+export const BRAIN_EXTENSION_SOURCES = ['brain.ts', 'brain-fork-guard.ts']
 
 /** One staging path for dev, Desktop packaging and Host resources. No workspace imports survive. */
 export async function buildBrainExtensions({ root, outDir }) {
