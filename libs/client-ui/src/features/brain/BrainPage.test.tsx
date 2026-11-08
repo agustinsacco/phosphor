@@ -311,6 +311,61 @@ it('does not poll while hidden and resumes a failed initial load on becoming vis
   }
 })
 
+it('enables source-model learning without a legacy processor but still requires enrollment consent', async () => {
+  await act(async () => root.render(<BrainPage />))
+  await click('Settings')
+  const input = (label: string) =>
+    [...container.querySelectorAll('label')]
+      .find((item) => item.textContent?.includes(label))!
+      .querySelector('input')!
+  const save = () =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save Brain settings')!
+  await act(async () => input('Enable Brain').click())
+  expect(save().disabled).toBe(true)
+  await act(async () => input('I consent to capture').click())
+  expect(save().disabled).toBe(false)
+  await click('Save Brain settings')
+  expect(invoke).toHaveBeenCalledWith(
+    'brain:setPrefs',
+    expect.objectContaining({ enabled: true, processor: null, workspaces: ['/synthetic'] }),
+  )
+})
+
+it('requires a complete optional processor and allows clearing it back to source-model learning', async () => {
+  await act(async () => root.render(<BrainPage />))
+  await click('Settings')
+  const input = (label: string) =>
+    [...container.querySelectorAll('label')]
+      .find((item) => item.textContent?.includes(label))!
+      .querySelector('input')!
+  const change = async (label: string, value: string) => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input(label),
+        value,
+      )
+      input(label).dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => input('I consent to capture').click())
+  }
+  const save = () =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save Brain settings')!
+  await act(async () => input('Enable Brain').click())
+  await change('Exact provider', 'openai')
+  expect(save().disabled).toBe(true)
+  await change('Exact model ID', 'exact')
+  expect(save().disabled).toBe(false)
+  await change('Exact provider', '')
+  expect(save().disabled).toBe(true)
+  await change('Exact model ID', '')
+  expect(save().disabled).toBe(false)
+  await click('Save Brain settings')
+  expect(invoke).toHaveBeenCalledWith(
+    'brain:setPrefs',
+    expect.objectContaining({ enabled: true, processor: null }),
+  )
+})
+
 it('requires explicit confirmation before decreasing retention', async () => {
   await act(async () => root.render(<BrainPage />))
   await click('Settings')

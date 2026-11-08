@@ -71,6 +71,18 @@ describe('portable session admission', () => {
     expect(h.clients).toHaveLength(2)
   })
 
+  it('keeps source auth receipts private to trusted client readers, not manual commands', async () => {
+    const h = fixture()
+    const live = await h.service.create({ workspacePath: '/repo' })
+    h.clients[0]!.request.mockClear()
+    await expect(h.service.command(live.sessionId, { type: 'get_auth_binding' })).rejects.toThrow(
+      'private',
+    )
+    expect(h.clients[0]!.request).not.toHaveBeenCalled()
+    await h.registry.get(live.sessionId)!.client.request({ type: 'get_auth_binding' })
+    expect(h.clients[0]!.request).toHaveBeenCalledExactlyOnceWith({ type: 'get_auth_binding' })
+  })
+
   it('adopts routine processes and restricts manual mutations while allowing observation', async () => {
     const h = fixture()
     const live = await h.service.create({ workspacePath: '/repo' })
