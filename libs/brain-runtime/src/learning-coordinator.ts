@@ -235,6 +235,10 @@ class BrainLearning {
     await active.admission
     if (active.done) await active.done
   }
+  /** Synchronous shutdown fence; owned disposal is awaited separately. */
+  abort = (): void => {
+    this.active?.abort.abort(new Error('Learning revoked'))
+  }
   revoke = async (): Promise<void> => {
     const active = this.active
     if (active) await this.cancel(active.id)

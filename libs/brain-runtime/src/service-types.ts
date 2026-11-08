@@ -19,6 +19,14 @@ import type { SessionPathRuntime } from '@phosphor/session-runtime/pi/session-pa
 import type { SessionStartupRuntime } from '@phosphor/session-runtime/pi/session-startup'
 import type { BrainEmbeddings } from './embedding/embedding-port'
 import type { BrainMemoryClient } from './memory-client'
+import type { BrainLearningHost } from './learning-port'
+import type {
+  BrainLearningConsent,
+  BrainLearningDetail,
+  BrainLearningJobList,
+  BrainLearningPreview,
+  BrainLearningTarget,
+} from '@phosphor/shared/brain-learning-jobs'
 
 export interface BrainApi {
   status(): Promise<BrainStatus>
@@ -30,6 +38,10 @@ export interface BrainApi {
   evidence(scope: string, afterId?: string): Promise<BrainEvidencePage>
   graph(entityId?: string): Promise<BrainGraph>
   process(scope: string, consent: BrainProcessConsent): Promise<BrainJob>
+  learnPreview(target: BrainLearningTarget): Promise<BrainLearningPreview>
+  learn(target: BrainLearningTarget, consent: BrainLearningConsent): Promise<BrainJob>
+  learningJobs(scope?: string): Promise<BrainLearningJobList>
+  learningDetail(jobId: string): Promise<BrainLearningDetail>
   cancel(jobId: string): Promise<void>
   review(proposalId: string, approve: boolean, revision: BrainRevision): Promise<void>
   correct(claimId: string, correction: BrainCorrection, revision: BrainRevision): Promise<void>
@@ -54,6 +66,8 @@ export interface BrainServiceOptions {
     /** Audited nonce/job-bound extension handshake; must fail closed. No inference. */
     verifyTools(live: LiveSession): Promise<void>
   }
+  /** Trusted local binding; absent adapters refuse selective learning. */
+  learningHost?: BrainLearningHost
   onError?: (error: unknown) => void
 }
 export interface BrainService {

@@ -3,6 +3,7 @@ import type { BrainMemoryClient } from './memory-client'
 import type { BrainStatus } from '@phosphor/shared/brain'
 import type { createBrainIndexer } from './indexer'
 import type { createBrainProcessor } from './processor'
+import type { createBrainLearning } from './learning-coordinator'
 import type { createBrainTranscripts } from './transcripts'
 import { bounded, brainQuery, canonicalPrefs, identifier, laneAuthority } from './authority'
 
@@ -11,6 +12,7 @@ interface Controller {
   store: BrainMemoryClient
   indexer: ReturnType<typeof createBrainIndexer>
   processor: ReturnType<typeof createBrainProcessor>
+  learning?: ReturnType<typeof createBrainLearning>
   transcripts: ReturnType<typeof createBrainTranscripts>
   serialize<T>(operation: () => Promise<T>): Promise<T>
   status(): Promise<BrainStatus>
@@ -25,11 +27,38 @@ async function indexDerived({ indexer, options }: Controller): Promise<void> {
     options.onError?.(error)
   }
 }
+function learningApi({
+  store,
+  learning,
+  processor,
+  serialize,
+}: Controller): Pick<
+  BrainApi,
+  'learnPreview' | 'learn' | 'learningJobs' | 'learningDetail' | 'cancel'
+> {
+  const learner = () => {
+    if (!learning) throw new Error('Selective learning requires a qualified local pi binding')
+    return learning
+  }
+  return {
+    learnPreview: (target) => serialize(() => learner().preview(bounded(target))),
+    learn: (target, consent) => serialize(() => learner().start(bounded(target), bounded(consent))),
+    learningJobs: (scope) => store.learningJobs(scope === undefined ? undefined : bounded(scope)),
+    learningDetail: (id) => store.learningDetail(identifier(id)),
+    cancel: (id) =>
+      serialize(async () => {
+        const job = await store.job(identifier(id))
+        if (job.learning) await learner().cancel(id)
+        else await processor.cancel(id)
+      }),
+  }
+}
 export function createBrainApi(controller: Controller): BrainApi {
   const { options, store, indexer, processor, transcripts, serialize, status, revoke, isClosed } =
     controller
   const index = () => indexDerived(controller)
   const api: BrainApi = {
+    ...learningApi(controller),
     status,
     setPrefs: (prefs) =>
       serialize(async () => {
@@ -75,7 +104,7 @@ export function createBrainApi(controller: Controller): BrainApi {
         const canonical = (await laneAuthority(scope)).scope
         return processor.process(canonical, consent)
       }),
-    cancel: (id) => serialize(() => processor.cancel(identifier(id))),
+
     review: (id, approve, revision) =>
       serialize(async () => {
         if (typeof approve !== 'boolean') throw new Error('Invalid Brain review')

@@ -12,14 +12,10 @@ const cleanups: Array<() => Promise<void>> = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
-async function fixture() {
-  const f = await adapterFixture()
-  cleanups.push(f.cleanup)
-  await f.store.setPrefs({ ...(await f.store.snapshot()).prefs, processor: null })
-  const target = { workspacePath: f.scope, sessionPath: join(f.root, 'source.jsonl') }
+async function sourceFixture(workspacePath: string, sessionPath: string) {
   const text =
     [
-      { type: 'session', version: 3, id: 'source', cwd: f.scope },
+      { type: 'session', version: 3, id: 'source', cwd: workspacePath },
       {
         type: 'message',
         id: 'original-input',
@@ -29,11 +25,16 @@ async function fixture() {
     ]
       .map((item) => JSON.stringify(item))
       .join('\n') + '\n'
-  await writeFile(target.sessionPath, text)
-  const source = freezeLearningSource(text, {
-    sessionId: 'source',
-    selectedLeafId: 'original-input',
-  }).source
+  await writeFile(sessionPath, text)
+  return freezeLearningSource(text, { sessionId: 'source', selectedLeafId: 'original-input' })
+    .source
+}
+async function fixture() {
+  const f = await adapterFixture()
+  cleanups.push(f.cleanup)
+  await f.store.setPrefs({ ...(await f.store.snapshot()).prefs, processor: null })
+  const target = { workspacePath: f.scope, sessionPath: join(f.root, 'source.jsonl') }
+  const source = await sourceFixture(target.workspacePath, target.sessionPath)
   const covered = source.entries.map((entry) => ({
     ...entry,
     projectedHash: createHash('sha256').update('projected').digest('hex'),

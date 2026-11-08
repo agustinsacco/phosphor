@@ -4,6 +4,7 @@ import type { BrainStatus } from '@phosphor/shared/brain'
 import { createBrainBridge } from './bridge'
 import { createBrainIndexer } from './indexer'
 import { createBrainProcessor } from './processor'
+import { createBrainLearning } from './learning-coordinator'
 import { createBrainWorking } from './working'
 import { createBrainTranscripts } from './transcripts'
 import { createBrainLifecycle } from './service-lifecycle'
@@ -34,6 +35,9 @@ export async function assembleBrainService(
   const sessionDir = join(await realpath(options.directory), 'sessions')
   await mkdir(sessionDir, { recursive: true, mode: 0o700 })
   const indexer = createBrainIndexer(store, options.embeddings)
+  const learning = options.learningHost
+    ? createBrainLearning({ store, host: options.learningHost, report: options.onError })
+    : undefined
   const bridge = await createBrainBridge({
     async allowed(capability) {
       try {
@@ -54,11 +58,17 @@ export async function assembleBrainService(
   const working = createBrainWorking(options, store, bridge, indexer)
   const transcripts = createBrainTranscripts(options, store, sessionDir, processor.cancel)
   const lifecycle = createBrainLifecycle({
-    revoke: () => bridge.revokeAll(),
+    revoke: () => {
+      bridge.revokeAll()
+      learning?.abort()
+    },
     detach: () => working.dispose(),
     stopEmbeddings: () => options.embeddings.dispose(),
     stopIndexing: () => indexer.dispose(),
-    stopProcessor: () => processor.dispose(),
+    stopProcessor: async () => {
+      await learning?.dispose()
+      await processor.dispose()
+    },
     purge: () => transcripts.purge(),
     closeBridge: () => bridge.close(),
     closeStore: () => store.close(),
@@ -71,11 +81,12 @@ export async function assembleBrainService(
       snapshot: await store.snapshot(),
       embedding: options.embeddings.status(),
       notice:
-        'Local Desktop prototype: captures only new plain user entries in lanes started after enrollment. No history, assistant or tool import. Manual processing sends bounded evidence to the explicitly selected native API-key model. Embeddings remain local; no model fallback.',
+        'Local Desktop prototype. Automatic capture is limited to admitted new user text. Explicit lane learning preserves pi-projected history and requires a qualified source-model/account binding, one private response and manual review. Cache reuse is best effort. The separate evidence processor still requires a selected native API-key model. Embeddings remain local; no model fallback.',
     }
   }
   async function revoke(): Promise<void> {
     bridge.revokeAll()
+    await learning?.revoke()
     await processor.revoke()
   }
   const api = createBrainApi({
@@ -83,12 +94,23 @@ export async function assembleBrainService(
     store,
     indexer,
     processor,
+    learning,
     transcripts,
     serialize: lifecycle.serialize,
     status,
     revoke,
     isClosed: lifecycle.isClosed,
   })
+  await initializeBrain(options, store, indexer, lifecycle)
+  return { api, memory: working.memory, dispose: lifecycle.dispose }
+}
+/** Optional derived indexes fail open; authoritative startup failures still dispose owners. */
+async function initializeBrain(
+  options: BrainServiceOptions,
+  store: BrainMemoryClient,
+  indexer: ReturnType<typeof createBrainIndexer>,
+  lifecycle: ReturnType<typeof createBrainLifecycle>,
+): Promise<void> {
   let enabled: boolean
   try {
     enabled = (await store.snapshot()).prefs.enabled
@@ -102,5 +124,4 @@ export async function assembleBrainService(
   } catch (error) {
     options.onError?.(error)
   }
-  return { api, memory: working.memory, dispose: lifecycle.dispose }
 }
