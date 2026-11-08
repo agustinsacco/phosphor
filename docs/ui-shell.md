@@ -220,8 +220,10 @@ Signed-out windows have no machine switcher or remote groups.
   cancels without saving.
   Starting/working lanes use the shared
   [Phosphor Beacon](style-guide.md#loading-identity--phosphor-beacon), an amber
-  edge rail and a status chip in place of the timestamp. Context menu, in
-  order: Open, Move up / Move down, Session tree…, Finish conversation… (or
+  edge rail and a status chip in place of the timestamp. Context menu
+  (`laneActions`, the list Host lanes use), in order: Open, Move up / Move
+  down, Rename… (the inline rename a double-click opens), Session tree…,
+  Finish conversation… (or
   Reopen conversation; Restore worktree… once its worktree is gone), Make
   routine…, Pin, Lane marker…, Open pull request (when the lane has one; this
   is the keyboard route, the chip is mouse-only), Stop (live lanes, as on a

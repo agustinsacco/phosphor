@@ -322,6 +322,7 @@ describe('run lane composition', () => {
             expect(hooks.lanes?.calls.capabilityFor(method)).toBe('workspaces.read')
           for (const method of [
             'machine.models',
+            'machine.commands',
             'machine.providers',
             'skills.list',
             'skills.read',

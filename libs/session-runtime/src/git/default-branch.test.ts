@@ -2,7 +2,7 @@ import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { git } from '@phosphor/session-runtime/git/git-exec'
+import { git } from './git-exec'
 import { defaultBranchRefs, resolveDefaultBranch, type RepositoryGit } from './default-branch'
 
 let temp: string
