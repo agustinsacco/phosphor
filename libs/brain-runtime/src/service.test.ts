@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
 import { adapterFixture, deferred } from './__fixtures__/adapter-fixture'
 import { assembleBrainService, createBrainService } from './service'
-import type { PreparedBrainLearning } from './learning-port'
 
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -171,14 +170,15 @@ it('does not queue exclusion authority behind blocked learning source admission'
   const source = join(f.scope, 'synthetic-source.jsonl')
   await writeFile(source, 'Synthetic source')
   const entered = deferred<void>()
-  const release = deferred<PreparedBrainLearning>()
+  const release = deferred<void>()
   const service = await assembleBrainService(
     {
       ...f.options,
       learningHost: {
-        prepare: () => {
+        prepare: async () => {
           entered.resolve()
-          return release.promise
+          await release.promise
+          throw new Error('Synthetic source admission released')
         },
       },
     },
@@ -197,7 +197,7 @@ it('does not queue exclusion authority behind blocked learning source admission'
     expect(read).toHaveBeenCalledExactlyOnceWith('clean-source')
     await expect(exclusion).resolves.toBe(false)
   } finally {
-    release.reject(new Error('Synthetic source admission released'))
+    release.resolve()
     await Promise.allSettled([previewSettled, exclusion])
   }
 })
