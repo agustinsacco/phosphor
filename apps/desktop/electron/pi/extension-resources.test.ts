@@ -48,7 +48,19 @@ const shippedFiles = [
 ]
 // Exported for source, build and test consumers; packaged resources carry only
 // their standalone bundles (brain-ext/), never these TypeScript sources.
-const bundleOnlySources = ['brain.ts', 'brain-processor.ts']
+const bundleOnlySources = [
+  'brain.ts',
+  'brain-processor.ts',
+  'brain-learning.ts',
+  'brain-learning-context.ts',
+  'brain-learning-result.ts',
+  'brain-learning-provenance.ts',
+  'brain-learning-carrier.ts',
+  'brain-learning-carrier-auth.ts',
+  'brain-learning-carrier-files.ts',
+  'brain-learning-carrier-operation.ts',
+  'brain-learning-carrier-sdk.ts',
+]
 
 describe('standalone pi extension resources', () => {
   it('exports production source files without exposing tests', () => {
@@ -79,11 +91,7 @@ describe('standalone pi extension resources', () => {
       })!
       const matcher = matchers.find((entry) => entry.to === join(resources, 'pi-ext'))!
       expect(matcher.from).toBe(join(library, 'pi-ext'))
-      expect(matcher.patterns).toEqual([
-        '**/*.ts',
-        '!**/*.test.ts',
-        ...bundleOnlySources.map((file) => `!${file}`),
-      ])
+      expect(matcher.patterns).toEqual(['**/*.ts', '!**/*.test.ts', '!brain*.ts'])
       const filter = matcher.createFilter()
       const copied: string[] = []
       for (const relative of readdirSync(matcher.from, { recursive: true }).map(String)) {
