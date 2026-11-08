@@ -20,6 +20,10 @@
       "types": "./src/learning-carrier-transport.ts",
       "default": "./src/learning-carrier-transport.ts"
     },
+    "./learning-source-binding": {
+      "types": "./src/learning-source-binding.ts",
+      "default": "./src/learning-source-binding.ts"
+    },
     "./learning-host": {
       "types": "./src/learning-host.ts",
       "default": "./src/learning-host.ts"

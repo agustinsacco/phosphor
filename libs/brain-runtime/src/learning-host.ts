@@ -20,6 +20,7 @@ import { writeLearningControl } from './learning-carrier-files'
 import { createLearningRoot, withLearningRootRecovery } from './learning-carrier-recovery'
 import { OwnedLearningCarrier } from './learning-host-owner'
 import { abortable } from './processor-wait'
+import type { LearningSourceBinding } from './learning-source-binding'
 
 type Resolved = Pick<
   LearningExecutionProfile,
@@ -27,13 +28,7 @@ type Resolved = Pick<
 > & {
   accountId?: string
   claudeVersion?: string
-  sourceBinding?: {
-    binding: BrainLearningBinding
-    authIdentityFence: string
-    sessionId: string
-    selectedLeafId: string
-    settled: true
-  }
+  sourceBinding?: LearningSourceBinding
 }
 export interface LearningHostOptions extends LearningSourceAdmissionRuntime {
   directory: string
@@ -44,6 +39,7 @@ export interface LearningHostOptions extends LearningSourceAdmissionRuntime {
     target: BrainLearningTarget,
     liveSessionId: string | undefined,
     signal: AbortSignal,
+    source: BrainLearningSource,
   ): Promise<Resolved>
   /** Reports cleanup failure without provider credentials/config fields. */
   onError(error: Error): void
@@ -178,7 +174,13 @@ async function prepare(
     const snapshotPath = join(root, 'source.jsonl')
     const admitted = await admitLearningSource(options, target, snapshotPath, jobId, startup)
     const resolved = await abortable(
-      options.resolve(admitted.selection, target, admitted.liveSessionId, startup),
+      options.resolve(
+        admitted.selection,
+        target,
+        admitted.liveSessionId,
+        startup,
+        admitted.frozen.source,
+      ),
       startup,
     )
     startup.throwIfAborted()

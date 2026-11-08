@@ -3,7 +3,7 @@ import { constants } from 'node:fs'
 import { appendFile, lstat, open, realpath } from 'node:fs/promises'
 import { basename, dirname, isAbsolute } from 'node:path'
 import type { BrainLearningTarget } from '@phosphor/shared/brain-learning-jobs'
-import type { ThinkingLevel } from '@phosphor/shared/rpc'
+import type { Model, ThinkingLevel } from '@phosphor/shared/rpc'
 import type { SessionRegistry, LiveSession } from '@phosphor/session-runtime/pi/session-registry'
 import type { SessionPathRuntime } from '@phosphor/session-runtime/pi/session-path-lock'
 import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
@@ -115,11 +115,11 @@ export function learningSourceSelection(frozen: FrozenLearningSource): LearningS
     thinkingLevel: thinking as ThinkingLevel,
   }
 }
-async function liveInspection(
+export async function inspectLearningLiveSource(
   live: LiveSession,
   path: string,
   frozen: FrozenLearningSource,
-): Promise<LearningSourceState> {
+): Promise<LearningSourceState & { model: Model }> {
   if (live.owner || live.startupComplete !== true || !live.client.alive)
     throw new Error('Learning source is private or starting')
   const state = await live.client.request({ type: 'get_state' })
@@ -155,6 +155,7 @@ async function liveInspection(
   if (rows(frozen).some((entry) => JSON.stringify(byId.get(entry.id)) !== JSON.stringify(entry)))
     throw new Error('Learning source branch changed')
   return {
+    model: state.data.model,
     sessionId: frozen.source.sessionId,
     selectedLeafId: frozen.source.selectedLeafId,
     settled: true,
@@ -231,7 +232,7 @@ export async function admitLearningSource(
       if (matching.length) {
         const live = runtime.registry.get(matching[0]!.sessionId)
         if (!live) throw new Error('Learning source owner changed')
-        return liveInspection(live, path, initial)
+        return inspectLearningLiveSource(live, path, initial)
       }
       return { ...selection, settled: true, fence: initial.source.sourceDigest }
     }

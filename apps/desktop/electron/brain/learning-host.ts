@@ -3,17 +3,15 @@ import { homedir } from 'node:os'
 import { createLearningHost } from '@phosphor/brain-runtime/learning-host'
 import type { BrainLearningHost } from '@phosphor/brain-runtime/learning-port'
 import { piAgentDir, piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
-import { listPackages } from '@phosphor/session-runtime/pi/packages'
+import { readLearningSourceBinding } from '@phosphor/brain-runtime/learning-source-binding'
 import { registry } from '../registry'
 import { desktopSessions } from '../pi/session-runtime'
 import { sessionPaths } from '../pi/session-path-lock'
-import { getClaudeAccountPrefs } from '../store'
 import { resolveBinary, windowsWhereOutput } from '../pi/binary-lookup'
 import { resolveWindowsLaunch } from '../pi/win-launch'
 import { getLoginShellPath } from '../pi/shell-env'
 import { piStubPath } from '../pi/stub'
 import { log } from '../debug-log'
-import { qualifyLearningClaudePackage, selectLearningClaudeAccount } from './learning-auth'
 
 /** Local Desktop only. Host/PWA never activate this private authenticated process capability. */
 export function createDesktopLearningHost(options: {
@@ -27,13 +25,22 @@ export function createDesktopLearningHost(options: {
     paths: sessionPaths,
     sessionsRoot: piSessionsRoot(),
     onError: (error) => log('brain', 'Learning cleanup failed', { error: error.message }),
-    resolve: async (selection, target, liveSessionId, signal) => {
+    resolve: async (selection, target, liveSessionId, signal, source) => {
       signal.throwIfAborted()
       if (piStubPath()) throw new Error('Learning is unavailable with the ordinary pi test stub')
-      if (liveSessionId)
+      if (selection.provider === 'pi-claude-cli')
         throw new Error(
-          'Live learning requires source-process metadata-only get_auth_binding including authIdentityFence; stock pi get_state and explicit Claude assignment IDs cannot attest a live credential epoch. No current-slot substitution is permitted.',
+          'Learning CLI source identity hook is unavailable; an account assignment cannot attest actual process identity',
         )
+      const sourceBinding = liveSessionId
+        ? await readLearningSourceBinding(
+            { registry, paths: sessionPaths, sessionsRoot: piSessionsRoot() },
+            target,
+            liveSessionId,
+            source,
+            signal,
+          )
+        : undefined
       const launch = await learningExecutable()
       // No piProcessEnv/login-shell env dump, harvested OAuth or copied API key. pi keeps its
       // existing config/store and provider-owned refresh. Environment-only auth fails closed.
@@ -53,26 +60,8 @@ export function createDesktopLearningHost(options: {
       }
       if (process.platform !== 'win32')
         env.PATH = (await getLoginShellPath()) ?? env.PATH ?? '/usr/bin:/bin'
-      const native = { ...launch, agentDir: piAgentDir(), env }
-      if (selection.provider !== 'pi-claude-cli') {
-        signal.throwIfAborted()
-        return native
-      }
-      const account = selectLearningClaudeAccount(getClaudeAccountPrefs(), target.sessionPath)
-      const provider = qualifyLearningClaudePackage(await listPackages(target.workspacePath))
       signal.throwIfAborted()
-      return {
-        ...native,
-        ...provider,
-        accountId: account.accountId,
-        env: {
-          ...env,
-          ...account.env,
-          PI_CLAUDE_CLI_CONTEXT: 'pi',
-          PI_CLAUDE_CLI_KEEPALIVE_MS: '0',
-          PI_CLAUDE_CLI_EPHEMERAL: '1',
-        },
-      }
+      return { ...launch, agentDir: piAgentDir(), env, sourceBinding }
     },
   })
 }

@@ -22,6 +22,7 @@ import { sessionFixture } from '@phosphor/session-runtime/pi/__fixtures__/sessio
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import type { LearningHostOptions } from './learning-host'
 import { createLearningHost } from './learning-host'
+import { readLearningSourceBinding } from './learning-source-binding'
 
 const cleanups: Array<() => Promise<unknown>> = []
 afterEach(async () => {
@@ -482,7 +483,7 @@ it('refuses oversized projected input before stream creation, without clipping o
     model.contextWindow = oldWindow
   }
 })
-function registerSource(f: Awaited<ReturnType<typeof fixture>>) {
+function registerSource(f: Awaited<ReturnType<typeof fixture>>, receipt?: unknown) {
   const rows = f.original
     .trimEnd()
     .split('\n')
@@ -512,6 +513,7 @@ function registerSource(f: Awaited<ReturnType<typeof fixture>>) {
     }
     if (command.type === 'get_entries')
       return { success: true, data: { entries: rows, leafId: 'thinking' } }
+    if (command.type === 'get_auth_binding') return { success: true, data: receipt }
     throw new Error('Original source mutation forbidden')
   })
   const source = {
@@ -707,5 +709,38 @@ it('passes only the actual admitted frozen source to the trusted resolver for li
   expect(resolve.mock.calls[0]?.[4]).toEqual(prepared.checkpoint.source)
   await prepared.dispose()
   expect(f.stream).not.toHaveBeenCalled()
+  expect(await readFile(f.target.sessionPath, 'utf8')).toBe(f.original)
+})
+
+it('prepares a live native source through the actual reader and host/service without inference or source mutation', async () => {
+  const f = await fixture()
+  const source = registerSource(f, {
+    available: true,
+    sourceSessionId: '01a12345-1234-4234-8234-123456789abc',
+    binding,
+    authIdentityFence: 'synthetic-login-epoch',
+  })
+  const host = createLearningHost({
+    ...f.hostOptions,
+    resolve: async (selection, target, liveSessionId, signal, frozenSource) => ({
+      ...(await f.hostOptions.resolve(selection, target, liveSessionId, signal, frozenSource)),
+      sourceBinding: await readLearningSourceBinding(
+        f.hostOptions,
+        target,
+        liveSessionId!,
+        frozenSource,
+        signal,
+      ),
+    }),
+  })
+  const prepared = await host.prepare(f.target, 'job', new AbortController().signal)
+  expect(prepared.binding).toEqual(binding)
+  expect(prepared.authIdentityFence).toBe('synthetic-login-epoch')
+  expect(
+    source.requests.mock.calls.filter(([command]) => command.type === 'get_auth_binding'),
+  ).toHaveLength(1)
+  await prepared.dispose()
+  expect(f.stream).not.toHaveBeenCalled()
+  expect(f.registry.list().map((item) => item.sessionId)).toEqual(['original-live'])
   expect(await readFile(f.target.sessionPath, 'utf8')).toBe(f.original)
 })
