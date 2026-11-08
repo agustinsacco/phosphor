@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { loadSqlite } from '@phosphor/session-runtime/sqlite'
 import { openMemoryStore } from '@phosphor/memory-engine/service'
 import { createMemoryHandler } from './memory-worker-handler'
+import { MEMORY_METHODS } from './memory-protocol'
 
 const directories: string[] = []
 afterEach(() => {
@@ -26,6 +27,23 @@ it('rejects stale embedding completions atomically and refuses omitted manual co
     handle({ id: 2, method: 'createJob', args: ['/repo', { provider: 'openai', id: 'm' }] }),
   ).toMatchObject({ ok: false })
   store.close()
+})
+it('exposes every durable operation through the worker without dropping learning receipts', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'brain-learning-dispatch-'))
+  directories.push(directory)
+  const store = openMemoryStore({ directory, Database: loadSqlite().DatabaseSync })
+  try {
+    expect([...MEMORY_METHODS].sort()).toEqual(
+      [...Object.keys(store), 'captureAt', 'commitVectors'].sort(),
+    )
+    expect(createMemoryHandler(store)({ id: 1, method: 'learningJobs', args: [] })).toEqual({
+      id: 1,
+      ok: true,
+      data: { items: [], truncated: false },
+    })
+  } finally {
+    store.close()
+  }
 })
 it('rejects an oversized response without poisoning later database operations', () => {
   const directory = mkdtempSync(join(tmpdir(), 'brain-db-response-'))
