@@ -1,4 +1,5 @@
 import { usePlatform } from '@/platform/Platform'
+import { TooltipButton } from '@/components/Tooltip'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { activeLearning, inspectLearning, useLearningUi } from './learningUi'
 
@@ -15,17 +16,17 @@ export function LearningIndicator({
   )
   if (!localBrain || (machine !== 'local' && machine !== 'all') || !job) return null
   return (
-    <button
+    <TooltipButton
       type="button"
       data-testid="learning-indicator"
       className="shrink-0 rounded px-1 text-xs text-blue-500 hover:underline"
-      title="Open private read-only learning inspector"
+      tooltip="Open private read-only learning inspector"
       onClick={(event) => {
         event.stopPropagation()
         inspectLearning(job.id)
       }}
     >
       Learning · {job.state}
-    </button>
+    </TooltipButton>
   )
 }
