@@ -1,16 +1,17 @@
 import { mockBrainCall } from '../features/brain/mockBrain'
 import {
+  REMOTE_LANE_MOCK,
   mockRemoteLaneInvoke,
   onMockRemoteChanged,
   mockRemoteSnapshot,
   mixedRemoteHosts,
 } from './mockRemoteLanes'
 import type { MachineView } from '@shared/control-api'
-import { mockMachineSettingsInvoke } from './mockMachineSettings'
-import { mockSkillShareInvoke } from './mockSkillShare'
+import { MACHINE_SETTINGS_MOCK, mockMachineSettingsInvoke } from './mockMachineSettings'
+import { SKILL_SHARE_MOCK, mockSkillShareInvoke } from './mockSkillShare'
+import { INSTRUCTIONS_MOCK, mockInstructionsInvoke } from './mockInstructions'
+import { SESSION_MAINTENANCE_MOCK, mockSessionMaintenance } from './mockSessionMaintenance'
 import { MOCK_PI_COMMANDS } from './mockPiCommands'
-import { mockInstructionsInvoke } from './mockInstructions'
-import { mockSessionMaintenance } from './mockSessionMaintenance'
 /**
  * Dev-only mock of the preload API so the renderer can run in a plain
  * browser (vite dev server without Electron). Replays the captured real
@@ -977,6 +978,14 @@ export function installMockPhosphor(): void {
     invoke: (channel: string, ...args: unknown[]) => {
       if (channel.startsWith('brain:')) return mockBrainCall(channel, args)
       if (channel.startsWith('routines:')) return mockLocalRoutineCall(channel, args)
+      if (MACHINE_SETTINGS_MOCK.has(channel))
+        return mockMachineSettingsInvoke(channel, args) as never
+      if (SKILL_SHARE_MOCK.has(channel)) return mockSkillShareInvoke(channel, args) as never
+      if (REMOTE_LANE_MOCK.has(channel)) return mockRemoteLaneInvoke(channel, args) as never
+      if (SESSION_MAINTENANCE_MOCK.has(channel))
+        return mockSessionMaintenance(channel, args, MOCK_DISK_SESSIONS)
+      if (INSTRUCTIONS_MOCK.has(channel))
+        return Promise.resolve().then(() => mockInstructionsInvoke(channel, args) as never)
       switch (channel) {
         case 'pi:health':
           return Promise.resolve({
@@ -1492,47 +1501,18 @@ export function installMockPhosphor(): void {
         case 'hosts:laneMovePlan':
         case 'hosts:laneMove':
           return mockHostConnectionInvoke(channel, args) as never
-        case 'hosts:settingsAccess':
-        case 'hosts:settingsRead':
-        case 'hosts:settingsPatch':
-        case 'hosts:settingsCheck':
-        case 'hosts:machineTask':
-        case 'hosts:claudeAccount':
-        case 'hosts:models':
-        case 'hosts:claude':
-        case 'hosts:claudeUsage':
-        case 'hosts:providers':
-          return mockMachineSettingsInvoke(channel, args) as never
         case 'hosts:repositoryFiles':
           return ['README.md', 'src/index.ts']
         case 'hosts:commands':
           return MOCK_PI_COMMANDS as never
         case 'hosts:repositoryFile':
           return { binary: false, size: 20, content: '# Remote repository\n', revision: null }
-        case 'hosts:skills':
-        case 'hosts:skillExport':
-        case 'hosts:skillInstall':
-          return mockSkillShareInvoke(channel, args) as never
         case 'hosts:snapshot':
           return localStorage.getItem('mock:remoteLanes') === '1'
             ? localStorage.getItem('mock:remoteMixed') === '1'
               ? mixedRemoteHosts()
               : mockRemoteSnapshot()
             : {}
-        case 'hosts:openLane':
-        case 'hosts:createLane':
-        case 'hosts:setFocusedLane':
-        case 'hosts:stopLane':
-        case 'hosts:resumeLane':
-        case 'hosts:takeControl':
-        case 'hosts:markRead':
-        case 'hosts:releaseControl':
-        case 'hosts:setLaneMarks':
-        case 'hosts:deleteLane':
-        case 'hosts:exportLaneHtml':
-        case 'hosts:subagentHistory':
-        case 'hosts:subagentInspect':
-          return mockRemoteLaneInvoke(channel, args) as never
         case 'hosts:removeRepository':
         case 'hosts:orderRepositories':
         case 'hosts:createFolder':
@@ -1853,14 +1833,6 @@ export function installMockPhosphor(): void {
           return Promise.resolve(undefined)
         case 'app:setSessionReaperPrefs':
           return Promise.resolve(undefined)
-        case 'sessions:setCompleted':
-        case 'sessions:retainedWorkspaces':
-        case 'sessions:restoreWorktree':
-        case 'sessions:worktreeRecovery':
-        case 'sessions:recreateWorktree':
-        case 'sessions:list':
-        case 'sessions:delete':
-          return mockSessionMaintenance(channel, args, MOCK_DISK_SESSIONS)
         case 'sessions:stats':
           return Promise.resolve(mockStats())
         case 'headroom:status':
@@ -2330,9 +2302,6 @@ export function installMockPhosphor(): void {
         case 'pty:resize':
         case 'pty:kill':
           return Promise.resolve(undefined)
-        case 'pi:readInstructions':
-        case 'pi:writeInstructions':
-          return Promise.resolve().then(() => mockInstructionsInvoke(channel, args) as never)
         case 'pi:readConfigFile':
           return Promise.resolve({
             path: '/Users/dev/.pi/agent/settings.json',

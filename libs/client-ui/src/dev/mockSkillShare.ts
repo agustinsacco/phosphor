@@ -32,8 +32,13 @@ function remoteSkill(machine: string, name: string): ResolvedSkill {
 }
 
 type Channel = 'hosts:skills' | 'hosts:skillExport' | 'hosts:skillInstall'
+export const SKILL_SHARE_MOCK: ReadonlySet<string> = new Set<Channel>([
+  'hosts:skills',
+  'hosts:skillExport',
+  'hosts:skillInstall',
+])
 export async function mockSkillShareInvoke(
-  channel: Channel,
+  channel: string,
   args: unknown[],
 ): Promise<IpcInvokeMap[Channel]['result']> {
   if (channel === 'hosts:skills') {

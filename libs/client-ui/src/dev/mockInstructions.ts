@@ -12,6 +12,10 @@ let file: GlobalInstructions = {
   exists: true,
 }
 
+export const INSTRUCTIONS_MOCK: ReadonlySet<string> = new Set([
+  'pi:readInstructions',
+  'pi:writeInstructions',
+])
 export function mockInstructionsInvoke(channel: string, args: unknown[]): unknown {
   if (channel === 'pi:readInstructions') return structuredClone(file)
   if (channel === 'pi:writeInstructions') {

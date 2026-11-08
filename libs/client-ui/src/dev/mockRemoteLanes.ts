@@ -115,6 +115,21 @@ export function mockRemoteLaneMarks(laneId: unknown, change: LaneMarksChange): v
   for (const listener of listeners) listener()
 }
 
+export const REMOTE_LANE_MOCK: ReadonlySet<string> = new Set([
+  'hosts:openLane',
+  'hosts:createLane',
+  'hosts:setFocusedLane',
+  'hosts:stopLane',
+  'hosts:resumeLane',
+  'hosts:takeControl',
+  'hosts:markRead',
+  'hosts:releaseControl',
+  'hosts:setLaneMarks',
+  'hosts:deleteLane',
+  'hosts:exportLaneHtml',
+  'hosts:subagentHistory',
+  'hosts:subagentInspect',
+])
 /** One lane's channels, answered as the harness Host would. `mock:remoteLanes` turns lanes on. */
 export function mockRemoteLaneInvoke(channel: string, args: unknown[]): Promise<unknown> {
   const lanes = localStorage.getItem('mock:remoteLanes') === '1'

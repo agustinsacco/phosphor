@@ -1,5 +1,14 @@
 import type { SessionMeta } from '@shared/models'
 
+export const SESSION_MAINTENANCE_MOCK: ReadonlySet<string> = new Set([
+  'sessions:setCompleted',
+  'sessions:retainedWorkspaces',
+  'sessions:restoreWorktree',
+  'sessions:worktreeRecovery',
+  'sessions:recreateWorktree',
+  'sessions:list',
+  'sessions:delete',
+])
 /** Browser harness projection of Desktop's explicit completion decision. */
 export function mockSessionMaintenance(
   channel: string,

@@ -161,3 +161,37 @@ it('forwards targeted PR options through the opaque remote repository router', a
   })
   expect(call).toHaveBeenCalledExactlyOnceWith('github.prs', { repositoryId, options })
 })
+
+it('registers the Host catalogue and repository reads over the manager connection', async () => {
+  const hostId = '00000000-0000-4000-8000-000000000001'
+  const repositoryId = '1234567890abcdef'
+  mocks.handle.mockClear()
+  registerHostsHandlers()
+  const channels = mocks.handle.mock.calls.map(([channel]) => channel)
+  for (const channel of [
+    'hosts:models',
+    'hosts:claude',
+    'hosts:claudeUsage',
+    'hosts:providers',
+    'hosts:skills',
+    'hosts:repositoryFiles',
+    'hosts:repositoryFile',
+  ])
+    expect(channels).toContain(channel)
+  const handler: unknown = mocks.handle.mock.calls.find(
+    ([channel]) => channel === 'hosts:repositoryFiles',
+  )?.[1]
+  if (typeof handler !== 'function') throw new Error('Missing repository files handler')
+  const call = vi.fn(async () => ({ type: 'result', id: 'f', ok: true, data: { files: ['a.ts'] } }))
+  mocks.connection.mockReturnValue({
+    snapshot: () => ({
+      state: 'ready',
+      capabilities: ['workspaces.read'],
+      repositories: [{ id: repositoryId }],
+    }),
+    incarnation: () => ({ generation: 1 }),
+    call,
+  })
+  await handler({ sender: { id: 7 } }, hostId, repositoryId).catch(() => undefined)
+  expect(call).toHaveBeenCalledWith('files.list', expect.objectContaining({ repositoryId }))
+})

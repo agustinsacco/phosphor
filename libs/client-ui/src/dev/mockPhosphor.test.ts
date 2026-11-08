@@ -49,6 +49,31 @@ it("lists This Mac's Claude provider by its package name, as the provider row ma
     CLAUDE_PROVIDER_PACKAGE,
   )
 })
+it('answers each delegated channel group from its owning mock module', async () => {
+  const host = '00000000-0000-4000-8000-000000000099'
+  expect(await window.phosphor.invoke('hosts:models', host)).toMatchObject([
+    { id: 'claude-sonnet-4-5' },
+  ])
+  await expect(
+    (async () => window.phosphor.invoke('hosts:machineTask', host, {} as never))(),
+  ).rejects.toThrow('Private setup terminals')
+  expect(
+    await window.phosphor.invoke('hosts:skillExport', { machine: host, name: 'demo' }),
+  ).toMatchObject({
+    name: 'demo',
+    files: [{ path: 'SKILL.md' }],
+  })
+  expect(await window.phosphor.invoke('hosts:exportLaneHtml', 'remote-lane')).toMatchObject({
+    html: expect.stringContaining('Mock lane'),
+  })
+  expect(await window.phosphor.invoke('sessions:worktreeRecovery', '/tmp/s.jsonl')).toMatchObject({
+    fresh: { branch: 'phosphor/mock-lane' },
+  })
+  expect(await window.phosphor.invoke('pi:readInstructions')).toMatchObject({
+    path: '/Users/dev/.pi/agent/AGENTS.md',
+  })
+})
+
 it('dispatches the four typed synthetic learning channels without a manual processor', async () => {
   const { DEFAULT_BRAIN_PREFS } = await import('@shared/brain')
   await window.phosphor.invoke('brain:setPrefs', {

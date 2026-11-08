@@ -49,7 +49,7 @@
     "electron/hosts/remote-lanes.test.ts::file": 1205,
     "electron/hosts/remote-lanes.test.ts::setup[1]": 154,
     "electron/hosts/remote-lanes.test.ts::%3Canonymous%3E[1]": 113,
-    "electron/ipc/hosts-handlers.ts::registerHostsHandlers[1]": 236,
+    "electron/ipc/hosts-handlers.ts::registerHostsHandlers[1]": 228,
     "electron/ipc/routines-handlers.ts::registerRoutinesHandlers[1]": 84,
     "electron/main.ts::file": 425,
     "electron/main.ts::createWindow[1]": 87,
