@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs'
 import { open } from 'node:fs/promises'
 import type { SessionMeta } from '@phosphor/shared/models'
 import { extractText } from './session-content'
+import { brainOwnerFromEntry, type BrainSessionOwner } from './brain-session-owner'
 
 /**
  * The fold behind session metadata, split out so it can be run twice: once
@@ -28,6 +29,7 @@ interface HeaderFields {
 export interface FoldState {
   header: HeaderFields | null
   name?: string
+  brainOwner?: BrainSessionOwner
   /**
    * Id of the first non-header entry. Together with `parentSession` it tells a
    * BRANCH (pi's `fork`, which copies the parent's entries and so repeats its
@@ -116,6 +118,10 @@ export function foldLine(state: FoldState, line: string): void {
     state.name = (entry.name as string | undefined) || undefined
     return
   }
+  if (type === 'custom') {
+    state.brainOwner ??= brainOwnerFromEntry(entry)
+    return
+  }
   if (type !== 'message') return
 
   const message = entry.message as
@@ -176,6 +182,7 @@ export function metaFromFold(state: FoldState, path: string, mtimeMs: number): S
     createdAt: header.timestamp ?? '',
     parentSession: header.parentSession,
     firstEntryId: state.firstEntryId,
+    ...(state.brainOwner ? { brainOwner: state.brainOwner } : {}),
     name: state.name,
     firstUserText: state.firstUserText?.slice(0, 200),
     userMessages: state.userMessages,

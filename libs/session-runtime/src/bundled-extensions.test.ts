@@ -24,9 +24,24 @@ describe('bundledExtensions', () => {
       'status-keys.ts',
       'pi-api.ts',
       'subagent-children.ts',
+      'brain-learning.ts',
+      'brain-learning-context.ts',
+      'brain-learning-result.ts',
+      'brain-learning-provenance.ts',
+      'brain-learning-carrier.ts',
+      'brain-learning-carrier-auth.ts',
+      'brain-learning-carrier-files.ts',
+      'brain-learning-carrier-operation.ts',
+      'brain-learning-carrier-sdk.ts',
     ])
+    // Opt-in Brain resources are bundled separately, never added to every session.
+    const optional = new Set(['brain.ts', 'brain-processor.ts'])
     const files = readdirSync(join(root, 'libs/pi-extensions/pi-ext')).filter(
-      (name) => name.endsWith('.ts') && !name.endsWith('.test.ts') && !imported.has(name),
+      (name) =>
+        name.endsWith('.ts') &&
+        !name.endsWith('.test.ts') &&
+        !imported.has(name) &&
+        !optional.has(name),
     )
     expect([...BUNDLED_EXTENSION_FILES].sort()).toEqual(files.sort())
     expect(BUNDLED_EXTENSION_FILES).toHaveLength(6)

@@ -44,8 +44,9 @@ appear on your screen.
 ## Architecture in six facts
 
 1. **Desktop's main process owns its side effects.** The renderer is sandboxed
-   (contextIsolation, no Node) and is pure UI over typed IPC. Disk, network and
-   subprocess work goes in `apps/desktop/electron/`.
+   (contextIsolation, no Node) and is pure UI over typed IPC. Reusable Node-side
+   disk, network and subprocess logic lives in `libs/*`; Electron-specific
+   bindings and ownership stay in `apps/desktop/electron/`, never the renderer.
 2. **IPC is a typed contract.** A new channel is an entry in its prefix's map under
    `libs/shared/src/ipc/`, a handler in `apps/desktop/electron/ipc/<prefix>-handlers.ts`,
    and a case in `libs/client-ui/src/dev/mockPhosphor.ts` if the browser harness

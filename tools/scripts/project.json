@@ -15,7 +15,10 @@
     "site",
     "schema",
     "client-ui",
-    "web"
+    "web",
+    "brain-runtime",
+    "brain-client",
+    "memory-engine"
   ],
   "targets": {
     "typecheck": {

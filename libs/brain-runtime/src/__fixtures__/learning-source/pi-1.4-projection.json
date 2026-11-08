@@ -1,0 +1,463 @@
+{
+  "piVersion": "1.4.0",
+  "entries": [
+    {
+      "id": "system",
+      "parentId": null,
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "system",
+        "content": "original system",
+        "timestamp": 1,
+        "toolsAdded": [
+          {
+            "name": "bash",
+            "description": "Historical inert schema",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "old",
+      "parentId": "system",
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "user",
+        "content": "omitted ancient fact",
+        "timestamp": 1
+      }
+    },
+    {
+      "id": "keep",
+      "parentId": "old",
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "user",
+        "content": "before edit",
+        "timestamp": 1
+      }
+    },
+    {
+      "id": "omit",
+      "parentId": "keep",
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "user",
+        "content": "explicitly context-omitted fact",
+        "timestamp": 1
+      }
+    },
+    {
+      "id": "answer",
+      "parentId": "omit",
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "retained reasoning",
+            "thinkingSignature": "sig"
+          },
+          {
+            "type": "text",
+            "text": "final assistant fact"
+          }
+        ],
+        "timestamp": 1,
+        "usage": {
+          "input": 50000,
+          "output": 2000,
+          "cacheRead": 100000,
+          "cacheWrite": 30000,
+          "totalTokens": 182000
+        }
+      }
+    },
+    {
+      "id": "abandoned",
+      "parentId": "old",
+      "type": "message",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "message": {
+        "role": "user",
+        "content": "abandoned fact",
+        "timestamp": 1
+      }
+    },
+    {
+      "id": "compact",
+      "parentId": "answer",
+      "type": "compaction",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "summary": "summary-only fact",
+      "firstKeptEntryId": "keep",
+      "tokensBefore": 1000,
+      "systemMessage": {
+        "role": "system",
+        "content": "original system",
+        "timestamp": 1,
+        "toolsAdded": [
+          {
+            "name": "bash",
+            "description": "Historical inert schema",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "edit",
+      "parentId": "compact",
+      "type": "context_edit",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "targetId": "keep",
+      "replacement": {
+        "content": "edited eligible fact"
+      }
+    },
+    {
+      "id": "omit-edit",
+      "parentId": "edit",
+      "type": "context_edit",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "targetId": "omit",
+      "replacement": null
+    },
+    {
+      "id": "metadata",
+      "parentId": "omit-edit",
+      "type": "session_info",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "name": "renamed"
+    }
+  ],
+  "leafId": "metadata",
+  "projection": {
+    "entries": [
+      {
+        "sourceEntry": {
+          "id": "compact",
+          "parentId": "answer",
+          "type": "compaction",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "summary": "summary-only fact",
+          "firstKeptEntryId": "keep",
+          "tokensBefore": 1000,
+          "systemMessage": {
+            "role": "system",
+            "content": "original system",
+            "timestamp": 1,
+            "toolsAdded": [
+              {
+                "name": "bash",
+                "description": "Historical inert schema",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "command": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "original system",
+            "timestamp": 1,
+            "toolsAdded": [
+              {
+                "name": "bash",
+                "description": "Historical inert schema",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "command": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "role": "compactionSummary",
+            "summary": "summary-only fact",
+            "tokensBefore": 1000,
+            "timestamp": 1767225600000
+          }
+        ]
+      },
+      {
+        "sourceEntry": {
+          "id": "keep",
+          "parentId": "old",
+          "type": "message",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "message": {
+            "role": "user",
+            "content": "before edit",
+            "timestamp": 1
+          }
+        },
+        "messages": [
+          {
+            "role": "user",
+            "content": "edited eligible fact",
+            "timestamp": 1
+          }
+        ]
+      },
+      {
+        "sourceEntry": {
+          "id": "omit",
+          "parentId": "keep",
+          "type": "message",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "message": {
+            "role": "user",
+            "content": "explicitly context-omitted fact",
+            "timestamp": 1
+          }
+        },
+        "messages": []
+      },
+      {
+        "sourceEntry": {
+          "id": "answer",
+          "parentId": "omit",
+          "type": "message",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "thinking",
+                "thinking": "retained reasoning",
+                "thinkingSignature": "sig"
+              },
+              {
+                "type": "text",
+                "text": "final assistant fact"
+              }
+            ],
+            "timestamp": 1,
+            "usage": {
+              "input": 50000,
+              "output": 2000,
+              "cacheRead": 100000,
+              "cacheWrite": 30000,
+              "totalTokens": 182000
+            }
+          }
+        },
+        "messages": [
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "thinking",
+                "thinking": "retained reasoning",
+                "thinkingSignature": "sig"
+              },
+              {
+                "type": "text",
+                "text": "final assistant fact"
+              }
+            ],
+            "timestamp": 1,
+            "usage": {
+              "input": 50000,
+              "output": 2000,
+              "cacheRead": 100000,
+              "cacheWrite": 30000,
+              "totalTokens": 182000
+            }
+          }
+        ]
+      },
+      {
+        "sourceEntry": {
+          "id": "edit",
+          "parentId": "compact",
+          "type": "context_edit",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "targetId": "keep",
+          "replacement": {
+            "content": "edited eligible fact"
+          }
+        },
+        "messages": []
+      },
+      {
+        "sourceEntry": {
+          "id": "omit-edit",
+          "parentId": "edit",
+          "type": "context_edit",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "targetId": "omit",
+          "replacement": null
+        },
+        "messages": []
+      },
+      {
+        "sourceEntry": {
+          "id": "metadata",
+          "parentId": "omit-edit",
+          "type": "session_info",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "name": "renamed"
+        },
+        "messages": []
+      }
+    ],
+    "messages": [
+      {
+        "role": "system",
+        "content": "original system",
+        "timestamp": 1,
+        "toolsAdded": [
+          {
+            "name": "bash",
+            "description": "Historical inert schema",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "role": "compactionSummary",
+        "summary": "summary-only fact",
+        "tokensBefore": 1000,
+        "timestamp": 1767225600000
+      },
+      {
+        "role": "user",
+        "content": "edited eligible fact",
+        "timestamp": 1
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "retained reasoning",
+            "thinkingSignature": "sig"
+          },
+          {
+            "type": "text",
+            "text": "final assistant fact"
+          }
+        ],
+        "timestamp": 1,
+        "usage": {
+          "input": 50000,
+          "output": 2000,
+          "cacheRead": 100000,
+          "cacheWrite": 30000,
+          "totalTokens": 182000
+        }
+      }
+    ],
+    "thinkingLevel": "off",
+    "model": {}
+  },
+  "wireByEntry": [
+    [
+      {
+        "role": "system",
+        "content": "original system",
+        "timestamp": 1,
+        "toolsAdded": [
+          {
+            "name": "bash",
+            "description": "Historical inert schema",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "The conversation history before this point was compacted into the following summary:\n\n<summary>\nsummary-only fact\n</summary>"
+          }
+        ],
+        "timestamp": 1767225600000
+      }
+    ],
+    [
+      {
+        "role": "user",
+        "content": "edited eligible fact",
+        "timestamp": 1
+      }
+    ],
+    [],
+    [
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "retained reasoning",
+            "thinkingSignature": "sig"
+          },
+          {
+            "type": "text",
+            "text": "final assistant fact"
+          }
+        ],
+        "timestamp": 1,
+        "usage": {
+          "input": 50000,
+          "output": 2000,
+          "cacheRead": 100000,
+          "cacheWrite": 30000,
+          "totalTokens": 182000
+        }
+      }
+    ],
+    [],
+    [],
+    []
+  ]
+}
