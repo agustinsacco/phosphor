@@ -3,8 +3,7 @@ import { MachineLabelLine } from './MachineSwitcher'
 import { SidebarFooter, SidebarNavigation } from './SidebarNavigation'
 import { RemoteLanes } from './RemoteLanes'
 import { useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
-import { LaneRevealEffect, localLaneGroupKey } from './laneReveal'
-import { loadGroupCollapse, setGroupCollapsed, useGroupCollapse } from './groupCollapse'
+import { loadGroupCollapse, useGroupCollapse } from './groupCollapse'
 import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
@@ -13,44 +12,19 @@ import { compareSessionsByCreation } from '@shared/session-order'
 import { useSessionsStore } from '@/stores/sessions'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useWorktreeDiscovery, type WorktreeDir } from './useWorktreeDiscovery'
-import { isUnseen } from './unseen'
 import { SessionList } from './SessionList'
-import { useLiveSessionNames } from './useLiveSessionNames'
 import { orderedSessions } from './sessionOrder'
 import { useRepoPrRefresh } from './repoPrRefresh'
 import { useLayoutStore } from '@/stores/layout'
-import { LaneSelectionRows, type LaneSelectMode } from './LaneSelectionRows'
-import {
-  clearLaneSelection,
-  selectLanes,
-  toggleLane,
-  useSelectedKeys,
-  useSelectingGroup,
-} from './laneSelection'
-import { confirmSessionDelete, deleteLocalRow } from './localLaneDelete'
-import { LocalBulkDelete, LocalDeleteDialogs } from './LocalBulkDelete'
+import { LocalDeleteDialogs } from './LocalBulkDelete'
+import { liveByDiskPath, LocalWorkspaceGroup, useLocalRows } from './LocalWorkspaceGroup'
 import { SessionRow } from './LocalLaneRow'
-import { PendingSessionRow } from './LocalPendingLaneRow'
-import {
-  LocalFolderMenuRows,
-  localGroupMenuItems,
-  startLocalSession,
-  type LocalWorktreeModal,
-} from './LocalFolderMenuRows'
-import { usePullRequestsStore, localLanePullRequest } from '@/stores/pullRequests'
+import type { LocalWorktreeModal } from './LocalFolderMenuRows'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { useRoutineLaneIndex } from '@/stores/routines'
-import { ChevronDownIcon, MoreIcon, PlusIcon, SearchIcon, Spinner } from '@/components/icons'
-import {
-  SectionLabel,
-  WorkspaceGroupHeader,
-  WorkspaceGroupTitle,
-  SessionRowSkeletons,
-  WorkspaceGroupSkeletons,
-} from './SidebarPrimitives'
+import { ChevronDownIcon } from '@/components/icons'
+import { SectionLabel, WorkspaceGroupSkeletons } from './SidebarPrimitives'
 import { TreeViewModal } from './TreeViewModal'
-import { LaneSearchBar } from './LaneSearchBar'
-import { laneHaystack, laneMatches, laneQueryTerms, type LaneSearchFields } from './laneSearch'
 import { toggleDesktopPage } from '@/navigation/desktopNavigation'
 import { projectName, isWorktreeFolder } from '@/lib/path'
 import {
@@ -58,9 +32,10 @@ import {
   pendingSessionsByGroup,
   type GroupedSessions,
 } from './groupSessions'
-import { sessionTitle } from '@/lib/sessionTitle'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
+
+const NO_PENDING: readonly string[] = Object.freeze([])
 
 const SIDEBAR_WIDTH_KEY = 'phosphor:sidebarWidth'
 const SIDEBAR_MIN = 208
@@ -84,15 +59,10 @@ export function Sidebar({
   const disk = useSessionsStore((s) => s.disk)
   const scanStatus = useSessionsStore((s) => s.scanStatus)
   const live = useSessionsStore((s) => s.live)
-  const unread = useSessionsStore((s) => s.unread)
   const pinned = useSessionsStore((s) => s.pinned)
   const rewound = useSessionsStore((s) => s.rewound)
   const sessionOrder = useSessionsStore((s) => s.sessionOrder)
-  const seenSessions = useSessionsStore((s) => s.seenSessions)
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
-  const activeSessionId = useSessionsStore((s) => s.activeSessionId)
-  /** Session file of the lane being opened right now, if any. */
-  const openingPath = useSessionsStore((s) => s.opening?.path)
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
 
   const recents = useWorkspacesStore((s) => s.recents)
@@ -103,18 +73,6 @@ export function Sidebar({
   const [worktreeModal, setWorktreeModal] = useState<LocalWorktreeModal | null>(null)
   /** Explicit collapse choices (prefs + this run); null until prefs load. */
   const collapsed = useGroupCollapse((s) => s.collapsed)
-  /**
-   * Lane search, per workspace group: which bars are open, what each is being
-   * typed into, and what each is actually filtering by.
-   *
-   * Draft and applied are separate because Enter commits — see
-   * `LaneSearchBar`. Neither is persisted: a filter that survived a restart
-   * would open the app on a sidebar missing most of its lanes, with the reason
-   * one scroll off screen.
-   */
-  const [searchOpen, setSearchOpen] = useState<Record<string, boolean>>({})
-  const [searchDraft, setSearchDraft] = useState<Record<string, string>>({})
-  const [searchApplied, setSearchApplied] = useState<Record<string, string>>({})
   const [width, setWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
   /**
@@ -126,9 +84,6 @@ export function Sidebar({
    * `projectPathFor`.
    */
   const [worktreeDirs, setWorktreeDirs] = useState<WorktreeDir[]>([])
-  const [workspaceMenuFor, setWorkspaceMenuFor] = useState<string | null>(null)
-  const workspaceMenuTriggerRef = useRef<HTMLButtonElement>(null)
-  const closeWorkspaceMenu = (): void => setWorkspaceMenuFor(null)
   const [worktreeDiscoveryEpoch, setWorktreeDiscoveryEpoch] = useState(0)
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
@@ -308,13 +263,7 @@ export function Sidebar({
     }
   }, [disk, knownWorkspaces])
 
-  const liveByDisk = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const entry of Object.values(live)) {
-      if (entry.diskPath) map.set(entry.diskPath, entry.phosphorId)
-    }
-    return map
-  }, [live])
+  const liveByDisk = useMemo(() => liveByDiskPath(live), [live])
 
   const pinnedSet = useMemo(() => new Set(pinned), [pinned])
 
@@ -432,88 +381,6 @@ export function Sidebar({
     disk,
   )
 
-  /** Multi-select for bulk delete, one group at a time: see `laneSelection.ts`. */
-  const selectingGroup = useSelectingGroup(groups.map((group) => group.workspacePath))
-  const selectedPaths = useSelectedKeys(selectingGroup)
-
-  const toggleGroup = (group: GroupedSessions, wasCollapsed: boolean): void => {
-    setGroupCollapsed(group.workspacePath, !wasCollapsed)
-    // Expanding catches up on anything missed while the group was unwatched,
-    // across every folder merged into this project (main repo + worktrees).
-    if (wasCollapsed) {
-      const store = useSessionsStore.getState()
-      for (const path of group.paths) void store.refreshDisk(path)
-    }
-  }
-
-  const isSearching = (group: GroupedSessions): boolean => Boolean(searchOpen[group.workspacePath])
-
-  /** Retract the filter and close the bar. The two are never separable. */
-  const closeSearch = (workspacePath: string): void => {
-    setSearchOpen((s) => ({ ...s, [workspacePath]: false }))
-    setSearchDraft((s) => ({ ...s, [workspacePath]: '' }))
-    setSearchApplied((s) => ({ ...s, [workspacePath]: '' }))
-  }
-
-  const toggleSearch = (group: GroupedSessions, isCollapsed: boolean): void => {
-    if (isSearching(group)) {
-      closeSearch(group.workspacePath)
-      return
-    }
-    // A filter on a collapsed group hides its own result, so opening search
-    // opens the group with it.
-    if (isCollapsed) toggleGroup(group, true)
-    setSearchOpen((s) => ({ ...s, [group.workspacePath]: true }))
-  }
-
-  /**
-   * PRs, for matching only — the rows fetch their own.
-   *
-   * Safe to subscribe to whole: `byRepo` is replaced on a completed refresh,
-   * which is rate-limited to once a minute per repo, not on every render of
-   * the chips it feeds.
-   */
-  const prByRepo = usePullRequestsStore((s) => s.byRepo)
-  const anySearchApplied = Object.values(searchApplied).some(Boolean)
-  const liveNames = useLiveSessionNames(anySearchApplied)
-
-  const lanePullRequest = (meta: SessionMeta) =>
-    localLanePullRequest({ byRepo: prByRepo }, meta, gitByCwd[meta.cwd || workspacePath])
-  /** The three identities one lane can be found by. */
-  const laneFields = (meta: SessionMeta): LaneSearchFields => {
-    const livePhosphorId = liveByDisk.get(meta.path)
-    const liveName = livePhosphorId ? liveNames.get(livePhosphorId) : undefined
-    return {
-      title:
-        sessionTitle(
-          { explicitName: liveName ?? meta.name, firstUserText: meta.firstUserText },
-          { elide: false },
-        ) ?? '',
-      branch: gitByCwd[meta.cwd || workspacePath]?.branch,
-      pr: lanePullRequest(meta),
-    }
-  }
-
-  /** A lane whose pull request merged: what "Select merged lanes" picks, as on a Host. */
-  const isMerged = (meta: SessionMeta): boolean => lanePullRequest(meta)?.state === 'MERGED'
-  /** The workspace menu's lane selection, over the lanes the search shows. */
-  const selectGroupLanes = (group: string, visible: SessionMeta[], mode: LaneSelectMode): void => {
-    if (mode === 'clear') clearLaneSelection()
-    else
-      selectLanes(
-        group,
-        (mode === 'all' ? visible : visible.filter(isMerged)).map((meta) => meta.path),
-      )
-  }
-
-  // Re-run the scan for a group whose last attempt failed, across every
-  // folder merged into the project, so the sidebar recovers instead of
-  // pinning a permanent "Loading sessions…".
-  const retryGroup = (group: GroupedSessions): void => {
-    const store = useSessionsStore.getState()
-    for (const path of group.paths) void store.refreshDisk(path)
-  }
-
   // Watch exactly the visible groups: expanded ⇒ watching, collapsed ⇒ not.
   // Idempotent both ways, so re-running on scan results is fine. Gated on
   // prefs hydration to avoid a watch-then-unwatch churn at mount.
@@ -538,33 +405,7 @@ export function Sidebar({
     void store.refreshMissing(open.flatMap((g) => g.unscannedPaths))
   }, [groups, collapsed])
 
-  const rowProps = (meta: SessionMeta) => {
-    const livePhosphorId = liveByDisk.get(meta.path)
-    // Selection follows the CLICK, not the process. A lane whose pi is still
-    // spawning is already the one the user is on, and leaving the previous row
-    // highlighted for the second or two that takes is what made switching read
-    // as a dropped click. Exclusive, so the list never shows two selected rows:
-    // while a lane is opening, it is the selection.
-    const opening = openingPath !== undefined && openingPath === meta.path
-    const active =
-      openingPath !== undefined
-        ? opening
-        : livePhosphorId === activeSessionId && activeSessionId !== null
-    return {
-      meta,
-      workspacePath: meta.cwd || workspacePath,
-      livePhosphorId,
-      active,
-      opening,
-      unseen:
-        !active &&
-        ((unread[livePhosphorId ?? ''] ?? 0) > 0 ||
-          isUnseen(seenSessions, meta.path, meta.lastActivityAt)),
-      git: gitByCwd[meta.cwd || workspacePath],
-      onOpenTree: () => setTreeFor(meta),
-      onDelete: (title: string) => deleteLocalRow(meta, title, workspacePath),
-    }
-  }
+  const { rowProps } = useLocalRows(workspacePath, setTreeFor)
 
   const sidebarLoading = !initialSidebarReady
 
@@ -600,218 +441,19 @@ export function Sidebar({
 
           {!sidebarLoading &&
             collapsed !== null &&
-            groups.map((group) => {
-              const isCollapsed = isGroupCollapsed(group)
-              const query = searchApplied[group.workspacePath] ?? ''
-              const terms = laneQueryTerms(query)
-              // Filter the metas rather than hide rows: selection, shift-ranges
-              // and the empty state then all read the same list the eye does.
-              const local = group.metas
-              const visible = terms.length
-                ? local.filter((meta) => laneMatches(laneHaystack(laneFields(meta)), terms))
-                : local
-              const selectingThis = selectingGroup === group.workspacePath
-              const visiblePaths = visible.map((m) => m.path)
-              const shownTotal = local.length
-              const shownCount = visible.length
-              return (
-                <div key={group.workspacePath}>
-                  <LaneRevealEffect
-                    groupKey={localLaneGroupKey(group.workspacePath)}
-                    collapsed={isCollapsed}
-                    expand={() => toggleGroup(group, true)}
-                    clearSearch={() => closeSearch(group.workspacePath)}
-                  />
-                  <WorkspaceGroupHeader
-                    menu={() =>
-                      localGroupMenuItems(group, gitByCwd[group.workspacePath], setWorktreeModal)
-                    }
-                    menuTitle={group.name}
-                  >
-                    <WorkspaceGroupTitle
-                      name={group.name}
-                      collapsed={isCollapsed}
-                      liveCount={group.liveCount}
-                      onClick={() => toggleGroup(group, isCollapsed)}
-                      data-testid="workspace-group"
-                      title={group.workspacePath}
-                    />
-                    <TooltipButton
-                      onClick={() => toggleSearch(group, isCollapsed)}
-                      data-testid="workspace-group-search"
-                      title="Search lanes"
-                      aria-label={`Search lanes in ${group.name}`}
-                      aria-expanded={isSearching(group)}
-                      className={clsx(
-                        'flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90',
-                        query
-                          ? 'bg-accent-soft text-accent'
-                          : 'text-text-tertiary hover:text-text hover:bg-sidebar-hover',
-                      )}
-                    >
-                      <SearchIcon size={12} />
-                    </TooltipButton>
-                    <TooltipButton
-                      ref={
-                        workspaceMenuFor === group.workspacePath
-                          ? workspaceMenuTriggerRef
-                          : undefined
-                      }
-                      onClick={() =>
-                        setWorkspaceMenuFor((current) =>
-                          current === group.workspacePath ? null : group.workspacePath,
-                        )
-                      }
-                      data-testid="workspace-group-menu"
-                      title="Workspace options"
-                      aria-label={`Workspace options for ${group.name}`}
-                      // Permanent, not hover-revealed: these three controls are the
-                      // workspace's fixed toolbar, and a control you cannot see is
-                      // a control you do not know exists.
-                      className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors"
-                    >
-                      <MoreIcon size={14} />
-                    </TooltipButton>
-                    {workspaceMenuFor === group.workspacePath && (
-                      <PopupMenu
-                        onClose={() => closeWorkspaceMenu()}
-                        triggerRef={workspaceMenuTriggerRef}
-                        className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
-                      >
-                        <LaneSelectionRows
-                          canSelect={selectingThis || visible.length > 0}
-                          selecting={selectingThis}
-                          collapsed={isCollapsed}
-                          onCollapse={(next) =>
-                            next !== isCollapsed && toggleGroup(group, isCollapsed)
-                          }
-                          onSelect={(mode) => selectGroupLanes(group.workspacePath, visible, mode)}
-                          onDone={closeWorkspaceMenu}
-                        />
-                        <LocalFolderMenuRows
-                          group={group}
-                          first={groups.indexOf(group) === 0}
-                          last={groups.indexOf(group) === groups.length - 1}
-                          onDone={closeWorkspaceMenu}
-                        />
-                      </PopupMenu>
-                    )}
-                    <TooltipButton
-                      onClick={() => startLocalSession(group.workspacePath)}
-                      data-testid="workspace-group-new-session"
-                      title="New session here"
-                      className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90"
-                    >
-                      <PlusIcon size={12} strokeWidth={2.5} />
-                    </TooltipButton>
-                  </WorkspaceGroupHeader>
-                  {isSearching(group) && (
-                    <LaneSearchBar
-                      value={searchDraft[group.workspacePath] ?? ''}
-                      applied={Boolean(query)}
-                      matchCount={shownCount}
-                      total={shownTotal}
-                      onChange={(value) =>
-                        setSearchDraft((s) => ({ ...s, [group.workspacePath]: value }))
-                      }
-                      onCommit={() =>
-                        setSearchApplied((s) => ({
-                          ...s,
-                          [group.workspacePath]: searchDraft[group.workspacePath] ?? '',
-                        }))
-                      }
-                      onClear={() => closeSearch(group.workspacePath)}
-                    />
-                  )}
-                  {/* Placeholder rows carry no name, branch or PR yet, so a
-                    filter can only ever be wrong about them. While one is on,
-                    they stand aside. */}
-                  {!isCollapsed && (
-                    <SessionList
-                      disabled={Boolean(query) || selectingThis || bulkDeleteRunning}
-                      items={[
-                        ...(terms.length
-                          ? []
-                          : (pendingByWorkspace.get(group.workspacePath) ?? [])
-                        ).map((phosphorId) => ({
-                          id: live[phosphorId]?.diskPath ?? phosphorId,
-                          path: live[phosphorId]?.diskPath,
-                          content: (
-                            <PendingSessionRow
-                              phosphorId={phosphorId}
-                              active={phosphorId === activeSessionId}
-                              onDelete={(title) =>
-                                confirmSessionDelete({
-                                  title,
-                                  sessionId: phosphorId,
-                                  workspacePath: live[phosphorId]!.workspacePath,
-                                })
-                              }
-                              git={gitByCwd[live[phosphorId]?.workspacePath ?? '']}
-                            />
-                          ),
-                        })),
-                        ...visible.map((meta) => ({
-                          id: meta.path,
-                          path: meta.path,
-                          content: (
-                            <SessionRow
-                              {...rowProps(meta)}
-                              isPinned={false}
-                              selected={selectingThis && selectedPaths.includes(meta.path)}
-                              selecting={selectingThis}
-                              onToggleSelect={(shiftKey) =>
-                                toggleLane(group.workspacePath, visiblePaths, meta.path, shiftKey)
-                              }
-                            />
-                          ),
-                        })),
-                      ]}
-                    />
-                  )}
-                  {!isCollapsed && shownTotal > 0 && shownCount === 0 && (
-                    <div
-                      data-testid="lane-search-empty"
-                      className="text-text-tertiary px-2 py-2 text-sm"
-                    >
-                      No lanes match &ldquo;{query}&rdquo;
-                    </div>
-                  )}
-                  {/* Rows already scanned stay put while the rest of the group
-                  catches up — a partial answer must not read as the whole
-                  answer, but it must not hide what we have either. */}
-                  {!isCollapsed && local.length > 0 && group.unscannedPaths.length > 0 && (
-                    <div className="text-text-tertiary flex items-center gap-1.5 px-2 py-1.5 text-xs">
-                      <Spinner />
-                      <span>
-                        loading {group.unscannedPaths.length} more folder
-                        {group.unscannedPaths.length === 1 ? '' : 's'}…
-                      </span>
-                    </div>
-                  )}
-                  {!isCollapsed &&
-                    group.metas.length === 0 &&
-                    !pendingByWorkspace.has(group.workspacePath) &&
-                    (group.attempted && group.errored ? (
-                      <div className="text-text-tertiary flex items-center gap-2 px-2 py-2 text-sm">
-                        <span>Couldn&apos;t load sessions</span>
-                        <TooltipButton
-                          onClick={() => retryGroup(group)}
-                          className="text-text-secondary hover:text-text rounded px-1 underline-offset-2 hover:underline"
-                        >
-                          Retry
-                        </TooltipButton>
-                      </div>
-                    ) : group.attempted ? (
-                      <div className="text-text-tertiary px-2 py-2 text-sm">
-                        Sessions you start will show up here
-                      </div>
-                    ) : (
-                      <SessionRowSkeletons />
-                    ))}
-                </div>
-              )
-            })}
+            groups.map((group, index) => (
+              <LocalWorkspaceGroup
+                key={group.workspacePath}
+                group={group}
+                first={index === 0}
+                last={index === groups.length - 1}
+                collapsed={isGroupCollapsed(group)}
+                workspacePath={workspacePath}
+                pending={pendingByWorkspace.get(group.workspacePath) ?? NO_PENDING}
+                onOpenTree={setTreeFor}
+                onWorktreeModal={setWorktreeModal}
+              />
+            ))}
         </div>
         <RemoteLanes />
       </div>
@@ -840,13 +482,6 @@ export function Sidebar({
         />
       )}
 
-      {groups.map((group) => (
-        <LocalBulkDelete
-          key={group.workspacePath}
-          selectionKey={group.workspacePath}
-          workspacePath={workspacePath}
-        />
-      ))}
       <LocalDeleteDialogs workspacePath={workspacePath} />
 
       {/* Width resize handle: an invisible strip over the right border. */}

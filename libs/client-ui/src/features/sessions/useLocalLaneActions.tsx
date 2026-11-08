@@ -7,7 +7,7 @@ import { navigateToLane } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import type { GhPullRequest, GitInfo, SessionMeta } from '@shared/models'
 import { changeCompletion, openRestoreWorktree, openSidebarConversation } from './completionActions'
-import { laneActions, type LaneActionContext } from './laneActions'
+import { laneActions, type LaneActionContext, type LaneActions } from './laneActions'
 import { openPullRequest } from './PrBadge'
 import { copySessionDebugInfo, copySpend, exportSessionHtml } from './sessionActions'
 import { useSessionOrderActions } from './SessionList'
@@ -53,7 +53,7 @@ export function useLocalLaneActions({
   onRename,
   onOpenTree,
   onDelete,
-}: LocalLane) {
+}: LocalLane): LaneActions {
   const orderActions = useSessionOrderActions()
   const markers = useLanePrefsStore((s) => s.lanes.markers)
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
