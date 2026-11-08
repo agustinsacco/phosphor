@@ -52,13 +52,13 @@ it.each(['oauth', 'api-key'] as const)(
     expect(result.maxOutputTokens).toBe(16000)
     expect(r.prepareBoundRequest).toHaveBeenCalledWith(
       model,
-      expect.objectContaining({
-        expected: selection,
-        routePolicy: 'native',
+      {
+        expected: { provider: selection.provider, modelId: selection.modelId },
+        signal: expect.any(AbortSignal),
         allowVirtual: false,
         allowFallback: false,
         allowCustom: false,
-      }),
+      },
     )
     expect(r.streamSimple).not.toHaveBeenCalled()
   },
@@ -162,7 +162,10 @@ it.each([
       metadata: { piSingleResponse: 1 as const },
     }
     prepared.streamSimple(prepared.model, context, options)
-    expect(stream).toHaveBeenCalledExactlyOnceWith(context, options)
+    const { metadata, ...coreOptions } = options
+    expect(stream).toHaveBeenCalledExactlyOnceWith(context, coreOptions)
+    expect(options.metadata).toBe(metadata)
+    expect(stream.mock.calls[0]![1]).not.toHaveProperty('metadata')
     expect(r.prepareBoundRequest).toHaveBeenCalledWith(
       cliModel,
       expect.objectContaining({
