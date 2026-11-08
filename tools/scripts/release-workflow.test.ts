@@ -374,3 +374,24 @@ it.each([
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+it('builds release binaries on pinned runner images, never *-latest', () => {
+  // Native modules (node-pty) are compiled on the build runner and link against
+  // its system libraries, so the runner image sets the oldest OS a release can
+  // run on. v0.1.608 shipped a pty.node needing GLIBC_2.42 because
+  // ubuntu-latest moved under us; the app died on launch on Ubuntu 22.04.
+  const build = workflow.slice(
+    workflow.indexOf('\n  build:\n'),
+    workflow.indexOf('\n  finalize:\n'),
+  )
+  const images = [...build.matchAll(/^\s+- os: (\S+)/gm)].map((m) => m[1])
+  expect(images.length).toBeGreaterThan(0)
+  for (const image of images) expect(image, image).not.toMatch(/-latest$/)
+  expect(images).toContain('ubuntu-22.04')
+})
+
+it('checks the packaged Linux app against the glibc floor before finalizing', () => {
+  expect(workflow).toContain(
+    'node tools/scripts/check-glibc-floor.mjs apps/desktop/release/linux-unpacked',
+  )
+})
