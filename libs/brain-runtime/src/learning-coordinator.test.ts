@@ -287,6 +287,23 @@ describe('selected lane learning coordinator', () => {
       null,
     )
   })
+  it.each(['preview', 'revoke', 'dispose'] as const)(
+    'retries an owned failed cleanup through %s',
+    async (operation) => {
+      const f = setup()
+      f.dispose.mockRejectedValueOnce(new Error('transient cleanup failure'))
+      await expect(f.learning.preview(f.target)).rejects.toThrow('transient cleanup failure')
+      expect(f.dispose).toHaveBeenCalledTimes(1)
+      if (operation === 'preview') {
+        await expect(f.learning.preview(f.target)).resolves.toMatchObject({ newCount: 1 })
+        expect(f.dispose).toHaveBeenCalledTimes(3)
+      } else {
+        await f.learning[operation]()
+        expect(f.dispose).toHaveBeenCalledTimes(2)
+      }
+      expect(f.run).not.toHaveBeenCalled()
+    },
+  )
   it('does not cache a failed preview and refuses an unenrolled target before private startup', async () => {
     const f = setup()
     f.host.prepare.mockRejectedValueOnce(new Error('first attempt'))
