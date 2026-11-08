@@ -4,121 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./learning-carrier-files": {
-      "types": "./src/learning-carrier-files.ts",
-      "default": "./src/learning-carrier-files.ts"
-    },
-    "./learning-carrier-recovery": {
-      "types": "./src/learning-carrier-recovery.ts",
-      "default": "./src/learning-carrier-recovery.ts"
-    },
-    "./learning-host-owner": {
-      "types": "./src/learning-host-owner.ts",
-      "default": "./src/learning-host-owner.ts"
-    },
-    "./learning-carrier-transport": {
-      "types": "./src/learning-carrier-transport.ts",
-      "default": "./src/learning-carrier-transport.ts"
-    },
-    "./learning-source-binding": {
-      "types": "./src/learning-source-binding.ts",
-      "default": "./src/learning-source-binding.ts"
-    },
-    "./learning-host": {
-      "types": "./src/learning-host.ts",
-      "default": "./src/learning-host.ts"
-    },
-    "./learning-source-admission": {
-      "types": "./src/learning-source-admission.ts",
-      "default": "./src/learning-source-admission.ts"
-    },
-    "./learning-coordinator": {
-      "types": "./src/learning-coordinator.ts",
-      "default": "./src/learning-coordinator.ts"
-    },
-    "./learning-preflight": {
-      "types": "./src/learning-preflight.ts",
-      "default": "./src/learning-preflight.ts"
-    },
-    "./learning-source": {
-      "types": "./src/learning-source.ts",
-      "default": "./src/learning-source.ts"
-    },
-    "./learning-usage": {
-      "types": "./src/learning-usage.ts",
-      "default": "./src/learning-usage.ts"
-    },
-    "./learning-port": {
-      "types": "./src/learning-port.ts",
-      "default": "./src/learning-port.ts"
-    },
-    "./authority": {
-      "types": "./src/authority.ts",
-      "default": "./src/authority.ts"
+    "./api": {
+      "types": "./src/api.ts",
+      "default": "./src/api.ts"
     },
     "./bridge": {
       "types": "./src/bridge.ts",
       "default": "./src/bridge.ts"
-    },
-    "./capture": {
-      "types": "./src/capture.ts",
-      "default": "./src/capture.ts"
-    },
-    "./capture-snapshot": {
-      "types": "./src/capture-snapshot.ts",
-      "default": "./src/capture-snapshot.ts"
-    },
-    "./controller": {
-      "types": "./src/controller.ts",
-      "default": "./src/controller.ts"
-    },
-    "./indexer": {
-      "types": "./src/indexer.ts",
-      "default": "./src/indexer.ts"
-    },
-    "./memory-client": {
-      "types": "./src/memory-client.ts",
-      "default": "./src/memory-client.ts"
-    },
-    "./memory-protocol": {
-      "types": "./src/memory-protocol.ts",
-      "default": "./src/memory-protocol.ts"
-    },
-    "./memory-worker-handler": {
-      "types": "./src/memory-worker-handler.ts",
-      "default": "./src/memory-worker-handler.ts"
-    },
-    "./processor": {
-      "types": "./src/processor.ts",
-      "default": "./src/processor.ts"
-    },
-    "./processor-wait": {
-      "types": "./src/processor-wait.ts",
-      "default": "./src/processor-wait.ts"
-    },
-    "./service": {
-      "types": "./src/service.ts",
-      "default": "./src/service.ts"
-    },
-    "./service-lifecycle": {
-      "types": "./src/service-lifecycle.ts",
-      "default": "./src/service-lifecycle.ts"
-    },
-    "./service-types": {
-      "types": "./src/service-types.ts",
-      "default": "./src/service-types.ts"
-    },
-    "./transcript-ownership": {
-      "types": "./src/transcript-ownership.ts",
-      "default": "./src/transcript-ownership.ts"
-    },
-    "./transcripts": {
-      "types": "./src/transcripts.ts",
-      "default": "./src/transcripts.ts"
-    },
-    "./working": {
-      "types": "./src/working.ts",
-      "default": "./src/working.ts"
     },
     "./embedding/embedding-client": {
       "types": "./src/embedding/embedding-client.ts",
@@ -152,9 +44,53 @@
       "types": "./src/embedding/model-manifest.ts",
       "default": "./src/embedding/model-manifest.ts"
     },
-    "./tool-audit": {
-      "types": "./src/tool-audit.ts",
-      "default": "./src/tool-audit.ts"
+    "./extract": {
+      "types": "./src/extract.ts",
+      "default": "./src/extract.ts"
+    },
+    "./extraction": {
+      "types": "./src/extraction.ts",
+      "default": "./src/extraction.ts"
+    },
+    "./fork": {
+      "types": "./src/fork.ts",
+      "default": "./src/fork.ts"
+    },
+    "./lane": {
+      "types": "./src/lane.ts",
+      "default": "./src/lane.ts"
+    },
+    "./prompt": {
+      "types": "./src/prompt.ts",
+      "default": "./src/prompt.ts"
+    },
+    "./queue": {
+      "types": "./src/queue.ts",
+      "default": "./src/queue.ts"
+    },
+    "./quotes": {
+      "types": "./src/quotes.ts",
+      "default": "./src/quotes.ts"
+    },
+    "./recall": {
+      "types": "./src/recall.ts",
+      "default": "./src/recall.ts"
+    },
+    "./secrets": {
+      "types": "./src/secrets.ts",
+      "default": "./src/secrets.ts"
+    },
+    "./service": {
+      "types": "./src/service.ts",
+      "default": "./src/service.ts"
+    },
+    "./transcript": {
+      "types": "./src/transcript.ts",
+      "default": "./src/transcript.ts"
+    },
+    "./types": {
+      "types": "./src/types.ts",
+      "default": "./src/types.ts"
     }
   },
   "nx": {
@@ -164,6 +100,6 @@
     "@phosphor/shared": "0.0.0",
     "@phosphor/session-runtime": "0.0.0",
     "@phosphor/memory-engine": "0.0.0",
-    "@phosphor/pi-extensions": "0.0.0"
+    "@phosphor/brain-client": "0.0.0"
   }
 }

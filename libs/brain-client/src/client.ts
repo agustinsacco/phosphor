@@ -1,74 +1,48 @@
 import type {
   BrainAgentMap,
   BrainAgentMethod,
-  BrainEvidence,
-  BrainJob,
-  BrainProposalInput,
   BrainQuery,
-  BrainSearchResult,
+  BrainRecall,
 } from '@phosphor/shared/brain'
 import type { BrainTransport } from './port'
-import { BRAIN_RESULT_VALIDATORS } from './validate'
+import { isBrainRecall, validateBrainRequest } from './validate'
 
 export type { BrainConnection, BrainTransport } from './port'
-export {
-  brainDataBlock,
-  clipBrainText,
-  describeBrainClaim,
-  describeBrainEvidence,
-  escapeBrainText,
-  fitBrainGroups,
-  type BrainDataSource,
-} from './format'
+export { formatBrainRecall } from './format'
 
-/**
- * Every failure a Brain caller can see. Messages never carry the capability
- * token, the endpoint path or remote stack traces, so callers may surface them.
- */
 export type BrainClientErrorCode =
   'invalid_connection' | 'connection' | 'timeout' | 'aborted' | 'oversized' | 'malformed' | 'remote'
-
 export class BrainClientError extends Error {
-  readonly code: BrainClientErrorCode
-
-  constructor(code: BrainClientErrorCode, message: string) {
+  constructor(
+    readonly code: BrainClientErrorCode,
+    message: string,
+  ) {
     super(message)
     this.name = 'BrainClientError'
-    this.code = code
   }
 }
-
-export interface BrainJobBundle {
-  job: BrainJob
-  evidence: BrainEvidence[]
-}
-
-/** Typed agent-side calls. Scope, job and fence come from the token, never from params. */
 export interface BrainClient {
-  search(query: BrainQuery, signal?: AbortSignal): Promise<BrainSearchResult>
-  read(evidenceId: string, signal?: AbortSignal): Promise<BrainEvidence>
-  brief(query: string, signal?: AbortSignal): Promise<BrainSearchResult>
-  job(signal?: AbortSignal): Promise<BrainJobBundle>
-  propose(input: BrainProposalInput, signal?: AbortSignal): Promise<{ proposalId: string }>
+  search(query: BrainQuery, signal?: AbortSignal): Promise<BrainRecall>
+  related(query: BrainAgentMap['related']['request'], signal?: AbortSignal): Promise<BrainRecall>
 }
-
 export function createBrainClient(transport: BrainTransport): BrainClient {
   async function call<M extends BrainAgentMethod>(
     method: M,
     params: BrainAgentMap[M]['request'],
-    signal: AbortSignal | undefined,
-  ): Promise<BrainAgentMap[M]['result']> {
-    const data: unknown = await transport.request(method, params, signal)
-    if (!BRAIN_RESULT_VALIDATORS[method](data)) {
-      throw new BrainClientError('malformed', `Brain ${method} returned an invalid result`)
+    signal?: AbortSignal,
+  ): Promise<BrainRecall> {
+    try {
+      validateBrainRequest(method, params)
+    } catch {
+      throw new BrainClientError('malformed', `Brain ${method} request is invalid`)
     }
+    const data: unknown = await transport.request(method, params, signal)
+    if (!isBrainRecall(data))
+      throw new BrainClientError('malformed', `Brain ${method} returned an invalid result`)
     return data
   }
   return {
     search: (query, signal) => call('search', query, signal),
-    read: (evidenceId, signal) => call('read', { evidenceId }, signal),
-    brief: (query, signal) => call('brief', { query }, signal),
-    job: (signal) => call('job', {}, signal),
-    propose: (input, signal) => call('propose', { input }, signal),
+    related: (query, signal) => call('related', query, signal),
   }
 }

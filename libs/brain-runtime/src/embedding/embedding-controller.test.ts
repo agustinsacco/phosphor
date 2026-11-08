@@ -34,7 +34,9 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true })
 })
 
-function setup(options: { supported?: boolean; model?: FakeTransformersOptions } = {}) {
+function setup(
+  options: { supported?: boolean; model?: FakeTransformersOptions; fetch?: typeof fetch } = {},
+) {
   const phases: BrainEmbeddingStatus['phase'][] = []
   const processes: FakeEmbeddingProcess[] = []
   const fake = fakeTransformers(options.model)
@@ -43,7 +45,7 @@ function setup(options: { supported?: boolean; model?: FakeTransformersOptions }
     directory,
     supported: options.supported ?? true,
     threads: 2,
-    fetch: net.fetch,
+    fetch: options.fetch ?? net.fetch,
     onStatus: (status) => {
       if (phases.at(-1) !== status.phase) phases.push(status.phase)
     },
@@ -59,7 +61,7 @@ function setup(options: { supported?: boolean; model?: FakeTransformersOptions }
 async function ready(options: Parameters<typeof setup>[0] = {}) {
   const env = setup(options)
   await env.embeddings.setEnabled(true)
-  await env.embeddings.download(true)
+  await env.embeddings.download()
   expect(env.embeddings.status().phase).toBe('ready')
   env.phases.length = 0
   env.net.urls.length = 0
@@ -70,7 +72,7 @@ describe('setup', () => {
   it('reports the shared model identity and starts off', () => {
     const { embeddings } = setup()
     expect(embeddings.status()).toEqual({
-      phase: 'off',
+      phase: 'missing',
       receivedBytes: 0,
       totalBytes: 0,
       modelId: 'embeddinggemma-300m-q4@5090578d9565bb06545b4552f76e6bc2c93e4a66',
@@ -82,34 +84,33 @@ describe('setup', () => {
     const { embeddings, net, processes } = setup()
     const snapshot = embeddings.status()
     snapshot.phase = 'ready'
-    expect(embeddings.status().phase).toBe('off')
+    expect(embeddings.status().phase).toBe('missing')
     embeddings.dispose()
     await embeddings.setEnabled(true)
-    await expect(embeddings.download(true)).rejects.toThrow('Turn on Brain')
+    await expect(embeddings.download()).rejects.toThrow('Turn on Brain')
     expect(net.urls).toEqual([])
     expect(processes).toEqual([])
   })
 
-  it('enabling with nothing on disk reports missing and never downloads or spawns', async () => {
+  it('enabling with nothing on disk downloads and self-tests automatically', async () => {
     const { embeddings, net, processes, phases } = setup()
     await embeddings.setEnabled(true)
-    expect(phases).toEqual(['verifying', 'missing'])
-    expect(net.urls).toEqual([])
-    expect(processes).toEqual([])
+    expect(phases).toEqual(['verifying', 'downloading', 'verifying', 'testing', 'ready'])
+    expect(net.urls).toHaveLength(3)
+    expect(processes).toHaveLength(1)
   })
 
-  it('downloads only with the terms accepted and Brain enabled', async () => {
+  it('downloads only with Brain enabled', async () => {
     const { embeddings, net } = setup()
-    await expect(embeddings.download(false)).rejects.toThrow(/Gemma Terms of Use/)
-    await expect(embeddings.download(true)).rejects.toThrow(/Turn on Brain/)
+    await expect(embeddings.download()).rejects.toThrow(/Turn on Brain/)
     expect(net.urls).toEqual([])
   })
 
   it('goes download → verify → self-test → ready, with prefixed invented text', async () => {
     const { embeddings, phases, net, fake } = setup()
     await embeddings.setEnabled(true)
-    await embeddings.download(true)
-    expect(phases).toEqual(['verifying', 'missing', 'downloading', 'verifying', 'testing', 'ready'])
+    await embeddings.download()
+    expect(phases).toEqual(['verifying', 'downloading', 'verifying', 'testing', 'ready'])
     expect(net.urls).toHaveLength(3)
     expect(fake.tokenized[0]![0]).toMatch(/^task: search result \| query: /)
     expect(fake.tokenized[0]![1]).toMatch(/^title: none \| text: /)
@@ -119,19 +120,18 @@ describe('setup', () => {
   it('a self-test that cannot tell inputs apart is an error, not ready', async () => {
     const { embeddings } = setup({ model: { identical: true } })
     await embeddings.setEnabled(true)
-    await embeddings.download(true)
+    await embeddings.download()
     expect(embeddings.status()).toMatchObject({ phase: 'error', error: /not distinguished/ })
     await expect(embeddings.embed(['a'], 'query')).rejects.toThrow(/not ready/)
   })
 
   it('a failed download is an error that a second download retries', async () => {
     const { embeddings, net } = setup()
-    await embeddings.setEnabled(true)
     net.override['config.json'] = Buffer.from('{"MODEL_TYPE":"GEMMA3_TEXT"}')
-    await embeddings.download(true)
-    expect(embeddings.status()).toMatchObject({ phase: 'error', error: /^Download failed/ })
+    await embeddings.setEnabled(true)
+    expect(embeddings.status()).toMatchObject({ phase: 'error', error: /^Local embeddings failed/ })
     delete net.override['config.json']
-    await embeddings.download(true)
+    await embeddings.download()
     expect(embeddings.status().phase).toBe('ready')
   })
 
@@ -139,7 +139,7 @@ describe('setup', () => {
     const { embeddings, net, processes } = setup({ supported: false })
     await embeddings.setEnabled(true)
     expect(embeddings.status().phase).toBe('unsupported')
-    await expect(embeddings.download(true)).rejects.toThrow(/not supported/)
+    await expect(embeddings.download()).rejects.toThrow(/not supported/)
     await expect(embeddings.embed(['a'], 'query')).rejects.toThrow(/not ready/)
     expect(net.urls).toEqual([])
     expect(processes).toEqual([])
@@ -147,13 +147,29 @@ describe('setup', () => {
 })
 
 describe('enable, disable and remove', () => {
-  it('disabling during a download cancels it and publishes nothing', async () => {
-    const { embeddings, paths } = setup()
-    await embeddings.setEnabled(true)
-    const download = embeddings.download(true)
+  it('disabling during a download aborts the network request and never publishes ready', async () => {
+    let requested!: () => void
+    const started = new Promise<void>((resolve) => {
+      requested = resolve
+    })
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          requested()
+          init?.signal?.addEventListener('abort', () => reject(new Error('Aborted')), {
+            once: true,
+          })
+        }),
+    )
+    const { embeddings, paths, phases } = setup({ fetch })
+    const download = embeddings.setEnabled(true)
+    await started
+    expect(embeddings.status().phase).toBe('downloading')
     await embeddings.setEnabled(false)
     await download
-    expect(embeddings.status().phase).toBe('off')
+    expect(fetch.mock.calls[0]![1]!.signal!.aborted).toBe(true)
+    expect(embeddings.status().phase).toBe('missing')
+    expect(phases).not.toContain('ready')
     expect(await stat(paths.model).catch(() => null)).toBeNull()
   })
 
@@ -163,7 +179,7 @@ describe('enable, disable and remove', () => {
     expect(processes.every((process) => process.killed)).toBe(true)
     expect(await stat(paths.model)).toBeTruthy()
     await embeddings.setEnabled(true)
-    expect(phases).toEqual(['off', 'verifying', 'testing', 'ready'])
+    expect(phases).toEqual(['ready', 'verifying', 'testing', 'ready'])
     expect(net.urls).toEqual([])
   })
 
@@ -175,7 +191,7 @@ describe('enable, disable and remove', () => {
     await writeFile(join(paths.model, 'tokenizer.json'), bad)
     await embeddings.setEnabled(true)
     expect(embeddings.status()).toMatchObject({ phase: 'error', error: /tokenizer.json/ })
-    await embeddings.download(true)
+    await embeddings.download()
     expect(embeddings.status().phase).toBe('ready')
     expect(net.urls).toEqual(['https://models.test/tokenizer.json'])
     expect(await readFile(join(paths.model, 'tokenizer.json'))).toEqual(
@@ -210,7 +226,6 @@ describe('embed', () => {
 
   it('never downloads, and refuses before ready', async () => {
     const { embeddings, net } = setup()
-    await embeddings.setEnabled(true)
     await expect(embeddings.embed(['a'], 'query')).rejects.toThrow(/not ready/)
     expect(net.urls).toEqual([])
   })

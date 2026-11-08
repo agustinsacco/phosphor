@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./client": "./src/client.ts",
-    "./node-transport": "./src/node-transport.ts"
+    "./node-transport": "./src/node-transport.ts",
+    "./validate": "./src/validate.ts"
   },
   "nx": {
     "includedScripts": []

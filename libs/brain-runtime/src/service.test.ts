@@ -1,234 +1,186 @@
-import { afterEach, expect, it, vi } from 'vitest'
-import { writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
-import { adapterFixture, deferred } from './__fixtures__/adapter-fixture'
-import { assembleBrainService, createBrainService } from './service'
+import { afterEach, expect, it, vi } from 'vitest'
+import { createBrainService } from './service'
+import { runFork } from './fork'
+import { FakeBrainStore, HARBOR_JOB } from './__fixtures__/fake-store'
+import { LANE_ENTRIES, RAW_EXTRACTION } from './__fixtures__/lane'
+import { recallOptions } from './__fixtures__/options'
+import type { BrainService } from './types'
 
-const cleanup: (() => Promise<void>)[] = []
+vi.mock('./fork', () => ({ runFork: vi.fn() }))
+const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
-  for (const close of cleanup.splice(0).reverse()) await close()
-})
-async function fixture() {
-  const f = await adapterFixture()
-  cleanup.push(f.cleanup)
-  const service = await assembleBrainService(f.options, f.store)
-  cleanup.push(() => service.dispose())
-  return { ...f, service }
-}
-it('rejects a failed initial database read and closes resources instead of caching a dead service', async () => {
-  const f = await adapterFixture()
-  cleanup.push(f.cleanup)
-  vi.spyOn(f.store, 'snapshot').mockRejectedValueOnce(new Error('database offline'))
-  const close = vi.spyOn(f.store, 'close')
-  const result = assembleBrainService(f.options, f.store).then((service) => {
-    cleanup.push(() => service.dispose())
-    return service
-  })
-  await expect(result).rejects.toThrow('database offline')
-  expect(close).toHaveBeenCalledOnce()
-  expect(f.embeds.dispose).toHaveBeenCalledOnce()
-})
-it('defaults off, never downloads on enable, and exposes only typed UI operations', async () => {
-  const f = await adapterFixture()
-  cleanup.push(f.cleanup)
-  f.engine.setPrefs(DEFAULT_BRAIN_PREFS)
-  const service = await assembleBrainService(f.options, f.store)
-  cleanup.push(() => service.dispose())
-  expect((await service.api.status()).snapshot.prefs.enabled).toBe(false)
-  await service.api.setPrefs({
-    ...DEFAULT_BRAIN_PREFS,
-    enabled: true,
-    workspaces: [f.scope],
-  })
-  expect(f.embeds.download).not.toHaveBeenCalled()
-  expect(Object.keys(service.api)).not.toContain('dispose')
-  expect(Object.keys(service.api)).not.toContain('putVectors')
-})
-it('routes source pages through the worker with exact enrolled scope and current consent', async () => {
-  const f = await fixture()
-  const page = await f.service.api.evidence(f.scope)
-  expect(page.items.map((item) => item.id)).toEqual([f.evidence.id])
-  expect(page.items[0]).not.toHaveProperty('text')
-  expect(page.nextCursor).toBeNull()
-  await expect(f.service.api.evidence(f.scope + '-other')).rejects.toThrow('consent')
-  await expect(f.service.api.evidence(f.scope, 'bad')).rejects.toThrow('cursor')
-  await f.service.api.setPrefs({ ...f.snapshot.prefs, enabled: false })
-  await expect(f.service.api.evidence(f.scope)).rejects.toThrow('consent')
+  for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
+  vi.clearAllMocks()
 })
 
-it('serializes a policy change against manual admission so stale consent cannot start a processor', async () => {
-  const f = await fixture()
-  const policy = f.service.api.setPrefs({ ...f.snapshot.prefs, recall: false })
-  const processing = expect(
-    f.service.api.process(f.scope, { model: f.model, policyEpoch: f.snapshot.policyEpoch }),
-  ).rejects.toThrow('consent')
-  await policy
-  await processing
-  expect(f.options.sessions.create).not.toHaveBeenCalled()
-})
-it('rejects hidden Host/remote authority keys instead of persisting them in local preferences', async () => {
-  const f = await fixture()
-  await expect(
-    f.service.api.setPrefs({
-      ...f.snapshot.prefs,
-      hostId: 'remote-host',
-    } as typeof f.snapshot.prefs),
-  ).rejects.toThrow('field')
-  await expect(
-    f.service.api.search({ query: 'Atlas', hostId: 'remote-host' } as { query: string }),
-  ).rejects.toThrow('field')
-})
-it('disposes idempotently while startup is pending and rejects later UI work', async () => {
-  const f = await fixture()
-  const pending = deferred<Awaited<ReturnType<typeof f.options.processor.resolve>>>()
-  vi.mocked(f.options.processor.resolve).mockReturnValue(pending.promise)
-  await f.service.api.process(f.scope, {
-    model: f.model,
-    policyEpoch: f.snapshot.policyEpoch,
-  })
-  const first = f.service.dispose(),
-    second = f.service.dispose()
-  expect(first).toBe(second)
-  await first
-  expect(f.embeds.dispose).toHaveBeenCalledTimes(1)
-  await expect(f.service.api.status()).rejects.toThrow('disposed')
-})
-
-it('opens the injected store at the owned directory and exposes transport-neutral methods', async () => {
-  const f = await adapterFixture()
-  cleanup.push(f.cleanup)
-  const service = await createBrainService(f.options)
-  cleanup.push(() => service.dispose())
-  expect(f.options.openStore).toHaveBeenCalledExactlyOnceWith(f.directory)
-  expect(Object.keys(service.api).sort()).toEqual([
-    'cancel',
-    'correct',
-    'download',
-    'evidence',
-    'forget',
-    'graph',
-    'learn',
-    'learnPreview',
-    'learningDetail',
-    'learningJobs',
-    'process',
-    'read',
-    'removeModel',
-    'review',
-    'search',
-    'setPrefs',
-    'status',
-    'transcript',
-  ])
-  expect(service).not.toHaveProperty('ui')
-  expect(f.options.sessions.create).not.toHaveBeenCalled()
-  expect(f.embeds.download).not.toHaveBeenCalled()
-})
-
-it.each(['directory', 'workingExtension', 'processorExtension'] as const)(
-  'rejects relative %s before opening the injected store',
-  async (field) => {
-    const f = await adapterFixture()
-    cleanup.push(f.cleanup)
-    const options = {
-      ...f.options,
-      resources: { ...f.options.resources },
-    }
-    if (field === 'directory') options.directory = 'relative'
-    else options.resources[field] = 'relative'
-    await expect(createBrainService(options)).rejects.toThrow(
-      'Brain requires absolute owned resource paths',
-    )
-    expect(f.options.openStore).not.toHaveBeenCalled()
-  },
-)
-
-it('closes the injected store if assembly fails before lifecycle initialization', async () => {
-  const f = await adapterFixture()
-  cleanup.push(f.cleanup)
-  await writeFile(join(f.directory, 'sessions'), 'not a directory')
-  const close = vi.spyOn(f.store, 'close')
-  await expect(createBrainService(f.options)).rejects.toThrow('EEXIST')
-  expect(f.options.openStore).toHaveBeenCalledExactlyOnceWith(f.directory)
-  expect(close).toHaveBeenCalledOnce()
-})
-
-it('preserves initialization errors while diagnosing an injected store cleanup failure', async () => {
-  const f = await adapterFixture()
-  cleanup.push(f.cleanup)
-  await writeFile(join(f.directory, 'sessions'), 'not a directory')
-  const failure = new Error('Synthetic cleanup failure')
-  vi.spyOn(f.store, 'close').mockRejectedValueOnce(failure)
-  await expect(createBrainService(f.options)).rejects.toThrow('EEXIST')
-  expect(f.options.onError).toHaveBeenCalledExactlyOnceWith(failure)
-})
-
-it('does not queue exclusion authority behind blocked learning source admission', async () => {
-  const f = await adapterFixture()
-  cleanup.push(f.cleanup)
-  const source = join(f.scope, 'synthetic-source.jsonl')
-  await writeFile(source, 'Synthetic source')
-  const entered = deferred<void>()
-  const release = deferred<void>()
-  const service = await assembleBrainService(
-    {
-      ...f.options,
-      learningHost: {
-        prepare: async () => {
-          entered.resolve()
-          await release.promise
-          throw new Error('Synthetic source admission released')
-        },
-      },
-    },
-    f.store,
-  )
-  cleanup.push(() => service.dispose())
-  const preview = service.api.learnPreview({ workspacePath: f.scope, sessionPath: source })
-  const previewSettled = preview.catch(() => {})
-  await entered.promise
-  const read = vi.spyOn(f.store, 'excludedSource')
-  const exclusion = service.excludedSource('clean-source')
-  try {
-    // Drain microtasks, not a timing-based polling loop. The worker read must
-    // be reachable before the path-taking preview is allowed to finish.
-    await new Promise<void>((resolve) => setImmediate(resolve))
-    expect(read).toHaveBeenCalledExactlyOnceWith('clean-source')
-    await expect(exclusion).resolves.toBe(false)
-  } finally {
-    release.resolve()
-    await Promise.allSettled([previewSettled, exclusion])
+async function setup(enabled = true) {
+  const directory = await mkdtemp(join(tmpdir(), 'harbor-service-'))
+  cleanups.push(() => rm(directory, { recursive: true, force: true }))
+  const store = new FakeBrainStore()
+  store.prefs.enabled = enabled
+  const options = {
+    ...recallOptions(store),
+    directory,
+    onChange: vi.fn(),
+    log: vi.fn(),
+    now: () => 1234,
   }
+  const file = join(directory, 'harbor.jsonl')
+  const entries = LANE_ENTRIES.map((entry) =>
+    entry.type === 'session' ? { ...entry, cwd: directory } : entry,
+  )
+  await writeFile(file, entries.map((entry) => JSON.stringify(entry)).join('\n'))
+  vi.mocked(runFork).mockResolvedValue({
+    text: JSON.stringify(RAW_EXTRACTION),
+    usage: { tokens: 90, cost: 0.001 },
+  })
+  const openStore = vi.fn(() => store)
+  const service = await createBrainService({ ...options, openStore })
+  cleanups.push(() => service.dispose())
+  return { directory, store, options, service, file, entries, openStore }
+}
+async function reviewed(service: BrainService): Promise<void> {
+  await vi.waitFor(async () => expect((await service.api.status()).jobs[0]?.state).toBe('review'))
+}
+
+it('opens the injected store, composes status and saves preferences before asynchronous model setup', async () => {
+  const s = await setup(false)
+  expect(s.openStore).toHaveBeenCalledWith(join(s.directory, 'brain.sqlite'))
+  expect(await s.service.api.status()).toMatchObject({
+    supported: true,
+    prefs: { enabled: false },
+    counts: { memories: 0, entities: 0 },
+  })
+  let finish!: () => void
+  const setEnabled = vi.spyOn(s.options.embeddings, 'setEnabled').mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve
+      }),
+  )
+  const status = await s.service.api.setPrefs({ enabled: true, recall: false, review: false })
+  expect(status.prefs).toEqual({ enabled: true, recall: false, review: false })
+  expect(setEnabled).toHaveBeenCalledWith(true)
+  expect(s.options.onChange).toHaveBeenCalled()
+  finish()
+  await s.service.dispose()
 })
 
-it('refuses an exclusion result when disposal begins during the worker read', async () => {
-  const f = await fixture()
-  const result = deferred<boolean>()
-  vi.spyOn(f.store, 'excludedSource').mockReturnValue(result.promise)
-  const reading = f.service.excludedSource('clean-source')
-  const refused = expect(reading).rejects.toThrow('disposed')
-  const disposing = f.service.dispose()
-  result.resolve(false)
-  await refused
-  await disposing
+it('extracts, verifies, embeds and proposes with usage and the lane model, then approves a review', async () => {
+  const s = await setup()
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
+  await reviewed(s.service)
+  const job = s.store.snapshot().jobs[0]!
+  expect(job).toMatchObject({
+    model: 'example/fast',
+    startedAt: 1234,
+    finishedAt: 1234,
+    leafId: 'custom',
+    usage: { tokens: 90, cost: 0.001 },
+  })
+  expect(s.options.embeddings.embed).toHaveBeenCalledWith(
+    ['Rina Okafor owns Harbor billing.'],
+    'document',
+    expect.any(AbortSignal),
+  )
+  const extraction = s.store.proposals.get(job.id)!
+  expect(extraction.memories[0]!.citations).toEqual([
+    { evidence: 0, quote: 'Rina Okafor owns Harbor billing.' },
+  ])
+  expect(extraction.vectors[0]).toBeInstanceOf(Float32Array)
+  expect(await s.service.api.proposal(job.id)).toMatchObject({
+    summary: RAW_EXTRACTION.summary,
+    revision: 0,
+  })
+  expect(vi.mocked(runFork).mock.calls[0]![0].prompt).toContain('<knowledge_extraction>')
+  expect((await s.service.api.review(job.id, [0], 0)).jobs).toEqual([])
 })
 
-it('propagates exclusion worker errors instead of allowing a source move', async () => {
-  const f = await fixture()
-  const failure = new Error('Synthetic exclusion read failure')
-  vi.spyOn(f.store, 'excludedSource').mockRejectedValueOnce(failure)
-  await expect(f.service.excludedSource('clean-source')).rejects.toBe(failure)
+it('auto-approves when review is off and leaves an empty result in the inbox', async () => {
+  const s = await setup()
+  s.store.prefs.review = false
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
+  await vi.waitFor(() => expect(s.store.jobs[0]!.state).toBe('done'))
+  expect(s.store.jobs[0]!.memories).toBe(1)
+  vi.mocked(runFork).mockResolvedValue({
+    text: JSON.stringify({ ...RAW_EXTRACTION, memories: [] }),
+    usage: { tokens: 1, cost: 0 },
+  })
+  const next = join(s.directory, 'tom.jsonl')
+  await writeFile(
+    next,
+    s.entries
+      .map((e) => JSON.stringify(e.type === 'session' ? { ...e, id: 'tom-lane' } : e))
+      .join('\n'),
+  )
+  await s.service.api.queue({ sessionPath: next, title: 'Tom Lee review' })
+  await vi.waitFor(() => expect(s.store.jobs[1]!.state).toBe('empty'))
 })
 
-it('keeps the historical exclusion query internal to the service and rejects it after disposal', async () => {
-  const f = await fixture()
-  expect(Object.keys(f.service).sort()).toEqual(['api', 'dispose', 'excludedSource', 'memory'])
-  expect(f.service.api).not.toHaveProperty('excludedSource')
-  f.engine.recordDelivery({ sessionId: 'historical-recipient', evidenceIds: [], claimIds: [] })
-  await f.service.api.setPrefs({ ...f.snapshot.prefs, enabled: false, recall: false })
-  await expect(f.service.excludedSource('historical-recipient')).resolves.toBe(true)
-  await expect(f.service.excludedSource('clean-source')).resolves.toBe(false)
-  await f.service.dispose()
-  await expect(f.service.excludedSource('historical-recipient')).rejects.toThrow('disposed')
+it('waits while busy, refreshes the model and leaf at start, and requeues interrupted runs', async () => {
+  const s = await setup()
+  const busy = vi.spyOn(s.options.lanes, 'busy').mockReturnValue(true)
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
+  expect(s.store.jobs[0]!.state).toBe('waiting')
+  await writeFile(
+    s.file,
+    [...s.entries, { type: 'model_change', id: 'fresh-leaf', provider: 'other', modelId: 'quick' }]
+      .map((e) => JSON.stringify(e))
+      .join('\n'),
+  )
+  busy.mockReturnValue(false)
+  // An enqueue/finish also checks waiting lanes; a mutation kicks the same queue.
+  await s.service.api.setPrefs(s.store.prefs)
+  await reviewed(s.service)
+  expect(s.store.jobs[0]).toMatchObject({ leafId: 'fresh-leaf', model: 'other/quick' })
+  const interrupted = s.store.enqueue({ ...HARBOR_JOB, sessionId: 'interrupted' }, 'queued')
+  s.store.updateJob(interrupted.id, { state: 'running' })
+  await s.service.dispose()
+  expect(s.store.closed).toBe(true)
+})
+
+it('supports download retry, model removal only while off, read APIs and forget', async () => {
+  const s = await setup(false)
+  const download = vi.spyOn(s.options.embeddings, 'download')
+  const remove = vi.spyOn(s.options.embeddings, 'remove')
+  await s.service.api.download()
+  expect(download).toHaveBeenCalledWith()
+  await s.service.api.removeModel()
+  expect(remove).toHaveBeenCalled()
+  expect(await s.service.api.knowledge()).toEqual({ memories: [], entities: [], truncated: false })
+  await s.service.api.forget('absent')
+  expect(s.store.revision).toBe(1)
+  await s.service.api.setPrefs({ ...s.store.prefs, enabled: true })
+  await expect(s.service.api.removeModel()).rejects.toThrow('Turn off Brain')
+})
+
+it('restores interrupted jobs on startup but does not run them while Brain is disabled', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'harbor-restart-'))
+  cleanups.push(() => rm(directory, { recursive: true, force: true }))
+  const store = new FakeBrainStore()
+  const job = store.enqueue(HARBOR_JOB, 'queued')
+  store.updateJob(job.id, { state: 'running' })
+  const service = await createBrainService({ ...recallOptions(store), directory })
+  cleanups.push(() => service.dispose())
+  expect((await service.api.status()).jobs[0]!.state).toBe('queued')
+  expect(runFork).not.toHaveBeenCalled()
+})
+
+it('keeps fork usage when later parsing fails, and dismisses the failed job', async () => {
+  const s = await setup()
+  vi.mocked(runFork).mockResolvedValue({
+    text: 'No JSON here.',
+    usage: { tokens: 12, cost: 0.002 },
+  })
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
+  await vi.waitFor(() => expect(s.store.jobs[0]!.state).toBe('failed'))
+  expect(s.store.jobs[0]).toMatchObject({
+    finishedAt: 1234,
+    usage: { tokens: 12, cost: 0.002 },
+    error: 'The extraction returned no JSON.',
+  })
+  expect((await s.service.api.cancel(s.store.jobs[0]!.id)).jobs).toEqual([])
 })

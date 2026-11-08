@@ -3,8 +3,8 @@ import type { BrainEmbeddingStatus } from '@phosphor/shared/brain'
 export interface BrainEmbeddings {
   status(): BrainEmbeddingStatus
   setEnabled(enabled: boolean): Promise<void>
-  /** Explicit model-terms acknowledgement; downloads never happen during embed(). */
-  download(acceptTerms: boolean): Promise<void>
+  /** Downloads the pinned model; embed() never downloads. */
+  download(): Promise<void>
   remove(): Promise<void>
   embed(texts: string[], kind: 'query' | 'document', signal?: AbortSignal): Promise<number[][]>
   dispose(): void
