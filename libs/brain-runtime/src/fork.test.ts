@@ -102,6 +102,7 @@ it('forks privately with lane args/env, parses streaming LF records and removes 
       signal: args.signal,
       env: {
         HARBOR_ACCOUNT: 'fake-account',
+        PI_CLAUDE_CLI_KEEPALIVE_MS: '0',
         PI_OFFLINE: '1',
         PI_CLAUDE_CLI_EPHEMERAL: '1',
         PI_CLAUDE_CLI_STATE_DIR: join(forkDir, 'provider'),
@@ -133,4 +134,18 @@ it('uses an existing lane cwd and preserves low thinking, but fails absent text 
   await expect(runFork(args, run)).rejects.toThrow('Knowledge extraction timeout.')
   args.signal = AbortSignal.abort()
   await expect(runFork(args, run)).rejects.toThrow()
+})
+
+it('runs as a one-shot even when the lane parks its Claude process', async () => {
+  const args = await input()
+  args.launch.env = { PI_CLAUDE_CLI_KEEPALIVE_MS: '3600000', PI_CLAUDE_CLI_EPHEMERAL: '0' }
+  const run = vi.fn<typeof runPrintMode>().mockImplementation(async (_binary, _args, options) => {
+    options.onStdout?.(event('Harbor') + '\n')
+    return { stdout: '' }
+  })
+  await runFork(args, run)
+  expect(run.mock.calls[0]![2].env).toMatchObject({
+    PI_CLAUDE_CLI_KEEPALIVE_MS: '0',
+    PI_CLAUDE_CLI_EPHEMERAL: '1',
+  })
 })

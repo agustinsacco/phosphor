@@ -146,6 +146,22 @@ describe('setup', () => {
   })
 })
 
+describe('in-flight status', () => {
+  it('reports work in flight as soon as enabling or a retry starts', async () => {
+    const { embeddings, net } = setup()
+    net.override['config.json'] = Buffer.from('{"MODEL_TYPE":"GEMMA3_TEXT"}')
+    const enabling = embeddings.setEnabled(true)
+    expect(embeddings.status().phase).toBe('verifying')
+    await enabling
+    expect(embeddings.status().phase).toBe('error')
+    delete net.override['config.json']
+    const retry = embeddings.download()
+    expect(embeddings.status().phase).toBe('downloading')
+    await retry
+    expect(embeddings.status().phase).toBe('ready')
+  })
+})
+
 describe('enable, disable and remove', () => {
   it('disabling during a download aborts the network request and never publishes ready', async () => {
     let requested!: () => void

@@ -439,7 +439,10 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
   await signIn(page, stack.origin)
   // Brain is Desktop-only: no tab, no nav entry, and its deep link refuses.
   await page.goto(`${stack.origin}/pages/brain`)
-  await expect(page.getByText(/Brain is unavailable on this machine/)).toBeVisible()
+  await expect(page.getByText('Brain is available on Desktop')).toBeVisible()
+  await expect(
+    page.locator('.page-shell-header').getByRole('button', { name: 'Settings', exact: true }),
+  ).toHaveCount(0)
   await page.setViewportSize({ width: 1280, height: 800 })
   await expect(
     page

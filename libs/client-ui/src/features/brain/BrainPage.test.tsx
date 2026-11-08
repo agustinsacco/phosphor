@@ -236,6 +236,7 @@ it('never loads local knowledge on a browser platform', async () => {
     ),
   )
   expect(container.textContent).toContain('Brain is available on Desktop')
+  expect(container.textContent).not.toContain('Settings')
   expect(invoke).not.toHaveBeenCalled()
 })
 

@@ -35,9 +35,11 @@ export function BrainPage(): React.JSX.Element {
         </span>
       }
       actions={
-        <Button size="sm" onClick={() => openSettings('local', 'brain')}>
-          Settings
-        </Button>
+        supported && (
+          <Button size="sm" onClick={() => openSettings('local', 'brain')}>
+            Settings
+          </Button>
+        )
       }
     >
       {!supported ? (

@@ -79,6 +79,17 @@ it('preserves Desktop soft stdout and stderr caps at chunk boundaries', async ()
   expect(failed.error!.length).toBeLessThan(2 * 1024 * 1024)
 })
 
+it('decodes a UTF-8 character split across stdout chunks', async () => {
+  const chunks: string[] = []
+  const result = await run(
+    'process.stdout.write(Buffer.from([0x63, 0x61, 0x66, 0xc3])); setTimeout(() => process.stdout.write(Buffer.from([0xa9, 0x0a])), 100)',
+    { onStdout: (chunk) => chunks.push(chunk) },
+  )
+  expect(chunks.length).toBeGreaterThan(1)
+  expect(chunks.join('')).toBe('caf\u00e9\n')
+  expect(result.stdout).toBe('caf\u00e9\n')
+})
+
 function mockChild(): ChildProcess & { stdout: PassThrough; stderr: PassThrough } {
   const child = Object.assign(new EventEmitter(), {
     stdout: new PassThrough(),

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -183,4 +183,23 @@ it('keeps fork usage when later parsing fails, and dismisses the failed job', as
     error: 'The extraction returned no JSON.',
   })
   expect((await s.service.api.cancel(s.store.jobs[0]!.id)).jobs).toEqual([])
+})
+
+it('removes the prototype files it cannot read on startup and keeps the model', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'harbor-legacy-'))
+  cleanups.push(() => rm(directory, { recursive: true, force: true }))
+  const legacy = ['evidence', 'learning', 'sessions', 'memory.sqlite', 'memory.sqlite-wal']
+  for (const name of legacy.slice(0, 3))
+    await mkdir(join(directory, name, 'harbor'), { recursive: true })
+  for (const name of legacy.slice(3)) await writeFile(join(directory, name), 'prototype')
+  await mkdir(join(directory, 'embeddings'))
+  const store = new FakeBrainStore()
+  const service = await createBrainService({
+    ...recallOptions(store),
+    directory,
+    openStore: () => store,
+  })
+  cleanups.push(() => service.dispose())
+  for (const name of legacy) expect(await stat(join(directory, name)).catch(() => null)).toBeNull()
+  expect(await stat(join(directory, 'embeddings'))).toBeTruthy()
 })

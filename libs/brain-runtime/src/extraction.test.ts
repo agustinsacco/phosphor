@@ -86,4 +86,25 @@ describe('parseExtraction', () => {
     ).toEqual(['valid'])
     expect(parse(value).memories).toHaveLength(20)
   })
+  it('drops sensitive aliases and entities whose label is sensitive', () => {
+    const valid = RAW_EXTRACTION.memories[0]!
+    const subject = RAW_EXTRACTION.entities.find((item) => item.key === valid.subject)!
+    const parsed = parse({
+      ...RAW_EXTRACTION,
+      entities: [
+        ...RAW_EXTRACTION.entities.map((item) =>
+          item.key === subject.key
+            ? { ...item, aliases: [...item.aliases, 'rina@example.test', 'Bearer abc123'] }
+            : item,
+        ),
+        { key: 'secret', label: 'token=hunter2', kind: 'concept', aliases: [] },
+      ],
+      memories: [valid, { ...valid, object: 'secret' }],
+    })
+    expect(parsed.entities.find((item) => item.key === subject.key)!.aliases).toEqual(
+      subject.aliases,
+    )
+    expect(parsed.entities.map((item) => item.key)).not.toContain('secret')
+    expect(JSON.stringify(parsed)).not.toMatch(/example\.test|abc123|hunter2/)
+  })
 })

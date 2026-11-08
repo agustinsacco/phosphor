@@ -111,4 +111,30 @@ describe('Brain proposal review', () => {
     expect(db.prepare('SELECT * FROM memory_fts WHERE id=?').get(old.id)).toBeUndefined()
     expect(store.snapshot().revision).toBe(2)
   })
+  it('approves a pending proposal after the entity it reuses lost its last memory', () => {
+    const { store } = fixture()
+    approve(store)
+    const rina = store.knowledge().entities.find((item) => item.label === 'Rina Okafor')!
+    const job = store.enqueue(lane({ leafId: 'leaf-2' }), 'queued')
+    const base = extraction(job.id).memories[0]!
+    store.propose(
+      extraction(job.id, {
+        entities: [],
+        vectors: [vector(0, 0, 1)],
+        memories: [
+          { ...base, subject: rina.id, object: null, summary: 'Rina Okafor chose daily backups.' },
+        ],
+      }),
+    )
+    for (const memory of store.knowledge().memories) store.forget(memory.id)
+    expect(store.knowledge().entities).toEqual([])
+    const view = store.proposal(job.id)
+    expect(view.entities.map((item) => item.label)).toEqual(['Rina Okafor'])
+    store.review(job.id, [0], view.revision)
+    const knowledge = store.knowledge()
+    expect(knowledge.memories.map((item) => item.summary)).toEqual([
+      'Rina Okafor chose daily backups.',
+    ])
+    expect(knowledge.entities.map((item) => item.label)).toEqual(['Rina Okafor'])
+  })
 })
