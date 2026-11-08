@@ -243,7 +243,7 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
     const messages = measureMessages(rawEntries as SessionEntryLike[])
     // pi's prompt still holds a file the lane leaves out; the model is not sent it.
     const off = files.off()
-    const foundFiles = contextFilesIn(systemPrompt, off)
+    const foundFiles = contextFilesIn(systemPrompt, off, undefined, files.worktree())
     const omitted = foundFiles
       .filter((file) => !file.included)
       .reduce((sum, file) => sum + file.tokens, 0)

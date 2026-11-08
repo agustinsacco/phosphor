@@ -55,6 +55,9 @@ export function remoteLanes(): RemoteLanes {
 
 function registerCatalogueHandlers(catalogues: ReturnType<typeof machineReads>): void {
   handle('hosts:models', (_event, hostId) => catalogues.models(hostId))
+  handle('hosts:commands', (_event, hostId, repositoryId) =>
+    catalogues.commands(hostId, repositoryId),
+  )
   handle('hosts:claude', (_event, hostId) => catalogues.claude(hostId))
   handle('hosts:claudeUsage', (_event, ...args) => catalogues.claudeUsage(...args))
   handle('hosts:providers', (_event, hostId) => catalogues.providers(hostId))

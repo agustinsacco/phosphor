@@ -19,7 +19,11 @@ import type * as PiPaths from './pi-paths'
 const trashed: string[] = []
 const trashItem = vi.fn()
 
-vi.mock('electron', () => ({ shell: { trashItem: (path: string) => trashItem(path) } }))
+const userData = vi.hoisted(() => ({ path: '' }))
+vi.mock('electron', () => ({
+  app: { getPath: () => userData.path },
+  shell: { trashItem: (path: string) => trashItem(path) },
+}))
 
 /** Every argument list the CLI ledger path builder was handed. */
 const ledgerPathCalls = vi.hoisted(() => [] as unknown[][])
@@ -115,6 +119,7 @@ describe('deleteSession', () => {
     workspace = join(root, 'proj')
     await mkdir(workspace)
     piPath = join(root, `2026-08-22T22-56-30-785Z_${SESSION_ID}.jsonl`)
+    userData.path = join(root, 'user-data')
 
     process.env.CLAUDE_CONFIG_DIR = join(root, 'claude-config')
     // The provider's sidecar lives here; an empty state dir means "no
@@ -264,6 +269,16 @@ describe('deleteSession', () => {
     await deleteSession(piPath)
 
     expect(trashed).toEqual([piPath, sidecar])
+  })
+
+  it('trashes the files a lane brought with it when it moved here', async () => {
+    await writeFile(piPath, transcript(workspace, 'pi'), 'utf8')
+    const attachments = join(userData.path, 'lane-attachments', SESSION_ID)
+    await mkdir(attachments, { recursive: true })
+
+    await deleteSession(piPath)
+
+    expect(trashed).toEqual([piPath, attachments])
   })
 
   it('forgets the provider’s pairing and stored prompt', async () => {
