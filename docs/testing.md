@@ -93,7 +93,24 @@ node_modules/.bin/playwright test --config apps/web/playwright.config.ts browser
 `libs/brain-runtime` contains the portable service/embedding suites. Its boundary
 test rejects Electron/app imports and checks plain-Node bundle loading without
 opening storage, starting pi or loading a model. Desktop retains tests for its
-utility-process bindings, lazy lifecycle and unchanged IPC-to-backend mapping.
+utility-process bindings, lazy lifecycle and the explicit IPC-to-backend mapping.
+
+Selective-learning suites additionally pin immutable selected ancestry and pi
+projection, semantic/citation validation, exact processed coverage and paid retry
+idempotency, nontext forgetting dependencies, actual response-only usage and
+private owned cleanup. Native source-reader tests bracket synthetic scoped auth
+receipts with real bounded files/path locks and registry/revision observations;
+unsupported stock RPC, malformed/foreign receipts and source races refuse before
+inference. Host policy explicitly refuses this Desktop-private command. Carrier
+adapter tests match the separately versioned SDK contract, including omitted
+native route policy and no arbitrary core metadata. Synthetic provider hooks do
+not qualify an installed CLI account identity or prove cache savings.
+
+Crash-recovery tests simulate durable writer phases and gate startup/control
+writes. Unknown writers remain retained with an actionable refusal, not a passing
+erasure claim. These are not power-loss or Windows filesystem qualifications.
+Upstream pi/provider checks have their own pinned toolchain requirements;
+compatibility tests using locally available tools are not substitutes for them.
 
 The Desktop cases exercise the real DB worker, default-off settings, separate
 consent, persistence and Host/All boundaries. Browser checks cover compact/wide

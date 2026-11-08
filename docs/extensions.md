@@ -285,7 +285,7 @@ patchWebSearchConfig` (`pi-config-handlers.ts`).
 Separate from packages the user installs, Phosphor ships **six** TypeScript
 extensions in `libs/pi-extensions/pi-ext/`, loaded into **ordinary** sessions via
 `pi --mode rpc -e <path>` (`bundledExtensions()` in
-`libs/session-runtime/src/bundled-extensions.ts`, called by `apps/desktop/electron/pi/session-runtime.ts`). The opt-in [Brain](brain.md) adds separate standalone working/processor bundles;
+`libs/session-runtime/src/bundled-extensions.ts`, called by `apps/desktop/electron/pi/session-runtime.ts`). The opt-in [Brain](brain.md) adds separate standalone working, evidence-processor and source-learning bundles;
 isolated processors do not load these six defaults.
 
 The private `@phosphor/pi-extensions` source package keeps these standalone
@@ -616,8 +616,8 @@ See [remote artifacts](remote-desktop.md#remote-artifacts) for the wire limits.
 
 The optional working `brain.mjs` contributes request-local, untrusted recall
 and the read-only `brain_search` / `brain_read` tools only with a private grant.
-Without its endpoint/token it registers nothing. Neither raw Brain TypeScript
-entry ships in `pi-ext`: the build stages bundled `.mjs` resources in `brain-ext`.
+Without its endpoint/token it registers nothing. No raw Brain TypeScript
+entry ships in `pi-ext`: the build stages three bundled `.mjs` resources in `brain-ext`.
 Hosts stage these resources but never activate Brain.
 
 The opt-in Brain processor loads only its standalone `brain-processor.mjs`
@@ -630,6 +630,16 @@ rechecks that active set. Missing, malformed, timed-out or mismatched audits
 fail closed. The shared verifier lives in `libs/brain-runtime/src/tool-audit.ts`;
 Desktop supplies its client, owned job and audited extension path. Processor
 pushes never enter ordinary lane UI channels; this status has no renderer consumer.
+
+Source learning instead loads only `brain-learning-carrier.mjs`, with zero active
+tools. Its private `/phosphor-brain-learning` command and status use job/nonce-bound
+`prepare`/`run` control files, exact resource discovery and a required `handled`
+disposition. Preparation projects the frozen source and binds its qualified
+current model/account without inference. Run invokes the one-shot direct provider
+operation, not the ordinary scheduler or a tool loop. Unsolicited agent/tool/
+retry/compaction activity revokes the owned carrier. This status is internal,
+not a renderer status-strip message; the source's blue inspector link comes from
+bounded durable job metadata. See [Brain](brain.md#learn-from-a-selected-lane).
 
 ### The status channel is a wire contract
 

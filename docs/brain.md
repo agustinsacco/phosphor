@@ -166,11 +166,20 @@ source/control files and events are excluded from ordinary list/read/edit/fork/
 delete paths. Source copies are not accepted knowledge or a resumable agent.
 
 **Qualification:** stock pi 1.4 alone is insufficient. Learning requires the
-separately versioned bound-request capability and actual source-process auth
-attestation; live sources refuse until that reader is available. Claude also
-requires the repaired `pi-claude-cli >=0.11.0` single-response implementation and
-its provider-owned identity hook. These dependency changes are not installed or
-published by this feature branch. No real-provider/cache benchmark is claimed.
+separately versioned bound-request capability. For live native sources, Desktop
+brackets the optional read-only `get_auth_binding` RPC with source bytes, selected
+ancestry, settled revision and registry checks. Its receipt must name the owned
+source session and actual provider/model/API/endpoint, slot and identity fence;
+missing, changed or unsupported receipts refuse without a disk-slot fallback.
+OpenAI Responses, OpenAI Codex Responses and Anthropic Messages are qualified
+native routes. Offline native sources have current configured-slot authority
+only, never proven historical billing identity.
+
+Desktop currently refuses both live and offline Claude learning: the required
+actual account/process identity hook is not available. The separately repaired,
+unshipped `pi-claude-cli 0.11.0` single-response path alone does not enable it.
+These dependency changes are not installed or published by this feature branch.
+No real-provider/cache benchmark is claimed.
 
 Source freezing is bounded to 64 MiB/200,000 entries. The private carrier's
 control/result files and combined process output are bounded to 2 MB; storage

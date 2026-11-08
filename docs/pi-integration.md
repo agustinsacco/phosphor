@@ -67,9 +67,24 @@ Ordinary controls cannot resume, mutate or delete these files. Display limits do
 not limit owned purge; streaming ownership validation runs inside the existing
 path lock, and failed purges remain durably queued.
 
-## RPC commands (complete set — all 33 in `RpcCommand`, `libs/shared/src/rpc.ts`)
+Selective source learning uses another private profile: a read-only frozen copy,
+zero executable tools and one direct, fenced provider response outside the agent
+scheduler. A live native source supplies its current successful request identity
+through optional `get_auth_binding`, bracketed by source/owner/settled-state
+checks. The caller cannot choose a source session in that command. Stock pi 1.4
+lacks it and refuses this capability; current disk credentials never substitute
+for a live source receipt. This is not historical billing proof. Host explicitly
+refuses the command as Desktop-private. See [Brain](brain.md#learn-from-a-selected-lane)
+for consent, dependency qualification and CLI limitations.
 
-Every one drives a UI surface except `get_tree` and `get_fork_messages`: those
+## RPC commands
+
+`RpcCommand` and `RpcResponseDataMap` mirror the installed protocol plus the
+optional bound-request `get_auth_binding` capability. Its response is unavailable
+or a session-scoped binding/identity fence, never credentials. Ordinary boot does
+not require or probe this capability.
+
+Every other command drives a UI surface except `get_tree` and `get_fork_messages`: those
 are mirrored so the type union stays whole and the `RpcResponseDataMap` guard
 keeps covering it, but nothing reads them. The session tree is built from the
 `.jsonl` on disk instead (see §Sessions on disk), which needs no live process.
