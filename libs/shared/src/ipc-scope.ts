@@ -55,6 +55,7 @@ export const IPC_SCOPE = {
   'hosts:exportLaneHtml': 'app',
   'hosts:fileDownload': 'app',
   'hosts:fileDownloadCancel': 'app',
+  'hosts:filePreviewUrl': 'app',
   'hosts:subagentHistory': 'app',
   'hosts:subagentInspect': 'app',
   'hosts:deleteLane': 'app',

@@ -37,6 +37,7 @@ const lane = (writeRefusal: string | null = null): FilesSource => ({
     clipboardFiles: false,
     revert: false,
     download: false,
+    streamPreview: false,
   },
 })
 const open = (file: Partial<OpenFile> & { path: string }) =>
@@ -96,6 +97,35 @@ it('shows a binary file as a card without OS actions', async () => {
   await render(lane())
   expect(container.textContent).toContain('photo.png')
   expect(buttons()).not.toContain('Open in default app')
+  expect(buttons()).not.toContain('Download')
+})
+
+it('streams a Host lane’s video through its handle and offers Download', async () => {
+  const bytes = (): FilesSource => {
+    const base = lane()
+    return {
+      ...base,
+      sessionId: 'remote-1',
+      features: { ...base.features, download: true, streamPreview: true },
+    }
+  }
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'hosts:filePreviewUrl' ? 'phosphor-file://token/clip.mp4' : undefined,
+  )
+  open({ path: '/lane/renders/clip.mp4', binary: true, size: 1024 })
+  await render(bytes())
+  expect(invoke).toHaveBeenCalledWith('hosts:filePreviewUrl', {
+    sessionId: 'remote-1',
+    path: 'renders/clip.mp4',
+  })
+  expect(container.querySelector('video')?.getAttribute('src')).toBe(
+    'phosphor-file://token/clip.mp4?v=1024',
+  )
+  expect(buttons()).toContain('Download')
+  // A failed stream keeps Download on its card.
+  await act(async () => container.querySelector('video')!.dispatchEvent(new Event('error')))
+  expect(container.textContent).toContain('This format does not play here.')
+  expect(buttons().filter((b) => b === 'Download')).toHaveLength(2)
 })
 
 it('keeps the editor read only while the lane refuses writes', async () => {

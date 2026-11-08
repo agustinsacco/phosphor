@@ -32,8 +32,8 @@ folders, renames, deletes to trash with This Mac's confirm, and moves entries
 by dragging them in the tree (Option/Ctrl copies). Without them the explorer shows a
 "Read only" tag naming the reason and the editor is read-only. A Host lane hides
 what needs a local folder: content search, the hidden-file and .gitignore
-toggles, the OS clipboard and file import, Reveal, Quick Look, Open in default
-app and media previews.
+toggles, the OS clipboard and file import, Reveal, Quick Look and Open in default
+app.
 
 On Desktop, a Host that serves file bytes ([Host protocol](remote-protocol.md#file-bytes))
 adds **Download**: on a file's right-click menu, in the viewer bar and on the "No
@@ -48,6 +48,12 @@ when the pane closes or the lane changes. A larger file is refused up front, a
 file that changes on the Host mid-download is refused as torn, and a cancelled
 or failed download leaves no part behind. Closing the window cancels its
 downloads. An older Host shows no Download.
+
+The same Host previews images, video, audio and PDFs up to 1 GB as This Mac's do
+(see [Previews](#previews)): a remote grant streams the file from the Host as the
+viewer reads it, so a video starts playing and seeks without being downloaded.
+A file that changes on the Host stops its stream; reopening it streams the new
+version. The browser and an older Host show the "No preview" card instead.
 
 Saves send the SHA-256 revision the editor read, not an mtime, one at a time per
 file; a pane that remounts during a save sees it and sends nothing more. A
@@ -232,7 +238,10 @@ The viewers load from `phosphor-file://`, which serves only what main granted
 by an unguessable token (`apps/desktop/electron/fs/file-protocol.ts`): one file for media
 and PDFs, or the workspace for an HTML page or a markdown file, so relative
 CSS, images and scripts resolve. Paths are realpath'd and must stay under the grant; `..` and
-symlinks out of it get 404. Video streams with Range requests.
+symlinks out of it get 404. Video streams with Range requests. A Host lane's media
+or PDF gets a remote grant (`hosts:filePreviewUrl`, on the lane's handle) that
+answers each range with `files.readBytes`, one 1 MiB chunk per pull and two at
+most read ahead (`fs/remote-file-stream.ts`); nothing touches this disk.
 
 A previewed HTML page runs its scripts in `sandbox="allow-scripts"` under a
 policy with no network: it can show sibling files but not `fetch` them, and a

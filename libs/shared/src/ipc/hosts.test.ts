@@ -127,6 +127,8 @@ export interface BaselineHostsInvokeMap {
 
   'hosts:fileDownloadCancel': { args: [id: string]; result: void }
 
+  'hosts:filePreviewUrl': { args: [request: { sessionId: string; path: string }]; result: string }
+
   'hosts:subagentHistory': {
     args: [sessionId: string]
     result: { entries: unknown[]; leafId: string | null }

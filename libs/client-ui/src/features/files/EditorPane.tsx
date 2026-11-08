@@ -121,6 +121,7 @@ function ActiveView({ file, source }: { file: OpenFile; source: FilesSource }): 
       textLimitBytes={source.textLimitBytes}
       source={text}
       onDownload={onDownload}
+      sessionId={source.sessionId}
     />
   )
 }

@@ -222,7 +222,8 @@ Desktop downloads a lane's file through `hosts:fileDownload` on the lane's handl
 another lane; progress is pushed on `hosts:fileDownloadProgress`.
 Changes lists the files the lane's tools touched, each with an inline read-only
 diff. Binary files and oversized text use placeholders. Remote text uses in-memory
-Monaco models, never `phosphor-file://` grants or filesystem watchers. Markdown,
+Monaco models, never `phosphor-file://` grants or filesystem watchers; only media
+and PDFs stream over a remote grant ([Files](files.md#previews)). Markdown,
 HTML and SVG open on a rendered Preview beside their Source, as This Mac's do,
 drawn from that text; HTML and SVG render in the artifact sandbox, and a revealed
 line opens the Source. They refresh on focused lane summary changes (including

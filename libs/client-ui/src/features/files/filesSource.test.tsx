@@ -71,6 +71,7 @@ it('This Mac’s folder is a watched tree with every feature and no refusal', ()
       clipboardFiles: true,
       revert: true,
       download: false,
+      streamPreview: false,
     },
   })
 })
@@ -95,10 +96,10 @@ it('a Host serving file bytes offers downloads through the lane, where files sav
   await update(() => ({ fileBytes: true }))
   const desktop = await hostSource()
   expect(desktop.read()).toMatchObject({ sessionId: mockRemoteInfo.sessionId })
-  expect(desktop.read().features.download).toBe(true)
+  expect(desktop.read().features).toMatchObject({ download: true, streamPreview: true })
   desktop.done()
   const browser = await hostSource(COMPACT_PLATFORM)
-  expect(browser.read().features.download).toBe(false)
+  expect(browser.read().features).toMatchObject({ download: false, streamPreview: false })
   browser.done()
   await update(() => ({ fileBytes: undefined }))
   const older = await hostSource()

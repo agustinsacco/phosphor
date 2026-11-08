@@ -2,9 +2,11 @@ import { protocol, type CustomScheme } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { realpath, stat } from 'node:fs/promises'
-import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path'
 import { Readable } from 'node:stream'
 import { mimeTypeForPath, previewKindForPath } from '@shared/file-kinds'
+import type { ChunkReader } from '@phosphor/host-client/file-bytes'
+import { openRemoteFile, remoteBody, streamsFromHost, type RemoteFile } from './remote-file-stream'
 
 /**
  * Serving workspace files to the Files pane's viewers — images, video, audio,
@@ -25,6 +27,8 @@ import { mimeTypeForPath, previewKindForPath } from '@shared/file-kinds'
  *
  * - a FILE grant (image, video, audio, PDF) serves exactly one file, whatever
  *   the URL's path says;
+ * - a REMOTE grant serves one Host lane's media file or PDF, read through its
+ *   Host a chunk per pull (`remote-file-stream.ts`); nothing on this disk;
  * - a DOCUMENT grant (HTML, markdown) serves files under one root — the
  *   workspace — so the page's relative `style.css`, `chart.png` and `app.js`
  *   (or a README's relative images) resolve. Every
@@ -107,7 +111,16 @@ function documentCsp(origin: string): string {
  */
 const FILE_CSP = "default-src 'none'; sandbox"
 
-type Grant = { kind: 'file'; path: string } | { kind: 'document'; root: string }
+type Grant =
+  | { kind: 'file'; path: string }
+  | { kind: 'document'; root: string }
+  | { kind: 'remote'; key: string; name: string; file: RemoteFile }
+const grantKey = (g: Grant) =>
+  g.kind === 'file'
+    ? `file:${g.path}`
+    : g.kind === 'document'
+      ? `document:${g.root}`
+      : `remote:${g.key}`
 
 /** token → grant, in least-recently-granted order. */
 const grants = new Map<string, Grant>()
@@ -127,7 +140,7 @@ function isWithin(child: string, root: string): boolean {
 }
 
 function mint(grant: Grant): string {
-  const key = grant.kind === 'file' ? `file:${grant.path}` : `document:${grant.root}`
+  const key = grantKey(grant)
   const existing = tokens.get(key)
   const token = existing ?? randomBytes(16).toString('hex')
   // Re-insert so eviction is least-recently-USED: the file you are looking at
@@ -140,7 +153,7 @@ function mint(grant: Grant): string {
     if (oldest === undefined) break
     const evicted = grants.get(oldest)!
     grants.delete(oldest)
-    tokens.delete(evicted.kind === 'file' ? `file:${evicted.path}` : `document:${evicted.root}`)
+    tokens.delete(grantKey(evicted))
   }
   return token
 }
@@ -176,10 +189,29 @@ export async function grantPreview(workspacePath: string, path: string): Promise
 }
 
 /**
+ * A `phosphor-file://` URL that streams one Host lane's media file or PDF.
+ * `key` names the lane file, so asking again reuses the URL and re-reads the
+ * file's size and version; `read` reaches it through its Host.
+ */
+export async function grantRemotePreview(
+  key: string,
+  path: string,
+  read: ChunkReader,
+): Promise<string> {
+  if (!streamsFromHost(path)) throw new Error('No preview for this file type.')
+  const name = posix.basename(path)
+  const token = mint({ kind: 'remote', key, name, file: await openRemoteFile(read) })
+  return `${FILE_SCHEME}://${token}/${encodeURIComponent(name)}`
+}
+
+/**
  * Resolve the bytes a request is asking for, or null when its grant does not
  * cover them. Never throws for a hostile URL — every refusal is a 404.
  */
-async function resolveTarget(url: URL, grant: Grant): Promise<string | null> {
+async function resolvePath(
+  url: URL,
+  grant: Exclude<Grant, { kind: 'remote' }>,
+): Promise<string | null> {
   // A file grant ignores the URL's path: the name there is only for the PDF
   // viewer's title and download name.
   if (grant.kind === 'file') return grant.path
@@ -194,6 +226,34 @@ async function resolveTarget(url: URL, grant: Grant): Promise<string | null> {
   if (!isWithin(candidate, grant.root)) return null
   const real = await realpath(candidate).catch(() => null)
   return real && isWithin(real, grant.root) ? real : null
+}
+
+/** What a request is served from: its size, its type and a stream of any byte range. */
+interface Target {
+  size: number
+  type: string
+  body(start: number, end: number): ReadableStream<Uint8Array>
+}
+
+async function resolveTarget(url: URL, grant: Grant): Promise<Target | null> {
+  // Like a file grant, a remote grant ignores the URL's path.
+  if (grant.kind === 'remote') {
+    const { file } = grant
+    return {
+      size: file.size,
+      type: mimeTypeForPath(grant.name),
+      body: (s, e) => remoteBody(file, s, e),
+    }
+  }
+  const path = await resolvePath(url, grant)
+  const info = path ? await stat(path).catch(() => null) : null
+  if (!path || !info?.isFile()) return null
+  return {
+    size: info.size,
+    type: mimeTypeForPath(path),
+    body: (start, end) =>
+      Readable.toWeb(createReadStream(path, { start, end })) as ReadableStream<Uint8Array>,
+  }
 }
 
 type ByteRange = { start: number; end: number }
@@ -245,11 +305,9 @@ export async function serveFileRequest(request: Request): Promise<Response> {
 
   const target = await resolveTarget(url, grant)
   if (!target) return notFound()
-  const info = await stat(target).catch(() => null)
-  if (!info?.isFile()) return notFound()
 
   const headers: Record<string, string> = {
-    'content-type': mimeTypeForPath(target),
+    'content-type': target.type,
     'content-security-policy':
       grant.kind === 'document' ? documentCsp(`${FILE_SCHEME}://${url.hostname}`) : FILE_CSP,
     'x-content-type-options': 'nosniff',
@@ -259,21 +317,18 @@ export async function serveFileRequest(request: Request): Promise<Response> {
     'accept-ranges': 'bytes',
   }
 
-  const range = parseRange(request.headers.get('range'), info.size)
+  const range = parseRange(request.headers.get('range'), target.size)
   if (range === 'unsatisfiable') {
     return new Response(null, {
       status: 416,
-      headers: { ...headers, 'content-range': `bytes */${info.size}` },
+      headers: { ...headers, 'content-range': `bytes */${target.size}` },
     })
   }
-  const { start, end } = range ?? { start: 0, end: info.size - 1 }
+  const { start, end } = range ?? { start: 0, end: target.size - 1 }
   headers['content-length'] = String(Math.max(0, end - start + 1))
-  if (range) headers['content-range'] = `bytes ${start}-${end}/${info.size}`
+  if (range) headers['content-range'] = `bytes ${start}-${end}/${target.size}`
 
-  const body =
-    request.method === 'HEAD' || info.size === 0
-      ? null
-      : (Readable.toWeb(createReadStream(target, { start, end })) as ReadableStream<Uint8Array>)
+  const body = request.method === 'HEAD' || target.size === 0 ? null : target.body(start, end)
   return new Response(body, { status: range ? 206 : 200, headers })
 }
 

@@ -28,12 +28,17 @@ import type { FilesFeatures } from './filesSource'
  *
  * The grant is per file, not per version, so its URL is stable; the `v`
  * query is what makes the viewer reload after an agent rewrites the file.
+ * A Host lane's file (`sessionId`) streams through its Host; a Host reports
+ * no mtime, so its size is the version, and a new size re-reads the grant.
  */
 function usePreviewUrl(
   workspacePath: string,
-  path: string,
-  mtimeMs: number,
+  file: OpenFile,
+  sessionId?: string,
 ): { url: string | null; failed: boolean } {
+  const { path, relativePath } = file
+  const version = sessionId ? file.size : Math.round(file.mtimeMs)
+  const regrant = sessionId ? version : null
   const [state, setState] = useState<{ base: string | null; failed: boolean }>({
     base: null,
     failed: false,
@@ -41,28 +46,21 @@ function usePreviewUrl(
   useEffect(() => {
     let cancelled = false
     setState({ base: null, failed: false })
-    void window.phosphor
-      .invoke('fs:previewUrl', workspacePath, path)
+    const grant = sessionId
+      ? window.phosphor.invoke('hosts:filePreviewUrl', { sessionId, path: relativePath })
+      : window.phosphor.invoke('fs:previewUrl', workspacePath, path)
+    void grant
       .then((base) => !cancelled && setState({ base, failed: false }))
       .catch(() => !cancelled && setState({ base: null, failed: true }))
     return () => {
       cancelled = true
     }
-  }, [workspacePath, path])
-  const url = state.base ? `${state.base}?v=${Math.round(mtimeMs)}` : null
+  }, [workspacePath, path, relativePath, sessionId, regrant])
+  const url = state.base ? `${state.base}?v=${version}` : null
   return { url, failed: state.failed }
 }
 
-export function FileViewer({
-  file,
-  kind,
-  textPreview,
-  workspacePath,
-  features,
-  textLimitBytes,
-  source,
-  onDownload,
-}: {
+interface FileViewerProps {
   file: OpenFile
   kind: PreviewKind
   /** HTML/SVG: also editable, so the bar offers Preview | Source. */
@@ -74,34 +72,47 @@ export function FileViewer({
   source: React.ReactNode
   /** Save the file on this device, where its machine serves its bytes. */
   onDownload?: () => void
-}): React.JSX.Element {
+  /** A Host lane's handle, which streamed previews read through. */
+  sessionId?: string
+}
+
+export function FileViewer({
+  file,
+  kind,
+  textPreview,
+  workspacePath,
+  features,
+  textLimitBytes,
+  source,
+  onDownload,
+  sessionId,
+}: FileViewerProps): React.JSX.Element {
   const view = textPreview ? (file.view ?? 'preview') : 'preview'
+  // A Host streams media and PDFs; its HTML, SVG and markdown render from the text it sent.
+  const streamed = features.streamPreview && !!sessionId && !textPreview && kind !== 'markdown'
   const [detail, setDetail] = useState<string | null>(null)
   // A different file or a new version resets what the viewer measured.
   useEffect(() => setDetail(null), [file.path, file.mtimeMs])
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-border flex h-8 shrink-0 items-center gap-2 overflow-x-auto border-b px-2 [&::-webkit-scrollbar]:hidden">
-        {textPreview && (
-          <ViewTabs
-            view={view}
-            onChange={(next) => useFilesStore.getState().setView(workspacePath, file.path, next)}
-          />
-        )}
-        <span className="text-text-tertiary min-w-0 flex-1 truncate text-sm">
-          {view === 'preview' && file.dirty && kind !== 'markdown' && features.mediaPreview
+      <ViewerBar
+        file={file}
+        view={textPreview ? view : null}
+        workspacePath={workspacePath}
+        note={
+          view === 'preview' && file.dirty && kind !== 'markdown' && features.mediaPreview
             ? 'Unsaved edits — the preview shows the saved file'
-            : [detail, formatBytes(file.size)].filter(Boolean).join(' · ')}
-        </span>
-        {onDownload && <DownloadButton size={file.size} onDownload={onDownload} compact />}
-        {features.osActions && <FileActions path={file.path} compact />}
-      </div>
+            : [detail, formatBytes(file.size)].filter(Boolean).join(' · ')
+        }
+        osActions={features.osActions}
+        onDownload={onDownload}
+      />
       <div className="min-h-0 flex-1">
         {view === 'source' ? (
           source
-        ) : !features.mediaPreview ? (
-          // No `phosphor-file://` grant on this machine: text renders from the buffer through the
+        ) : !features.mediaPreview && !streamed ? (
+          // No `phosphor-file://` grant for this file: text renders from the buffer through the
           // artifact sandbox, and anything else has no viewer here.
           textPreview && !file.binary && !file.tooLarge ? (
             <Suspense fallback={null}>
@@ -126,9 +137,42 @@ export function FileViewer({
             onDetail={setDetail}
             osActions={features.osActions}
             textLimitBytes={textLimitBytes}
+            sessionId={streamed ? sessionId : undefined}
+            onDownload={onDownload}
           />
         )}
       </div>
+    </div>
+  )
+}
+
+/** Preview | Source where there is a source, what the viewer measured, and the file's actions. */
+function ViewerBar({
+  file,
+  view,
+  workspacePath,
+  note,
+  osActions,
+  onDownload,
+}: {
+  file: OpenFile
+  view: 'preview' | 'source' | null
+  workspacePath: string
+  note: string
+  osActions: boolean
+  onDownload?: () => void
+}): React.JSX.Element {
+  return (
+    <div className="border-border flex h-8 shrink-0 items-center gap-2 overflow-x-auto border-b px-2 [&::-webkit-scrollbar]:hidden">
+      {view && (
+        <ViewTabs
+          view={view}
+          onChange={(next) => useFilesStore.getState().setView(workspacePath, file.path, next)}
+        />
+      )}
+      <span className="text-text-tertiary min-w-0 flex-1 truncate text-sm">{note}</span>
+      {onDownload && <DownloadButton size={file.size} onDownload={onDownload} compact />}
+      {osActions && <FileActions path={file.path} compact />}
     </div>
   )
 }
@@ -140,6 +184,8 @@ interface PreviewProps {
   onDetail: (detail: string) => void
   osActions: boolean
   textLimitBytes: number
+  sessionId?: string
+  onDownload?: () => void
 }
 
 function Preview({
@@ -149,11 +195,13 @@ function Preview({
   onDetail,
   osActions,
   textLimitBytes,
+  sessionId,
+  onDownload,
 }: PreviewProps): React.JSX.Element {
-  const { url, failed } = usePreviewUrl(workspacePath, file.path, file.mtimeMs)
+  const { url, failed } = usePreviewUrl(workspacePath, file, sessionId)
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [url])
-  const fallback = { file, osActions, textLimitBytes }
+  const fallback = { file, osActions, textLimitBytes, onDownload }
 
   if (kind === 'markdown') {
     // Rendered from the live buffer, in-app — no iframe, no saved-file lag.

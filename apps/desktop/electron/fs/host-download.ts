@@ -36,15 +36,20 @@ function failureText(error: unknown): string {
     : ERRORS.failed
 }
 
-/** The renderer's request, or null: a lane handle, a lane-relative path and a fresh id. */
+/** A renderer's lane file, or null: the lane handle and a lane-relative path. */
+export function parseLaneFile(v: unknown): { sessionId: string; path: string } | null {
+  if (typeof v !== 'object' || v === null) return null
+  const { sessionId, path } = v as Record<string, unknown>
+  return typeof sessionId === 'string' && isFilePath(path) ? { sessionId, path } : null
+}
+
+/** A download request, or null: a lane file and a fresh id. */
 export function parseDownloadRequest(
   v: unknown,
 ): { sessionId: string; path: string; id: string } | null {
-  if (typeof v !== 'object' || v === null) return null
-  const { sessionId, path, id } = v as Record<string, unknown>
-  return typeof sessionId === 'string' && isFilePath(path) && isUuid(id)
-    ? { sessionId, path, id }
-    : null
+  const file = parseLaneFile(v)
+  const { id } = (v ?? {}) as Record<string, unknown>
+  return file && isUuid(id) ? { ...file, id } : null
 }
 
 export async function downloadHostFile(

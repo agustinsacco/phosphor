@@ -25,6 +25,8 @@ export interface FilesFeatures {
   revert: boolean
   /** Save a file into this device's Downloads folder, through `sessionId`. */
   download: boolean
+  /** Images, media and PDFs streamed from a Host over `phosphor-file://`, through `sessionId`. */
+  streamPreview: boolean
 }
 
 /** One lane's files, as the Files pane reads and writes them. */
@@ -57,6 +59,7 @@ const LOCAL_FEATURES: FilesFeatures = {
   clipboardFiles: true,
   revert: true,
   download: false,
+  streamPreview: false,
 }
 
 // Revert needs a session baseline the Host does not keep yet (E6).
@@ -69,8 +72,9 @@ const HOST_FEATURES: FilesFeatures = {
   clipboardFiles: false,
   revert: false,
   download: false,
+  streamPreview: false,
 } // A Host that serves file bytes, to a device that saves files natively.
-const HOST_BYTES_FEATURES: FilesFeatures = { ...HOST_FEATURES, download: true }
+const HOST_BYTES_FEATURES: FilesFeatures = { ...HOST_FEATURES, download: true, streamPreview: true }
 
 /** A folder on this device; it holds no state, so it is not a hook. */
 export function localFilesSource(workspacePath: string): FilesSource {

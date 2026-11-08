@@ -112,6 +112,11 @@ export interface HostsInvokeMap {
     result: { savedTo: string }
   }
   'hosts:fileDownloadCancel': { args: [id: string]; result: void }
+  /**
+   * A lane this window opened: a `phosphor-file://` URL streaming one of its media
+   * files or PDFs from its Host, for the Files viewer. Rejects for any other kind.
+   */
+  'hosts:filePreviewUrl': { args: [request: { sessionId: string; path: string }]; result: string }
   /** A lane this window opened: its subagent records on the active branch, as its Host sends them. */
   'hosts:subagentHistory': {
     args: [sessionId: string]
