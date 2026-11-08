@@ -323,6 +323,26 @@
     "./host-protocol-skill-share": {
       "types": "./src/host-protocol-skill-share.ts",
       "default": "./src/host-protocol-skill-share.ts"
+    },
+    "./host-protocol-lane-transfer": {
+      "types": "./src/host-protocol-lane-transfer.ts",
+      "default": "./src/host-protocol-lane-transfer.ts"
+    },
+    "./host-protocol-lane-transfer-calls": {
+      "types": "./src/host-protocol-lane-transfer-calls.ts",
+      "default": "./src/host-protocol-lane-transfer-calls.ts"
+    },
+    "./ipc-web-exclusions": {
+      "types": "./src/ipc-web-exclusions.ts",
+      "default": "./src/ipc-web-exclusions.ts"
+    },
+    "./lane-transfer-runtime": {
+      "types": "./src/lane-transfer-runtime.ts",
+      "default": "./src/lane-transfer-runtime.ts"
+    },
+    "./lane-move": {
+      "types": "./src/lane-move.ts",
+      "default": "./src/lane-move.ts"
     }
   },
   "dependencies": {

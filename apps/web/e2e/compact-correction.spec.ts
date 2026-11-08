@@ -74,7 +74,7 @@ test('Machines detail has a compact hierarchy and Lanes uses Desktop repository 
 }, info) => {
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
+  await expect(page.getByTestId('home-board')).toBeVisible()
   for (const width of [360, 412, 768, 1440]) {
     await page.setViewportSize({ width, height: 850 })
     for (const theme of ['light', 'dark']) {
@@ -149,9 +149,9 @@ test('Install action has manual fallback and only reports completion on appinsta
   await expect(help).toContainText('An automatic prompt is not guaranteed')
   await help.getByRole('button', { name: 'Close', exact: true }).click()
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
+  await expect(page.getByTestId('home-board')).toBeVisible()
   // Browser prompt events belong to one document, not the preceding OAuth redirect.
-  // Capture while the drawer is absent, then preserve it across drawer/SPA navigation.
+  // Capture before any Install button mounts, then preserve it across tab/SPA navigation.
   await page.evaluate(() => {
     const event = new Event('beforeinstallprompt', { cancelable: true })
     Object.assign(event, {
@@ -160,10 +160,10 @@ test('Install action has manual fallback and only reports completion on appinsta
     })
     window.dispatchEvent(event)
   })
-  await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
-  await page.getByRole('button', { name: 'Close navigation', exact: true }).click()
-  await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
-  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  const tabs = page.getByRole('navigation', { name: 'Tabs', exact: true })
+  await tabs.getByRole('button', { name: 'Machines', exact: true }).click()
+  await tabs.getByRole('button', { name: 'Home', exact: true }).click()
+  await tabs.getByRole('button', { name: 'Settings', exact: true }).click()
   await page
     .getByRole('navigation', { name: 'Settings sections', exact: true })
     .getByRole('button', { name: 'App installation', exact: true })

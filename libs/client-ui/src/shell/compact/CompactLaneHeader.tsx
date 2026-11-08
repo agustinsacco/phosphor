@@ -20,6 +20,7 @@ import { useChatStore } from '@/stores/chat'
 import { LaneLinks } from '@/features/sessions/LaneLinks'
 import { useMachinesStore } from '@/stores/machines'
 import { connectionLabel, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { laneListFor } from './browserMemory'
 
 type LaneLocation = Extract<Location, { to: 'lane' }>
 
@@ -67,7 +68,7 @@ export function CompactLaneHeader({ location }: { location: LaneLocation }): Rea
   )
   return (
     <header className="compact-header compact-lane-header">
-      <Button aria-label="Back to lanes" onClick={() => navigate({ to: 'lanes', machine: hostId })}>
+      <Button aria-label="Back to lanes" onClick={() => navigate(laneListFor(hostId))}>
         <ChevronIcon size={18} strokeWidth={2} className="rotate-180" />
       </Button>
       <TooltipButton

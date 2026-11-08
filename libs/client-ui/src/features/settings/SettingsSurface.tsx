@@ -89,7 +89,7 @@ export function SettingsSurface({
       </aside>
       <div
         ref={panelRef}
-        className="relative min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 md:px-7 md:py-6"
+        className="settings-panel relative min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 md:px-7 md:py-6"
       >
         {listing ? (
           <SettingsSearchResults search={search} />

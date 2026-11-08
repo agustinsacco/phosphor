@@ -8,7 +8,7 @@ test('shared pages wrap at doubled text sizes and the composer follows a reduced
   await page.setViewportSize({ width: 412, height: 924 })
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByTestId('remote-model-picker')).toBeVisible()
+  await expect(page.getByTestId('home-board')).toBeVisible()
   for (const route of ['settings', 'machines']) {
     await page.goto(`${stack.origin}/pages/${route}`)
     await expect(page.locator('.page-shell h1')).toHaveCount(1)
@@ -45,7 +45,7 @@ test('a menu row keeps its whole label beside a long hint', async ({ stack, page
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByTestId('remote-model-picker')).toBeVisible()
+  await expect(page.getByTestId('home-board')).toBeVisible()
   await page.goto(`${stack.origin}/lanes/${stack.hostId}/${stack.laneId}/chat`)
   await page.getByRole('button', { name: 'Session options', exact: true }).click()
   // A Host lane this window does not control hints why on every control row.
@@ -69,7 +69,7 @@ test('the Host start composer shows the whole model name when there is room', as
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByTestId('remote-model-picker')).toBeVisible()
+  await expect(page.getByTestId('home-board')).toBeVisible()
   await page.goto(`${stack.origin}/new/${stack.hostId}`)
   const label = page.getByTestId('remote-model-picker').getByTestId('model-label')
   await expect(label).toContainText('HOST_A_ONLY')
