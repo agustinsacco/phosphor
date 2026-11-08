@@ -9,10 +9,12 @@ describe('bundledExtensions', () => {
   it('includes production extension entry points, without helpers, tests or optional packages', () => {
     // Modules imported by an extension, not loaded separately with -e:
     // Budget/files/global/ledger helpers belong to context-breakdown; store/snapshot helpers to artifacts;
+    // main-checkout is the worktree detector shared by worktree-paths and context-files;
     // status-keys is the shared wire vocabulary, imported by producers and consumers.
     const imported = new Set([
       'context-budget.ts',
       'context-files.ts',
+      'main-checkout.ts',
       'global-context.ts',
       'message-ledger.ts',
       'swarm.ts',

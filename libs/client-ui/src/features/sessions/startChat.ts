@@ -253,7 +253,7 @@ async function applyGeneratedName({
     // the session file at once, but the folder watcher reports it only after
     // its debounce, so every surface that shows a live session's title
     // prefers the chat store's name over the scanned one (see `SessionRow` in
-    // Sidebar.tsx).
+    // LocalLaneRow.tsx).
     useChatStore.getState().patchMeta(sessionId, { sessionName: title })
     // The scan that picks the name up without waiting for the watcher.
     void useSessionsStore.getState().refreshDisk(cwd)

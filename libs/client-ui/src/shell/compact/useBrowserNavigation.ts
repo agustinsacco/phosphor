@@ -6,7 +6,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { locationMachine, type Location } from '@/navigation/location'
-import { useDefaultNewMachine } from './useDefaultNewMachine'
+import { useDefaultMachine } from './useDefaultMachine'
 import {
   guardHostDrafts,
   unsavedDraftHost,
@@ -33,7 +33,7 @@ export function useBrowserNavigation() {
   const remoteEnabled = useMachinesStore((s) => s.remoteEnabled)
   const filter = useRemoteLanesStore((s) => s.filter)
   const page = useLayoutStore((s) => s.page)
-  useDefaultNewMachine(history, location, remoteEnabled)
+  useDefaultMachine(history, location, remoteEnabled)
   const expectedFilter = locationMachine(location) ?? 'all'
   const expectedPage = location.to === 'page' && location.page !== 'settings' ? location.page : null
   const pending = !remoteEnabled || filter !== expectedFilter || page !== expectedPage

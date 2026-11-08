@@ -36,7 +36,8 @@ function id(value: string | undefined): string | undefined {
 
 /** URLs contain opaque Host/lane IDs only, never workspace or session-file paths. */
 export function decodeLocation(pathname: string): Location {
-  if (pathname === '/') return { to: 'new' }
+  // Home is every machine's lanes; New is one tap from it.
+  if (pathname === '/') return { to: 'lanes' }
   if (pathname === '/lanes') return { to: 'lanes' }
   const parts = pathname.split('/').slice(1)
   if (parts[0] === 'lanes' && parts.length >= 3 && parts.length <= 4) {

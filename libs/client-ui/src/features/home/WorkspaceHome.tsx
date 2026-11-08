@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { WorkspaceSessionStats } from '@shared/models'
 import { useRemoteComposer } from './remoteComposer'
 import { HostHome } from './HostHome'
+import { HomeBoard } from './HomeBoard'
 import { LocalHomeDashboard } from './LocalHomeDashboard'
 import { HomeComposerSlot } from './HomeComposerSlot'
 import { RemoteWorkspacePage } from './RemoteWorkspacePage'
@@ -18,6 +19,7 @@ import { homeDraftKey } from '@/stores/drafts'
  * `localSetup` takes This Mac's place while it cannot start a lane (no pi, no folder): the whole
  * home on a local home, or only the composer slot on a Host home, under the composer's machine
  * picker either way. A Host composer target on a local home then gets its full start page.
+ * All machines shows every machine's lanes on one board instead of This Mac's dashboard.
  */
 export function WorkspaceHome({
   workspacePath,
@@ -32,7 +34,8 @@ export function WorkspaceHome({
   const filter = useRemoteLanesStore((s) => s.filter)
   const homeHostId = filter === 'local' || filter === 'all' ? null : filter
   const git = useSessionsStore((s) => s.gitByCwd[workspacePath])
-  const dashboard = useLocalDashboard(workspacePath, !homeHostId && !localSetup)
+  const allMachines = filter === 'all'
+  const dashboard = useLocalDashboard(workspacePath, !homeHostId && !allMachines && !localSetup)
   useEffect(() => {
     if (!target) return
     setComposerMachine(target.hostId)
@@ -66,6 +69,11 @@ export function WorkspaceHome({
         <div className="w-full max-w-6xl pt-8 pb-6">
           {homeHostId ? (
             <HostHome hostId={homeHostId} />
+          ) : allMachines ? (
+            <section aria-label="All machines">
+              <h2 className="mb-2 text-lg font-medium">All machines</h2>
+              <HomeBoard />
+            </section>
           ) : (
             <LocalHomeDashboard
               workspacePath={workspacePath}
