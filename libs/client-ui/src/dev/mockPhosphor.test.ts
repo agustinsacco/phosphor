@@ -7,6 +7,15 @@ beforeEach(() => {
   installMockPhosphor()
 })
 afterEach(() => vi.useRealTimers())
+it('characterizes local routine routing, Host refusal and Brain dispatch', async () => {
+  const snapshot = await window.phosphor.invoke('routines:list')
+  expect(snapshot).toMatchObject({ routines: [], runs: [], background: false, error: null })
+  await expect(window.phosphor.invoke('routines:list', 'host:remote')).rejects.toThrow(
+    'Machine routines are unavailable in the browser harness.',
+  )
+  expect(await window.phosphor.invoke('routines:list')).toEqual(snapshot)
+  expect(await window.phosphor.invoke('brain:status')).toMatchObject({ supported: true })
+})
 it('keeps control signed out by default and supports first-class enrollment', async () => {
   await window.phosphor.invoke('account:signOut')
   expect(await window.phosphor.invoke('control:machines')).toMatchObject({
@@ -63,4 +72,26 @@ it('answers each delegated channel group from its owning mock module', async () 
   expect(await window.phosphor.invoke('pi:readInstructions')).toMatchObject({
     path: '/Users/dev/.pi/agent/AGENTS.md',
   })
+})
+
+it('dispatches the four typed synthetic learning channels without a manual processor', async () => {
+  const { DEFAULT_BRAIN_PREFS } = await import('@shared/brain')
+  await window.phosphor.invoke('brain:setPrefs', {
+    ...DEFAULT_BRAIN_PREFS,
+    enabled: true,
+    workspaces: ['/synthetic'],
+    processor: null,
+  })
+  const target = { workspacePath: '/synthetic', sessionPath: '/synthetic/mock.jsonl' }
+  const preview = await window.phosphor.invoke('brain:learnPreview', target)
+  const job = await window.phosphor.invoke('brain:learn', target, {
+    policyEpoch: preview.policyEpoch,
+    fingerprint: preview.fingerprint,
+  })
+  expect(
+    (await window.phosphor.invoke('brain:learningJobs')).items.some((item) => item.id === job.id),
+  ).toBe(true)
+  expect((await window.phosphor.invoke('brain:learningDetail', job.id)).outcome?.type).toBe(
+    'no_findings',
+  )
 })

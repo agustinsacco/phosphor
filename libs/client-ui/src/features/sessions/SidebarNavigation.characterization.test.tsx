@@ -84,6 +84,7 @@ it('lists New and the page links in order, then the machine scope, lanes and the
     'Routines',
     // Activity on the machines out of scope sits on the Machines row.
     'Machines1 new',
+    'Brain',
   ])
   const scope = button('Machine filter')
   const footer = container.querySelector('[data-testid="account-footer"]')!

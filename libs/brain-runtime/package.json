@@ -1,0 +1,169 @@
+{
+  "name": "@phosphor/brain-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./learning-carrier-files": {
+      "types": "./src/learning-carrier-files.ts",
+      "default": "./src/learning-carrier-files.ts"
+    },
+    "./learning-carrier-recovery": {
+      "types": "./src/learning-carrier-recovery.ts",
+      "default": "./src/learning-carrier-recovery.ts"
+    },
+    "./learning-host-owner": {
+      "types": "./src/learning-host-owner.ts",
+      "default": "./src/learning-host-owner.ts"
+    },
+    "./learning-carrier-transport": {
+      "types": "./src/learning-carrier-transport.ts",
+      "default": "./src/learning-carrier-transport.ts"
+    },
+    "./learning-source-binding": {
+      "types": "./src/learning-source-binding.ts",
+      "default": "./src/learning-source-binding.ts"
+    },
+    "./learning-host": {
+      "types": "./src/learning-host.ts",
+      "default": "./src/learning-host.ts"
+    },
+    "./learning-source-admission": {
+      "types": "./src/learning-source-admission.ts",
+      "default": "./src/learning-source-admission.ts"
+    },
+    "./learning-coordinator": {
+      "types": "./src/learning-coordinator.ts",
+      "default": "./src/learning-coordinator.ts"
+    },
+    "./learning-preflight": {
+      "types": "./src/learning-preflight.ts",
+      "default": "./src/learning-preflight.ts"
+    },
+    "./learning-source": {
+      "types": "./src/learning-source.ts",
+      "default": "./src/learning-source.ts"
+    },
+    "./learning-usage": {
+      "types": "./src/learning-usage.ts",
+      "default": "./src/learning-usage.ts"
+    },
+    "./learning-port": {
+      "types": "./src/learning-port.ts",
+      "default": "./src/learning-port.ts"
+    },
+    "./authority": {
+      "types": "./src/authority.ts",
+      "default": "./src/authority.ts"
+    },
+    "./bridge": {
+      "types": "./src/bridge.ts",
+      "default": "./src/bridge.ts"
+    },
+    "./capture": {
+      "types": "./src/capture.ts",
+      "default": "./src/capture.ts"
+    },
+    "./capture-snapshot": {
+      "types": "./src/capture-snapshot.ts",
+      "default": "./src/capture-snapshot.ts"
+    },
+    "./controller": {
+      "types": "./src/controller.ts",
+      "default": "./src/controller.ts"
+    },
+    "./indexer": {
+      "types": "./src/indexer.ts",
+      "default": "./src/indexer.ts"
+    },
+    "./memory-client": {
+      "types": "./src/memory-client.ts",
+      "default": "./src/memory-client.ts"
+    },
+    "./memory-protocol": {
+      "types": "./src/memory-protocol.ts",
+      "default": "./src/memory-protocol.ts"
+    },
+    "./memory-worker-handler": {
+      "types": "./src/memory-worker-handler.ts",
+      "default": "./src/memory-worker-handler.ts"
+    },
+    "./processor": {
+      "types": "./src/processor.ts",
+      "default": "./src/processor.ts"
+    },
+    "./processor-wait": {
+      "types": "./src/processor-wait.ts",
+      "default": "./src/processor-wait.ts"
+    },
+    "./service": {
+      "types": "./src/service.ts",
+      "default": "./src/service.ts"
+    },
+    "./service-lifecycle": {
+      "types": "./src/service-lifecycle.ts",
+      "default": "./src/service-lifecycle.ts"
+    },
+    "./service-types": {
+      "types": "./src/service-types.ts",
+      "default": "./src/service-types.ts"
+    },
+    "./transcript-ownership": {
+      "types": "./src/transcript-ownership.ts",
+      "default": "./src/transcript-ownership.ts"
+    },
+    "./transcripts": {
+      "types": "./src/transcripts.ts",
+      "default": "./src/transcripts.ts"
+    },
+    "./working": {
+      "types": "./src/working.ts",
+      "default": "./src/working.ts"
+    },
+    "./embedding/embedding-client": {
+      "types": "./src/embedding/embedding-client.ts",
+      "default": "./src/embedding/embedding-client.ts"
+    },
+    "./embedding/embedding-controller": {
+      "types": "./src/embedding/embedding-controller.ts",
+      "default": "./src/embedding/embedding-controller.ts"
+    },
+    "./embedding/embedding-files": {
+      "types": "./src/embedding/embedding-files.ts",
+      "default": "./src/embedding/embedding-files.ts"
+    },
+    "./embedding/embedding-port": {
+      "types": "./src/embedding/embedding-port.ts",
+      "default": "./src/embedding/embedding-port.ts"
+    },
+    "./embedding/embedding-protocol": {
+      "types": "./src/embedding/embedding-protocol.ts",
+      "default": "./src/embedding/embedding-protocol.ts"
+    },
+    "./embedding/embedding-runtime": {
+      "types": "./src/embedding/embedding-runtime.ts",
+      "default": "./src/embedding/embedding-runtime.ts"
+    },
+    "./embedding/embedding-worker-handler": {
+      "types": "./src/embedding/embedding-worker-handler.ts",
+      "default": "./src/embedding/embedding-worker-handler.ts"
+    },
+    "./embedding/model-manifest": {
+      "types": "./src/embedding/model-manifest.ts",
+      "default": "./src/embedding/model-manifest.ts"
+    },
+    "./tool-audit": {
+      "types": "./src/tool-audit.ts",
+      "default": "./src/tool-audit.ts"
+    }
+  },
+  "nx": {
+    "includedScripts": []
+  },
+  "dependencies": {
+    "@phosphor/shared": "0.0.0",
+    "@phosphor/session-runtime": "0.0.0",
+    "@phosphor/memory-engine": "0.0.0",
+    "@phosphor/pi-extensions": "0.0.0"
+  }
+}

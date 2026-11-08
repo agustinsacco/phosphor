@@ -10,6 +10,7 @@ import contextFiles, {
   parseProjectContext,
   savedContextFiles,
   CONTEXT_FILES_ENTRY,
+  CONTEXT_FILES_ENV,
   type ContextFileKind,
 } from './context-files'
 
@@ -239,8 +240,7 @@ describe('contextFilesIn', () => {
 })
 
 describe('context files extension', () => {
-  // '' rather than undefined: the default reads PHOSPHOR_CONTEXT_FILES, which
-  // a run inside Phosphor has set.
+  // Its own environment: the default is pi's, which a run inside Phosphor has set.
   function fakePi(
     initial = '',
     detect: (cwd: string) => string | null = () => null,
@@ -250,6 +250,7 @@ describe('context files extension', () => {
     let command!: (args: string, ctx: unknown) => Promise<void>
     const changes: unknown[] = []
     const entries: unknown[] = []
+    const env: NodeJS.ProcessEnv = { [CONTEXT_FILES_ENV]: initial }
     const state = contextFiles(
       {
         on: (event, handler) => void handlers.set(event, handler),
@@ -259,7 +260,7 @@ describe('context files extension', () => {
         appendEntry: (customType, data) => void entries.push({ type: 'custom', customType, data }),
       },
       (ctx) => changes.push(ctx),
-      initial,
+      env,
       '/home/u/.pi/agent',
       detect,
     )
@@ -268,6 +269,7 @@ describe('context files extension', () => {
       state,
       changes,
       entries,
+      env,
       start: (branch: unknown[], cwd?: string) =>
         handlers.get('session_start')!(
           {},
@@ -310,6 +312,17 @@ describe('context files extension', () => {
     const untouched = fakePi('agents=off')
     untouched.start([{ type: 'message' }])
     expect([...untouched.state.off()]).toEqual(['agents'])
+  })
+
+  it("hands the lane's current setting to the sub-agents it starts", async () => {
+    const pi = fakePi('claude=off')
+    await pi.command('claude=on agents=off')
+    expect(pi.env[CONTEXT_FILES_ENV]).toBe('agents=off')
+    const restored = fakePi()
+    restored.start([{ type: 'message' }, ...pi.entries])
+    expect(restored.env[CONTEXT_FILES_ENV]).toBe('agents=off')
+    await restored.command('agents=on')
+    expect(restored.env[CONTEXT_FILES_ENV]).toBeUndefined()
   })
 
   it('learns the worktree from the session cwd and drops the main checkout’s file with nothing toggled off', () => {

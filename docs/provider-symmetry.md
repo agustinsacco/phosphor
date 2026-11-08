@@ -133,7 +133,9 @@ How each level maps onto the request is in pi-claude-cli's
   One process serves a session's turns and tool handoffs. A model switch
   (including a context-budget change mid-session, which is applied as one),
   a changed prompt or tool list, tree navigation, compaction and a stop all
-  retire it, as does an hour idle: `claudeProviderSpawnEnv` sets
+  retire it (from pi-claude-cli 0.11.0, a prompt-section update, a message sent
+  during a tool, a stop and an extension's own model call keep it), as does an
+  hour idle: `claudeProviderSpawnEnv` sets
   `PI_CLAUDE_CLI_KEEPALIVE_MS` to one hour so the parked process lives as long
   as a subscription's prompt cache (the provider's own default is ten minutes,
   and under it three in four user turns that followed a 10-60 minute pause
@@ -148,9 +150,9 @@ How each level maps onto the request is in pi-claude-cli's
 - **Claude reports a smaller context than it holds** (an open break,
   [known-issues.md](known-issues.md#context-budget-and-compaction) C1). pi reads
   `usage.totalTokens` as the context after a response, and its own providers
-  include that response's output. pi-claude-cli leaves the output out, so the
-  budget check and the meter lag by one response: tens of thousands of tokens
-  after a long thinking turn. Compare `totalTokens` with
+  include that response's output. pi-claude-cli before 0.11.0 leaves the output
+  out, so the budget check and the meter lag by one response: a median 1.7k in
+  a tool loop, tens of thousands after a long thinking turn. 0.11.0 counts it. Compare `totalTokens` with
   `input + output + cacheRead + cacheWrite` on any assistant message in the
   session file; on Codex they are equal.
 

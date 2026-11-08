@@ -19,6 +19,24 @@ export interface RpcSessionState {
   pendingMessageCount: number
 }
 
+/** Current successfully used process identity, never historical branch billing proof. */
+export type RpcAuthBindingStatus =
+  | { available: false; reason: 'unavailable' | 'changed' }
+  | {
+      available: true
+      sourceSessionId: string
+      binding: {
+        provider: string
+        modelId: string
+        api: string
+        endpoint: string
+        authMode: 'oauth' | 'api-key' | 'cli'
+        accountId: string
+      }
+      /** Opaque random identity epoch; never a credential-derived hash. */
+      authIdentityFence: string
+    }
+
 export interface SessionStats {
   sessionFile?: string
   sessionId: string
@@ -85,6 +103,7 @@ export interface RpcResponseDataMap {
   abort: undefined
   new_session: { cancelled: boolean }
   get_state: RpcSessionState
+  get_auth_binding: RpcAuthBindingStatus
   set_model: Model
   cycle_model: { model: Model; thinkingLevel: ThinkingLevel; isScoped: boolean } | null
   get_available_models: { models: Model[] }

@@ -25,3 +25,10 @@ it('preserves prompt fields and queue modes exactly', () => {
     since?: string
   }>()
 })
+
+it('keeps source binding scope owned by the source process, with no caller-selected session', () => {
+  expectTypeOf<Extract<RpcCommand, { type: 'get_auth_binding' }>>().toEqualTypeOf<{
+    id?: string
+    type: 'get_auth_binding'
+  }>()
+})

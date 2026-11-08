@@ -20,9 +20,24 @@ export interface BudgetApi {
   ): void
 }
 
-export default function contextBudget(pi: BudgetApi): void {
+/**
+ * The session's budget for its sub-agents, which load this with no host to
+ * send the command (subagent-children.ts). The command keeps it current: a
+ * foreground child runs in this process and reads it at load, a spawned one
+ * inherits a copy.
+ */
+export const CONTEXT_BUDGET_ENV = 'PHOSPHOR_CONTEXT_BUDGET'
+
+/** `off` is null, a valid window its size, anything else undefined. */
+function parseBudget(text: string | undefined): number | null | undefined {
+  if (text === 'off') return null
+  const value = Number(text)
+  return Number.isSafeInteger(value) && value >= 100_000 && value <= 1_000_000 ? value : undefined
+}
+
+export default function contextBudget(pi: BudgetApi, env: NodeJS.ProcessEnv = process.env): void {
   if (!pi.setModel || !pi.registerCommand) return
-  let budget: number | null = null
+  let budget: number | null = parseBudget(env[CONTEXT_BUDGET_ENV]) ?? null
   let applying = false
   const apply = async (ctx: Context): Promise<void> => {
     if (applying || !ctx.model) return
@@ -46,14 +61,10 @@ export default function contextBudget(pi: BudgetApi): void {
   pi.registerCommand('phosphor-context-budget', {
     description: 'Host control: set the session context window budget without running a model',
     async handler(args, ctx) {
-      const value = args === 'off' ? null : Number(args)
-      if (
-        value !== null &&
-        (!Number.isSafeInteger(value) || value < 100_000 || value > 1_000_000)
-      ) {
-        throw new Error('Invalid session context budget.')
-      }
+      const value = parseBudget(args)
+      if (value === undefined) throw new Error('Invalid session context budget.')
       budget = value
+      env[CONTEXT_BUDGET_ENV] = args
       // setModel emits model_select; the Claude provider retires its warm CLI.
       // Never do that during an API call or while a tool batch is executing.
       if (ctx.isIdle()) await apply(ctx)

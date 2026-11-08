@@ -113,9 +113,11 @@ its Session options and Settings match on Desktop, in a wide browser and on a
 phone. A shell passes layout down instead: the phone's lane header carries the
 lane's controls (`ChatView`'s `laneControls`), and a list beside its detail, such
 as Machine files, is the `ListDetail` primitive, one at a time on a phone.
-`localLanes`, `nativeFiles`, `fileEditing` and `splitPanes` remain false in the
+`localLanes`, `nativeFiles`, `fileEditing`, `splitPanes` and `localBrain` remain false in the
 browser at every width. Modal/menu placement adapts without enabling native
-editors or pane controls. Desktop retains its native sidebar and local workbench.
+editors or pane controls. Brain's unavailable page and its fixed `brain:*` IPC
+refusal apply at both widths; no local memory service is invoked. Desktop retains
+its native sidebar and local workbench.
 Below 900px a lane has one header bar: Back to its Host's lanes, then the lane
 title with "Host · controller" under it (and the pane, when not Chat). The title
 opens the lane menu, a bottom sheet (`ActionSheet`) that switches Chat, Files,

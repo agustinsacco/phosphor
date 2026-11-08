@@ -1,3 +1,4 @@
+import { AppOverlays } from './AppOverlays'
 import { GlobalScreen } from '@/navigation/screens'
 import { useNavigation } from '@/navigation/Navigation'
 import { useMachineHomeFiles } from './useMachineHomeFiles'
@@ -18,20 +19,11 @@ import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { StartingChat } from '@/features/home/StartingChat'
 import { OPENING_LANE_EXIT_MS, OpeningLane } from '@/features/sessions/OpeningLane'
 import { Sidebar } from '@/features/sessions/Sidebar'
-import { BulkDeleteProgressPopover } from '@/features/sessions/BulkDeleteModal'
-import { SessionRecoveryModals } from '@/features/sessions/SessionRecoveryModals'
 import { TopBar } from './TopBar'
-import { ContextMenuHost } from '@/components/ContextMenu'
-import { TextFieldMenu } from '@/features/writing/TextFieldMenu'
 import { RightPane } from '@/features/files/RightPane'
 import { FuzzyFinder } from '@/features/files/FuzzyFinder'
 import { useGlobalShortcuts } from './useGlobalShortcuts'
-import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/ExtensionUiHosts'
 import { useLingering } from '@/components/useLingering'
-import { PromptHost } from '@/components/PromptHost'
-import { CommandPalette } from '@/features/palette/CommandPalette'
-import { SettingsModal } from '@/features/settings/SettingsModal'
-import { FeedbackModal } from '@/features/feedback/FeedbackModal'
 import { useTerminalStore } from '@/stores/terminal'
 import { attachConnectorAuthListener } from '@/stores/connectors'
 import { noticeMcpMigration } from '@/features/connectors/migrationNotice'
@@ -295,16 +287,7 @@ export function App(): React.JSX.Element {
           )}
         </div>
         {currentWorkspace && <FuzzyFinder workspacePath={currentWorkspace} />}
-        <ContextMenuHost />
-        <TextFieldMenu />
-        <ExtensionDialogHost />
-        <PromptHost />
-        <ToastHost />
-        <BulkDeleteProgressPopover />
-        <SessionRecoveryModals />
-        <CommandPalette key={currentWorkspace ?? ''} workspacePath={currentWorkspace ?? ''} />
-        <SettingsModal />
-        <FeedbackModal />
+        <AppOverlays workspacePath={currentWorkspace ?? ''} ready={initialDataReady && !loading} />
       </div>
       {loading && loadingScreen}
     </>

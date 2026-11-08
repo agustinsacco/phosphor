@@ -1,0 +1,23 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "brain-client",
+  "root": "libs/brain-client",
+  "sourceRoot": "libs/brain-client/src",
+  "projectType": "library",
+  "tags": ["scope:runtime"],
+  "implicitDependencies": ["shared"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^default", "rootUnitRunner"],
+      "options": {
+        "command": "vitest run libs/brain-client",
+        "cwd": ".",
+        "env": {
+          "VITEST_MAX_WORKERS": "2"
+        }
+      }
+    }
+  }
+}
