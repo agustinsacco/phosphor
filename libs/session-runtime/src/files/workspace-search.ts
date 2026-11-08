@@ -18,9 +18,10 @@ import {
 
 /**
  * The workspace search's core: read each listed file, run the query over it,
- * locate every match by line and column. Runs inside the search worker
- * (workspace-search-worker.ts), never on main's thread — a user's regex can
- * take as long as it likes to fail, and only a worker can be stopped mid-match.
+ * locate every match by line and column. Runs inside Desktop's search worker
+ * (apps/desktop/electron/fs/workspace-search-worker.ts), never on main's
+ * thread — a user's regex can take as long as it likes to fail, and only a
+ * worker can be stopped mid-match.
  */
 
 /** Files read at once. Their text is then searched one by one, in list order. */

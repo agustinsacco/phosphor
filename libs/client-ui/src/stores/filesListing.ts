@@ -1,13 +1,14 @@
 import type { StoreApi } from 'zustand'
 import { fileListErrorText } from '@shared/host-protocol-files'
 import { foldFileList } from '@/features/files/fileListTree'
-import { filesSourceTraits, patchWorkspace, type FilesState } from './files'
+import { filesSourceTraits, patchWorkspace, workspaceFiles, type FilesState } from './files'
 import { REMOTE_UNAVAILABLE } from './hostRefusals'
+import { unlistedDirs } from './filesCreatedDirs'
 
 type SetFiles = StoreApi<FilesState>['setState']
 type GetFiles = StoreApi<FilesState>['getState']
 
-function atOrBelow(path: string, root: string): boolean {
+export function atOrBelow(path: string, root: string): boolean {
   return path === root || path.startsWith(root + '/') || path.startsWith(root + '\\')
 }
 
@@ -112,12 +113,9 @@ function listFlat(set: SetFiles, workspacePath: string): Promise<void> {
 }
 
 async function foldFlatList(set: SetFiles, workspacePath: string): Promise<void> {
-  let listings: ReturnType<typeof foldFileList>
+  let files: string[]
   try {
-    listings = foldFileList(
-      workspacePath,
-      await window.phosphor.invoke('fs:listFiles', workspacePath),
-    )
+    files = await window.phosphor.invoke('fs:listFiles', workspacePath)
   } catch (error) {
     const listError = fileListErrorText(error, 'Could not read files.')
     set((s) => ({
@@ -127,10 +125,19 @@ async function foldFlatList(set: SetFiles, workspacePath: string): Promise<void>
     return
   }
   set((s) => {
+    const made = workspaceFiles(s, workspacePath).createdDirs ?? []
+    const created = made.length ? unlistedDirs(workspacePath, made, files) : made
+    const listings = foldFileList(
+      workspacePath,
+      files,
+      created.map((dir) => dir.slice(workspacePath.length + 1)),
+    )
     const below = (key: string) => key === workspacePath || key.startsWith(`${workspacePath}/`)
     const outside = <T>(record: Record<string, T>) =>
       Object.fromEntries(Object.entries(record).filter(([key]) => !below(key)))
     return {
+      ...(created.length !== made.length &&
+        patchWorkspace(s, workspacePath, (w) => ({ ...w, createdDirs: created }))),
       // Past the fold's caps the tree is refused, never drawn partially.
       entries: { ...outside(s.entries), ...(listings ?? { [workspacePath]: [] }) },
       expanded: {

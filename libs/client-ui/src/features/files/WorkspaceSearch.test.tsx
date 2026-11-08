@@ -13,7 +13,11 @@ const { openFileInWorkspace } = vi.hoisted(() => ({
 
 vi.mock('@/stores/layout', () => ({ openFileInWorkspace }))
 vi.mock('@/stores/files', () => ({
-  useFilesStore: { getState: () => ({ pollWorkspace: () => Promise.resolve() }) },
+  useFilesStore: Object.assign(() => false, {
+    getState: () => ({ pollWorkspace: () => Promise.resolve() }),
+  }),
+  attachFilesSource: () => {},
+  workspaceFiles: () => ({ openFiles: [] }),
 }))
 vi.mock('./fileActions', () => ({ runFileAction: () => {} }))
 // The explorer and the editor have suites of their own; here they only need to be there.

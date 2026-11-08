@@ -215,8 +215,10 @@ the next sidebar change. This selection is window-local and never persisted.
 
 The list and header count follow the page selection; the count includes only
 non-archived routines in that selection. A Host page shows no This Mac activity,
-load errors, footer or background controls. Host run history opens from each routine,
-not a mixed Activity feed. All machines explicitly labels local Activity and
+load errors, footer or background controls. **Activity** lists the recent runs of the
+selected machine, rendered as This Mac's are; All machines lists every machine's runs
+in one feed. A Host that predates `routines.activity` shows its routines with no
+Activity, and each routine still opens its own history. All machines labels local
 load errors with the local machine's label (**This Mac** on macOS, **This PC** or
 **This computer** elsewhere). An unavailable Host shows its refusal, never local data
 under a remote label. Changing the selection clears an action error shown for the
@@ -234,7 +236,7 @@ Desktop's local scheduler, notifications, background setting and database do not
 change. The Routines page lists this computer and every connected machine that
 announces `routines`, with a machine tag and filter. In All machines, local rows
 load first; an unavailable machine has its own status and never hides local rows.
-Definitions and history are fetched independently and refreshed on Host
+Definitions with their recent activity, and each routine's history, are fetched independently and refreshed on Host
 `routines-changed` invalidations or connection changes.
 
 Choose a machine in New routine. After creation that machine is fixed. On a
@@ -291,7 +293,8 @@ filesystem lock. Use isolated worktrees when simultaneous edits are possible.
 
 `routines.list` returns at most 100 definitions, including archived definitions.
 `routines.history` returns at most 50 status/timestamp records, with a bounded
-pagination offset. Neither returns Host session paths, working folders, account
+pagination offset. `routines.activity` returns the same records for every routine,
+newest first, at most 50, with the same offset bound. None returns Host session paths, working folders, account
 ids or private execution diagnostics. Full run snapshots and output remain in
 Host SQLite. Delete refuses a running execution or more than 1,000 history rows.
 It archives first so no schedule starts during transcript removal, removes owned

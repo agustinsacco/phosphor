@@ -6,6 +6,7 @@ import {
   type Routine,
   type RoutineMachine,
   type RoutineLaneIndex,
+  type RoutineRun,
   type RoutinesSnapshot,
 } from '@shared/routines'
 import { useLayoutStore } from './layout'
@@ -29,9 +30,22 @@ export interface EditorDraft {
   repositoryId: string
 }
 
+interface HostRoutines {
+  routines: Routine[]
+  runs: RoutineRun[]
+  unavailable: boolean
+}
+/** A Host's last read, or an unavailable Host when there is none. */
+function hostRoutines(read?: Pick<HostRoutines, 'routines' | 'runs'>): HostRoutines {
+  return read
+    ? { routines: read.routines, runs: read.runs, unavailable: false }
+    : { routines: [], runs: [], unavailable: true }
+}
+
 interface RoutinesState {
   machines: RoutineMachine[]
-  remote: Record<string, { routines: Routine[]; unavailable: boolean }>
+  /** Each Host's routines and recent runs, as its own read last returned them. */
+  remote: Record<string, HostRoutines>
   snapshot: RoutinesSnapshot | null
   /** Lanes the routines still own; the sidebar hides exactly these paths. */
   laneIndex: RoutineLaneIndex
@@ -80,8 +94,8 @@ export const useRoutinesStore = create<RoutinesState>((set, get) => ({
           machines.map((m) => [
             m.id,
             m.available
-              ? { routines: previous[m.id]?.routines ?? [], unavailable: false }
-              : { routines: [], unavailable: true },
+              ? hostRoutines(previous[m.id] ?? { routines: [], runs: [] })
+              : hostRoutines(),
           ]),
         ),
       })
@@ -115,12 +129,12 @@ export const useRoutinesStore = create<RoutinesState>((set, get) => ({
       const result = await window.phosphor.invoke('routines:list', machine)
       if (current())
         set((state) => ({
-          remote: { ...state.remote, [machine]: { routines: result.routines, unavailable: false } },
+          remote: { ...state.remote, [machine]: hostRoutines(result) },
         }))
     } catch {
       if (current())
         set((state) => ({
-          remote: { ...state.remote, [machine]: { routines: [], unavailable: true } },
+          remote: { ...state.remote, [machine]: hostRoutines() },
         }))
     }
   },

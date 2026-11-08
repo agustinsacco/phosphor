@@ -5,11 +5,10 @@ import { useLaneFileList } from './useLaneFileList'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
-import { useRemoteFileSelection } from './remoteFileSelection'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { Button } from '@/components/form'
 import { languageForPath } from '@/lib/languages'
-import type { PendingReveal } from '@/stores/files'
+import { useFilesStore, workspaceFiles, type OpenFile, type PendingReveal } from '@/stores/files'
 import { useLineReveal } from './useLineReveal'
 import { TextFilePreview } from './TextFilePreview'
 
@@ -19,6 +18,14 @@ import { TextFilePreview } from './TextFilePreview'
  */
 const useActive = (sessionId: string): boolean =>
   useSessionsStore((s) => s.activeSessionId === sessionId)
+
+/** The file a chat link last opened in this lane: links open files in the files store, as on Desktop. */
+function useLinkedFile(workspacePath: string | undefined): OpenFile | undefined {
+  return useFilesStore((s) => {
+    const files = workspaceFiles(s, workspacePath ?? '')
+    return files.openFiles.find((f) => f.path === files.activePath)
+  })
+}
 
 /** The phone reads the same lane resources without mounting an editor or write controls. */
 export function ReadOnlyFilesPane({
@@ -32,8 +39,8 @@ export function ReadOnlyFilesPane({
   const host = useRemoteLanesStore((s) =>
     entry?.target?.kind === 'remote' ? s.hosts[entry.target.hostId] : undefined,
   )
-  const selection = useRemoteFileSelection((s) => s.bySession[sessionId])
-  const [selected, setSelected] = useState(selection?.path ?? '')
+  const link = useLinkedFile(entry?.workspacePath)
+  const [selected, setSelected] = useState(link?.relativePath ?? '')
   // Held here: the tree unmounts while a file is open, and "← Files" keeps its folders.
   const folders = useTreeFolders(selected || null, changes)
   const [content, setContent] = useState('')
@@ -48,8 +55,8 @@ export function ReadOnlyFilesPane({
   const epoch = host?.cursor?.epoch
   const token = host?.connectionToken
   useEffect(() => {
-    if (selection) setSelected(selection.path)
-  }, [selection])
+    if (link) setSelected(link.relativePath)
+  }, [link])
   const { files, status, loading } = useLaneFileList(
     workspace,
     { canRead, loading: !refusal, changes },
@@ -139,7 +146,7 @@ export function ReadOnlyFilesPane({
             path={selected}
             content={content}
             before={changes ? before : undefined}
-            reveal={!changes && selection?.path === selected ? selection.reveal : undefined}
+            reveal={!changes && link?.relativePath === selected ? link.pendingReveal : undefined}
           />
         )}
       </div>

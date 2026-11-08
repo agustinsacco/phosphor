@@ -8,7 +8,10 @@ import {
   SEARCH_TIME_LIMIT_MS,
   type WorkspaceSearchRequest,
 } from '@shared/workspace-search'
-import type { SearchJob, SearchWorkerMessage } from './workspace-search'
+import type {
+  SearchJob,
+  SearchWorkerMessage,
+} from '@phosphor/session-runtime/files/workspace-search'
 
 /** A worker that does nothing until the test speaks for it. */
 class FakeWorker extends EventEmitter {

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { LOCAL_MACHINE_LABEL } from './fixtures/local-machine'
 import { randomUUID } from 'node:crypto'
 import { remoteHostFixture } from './fixtures/remote-host'
+import { file } from './fixtures/remote-ui'
 
 test('Desktop streams a real Host lane, reads Files and becomes a viewer on control takeover', async () => {
   const h = await remoteHostFixture()
@@ -44,7 +45,7 @@ test('Desktop streams a real Host lane, reads Files and becomes a viewer on cont
     await expect(composer).toHaveCount(0)
     await expect(h.page.getByRole('button', { name: 'Take control', exact: true })).toBeVisible()
     await h.page.getByRole('button', { name: /^Files pane/ }).click()
-    await h.page.getByRole('treeitem', { name: /^remote\.txt/ }).click()
+    await file(h, 'remote.txt')
     await expect(h.page.locator('.monaco-editor')).toContainText('REMOTE_FILE_FROM_REAL_HOST')
   } finally {
     await h.close()

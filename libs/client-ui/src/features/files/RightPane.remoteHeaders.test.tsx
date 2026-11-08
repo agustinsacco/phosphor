@@ -15,7 +15,11 @@ vi.hoisted(() => {
   })
 })
 vi.mock('@/lib/monaco', () => ({}))
-vi.mock('./RemoteFilesPane', () => ({ RemoteFilesPane: () => <p>remote files body</p> }))
+vi.mock('./FilesPane', () => ({
+  FilesPane: ({ source }: { source: { workspacePath: string } }) => (
+    <p>files of {source.workspacePath}</p>
+  ),
+}))
 vi.mock('@/features/artifacts/RemoteArtifactsPane', () => ({
   RemoteArtifactsPane: () => <header>Artifacts own header</header>,
 }))
@@ -60,7 +64,7 @@ it('remote Files uses the Files/Changes switcher with the machine chip in one he
   const files = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Files')
   expect(files?.getAttribute('aria-pressed')).toBe('true')
   expect(container.textContent).toContain('Connected')
-  expect(container.textContent).toContain('remote files body')
+  expect(container.textContent).toContain(`files of ${mockRemoteInfo.workspacePath}`)
 })
 
 it('a refusal still gets a titled header', () => {

@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { FILE_LIMITS } from '@shared/host-protocol-files'
 import { useFilesStore, type OpenFile } from '@/stores/files'
 import { EditorPane } from './EditorPane'
 import { localFilesSource, type FilesSource } from './filesSource'
@@ -34,6 +35,7 @@ const lane = (writeRefusal: string | null = null): FilesSource => ({
     osActions: false,
     listOptions: false,
     clipboardFiles: false,
+    revert: false,
   },
 })
 const open = (file: Partial<OpenFile> & { path: string }) =>
@@ -141,4 +143,17 @@ it('names the finder shortcut only where the machine searches', async () => {
   expect(container.textContent).not.toContain('or press')
   await render(localFilesSource('/lane'))
   expect(container.textContent).toContain('or press')
+})
+
+it('This Mac says an oversized file is larger than its 4 MB read limit', async () => {
+  open({ path: '/lane/big.txt', tooLarge: true, size: 5 * 1024 * 1024 })
+  await render(localFilesSource('/lane'))
+  expect(container.textContent).toContain('5.0 MB · Larger than 4 MB — too big to open as text.')
+})
+
+it('a Host names its own read limit, without a size it did not send', async () => {
+  open({ path: '/lane/big.txt', tooLarge: true, size: 0 })
+  await render({ ...lane(), textLimitBytes: FILE_LIMITS.textBytes })
+  expect(container.textContent).toContain('Larger than 2 MB — too big to open as text.')
+  expect(container.textContent).not.toContain('0 B')
 })
