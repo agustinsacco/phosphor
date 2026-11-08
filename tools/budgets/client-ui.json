@@ -51,7 +51,7 @@
     "src/features/chat/SubagentWorkRow.tsx::SubagentWorkRow[1]": 100,
     "src/features/chat/composer/CommandMenu.tsx::CommandMenu[1]": 81,
     "src/features/chat/composer/ComposerField.tsx::ComposerField[1]": 205,
-    "src/features/chat/composer/ComposerInput.tsx::ComposerInput[1]": 180,
+    "src/features/chat/composer/ComposerInput.tsx::ComposerInput[1]": 141,
     "src/features/chat/composer/ContextMeter.tsx::file": 711,
     "src/features/chat/composer/ContextMeter.tsx::ContextMeter[1]": 229,
     "src/features/chat/composer/ContextSourcesMenu.tsx::ContextSourcesMenu[1]": 105,

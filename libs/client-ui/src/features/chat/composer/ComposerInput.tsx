@@ -150,7 +150,7 @@ export function ComposerInput({
         >
           <div className="flex shrink-0 items-center gap-0.5">
             {canAttach && <AttachButton onFiles={attachments.addFiles} />}
-            {platform.localLanes && (
+            {platform.localVoice && (
               <DictateButton textareaRef={field.textareaRef} onChange={change} />
             )}
             {swarm &&
