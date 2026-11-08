@@ -1,155 +1,113 @@
-import type { BrainJob, BrainModel } from '@phosphor/shared/brain'
-import { basename } from 'node:path'
-import { type Data, identifier, stable } from './data'
-import * as validate from './validation'
-import { manualBatch } from './job-batches'
-import { receipt } from './learning-receipts'
-import type { Evidence } from './evidence'
-import { activeProcessor } from './source-exclusion'
+import type { BrainJob } from '@phosphor/shared/brain'
+import { all, one, run, transaction, type Context } from './database'
+import type { JobPatch, NewJob } from './types'
 
-export class Jobs {
-  constructor(
-    readonly data: Data,
-    readonly evidence: Evidence,
-  ) {}
-  get(id: string): BrainJob {
-    validate.text(id)
-    return this.data.require('jobs', id)
-  }
-  authorize(job: BrainJob): void {
-    this.data.consent(job.scope)
-    this.data.assertRevision(job)
-    if (job.learning) {
-      receipt(this.data, job)
-      for (const id of job.evidenceIds) this.evidence.read(id, [job.scope])
-    } else
-      validate.check(
-        stable(job.model) === stable(this.data.prefs().processor),
-        'Processor consent changed',
-      )
-    for (const id of job.evidenceIds) {
-      validate.check(
-        this.data.require('evidence', id).scope === job.scope,
-        'Invalid job evidence scope',
-      )
+const columns = `id, session_id AS sessionId, session_path AS sessionPath, title, scope, branch,
+ model, state, memories, leaf_id AS leafId, error, queued_at AS queuedAt,
+ started_at AS startedAt, finished_at AS finishedAt, usage`
+type JobRow = Omit<BrainJob, 'usage'> & { usage: string | null }
+function decode(row: JobRow): BrainJob {
+  return { ...row, usage: row.usage ? (JSON.parse(row.usage) as BrainJob['usage']) : null }
+}
+export function job(ctx: Context, id: string): BrainJob | undefined {
+  const row = one<JobRow>(ctx, `SELECT ${columns} FROM jobs WHERE id=?`, id)
+  return row && decode(row)
+}
+export function jobs(ctx: Context): BrainJob[] {
+  return all<JobRow>(
+    ctx,
+    `SELECT ${columns} FROM jobs WHERE state!='done' ORDER BY queued_at, rowid`,
+  ).map(decode)
+}
+function save(ctx: Context, value: BrainJob): void {
+  run(
+    ctx,
+    `INSERT OR REPLACE INTO jobs VALUES (${Array(15).fill('?').join(',')})`,
+    value.id,
+    value.sessionId,
+    value.sessionPath,
+    value.title,
+    value.scope,
+    value.branch,
+    value.model,
+    value.state,
+    value.memories,
+    value.leafId,
+    value.error,
+    value.queuedAt,
+    value.startedAt,
+    value.finishedAt,
+    value.usage ? JSON.stringify(value.usage) : null,
+  )
+}
+export function enqueue(ctx: Context, value: NewJob, state: 'waiting' | 'queued'): BrainJob {
+  return transaction(ctx, () => {
+    const unfinished = one(
+      ctx,
+      `SELECT id FROM jobs WHERE session_id=? AND state IN
+      ('waiting','queued','running','review')`,
+      value.sessionId,
+    )
+    if (unfinished) throw new Error('This lane is already queued.')
+    const last = one<{ leaf_id: string | null }>(
+      ctx,
+      "SELECT leaf_id FROM jobs WHERE session_id=? AND state='done'",
+      value.sessionId,
+    )
+    if (last && last.leaf_id === value.leafId) {
+      throw new Error('Nothing new in this lane since its last extraction.')
     }
-  }
-  create(scope: string, model: BrainModel, expectedPolicyEpoch?: number): BrainJob {
-    return this.data.transaction(() => this.createAdmitted(scope, model, expectedPolicyEpoch))
-  }
-  private createAdmitted(scope: string, model: BrainModel, expectedPolicyEpoch?: number): BrainJob {
-    validate.check(
-      expectedPolicyEpoch === undefined || expectedPolicyEpoch === this.data.revision().policyEpoch,
-      'Stale processing consent',
-    )
-    validate.text(scope)
-    validate.model(model)
-    this.data.consent(scope)
-    validate.check(
-      stable(model) === stable(this.data.prefs().processor),
-      'Processor requires explicit consent',
-    )
-    const selection = manualBatch(this.data, scope, model)
-    if (selection.active) return selection.active
-    const evidenceIds = selection.evidenceIds
-    validate.check(
-      evidenceIds.length > 0,
-      'No eligible evidence; review pending work or capture new sources',
-    )
-    const revision = this.data.revision()
-    const batchId = identifier('job', scope, model, evidenceIds, revision)
-    const batch = this.data.db
-      .prepare('SELECT attempt,job_id FROM job_batches WHERE id=?')
-      .get(batchId)
-    const attempt = batch ? Number(batch.attempt) + 1 : 0
-    const id = identifier(batchId, attempt)
-    const job: BrainJob = {
-      id,
-      scope,
-      evidenceIds,
-      model,
-      ...revision,
-      state: 'queued',
-      fence: 0,
-      createdAt: this.data.now(),
-      updatedAt: this.data.now(),
-      sessionPath: null,
+    const result: BrainJob = {
+      ...value,
+      id: ctx.id(),
+      state,
+      memories: 0,
       error: null,
+      queuedAt: ctx.now(),
+      startedAt: null,
+      finishedAt: null,
+      usage: null,
     }
-    this.data.put('jobs', id, scope, job)
-    this.data.db
-      .prepare('INSERT OR REPLACE INTO job_batches VALUES (?,?,?)')
-      .run(batchId, attempt, id)
-    return job
-  }
-  claim(id: string): BrainJob {
-    return this.data.transaction(() => {
-      const job = this.get(id)
-      this.authorize(job)
-      validate.check(!activeProcessor(this.data, id), 'Another processor job is active')
-      validate.check(!job.learning || job.state === 'queued', 'Learning requires explicit retry')
-      validate.check(
-        ['queued', 'interrupted', 'failed'].includes(job.state),
-        'Job cannot be claimed',
-      )
-      const next: BrainJob = {
-        ...job,
-        fence: job.fence + 1,
-        state: 'running',
-        updatedAt: this.data.now(),
-        error: null,
-      }
-      this.data.put('jobs', id, job.scope, next)
-      return next
-    })
-  }
-  fenced(id: string, fence: number): BrainJob {
-    const job = this.get(id)
-    this.authorize(job)
-    validate.check(Number.isSafeInteger(fence) && job.fence === fence, 'Stale processor fence')
-    return job
-  }
-  update(
-    id: string,
-    fence: number,
-    patch: Pick<Partial<BrainJob>, 'state' | 'sessionPath' | 'error'>,
-  ): BrainJob {
-    validate.bounded(patch, 20_000)
-    validate.check(patch && typeof patch === 'object', 'Invalid job patch')
-    validate.check(
-      Object.keys(patch).every((key) => ['state', 'sessionPath', 'error'].includes(key)),
-      'Invalid job patch field',
+    save(ctx, result)
+    return result
+  })
+}
+export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
+  const existing = job(ctx, id)
+  if (!existing) throw new Error('Brain job not found.')
+  const updated = { ...existing, ...patch }
+  // Updating columns rather than REPLACE preserves proposal foreign keys.
+  run(
+    ctx,
+    `UPDATE jobs SET state=?, error=?, started_at=?, finished_at=?, usage=?, memories=?,
+      leaf_id=?, model=?, branch=? WHERE id=?`,
+    updated.state,
+    updated.error,
+    updated.startedAt,
+    updated.finishedAt,
+    updated.usage ? JSON.stringify(updated.usage) : null,
+    updated.memories,
+    updated.leafId,
+    updated.model,
+    updated.branch,
+    id,
+  )
+  if (updated.state === 'done') {
+    run(
+      ctx,
+      "DELETE FROM jobs WHERE session_id=? AND state='done' AND id!=?",
+      updated.sessionId,
+      id,
     )
-    if (patch.sessionPath !== undefined && patch.sessionPath !== null)
-      validate.text(patch.sessionPath)
-    if (patch.error !== undefined && patch.error !== null) validate.text(patch.error, 8000, true)
-    const job = this.get(id)
-    if (patch.sessionPath !== undefined && job.sessionPath !== null) {
-      validate.check(patch.sessionPath === job.sessionPath, 'Processor session path is immutable')
-    }
-    if (patch.state === 'cancelled') {
-      validate.check(job.fence === fence, 'Stale processor fence')
-    } else this.fenced(id, fence)
-    if (patch.state !== undefined) {
-      validate.check(
-        ['failed', 'cancelled', 'running'].includes(patch.state),
-        'Job state is service-owned',
-      )
-      validate.check(
-        job.state === 'running' || (patch.state === 'cancelled' && job.state !== 'proposed'),
-        'Invalid job transition',
-      )
-    }
-    const next: BrainJob = { ...job, ...patch, updatedAt: this.data.now() }
-    if (patch.state === 'cancelled' || patch.state === 'failed') next.fence += 1
-    this.data.transaction(() => {
-      if (next.sessionPath) {
-        const name = basename(next.sessionPath, '.jsonl')
-        for (const sessionId of [name, name.split('_').at(-1)!])
-          this.data.tombstone(identifier('processor-session', sessionId))
-      }
-      this.data.put('jobs', id, job.scope, next)
-    })
-    return next
   }
+  return updated
+}
+export function removeJob(ctx: Context, id: string): void {
+  run(ctx, 'DELETE FROM jobs WHERE id=?', id)
+}
+export function requeueInterrupted(ctx: Context): void {
+  run(
+    ctx,
+    "UPDATE jobs SET state='queued', started_at=NULL, finished_at=NULL, error=NULL WHERE state='running'",
+  )
 }

@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./ports": "./src/ports.ts",
-    "./service": "./src/service.ts",
-    "./validation": "./src/validation.ts"
+    "./types": "./src/types.ts",
+    "./store": "./src/store.ts",
+    "./vectors": "./src/vectors.ts"
   },
   "nx": {
     "includedScripts": []
