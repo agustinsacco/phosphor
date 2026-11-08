@@ -439,7 +439,7 @@ test('Brain stays unavailable in compact and wide browsers and rejects direct IP
   await signIn(page, stack.origin)
   // The phone's four tabs no longer include this Desktop-only prototype.
   // Its deep link still has to refuse, as does the wide navigation entry.
-  await page.goto(`${stack.origin}/brain`)
+  await page.goto(`${stack.origin}/pages/brain`)
   await expect(page.getByText(/Brain is unavailable on this machine/)).toBeVisible()
   await page.setViewportSize({ width: 1280, height: 800 })
   await navigatePage(page, 'Brain')
