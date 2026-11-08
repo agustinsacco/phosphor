@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { drop, keyedSlice } from './keyedSlice'
 import { useSessionsStore } from './sessions'
+import { REMOTE_UNAVAILABLE } from './hostRefusals'
 import type { RevealTarget } from './files'
 
 export type RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | 'subagents' | null
@@ -213,26 +214,26 @@ export async function openFileInWorkspace(
 ): Promise<void> {
   const sessions = useSessionsStore.getState()
   const explicit = sessionId ? sessions.live[sessionId] : null
+  const [{ useFilesStore, laneFilePath }, { sessionHostLane }] = await Promise.all([
+    import('./files'),
+    import('./remoteLanes'),
+  ])
+  let file = path.startsWith('/') ? path : `${workspacePath}/${path}`
   if (workspacePath.startsWith('host:') || explicit?.target?.kind === 'remote') {
-    if (!sessionId || explicit?.workspacePath !== workspacePath)
-      throw new Error('Not available on remote lanes yet.')
-    const { openRemoteFile } = await import('@/features/files/remoteFileSelection')
-    await openRemoteFile(sessionId, path, target)
-    useLayoutStore.getState().setRightPane('files', sessionId)
-    return
-  }
-  // Without a source session, a remote transcript must never fall back to local disk.
-  if (
+    // A Host path opens only through the lane whose transcript named it, never on this disk.
+    const lane = sessionId ? sessionHostLane(sessionId)?.lane : undefined
+    if (!lane || explicit?.workspacePath !== workspacePath) throw new Error(REMOTE_UNAVAILABLE)
+    file = laneFilePath(lane.cwd, workspacePath, path)
+  } else if (
+    // Without a source session, a remote transcript must never fall back to local disk.
     !sessionId &&
     sessions.activeSessionId &&
     sessions.live[sessions.activeSessionId]?.target?.kind === 'remote'
   )
-    throw new Error('Not available on remote lanes yet.')
-  const { useFilesStore } = await import('./files')
-  const absolute = path.startsWith('/') ? path : `${workspacePath}/${path}`
+    throw new Error(REMOTE_UNAVAILABLE)
   // Read first, switch second: a markdown link can name a path that does not
   // exist, and swapping the pane before the read means a failed open still
   // hides whatever the user was looking at.
-  await useFilesStore.getState().openFile(workspacePath, absolute, target)
+  await useFilesStore.getState().openFile(workspacePath, file, target)
   useLayoutStore.getState().setRightPane('files', sessionId)
 }

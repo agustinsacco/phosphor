@@ -11,12 +11,14 @@ import { languageForPath } from '@/lib/languages'
 import { basename } from '@/lib/path'
 import { errorText } from '@shared/errors'
 import { revertFile, runFileAction } from './fileActions'
+import type { FilesSource } from './filesSource'
 
 export const FilesChangedPane = memo(function FilesChangedPane({
-  workspacePath,
+  source,
 }: {
-  workspacePath: string
+  source: FilesSource
 }): React.JSX.Element {
+  const { workspacePath, pathRoot } = source
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const tools = useChatStore((s) =>
     activeSessionId ? s.sessions[activeSessionId]?.tools : undefined,
@@ -28,8 +30,8 @@ export const FilesChangedPane = memo(function FilesChangedPane({
   const focusOnReturn = useRef<string | null>(null)
 
   const files = useMemo(
-    () => (tools ? collectTouchedFiles(tools, workspacePath) : []),
-    [tools, workspacePath],
+    () => (tools ? collectTouchedFiles(tools, pathRoot) : []),
+    [tools, pathRoot],
   )
   const totals = useMemo(
     () =>
@@ -45,18 +47,7 @@ export const FilesChangedPane = memo(function FilesChangedPane({
 
   const selectedFile = files.find((f) => f.relativePath === selected) ?? null
 
-  if (files.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center px-6">
-        <div className="text-center">
-          <div className="text-text text-lg font-medium">No changes yet</div>
-          <div className="text-text-secondary mt-1 text-base">
-            Files the agent edits or creates in this session will appear here as reviewable diffs.
-          </div>
-        </div>
-      </div>
-    )
-  }
+  if (files.length === 0) return <NoChanges unavailable={source.unavailable} />
 
   if (selectedFile) {
     return (
@@ -92,6 +83,7 @@ export const FilesChangedPane = memo(function FilesChangedPane({
             file={file}
             workspacePath={workspacePath}
             baselineRef={baselineRef ?? null}
+            revert={source.features.revert}
             onOpen={() => setSelected(file.relativePath)}
             openRef={(node) => {
               if (node && focusOnReturn.current === file.relativePath) {
@@ -105,6 +97,21 @@ export const FilesChangedPane = memo(function FilesChangedPane({
     </div>
   )
 })
+
+/** No touched files yet, and why the lane's files cannot be read now, if they cannot. */
+function NoChanges({ unavailable }: { unavailable: string | null }): React.JSX.Element {
+  return (
+    <div className="flex h-full items-center justify-center px-6">
+      <div className="text-center">
+        {unavailable && <p className="text-text-secondary mb-2">{unavailable}</p>}
+        <div className="text-text text-lg font-medium">No changes yet</div>
+        <div className="text-text-secondary mt-1 text-base">
+          Files the agent edits or creates in this session will appear here as reviewable diffs.
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function useFileRevert(
   workspacePath: string,
@@ -141,12 +148,15 @@ function FileRow({
   file,
   workspacePath,
   baselineRef,
+  revert: canRevert,
   onOpen,
   openRef,
 }: {
   file: TouchedFile
   workspacePath: string
   baselineRef: string | null
+  /** The machine can put the file back as the session found it. */
+  revert: boolean
   onOpen: () => void
   openRef: React.Ref<HTMLButtonElement>
 }): React.JSX.Element {
@@ -182,33 +192,41 @@ function FileRow({
           <span className="text-danger">−{file.deletions}</span>
         </span>
       </TooltipButton>
-      <TooltipButton
-        onClick={(e) => {
-          e.stopPropagation()
-          runFileAction(revert())
-        }}
-        disabled={reverting || (!baselineRef && file.created)}
-        aria-label={`Revert ${file.relativePath}`}
-        title={
-          !baselineRef && file.created
-            ? 'No saved baseline: automatic revert is unavailable'
-            : 'Revert to session start'
-        }
-        className="text-text-tertiary hover:text-danger shrink-0 rounded p-1 transition-colors disabled:opacity-40"
-      >
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
+      {canRevert && (
+        <TooltipButton
+          onClick={(e) => {
+            e.stopPropagation()
+            runFileAction(revert())
+          }}
+          disabled={reverting || (!baselineRef && file.created)}
+          aria-label={`Revert ${file.relativePath}`}
+          title={
+            !baselineRef && file.created
+              ? 'No saved baseline: automatic revert is unavailable'
+              : 'Revert to session start'
+          }
+          className="text-text-tertiary hover:text-danger shrink-0 rounded p-1 transition-colors disabled:opacity-40"
         >
-          <path d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7L3 8" />
-        </svg>
-      </TooltipButton>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7L3 8" />
+          </svg>
+        </TooltipButton>
+      )}
     </div>
   )
+}
+
+/** Opens a changed file in the Files pane through the lane whose tools touched it. */
+function openChangedFile(workspacePath: string, relativePath: string): void {
+  const sessionId = useSessionsStore.getState().activeSessionId ?? undefined
+  runFileAction(openFileInWorkspace(workspacePath, relativePath, undefined, sessionId))
 }
 
 function FileDiffView({
@@ -300,7 +318,7 @@ function FileDiffView({
           {sideBySide ? 'Inline' : 'Split'}
         </TooltipButton>
         <TooltipButton
-          onClick={() => void openFileInWorkspace(workspacePath, file.relativePath)}
+          onClick={() => openChangedFile(workspacePath, file.relativePath)}
           className="border-border hover:bg-bg-secondary min-h-8 shrink-0 rounded-md border px-2 text-base font-medium transition-colors"
         >
           Open file

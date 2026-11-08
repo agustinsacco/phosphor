@@ -134,3 +134,12 @@ it('says why the list or git status could not be read', async () => {
   expect(container.textContent).toContain('Git status is unavailable.')
   expect(container.textContent).not.toContain('Empty folder')
 })
+
+it('Refresh explorer reads the tree and its git status again', async () => {
+  await render(laneSource())
+  const reads = (channel: string) => invoke.mock.calls.filter(([c]) => c === channel).length
+  const before = { dirs: reads('fs:readDir'), git: reads('git:statusMap') }
+  await act(async () => (button('Refresh explorer') as HTMLButtonElement).click())
+  expect(reads('fs:readDir')).toBeGreaterThan(before.dirs)
+  expect(reads('git:statusMap')).toBe(before.git + 1)
+})

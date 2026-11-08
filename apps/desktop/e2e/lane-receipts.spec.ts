@@ -26,7 +26,9 @@ test('bee1 receipt stays machine scoped while This Mac is selected', async ({
     const changes = card.getByRole('button', { name: 'View changes', exact: true })
     await changes.focus()
     await changes.press('Enter')
-    await expect(h.page.getByRole('tree', { name: 'Changed files', exact: true })).toBeVisible()
+    await expect(
+      h.page.getByTestId('right-pane').getByRole('button', { name: 'Changes', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true')
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
     await h.page.getByPlaceholder('Describe a task or ask a question').fill('PHX-receipt')
     await h.page.getByRole('button', { name: 'Start lane', exact: true }).click()

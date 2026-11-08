@@ -1,24 +1,10 @@
-import { isFilePath } from '@shared/host-protocol-files'
 import { useSessionsStore } from '@/stores/sessions'
 import { REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
 import { sessionHostLane, useRemoteLanesStore } from '@/stores/remoteLanes'
-import type { RevealTarget } from '@/stores/files'
+import { laneFilePath, type RevealTarget } from '@/stores/files'
 let sequence = 0
 import { useRemoteFileSelection } from './remoteFileSelectionStore'
 export { useRemoteFileSelection, releaseRemoteFileSelection } from './remoteFileSelectionStore'
-export function remoteRelativePath(root: string, workspace: string, path: string): string {
-  if (path.startsWith('host:') && !path.startsWith(`${workspace}/`))
-    throw new Error(REMOTE_UNAVAILABLE)
-  const relative = path.startsWith(`${workspace}/`)
-    ? path.slice(workspace.length + 1)
-    : path.startsWith('/')
-      ? path.startsWith(`${root}/`)
-        ? path.slice(root.length + 1)
-        : null
-      : path
-  if (!isFilePath(relative)) throw new Error(REMOTE_UNAVAILABLE)
-  return relative
-}
 export async function openRemoteFile(
   sessionId: string,
   path: string,
@@ -35,7 +21,9 @@ export async function openRemoteFile(
     useRemoteFileSelection.getState().blocked[sessionId]
   )
     throw new Error(REMOTE_UNAVAILABLE)
-  const relative = remoteRelativePath(lane.cwd, session.workspacePath, path)
+  const relative = laneFilePath(lane.cwd, session.workspacePath, path).slice(
+    session.workspacePath.length + 1,
+  )
   await window.phosphor.invoke('fs:readFile', `${session.workspacePath}/${relative}`)
   if (
     useSessionsStore.getState().live[sessionId] !== session ||

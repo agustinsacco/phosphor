@@ -58,6 +58,7 @@ export function FileViewer({
   textPreview,
   workspacePath,
   features,
+  textLimitBytes,
   source,
 }: {
   file: OpenFile
@@ -66,6 +67,7 @@ export function FileViewer({
   textPreview: boolean
   workspacePath: string
   features: FilesFeatures
+  textLimitBytes: number
   /** What Source shows — the editor, owned by EditorPane. */
   source: React.ReactNode
 }): React.JSX.Element {
@@ -101,7 +103,7 @@ export function FileViewer({
               <TextFileRender kind={kind} path={file.path} content={file.content} />
             </Suspense>
           ) : (
-            <FileFallback file={file} osActions={false} />
+            <FileFallback file={file} osActions={false} textLimitBytes={textLimitBytes} />
           )
         ) : (
           <Preview
@@ -113,6 +115,7 @@ export function FileViewer({
             workspacePath={workspacePath}
             onDetail={setDetail}
             osActions={features.osActions}
+            textLimitBytes={textLimitBytes}
           />
         )}
       </div>
@@ -126,6 +129,7 @@ interface PreviewProps {
   workspacePath: string
   onDetail: (detail: string) => void
   osActions: boolean
+  textLimitBytes: number
 }
 
 function Preview({
@@ -134,31 +138,27 @@ function Preview({
   workspacePath,
   onDetail,
   osActions,
+  textLimitBytes,
 }: PreviewProps): React.JSX.Element {
   const { url, failed } = usePreviewUrl(workspacePath, file.path, file.mtimeMs)
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [url])
+  const fallback = { file, osActions, textLimitBytes }
 
   if (kind === 'markdown') {
     // Rendered from the live buffer, in-app — no iframe, no saved-file lag.
     // The grant URL is only the base relative images resolve against, so a
     // missing grant (browser harness) still renders, just without them.
-    if (file.binary || file.tooLarge) return <FileFallback file={file} osActions={osActions} />
+    if (file.binary || file.tooLarge) return <FileFallback {...fallback} />
     return <MarkdownPreview text={file.content} urlBase={url ?? undefined} />
   }
 
   if (failed || broken) {
-    return (
-      <FileFallback
-        file={file}
-        osActions={osActions}
-        reason={
-          kind === 'video' || kind === 'audio'
-            ? 'This format does not play here.'
-            : 'This file could not be shown here.'
-        }
-      />
-    )
+    const playable = kind === 'video' || kind === 'audio'
+    const reason = playable
+      ? 'This format does not play here.'
+      : 'This file could not be shown here.'
+    return <FileFallback {...fallback} reason={reason} />
   }
   if (!url) return <div className="h-full" />
 
@@ -228,16 +228,18 @@ export function FileFallback({
   file,
   reason,
   osActions,
+  textLimitBytes,
 }: {
   file: OpenFile
   reason?: string
   osActions: boolean
+  textLimitBytes: number
 }): React.JSX.Element {
   const ext = extensionOf(file.path)
   const why =
     reason ??
     (file.tooLarge
-      ? 'Larger than 4 MB — too big to open as text.'
+      ? `Larger than ${textLimitBytes / 1024 / 1024} MB — too big to open as text.`
       : ext
         ? `No preview for .${ext} files.`
         : 'No preview for this file.')
@@ -250,7 +252,9 @@ export function FileFallback({
             {basename(file.relativePath)}
           </div>
           <div className="text-text-tertiary mt-0.5 text-sm">
-            {formatBytes(file.size)} · {why}
+            {/* A Host refuses an oversized read without saying the size. */}
+            {file.size > 0 && `${formatBytes(file.size)} · `}
+            {why}
           </div>
         </div>
         {osActions && <FileActions path={file.path} />}

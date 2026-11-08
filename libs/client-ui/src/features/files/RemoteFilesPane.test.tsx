@@ -3,8 +3,6 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import { RemoteFilesPane } from './RemoteFilesPane'
-import { RightPane } from './RightPane'
-import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore, forgetRemoteSession } from '@/stores/sessions'
 import { useRemoteFileDrafts } from './remoteFileDrafts'
 import { useRemoteFileSelection, openRemoteFile } from './remoteFileSelection'
@@ -18,12 +16,6 @@ import {
   seedRemoteFilesLane,
 } from './__fixtures__/renderRemoteFilesPane'
 
-vi.mock('./FilesPane', () => ({ FilesPane: () => null }))
-vi.mock('./FilesChangedPane', () => ({ FilesChangedPane: () => null }))
-vi.mock('@/features/terminal/TerminalPane', () => ({ TerminalPane: () => null }))
-vi.mock('@/features/artifacts/ArtifactsPane', () => ({ ArtifactsPane: () => null }))
-vi.mock('@/features/artifacts/RemoteArtifactsPane', () => ({ RemoteArtifactsPane: () => null }))
-vi.mock('@/features/chat/SubagentPanel', () => ({ SubagentPanel: () => null }))
 vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
@@ -202,6 +194,14 @@ it.each(['??', 'A ', 'AM', ' M'])(
   },
 )
 
+const lanePane = (sessionId: string) => (
+  <RemoteFilesPane
+    workspacePath={mockRemoteInfo.workspacePath}
+    sessionId={sessionId}
+    changes={false}
+  />
+)
+
 it.each(['success', 'conflict', 'unknown'])(
   'keeps revision-safe edits through disconnect/reconnect on %s saves',
   async (outcome) => {
@@ -210,9 +210,6 @@ it.each(['success', 'conflict', 'unknown'])(
     seedRemoteFilesLane({
       capabilities: ['sessions.read', 'sessions.control', 'workspaces.read', 'workspaces.write'],
       controller: true,
-    })
-    useLayoutStore.setState({
-      bySession: { [sessionId]: { pane: 'files', expanded: false, side: 'right', size: 45 } },
     })
     const revision = 'a'.repeat(64)
     const invoke = vi.fn(async (channel: string, ..._args: unknown[]) => {
@@ -237,11 +234,7 @@ it.each(['success', 'conflict', 'unknown'])(
       await act(async () => button.click())
     }
     try {
-      await act(async () =>
-        root.render(
-          <RightPane workspacePath={mockRemoteInfo.workspacePath} sessionId={sessionId} />,
-        ),
-      )
+      await act(async () => root.render(lanePane(sessionId)))
       await click(' a.ts')
       await click('Edit')
       const editor = container.querySelector('textarea')
