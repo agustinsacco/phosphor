@@ -206,6 +206,26 @@ it.each([false, true, undefined])(
   },
 )
 
+it.each([true, false])(
+  'offers `/` on a Host that can list its commands, as This Mac does (skills.read=%s)',
+  async (canRead) => {
+    useDraftsStore.getState().setText(key, '')
+    const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+    if (!canRead)
+      useRemoteLanesStore.setState({
+        hosts: {
+          ...useRemoteLanesStore.getState().hosts,
+          [MOCK_HOST_ID]: {
+            ...host,
+            capabilities: host.capabilities.filter((c) => c !== 'skills.read'),
+          },
+        },
+      })
+    await render()
+    expect(el.textContent?.includes('/ commands')).toBe(canRead)
+  },
+)
+
 it.each(['none', 'text', 'attachment'] as const)(
   'clears accepted content after persistence debounce, preserving newer edits=%s',
   async (edit) => {

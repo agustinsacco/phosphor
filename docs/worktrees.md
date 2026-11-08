@@ -156,7 +156,7 @@ checkoutBranch` (`libs/shared/src/ipc/workspace.ts`, `apps/desktop/electron/ipc/
   the global `preferWorktree` checkbox state.
 - UI: `libs/client-ui/src/features/worktrees/BranchControl.tsx`, `BranchPicker.tsx`,
   `RemoveWorktreeModal.tsx`, `MergeWorktreeModal.tsx`, `PrRow.tsx`; the sidebar
-  group menu in `libs/client-ui/src/features/sessions/Sidebar.tsx`.
+  group menu in `libs/client-ui/src/features/sessions/LocalFolderMenuRows.tsx`.
 - `libs/client-ui/src/features/sessions/useWorktreeDiscovery.ts` — lists the worktrees under
   every known repo workspace so their sessions fold into the repo's sidebar
   group; the sidebar's first paint waits for the listing to settle.

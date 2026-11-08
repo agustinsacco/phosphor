@@ -1,4 +1,5 @@
 import type { IpcInvokeChannel } from './ipc'
+import { connectorConfig, LANE_TRANSFER_WEB } from './ipc-web-exclusions'
 
 export type WebIpcClassification =
   { kind: 'remote-supported' } | { kind: 'browser-local' } | { kind: 'unsupported'; reason: string }
@@ -11,15 +12,16 @@ const native = unsupported('This native or mutating Host feature is unavailable 
 const localRoutines = unsupported(
   'Local routine execution and native background services require Desktop.',
 )
-const connectorConfig = unsupported(
-  'Connector configuration and credentials belong to the Host or Desktop.',
-)
 const hostFilesOnly = unsupported('Browser file access goes through Host reads and writes only.')
+const localPi = unsupported(
+  'Local pi processes and machine configuration are unavailable in the browser.',
+)
 
 /** Every new IPC channel requires an explicit browser admission decision. */
 export const IPC_WEB = {
   'hosts:tailscaleStatus': native,
   'hosts:models': remote,
+  'hosts:commands': remote,
   'hosts:claude': remote,
   'hosts:claudeUsage': remote,
   'hosts:providers': remote,
@@ -28,6 +30,7 @@ export const IPC_WEB = {
   'hosts:skills': remote,
   'hosts:skillExport': remote,
   'hosts:skillInstall': remote,
+  ...LANE_TRANSFER_WEB,
   'hosts:providerLogin': remote,
   'hosts:settingsAccess': remote,
   'hosts:settingsRead': remote,
@@ -71,19 +74,13 @@ export const IPC_WEB = {
   'routines:delete': remote,
   'routines:pauseAll': remote,
   'routines:background': localRoutines,
-  'pi:health': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:createSession': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
+  'pi:health': localPi,
+  'pi:createSession': localPi,
   'pi:command': remote,
   'pi:extensionUiResponse': remote,
   'pi:disposeSession': remote,
   'pi:listLiveSessions': remote,
-  'pi:generateTitle': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
+  'pi:generateTitle': localPi,
   'app:getPrefs': browser,
   'app:setTheme': browser,
   'app:selectFolder': unsupported(
@@ -206,61 +203,25 @@ export const IPC_WEB = {
     'Native writing integration and prompt learning are unavailable in the browser.',
   ),
   'fs:listFiles': remote,
-  'pi:agentSettings': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:agentSettingsScoped': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:commands': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:catalogueModels': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:readConfigFile': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:writeConfigFile': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
+  'pi:agentSettings': localPi,
+  'pi:agentSettingsScoped': localPi,
+  'pi:commands': localPi,
+  'pi:catalogueModels': localPi,
+  'pi:readConfigFile': localPi,
+  'pi:writeConfigFile': localPi,
   // A Host's file is edited through hosts:settingsRead / hosts:settingsPatch.
-  'pi:readInstructions': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:writeInstructions': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:webSearchConfig': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:patchWebSearchConfig': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:patchAgentSettings': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:checkAgentSettings': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:listResources': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:subscriptionAuth': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:codexUsage': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:loginTerminal': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:startLogin': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
-  'pi:cancelLogin': unsupported(
-    'Local pi processes and machine configuration are unavailable in the browser.',
-  ),
+  'pi:readInstructions': localPi,
+  'pi:writeInstructions': localPi,
+  'pi:webSearchConfig': localPi,
+  'pi:patchWebSearchConfig': localPi,
+  'pi:patchAgentSettings': localPi,
+  'pi:checkAgentSettings': localPi,
+  'pi:listResources': localPi,
+  'pi:subscriptionAuth': localPi,
+  'pi:codexUsage': localPi,
+  'pi:loginTerminal': localPi,
+  'pi:startLogin': localPi,
+  'pi:cancelLogin': localPi,
   'skills:list': remote,
   'skills:restoreBundled': unsupported('This native service requires Desktop.'),
   'skills:readFile': remote,

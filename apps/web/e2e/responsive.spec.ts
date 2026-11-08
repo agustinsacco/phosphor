@@ -1,6 +1,15 @@
 import type { Page } from '@playwright/test'
 import { test, expect } from './fixture'
 
+/** Attaches one file through the composer's own picker, as a person would. */
+async function attach(page: Page, file: { name: string; mimeType: string; buffer: Buffer }) {
+  const picking = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: 'Attach files', exact: true }).click()
+  await (await picking).setFiles(file)
+}
+const PIXEL =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a/RsAAAAASUVORK5CYII='
+
 async function assertContained(page: Page): Promise<void> {
   const sizes = await page
     .locator('.browser-content, .compact-main, .page-body-content, .remote-start')
@@ -25,7 +34,7 @@ test('shared full pages fit phone, tablet and wide layouts with consistent font 
   page.on('pageerror', (error) => failures.push(error.message))
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
+  await expect(page.getByTestId('home-board')).toBeVisible()
   for (const width of [360, 412, 768, 1440]) {
     await page.setViewportSize({ width, height: 924 })
     await expect(page.locator('html')).toHaveAttribute(
@@ -82,13 +91,16 @@ test('browser creation attaches any file, sends its Host path and offers no isol
   page.on('pageerror', (error) => failures.push(error.message))
   await page.goto(stack.origin)
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
+  // Home lands on every machine's lanes; New lane opens the start page on the one Host.
+  await page.getByRole('button', { name: 'New lane', exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`/new/${stack.hostId}$`))
   await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeVisible()
   const before = await page.evaluate(() => window.phosphor.invoke('hosts:snapshot'))
-  const picking = page.waitForEvent('filechooser')
-  await page.getByRole('button', { name: 'Attach files', exact: true }).click()
-  await (
-    await picking
-  ).setFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('synthetic') })
+  await attach(page, {
+    name: 'notes.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('synthetic'),
+  })
   // Any file attaches as a chip, as on Desktop; nothing reaches the Host before Start lane.
   await expect(page.getByTestId('attachment-chips')).toContainText('notes.txt')
   await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeEnabled()
@@ -124,17 +136,10 @@ test('browser creation attaches any file, sends its Host path and offers no isol
   await page.keyboard.press('Escape')
   const after = await page.evaluate(() => window.phosphor.invoke('hosts:snapshot'))
   expect(after[stack.hostId]?.lanes).toEqual(before[stack.hostId]?.lanes)
-  const imagePicker = page.waitForEvent('filechooser')
-  await page.getByRole('button', { name: 'Attach files', exact: true }).click()
-  await (
-    await imagePicker
-  ).setFiles({
+  await attach(page, {
     name: 'pixel.png',
     mimeType: 'image/png',
-    buffer: Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a/RsAAAAASUVORK5CYII=',
-      'base64',
-    ),
+    buffer: Buffer.from(PIXEL, 'base64'),
   })
   await page.getByRole('textbox', { name: 'Chat message', exact: true }).fill('PHX-hostinputs')
   await expect(page.getByRole('button', { name: 'Start lane', exact: true })).toBeEnabled()

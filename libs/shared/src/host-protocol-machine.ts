@@ -1,6 +1,9 @@
 import type { ClaudeUsageSnapshotResult, ClaudeUsageWindow } from './models'
 import type { ThinkingLevelMap } from './rpc'
 import { parseModelCost, parseModelThinkingLevelMap } from './host-protocol-machine/model-fields'
+import { repositoryId as isRepositoryId } from './machine-settings-fields'
+
+export { MACHINE_COMMANDS_LIMIT, parseMachineCommands } from './host-protocol-machine/commands'
 
 /** Read-only machine methods. No executable, environment or filesystem root comes from a client. */
 export const MACHINE_LIMITS = { models: 1000, skills: 500, textBytes: 2 * 1024 * 1024 } as const
@@ -43,21 +46,30 @@ export function isSkillFile(v: unknown): v is string {
 export function parseMachineParams(
   method: string,
   v: unknown,
-): { laneId?: string; name?: string; file?: string; force?: boolean } | null {
+): {
+  laneId?: string
+  name?: string
+  file?: string
+  force?: boolean
+  repositoryId?: string
+} | null {
   if (!machineRecord(v)) return null
   const keys =
-    method === 'skills.read'
-      ? ['laneId', 'name', 'file']
-      : method === 'skills.export'
-        ? ['name']
-        : method === 'skills.list'
-          ? ['laneId']
-          : method === 'machine.claudeUsage'
-            ? ['laneId', 'force']
-            : []
+    method === 'machine.commands'
+      ? ['repositoryId']
+      : method === 'skills.read'
+        ? ['laneId', 'name', 'file']
+        : method === 'skills.export'
+          ? ['name']
+          : method === 'skills.list'
+            ? ['laneId']
+            : method === 'machine.claudeUsage'
+              ? ['laneId', 'force']
+              : []
   if (
     ![
       'machine.models',
+      'machine.commands',
       'machine.providers',
       'machine.claude',
       'machine.claudeUsage',
@@ -81,8 +93,10 @@ export function parseMachineParams(
     return null
   if (v.file !== undefined && !isSkillFile(v.file)) return null
   if (v.force !== undefined && typeof v.force !== 'boolean') return null
+  if (v.repositoryId !== undefined && !isRepositoryId(v.repositoryId)) return null
   return {
     ...(v.force === true ? { force: true } : {}),
+    ...(typeof v.repositoryId === 'string' ? { repositoryId: v.repositoryId } : {}),
     ...(typeof v.laneId === 'string' ? { laneId: v.laneId } : {}),
     ...(typeof v.name === 'string' ? { name: v.name } : {}),
     ...(typeof v.file === 'string' ? { file: v.file } : {}),

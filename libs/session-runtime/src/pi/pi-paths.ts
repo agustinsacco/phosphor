@@ -102,6 +102,14 @@ export function sessionDirForCwd(cwd: string, sessionsRoot: string = piSessionsR
   return join(sessionsRoot, sessionDirNameForCwd(realCwd(cwd)))
 }
 
+/** pi-claude-cli's own state (session map, stored prompts): its `stateDir()`, never pi's agent dir. */
+export function claudeProviderStateDir(
+  env: NodeJS.ProcessEnv = process.env,
+  home = homedir(),
+): string {
+  return env.PI_CLAUDE_CLI_STATE_DIR ?? join(home, '.pi', 'agent', 'pi-claude-cli')
+}
+
 /**
  * The Claude Code CLI's config directory — a separate program's tree, not
  * part of pi's. `CLAUDE_CONFIG_DIR` is the CLI's own documented override and

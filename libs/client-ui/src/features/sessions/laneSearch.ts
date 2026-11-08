@@ -11,7 +11,7 @@
  * `130 rebase` and `rebase 130` find the same lane.
  *
  * Pure and React-free: This Mac's groups (`Sidebar.tsx`) and Host folders
- * (`remoteGroupSearch.ts`) match through it alike.
+ * (`groupSearch.ts`) match through it alike.
  */
 
 import type { GhPullRequest } from '@shared/models'

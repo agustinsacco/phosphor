@@ -4,7 +4,9 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { hostname } from 'node:os'
 import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
 import {
+  MACHINE_COMMANDS_LIMIT,
   machineRecord,
+  parseMachineCommands,
   parseMachineModels,
   parseMachineProviders,
 } from '@phosphor/shared/host-protocol-machine'
@@ -169,7 +171,7 @@ export async function machineCall(
   method: string,
   context: FeatureContext,
   ports: MachinePorts,
-  params: { laneId?: string; force?: boolean } = {},
+  params: { laneId?: string; force?: boolean; repositoryId?: string } = {},
 ): Promise<FeatureOutcome> {
   if (method === 'machine.claudeUsage') {
     if (!ports.claudeUsage) throw new FeatureFailure('unsupported')
@@ -210,6 +212,20 @@ export async function machineCall(
         : 'not_ready',
     })
     return { ok: true, data: { providers } }
+  }
+  if (method === 'machine.commands') {
+    // The cwd is a configured repository's path or the Host's home, never a caller path:
+    // project skills, prompts and extensions are what differ between the two.
+    const repository = params.repositoryId
+      ? context.store.listRepositories().find((r) => r.id === params.repositoryId)
+      : undefined
+    if (params.repositoryId && !repository) throw new FeatureFailure('bad-request')
+    const raw = await queryMachine(inspection.pi, repository?.path ?? context.home, 'get_commands')
+    if (Array.isArray(raw) && raw.length > MACHINE_COMMANDS_LIMIT)
+      throw new FeatureFailure('too-large')
+    const commands = parseMachineCommands(raw)
+    if (!commands) throw new FeatureFailure('internal')
+    return { ok: true, data: { commands } }
   }
   const raw = await queryMachine(inspection.pi, context.home, 'get_available_models')
   if (Array.isArray(raw) && raw.length > 1000) throw new FeatureFailure('too-large')
