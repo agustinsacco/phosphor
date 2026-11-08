@@ -316,7 +316,7 @@ describe('run lane composition', () => {
           expect(hooks.lanes?.capabilities).toEqual(RUN_CAPABILITIES)
           for (const method of ['artifacts.list', 'artifacts.read'])
             expect(hooks.lanes?.calls.capabilityFor(method)).toBe('artifacts.read')
-          for (const method of ['routines.list', 'routines.history'])
+          for (const method of ['routines.list', 'routines.history', 'routines.activity'])
             expect(hooks.lanes?.calls.capabilityFor(method)).toBe('routines')
           for (const method of ['files.list', 'files.read', 'git.status', 'git.diff', 'git.show'])
             expect(hooks.lanes?.calls.capabilityFor(method)).toBe('workspaces.read')

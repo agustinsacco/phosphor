@@ -11,7 +11,12 @@ import {
   fileRow,
   openFolders,
   edit,
-  pathPrompt,
+  create,
+  rename,
+  trash,
+  dropInto,
+  save,
+  unsaved,
   captures,
 } from './fixtures/remote-ui'
 
@@ -23,45 +28,47 @@ test('Remote file mutations preserve conflicts and isolation', async () => {
     await openRemote(h)
     await takeControl(h)
     await files(h)
-    // The parity Files rebuild changes toolbar layout, not these visible actions.
-    await pathPrompt(h, 'New folder', 'created')
-    await pathPrompt(h, 'New file', 'draft.txt')
+    // Folders start collapsed, as on This Mac.
+    await expect(fileRow(h, 'nested')).toHaveAttribute('aria-expanded', 'false')
+    // This Mac's explorer: header buttons, row menus and drag within the tree.
+    await create(h, 'folder', 'created')
+    await create(h, 'file', 'draft.txt')
     await file(h, 'draft.txt')
     await edit(h, 'HOST_A_ONLY saved')
-    await h.page.getByRole('button', { name: 'Save', exact: true }).click()
+    await save(h)
     await expect.poll(() => readFile(join(h.repo, 'draft.txt'), 'utf8')).toBe('HOST_A_ONLY saved')
-    await pathPrompt(h, 'Rename', 'renamed.txt')
+    await rename(h, 'draft.txt', 'renamed.txt')
     await file(h, 'renamed.txt')
     await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY saved')
-    await pathPrompt(h, 'Copy to folder', 'created')
-    await file(h, 'renamed.txt')
-    await pathPrompt(h, 'Move to folder', 'nested')
-    await file(h, 'created/renamed.txt')
-    await pathPrompt(h, 'Trash', 'created/renamed.txt')
-    await expect(fileRow(h, 'created/renamed.txt')).toHaveCount(0)
+    await dropInto(h, 'renamed.txt', 'created', true)
+    await openFolders(h, 'created/renamed.txt')
+    await expect(fileRow(h, 'created/renamed.txt')).toBeVisible()
+    await dropInto(h, 'renamed.txt', 'nested')
+    await expect(fileRow(h, 'renamed.txt')).toHaveCount(0)
+    await trash(h, 'created/renamed.txt')
     await openFolders(h, 'nested/renamed.txt')
     await expect(fileRow(h, 'nested/renamed.txt')).toBeVisible()
-    await h.page.getByRole('button', { name: 'Refresh', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Refresh explorer', exact: true }).click()
+    await h.page.getByRole('button', { name: 'Collapse all folders', exact: true }).click()
+    await expect(fileRow(h, 'nested')).toHaveAttribute('aria-expanded', 'false')
     await file(h, 'nested/renamed.txt')
     await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY saved')
     await edit(h, 'HOST_A_ONLY dirty conflict')
     await h.conflictWrite('nested/renamed.txt', 'HOST_A_ONLY competing write')
-    await h.page.getByRole('button', { name: 'Save', exact: true }).click()
+    await save(h)
     await expect(
-      h.page.getByRole('alert').filter({ hasText: 'File changed on disk' }),
-    ).toContainText('File changed on disk')
+      h.page.getByText('File changed on disk while you had unsaved edits.'),
+    ).toBeVisible()
     await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY dirty conflict')
     expect(await readFile(join(h.repo, 'nested/renamed.txt'), 'utf8')).toBe(
       'HOST_A_ONLY competing write',
     )
     expect(await h.localSentinel()).toBe('LOCAL_ONLY decoy\n')
-    await h.page.getByRole('button', { name: 'Discard edits', exact: true }).click()
-    await h.page.getByRole('button', { name: /^Changes pane/ }).click()
-    await expect(h.page.getByRole('treeitem', { name: /^deleted\.txt/ })).toBeVisible()
-    await expect(h.page.getByRole('treeitem', { name: /^untracked\.txt/ })).toBeVisible()
-    await file(h, 'staged.txt')
-    await expect(h.page.locator('.monaco-diff-editor')).toContainText('before staging')
-    await expect(h.page.locator('.monaco-diff-editor')).toContainText('staged change')
+    await h.page.getByRole('button', { name: 'Reload', exact: true }).click()
+    await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY competing write')
+    // Git status marks the explorer's rows; Changes lists what the lane's tools touched.
+    await expect(fileRow(h, 'untracked.txt').locator('[data-tooltip="untracked"]')).toBeVisible()
+    await expect(fileRow(h, 'staged.txt').locator('[data-tooltip]')).toBeVisible()
   } finally {
     await h.close()
   }
@@ -77,8 +84,8 @@ test('Files is styled in empty, populated and non-git folders', async ({
     await openRemote(h)
     await takeControl(h)
     await files(h)
-    await expect(h.page.getByRole('tree', { name: 'Files', exact: true })).toBeVisible()
-    for (const name of ['Refresh', 'New file', 'New folder'])
+    await expect(h.page.getByTestId('file-explorer')).toBeVisible()
+    for (const name of ['Refresh explorer', 'New file', 'New folder'])
       await expect(h.page.getByRole('button', { name, exact: true })).toBeVisible()
     await file(h, 'nested/guide.md')
     // Markdown opens on its rendered Preview, as This Mac's viewer does; Source is the editor.
@@ -91,9 +98,9 @@ test('Files is styled in empty, populated and non-git folders', async ({
     await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY guide')
     await captures(h, info, 'remote-files-populated')
     await file(h, 'binary.bin')
-    await expect(h.page.getByText('Binary file', { exact: true })).toBeVisible()
+    await expect(h.page.getByText('No preview for .bin files.')).toBeVisible()
     await file(h, 'oversize.txt')
-    await expect(h.page.getByText('File too large', { exact: true })).toBeVisible()
+    await expect(h.page.getByText('Larger than 2 MB — too big to open as text.')).toBeVisible()
     await h.createLane(1)
     await selectLane(h, 'HOST_B_ONLY lane')
     await files(h)
@@ -177,23 +184,18 @@ test('A save dropped before Host admission is applied once by reconnect replay',
     const restoreTraffic = h.dropClientTraffic()
     let restoreConnection: () => void = () => undefined
     try {
-      await h.page.getByRole('button', { name: 'Save', exact: true }).click()
-      await expect(
-        h.page.getByRole('button', { name: 'Discard edits', exact: true }),
-      ).toBeDisabled()
+      await save(h)
       await expect.poll(() => h.writeRequests().length).toBe(1)
-      await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+      // A save in flight is never sent twice.
+      await save(h)
+      await expect(unsaved(h)).toBeVisible()
       expect(await h.readHostFile('remote.txt')).toBe(original)
       const dropped = await stat(join(h.repo, 'remote.txt'), { bigint: true })
       expect([dropped.ino, dropped.mtimeNs]).toEqual([initial.ino, initial.mtimeNs])
       restoreConnection = h.severConnection()
       restoreTraffic()
       restoreConnection()
-      await expect(h.page.getByRole('button', { name: 'Discard edits', exact: true })).toHaveCount(
-        0,
-      )
-      await expect(h.page.getByRole('treeitem', { name: /^remote\.txt/ })).toBeEnabled()
-      await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+      await expect(unsaved(h)).toHaveCount(0)
       expect(await h.readHostFile('remote.txt')).toBe('HOST_A_ONLY replayed save')
       expect(new Set(h.writeRequests().map((frame) => frame.requestId)).size).toBe(1)
     } finally {
@@ -219,19 +221,19 @@ test('An offline lane keeps its draft and accepts an explicit save after reconne
     const restore = h.severConnection()
     try {
       await expect(
-        h.page.getByText('Reconnecting… Unsaved edits are kept.', { exact: true }),
+        h.page.getByRole('status').filter({ hasText: 'Unsaved edits are kept.' }),
       ).toBeVisible()
-      await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0)
+      await save(h)
       await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY offline draft')
       expect(await h.readHostFile('remote.txt')).toBe(original)
       expect(h.writeRequests()).toHaveLength(0)
     } finally {
       restore()
     }
-    await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
-    await h.page.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(h.page.getByRole('banner')).toContainText('bee1 · Connected')
+    await save(h)
     await expect.poll(() => h.readHostFile('remote.txt')).toBe('HOST_A_ONLY offline draft')
-    await expect(h.page.getByRole('button', { name: 'Discard edits', exact: true })).toHaveCount(0)
+    await expect(unsaved(h)).toHaveCount(0)
     expect(new Set(h.writeRequests().map((frame) => frame.requestId)).size).toBe(1)
   } finally {
     await h.close()
@@ -253,10 +255,7 @@ test('A revoked save fence keeps an unconfirmed draft without automatic retry', 
     const restoreTraffic = h.dropClientTraffic()
     let restoreConnection: () => void = () => undefined
     try {
-      await h.page.getByRole('button', { name: 'Save', exact: true }).click()
-      await expect(
-        h.page.getByRole('button', { name: 'Discard edits', exact: true }),
-      ).toBeDisabled()
+      await save(h)
       await expect.poll(() => h.writeRequests().length).toBe(1)
       restoreTraffic()
       await h.takeover()
@@ -268,7 +267,8 @@ test('A revoked save fence keeps an unconfirmed draft without automatic retry', 
       )
       await takeControl(h)
       await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY unknown save')
-      await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+      // An uncertain save is never sent again, even when asked.
+      await save(h)
       expect(await h.readHostFile('remote.txt')).toBe(original)
       const unchanged = await stat(join(h.repo, 'remote.txt'), { bigint: true })
       expect([unchanged.ino, unchanged.mtimeNs]).toEqual([identity.ino, identity.mtimeNs])
@@ -277,15 +277,15 @@ test('A revoked save fence keeps an unconfirmed draft without automatic retry', 
       const reconnected = h.severConnection()
       try {
         await expect(
-          h.page.getByText('Reconnecting… Unsaved edits are kept.', { exact: true }),
+          h.page.getByRole('status').filter({ hasText: 'Unsaved edits are kept.' }),
         ).toBeVisible()
       } finally {
         reconnected()
       }
       await expect(h.page.getByRole('banner')).toContainText('bee1 · Connected')
       await expect(h.page.getByRole('button', { name: 'Reload file', exact: true })).toBeEnabled()
+      await save(h)
       expect(h.writeRequests()).toHaveLength(rawFrames)
-      await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
       expect(await h.readHostFile('remote.txt')).toBe(original)
       expect(new Set(h.writeRequests().map((frame) => frame.requestId)).size).toBe(1)
       await h.page.getByRole('button', { name: 'Reload file', exact: true }).click()
@@ -312,18 +312,14 @@ test('A save cut off after Host admission is reconciled once on reconnect', asyn
     await edit(h, 'HOST_A_ONLY admitted save')
     const lost = h.loseWriteReceipt('remote.txt', 'HOST_A_ONLY admitted save')
     try {
-      await h.page.getByRole('button', { name: 'Save', exact: true }).click()
+      await save(h)
       await lost.landed
       const identity = await stat(join(h.repo, 'remote.txt'), { bigint: true })
       expect(await h.readHostFile('remote.txt')).toBe('HOST_A_ONLY admitted save')
-      await expect(h.page.getByRole('button', { name: 'Discard edits', exact: true })).toBeVisible()
-      await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+      await expect(unsaved(h)).toBeVisible()
+      await save(h)
       lost.restore()
-      await expect(h.page.getByRole('button', { name: 'Discard edits', exact: true })).toHaveCount(
-        0,
-      )
-      await expect(h.page.getByRole('treeitem', { name: /^remote\.txt/ })).toBeEnabled()
-      await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+      await expect(unsaved(h)).toHaveCount(0)
       await expect(h.page.getByTestId('right-pane').getByRole('alert')).toHaveCount(0)
       const settled = await stat(join(h.repo, 'remote.txt'), { bigint: true })
       expect([settled.ino, settled.mtimeNs]).toEqual([identity.ino, identity.mtimeNs])
@@ -365,7 +361,7 @@ test('Finder opens the correct Host file and line', async () => {
     await expect(editor).toBeEditable()
     await h.page.keyboard.insertText('FINDER_LINE_2 ')
     await expect(h.page.locator('.monaco-editor .view-lines')).toContainText('FINDER_LINE_2')
-    await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
+    await expect(unsaved(h)).toBeVisible()
     await h.page.keyboard.press('ControlOrMeta+KeyS')
     await expect
       .poll(async () => (await h.readHostFile('nested/guide.md')).split('\n')[1])
@@ -397,7 +393,7 @@ test('Dirty worktree editor survives A→B→A without leaking into the other la
     await files(h)
     await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY dirty worktree A')
     await expect(h.page.locator('.monaco-editor')).not.toContainText('WORKTREE_B')
-    await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
+    await expect(unsaved(h)).toBeVisible()
   } finally {
     await h.close()
   }
@@ -414,7 +410,9 @@ test('An empty Host folder has the styled Files empty state', async ({
     await openRemote(h, 'HOST_EMPTY lane')
     await takeControl(h)
     await files(h)
-    await expect(h.page.getByText('No files yet', { exact: true })).toBeVisible()
+    await expect(
+      h.page.getByText('Empty folder. Create an entry above.', { exact: true }),
+    ).toBeVisible()
     await expect(h.page.getByRole('button', { name: 'New file', exact: true })).toBeEnabled()
     await expect(h.page.locator('.monaco-editor')).toHaveCount(0)
     await captures(h, info, 'remote-files-empty')

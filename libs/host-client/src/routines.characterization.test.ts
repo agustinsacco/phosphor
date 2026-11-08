@@ -150,6 +150,7 @@ it('keeps confirmed run receipt identity when history fails without a retry', as
   expect(s.send).toHaveBeenCalledTimes(1)
   expect(s.call.mock.calls).toEqual([
     ['routines.list', {}],
+    ['routines.activity', {}],
     ['routines.history', { routineId: s.id, offset: 0 }],
   ])
 })

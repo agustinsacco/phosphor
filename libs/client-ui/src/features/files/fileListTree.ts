@@ -5,21 +5,28 @@ const MAX_DEPTH = 64
 const MAX_ENTRIES = 50_000
 
 /**
- * A flat list of relative file paths as directory listings: each folder's entries under its path
- * (`root` itself for the top), folders first, then by name, as `fs:readDir` orders them. Null when
- * the list passes the depth or size cap. Entry paths are `root`-prefixed, or relative when `root`
- * is empty.
+ * A flat list of relative file paths, plus relative `folders` that hold none, as directory
+ * listings: each folder's entries under its path (`root` itself for the top), folders first, then
+ * by name, as `fs:readDir` orders them. Null when the list passes the depth or size cap. Entry
+ * paths are `root`-prefixed, or relative when `root` is empty.
  */
-export function foldFileList(root: string, files: string[]): Record<string, DirEntry[]> | null {
+export function foldFileList(
+  root: string,
+  files: string[],
+  folders: readonly string[] = [],
+): Record<string, DirEntry[]> | null {
   const kinds = new Map<string, boolean>()
-  for (const file of files) {
-    const parts = file.split('/')
-    if (parts.length > MAX_DEPTH) return null
+  const add = (path: string, isFolder: boolean): boolean => {
+    const parts = path.split('/')
+    if (parts.length > MAX_DEPTH) return false
     for (let i = 0; i < parts.length; i++) {
-      if (kinds.size >= MAX_ENTRIES) return null
-      kinds.set(parts.slice(0, i + 1).join('/'), i < parts.length - 1)
+      if (kinds.size >= MAX_ENTRIES) return false
+      kinds.set(parts.slice(0, i + 1).join('/'), isFolder || i < parts.length - 1)
     }
+    return true
   }
+  if (!files.every((file) => add(file, false))) return null
+  if (!folders.every((folder) => add(folder, true))) return null
   const join = (relative: string) => (root && relative ? `${root}/${relative}` : root || relative)
   const listings: Record<string, DirEntry[]> = { [root]: [] }
   for (const [relativePath, isDirectory] of kinds) {

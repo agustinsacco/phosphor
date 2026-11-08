@@ -1,6 +1,4 @@
 import { refreshRemoteArtifacts } from '@/features/artifacts/remoteArtifactRefresh'
-import { clearRemoteFileDraft } from '@/features/files/remoteFileDrafts'
-import { releaseRemoteFileSelection } from '@/features/files/remoteFileSelectionStore'
 import { hostResourceKey } from '@shared/remote-host'
 import { create } from 'zustand'
 import type {
@@ -621,10 +619,10 @@ async function dropSessionState(sessionId: string): Promise<void> {
   forgetSessionTransition(sessionId)
   const entry = useSessionsStore.getState().live[sessionId]
   if (entry?.target?.kind === 'remote' && entry.laneId) {
-    const { useDraftsStore } = await import('./drafts')
-    useDraftsStore
-      .getState()
-      .releaseRemoteFiles(hostResourceKey(entry.target, 'session', entry.laneId))
+    const key = hostResourceKey(entry.target, 'session', entry.laneId)
+    const [drafts, files] = await Promise.all([import('./drafts'), import('./files')])
+    drafts.useDraftsStore.getState().releaseRemoteFiles(key)
+    files.useFilesStore.getState().releaseWorkspace(entry.workspacePath)
   }
   unsubscribers.get(sessionId)?.()
   unsubscribers.delete(sessionId)
@@ -658,8 +656,6 @@ async function dropSessionState(sessionId: string): Promise<void> {
 
 export async function forgetRemoteSession(sessionId: string): Promise<void> {
   if (useSessionsStore.getState().live[sessionId]?.target?.kind === 'remote') {
-    clearRemoteFileDraft(sessionId)
-    releaseRemoteFileSelection(sessionId)
     await cleanupLocalSessionState(sessionId)
   }
 }

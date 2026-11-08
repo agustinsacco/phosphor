@@ -6,7 +6,6 @@ import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 export interface McpServersState {
   /** Null until the first read; empty when nothing is configured or readable. */
   servers: McpResolvedServer[] | null
-  enabled: number
   error: string | null
   refresh: () => Promise<void>
   setEnabled: (server: McpResolvedServer, on: boolean) => Promise<void>
@@ -17,13 +16,14 @@ export interface McpServersState {
  *
  * The same flag as Settings → Connectors' "enabled" checkbox, written to the
  * file that decides it, so it sticks. pi reads its MCP config when a lane
- * starts; a running lane picks a change up before its next turn.
+ * starts; a running lane picks a change up before its next turn. A null folder reads nothing.
  */
-export function useMcpServers(workspacePath: string): McpServersState {
+export function useMcpServers(workspacePath: string | null): McpServersState {
   const [servers, setServers] = useState<McpResolvedServer[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (workspacePath === null) return
     try {
       const configs = await window.phosphor.invoke('mcp:readConfigs', workspacePath)
       setServers(configs.servers)
@@ -40,6 +40,7 @@ export function useMcpServers(workspacePath: string): McpServersState {
   }, [refresh, settingsOpen])
 
   const setEnabled = async (server: McpResolvedServer, on: boolean): Promise<void> => {
+    if (workspacePath === null) return
     setError(null)
     try {
       await window.phosphor.invoke(
@@ -56,6 +57,5 @@ export function useMcpServers(workspacePath: string): McpServersState {
     await refresh()
   }
 
-  const enabled = servers?.filter((server) => server.config.enabled !== false).length ?? 0
-  return { servers, enabled, error, refresh, setEnabled }
+  return { servers, error, refresh, setEnabled }
 }
