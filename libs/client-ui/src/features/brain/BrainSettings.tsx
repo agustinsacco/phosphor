@@ -27,13 +27,14 @@ export function BrainSettings({
     draft.retentionDays <= 3650 &&
     Number.isInteger(draft.retentionDays) &&
     (!draft.enabled ||
-      (!!draft.processor?.provider.trim() && !!draft.processor.id.trim() && consent))
+      (consent &&
+        (!draft.processor || (!!draft.processor.provider.trim() && !!draft.processor.id.trim()))))
   return (
     <section aria-label="Brain settings">
       <h2 className="font-semibold">Settings · explicit opt-in</h2>
       <p>
-        Only newly captured evidence in enrolled workspaces is eligible. No private transcript
-        import or connector ingestion.
+        Automatic capture starts with new activity in enrolled workspaces. Use Learn from this lane
+        for explicitly selected history. No archive sweep or connector ingestion.
       </p>
       <fieldset disabled={busy}>
         <EnablePrefs draft={draft} setDraft={changeDraft} />
@@ -121,6 +122,10 @@ function WorkspaceEnrollment({
   )
 }
 
+function optionalProcessor(provider: string, id: string): BrainPrefs['processor'] {
+  return provider || id ? { provider, id } : null
+}
+
 function ReasoningFields({
   draft,
   setDraft,
@@ -129,7 +134,10 @@ function ReasoningFields({
 }: DraftProps & { consent: boolean; setConsent: (v: boolean) => void }): React.JSX.Element {
   return (
     <div className="brain-card">
-      <h3>Reasoning provider · separate from local embeddings</h3>
+      <h3>Optional evidence processor · separate from source-model learning</h3>
+      <p>
+        Leave both fields blank to learn using each selected lane's own qualified model/account.
+      </p>
       <p>
         Manual Process sends enrolled evidence to the exact configured native Anthropic or OpenAI
         model, using its API key from the local app environment. Shared OAuth and CLI providers are
@@ -143,7 +151,7 @@ function ReasoningFields({
           onChange={(e) =>
             setDraft({
               ...draft,
-              processor: { provider: e.target.value, id: draft.processor?.id ?? '' },
+              processor: optionalProcessor(e.target.value, draft.processor?.id ?? ''),
             })
           }
         />
@@ -155,7 +163,7 @@ function ReasoningFields({
           onChange={(e) =>
             setDraft({
               ...draft,
-              processor: { provider: draft.processor?.provider ?? '', id: e.target.value },
+              processor: optionalProcessor(draft.processor?.provider ?? '', e.target.value),
             })
           }
         />

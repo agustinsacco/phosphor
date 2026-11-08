@@ -19,7 +19,8 @@ Settings and lane actions separate four choices:
 3. Acknowledge the model's terms, then explicitly download local embeddings.
 4. Explicitly choose a processing path: learn from a selected lane using its
    qualified source model/account, or select a model for the separate evidence
-   processor. Each paid run needs its own consent.
+   processor. Both processor fields may stay blank; choosing only one is invalid.
+   Enrollment still needs explicit capture consent. Each paid run needs its own consent.
 
 Enablement never downloads a model or starts reasoning. Disablement and removing
 an enrollment revoke access, but preserve stored data and installed model files.
@@ -171,6 +172,8 @@ brackets the optional read-only `get_auth_binding` RPC with source bytes, select
 ancestry, settled revision and registry checks. Its receipt must name the owned
 source session and actual provider/model/API/endpoint, slot and identity fence;
 missing, changed or unsupported receipts refuse without a disk-slot fallback.
+Manual Desktop and Host commands cannot request the raw backend-only receipt;
+the trusted main-side reader talks directly to its owned source client.
 OpenAI Responses, OpenAI Codex Responses and Anthropic Messages are qualified
 native routes. Offline native sources have current configured-slot authority
 only, never proven historical billing identity.

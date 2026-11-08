@@ -19,6 +19,10 @@ const click = async (text: string): Promise<void> => {
   expect(button, text).toBeDefined()
   await act(async () => button!.click())
 }
+const settingsInput = (label: string): HTMLInputElement =>
+  [...container.querySelectorAll('label')]
+    .find((item) => item.textContent?.includes(label))!
+    .querySelector('input')!
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('phosphor', { invoke })
@@ -314,10 +318,7 @@ it('does not poll while hidden and resumes a failed initial load on becoming vis
 it('enables source-model learning without a legacy processor but still requires enrollment consent', async () => {
   await act(async () => root.render(<BrainPage />))
   await click('Settings')
-  const input = (label: string) =>
-    [...container.querySelectorAll('label')]
-      .find((item) => item.textContent?.includes(label))!
-      .querySelector('input')!
+  const input = settingsInput
   const save = () =>
     [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save Brain settings')!
   await act(async () => input('Enable Brain').click())
@@ -334,10 +335,7 @@ it('enables source-model learning without a legacy processor but still requires 
 it('requires a complete optional processor and allows clearing it back to source-model learning', async () => {
   await act(async () => root.render(<BrainPage />))
   await click('Settings')
-  const input = (label: string) =>
-    [...container.querySelectorAll('label')]
-      .find((item) => item.textContent?.includes(label))!
-      .querySelector('input')!
+  const input = settingsInput
   const change = async (label: string, value: string) => {
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(

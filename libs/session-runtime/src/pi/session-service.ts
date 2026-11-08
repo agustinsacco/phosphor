@@ -122,6 +122,8 @@ function assertManualCommand(
   id: string,
   command: RpcCommand,
 ) {
+  if (command.type === 'get_auth_binding')
+    throw new Error('Source auth binding is private to trusted learning readers.')
   if (registry.get(id)?.owner && !isBrainObservation(command.type))
     throw new Error('Brain processor sessions are observation-only for manual commands.')
   if (mcpBusy.has(id) && !observes(command) && command.type !== 'abort')
