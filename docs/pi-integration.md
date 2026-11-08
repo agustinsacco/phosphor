@@ -64,10 +64,7 @@ starts the lane without them. Brain's knowledge forks are not sessions: they are
 
 ## RPC commands
 
-`RpcCommand` and `RpcResponseDataMap` mirror the installed protocol plus the
-optional bound-request `get_auth_binding` capability. Its response is unavailable
-or a session-scoped binding/identity fence, never credentials. Ordinary boot does
-not require or probe this capability.
+`RpcCommand` and `RpcResponseDataMap` mirror the installed protocol.
 
 Every other command drives a UI surface except `get_tree` and `get_fork_messages`: those
 are mirrored so the type union stays whole and the `RpcResponseDataMap` guard

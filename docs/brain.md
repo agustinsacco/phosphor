@@ -47,7 +47,8 @@ pi -p --mode json --fork <lane.jsonl> --session-dir <userData>/brain/forks/<job>
 ```
 
 The fork uses the lane's own provider, model, binary, environment and Claude
-account, with `PI_CLAUDE_CLI_EPHEMERAL=1` and a private `PI_CLAUDE_CLI_STATE_DIR`.
+account, run as a one-shot (`claudeOneShotEnv`: no keepalive, ephemeral) with a
+private `PI_CLAUDE_CLI_STATE_DIR`.
 It has no tools: `--no-tools` declares none, the guard extension refuses any tool
 call, and `pi-claude-cli` runs Claude Code with `--tools ""`. The lane's file is
 only read. The fork directory is deleted when the run ends. A run that takes
@@ -92,8 +93,9 @@ and entities nothing else uses.
 
 `<userData>/brain/brain.sqlite` (`libs/memory-engine`) holds settings, the queue,
 proposals, entities, memories, evidence, citations, vectors and recall deliveries.
-The model lives under `<userData>/brain/embeddings`. Opening a database written by
-the earlier prototype discards its contents.
+The model lives under `<userData>/brain/embeddings`. On startup Brain deletes what
+the earlier prototype wrote (`memory.sqlite`, `evidence/`, `learning/`, `sessions/`),
+since nothing can read or show it.
 
 The graph follows the property-graph practice of Neo4j's knowledge-graph builder,
 Microsoft GraphRAG and Graphiti: a small fixed schema of node labels and
