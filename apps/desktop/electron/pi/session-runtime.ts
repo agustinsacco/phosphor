@@ -70,7 +70,7 @@ const service = createSessionService<Electron.WebContents>({
           id,
           target,
           () => execution.unattended ?? false,
-          Boolean(execution.brain),
+          Boolean(execution.brain || execution.learning),
         ),
       execution,
     ),
@@ -98,7 +98,7 @@ export const desktopSessions = {
     target?: Electron.WebContents,
     execution: SessionExecution = {},
   ) => {
-    if (execution.brain) return service.create(options, target, execution)
+    if (execution.brain || execution.learning) return service.create(options, target, execution)
     // Record intent before queueing behind a sweep. A resumed conversation is unfinished.
     recordWorkspaceIntent(options.workspacePath)
     if (options.sessionPath) decideSession(options.sessionPath, false)

@@ -1,3 +1,7 @@
+import {
+  prepareLearningSpawnOptions,
+  type LearningExecutionProfile,
+} from './learning-execution-profile'
 import type { AppPrefs, CreateSessionOptions, GitInfo, PiPackageEntry } from '@shared/models'
 import { CONTEXT_FILES_ENV, contextFilesEnvValue } from '@shared/context-files'
 import type { MachineContext } from '@phosphor/shared/machine-prompt'
@@ -10,6 +14,7 @@ import { prepareBrainSpawnOptions, type BrainExecutionProfile } from './brain-ex
 export interface SessionExecution {
   /** Trusted internal processor capability, never derived from CreateSessionOptions. */
   brain?: BrainExecutionProfile
+  learning?: LearningExecutionProfile
   unattended?: boolean
   intent?: 'report' | 'code'
   signal?: AbortSignal
@@ -40,6 +45,10 @@ export async function prepareSessionPolicy(
   launch: Awaited<ReturnType<typeof prepareSessionLaunch>>,
   runtime: SessionPolicyRuntime,
 ): Promise<{ spawnOptions: Omit<PiSpawnOptions, 'cwd'>; accountId?: string }> {
+  if (execution.brain && execution.learning)
+    throw new Error('Conflicting private execution profiles')
+  if (execution.learning)
+    return { spawnOptions: prepareLearningSpawnOptions(options, execution.learning) }
   if (execution.brain)
     return { spawnOptions: await prepareBrainSpawnOptions(options, execution.brain) }
   const { stub, binaryPath, prefixArgs, extensions } = launch

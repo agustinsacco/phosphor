@@ -1,3 +1,4 @@
+import { guardLearningExecution } from './learning-execution-profile'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import type { PiRpcClient, PiSpawnOptions } from './rpc-client'
@@ -14,6 +15,8 @@ export interface LiveSession {
   sessionId: string
   workspacePath: string
   client: PiRpcClient
+  /** Set only after startup identity and policy checks finish. */
+  startupComplete?: boolean
   /** Set before spawn/created so capture observers can exclude internal processors. */
   owner?: Readonly<BrainSessionOwner>
   /** Optional trusted input observer; never part of LiveSessionInfo or RPC/IPC. */
@@ -63,7 +66,11 @@ export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
     // renderer can observe a crash and offer resume. dispose() removes it.
 
     try {
+      const assertExecution = spawnOptions.learningSessionDir
+        ? guardLearningExecution(client)
+        : () => {}
       client.spawn()
+      assertExecution()
       // After spawn, so a listener that immediately sends RPC has a live process.
       this.emit('created', session)
       return session

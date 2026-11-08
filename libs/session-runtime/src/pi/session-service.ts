@@ -55,10 +55,12 @@ async function create<Delivery>(
   execution: SessionExecution = {},
 ): Promise<LiveSessionInfo> {
   execution.signal?.throwIfAborted()
+  if (execution.learning && (execution.brain || options.sessionPath || options.forkFrom))
+    throw new Error('Learning requires only its own fresh private control session')
   const ownedId = options.sessionPath ? routines.sessionForPath(options.sessionPath) : undefined
   const owned = ownedId ? registry.get(ownedId) : undefined
   if (owned) {
-    assertBrainLiveAdmission(owned, execution.brain)
+    assertBrainLiveAdmission(owned, execution.brain ?? execution.learning)
     return {
       sessionId: owned.sessionId,
       workspacePath: owned.workspacePath,
@@ -80,13 +82,13 @@ async function create<Delivery>(
     const live = matches.find((s) => registry.get(s.sessionId)?.client.alive)
     for (const match of matches) {
       const registered = registry.get(match.sessionId)
-      if (registered) assertBrainLiveAdmission(registered, execution.brain)
+      if (registered) assertBrainLiveAdmission(registered, execution.brain ?? execution.learning)
     }
     if (live) return live
     for (const session of matches) await registry.dispose(session.sessionId)
     // pi creates a new file for a missing --session. Never resurrect a deleted lane.
     await access(path)
-    await assertBrainTranscriptAdmission(path, execution.brain)
+    await assertBrainTranscriptAdmission(path, execution.brain ?? execution.learning)
     signal.throwIfAborted()
     return runtime.spawn({ ...options, sessionPath: path }, delivery, { ...execution, signal })
   })

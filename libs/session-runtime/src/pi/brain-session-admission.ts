@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { isWithinFolder } from '@phosphor/shared/paths'
+import type { LearningExecutionProfile } from './learning-execution-profile'
 import type { BrainExecutionProfile } from './brain-execution-profile'
 import {
   BRAIN_OWNER_CUSTOM_TYPE,
@@ -31,7 +32,7 @@ export async function readBrainSessionOwner(path: string): Promise<BrainSessionO
 /** Run inside the same owner-local path lock as resume/deletion. */
 export async function assertBrainTranscriptAdmission(
   path: string,
-  profile?: BrainExecutionProfile,
+  profile?: BrainExecutionProfile | LearningExecutionProfile,
 ): Promise<void> {
   const owner = await readBrainSessionOwner(path)
   if (!profile && owner)
@@ -47,7 +48,10 @@ export async function assertBrainTranscriptAdmission(
     )
 }
 
-export function assertBrainLiveAdmission(live: LiveSession, profile?: BrainExecutionProfile): void {
+export function assertBrainLiveAdmission(
+  live: LiveSession,
+  profile?: BrainExecutionProfile | LearningExecutionProfile,
+): void {
   if (live.owner || profile) {
     if (!live.owner || !profile || live.owner.jobId !== profile.owner.jobId)
       throw new Error('Brain processor sessions cannot be attached to a manual or different owner.')

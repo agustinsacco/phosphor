@@ -92,10 +92,12 @@ function completeStartup(
   execution.signal?.throwIfAborted()
   if (!session.client.alive) throw new Error('Session stopped during startup.')
   if (accountId) runtime.accounts.remember(session.sessionId, accountId)
-  if (!execution.brain) runtime.laneReload?.track(session.sessionId, laneConfig, session.client)
+  if (!(execution.brain || execution.learning))
+    runtime.laneReload?.track(session.sessionId, laneConfig, session.client)
   // Automation must not replace the user's launch-resume folder.
-  if (!execution.unattended && !execution.brain)
+  if (!execution.unattended && !(execution.brain || execution.learning))
     runtime.recordWorkspace(options.workspacePath, basename(options.workspacePath))
+  session.startupComplete = true
   return {
     sessionId: session.sessionId,
     workspacePath: session.workspacePath,
@@ -108,20 +110,24 @@ async function prepareStartup(
   rawOptions: CreateSessionOptions,
   execution: SessionExecution,
 ) {
-  const options = execution.brain
-    ? rawOptions
-    : {
-        ...rawOptions,
-        workspacePath:
-          runtime.resolveWorkspace(rawOptions.workspacePath) ?? rawOptions.workspacePath,
-      }
-  if (options.sessionPath && !execution.brain) {
+  const options =
+    execution.brain || execution.learning
+      ? rawOptions
+      : {
+          ...rawOptions,
+          workspacePath:
+            runtime.resolveWorkspace(rawOptions.workspacePath) ?? rawOptions.workspacePath,
+        }
+  if (options.sessionPath && !(execution.brain || execution.learning)) {
     const healed = await healMissingSessionCwd(options.sessionPath, options.workspacePath).catch(
       () => false,
     )
     if (healed) runtime.log('pi', 'repointed session cwd', { path: options.sessionPath })
   }
-  const launch = execution.brain ? { stub: false, env: {}, extensions: [] } : await runtime.launch()
+  const launch =
+    execution.brain || execution.learning
+      ? { stub: false, env: {}, extensions: [] }
+      : await runtime.launch()
   const { spawnOptions, accountId } = await prepareSessionPolicy(
     options,
     execution,
@@ -131,12 +137,12 @@ async function prepareStartup(
   execution.signal?.throwIfAborted()
   // Read before the spawn: a change landing while pi starts must still count as new.
   const laneConfig =
-    runtime.laneReload && !launch.stub && !execution.brain
+    runtime.laneReload && !launch.stub && !(execution.brain || execution.learning)
       ? await runtime.laneReload.capture(options.workspacePath)
       : null
   execution.signal?.throwIfAborted()
   const memory =
-    !launch.stub && !execution.brain && !execution.unattended
+    !launch.stub && !(execution.brain || execution.learning) && !execution.unattended
       ? await runtime.memory?.prepare(options)
       : undefined
   if (memory) {
@@ -156,7 +162,11 @@ async function allocateSession(
 ): Promise<LiveSession> {
   try {
     execution.signal?.throwIfAborted()
-    return runtime.registry.create(options.workspacePath, spawnOptions, execution.brain?.owner)
+    return runtime.registry.create(
+      options.workspacePath,
+      spawnOptions,
+      (execution.brain ?? execution.learning)?.owner,
+    )
   } catch (error) {
     await memory?.dispose()
     throw error
@@ -191,7 +201,8 @@ async function spawnSession(
     if (memory) await attachSessionMemory(session, memory, runtime.log)
     execution.signal?.throwIfAborted()
     bindStartupEvents(runtime, session, sink, accountId)
-    if (execution.brain) await verifyBrainModel(session.client, execution.brain)
+    if (execution.brain || execution.learning)
+      await verifyBrainModel(session.client, (execution.brain ?? execution.learning)!)
     else if (!launch.stub) {
       await verifyStartupAccount(session.client, runtime.policy.strictAccountSelection, accountId)
       await syncContextBudget(session.client, runtime.budget.read())
