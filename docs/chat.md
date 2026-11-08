@@ -851,6 +851,14 @@ thousands of tokens on every request.
   never sent, whatever the checkbox: it is listed as **Excluded · main checkout**
   and the worktree's own copy is the one sent
   ([extensions.md](extensions.md#bundled-extensions-phosphors-own)).
+- **In a Host lane:** the same readout and popover, read-only, because a Host
+  lane has no context-files write yet. Rules show checked or unchecked as the
+  lane's breakdown reports them, and connectors list the servers the lane
+  connected, with their tool counts, so the badge reads `MCP n` (only the
+  connected count is known). Before the lane reports, the popover says so and
+  invents nothing from This Mac's preferences. **Manage connectors…** opens
+  Settings › Connectors on the Host. The view takes a write source from
+  `composer/laneContextSource.ts`; without one it is read-only.
 - **Routines** always send every context file, whatever the preference: an
   unattended run keeps the project's rules ([routines.md](routines.md)). A
   routine-owned lane refuses a toggle, like any other manual command, until

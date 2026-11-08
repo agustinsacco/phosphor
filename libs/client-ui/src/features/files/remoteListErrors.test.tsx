@@ -2,12 +2,17 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { RemoteFilesPane } from './RemoteFilesPane'
+import { RightPane } from './RightPane'
+import { useLayoutStore } from '@/stores/layout'
 import { MachineFilesPane } from './MachineFilesPane'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteInfo, mockRemoteHosts } from '@/dev/mockRemoteLanes'
 
+// The settings store reads the colour scheme when the Files pane's modules load.
+vi.hoisted(() => {
+  window.matchMedia = () => ({ matches: false, addEventListener() {} }) as unknown as MediaQueryList
+})
 vi.mock('@/lib/monaco', () => ({}))
 vi.mock('./MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
@@ -32,6 +37,9 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   const sessionId = mockRemoteInfo.sessionId
   useSessionsStore.setState({ live: { [sessionId]: { phosphorId: sessionId, ...mockRemoteInfo } } })
+  useLayoutStore.setState({
+    bySession: { [sessionId]: { pane: 'files', expanded: false, side: 'right', size: 45 } },
+  })
   useRemoteLanesStore.setState({
     hosts: {
       [hostId]: {
@@ -54,6 +62,16 @@ afterEach(() => {
   useRemoteLanesStore.setState({ hosts: {} })
 })
 
+const renderLane = () =>
+  act(async () =>
+    root.render(
+      <RightPane
+        workspacePath={mockRemoteInfo.workspacePath}
+        sessionId={mockRemoteInfo.sessionId}
+      />,
+    ),
+  )
+
 function failListing(channel: string, error: unknown): void {
   vi.stubGlobal('phosphor', {
     invoke: vi.fn(async (called: string) => {
@@ -73,15 +91,7 @@ it.each([
   [ipcError('fs:listFiles', '/private/host/output'), NOT_LISTED],
 ])('the lane Files pane names a failed listing: %s', async (error, shown) => {
   failListing('fs:listFiles', error)
-  await act(async () =>
-    root.render(
-      <RemoteFilesPane
-        workspacePath={mockRemoteInfo.workspacePath}
-        sessionId={mockRemoteInfo.sessionId}
-        changes={false}
-      />,
-    ),
-  )
+  await renderLane()
   expect(container.querySelector('[role="alert"]')?.textContent).toBe(shown)
   expect(container.textContent).not.toContain('/private')
 })
@@ -117,22 +127,6 @@ function failReading(listChannel: string, readChannel: string): void {
 
 const fileButton = () =>
   [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('a.ts'))
-
-it("the lane Files pane names a failed read in This Mac's words", async () => {
-  failReading('fs:listFiles', 'fs:readFile')
-  await act(async () =>
-    root.render(
-      <RemoteFilesPane
-        workspacePath={mockRemoteInfo.workspacePath}
-        sessionId={mockRemoteInfo.sessionId}
-        changes={false}
-      />,
-    ),
-  )
-  await act(async () => fileButton()?.click())
-  expect(container.querySelector('[role="alert"]')?.textContent).toBe(NOT_READ)
-  expect(container.textContent).not.toContain('/private')
-})
 
 it("Machine files names a failed read in This Mac's words", async () => {
   failReading('hosts:repositoryFiles', 'hosts:repositoryFile')

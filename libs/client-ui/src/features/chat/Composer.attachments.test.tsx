@@ -9,6 +9,8 @@ import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useDraftsStore } from '@/stores/drafts'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useExtensionUiStore } from '@/stores/extensionUi'
+import { CONTEXT_BREAKDOWN_STATUS_KEY } from './composer/contextBreakdown'
 import { Composer } from './Composer'
 
 let root: Root
@@ -87,6 +89,26 @@ async function send() {
     container.querySelector<HTMLButtonElement>('[aria-label="Send message"]')?.click(),
   )
 }
+it('shows a Host lane’s rules from its breakdown, read-only', async () => {
+  const contextFiles = {
+    off: ['agents'],
+    files: [{ path: 'CLAUDE.md', kind: 'claude', scope: 'project', tokens: 10, included: true }],
+  }
+  useExtensionUiStore.setState({
+    statuses: {
+      [mockRemoteInfo.sessionId]: {
+        [CONTEXT_BREAKDOWN_STATUS_KEY]: JSON.stringify({ parts: {}, contextFiles }),
+      },
+    },
+  })
+  await draw()
+  const sources = container.querySelector<HTMLButtonElement>('[data-testid="context-sources"]')
+  expect(sources?.textContent).toBe('Rules 1/2')
+  await act(async () => sources?.click())
+  expect(container.querySelector('[aria-label="Context files"] input')).toBeNull()
+  useExtensionUiStore.setState({ statuses: {} })
+})
+
 it('uploads before prompting and uses the Host path, never the picked local path', async () => {
   const invoke = vi
     .spyOn(window.phosphor, 'invoke')

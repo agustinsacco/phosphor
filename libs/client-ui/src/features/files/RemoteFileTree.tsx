@@ -11,7 +11,6 @@ export function RemoteFileTree({
   selected,
   onSelect,
   status = {},
-  disabled = false,
   loading = false,
   changes = false,
   folders,
@@ -20,7 +19,6 @@ export function RemoteFileTree({
   selected: string | null
   onSelect(path: string): void
   status?: Record<string, string>
-  disabled?: boolean
   loading?: boolean
   changes?: boolean
   /** Folder state a pane owns, for a toolbar's collapse-all; the tree's own otherwise. */
@@ -74,7 +72,6 @@ export function RemoteFileTree({
             aria-expanded={n.directory ? isOpen(n.path) : undefined}
             active={selected === n.path}
             depth={n.depth}
-            disabled={disabled}
             onClick={() => {
               if (n.directory) toggle(n.path)
               else onSelect(n.path)

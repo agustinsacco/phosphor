@@ -182,6 +182,7 @@ it('keeps an available machine’s routines through a refresh until its read set
   await useRoutinesStore.getState().refresh()
   expect(useRoutinesStore.getState().remote[machine.id]).toEqual({
     routines: [expect.objectContaining({ id: 'host:bee1/task' })],
+    runs: [],
     unavailable: false,
   })
   await settle('host:bee1/next')
@@ -190,6 +191,7 @@ it('keeps an available machine’s routines through a refresh until its read set
   await useRoutinesStore.getState().refresh()
   expect(useRoutinesStore.getState().remote[machine.id]).toEqual({
     routines: [],
+    runs: [],
     unavailable: true,
   })
 })

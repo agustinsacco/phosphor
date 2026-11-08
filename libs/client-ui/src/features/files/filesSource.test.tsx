@@ -42,10 +42,12 @@ const current = () => useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]
 it('This Mac’s folder is a watched tree with every feature and no refusal', () => {
   expect(localFilesSource('/repo')).toEqual({
     workspacePath: '/repo',
+    pathRoot: '/repo',
     unavailable: null,
     writeRefusal: null,
     listing: 'tree',
     refreshKey: '',
+    textLimitBytes: 4 * 1024 * 1024,
     features: {
       watch: true,
       search: true,
@@ -53,6 +55,7 @@ it('This Mac’s folder is a watched tree with every feature and no refusal', ()
       osActions: true,
       listOptions: true,
       clipboardFiles: true,
+      revert: true,
     },
   })
 })
@@ -62,9 +65,11 @@ it('a Host lane is a flat list without the local-only features', async () => {
   const source = await hostSource()
   expect(source.read()).toMatchObject({
     workspacePath: mockRemoteInfo.workspacePath,
+    pathRoot: '/remote/demo',
     unavailable: null,
     writeRefusal: null,
     listing: 'flat',
+    textLimitBytes: 2 * 1024 * 1024,
   })
   expect(Object.values(source.read().features).every((on) => !on)).toBe(true)
   source.done()

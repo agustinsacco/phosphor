@@ -369,10 +369,10 @@ export function Composer({
     () => (
       <>
         <ContextMeter sessionId={sessionId} />
-        {!remote && <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />}
+        <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />
       </>
     ),
-    [sessionId, workspacePath, remote],
+    [sessionId, workspacePath],
   )
 
   // A soft keyboard has no Alt or Esc and its Return adds a line: name only what it can do.

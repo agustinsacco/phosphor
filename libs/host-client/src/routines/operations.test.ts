@@ -54,7 +54,7 @@ function setup() {
     type: 'result',
     id: randomUUID(),
     ok: true,
-    data: method === 'routines.history' ? [remoteRun] : [row],
+    data: method === 'routines.list' ? [row] : [remoteRun],
   }))
   const send = vi.fn<Connection['send']>(async () => ({
     status: 'done',
@@ -151,6 +151,58 @@ it('maps definitions and run records to opaque ids and redacts paths and diagnos
   expect(s.call.mock.calls.map(([method]) => method)).toEqual(['routines.history', 'routines.list'])
   s.view.repositories = []
   expect(() => mapRoutine(s.ports, s.host, s.row)).toThrow(UNAVAILABLE)
+})
+
+it('fills a Host list with its activity, mapped like history and scoped to the machine', async () => {
+  const s = setup()
+  const snapshot = await list(s.state, s.ports, s.host)
+  const definition = mapRoutine(s.ports, s.host, s.row)
+  expect(snapshot.runs).toEqual([runRecord(s.host, s.remoteRun, definition)])
+  expect(snapshot.runs[0]?.id).toBe(`host:${s.host}/${s.runId}`)
+  expect(s.call.mock.calls).toEqual([
+    ['routines.list', {}],
+    ['routines.activity', {}],
+  ])
+  // A run of a routine the list does not hold has no definition to render with.
+  s.call.mockImplementation(async (method) => ({
+    type: 'result',
+    id: randomUUID(),
+    ok: true,
+    data: method === 'routines.list' ? [s.row] : [{ ...s.remoteRun, routineId: randomUUID() }],
+  }))
+  expect((await list(s.state, s.ports, s.host)).runs).toEqual([])
+})
+
+it.each([
+  ['an older Host', { ok: false, error: { code: 'unsupported', message: 'Unsupported.' } }],
+  ['a malformed answer', { ok: true, data: [{ sessionPath: '/private/host' }] }],
+  ['a failed read', null],
+] as const)('keeps the Host list with no runs after %s', async (_name, reply) => {
+  const s = setup()
+  s.call.mockImplementation(async (method) => {
+    if (method === 'routines.list')
+      return { type: 'result', id: randomUUID(), ok: true, data: [s.row] }
+    if (!reply) throw new Error('/private/host')
+    return { type: 'result', id: randomUUID(), ...reply }
+  })
+  const snapshot = await list(s.state, s.ports, s.host)
+  expect(snapshot.routines).toHaveLength(1)
+  expect(snapshot.runs).toEqual([])
+  expect(snapshot.error).toBeNull()
+})
+
+it('drops activity read over a connection that changed during the await', async () => {
+  const s = setup()
+  s.call.mockImplementation(async (method) => {
+    if (method === 'routines.activity') s.view.connectionToken = 'replaced'
+    return {
+      type: 'result',
+      id: randomUUID(),
+      ok: true,
+      data: method === 'routines.list' ? [s.row] : [s.remoteRun],
+    }
+  })
+  await expect(list(s.state, s.ports, s.host)).rejects.toThrow(UNAVAILABLE)
 })
 
 it.each(['unknown', 'pending', 'throw', 'malformed'] as const)(

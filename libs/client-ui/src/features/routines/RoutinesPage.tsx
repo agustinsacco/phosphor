@@ -56,6 +56,8 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
   const filter = useRemoteLanesStore((s) => s.filter)
   const override = useMachinePagesStore((s) => s.routinesMachine)
   const machine = routineScope(pageMachine(filter, override))
+  const inScope = (id: string): boolean => machine === 'all' || id === machine
+  const hostRuns = Object.entries(remote).flatMap(([id, r]) => (inScope(id) ? r.runs : []))
   const snapshot = localSnapshot
     ? {
         ...localSnapshot,
@@ -66,9 +68,9 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
               (routine) => [routine.id, routine],
             ),
           ).values(),
-        ].filter((r) => machine === 'all' || (r.machine?.id ?? 'local') === machine),
-        // The aggregate activity feed is local. Host history is loaded in its detail view.
-        runs: machine === 'local' || machine === 'all' ? localSnapshot.runs : [],
+        ].filter((r) => inScope(r.machine?.id ?? 'local')),
+        // Each Host's own read carries its recent runs; detail views load full history.
+        runs: [...(inScope('local') ? localSnapshot.runs : []), ...hostRuns],
       }
     : null
   const hosts = useRemoteLanesStore((s) => s.hosts)
@@ -497,9 +499,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                 <ActivityAccordion
                   heading={
                     <>
-                      <h2 className="text-lg font-semibold">
-                        {machine === 'all' ? `${localMachineLabel()} activity` : 'Activity'}
-                      </h2>
+                      <h2 className="text-lg font-semibold">Activity</h2>
                       <p className="text-text-tertiary text-sm">
                         Recent lanes from every routine. Open a routine for its full history.
                       </p>

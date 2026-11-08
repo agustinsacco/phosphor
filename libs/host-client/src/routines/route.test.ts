@@ -79,11 +79,13 @@ it('queries only the decoded machine with empty list params', async () => {
     background: false,
     error: null,
   })
-  expect(s.call).toHaveBeenCalledWith('routines.list', {})
   await expect(
     route(s.state, s.ports, 'routines:list', [`host:${randomUUID()}`])?.result,
   ).rejects.toThrow(UNAVAILABLE)
-  expect(s.call).toHaveBeenCalledTimes(1)
+  expect(s.call.mock.calls).toEqual([
+    ['routines.list', {}],
+    ['routines.activity', {}],
+  ])
 })
 
 it.each(['cancel', 'skipNext', 'archive', 'delete', 'pauseAll'] as const)(
