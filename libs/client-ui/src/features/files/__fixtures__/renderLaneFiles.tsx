@@ -10,8 +10,6 @@ import { openFileInWorkspace, useLayoutStore } from '@/stores/layout'
 import { useFilesStore } from '@/stores/files'
 import { usePromptStore } from '@/stores/prompt'
 import { RightPane } from '../RightPane'
-import { useRemoteFileDrafts } from '../remoteFileDrafts'
-import { useRemoteFileSelection } from '../remoteFileSelectionStore'
 
 /**
  * Host-lane Files at the pane boundary: the lane's right pane, driven by what a user does.
@@ -73,8 +71,6 @@ export function seedLaneFiles({
 }
 
 export function resetLaneFiles(): void {
-  useRemoteFileDrafts.setState({ bySession: {} })
-  useRemoteFileSelection.setState({ bySession: {}, blocked: {} })
   useFilesStore.setState({ entries: {}, expanded: {}, directoryMtimes: {}, byWorkspace: {} })
   useRemoteLanesStore.setState({ hosts: {} })
   useSessionsStore.setState({ live: {} })
