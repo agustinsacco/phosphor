@@ -79,13 +79,17 @@ export function updateJob(ctx: Context, id: string, patch: JobPatch): BrainJob {
   // Updating columns rather than REPLACE preserves proposal foreign keys.
   run(
     ctx,
-    `UPDATE jobs SET state=?, error=?, started_at=?, finished_at=?, usage=?, memories=? WHERE id=?`,
+    `UPDATE jobs SET state=?, error=?, started_at=?, finished_at=?, usage=?, memories=?,
+      leaf_id=?, model=?, branch=? WHERE id=?`,
     updated.state,
     updated.error,
     updated.startedAt,
     updated.finishedAt,
     updated.usage ? JSON.stringify(updated.usage) : null,
     updated.memories,
+    updated.leafId,
+    updated.model,
+    updated.branch,
     id,
   )
   if (updated.state === 'done') {

@@ -87,7 +87,18 @@ export type NewJob = Pick<
   'sessionId' | 'sessionPath' | 'title' | 'scope' | 'branch' | 'model' | 'leafId'
 >
 export type JobPatch = Partial<
-  Pick<BrainJob, 'state' | 'error' | 'startedAt' | 'finishedAt' | 'usage' | 'memories'>
+  Pick<
+    BrainJob,
+    | 'state'
+    | 'error'
+    | 'startedAt'
+    | 'finishedAt'
+    | 'usage'
+    | 'memories'
+    | 'leafId'
+    | 'model'
+    | 'branch'
+  >
 >
 
 /** What the extraction prompt shows the fork, so it reuses entities and skips known memories. */
