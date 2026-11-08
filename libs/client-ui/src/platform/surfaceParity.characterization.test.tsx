@@ -160,7 +160,13 @@ it.each([false, true])(
     const desktop = laneMenu(DESKTOP_PLATFORM, <RemoteLanes />)
     expect(desktop.map((row) => row.label)).toContain('Delete')
     for (const [name, platform, list] of BROWSER_LISTS)
-      expect(laneMenu(platform, list()), name).toEqual(desktop)
+      expect(laneMenu(platform, list()), name).toEqual(
+        desktop.map((row) =>
+          row.label === 'Move to…' && !platform.nativeFiles
+            ? { ...row, disabled: true, text: 'Move to…Moving lanes requires Desktop.' }
+            : row,
+        ),
+      )
   },
 )
 

@@ -23,12 +23,12 @@
  */
 
 import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { claudeProviderStateDir } from '@phosphor/session-runtime/pi/pi-paths'
 
 /** Mirrors `stateDir()` in the provider's `src/session-map.ts`. */
 export function providerStateDir(): string {
-  return process.env.PI_CLAUDE_CLI_STATE_DIR ?? join(homedir(), '.pi', 'agent', 'pi-claude-cli')
+  return claudeProviderStateDir()
 }
 
 /** Mirrors `mapPath()` in the provider: same directory, same file name. */

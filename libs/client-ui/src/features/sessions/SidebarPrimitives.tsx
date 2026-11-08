@@ -12,6 +12,13 @@ const ACTIVITY_LABEL: Record<LaneActivity, string> = {
   working: 'Working',
 }
 
+/**
+ * The `2m · wt · ⎇ branch · ±3 · $1.24` run under a session's title.
+ *
+ * Shared by `SessionRow` and `PendingSessionRow` rather than duplicated,
+ * because a live session swaps from the second to the first mid-turn and the
+ * swap has to be invisible. They had drifted into two different subtitles.
+ */
 export function SubtitleSegments({
   segments,
   activity,

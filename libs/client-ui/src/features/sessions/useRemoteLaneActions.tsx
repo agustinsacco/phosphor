@@ -21,6 +21,7 @@ import { laneActions, type LaneActionHandlers } from './laneActions'
 import { hostLaneContext, remoteLaneAccess, type RemoteLaneActionState } from './remoteLaneActions'
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
 import { copyDebugInfo, copySpend, exportRemoteLaneHtml } from './sessionActions'
+import { openLaneMove } from './sidebarActions'
 import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
 import { MarkerPickerModal } from './MarkerPickerModal'
 import { useSessionOrderActions } from './SessionList'
@@ -70,8 +71,8 @@ export function useRemoteLaneActions({
     ready,
     entry?.phosphorId,
     runner.busy,
+    nativeFiles,
   )
-  const busy = state.busy
   const access = remoteLaneAccess(state)
   const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
   const handlers = laneHandlers({
@@ -93,7 +94,7 @@ export function useRemoteLaneActions({
 
   /** Names the lane through its live session; resolves false when the Host refused. */
   const saveName = async (name: string): Promise<boolean> =>
-    access.controlled && access.running && !!name.trim() && !busy
+    access.controlled && access.running && !!name.trim() && !state.busy
       ? runner.act(async () => renameLane(await session(), name.trim()))
       : false
   const dialogs = (
@@ -112,7 +113,7 @@ export function useRemoteLaneActions({
     items: (): ContextMenuItem[] => laneActions(hostLaneContext(state), handlers, orderActions),
     dialogs,
     title,
-    busy,
+    busy: state.busy,
     error: runner.error,
     deletingInBulk,
     saveName,
@@ -129,6 +130,7 @@ function useLaneActionState(
   ready: boolean,
   sessionId: string | undefined,
   running: boolean,
+  nativeFiles: boolean,
 ) {
   const caps = useMachineCaps(hostId)
   const key = remoteLaneResourceKey(hostId, lane.laneId)
@@ -147,6 +149,7 @@ function useLaneActionState(
     stopBlocked: unprompted ? STOP_NEEDS_PROMPT : null,
     pr: pr ?? null,
     markers,
+    ...(!nativeFiles ? { moveBlocked: 'Moving lanes requires Desktop.' } : {}),
   }
   /** The row's marker: the explicit Host choice, else derived from the branch, as on This Mac. */
   const marker = markers === 'off' ? null : remoteLaneMarker(lane, markers)
@@ -243,6 +246,11 @@ function laneHandlers({
     makeRoutine: () => void act(async () => routineFromLane(hostId, lane, await session())),
     exportHtml: () =>
       void act(async () => exportRemoteLaneHtml(await session(), title, nativeFiles)),
+    moveTo: () =>
+      openLaneMove({ machine: hostId, laneId: lane.laneId }, title, {
+        pinned: lane.pinned === true,
+        marker: remoteLaneMarker(lane, useLanePrefsStore.getState().lanes.markers),
+      }),
     copyDebugInfo: () =>
       void act(() => copyDebugInfo(remoteLaneDebugSource(hostId, lane, sessionId))),
     copySpend: () => void act(async () => copySpend(await sessionCost(await session()))),

@@ -192,8 +192,8 @@ copies ([Lanes](lanes.md#remote-lanes) owns their rules):
   `RemoteRepositoryGroup` per folder in the Host's order, and lanes whose folder
   left the Host in an explicit unavailable-folder group. A ready Host with no
   folders offers Add folder on MACHINE…. Each folder header has Search lanes,
-  Workspace options (Add folder on MACHINE…, Remove from MACHINE, Move up, Move
-  down, Select all lanes, Select merged lanes, Collapse lanes) and New lane in
+  Workspace options (Select all lanes, Select merged lanes, Collapse lanes, Move
+  up, Move down, Remove from MACHINE, Add folder on MACHINE…) and New lane in
   the folder, which opens the start composer with that folder chosen. Pages
   pass `density="page"` for touch-sized header buttons.
 - `RemoteLaneRow` is the one Host lane row: title, elapsed time, worktree,

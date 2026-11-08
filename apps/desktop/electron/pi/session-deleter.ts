@@ -1,10 +1,11 @@
 import { shell } from 'electron'
 import { createReadStream } from 'node:fs'
 import { access, rmdir } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { basename, dirname, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { claudeSessionFileForCwd, piSessionsRoot } from './pi-paths'
 import { forgetClaudePairing } from './claude-ledger'
+import { laneAttachmentsDir } from '../lane-move/attachments-dir'
 
 /**
  * Deleting a session means deleting every ledger it wrote.
@@ -141,6 +142,13 @@ export async function deleteSession(sessionFilePath: string): Promise<void> {
   // its file while leaving another live writer. Both are successful deletes.
   await trashIfPresent(sessionFilePath)
   await removePiSessionDirIfEmpty(sessionFilePath)
+  // Files copied here with a lane moved from another machine go with it.
+  const id = /_([0-9a-f-]{36})\.jsonl$/.exec(basename(sessionFilePath))?.[1]
+  if (id)
+    await Promise.resolve(id)
+      .then(laneAttachmentsDir)
+      .then(trashIfPresent)
+      .catch(() => undefined)
 
   if (!claudeRef) return
   try {

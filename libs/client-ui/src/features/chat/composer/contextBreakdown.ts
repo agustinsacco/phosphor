@@ -23,6 +23,8 @@ export interface ContextFileEntry {
   scope?: 'global' | 'project'
   tokens: number
   included: boolean
+  /** Left out by location, not by the checkbox: the main checkout's file in a worktree lane. */
+  excludedBy?: 'main-checkout'
 }
 
 export interface McpServerCost {
@@ -164,6 +166,7 @@ function parseContextFiles(raw: unknown): ContextBreakdown['contextFiles'] {
       ...(file.scope === 'global' || file.scope === 'project' ? { scope: file.scope } : {}),
       tokens: typeof file.tokens === 'number' && file.tokens >= 0 ? file.tokens : 0,
       included: file.included !== false,
+      ...(file.excludedBy === 'main-checkout' ? { excludedBy: 'main-checkout' as const } : {}),
     })
   }
   return { off: record.off.filter(isKind), files }
