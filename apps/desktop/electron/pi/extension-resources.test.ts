@@ -37,6 +37,7 @@ const shippedFiles = [
   'global-context.ts',
   'headroom.ts',
   'lane-reload.ts',
+  'main-checkout.ts',
   'message-ledger.ts',
   'optional/permission-gate.ts',
   'pi-api.ts',

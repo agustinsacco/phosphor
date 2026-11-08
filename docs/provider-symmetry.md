@@ -133,8 +133,13 @@ How each level maps onto the request is in pi-claude-cli's
   One process serves a session's turns and tool handoffs. A model switch
   (including a context-budget change mid-session, which is applied as one),
   a changed prompt or tool list, tree navigation, compaction and a stop all
-  retire it, as does 10 minutes idle, although the prompt cache lives an hour.
-  The next turn imports pi's context and writes it to the cache again. A native
+  retire it, as does an hour idle: `claudeProviderSpawnEnv` sets
+  `PI_CLAUDE_CLI_KEEPALIVE_MS` to one hour so the parked process lives as long
+  as a subscription's prompt cache (the provider's own default is ten minutes,
+  and under it three in four user turns that followed a 10-60 minute pause
+  re-wrote their whole context, because a fresh process imports history as
+  text, a different byte sequence from what the API cached). The next turn
+  after a retire imports pi's context and writes it to the cache again. A native
   provider has no process to lose; it only pays its provider's cache lifetime.
 - **Tokenizers differ.** The same 90k characters of filler counted about 17k
   tokens on gpt-6-astra and 23k on Claude. One conversation fills the context

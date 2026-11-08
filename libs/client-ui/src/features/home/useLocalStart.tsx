@@ -2,16 +2,15 @@ import { useCallback, useEffect, useMemo, useState, type RefObject } from 'react
 import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
 import { BranchControl } from '@/features/worktrees/BranchControl'
 import { ContextSourcesMenu } from '@/features/chat/composer/ContextSourcesMenu'
-import { buildCommandEntries } from '@/features/chat/composer/CommandMenu'
-import { useSlashMenu } from '@/features/chat/composer/useSlashMenu'
 import { workspaceFileSource } from '@/features/chat/composer/useFileMentions'
 import type { PendingAttachment } from '@/features/chat/attachments'
 import { homeDraftKey, useDraftsStore, type Draft } from '@/stores/drafts'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { useWorktreesStore } from '@/stores/worktrees'
-import { NO_COMMANDS, usePiCommandsStore } from '@/stores/piCommands'
+import { workspaceCommandSource } from '@/stores/piCommands'
 import { HomeModelPicker } from './HomeModelPicker'
+import { useStartCommands } from './useStartCommands'
 import { IsolateToggle } from './IsolateToggle'
 import { submitLocalHome } from './submitLocalHome'
 import type { StartTarget } from './StartComposer'
@@ -36,7 +35,11 @@ export function useLocalStart(
   const isRepo = useLocalRepo(workspacePath, textareaRef)
   const isolate = useWorktreesStore((s) => s.preferWorktree)
   const starting = useStartingChatStore((s) => s.starting !== null)
-  const commands = useLocalCommands(workspacePath, setText, textareaRef)
+  const commands = useStartCommands(
+    useMemo(() => workspaceCommandSource(workspacePath), [workspacePath]),
+    setText,
+    textareaRef,
+  )
   const files = useMemo(() => workspaceFileSource(workspacePath), [workspacePath])
   useFailedStartRestore(workspacePath, setWarning, textareaRef)
   const patch = (next: Partial<Draft>) => useDraftsStore.getState().patch(draftKey, next)
@@ -79,24 +82,6 @@ export function useLocalStart(
     warning,
     setWarning,
   }
-}
-
-function useLocalCommands(
-  workspacePath: string,
-  setText: (text: string) => void,
-  textareaRef: RefObject<HTMLTextAreaElement | null>,
-) {
-  const piCommands = usePiCommandsStore((s) => s.byWorkspace[workspacePath] ?? NO_COMMANDS)
-  const commandStatus = usePiCommandsStore((s) => s.status[workspacePath] ?? ('idle' as const))
-  const commandError = usePiCommandsStore((s) => s.error[workspacePath])
-  const entries = useMemo(() => buildCommandEntries(piCommands, []), [piCommands])
-  const slash = useSlashMenu({
-    entries,
-    setText,
-    onOpen: () => void usePiCommandsStore.getState().load(workspacePath),
-    focus: () => textareaRef.current?.focus(),
-  })
-  return { slash, commandStatus, commandError }
 }
 
 /** A start that failed after Home unmounted comes back into this workspace's draft. */
