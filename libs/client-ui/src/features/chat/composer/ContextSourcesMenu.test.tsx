@@ -164,6 +164,45 @@ describe('ContextSourcesMenu', () => {
     expect(sources.textContent?.match(/Included/g)).toHaveLength(2)
   })
 
+  it('says why a worktree lane leaves out the main checkout’s file while its checkbox stays on', async () => {
+    useExtensionUiStore.setState({
+      statuses: {
+        s1: {
+          [CONTEXT_BREAKDOWN_STATUS_KEY]: JSON.stringify({
+            parts: {},
+            contextFiles: {
+              off: [],
+              files: [
+                {
+                  path: '/main/CLAUDE.md',
+                  kind: 'claude',
+                  scope: 'project',
+                  tokens: 2600,
+                  included: false,
+                  excludedBy: 'main-checkout',
+                },
+                {
+                  path: '/main/.phosphor/worktrees/lane/CLAUDE.md',
+                  kind: 'claude',
+                  scope: 'project',
+                  tokens: 2600,
+                  included: true,
+                },
+              ],
+            },
+          }),
+        },
+      },
+    })
+    await render('s1')
+    expect(box('CLAUDE.md').checked).toBe(true)
+    const sources = container.querySelector('[aria-label="CLAUDE.md sources"]')!
+    expect([...sources.querySelectorAll('li')].map((el) => el.textContent)).toEqual([
+      'ProjectExcluded · main checkout · ~2.6k/main/CLAUDE.md',
+      'ProjectIncluded · ~2.6k/main/.phosphor/worktrees/lane/CLAUDE.md',
+    ])
+  })
+
   it('does not guess a scope for an older extension or invent missing files', async () => {
     useExtensionUiStore.setState({
       statuses: {
