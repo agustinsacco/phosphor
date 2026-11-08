@@ -10,6 +10,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { clearBrowserMemory, useBrowserMemory } from './browserMemory'
 
 function Harness() {
   const navigation = useBrowserNavigation()
@@ -58,7 +59,7 @@ it('projects legacy lane activation to a single deep link and clears browser foc
   expect(invoke.mock.calls.every((call) => !String(call[0]).startsWith('app:'))).toBe(true)
 })
 it.each([1, 2])(
-  'pins only an unambiguous ready creation target without adding history: %i Hosts',
+  'pins the scoped creation target without adding history: %i Hosts',
   async (count) => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     vi.stubGlobal('phosphor', { invoke: vi.fn(async () => undefined) })
@@ -86,13 +87,12 @@ it.each([1, 2])(
     const root = createRoot(document.createElement('div'))
     roots.push(root)
     await act(async () => root.render(<Harness />))
-    expect(window.location.pathname).toBe(count === 1 ? `/new/${MACHINE.id}` : '/new')
+    // New always opens somewhere: with no machine in view, the first that can start a lane.
+    expect(window.location.pathname).toBe(`/new/${MACHINE.id}`)
     expect(push).not.toHaveBeenCalled()
-    expect(replace).toHaveBeenCalledTimes(count === 1 ? 1 : 0)
-    if (count === 1) {
-      await act(async () => useMachinesStore.setState({ machines: [] }))
-      expect(window.location.pathname).toBe(`/new/${MACHINE.id}`)
-    }
+    expect(replace).toHaveBeenCalledTimes(1)
+    await act(async () => useMachinesStore.setState({ machines: [] }))
+    expect(window.location.pathname).toBe(`/new/${MACHINE.id}`)
   },
 )
 
@@ -118,4 +118,30 @@ it('waits for machine scope before mounting a page and puts feature machine chan
   await act(async () => useMachinePagesStore.setState({ skillsMachine: 'host-two' }))
   expect(window.location.pathname).toBe('/pages/skills/host-two')
   expect(useRemoteLanesStore.getState().filter).toBe('host-two')
+})
+
+it('New and Skills open on the machine last looked at, not the first one', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('phosphor', { invoke: vi.fn(async () => undefined) })
+  const machines = [MACHINE, { ...MACHINE, id: 'other-host' }]
+  const ready = {
+    state: 'ready' as const,
+    connectionToken: 'test',
+    capabilities: ['sessions.control' as const],
+    repositories: [],
+    lanes: [],
+  }
+  useMachinesStore.setState({ machines, remoteEnabled: true, loading: false, error: null })
+  useRemoteLanesStore.setState({
+    filter: 'all',
+    hosts: { [MACHINE.id]: ready, 'other-host': ready } as never,
+  })
+  useBrowserMemory.setState({ lastMachine: 'other-host' })
+  useLayoutStore.setState({ page: null })
+  window.history.replaceState(null, '', '/new')
+  const root = createRoot(document.createElement('div'))
+  roots.push(root)
+  await act(async () => root.render(<Harness />))
+  expect(window.location.pathname).toBe('/new/other-host')
+  clearBrowserMemory()
 })

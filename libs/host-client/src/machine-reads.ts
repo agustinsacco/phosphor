@@ -2,6 +2,7 @@ import {
   machineRecord,
   parseMachineClaude,
   parseMachineClaudeUsage,
+  parseMachineCommands,
   parseMachineModels,
   parseMachineParams,
   parseMachineProviders,
@@ -81,6 +82,17 @@ export function machineReads(connection: Connection) {
     async models(hostId: string) {
       const data = await lane(hostId).call('skills.read', 'machine.models', {})
       const result = machineRecord(data) ? parseMachineModels(data.models) : null
+      if (!result) throw new Error(REMOTE_UNAVAILABLE)
+      return result
+    },
+    /** pi's `/` commands for one configured repository (project ones included), else the Host's global list. */
+    async commands(hostId: string, repositoryId?: string) {
+      const data = await lane(hostId).call(
+        'skills.read',
+        'machine.commands',
+        repositoryId ? { repositoryId } : {},
+      )
+      const result = machineRecord(data) ? parseMachineCommands(data.commands) : null
       if (!result) throw new Error(REMOTE_UNAVAILABLE)
       return result
     },

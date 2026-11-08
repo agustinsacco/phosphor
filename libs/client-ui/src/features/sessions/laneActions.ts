@@ -17,6 +17,7 @@ export type LaneActionId =
   | 'markRead'
   | 'fork'
   | 'clone'
+  | 'moveTo'
   | 'exportHtml'
   | 'copyDebugInfo'
   | 'copySpend'
@@ -109,6 +110,7 @@ export function laneActions(
   const copies: ContextMenuItem[] = [
     ...offer('fork', 'Fork', handlers.fork, 'new branch'),
     ...offer('clone', 'Clone', handlers.clone),
+    ...offer('moveTo', 'Move to…', handlers.moveTo),
     ...offer('exportHtml', 'Export HTML…', handlers.exportHtml),
     ...offer('copyDebugInfo', 'Copy debug info', handlers.copyDebugInfo),
     ...(ctx.spend ? offer('copySpend', 'Copy spend', handlers.copySpend, ctx.spend.hint) : []),

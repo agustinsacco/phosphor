@@ -10,6 +10,7 @@ import { MACHINE_SETTINGS_MOCK, mockMachineSettingsInvoke } from './mockMachineS
 import { SKILL_SHARE_MOCK, mockSkillShareInvoke } from './mockSkillShare'
 import { INSTRUCTIONS_MOCK, mockInstructionsInvoke } from './mockInstructions'
 import { SESSION_MAINTENANCE_MOCK, mockSessionMaintenance } from './mockSessionMaintenance'
+import { MOCK_PI_COMMANDS } from './mockPiCommands'
 /**
  * Dev-only mock of the preload API so the renderer can run in a plain
  * browser (vite dev server without Electron). Replays the captured real
@@ -19,7 +20,7 @@ import { SESSION_MAINTENANCE_MOCK, mockSessionMaintenance } from './mockSessionM
 import type { AccountView } from '@shared/account'
 import type { PhosphorApi } from '@shared/ipc'
 import { mockRoutineCall, onMockRoutinesChanged } from './mockRoutines'
-import { mockTraffic } from './mockTraffic'
+import { mockHostConnectionInvoke } from './mockHostConnectionInvoke'
 import { base64ToBytes, bytesToBase64 } from '@phosphor/shared/base64'
 import type {
   ConnectorAuthPush,
@@ -1497,19 +1498,19 @@ export function installMockPhosphor(): void {
           mockClaudeAuth = { loggedIn: false }
           return Promise.resolve(undefined as never)
         case 'hosts:tailscaleStatus':
-          return { code: 'not-installed' } as never
         case 'hosts:traffic':
-          return mockTraffic(Number(args[0]) || 0)
         case 'hosts:reconnect':
-          return undefined as never
+        case 'hosts:providerLogin':
+        case 'hosts:uploadAttachments':
+        case 'hosts:laneMovePlan':
+        case 'hosts:laneMove':
+          return mockHostConnectionInvoke(channel, args) as never
         case 'hosts:repositoryFiles':
           return ['README.md', 'src/index.ts']
+        case 'hosts:commands':
+          return MOCK_PI_COMMANDS as never
         case 'hosts:repositoryFile':
           return { binary: false, size: 20, content: '# Remote repository\n', revision: null }
-        case 'hosts:providerLogin':
-          throw new Error('Provider sign-in needs a connected Host.')
-        case 'hosts:uploadAttachments':
-          throw new Error('Attachment uploads require a live Host.')
         case 'hosts:snapshot':
           return localStorage.getItem('mock:remoteLanes') === '1'
             ? localStorage.getItem('mock:remoteMixed') === '1'
@@ -1728,74 +1729,8 @@ export function installMockPhosphor(): void {
             path: '/Users/dev/.pi/agent/mcp.json',
             content: '{\n  "mcpServers": {}\n}\n',
           })
-        // Shaped like a real pi answer: skills are `skill:<name>`, every entry
-        // carries `sourceInfo`, and pi's own `/mcp` and `/llama` are built in —
-        // so the menu's grouping and origin labels are exercised in the
-        // browser harness.
-        case 'pi:commands': {
-          const pkg = (name: string, file: string) => ({
-            path: `/Users/dev/.pi/agent/npm/node_modules/${name}/${file}`,
-            source: `npm:${name}`,
-            scope: 'user' as const,
-            origin: 'package' as const,
-            baseDir: `/Users/dev/.pi/agent/npm/node_modules/${name}`,
-          })
-          return Promise.resolve({
-            commands: [
-              {
-                name: 'websearch',
-                description: 'Open web search curator',
-                source: 'extension' as const,
-                sourceInfo: pkg('pi-web-access', 'index.ts'),
-              },
-              {
-                name: 'mcp',
-                description:
-                  'Manage MCP servers: sign in, reconnect, enable or disable, and change exposure',
-                source: 'extension' as const,
-                sourceInfo: {
-                  path: 'builtin:mcp',
-                  source: 'builtin',
-                  scope: 'temporary' as const,
-                  origin: 'top-level' as const,
-                },
-              },
-              {
-                name: 'llama',
-                description: 'Manage llama.cpp router models',
-                source: 'extension' as const,
-                sourceInfo: {
-                  path: '<inline:llama.cpp>',
-                  source: 'inline',
-                  scope: 'temporary' as const,
-                  origin: 'top-level' as const,
-                },
-              },
-              {
-                name: 'plan',
-                description: 'Draft an implementation plan',
-                source: 'prompt' as const,
-                sourceInfo: {
-                  path: '/Users/dev/.pi/agent/prompts/plan.md',
-                  source: 'local',
-                  scope: 'user' as const,
-                  origin: 'top-level' as const,
-                },
-              },
-              {
-                name: 'skill:review',
-                description: 'Review the working tree and report what would block a merge.',
-                source: 'skill' as const,
-                sourceInfo: {
-                  path: '/mock/workspace/.claude/skills/review/SKILL.md',
-                  source: 'local',
-                  scope: 'project' as const,
-                  origin: 'top-level' as const,
-                },
-              },
-            ],
-          })
-        }
+        case 'pi:commands':
+          return Promise.resolve({ commands: MOCK_PI_COMMANDS })
         case 'pi:catalogueModels':
           return Promise.resolve({
             source: 'pi',

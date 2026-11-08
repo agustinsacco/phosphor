@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { CheckIcon, Spinner, WarningIcon } from '@/components/icons'
 import { tooltipProps } from '@/components/Tooltip'
+import { Tag } from '@/components/form'
 import { CopyCommand } from './MachineControls'
 import type { ReadinessCheck } from './machinePresentation'
 import type { Tone } from './machineReachability'
@@ -44,17 +45,10 @@ export function StatusPill({
   hint?: string
 }): React.JSX.Element {
   return (
-    <span
-      {...tooltipProps(hint)}
-      data-tone={tone}
-      className={clsx(
-        'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-sm font-medium',
-        PILL[tone],
-      )}
-    >
+    <Tag {...tooltipProps(hint)} data-tone={tone} size="sm" className={PILL[tone]}>
       <StatusDot tone={tone} pulse={tone === 'pending'} />
       {children}
-    </span>
+    </Tag>
   )
 }
 

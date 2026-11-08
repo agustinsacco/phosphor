@@ -8,6 +8,8 @@ import { laneActions, type LaneActionHandlers } from './laneActions'
 import {
   hostLaneContext,
   LANE_MARKS_NEED_UPDATE,
+  LANE_MOVE_NEEDS_UPDATE,
+  STOP_BEFORE_MOVE,
   ONLY_WHILE_RUNNING,
   TAKE_CONTROL_FIRST,
   type RemoteLaneActionState,
@@ -32,6 +34,7 @@ function handlers(): LaneActionHandlers {
     marker: vi.fn(),
     makeRoutine: vi.fn(),
     exportHtml: vi.fn(),
+    moveTo: vi.fn(),
     copyDebugInfo: vi.fn(),
     copySpend: vi.fn(),
     delete: vi.fn(),
@@ -73,6 +76,7 @@ describe('hostLaneContext', () => {
       'Release control',
       'Stop',
       'Mark read',
+      'Move to…',
       'Export HTML…',
       'Copy debug info',
       'Copy spend',
@@ -100,6 +104,23 @@ describe('hostLaneContext', () => {
     expect(item(items, 'Take control')?.disabled).toBe(false)
     expect(item(items, 'Mark read')?.disabled).toBe(false)
     expect(item(items, 'Pin')?.disabled).toBe(false)
+  })
+
+  it('offers Move to… only from a stopped lane on a capable Host', () => {
+    const stopped = { ...state().lane, activity: 'stopped' as const }
+    const move = (edit: Partial<RemoteLaneActionState>) =>
+      item(hostMenu(state(edit), handlers()), 'Move to…')
+    expect(move({})).toMatchObject({ disabled: true, hint: LANE_MOVE_NEEDS_UPDATE })
+    const transfer = machineCaps({
+      state: 'ready',
+      capabilities: ['sessions.control'],
+      laneTransfer: true,
+    })
+    expect(move({ caps: transfer })).toMatchObject({ disabled: true, hint: STOP_BEFORE_MOVE })
+    expect(move({ caps: transfer, lane: stopped })).toMatchObject({
+      disabled: false,
+      hint: undefined,
+    })
   })
 
   it('explains Stop until a first message, and offers Resume on a stopped lane', () => {
