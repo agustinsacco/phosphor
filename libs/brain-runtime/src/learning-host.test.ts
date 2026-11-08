@@ -699,3 +699,13 @@ it('does not record stopped or acknowledge shutdown when a disposal facade leave
   await prepared.dispose()
   expect(await readdir(f.directory)).toEqual([])
 })
+it('passes only the actual admitted frozen source to the trusted resolver for live attestation', async () => {
+  const f = await fixture()
+  const resolve = vi.fn(f.hostOptions.resolve)
+  const host = createLearningHost({ ...f.hostOptions, resolve })
+  const prepared = await host.prepare(f.target, 'job', new AbortController().signal)
+  expect(resolve.mock.calls[0]?.[4]).toEqual(prepared.checkpoint.source)
+  await prepared.dispose()
+  expect(f.stream).not.toHaveBeenCalled()
+  expect(await readFile(f.target.sessionPath, 'utf8')).toBe(f.original)
+})
