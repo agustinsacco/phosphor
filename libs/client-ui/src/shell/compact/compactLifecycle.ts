@@ -8,6 +8,7 @@ import { useSkillsStore } from '@/stores/skills'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { useMachinesStore } from '@/stores/machines'
+import { clearBrowserMemory } from './browserMemory'
 
 let cleanup: Promise<void> = Promise.resolve()
 export const waitForCompactCleanup = (): Promise<void> => cleanup
@@ -17,6 +18,7 @@ export function clearCompactUi(): void {
   useSessionsStore.getState().claimNav()
   cancelAllPrompts()
   clearRemoteStartMemory()
+  clearBrowserMemory()
   clearDraftMemory()
   clearRoutineMemory()
   useMachineCataloguesStore.setState({ catalogues: {} })

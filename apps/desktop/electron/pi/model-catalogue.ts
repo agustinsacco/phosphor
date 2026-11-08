@@ -142,9 +142,10 @@ export async function listModelsViaRpc(
   binaryPath: string,
   prefixArgs?: string[],
   env?: Record<string, string>,
+  cwd = process.cwd(),
 ): Promise<CatalogueModel[]> {
   const client = new PiRpcClient({
-    cwd: process.cwd(),
+    cwd,
     binaryPath,
     ...(prefixArgs?.length ? { prefixArgs } : {}),
     noSession: true,

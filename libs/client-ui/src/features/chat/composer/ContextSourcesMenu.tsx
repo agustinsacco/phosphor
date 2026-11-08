@@ -15,7 +15,11 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSessionsStore } from '@/stores/sessions'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { useMcpServers } from '@/features/connectors/useMcpServers'
-import { CONTEXT_BREAKDOWN_STATUS_KEY, parseContextBreakdown } from './contextBreakdown'
+import {
+  CONTEXT_BREAKDOWN_STATUS_KEY,
+  parseContextBreakdown,
+  type ContextFileEntry,
+} from './contextBreakdown'
 import { contextFileToggleState } from './contextFileToggle'
 
 /**
@@ -143,32 +147,7 @@ export function ContextSourcesMenu({
                     aria-label={`${CONTEXT_FILE_LABELS[kind]} sources`}
                   >
                     {state.files.map((file) => (
-                      <li key={file.path} className="text-text-secondary text-sm">
-                        <div className="flex items-center justify-between gap-2">
-                          <span
-                            className="font-medium"
-                            data-tooltip={
-                              file.scope === 'global'
-                                ? 'User instructions from pi’s agent directory, shared across projects.'
-                                : file.scope === 'project'
-                                  ? 'Instructions from the working directory or an ancestor directory.'
-                                  : 'This lane’s extension has not reported the file’s scope.'
-                            }
-                          >
-                            {file.scope === 'global'
-                              ? 'Global'
-                              : file.scope === 'project'
-                                ? 'Project'
-                                : 'Scope unknown'}
-                          </span>
-                          <span className="text-text-tertiary">
-                            {state.checked ? 'Included' : 'Excluded'} · ~{formatTokens(file.tokens)}
-                          </span>
-                        </div>
-                        <div className="break-all font-mono text-xs" data-tooltip={file.path}>
-                          {file.path}
-                        </div>
-                      </li>
+                      <ContextFileRow key={file.path} file={file} checked={state.checked} />
                     ))}
                   </ul>
                 )}
@@ -244,6 +223,44 @@ export function ContextSourcesMenu({
         </PopupMenu>
       )}
     </div>
+  )
+}
+
+const SCOPE_LABEL = { global: 'Global', project: 'Project' } as const
+const SCOPE_HINT = {
+  global: 'User instructions from pi’s agent directory, shared across projects.',
+  project: 'Instructions from the working directory or an ancestor directory.',
+} as const
+const MAIN_CHECKOUT_HINT =
+  'Found in the repository’s main checkout, which is on another branch. This lane sends its worktree’s own files instead.'
+
+/** One discovered file under its checkbox: where it came from, whether it is sent, what it costs. */
+function ContextFileRow({ file, checked }: { file: ContextFileEntry; checked: boolean }) {
+  const scope = file.scope ?? null
+  const mainCheckout = file.excludedBy === 'main-checkout'
+  return (
+    <li className="text-text-secondary text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className="font-medium"
+          data-tooltip={
+            scope ? SCOPE_HINT[scope] : 'This lane’s extension has not reported the file’s scope.'
+          }
+        >
+          {scope ? SCOPE_LABEL[scope] : 'Scope unknown'}
+        </span>
+        <span
+          className="text-text-tertiary"
+          data-tooltip={mainCheckout ? MAIN_CHECKOUT_HINT : undefined}
+        >
+          {mainCheckout ? 'Excluded · main checkout' : checked ? 'Included' : 'Excluded'} · ~
+          {formatTokens(file.tokens)}
+        </span>
+      </div>
+      <div className="break-all font-mono text-xs" data-tooltip={file.path}>
+        {file.path}
+      </div>
+    </li>
   )
 }
 

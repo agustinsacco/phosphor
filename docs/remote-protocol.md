@@ -83,7 +83,8 @@ needs no control:
   only the active branch's subagent calls (text dropped), subagent results and
   supervisor notices, re-chained root to leaf (`subagentEvidence` in
   `@phosphor/shared/subagent-evidence`). It is refused `too-large` above half an
-  outbound frame. The session file never crosses the wire.
+  outbound frame. This query does not transfer the session file; explicit lane
+  moves below are the exception.
 - `lane.subagentInspect` takes the lane id plus `requestId`, `runId` and an
   optional `childId` (`@phosphor/shared/subagent-inspect`): pi-subagents' request
   id form, and run ids that stay one argument and are never a flag. The Host
@@ -126,6 +127,39 @@ resumes with one reset snapshot.
 loopback transport, fake Host and reusable conformance suite. Production
 sources cannot import it; a boundary test enforces this rule. Crypto is
 injected into the fake, and the tests verify real Ed25519 proofs.
+
+## Lane snapshot transfer
+
+Hosts supporting Desktop's **Move to…** announce `laneTransfer: true` in `ready`.
+Older Hosts remain usable; moving to or from one asks the user to update it.
+`host-protocol-lane-transfer.ts` owns the bounded bundle schema, and
+`host-protocol-lane-transfer-calls.ts` owns these feature calls:
+
+- `laneTransfer.inspect { laneId }`: source facts or blocker sentences.
+- `laneTransfer.export { laneId }` → `{ exportId }`; poll `exportStatus` for the
+  bundle's size/hash, `read { exportId, offset }` for base64 chunks, then `release`.
+- `laneTransfer.check { repositoryId, source, branchPrefix, sameMachine }`: target
+  plan or blockers, without writing a lane.
+- `laneTransfer.begin { repositoryId, size, sha256, branchPrefix, sameMachine,
+notice, marks }` → `{ importId }`; ordered `chunk { importId, offset, data }`
+  fills it; `commit { importId }` starts admission; poll `importStatus` for a new
+  lane id or blockers.
+
+Both halves require `sessions.control`: the export includes raw pi and Claude
+ledgers and attached files, not only a viewer's rendered messages. Calls carry
+opaque 128-bit transfer ids, never caller-chosen filesystem destinations. The
+Host selects every destination from its configured repository. Part paths are
+relative, bounded, without dot segments, absolute paths or symlinks. Bundles and
+every part have SHA-256 checks. Chunks are at most 1 MiB decoded, bundles 256 MiB,
+with at most 4,000 parts. Staging is private, expires after an hour, and is cleared
+on restart. Completed exports retaining bytes still count against the four-export
+cap; imports admit at most two unfinished uploads. Imports commit one at a time.
+
+This explicitly transfers session files across the wire. Desktop uses a private
+temporary bundle, also when relaying Host-to-Host; Control and the two Hosts never
+relay directly to each other. Raw transcripts are not part of normal lane
+subscriptions. An uncertain commit result is unconfirmed and never retried
+automatically. The source is never modified and no prompt is replayed.
 
 ## Lane pins and markers
 

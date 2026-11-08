@@ -75,3 +75,14 @@ export function setGroupCollapsed(key: string, collapsed: boolean): void {
       .catch(() => undefined)
   })
 }
+
+/** A group's collapse, in the one collapsed-groups pref. Open until chosen. */
+export function useGroupCollapsed(key: string): [boolean, (collapsed: boolean) => void] {
+  const collapsed = useGroupCollapse((s) => s.collapsed?.[key] ?? false)
+  return [
+    collapsed,
+    (next) => {
+      if (next !== collapsed) setGroupCollapsed(key, next)
+    },
+  ]
+}

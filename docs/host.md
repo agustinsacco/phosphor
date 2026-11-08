@@ -1341,6 +1341,30 @@ empty transcript for a file not written yet. Other stopped queries fail
 is `internal` with fixed text. No pi error or stack leaves this query boundary.
 Capabilities, concurrent-call bounds and frame sizing belong to the API adapter.
 
+### Importing and exporting lanes
+
+Desktop's **Move to…** can copy a stopped lane onto or off this Host, including
+Host-to-Host through Desktop. This is an explicit exception to normal
+memory-only remote viewing: raw pi and paired Claude session files cross the
+wire. Control never carries their contents. Both export and import require
+`sessions.control`; `ready.laneTransfer` advertises support.
+
+The [transfer protocol](remote-protocol.md#lane-snapshot-transfer) stages private,
+hash-verified bundles under the Host state directory's `lane-transfer/`. Import
+rechecks the configured repository and runtime, prepares its worktree when
+needed, installs Claude state and attachments, then publishes the transcript
+and lane row. Failures undo only files and refs this import created. An existing
+clean worktree on the exact source branch/commit can be shared. The source lane
+and its files are never modified or removed.
+
+No-git folders carry conversations only. Same-origin repositories fetch the
+branch at its exact source commit; another repository creates a new branch off
+its own trunk and copies no source code. Imports reject dirty sources, conflicting
+branches, Host transcripts over 32 MiB, names above the Host's 80-character limit,
+older target pi and an unavailable saved provider/model. Claude lanes require
+pi-claude-cli 0.10.0+. Accounts, credentials, MCP setup, skills and extensions stay
+with each machine. See [Moving a lane](lanes.md#moving-a-lane) for the full contract.
+
 ### Creating lanes
 
 The lane command service creates lanes in an active configured repository or a new
@@ -1666,6 +1690,11 @@ The `skills.read` feature answers `machine.models` with the Host pi's model
 catalogue and `machine.providers` with provider names and readiness only. It
 never returns credentials or provider diagnostic text. Probes use the Host's
 validated pi binary and configured environment, not call parameters.
+`machine.commands {repositoryId?}` answers pi's `get_commands` run in that
+configured repository (its project skills, prompts and extensions included), or
+in the Host's home without one, projected to the fields the `/` menu reads
+(`parseMachineCommands`, at most 2,000 entries). The repository is one of the
+Host's own; a path is never accepted, and an unknown id is `bad-request`.
 
 Each model or command probe is one `pi --mode rpc --no-session` with a 15 s
 deadline. Once pi answers, the Host closes its stdin (pi's orderly shutdown),

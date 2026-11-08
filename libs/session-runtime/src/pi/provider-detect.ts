@@ -43,8 +43,24 @@ export function assertClaudeContextProvider(
 
 /** Enforce pi ownership even if the launcher inherited legacy provider settings. */
 export function claudeProviderSpawnEnv(): Record<string, string> {
-  return { PI_CLAUDE_CLI_CONTEXT: 'pi' }
+  return { PI_CLAUDE_CLI_CONTEXT: 'pi', PI_CLAUDE_CLI_KEEPALIVE_MS: String(CLAUDE_KEEPALIVE_MS) }
 }
+
+/**
+ * How long a session's parked Claude CLI process waits for the next turn.
+ *
+ * The parked process IS the prompt cache: it holds the conversation in the
+ * shape the API cached, and the next user turn appends to it. Once it is
+ * retired, the next turn starts a fresh CLI and imports pi's history as
+ * role-labelled text, which is a different byte sequence, so the whole context
+ * is written to the cache again even when the API-side cache is still warm.
+ * Claude Code keeps a subscription's cache for an hour; the provider's own
+ * default parks for ten minutes. Over the 30 days before this was set, three
+ * in four user turns that followed a 10-60 minute pause re-wrote their whole
+ * context (22M tokens). An idle `claude` process costs memory, not tokens, so
+ * the park matches the cache. One-shots override it with `claudeOneShotEnv`.
+ */
+export const CLAUDE_KEEPALIVE_MS = 60 * 60 * 1000
 
 /**
  * Extra environment a ONE-SHOT `pi -p` run needs when it may land on the

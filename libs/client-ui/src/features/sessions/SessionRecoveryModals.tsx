@@ -1,26 +1,37 @@
 import { lazy, Suspense } from 'react'
+import { useLaneMoveStore } from '@/stores/laneMove'
 import { useRestoreWorktree, useSavedConversation } from './completionActions'
 
 const SavedConversationModal = lazy(() =>
   import('./SavedConversationModal').then((module) => ({ default: module.SavedConversationModal })),
+)
+const LaneMoveHost = lazy(() =>
+  import('./LaneMoveModal').then((module) => ({ default: module.LaneMoveHost })),
 )
 const RestoreWorktreeModal = lazy(() =>
   import('./RestoreWorktreeModal').then((module) => ({ default: module.RestoreWorktreeModal })),
 )
 
 /**
- * A worktree-removed lane's saved conversation and its restore dialog. Mounted
- * once by the app, not the sidebar: the Machines page and completion
- * notifications open them while the sidebar may be hidden.
+ * A worktree-removed lane's saved conversation and its restore dialog, and the
+ * "Move to…" dialog. Mounted once by the app, not the sidebar: the Machines
+ * page, Host rows and completion notifications open them while the sidebar may
+ * be hidden.
  */
 export function SessionRecoveryModals(): React.JSX.Element {
   const savedConversation = useSavedConversation((s) => s.meta)
   const restoringWorktree = useRestoreWorktree((s) => s.target)
+  const moving = useLaneMoveStore((s) => s.draft !== null)
   return (
     <>
       {savedConversation && (
         <Suspense fallback={null}>
           <SavedConversationModal />
+        </Suspense>
+      )}
+      {moving && (
+        <Suspense fallback={null}>
+          <LaneMoveHost />
         </Suspense>
       )}
       {restoringWorktree && (

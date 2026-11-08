@@ -572,7 +572,15 @@ command (`claude=off agents=on`), which pi runs at once, mid-turn included,
 with no model. Files are matched by name in every directory pi searched except
 its agent directory, whose file always stays (`AGENTS.override.md` counts as
 AGENTS.md). The parser expects pi's rendering verbatim; an unknown shape is sent
-unchanged.
+unchanged. In a linked worktree the filter also drops, whatever the toggles,
+every file pi found inside the main checkout and outside the cwd
+(`main-checkout.ts`, the detector `worktree-paths.ts` uses): pi's
+parent-directory walk does not stop at the worktree root, and Phosphor's
+worktrees sit inside the checkout they branch from, so a lane was sent that
+checkout's CLAUDE.md / AGENTS.md too, another branch's rules (measured at 2.6k
+tokens per request on every Phosphor worktree lane, describing a layout three
+renames old) and a duplicate when the worktree has its own copy. The breakdown
+reports such a file with `excludedBy: 'main-checkout'` and `included: false`.
 
 Before that filter, `global-context.ts` keeps the agent directory's file current.
 pi reads it once per session start or reload, so on every request the extension

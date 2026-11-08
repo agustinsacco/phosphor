@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { create } from 'zustand'
 
 /**
@@ -12,7 +12,7 @@ import { create } from 'zustand'
  * the way the list does.
  */
 export interface LaneSelectionState {
-  /** The selecting group: a local workspace path, or a Host folder's key per list. */
+  /** The selecting group: one mounted group's key (`useGroupSelection`). */
   group: string | null
   /** Session files on This Mac, lane ids on a Host. */
   keys: readonly string[]
@@ -82,6 +82,26 @@ export function useSelectedKeys(group: string | null): readonly string[] {
 }
 
 /**
+ * One mounted group's hold on the selection, on any machine. A folder can show
+ * in two lists at once (Desktop's sidebar and Host home), so each mount keys
+ * its own: `selecting` and `selected` never read another list's selection.
+ */
+export function useGroupSelection(groupKey: string): {
+  key: string
+  selecting: boolean
+  selected: readonly string[]
+} {
+  const key = `${groupKey}@${useId()}`
+  const selecting = useLaneSelection((s) => s.group === key)
+  return { key, selecting, selected: useSelectedKeys(key) }
+}
+
+/** Which of `groups` is selecting, if any; another list's selection reads as null. */
+function useSelectingGroup(groups: readonly string[]): string | null {
+  return useLaneSelection((s) => (s.group !== null && groups.includes(s.group) ? s.group : null))
+}
+
+/**
  * A list's hold on the selection: which of its `groups` is selecting, if any.
  *
  * Escape ends select mode, except while `paused`: a confirm is a
@@ -90,9 +110,7 @@ export function useSelectedKeys(group: string | null): readonly string[] {
  * long as the list that made it, so unmounting the list drops it.
  */
 export function useSelectionOwner(groups: readonly string[], paused: boolean): string | null {
-  const owned = useLaneSelection((s) =>
-    s.group !== null && groups.includes(s.group) ? s.group : null,
-  )
+  const owned = useSelectingGroup(groups)
   const latest = useRef(groups)
   latest.current = groups
   useEffect(
