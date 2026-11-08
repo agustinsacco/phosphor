@@ -35,9 +35,9 @@ export interface LearningBoundRegistry {
   prepareBoundRequest?(
     model: LearningActualModel,
     options: {
-      expected: Omit<LearningSelectedModel, 'claudeVersion'>
+      expected: Omit<LearningSelectedModel, 'claudeVersion' | 'thinkingLevel'>
       signal: AbortSignal
-      routePolicy: 'native' | 'claude-single-response'
+      routePolicy?: 'claude-single-response'
       allowVirtual: false
       allowCustom: boolean
       allowFallback: false
@@ -99,7 +99,10 @@ function oneShotLearningStream(
     if (cli ? options.metadata?.piSingleResponse !== 1 : options.metadata !== undefined)
       throw new Error('Learning requires the qualified one-shot provider option')
     used = true
-    return bound.streamSimple(context, options)
+    // The trusted provider-owned route injects its private one-shot marker; core
+    // deliberately rejects arbitrary metadata, including this validated marker.
+    const { metadata: _metadata, ...coreOptions } = options
+    return bound.streamSimple(context, coreOptions)
   }
 }
 /** Preflight does not resolve auth values, refresh, execute shell commands, or generate. */
@@ -136,11 +139,11 @@ export async function prepareLearningAuth(
     model.contextWindow < 1
   )
     throw new Error('Learning exact selected model is unavailable or unsupported')
-  const { claudeVersion: _version, ...expected } = selected
+  const { claudeVersion: _version, thinkingLevel: _thinking, ...expected } = selected
   const bound = await registry.prepareBoundRequest(model, {
     expected,
     signal,
-    routePolicy: cli ? 'claude-single-response' : 'native',
+    ...(cli ? { routePolicy: 'claude-single-response' as const } : {}),
     allowVirtual: false,
     allowCustom: cli,
     allowFallback: false,

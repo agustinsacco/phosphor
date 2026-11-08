@@ -50,16 +50,13 @@ it.each(['oauth', 'api-key'] as const)(
     const result = await prepareLearningAuth(r, selection, new AbortController().signal)
     expect(result.binding.authMode).toBe(authMode)
     expect(result.maxOutputTokens).toBe(16000)
-    expect(r.prepareBoundRequest).toHaveBeenCalledWith(
-      model,
-      {
-        expected: { provider: selection.provider, modelId: selection.modelId },
-        signal: expect.any(AbortSignal),
-        allowVirtual: false,
-        allowFallback: false,
-        allowCustom: false,
-      },
-    )
+    expect(r.prepareBoundRequest).toHaveBeenCalledWith(model, {
+      expected: { provider: selection.provider, modelId: selection.modelId },
+      signal: expect.any(AbortSignal),
+      allowVirtual: false,
+      allowFallback: false,
+      allowCustom: false,
+    })
     expect(r.streamSimple).not.toHaveBeenCalled()
   },
 )
