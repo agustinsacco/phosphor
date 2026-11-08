@@ -1,5 +1,5 @@
 import '../maintenance/__fixtures__/memory-history'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
@@ -21,6 +21,7 @@ const state = vi.hoisted(() => {
   }
   return {
     signedIn: false,
+    brainIds: new Set<string>(),
     remote: {
       command: vi.fn(),
       respond: vi.fn(),
@@ -51,7 +52,10 @@ vi.mock('./handle', () => ({
 vi.mock('../registry', () => ({
   registry: {
     create: state.create,
-    get: () => state.session,
+    get: (id: string) =>
+      state.brainIds.has(id)
+        ? { ...state.session, owner: { kind: 'brain', jobId: 'job-1' } }
+        : state.session,
     list: state.list,
     dispose: state.dispose,
   },
@@ -100,6 +104,22 @@ vi.mock('../store', () => ({
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 import { registerPiSessionHandlers } from './pi-session-handlers'
 import { cancelSessionOpens } from '../pi/session-path-lock'
+import { spawnSession } from '../pi/session-runtime'
+
+const fixtureDirectories: string[] = []
+function ordinaryTranscript(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'brain-admission-fixture-'))
+  fixtureDirectories.push(dir)
+  const path = join(dir, 'ordinary.jsonl')
+  writeFileSync(
+    path,
+    JSON.stringify({ type: 'session', version: 3, id: 'ordinary', cwd: '/repo' }) + '\n',
+  )
+  return path
+}
+afterEach(() => {
+  for (const dir of fixtureDirectories.splice(0)) rmSync(dir, { recursive: true, force: true })
+})
 
 const event = { sender: { isDestroyed: () => false, send: vi.fn() } }
 const pkg = (version: string) => [{ name: '@saccolabs/pi-claude-cli', version, installed: true }]
@@ -107,6 +127,7 @@ const pkg = (version: string) => [{ name: '@saccolabs/pi-claude-cli', version, i
 beforeEach(() => {
   vi.clearAllMocks()
   state.signedIn = false
+  state.brainIds.clear()
   state.handlers.clear()
   state.list.mockReturnValue([])
   state.session.client.alive = true
@@ -123,6 +144,31 @@ beforeEach(() => {
 })
 
 describe('session context policy integration', () => {
+  it('keeps trusted Brain admission out of ordinary workspace maintenance', async () => {
+    await expect(
+      spawnSession({ workspacePath: '/brain/cwd' }, undefined, {
+        brain: {
+          owner: { kind: 'brain', jobId: 'job-1' },
+          cwd: '/brain/cwd',
+          agentDir: '/brain/config',
+          sessionDir: '/brain/sessions',
+          binaryPath: '/bin/pi',
+          provider: 'pi-claude-cli',
+          modelId: 'unsupported',
+          processorExtension: '/brain/brain-processor.mjs',
+        },
+      }),
+    ).rejects.toThrow('Brain Claude execution is unsupported')
+    expect(state.access).not.toHaveBeenCalled()
+  })
+
+  it('hides internal Brain processors from the ordinary live-lane projection', () => {
+    const ordinary = { sessionId: 'live-1', workspacePath: '/repo' }
+    state.brainIds.add('brain-1')
+    state.list.mockReturnValue([ordinary, { sessionId: 'brain-1', workspacePath: '/isolated' }])
+    expect(state.handlers.get('pi:listLiveSessions')!(event)).toEqual([ordinary])
+  })
+
   it.each([false, true])(
     'gives local lanes machine context only when signed in: %s',
     async (signedIn) => {
@@ -136,22 +182,22 @@ describe('session context policy integration', () => {
   )
 
   it('serializes concurrent resumes and reuses the first writer', async () => {
+    const path = ordinaryTranscript()
     state.create.mockImplementation(() => {
-      state.list.mockReturnValue([
-        { sessionId: 'live-1', workspacePath: '/repo', diskPath: '/repo/session.jsonl' },
-      ])
+      state.list.mockReturnValue([{ sessionId: 'live-1', workspacePath: '/repo', diskPath: path }])
       return state.session
     })
     const open = () =>
       state.handlers.get('pi:createSession')!(event, {
         workspacePath: '/repo',
-        sessionPath: '/repo/session.jsonl',
+        sessionPath: path,
       })
     await Promise.all([open(), open(), open()])
     expect(state.create).toHaveBeenCalledTimes(1)
   })
 
   it('interrupts startup RPC when deletion cancels a resume', async () => {
+    const path = ordinaryTranscript()
     let reject!: (error: Error) => void
     state.session.client.request.mockReturnValue(
       new Promise((_resolve, fail) => {
@@ -165,12 +211,12 @@ describe('session context policy integration', () => {
     const opening = Promise.resolve(
       state.handlers.get('pi:createSession')!(event, {
         workspacePath: '/repo',
-        sessionPath: '/repo/hung.jsonl',
+        sessionPath: path,
       }),
     )
     const result = opening.catch((error: Error) => error.name)
     await vi.waitFor(() => expect(state.session.client.request).toHaveBeenCalled())
-    cancelSessionOpens('/repo/hung.jsonl')
+    cancelSessionOpens(path)
     expect(await result).toBe('AbortError')
     expect(state.dispose).toHaveBeenCalledWith('live-1')
   })
@@ -228,10 +274,12 @@ describe('session context policy integration', () => {
       expect(options).not.toHaveProperty('noContextFiles')
       expect(options.ownProcessGroup).toBe(true)
       // A session parks its Claude CLI for the hour the prompt cache lives; only
-      // one-shots (naming, package checks) set the keepalive to 0.
+      // one-shots (naming, package checks) set the keepalive to 0. Its
+      // sub-agents ask for five-minute entries.
       expect(options.env).toMatchObject({
         PI_CLAUDE_CLI_CONTEXT: 'pi',
         PI_CLAUDE_CLI_KEEPALIVE_MS: '3600000',
+        PI_SUBAGENT_CACHE_RETENTION: 'short',
       })
       expect(options.env).not.toHaveProperty('PI_CLAUDE_CLI_SYSTEM_PROMPT')
       expect(options.env).not.toHaveProperty('PI_CLAUDE_CLI_EPHEMERAL')

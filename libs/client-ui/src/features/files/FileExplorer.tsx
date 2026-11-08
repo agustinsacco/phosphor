@@ -1,34 +1,26 @@
 import { FileTreeRow, FolderGlyph } from './FileTreeRow'
-import { IconToggle } from '@/components/IconToggle'
 import { memo, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import type { DirEntry } from '@shared/models'
 import { useFilesStore, workspaceFiles } from '@/stores/files'
-import { showContextMenu } from '@/components/ContextMenu'
+import { showContextMenu, type ContextMenuItem } from '@/components/ContextMenu'
 import { revealLabel } from '@/lib/reveal'
-import {
-  BranchIcon,
-  ChevronIcon,
-  CollapseAllIcon,
-  FileIcon,
-  ReloadIcon,
-  SearchIcon,
-} from '@/components/icons'
-import { formatShortcut } from '@/lib/shortcuts'
+import { ChevronIcon } from '@/components/icons'
 import { createIn, renameEntry, trashEntry, runFileAction } from './fileActions'
 import { useExplorer } from './useExplorer'
-import { NewEntryIcon } from './fileIcons'
-import { useWorkspaceSearchStore } from './workspaceSearchStore'
+import { ExplorerToolbar } from './ExplorerToolbar'
+import type { FilesSource } from './filesSource'
 
 export const FileExplorer = memo(function FileExplorer({
-  workspacePath,
+  source,
 }: {
-  workspacePath: string
+  source: FilesSource
 }): React.JSX.Element {
+  const { workspacePath, features, writeRefusal } = source
   const rootEntries = useFilesStore((s) => s.entries[workspacePath])
-  const showHidden = useFilesStore((s) => s.showHidden)
-  const respectGitignore = useFilesStore((s) => s.respectGitignore)
-  const controls = useExplorer(workspacePath)
+  const listError = useFilesStore((s) => s.listErrors[workspacePath])
+  const gitUnavailable = useFilesStore((s) => workspaceFiles(s, workspacePath).gitUnavailable)
+  const controls = useExplorer(source)
 
   useEffect(() => {
     const store = useFilesStore.getState()
@@ -50,91 +42,21 @@ export const FileExplorer = memo(function FileExplorer({
       onContextMenu={(event) => {
         controls.context()
         event.currentTarget.focus()
-        showContextMenu(event, [
-          {
-            label: 'New file…',
-            onClick: () => runFileAction(createIn(workspacePath, undefined, 'file')),
-          },
-          {
-            label: 'New folder…',
-            onClick: () => runFileAction(createIn(workspacePath, undefined, 'folder')),
-          },
-          ...controls.menu(),
-        ])
+        showContextMenu(event, [...createItems(source), ...controls.menu()])
       }}
     >
-      <div className="border-border flex shrink-0 flex-wrap items-center justify-between gap-1 border-b px-2 py-1">
-        <span className="text-text-tertiary text-xs font-semibold font-mono uppercase tracking-wider">
-          Explorer
-        </span>
-        <div className="flex items-center gap-0.5">
-          <IconToggle
-            title={`Search in files (${formatShortcut('mod', 'shift', 'F')})`}
-            onClick={() => useWorkspaceSearchStore.getState().openSearch(workspacePath)}
-          >
-            <SearchIcon size={12} />
-          </IconToggle>
-          {(['file', 'folder'] as const).map((kind) => (
-            <IconToggle
-              key={kind}
-              title={`New ${kind}`}
-              onClick={() => runFileAction(createIn(workspacePath, controls.selected.at(-1), kind))}
-            >
-              <NewEntryIcon kind={kind} />
-            </IconToggle>
-          ))}
-          <IconToggle
-            title="Reveal active file"
-            disabled={!controls.activePath}
-            onClick={() => {
-              if (controls.activePath)
-                useFilesStore.getState().setActive(workspacePath, controls.activePath)
-            }}
-          >
-            <FileIcon size={12} />
-          </IconToggle>
-          <IconToggle
-            title="Collapse all folders"
-            onClick={() =>
-              useFilesStore.setState((s) => ({
-                expanded: Object.fromEntries(
-                  Object.entries(s.expanded).map(([path, expanded]) => [
-                    path,
-                    path.startsWith(workspacePath + '/') || path.startsWith(workspacePath + '\\')
-                      ? false
-                      : expanded,
-                  ]),
-                ),
-              }))
-            }
-          >
-            <CollapseAllIcon />
-          </IconToggle>
-          <IconToggle
-            title="Refresh explorer"
-            onClick={() => runFileAction(useFilesStore.getState().refreshLoadedDirs(workspacePath))}
-          >
-            <ReloadIcon />
-          </IconToggle>
-          <IconToggle
-            title="Show hidden files"
-            pressed={showHidden}
-            onClick={() => useFilesStore.getState().setShowHidden(workspacePath, !showHidden)}
-          >
-            <EyeIcon />
-          </IconToggle>
-          <IconToggle
-            title="Respect .gitignore"
-            pressed={respectGitignore}
-            onClick={() =>
-              useFilesStore.getState().setRespectGitignore(workspacePath, !respectGitignore)
-            }
-          >
-            <BranchIcon size={12} />
-          </IconToggle>
-        </div>
-      </div>
+      <ExplorerToolbar source={source} controls={controls} />
       <div className="flex-1 overflow-y-auto py-1">
+        {listError && (
+          <p role="alert" className="text-text-tertiary px-3 py-2 text-base">
+            {listError}
+          </p>
+        )}
+        {gitUnavailable && (
+          <p role="status" className="text-text-tertiary px-3 py-2 text-sm">
+            Git status is unavailable.
+          </p>
+        )}
         {rootEntries === undefined && (
           <div className="text-text-tertiary animate-pulse px-3 py-2 text-base">Loading…</div>
         )}
@@ -142,14 +64,18 @@ export const FileExplorer = memo(function FileExplorer({
           <ExplorerRow
             key={entry.path}
             entry={entry}
-            workspacePath={workspacePath}
+            source={source}
             depth={0}
             controls={controls}
           />
         ))}
-        {rootEntries?.length === 0 && (
+        {rootEntries?.length === 0 && !listError && (
           <div className="text-text-tertiary px-3 py-2 text-base">
-            Empty folder. Create an entry above, drop files here, or right-click to import.
+            {writeRefusal
+              ? 'Empty folder.'
+              : features.clipboardFiles
+                ? 'Empty folder. Create an entry above, drop files here, or right-click to import.'
+                : 'Empty folder. Create an entry above.'}
           </div>
         )}
       </div>
@@ -163,11 +89,71 @@ export const FileExplorer = memo(function FileExplorer({
             ? 'Drop here · Option/Ctrl to copy'
             : controls.selected.length
               ? `${controls.selected.length} selected · right-click for actions`
-              : 'Drop files to import · right-click for actions'}
+              : features.clipboardFiles
+                ? 'Drop files to import · right-click for actions'
+                : 'Right-click for actions'}
       </div>
     </div>
   )
 })
+
+/** New file and folder, in `entry`'s folder (the root without one), when the lane takes writes. */
+function createItems(source: FilesSource, entry?: DirEntry): ContextMenuItem[] {
+  if (source.writeRefusal) return []
+  return (['file', 'folder'] as const).map((kind, index) => ({
+    label: `New ${kind}…`,
+    separatorAbove: !!entry && index === 0,
+    onClick: () => runFileAction(createIn(source.workspacePath, entry, kind)),
+  }))
+}
+
+/** A row's menu: this device's actions when it is local, then create, clipboard, rename and delete. */
+function rowMenu(
+  source: FilesSource,
+  entry: DirEntry,
+  controls: ReturnType<typeof useExplorer>,
+): ContextMenuItem[] {
+  const { workspacePath, features, writeRefusal } = source
+  const inMultiSelection =
+    controls.selected.length > 1 && controls.selected.some((e) => e.path === entry.path)
+  return [
+    ...(features.osActions
+      ? [
+          {
+            label: revealLabel(),
+            onClick: () => void window.phosphor.invoke('app:revealPath', entry.path),
+          },
+          {
+            label: 'Copy path',
+            onClick: () => void navigator.clipboard.writeText(entry.path),
+          },
+        ]
+      : []),
+    {
+      label: 'Copy relative path',
+      onClick: () => void navigator.clipboard.writeText(entry.relativePath),
+    },
+    ...createItems(source, entry),
+    ...controls.menu(entry),
+    ...(writeRefusal
+      ? []
+      : [
+          {
+            label: 'Rename…',
+            disabled: controls.busy || inMultiSelection,
+            onClick: () => runFileAction(renameEntry(workspacePath, entry)),
+          },
+          {
+            label: 'Delete',
+            disabled: controls.busy || inMultiSelection,
+            hint: 'to trash',
+            danger: true,
+            separatorAbove: true,
+            onClick: () => runFileAction(trashEntry(workspacePath, entry)),
+          },
+        ]),
+  ]
+}
 
 const STATUS_DOTS: Record<string, { color: string; label: string }> = {
   M: { color: 'var(--px-warning)', label: 'modified' },
@@ -179,15 +165,16 @@ const STATUS_DOTS: Record<string, { color: string; label: string }> = {
 
 function ExplorerRow({
   entry,
-  workspacePath,
+  source,
   depth,
   controls,
 }: {
   entry: DirEntry
-  workspacePath: string
+  source: FilesSource
   depth: number
   controls: ReturnType<typeof useExplorer>
 }): React.JSX.Element {
+  const { workspacePath } = source
   const isExpanded = useFilesStore((s) => s.expanded[entry.path] ?? false)
   const children = useFilesStore((s) => s.entries[entry.path])
   const gitStatus = useFilesStore((s) => workspaceFiles(s, workspacePath).gitStatus)
@@ -218,47 +205,7 @@ function ExplorerRow({
   const onContextMenu = (event: React.MouseEvent): void => {
     controls.context(entry)
     ;(event.currentTarget as HTMLElement).focus()
-    showContextMenu(event, [
-      {
-        label: revealLabel(),
-        onClick: () => void window.phosphor.invoke('app:revealPath', entry.path),
-      },
-      {
-        label: 'Copy path',
-        onClick: () => void navigator.clipboard.writeText(entry.path),
-      },
-      {
-        label: 'Copy relative path',
-        onClick: () => void navigator.clipboard.writeText(entry.relativePath),
-      },
-      {
-        label: 'New file…',
-        separatorAbove: true,
-        onClick: () => runFileAction(createIn(workspacePath, entry, 'file')),
-      },
-      {
-        label: 'New folder…',
-        onClick: () => runFileAction(createIn(workspacePath, entry, 'folder')),
-      },
-      ...controls.menu(entry),
-      {
-        label: 'Rename…',
-        disabled:
-          controls.busy ||
-          (controls.selected.length > 1 && controls.selected.some((e) => e.path === entry.path)),
-        onClick: () => runFileAction(renameEntry(workspacePath, entry)),
-      },
-      {
-        label: 'Delete',
-        disabled:
-          controls.busy ||
-          (controls.selected.length > 1 && controls.selected.some((e) => e.path === entry.path)),
-        hint: 'to trash',
-        danger: true,
-        separatorAbove: true,
-        onClick: () => runFileAction(trashEntry(workspacePath, entry)),
-      },
-    ])
+    showContextMenu(event, rowMenu(source, entry, controls))
   }
 
   return (
@@ -270,7 +217,7 @@ function ExplorerRow({
         data-directory={entry.isDirectory}
         aria-pressed={controls.selected.some((e) => e.path === entry.path)}
         aria-expanded={entry.isDirectory ? isExpanded : undefined}
-        draggable={!controls.busy}
+        draggable={!controls.busy && !source.writeRefusal}
         onDragStart={(event) => controls.dragStart(event, entry)}
         onClick={onClick}
         onContextMenu={onContextMenu}
@@ -317,7 +264,7 @@ function ExplorerRow({
             <ExplorerRow
               key={child.path}
               entry={child}
-              workspacePath={workspacePath}
+              source={source}
               depth={depth + 1}
               controls={controls}
             />
@@ -325,21 +272,5 @@ function ExplorerRow({
         </>
       )}
     </>
-  )
-}
-
-function EyeIcon(): React.JSX.Element {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
   )
 }

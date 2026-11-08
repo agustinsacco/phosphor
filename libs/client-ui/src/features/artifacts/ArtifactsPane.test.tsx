@@ -10,7 +10,7 @@ import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useLayoutStore } from '@/stores/layout'
-import { useRemoteFileSelection } from '@/features/files/remoteFileSelection'
+import { useFilesStore, workspaceFiles } from '@/stores/files'
 import { suggestedFileName } from './artifactKinds'
 import type { HostCapability } from '@shared/remote-host'
 vi.hoisted(() => {
@@ -194,13 +194,15 @@ it.each([
       expect(write?.disabled).toBe(false)
       await act(async () => write?.click())
       expect(invoke).toHaveBeenCalledWith('fs:writeFile', target, 'Remote document', revision)
-      expect(useRemoteFileSelection.getState().bySession[id]?.path).toBe(name)
+      expect(
+        workspaceFiles(useFilesStore.getState(), mockRemoteInfo.workspacePath).activePath,
+      ).toBe(target)
       expect(useLayoutStore.getState().bySession[id]?.pane).toBe('files')
     } finally {
       act(() => root.unmount())
       container.remove()
       useRemoteLanesStore.setState({ hosts: {} })
-      useRemoteFileSelection.setState({ bySession: {}, blocked: {} })
+      useFilesStore.setState({ byWorkspace: {} })
       vi.unstubAllGlobals()
     }
   },

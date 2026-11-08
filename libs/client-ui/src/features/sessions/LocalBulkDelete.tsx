@@ -21,7 +21,7 @@ export function LocalBulkDelete({
   selectionKey,
   workspacePath,
 }: {
-  /** This group's key in `laneSelection.ts`: its workspace path. */
+  /** This group's selection key (`useGroupSelection`). */
   selectionKey: string
   workspacePath: string
 }): React.JSX.Element | null {

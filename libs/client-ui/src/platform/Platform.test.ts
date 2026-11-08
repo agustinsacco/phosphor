@@ -26,6 +26,7 @@ it('Desktop and the browser differ only in the capabilities each declares', () =
     'feedback',
     'fileEditing',
     'installableApp',
+    'localBrain',
     'localLanes',
     'localVoice',
     'nativeFiles',

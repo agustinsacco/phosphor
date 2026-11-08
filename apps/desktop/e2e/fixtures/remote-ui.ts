@@ -84,22 +84,12 @@ export async function files(h: RemoteFixture) {
   await expect(h.page.getByText('Explorer', { exact: true })).toBeVisible()
 }
 
+/** The explorer row for a lane-relative path; its data-path is `host:<id>/lane:<id>/<path>`. */
 export function fileRow(h: RemoteFixture, name: string) {
-  const parts = name.split('/')
-  const basename = parts.at(-1) ?? name
-  let row = h.page
-    .getByRole('treeitem', { name: new RegExp(`^${basename.replaceAll('.', '\\.')}(( )|$)`) })
-    .and(h.page.locator(`[aria-level="${parts.length}"]`))
-  if (parts.length > 1) {
-    row = row.filter({
-      has: h.page
-        .locator(
-          `xpath=preceding-sibling::*[@role="treeitem" and @aria-level="${parts.length - 1}"][1]`,
-        )
-        .filter({ hasText: parts.at(-2) }),
-    })
-  }
-  return row
+  return h.page
+    .getByTestId('right-pane')
+    .getByTestId('file-explorer')
+    .locator(`xpath=.//*[substring-after(substring-after(@data-path, "/lane:"), "/") = "${name}"]`)
 }
 
 /** Host trees open collapsed: open each folder above `name` that is closed. */
@@ -112,20 +102,74 @@ export async function openFolders(h: RemoteFixture, name: string) {
   }
 }
 
+/** Opens a file from the explorer, expanding its folders first. */
 export async function file(h: RemoteFixture, name: string) {
   await openFolders(h, name)
   const row = fileRow(h, name)
   await row.click()
-  await expect(row).toHaveClass(/bg-accent-soft/)
+  await expect(row).toHaveAttribute('aria-current', 'true')
 }
 
-export async function pathPrompt(h: RemoteFixture, action: string, path: string) {
-  await h.page.getByRole('button', { name: action, exact: true }).click()
+/** New file or folder from the explorer header, in the selected folder or the root. */
+export async function create(h: RemoteFixture, kind: 'file' | 'folder', name: string) {
+  await h.page.getByRole('button', { name: `New ${kind}`, exact: true }).click()
+  await answerPrompt(h, name)
+  await expect(fileRow(h, name)).toBeVisible()
+}
+
+/** One item of a row's context menu; a pattern matches an item that carries a hint. */
+export async function rowMenu(h: RemoteFixture, name: string, item: string | RegExp) {
+  await fileRow(h, name).click({ button: 'right' })
+  await h.page.getByTestId('context-menu').getByRole('button', { name: item, exact: true }).click()
+}
+
+export async function rename(h: RemoteFixture, name: string, to: string) {
+  await rowMenu(h, name, 'Rename…')
+  await answerPrompt(h, to)
+}
+
+export async function trash(h: RemoteFixture, name: string) {
+  // "Delete" carries its "to trash" hint in its name.
+  await rowMenu(h, name, /^Delete\b/)
+  await h.page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Move to Trash', exact: true })
+    .click()
+  await expect(fileRow(h, name)).toHaveCount(0)
+}
+
+/** Drags an entry onto a folder: a move, or a copy with Option/Ctrl held. Waits for its toast. */
+export async function dropInto(h: RemoteFixture, name: string, folder: string, copy = false) {
+  const modifier = process.platform === 'darwin' ? 'Alt' : 'Control'
+  if (copy) await h.page.keyboard.down(modifier)
+  try {
+    await fileRow(h, name).dragTo(fileRow(h, folder))
+  } finally {
+    if (copy) await h.page.keyboard.up(modifier)
+  }
+  await expect(h.page.getByText(`1 item ${copy ? 'copied' : 'moved'}.`).last()).toBeVisible()
+}
+
+async function answerPrompt(h: RemoteFixture, value: string) {
   const dialog = h.page.getByRole('dialog')
-  await dialog.getByRole('textbox').fill(path)
+  await dialog.getByRole('textbox').fill(value)
   await dialog.getByRole('button', { name: 'OK', exact: true }).click()
   await expect(dialog).toBeHidden()
-  await expect(h.page.getByRole('button', { name: 'New file', exact: true })).toBeEnabled()
+}
+
+/** Cmd/Ctrl+S in the active editor, as on This Mac. */
+export async function save(h: RemoteFixture) {
+  const input = h.page.getByTestId('right-pane').locator('.monaco-editor [role="textbox"]').first()
+  await input.focus()
+  await h.page.keyboard.press('ControlOrMeta+KeyS')
+}
+
+/** The active tab's unsaved-edits dot. */
+export function unsaved(h: RemoteFixture) {
+  return h.page
+    .getByTestId('right-pane')
+    .getByRole('tab', { selected: true })
+    .locator('.rounded-full')
 }
 
 export async function edit(h: RemoteFixture, content: string) {
@@ -137,7 +181,7 @@ export async function edit(h: RemoteFixture, content: string) {
   // One text-input event avoids cursor moves between React's controlled-value updates.
   await h.page.keyboard.insertText(content)
   await expect(h.page.locator('.monaco-editor .view-lines').first()).toContainText(content)
-  await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
+  await expect(unsaved(h)).toBeVisible()
 }
 
 export async function selectMachine(h: RemoteFixture, name: string) {

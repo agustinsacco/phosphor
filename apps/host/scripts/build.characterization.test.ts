@@ -61,6 +61,9 @@ console.log(
 `
 /** Every file a fixture root's build writes, in BUILD-INFO.json's order. */
 const FIXTURE_FILES = [
+  'brain-ext/brain-learning-carrier.mjs',
+  'brain-ext/brain-processor.mjs',
+  'brain-ext/brain.mjs',
   'phosphor.mjs',
   'phosphor.mjs.map',
   'pi-ext/Upper.ts',
@@ -78,6 +81,7 @@ const FIXTURE_FILES = [
   'skills/visual-artifacts/references/mermaid.md',
 ]
 const FIXTURE_FOLDERS = [
+  'brain-ext',
   'pi-ext',
   'pi-ext/nested',
   'pi-ext/tests-only',
@@ -142,6 +146,8 @@ function fixtureRoot(main = STAMPS_MAIN): string {
   symlinkSync(join(REPO, 'node_modules/@phosphor'), join(root, 'node_modules/@phosphor'))
   const ext = 'libs/pi-extensions/pi-ext'
   for (const file of BUNDLED_EXTENSION_FILES)
+    write(root, `${ext}/${file}`, `export default '${file}'\n`)
+  for (const file of ['brain.ts', 'brain-processor.ts', 'brain-learning-carrier.ts'])
     write(root, `${ext}/${file}`, `export default '${file}'\n`)
   write(root, `${ext}/helper-store.ts`, 'export const store = 1\n')
   write(root, `${ext}/Upper.ts`, 'export const upper = 1\n')
@@ -305,9 +311,16 @@ describe('build.mjs from the repository', { timeout: 120_000 }, () => {
     const kept = tree(pi).filter(
       (path) =>
         statSync(join(pi, path)).isDirectory() ||
-        (path.endsWith('.ts') && !path.endsWith('.test.ts')),
+        (path.endsWith('.ts') && !path.endsWith('.test.ts') && !path.startsWith('brain')),
     )
     expect(tree(join(out, 'pi-ext'))).toEqual(kept)
+    expect(tree(join(out, 'brain-ext'))).toEqual([
+      'brain-learning-carrier.mjs',
+      'brain-processor.mjs',
+      'brain.mjs',
+    ])
+    for (const file of tree(join(out, 'brain-ext')))
+      expect(readFileSync(join(out, 'brain-ext', file), 'utf8')).not.toContain('@phosphor/')
     for (const file of BUNDLED_EXTENSION_FILES) expect(kept).toContain(file)
     const skills = join(REPO, 'libs/pi-extensions/skills')
     expect(tree(join(out, 'skills'))).toEqual(tree(skills))
@@ -531,6 +544,8 @@ describe('build.mjs resources and output', { timeout: 120_000 }, () => {
   it.each([
     [['headroom.ts'], 'pi-ext lacks headroom.ts'],
     [['lane-reload.ts', 'artifacts.ts'], 'pi-ext lacks artifacts.ts, lane-reload.ts'],
+    [['brain-processor.ts'], 'pi-ext lacks brain-processor.ts'],
+    [['brain-learning-carrier.ts'], 'pi-ext lacks brain-learning-carrier.ts'],
   ])('refuses pi-ext without %j', (missing, message) => {
     const root = fixtureRoot()
     for (const file of missing) rmSync(join(root, 'libs/pi-extensions/pi-ext', file))
@@ -551,7 +566,7 @@ describe('build.mjs resources and output', { timeout: 120_000 }, () => {
     ])
     expect(result.status, result.stderr).toBe(0)
     const paths = manifest(out).files.map((file: { path: string }) => file.path)
-    expect(paths).toEqual([...NATIVE_FILES, ...FIXTURE_FILES])
+    expect(paths).toEqual([...NATIVE_FILES, ...FIXTURE_FILES].sort())
     for (const path of NATIVE_FILES) {
       const source = join(native, path.slice('native/node-pty/'.length))
       expect(readFileSync(join(out, path), 'utf8')).toBe(readFileSync(source, 'utf8'))
@@ -564,10 +579,9 @@ describe('build.mjs resources and output', { timeout: 120_000 }, () => {
     const args = ['--out', out, '--sha', SHA, '--native', native, '--target', 'linux-x64']
     const result = build(fixtureRoot(), args)
     expect(result.status, result.stderr).toBe(0)
-    expect(manifest(out).files.map((file: { path: string }) => file.path)).toEqual([
-      ...NATIVE_FILES.filter((path) => !path.endsWith('spawn-helper')),
-      ...FIXTURE_FILES,
-    ])
+    expect(manifest(out).files.map((file: { path: string }) => file.path)).toEqual(
+      [...NATIVE_FILES.filter((path) => !path.endsWith('spawn-helper')), ...FIXTURE_FILES].sort(),
+    )
   })
 
   it('ignores --target without --native', () => {
@@ -719,7 +733,9 @@ describe('build.mjs resources and output', { timeout: 120_000 }, () => {
     expect(again.status, again.stderr).toBe(0)
     const second = manifest(out)
     expect(second.files.map((file: { path: string }) => file.path)).toEqual(FIXTURE_FILES)
-    expect(second.files[0].sha256).not.toBe(first.files[0].sha256)
+    const host = (info: { files: { path: string; sha256: string }[] }) =>
+      info.files.find((file) => file.path === 'phosphor.mjs')!.sha256
+    expect(host(second)).not.toBe(host(first))
     expect(stamps(out).helper).toBe('again')
     expect(readdirSync(dirname(out))).toEqual(['dist'])
   })

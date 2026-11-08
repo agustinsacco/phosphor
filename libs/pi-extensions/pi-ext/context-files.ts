@@ -264,13 +264,15 @@ interface ContextFilesApi {
 
 /**
  * Holds the lane's setting; `onChange` lets the breakdown re-publish at once.
+ * It starts from `env` and keeps it current, which is how sub-agents, started
+ * later in this process or as its children, get the setting.
  * `detect` is the Git lookup for the worktree rule, injectable so tests never
  * spawn git; it runs once per cwd, and only when a context carries one.
  */
 export default function contextFiles(
   pi: ContextFilesApi,
   onChange: (ctx: unknown) => void = () => undefined,
-  initial: string | undefined = process.env[CONTEXT_FILES_ENV],
+  env: NodeJS.ProcessEnv = process.env,
   agentDir: string = globalAgentDir(),
   detect: (cwd: string) => string | null = detectMainRepo,
 ): { off: () => ReadonlySet<ContextFileKind>; worktree: () => WorktreeInfo | null } {
@@ -286,14 +288,19 @@ export default function contextFiles(
     worktree = mainRepoPath ? { cwd, mainRepoPath } : null
   }
   try {
-    off = applyContextFileArgs(off, initial ?? '')
+    off = applyContextFileArgs(off, env[CONTEXT_FILES_ENV] ?? '')
   } catch {
     // A malformed value from the environment sends every file, as pi would.
+  }
+  const share = (): void => {
+    if (off.size > 0) env[CONTEXT_FILES_ENV] = [...off].map((kind) => `${kind}=off`).join(' ')
+    else delete env[CONTEXT_FILES_ENV]
   }
   pi.registerCommand?.(CONTEXT_FILES_COMMAND, {
     description: 'Host control: include or leave out CLAUDE.md / AGENTS.md without running a model',
     async handler(args, ctx) {
       off = applyContextFileArgs(off, args)
+      share()
       pi.appendEntry?.(CONTEXT_FILES_ENTRY, { off: [...off] })
       onChange(ctx)
     },
@@ -305,7 +312,10 @@ export default function contextFiles(
     const manager = (ctx as { sessionManager?: { getBranch?: () => unknown[] } } | undefined)
       ?.sessionManager
     const saved = savedContextFiles(manager?.getBranch?.() ?? [])
-    if (saved) off = saved
+    if (saved) {
+      off = saved
+      share()
+    }
   })
   pi.on('context_with_system', (event, ctx) => {
     locate(ctx)

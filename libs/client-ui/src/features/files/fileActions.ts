@@ -40,7 +40,10 @@ export async function createIn(
   if (!name) return
   const target = entryPath(dir, name)
   if (kind === 'file') await window.phosphor.invoke('fs:createFile', target)
-  else await window.phosphor.invoke('fs:createDir', target)
+  else {
+    await window.phosphor.invoke('fs:createDir', target)
+    useFilesStore.getState().addCreatedDir(workspacePath, target)
+  }
   const store = useFilesStore.getState()
   if (dir !== workspacePath && !store.expanded[dir]) await store.toggleDir(workspacePath, dir)
   await store.refreshDir(workspacePath, dir)

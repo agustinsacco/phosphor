@@ -16,24 +16,6 @@ export function requestReveal(groupKey: string): void {
 }
 
 /** A remounted group still answers the most recent navigation request. */
-export function LaneRevealEffect({
-  groupKey,
-  collapsed,
-  expand,
-  clearSearch,
-}: {
-  groupKey: string
-  collapsed: boolean
-  expand: () => void
-  clearSearch: () => void
-}): null {
-  useLaneReveal(groupKey, () => {
-    if (collapsed) expand()
-    clearSearch()
-  })
-  return null
-}
-
 export function useLaneReveal(groupKey: string, reveal: () => void): void {
   const request = useLaneRevealStore()
   const handled = useRef(0)

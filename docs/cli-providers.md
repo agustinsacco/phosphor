@@ -27,7 +27,11 @@ compaction retire it. Phosphor parks it for an hour between turns
 (`PI_CLAUDE_CLI_KEEPALIVE_MS` in `claudeProviderSpawnEnv`, over the provider's
 ten-minute default) because that is how long Claude Code keeps a
 subscription's prompt cache, and a retired process costs the next turn a full
-cache write ([provider-symmetry.md](provider-symmetry.md#cost-and-process-lifetime)). A thinking-level change does not: the provider applies it
+cache write ([provider-symmetry.md](provider-symmetry.md#cost-and-process-lifetime)).
+Sub-agents are the exception: `PI_SUBAGENT_CACHE_RETENTION=short` asks for
+five-minute entries on a child's requests, as Claude Code does for its own
+sub-agents, and from pi-claude-cli 0.11.0 the child's process parks for five
+minutes too. A thinking-level change does not retire the process: the provider applies it
 to the warm process before the next turn, as the request pi's own Anthropic
 provider would send (`off` disables thinking, other levels send pi's budget or
 effort, with thinking summaries). The picker lists the levels pi reports for
@@ -126,6 +130,9 @@ to cut it.
   cycle so model-select hooks cannot retire an active Claude request. Idle
   changes apply immediately; model switches reapply the cap. Smaller windows
   are never enlarged, and opting out restores the catalogue capacity.
+- **Sub-agents get the same cap.** The command also sets `PHOSPHOR_CONTEXT_BUDGET`
+  in pi's environment, and children load `context-budget.ts` through
+  `subagent-children.ts` and start from it ([chat.md](chat.md#sub-agents)).
 - The settlement check remains an idle fallback, not the primary enforcement.
   A single response/tool batch may overshoot; the next model request compacts.
   On Claude the overshoot can be one response larger, because the provider
