@@ -126,6 +126,9 @@ to cut it.
   cycle so model-select hooks cannot retire an active Claude request. Idle
   changes apply immediately; model switches reapply the cap. Smaller windows
   are never enlarged, and opting out restores the catalogue capacity.
+- **Sub-agents get the same cap.** The command also sets `PHOSPHOR_CONTEXT_BUDGET`
+  in pi's environment, and children load `context-budget.ts` through
+  `subagent-children.ts` and start from it ([chat.md](chat.md#sub-agents)).
 - The settlement check remains an idle fallback, not the primary enforcement.
   A single response/tool batch may overshoot; the next model request compacts.
   On Claude the overshoot can be one response larger, because the provider
