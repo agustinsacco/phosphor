@@ -243,7 +243,14 @@ export async function mockBrainCall(channel: string, args: unknown[]): Promise<u
         learning.learn(args[0] as BrainLearningTarget, args[1] as BrainLearningConsent),
       )
     case 'brain:learningJobs':
-      return structuredClone(learning.list(args[0] as string | undefined))
+      return structuredClone({
+        ...learning.list(args[0] as string | undefined),
+        policy: {
+          enabled: state.snapshot.prefs.enabled,
+          workspaces: state.snapshot.prefs.workspaces,
+          policyEpoch: state.snapshot.policyEpoch,
+        },
+      })
     case 'brain:learningDetail':
       return structuredClone(learning.detail(String(args[0])))
     case 'brain:process':

@@ -34,7 +34,10 @@ function commands(api: BrainApi): BrainCommands {
 }
 
 /** Desktop review/settings only. Lazy acquisition keeps failed startup retryable. */
-export function registerBrainHandlers(service: BrainService | (() => Promise<BrainService>)): void {
+export function registerBrainHandlers(
+  service: BrainService | (() => Promise<BrainService>),
+  inventory?: BrainApi['learningJobs'],
+): void {
   const invoke = async <K extends keyof BrainInvokeMap>(
     channel: K,
     ...args: BrainInvokeMap[K]['args']
@@ -60,7 +63,9 @@ export function registerBrainHandlers(service: BrainService | (() => Promise<Bra
   handle('brain:learn', (_event, target, consent) =>
     invoke('brain:learn', bounded(target), bounded(consent)),
   )
-  handle('brain:learningJobs', (_event, scope) => invoke('brain:learningJobs', scope))
+  handle('brain:learningJobs', (_event, scope) =>
+    inventory ? inventory(scope) : invoke('brain:learningJobs', scope),
+  )
   handle('brain:learningDetail', (_event, id) => invoke('brain:learningDetail', id))
   handle('brain:cancel', (_event, id) => invoke('brain:cancel', id))
   handle('brain:review', (_event, id, approve, revision) =>

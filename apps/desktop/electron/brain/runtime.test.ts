@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { SessionStartupRuntime } from '@phosphor/session-runtime/pi/session-startup'
+import type * as FsPromises from 'node:fs/promises'
 const state = vi.hoisted(() => ({
   factory: vi.fn(),
   embeds: vi.fn(),
@@ -26,7 +27,7 @@ vi.mock('electron', () => ({
   },
 }))
 vi.mock('node:fs/promises', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('node:fs/promises')>()),
+  ...(await importOriginal<typeof FsPromises>()),
   stat: state.databaseStat,
 }))
 vi.mock('../registry', () => ({ registry: state.registry }))

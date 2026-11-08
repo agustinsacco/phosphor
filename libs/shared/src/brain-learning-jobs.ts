@@ -53,6 +53,8 @@ export interface BrainLearningConsent {
 export interface BrainLearningJobList {
   items: BrainJob[]
   truncated: boolean
+  /** Shell metadata may be read without constructing an empty Brain store. */
+  policy?: { enabled: boolean; workspaces: string[]; policyEpoch: number }
 }
 export interface BrainLearningDetail {
   job: BrainJob

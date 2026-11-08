@@ -1,5 +1,7 @@
 import { app } from 'electron'
 import { join } from 'node:path'
+import { stat } from 'node:fs/promises'
+import type { BrainLearningJobList } from '@phosphor/shared/brain-learning-jobs'
 import { registry } from '../registry'
 import { desktopSessions, setSessionMemory } from '../pi/session-runtime'
 import { sessionPaths } from '../pi/session-path-lock'
@@ -23,6 +25,26 @@ export function brainService(): Promise<BrainService> {
     throw error
   })
   return pending
+}
+/** Shell inventory must not create a database merely because the app started. */
+export async function learningInventory(scope?: string): Promise<BrainLearningJobList> {
+  if (closing) throw new Error('Brain is shutting down')
+  if (!pending) {
+    const database = await stat(join(app.getPath('userData'), 'brain/memory.sqlite')).catch(
+      (error: unknown) => {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+        throw error
+      },
+    )
+    if (!database)
+      return {
+        items: [],
+        truncated: false,
+        policy: { enabled: false, workspaces: [], policyEpoch: 0 },
+      }
+    if (!database.isFile()) throw new Error('Brain database is not a regular file')
+  }
+  return (await brainService()).api.learningJobs(scope)
 }
 async function construct(): Promise<BrainService> {
   const directory = join(app.getPath('userData'), 'brain')

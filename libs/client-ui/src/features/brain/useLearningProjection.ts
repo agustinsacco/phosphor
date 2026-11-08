@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { activeLearning, setLearningPolicy, useLearningUi } from './learningUi'
+import { activeLearning, useLearningUi } from './learningUi'
 
 /** Exactly one owner in the local sidebar. Rows only select this bounded projection. */
 export function useLearningProjection(ready: boolean): string {
@@ -15,16 +15,15 @@ export function useLearningProjection(ready: boolean): string {
       clearTimeout(timer)
       loading = true
       try {
-        const [result, status] = await Promise.all([
-          window.phosphor.invoke('brain:learningJobs'),
-          window.phosphor.invoke('brain:status'),
-        ])
+        const result = await window.phosphor.invoke('brain:learningJobs')
         if (disposed) return
         useLearningUi.setState({
           jobs: result.items,
           truncated: result.truncated,
+          policyEpoch: result.policy?.policyEpoch ?? null,
+          enabled: result.policy?.enabled ?? false,
+          workspaces: result.policy?.workspaces ?? [],
         })
-        setLearningPolicy(status)
         setError('')
         if (result.items.some(activeLearning))
           timer = setTimeout(() => {

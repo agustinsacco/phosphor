@@ -43,7 +43,18 @@ function learningApi({
   return {
     learnPreview: (target) => serialize(() => learner().preview(bounded(target))),
     learn: (target, consent) => serialize(() => learner().start(bounded(target), bounded(consent))),
-    learningJobs: (scope) => store.learningJobs(scope === undefined ? undefined : bounded(scope)),
+    learningJobs: async (scope) => {
+      const list = await store.learningJobs(scope === undefined ? undefined : bounded(scope))
+      const snapshot = await store.snapshot()
+      return {
+        ...list,
+        policy: {
+          enabled: snapshot.prefs.enabled,
+          workspaces: snapshot.prefs.workspaces,
+          policyEpoch: snapshot.policyEpoch,
+        },
+      }
+    },
     learningDetail: (id) => store.learningDetail(identifier(id)),
     cancel: (id) =>
       serialize(async () => {

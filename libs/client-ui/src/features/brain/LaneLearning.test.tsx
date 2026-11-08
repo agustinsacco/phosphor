@@ -57,7 +57,14 @@ beforeEach(() => {
   const fake = createFakePhosphor({
     'brain:learnPreview': preview,
     'brain:learn': learn,
-    'brain:learningJobs': jobs,
+    'brain:learningJobs': async (...args) => ({
+      ...(await jobs(...args)),
+      policy: {
+        enabled: brainFixture().snapshot.prefs.enabled,
+        workspaces: brainFixture().snapshot.prefs.workspaces,
+        policyEpoch: brainFixture().snapshot.policyEpoch,
+      },
+    }),
     'brain:learningDetail': detail,
     'brain:status': async () => brainFixture(),
     'brain:review': review,
@@ -230,7 +237,14 @@ it('keeps read evidence through refresh, uses atomic review and never repurchase
   })
   const fake = createFakePhosphor({
     'brain:status': async () => structuredClone(status),
-    'brain:learningJobs': jobs,
+    'brain:learningJobs': async (...args) => ({
+      ...(await jobs(...args)),
+      policy: {
+        enabled: status.snapshot.prefs.enabled,
+        workspaces: status.snapshot.prefs.workspaces,
+        policyEpoch: status.snapshot.policyEpoch,
+      },
+    }),
     'brain:learningDetail': detail,
     'brain:read': read,
     'brain:review': review,
