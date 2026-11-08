@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { SWARM_COMMAND, SWARM_STATUS_KEY } from './swarm'
 import { LANE_RELOAD_COMMAND, LANE_RELOAD_STATUS_KEY } from './lane-reload'
 import { HEADROOM_STATUS_KEY } from './headroom'
+import { RELEASE_COMMAND, RELEASE_STATUS_KEY } from './release-status'
 import { SNAPSHOT_COMMAND, SNAPSHOT_WIDGET, SNAPSHOT_PREFIX } from './subagent-snapshot'
 import { CONTEXT_FILES_COMMAND } from './context-files'
 import contextBudget from './context-budget'
@@ -21,6 +22,7 @@ const goldenInventory = {
   CONTEXT_BREAKDOWN_STATUS_KEY: 'phosphor-context-breakdown',
   LANE_RELOAD_STATUS_KEY: 'phosphor-reload',
   HEADROOM_STATUS_KEY: 'phosphor-headroom',
+  RELEASE_STATUS_KEY: 'phosphor-release',
   RATE_LIMIT_STATUS_KEY: 'claude-rate-limit',
   SUBAGENTS_STATUS_KEY: 'claude-subagents',
   SUBAGENT_ASYNC_WIDGET_KEY: 'subagent-async',
@@ -34,6 +36,7 @@ const goldenInventory = {
   SNAPSHOT_COMMAND: 'phosphor-save-subagent-snapshot',
   SWARM_COMMAND: 'phosphor-swarm',
   LANE_RELOAD_COMMAND: 'phosphor-reload',
+  RELEASE_COMMAND: 'phosphor-release',
 } as const
 
 const root = resolve(import.meta.dirname, '../../..')
@@ -54,6 +57,7 @@ describe('status-keys existing wire inventory', () => {
       CONTEXT_BREAKDOWN_STATUS_KEY,
       LANE_RELOAD_STATUS_KEY,
       HEADROOM_STATUS_KEY,
+      RELEASE_STATUS_KEY,
       RATE_LIMIT_STATUS_KEY,
       SUBAGENTS_STATUS_KEY,
       SUBAGENT_ASYNC_WIDGET_KEY,
@@ -71,6 +75,7 @@ describe('status-keys existing wire inventory', () => {
       SNAPSHOT_COMMAND,
       SWARM_COMMAND,
       LANE_RELOAD_COMMAND,
+      RELEASE_COMMAND,
     }).toEqual(goldenInventory)
     // The breakdown emitter's key is private to its original entry point.
     expect(source('libs/pi-extensions/pi-ext/context-breakdown.ts')).toContain(

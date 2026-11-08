@@ -309,9 +309,9 @@ for dev builds (`0.0.0-dev.source` when no commit is stamped).
 - `pi-ext/`: the bundled extensions, copied with Desktop's filter (every `.ts`
   file but tests). A session loads them from beside the bundle unless the config
   sets `resourceRoot`.
-- `skills/visual-artifacts/`: the same authoring skill and references Desktop
-  ships. `accept` and usable `run` startup seed a user-owned copy in pi's skills
-  directory before starting sessions. Edits and deletion survive later runs; `doctor` never installs
+- `skills/`: the bundled skills Desktop ships, `visual-artifacts` (with its
+  references) and `release-setup`. `accept` and usable `run` startup seed a
+  user-owned copy of each in pi's skills directory before starting sessions. Edits and deletion survive later runs; `doctor` never installs
   it. See [the shared lifecycle](extensions.md#the-artifact-tools-and-what-each-one-costs).
 - `BUILD-INFO.json`: the version, the source commit, whether the tree had
   uncommitted changes, the Node target, and every file with its size and sha256.
@@ -321,7 +321,7 @@ untracked files when computing `sourceDirty`. Otherwise the
 version is `0.0.0-dev.<sha7>` of the source commit, HEAD unless `--sha` names
 another. The build fails if the bundle reaches Electron, `electron-store`,
 `electron-updater`, a direct `node-pty` import, Desktop or the site, imports anything but a Node
-builtin, or lacks one of the six extensions. It only replaces an empty folder or
+builtin, or lacks one of the seven extensions. It only replaces an empty folder or
 an earlier build: a real folder whose `BUILD-INFO.json` is a regular file naming
 `phosphor`, schema 1, that lists every other file in it. Anything else, a link
 inside included, is refused and left alone, and the check is repeated just
@@ -1050,7 +1050,7 @@ An invalid existing config does not get that next step.
 | `pi-node`                      | An executable file whose `--version` satisfies pi's `engines.node` as npm checks engines, prereleases included: npm comparators (`>=`, `^`, `~` and the rest) joined by spaces and `\|\|`. A range with any other part, such as `22.x`, or one that is not a string, fails. 22.19.0 or newer when pi declares none. | 69            |
 | `pi`                           | A Node script needs `pi.node` (78). `--version` is 1.2.0 or newer and matches pi's own package.json when it has one.                                                                                                                                                                                                | 69            |
 | `git`                          | `git --version` succeeds for the first `git` on pi's PATH.                                                                                                                                                                                                                                                          | 69            |
-| `extensions`                   | The six bundled extensions, and every helper they import from beside themselves, are under `<resourceRoot>/pi-ext/`.                                                                                                                                                                                                | 69            |
+| `extensions`                   | The seven bundled extensions, and every helper they import from beside themselves, are under `<resourceRoot>/pi-ext/`.                                                                                                                                                                                              | 69            |
 | `repository`                   | Each root resolves to an existing folder other than `/`. A root holding the home folder, or one level under `/`, warns; one that is not a git repository is noted.                                                                                                                                                  | 69            |
 | `agent-dir`                    | pi's agent folder exists, meaning pi has run as this user.                                                                                                                                                                                                                                                          | warning       |
 | `providers`                    | Once pi itself passes: a provider is signed in, and pi's default provider is, when it has one ([providers](#providers)). With no pi provider signed in but a ready claude lane, this is information, not a warning.                                                                                                 | warning       |
@@ -1269,7 +1269,7 @@ a lane service. It logs only `lanes.unavailable` with a fixed reason token.
   `run` opts into forwarding for its lane service.
 - **pi as pinned.** pi starts from `pi.node` and `pi.executable`, never a stub,
   with exactly the environment built above plus `PI_CLAUDE_CLI_CONTEXT=pi`:
-  nothing the Host inherited reaches it. It loads the six extensions from
+  nothing the Host inherited reaches it. It loads the seven extensions from
   `<resourceRoot>/pi-ext/` and leads its own process group.
 - **Fixed policy.** The config's `agentDirectives` switches, re-read at each lane
   start, with no per-project overrides; pi's own settings for the default provider, and pi's packages for
@@ -1328,6 +1328,14 @@ delete the lane, which still works. Stop and model changes learn pi's current
 file and update the lane index.
 An extension move followed by daemon shutdown or a crash before either can leave
 the stored file stale ([HL1](known-issues.md#host-lanes)).
+
+Live lanes hand every attached push to Host observers. The release keep-alive
+(`lanes/release-keeper.ts`) is the only one: it records a lane whose `phosphor-release`
+status has release mode on, resumes it when the Host starts and restarts it after
+an unexpected exit, with backoff, and never while the Host drains. It is the one
+exception to a lane resuming on its next message
+([release-manager.md](release-manager.md#the-host-keep-alive)). A release lane's
+quiet run ends without a _finished_ alert; _failed_ still alerts.
 
 `lanes/calls.ts` dispatches registered machine features plus repository listing
 and six lane queries: state, messages, stats, models, commands and the

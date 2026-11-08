@@ -83,6 +83,15 @@ describe('standalone extension registration', () => {
         ])
       }
       if (file === 'lane-reload.ts') expect(registered.commands).toEqual(['phosphor-reload'])
+      if (file === 'release-manager.ts') {
+        expect(registered.commands).toEqual(['phosphor-release'])
+        expect(registered.tools).toEqual([
+          'release_merge',
+          'release_memory',
+          'release_ask',
+          'release_flag',
+        ])
+      }
     },
   )
 

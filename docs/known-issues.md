@@ -201,6 +201,12 @@ means picking one path identity for a session file and using it on both sides.
 
 H1 would hold better as an ESLint rule than as another conversion pass.
 
+## Release manager
+
+| #   | Issue                                                                                                                                                                                     | Where                                                           |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| R1  | The context meter leaves out a release lane's `<phosphor_release>` system prompt section, about 1k tokens while it holds the lease: the breakdown adds Swarm's request-local section only | `libs/pi-extensions/pi-ext/context-breakdown.ts` `systemPrompt` |
+
 ## Host lanes
 
 | #   | Issue                                                                                                                                                                                                                                                                                              | Where                                                                                                                     |

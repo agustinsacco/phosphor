@@ -119,6 +119,38 @@
     "./pi-api": {
       "types": "./pi-ext/pi-api.ts",
       "default": "./pi-ext/pi-api.ts"
+    },
+    "./release-github": {
+      "types": "./pi-ext/release-github.ts",
+      "default": "./pi-ext/release-github.ts"
+    },
+    "./release-guard": {
+      "types": "./pi-ext/release-guard.ts",
+      "default": "./pi-ext/release-guard.ts"
+    },
+    "./release-hooks": {
+      "types": "./pi-ext/release-hooks.ts",
+      "default": "./pi-ext/release-hooks.ts"
+    },
+    "./release-lease": {
+      "types": "./pi-ext/release-lease.ts",
+      "default": "./pi-ext/release-lease.ts"
+    },
+    "./release-manager": {
+      "types": "./pi-ext/release-manager.ts",
+      "default": "./pi-ext/release-manager.ts"
+    },
+    "./release-prompt": {
+      "types": "./pi-ext/release-prompt.ts",
+      "default": "./pi-ext/release-prompt.ts"
+    },
+    "./release-status": {
+      "types": "./pi-ext/release-status.ts",
+      "default": "./pi-ext/release-status.ts"
+    },
+    "./release-tools": {
+      "types": "./pi-ext/release-tools.ts",
+      "default": "./pi-ext/release-tools.ts"
     }
   },
   "dependencies": {

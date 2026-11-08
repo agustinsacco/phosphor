@@ -61,8 +61,9 @@ itself. If a local package is ever needed, point the output outside the repo.
 ## Resources and release
 
 App-relative `build/` supplies platform icons, entitlements and the development
-tray. Builder copies the tray to `resources/routine-tray.png`, and the eight
-production TypeScript extension files to `resources/pi-ext` with six entrypoints.
+tray. Builder copies the tray to `resources/routine-tray.png`, and the
+production TypeScript extension files, entrypoints and the helpers they import,
+to `resources/pi-ext` (the inventory is pinned by `extension-resources.test.ts`).
 Tests are excluded; extensions remain readable outside the asar by pi.
 The two optional Brain entrypoints are excluded from this raw TypeScript copy:
 `tools/scripts/build-brain-extensions.mjs` stages standalone `brain-ext/brain.mjs`

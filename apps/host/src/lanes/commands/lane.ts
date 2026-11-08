@@ -8,7 +8,10 @@ import { log, rejected, terminal, type ReceiptPorts } from './receipts'
 import type { CommandState, Execution, Job, LaneCommandPorts, LaneQueue } from './state'
 
 export type LanePorts = ReceiptPorts &
-  Pick<LaneCommandPorts, 'publish' | 'summaryFor' | 'deleteLane' | 'resumeLane' | 'stopLane'> & {
+  Pick<
+    LaneCommandPorts,
+    'publish' | 'summaryFor' | 'deleteLane' | 'resumeLane' | 'stopLane' | 'pauseRelease'
+  > & {
     store: Pick<
       HostStore,
       'takeControl' | 'releaseControl' | 'markRead' | 'setLaneMarks' | 'getLane'
@@ -184,6 +187,8 @@ export function executeLifecycle(
   opType: LifecycleOp,
 ): Execution | undefined {
   const resume = opType === 'lane.resume'
+  // Before the no-op check: a crashed release lane is already down, but its restart is due.
+  if (!resume) ports.pauseRelease?.(admitted.laneId)
   if (resume ? admitted.sessionId !== null : admitted.sessionId === null) return undefined
   const { requestId } = job.frame
   const completion = dispatch(state, ports, job, queue, () =>

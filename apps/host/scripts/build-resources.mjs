@@ -1,7 +1,7 @@
 // What the Host carries beside its bundle: node-pty for the target when a
 // folder is given, pi's bundled extensions with Desktop's filter, the
 // skills, copied whole, and Brain's standalone bundles in brain-ext/. The
-// build fails when pi-ext lacks one of the six or a Brain source.
+// build fails when pi-ext lacks one of the seven or a Brain source.
 import { cpSync, existsSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { build } from 'esbuild'
@@ -58,7 +58,7 @@ export async function stageResources(stage, { root, native, target }) {
   await buildBrainExtensions({ root, outDir: join(stage, 'brain-ext') })
 }
 
-/** The six extensions, read from the library under `root` rather than restated here. */
+/** The seven extensions, read from the library under `root` rather than restated here. */
 export async function bundledExtensionFiles(root) {
   const listing = await build({
     absWorkingDir: root,

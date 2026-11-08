@@ -70,7 +70,7 @@ describe('independent apps/site package contract', () => {
     expect(docker).toContain('RUN npm ci --prefix apps/web --ignore-scripts')
     expect(deploy).toContain('PHOSPHOR_BUILD_SHA=${{ needs.guard.outputs.sha }}')
     expect(deploy).toContain('PHOSPHOR_WEB_ENABLED=${{ needs.guard.outputs.web_enabled }}')
-    for (const helper of ['lane-reload', 'swarm', 'subagent-snapshot']) {
+    for (const helper of ['lane-reload', 'swarm', 'subagent-snapshot', 'release-status']) {
       expect(docker).toContain(`libs/pi-extensions/pi-ext/${helper}.ts`)
       expect(read('apps/control/Dockerfile.dockerignore')).toContain(
         `!libs/pi-extensions/pi-ext/${helper}.ts`,

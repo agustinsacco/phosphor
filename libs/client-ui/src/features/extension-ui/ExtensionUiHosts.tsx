@@ -15,6 +15,7 @@ import { CONTEXT_BREAKDOWN_STATUS_KEY } from '@/features/chat/composer/contextBr
 import { MCP_INSPECTION_STATUS_KEY } from '@shared/mcp-inspection'
 import { LANE_RELOAD_STATUS_KEY } from '@phosphor/pi-extensions/lane-reload'
 import { SWARM_STATUS_KEY } from '@phosphor/pi-extensions/swarm'
+import { RELEASE_STATUS_KEY } from '@phosphor/pi-extensions/release-status'
 import { RATE_LIMIT_STATUS_KEY } from '@/features/chat/composer/rateLimit'
 import { HEADROOM_STATUS_KEY } from '@/features/chat/composer/headroomStatus'
 import {
@@ -412,10 +413,7 @@ function ToastGlyph({ toast }: { toast: Toast }): React.JSX.Element {
   return <span className="bg-info mt-1.5 h-2 w-2 shrink-0 rounded-full" />
 }
 
-/**
- * Machine payloads belong to their consumers, never the human status strip.
- * Includes native MCP inspection replies correlated by main's session service.
- */
+/** Machine payloads belong to their consumers, never the human status strip. */
 const STRUCTURED_STATUS_KEYS = new Set([
   CONTEXT_BREAKDOWN_STATUS_KEY,
   RATE_LIMIT_STATUS_KEY,
@@ -423,8 +421,10 @@ const STRUCTURED_STATUS_KEYS = new Set([
   HEADROOM_STATUS_KEY,
   // Main's reply channel for a between-turns reload; never for the user.
   LANE_RELOAD_STATUS_KEY,
+  // Native MCP inspection replies, correlated by main's session service.
   MCP_INSPECTION_STATUS_KEY,
   SWARM_STATUS_KEY,
+  RELEASE_STATUS_KEY,
 ])
 
 /**

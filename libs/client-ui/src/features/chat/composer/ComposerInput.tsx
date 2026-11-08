@@ -10,7 +10,8 @@ import { useAttachments } from './useAttachments'
 import { FileMentionMenu } from './FileMentionMenu'
 import { CommandMenu } from './CommandMenu'
 import type { useSlashMenu } from './useSlashMenu'
-import { SwarmControl, SwarmSwitch, swarmLook, useSwarm } from './SwarmSwitch'
+import { SwarmControl, swarmLook, useSwarm } from './SwarmSwitch'
+import { LaneSwitches } from './ReleaseSwitch'
 import { useFileMentions, workspaceFileSource, type FileMentionSource } from './useFileMentions'
 
 interface ComposerInputProps extends Omit<ComposerFieldProps, 'onPasteFiles'> {
@@ -155,7 +156,7 @@ export function ComposerInput({
             )}
             {swarm &&
               ('sessionId' in swarm ? (
-                <SwarmSwitch sessionId={swarm.sessionId} />
+                <LaneSwitches sessionId={swarm.sessionId} />
               ) : (
                 <SwarmControl
                   state={{ version: 1, available: true, enabled, requested: enabled }}

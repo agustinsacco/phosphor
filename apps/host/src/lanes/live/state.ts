@@ -1,4 +1,5 @@
 import type { LaneSummary } from '@phosphor/shared/host-protocol'
+import type { SessionPush } from '@phosphor/shared/models'
 import type { LaneProjection } from '@phosphor/session-runtime/lanes/projection'
 import type { createHostLaneProjection, SnapshotResult } from '../projection-host'
 import type { HostStore } from '../store'
@@ -46,4 +47,6 @@ export type LiveState = {
   resolvingCommand: boolean
   streams: LaneStreams
   lanesTopic: LanesTopic
+  /** Host features that follow an attached lane's pushes, such as the release keep-alive. */
+  observers: Set<(laneId: string, push: SessionPush) => void>
 }

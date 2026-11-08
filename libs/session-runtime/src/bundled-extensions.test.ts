@@ -12,6 +12,7 @@ describe('bundledExtensions', () => {
     // main-checkout is the worktree detector shared by worktree-paths and context-files;
     // status-keys is the shared wire vocabulary, imported by producers and consumers;
     // subagent-children is context-breakdown's, and what pi-subagents children load.
+    // the release-* helpers belong to release-manager.
     const imported = new Set([
       'context-budget.ts',
       'context-files.ts',
@@ -33,6 +34,13 @@ describe('bundledExtensions', () => {
       'brain-learning-carrier-files.ts',
       'brain-learning-carrier-operation.ts',
       'brain-learning-carrier-sdk.ts',
+      'release-github.ts',
+      'release-guard.ts',
+      'release-hooks.ts',
+      'release-lease.ts',
+      'release-prompt.ts',
+      'release-status.ts',
+      'release-tools.ts',
     ])
     // Opt-in Brain resources are bundled separately, never added to every session.
     const optional = new Set(['brain.ts', 'brain-processor.ts'])
@@ -44,7 +52,7 @@ describe('bundledExtensions', () => {
         !optional.has(name),
     )
     expect([...BUNDLED_EXTENSION_FILES].sort()).toEqual(files.sort())
-    expect(BUNDLED_EXTENSION_FILES).toHaveLength(6)
+    expect(BUNDLED_EXTENSION_FILES).toHaveLength(7)
   })
 
   it('uses the supplied development, packaged or standalone resource root', () => {
@@ -61,6 +69,6 @@ describe('bundledExtensions', () => {
 
   it('returns a new array so a caller cannot change later sessions', () => {
     bundledExtensions(root).pop()
-    expect(bundledExtensions(root)).toHaveLength(6)
+    expect(bundledExtensions(root)).toHaveLength(7)
   })
 })

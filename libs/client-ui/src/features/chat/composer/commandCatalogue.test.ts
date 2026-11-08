@@ -136,6 +136,20 @@ describe('buildCommandEntries', () => {
     expect(reload.description).toContain('before your next message')
   })
 
+  it("keeps the release control out of every lane's browse list and points to its switch", () => {
+    const release: RpcSlashCommand = {
+      name: 'phosphor-release',
+      description: 'Host control: switch release mode on, off, or take over the release lease',
+      source: 'extension',
+      sourceInfo: info('/app/pi-ext/release-manager.ts'),
+    }
+    const entries = buildCommandEntries([...REAL_PI_COMMANDS, release], [])
+    const entry = entries.find((e) => e.name === 'phosphor-release')!
+    expect(entry.demoted).toBe(true)
+    expect(entry.description).toContain('Release switch')
+    expect(byName(filterCommandEntries('', entries))).not.toContain('phosphor-release')
+  })
+
   it('carries sourceInfo through for the tooltip', () => {
     const entries = buildCommandEntries(REAL_PI_COMMANDS, [])
     expect(entries.find((e) => e.name === 'websearch')!.sourceInfo?.source).toBe(

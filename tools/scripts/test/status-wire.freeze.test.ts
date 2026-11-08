@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { SWARM_STATUS_KEY } from '../../../libs/pi-extensions/pi-ext/swarm'
 import { LANE_RELOAD_STATUS_KEY } from '../../../libs/pi-extensions/pi-ext/lane-reload'
 import { HEADROOM_STATUS_KEY } from '../../../libs/pi-extensions/pi-ext/headroom'
+import { RELEASE_STATUS_KEY } from '../../../libs/pi-extensions/pi-ext/release-status'
 import { CONTEXT_BREAKDOWN_STATUS_KEY } from '../../../libs/client-ui/src/features/chat/composer/contextBreakdown'
 import { HEADROOM_STATUS_KEY as RENDERER_HEADROOM_KEY } from '../../../libs/client-ui/src/features/chat/composer/headroomStatus'
 import { RATE_LIMIT_STATUS_KEY } from '../../../libs/client-ui/src/features/chat/composer/rateLimit'
@@ -57,6 +58,7 @@ describe('status wire runtime characterization', () => {
       RATE_LIMIT_STATUS_KEY,
       SUBAGENTS_STATUS_KEY,
       MCP_INSPECTION_STATUS_KEY,
+      RELEASE_STATUS_KEY,
     ]).toEqual(fixture.statuses.map(({ key }) => key))
     expect(BRAIN_AUDIT_STATUS_KEY).toBe(fixture.internalStatuses[0]!.key)
     expect(BRAIN_LEARNING_STATUS_KEY).toBe(fixture.internalStatuses[1]!.key)
@@ -313,6 +315,8 @@ const auditedTexts = new Map(
     'libs/session-runtime/src/pi/session-startup.ts',
     'libs/shared/src/claude-limits.ts',
     'apps/host/src/commands/accept-waits.ts',
+    'apps/host/src/lanes/live/publication.ts',
+    'apps/host/src/lanes/release-keeper.ts',
   ].map((path) => [path, readFileSync(resolve(root, path), 'utf8')]),
 )
 
@@ -494,6 +498,14 @@ describe('status wire audit regressions', () => {
     expect(audit.consumers.get('apps/host/src/commands/accept-waits.ts')).toContain(
       CONTEXT_BREAKDOWN_STATUS_KEY,
     )
+  })
+
+  it('audits the Host release readers: the quiet finished alert and the keep-alive', () => {
+    for (const path of [
+      'apps/host/src/lanes/live/publication.ts',
+      'apps/host/src/lanes/release-keeper.ts',
+    ])
+      expect(baseAudit.consumers.get(path), path).toContain(RELEASE_STATUS_KEY)
   })
 
   it('audits unbound and apply-style extension producers, but not React setters', () => {

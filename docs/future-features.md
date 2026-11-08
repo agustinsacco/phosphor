@@ -251,3 +251,24 @@ and `useHostPackages.ts`.
 
 **Risks.** Update all starts code from every package source at once, so it
 stays one explicit, reviewed task, never a background refresh.
+
+## Release manager follow-ups
+
+The [release manager](release-manager.md) is built. These parts of its design are
+not.
+
+- **The Home board.** A lane card whose repository has a release manager would
+  show its pull request's place in the queue instead of _Review merge_. Neither
+  Desktop's nor the Host's pull request fetch carries the `rm:` labels or the
+  manager's status comment that the card would need.
+- **A Desktop keep-alive.** Only the Host restarts a release lane. A Desktop lane
+  in release mode runs while Phosphor is open.
+- **Batches.** The manager merges one pull request at a time, about four an hour
+  while each base build takes fifteen minutes. The policy's `batch` key is
+  reserved for merging several behind one base build.
+- **Its own GitHub identity.** The manager acts as the signed-in user, so it
+  cannot approve that user's pull requests, and GitHub does not notify the user
+  of its comments. A bot account would fix both.
+- **A fresh session.** The release lane relies on pi's compaction. Starting a
+  new session past a size cap, or when the base changes AGENTS.md or skills, is
+  not built.

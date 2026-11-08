@@ -8,7 +8,7 @@ import { parseSessionRequest } from '../session/request'
 import { createHostRuntime, type HostRuntime } from '../session/runtime'
 import { createHostClaudeAccounts } from '../providers/accounts'
 import { hostStateDirectory } from '../lanes/state-dir'
-import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
+import { seedBundledSkills } from '@phosphor/session-runtime/bundled-skills'
 import type { Drainable } from '../shutdown'
 import { inspectHost, type DoctorContext, type DoctorReport, type HostInspection } from './doctor'
 import { laneRequest, runLane, type AcceptLaneState } from './accept-lane'
@@ -213,7 +213,7 @@ async function runLanes(
   const results: AcceptLaneResult[] = []
   const { progress } = options
   runtime.life.to('validating')
-  seedArtifactSkill(
+  seedBundledSkills(
     resourceRoot,
     context.env.PI_CODING_AGENT_DIR ?? join(context.home, '.pi', 'agent'),
   )
