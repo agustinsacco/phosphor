@@ -18,7 +18,7 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 | Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync |
 | Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                               |
 | Clients         | Web Push to a closed browser or installed PWA                                                                                                      |
-| Portability     | Cross-machine lane migration, primitive copy/sync and sharing Desktop's local runtime                                                              |
+| Portability     | Larger lane transfers, submodule/LFS support, browser relay, primitive copy/sync and sharing Desktop's local runtime                               |
 
 ## PWA attention and Web Push
 
@@ -123,55 +123,18 @@ copies fork history and how machine-specific paths are remapped.
 secrets. Copy is not fleet management: each session and each routine scheduler
 remains machine-local, consistent with AGENTS.md fact 5.
 
-## Lane migration (direction decided, design exploratory)
+## Lane portability beyond bounded copies
 
-**Problem.** A lane started on the Mac should be able to continue on bee1 when
-the Mac needs to sleep, without maintaining two active copies of the work.
+Desktop's [Move to…](lanes.md#moving-a-lane) copies saved lanes between folders
+and machines. Follow-ups are larger bundles and Host transcripts, submodule/LFS
+support, browser relay, and a detailed comparison of the target's skills,
+extensions, context files and MCP setup. The current dialog acknowledges these
+configuration differences; it does not sync them or promise provider cache hits.
 
-**Decided.** Lane migration will be built: a lane started on one machine can move to another and continue there. The design below is an exploration, not settled.
-
-**Proposed design and dependencies.** Build on retained Host state, receipts,
-controller fences, lane creation, bounded file transfer, artifact history and a
-common machine engine. This is not an existing execution capability. Migration must happen between turns, after the current turn has settled. Abort is not proof that all in-flight work was
-saved, so the UI should prefer finishing the turn before freezing it.
-
-Transfer pi's session JSONL and arrange its target cwd-mangled directory using
-`libs/session-runtime/src/pi/pi-paths.ts`. Preserve the conversation's entry
-relationships, not a renderer projection. Transfer committed work through the
-branch, and uncommitted work as a verified patch or git bundle with an explicit
-plan for untracked files. Include artifact versions, durable attachments the
-transcript references, and lane metadata such as name, branch and markers.
-`libs/session-runtime/src/pi/session-cwd.ts`, `session-writer.ts`, `electron/fs/git-worktrees.ts` and
-`stores/sessions.ts` are relevant seams, not a ready migration API.
-
-Do not transfer provider credentials, live tool processes or terminals. Absolute
-paths inside transcript/tool text cannot simply become valid on the target;
-header repair is not a safe global text replacement. External tool effects are
-not transactional and cannot be replayed as part of migration.
-
-**Handoff.** Finish or explicitly stop the turn; freeze the source read-only;
-transfer and verify content, repository state and target prerequisites; resume
-under the target's sole writer; retire the source with a pointer to the target.
-Durable receipts must distinguish transfer failure from an unknown resume
-outcome. A failed handoff must not unlock both writers. Ownership fencing and
-rollback before versus after target admission need a protocol of their own.
-
-**Caches and preflight.** Provider prompt caches are provider-held, keyed by
-account and exact prefix, with short lifetimes. A different account or system
-prompt starts cold and may behave differently. Compare versions, skills,
-extensions, context files, MCP readiness and provider/model availability before
-moving, and say what differs. Phosphor cannot transfer or guarantee a cache hit.
-
-**Open questions.** Decide lane identity across machines, source-pointer lifetime,
-how to move a non-Git workspace, and which path differences block migration.
-Define routine-owned lane eligibility, attachment discovery and target admission
-without rerunning the last prompt. Provider-specific cache behavior needs
-canaries rather than a universal lifetime promise.
-
-**Risks.** Split writers, lost unsaved work, unresolved attachments and path
-rewrites can corrupt continuity. Primitive differences can change behavior even
-when every transferred byte verifies. A sleeping source cannot complete a
-handoff, so transfer must finish before sleep.
+This is a snapshot copy, not a single-writer handoff: the source remains intact
+and the user chooses whether to delete it. Automatically retiring the source,
+transferring unsaved work and resuming on a sleeping source need a separate
+ownership protocol, not an extension of the copy operation.
 
 ## Windows builds
 

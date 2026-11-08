@@ -832,6 +832,11 @@ thousands of tokens on every request.
   A checkbox controls its filename category in the project scope, not an
   individual file. The global file always stays: it is what the user wrote for
   every lane ([Global instructions](#global-instructions)). The readout's count is enabled categories, not files.
+  In a worktree lane, a file pi inherited from the repository's main checkout
+  (an ancestor of `<repo>/.phosphor/worktrees/<name>`, on another branch) is
+  never sent, whatever the checkbox: it is listed as **Excluded · main checkout**
+  and the worktree's own copy is the one sent
+  ([extensions.md](extensions.md#bundled-extensions-phosphors-own)).
 - **In a Host lane:** the same readout and popover, read-only, because a Host
   lane has no context-files write yet. Rules show checked or unchecked as the
   lane's breakdown reports them, and connectors list the servers the lane

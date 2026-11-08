@@ -2,34 +2,23 @@ import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { MachineLabelLine } from './MachineSwitcher'
 import { SidebarFooter, SidebarNavigation } from './SidebarNavigation'
 import { RemoteLanes } from './RemoteLanes'
-import { useRemoteLanesStore, machineLabel, navigateToLane } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
 import { LaneRevealEffect, localLaneGroupKey } from './laneReveal'
 import { loadGroupCollapse, setGroupCollapsed, useGroupCollapse } from './groupCollapse'
 import { TooltipButton } from '@/components/Tooltip'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import type { GitInfo, SessionMeta, WorktreeInfo } from '@shared/models'
+import type { SessionMeta } from '@shared/models'
 import { compareSessionsByCreation } from '@shared/session-order'
-import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
+import { useSessionsStore } from '@/stores/sessions'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
-import { useChatStore } from '@/stores/chat'
-import { useExtensionUiStore } from '@/stores/extensionUi'
-import { hasDelegatedWork, SUBAGENT_ASYNC_WIDGET_KEY } from '@/features/chat/subagentRuns'
 import { useWorktreeDiscovery, type WorktreeDir } from './useWorktreeDiscovery'
-import { useSessionBooting } from '@/features/chat/BootingIndicator'
-import { promptRenameSandbox } from '@/features/workspaces/promptRenameSandbox'
-import { useMenuTriggers, type ContextMenuItem } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
-import { SessionList, useSessionOrderActions } from './SessionList'
+import { SessionList } from './SessionList'
 import { useLiveSessionNames } from './useLiveSessionNames'
 import { orderedSessions } from './sessionOrder'
-import { sessionSubtitle } from './sessionSubtitle'
-import { completionActions, openSidebarConversation } from './completionActions'
-import { PrBadge, openPullRequest } from './PrBadge'
 import { useRepoPrRefresh } from './repoPrRefresh'
 import { useLayoutStore } from '@/stores/layout'
-import { LaneMarker } from './LaneMarker'
-import { SelectableIndicator } from './LaneSelect'
 import { LaneSelectionRows, type LaneSelectMode } from './LaneSelectionRows'
 import {
   clearLaneSelection,
@@ -40,28 +29,23 @@ import {
 } from './laneSelection'
 import { confirmSessionDelete, deleteLocalRow } from './localLaneDelete'
 import { LocalBulkDelete, LocalDeleteDialogs } from './LocalBulkDelete'
-import { laneMarker } from '@/lib/laneMarker'
-import { formatCost } from '@/lib/format'
-import { useLanePrefsStore } from '@/stores/lanePrefs'
+import { SessionRow } from './LocalLaneRow'
+import { PendingSessionRow } from './LocalPendingLaneRow'
+import {
+  LocalFolderMenuRows,
+  localGroupMenuItems,
+  startLocalSession,
+  type LocalWorktreeModal,
+} from './LocalFolderMenuRows'
 import { usePullRequestsStore, localLanePullRequest } from '@/stores/pullRequests'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { makeRoutine, useRoutineLaneIndex } from '@/stores/routines'
+import { useRoutineLaneIndex } from '@/stores/routines'
+import { ChevronDownIcon, MoreIcon, PlusIcon, SearchIcon, Spinner } from '@/components/icons'
 import {
-  ChevronDownIcon,
-  MoreIcon,
-  PinIcon,
-  PlusIcon,
-  SearchIcon,
-  Spinner,
-} from '@/components/icons'
-import {
-  LaneRow,
   SectionLabel,
   WorkspaceGroupHeader,
   WorkspaceGroupTitle,
-  SessionIndicator,
   SessionRowSkeletons,
-  SubtitleSegments,
   WorkspaceGroupSkeletons,
 } from './SidebarPrimitives'
 import { TreeViewModal } from './TreeViewModal'
@@ -75,22 +59,8 @@ import {
   type GroupedSessions,
 } from './groupSessions'
 import { sessionTitle } from '@/lib/sessionTitle'
-import { useNameTransition } from './nameTransition'
-import { committedRename } from './inlineRename'
-import { cloneSession, exportSidebarSession, renameSidebarSession } from './sidebarActions'
-import {
-  applySessionRename,
-  copySessionDebugInfo,
-  copySpend,
-  exportSessionHtml,
-} from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
-
-// Keep the full emoji catalog out of startup and marker-disabled sessions.
-const MarkerPickerModal = lazy(() =>
-  import('./MarkerPickerModal').then((module) => ({ default: module.MarkerPickerModal })),
-)
 
 const SIDEBAR_WIDTH_KEY = 'phosphor:sidebarWidth'
 const SIDEBAR_MIN = 208
@@ -130,11 +100,7 @@ export function Sidebar({
   const [initialSidebarReady, setInitialSidebarReady] = useState(false)
   const [worktreeDiscoverySettled, setWorktreeDiscoverySettled] = useState(false)
   const [treeFor, setTreeFor] = useState<SessionMeta | null>(null)
-  const [worktreeModal, setWorktreeModal] = useState<{
-    kind: 'remove' | 'merge'
-    repoPath: string
-    worktree: WorktreeInfo
-  } | null>(null)
+  const [worktreeModal, setWorktreeModal] = useState<LocalWorktreeModal | null>(null)
   /** Explicit collapse choices (prefs + this run); null until prefs load. */
   const collapsed = useGroupCollapse((s) => s.collapsed)
   /**
@@ -162,17 +128,7 @@ export function Sidebar({
   const [worktreeDirs, setWorktreeDirs] = useState<WorktreeDir[]>([])
   const [workspaceMenuFor, setWorkspaceMenuFor] = useState<string | null>(null)
   const workspaceMenuTriggerRef = useRef<HTMLButtonElement>(null)
-  /** Which group's "Delete sandbox…" row is waiting for its second click. */
-  const [confirmSandboxDelete, setConfirmSandboxDelete] = useState<string | null>(null)
-  /** Which group's "Remove from sidebar" row is waiting for its second click. */
-  const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
-  const sandboxes = useWorkspacesStore((s) => s.sandboxes)
-  const sandboxPaths = useMemo(() => new Set(sandboxes.map((sandbox) => sandbox.path)), [sandboxes])
-  const closeWorkspaceMenu = (): void => {
-    setWorkspaceMenuFor(null)
-    setConfirmSandboxDelete(null)
-    setConfirmRemove(null)
-  }
+  const closeWorkspaceMenu = (): void => setWorkspaceMenuFor(null)
   const [worktreeDiscoveryEpoch, setWorktreeDiscoveryEpoch] = useState(0)
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
@@ -582,53 +538,6 @@ export function Sidebar({
     void store.refreshMissing(open.flatMap((g) => g.unscannedPaths))
   }, [groups, collapsed])
 
-  const groupMenuItems = (group: GroupedSessions): ContextMenuItem[] => {
-    const git = gitByCwd[group.workspacePath]
-    const openWorktreeModal = async (kind: 'remove' | 'merge'): Promise<void> => {
-      const repoPath = git?.mainRepoPath
-      if (!repoPath) return
-      const worktrees = await window.phosphor.invoke('git:listWorktrees', repoPath)
-      const worktree = worktrees.find(
-        (w) => w.path === group.workspacePath || w.realPath === group.workspacePath,
-      )
-      if (worktree) setWorktreeModal({ kind, repoPath, worktree })
-    }
-    return [
-      {
-        label: 'New session',
-        onClick: () => {
-          useWorkspacesStore.getState().openWorkspace(group.workspacePath)
-          useSessionsStore.getState().activate(null)
-        },
-      },
-      // Only offered when the group's own representative folder is itself a
-      // worktree — i.e. its main repo isn't a known workspace to fold into.
-      // Once both are known and merged, this lives on the top bar's branch
-      // control instead of the ambiguous, multi-folder group.
-      ...(git?.isWorktree && git.mainRepoPath
-        ? [
-            {
-              label: 'Merge into main…',
-              separatorAbove: true,
-              onClick: () => void openWorktreeModal('merge'),
-            },
-            {
-              label: 'Remove worktree…',
-              danger: true,
-              onClick: () => void openWorktreeModal('remove'),
-            },
-          ]
-        : []),
-    ]
-  }
-
-  const moveGroup = (group: GroupedSessions, direction: 'up' | 'down'): void => {
-    // A merged worktree group is represented by its main-repo workspace path,
-    // which is the entry the user sees and orders in the sidebar.
-    useWorkspacesStore.getState().moveWorkspace(group.workspacePath, direction)
-    closeWorkspaceMenu()
-  }
-
   const rowProps = (meta: SessionMeta) => {
     const livePhosphorId = liveByDisk.get(meta.path)
     // Selection follows the CLICK, not the process. A lane whose pi is still
@@ -713,7 +622,12 @@ export function Sidebar({
                     expand={() => toggleGroup(group, true)}
                     clearSearch={() => closeSearch(group.workspacePath)}
                   />
-                  <WorkspaceGroupHeader menu={() => groupMenuItems(group)} menuTitle={group.name}>
+                  <WorkspaceGroupHeader
+                    menu={() =>
+                      localGroupMenuItems(group, gitByCwd[group.workspacePath], setWorktreeModal)
+                    }
+                    menuTitle={group.name}
+                  >
                     <WorkspaceGroupTitle
                       name={group.name}
                       collapsed={isCollapsed}
@@ -774,103 +688,16 @@ export function Sidebar({
                           onSelect={(mode) => selectGroupLanes(group.workspacePath, visible, mode)}
                           onDone={closeWorkspaceMenu}
                         />
-                        <MenuRow
-                          active={false}
-                          disabled={groups.indexOf(group) === 0}
-                          onClick={() => moveGroup(group, 'up')}
-                        >
-                          Move up
-                        </MenuRow>
-                        <MenuRow
-                          active={false}
-                          disabled={groups.indexOf(group) === groups.length - 1}
-                          onClick={() => moveGroup(group, 'down')}
-                        >
-                          Move down
-                        </MenuRow>
-                        {/* Only a sandbox is renamed or deleted from here: it is
-                          Phosphor's own scratch folder, so its name and its
-                          removal are ours to offer. A project folder is the
-                          user's, so it is only ever forgotten: it leaves the
-                          sidebar and nothing on disk changes. This used to be
-                          Settings-only, and people could not find it. */}
-                        {!sandboxPaths.has(group.workspacePath) && (
-                          <MenuRow
-                            active={false}
-                            testId="workspace-group-remove"
-                            onClick={() => {
-                              // Second click confirms, in place, like a sandbox
-                              // delete: it is undone by opening the folder again.
-                              if (confirmRemove !== group.workspacePath) {
-                                setConfirmRemove(group.workspacePath)
-                                return
-                              }
-                              closeWorkspaceMenu()
-                              void useWorkspacesStore
-                                .getState()
-                                .removeWorkspace([
-                                  group.workspacePath,
-                                  ...group.paths.filter((path) => path !== group.workspacePath),
-                                ])
-                            }}
-                          >
-                            <span
-                              className={confirmRemove === group.workspacePath ? 'text-danger' : ''}
-                            >
-                              {confirmRemove === group.workspacePath
-                                ? 'Remove? Files stay on disk'
-                                : 'Remove from sidebar'}
-                            </span>
-                          </MenuRow>
-                        )}
-                        {sandboxPaths.has(group.workspacePath) && (
-                          <>
-                            <MenuRow
-                              active={false}
-                              testId="workspace-group-rename-sandbox"
-                              onClick={() => {
-                                closeWorkspaceMenu()
-                                void promptRenameSandbox(group.workspacePath)
-                              }}
-                            >
-                              Rename sandbox…
-                            </MenuRow>
-                            <MenuRow
-                              active={false}
-                              testId="workspace-group-delete-sandbox"
-                              onClick={() => {
-                                // Second click confirms, in place — a sandbox goes
-                                // to the Trash, so a modal would cost more than the
-                                // mistake it prevents.
-                                if (confirmSandboxDelete !== group.workspacePath) {
-                                  setConfirmSandboxDelete(group.workspacePath)
-                                  return
-                                }
-                                closeWorkspaceMenu()
-                                void useWorkspacesStore
-                                  .getState()
-                                  .deleteSandbox(group.workspacePath)
-                              }}
-                            >
-                              <span
-                                className={
-                                  confirmSandboxDelete === group.workspacePath ? 'text-danger' : ''
-                                }
-                              >
-                                {confirmSandboxDelete === group.workspacePath
-                                  ? 'Delete, with its chats?'
-                                  : 'Delete sandbox…'}
-                              </span>
-                            </MenuRow>
-                          </>
-                        )}
+                        <LocalFolderMenuRows
+                          group={group}
+                          first={groups.indexOf(group) === 0}
+                          last={groups.indexOf(group) === groups.length - 1}
+                          onDone={closeWorkspaceMenu}
+                        />
                       </PopupMenu>
                     )}
                     <TooltipButton
-                      onClick={() => {
-                        useWorkspacesStore.getState().openWorkspace(group.workspacePath)
-                        useSessionsStore.getState().activate(null)
-                      }}
+                      onClick={() => startLocalSession(group.workspacePath)}
                       data-testid="workspace-group-new-session"
                       title="New session here"
                       className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90"
@@ -1158,623 +985,3 @@ function WorkspaceSwitcher(): React.JSX.Element {
     </div>
   )
 }
-
-/**
- * What a row says it is doing, in the subtitle's time slot.
- *
- * `opening` is the only one that is not about the agent: it covers the click
- * → process-up window, which is otherwise a second or more of a row that
- * looks exactly like every idle row beside it.
- */
-// One line, always. A narrow sidebar used to wrap every long title onto a
-// second line, so the list re-flowed as the user dragged the divider and a
-// lane stopped being a fixed-height row. The full title stays in the tooltip.
-const SESSION_TITLE_CLASS = 'text-text block truncate text-lg font-medium leading-5'
-
-function SessionRow({
-  meta,
-  workspacePath,
-  livePhosphorId,
-  active,
-  opening = false,
-  unseen,
-  git,
-  isPinned,
-  showWorkspace = false,
-  onOpenTree,
-  onDelete,
-  selected = false,
-  selecting = false,
-  onToggleSelect,
-}: {
-  meta: SessionMeta
-  workspacePath: string
-  livePhosphorId?: string
-  active: boolean
-  /** This lane's process is still coming up for the click that just happened. */
-  opening?: boolean
-  /** Activity the user hasn't viewed yet (persisted across restarts). */
-  unseen: boolean
-  git?: GitInfo
-  isPinned: boolean
-  /**
-   * Show the workspace badge. Set for groups that mix projects (Pinned),
-   * where the group header cannot tell you which app a thread belongs to.
-   */
-  showWorkspace?: boolean
-  onOpenTree: () => void
-  /** This row is in the current selection. */
-  selected?: boolean
-  /** The group this row belongs to has an active selection. */
-  selecting?: boolean
-  /**
-   * Absent for rows that cannot be selected — the Pinned list, which mixes
-   * projects, so a selection there would span repos.
-   */
-  onToggleSelect?: (shiftKey: boolean) => void
-  onDelete: (title: string) => void
-}): React.JSX.Element {
-  const orderActions = useSessionOrderActions()
-  const isStreaming = useChatStore((s) =>
-    livePhosphorId ? (s.sessions[livePhosphorId]?.isStreaming ?? false) : false,
-  )
-  const delegated = useExtensionUiStore((s) =>
-    livePhosphorId
-      ? hasDelegatedWork(s.widgets[livePhosphorId]?.[SUBAGENT_ASYNC_WIDGET_KEY]?.lines)
-      : false,
-  )
-  // Prompt sent, pi not started yet: the row pulses like a streaming one, or
-  // a lane that is genuinely booting reads as idle in the list.
-  const booting = useSessionBooting(livePhosphorId)
-  const isSuspended = useSessionsStore((s) => s.suspendedPaths.includes(meta.path))
-  const deleting = useSessionsStore(
-    (s) => laneIsBeingDeleted(s.bulkDelete, meta.path) || s.deletingSessionKeys.includes(meta.path),
-  )
-  const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
-  // Derived here rather than threaded through `rowProps` so a Pinned row — which
-  // may belong to a different project than the one on screen — resolves its own.
-  const pullRequest = usePullRequestsStore((s) => localLanePullRequest(s, meta, git))
-  const showPrStatus = useLanePrefsStore((s) => s.lanes.prStatus)
-  const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
-  const markerMode = useLanePrefsStore((s) => s.lanes.markers)
-  // Keyed on the branch, not the title: Phosphor names a session only after its
-  // first turn ends, so a title-derived marker would change under the user the
-  // moment the auto-namer landed.
-  const marker = laneMarker(explicitMarker, git?.branch, meta.cwd, markerMode)
-  const naming = useNameTransition(livePhosphorId)
-  // A live session's own name beats the scanned one: `meta.name` follows a
-  // rename only once the folder watcher's debounce has passed. The top bar
-  // reads the live store and would rename while this row did not.
-  const liveName = useChatStore((s) =>
-    livePhosphorId ? s.sessions[livePhosphorId]?.meta?.sessionName : undefined,
-  )
-  const title =
-    sessionTitle(
-      { explicitName: liveName ?? meta.name, firstUserText: meta.firstUserText },
-      { elide: false },
-    ) ?? 'Untitled session'
-
-  const [renaming, setRenaming] = useState(false)
-  const [renameValue, setRenameValue] = useState('')
-  const [pickingMarker, setPickingMarker] = useState(false)
-
-  /**
-   * Markers already spoken for on this machine, in any workspace, so the
-   * picker can dim them (a Host's picker dims its own lanes' alike).
-   * Derived from EXPLICIT choices only: auto markers collide by design (the
-   * palette is finite) and dimming them would grey out most of the grid.
-   */
-  const usedMarkers = useSessionsStore((s) => s.laneMarkers)
-  const takenMarkers = useMemo(() => {
-    const taken = new Set<string>()
-    for (const [path, glyph] of Object.entries(usedMarkers)) {
-      if (path !== meta.path && glyph) taken.add(glyph)
-    }
-    return taken
-  }, [usedMarkers, meta.path])
-
-  const beginRename = (): void => {
-    setRenameValue(title)
-    setRenaming(true)
-  }
-
-  const applyRename = (): void => {
-    const name = committedRename(renameValue, title)
-    setRenaming(false)
-    if (!name) return
-    void renameSidebarSession(workspacePath, meta, name, livePhosphorId)
-  }
-
-  const cancelRename = (): void => {
-    setRenaming(false)
-    setRenameValue('')
-  }
-  // Badge reads the session's own cwd, so a Pinned row shows the project it
-  // actually belongs to rather than whatever is on screen. Project only — the
-  // subtitle beneath it already carries `wt` and the branch.
-  const rowWorkspaceName = projectName(meta.cwd || workspacePath, git)
-
-  const open = (): void => openSidebarConversation(workspacePath, meta)
-  const menuItems = (): ContextMenuItem[] => {
-    const store = useSessionsStore.getState()
-    return [
-      { label: 'Open', onClick: open },
-      ...orderActions,
-      { label: 'Session tree…', onClick: onOpenTree },
-      ...completionActions(workspacePath, meta),
-      {
-        label: 'Make routine…',
-        onClick: () => makeRoutine(workspacePath, meta.name ?? '', meta.firstUserText ?? ''),
-      },
-      {
-        label: isPinned ? 'Unpin' : 'Pin',
-        onClick: () => store.togglePin(meta.path),
-      },
-      ...(markerMode === 'off'
-        ? []
-        : [{ label: 'Lane marker…', onClick: () => setPickingMarker(true) }]),
-      // Keyboard route for the PR chip (see PrBadge).
-      ...(pullRequest
-        ? [
-            {
-              label: `Open pull request #${pullRequest.number}`,
-              hint: pullRequest.state.toLowerCase(),
-              onClick: () => void openPullRequest(pullRequest),
-            },
-          ]
-        : []),
-      // "Stop", as on a Host lane: the process ends, the transcript stays.
-      ...(livePhosphorId
-        ? [
-            {
-              label: 'Stop',
-              hint: '~200 MB',
-              onClick: () => void store.suspendSession(livePhosphorId),
-            },
-          ]
-        : []),
-      ...(unseen
-        ? [{ label: 'Mark read', onClick: () => store.markRead(meta.path, livePhosphorId) }]
-        : []),
-      {
-        label: 'Fork',
-        hint: 'new branch',
-        separatorAbove: true,
-        onClick: () => void store.createSession(workspacePath, { forkFrom: meta.path }),
-      },
-      {
-        label: 'Clone',
-        onClick: () => void cloneSession(workspacePath, meta, livePhosphorId),
-      },
-      {
-        label: 'Export HTML…',
-        onClick: () => void exportSidebarSession(workspacePath, meta, livePhosphorId),
-      },
-      {
-        label: 'Copy debug info',
-        onClick: () => void copySessionDebugInfo(meta, livePhosphorId),
-      },
-      // Spend left the row itself: it is a detail you go looking for, so it
-      // waits here (and in the Home ledger) rather than trailing every lane.
-      ...(meta.cost > 0
-        ? [
-            {
-              label: 'Copy spend',
-              hint: formatCost(meta.cost),
-              onClick: () => void copySpend(meta.cost),
-            },
-          ]
-        : []),
-      {
-        label: 'Delete',
-        hint: bulkDeleteRunning ? 'another delete is running' : 'to trash',
-        danger: true,
-        separatorAbove: true,
-        disabled: bulkDeleteRunning,
-        onClick: () => onDelete(title),
-      },
-    ]
-  }
-  const menu = useMenuTriggers(menuItems, { title })
-
-  const subtitle = sessionSubtitle(meta, git)
-  const activity =
-    isStreaming || delegated ? 'working' : opening ? 'opening' : booting ? 'starting' : undefined
-  const indicatorState = activity
-    ? 'streaming'
-    : unseen
-      ? 'unseen'
-      : livePhosphorId
-        ? 'live'
-        : 'disk'
-
-  const rowClassName = clsx(
-    'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-[color,background-color,opacity]',
-    // Selection stays a neutral fill. Working gets a separate inset rail,
-    // beacon and explicit label, even when the lane is not the active one.
-    active ? 'bg-sidebar-active' : !deleting && 'hover:bg-sidebar-hover',
-    selected && 'bg-accent-soft',
-    deleting && 'cursor-wait opacity-45',
-  )
-
-  const body = (
-    <>
-      <SelectableIndicator
-        state={indicatorState}
-        select={
-          onToggleSelect && !deleting
-            ? { title, selected, selecting, onToggle: onToggleSelect }
-            : undefined
-        }
-      />
-      {markerMode !== 'off' && (
-        <LaneMarker marker={marker} onPick={deleting ? undefined : () => setPickingMarker(true)} />
-      )}
-      <span className="min-w-0 flex-1">
-        {renaming ? (
-          <RenameInput
-            value={renameValue}
-            onChange={setRenameValue}
-            onCommit={applyRename}
-            onCancel={cancelRename}
-          />
-        ) : (
-          <span
-            // Re-keyed on the title so the arrival of a generated name replays
-            // the entrance; without it React patches the text node in place and
-            // the name simply pops.
-            key={title}
-            data-tooltip={naming.pending ? 'Naming this chat…' : title}
-            data-testid="session-title"
-            className={clsx(
-              SESSION_TITLE_CLASS,
-              // Shimmers while pending, same as the top bar (.name-pending in
-              // index.css) — a session you just created is watched here in
-              // the sidebar at least as often as in the top bar, and a name
-              // sitting still read as settled rather than still in flight.
-              // The branch chip in BranchControl stays arrival-only: that combo
-              // (this row, the top bar, the chip, all three at once) is what
-              // previously made starting a chat read as busy.
-              naming.pending && 'name-pending',
-              naming.settled && 'name-enter',
-            )}
-          >
-            {title}
-          </span>
-        )}
-        <span
-          className={clsx(
-            'flex items-center gap-1 text-base leading-4',
-            active ? 'text-text' : 'text-text-secondary',
-          )}
-        >
-          {isSuspended && (
-            <span
-              className="bg-chip text-text-secondary mr-0.5 shrink-0 rounded px-1 font-medium"
-              data-tooltip="Suspended to save memory · opening resumes it"
-            >
-              suspended
-            </span>
-          )}
-          <SubtitleSegments segments={subtitle} activity={activity} />
-          {showPrStatus && pullRequest && <PrBadge pr={pullRequest} />}
-        </span>
-      </span>
-      {deleting && (
-        <span className="bg-chip text-text-secondary shrink-0 rounded px-1.5 py-px text-2xs font-medium">
-          deleting
-        </span>
-      )}
-      {showWorkspace && rowWorkspaceName && (
-        <span
-          data-testid="session-workspace-badge"
-          data-tooltip={meta.cwd || workspacePath}
-          className="bg-chip text-text-secondary shrink-0 rounded px-1.5 py-px text-2xs font-medium"
-        >
-          {rowWorkspaceName}
-        </span>
-      )}
-      {isPinned && <PinIcon className="text-text-tertiary shrink-0" />}
-    </>
-  )
-
-  // While the inline editor is up the row is a <div>, not a <button>. A text
-  // field inside a button is invalid HTML (Chromium tolerates the caret, but
-  // the row is announced as one button containing an unlabelled field, and
-  // Enter/Space inside it are the button's to claim). Swapping the tag also
-  // means there are no row handlers to suppress while editing — no
-  // `renaming ? undefined : open` and no stopPropagation on the input.
-  // ModalOverlay portals, so this is a sibling of the row in the DOM rather
-  // than a dialog nested inside a <button>.
-  const markerPicker = pickingMarker && markerMode !== 'off' && (
-    <Suspense fallback={null}>
-      <MarkerPickerModal
-        title={title}
-        current={explicitMarker}
-        autoKey={git?.branch || meta.cwd}
-        mode={markerMode}
-        usedMarkers={takenMarkers}
-        onPick={(next) => {
-          useSessionsStore.getState().setLaneMarker(meta.path, next)
-          setPickingMarker(false)
-        }}
-        onClose={() => setPickingMarker(false)}
-      />
-    </Suspense>
-  )
-
-  if (renaming) {
-    return (
-      <>
-        <div
-          data-testid="session-row"
-          data-workspace={rowWorkspaceName}
-          data-activity={activity}
-          data-deleting={deleting || undefined}
-          aria-disabled={deleting}
-          className={rowClassName}
-        >
-          {body}
-        </div>
-        {markerPicker}
-      </>
-    )
-  }
-
-  return (
-    <>
-      <LaneRow
-        onClick={open}
-        {...menu}
-        onDoubleClick={beginRename}
-        disabled={deleting}
-        aria-busy={deleting}
-        data-testid="session-row"
-        data-workspace={rowWorkspaceName}
-        data-activity={activity}
-        data-deleting={deleting || undefined}
-        tooltip={deleting ? 'Deleting lane' : title}
-        title={
-          deleting
-            ? 'This lane is being deleted'
-            : meta.branchCount > 0
-              ? `${meta.branchCount + 1} branches`
-              : undefined
-        }
-        className={rowClassName}
-      >
-        {body}
-      </LaneRow>
-      {markerPicker}
-    </>
-  )
-}
-
-/**
- * The inline rename field, shared by both row types.
- *
- * Shared rather than duplicated for the same reason the subtitle is: a live
- * session swaps from `PendingSessionRow` to `SessionRow` mid-turn, and the
- * editor must not change shape under the caret when it does.
- */
-function RenameInput({
-  value,
-  onChange,
-  onCommit,
-  onCancel,
-}: {
-  value: string
-  onChange: (next: string) => void
-  onCommit: () => void
-  onCancel: () => void
-}): React.JSX.Element {
-  return (
-    <input
-      autoFocus
-      // Pre-selected: a double-click rename usually replaces the whole
-      // generated title rather than editing a word of it.
-      onFocus={(e) => e.target.select()}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={onCommit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-        if (e.key === 'Escape') onCancel()
-      }}
-      aria-label="Session name"
-      className="border-border focus:border-accent block w-full min-w-0 rounded border bg-transparent px-1 py-px text-base leading-4 outline-none"
-      data-tooltip="Session name"
-    />
-  )
-}
-
-/**
- * Row for a live session that has no session file yet.
- *
- * Deliberately not a `SessionRow`: most actions there are keyed on
- * `meta.path` (fork, pin, lane marker, open-from-disk), and this
- * session may have no path to act on. Rename and export use the live process.
- * Delete uses its handle, stopping it even if no transcript was ever saved. They
- * used to be missing entirely, which made a session unrenameable for the
- * whole of its first turn: exactly the minutes when its name is still a
- * placeholder and the user most wants to fix it.
- *
- * **Replaced mid-turn.** pi writes a session's file when the first message
- * is sent, so this row stands in until the folder watcher reports it, usually
- * while the first reply is still streaming, and is then replaced by a
- * `SessionRow`. That swap has to be
- * invisible, which is why the subtitle below is the same `time · wt · branch`
- * shape the disk-backed row uses rather than the "naming…" / "starting…" text
- * it used to show. Two different subtitles on one row within a few seconds
- * read as the row being replaced, which is exactly what was happening.
- */
-function PendingSessionRow({
-  phosphorId,
-  active,
-  git,
-  onDelete,
-}: {
-  phosphorId: string
-  active: boolean
-  git?: GitInfo
-  onDelete: (title: string) => void
-}): React.JSX.Element {
-  const orderActions = useSessionOrderActions()
-  const isStreaming = useChatStore((s) => s.sessions[phosphorId]?.isStreaming ?? false)
-  const delegated = useExtensionUiStore((s) =>
-    hasDelegatedWork(s.widgets[phosphorId]?.[SUBAGENT_ASYNC_WIDGET_KEY]?.lines),
-  )
-  const booting = useSessionBooting(phosphorId)
-  const activity = isStreaming || delegated ? 'working' : booting ? 'starting' : undefined
-  const firstUserText = useChatStore(
-    (s) => s.sessions[phosphorId]?.items.find((item) => item.kind === 'user')?.text,
-  )
-  const explicitName = useChatStore((s) => s.sessions[phosphorId]?.meta?.sessionName)
-  const naming = useNameTransition(phosphorId)
-  const title = sessionTitle({ explicitName, firstUserText }, { elide: false }) ?? 'New session'
-  // No invented timestamp: this can be an old orphan, not a new session.
-  const subtitle = sessionSubtitle({}, git)
-  const deleting = useSessionsStore(
-    (s) =>
-      s.deletingSessionKeys.includes(phosphorId) ||
-      Boolean(
-        s.live[phosphorId]?.diskPath &&
-        s.deletingSessionKeys.includes(s.live[phosphorId]!.diskPath!),
-      ),
-  )
-  // The marker slot has to be here too, and derived the same way. This row is
-  // swapped for a real SessionRow the moment the session file lands, and a
-  // slot that appeared only after the swap would shift the title mid-turn —
-  // the exact twitch the shared subtitle above exists to avoid. There is no
-  // meta.path yet, so there can be no explicit override: always Auto.
-  const markerMode = useLanePrefsStore((s) => s.lanes.markers)
-  const marker = laneMarker(undefined, git?.branch, null, markerMode)
-
-  const [renaming, setRenaming] = useState(false)
-  const [renameValue, setRenameValue] = useState('')
-
-  const beginRename = (): void => {
-    setRenameValue(title)
-    setRenaming(true)
-  }
-
-  const applyRename = (): void => {
-    const name = committedRename(renameValue, title)
-    setRenaming(false)
-    if (!name) return
-    // No `refreshDisk` follow-up, unlike the disk-backed row: there is no file
-    // to rescan yet. `applySessionRename` patches the chat store, and this
-    // row's title reads that store, so the new name shows immediately and
-    // survives the swap to `SessionRow` (which prefers the live name too).
-    void applySessionRename(phosphorId, name)
-  }
-  const menuItems = (): ContextMenuItem[] => {
-    return [
-      { label: 'Open', onClick: () => void navigateToLane({ sessionId: phosphorId }) },
-      ...orderActions,
-      { label: 'Rename…', onClick: beginRename },
-      { label: 'Export HTML…', onClick: () => void exportSessionHtml(phosphorId, title) },
-      {
-        label: 'Delete',
-        danger: true,
-        separatorAbove: true,
-        disabled: deleting,
-        onClick: () => onDelete(title),
-      },
-    ]
-  }
-  const menu = useMenuTriggers(menuItems, { title })
-
-  const className = clsx(
-    'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
-    // Same treatment as SessionRow — see the comment there. It must match
-    // exactly: this row is replaced by a real SessionRow the moment the
-    // session file lands, and any difference reads as the row twitching.
-    active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
-  )
-
-  const body = (
-    <>
-      <SessionIndicator state={activity ? 'streaming' : 'live'} />
-      {markerMode !== 'off' && <LaneMarker marker={marker} />}
-      <span className="min-w-0 flex-1">
-        {renaming ? (
-          <RenameInput
-            value={renameValue}
-            onChange={setRenameValue}
-            onCommit={applyRename}
-            onCancel={() => {
-              setRenaming(false)
-              setRenameValue('')
-            }}
-          />
-        ) : (
-          <span
-            key={title}
-            data-tooltip={naming.pending ? 'Naming this chat…' : title}
-            data-testid="session-title"
-            className={clsx(
-              SESSION_TITLE_CLASS,
-              // See SessionRow: shimmers while pending too, must match exactly —
-              // this row is swapped for a real SessionRow mid-shimmer the moment
-              // the session file lands, and any difference reads as a twitch.
-              naming.pending && 'name-pending',
-              naming.settled && 'name-enter',
-            )}
-          >
-            {title}
-          </span>
-        )}
-        <span
-          className={clsx(
-            'flex items-center gap-1 text-base leading-4',
-            active ? 'text-text' : 'text-text-secondary',
-          )}
-        >
-          <SubtitleSegments segments={subtitle} activity={activity} />
-        </span>
-      </span>
-    </>
-  )
-
-  // A <div> while editing, for the same reason SessionRow swaps its tag: a
-  // text field inside a <button> is invalid HTML and Enter belongs to the
-  // button, not the field.
-  if (renaming) {
-    return (
-      <div
-        data-testid="session-row"
-        data-pending="true"
-        data-activity={activity}
-        className={className}
-      >
-        {body}
-      </div>
-    )
-  }
-
-  return (
-    <TooltipButton
-      onClick={() => void navigateToLane({ sessionId: phosphorId })}
-      disabled={deleting}
-      aria-busy={deleting}
-      {...menu}
-      onDoubleClick={beginRename}
-      data-testid="session-row"
-      data-pending="true"
-      tooltip={deleting ? 'Deleting lane' : title}
-      data-activity={activity}
-      className={className}
-    >
-      {body}
-    </TooltipButton>
-  )
-}
-
-/**
- * The `2m · wt · ⎇ branch · ±3 · $1.24` run under a session's title.
- *
- * Shared by `SessionRow` and `PendingSessionRow` rather than duplicated,
- * because a live session swaps from the second to the first mid-turn and the
- * swap has to be invisible. They had drifted into two different subtitles.
- */
