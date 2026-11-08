@@ -98,7 +98,9 @@ export const EditorPane = memo(function EditorPane({
 function ActiveView({ file, source }: { file: OpenFile; source: FilesSource }): React.JSX.Element {
   const { workspacePath, features } = source
   const kind = previewKindForPath(file.path)
-  const onDownload = features.download ? () => downloadEntry(source, file) : undefined
+  const onDownload = features.download
+    ? (then?: 'open') => downloadEntry(source, file, then)
+    : undefined
   const text =
     file.binary || file.tooLarge ? (
       <FileFallback

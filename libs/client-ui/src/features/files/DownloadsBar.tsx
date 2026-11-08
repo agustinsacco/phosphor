@@ -3,6 +3,7 @@ import { CloseIcon, DownloadIcon } from '@/components/icons'
 import { formatBytes } from '@/lib/format'
 import { revealLabel } from '@/lib/reveal'
 import { useDownloadsStore, type Download } from '@/stores/downloads'
+import { openInDefaultApp } from './openInDefaultApp'
 
 /**
  * Host files being saved into Downloads: how far each has got, Cancel while it
@@ -66,6 +67,11 @@ function DownloadRow({ download: d }: { download: Download }): React.JSX.Element
         </TooltipButton>
       ) : (
         <>
+          {d.savedTo && (
+            <TooltipButton className={button} onClick={() => void openInDefaultApp(d.savedTo!)}>
+              Open
+            </TooltipButton>
+          )}
           {d.savedTo && (
             <TooltipButton
               className={button}

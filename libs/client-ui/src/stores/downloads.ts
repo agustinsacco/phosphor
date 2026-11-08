@@ -26,8 +26,11 @@ export interface Download {
 
 interface DownloadsState {
   items: Download[]
-  /** Save a Host lane's file. One running download per file; a second ask is ignored. */
-  start(sessionId: string, path: string): Promise<void>
+  /**
+   * Save a Host lane's file; resolves to where it landed, or null when it did not. One running
+   * download per file: a second ask resolves null at once.
+   */
+  start(sessionId: string, path: string): Promise<string | null>
   cancel(id: string): void
   dismiss(id: string): void
 }
@@ -49,7 +52,7 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => {
           (d) => d.status === 'running' && d.sessionId === sessionId && d.path === path,
         )
       )
-        return
+        return null
       if (!listening) {
         listening = true
         window.phosphor.onFileDownloadProgress(({ id, received, size }) =>
@@ -78,10 +81,12 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => {
           id,
         })
         patch(id, { status: 'done', savedTo })
+        return savedTo
       } catch (error) {
         const text = ipcErrorText(error)
         if (text === FILE_BYTES_ERRORS.cancelled) remove(id)
         else patch(id, { status: 'failed', error: text })
+        return null
       }
     },
     cancel(id) {

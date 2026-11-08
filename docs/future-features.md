@@ -13,7 +13,7 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 | Surface         | Missing capability                                                                                                                                               |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Chat and lanes  | Fork, clone, rewind/tree editing, the Session tree, rules/MCP toggles inside a Host lane, worktree Merge into main                                               |
-| Files           | Content search, browser media/PDF previews and downloads, quick look, external imports, open-in-app, per-file Revert in Changes, Host file-list truncation flags |
+| Files           | Content search, browser media/PDF previews, downloads and open-in-app, quick look, external imports, per-file Revert in Changes, Host file-list truncation flags |
 | Skills          | Catalogue install, upload, discovery and in-place edits                                                                                                          |
 | Settings        | Raw configuration editors, project/non-npm package mutation, per-folder Host directives, and cross-machine settings or authentication copying/sync               |
 | Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                                                             |

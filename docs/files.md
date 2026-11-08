@@ -32,8 +32,7 @@ folders, renames, deletes to trash with This Mac's confirm, and moves entries
 by dragging them in the tree (Option/Ctrl copies). Without them the explorer shows a
 "Read only" tag naming the reason and the editor is read-only. A Host lane hides
 what needs a local folder: content search, the hidden-file and .gitignore
-toggles, the OS clipboard and file import, Reveal, Quick Look and Open in default
-app.
+toggles, the OS clipboard and file import, Reveal and Quick Look.
 
 On Desktop, a Host that serves file bytes ([Host protocol](remote-protocol.md#file-bytes))
 adds **Download**: on a file's right-click menu, in the viewer bar and on the "No
@@ -47,7 +46,10 @@ progress with **Cancel**, then where it landed with Reveal in Finder, and stays
 when the pane closes or the lane changes. A larger file is refused up front, a
 file that changes on the Host mid-download is refused as torn, and a cancelled
 or failed download leaves no part behind. Closing the window cancels its
-downloads. An older Host shows no Download.
+downloads. An older Host shows no Download. **Open in default app** (Open in the
+viewer bar and on a finished download) downloads the same way, then hands the
+saved copy to This Mac's `fs:openInDefaultApp`, which refuses anything it would
+run.
 
 The same Host previews images, video, audio and PDFs up to 1 GB as This Mac's do
 (see [Previews](#previews)): a remote grant streams the file from the Host as the

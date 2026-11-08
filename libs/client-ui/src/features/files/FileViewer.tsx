@@ -3,7 +3,6 @@ import { Suspense, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { extensionOf, type PreviewKind } from '@shared/file-kinds'
 import { useFilesStore, type OpenFile } from '@/stores/files'
-import { useExtensionUiStore } from '@/stores/extensionUi'
 import { basename } from '@/lib/path'
 import { formatBytes } from '@/lib/format'
 import { revealLabel } from '@/lib/reveal'
@@ -11,7 +10,8 @@ import { hostPlatform } from '@/lib/shortcuts'
 import { FileIcon } from '@/components/icons'
 import { TextFileRender, ViewTabs } from './TextFilePreview'
 import { MarkdownPreview } from './MarkdownPreview'
-import { DownloadButton } from './download'
+import { HostFileActions } from './download'
+import { openInDefaultApp, toastError } from './openInDefaultApp'
 import type { FilesFeatures } from './filesSource'
 
 /**
@@ -71,7 +71,7 @@ interface FileViewerProps {
   /** What Source shows — the editor, owned by EditorPane. */
   source: React.ReactNode
   /** Save the file on this device, where its machine serves its bytes. */
-  onDownload?: () => void
+  onDownload?: (then?: 'open') => void
   /** A Host lane's handle, which streamed previews read through. */
   sessionId?: string
 }
@@ -160,7 +160,7 @@ function ViewerBar({
   workspacePath: string
   note: string
   osActions: boolean
-  onDownload?: () => void
+  onDownload?: (then?: 'open') => void
 }): React.JSX.Element {
   return (
     <div className="border-border flex h-8 shrink-0 items-center gap-2 overflow-x-auto border-b px-2 [&::-webkit-scrollbar]:hidden">
@@ -171,7 +171,7 @@ function ViewerBar({
         />
       )}
       <span className="text-text-tertiary min-w-0 flex-1 truncate text-sm">{note}</span>
-      {onDownload && <DownloadButton size={file.size} onDownload={onDownload} compact />}
+      {onDownload && <HostFileActions size={file.size} onDownload={onDownload} compact />}
       {osActions && <FileActions path={file.path} compact />}
     </div>
   )
@@ -185,7 +185,7 @@ interface PreviewProps {
   osActions: boolean
   textLimitBytes: number
   sessionId?: string
-  onDownload?: () => void
+  onDownload?: (then?: 'open') => void
 }
 
 function Preview({
@@ -293,7 +293,7 @@ export function FileFallback({
   reason?: string
   osActions: boolean
   textLimitBytes: number
-  onDownload?: () => void
+  onDownload?: (then?: 'open') => void
 }): React.JSX.Element {
   const ext = extensionOf(file.path)
   const why =
@@ -318,7 +318,7 @@ export function FileFallback({
           </div>
         </div>
         {osActions && <FileActions path={file.path} />}
-        {onDownload && <DownloadButton size={file.size} onDownload={onDownload} />}
+        {onDownload && <HostFileActions size={file.size} onDownload={onDownload} />}
       </div>
     </div>
   )
@@ -356,31 +356,10 @@ function FileActions({ path, compact = false }: { path: string; compact?: boolea
   )
 }
 
-function toastError(message: string): void {
-  useExtensionUiStore.getState().pushToast(message, 'error')
-}
-
 async function quickLook(path: string): Promise<void> {
   await window.phosphor.invoke('fs:quickLook', path).catch((e) => toastError(String(e)))
 }
 
 async function reveal(path: string): Promise<void> {
   await window.phosphor.invoke('app:revealPath', path).catch((e) => toastError(String(e)))
-}
-
-async function openInDefaultApp(path: string): Promise<void> {
-  const result = await window.phosphor
-    .invoke('fs:openInDefaultApp', path)
-    .catch((e) => ({ ok: false as const, reason: 'failed' as const, message: String(e) }))
-  if (result.ok) return
-  if (result.reason === 'launchable') {
-    toastError(
-      `${basename(path)} would run a program if opened, so Phosphor will not open it. ` +
-        `Use ${revealLabel()} instead.`,
-    )
-  } else if (result.reason === 'not-a-file') {
-    toastError(`${basename(path)} is not a regular file.`)
-  } else {
-    toastError(result.message)
-  }
 }

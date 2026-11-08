@@ -6,6 +6,9 @@ import { FILE_BYTES_ERRORS } from '@shared/host-protocol-file-bytes'
 import type { FileDownloadProgress } from '@shared/ipc'
 import { DownloadsBar } from '@/features/files/DownloadsBar'
 import { useDownloadsStore } from './downloads'
+import { useExtensionUiStore } from './extensionUi'
+import { downloadEntry } from '@/features/files/download'
+import { localFilesSource } from '@/features/files/filesSource'
 
 const invoke = vi.fn()
 let progress: (p: FileDownloadProgress) => void = () => undefined
@@ -57,7 +60,7 @@ it('records progress, then where the file landed', async () => {
   progress({ id, received: 5, size: 10 })
   expect(items()[0]).toMatchObject({ name: 'clip.mp4', received: 5, size: 10, status: 'running' })
   pending.get(id)!.resolve({ savedTo: '/Users/me/Downloads/clip.mp4' })
-  await done
+  expect(await done).toBe('/Users/me/Downloads/clip.mp4')
   expect(items()[0]).toMatchObject({ status: 'done', savedTo: '/Users/me/Downloads/clip.mp4' })
 })
 
@@ -88,6 +91,22 @@ it('keeps the three latest finished rows as new downloads start', async () => {
   void useDownloadsStore.getState().start('remote-1', 'e')
   await settle()
   expect(items().map((d) => d.name)).toEqual(['c', 'd', 'e'])
+})
+
+it('Open downloads first, then hands the saved copy to the OS, which may refuse it', async () => {
+  const pushToast = vi.spyOn(useExtensionUiStore.getState(), 'pushToast')
+  const source = {
+    ...localFilesSource('host:h/lane'),
+    sessionId: 'remote-1',
+    features: { ...localFilesSource('x').features, download: true },
+  }
+  downloadEntry(source, { relativePath: 'tools/run.sh' }, 'open')
+  invoke.mockImplementationOnce(async () => ({ ok: false, reason: 'launchable' }))
+  pending.get(items()[0]!.id)!.resolve({ savedTo: '/d/run.sh' })
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith('fs:openInDefaultApp', '/d/run.sh'))
+  await vi.waitFor(() =>
+    expect(pushToast).toHaveBeenCalledWith(expect.stringContaining('would run a program'), 'error'),
+  )
 })
 
 it('shows a running download with Cancel, and a finished one with its folder', async () => {
