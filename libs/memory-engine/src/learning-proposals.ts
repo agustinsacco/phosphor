@@ -60,12 +60,12 @@ export function learningProposal(
   outcome: BrainLearningResult['outcome'],
   input: LearningReceipt,
   evidence: Evidence,
-): BrainProposalInput | null {
+): { proposal: BrainProposalInput | null; outcome: BrainLearningResult['outcome'] } {
   validate.bounded(outcome, 262144)
   shape(outcome, ['type', 'findings'])
   if (outcome.type === 'no_findings') {
     validate.check(Object.keys(outcome).length === 1, 'Invalid no_findings result')
-    return null
+    return { proposal: null, outcome }
   }
   validate.check(outcome.type === 'findings', 'Invalid learning outcome')
   validate.list(outcome.findings, 32)
@@ -116,5 +116,14 @@ export function learningProposal(
       'Selective learning from immutable projected source evidence; exact citations require human review.',
   }
   validate.proposal(proposal)
-  return proposal
+  return {
+    proposal,
+    outcome: {
+      type: 'findings',
+      findings: outcome.findings.map((finding, index) => ({
+        ...finding,
+        citations: claims[index]!.citations,
+      })),
+    },
+  }
 }

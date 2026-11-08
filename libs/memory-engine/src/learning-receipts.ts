@@ -140,6 +140,36 @@ export function previous(data: Data, key: string): BrainJob | undefined {
     .get(key)
   return row ? data.require('jobs', String(row.id)) : undefined
 }
+/** A retry acknowledgment identifies its own immutable successor, not the latest attempt. */
+export function retrySuccessor(data: Data, input: BrainLearningStart): BrainJob | undefined {
+  if (input.retryJobId === undefined) return undefined
+  const row = data.db
+    .prepare(
+      `SELECT id FROM documents WHERE kind='learningInputs'
+    AND json_extract(value,'$.value.attemptKey')=?
+    AND json_extract(value,'$.value.retryJobId')=? ORDER BY rowid LIMIT 1`,
+    )
+    .get(attemptKey(input.scope, input.covered), input.retryJobId)
+  if (!row) return undefined
+  const job = data.require('jobs', String(row.id))
+  const admitted = receipt(data, job)
+  const authority = [
+    'scope',
+    'branch',
+    'target',
+    'binding',
+    'checkpoint',
+    'covered',
+    'dependencyRootIds',
+    'dependencies',
+    'expectedPolicyEpoch',
+  ] as const
+  validate.check(
+    authority.every((key) => stable(input[key]) === stable(admitted[key])),
+    'Learning retry source/model binding or consent mismatch',
+  )
+  return job
+}
 /** Every visible dependency invalidates the whole inference, not just its cited suffix. */
 export function dependentEvidence(
   data: Data,

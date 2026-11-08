@@ -17,6 +17,7 @@ import {
   previous,
   receipt,
   requestedCoverage,
+  retrySuccessor,
   sourceAllowed,
 } from './learning-receipts'
 import { learningJob, prepareInputs, saveInputs } from './learning-inputs'
@@ -86,6 +87,8 @@ export class Learning implements BrainLearningStoreOperations {
       'Stale learning consent',
     )
     const covered = requestedCoverage(this.data, scope, input.covered)
+    const successor = retrySuccessor(this.data, input)
+    if (successor) return { job: successor, created: false }
     const isCovered = (item: { rootId: string; projectedHash: string }) =>
       covered.some((old) => old.rootId === item.rootId && old.projectedHash === item.projectedHash)
     const coveredCount = input.covered.filter(isCovered).length
@@ -93,13 +96,6 @@ export class Learning implements BrainLearningStoreOperations {
     const previousJob =
       old ?? (input.covered.every(isCovered) ? this.previous(scope, input.covered) : undefined)
     const previousInput = previousJob ? receipt(this.data, previousJob) : undefined
-    if (input.retryJobId !== undefined && previousInput?.retryJobId === input.retryJobId) {
-      validate.check(
-        stable(input.binding) === stable(previousInput.binding),
-        'Learning source/model binding mismatch',
-      )
-      return { job: previousJob!, created: false }
-    }
     if (input.retryJobId !== undefined)
       validate.check(
         previousJob?.id === input.retryJobId && !['queued', 'running'].includes(previousJob.state),
@@ -141,25 +137,29 @@ export class Learning implements BrainLearningStoreOperations {
       const job = this.jobs.fenced(jobId, fence)
       validate.check(job.learning && job.state === 'running', 'Learning job is not running')
       const input = receipt(this.data, job)
-      const proposalInput = learningProposal(completion.outcome, input, this.evidence)
+      const { proposal: proposalInput, outcome } = learningProposal(
+        completion.outcome,
+        input,
+        this.evidence,
+      )
       const proposal = proposalInput ? this.proposals.prepare(job, fence, proposalInput) : null
       if (proposal) this.data.put('proposals', proposal.id, job.scope, proposal)
       const next: BrainJob = {
         ...job,
         state: proposal ? 'proposed' : 'completed',
         updatedAt: this.data.now(),
-        learning: { ...job.learning, usage: completion.usage, outcome: completion.outcome.type },
+        learning: { ...job.learning, usage: completion.usage, outcome: outcome.type },
       }
       this.data.put('jobs', jobId, job.scope, next)
       this.data.put('learningResults', jobId, job.scope, {
-        outcome: completion.outcome,
+        outcome,
         proposalId: proposal?.id ?? null,
       })
       for (const contribution of input.covered)
         this.data.db
           .prepare('INSERT OR IGNORE INTO learning_coverage VALUES (?,?,?,?)')
           .run(job.scope, contribution.rootId, contribution.projectedHash, jobId)
-      return { job: next, outcome: completion.outcome, proposalId: proposal?.id ?? null }
+      return { job: next, outcome, proposalId: proposal?.id ?? null }
     })
   }
   failLearning(

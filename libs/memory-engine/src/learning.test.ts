@@ -89,9 +89,16 @@ describe('durable selective learning', () => {
   it('atomically saves a strict semantic proposal and coverage; rejection preserves coverage', () => {
     const { store } = setup()
     const detail = complete(store)
-    expect(detail.outcome).toEqual(findings().outcome)
-    expect(detail.proposalId).toBeTruthy()
+    const expected = findings().outcome
+    if (expected.type !== 'findings') throw new Error('fixture')
     const proposal = store.snapshot().proposals[0]!
+    expected.findings[0]!.citations = proposal.input.claims[0]!.citations
+    expect(detail.outcome).toEqual(expected)
+    const citation = expected.findings[0]!.citations[0]!
+    expect(store.read(citation.evidenceId, [scope]).text).toContain(citation.quote)
+    expect(store.read(citation.evidenceId, [scope]).rootIds).toEqual(['input'])
+    expect(() => store.read('wire-evidence', [scope])).toThrow(/Unknown evidence/)
+    expect(detail.proposalId).toBeTruthy()
     expect(proposal.input.claims[0]).toMatchObject({ predicate: 'owns', kind: 'reported' })
     expect(proposal.input.entities.map((entity) => entity.label)).toEqual(['Alice', 'Project'])
     expect(coverage(store).covered).toEqual([

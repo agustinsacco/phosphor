@@ -57,7 +57,14 @@ describe('learning receipts, provenance and bounded payloads', () => {
     const detail = f.store.completeLearning(job.id, job.fence, completion)
     const citation = f.store.snapshot().proposals[0]!.input.claims[0]!.citations[0]!
     expect(f.store.read(citation.evidenceId, [scope]).text).toContain(quote)
-    expect(detail.outcome).toEqual(completion.outcome)
+    expect(detail.outcome).toEqual({
+      ...completion.outcome,
+      findings: completion.outcome.findings.map((finding) => ({
+        ...finding,
+        citations: [citation],
+      })),
+    })
+    expect(() => f.store.read('wire-evidence', [scope])).toThrow(/Unknown evidence/)
     for (const id of job.evidenceIds) {
       const stored = f.store.read(id, [scope])
       expect(stored.text.length).toBeLessThanOrEqual(16000)
