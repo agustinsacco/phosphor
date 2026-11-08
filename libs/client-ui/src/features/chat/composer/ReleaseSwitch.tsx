@@ -7,6 +7,7 @@ import {
   type ReleaseStatus,
 } from '@phosphor/pi-extensions/release-status'
 import { TooltipButton } from '@/components/Tooltip'
+import { SwarmSwitch } from './SwarmSwitch'
 import { runExtensionCommand } from '@/lib/extensionCommand'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
@@ -108,6 +109,16 @@ export function ReleaseSwitch({ sessionId }: { sessionId: string }): React.JSX.E
       <span role="status" className="sr-only">
         {sending ? 'Applying…' : ''}
       </span>
+    </>
+  )
+}
+
+/** A live lane's composer switches: Swarm, then Release where the repository has a policy. */
+export function LaneSwitches({ sessionId }: { sessionId: string }): React.JSX.Element {
+  return (
+    <>
+      <SwarmSwitch sessionId={sessionId} />
+      <ReleaseSwitch sessionId={sessionId} />
     </>
   )
 }

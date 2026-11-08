@@ -60,7 +60,7 @@ fake pi, not a real provider.
 [Brain](brain.md) adds a private, optional input observer to this same service:
 admission/completion receipts and native-session invalidation are never serialized
 through RPC/IPC. Capture failures revoke augmentation, not ordinary startup or
-commands. Its optional working extension is separate from the six defaults.
+commands. Its optional working extension is separate from the seven defaults.
 Manual Brain processors instead use an isolated execution profile with only the
 audited processor bundle, native API-key auth and persistent owned transcripts.
 Ordinary controls cannot resume, mutate or delete these files. Display limits do
