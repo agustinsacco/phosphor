@@ -11,7 +11,8 @@ import { laneActions, type LaneActionContext } from './laneActions'
 import { openPullRequest } from './PrBadge'
 import { copySessionDebugInfo, copySpend, exportSessionHtml } from './sessionActions'
 import { useSessionOrderActions } from './SessionList'
-import { cloneSession, exportSidebarSession } from './sidebarActions'
+import { cloneSession, exportSidebarSession, moveSidebarSession } from './sidebarActions'
+import { STOP_BEFORE_MOVE } from './remoteLaneActions'
 
 // Keep the full emoji catalog out of startup and marker-disabled sessions.
 const MarkerPickerModal = lazy(() =>
@@ -68,7 +69,10 @@ export function useLocalLaneActions({
     // Spend is a detail you go looking for, so it waits here (and in the Home ledger).
     spend: meta.cost > 0 ? { hint: formatCost(meta.cost) } : undefined,
     busy: deleting,
-    refusals: { delete: bulkDeleteRunning ? 'another delete is running' : undefined },
+    refusals: {
+      delete: bulkDeleteRunning ? 'another delete is running' : undefined,
+      moveTo: livePhosphorId ? STOP_BEFORE_MOVE : undefined,
+    },
     // Stop ends the process and keeps the transcript, as on a Host lane.
     hints: { stop: '~200 MB', delete: 'to trash' },
   }
@@ -95,6 +99,7 @@ export function useLocalLaneActions({
         markRead: () => store().markRead(meta.path, livePhosphorId),
         fork: () => void store().createSession(workspacePath, { forkFrom: meta.path }),
         clone: () => void cloneSession(workspacePath, meta, livePhosphorId),
+        moveTo: () => moveSidebarSession(meta, git?.branch),
         exportHtml: () => void exportSidebarSession(workspacePath, meta, livePhosphorId),
         copyDebugInfo: () => void copySessionDebugInfo(meta, livePhosphorId),
         copySpend: () => void copySpend(meta.cost),
