@@ -26,8 +26,8 @@ export function brainService(): Promise<BrainService> {
   })
   return pending
 }
-/** Shell inventory must not create a database merely because the app started. */
-export async function learningInventory(scope?: string): Promise<BrainLearningJobList> {
+/** Metadata checks must not create a database on a fresh profile. Stat errors fail closed. */
+async function existingBrainService(): Promise<BrainService | undefined> {
   if (closing) throw new Error('Brain is shutting down')
   if (!pending) {
     const database = await stat(join(app.getPath('userData'), 'brain/memory.sqlite')).catch(
@@ -36,15 +36,29 @@ export async function learningInventory(scope?: string): Promise<BrainLearningJo
         throw error
       },
     )
-    if (!database)
-      return {
+    if (!database) return undefined
+    if (!database.isFile()) throw new Error('Brain database is not a regular file')
+  }
+  return brainService()
+}
+/** Historical exclusion applies even when capture/recall is now disabled. No public IPC. */
+export async function brainSourceExcluded(sessionId: string): Promise<boolean> {
+  const service = await existingBrainService()
+  if (!service) return false
+  const excluded = await service.excludedSource(sessionId)
+  if (typeof excluded !== 'boolean') throw new Error('Brain exclusion authority unavailable')
+  return excluded
+}
+/** Shell inventory must not create a database merely because the app started. */
+export async function learningInventory(scope?: string): Promise<BrainLearningJobList> {
+  const service = await existingBrainService()
+  return service
+    ? service.api.learningJobs(scope)
+    : {
         items: [],
         truncated: false,
         policy: { enabled: false, workspaces: [], policyEpoch: 0 },
       }
-    if (!database.isFile()) throw new Error('Brain database is not a regular file')
-  }
-  return (await brainService()).api.learningJobs(scope)
 }
 async function construct(): Promise<BrainService> {
   const directory = join(app.getPath('userData'), 'brain')

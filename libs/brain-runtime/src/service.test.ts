@@ -163,3 +163,15 @@ it('preserves initialization errors while diagnosing an injected store cleanup f
   await expect(createBrainService(f.options)).rejects.toThrow('EEXIST')
   expect(f.options.onError).toHaveBeenCalledExactlyOnceWith(failure)
 })
+
+it('keeps the historical exclusion query internal to the service and rejects it after disposal', async () => {
+  const f = await fixture()
+  expect(Object.keys(f.service).sort()).toEqual(['api', 'dispose', 'excludedSource', 'memory'])
+  expect(f.service.api).not.toHaveProperty('excludedSource')
+  f.engine.recordDelivery({ sessionId: 'historical-recipient', evidenceIds: [], claimIds: [] })
+  await f.service.api.setPrefs({ ...f.snapshot.prefs, enabled: false, recall: false })
+  await expect(f.service.excludedSource('historical-recipient')).resolves.toBe(true)
+  await expect(f.service.excludedSource('clean-source')).resolves.toBe(false)
+  await f.service.dispose()
+  await expect(f.service.excludedSource('historical-recipient')).rejects.toThrow('disposed')
+})

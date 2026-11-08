@@ -73,5 +73,7 @@ export interface BrainServiceOptions {
 export interface BrainService {
   api: BrainApi
   memory: NonNullable<SessionStartupRuntime['memory']>
+  /** Trusted local identity checks only; not a UI/agent API. */
+  excludedSource(sessionId: string): Promise<boolean>
   dispose(): Promise<void>
 }

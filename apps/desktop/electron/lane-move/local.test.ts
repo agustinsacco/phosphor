@@ -151,7 +151,9 @@ it.each([
 
     const { localLanes } = await import('./local')
     const inspection = await localLanes.inspect(file, false)
-    expect(inspection.blockers).toEqual([expect.stringMatching(/Brain.*recipient/i)])
+    expect('blockers' in inspection ? inspection.blockers : undefined).toEqual([
+      expect.stringMatching(/Brain.*recipient/i),
+    ])
     const archive = join(home, 'refused.bundle')
     await expect(localLanes.export(file, false, archive)).rejects.toThrow(/Brain.*recipient/i)
     await expect(readFile(archive)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -165,3 +167,182 @@ it.each([
     expect((await (await brainService()).api.status()).snapshot).toEqual(before)
   },
 )
+
+import type * as Os from 'node:os'
+import type { SessionPathRuntime } from '@phosphor/session-runtime/pi/session-path-lock'
+import type * as PathLock from '../pi/session-path-lock'
+
+const lockObservation = vi.hoisted(() => ({ queued: undefined as (() => void) | undefined }))
+vi.mock('../pi/session-path-lock', async (original) => {
+  const actual = await original<typeof PathLock>()
+  const withSessionPath: SessionPathRuntime['withSessionPath'] = (path, run) => {
+    const operation = actual.withSessionPath(path, run)
+    lockObservation.queued?.()
+    return operation
+  }
+  return { ...actual, withSessionPath }
+})
+afterEach(() => {
+  lockObservation.queued = undefined
+})
+
+// Every transfer-side pairing/ledger probe stays inside this synthetic profile.
+vi.mock('node:os', async (original) => ({
+  ...(await original<typeof Os>()),
+  homedir: () => state.profile,
+}))
+beforeEach(() => {
+  vi.stubEnv('PI_CODING_AGENT_DIR', join(state.profile, 'agent'))
+  vi.stubEnv('PI_CODING_AGENT_SESSION_DIR', state.root)
+  vi.stubEnv('CLAUDE_CONFIG_DIR', join(state.profile, 'claude'))
+})
+afterEach(() => vi.unstubAllEnvs())
+
+it('allows a clean source with no Brain store, without creating profile files or workers', async () => {
+  const { localLanes } = await import('./local')
+  expect(await localLanes.inspect(file, false)).toHaveProperty('facts.sessionId', nativeId)
+  const archive = join(home, 'clean.bundle')
+  await localLanes.export(file, false, archive)
+  const { openArchive } = await import('@phosphor/session-runtime/lane-transfer/archive')
+  expect((await openArchive(archive)).manifest.source.sessionId).toBe(nativeId)
+  expect(await readFile(file, 'utf8')).toBe(original)
+  expect(state.openStore).not.toHaveBeenCalled()
+  expect(state.embeddings).not.toHaveBeenCalled()
+  await expect(readFile(join(state.profile, 'brain/memory.sqlite'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  })
+  const { stat } = await import('node:fs/promises')
+  await expect(stat(state.profile)).rejects.toMatchObject({ code: 'ENOENT' })
+})
+
+it('allows a clean source with an existing disabled Brain store and preserves ordinary Move', async () => {
+  database().close()
+  const { localLanes } = await import('./local')
+  expect(await localLanes.inspect(file, false)).toHaveProperty('facts.sessionId', nativeId)
+  const archive = join(home, 'clean-existing.bundle')
+  await localLanes.export(file, false, archive)
+  const target = join(home, 'target')
+  await mkdir(target)
+  const { installLane } = await import('@phosphor/session-runtime/lane-transfer/install')
+  const { openArchive } = await import('@phosphor/session-runtime/lane-transfer/archive')
+  const { sessionTaken } = await import('@phosphor/session-runtime/lane-transfer/move')
+  const paths = { home: state.profile, env: process.env }
+  const installed = await installLane({
+    archive: await openArchive(archive),
+    plan: { mode: 'folder', branch: null, workspace: 'target', blockers: [] },
+    cwd: target,
+    paths,
+    labels: { from: 'This Mac', to: 'This Mac' },
+    attachmentsDir: null,
+    sessionTaken: sessionTaken(paths),
+  })
+  expect(installed.sessionId).not.toBe(nativeId)
+  const copied = await readFile(installed.sessionFile, 'utf8')
+  expect(copied).toContain('Synthetic input')
+  expect(copied).toContain('phosphor-lane-moved')
+  expect(await readFile(file, 'utf8')).toBe(original)
+  expect(state.requests.filter((request) => request.method === 'excludedSource')).toHaveLength(2)
+})
+
+it('rechecks new delivery under the export path lock after a successful inspection', async () => {
+  database().close()
+  const { localLanes } = await import('./local')
+  expect(await localLanes.inspect(file, false)).toHaveProperty('facts')
+  const { withSessionPath } = await import('../pi/session-path-lock')
+  const { deferred } = await import('@phosphor/brain-runtime/__fixtures__/adapter-fixture')
+  const release = deferred<void>()
+  const entered = deferred<void>()
+  const held = withSessionPath(file, async () => {
+    entered.resolve()
+    await release.promise
+  })
+  await entered.promise
+  const archive = join(home, 'new-recipient.bundle')
+  const queued = deferred<void>()
+  lockObservation.queued = () => queued.resolve()
+  const exporting = expect(localLanes.export(file, false, archive)).rejects.toThrow(
+    /Brain.*recipient/i,
+  )
+  await queued.promise
+  try {
+    const engine = database()
+    engine.recordDelivery({ sessionId: nativeId, evidenceIds: [], claimIds: [] })
+    engine.close()
+    expect(state.requests.filter((request) => request.method === 'excludedSource')).toHaveLength(1)
+  } finally {
+    release.resolve()
+  }
+  await held
+  await exporting
+  await expect(readFile(archive)).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(await readFile(file, 'utf8')).toBe(original)
+  expect(state.requests.filter((request) => request.method === 'excludedSource')).toHaveLength(2)
+})
+
+it('rereads actual header identity at locked export instead of trusting inspection', async () => {
+  const { localLanes } = await import('./local')
+  expect(await localLanes.inspect(file, false)).toHaveProperty('facts')
+  const { withSessionPath } = await import('../pi/session-path-lock')
+  const { deferred } = await import('@phosphor/brain-runtime/__fixtures__/adapter-fixture')
+  const release = deferred<void>()
+  const held = withSessionPath(file, () => release.promise)
+  const archive = join(home, 'changed-header.bundle')
+  const queued = deferred<void>()
+  lockObservation.queued = () => queued.resolve()
+  const exporting = expect(localLanes.export(file, false, archive)).rejects.toThrow(
+    /format.*cannot move/,
+  )
+  await queued.promise
+  try {
+    await writeFile(file, original.replace(nativeId, 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'))
+  } finally {
+    release.resolve()
+  }
+  await held
+  await exporting
+  await expect(readFile(archive)).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(state.openStore).not.toHaveBeenCalled()
+})
+
+it('visibly refuses worker authority errors during inspection and before archive writes', async () => {
+  database().close()
+  const { localLanes } = await import('./local')
+  expect(await localLanes.inspect(file, false)).toHaveProperty('facts')
+  state.authorityError = 'Synthetic worker unavailable'
+  expect(await localLanes.inspect(file, false)).toEqual({
+    blockers: [expect.stringMatching(/Brain exclusion could not be checked/)],
+  })
+  const archive = join(home, 'authority-error.bundle')
+  await expect(localLanes.export(file, false, archive)).rejects.toThrow(
+    /Brain exclusion could not be checked/,
+  )
+  await expect(readFile(archive)).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(await readFile(file, 'utf8')).toBe(original)
+  expect(state.openStore).toHaveBeenCalledOnce()
+})
+
+it('does not mistake failure to open an existing authority for a fresh profile', async () => {
+  database().close()
+  state.openStore.mockImplementation(() => {
+    throw new Error('Synthetic database unavailable')
+  })
+  const { localLanes } = await import('./local')
+  expect(await localLanes.inspect(file, true)).toEqual({
+    blockers: [expect.stringMatching(/Brain exclusion could not be checked/)],
+  })
+  const archive = join(home, 'open-error.bundle')
+  await expect(localLanes.export(file, true, archive)).rejects.toThrow(
+    /Brain exclusion could not be checked/,
+  )
+  await expect(readFile(archive)).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(await readFile(file, 'utf8')).toBe(original)
+})
+
+it('refuses invalid source header IDs before consulting Brain', async () => {
+  await writeFile(file, original.replace(nativeId, 'not-a-native-uuid'))
+  const { localLanes } = await import('./local')
+  expect(await localLanes.inspect(file, false)).toEqual({
+    blockers: [expect.stringMatching(/format.*cannot move/)],
+  })
+  expect(state.openStore).not.toHaveBeenCalled()
+})

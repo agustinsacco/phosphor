@@ -116,3 +116,67 @@ it('does not fail ordinary startup on an unavailable Brain and retries its next 
   expect(state.prepare).toHaveBeenCalledWith({ workspacePath: '/repo' })
   await runtime.disposeBrain()
 })
+
+it('does not create a service, worker or database for a fresh-profile exclusion check', async () => {
+  const runtime = await import('./runtime')
+  await expect(runtime.brainSourceExcluded('native-source')).resolves.toBe(false)
+  expect(state.databaseStat).toHaveBeenCalledWith('/profile/brain/memory.sqlite')
+  expect(state.factory).not.toHaveBeenCalled()
+  expect(state.openStore).not.toHaveBeenCalled()
+  expect(state.embeds).not.toHaveBeenCalled()
+})
+it('checks existing historical exclusion without a preference or recall gate', async () => {
+  state.databaseStat.mockResolvedValue({ isFile: () => true })
+  const excludedSource = vi.fn(async () => true)
+  state.factory.mockResolvedValue({ excludedSource, dispose: state.dispose })
+  const runtime = await import('./runtime')
+  await expect(runtime.brainSourceExcluded('native-source')).resolves.toBe(true)
+  expect(excludedSource).toHaveBeenCalledExactlyOnceWith('native-source')
+  await runtime.disposeBrain()
+})
+it.each(['EACCES', 'EIO'])(
+  'does not treat %s checking the existing authority as no store',
+  async (code) => {
+    state.databaseStat.mockRejectedValue(
+      Object.assign(new Error('Synthetic stat failure'), { code }),
+    )
+    const runtime = await import('./runtime')
+    await expect(runtime.brainSourceExcluded('native-source')).rejects.toThrow(
+      'Synthetic stat failure',
+    )
+    expect(state.factory).not.toHaveBeenCalled()
+  },
+)
+it('propagates an existing worker failure instead of returning not-excluded', async () => {
+  state.databaseStat.mockResolvedValue({ isFile: () => true })
+  state.factory.mockResolvedValue({
+    excludedSource: vi.fn(async () => {
+      throw new Error('Synthetic worker failure')
+    }),
+    dispose: state.dispose,
+  })
+  const runtime = await import('./runtime')
+  await expect(runtime.brainSourceExcluded('native-source')).rejects.toThrow(
+    'Synthetic worker failure',
+  )
+  await runtime.disposeBrain()
+  await expect(runtime.brainSourceExcluded('native-source')).rejects.toThrow('shutting down')
+})
+it('refuses a non-file authority rather than silently opening a replacement', async () => {
+  state.databaseStat.mockResolvedValue({ isFile: () => false })
+  const runtime = await import('./runtime')
+  await expect(runtime.brainSourceExcluded('native-source')).rejects.toThrow('not a regular file')
+  expect(state.factory).not.toHaveBeenCalled()
+})
+it('rejects an invalid authority result rather than interpreting it as no exclusion', async () => {
+  state.databaseStat.mockResolvedValue({ isFile: () => true })
+  state.factory.mockResolvedValue({
+    excludedSource: vi.fn(async () => undefined),
+    dispose: state.dispose,
+  })
+  const runtime = await import('./runtime')
+  await expect(runtime.brainSourceExcluded('native-source')).rejects.toThrow(
+    'authority unavailable',
+  )
+  await runtime.disposeBrain()
+})

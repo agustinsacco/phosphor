@@ -78,3 +78,60 @@ it('rejects an oversized response without poisoning later database operations', 
     store.close()
   }
 })
+
+it('queries durable recipient and processor exclusion even after preferences are disabled', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'brain-exclusion-query-'))
+  directories.push(directory)
+  let store = openMemoryStore({ directory, Database: loadSqlite().DatabaseSync })
+  const model = { provider: 'openai', id: 'synthetic' }
+  store.setPrefs({
+    ...store.snapshot().prefs,
+    enabled: true,
+    recall: true,
+    workspaces: ['/repo'],
+    processor: model,
+  })
+  const evidence = store.capture({
+    scope: '/repo',
+    sessionId: 'clean',
+    entryId: 'entry',
+    parentId: null,
+    rootIds: ['entry'],
+    branch: null,
+    role: 'user',
+    label: 'Synthetic',
+    observedAt: Date.now(),
+    text: 'Synthetic independent evidence',
+  })!
+  store.recordDelivery({ sessionId: 'empty-recipient', evidenceIds: [], claimIds: [] })
+  store.recordDelivery({
+    sessionId: 'nonempty-recipient',
+    evidenceIds: [evidence.id],
+    claimIds: [],
+  })
+  const job = store.claimJob(store.createJob('/repo', model, store.snapshot().policyEpoch).id)
+  const processorId = '11111111-2222-4333-8444-555555555555'
+  store.updateJob(job.id, job.fence, { sessionPath: `/private/2026-11-06_${processorId}.jsonl` })
+  store.setPrefs({ ...store.snapshot().prefs, enabled: false, recall: false })
+  const before = store.snapshot()
+  store.close()
+  store = openMemoryStore({ directory, Database: loadSqlite().DatabaseSync })
+  try {
+    const handle = createMemoryHandler(store)
+    for (const id of ['empty-recipient', 'nonempty-recipient', processorId, job.id])
+      expect(handle({ id: 1, method: 'excludedSource', args: [id] })).toEqual({
+        id: 1,
+        ok: true,
+        data: true,
+      })
+    expect(handle({ id: 2, method: 'excludedSource', args: ['clean'] })).toEqual({
+      id: 2,
+      ok: true,
+      data: false,
+    })
+    expect(handle({ id: 3, method: 'excludedSource', args: [''] })).toMatchObject({ ok: false })
+    expect(store.snapshot()).toEqual(before)
+  } finally {
+    store.close()
+  }
+})

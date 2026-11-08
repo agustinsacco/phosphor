@@ -33,6 +33,7 @@ export const MEMORY_METHODS: readonly (keyof MemoryOperations)[] = [
   'correct',
   'forget',
   'recordDelivery',
+  'excludedSource',
   'graph',
   'search',
   'captureAt',

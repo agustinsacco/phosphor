@@ -124,6 +124,11 @@ export function openMemoryStore(options: MemoryStoreOptions): MemoryStorePort {
         serve(() => corrections.correct(id, correction, revision)),
       forget: (ids) => evidence.forget(ids),
       recordDelivery: (delivery) => serve(() => evidence.delivery(delivery)),
+      excludedSource: (id) =>
+        serve(() => {
+          validate.text(id)
+          return evidence.excluded(id)
+        }),
       graph: (entityId) => serve(() => retrieval.graph(entityId)),
       search: (query, scopes, vector) => serve(() => retrieval.search(query, scopes, vector)),
       embeddingItems: (modelId, limit) => serve(() => embeddingItems(data, modelId, limit)),

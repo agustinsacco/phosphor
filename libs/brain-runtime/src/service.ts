@@ -105,7 +105,8 @@ export async function assembleBrainService(
     isClosed: lifecycle.isClosed,
   })
   await initializeBrain(options, store, indexer, lifecycle)
-  return { api, memory: working.memory, dispose: lifecycle.dispose }
+  const excludedSource = (id: string) => lifecycle.serialize(() => store.excludedSource(id))
+  return { api, memory: working.memory, excludedSource, dispose: lifecycle.dispose }
 }
 /** Optional derived indexes fail open; authoritative startup failures still dispose owners. */
 async function initializeBrain(

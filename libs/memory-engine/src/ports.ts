@@ -51,6 +51,8 @@ export interface MemoryStorePort extends BrainLearningStoreOperations {
   correct(claimId: string, correction: BrainCorrection, revision: BrainRevision): BrainClaim
   forget(evidenceIds: string[]): BrainForgetResult
   recordDelivery(delivery: BrainDelivery): void
+  /** Historical recipient/processor authority, independent of current consent. Internal only. */
+  excludedSource(sessionId: string): boolean
   graph(entityId?: string): BrainGraph
   search(
     query: BrainQuery,
