@@ -738,7 +738,9 @@ also offers Retry for failed message-list requests, including transport errors.
   to 400%; drag pans, Fit recenters, and 100% restores intrinsic size. With
   the canvas focused, +/− zoom, arrow keys pan, F fits, and 0 restores 100%.
   Resizing the window refits the diagram. Copy source copies Mermaid text;
-  Save SVG exports the diagram at intrinsic size in the current palette.
+  Save SVG exports the diagram at intrinsic size in the current palette:
+  Desktop saves where the save dialog says and reveals it; a browser names the
+  button Download SVG and downloads it.
   Close, Escape, or the backdrop dismisses the viewer and restores focus.
   The same viewer serves artifact diagrams. A parse error falls back to the
   code block with the error under it.

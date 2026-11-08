@@ -6,6 +6,7 @@ import { formatSessionDebugInfo, type SessionDebugSource } from '@/lib/sessionDe
 import { formatCost } from '@/lib/format'
 import { useSessionsStore } from '@/stores/sessions'
 import { errorText } from '@shared/errors'
+import { saveToDevice } from '@/lib/saveToDevice'
 
 /**
  * Session operations shared by the chat composer, the session menu and the
@@ -41,11 +42,10 @@ export async function exportRemoteLaneHtml(
   nativeFiles: boolean,
 ): Promise<void> {
   try {
-    if (!nativeFiles) return downloadHtml(exportFileName(defaultName), await laneHtml(sessionId))
-    const outputPath = await askExportPath(defaultName)
-    if (!outputPath) return
-    await window.phosphor.invoke('fs:writeFile', outputPath, await laneHtml(sessionId))
-    await window.phosphor.invoke('app:revealPath', outputPath)
+    await saveToDevice(
+      { ...exportFile(defaultName), content: () => laneHtml(sessionId) },
+      nativeFiles,
+    )
   } catch (error) {
     useChatStore.getState().setError(sessionId, `Export failed: ${errorText(error)}`)
   }
@@ -55,35 +55,21 @@ export async function exportRemoteLaneHtml(
 const exportFileName = (name: string): string =>
   `${name.replace(/[\\/:*?"<>|]/g, '-').trim() || 'session'}.html`
 
+/** What every export asks the save dialog for. */
+const exportFile = (defaultName: string) => ({
+  title: 'Export session as HTML',
+  name: exportFileName(defaultName),
+  filters: [{ name: 'HTML', extensions: ['html'] }],
+})
+
 /** The save dialog every export asks first, so cancelling costs nothing. */
-const askExportPath = (defaultName: string): Promise<string | null> =>
-  window.phosphor.invoke('app:saveDialog', {
-    title: 'Export session as HTML',
-    defaultPath: exportFileName(defaultName),
-    filters: [{ name: 'HTML', extensions: ['html'] }],
-  })
+const askExportPath = (defaultName: string): Promise<string | null> => {
+  const { title, name, filters } = exportFile(defaultName)
+  return window.phosphor.invoke('app:saveDialog', { title, defaultPath: name, filters })
+}
 
 const laneHtml = async (sessionId: string): Promise<string> =>
   (await window.phosphor.invoke('hosts:exportLaneHtml', sessionId)).html
-
-/**
- * Download without ever rendering: as `text/html`, a browser that ignores
- * `download` (iOS standalone PWAs) would open the export, model-written content
- * and pi's scripts, as a page in the app's own origin. As an octet stream it can
- * only be saved. The URL is revoked late, because WebKit and older Firefox read
- * it after the click returns.
- */
-function downloadHtml(name: string, html: string): void {
-  const url = URL.createObjectURL(new Blob([html], { type: 'application/octet-stream' }))
-  const link = document.createElement('a')
-  link.href = url
-  link.download = name
-  link.rel = 'noopener'
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 60_000)
-}
 
 /**
  * Export an open lane as HTML, named after it: pi's own export on This Mac, the

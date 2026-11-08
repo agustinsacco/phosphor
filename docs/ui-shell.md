@@ -310,8 +310,10 @@ palette or the shortcuts above.
    fullscreen and close.
 
 The artifacts toolbar carries **two exports that are not the same thing**, and
-they no longer share a glyph: a tray saves the _source_ through a dialog, a page
-prints the _preview_ to a PDF in Downloads. The PDF prints what the preview
+they no longer share a glyph: a tray saves the _source_ (a save dialog on
+Desktop, "Download source" in the browser), a page prints the _preview_ to a PDF in
+Downloads. PDF export is Desktop-only: printing in the page would render model
+HTML in the app's own origin. The PDF prints what the preview
 renders, so it returns to the Preview tab and waits for an async render first,
 and it toasts either way — a silent success reads as a dead button.
 

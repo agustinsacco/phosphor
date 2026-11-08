@@ -27,6 +27,7 @@ import { relativeTimeShort } from '@/lib/time'
 import { useSettingsStore } from '@/stores/settings'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { ipcErrorText } from '@shared/errors'
+import { saveActionLabel, saveToDevice } from '@/lib/saveToDevice'
 import { artifactGlyph, artifactLanguage, suggestedFileName } from './artifactKinds'
 import {
   needsRenderedPreview,
@@ -144,7 +145,9 @@ export function ArtifactWorkspace({
   const latest = artifact.versions[artifact.versions.length - 1]!
   const platform = usePlatform()
   // A Host artifact downloads to this machine, so its actions name it.
-  const downloads = remote ? `${localMachineLabel()} Downloads` : 'Downloads'
+  const here = remote ? localMachineLabel() : null
+  const downloads = here ? `${here} Downloads` : 'Downloads'
+  const saveTitle = saveActionLabel('source', platform.nativeFiles, here ?? 'file')
   const writeIn = useOpenArtifactInFiles(workspacePath, sessionId)
   const [mode, setMode] = useState<ViewMode>('preview')
   const [exporting, setExporting] = useState(false)
@@ -213,15 +216,11 @@ export function ArtifactWorkspace({
     )
   }
 
-  const save = async (): Promise<void> => {
-    const outputPath = await window.phosphor.invoke('app:saveDialog', {
-      title: 'Save artifact',
-      defaultPath: suggestedFileName(artifact),
-    })
-    if (!outputPath) return
-    await window.phosphor.invoke('fs:writeFile', outputPath, shown.content)
-    await window.phosphor.invoke('app:revealPath', outputPath)
-  }
+  const save = (): Promise<void> =>
+    saveToDevice(
+      { title: 'Save artifact', name: suggestedFileName(artifact), content: () => shown.content },
+      platform.nativeFiles,
+    )
 
   /**
    * Print what the preview shows.
@@ -325,22 +324,18 @@ export function ArtifactWorkspace({
           >
             <LinkIcon />
           </ActionIcon>
+          <ActionIcon title={saveTitle} onClick={() => void save()}>
+            <DownloadIcon />
+          </ActionIcon>
+          {/* PDF prints model HTML, which a browser could only do in the app's own origin. */}
           {platform.nativeFiles && (
-            <>
-              <ActionIcon
-                title={remote ? `Save source to ${localMachineLabel()}…` : 'Save source to file…'}
-                onClick={() => void save()}
-              >
-                <DownloadIcon />
-              </ActionIcon>
-              <ActionIcon
-                title={exporting ? 'Exporting PDF…' : `Export preview to PDF (${downloads})`}
-                disabled={exporting}
-                onClick={() => void exportPdf()}
-              >
-                <PdfExportIcon />
-              </ActionIcon>
-            </>
+            <ActionIcon
+              title={exporting ? 'Exporting PDF…' : `Export preview to PDF (${downloads})`}
+              disabled={exporting}
+              onClick={() => void exportPdf()}
+            >
+              <PdfExportIcon />
+            </ActionIcon>
           )}
           {!page && platform.fileEditing && (
             <ActionIcon

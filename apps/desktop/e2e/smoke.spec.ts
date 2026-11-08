@@ -456,12 +456,12 @@ test('Mermaid viewer fits, zooms, pans, exports and restores focus @system-clipb
       .poll(() => h.app.evaluate(({ clipboard }) => clipboard.readText()))
       .toContain('flowchart LR')
     const output = join(h.workspace, 'diagram.svg')
-    await h.app.evaluate(({ dialog }, filePath) => {
+    await h.app.evaluate(({ dialog, shell }, filePath) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath })
+      shell.showItemInFolder = () => undefined
     }, output)
     await dialog.getByRole('button', { name: 'Save SVG' }).click()
-    await expect.poll(() => readFile(output, 'utf8').catch(() => '')).toContain('<svg')
-    expect(await readFile(output, 'utf8')).toContain('Stage 11')
+    await expect.poll(() => readFile(output, 'utf8').catch(() => '')).toMatch(/<svg.*Stage 11/s)
     await page.screenshot({ path: test.info().outputPath('mermaid-viewer.png') })
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()

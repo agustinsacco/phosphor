@@ -4,6 +4,7 @@ import { ModalOverlay } from '../Modal'
 import { Button } from '../form'
 import { CopyButton } from '../CopyButton'
 import { errorText } from '@shared/errors'
+import { saveActionLabel, saveToDevice } from '@/lib/saveToDevice'
 import { fitDiagram, zoomDiagram, type DiagramView } from './diagramViewport'
 
 export function MermaidViewer({
@@ -100,11 +101,10 @@ export function MermaidViewer({
       image.style.setProperty('--px-font-sans', 'Arial, sans-serif')
       image.style.background = getComputedStyle(canvas.current!).backgroundColor
       const content = new XMLSerializer().serializeToString(image)
-      const path = await window.phosphor.invoke('app:saveDialog', {
-        title: 'Save diagram',
-        defaultPath: 'diagram.svg',
-      })
-      if (path) await window.phosphor.invoke('fs:writeFile', path, content)
+      await saveToDevice(
+        { title: 'Save diagram', name: 'diagram.svg', content: () => content },
+        platform.nativeFiles,
+      )
     } catch (err) {
       setError(errorText(err))
     } finally {
@@ -159,11 +159,9 @@ export function MermaidViewer({
             100%
           </Button>
           <CopyButton text={code} label="Copy source" />
-          {platform.nativeFiles && (
-            <Button size="sm" disabled={saving} onClick={() => void save()}>
-              {saving ? 'Saving…' : 'Save SVG'}
-            </Button>
-          )}
+          <Button size="sm" disabled={saving} onClick={() => void save()}>
+            {saving ? 'Saving…' : saveActionLabel('SVG', platform.nativeFiles)}
+          </Button>
           <Button size="sm" aria-label="Close diagram" onClick={onClose}>
             Close
           </Button>

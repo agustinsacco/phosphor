@@ -16,6 +16,10 @@
       "types": "./src/base64.ts",
       "default": "./src/base64.ts"
     },
+    "./download": {
+      "types": "./src/download.ts",
+      "default": "./src/download.ts"
+    },
     "./brain": {
       "types": "./src/brain.ts",
       "default": "./src/brain.ts"
