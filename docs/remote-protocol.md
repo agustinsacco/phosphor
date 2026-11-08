@@ -161,6 +161,19 @@ relay directly to each other. Raw transcripts are not part of normal lane
 subscriptions. An uncertain commit result is unconfirmed and never retried
 automatically. The source is never modified and no prompt is replayed.
 
+## File bytes
+
+Hosts that serve raw file bytes announce `fileBytes: true` in `ready`.
+`files.readBytes { laneId | repositoryId, path, offset, length }` answers
+`{ size, version, data }`: base64 of the `min(length, size - offset)` bytes from
+`offset`, under `workspaces.read` and the same path checks as `files.read`
+(`libs/shared/src/host-protocol-file-bytes.ts`). A chunk is at most 1 MiB decoded
+and a file at most 1 GiB; a larger file is `too-large`, an offset past the end is
+`bad-request`. Calls are independent: no transfer id, no Host state. `version` is
+an opaque hash of the file's identity, size and change times, so a client reading
+many chunks refuses a file that changed under it, and a short chunk is refused
+as torn.
+
 ## Lane pins and markers
 
 A Host keeps each lane's pin and marker, so every client shows the same ones.

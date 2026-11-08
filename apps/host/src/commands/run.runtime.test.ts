@@ -22,6 +22,15 @@ import type * as Routines from '../routines/service'
 import type * as Live from '../lanes/live'
 import type * as Lock from '../control/lock'
 
+const WORKSPACE_READS = [
+  'files.list',
+  'files.read',
+  'files.readBytes',
+  'git.status',
+  'git.diff',
+  'git.show',
+]
+
 const sink = vi.hoisted(() => ({ deliver: vi.fn(), isConnected: vi.fn(() => true) }))
 const hooks = vi.hoisted(
   (): {
@@ -318,7 +327,7 @@ describe('run lane composition', () => {
             expect(hooks.lanes?.calls.capabilityFor(method)).toBe('artifacts.read')
           for (const method of ['routines.list', 'routines.history', 'routines.activity'])
             expect(hooks.lanes?.calls.capabilityFor(method)).toBe('routines')
-          for (const method of ['files.list', 'files.read', 'git.status', 'git.diff', 'git.show'])
+          for (const method of WORKSPACE_READS)
             expect(hooks.lanes?.calls.capabilityFor(method)).toBe('workspaces.read')
           for (const method of [
             'machine.models',
