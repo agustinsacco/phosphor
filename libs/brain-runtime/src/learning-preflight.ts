@@ -76,6 +76,8 @@ export async function learningPreflight(
   if (!snapshot.prefs.enabled || !snapshot.prefs.workspaces.includes(authority.scope))
     throw new Error('Learning requires an enabled, enrolled workspace')
   signal.throwIfAborted()
+  await options.host.recover?.()
+  signal.throwIfAborted()
   const prepared = await options.host.prepare(target, jobId, signal)
   try {
     signal.throwIfAborted()

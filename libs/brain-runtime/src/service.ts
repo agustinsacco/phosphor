@@ -66,8 +66,11 @@ export async function assembleBrainService(
     stopEmbeddings: () => options.embeddings.dispose(),
     stopIndexing: () => indexer.dispose(),
     stopProcessor: async () => {
-      await learning?.dispose()
-      await processor.dispose()
+      try {
+        await learning?.dispose()
+      } finally {
+        await processor.dispose()
+      }
     },
     purge: () => transcripts.purge(),
     closeBridge: () => bridge.close(),
@@ -113,6 +116,7 @@ async function initializeBrain(
 ): Promise<void> {
   let enabled: boolean
   try {
+    await options.learningHost?.recover?.()
     enabled = (await store.snapshot()).prefs.enabled
   } catch (error) {
     await lifecycle.dispose().catch((failure: unknown) => options.onError?.(failure))

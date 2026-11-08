@@ -32,6 +32,8 @@ interface Active {
   admitted(): void
   timer: ReturnType<typeof setTimeout>
   done?: Promise<void>
+  cleanup?: Promise<void>
+  cleanupFailed?: boolean
   preflight?: LearningPreflight
   job?: BrainJob
 }
@@ -67,6 +69,7 @@ class BrainLearning {
   private closed = false
   constructor(private readonly options: LearningOptions) {}
   preview = async (target: BrainLearningTarget): Promise<BrainLearningPreview> => {
+    await this.retryFailedCleanup()
     const active = this.reserve()
     try {
       active.preflight = await learningPreflight(
@@ -88,6 +91,7 @@ class BrainLearning {
   start = async (target: BrainLearningTarget, input: BrainLearningConsent): Promise<BrainJob> => {
     consentInput(input)
     const consent = structuredClone(input)
+    await this.retryFailedCleanup()
     const active = this.reserve()
     try {
       const flight = await learningPreflight(this.options, target, active.id, active.abort.signal)
@@ -222,10 +226,24 @@ class BrainLearning {
       await this.release(active)
     }
   }
-  private async release(active: Active): Promise<void> {
+  private async retryFailedCleanup(): Promise<void> {
+    if (this.closed) throw new Error('Learning is unavailable or busy')
+    if (this.active?.cleanupFailed) await this.release(this.active)
+  }
+  private release(active: Active): Promise<void> {
     clearTimeout(active.timer)
-    await active.preflight?.prepared.dispose()
-    if (this.active === active) this.active = undefined
+    active.cleanup ??= Promise.resolve()
+      .then(async () => {
+        await active.preflight?.prepared.dispose()
+        if (this.active === active) this.active = undefined
+        active.cleanupFailed = false
+      })
+      .catch((error: unknown) => {
+        active.cleanup = undefined
+        active.cleanupFailed = true
+        throw error
+      })
+    return active.cleanup
   }
   cancel = async (id: string): Promise<void> => {
     identifier(id)
@@ -233,7 +251,12 @@ class BrainLearning {
     const active = this.active
     active.abort.abort(new Error('Learning cancelled'))
     await active.admission
-    if (active.done) await active.done
+    try {
+      if (active.done) await active.done
+    } catch (error) {
+      if (!active.cleanupFailed) throw error
+    }
+    if (this.active === active) await this.release(active)
   }
   /** Synchronous shutdown fence; owned disposal is awaited separately. */
   abort = (): void => {
@@ -242,6 +265,7 @@ class BrainLearning {
   revoke = async (): Promise<void> => {
     const active = this.active
     if (active) await this.cancel(active.id)
+    await this.options.host.dispose?.()
   }
   dispose = async (): Promise<void> => {
     this.closed = true

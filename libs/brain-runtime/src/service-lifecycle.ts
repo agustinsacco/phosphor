@@ -24,21 +24,24 @@ export function createBrainLifecycle(resources: LifecycleResources) {
       return result
     },
     dispose() {
-      disposal ??= (async () => {
+      if (!closed) {
         closed = true
         resources.revoke()
         resources.detach()
         resources.stopIndexing()
         resources.stopEmbeddings()
+      }
+      disposal ??= (async () => {
         await tail
-        try {
-          await resources.stopProcessor()
-          await resources.purge()
-        } finally {
-          await resources.closeBridge()
-          await resources.closeStore()
-        }
-      })()
+        await resources.stopProcessor()
+        await resources.purge()
+        await resources.closeBridge()
+        await resources.closeStore()
+      })().catch((error: unknown) => {
+        // Keep cleanup ports available. Revocation stays fenced while an owner is retained.
+        disposal = undefined
+        throw error
+      })
       return disposal
     },
   }
