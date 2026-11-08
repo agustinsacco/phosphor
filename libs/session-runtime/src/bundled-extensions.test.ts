@@ -24,6 +24,11 @@ describe('bundledExtensions', () => {
       'brain-learning-context.ts',
       'brain-learning-result.ts',
       'brain-learning-provenance.ts',
+      'brain-learning-carrier.ts',
+      'brain-learning-carrier-auth.ts',
+      'brain-learning-carrier-files.ts',
+      'brain-learning-carrier-operation.ts',
+      'brain-learning-carrier-sdk.ts',
     ])
     // Opt-in Brain resources are bundled separately, never added to every session.
     const optional = new Set(['brain.ts', 'brain-processor.ts'])

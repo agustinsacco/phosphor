@@ -14,7 +14,11 @@ it('lints source extensions, not their generated standalone bundles', async () =
 })
 
 it('names the pi-ext sources that ship only as bundles', () => {
-  expect(BRAIN_EXTENSION_SOURCES).toEqual(['brain.ts', 'brain-processor.ts'])
+  expect(BRAIN_EXTENSION_SOURCES).toEqual([
+    'brain.ts',
+    'brain-processor.ts',
+    'brain-learning-carrier.ts',
+  ])
 })
 
 it('stages standalone working and processor extensions with no workspace dependency', async () => {
@@ -26,7 +30,7 @@ it('stages standalone working and processor extensions with no workspace depende
     await mkdir(extensions, { recursive: true })
     await mkdir(client, { recursive: true })
     await writeFile(join(client, 'client.ts'), 'export const value = 42\n')
-    for (const file of ['brain', 'brain-processor'])
+    for (const file of ['brain', 'brain-processor', 'brain-learning-carrier'])
       await writeFile(
         join(extensions, `${file}.ts`),
         "import {value} from '@phosphor/brain-client/client'; export default () => value\n",
@@ -34,7 +38,7 @@ it('stages standalone working and processor extensions with no workspace depende
     await buildBrainExtensions({ root, outDir })
     // Simulate an installed app: the entire source tree is now absent.
     await rm(join(root, 'libs'), { recursive: true })
-    for (const file of ['brain', 'brain-processor']) {
+    for (const file of ['brain', 'brain-processor', 'brain-learning-carrier']) {
       const output = join(outDir, `${file}.mjs`)
       const code = await readFile(output, 'utf8')
       expect(code).not.toContain(root)

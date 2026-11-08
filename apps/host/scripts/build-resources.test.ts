@@ -54,7 +54,7 @@ function root(extra: Record<string, string> = {}): string {
   const at = join(dir, 'root')
   const ext = 'root/libs/pi-extensions/pi-ext'
   for (const file of BUNDLED_EXTENSION_FILES) write(`${ext}/${file}`, `// ${file}\n`)
-  for (const file of ['brain', 'brain-processor'])
+  for (const file of ['brain', 'brain-processor', 'brain-learning-carrier'])
     write(`${ext}/${file}.ts`, `export default () => '${file}'\n`)
   for (const [path, text] of Object.entries(extra)) write(`${ext}/${path}`, text)
   write('root/libs/pi-extensions/skills/one/SKILL.md', '# One\n')
@@ -145,6 +145,7 @@ describe('stageResources', () => {
         'brain-ext',
         'brain-ext/brain.mjs',
         'brain-ext/brain-processor.mjs',
+        'brain-ext/brain-learning-carrier.mjs',
         'pi-ext',
         ...BUNDLED_EXTENSION_FILES.map((file) => `pi-ext/${file}`),
         'pi-ext/helper.ts',
@@ -168,7 +169,7 @@ describe('stageResources', () => {
 
   it('stages Brain as standalone modules the Host never loads by default', async () => {
     await stageResources(stage, { root: root(), native: undefined, target: undefined })
-    for (const file of ['brain', 'brain-processor']) {
+    for (const file of ['brain', 'brain-processor', 'brain-learning-carrier']) {
       const code = readFileSync(join(stage, 'brain-ext', `${file}.mjs`), 'utf8')
       expect(code).toContain(`"${file}"`)
       expect(code).not.toContain('@phosphor/')

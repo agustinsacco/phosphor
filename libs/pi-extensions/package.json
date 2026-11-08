@@ -4,6 +4,26 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./brain-learning-carrier": {
+      "types": "./pi-ext/brain-learning-carrier.ts",
+      "default": "./pi-ext/brain-learning-carrier.ts"
+    },
+    "./brain-learning-carrier-auth": {
+      "types": "./pi-ext/brain-learning-carrier-auth.ts",
+      "default": "./pi-ext/brain-learning-carrier-auth.ts"
+    },
+    "./brain-learning-carrier-files": {
+      "types": "./pi-ext/brain-learning-carrier-files.ts",
+      "default": "./pi-ext/brain-learning-carrier-files.ts"
+    },
+    "./brain-learning-carrier-operation": {
+      "types": "./pi-ext/brain-learning-carrier-operation.ts",
+      "default": "./pi-ext/brain-learning-carrier-operation.ts"
+    },
+    "./brain-learning-carrier-sdk": {
+      "types": "./pi-ext/brain-learning-carrier-sdk.ts",
+      "default": "./pi-ext/brain-learning-carrier-sdk.ts"
+    },
     "./brain-learning": {
       "types": "./pi-ext/brain-learning.ts",
       "default": "./pi-ext/brain-learning.ts"

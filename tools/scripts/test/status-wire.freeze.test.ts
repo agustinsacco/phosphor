@@ -19,7 +19,10 @@ import {
 import { MCP_INSPECTION_STATUS_KEY } from '../../../libs/shared/src/mcp-inspection'
 import { useExtensionUiStore } from '../../../libs/client-ui/src/stores/extensionUi'
 import frozenFixture from './__fixtures__/status-wire.json'
-import { BRAIN_AUDIT_STATUS_KEY } from '../../../libs/pi-extensions/pi-ext/status-keys'
+import {
+  BRAIN_AUDIT_STATUS_KEY,
+  BRAIN_LEARNING_STATUS_KEY,
+} from '../../../libs/pi-extensions/pi-ext/status-keys'
 
 // Existing wire keys stay intact. MCP inspection deliberately adds a native host reply.
 const fixture = {
@@ -30,6 +33,11 @@ const fixture = {
       key: 'phosphor-brain-audit',
       producer: 'libs/pi-extensions/pi-ext/brain-processor.ts',
       consumer: 'libs/brain-runtime/src/tool-audit.ts',
+    },
+    {
+      key: 'phosphor-brain-learning',
+      producer: 'libs/pi-extensions/pi-ext/brain-learning-carrier.ts',
+      consumer: 'libs/brain-runtime/src/learning-carrier-transport.ts',
     },
   ],
   statuses: frozenFixture.statuses.map((entry) => ({
@@ -51,6 +59,7 @@ describe('status wire runtime characterization', () => {
       MCP_INSPECTION_STATUS_KEY,
     ]).toEqual(fixture.statuses.map(({ key }) => key))
     expect(BRAIN_AUDIT_STATUS_KEY).toBe(fixture.internalStatuses[0]!.key)
+    expect(BRAIN_LEARNING_STATUS_KEY).toBe(fixture.internalStatuses[1]!.key)
     expect(RENDERER_HEADROOM_KEY).toBe(HEADROOM_STATUS_KEY)
     expect(SUBAGENT_ASYNC_WIDGET_KEY).toBe(fixture.asyncWidget.key)
     expect(SUBAGENT_INSPECT_WIDGET_KEY).toBe(fixture.structuredWidgets[1])
@@ -296,6 +305,7 @@ const auditedTexts = new Map(
     ...sourceFiles('libs/client-ui/src'),
     ...sourceFiles('apps/web/src'),
     'libs/brain-runtime/src/tool-audit.ts',
+    'libs/brain-runtime/src/learning-carrier-transport.ts',
     'libs/session-runtime/src/pi/lane-reload.ts',
     'libs/session-runtime/src/pi/mcp-lane.ts',
     'libs/shared/src/mcp-inspection.ts',

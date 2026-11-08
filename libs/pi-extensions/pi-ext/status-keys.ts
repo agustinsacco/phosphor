@@ -1,6 +1,8 @@
 /** Case-sensitive wire literals; safe to import in a browser or inside pi. */
 /** Private processor attestation, consumed by main and never forwarded to lane UI. */
 export const BRAIN_AUDIT_STATUS_KEY = 'phosphor-brain-audit'
+/** Private one-shot carrier acknowledgement, never forwarded to the renderer. */
+export const BRAIN_LEARNING_STATUS_KEY = 'phosphor-brain-learning'
 export const SWARM_STATUS_KEY = 'phosphor-swarm'
 export const CONTEXT_BREAKDOWN_STATUS_KEY = 'phosphor-context-breakdown'
 export const LANE_RELOAD_STATUS_KEY = 'phosphor-reload'
@@ -19,6 +21,7 @@ export const SNAPSHOT_PREFIX = 'PHOSPHOR_SUBAGENT_SAVE:'
 // Commands are a distinct channel, even when their names also identify statuses.
 // The context budget has a command only, not a status key.
 export const BRAIN_AUDIT_COMMAND = 'phosphor-brain-audit'
+export const BRAIN_LEARNING_COMMAND = 'phosphor-brain-learning'
 export const CONTEXT_BUDGET_COMMAND = 'phosphor-context-budget'
 export const CONTEXT_FILES_COMMAND = 'phosphor-context-files'
 export const SNAPSHOT_COMMAND = 'phosphor-save-subagent-snapshot'

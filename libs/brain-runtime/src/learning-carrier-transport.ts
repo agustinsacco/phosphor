@@ -3,7 +3,11 @@ import type { ExtensionUIRequest, PiEvent } from '@phosphor/shared/rpc'
 import type { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import { abortable } from './processor-wait'
 
-const COMMAND = 'phosphor-brain-learning'
+import {
+  BRAIN_LEARNING_COMMAND,
+  BRAIN_LEARNING_STATUS_KEY,
+} from '@phosphor/pi-extensions/status-keys'
+const COMMAND = BRAIN_LEARNING_COMMAND
 export async function verifyLearningCommand(
   client: PiRpcClient,
   extensionPath: string,
@@ -37,7 +41,7 @@ export async function commandLearningCarrier(
   let exit: () => void = () => {}
   const ack = new Promise<boolean>((resolve, reject) => {
     status = (request) => {
-      if (request.method !== 'setStatus' || request.statusKey !== COMMAND) return
+      if (request.method !== 'setStatus' || request.statusKey !== BRAIN_LEARNING_STATUS_KEY) return
       if (typeof request.statusText !== 'string' || Buffer.byteLength(request.statusText) > 512) {
         reject(new Error('Oversized learning acknowledgement'))
         return

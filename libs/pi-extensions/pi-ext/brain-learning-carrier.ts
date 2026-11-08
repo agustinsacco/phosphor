@@ -15,8 +15,9 @@ import {
 } from './brain-learning-carrier-operation'
 import { installedLearningSdk, type LearningPiSdk } from './brain-learning-carrier-sdk'
 
-export const LEARNING_CARRIER_COMMAND = 'phosphor-brain-learning'
-export const LEARNING_CARRIER_STATUS = 'phosphor-brain-learning'
+import { BRAIN_LEARNING_COMMAND, BRAIN_LEARNING_STATUS_KEY } from './status-keys'
+export const LEARNING_CARRIER_COMMAND = BRAIN_LEARNING_COMMAND
+export const LEARNING_CARRIER_STATUS = BRAIN_LEARNING_STATUS_KEY
 export interface LearningCarrierApi {
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void
   appendEntry(type: string, data: unknown): void

@@ -32,7 +32,7 @@ extraResources:
   # Staged by the main build (electron.vite.config.ts). Nothing enables them.
   - from: ../../libs/pi-extensions/brain-ext
     to: brain-ext
-    filter: ['brain.mjs', 'brain-processor.mjs']
+    filter: ['brain.mjs', 'brain-processor.mjs', 'brain-learning-carrier.mjs']
   - from: build/brain-third-party-notices.md
     to: brain-third-party-notices.md
   - from: ../../libs/pi-extensions/skills

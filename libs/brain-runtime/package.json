@@ -4,6 +4,30 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./learning-carrier-files": {
+      "types": "./src/learning-carrier-files.ts",
+      "default": "./src/learning-carrier-files.ts"
+    },
+    "./learning-carrier-transport": {
+      "types": "./src/learning-carrier-transport.ts",
+      "default": "./src/learning-carrier-transport.ts"
+    },
+    "./learning-host": {
+      "types": "./src/learning-host.ts",
+      "default": "./src/learning-host.ts"
+    },
+    "./learning-source-admission": {
+      "types": "./src/learning-source-admission.ts",
+      "default": "./src/learning-source-admission.ts"
+    },
+    "./learning-coordinator": {
+      "types": "./src/learning-coordinator.ts",
+      "default": "./src/learning-coordinator.ts"
+    },
+    "./learning-preflight": {
+      "types": "./src/learning-preflight.ts",
+      "default": "./src/learning-preflight.ts"
+    },
     "./learning-source": {
       "types": "./src/learning-source.ts",
       "default": "./src/learning-source.ts"

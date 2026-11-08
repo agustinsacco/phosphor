@@ -106,6 +106,8 @@ describe('status-keys published vocabulary', () => {
       // Private processor attestation, consumed in main rather than rendered as status.
       BRAIN_AUDIT_COMMAND: 'phosphor-brain-audit',
       BRAIN_AUDIT_STATUS_KEY: 'phosphor-brain-audit',
+      BRAIN_LEARNING_COMMAND: 'phosphor-brain-learning',
+      BRAIN_LEARNING_STATUS_KEY: 'phosphor-brain-learning',
     })
     expect(
       source('libs/pi-extensions/pi-ext/status-keys.ts').trim().split('\n').length,

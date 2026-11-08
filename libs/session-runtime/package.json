@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./pi/learning-execution-profile": {
+      "types": "./src/pi/learning-execution-profile.ts",
+      "default": "./src/pi/learning-execution-profile.ts"
+    },
     "./pi/brain-execution-profile": {
       "types": "./src/pi/brain-execution-profile.ts",
       "default": "./src/pi/brain-execution-profile.ts"

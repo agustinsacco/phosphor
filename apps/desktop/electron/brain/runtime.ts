@@ -9,6 +9,7 @@ import { createBrainEmbeddings } from './embedding-service'
 import { createBrainService, type BrainService } from '@phosphor/brain-runtime/service'
 import { createDesktopMemory } from './memory-service'
 import { resolveBrainProcessor } from './processor-resolver'
+import { createDesktopLearningHost } from './learning-host'
 
 let pending: Promise<BrainService> | undefined
 let closing = false
@@ -40,6 +41,10 @@ async function construct(): Promise<BrainService> {
       openStore: (directory) =>
         createDesktopMemory(directory, join(import.meta.dirname, 'brain-memory-worker.js')),
       resources: { workingExtension: join(resources, 'brain-ext/brain.mjs'), processorExtension },
+      learningHost: createDesktopLearningHost({
+        directory: join(directory, 'learning'),
+        extensionPath: join(resources, 'brain-ext/brain-learning-carrier.mjs'),
+      }),
       sessions: desktopSessions,
       registry,
       sessionPaths,

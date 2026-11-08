@@ -21,6 +21,10 @@ function commands(api: BrainApi): BrainCommands {
     'brain:evidence': api.evidence,
     'brain:graph': api.graph,
     'brain:process': api.process,
+    'brain:learnPreview': api.learnPreview,
+    'brain:learn': api.learn,
+    'brain:learningJobs': api.learningJobs,
+    'brain:learningDetail': api.learningDetail,
     'brain:cancel': api.cancel,
     'brain:review': api.review,
     'brain:correct': api.correct,
@@ -52,6 +56,12 @@ export function registerBrainHandlers(service: BrainService | (() => Promise<Bra
   handle('brain:process', (_event, scope, consent) =>
     invoke('brain:process', scope, bounded(consent)),
   )
+  handle('brain:learnPreview', (_event, target) => invoke('brain:learnPreview', bounded(target)))
+  handle('brain:learn', (_event, target, consent) =>
+    invoke('brain:learn', bounded(target), bounded(consent)),
+  )
+  handle('brain:learningJobs', (_event, scope) => invoke('brain:learningJobs', scope))
+  handle('brain:learningDetail', (_event, id) => invoke('brain:learningDetail', id))
   handle('brain:cancel', (_event, id) => invoke('brain:cancel', id))
   handle('brain:review', (_event, id, approve, revision) =>
     invoke('brain:review', id, approve, bounded(revision)),

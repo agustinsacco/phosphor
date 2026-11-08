@@ -214,7 +214,7 @@ describe('Brain resources and native packaging', () => {
     expect(config.extraResources).toContainEqual({
       from: '../../libs/pi-extensions/brain-ext',
       to: 'brain-ext',
-      filter: ['brain.mjs', 'brain-processor.mjs'],
+      filter: ['brain.mjs', 'brain-processor.mjs', 'brain-learning-carrier.mjs'],
     })
     expect(config.extraResources).toContainEqual({
       from: 'build/brain-third-party-notices.md',
