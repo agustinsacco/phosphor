@@ -10,7 +10,8 @@ describe('bundledExtensions', () => {
     // Modules imported by an extension, not loaded separately with -e:
     // Budget/files/global/ledger helpers belong to context-breakdown; store/snapshot helpers to artifacts;
     // main-checkout is the worktree detector shared by worktree-paths and context-files;
-    // status-keys is the shared wire vocabulary, imported by producers and consumers.
+    // status-keys is the shared wire vocabulary, imported by producers and consumers;
+    // subagent-children is context-breakdown's, and what pi-subagents children load.
     const imported = new Set([
       'context-budget.ts',
       'context-files.ts',
@@ -22,6 +23,7 @@ describe('bundledExtensions', () => {
       'subagent-snapshot.ts',
       'status-keys.ts',
       'pi-api.ts',
+      'subagent-children.ts',
     ])
     const files = readdirSync(join(root, 'libs/pi-extensions/pi-ext')).filter(
       (name) => name.endsWith('.ts') && !name.endsWith('.test.ts') && !imported.has(name),

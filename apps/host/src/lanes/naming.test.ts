@@ -372,6 +372,7 @@ it('names with the lane routed Claude account env and the provider spawn env', a
         PI_CLAUDE_CLI_CONTEXT: 'pi',
         PI_CLAUDE_CLI_KEEPALIVE_MS: '0',
         PI_CLAUDE_CLI_EPHEMERAL: '1',
+        PI_SUBAGENT_CACHE_RETENTION: 'short',
         CLAUDE_SECURESTORAGE_CONFIG_DIR: '/accounts/second',
       },
     }),
