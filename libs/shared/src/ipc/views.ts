@@ -65,6 +65,8 @@ export interface HostConnectionView {
   laneMarks?: boolean
   /** Host can send and receive lanes (`laneTransfer.*`). */
   laneTransfer?: boolean
+  /** Host serves raw file bytes (`files.readBytes`): downloads and media previews. */
+  fileBytes?: boolean
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: HostLaneView[]

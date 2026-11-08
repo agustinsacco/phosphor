@@ -11,6 +11,7 @@ import { hostPlatform } from '@/lib/shortcuts'
 import { FileIcon } from '@/components/icons'
 import { TextFileRender, ViewTabs } from './TextFilePreview'
 import { MarkdownPreview } from './MarkdownPreview'
+import { DownloadButton } from './download'
 import type { FilesFeatures } from './filesSource'
 
 /**
@@ -60,6 +61,7 @@ export function FileViewer({
   features,
   textLimitBytes,
   source,
+  onDownload,
 }: {
   file: OpenFile
   kind: PreviewKind
@@ -70,6 +72,8 @@ export function FileViewer({
   textLimitBytes: number
   /** What Source shows — the editor, owned by EditorPane. */
   source: React.ReactNode
+  /** Save the file on this device, where its machine serves its bytes. */
+  onDownload?: () => void
 }): React.JSX.Element {
   const view = textPreview ? (file.view ?? 'preview') : 'preview'
   const [detail, setDetail] = useState<string | null>(null)
@@ -90,6 +94,7 @@ export function FileViewer({
             ? 'Unsaved edits — the preview shows the saved file'
             : [detail, formatBytes(file.size)].filter(Boolean).join(' · ')}
         </span>
+        {onDownload && <DownloadButton size={file.size} onDownload={onDownload} compact />}
         {features.osActions && <FileActions path={file.path} compact />}
       </div>
       <div className="min-h-0 flex-1">
@@ -103,7 +108,12 @@ export function FileViewer({
               <TextFileRender kind={kind} path={file.path} content={file.content} />
             </Suspense>
           ) : (
-            <FileFallback file={file} osActions={false} textLimitBytes={textLimitBytes} />
+            <FileFallback
+              file={file}
+              osActions={false}
+              textLimitBytes={textLimitBytes}
+              onDownload={onDownload}
+            />
           )
         ) : (
           <Preview
@@ -229,11 +239,13 @@ export function FileFallback({
   reason,
   osActions,
   textLimitBytes,
+  onDownload,
 }: {
   file: OpenFile
   reason?: string
   osActions: boolean
   textLimitBytes: number
+  onDownload?: () => void
 }): React.JSX.Element {
   const ext = extensionOf(file.path)
   const why =
@@ -258,6 +270,7 @@ export function FileFallback({
           </div>
         </div>
         {osActions && <FileActions path={file.path} />}
+        {onDownload && <DownloadButton size={file.size} onDownload={onDownload} />}
       </div>
     </div>
   )

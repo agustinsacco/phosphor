@@ -217,6 +217,9 @@ Saves compare the SHA-256 revision read by the editor; conflicts preserve edits
 and offer a reload. Uncertain saves preserve edits and are never retried.
 Unsaved edits stay in renderer memory per lane, survive lane switches, and clear
 on reload, successful save, lane forget or closing the tab without saving.
+Desktop downloads a lane's file through `hosts:fileDownload` on the lane's handle
+([Files](files.md#remote-lanes)), so a download keeps going when the window focuses
+another lane; progress is pushed on `hosts:fileDownloadProgress`.
 Changes lists the files the lane's tools touched, each with an inline read-only
 diff. Binary files and oversized text use placeholders. Remote text uses in-memory
 Monaco models, never `phosphor-file://` grants or filesystem watchers. Markdown,

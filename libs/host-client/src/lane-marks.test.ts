@@ -81,8 +81,10 @@ describe('readyView', () => {
     hello: { hostVersion: '1.0.0' },
     capabilities: ['sessions.read'],
   } as unknown as Extract<HostFrame, { type: 'ready' }>
-  it('reports lane marks support only when the Host says so', () => {
+  it('reports lane marks and file bytes support only when the Host says so', () => {
     expect(readyView({ ...ready, laneMarks: true }).laneMarks).toBe(true)
     expect(readyView(ready).laneMarks).toBe(false)
+    expect(readyView({ ...ready, fileBytes: true }).fileBytes).toBe(true)
+    expect(readyView(ready).fileBytes).toBe(false)
   })
 })

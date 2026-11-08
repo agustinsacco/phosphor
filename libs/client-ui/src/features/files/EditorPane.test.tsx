@@ -36,6 +36,7 @@ const lane = (writeRefusal: string | null = null): FilesSource => ({
     listOptions: false,
     clipboardFiles: false,
     revert: false,
+    download: false,
   },
 })
 const open = (file: Partial<OpenFile> & { path: string }) =>

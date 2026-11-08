@@ -5,6 +5,12 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { hostLaneSession, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
+import {
+  COMPACT_PLATFORM,
+  DESKTOP_PLATFORM,
+  PlatformProvider,
+  type Platform,
+} from '@/platform/Platform'
 import { useHostFilesSource, localFilesSource, type FilesSource } from './filesSource'
 
 afterEach(() => {
@@ -13,7 +19,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function hostSource(): Promise<{ read: () => FilesSource; done: () => void }> {
+async function hostSource(
+  platform: Platform = DESKTOP_PLATFORM,
+): Promise<{ read: () => FilesSource; done: () => void }> {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   let source: FilesSource | undefined
   function Probe(): null {
@@ -21,7 +29,13 @@ async function hostSource(): Promise<{ read: () => FilesSource; done: () => void
     return null
   }
   const root = createRoot(document.createElement('div'))
-  await act(async () => root.render(<Probe />))
+  await act(async () =>
+    root.render(
+      <PlatformProvider value={platform}>
+        <Probe />
+      </PlatformProvider>,
+    ),
+  )
   return { read: () => source!, done: () => act(() => root.unmount()) }
 }
 
@@ -56,6 +70,7 @@ it('This Mac’s folder is a watched tree with every feature and no refusal', ()
       listOptions: true,
       clipboardFiles: true,
       revert: true,
+      download: false,
     },
   })
 })
@@ -73,6 +88,22 @@ it('a Host lane is a flat list without the local-only features', async () => {
   })
   expect(Object.values(source.read().features).every((on) => !on)).toBe(true)
   source.done()
+})
+
+it('a Host serving file bytes offers downloads through the lane, where files save natively', async () => {
+  seed(true, ['workspaces.read'])
+  await update(() => ({ fileBytes: true }))
+  const desktop = await hostSource()
+  expect(desktop.read()).toMatchObject({ sessionId: mockRemoteInfo.sessionId })
+  expect(desktop.read().features.download).toBe(true)
+  desktop.done()
+  const browser = await hostSource(COMPACT_PLATFORM)
+  expect(browser.read().features.download).toBe(false)
+  browser.done()
+  await update(() => ({ fileBytes: undefined }))
+  const older = await hostSource()
+  expect(older.read().features.download).toBe(false)
+  older.done()
 })
 
 it('a Host lane says why it cannot be read or written', async () => {

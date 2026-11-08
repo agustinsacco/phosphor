@@ -35,6 +35,20 @@ what needs a local folder: content search, the hidden-file and .gitignore
 toggles, the OS clipboard and file import, Reveal, Quick Look, Open in default
 app and media previews.
 
+On Desktop, a Host that serves file bytes ([Host protocol](remote-protocol.md#file-bytes))
+adds **Download**: on a file's right-click menu, in the viewer bar and on the "No
+preview" card. It saves any file up to 1 GB into this device's Downloads folder
+under its own name, numbered (`clip (2).mp4`) rather than replacing anything there.
+Main reads the file in 1 MiB chunks into a `clip.mp4.download`
+part file that gets the real name only once complete, with no execute bit; the
+renderer never holds the bytes. Downloads and previews share at most four chunk
+reads in flight per Host connection, well inside its 32 pending calls. A strip under the pane shows each download's
+progress with **Cancel**, then where it landed with Reveal in Finder, and stays
+when the pane closes or the lane changes. A larger file is refused up front, a
+file that changes on the Host mid-download is refused as torn, and a cancelled
+or failed download leaves no part behind. Closing the window cancels its
+downloads. An older Host shows no Download.
+
 Saves send the SHA-256 revision the editor read, not an mtime, one at a time per
 file; a pane that remounts during a save sees it and sends nothing more. A
 conflict keeps the buffer and offers Reload, not Keep mine, which the revision

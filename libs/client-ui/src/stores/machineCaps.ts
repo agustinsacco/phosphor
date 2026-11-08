@@ -6,7 +6,7 @@ import { useRemoteLanesStore } from './remoteLanes'
 
 type HostCapsSource = Pick<
   HostConnectionView,
-  'state' | 'capabilities' | 'laneMarks' | 'machineShell' | 'laneTransfer'
+  'state' | 'capabilities' | 'laneMarks' | 'machineShell' | 'laneTransfer' | 'fileBytes'
 >
 
 /**
@@ -30,6 +30,8 @@ export interface MachineCaps {
   machineShell: boolean
   /** Can import and export saved lanes. */
   laneTransfer: boolean
+  /** Serves raw file bytes: downloads and media previews. */
+  fileBytes: boolean
 }
 
 /** A Host's caps from its view; an unknown Host is not ready and grants nothing. */
@@ -48,6 +50,7 @@ export function machineCaps(host: HostCapsSource | undefined): MachineCaps {
     laneMarks: host?.laneMarks === true,
     machineShell: host?.machineShell === true,
     laneTransfer: host?.laneTransfer === true,
+    fileBytes: host?.fileBytes === true,
   }
 }
 
@@ -61,6 +64,7 @@ export const LOCAL_MACHINE_CAPS: MachineCaps = Object.freeze({
   laneMarks: true,
   machineShell: true,
   laneTransfer: true,
+  fileBytes: true,
 })
 
 /** The caps of a Host by id, or This Mac's for undefined; recomputed when the Host's view changes. */
