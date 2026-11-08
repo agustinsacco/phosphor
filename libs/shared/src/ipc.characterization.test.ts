@@ -118,6 +118,8 @@ const baselineScope = {
   'hosts:takeControl': 'app',
   'hosts:markRead': 'app',
   'hosts:exportLaneHtml': 'app',
+  'hosts:fileDownload': 'app',
+  'hosts:fileDownloadCancel': 'app',
   'hosts:subagentHistory': 'app',
   'hosts:subagentInspect': 'app',
   'hosts:deleteLane': 'app',

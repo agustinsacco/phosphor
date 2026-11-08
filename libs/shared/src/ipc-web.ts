@@ -1,5 +1,5 @@
 import type { IpcInvokeChannel } from './ipc'
-import { connectorConfig, LANE_TRANSFER_WEB } from './ipc-web-exclusions'
+import { connectorConfig, DESKTOP_TRANSFERS_WEB } from './ipc-web-exclusions'
 
 export type WebIpcClassification =
   { kind: 'remote-supported' } | { kind: 'browser-local' } | { kind: 'unsupported'; reason: string }
@@ -49,7 +49,7 @@ export const IPC_WEB = {
   'hosts:skills': remote,
   'hosts:skillExport': remote,
   'hosts:skillInstall': remote,
-  ...LANE_TRANSFER_WEB,
+  ...DESKTOP_TRANSFERS_WEB,
   'hosts:providerLogin': remote,
   'hosts:settingsAccess': remote,
   'hosts:settingsRead': remote,

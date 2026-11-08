@@ -114,6 +114,13 @@ export interface RemoteLaneCreate {
   thinkingLevel?: string
 }
 
+/** How far one `hosts:fileDownload` has got, pushed while it runs. */
+export interface FileDownloadProgress {
+  id: string
+  received: number
+  size: number
+}
+
 /** An attention event from any Host, for in-app and OS notifications (49). */
 export interface HostAttention {
   receipt?: LaneReceipt

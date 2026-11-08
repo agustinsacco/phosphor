@@ -102,6 +102,16 @@ export interface HostsInvokeMap {
   'hosts:markRead': { args: [hostId: string, laneId: string]; result: void }
   /** A lane this window opened, exported by its Host as one HTML document. */
   'hosts:exportLaneHtml': { args: [sessionId: string]; result: { html: string } }
+  /**
+   * A lane this window opened: one of its files, by lane-relative path, saved into this
+   * device's Downloads folder. `id` names the download for `onFileDownloadProgress` and
+   * `hosts:fileDownloadCancel`; it rejects with fixed text, including when cancelled.
+   */
+  'hosts:fileDownload': {
+    args: [request: { sessionId: string; path: string; id: string }]
+    result: { savedTo: string }
+  }
+  'hosts:fileDownloadCancel': { args: [id: string]; result: void }
   /** A lane this window opened: its subagent records on the active branch, as its Host sends them. */
   'hosts:subagentHistory': {
     args: [sessionId: string]

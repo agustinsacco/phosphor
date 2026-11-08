@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer, webFrame, webUtils } from 'electron'
-import type { HostAttention, IpcInvokeChannel, IpcInvokeMap, PhosphorApi } from '@shared/ipc'
+import type {
+  FileDownloadProgress,
+  HostAttention,
+  IpcInvokeChannel,
+  IpcInvokeMap,
+  PhosphorApi,
+} from '@shared/ipc'
 import { sessionEventChannel } from '@shared/ipc'
 import type {
   SessionPush,
@@ -75,6 +81,8 @@ const api: PhosphorApi = {
 
   onHostsChanged: (listener) => subscribe<[]>('hosts:changed', listener),
   onHostAttention: (listener) => subscribe<[HostAttention]>('hosts:attention', listener),
+  onFileDownloadProgress: (listener) =>
+    subscribe<[FileDownloadProgress]>('hosts:fileDownloadProgress', listener),
   onHostOpenLane: (listener) =>
     subscribe<[{ hostId: string; laneId: string }]>('hosts:openLaneRequested', listener),
   onMachinesChanged: (listener) => subscribe<[]>('control:machinesChanged', listener),
