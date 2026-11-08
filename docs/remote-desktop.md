@@ -242,7 +242,14 @@ requiring `sessions.read`. Stopped lanes do not fall back to a machine catalogue
 Skills requires `skills.read`; without it Skills says "This Host does not offer
 skills to this device." and the start and routine model pickers say "This Host
 does not offer models to this device.". Remote Skills shows the installed list
-and SKILL.md read-only, with no export, upload, discovery installs or in-place edits.
+and SKILL.md read-only, with no upload, discovery installs or in-place edits.
+**Export** keeps a Host skill on this device as `<name>.zip`, laid out as This
+Mac's export (`<name>/…`): the client reads the share bundle with
+`hosts:skillExport` and hands it to `skills:saveBundle`. Desktop main validates it
+with `parseSkillBundle`, zips it (`libs/shared/src/zip-store.ts`) and writes only
+where its save dialog says; a browser validates and zips it in the page and
+downloads it. The share limits below apply. This Mac's own export stays
+`skills:export`, which zips the folder in main with no share limits.
 
 ### Skill sharing
 

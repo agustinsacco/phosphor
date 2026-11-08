@@ -248,6 +248,7 @@ export const IPC_WEB = {
   'skills:writeFile': unsupported('This native service requires Desktop.'),
   'skills:delete': unsupported('This native service requires Desktop.'),
   'skills:export': unsupported('This native service requires Desktop.'),
+  'skills:saveBundle': browser,
   'skills:install': unsupported('This native service requires Desktop.'),
   'skills:importPick': unsupported('This native service requires Desktop.'),
   'skills:importConfirm': unsupported('This native service requires Desktop.'),

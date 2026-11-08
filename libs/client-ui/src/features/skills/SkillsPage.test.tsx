@@ -149,8 +149,10 @@ it('keeps remote skills read-only, gates capability and never offers local insta
     `${workspacePath}/skill:remote-skill`,
     'SKILL.md',
   )
-  for (const label of ['Delete', 'Edit', 'Publish', 'Update', 'Export'])
+  for (const label of ['Delete', 'Edit', 'Publish', 'Update'])
     expect(container.textContent).not.toContain(label)
+  // Export keeps a copy on this device, so a read-only Host skill offers it too.
+  expect(container.textContent).toContain('Export')
   await act(async () => useRemoteLanesStore.setState({ hosts: {} }))
   expect(container.textContent).toContain('Machine not connected. Wait for reconnection.')
 })

@@ -9,10 +9,10 @@
  * read anywhere on disk); and entry/byte caps bound a zip bomb before any
  * inflate output is retained.
  *
- * Writing only ever uses the STORE method (no compression). Skill bundles are
- * kilobytes of markdown; simplicity beats ratio.
+ * Writing is the shared STORE writer (`@phosphor/shared/zip-store`).
  */
 import { inflateRawSync } from 'node:zlib'
+import { writeZipStore as writeZipBytes } from '@phosphor/shared/zip-store'
 
 export interface ZipEntry {
   /** Normalized forward-slash relative path. Directories end with `/`. */
@@ -98,61 +98,11 @@ function findEocd(zip: Buffer): number {
   throw new Error('not a zip file (no end-of-central-directory)')
 }
 
-/** Build a STORE-method zip from file entries. */
+/**
+ * The shared STORE writer as a Buffer, the type `readZipEntries` and Desktop's callers take.
+ * `skills.install.characterization.test.ts` (frozen) imports it from here.
+ */
 export function writeZipStore(entries: ZipEntry[]): Buffer {
-  const locals: Buffer[] = []
-  const centrals: Buffer[] = []
-  let offset = 0
-  for (const entry of entries) {
-    const name = Buffer.from(entry.path, 'utf8')
-    const crc = crc32(entry.data)
-    const local = Buffer.alloc(30)
-    local.writeUInt32LE(LOCAL_SIG, 0)
-    local.writeUInt16LE(20, 4) // version needed
-    local.writeUInt16LE(0x0800, 6) // utf8 names
-    local.writeUInt16LE(0, 8) // method: store
-    local.writeUInt32LE(crc, 14)
-    local.writeUInt32LE(entry.data.length, 18)
-    local.writeUInt32LE(entry.data.length, 22)
-    local.writeUInt16LE(name.length, 26)
-    locals.push(local, name, entry.data)
-
-    const central = Buffer.alloc(46)
-    central.writeUInt32LE(CENTRAL_SIG, 0)
-    central.writeUInt16LE(20, 4)
-    central.writeUInt16LE(20, 6)
-    central.writeUInt16LE(0x0800, 8)
-    central.writeUInt16LE(0, 10)
-    central.writeUInt32LE(crc, 16)
-    central.writeUInt32LE(entry.data.length, 20)
-    central.writeUInt32LE(entry.data.length, 24)
-    central.writeUInt16LE(name.length, 28)
-    central.writeUInt32LE(offset, 42)
-    centrals.push(central, name)
-    offset += 30 + name.length + entry.data.length
-  }
-  const centralSize = centrals.reduce((sum, buf) => sum + buf.length, 0)
-  const eocd = Buffer.alloc(22)
-  eocd.writeUInt32LE(EOCD_SIG, 0)
-  eocd.writeUInt16LE(entries.length, 8)
-  eocd.writeUInt16LE(entries.length, 10)
-  eocd.writeUInt32LE(centralSize, 12)
-  eocd.writeUInt32LE(offset, 16)
-  return Buffer.concat([...locals, ...centrals, eocd])
-}
-
-const CRC_TABLE = (() => {
-  const table = new Uint32Array(256)
-  for (let n = 0; n < 256; n += 1) {
-    let c = n
-    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
-    table[n] = c >>> 0
-  }
-  return table
-})()
-
-export function crc32(data: Buffer): number {
-  let crc = 0xffffffff
-  for (const byte of data) crc = (CRC_TABLE[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8)
-  return (crc ^ 0xffffffff) >>> 0
+  const zip = writeZipBytes(entries)
+  return Buffer.from(zip.buffer, zip.byteOffset, zip.byteLength)
 }

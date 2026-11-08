@@ -7,6 +7,8 @@ import {
   laneSubagentInspect,
 } from '@phosphor/host-client/lane-reads'
 import { remoteSkillShare } from '@phosphor/host-client/skill-share'
+import { downloadBytes } from '@phosphor/shared/download'
+import { zipSkillBundle } from '@phosphor/shared/zip-store'
 import { REMOTE_UNAVAILABLE } from '@phosphor/host-client/lane-ops'
 import { routeRemoteWrite } from '@phosphor/host-client/write-features'
 import { uploadAttachments } from '@phosphor/host-client/attachments'
@@ -25,6 +27,12 @@ export type BrowserHandlers = {
     ...args: IpcInvokeMap[C]['args']
   ) => IpcInvokeMap[C]['result'] | Promise<IpcInvokeMap[C]['result']>
 }
+/** Export keeps a Host skill on this device: validated and zipped in the page, then downloaded. */
+function saveSkillBundle(bundle: unknown): { savedTo: string } {
+  const { fileName, data } = zipSkillBundle(bundle)
+  downloadBytes(fileName, data)
+  return { savedTo: fileName }
+}
 /** Machine catalogues and skill sharing: no lane is needed. The browser has no 'local'. */
 function machineHandlers(
   machines: ReturnType<typeof createBrowserResources>['machines'],
@@ -41,6 +49,7 @@ function machineHandlers(
     'hosts:skillExport': (source) => share.export(source.machine, source.name),
     'hosts:skillInstall': (machine, bundle, overwrite) =>
       share.install(machine, bundle, overwrite === true),
+    'skills:saveBundle': saveSkillBundle,
   } satisfies Partial<BrowserHandlers>
 }
 /** The Host's folder dialog; the folders are the Host's, so the browser can browse them too. */

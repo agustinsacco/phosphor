@@ -20,6 +20,10 @@
       "types": "./src/download.ts",
       "default": "./src/download.ts"
     },
+    "./zip-store": {
+      "types": "./src/zip-store.ts",
+      "default": "./src/zip-store.ts"
+    },
     "./brain": {
       "types": "./src/brain.ts",
       "default": "./src/brain.ts"

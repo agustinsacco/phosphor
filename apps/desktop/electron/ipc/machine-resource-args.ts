@@ -145,6 +145,7 @@ export const MACHINE_RESOURCE_ARGS: MachineResourcePolicies = {
   'skills:writeFile': [{ arg: 0 }, { arg: 1 }, { arg: 3, optional: true }],
   'skills:delete': [{ arg: 0 }, { arg: 1, optional: true }],
   'skills:export': [{ arg: 0 }],
+  'skills:saveBundle': 'none',
   'skills:install': 'none',
   'skills:importPick': 'none',
   'skills:importConfirm': [

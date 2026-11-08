@@ -27,6 +27,7 @@ import { Markdown } from '@/components/markdown/Markdown'
 import { NewSkillModal } from './NewSkillModal'
 import { groupSkills } from './skillGroups'
 import { SkillMachines, SkillShareActions } from './SkillShare'
+import { exportSkill } from './exportSkill'
 
 /**
  * Global Skills page: outcome-first discovery with evidence and fit before
@@ -592,9 +593,7 @@ function SkillDetail({
           skill={skill}
           workspacePath={workspacePath}
           disabled={pending != null}
-          onExport={() =>
-            void run('export', () => window.phosphor.invoke('skills:export', skill.dir))
-          }
+          onExport={(source) => void run('export', () => exportSkill(skill, source))}
         />
         {platform.fileEditing && skill.writable && (
           <Button

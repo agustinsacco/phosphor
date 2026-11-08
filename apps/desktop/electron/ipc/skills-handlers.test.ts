@@ -73,6 +73,7 @@ describe('skills IPC characterization', () => {
       'skills:writeFile',
       'skills:delete',
       'skills:export',
+      'skills:saveBundle',
       'skills:install',
       'skills:importPick',
       'skills:importConfirm',
@@ -272,6 +273,30 @@ describe('skills archive dialog characterization', () => {
       expect(h.write).not.toHaveBeenCalled()
     },
   )
+
+  it("saves another machine's bundle as the zip This Mac would export, through the same dialog", async () => {
+    const bundle = { name: 'demo', files: [{ path: 'SKILL.md', data: btoa('skill') }] }
+    expect(await invoke('skills:saveBundle', bundle)).toEqual({ savedTo: '/saved.zip' })
+    expect(h.save).toHaveBeenCalledWith(h.window, {
+      defaultPath: 'demo.zip',
+      filters: [{ name: 'Skill bundle', extensions: ['zip', 'skill'] }],
+    })
+    const [path, data] = h.write.mock.calls[0]!
+    expect(path).toBe('/saved.zip')
+    expect(new TextDecoder().decode(data as Uint8Array)).toContain('demo/SKILL.md')
+    h.save.mockResolvedValue({ canceled: true })
+    expect(await invoke('skills:saveBundle', bundle)).toBeNull()
+    expect(h.write).toHaveBeenCalledOnce()
+  })
+
+  it('refuses an invalid bundle before the dialog or a write', async () => {
+    const escaping = { name: 'demo', files: [{ path: '../SKILL.md', data: btoa('x') }] }
+    await expect(invoke('skills:saveBundle', escaping)).rejects.toThrow(
+      'This skill bundle is not valid.',
+    )
+    expect(h.save).not.toHaveBeenCalled()
+    expect(h.write).not.toHaveBeenCalled()
+  })
 
   it('previews the selected import without mutating or invalidating', async () => {
     const preview = { sourcePath: '/import.zip', name: 'demo' }

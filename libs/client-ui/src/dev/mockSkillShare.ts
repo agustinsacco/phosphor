@@ -31,11 +31,12 @@ function remoteSkill(machine: string, name: string): ResolvedSkill {
   }
 }
 
-type Channel = 'hosts:skills' | 'hosts:skillExport' | 'hosts:skillInstall'
+type Channel = 'hosts:skills' | 'hosts:skillExport' | 'hosts:skillInstall' | 'skills:saveBundle'
 export const SKILL_SHARE_MOCK: ReadonlySet<string> = new Set<Channel>([
   'hosts:skills',
   'hosts:skillExport',
   'hosts:skillInstall',
+  'skills:saveBundle',
 ])
 export async function mockSkillShareInvoke(
   channel: string,
@@ -51,6 +52,11 @@ export async function mockSkillShareInvoke(
     const [{ name }] = args as IpcInvokeMap['hosts:skillExport']['args']
     const text = `---\nname: ${name}\ndescription: Shared from the harness.\n---\n`
     return { name, files: [{ path: 'SKILL.md', data: btoa(text) }] }
+  }
+  // The harness keeps nothing on disk; it reports where Desktop's dialog would have saved.
+  if (channel === 'skills:saveBundle') {
+    const [bundle] = args as IpcInvokeMap['skills:saveBundle']['args']
+    return { savedTo: `/Users/dev/Downloads/${bundle.name}.zip` }
   }
   const [machine, bundle, overwrite] = args as IpcInvokeMap['hosts:skillInstall']['args']
   const names = namesOn(machine)

@@ -12,7 +12,7 @@ it('lists the reviewed machine surface; everything else is app-local', () => {
     artifacts: 'stageHtml exportPdf forSession list read remove',
     fs: 'listFiles readDir readFile previewUrl openInDefaultApp quickLook writeFile createFile createDir rename trash transfer pickEntries watchWorkspace statDirs searchWorkspace cancelWorkspaceSearch',
     skills:
-      'list restoreBundled readFile create writeFile delete export install importPick importConfirm',
+      'list restoreBundled readFile create writeFile delete export saveBundle install importPick importConfirm',
     packages:
       'list run installPi detect checkUpdates claudeStatus claudeCliLatest updateClaudeCli testClaudeProvider',
     claude:

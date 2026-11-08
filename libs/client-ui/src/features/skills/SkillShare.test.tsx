@@ -202,3 +202,20 @@ it('refreshes the target after a write that ends once the page has gone', async 
   await act(async () => finish({ status: 'installed', replaced: false }))
   expect(reads(A)).toBe(before + 1)
 })
+
+it('offers Export for a Host skill too', async () => {
+  const onExport = vi.fn()
+  await act(async () =>
+    root.render(
+      <SkillShareActions
+        skill={skill}
+        workspacePath={`host:${A}/machine`}
+        disabled={false}
+        onExport={onExport}
+      />,
+    ),
+  )
+  expect(button('Export')).toBeDefined()
+  await act(async () => button('Export').click())
+  expect(onExport).toHaveBeenCalledOnce()
+})

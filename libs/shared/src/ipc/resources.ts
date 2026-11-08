@@ -11,6 +11,7 @@ import type {
 } from '../mcp'
 import type { SkillImportPreview, SkillScope, SkillsListResult } from '../skills'
 import type { ClaudeStatus, PackageJobAction, PiPackageEntry } from '../models'
+import type { SkillBundle } from '../host-protocol-skill-share'
 
 export interface SkillsInvokeMap {
   /**
@@ -46,6 +47,11 @@ export interface SkillsInvokeMap {
   'skills:delete': { args: [dir: string, workspacePath?: string]; result: void }
   /** Zip the bundle and offer a save dialog. Null when the user cancelled. */
   'skills:export': { args: [dir: string]; result: { savedTo: string } | null }
+  /**
+   * Zip a skill bundle another machine exported and keep it on this device: Desktop asks with
+   * the save dialog (null when cancelled), a browser downloads it (`savedTo` is the file name).
+   */
+  'skills:saveBundle': { args: [bundle: SkillBundle]; result: { savedTo: string } | null }
   /** Install one skill from the pinned catalog into the user root. */
   'skills:install': {
     args: [

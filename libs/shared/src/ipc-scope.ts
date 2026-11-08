@@ -162,6 +162,7 @@ export const IPC_SCOPE = {
   'skills:writeFile': 'machine',
   'skills:delete': 'machine',
   'skills:export': 'machine',
+  'skills:saveBundle': 'machine',
   'skills:install': 'machine',
   'skills:importPick': 'machine',
   'skills:importConfirm': 'machine',
