@@ -123,8 +123,9 @@ rest. Drag nodes to move them, or drag the background to orbit. Zoom controls an
 Fit adjust the camera. After its first layout settles, the graph fits the pane
 with 16 px padding. Fits use the node spheres themselves, not the library's
 `zoomToFit`, which fits the 3D bounding box's empty corners and leaves the
-graph small. Container resizing refits instantly unless the user moved the
-camera, or a focus or search is active. Refreshes preserve known positions. Memory search keeps
+graph small. Container resizing instantly re-frames whatever the camera
+shows (everything, the search matches or an About focus) unless the user moved
+the camera. Fits never come closer than 250 units, so one match is not magnified. Refreshes preserve known positions. Memory search keeps
 matching memories' entities bright and fits them in about 600 ms; clearing it
 fits everything. An About chip flies to its entity. Keyboard users can focus the
 same entities through the graph's screen-reader-only list; a small visible chip

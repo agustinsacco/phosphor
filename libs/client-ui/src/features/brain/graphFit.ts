@@ -12,6 +12,8 @@ export interface FitView {
   /** Pane height and padding, in pixels. */
   height: number
   padding: number
+  /** Closest the camera may come to the centre, so a lone node is not magnified. */
+  minDistance?: number
 }
 
 const dot = (a: Vec, b: Vec): number => a.x * b.x + a.y * b.y + a.z * b.z
@@ -46,7 +48,7 @@ export function fitCamera(
   const horizontal = vertical * view.aspect
   const center = { x: extent(points, 'x'), y: extent(points, 'y'), z: extent(points, 'z') }
   const distance = Math.max(
-    0,
+    view.minDistance ?? 0,
     ...points.map((point) => {
       const local = { x: point.x - center.x, y: point.y - center.y, z: point.z - center.z }
       const across = Math.max(

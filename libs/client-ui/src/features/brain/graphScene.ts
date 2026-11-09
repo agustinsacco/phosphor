@@ -94,8 +94,8 @@ class SceneController implements GraphScene {
       this.height = height
       graph.width(Math.max(1, width)).height(Math.max(1, height))
       this.activity.wake()
-      if (this.settled && !this.userCamera && !this.selection.focus && !this.selection.matches)
-        this.fitTo(0)
+      // Keep whatever the camera is framing (everything, a search or an About focus) in view.
+      if (this.settled && !this.userCamera) this.aim(0)
     }
     this.observer = new ResizeObserver(resize)
     this.observer.observe(container)
@@ -116,18 +116,15 @@ class SceneController implements GraphScene {
     this.appearance.paint(this.hover, this.selection.matches, this.theme)
     this.activity.wake()
   }
-  private aim = (): void => {
-    this.activity.wake(this.duration() + 100)
+  private aim = (duration = this.duration()): void => {
+    this.activity.wake(duration + 100)
     const node =
       this.focusCamera && this.model.nodes.find((item) => item.id === this.selection.focus)
     if (node && Number.isFinite(node.x)) {
       const target = { x: node.x ?? 0, y: node.y ?? 0, z: node.z ?? 0 }
-      this.graph.cameraPosition({ ...target, z: target.z + 120 }, target, this.duration())
+      this.graph.cameraPosition({ ...target, z: target.z + 120 }, target, duration)
     } else
-      this.fitTo(
-        this.duration(),
-        (item) => !this.selection.matches || this.selection.matches.has(item.id),
-      )
+      this.fitTo(duration, (item) => !this.selection.matches || this.selection.matches.has(item.id))
   }
   /** Fit the nodes themselves, keeping the current view direction. */
   private fitTo(duration: number, keep: (node: GraphNode) => boolean = () => true): void {
@@ -151,6 +148,7 @@ class SceneController implements GraphScene {
         aspect: camera.aspect,
         height: this.height,
         padding: 16,
+        minDistance: 250,
       },
     )
     if (fit) this.graph.cameraPosition(fit.position, fit.lookAt, duration)
