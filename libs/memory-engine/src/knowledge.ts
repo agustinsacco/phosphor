@@ -11,9 +11,12 @@ import type { KnownContext, EvidenceExcerpt } from './types'
 
 const columns = `id, scope, subject_id AS subjectId, predicate, object_id AS objectId, literal,
  summary, type, kind, branch, valid_from AS validFrom, recorded_at AS recordedAt,
- COALESCE((SELECT NULLIF(MAX(e.observed_at), 0) FROM citations c JOIN evidence e
-   ON e.id=c.evidence_id WHERE c.memory_id=memories.id), recorded_at) AS observedAt,
+ COALESCE(NULLIF(said.at, 0), recorded_at) AS observedAt,
  origin_session AS originSession, origin_title AS originTitle`
+/** Each memory's latest cited transcript time, computed in one pass over citations. */
+const dated = `memories LEFT JOIN (SELECT c.memory_id, MAX(e.observed_at) AS at
+ FROM citations c JOIN evidence e ON e.id=c.evidence_id GROUP BY c.memory_id) said
+ ON said.memory_id=memories.id`
 type MemoryRow = Omit<BrainMemory, 'origin'> & {
   originSession: string | null
   originTitle: string | null
@@ -25,12 +28,12 @@ function decode(row: MemoryRow): BrainMemory {
     origin: originSession === null ? null : { sessionId: originSession, title: originTitle ?? '' },
   }
 }
-export const ACTIVE_MEMORIES = `SELECT ${columns} FROM memories WHERE state='active' ORDER BY recorded_at DESC, rowid DESC`
+export const ACTIVE_MEMORIES = `SELECT ${columns} FROM ${dated} WHERE state='active' ORDER BY recorded_at DESC, rowid DESC`
 export function activeMemories(ctx: Context): BrainMemory[] {
   return all<MemoryRow>(ctx, ACTIVE_MEMORIES).map(decode)
 }
 export function memory(ctx: Context, id: string): BrainMemoryDetail {
-  const row = one<MemoryRow>(ctx, `SELECT ${columns} FROM memories WHERE id=?`, id)
+  const row = one<MemoryRow>(ctx, `SELECT ${columns} FROM ${dated} WHERE id=?`, id)
   if (!row) throw new Error('Brain memory not found.')
   const quotes = all<{ quote: string; text: string; label: string }>(
     ctx,
