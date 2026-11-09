@@ -35,6 +35,11 @@ describe('fitCamera', () => {
     expect(padded.position.z).toBeGreaterThan(bare.position.z)
   })
 
+  it('never comes closer than the minimum distance, so a lone match is not magnified', () => {
+    const fit = fitCamera([{ x: 0, y: 0, z: 0, r: 5 }], { ...view, minDistance: 250 })!
+    expect(fit.position.z).toBeCloseTo(250)
+  })
+
   it('uses the narrower horizontal angle in a tall pane and returns null for no nodes', () => {
     const points = [
       { x: -100, y: 0, z: 0, r: 0 },

@@ -405,28 +405,43 @@ it('fits after the first layout, then refits resized panes instantly with small 
   expect(graph.cameraPosition).toHaveBeenCalledOnce()
 })
 
-it.each(['orbit', 'zoom', 'focus', 'search'])(
-  'does not override %s on container resize',
-  async (action) => {
-    await render()
-    setting<() => void>('onEngineStop')()
-    if (action === 'orbit') {
-      const start = mock.controls.addEventListener.mock.calls.find(
-        ([name]) => name === 'start',
-      )![1] as () => void
-      start()
-    } else if (action === 'zoom') await click('Zoom in')
-    else if (action === 'focus') await render({ focus: 'rina' })
-    else await render({ matches: new Set(['harbor']) })
+it.each(['orbit', 'zoom'])('does not override %s on container resize', async (action) => {
+  await render()
+  setting<() => void>('onEngineStop')()
+  if (action === 'orbit') {
+    const start = mock.controls.addEventListener.mock.calls.find(
+      ([name]) => name === 'start',
+    )![1] as () => void
+    start()
+  } else await click('Zoom in')
+  graph.cameraPosition.mockClear()
+  vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValue({
+    width: 450,
+    height: 400,
+  } as DOMRect)
+  resize()
+  expect(graph.cameraPosition).not.toHaveBeenCalled()
+})
+
+it('keeps an About focus or a search framed, instantly, when the pane resizes', async () => {
+  await render()
+  setting<() => void>('onEngineStop')()
+  const shrink = (): void => {
     graph.cameraPosition.mockClear()
-    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValue({
-      width: 450,
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValueOnce({
+      width: 450 + graph.width.mock.calls.length,
       height: 400,
     } as DOMRect)
     resize()
-    expect(graph.cameraPosition).not.toHaveBeenCalled()
-  },
-)
+  }
+  await render({ focus: 'rina' })
+  shrink()
+  expect(graph.cameraPosition).toHaveBeenCalledOnce()
+  expect(lastCamera().slice(1)).toEqual([{ x: 60, y: 10, z: 20 }, 0])
+  await render({ focus: 'rina', matches: new Set(['harbor']) })
+  shrink()
+  expect(lastCamera().slice(1)).toEqual([centerOf(['harbor']), 0])
+})
 
 it('does not consume the pending fit when resuming a previously stopped engine before new data', async () => {
   await render()
