@@ -58,7 +58,7 @@ export function BrainExtraction({
             <SectionLabel>Raw agent output</SectionLabel>
             <div className="max-h-96 overflow-auto">
               <CodeBlock
-                code={data.answer || '(No final text returned)'}
+                code={formatAgentOutput(data.answer) || '(No final text returned)'}
                 language="text"
                 chatActions={false}
               />
@@ -230,4 +230,13 @@ function ExtractionSource({
       )}
     </details>
   )
+}
+
+function formatAgentOutput(answer: string): string {
+  try {
+    const parsed: unknown = JSON.parse(answer)
+    return JSON.stringify(parsed, null, 2)
+  } catch {
+    return answer
+  }
 }

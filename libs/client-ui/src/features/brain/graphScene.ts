@@ -39,6 +39,10 @@ class SceneController implements GraphScene {
   private hover: string | null = null
   private theme = readGraphTheme()
   private pendingCamera = false
+  private settled = false
+  private userCamera = false
+  private width = 0
+  private height = 0
   private focusCamera = false
   private motion = window.matchMedia?.('(prefers-reduced-motion: reduce)')
   private activity: ReturnType<typeof graphActivity>
@@ -51,7 +55,9 @@ class SceneController implements GraphScene {
     container: HTMLElement,
     onFocus: (id: string) => void,
   ) {
-    this.activity = graphActivity(graph, container)
+    this.activity = graphActivity(graph, container, () => {
+      this.userCamera = true
+    })
     this.appearance = graphAppearance(graph)
     graph
       .backgroundColor('rgba(0,0,0,0)')
@@ -73,15 +79,21 @@ class SceneController implements GraphScene {
       .onEngineStop(() => {
         if (this.pendingCamera) {
           this.pendingCamera = false
-          this.aim()
+          this.settled = true
+          if (!this.userCamera) this.aim()
         }
         this.activity.cooled()
       })
     this.setMotion()
     const resize = (): void => {
       const { width, height } = container.getBoundingClientRect()
+      if (width === this.width && height === this.height) return
+      this.width = width
+      this.height = height
       graph.width(Math.max(1, width)).height(Math.max(1, height))
       this.activity.wake()
+      if (this.settled && !this.userCamera && !this.selection.focus && !this.selection.matches)
+        graph.zoomToFit(0, 16)
     }
     this.observer = new ResizeObserver(resize)
     this.observer.observe(container)
@@ -112,7 +124,7 @@ class SceneController implements GraphScene {
     } else
       this.graph.zoomToFit(
         this.duration(),
-        40,
+        16,
         (item) => !this.selection.matches || this.selection.matches.has(item.id),
       )
   }
@@ -122,10 +134,10 @@ class SceneController implements GraphScene {
       .cooldownTicks(this.motion?.matches ? 0 : 300)
     this.activity.reheat()
     if (this.model.nodes.length) {
-      this.pendingCamera = true
       this.graph.graphData({ nodes: this.model.nodes, links: this.model.links })
     }
     this.aim()
+    this.pendingCamera = this.model.nodes.length > 0
   }
 
   update(model: GraphModel, selection: GraphSelection): void {
@@ -134,6 +146,7 @@ class SceneController implements GraphScene {
       selection.focus !== this.selection.focus || selection.matches !== this.selection.matches
     if (selection.focus !== this.selection.focus) this.focusCamera = !!selection.focus
     if (selection.matches !== this.selection.matches) this.focusCamera = false
+    if (selectionChanged) this.userCamera = false
     this.selection = selection
     if (changed) {
       const previous = new Map(this.model.nodes.map((node) => [node.id, node]))
@@ -147,20 +160,24 @@ class SceneController implements GraphScene {
         }
       }
       this.appearance.data(model)
-      this.pendingCamera = true
+      this.settled = false
       this.activity.reheat()
       this.graph.graphData(model)
     }
     this.paint()
     if (selectionChanged) this.aim()
+    // Waking a paused graph can synchronously stop its OLD engine. Arm only after those wakes.
+    if (changed) this.pendingCamera = true
   }
 
   fit(): void {
+    this.userCamera = false
     this.activity.wake(this.duration() + 100)
-    this.graph.zoomToFit(this.duration(), 40)
+    this.graph.zoomToFit(this.duration(), 16)
   }
 
   zoom(factor: number): void {
+    this.userCamera = true
     const camera = this.graph.cameraPosition()
     const target = (this.graph.controls() as { target: { x: number; y: number; z: number } }).target
     this.activity.wake(this.duration() + 100)

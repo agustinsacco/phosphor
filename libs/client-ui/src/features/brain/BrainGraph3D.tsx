@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { BrainEntity, BrainMemory } from '@shared/brain'
 import { Button } from '@/components/form'
 import { GRAPH_COLORS } from './graphColors'
@@ -26,7 +26,7 @@ export function BrainGraph3D({
   return (
     <section
       aria-label="Knowledge graph"
-      className="border-border bg-bg-secondary/40 flex min-h-64 flex-1 flex-col rounded-lg border"
+      className="border-border bg-bg-secondary/40 relative flex min-h-64 flex-1 flex-col rounded-lg border"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 p-3">
         <div aria-label="Entity kinds" className="text-text-tertiary flex flex-wrap gap-3 text-sm">
@@ -85,28 +85,41 @@ function GraphAccess({
   matches: Set<string> | null
   onFocus: (id: string) => void
 }): React.JSX.Element {
+  const [keyboardFocus, setKeyboardFocus] = useState<string | null>(null)
   return (
-    <ul className="sr-only focus-within:not-sr-only focus-within:p-3" aria-label="Graph entities">
-      {nodes.map((node) => (
-        <li key={node.id}>
-          <TooltipButton
-            type="button"
-            tooltip={false}
-            aria-label={`Focus ${node.label}`}
-            aria-pressed={focus === node.id}
-            data-highlighted={!matches || matches.has(node.id)}
-            onClick={() => onFocus(node.id)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                onFocus(node.id)
-              }
-            }}
-          >
-            {node.label}
-          </TooltipButton>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="sr-only" aria-label="Graph entities">
+        {nodes.map((node) => (
+          <li key={node.id}>
+            <TooltipButton
+              type="button"
+              tooltip={false}
+              aria-label={`Focus ${node.label}`}
+              aria-pressed={focus === node.id}
+              data-highlighted={!matches || matches.has(node.id)}
+              onFocus={() => setKeyboardFocus(node.label)}
+              onBlur={() => setKeyboardFocus(null)}
+              onClick={() => onFocus(node.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  onFocus(node.id)
+                }
+              }}
+            >
+              {node.label}
+            </TooltipButton>
+          </li>
+        ))}
+      </ul>
+      {keyboardFocus && (
+        <span
+          role="status"
+          className="bg-bg-primary border-accent text-text-primary pointer-events-none absolute bottom-3 left-3 rounded-md border px-3 py-1 text-sm shadow"
+        >
+          Focus {keyboardFocus}
+        </span>
+      )}
+    </>
   )
 }

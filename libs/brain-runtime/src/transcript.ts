@@ -78,6 +78,8 @@ export function transcriptSegments(entries: LaneEntry[]): TranscriptSegment[] {
       entry.type === 'custom_message' ? { role: 'custom', content: entry.content } : entry.message
     if (!message) continue
     const role = message.role
+    if (role === 'toolResult' && ['brain_search', 'brain_related'].includes(message.toolName ?? ''))
+      continue
     const content =
       typeof message.content === 'string'
         ? [{ type: 'text', text: message.content }]

@@ -13,7 +13,7 @@ Write down only what a future agent must know before working on this project aga
 Skip anything transient: steps, retries, tool noise, status updates and things that only mattered inside this conversation. Fewer, sharper memories are better. If nothing is worth keeping, return an empty "memories" list.
 
 ## Already known
-Brain already holds these memories, including any this lane recalled with brain_search or brain_related. Never restate them, even reworded. Write about the same thing only when this lane changed it, and then set "supersedes" to the old memory's id.
+Brain already holds these memories, including any this lane recalled with brain_search or brain_related. Never restate memories just to repeat them. When this lane itself states or relies on an existing memory again, outside brain_search or brain_related output, include it again with a fresh quote from this lane so Brain can re-confirm it. When this lane changed something, set "supersedes" to the old memory's id.
 {{MEMORIES}}
 Existing entities. Use an id below as "subject" or "object" instead of a new key for the same thing:
 {{ENTITIES}}

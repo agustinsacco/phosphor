@@ -91,7 +91,11 @@ outside the vocabulary. A link between two entities stays only when the sentence
 names both; otherwise it becomes a plain fact about the subject.
 `quotes.ts` verifies each memory's one or two quotes against the lane's transcript
 (messages, tool output, tool call arguments and summaries): exact, then
-whitespace-tolerant, then normalised. A memory with no verified quote is dropped.
+whitespace-tolerant, then normalised. Results from `brain_search` and `brain_related`
+are excluded: recalled memories cannot serve as their own fresh evidence. The
+instruction asks for an existing memory again only when the lane independently
+states or relies on it, backed by a fresh lane quote; changed facts use
+`supersedes`. A memory with no verified quote is dropped.
 Evidence keeps up to 400 characters around each quote, so memories outlive their
 lane; secrets and email addresses in it are replaced with `[redacted]`. The kept
 sentences are embedded. At cosine similarity 0.86 or more, a candidate matching
@@ -116,10 +120,13 @@ unknown endpoints are omitted. Literal-only entities remain in the cloud.
 The largest twenty nodes always have sprite labels; hovering reveals other
 labels, highlights neighbours and shows connected predicates while dimming the
 rest. Drag nodes to move them, or drag the background to orbit. Zoom controls and
-Fit adjust the camera. Refreshes preserve known positions. Memory search keeps
+Fit adjust the camera. After its first layout settles, the graph fits the pane
+with 16 px padding. Container resizing refits instantly unless the user moved the
+camera, or a focus or search is active. Refreshes preserve known positions. Memory search keeps
 matching memories' entities bright and fits them in about 600 ms; clearing it
 fits everything. An About chip flies to its entity. Keyboard users can focus the
-same entities through the graph's accessible list.
+same entities through the graph's screen-reader-only list; a small visible chip
+names just the currently keyboard-focused entity.
 Reduced motion precomputes the layout and disables camera transitions. Rendering
 pauses after cooling and camera movement, and wakes on input or data changes.
 Colours come from theme tokens and update on light/dark changes. If WebGL2 is
@@ -146,7 +153,7 @@ failed/empty inbox job opens a read-only right-pane detail. Back returns to its
 caller. It loads on demand and offers Retry after a failed load. The detail shows
 lane/model/thinking, duration and time, outcome counts and every candidate's
 result, links to produced or re-confirmed memories, the raw final answer with
-Copy, a collapsed instruction, and trace metrics (first token, turns, retries and
+Copy (JSON is pretty-printed; other text is unchanged), a collapsed instruction, and trace metrics (first token, turns, retries and
 errors, stop reason, token usage). Invalid shapes and candidates without verified
 quotes have explicit drop reasons. A link rewritten to a plain fact is kept with
 **link check rewritten**, not falsely labelled dropped. Kept means kept in the
@@ -155,7 +162,8 @@ proposal, not necessarily approved.
 **Source lane at extraction** is a collapsed, on-demand transcript through the
 recorded clone leaf, including that leaf and excluding later entries; where parent
 links exist it follows that leaf's ancestry. It returns the last 300 segments,
-each scrubbed and clipped to 4,000 characters. **Open lane** uses current sidebar
+each scrubbed and clipped to 4,000 characters. This uses the evidence reader,
+so `brain_search` and `brain_related` tool results are omitted here too. **Open lane** uses current sidebar
 metadata/navigation, including retained-history handling for removed worktrees.
 A deleted lane has no segments and no Open action; the extraction and stored
 quotes still work.

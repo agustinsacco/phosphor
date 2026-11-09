@@ -8,6 +8,7 @@ export type BrainForceGraph = ForceGraph3DInstance<GraphNode, GraphLink>
 export function graphActivity(
   graph: BrainForceGraph,
   container: HTMLElement,
+  onInteraction: () => void,
 ): {
   wake: (duration?: number) => void
   reheat: () => void
@@ -37,6 +38,7 @@ export function graphActivity(
     check()
   }
   const start = (): void => {
+    onInteraction()
     held = true
     wake()
   }
