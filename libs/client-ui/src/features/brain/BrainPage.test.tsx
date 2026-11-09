@@ -279,3 +279,22 @@ it('recovers a failed first memory load and focuses an entity from its detail', 
   await click('PostgreSQL')
   expect(container.textContent).toContain('About PostgreSQL ×')
 })
+
+it('narrows graph highlights to entities mentioned by memory search matches', async () => {
+  approved()
+  await render()
+  const input = container.querySelector<HTMLInputElement>('[aria-label="Search memories"]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      input,
+      'PostgreSQL',
+    )
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  expect(
+    container.querySelector('[aria-label="Focus Rina Okafor"]')?.getAttribute('data-highlighted'),
+  ).toBe('false')
+  expect(
+    container.querySelector('[aria-label="Focus Harbor"]')?.getAttribute('data-highlighted'),
+  ).toBe('true')
+})
