@@ -54,6 +54,8 @@ export function useGraphViewport(
       cancelPan()
       const fit = fitGraph(nodes, size.width, size.height)
       const node = nodes.find((item) => item.id === focus)
+      // This fit already centres the focus; the focus effect must not re-pan from the old scale.
+      if (node) lastFocus.current = focus
       setView(
         node
           ? {
