@@ -152,6 +152,10 @@ Read the linked doc before touching any of these.
 - Status keys (`phosphor-*`, `claude-*`) and widget payloads are unchecked wire
   contracts ([extensions.md](docs/extensions.md#the-status-channel-is-a-wire-contract)).
   Sub-agents are pi-subagents on both providers ([chat.md](docs/chat.md#sub-agents)).
+- Native modules compile on the release runner and inherit its glibc. Release
+  jobs pin runner images (never `*-latest`) and the Linux floor is glibc 2.35,
+  checked by `tools/scripts/check-glibc-floor.mjs`
+  ([desktop-build.md](docs/desktop-build.md#native-modules-and-the-glibc-floor)).
 - macOS updates by swapping its own bundle beside the installed `.app`
   ([updates.md](docs/updates.md)).
 - MCP credentials belong to pi. Phosphor never holds a token or answers a dialog

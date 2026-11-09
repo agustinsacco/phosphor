@@ -32,10 +32,12 @@ vi.mock('electron', () => ({
   },
 }))
 
-vi.mock('node-pty', () => ({ spawn: (...args: unknown[]) => ptySpawn(...args) }))
 vi.mock('./spawn-helper', () => ({ ensureSpawnHelperExecutable: () => {} }))
 
-const { ptyManager } = await import('./pty-manager')
+const { ptyManager, loadNodePty } = await import('./pty-manager')
+// node-pty loads lazily through createRequire (vi.mock cannot reach it), so
+// prime the cache with the double; the first successful load is kept.
+loadNodePty(() => ({ spawn: (...args: unknown[]) => ptySpawn(...args) }) as never)
 
 /** Minimal IPty double: exposes the data callback so tests can drive output. */
 function fakePty(): { emit: (data: string) => void } {
@@ -198,5 +200,18 @@ describe('PtyManager.attach — scrollback replay', () => {
     pty.emit('output')
     ptyManager.kill(ptyId)
     expect(ptyManager.attach(ptyId).scrollback).toBe('')
+  })
+})
+
+describe('loadNodePty', () => {
+  it('turns a native load failure into an actionable error instead of crashing import', async () => {
+    vi.resetModules()
+    const fresh = await import('./pty-manager')
+    const glibc = new Error("version `GLIBC_2.42' not found")
+    expect(() =>
+      fresh.loadNodePty(() => {
+        throw glibc
+      }),
+    ).toThrow(/terminal is unavailable.*GLIBC_2\.42.*newer glibc/s)
   })
 })
