@@ -90,7 +90,10 @@ export interface BrainMemory {
   /** Branch the memory applies to; null applies to the whole project. */
   branch: string | null
   validFrom: number | null
+  /** When it was approved. */
   recordedAt: number
+  /** When the lane said it: its latest cited transcript entry, else `recordedAt`. Search ranks by its age. */
+  observedAt: number
   origin: BrainOrigin | null
 }
 export interface BrainQuote {

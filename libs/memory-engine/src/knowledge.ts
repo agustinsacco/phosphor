@@ -11,6 +11,8 @@ import type { KnownContext, EvidenceExcerpt } from './types'
 
 const columns = `id, scope, subject_id AS subjectId, predicate, object_id AS objectId, literal,
  summary, type, kind, branch, valid_from AS validFrom, recorded_at AS recordedAt,
+ COALESCE((SELECT NULLIF(MAX(e.observed_at), 0) FROM citations c JOIN evidence e
+   ON e.id=c.evidence_id WHERE c.memory_id=memories.id), recorded_at) AS observedAt,
  origin_session AS originSession, origin_title AS originTitle`
 type MemoryRow = Omit<BrainMemory, 'origin'> & {
   originSession: string | null

@@ -20,6 +20,7 @@ export function mockBrainData(): { entities: BrainEntity[]; details: BrainMemory
     branch: null,
     validFrom: null,
     recordedAt: 1793966400000,
+    observedAt: 1793880000000,
     literal: null,
     origin: { sessionId: 'harbor-lane', title: 'Harbor billing decisions' },
   }

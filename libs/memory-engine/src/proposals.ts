@@ -110,6 +110,9 @@ export function proposedMemory(
     branch: item.branch ? extraction.branch : null,
     validFrom: item.validFrom,
     recordedAt,
+    observedAt:
+      Math.max(0, ...item.citations.map((c) => extraction.evidence[c.evidence]?.observedAt ?? 0)) ||
+      recordedAt,
     origin: extraction.origin,
   }
 }

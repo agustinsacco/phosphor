@@ -61,6 +61,7 @@ function memory(v: unknown): v is BrainMemory {
     nullableString(v.branch) &&
     (v.validFrom === null || number(v.validFrom)) &&
     number(v.recordedAt) &&
+    number(v.observedAt) &&
     (v.origin === null || (record(v.origin) && hasStrings(v.origin, ['sessionId', 'title'])))
   )
 }

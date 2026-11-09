@@ -122,16 +122,27 @@ tools only read:
 - `brain_search(query, limit?)` ranks meaning first. Semantic matches need cosine
   0.35 or more; word matches use BM25 without common words; a query naming an
   entity matches its memories. Reciprocal rank fusion weighs them 2, 1 and 1, and
-  the lane's own project counts 1.25 times. No match returns nothing. Without the
-  model, search falls back to words and names and says so.
+  the lane's own project counts 1.25 times. Age then reorders: a memory's score
+  falls toward half its weight as the date its lane said it gets older. It
+  reaches three quarters after 30 days for an open question, 60 for a risk,
+  180 for a decision or fact and 365 for a procedure or preference. Nothing
+  expires: an old memory is still found when nothing newer matches. No match
+  returns nothing. Without the model, search falls back to words and names and
+  says so.
 - `brain_related(entity, limit?)` returns everything about one entity and its
   neighbours.
 
-Results are sentences with type, project and date, never evidence text. Each
+Every memory carries three dates: `observedAt`, when its lane said it (its latest
+cited transcript entry, else the approval time); `recordedAt`, when it was
+approved; and `validFrom`, when it took effect, only if the lane named one. The
+Brain page shows how long ago each was said.
+
+Results are sentences with type, project, the date said and any effective date,
+never evidence text. Each
 delivery is recorded, so a later extraction of that lane skips what it recalled.
 The skill tells agents to search before "what do we know about…" answers, in
-unfamiliar areas and before settled decisions, and to treat another project's
-memories as context, not rules.
+unfamiliar areas and before settled decisions, to treat another project's
+memories as context, not rules, and to trust the newer memory when two disagree.
 
 ## Limits
 

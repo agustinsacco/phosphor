@@ -13,6 +13,7 @@ import { BrainReview } from './BrainReview'
 import { BrainGraph } from './BrainGraph'
 import { BrainMemoryDetail, MEMORY_LABELS, memoryRelation } from './BrainMemory'
 import { formatCount } from '@/lib/format'
+import { relativeTimeShort } from '@/lib/time'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 
 export function BrainPage(): React.JSX.Element {
@@ -23,6 +24,7 @@ export function BrainPage(): React.JSX.Element {
   const openSettings = useOpenSettings()
   return (
     <PageShell
+      wide
       title={
         <span>
           Brain{' '}
@@ -192,7 +194,8 @@ function MemoryList({
                 >
                   <span className="line-clamp-2 text-base">{memory.summary}</span>
                   <span className="text-text-tertiary mt-1 block truncate text-sm">
-                    {memoryRelation(memory, knowledge.entities)}
+                    {memoryRelation(memory, knowledge.entities)} ·{' '}
+                    {relativeTimeShort(memory.observedAt)}
                   </span>
                 </TooltipButton>
               ))}

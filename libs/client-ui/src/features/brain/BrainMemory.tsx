@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import type { BrainEntity, BrainMemory, BrainQuote, BrainMemoryType } from '@shared/brain'
 import { Button, Tag } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
+import { relativeTime } from '@/lib/time'
 import { useBrain } from './useBrain'
 import { useBrainResource } from './useBrainResource'
 
@@ -27,6 +28,7 @@ export function MemoryTags({ memory }: { memory: BrainMemory }): React.JSX.Eleme
       <Tag>{memory.type}</Tag>
       <Tag>{memory.kind}</Tag>
       <Tag>{memory.branch ? 'this branch' : 'project'}</Tag>
+      <Tag>said {relativeTime(memory.observedAt)}</Tag>
       {memory.validFrom !== null && (
         <Tag>since {new Date(memory.validFrom).toISOString().slice(0, 10)}</Tag>
       )}

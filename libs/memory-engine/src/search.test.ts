@@ -237,7 +237,7 @@ describe('Brain search by age', () => {
         label: 'Old',
         summary: 'Harbor exports run weekly.',
         vector: direction(0.92, 1),
-        observedAt: 0,
+        observedAt: DAY,
       },
       {
         label: 'New',
@@ -259,7 +259,7 @@ describe('Brain search by age', () => {
         label: 'Q',
         summary: 'Who owns refunds?',
         vector: direction(0.92, 1),
-        observedAt: 0,
+        observedAt: DAY,
         type: 'open',
       },
       { label: 'F', summary: 'Ama owns refunds.', vector: direction(0.9, 2), observedAt: 0 },
