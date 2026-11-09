@@ -13,6 +13,7 @@ import {
   svgPoint,
   worldPoint,
   zoomView,
+  layoutStats,
 } from './graphLayout'
 
 it('makes deterministic finite force positions and edges only for relationships', () => {
@@ -160,4 +161,37 @@ it('maps pointer coordinates using a measured tall viewport', () => {
       { width: 400, height: 900 },
     ),
   ).toEqual({ x: 200, y: 600 })
+})
+
+function largeGraph(n: number) {
+  const { entities } = mockBrainData()
+  const nodes = Array.from({ length: n }, (_, i) => ({
+    ...entities[0]!,
+    id: `harbor-${i}`,
+    label: i % 3 ? `Rina Okafor ${i}` : `Harbor billing service ${i}`,
+  }))
+  const edges = nodes
+    .slice(1)
+    .flatMap((node, i) => (i % 2 ? [] : [{ source: `harbor-${i}`, target: node.id }]))
+  return createSimulation(nodes, edges)
+}
+
+it('compares only nearby nodes, so a 400-node tick costs far less than every pair', () => {
+  const simulation = largeGraph(400)
+  settleSimulation(simulation)
+  simulation.alpha = 0.3
+  layoutStats.pairs = 0
+  tickSimulation(simulation)
+  // One repulsion pass and eight collision passes over every pair would be 9 * n(n-1)/2.
+  expect(layoutStats.pairs).toBeLessThan(0.15 * 9 * ((400 * 399) / 2))
+  const boxes = simulation.nodes.map(labelBox)
+  let overlaps = 0
+  for (let i = 0; i < boxes.length; i++)
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i]!,
+        b = boxes[j]!
+      if (!(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top))
+        overlaps++
+    }
+  expect(overlaps).toBe(0)
 })

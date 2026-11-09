@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { mockBrainData } from './mockBrainData'
-import { graphEdges, LINK_DISTANCE, type GraphEdge } from './graphLayout'
+import { graphEdges, layoutStats, LINK_DISTANCE, type GraphEdge } from './graphLayout'
 import { useForceLayout, type ForceLayout } from './useForceLayout'
 import type { BrainEntity } from '@shared/brain'
 
@@ -136,4 +136,40 @@ it('does not schedule frames for an empty graph', () => {
   expect(layout.nodes).toEqual([])
   expect(layout.settled).toBe(true)
   expect(raf).not.toHaveBeenCalled()
+})
+
+function reduceMotion(): void {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+  )
+}
+
+it('moves only the dragged node under reduced motion, with no simulation ticks', () => {
+  reduceMotion()
+  act(() => root.render(<Harness />))
+  const others = layout.nodes.filter((node) => node.id !== 'harbor').map((n) => ({ ...n }))
+  layoutStats.ticks = 0
+  act(() => layout.pin('harbor', { x: 500, y: 100 }))
+  act(() => layout.pin('harbor', { x: 520, y: 140 }))
+  act(() => layout.release('harbor'))
+  expect(layoutStats.ticks).toBe(0)
+  expect(layout.nodes.find((node) => node.id === 'harbor')).toMatchObject({ x: 520, y: 140 })
+  expect(layout.nodes.filter((node) => node.id !== 'harbor')).toEqual(others)
+})
+
+it('settles a large graph over several frames under reduced motion, publishing only the result', () => {
+  reduceMotion()
+  const big = Array.from({ length: 400 }, (_, i) => ({
+    ...entities[0]!,
+    id: `harbor-${i}`,
+    label: `Harbor ${i}`,
+  }))
+  act(() => root.render(<Harness data={big} links={[]} />))
+  expect(layout.settled).toBe(false)
+  expect(layout.nodes).toEqual([])
+  const frames = settle()
+  expect(frames).toBeGreaterThan(1)
+  expect(layout.settled).toBe(true)
+  expect(layout.nodes).toHaveLength(400)
 })
