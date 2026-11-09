@@ -145,7 +145,8 @@ class SceneController implements GraphScene {
         forward: { x: -e[8]!, y: -e[9]!, z: -e[10]! },
         up: { x: e[4]!, y: e[5]!, z: e[6]! },
         fov: camera.fov,
-        aspect: camera.aspect,
+        // The library updates camera.aspect on its next cycle; a resize fit needs the new shape now.
+        aspect: this.width && this.height ? this.width / this.height : camera.aspect,
         height: this.height,
         padding: 16,
         minDistance: 250,
