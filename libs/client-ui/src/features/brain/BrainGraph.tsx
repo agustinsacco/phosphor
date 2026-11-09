@@ -1,21 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { BrainEntity, BrainEntityKind, BrainMemory } from '@shared/brain'
 import { Button } from '@/components/form'
-import {
-  fitGraph,
-  graphEdges,
-  GRAPH_HEIGHT,
-  GRAPH_WIDTH,
-  layoutGraph,
-  separateLabels,
-  svgPoint,
-  worldPoint,
-  zoomView,
-  type GraphEdge,
-  type GraphNode,
-  type Point,
-  type View,
-} from './graphLayout'
+import { graphEdges, graphLabel, zoomView, type GraphEdge, type GraphNode } from './graphLayout'
+import { useForceLayout } from './useForceLayout'
+import { useGraphSize, useGraphViewport } from './useGraphViewport'
+import { useGraphDrag, useGraphWheel } from './useGraphGestures'
 
 const COLORS: Record<BrainEntityKind, string> = {
   person: 'var(--px-accent)',
@@ -27,14 +16,6 @@ const COLORS: Record<BrainEntityKind, string> = {
   concept: 'var(--px-text-tertiary)',
   event: 'var(--px-border-strong)',
 }
-interface Drag {
-  id: string | null
-  start: Point
-  last: Point
-  view: View
-  moved: boolean
-}
-type SetView = Dispatch<SetStateAction<View>>
 
 export function BrainGraph({
   entities,
@@ -48,144 +29,59 @@ export function BrainGraph({
   onFocus: (id: string) => void
 }): React.JSX.Element {
   const edges = useMemo(() => graphEdges(memories), [memories])
-  const initial = useMemo(() => layoutGraph(entities, edges), [entities, edges])
-  const [nodes, setNodes] = useState(initial)
-  const [view, setView] = useState(() => fitGraph(initial))
+  const layout = useForceLayout(entities, edges)
   const [hover, setHover] = useState<string | null>(null)
+  const pane = useRef<HTMLDivElement>(null)
   const svg = useRef<SVGSVGElement>(null)
-  useEffect(() => {
-    setNodes(initial)
-    setView(fitGraph(initial))
-  }, [initial])
-  const gestures = useGraphDrag(svg, view, setView, setNodes, onFocus)
-  useGraphWheel(svg, setView)
+  const size = useGraphSize(pane)
+  const { view, setView, fit, cancelPan } = useGraphViewport(
+    layout.nodes,
+    layout.settled,
+    focus,
+    size,
+  )
+  const gestures = useGraphDrag(svg, view, setView, layout, size, onFocus, cancelPan)
+  useGraphWheel(svg, setView, size, cancelPan)
   const neighbors = new Set([
     hover,
     ...edges.flatMap((edge) =>
       edge.source === hover ? [edge.target] : edge.target === hover ? [edge.source] : [],
     ),
   ])
-  const zoom = (factor: number): void =>
-    setView((previous) => zoomView(previous, factor, { x: GRAPH_WIDTH / 2, y: GRAPH_HEIGHT / 2 }))
+  const zoom = (factor: number): void => {
+    cancelPan()
+    setView((previous) => zoomView(previous, factor, { x: size.width / 2, y: size.height / 2 }))
+  }
   return (
     <section
       aria-label="Knowledge graph"
       className="border-border bg-bg-secondary/40 flex min-h-64 flex-1 flex-col rounded-lg border"
     >
-      <GraphToolbar
-        kinds={[...new Set(entities.map((e) => e.kind))]}
-        zoom={zoom}
-        fit={() => setView(fitGraph(nodes))}
-      />
-      <svg
-        ref={svg}
-        aria-label="Memory relationships"
-        className="min-h-0 w-full flex-1 touch-none select-none"
-        viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`}
-        {...gestures}
-      >
-        <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
-          <GraphEdges nodes={nodes} edges={edges} hover={hover} neighbors={neighbors} />
-          <GraphNodes
-            nodes={nodes}
-            entities={entities}
-            focus={focus}
-            onFocus={onFocus}
-            hover={hover}
-            neighbors={neighbors}
-            setHover={setHover}
-          />
-        </g>
-      </svg>
+      <GraphToolbar kinds={[...new Set(entities.map((e) => e.kind))]} zoom={zoom} fit={fit} />
+      <div ref={pane} className="relative min-h-0 flex-1 overflow-hidden">
+        <svg
+          ref={svg}
+          aria-label="Memory relationships"
+          className="absolute inset-0 h-full w-full touch-none select-none"
+          viewBox={`0 0 ${size.width} ${size.height}`}
+          {...gestures}
+        >
+          <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
+            <GraphEdges nodes={layout.nodes} edges={edges} hover={hover} />
+            <GraphNodes
+              nodes={layout.nodes}
+              entities={entities}
+              focus={focus}
+              onFocus={onFocus}
+              hover={hover}
+              neighbors={neighbors}
+              setHover={setHover}
+            />
+          </g>
+        </svg>
+      </div>
     </section>
   )
-}
-
-function useGraphDrag(
-  svg: React.RefObject<SVGSVGElement | null>,
-  view: View,
-  setView: SetView,
-  setNodes: Dispatch<SetStateAction<GraphNode[]>>,
-  onFocus: (id: string) => void,
-): Pick<
-  React.SVGProps<SVGSVGElement>,
-  'onPointerDown' | 'onPointerMove' | 'onPointerUp' | 'onPointerCancel'
-> {
-  const drag = useRef<Drag | null>(null)
-  const point = (event: { clientX: number; clientY: number }): Point =>
-    svgPoint({ x: event.clientX, y: event.clientY }, svg.current!.getBoundingClientRect())
-  return {
-    onPointerDown: (event) => {
-      if (event.button !== 0) return
-      const target = (event.target as Element).closest('[data-node]')
-      drag.current = {
-        id: target?.getAttribute('data-node') ?? null,
-        start: point(event),
-        last: point(event),
-        view,
-        moved: false,
-      }
-      event.currentTarget.setPointerCapture?.(event.pointerId)
-    },
-    onPointerMove: (event) => {
-      const current = drag.current
-      if (!current) return
-      const next = point(event)
-      if (Math.hypot(next.x - current.start.x, next.y - current.start.y) > 3) current.moved = true
-      if (!current.moved) return
-      if (current.id) {
-        const nextWorld = worldPoint(next, view)
-        const lastWorld = worldPoint(current.last, view)
-        current.last = next
-        setNodes((previous) =>
-          separateLabels(
-            previous.map((node) =>
-              node.id === current.id
-                ? {
-                    ...node,
-                    x: node.x + nextWorld.x - lastWorld.x,
-                    y: node.y + nextWorld.y - lastWorld.y,
-                  }
-                : node,
-            ),
-          ),
-        )
-      } else
-        setView({
-          ...current.view,
-          x: current.view.x + next.x - current.start.x,
-          y: current.view.y + next.y - current.start.y,
-        })
-    },
-    onPointerUp: () => {
-      const current = drag.current
-      if (current?.id && !current.moved) onFocus(current.id)
-      if (current?.moved && current.id) setNodes(separateLabels)
-      drag.current = null
-    },
-    onPointerCancel: () => {
-      setNodes(separateLabels)
-      drag.current = null
-    },
-  }
-}
-
-function useGraphWheel(svg: React.RefObject<SVGSVGElement | null>, setView: SetView): void {
-  useEffect(() => {
-    const element = svg.current
-    if (!element) return
-    const wheel = (event: WheelEvent): void => {
-      if (!event.ctrlKey && !event.metaKey) return
-      event.preventDefault()
-      const anchor = svgPoint(
-        { x: event.clientX, y: event.clientY },
-        element.getBoundingClientRect(),
-      )
-      setView((previous) => zoomView(previous, Math.exp(-event.deltaY * 0.005), anchor))
-    }
-    element.addEventListener('wheel', wheel, { passive: false })
-    return () => element.removeEventListener('wheel', wheel)
-  }, [svg, setView])
 }
 
 function GraphNodes({
@@ -228,18 +124,13 @@ function GraphNodes({
           opacity={hover && !neighbors.has(node.id) ? 0.25 : 1}
           className="cursor-grab"
         >
-          <rect
-            x={-node.width / 2}
-            y={-14}
-            width={node.width}
-            height={28}
-            rx={7}
-            fill="var(--px-bg)"
-            stroke={focus === node.id ? 'var(--px-accent)' : 'var(--px-border)'}
-          />
-          <circle cx={-node.width / 2 + 12} r={4} fill={COLORS[kinds.get(node.id)!]} />
-          <text x={8} y={5} textAnchor="middle" fill="var(--px-text)" fontSize={14}>
-            {node.label}
+          <title>{node.label}</title>
+          {focus === node.id && (
+            <circle r={node.radius + 3} fill="none" stroke="var(--px-accent)" strokeWidth={1.5} />
+          )}
+          <circle r={node.radius} fill={COLORS[kinds.get(node.id)!]} />
+          <text x={node.radius + 6} y={4} fill="var(--px-text)" fontSize={12}>
+            {graphLabel(node.label)}
           </text>
         </g>
       ))}
@@ -251,12 +142,10 @@ function GraphEdges({
   nodes,
   edges,
   hover,
-  neighbors,
 }: {
   nodes: GraphNode[]
   edges: GraphEdge[]
   hover: string | null
-  neighbors: Set<string | null>
 }): React.JSX.Element {
   const byId = new Map(nodes.map((node) => [node.id, node]))
   return (
@@ -264,18 +153,36 @@ function GraphEdges({
       {edges.map((edge, index) => {
         const a = byId.get(edge.source),
           b = byId.get(edge.target)
-        return a && b ? (
-          <line
-            key={index}
-            x1={a.x}
-            y1={a.y}
-            x2={b.x}
-            y2={b.y}
-            stroke="var(--px-border-strong)"
-            strokeWidth={hover && (a.id === hover || b.id === hover) ? 2 : 1}
-            opacity={hover && (!neighbors.has(a.id) || !neighbors.has(b.id)) ? 0.2 : 1}
-          />
-        ) : null
+        if (!a || !b) return null
+        const highlighted = a.id === hover || b.id === hover
+        return (
+          <g key={index}>
+            <line
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              stroke={highlighted ? 'var(--px-accent)' : 'var(--px-border-strong)'}
+              strokeWidth={1}
+              opacity={hover && !highlighted ? 0.2 : 1}
+            />
+            {highlighted && (
+              <text
+                x={(a.x + b.x) / 2}
+                y={(a.y + b.y) / 2 - 4}
+                textAnchor="middle"
+                fontSize={10}
+                fill="var(--px-accent)"
+                stroke="var(--px-bg)"
+                strokeWidth={3}
+                paintOrder="stroke"
+                pointerEvents="none"
+              >
+                {edge.predicate}
+              </text>
+            )}
+          </g>
+        )
       })}
     </>
   )

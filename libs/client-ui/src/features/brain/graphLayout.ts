@@ -8,108 +8,202 @@ export interface GraphNode extends Point {
   id: string
   label: string
   width: number
+  radius: number
+  vx: number
+  vy: number
+  fx?: number
+  fy?: number
 }
 export interface GraphEdge {
   source: string
   target: string
+  predicate?: string
 }
 export interface View extends Point {
   scale: number
 }
+export interface Simulation {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  alpha: number
+}
 export const GRAPH_WIDTH = 800
 export const GRAPH_HEIGHT = 400
-export const LABEL_HEIGHT = 28
+export const LABEL_HEIGHT = 16
+export const LINK_DISTANCE = 90
+export const ALPHA_MIN = 0.001
+const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / 300)
 
 export function graphEdges(memories: BrainMemory[]): GraphEdge[] {
   return memories.flatMap((memory) =>
-    memory.objectId ? [{ source: memory.subjectId, target: memory.objectId }] : [],
+    memory.objectId
+      ? [{ source: memory.subjectId, target: memory.objectId, predicate: memory.predicate }]
+      : [],
   )
 }
 
-/** Deterministic force equilibrium; renderer interactions never run the simulation again. */
-export function layoutGraph(entities: BrainEntity[], edges: GraphEdge[]): GraphNode[] {
-  const nodes = entities.map((entity, index) => ({
-    id: entity.id,
-    label: entity.label,
-    width: Math.max(48, entity.label.length * 14 + 32),
-    x: Math.cos((index * Math.PI * 2) / entities.length) * 180,
-    y: Math.sin((index * Math.PI * 2) / entities.length) * 140,
-  }))
-  const indexes = new Map(nodes.map((node, index) => [node.id, index]))
-  for (let step = 0; step < Math.min(80, Math.max(10, 20000 / (nodes.length || 1))); step++) {
-    simulate(nodes, edges, indexes)
-  }
-  return separateLabels(nodes)
+export function graphLabel(label: string): string {
+  return label.length > 32 ? `${label.slice(0, 31)}…` : label
 }
 
-export function simulate(
-  nodes: GraphNode[],
+function seed(id: string): Point {
+  let hash = 2166136261
+  for (const char of id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619)
+  const angle = ((hash >>> 0) / 4294967296) * Math.PI * 2
+  const radius = 40 + ((hash >>> 8) % 180)
+  return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius }
+}
+
+/** Refresh preserves world coordinates; new entities start beside a known neighbour. */
+export function createSimulation(
+  entities: BrainEntity[],
   edges: GraphEdge[],
-  indexes: Map<string, number>,
-): void {
-  const forces = nodes.map((node) => ({ x: -node.x * 0.008, y: -node.y * 0.008 }))
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      const dx = nodes[i]!.x - nodes[j]!.x || 0.01
-      const dy = nodes[i]!.y - nodes[j]!.y || 0.01
-      const distance = Math.max(20, Math.hypot(dx, dy))
-      const magnitude = 2400 / (distance * distance)
-      forces[i]!.x += (dx / distance) * magnitude
-      forces[i]!.y += (dy / distance) * magnitude
-      forces[j]!.x -= (dx / distance) * magnitude
-      forces[j]!.y -= (dy / distance) * magnitude
+  previous: GraphNode[] = [],
+): Simulation {
+  const byId = new Map(previous.map((node) => [node.id, node]))
+  const degree = new Map<string, number>()
+  for (const { source, target } of edges) {
+    degree.set(source, (degree.get(source) ?? 0) + 1)
+    degree.set(target, (degree.get(target) ?? 0) + 1)
+  }
+  const nodes = entities.map((entity) => {
+    const old = byId.get(entity.id)
+    const link = edges.find((edge) =>
+      edge.source === entity.id
+        ? byId.has(edge.target)
+        : edge.target === entity.id && byId.has(edge.source),
+    )
+    const neighbor = link && byId.get(link.source === entity.id ? link.target : link.source)
+    const offset = seed(entity.id)
+    const position =
+      old ??
+      (neighbor
+        ? { x: neighbor.x + offset.x * 0.2, y: neighbor.y + offset.y * 0.2 }
+        : previous.length
+          ? { x: offset.x * 0.2, y: offset.y * 0.2 }
+          : offset)
+    const radius = 4 + 2 * Math.sqrt(degree.get(entity.id) ?? 0)
+    return {
+      vx: 0,
+      vy: 0,
+      ...old,
+      ...position,
+      id: entity.id,
+      label: entity.label,
+      radius,
+      width: radius * 2 + 6 + graphLabel(entity.label).length * 7,
     }
-  }
-  for (const edge of edges) {
-    const a = indexes.get(edge.source),
-      b = indexes.get(edge.target)
-    if (a === undefined || b === undefined) continue
-    const dx = nodes[b]!.x - nodes[a]!.x,
-      dy = nodes[b]!.y - nodes[a]!.y
-    const distance = Math.max(1, Math.hypot(dx, dy))
-    const force = (distance - 160) * 0.025
-    forces[a]!.x += (dx / distance) * force
-    forces[a]!.y += (dy / distance) * force
-    forces[b]!.x -= (dx / distance) * force
-    forces[b]!.y -= (dy / distance) * force
-  }
-  nodes.forEach((node, index) => {
-    node.x += Math.max(-12, Math.min(12, forces[index]!.x))
-    node.y += Math.max(-12, Math.min(12, forces[index]!.y))
   })
+  return { nodes, edges, alpha: nodes.length ? 1 : 0 }
 }
 
-/** Label rectangles include the dot. A sorted sweep moves only downward, so it terminates. */
-export function separateLabels(input: GraphNode[]): GraphNode[] {
-  const nodes = input
-    .map((node) => ({ ...node }))
-    .sort((a, b) => a.y - b.y || a.id.localeCompare(b.id))
-  nodes.forEach((node, index) => {
-    for (let j = 0; j < index; j++) {
-      const other = nodes[j]!
-      if (
-        Math.abs(node.x - other.x) < (node.width + other.width) / 2 + 8 &&
-        node.y - other.y < LABEL_HEIGHT + 8
-      ) {
-        node.y = other.y + LABEL_HEIGHT + 8
-      }
-    }
-  })
+export function labelBox(node: GraphNode): {
+  left: number
+  right: number
+  top: number
+  bottom: number
+} {
+  const halfHeight = Math.max(LABEL_HEIGHT / 2, node.radius)
+  return {
+    left: node.x - node.radius,
+    right: node.x - node.radius + node.width,
+    top: node.y - halfHeight,
+    bottom: node.y + halfHeight,
+  }
+}
+
+function repel(a: GraphNode, b: GraphNode, alpha: number): void {
+  const dx = b.x - a.x || 0.01
+  const dy = b.y - a.y || 0.01
+  const distance = Math.max(12, Math.hypot(dx, dy))
+  const force = (1800 * alpha) / (distance * distance)
+  a.vx -= (dx / distance) * force
+  a.vy -= (dy / distance) * force
+  b.vx += (dx / distance) * force
+  b.vy += (dy / distance) * force
+}
+
+function spring(a: GraphNode, b: GraphNode, alpha: number): void {
+  const dx = b.x - a.x,
+    dy = b.y - a.y
+  const distance = Math.max(1, Math.hypot(dx, dy))
+  const force = (distance - LINK_DISTANCE) * 0.04 * alpha
+  a.vx += (dx / distance) * force
+  a.vy += (dy / distance) * force
+  b.vx -= (dx / distance) * force
+  b.vy -= (dy / distance) * force
+}
+
+/** Symmetric minimum-axis collision includes the circle and right-aligned label, not a pill. */
+function collide(a: GraphNode, b: GraphNode): void {
+  const ab = labelBox(a),
+    bb = labelBox(b)
+  const overlapX = Math.min(ab.right, bb.right) - Math.max(ab.left, bb.left) + 4
+  const overlapY = Math.min(ab.bottom, bb.bottom) - Math.max(ab.top, bb.top) + 4
+  if (overlapX <= 0 || overlapY <= 0) return
+  const axis = overlapX < overlapY ? 'x' : 'y'
+  const pin = axis === 'x' ? 'fx' : 'fy'
+  const freeA = a[pin] === undefined,
+    freeB = b[pin] === undefined
+  const count = Number(freeA) + Number(freeB)
+  if (!count) return
+  const centerA = axis === 'x' ? ab.left + ab.right : a.y
+  const centerB = axis === 'x' ? bb.left + bb.right : b.y
+  const shift = ((axis === 'x' ? overlapX : overlapY) + 0.01) / count
+  const direction = centerA < centerB || (centerA === centerB && a.id < b.id) ? -1 : 1
+  if (freeA) a[axis] += shift * direction
+  if (freeB) b[axis] -= shift * direction
+}
+
+export function tickSimulation(simulation: Simulation): void {
+  const { nodes, edges, alpha } = simulation
   const byId = new Map(nodes.map((node) => [node.id, node]))
-  return input.map((node) => byId.get(node.id)!)
+  for (let i = 0; i < nodes.length; i++)
+    for (let j = i + 1; j < nodes.length; j++) repel(nodes[i]!, nodes[j]!, alpha)
+  for (const edge of edges) {
+    const a = byId.get(edge.source),
+      b = byId.get(edge.target)
+    if (a && b && a !== b) spring(a, b, alpha)
+  }
+  for (const node of nodes) {
+    node.vx = (node.vx - node.x * 0.003 * alpha) * 0.6
+    node.vy = (node.vy - node.y * 0.003 * alpha) * 0.6
+    node.x = node.fx ?? node.x + node.vx
+    node.y = node.fy ?? node.y + node.vy
+    if (node.fx !== undefined) node.vx = 0
+    if (node.fy !== undefined) node.vy = 0
+  }
+  // Collision does not cool: even the final frame must leave labels readable.
+  for (let iteration = 0; iteration < 8; iteration++)
+    for (let i = 0; i < nodes.length; i++)
+      for (let j = i + 1; j < nodes.length; j++) collide(nodes[i]!, nodes[j]!)
+  simulation.alpha *= 1 - ALPHA_DECAY
+}
+
+export function settleSimulation(simulation: Simulation): void {
+  while (simulation.alpha > ALPHA_MIN) tickSimulation(simulation)
+}
+
+export function layoutGraph(entities: BrainEntity[], edges: GraphEdge[]): GraphNode[] {
+  const simulation = createSimulation(entities, edges)
+  settleSimulation(simulation)
+  return simulation.nodes
 }
 
 export function fitGraph(nodes: GraphNode[], width = GRAPH_WIDTH, height = GRAPH_HEIGHT): View {
   if (!nodes.length) return { x: width / 2, y: height / 2, scale: 1 }
-  const left = Math.min(...nodes.map((n) => n.x - n.width / 2))
-  const right = Math.max(...nodes.map((n) => n.x + n.width / 2))
-  const top = Math.min(...nodes.map((n) => n.y - LABEL_HEIGHT / 2))
-  const bottom = Math.max(...nodes.map((n) => n.y + LABEL_HEIGHT / 2))
-  // Never magnify: a two-node graph keeps its labels at their real size.
-  const scale = Math.min(
-    1,
-    (width - 64) / Math.max(1, right - left),
-    (height - 64) / Math.max(1, bottom - top),
+  const boxes = nodes.map(labelBox)
+  const left = Math.min(...boxes.map((box) => box.left))
+  const right = Math.max(...boxes.map((box) => box.right))
+  const top = Math.min(...boxes.map((box) => box.top))
+  const bottom = Math.max(...boxes.map((box) => box.bottom))
+  const scale = Math.max(
+    0.001,
+    Math.min(
+      1,
+      (width - 64) / Math.max(1, right - left),
+      (height - 64) / Math.max(1, bottom - top),
+    ),
   )
   return {
     x: width / 2 - ((left + right) / 2) * scale,
@@ -131,14 +225,15 @@ export function worldPoint(point: Point, view: View): Point {
   return { x: (point.x - view.x) / view.scale, y: (point.y - view.y) / view.scale }
 }
 
-/** Map a pointer through SVG's default xMidYMid meet letterboxing. */
+/** Defaults support unmeasured containers; the renderer supplies its measured viewBox. */
 export function svgPoint(
   point: Point,
   rect: { left: number; top: number; width: number; height: number },
+  size = { width: GRAPH_WIDTH, height: GRAPH_HEIGHT },
 ): Point {
-  const scale = Math.min(rect.width / GRAPH_WIDTH, rect.height / GRAPH_HEIGHT) || 1
+  const scale = Math.min(rect.width / size.width, rect.height / size.height) || 1
   return {
-    x: (point.x - rect.left - (rect.width - GRAPH_WIDTH * scale) / 2) / scale,
-    y: (point.y - rect.top - (rect.height - GRAPH_HEIGHT * scale) / 2) / scale,
+    x: (point.x - rect.left - (rect.width - size.width * scale) / 2) / scale,
+    y: (point.y - rect.top - (rect.height - size.height * scale) / 2) / scale,
   }
 }

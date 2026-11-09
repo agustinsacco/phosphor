@@ -135,10 +135,164 @@ it('highlights neighbours on hover and restores all nodes on leave', () => {
 
 it('shows the predicate of each connected edge on hover', () => {
   act(() => {
-    svg.querySelector('[data-node=harbor]')!.dispatchEvent(
-      new MouseEvent('mouseover', { bubbles: true }),
-    )
+    svg
+      .querySelector('[data-node=harbor]')!
+      .dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
   })
   expect([...svg.querySelectorAll('text')].map((text) => text.textContent)).toContain('uses')
   expect([...svg.querySelectorAll('text')].map((text) => text.textContent)).toContain('owns')
+})
+
+it('uses circles and capped right-hand labels with full titles, focus rings and Space activation', async () => {
+  const { entities } = mockBrainData()
+  const label = 'Harbor billing service with a deliberately long entity name'
+  await act(async () =>
+    root.render(
+      <BrainGraph
+        entities={[{ ...entities[0]!, label }]}
+        memories={[]}
+        focus="harbor"
+        onFocus={focus}
+      />,
+    ),
+  )
+  const node = svg.querySelector('[data-node=harbor]')!
+  expect(node.querySelector('rect')).toBeNull()
+  expect(node.querySelectorAll('circle')).toHaveLength(2)
+  expect(node.querySelector('title')?.textContent).toBe(label)
+  expect(node.querySelector('text')?.textContent).toBe(`${label.slice(0, 31)}…`)
+  expect(node.querySelector('text')?.getAttribute('x')).toBe('10')
+  expect(node.getAttribute('aria-pressed')).toBe('true')
+  act(() => {
+    node.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }))
+  })
+  expect(focus).toHaveBeenCalledWith('harbor')
+})
+
+it('measures its pane and disconnects the resize observer on unmount', () => {
+  act(() => root.unmount())
+  let resize!: () => void
+  const disconnect = vi.fn()
+  const observe = vi.fn()
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(callback: () => void) {
+        resize = callback
+      }
+      observe = observe
+      disconnect = disconnect
+    },
+  )
+  root = createRoot(container)
+  const { entities, details } = mockBrainData()
+  act(() =>
+    root.render(
+      <BrainGraph
+        entities={entities}
+        memories={details.map((d) => d.memory)}
+        focus={null}
+        onFocus={focus}
+      />,
+    ),
+  )
+  svg = container.querySelector('svg')!
+  vi.spyOn(svg.parentElement!, 'getBoundingClientRect').mockReturnValue({
+    x: 10,
+    y: 10,
+    left: 10,
+    top: 10,
+    width: 450,
+    height: 900,
+    bottom: 910,
+    right: 460,
+    toJSON: () => ({}),
+  })
+  act(resize)
+  expect(svg.getAttribute('viewBox')).toBe('0 0 450 900')
+  expect(observe).toHaveBeenCalledWith(svg.parentElement)
+  act(() => root.unmount())
+  expect(disconnect).toHaveBeenCalledOnce()
+})
+
+it('pans an externally focused node to the measured centre in 300ms and stops', () => {
+  act(() => root.unmount())
+  const frames = new Map<number, FrameRequestCallback>()
+  let serial = 0
+  vi.stubGlobal(
+    'requestAnimationFrame',
+    vi.fn((callback: FrameRequestCallback) => {
+      frames.set(++serial, callback)
+      return serial
+    }),
+  )
+  vi.stubGlobal(
+    'cancelAnimationFrame',
+    vi.fn((id: number) => frames.delete(id)),
+  )
+  const flush = (time: number): void => {
+    const callbacks = [...frames.values()]
+    frames.clear()
+    act(() => callbacks.forEach((callback) => callback(time)))
+  }
+  root = createRoot(container)
+  const { entities, details } = mockBrainData()
+  const memories = details.map((d) => d.memory)
+  act(() =>
+    root.render(
+      <BrainGraph entities={entities} memories={memories} focus={null} onFocus={focus} />,
+    ),
+  )
+  svg = container.querySelector('svg')!
+  for (let i = 0; i < 301; i++) flush(i * 16)
+  const original = stage()
+  act(() =>
+    root.render(
+      <BrainGraph entities={entities} memories={memories} focus="harbor" onFocus={focus} />,
+    ),
+  )
+  expect(frames.size).toBe(1)
+  flush(5000)
+  expect(stage()).toBe(original)
+  flush(5150)
+  expect(stage()).not.toBe(original)
+  flush(5300)
+  expect(frames.size).toBe(0)
+  const view = stage()
+    .match(/-?[\d.]+/g)!
+    .map(Number)
+  const position = svg
+    .querySelector('[data-node=harbor]')!
+    .getAttribute('transform')!
+    .match(/-?[\d.]+/g)!
+    .map(Number)
+  expect(position[0]! * view[2]! + view[0]!).toBeCloseTo(400)
+  expect(position[1]! * view[2]! + view[1]!).toBeCloseTo(200)
+})
+
+it('centres external focus with no animation frames under reduced motion', () => {
+  act(() => root.unmount())
+  const raf = vi.fn()
+  vi.stubGlobal('requestAnimationFrame', raf)
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+  )
+  root = createRoot(container)
+  const { entities, details } = mockBrainData()
+  const memories = details.map((d) => d.memory)
+  act(() =>
+    root.render(
+      <BrainGraph entities={entities} memories={memories} focus={null} onFocus={focus} />,
+    ),
+  )
+  svg = container.querySelector('svg')!
+  const original = stage()
+  act(() =>
+    root.render(
+      <BrainGraph entities={entities} memories={memories} focus="rina" onFocus={focus} />,
+    ),
+  )
+  expect(stage()).not.toBe(original)
+  expect(raf).not.toHaveBeenCalled()
 })
