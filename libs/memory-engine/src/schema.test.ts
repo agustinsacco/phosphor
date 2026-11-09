@@ -27,7 +27,7 @@ describe('Brain SQLite schema and preferences', () => {
       })
       store.close()
       const db = new DatabaseSync(path)
-      expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 2 })
+      expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 3 })
       expect(
         db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'prototype%'").all(),
       ).toEqual([])

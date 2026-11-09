@@ -17,7 +17,7 @@ describe('Brain proposal deduplication', () => {
       data.memories[1]!,
     ]
     data.vectors = [vector(1), at, below]
-    expect(store.propose(data)).toEqual({ kept: 2, duplicates: 1 })
+    expect(store.propose(data)).toMatchObject({ kept: 2, duplicates: 1 })
     expect(store.proposal(job.id).memories.map((item) => item.memory.summary)).toEqual([
       data.memories[0]!.summary,
       data.memories[2]!.summary,
@@ -25,13 +25,17 @@ describe('Brain proposal deduplication', () => {
     store.review(job.id, [0, 1], 0)
     expect(store.knowledge().memories).toHaveLength(2)
   })
-  it('drops duplicates against active memories and makes all-duplicate proposals empty', () => {
+  it('reconfirms active memories and keeps confirmation-only proposals reviewable', () => {
     const { store } = fixture()
     approve(store)
     const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
-    expect(store.propose(extraction(job.id))).toEqual({ kept: 0, duplicates: 2 })
-    expect(store.job(job.id)).toMatchObject({ state: 'empty', memories: 0 })
-    expect(() => store.proposal(job.id)).toThrow('Brain proposal not found.')
+    expect(store.propose(extraction(job.id))).toMatchObject({
+      kept: 0,
+      duplicates: 0,
+      reconfirmed: 2,
+    })
+    expect(store.job(job.id)).toMatchObject({ state: 'review', memories: 0 })
+    expect(store.proposal(job.id).confirmations).toHaveLength(2)
   })
   it('does not dedup against superseded memories, but an exemption only covers its named target', () => {
     const { store, db } = fixture()
@@ -41,11 +45,11 @@ describe('Brain proposal deduplication', () => {
     const data = extraction(job.id)
     data.memories = [{ ...data.memories[0]!, supersedes: old.id }]
     data.vectors = [vector(0, 1)]
-    expect(store.propose(data)).toEqual({ kept: 0, duplicates: 1 })
+    expect(store.propose(data)).toMatchObject({ kept: 0, duplicates: 0, reconfirmed: 1 })
     db.prepare("UPDATE memories SET state='superseded' WHERE id=?").run(old.id)
     data.vectors = [vector(1)]
     data.memories[0]!.supersedes = null
-    expect(store.propose(data)).toEqual({ kept: 1, duplicates: 0 })
+    expect(store.propose(data)).toMatchObject({ kept: 1, duplicates: 0 })
   })
   it('replaces a proposal and its vectors without leaving old rows', () => {
     const { store, db } = fixture()

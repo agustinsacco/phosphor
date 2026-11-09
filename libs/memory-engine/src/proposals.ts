@@ -4,7 +4,7 @@ import { entity, referencedEntities } from './entities'
 import { job, updateJob } from './jobs'
 import { quoteContext } from './knowledge'
 import { revision } from './prefs'
-import type { Extraction } from './types'
+import type { Extraction, ProposalResult } from './types'
 import { cosine, decodeVector, encodeVector } from './vectors'
 
 export function readProposal(ctx: Context, jobId: string): Extraction {
@@ -22,30 +22,13 @@ export function readProposal(ctx: Context, jobId: string): Extraction {
   ).map((row) => decodeVector(row.vector))
   return extraction
 }
-export function propose(
-  ctx: Context,
-  extraction: Extraction,
-): { kept: number; duplicates: number } {
+export function propose(ctx: Context, extraction: Extraction): ProposalResult {
   if (!job(ctx, extraction.jobId)) throw new Error('Brain job not found.')
-  const active = all<{ memory_id: string; vector: Uint8Array }>(
-    ctx,
-    "SELECT v.* FROM vectors v JOIN memories m ON m.id=v.memory_id WHERE m.state='active'",
-  ).map((row) => ({ id: row.memory_id, vector: decodeVector(row.vector) }))
-  const vectors: Float32Array[] = []
-  const memories = extraction.memories.filter((item, index) => {
-    const vector = extraction.vectors[index]
-    if (!vector) throw new Error('Brain proposal is missing a vector.')
-    encodeVector(vector)
-    const duplicate =
-      active.some((old) => old.id !== item.supersedes && cosine(vector, old.vector) >= 0.86) ||
-      vectors.some((old) => cosine(vector, old) >= 0.86)
-    if (duplicate) return false
-    vectors.push(vector)
-    return true
-  })
+  const filtered = deduplicate(ctx, extraction)
+  const { memories, vectors, confirmations, outcomes } = filtered
   transaction(ctx, () => {
     run(ctx, 'DELETE FROM proposals WHERE job_id=?', extraction.jobId)
-    if (memories.length) {
+    if (memories.length || confirmations.length) {
       run(
         ctx,
         'INSERT INTO proposals VALUES (?,?)',
@@ -54,6 +37,7 @@ export function propose(
           ...extraction,
           entities: withReused(ctx, extraction, memories),
           memories,
+          confirmations,
           vectors: [],
         }),
       )
@@ -68,11 +52,57 @@ export function propose(
       )
     }
     updateJob(ctx, extraction.jobId, {
-      state: memories.length ? 'review' : 'empty',
+      state: memories.length || confirmations.length ? 'review' : 'empty',
       memories: memories.length,
     })
   })
-  return { kept: memories.length, duplicates: extraction.memories.length - memories.length }
+  return {
+    kept: memories.length,
+    reconfirmed: confirmations.length,
+    duplicates: outcomes.filter((outcome) => outcome.status === 'duplicate').length,
+    outcomes,
+  }
+}
+function deduplicate(ctx: Context, extraction: Extraction) {
+  const active = all<{ memory_id: string; vector: Uint8Array }>(
+    ctx,
+    "SELECT v.* FROM vectors v JOIN memories m ON m.id=v.memory_id WHERE m.state='active'",
+  ).map((row) => ({ id: row.memory_id, vector: decodeVector(row.vector) }))
+  const vectors: Float32Array[] = []
+  const memories: Extraction['memories'] = []
+  const confirmations: NonNullable<Extraction['confirmations']> = []
+  const outcomes: ProposalResult['outcomes'] = []
+  extraction.memories.forEach((item, candidate) => {
+    const vector = extraction.vectors[candidate]
+    if (!vector) throw new Error('Brain proposal is missing a vector.')
+    encodeVector(vector)
+    const old = active.find(
+      (old) => old.id !== item.supersedes && cosine(vector, old.vector) >= 0.86,
+    )
+    if (old) {
+      confirmations.push({
+        memoryId: old.id,
+        citations: item.citations,
+        evidence: extraction.evidence,
+      })
+      outcomes.push({ candidate, summary: item.summary, status: 'reconfirms', memoryId: old.id })
+      return
+    }
+    const duplicateOf = vectors.findIndex((old) => cosine(vector, old) >= 0.86)
+    if (duplicateOf >= 0) {
+      outcomes.push({ candidate, summary: item.summary, status: 'duplicate', duplicateOf })
+      return
+    }
+    outcomes.push({
+      candidate,
+      summary: item.summary,
+      status: 'kept',
+      proposalIndex: memories.length,
+    })
+    memories.push(item)
+    vectors.push(vector)
+  })
+  return { memories, vectors, confirmations, outcomes }
 }
 /** Forgetting can delete an entity a pending proposal reuses; approval recreates it from this copy. */
 function withReused(
@@ -99,6 +129,7 @@ export function proposedMemory(
   const item = extraction.memories[index]!
   return {
     id: `${extraction.jobId}:${index}`,
+    jobId: extraction.jobId,
     summary: item.summary,
     type: item.type,
     kind: item.kind,
@@ -139,6 +170,16 @@ export function proposal(ctx: Context, jobId: string): BrainProposalView {
     summary: extraction.summary,
     revision: revision(ctx),
     memories,
+    confirmations: [
+      ...new Set((extraction.confirmations ?? []).map((item) => item.memoryId)),
+    ].flatMap((id) => {
+      const row = one<{ id: string; summary: string }>(
+        ctx,
+        "SELECT id, summary FROM memories WHERE id=? AND state='active'",
+        id,
+      )
+      return row ? [row] : []
+    }),
     entities: [...allEntities.values()].filter((item) => ids.has(item.id)),
   }
 }

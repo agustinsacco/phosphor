@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { BrainSnapshot } from '@phosphor/shared/brain'
 import { one, type Context } from './database'
+import { extraction, saveExtraction, pruneExtractions } from './extractions'
 import * as jobs from './jobs'
 import * as knowledge from './knowledge'
 import { prefs, revision, setPrefs } from './prefs'
@@ -36,6 +37,7 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
   }
   try {
     initialize(ctx)
+    pruneExtractions(ctx)
   } catch (error) {
     ctx.db.close()
     throw error
@@ -48,6 +50,8 @@ export function openBrainStore(options: OpenStoreOptions): BrainStore {
     updateJob: (id, patch) => jobs.updateJob(ctx, id, patch),
     removeJob: (id) => jobs.removeJob(ctx, id),
     requeueInterrupted: () => jobs.requeueInterrupted(ctx),
+    extraction: (id) => extraction(ctx, id),
+    saveExtraction: (record) => saveExtraction(ctx, record),
     propose: (extraction) => propose(ctx, extraction),
     proposal: (id) => proposal(ctx, id),
     review: (id, keep, expectedRevision) => review(ctx, id, keep, expectedRevision),

@@ -1,5 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type {
+  BrainExtractionRecord,
+  BrainExtractionOutcome,
   BrainEntity,
   BrainEntityKind,
   BrainEpistemicKind,
@@ -80,6 +82,17 @@ export interface Extraction {
   evidence: EvidenceExcerpt[]
   /** One vector per memory, in order. */
   vectors: Float32Array[]
+  confirmations?: {
+    memoryId: string
+    citations: Extraction['memories'][number]['citations']
+    evidence: EvidenceExcerpt[]
+  }[]
+}
+export interface ProposalResult {
+  kept: number
+  duplicates: number
+  reconfirmed: number
+  outcomes: BrainExtractionOutcome[]
 }
 
 export type NewJob = Pick<
@@ -131,7 +144,9 @@ export interface BrainStore {
   requeueInterrupted(): void
 
   /** Drops near-duplicates of each other and of active memories, then stores the rest. */
-  propose(extraction: Extraction): { kept: number; duplicates: number }
+  propose(extraction: Extraction): ProposalResult
+  saveExtraction(record: BrainExtractionRecord): void
+  extraction(jobId: string): BrainExtractionRecord & { memories: { id: string; summary: string }[] }
   proposal(jobId: string): BrainProposalView
   /** `keep` is the proposal memory indexes to approve; null rejects all. Refuses a stale revision. */
   review(jobId: string, keep: number[] | null, revision: number): void

@@ -77,6 +77,7 @@ export interface BrainOrigin {
 /** One approved memory: a sentence, plus the graph edge or attribute it states. */
 export interface BrainMemory {
   id: string
+  jobId: string | null
   summary: string
   type: BrainMemoryType
   kind: BrainEpistemicKind
@@ -168,6 +169,7 @@ export interface BrainProposalView {
   entities: BrainEntity[]
   /** Proposed memories in proposal order; review keeps them by index. */
   memories: BrainMemoryDetail[]
+  confirmations: { id: string; summary: string }[]
 }
 
 /** What a lane agent sends. `cwd` ranks the lane's own project first; `sessionId` records delivery. */
@@ -204,3 +206,9 @@ export interface BrainAgentRequest {
   params: unknown
 }
 export type BrainAgentResponse = { ok: true; data: unknown } | { ok: false; error: string }
+
+export type {
+  BrainExtractionRecord,
+  BrainExtractionOutcome,
+  BrainExtractionView,
+} from './brain-extraction'
