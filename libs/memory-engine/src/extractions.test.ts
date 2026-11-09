@@ -134,6 +134,17 @@ it.each([null, []].map((keep) => ({ keep })))(
   },
 )
 
+it('re-confirming with a quote the memory already cites adds no duplicate citation', () => {
+  const { store } = fixture()
+  approve(store)
+  const before = store.knowledge().memories.map((memory) => store.memory(memory.id).quotes.length)
+  const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
+  expect(store.propose(extraction(job.id))).toMatchObject({ kept: 0, reconfirmed: 2 })
+  store.review(job.id, [], store.snapshot().revision)
+  const after = store.knowledge().memories.map((memory) => store.memory(memory.id).quotes.length)
+  expect(after).toEqual(before)
+})
+
 it('counts a repeated confirmation in the same answer as a duplicate, not another reconfirmation', () => {
   const { store } = fixture()
   approve(store)
