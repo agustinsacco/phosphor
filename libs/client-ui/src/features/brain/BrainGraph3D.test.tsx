@@ -42,6 +42,14 @@ const sprite = (id: string): SpriteText =>
   setting<(node: GraphNode) => SpriteText>('nodeThreeObject')(
     data().nodes.find((node) => node.id === id)!,
   )
+/** The camera fits the nodes it is given: it looks at the middle of their extent. */
+const centerOf = (ids?: string[]) => {
+  const nodes = data().nodes.filter((node) => !ids || ids.includes(node.id))
+  const mid = (axis: 'x' | 'y' | 'z') =>
+    (Math.min(...nodes.map((n) => n[axis]!)) + Math.max(...nodes.map((n) => n[axis]!))) / 2
+  return { x: mid('x'), y: mid('y'), z: mid('z') }
+}
+const lastCamera = () => graph.cameraPosition.mock.lastCall as [unknown, unknown, number]
 const hover = (id: string | null): void =>
   setting<(node: GraphNode | null) => void>('onNodeHover')(
     data().nodes.find((node) => node.id === id) ?? null,
@@ -56,6 +64,13 @@ beforeEach(() => {
   mock.controls.addEventListener.mockReset()
   mock.controls.removeEventListener.mockReset()
   graph.controls.mockReturnValue(mock.controls)
+  graph.camera.mockReturnValue({
+    fov: 40,
+    aspect: 2,
+    // Looking down -z with +y up, as the library's default camera does.
+    matrixWorld: { elements: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 300, 1] },
+    updateMatrixWorld: vi.fn(),
+  })
   graph.cameraPosition.mockImplementation((...args: unknown[]) =>
     args.length ? graph : { x: 0, y: 0, z: 300 },
   )
@@ -178,25 +193,16 @@ it('dims nonmatches, fits just search matches in 600ms, and fits everything when
   await render({ matches: new Set(['harbor', 'postgres']) })
   expect(nodeColor('harbor')).toMatch(/,1\)$/)
   expect(nodeColor('rina')).toMatch(/,0\.16\)$/)
-  const [ms, padding, filter] = graph.zoomToFit.mock.lastCall as [
-    number,
-    number,
-    (node: GraphNode) => boolean,
-  ]
-  expect([ms, padding]).toEqual([600, 16])
-  expect(
-    data()
-      .nodes.filter(filter)
-      .map((node) => node.id),
-  ).toEqual(['harbor', 'postgres'])
+  expect(lastCamera()[1]).toEqual(centerOf(['harbor', 'postgres']))
+  expect(lastCamera()[2]).toBe(600)
+  expect(centerOf(['harbor', 'postgres'])).not.toEqual(centerOf())
   expect(sprite('rina').material.opacity).toBe(0.16)
   await render()
-  const all = graph.zoomToFit.mock.lastCall![2] as (node: GraphNode) => boolean
-  expect(data().nodes.every(all)).toBe(true)
+  expect(lastCamera()[1]).toEqual(centerOf())
   expect(nodeColor('rina')).toMatch(/,1\)$/)
+  graph.cameraPosition.mockClear()
   await render({ matches: new Set() })
-  const none = graph.zoomToFit.mock.lastCall![2] as (node: GraphNode) => boolean
-  expect(data().nodes.some(none)).toBe(false)
+  expect(graph.cameraPosition).not.toHaveBeenCalled()
 })
 
 it('flies to an external focus, but a new search takes camera precedence over the About chip', async () => {
@@ -208,12 +214,7 @@ it('flies to an external focus, but a new search takes camera precedence over th
     600,
   )
   await render({ focus: 'rina', matches: new Set(['harbor']) })
-  const filter = graph.zoomToFit.mock.lastCall![2] as (node: GraphNode) => boolean
-  expect(
-    data()
-      .nodes.filter(filter)
-      .map((node) => node.id),
-  ).toEqual(['harbor'])
+  expect(lastCamera()[1]).toEqual(centerOf(['harbor']))
 })
 
 it('highlights a hovered node, its neighbours and links, with predicate sprites at link midpoints', async () => {
@@ -277,7 +278,8 @@ it('precomputes a reduced-motion layout and uses zero-duration focus, fit and zo
   setting<() => void>('onEngineStop')()
   expect(graph.cameraPosition.mock.lastCall![2]).toBe(0)
   await click('Fit')
-  expect(graph.zoomToFit).toHaveBeenLastCalledWith(0, 16)
+  expect(lastCamera()[1]).toEqual(centerOf())
+  expect(lastCamera()[2]).toBe(0)
   await click('Zoom in')
   expect(graph.cameraPosition.mock.lastCall![2]).toBe(0)
 })
@@ -319,7 +321,8 @@ it('keeps zoom and Fit controls wired to the library', async () => {
   await click('Zoom out')
   expect(graph.cameraPosition.mock.lastCall![0].z).toBeCloseTo(360)
   await click('Fit')
-  expect(graph.zoomToFit).toHaveBeenLastCalledWith(600, 16)
+  expect(lastCamera()[1]).toEqual(centerOf())
+  expect(lastCamera()[2]).toBe(600)
 })
 
 it('offers a calm fallback without loading the library when WebGL is unavailable', async () => {
@@ -387,19 +390,19 @@ it('keeps the keyboard list hidden and names just the focused entity in a visibl
 it('fits after the first layout, then refits resized panes instantly with small padding', async () => {
   await render()
   expect(graph.cooldownTicks).toHaveBeenLastCalledWith(300)
-  graph.zoomToFit.mockClear()
+  graph.cameraPosition.mockClear()
   setting<() => void>('onEngineStop')()
-  expect(graph.zoomToFit).toHaveBeenCalledOnce()
-  expect(graph.zoomToFit.mock.lastCall!.slice(0, 2)).toEqual([600, 16])
-  graph.zoomToFit.mockClear()
+  expect(graph.cameraPosition).toHaveBeenCalledOnce()
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 600])
+  graph.cameraPosition.mockClear()
   vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValue({
     width: 450,
     height: 400,
   } as DOMRect)
   resize()
-  expect(graph.zoomToFit).toHaveBeenCalledWith(0, 16)
+  expect(lastCamera().slice(1)).toEqual([centerOf(), 0])
   resize()
-  expect(graph.zoomToFit).toHaveBeenCalledOnce()
+  expect(graph.cameraPosition).toHaveBeenCalledOnce()
 })
 
 it.each(['orbit', 'zoom', 'focus', 'search'])(
@@ -415,14 +418,12 @@ it.each(['orbit', 'zoom', 'focus', 'search'])(
     } else if (action === 'zoom') await click('Zoom in')
     else if (action === 'focus') await render({ focus: 'rina' })
     else await render({ matches: new Set(['harbor']) })
-    graph.zoomToFit.mockClear()
     graph.cameraPosition.mockClear()
     vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValue({
       width: 450,
       height: 400,
     } as DOMRect)
     resize()
-    expect(graph.zoomToFit).not.toHaveBeenCalled()
     expect(graph.cameraPosition).not.toHaveBeenCalled()
   },
 )
@@ -436,7 +437,7 @@ it('does not consume the pending fit when resuming a previously stopped engine b
   })
   memories = [...memories]
   await render()
-  graph.zoomToFit.mockClear()
+  graph.cameraPosition.mockClear()
   setting<() => void>('onEngineStop')()
-  expect(graph.zoomToFit).toHaveBeenCalledOnce()
+  expect(graph.cameraPosition).toHaveBeenCalledOnce()
 })

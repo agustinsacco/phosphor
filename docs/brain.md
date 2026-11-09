@@ -121,7 +121,9 @@ The largest twenty nodes always have sprite labels; hovering reveals other
 labels, highlights neighbours and shows connected predicates while dimming the
 rest. Drag nodes to move them, or drag the background to orbit. Zoom controls and
 Fit adjust the camera. After its first layout settles, the graph fits the pane
-with 16 px padding. Container resizing refits instantly unless the user moved the
+with 16 px padding. Fits use the node spheres themselves, not the library's
+`zoomToFit`, which fits the 3D bounding box's empty corners and leaves the
+graph small. Container resizing refits instantly unless the user moved the
 camera, or a focus or search is active. Refreshes preserve known positions. Memory search keeps
 matching memories' entities bright and fits them in about 600 ms; clearing it
 fits everything. An About chip flies to its entity. Keyboard users can focus the

@@ -2,7 +2,9 @@ import ForceGraph3D from '3d-force-graph'
 import { graphActivity, type BrainForceGraph } from './graphActivity'
 import { graphAppearance } from './graphAppearance'
 import { readGraphTheme } from './graphColors'
-import type { GraphModel } from './graphModel'
+import type { PerspectiveCamera } from 'three'
+import { fitCamera } from './graphFit'
+import type { GraphModel, GraphNode } from './graphModel'
 
 export interface GraphSelection {
   focus: string | null
@@ -93,7 +95,7 @@ class SceneController implements GraphScene {
       graph.width(Math.max(1, width)).height(Math.max(1, height))
       this.activity.wake()
       if (this.settled && !this.userCamera && !this.selection.focus && !this.selection.matches)
-        graph.zoomToFit(0, 16)
+        this.fitTo(0)
     }
     this.observer = new ResizeObserver(resize)
     this.observer.observe(container)
@@ -122,11 +124,36 @@ class SceneController implements GraphScene {
       const target = { x: node.x ?? 0, y: node.y ?? 0, z: node.z ?? 0 }
       this.graph.cameraPosition({ ...target, z: target.z + 120 }, target, this.duration())
     } else
-      this.graph.zoomToFit(
+      this.fitTo(
         this.duration(),
-        16,
         (item) => !this.selection.matches || this.selection.matches.has(item.id),
       )
+  }
+  /** Fit the nodes themselves, keeping the current view direction. */
+  private fitTo(duration: number, keep: (node: GraphNode) => boolean = () => true): void {
+    const camera = this.graph.camera() as PerspectiveCamera
+    camera.updateMatrixWorld()
+    const e = camera.matrixWorld.elements
+    const fit = fitCamera(
+      this.model.nodes
+        .filter((node) => keep(node) && Number.isFinite(node.x))
+        // Sphere radius is nodeRelSize(4) * cbrt(val); the extra room keeps its label in view.
+        .map((node) => ({
+          x: node.x ?? 0,
+          y: node.y ?? 0,
+          z: node.z ?? 0,
+          r: 4 * Math.cbrt(node.val) + 8,
+        })),
+      {
+        forward: { x: -e[8]!, y: -e[9]!, z: -e[10]! },
+        up: { x: e[4]!, y: e[5]!, z: e[6]! },
+        fov: camera.fov,
+        aspect: camera.aspect,
+        height: this.height,
+        padding: 16,
+      },
+    )
+    if (fit) this.graph.cameraPosition(fit.position, fit.lookAt, duration)
   }
   private setMotion = (): void => {
     this.graph
@@ -173,7 +200,7 @@ class SceneController implements GraphScene {
   fit(): void {
     this.userCamera = false
     this.activity.wake(this.duration() + 100)
-    this.graph.zoomToFit(this.duration(), 16)
+    this.fitTo(this.duration())
   }
 
   zoom(factor: number): void {
