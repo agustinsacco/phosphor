@@ -18,6 +18,7 @@ const sample = mockBrainData()
 const invoke = vi.fn()
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
   status = { ...mockBrainStatus(), prefs: { enabled: true, recall: true, review: true } }
   knowledge = { entities: [], memories: [], truncated: false }
   useBrain.setState({ status: null, saving: false, error: '' })
@@ -54,6 +55,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 async function render(): Promise<void> {
@@ -101,7 +103,7 @@ it('shows inbox only with waiting, queued, running, empty and failed states', as
   expect(container.textContent).toContain('Nothing new worth keeping')
   expect(container.textContent).toContain('Demo fork failed')
   expect(container.textContent).toContain('Nothing approved yet')
-  expect(container.querySelector('svg[aria-label="Memory relationships"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Memory relationships"]')).toBeNull()
   await click('Cancel')
   expect(invoke).toHaveBeenCalledWith('brain:cancel', 'wait')
   await click('Dismiss')
@@ -155,7 +157,7 @@ it('shows grouped memories, graph, entity focus, detail quotes and forget', asyn
   expect(container.textContent).toContain('2 memories · 3 things')
   expect(container.textContent).toContain('Decisions · 1')
   expect(container.textContent).toContain('Facts · 1')
-  expect(container.querySelector('svg[aria-label="Memory relationships"]')).not.toBeNull()
+  expect(container.querySelector('[aria-label="Memory relationships"]')).not.toBeNull()
   await act(async () =>
     container
       .querySelector('[aria-label="Focus Rina Okafor"]')!
