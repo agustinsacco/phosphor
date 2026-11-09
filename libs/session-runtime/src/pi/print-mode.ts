@@ -35,6 +35,8 @@ export interface PrintModeResult {
   stdout: string
   error?: string
   reason?: PrintModeFailure
+  /** Opt-in diagnostic capture, including timeout and abort. */
+  stderr?: string
 }
 
 export interface PrintModeOptions {
@@ -47,6 +49,8 @@ export interface PrintModeOptions {
   onStdout?: (chunk: string) => void
   /** Desktop defaults to bounded diagnostic capture; Host uses ignore. */
   stderr?: 'capture' | 'ignore'
+  /** Strict byte cap; also returns captured stderr separately on completion. */
+  maxStderrBytes?: number
   maxOutputBytes?: number
   /** Host uses fail with 4096 bytes; Desktop retains its soft chunk-boundary cap. */
   overflow?: 'truncate' | 'fail'
@@ -62,6 +66,8 @@ interface PrintRun {
   stdoutBytes: number
   decoder: StringDecoder
   stderr: string
+  stderrBytes: number
+  stderrDecoder: StringDecoder
   settled: boolean
   timer?: ReturnType<typeof setTimeout>
   abort(): void
@@ -73,6 +79,7 @@ function finish(run: PrintRun, result: PrintModeResult): void {
   clearTimeout(run.timer)
   run.options.signal?.removeEventListener('abort', run.abort)
   killProcessTree(run.child)
+  if (run.options.maxStderrBytes !== undefined && run.stderr) result.stderr = run.stderr
   run.resolve(result)
 }
 
@@ -107,7 +114,14 @@ function observe(run: PrintRun): void {
   }, timeoutMs)
   run.child.stdout?.on('data', (chunk: Buffer) => captureStdout(run, chunk))
   run.child.stderr?.on('data', (chunk: Buffer) => {
-    if (!run.settled && run.stderr.length < MAX_OUTPUT_BYTES) run.stderr += chunk.toString()
+    if (run.settled) return
+    const cap = run.options.maxStderrBytes
+    if (cap !== undefined) {
+      const captured = chunk.subarray(0, Math.max(0, cap - run.stderrBytes))
+      run.stderrBytes += captured.length
+      // Do not flush a partial character at the cap into a replacement character.
+      run.stderr += run.stderrDecoder.write(captured)
+    } else if (run.stderr.length < MAX_OUTPUT_BYTES) run.stderr += chunk.toString()
   })
   run.child.on('error', (error) => {
     finish(run, { stdout: '', error: error.message, reason: 'spawn' })
@@ -161,6 +175,8 @@ export async function runPrintMode(
       stdoutBytes: 0,
       decoder: new StringDecoder('utf8'),
       stderr: '',
+      stderrBytes: 0,
+      stderrDecoder: new StringDecoder('utf8'),
       settled: false,
       abort() {
         finish(run, { stdout: run.stdout, error: 'aborted', reason: 'aborted' })

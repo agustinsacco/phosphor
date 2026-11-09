@@ -60,6 +60,12 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     ready: () => store.snapshot().prefs.enabled && options.embeddings.status().phase === 'ready',
     run: (job, signal) => extractJob(job, signal, store, options),
     changed,
+    cancelled: (job) =>
+      options.log?.('Brain job cancelled', {
+        jobId: job.id,
+        model: job.model,
+        phase: job.state,
+      }),
     now: options.now ?? Date.now,
   })
   const recall = createRecall(store, options)

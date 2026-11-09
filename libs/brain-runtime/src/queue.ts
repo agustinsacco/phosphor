@@ -7,6 +7,8 @@ export interface QueueOptions {
   ready(): boolean
   run(job: BrainJob, signal: AbortSignal): Promise<void>
   changed(): void
+  /** Only queued/waiting jobs; the runner records active cancellation itself. */
+  cancelled?(job: BrainJob): void
   now(): number
 }
 
@@ -52,6 +54,8 @@ export class ExtractionQueue {
     if (this.active?.id === id) this.active.abort.abort()
     if (job?.state === 'empty') this.options.store.updateJob(id, { state: 'done' })
     else this.options.store.removeJob(id)
+    if (job && this.active?.id !== id && (job.state === 'queued' || job.state === 'waiting'))
+      this.options.cancelled?.(job)
     this.options.changed()
     this.kick()
   }
@@ -65,7 +69,7 @@ export class ExtractionQueue {
 
   private async execute(job: BrainJob, abort: AbortController): Promise<void> {
     try {
-      abort.signal.throwIfAborted()
+      // The runner observes pre-start cancellation too, so it can record the failure phase.
       await this.options.run(job, abort.signal)
     } catch (error) {
       if (!abort.signal.aborted && this.options.store.job(job.id)) {

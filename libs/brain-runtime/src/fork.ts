@@ -7,6 +7,17 @@ import { claudeOneShotEnv } from '@phosphor/session-runtime/pi/provider-detect'
 import type { BrainJob } from '@phosphor/shared/brain'
 import type { ForkLaunch } from './types'
 import type { LaneMeta } from './lane'
+import {
+  assistantUsage,
+  forkThinking,
+  ForkTracer,
+  FORK_STDERR_BYTES,
+  FORK_TIMEOUT_MS,
+  traceDiagnostic,
+  type AssistantMessage,
+  type ForkEvent,
+  type ForkTrace,
+} from './fork-trace'
 
 export interface ForkInput {
   directory: string
@@ -16,25 +27,18 @@ export interface ForkInput {
   guardExtension: string
   prompt: string
   signal: AbortSignal
+  /** Called once after cleanup; the caller must log diagnostics only on job failure. */
+  onTrace?: (trace: ForkTrace, diagnostic?: string) => void
 }
 export interface ForkResult {
   text: string
   usage: { tokens: number; cost: number }
 }
-interface AssistantEnd {
-  type?: string
-  message?: {
-    role?: string
-    stopReason?: string
-    content?: { type: string; text?: string }[]
-    usage?: { totalTokens?: number; cost?: { total?: number } }
-  }
+interface ForkAnswer extends ForkResult {
+  stopReason?: string
 }
 
 function forkArgs(input: ForkInput, directory: string): string[] {
-  const thinking = ['off', 'minimal', 'low'].includes(input.lane.thinking)
-    ? input.lane.thinking
-    : 'low'
   return [
     ...input.launch.prefixArgs,
     '-p',
@@ -47,7 +51,7 @@ function forkArgs(input: ForkInput, directory: string): string[] {
     '--model',
     input.lane.model,
     '--thinking',
-    thinking,
+    forkThinking(input.lane.thinking),
     '--no-tools',
     '--no-mcp',
     '--no-skills',
@@ -62,19 +66,40 @@ function forkArgs(input: ForkInput, directory: string): string[] {
   ]
 }
 
-function answer(
-  message: NonNullable<AssistantEnd['message']>,
-): ForkResult & { stopReason?: string } {
+function answer(message: AssistantMessage): ForkAnswer {
   const text = Array.isArray(message.content)
     ? message.content
         .filter((b) => b?.type === 'text' && typeof b.text === 'string')
         .map((b) => b.text)
         .join('\n')
     : ''
+  return { text, stopReason: message.stopReason, usage: assistantUsage(message.usage) }
+}
+
+function forkStream(tracer: ForkTracer) {
+  const decoder = new JsonlDecoder()
+  let last: ForkAnswer | undefined
+  const consume = (lines: string[]): void => {
+    for (const line of lines) {
+      try {
+        const event = JSON.parse(line) as ForkEvent
+        tracer.event(event)
+        if (event?.type === 'message_end' && event.message?.role === 'assistant')
+          last = answer(event.message)
+      } catch {
+        // Non-protocol diagnostic lines do not become the extracted answer.
+      }
+    }
+  }
   return {
-    text,
-    stopReason: message.stopReason,
-    usage: { tokens: message.usage?.totalTokens ?? 0, cost: message.usage?.cost?.total ?? 0 },
+    stdout(chunk: string) {
+      tracer.stdout()
+      consume(decoder.push(chunk))
+    },
+    end() {
+      consume(decoder.end())
+      return last
+    },
   }
 }
 
@@ -84,21 +109,12 @@ export async function runFork(
 ): Promise<ForkResult> {
   const { job, lane, launch, signal } = input
   const directory = join(input.directory, 'forks', job.id)
-  await mkdir(directory, { recursive: true })
-  const decoder = new JsonlDecoder()
-  let last: (ForkResult & { stopReason?: string }) | undefined
-  const consume = (lines: string[]): void => {
-    for (const line of lines) {
-      try {
-        const event = JSON.parse(line) as AssistantEnd
-        if (event?.type === 'message_end' && event.message?.role === 'assistant')
-          last = answer(event.message)
-      } catch {
-        // Non-protocol diagnostic lines do not become the extracted answer.
-      }
-    }
-  }
+  const tracer = new ForkTracer()
+  const stream = forkStream(tracer)
+  let reason: ForkTrace['reason'] = 'error'
+  let diagnostic: string | undefined
   try {
+    await mkdir(directory, { recursive: true })
     const result = await run(launch.binaryPath, forkArgs(input, directory), {
       cwd: existsSync(lane.cwd) ? lane.cwd : directory,
       env: {
@@ -108,20 +124,39 @@ export async function runFork(
         PI_OFFLINE: '1',
         PI_CLAUDE_CLI_STATE_DIR: join(directory, 'provider'),
       },
-      timeoutMs: 150_000,
+      timeoutMs: FORK_TIMEOUT_MS,
       signal,
       maxOutputBytes: 0,
-      stderr: 'ignore',
-      onStdout: (chunk) => consume(decoder.push(chunk)),
+      stderr: 'capture',
+      maxStderrBytes: FORK_STDERR_BYTES,
+      onStdout: stream.stdout,
     })
-    consume(decoder.end())
-    signal.throwIfAborted()
-    if (result.reason) throw new Error(`Knowledge extraction ${result.reason}.`)
-    if (last?.stopReason === 'error' || last?.stopReason === 'aborted')
-      throw new Error(`Knowledge extraction ${last.stopReason}.`)
-    if (!last?.text.trim()) throw new Error('Knowledge extraction returned no text.')
+    const last = stream.end()
+    if (result.stderr) diagnostic = traceDiagnostic(result.stderr)
+    reason = signal.aborted ? 'aborted' : (result.reason ?? 'error')
+    if (result.reason || signal.aborted) {
+      diagnostic ??= traceDiagnostic(result.error ?? '')
+      if (reason === 'timeout') throw new Error(tracer.timeoutMessage(lane.model))
+      throw new Error(`Knowledge extraction ${reason}.`)
+    }
+    if (last?.stopReason === 'error' || last?.stopReason === 'aborted') {
+      reason = last.stopReason
+      throw new Error(`Knowledge extraction ${reason}.`)
+    }
+    if (!last?.text.trim()) {
+      reason = 'no-text'
+      throw new Error('Knowledge extraction returned no text.')
+    }
+    reason = 'completed'
     return { text: last.text, usage: last.usage }
   } finally {
-    await rm(directory, { recursive: true, force: true })
+    let cleaned = false
+    try {
+      await rm(directory, { recursive: true, force: true })
+      cleaned = true
+    } finally {
+      tracer.finish(cleaned ? reason : 'error')
+      input.onTrace?.(tracer.trace, diagnostic)
+    }
   }
 }
