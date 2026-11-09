@@ -183,7 +183,7 @@ it('dims nonmatches, fits just search matches in 600ms, and fits everything when
     number,
     (node: GraphNode) => boolean,
   ]
-  expect([ms, padding]).toEqual([600, 40])
+  expect([ms, padding]).toEqual([600, 16])
   expect(
     data()
       .nodes.filter(filter)
@@ -277,7 +277,7 @@ it('precomputes a reduced-motion layout and uses zero-duration focus, fit and zo
   setting<() => void>('onEngineStop')()
   expect(graph.cameraPosition.mock.lastCall![2]).toBe(0)
   await click('Fit')
-  expect(graph.zoomToFit).toHaveBeenLastCalledWith(0, 40)
+  expect(graph.zoomToFit).toHaveBeenLastCalledWith(0, 16)
   await click('Zoom in')
   expect(graph.cameraPosition.mock.lastCall![2]).toBe(0)
 })
@@ -319,7 +319,7 @@ it('keeps zoom and Fit controls wired to the library', async () => {
   await click('Zoom out')
   expect(graph.cameraPosition.mock.lastCall![0].z).toBeCloseTo(360)
   await click('Fit')
-  expect(graph.zoomToFit).toHaveBeenLastCalledWith(600, 40)
+  expect(graph.zoomToFit).toHaveBeenLastCalledWith(600, 16)
 })
 
 it('offers a calm fallback without loading the library when WebGL is unavailable', async () => {
@@ -371,4 +371,72 @@ it('does not create a graph if unmounted while the lazy import is pending', asyn
   })
   expect(mock.constructor).toHaveBeenCalledTimes(calls)
   root = createRoot(container)
+})
+
+it('keeps the keyboard list hidden and names just the focused entity in a visible chip', async () => {
+  await render()
+  const list = container.querySelector('[aria-label="Graph entities"]')!
+  expect(list.className).toBe('sr-only')
+  const button = container.querySelector<HTMLButtonElement>('[aria-label="Focus Rina Okafor"]')!
+  act(() => button.focus())
+  expect(container.querySelector('[role="status"]')?.textContent).toBe('Focus Rina Okafor')
+  act(() => button.blur())
+  expect(container.querySelector('[role="status"]')).toBeNull()
+})
+
+it('fits after the first layout, then refits resized panes instantly with small padding', async () => {
+  await render()
+  expect(graph.cooldownTicks).toHaveBeenLastCalledWith(300)
+  graph.zoomToFit.mockClear()
+  setting<() => void>('onEngineStop')()
+  expect(graph.zoomToFit).toHaveBeenCalledOnce()
+  expect(graph.zoomToFit.mock.lastCall!.slice(0, 2)).toEqual([600, 16])
+  graph.zoomToFit.mockClear()
+  vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValue({
+    width: 450,
+    height: 400,
+  } as DOMRect)
+  resize()
+  expect(graph.zoomToFit).toHaveBeenCalledWith(0, 16)
+  resize()
+  expect(graph.zoomToFit).toHaveBeenCalledOnce()
+})
+
+it.each(['orbit', 'zoom', 'focus', 'search'])(
+  'does not override %s on container resize',
+  async (action) => {
+    await render()
+    setting<() => void>('onEngineStop')()
+    if (action === 'orbit') {
+      const start = mock.controls.addEventListener.mock.calls.find(
+        ([name]) => name === 'start',
+      )![1] as () => void
+      start()
+    } else if (action === 'zoom') await click('Zoom in')
+    else if (action === 'focus') await render({ focus: 'rina' })
+    else await render({ matches: new Set(['harbor']) })
+    graph.zoomToFit.mockClear()
+    graph.cameraPosition.mockClear()
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValue({
+      width: 450,
+      height: 400,
+    } as DOMRect)
+    resize()
+    expect(graph.zoomToFit).not.toHaveBeenCalled()
+    expect(graph.cameraPosition).not.toHaveBeenCalled()
+  },
+)
+
+it('does not consume the pending fit when resuming a previously stopped engine before new data', async () => {
+  await render()
+  setting<() => void>('onEngineStop')()
+  graph.resumeAnimation.mockImplementation(() => {
+    setting<() => void>('onEngineStop')()
+    return graph
+  })
+  memories = [...memories]
+  await render()
+  graph.zoomToFit.mockClear()
+  setting<() => void>('onEngineStop')()
+  expect(graph.zoomToFit).toHaveBeenCalledOnce()
 })

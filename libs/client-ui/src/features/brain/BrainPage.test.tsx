@@ -336,33 +336,42 @@ function extractionView() {
   }
 }
 
-it('opens failed-job extraction on demand, retries a first failure and returns to its inbox', async () => {
-  status.jobs = [mockBrainJob({ state: 'failed', error: 'Harbor timeout' })]
-  const normal = invoke.getMockImplementation()!
-  let failed = false
-  invoke.mockImplementation(async (channel: string, ...args: unknown[]) => {
-    if (channel === 'brain:extraction') {
-      if (!failed) {
-        failed = true
-        throw new Error('Harbor record unavailable')
+it.each([
+  ['{ "Harbor": "Rina Okafor owns billing" }', '{\n  "Harbor": "Rina Okafor owns billing"\n}'],
+  [
+    'Harbor agent stopped before JSON.\nPlease retry.',
+    'Harbor agent stopped before JSON.\nPlease retry.',
+  ],
+])(
+  'opens failed-job extraction, formats %s, retries and returns to its inbox',
+  async (answer, expected) => {
+    status.jobs = [mockBrainJob({ state: 'failed', error: 'Harbor timeout' })]
+    const normal = invoke.getMockImplementation()!
+    let failed = false
+    invoke.mockImplementation(async (channel: string, ...args: unknown[]) => {
+      if (channel === 'brain:extraction') {
+        if (!failed) {
+          failed = true
+          throw new Error('Harbor record unavailable')
+        }
+        return { ...extractionView(), answer }
       }
-      return extractionView()
-    }
-    return normal(channel, ...args)
-  })
-  await render()
-  expect(invoke.mock.calls.some(([channel]) => channel === 'brain:extraction')).toBe(false)
-  await click('View extraction')
-  expect(container.textContent).toContain('Harbor record unavailable')
-  await click('Retry')
-  expect(container.querySelector('[aria-label="Extraction detail"]')).not.toBeNull()
-  expect(container.textContent).toContain('Harbor instruction')
-  expect(container.textContent).toContain('Source lane is no longer available')
-  expect(container.querySelector('pre')?.textContent).toContain('Rina Okafor owns billing')
-  await click('Back')
-  expect(container.querySelector('[aria-label="Extraction detail"]')).toBeNull()
-  expect(container.textContent).toContain('Harbor timeout')
-})
+      return normal(channel, ...args)
+    })
+    await render()
+    expect(invoke.mock.calls.some(([channel]) => channel === 'brain:extraction')).toBe(false)
+    await click('View extraction')
+    expect(container.textContent).toContain('Harbor record unavailable')
+    await click('Retry')
+    expect(container.querySelector('[aria-label="Extraction detail"]')).not.toBeNull()
+    expect(container.textContent).toContain('Harbor instruction')
+    expect(container.textContent).toContain('Source lane is no longer available')
+    expect(container.querySelector('pre')?.textContent).toBe(expected)
+    await click('Back')
+    expect(container.querySelector('[aria-label="Extraction detail"]')).toBeNull()
+    expect(container.textContent).toContain('Harbor timeout')
+  },
+)
 
 it('opens an extraction from review and Back restores that review', async () => {
   status.jobs = [mockBrainJob()]

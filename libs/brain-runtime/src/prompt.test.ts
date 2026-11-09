@@ -11,7 +11,13 @@ it('fills the extraction instruction with known ids, sentences, labels and alias
   expect(prompt).toContain('- rina: Rina Okafor (person; aliases Rina)')
   expect(prompt).toContain('At most 20 memories and 15 new entities.')
   expect(prompt).not.toContain('{{')
-  expect(prompt).toContain('Never restate them, even reworded.')
+  expect(prompt).toContain('Never restate memories just to repeat them.')
+  expect(prompt).toContain(
+    'When this lane itself states or relies on an existing memory again, outside brain_search or brain_related output, include it again with a fresh quote from this lane so Brain can re-confirm it.',
+  )
+  expect(prompt).toContain(
+    'When this lane changed something, set "supersedes" to the old memory\'s id.',
+  )
   expect(prompt).toContain('Do not call tools')
   expect(prompt).toContain('Each quote is at most 160 characters')
   expect(prompt).toContain('"supersedes":null')
