@@ -53,6 +53,7 @@ const expectedEntries = [
   ['artifacts:stageHtml', 'machine'],
   ['brain:cancel', 'app'],
   ['brain:download', 'app'],
+  ['brain:extraction', 'app'],
   ['brain:forget', 'app'],
   ['brain:knowledge', 'app'],
   ['brain:memory', 'app'],

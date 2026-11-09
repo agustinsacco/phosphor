@@ -25,6 +25,7 @@ it('registers every Brain channel', () => {
   expect([...handlers.keys()].sort()).toEqual([
     'brain:cancel',
     'brain:download',
+    'brain:extraction',
     'brain:forget',
     'brain:knowledge',
     'brain:memory',

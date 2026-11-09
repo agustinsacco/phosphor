@@ -72,10 +72,22 @@ function deduplicate(ctx: Context, extraction: Extraction) {
   const memories: Extraction['memories'] = []
   const confirmations: NonNullable<Extraction['confirmations']> = []
   const outcomes: ProposalResult['outcomes'] = []
+  const seen: { vector: Float32Array; proposalIndex?: number; memoryId?: string }[] = []
   extraction.memories.forEach((item, candidate) => {
     const vector = extraction.vectors[candidate]
     if (!vector) throw new Error('Brain proposal is missing a vector.')
     encodeVector(vector)
+    const duplicate = seen.find((old) => cosine(vector, old.vector) >= 0.86)
+    if (duplicate) {
+      outcomes.push({
+        candidate,
+        summary: item.summary,
+        status: 'duplicate',
+        duplicateOf: duplicate.proposalIndex,
+        memoryId: duplicate.memoryId,
+      })
+      return
+    }
     const old = active.find(
       (old) => old.id !== item.supersedes && cosine(vector, old.vector) >= 0.86,
     )
@@ -85,12 +97,8 @@ function deduplicate(ctx: Context, extraction: Extraction) {
         citations: item.citations,
         evidence: extraction.evidence,
       })
+      seen.push({ vector, memoryId: old.id })
       outcomes.push({ candidate, summary: item.summary, status: 'reconfirms', memoryId: old.id })
-      return
-    }
-    const duplicateOf = vectors.findIndex((old) => cosine(vector, old) >= 0.86)
-    if (duplicateOf >= 0) {
-      outcomes.push({ candidate, summary: item.summary, status: 'duplicate', duplicateOf })
       return
     }
     outcomes.push({
@@ -99,6 +107,7 @@ function deduplicate(ctx: Context, extraction: Extraction) {
       status: 'kept',
       proposalIndex: memories.length,
     })
+    seen.push({ vector, proposalIndex: memories.length })
     memories.push(item)
     vectors.push(vector)
   })

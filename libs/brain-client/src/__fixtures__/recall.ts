@@ -10,6 +10,7 @@ export const HARBOR_RECALL: BrainRecall = {
     {
       memory: {
         id: 'ownership',
+        jobId: null,
         summary: 'Rina Okafor owns Harbor billing.',
         type: 'fact',
         kind: 'reported',

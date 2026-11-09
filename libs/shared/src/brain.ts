@@ -208,6 +208,7 @@ export interface BrainAgentRequest {
 export type BrainAgentResponse = { ok: true; data: unknown } | { ok: false; error: string }
 
 export type {
+  BrainSourceSegment,
   BrainExtractionRecord,
   BrainExtractionOutcome,
   BrainExtractionView,

@@ -258,11 +258,26 @@ it('reads the source only on demand, bounded at the clone leaf, and tolerates a 
   await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
   await reviewed(s.service)
   const job = s.store.snapshot().jobs[0]!
-  await writeFile(s.file, [...s.entries, { type: 'message', id: 'later', message: { role: 'user', content: 'Tom Lee wrote this after extraction.' } }].map((entry) => JSON.stringify(entry)).join('\n'))
+  await writeFile(
+    s.file,
+    [
+      ...s.entries,
+      {
+        type: 'message',
+        id: 'later',
+        message: { role: 'user', content: 'Tom Lee wrote this after extraction.' },
+      },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join('\n'),
+  )
   const view = await s.service.api.extraction(job.id)
   expect(view.source).toMatchObject({ exists: true, leafId: 'custom', sessionPath: s.file })
   expect(view.source.segments.at(-1)?.entryId).toBe('custom')
   expect(JSON.stringify(view.source)).not.toContain('after extraction')
   await rm(s.file)
-  expect((await s.service.api.extraction(job.id)).source).toMatchObject({ exists: false, segments: [] })
+  expect((await s.service.api.extraction(job.id)).source).toMatchObject({
+    exists: false,
+    segments: [],
+  })
 })

@@ -12,6 +12,12 @@ import type { RawEntity, RawExtraction, RawMemory } from '@phosphor/memory-engin
 import { scrubExcerpt } from './secrets'
 
 export interface ExtractionLimits {
+  onCandidate?: (
+    candidate: number,
+    memory: RawMemory | undefined,
+    summary: string,
+    reason?: string,
+  ) => void
   maxEntities?: number
   maxMemories?: number
   existingEntities?: BrainEntity[]
@@ -118,6 +124,10 @@ function memory(
   }
 }
 
+function candidateSummary(value: unknown): string {
+  return record(value) && typeof value.summary === 'string' ? value.summary : '(invalid candidate)'
+}
+
 /** Invalid individual items are discarded; a model's malformed JSON yields an empty proposal. */
 export function parseExtraction(text: string, limits: ExtractionLimits = {}): RawExtraction {
   const start = text.indexOf('{')
@@ -130,13 +140,13 @@ export function parseExtraction(text: string, limits: ExtractionLimits = {}): Ra
   } catch {
     return empty
   }
-  if (
-    !record(parsed) ||
-    typeof parsed.summary !== 'string' ||
-    !Array.isArray(parsed.entities) ||
-    !Array.isArray(parsed.memories)
-  )
+  if (!record(parsed) || !Array.isArray(parsed.memories)) return empty
+  if (typeof parsed.summary !== 'string' || !Array.isArray(parsed.entities)) {
+    parsed.memories.forEach((value, candidate) =>
+      limits.onCandidate?.(candidate, undefined, candidateSummary(value), 'invalid shape'),
+    )
     return empty
+  }
   const keys = new Set<string>()
   const entities = parsed.entities
     .flatMap((value) => {
@@ -148,11 +158,19 @@ export function parseExtraction(text: string, limits: ExtractionLimits = {}): Ra
     .slice(0, limits.maxEntities ?? 15)
   const known = new Map((limits.existingEntities ?? []).map((e) => [e.id, e]))
   for (const e of entities) if (!known.has(e.key)) known.set(e.key, { ...e, id: e.key })
-  const memories = parsed.memories
-    .flatMap((value) => {
-      const m = memory(value, known)
-      return m ? [m] : []
-    })
-    .slice(0, limits.maxMemories ?? 20)
+  const memories: RawMemory[] = []
+  parsed.memories.forEach((value, candidate) => {
+    const m = memory(value, known)
+    const summary = candidateSummary(value)
+    const capped = memories.length >= (limits.maxMemories ?? 20)
+    const rewritten = m && record(value) && value.object !== null && m.object === null
+    limits.onCandidate?.(
+      candidate,
+      capped ? undefined : m,
+      summary,
+      capped ? 'candidate limit' : rewritten ? 'link check rewritten' : undefined,
+    )
+    if (m && !capped) memories.push(m)
+  })
   return { summary: parsed.summary, entities, memories }
 }

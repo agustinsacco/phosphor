@@ -58,11 +58,13 @@ export function BrainMemoryDetail({
   entities,
   onFocus,
   onForget,
+  onExtraction,
 }: {
   id: string
   entities: BrainEntity[]
   onFocus: (id: string) => void
   onForget: () => void
+  onExtraction: (jobId: string) => void
 }): React.JSX.Element {
   const load = useCallback(() => window.phosphor.invoke('brain:memory', id), [id])
   const { data, error, retry } = useBrainResource(load)
@@ -93,6 +95,11 @@ export function BrainMemoryDetail({
         )}
       </p>
       <MemoryQuotes quotes={quotes} />
+      {memory.jobId && (
+        <Button size="sm" onClick={() => onExtraction(memory.jobId!)}>
+          View extraction
+        </Button>
+      )}
       <footer className="text-text-tertiary flex items-center justify-between gap-3 text-sm">
         <span>{memory.origin && `From ${memory.origin.title}`}</span>
         <Button

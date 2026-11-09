@@ -9,6 +9,8 @@ import { usePlatform } from '@/platform/Platform'
 import { useBrain, useBrainSync } from './useBrain'
 import { useBrainResource } from './useBrainResource'
 import { BrainInbox } from './BrainInbox'
+import { useBrainSelection } from './useBrainSelection'
+import { BrainExtraction } from './BrainExtraction'
 import { BrainReview } from './BrainReview'
 import { BrainGraph } from './BrainGraph'
 import { BrainMemoryDetail, MEMORY_LABELS, memoryRelation } from './BrainMemory'
@@ -68,8 +70,18 @@ const loadKnowledge = (): Promise<BrainKnowledge> => window.phosphor.invoke('bra
 function BrainContent({ revision }: { revision: number }): React.JSX.Element {
   const { data, error, retry } = useBrainResource(loadKnowledge, revision)
   const jobs = useBrain((s) => s.status?.jobs ?? [])
-  const [review, setReview] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string | null>(null)
+  const {
+    review,
+    selected,
+    extraction,
+    showReview,
+    showMemory,
+    showExtraction,
+    closeReview,
+    closeMemory,
+    closeExtraction,
+    back,
+  } = useBrainSelection()
   const [focus, setFocus] = useState<string | null>(null)
   if (!data)
     return (
@@ -77,46 +89,46 @@ function BrainContent({ revision }: { revision: number }): React.JSX.Element {
         {error && <Button onClick={retry}>Retry</Button>}
       </BrainEmpty>
     )
-  if (!jobs.length && !data.memories.length)
-    return (
-      <BrainEmpty title="No knowledge yet">
-        Right-click a lane and choose Queue for knowledge extraction. Brain reads a private copy of
-        it and proposes memories for you to approve.
-      </BrainEmpty>
-    )
+  if (!jobs.length && !data.memories.length) return <BrainWelcome />
   const reviewing =
     review && jobs.some((job) => job.id === review && job.state === 'review') ? review : null
   return (
     <ListDetail
       listLabel="Brain inbox and memories"
       detailLabel="Brain detail"
-      open={!!reviewing || !!selected}
-      onBack={() => {
-        setReview(null)
-        setSelected(null)
-      }}
+      open={!!extraction || !!reviewing || !!selected}
+      onBack={back}
       backLabel="Brain"
       list={
         <>
-          <BrainInbox jobs={jobs} onReview={setReview} />
+          <BrainInbox jobs={jobs} onReview={showReview} onExtraction={showExtraction} />
           <MemoryList
             knowledge={data}
             selected={selected}
             focus={focus}
             onClearFocus={() => setFocus(null)}
-            onSelect={(id) => {
-              setSelected(id)
-              setReview(null)
-            }}
+            onSelect={showMemory}
           />
         </>
       }
       detail={(back) => (
         <div className="h-full overflow-auto">
           {back}
-          {reviewing ? (
-            <BrainReview key={reviewing} jobId={reviewing} onClose={() => setReview(null)} />
-          ) : !data.memories.length ? (
+          {extraction ? (
+            <BrainExtraction
+              key={extraction}
+              jobId={extraction}
+              onBack={closeExtraction}
+              onMemory={showMemory}
+            />
+          ) : reviewing ? (
+            <BrainReview
+              key={reviewing}
+              jobId={reviewing}
+              onClose={closeReview}
+              onExtraction={showExtraction}
+            />
+          ) : !data.memories.length && !selected ? (
             <BrainEmpty title="Nothing approved yet">
               Approved memories, and a graph of what they connect, show up here.
             </BrainEmpty>
@@ -126,12 +138,22 @@ function BrainContent({ revision }: { revision: number }): React.JSX.Element {
               selected={selected}
               focus={focus}
               onFocus={setFocus}
-              onForget={() => setSelected(null)}
+              onForget={closeMemory}
+              onExtraction={showExtraction}
             />
           )}
         </div>
       )}
     />
+  )
+}
+
+function BrainWelcome(): React.JSX.Element {
+  return (
+    <BrainEmpty title="No knowledge yet">
+      Right-click a lane and choose Queue for knowledge extraction. Brain reads a private copy of it
+      and proposes memories for you to approve.
+    </BrainEmpty>
   )
 }
 
@@ -228,12 +250,14 @@ function KnowledgeView({
   focus,
   onFocus,
   onForget,
+  onExtraction,
 }: {
   data: BrainKnowledge
   selected: string | null
   focus: string | null
   onFocus: (id: string) => void
   onForget: () => void
+  onExtraction: (jobId: string) => void
 }): React.JSX.Element {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-3">
@@ -245,13 +269,14 @@ function KnowledgeView({
           onFocus={onFocus}
         />
       )}
-      {selected && data.memories.some((memory) => memory.id === selected) && (
+      {selected && (
         <BrainMemoryDetail
           key={selected}
           id={selected}
           entities={data.entities}
           onFocus={onFocus}
           onForget={onForget}
+          onExtraction={onExtraction}
         />
       )}
     </div>

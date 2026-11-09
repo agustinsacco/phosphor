@@ -976,6 +976,7 @@ export function installMockPhosphor(): void {
         : 'linux',
 
     invoke: (channel: string, ...args: unknown[]) => {
+      // Includes brain:extraction: the harness keeps invented answers after approval.
       if (channel.startsWith('brain:')) return mockBrainCall(channel, args)
       if (channel.startsWith('routines:')) return mockLocalRoutineCall(channel, args)
       if (MACHINE_SETTINGS_MOCK.has(channel))

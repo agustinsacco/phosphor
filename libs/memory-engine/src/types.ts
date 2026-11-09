@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type {
+  BrainSourceSegment,
   BrainExtractionRecord,
   BrainExtractionOutcome,
   BrainEntity,
@@ -23,14 +24,7 @@ export type SqliteDatabase = DatabaseSync
 export type SqliteConstructor = new (path: string) => SqliteDatabase
 
 /** One readable piece of a lane transcript: a message, tool output, tool call or summary. */
-export interface TranscriptSegment {
-  entryId: string
-  role: 'user' | 'assistant' | 'toolResult' | 'context'
-  /** Human label, for example "Agent · bash call · Nov 6, 12:47". */
-  label: string
-  observedAt: number
-  text: string
-}
+export type TranscriptSegment = BrainSourceSegment
 
 /** Transcript text kept around cited quotes, so memories outlive their lane. */
 export interface EvidenceExcerpt {

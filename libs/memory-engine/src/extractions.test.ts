@@ -224,9 +224,22 @@ it('resolves a within-proposal duplicate to the produced memory after approval',
   data.memories = [data.memories[0]!, data.memories[0]!]
   data.vectors = [vector(1), vector(1)]
   const result = store.propose(data)
-  store.saveExtraction({ jobId: job.id, sessionId: job.sessionId, sessionPath: job.sessionPath,
-    title: job.title, leafId: job.leafId, model: job.model, thinking: 'low', prompt: 'Harbor instruction',
-    answer: '', trace: null, outcomes: result.outcomes, error: null, startedAt: 1000, finishedAt: 1001 })
+  store.saveExtraction({
+    jobId: job.id,
+    sessionId: job.sessionId,
+    sessionPath: job.sessionPath,
+    title: job.title,
+    leafId: job.leafId,
+    model: job.model,
+    thinking: 'low',
+    prompt: 'Harbor instruction',
+    answer: '',
+    trace: null,
+    outcomes: result.outcomes,
+    error: null,
+    startedAt: 1000,
+    finishedAt: 1001,
+  })
   store.review(job.id, [0], store.snapshot().revision)
   const record = store.extraction(job.id)
   expect(record.outcomes[1]?.memoryId).toBe(record.memories[0]!.id)

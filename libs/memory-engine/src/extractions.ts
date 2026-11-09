@@ -71,7 +71,10 @@ export function linkOutcome(
   if (!row) return
   const outcomes = JSON.parse(row.outcomes) as BrainExtractionOutcome[]
   for (const outcome of outcomes) {
-    if (outcome.status === 'kept' && outcome.proposalIndex === proposalIndex)
+    if (
+      (outcome.status === 'kept' && outcome.proposalIndex === proposalIndex) ||
+      (outcome.status === 'duplicate' && outcome.duplicateOf === proposalIndex)
+    )
       outcome.memoryId = memoryId
   }
   run(ctx, 'UPDATE extractions SET outcomes=? WHERE job_id=?', JSON.stringify(outcomes), jobId)

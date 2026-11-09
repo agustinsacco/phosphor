@@ -1,4 +1,5 @@
 import type {
+  BrainExtractionView,
   BrainKnowledge,
   BrainLaneRef,
   BrainMemoryDetail,
@@ -11,6 +12,7 @@ import { mockBrainData, mockBrainJob, mockBrainStatus } from './mockBrainData'
 class MockBrain {
   private state = mockBrainStatus()
   private sample = mockBrainData()
+  private records = new Map<string, BrainExtractionView>()
   private approved: BrainMemoryDetail[] = []
   private downloading: number | null = null
   constructor(private now: () => number) {}
@@ -24,7 +26,18 @@ class MockBrain {
     }
   }
 
+  private pruneRecords(): void {
+    for (const [id, record] of this.records) {
+      if (
+        this.now() - record.finishedAt > 30 * 86_400_000 ||
+        (!this.state.jobs.some((job) => job.id === id) &&
+          !this.approved.some((detail) => detail.memory.jobId === id))
+      )
+        this.records.delete(id)
+    }
+  }
   private status(): BrainStatus {
+    this.pruneRecords()
     this.state.counts = {
       memories: this.approved.length,
       entities: this.knowledge().entities.length,
@@ -45,6 +58,7 @@ class MockBrain {
           memory: {
             ...detail.memory,
             id: `${id}-${detail.memory.id}`,
+            jobId: id,
             origin: { sessionId: job.sessionId, title: job.title },
           },
         })),
@@ -74,6 +88,7 @@ class MockBrain {
       return
     }
     if (this.now() - (active.startedAt ?? this.now()) < 4000) return
+    this.records.set(active.id, this.extractionRecord(active.id))
     active.state = 'review'
     active.memories = this.sample.details.length
     active.finishedAt = this.now()
@@ -128,6 +143,64 @@ class MockBrain {
       revision: this.state.revision,
       entities: this.sample.entities,
       memories: this.sample.details,
+      confirmations: [],
+    }
+  }
+
+  private extractionRecord(id: string): BrainExtractionView {
+    const job = this.state.jobs.find((item) => item.id === id)
+    if (!job) throw new Error('Brain extraction not found.')
+    return {
+      jobId: id,
+      sessionId: job.sessionId,
+      sessionPath: job.sessionPath,
+      title: job.title,
+      leafId: job.leafId,
+      model: job.model,
+      thinking: 'low',
+      prompt: 'Extract durable Harbor billing memories with verified quotes.',
+      answer: JSON.stringify(
+        { memories: this.sample.details.map((detail) => detail.memory.summary) },
+        null,
+        2,
+      ),
+      trace: null,
+      outcomes: this.sample.details.map((detail, index) => ({
+        candidate: index,
+        summary: detail.memory.summary,
+        status: 'kept',
+        proposalIndex: index,
+      })),
+      error: null,
+      startedAt: job.startedAt ?? this.now(),
+      finishedAt: this.now(),
+      memories: [],
+      source: {
+        sessionPath: job.sessionPath,
+        title: job.title,
+        leafId: job.leafId,
+        exists: false,
+        segments: [],
+      },
+    }
+  }
+  private extraction(id: string): BrainExtractionView {
+    this.pruneRecords()
+    const record = this.records.get(id)
+    if (!record) throw new Error('Brain extraction not found.')
+    const memories = this.approved
+      .filter((detail) => detail.memory.jobId === id)
+      .map((detail) => ({
+        id: detail.memory.id,
+        summary: detail.memory.summary,
+      }))
+    return {
+      ...record,
+      memories,
+      outcomes: record.outcomes.map((outcome) => ({
+        ...outcome,
+        memoryId: memories.find((memory) => memory.summary === outcome.summary)?.id,
+      })),
     }
   }
 
@@ -147,6 +220,8 @@ class MockBrain {
       case 'brain:cancel':
         this.state.jobs = this.state.jobs.filter((job) => job.id !== args[0])
         return this.status()
+      case 'brain:extraction':
+        return this.extraction(args[0] as string)
       case 'brain:proposal':
         return this.proposal(args[0])
       case 'brain:review':
@@ -168,7 +243,7 @@ class MockBrain {
   }
 }
 
-/** All eleven v2 channels, backed by invented notes and a clock-driven download/queue. */
+/** All local Brain channels, backed by invented notes and a clock-driven download/queue. */
 export function createMockBrain(
   now: () => number = () => Date.now(),
 ): (channel: string, args: unknown[]) => Promise<unknown> {

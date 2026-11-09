@@ -12,6 +12,7 @@ import { related, search } from './search'
 import type { BrainStore, OpenStoreOptions } from './types'
 
 function snapshot(ctx: Context): BrainSnapshot {
+  pruneExtractions(ctx)
   return {
     prefs: prefs(ctx),
     revision: revision(ctx),

@@ -29,6 +29,8 @@ export interface ForkInput {
   signal: AbortSignal
   /** Called once after cleanup; the caller must log diagnostics only on job failure. */
   onTrace?: (trace: ForkTrace, diagnostic?: string) => void
+  /** Raw final text, including on transport or assistant failure; never diagnostics. */
+  onAnswer?: (answer: string) => void
 }
 export interface ForkResult {
   text: string
@@ -113,6 +115,7 @@ export async function runFork(
   const stream = forkStream(tracer)
   let reason: ForkTrace['reason'] = 'error'
   let diagnostic: string | undefined
+  let finalText = ''
   try {
     await mkdir(directory, { recursive: true })
     const result = await run(launch.binaryPath, forkArgs(input, directory), {
@@ -132,6 +135,7 @@ export async function runFork(
       onStdout: stream.stdout,
     })
     const last = stream.end()
+    finalText = last?.text ?? ''
     if (result.stderr) diagnostic = traceDiagnostic(result.stderr)
     reason = signal.aborted ? 'aborted' : (result.reason ?? 'error')
     if (result.reason || signal.aborted) {
@@ -156,6 +160,7 @@ export async function runFork(
       cleaned = true
     } finally {
       tracer.finish(cleaned ? reason : 'error')
+      input.onAnswer?.(finalText || stream.end()?.text || '')
       input.onTrace?.(tracer.trace, diagnostic)
     }
   }

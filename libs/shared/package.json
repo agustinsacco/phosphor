@@ -351,6 +351,10 @@
     "./lane-move": {
       "types": "./src/lane-move.ts",
       "default": "./src/lane-move.ts"
+    },
+    "./brain-extraction": {
+      "types": "./src/brain-extraction.ts",
+      "default": "./src/brain-extraction.ts"
     }
   },
   "dependencies": {

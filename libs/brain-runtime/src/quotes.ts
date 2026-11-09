@@ -16,6 +16,7 @@ interface Window {
   end: number
 }
 export interface QuoteOptions {
+  onVerified?: (index: number, kept: boolean) => void
   window?: number
 }
 export interface VerifiedQuotes {
@@ -122,11 +123,12 @@ export function verifyQuotes(
 ): VerifiedQuotes {
   const dropped: string[] = []
   const cache = new Map<string, ReturnType<typeof indexed>>()
-  const matched = raw.memories.flatMap((memory) => {
+  const matched = raw.memories.flatMap((memory, index) => {
     const matches = memory.quotes.slice(0, 2).flatMap((q) => {
       const found = q.trim() ? findQuote(q, segments, cache) : undefined
       return found ? [found] : []
     })
+    options.onVerified?.(index, matches.length > 0)
     if (!matches.length) {
       dropped.push(`No verified quote: ${scrubExcerpt(memory.summary)}`)
       return []
