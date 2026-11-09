@@ -105,7 +105,8 @@ describe('OpenSSH release verification', () => {
     const bytes = Buffer.from(encoded, 'base64')
     for (const offset of [0, 9, 13, 18, 32, 93, 98, 112, 126, 127]) {
       const changed = Buffer.from(bytes)
-      changed[offset] = 255
+      // XOR, not a fixed value: a random key can already hold 255 at a signature offset.
+      changed[offset] = changed[offset]! ^ 0xff
       const armor = `-----BEGIN SSH SIGNATURE-----\n${changed.toString('base64')}\n-----END SSH SIGNATURE-----\n`
       expect(() => verifyReleaseManifest(manifest, armor, keys)).toThrow()
     }
