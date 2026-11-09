@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ACTIVE_MEMORIES } from './knowledge'
 import { approve, extraction, fixture, lane, vector } from './test-support'
 
 describe('Brain knowledge', () => {
@@ -98,5 +99,10 @@ describe('Brain knowledge', () => {
       evidence: extraction('x').evidence.map((item) => ({ ...item, observedAt: 0 })),
     })
     for (const item of undated.knowledge().memories) expect(item.observedAt).toBe(item.recordedAt)
+  })
+  it('dates every memory with one pass over citations, not one scan per memory', () => {
+    const { db } = fixture()
+    const plan = db.prepare(`EXPLAIN QUERY PLAN ${ACTIVE_MEMORIES}`).all() as { detail: string }[]
+    expect(plan.map((row) => row.detail).join('\n')).not.toMatch(/CORRELATED/)
   })
 })

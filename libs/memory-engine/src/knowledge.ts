@@ -25,11 +25,9 @@ function decode(row: MemoryRow): BrainMemory {
     origin: originSession === null ? null : { sessionId: originSession, title: originTitle ?? '' },
   }
 }
+export const ACTIVE_MEMORIES = `SELECT ${columns} FROM memories WHERE state='active' ORDER BY recorded_at DESC, rowid DESC`
 export function activeMemories(ctx: Context): BrainMemory[] {
-  return all<MemoryRow>(
-    ctx,
-    `SELECT ${columns} FROM memories WHERE state='active' ORDER BY recorded_at DESC, rowid DESC`,
-  ).map(decode)
+  return all<MemoryRow>(ctx, ACTIVE_MEMORIES).map(decode)
 }
 export function memory(ctx: Context, id: string): BrainMemoryDetail {
   const row = one<MemoryRow>(ctx, `SELECT ${columns} FROM memories WHERE id=?`, id)
