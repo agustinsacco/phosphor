@@ -443,6 +443,27 @@ it('keeps an About focus or a search framed, instantly, when the pane resizes', 
   expect(lastCamera().slice(1)).toEqual([centerOf(['harbor']), 0])
 })
 
+it('refits with the measured pane shape, not the camera aspect the library has yet to update', async () => {
+  await render()
+  // Spread wide enough that the minimum camera distance doesn't decide the fit.
+  data().nodes.forEach((node, index) => {
+    node.x = index * 600
+  })
+  setting<() => void>('onEngineStop')()
+  const resizeTo = (width: number): { z: number } => {
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValueOnce({
+      width,
+      height: 400,
+    } as DOMRect)
+    resize()
+    return lastCamera()[0] as { z: number }
+  }
+  // The camera mock keeps aspect 2 throughout, as the library does until its next update.
+  const narrow = resizeTo(300)
+  const wide = resizeTo(1200)
+  expect(wide.z).toBeLessThan(narrow.z)
+})
+
 it('does not consume the pending fit when resuming a previously stopped engine before new data', async () => {
   await render()
   setting<() => void>('onEngineStop')()
