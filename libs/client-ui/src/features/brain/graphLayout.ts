@@ -1,4 +1,7 @@
 import type { BrainEntity, BrainMemory } from '@shared/brain'
+import { layoutStats, nearbyPairs } from './graphGrid'
+
+export { layoutStats }
 
 export interface Point {
   x: number
@@ -33,6 +36,8 @@ export const LABEL_HEIGHT = 16
 export const LINK_DISTANCE = 140
 export const ALPHA_MIN = 0.001
 const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / 300)
+/** Beyond this, repulsion is negligible next to gravity, so far nodes are never compared. */
+const REPULSION_RANGE = 3 * LINK_DISTANCE
 
 export function graphEdges(memories: BrainMemory[]): GraphEdge[] {
   return memories.flatMap((memory) =>
@@ -112,10 +117,15 @@ export function labelBox(node: GraphNode): {
   }
 }
 
+function boxCentre(node: GraphNode): Point {
+  return { x: node.x - node.radius + node.width / 2, y: node.y }
+}
+
 function repel(a: GraphNode, b: GraphNode, alpha: number): void {
   const dx = b.x - a.x || 0.01
   const dy = b.y - a.y || 0.01
   const distance = Math.max(12, Math.hypot(dx, dy))
+  if (distance > REPULSION_RANGE) return
   const force = (4000 * alpha) / (distance * distance)
   a.vx -= (dx / distance) * force
   a.vy -= (dy / distance) * force
@@ -134,32 +144,63 @@ function spring(a: GraphNode, b: GraphNode, alpha: number): void {
   b.vy -= (dy / distance) * force
 }
 
-/** Symmetric minimum-axis collision includes the circle and right-aligned label, not a pill. */
-function collide(a: GraphNode, b: GraphNode): void {
-  const ab = labelBox(a),
-    bb = labelBox(b)
-  const overlapX = Math.min(ab.right, bb.right) - Math.max(ab.left, bb.left) + 4
-  const overlapY = Math.min(ab.bottom, bb.bottom) - Math.max(ab.top, bb.top) + 4
-  if (overlapX <= 0 || overlapY <= 0) return
+/**
+ * Symmetric minimum-axis collision includes the circle and right-aligned label, not a pill.
+ * Inlined box maths: this runs for every nearby pair, eight times a tick. Returns whether it moved.
+ */
+function collide(a: GraphNode, b: GraphNode): boolean {
+  const aLeft = a.x - a.radius,
+    bLeft = b.x - b.radius
+  const aHalf = Math.max(LABEL_HEIGHT / 2, a.radius),
+    bHalf = Math.max(LABEL_HEIGHT / 2, b.radius)
+  const overlapX = Math.min(aLeft + a.width, bLeft + b.width) - Math.max(aLeft, bLeft) + 4
+  if (overlapX <= 0) return false
+  const overlapY = Math.min(a.y + aHalf, b.y + bHalf) - Math.max(a.y - aHalf, b.y - bHalf) + 4
+  if (overlapY <= 0) return false
   const axis = overlapX < overlapY ? 'x' : 'y'
   const pin = axis === 'x' ? 'fx' : 'fy'
   const freeA = a[pin] === undefined,
     freeB = b[pin] === undefined
   const count = Number(freeA) + Number(freeB)
-  if (!count) return
-  const centerA = axis === 'x' ? ab.left + ab.right : a.y
-  const centerB = axis === 'x' ? bb.left + bb.right : b.y
+  if (!count) return false
+  const centerA = axis === 'x' ? aLeft * 2 + a.width : a.y
+  const centerB = axis === 'x' ? bLeft * 2 + b.width : b.y
   const shift = ((axis === 'x' ? overlapX : overlapY) + 0.01) / count
   const direction = centerA < centerB || (centerA === centerB && a.id < b.id) ? -1 : 1
   if (freeA) a[axis] += shift * direction
   if (freeB) b[axis] -= shift * direction
+  return true
+}
+
+/** Collision passes until nothing moves; dense clusters get more passes on the final tick. */
+function separate(nodes: GraphNode[], passes: number): void {
+  // Boxes overlap only when their centres are closer than the widest box plus the gap.
+  let width = 4,
+    height = LABEL_HEIGHT + 4
+  for (const node of nodes) {
+    width = Math.max(width, node.width + 4)
+    height = Math.max(height, node.radius * 2 + 4)
+  }
+  for (let pass = 0; pass < passes; pass++) {
+    let moved = false
+    nearbyPairs(nodes, boxCentre, width, height, (a, b) => {
+      if (collide(a, b)) moved = true
+    })
+    if (!moved) return
+  }
 }
 
 export function tickSimulation(simulation: Simulation): void {
   const { nodes, edges, alpha } = simulation
   const byId = new Map(nodes.map((node) => [node.id, node]))
-  for (let i = 0; i < nodes.length; i++)
-    for (let j = i + 1; j < nodes.length; j++) repel(nodes[i]!, nodes[j]!, alpha)
+  layoutStats.ticks++
+  nearbyPairs(
+    nodes,
+    (node) => node,
+    REPULSION_RANGE,
+    REPULSION_RANGE,
+    (a, b) => repel(a, b, alpha),
+  )
   for (const edge of edges) {
     const a = byId.get(edge.source),
       b = byId.get(edge.target)
@@ -173,11 +214,9 @@ export function tickSimulation(simulation: Simulation): void {
     if (node.fx !== undefined) node.vx = 0
     if (node.fy !== undefined) node.vy = 0
   }
-  // Collision does not cool: even the final frame must leave labels readable.
-  for (let iteration = 0; iteration < 8; iteration++)
-    for (let i = 0; i < nodes.length; i++)
-      for (let j = i + 1; j < nodes.length; j++) collide(nodes[i]!, nodes[j]!)
   simulation.alpha *= 1 - ALPHA_DECAY
+  // Collision does not cool: even the final frame must leave labels readable.
+  separate(nodes, simulation.alpha > ALPHA_MIN ? 8 : 64)
 }
 
 export function settleSimulation(simulation: Simulation): void {
