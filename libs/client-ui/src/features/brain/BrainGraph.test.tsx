@@ -296,3 +296,38 @@ it('centres external focus with no animation frames under reduced motion', () =>
   expect(stage()).not.toBe(original)
   expect(raf).not.toHaveBeenCalled()
 })
+
+it('keeps the fitted scale when a deferred reduced-motion layout arrives with a focus', () => {
+  act(() => root.unmount())
+  const frames: FrameRequestCallback[] = []
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => frames.push(callback))
+  vi.stubGlobal('cancelAnimationFrame', vi.fn())
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+  )
+  root = createRoot(container)
+  const template = mockBrainData().entities[0]!
+  const entities = Array.from({ length: 400 }, (_, i) => ({
+    ...template,
+    id: `harbor-${i}`,
+    label: `Harbor billing ${i}`,
+  }))
+  act(() =>
+    root.render(<BrainGraph entities={entities} memories={[]} focus="harbor-7" onFocus={focus} />),
+  )
+  for (let count = 0; frames.length && count < 400; count++)
+    act(() => frames.splice(0).forEach((callback) => callback(count * 16)))
+  svg = container.querySelector('svg')!
+  const [x, y, scale] = stage()
+    .match(/-?[\d.]+/g)!
+    .map(Number)
+  expect(scale).toBeLessThan(1)
+  const [nodeX, nodeY] = svg
+    .querySelector('[data-node=harbor-7]')!
+    .getAttribute('transform')!
+    .match(/-?[\d.]+/g)!
+    .map(Number)
+  expect(nodeX! * scale! + x!).toBeCloseTo(400)
+  expect(nodeY! * scale! + y!).toBeCloseTo(200)
+})
