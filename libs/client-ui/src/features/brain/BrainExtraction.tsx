@@ -11,6 +11,13 @@ import { useBrainResource } from './useBrainResource'
 import { elapsedTime } from './BrainReview'
 import { openBrainSource } from './openBrainSource'
 
+const OUTCOME = {
+  kept: 'Kept',
+  reconfirms: 'Re-confirms an existing memory',
+  duplicate: 'Duplicate of another candidate',
+  dropped: 'Dropped',
+} as const
+
 export function BrainExtraction({
   jobId,
   onBack,
@@ -104,11 +111,7 @@ function ExtractionOutcomes({
               <p>{outcome.summary}</p>
             )}
             <p className="text-text-tertiary text-sm">
-              {outcome.status === 'kept' ? 'Kept in proposal' : outcome.status}
-              {outcome.proposalIndex !== undefined && ` · proposal ${outcome.proposalIndex + 1}`}
-              {outcome.duplicateOf !== undefined &&
-                ` · duplicate of proposal ${outcome.duplicateOf + 1}`}
-              {outcome.memoryId && ` · ${outcome.memoryId}`}
+              {OUTCOME[outcome.status]}
               {outcome.reason && ` · ${outcome.reason}`}
             </p>
           </li>
