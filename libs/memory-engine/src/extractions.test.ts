@@ -133,3 +133,15 @@ it.each([null, []].map((keep) => ({ keep })))(
     )
   },
 )
+
+it('counts a repeated confirmation in the same answer as a duplicate, not another reconfirmation', () => {
+  const { store } = fixture()
+  approve(store)
+  const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
+  const data = extraction(job.id)
+  data.memories = [data.memories[0]!, data.memories[0]!]
+  data.vectors = [vector(1), vector(1)]
+  const result = store.propose(data)
+  expect(result).toMatchObject({ kept: 0, reconfirmed: 1, duplicates: 1 })
+  expect(result.outcomes.map((item) => item.status)).toEqual(['reconfirms', 'duplicate'])
+})
