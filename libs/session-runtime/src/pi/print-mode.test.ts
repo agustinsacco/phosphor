@@ -182,3 +182,14 @@ it('does not run Windows taskkill for a stale or missing pid', async () => {
   expect(child.kill).not.toHaveBeenCalled()
   expect(() => killProcessTree({ pid: undefined } as ChildProcess)).not.toThrow()
 })
+
+it('retains a caller-capped stderr diagnostic on timeout without capturing stdout', async () => {
+  vi.useFakeTimers()
+  const child = mockChild()
+  const pending = run('', { timeoutMs: 10, maxOutputBytes: 0, maxStderrBytes: 8 })
+  child.stderr.write('Harbor billing diagnostic')
+  await vi.advanceTimersByTimeAsync(10)
+  expect(await pending).toEqual({
+    stdout: '', reason: 'timeout', error: 'timed out after 10ms', stderr: 'Harbor b',
+  })
+})

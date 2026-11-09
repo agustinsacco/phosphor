@@ -149,3 +149,32 @@ it('runs as a one-shot even when the lane parks its Claude process', async () =>
     PI_CLAUDE_CLI_EPHEMERAL: '1',
   })
 })
+
+it('traces retries without answer text and explains a timeout with scrubbed diagnostics', async () => {
+  const args = await input()
+  const onTrace = vi.fn()
+  const run = vi.fn<typeof runPrintMode>().mockImplementation(async (_binary, _args, options) => {
+    for (const record of [
+      { type: 'agent_start' },
+      { type: 'turn_start' },
+      { type: 'message_start', message: { role: 'assistant', content: [] } },
+      { type: 'message_update', assistantMessageEvent: { delta: 'private Harbor answer' } },
+      { type: 'auto_retry_start', attempt: 1, delayMs: 2000, errorMessage: '429 token=harbor-secret' },
+    ]) options.onStdout?.(JSON.stringify(record) + '\n')
+    return { stdout: '', reason: 'timeout', error: 'timeout', stderr: 'Bearer harbor-secret' }
+  })
+  await expect(runFork({ ...args, onTrace }, run)).rejects.toThrow(
+    'Timed out after 300 s waiting for example/fast (retrying: 429 [redacted])',
+  )
+  expect(run.mock.calls[0]![2]).toMatchObject({
+    timeoutMs: 300000, stderr: 'capture', maxStderrBytes: 4096,
+  })
+  expect(onTrace).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+    firstStdoutMs: expect.any(Number), firstMessageStartMs: expect.any(Number),
+    firstMessageUpdateMs: expect.any(Number), messageUpdates: 1, turns: 1,
+    retries: [expect.objectContaining({ attempt: 1, delayMs: 2000, errorMessage: '429 [redacted]' })],
+    reason: 'timeout', totalMs: expect.any(Number),
+  }), '[redacted]')
+  expect(JSON.stringify(onTrace.mock.calls)).not.toMatch(/private Harbor answer|harbor-secret/)
+  expect(await stat(join(args.directory, 'forks', args.job.id)).catch(() => null)).toBeNull()
+})

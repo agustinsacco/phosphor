@@ -203,3 +203,18 @@ it('removes the prototype files it cannot read on startup and keeps the model', 
   for (const name of legacy) expect(await stat(join(directory, name)).catch(() => null)).toBeNull()
   expect(await stat(join(directory, 'embeddings'))).toBeTruthy()
 })
+
+it('logs one phased failure with lane metadata when parsing fails, without logging the answer', async () => {
+  const s = await setup()
+  vi.mocked(runFork).mockResolvedValue({
+    text: 'private Harbor answer', usage: { tokens: 12, cost: 0.002 },
+  })
+  await s.service.api.queue({ sessionPath: s.file, title: 'Harbor billing' })
+  await vi.waitFor(() => expect(s.store.jobs[0]!.state).toBe('failed'))
+  const failures = s.options.log.mock.calls.filter(([message]) => message === 'Brain extraction failed')
+  expect(failures).toEqual([['Brain extraction failed', expect.objectContaining({
+    jobId: s.store.jobs[0]!.id, model: 'example/fast', thinking: 'low',
+    laneBytes: (await stat(s.file)).size, phase: 'parse', error: 'The extraction returned no JSON.',
+  })]])
+  expect(JSON.stringify(s.options.log.mock.calls)).not.toContain('private Harbor answer')
+})
