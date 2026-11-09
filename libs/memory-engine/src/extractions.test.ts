@@ -145,3 +145,89 @@ it('counts a repeated confirmation in the same answer as a duplicate, not anothe
   expect(result).toMatchObject({ kept: 0, reconfirmed: 1, duplicates: 1 })
   expect(result.outcomes.map((item) => item.status)).toEqual(['reconfirms', 'duplicate'])
 })
+
+it.each(['dismiss', 'reject', 'expire'])(
+  'retains inbox records until %s without expiring approved knowledge',
+  (action) => {
+    const { store, db } = fixture()
+    const job = store.enqueue(lane(), 'queued')
+    store.saveExtraction({
+      jobId: job.id,
+      sessionId: job.sessionId,
+      sessionPath: job.sessionPath,
+      title: job.title,
+      leafId: job.leafId,
+      model: job.model,
+      thinking: 'low',
+      prompt: 'Harbor instruction',
+      answer: '',
+      trace: null,
+      outcomes: [],
+      error: null,
+      startedAt: 1000,
+      finishedAt: 1001,
+    })
+    expect(store.extraction(job.id).jobId).toBe(job.id)
+    if (action === 'dismiss') store.removeJob(job.id)
+    else {
+      store.propose(extraction(job.id))
+      store.review(job.id, action === 'reject' ? null : [0], store.snapshot().revision)
+      if (action === 'expire') {
+        expect(store.extraction(job.id).memories).toHaveLength(1)
+        db.prepare('UPDATE extractions SET finished_at=?').run(-31 * 86_400_000)
+        expect(store.snapshot().counts.memories).toBe(1)
+        expect(store.knowledge().memories[0]?.jobId).toBe(job.id)
+      }
+    }
+    expect(() => store.extraction(job.id)).toThrow('Brain extraction not found')
+  },
+)
+
+it('removes an empty job record on dismissal and preserves links for partially approved outcomes', () => {
+  const { store } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  const base = {
+    jobId: job.id,
+    sessionId: job.sessionId,
+    sessionPath: job.sessionPath,
+    title: job.title,
+    leafId: job.leafId,
+    model: job.model,
+    thinking: 'low',
+    prompt: 'Harbor instruction',
+    answer: '',
+    trace: null,
+    outcomes: [],
+    error: null,
+    startedAt: 1000,
+    finishedAt: 1001,
+  }
+  store.saveExtraction(base)
+  store.propose(extraction(job.id, { memories: [], vectors: [] }))
+  expect(store.extraction(job.id).jobId).toBe(job.id)
+  store.updateJob(job.id, { state: 'done' })
+  expect(() => store.extraction(job.id)).toThrow('Brain extraction not found')
+  const next = store.enqueue(lane({ leafId: 'next' }), 'queued')
+  const data = extraction(next.id)
+  const result = store.propose(data)
+  store.saveExtraction({ ...base, jobId: next.id, outcomes: result.outcomes })
+  store.review(next.id, [1], store.snapshot().revision)
+  const record = store.extraction(next.id)
+  expect(record.outcomes[0]?.memoryId).toBeUndefined()
+  expect(record.outcomes[1]?.memoryId).toBe(record.memories[0]?.id)
+})
+
+it('resolves a within-proposal duplicate to the produced memory after approval', () => {
+  const { store } = fixture()
+  const job = store.enqueue(lane(), 'queued')
+  const data = extraction(job.id)
+  data.memories = [data.memories[0]!, data.memories[0]!]
+  data.vectors = [vector(1), vector(1)]
+  const result = store.propose(data)
+  store.saveExtraction({ jobId: job.id, sessionId: job.sessionId, sessionPath: job.sessionPath,
+    title: job.title, leafId: job.leafId, model: job.model, thinking: 'low', prompt: 'Harbor instruction',
+    answer: '', trace: null, outcomes: result.outcomes, error: null, startedAt: 1000, finishedAt: 1001 })
+  store.review(job.id, [0], store.snapshot().revision)
+  const record = store.extraction(job.id)
+  expect(record.outcomes[1]?.memoryId).toBe(record.memories[0]!.id)
+})
