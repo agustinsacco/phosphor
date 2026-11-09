@@ -104,7 +104,7 @@ it.each([null, [], [0]].map((keep) => ({ keep })))(
     const old = store.knowledge().memories.find((memory) => memory.summary.includes('owns'))!
     const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
     const data = extraction(job.id)
-    data.evidence[0]!.observedAt = 9000
+    Object.assign(data.evidence[0]!, { entryId: 'harbor-later', observedAt: 9000 })
     data.vectors = [vector(1), vector(0, 0, 1)]
     expect(store.propose(data)).toMatchObject({ kept: 1, duplicates: 0, reconfirmed: 1 })
     expect(store.proposal(job.id).confirmations).toEqual([{ id: old.id, summary: old.summary }])
@@ -122,8 +122,8 @@ it.each([null, []].map((keep) => ({ keep })))(
     approve(store)
     const job = store.enqueue(lane({ leafId: 'next' }), 'queued')
     const data = extraction(job.id)
-    data.evidence.forEach((evidence) => {
-      evidence.observedAt = 9000
+    data.evidence.forEach((evidence, index) => {
+      Object.assign(evidence, { entryId: `harbor-later-${index}`, observedAt: 9000 })
     })
     expect(store.propose(data)).toMatchObject({ kept: 0, duplicates: 0, reconfirmed: 2 })
     expect(store.job(job.id)?.state).toBe('review')

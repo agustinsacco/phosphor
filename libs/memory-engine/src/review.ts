@@ -126,12 +126,17 @@ function applyConfirmations(ctx: Context, extraction: Extraction): void {
   for (const confirmation of extraction.confirmations ?? []) {
     if (!one(ctx, "SELECT id FROM memories WHERE id=? AND state='active'", confirmation.memoryId))
       continue
-    insertCitations(
-      ctx,
-      confirmation.memoryId,
-      confirmation.citations,
-      confirmation.evidence,
-      new Map(),
+    // A requeued lane can confirm a memory with a quote it already cites.
+    const fresh = confirmation.citations.filter(
+      (citation) =>
+        !one(
+          ctx,
+          'SELECT 1 FROM citations c JOIN evidence e ON e.id=c.evidence_id WHERE c.memory_id=? AND e.entry_id=? AND c.quote=?',
+          confirmation.memoryId,
+          confirmation.evidence[citation.evidence]?.entryId ?? '',
+          citation.quote,
+        ),
     )
+    insertCitations(ctx, confirmation.memoryId, fresh, confirmation.evidence, new Map())
   }
 }
