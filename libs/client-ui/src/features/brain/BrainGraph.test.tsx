@@ -132,3 +132,13 @@ it('highlights neighbours on hover and restores all nodes on leave', () => {
   })
   expect(rina.getAttribute('opacity')).toBe('1')
 })
+
+it('shows the predicate of each connected edge on hover', () => {
+  act(() => {
+    svg.querySelector('[data-node=harbor]')!.dispatchEvent(
+      new MouseEvent('mouseover', { bubbles: true }),
+    )
+  })
+  expect([...svg.querySelectorAll('text')].map((text) => text.textContent)).toContain('uses')
+  expect([...svg.querySelectorAll('text')].map((text) => text.textContent)).toContain('owns')
+})

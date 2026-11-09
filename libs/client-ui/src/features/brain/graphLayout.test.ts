@@ -78,3 +78,9 @@ it('maps pointers through SVG letterboxing and page offsets for node drag and pa
     y: 200,
   })
 })
+
+it('caps the label footprint instead of expanding long entities into oversized pills', () => {
+  const { entities } = mockBrainData()
+  const nodes = layoutGraph([{ ...entities[0]!, label: 'Harbor billing service '.repeat(4) }], [])
+  expect(nodes[0]!.width).toBeLessThan(260)
+})
