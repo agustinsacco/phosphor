@@ -30,7 +30,7 @@ export interface Simulation {
 export const GRAPH_WIDTH = 800
 export const GRAPH_HEIGHT = 400
 export const LABEL_HEIGHT = 16
-export const LINK_DISTANCE = 90
+export const LINK_DISTANCE = 140
 export const ALPHA_MIN = 0.001
 const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / 300)
 
@@ -116,7 +116,7 @@ function repel(a: GraphNode, b: GraphNode, alpha: number): void {
   const dx = b.x - a.x || 0.01
   const dy = b.y - a.y || 0.01
   const distance = Math.max(12, Math.hypot(dx, dy))
-  const force = (1800 * alpha) / (distance * distance)
+  const force = (4000 * alpha) / (distance * distance)
   a.vx -= (dx / distance) * force
   a.vy -= (dy / distance) * force
   b.vx += (dx / distance) * force
@@ -199,8 +199,9 @@ export function fitGraph(nodes: GraphNode[], width = GRAPH_WIDTH, height = GRAPH
   const bottom = Math.max(...boxes.map((box) => box.bottom))
   const scale = Math.max(
     0.001,
+    // Up to 125%: a small graph fills its pane without labels growing large.
     Math.min(
-      1,
+      1.25,
       (width - 64) / Math.max(1, right - left),
       (height - 64) / Math.max(1, bottom - top),
     ),
