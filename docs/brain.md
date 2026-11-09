@@ -52,9 +52,28 @@ private `PI_CLAUDE_CLI_STATE_DIR`.
 It has no tools: `--no-tools` declares none, the guard extension refuses any tool
 call, and `pi-claude-cli` runs Claude Code with `--tools ""`. The lane's file is
 only read. The fork directory is deleted when the run ends. A run that takes
-longer than 150 seconds fails; the target is under a minute, which is why
-thinking is capped at `low`. The fork sends the whole conversation to the lane's
-provider once more, at that provider's price.
+longer than 300 seconds fails; the target is under a minute, which is why
+thinking is capped at `low`. The longer cap avoids discarding already-billed work
+on large lanes. The fork sends the whole conversation to the lane's provider once
+more, at that provider's price.
+
+The app's `brain` log follows each job through start, fork completion, parsing,
+quote verification, embedding and proposal. Each step carries the job ID, model,
+capped thinking level and lane file bytes. A single `Brain extraction failed`
+line records the failed phase, including cancellation and timeout; metadata not
+yet read is null. Cancelling a job before it runs writes `Brain job cancelled`
+with its job ID, model and queued/waiting phase, without a trace. Review and inbox
+dismissal do not count as cancellation. `Brain extraction finished` remains the
+success summary.
+The fork trace records milliseconds to first stdout, first assistant
+`message_start` and first `message_update` (time to first token), update and turn
+counts, retries (attempt, delay and scrubbed error), compaction events, final
+assistant stop reason and usage, total duration and completion reason. It never
+records transcript, thinking or answer text. Provider diagnostics are scrubbed
+with the evidence scrubber before clipping to 600 characters; stderr capture is
+capped at 4096 bytes and appears only on failure. Stored timeout errors name the
+model and say whether no reply arrived, a reply started, or pi was retrying with
+a scrubbed provider error. No fork files are retained, even on failure.
 
 The instruction (`libs/brain-runtime/src/prompt.ts`) asks for at most 20 durable,
 self-contained memories and 15 new entities: decisions with reasons, hard-won

@@ -11,6 +11,7 @@ vi.mock('node:child_process', async (original) => {
 })
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.mocked(spawn).mockReset()
   vi.useRealTimers()
 })
 
@@ -190,6 +191,45 @@ it('retains a caller-capped stderr diagnostic on timeout without capturing stdou
   child.stderr.write('Harbor billing diagnostic')
   await vi.advanceTimersByTimeAsync(10)
   expect(await pending).toEqual({
-    stdout: '', reason: 'timeout', error: 'timed out after 10ms', stderr: 'Harbor b',
+    stdout: '',
+    reason: 'timeout',
+    error: 'timed out after 10ms',
+    stderr: 'Harbor b',
   })
+})
+
+it('caps stderr by bytes across chunks and keeps diagnostics separate for successful exits', async () => {
+  const child = mockChild()
+  const pending = run('', { maxStderrBytes: 7 })
+  child.stderr.write(Buffer.from([0x48, 0x61, 0x72, 0x62, 0x6f, 0xc3]))
+  child.stderr.write(Buffer.from([0xa9, 0x78, 0x79]))
+  child.emit('close', 0)
+  expect(await pending).toEqual({ stdout: '', stderr: 'Harboé' })
+})
+
+it('includes capped stderr on abort and failed exit, but never when stderr is ignored', async () => {
+  const controller = new AbortController()
+  const child = mockChild()
+  const pending = run('', { maxStderrBytes: 6, signal: controller.signal })
+  child.stderr.write('Harbor private diagnostic')
+  controller.abort()
+  expect(await pending).toEqual({
+    stdout: '',
+    error: 'aborted',
+    reason: 'aborted',
+    stderr: 'Harbor',
+  })
+  const exited = mockChild()
+  const failed = run('', { maxStderrBytes: 6 })
+  exited.stderr.write('Harbor private diagnostic')
+  exited.emit('close', 2)
+  expect(await failed).toEqual({
+    stdout: '',
+    error: 'exited 2: Harbor',
+    reason: 'exit',
+    stderr: 'Harbor',
+  })
+  expect(
+    await run("process.stderr.write('Harbor')", { stderr: 'ignore', maxStderrBytes: 6 }),
+  ).toEqual({ stdout: '' })
 })
