@@ -96,6 +96,8 @@ class SceneController implements GraphScene {
       this.activity.wake()
       // Keep whatever the camera is framing (everything, a search or an About focus) in view.
       if (this.settled && !this.userCamera) this.aim(0)
+      // The library applies the new canvas size on a later tick; keep drawing until it has.
+      this.activity.wake(500)
     }
     this.observer = new ResizeObserver(resize)
     this.observer.observe(container)
