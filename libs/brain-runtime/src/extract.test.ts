@@ -181,3 +181,72 @@ it('logs cancellation before preparation and during embedding without creating a
     trace: during.tracer.trace,
   })
 })
+
+it('retains the scrubbed raw answer, instruction, clone leaf, trace and every candidate outcome', async () => {
+  const s = await setup()
+  const valid = RAW_EXTRACTION.memories[0]!
+  const answer =
+    JSON.stringify({
+      ...RAW_EXTRACTION,
+      memories: [
+        valid,
+        null,
+        { ...valid, summary: 'Tom Lee maintains Harbor.', quotes: ['unverified'] },
+        { ...valid, summary: 'Rina Okafor chose billing backups.' },
+      ],
+    }) + '\ntoken=harbor-secret'
+  vi.mocked(runFork).mockImplementation(async (input) => {
+    input.onTrace?.(s.tracer.trace)
+    return { text: answer, usage: { tokens: 1, cost: 0 } }
+  })
+  await s.run()
+  const record = s.store.records.get(s.job.id)
+  expect(record).toMatchObject({
+    jobId: s.job.id,
+    leafId: 'custom',
+    thinking: 'low',
+    trace: s.tracer.trace,
+    error: null,
+  })
+  expect(record?.prompt).toContain('memories')
+  expect(record?.answer).toContain('[redacted]')
+  expect(record?.answer).not.toContain('harbor-secret')
+  expect(record?.outcomes).toMatchObject([
+    { candidate: 0, status: 'kept', proposalIndex: 0 },
+    { candidate: 1, status: 'dropped', reason: 'invalid shape' },
+    { candidate: 2, status: 'dropped', reason: 'no verified quote' },
+    { candidate: 3, status: 'kept', proposalIndex: 1, reason: 'link check rewritten' },
+  ])
+})
+
+it('retains timeout traces and errors, but no record for a failure before the fork', async () => {
+  const s = await setup()
+  s.tracer.finish('timeout')
+  vi.mocked(runFork).mockImplementation(async (input) => {
+    input.onTrace?.(s.tracer.trace)
+    throw new Error('Harbor timeout token=harbor-secret')
+  })
+  await expect(s.run()).rejects.toThrow('Harbor timeout')
+  expect(s.store.records.get(s.job.id)).toMatchObject({
+    trace: s.tracer.trace,
+    answer: '',
+    error: 'Harbor timeout [redacted]',
+  })
+  const before = await setup()
+  vi.spyOn(before.options.lanes, 'launch').mockRejectedValue(new Error('Harbor unavailable'))
+  await expect(before.run()).rejects.toThrow()
+  expect(before.store.records.size).toBe(0)
+})
+
+it('auto-approves confirmation-only jobs when review is off', async () => {
+  const s = await setup()
+  s.store.prefs.review = false
+  const original = s.store.propose.bind(s.store)
+  vi.spyOn(s.store, 'propose').mockImplementation((input) => {
+    const result = original(input)
+    return { ...result, kept: 0, reconfirmed: 1 }
+  })
+  const review = vi.spyOn(s.store, 'review')
+  await s.run()
+  expect(review).toHaveBeenCalledWith(s.job.id, [], 0)
+})

@@ -1,5 +1,6 @@
 import {
   DEFAULT_BRAIN_PREFS,
+  type BrainExtractionRecord,
   type BrainJob,
   type BrainMemoryDetail,
   type BrainPrefs,
@@ -9,6 +10,7 @@ import {
 } from '@phosphor/shared/brain'
 import type {
   BrainStore,
+  ProposalResult,
   Extraction,
   JobPatch,
   NewJob,
@@ -20,6 +22,15 @@ export class FakeBrainStore implements BrainStore {
   prefs: BrainPrefs = { ...DEFAULT_BRAIN_PREFS }
   revision = 0
   jobs: BrainJob[] = []
+  records = new Map<string, BrainExtractionRecord>()
+  saveExtraction(record: BrainExtractionRecord): void {
+    this.records.set(record.jobId, record)
+  }
+  extraction(id: string) {
+    const record = this.records.get(id)
+    if (!record) throw new Error('Brain extraction not found.')
+    return { ...record, memories: [] }
+  }
   proposals = new Map<string, Extraction>()
   details: BrainMemoryDetail[] = []
   deliveries: { sessionId: string; memoryIds: string[] }[] = []
@@ -79,13 +90,23 @@ export class FakeBrainStore implements BrainStore {
   requeueInterrupted(): void {
     for (const job of this.jobs) if (job.state === 'running') job.state = 'queued'
   }
-  propose(extraction: Extraction): { kept: number; duplicates: number } {
+  propose(extraction: Extraction): ProposalResult {
     this.proposals.set(extraction.jobId, extraction)
     this.updateJob(extraction.jobId, {
       state: extraction.memories.length ? 'review' : 'empty',
       memories: extraction.memories.length,
     })
-    return { kept: extraction.memories.length, duplicates: 0 }
+    return {
+      kept: extraction.memories.length,
+      duplicates: 0,
+      reconfirmed: 0,
+      outcomes: extraction.memories.map((item, candidate) => ({
+        candidate,
+        summary: item.summary,
+        status: 'kept',
+        proposalIndex: candidate,
+      })),
+    }
   }
   proposal(jobId: string): BrainProposalView {
     const job = this.job(jobId)
@@ -97,6 +118,7 @@ export class FakeBrainStore implements BrainStore {
       revision: this.revision,
       entities: proposal.entities.map((e) => ({ ...e, id: e.key })),
       memories: [],
+      confirmations: [],
     }
   }
   review(jobId: string, keep: number[] | null, revision: number): void {
