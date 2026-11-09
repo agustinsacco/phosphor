@@ -119,37 +119,80 @@ function BrainContent({ revision }: { revision: number }): React.JSX.Element {
       detail={(back) => (
         <div className="h-full overflow-auto">
           {back}
-          {extraction ? (
-            <BrainExtraction
-              key={extraction}
-              jobId={extraction}
-              onBack={closeExtraction}
-              onMemory={showMemory}
-            />
-          ) : reviewing ? (
-            <BrainReview
-              key={reviewing}
-              jobId={reviewing}
-              onClose={closeReview}
-              onExtraction={showExtraction}
-            />
-          ) : !data.memories.length && !selected ? (
-            <BrainEmpty title="Nothing approved yet">
-              Approved memories, and a graph of what they connect, show up here.
-            </BrainEmpty>
-          ) : (
-            <KnowledgeView
-              data={data}
-              matches={matches}
-              selected={selected}
-              focus={focus}
-              onFocus={setFocus}
-              onForget={closeMemory}
-              onExtraction={showExtraction}
-            />
-          )}
+          <BrainDetail
+            data={data}
+            extraction={extraction}
+            reviewing={reviewing}
+            selected={selected}
+            matches={matches}
+            focus={focus}
+            onFocus={setFocus}
+            onMemory={showMemory}
+            onExtraction={showExtraction}
+            onCloseExtraction={closeExtraction}
+            onCloseReview={closeReview}
+            onForget={closeMemory}
+          />
         </div>
       )}
+    />
+  )
+}
+
+function BrainDetail({
+  data,
+  extraction,
+  reviewing,
+  selected,
+  matches,
+  focus,
+  onFocus,
+  onMemory,
+  onExtraction,
+  onCloseExtraction,
+  onCloseReview,
+  onForget,
+}: {
+  data: BrainKnowledge
+  extraction: string | null
+  reviewing: string | null
+  selected: string | null
+  matches: ReturnType<typeof useMemorySearch>['matches']
+  focus: string | null
+  onFocus: (id: string | null) => void
+  onMemory: (id: string) => void
+  onExtraction: (jobId: string) => void
+  onCloseExtraction: () => void
+  onCloseReview: () => void
+  onForget: () => void
+}): React.JSX.Element {
+  return extraction ? (
+    <BrainExtraction
+      key={extraction}
+      jobId={extraction}
+      onBack={onCloseExtraction}
+      onMemory={onMemory}
+    />
+  ) : reviewing ? (
+    <BrainReview
+      key={reviewing}
+      jobId={reviewing}
+      onClose={onCloseReview}
+      onExtraction={onExtraction}
+    />
+  ) : !data.memories.length && !selected ? (
+    <BrainEmpty title="Nothing approved yet">
+      Approved memories, and a graph of what they connect, show up here.
+    </BrainEmpty>
+  ) : (
+    <KnowledgeView
+      data={data}
+      matches={matches}
+      selected={selected}
+      focus={focus}
+      onFocus={onFocus}
+      onForget={onForget}
+      onExtraction={onExtraction}
     />
   )
 }

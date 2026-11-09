@@ -4,6 +4,7 @@ import { Button } from '@/components/form'
 import { GRAPH_COLORS } from './graphColors'
 import { graphModel, type GraphNode } from './graphModel'
 import { useGraphScene } from './useGraphScene'
+import { TooltipButton } from '@/components/Tooltip'
 
 export function BrainGraph3D({
   entities,
@@ -88,9 +89,9 @@ function GraphAccess({
     <ul className="sr-only focus-within:not-sr-only focus-within:p-3" aria-label="Graph entities">
       {nodes.map((node) => (
         <li key={node.id}>
-          <button
+          <TooltipButton
             type="button"
-            role="button"
+            tooltip={false}
             aria-label={`Focus ${node.label}`}
             aria-pressed={focus === node.id}
             data-highlighted={!matches || matches.has(node.id)}
@@ -103,7 +104,7 @@ function GraphAccess({
             }}
           >
             {node.label}
-          </button>
+          </TooltipButton>
         </li>
       ))}
     </ul>

@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import type { BrainExtractionView } from '@shared/brain'
 import { ipcErrorText } from '@shared/errors'
 import { Button, Tag } from '@/components/form'
+import { TooltipSummary } from '@/components/Tooltip'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 import { formatCount } from '@/lib/format'
@@ -57,7 +58,7 @@ export function BrainExtraction({
             </div>
           </section>
           <details>
-            <summary className="cursor-pointer">Prompt</summary>
+            <TooltipSummary className="cursor-pointer">Prompt</TooltipSummary>
             <CodeBlock code={data.prompt} language="text" chatActions={false} />
           </details>
           <ExtractionTrace data={data} />
@@ -116,7 +117,9 @@ function ExtractionOutcomes({
       {!data.outcomes.length && <p className="text-text-tertiary text-sm">No candidates parsed.</p>}
       {data.memories.length > 0 && (
         <details>
-          <summary>Produced {formatCount(data.memories.length, 'memory', 'memories')}</summary>
+          <TooltipSummary>
+            Produced {formatCount(data.memories.length, 'memory', 'memories')}
+          </TooltipSummary>
           {data.memories.map((memory) => (
             <div key={memory.id}>
               <Button size="sm" onClick={() => onMemory(memory.id)}>
@@ -192,7 +195,7 @@ function ExtractionSource({
   }
   return (
     <details>
-      <summary className="cursor-pointer">Source lane at extraction</summary>
+      <TooltipSummary className="cursor-pointer">Source lane at extraction</TooltipSummary>
       {!source.exists ? (
         <p className="text-text-tertiary text-sm">Source lane is no longer available.</p>
       ) : (
