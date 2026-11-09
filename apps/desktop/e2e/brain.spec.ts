@@ -1,101 +1,125 @@
 import { test, expect } from '@playwright/test'
-import { existsSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
-import { basename, join } from 'node:path'
-import { launch, openWorkspace, shutdown } from './fixtures/local-app'
-import { remoteHostFixture, REMOTE_TEST_TIMEOUT } from './fixtures/remote-host'
-import { selectMachine } from './fixtures/remote-ui'
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { launch, shutdown, privateAgentDir } from './fixtures/local-app'
+import { scratchDir } from './fixtures/scratch'
 
-test('Brain boots the real database worker, stays opt-in, and persists reviewed settings', async () => {
-  const h = await launch()
+const id = '01a0272a-7be5-76ed-b420-36b363924633'
+const fact = 'Rina Okafor owns the Harbor ledger export.'
+
+const sessionDir = (agent: string, cwd: string) =>
+  join(agent, 'sessions', `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`)
+
+/** A stopped lane on disk: the knowledge fork reads it, Brain never writes to it. */
+async function seedLane() {
+  const workspace = await realpath(await scratchDir('phosphor-e2e-brain-'))
+  const profile = join(workspace, 'profile')
+  const agent = privateAgentDir()
+  const source = join(sessionDir(agent, workspace), `2026-11-06T12-00-00-000Z_${id}.jsonl`)
+  await mkdir(profile)
+  await mkdir(sessionDir(agent, workspace), { recursive: true })
+  const at = (second: number) => `2026-11-06T12:00:0${second}Z`
+  const original =
+    [
+      { type: 'session', version: 3, id, cwd: workspace, timestamp: at(0) },
+      {
+        type: 'session_info',
+        id: 'name0001',
+        parentId: null,
+        name: 'Harbor ledger',
+        timestamp: at(1),
+      },
+      {
+        type: 'message',
+        id: 'ask00001',
+        parentId: 'name0001',
+        timestamp: at(2),
+        message: { role: 'user', content: `Note for later: ${fact} Exports run nightly.` },
+      },
+      {
+        type: 'message',
+        id: 'ans00001',
+        parentId: 'ask00001',
+        timestamp: at(3),
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Noted.' }],
+          provider: 'stub',
+          model: 'stub-model',
+        },
+      },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join('\n') + '\n'
+  await writeFile(source, original)
+  await writeFile(
+    join(profile, 'config.json'),
+    JSON.stringify({
+      lastWorkspacePath: workspace,
+      recentWorkspaces: [{ path: workspace, name: 'Harbor' }],
+    }),
+  )
+  return { workspace, profile, agent, source, original }
+}
+
+test('Brain learns only from a queued lane, after approval, and keeps the lane untouched', async () => {
+  const { workspace, profile, agent, source, original } = await seedLane()
+  const h = await launch({
+    workspace,
+    agentDir: agent,
+    userDataDir: profile,
+    env: { PHOSPHOR_BRAIN_TEST_EMBEDDINGS: '1' },
+  })
+  const { page } = h
   try {
-    execFileSync('git', ['init', '-b', 'main', h.workspace], { stdio: 'ignore' })
-    execFileSync(
-      'git',
-      [
-        '-C',
-        h.workspace,
-        '-c',
-        'user.name=Test',
-        '-c',
-        'user.email=test@example.test',
-        '-c',
-        'commit.gpgsign=false',
-        '-c',
-        'core.hooksPath=/dev/null',
-        'commit',
-        '--allow-empty',
-        '-m',
-        'Synthetic Brain fixture',
-      ],
-      { stdio: 'ignore' },
-    )
-    await openWorkspace(h.page)
-    await h.page.getByRole('button', { name: 'Brain', exact: true }).click()
+    const row = page.getByTestId('session-row').filter({ hasText: 'Harbor ledger' }).first()
+    await expect(row).toBeVisible({ timeout: 30_000 })
+    const nav = page.getByRole('navigation', { name: 'Main navigation' })
+    await expect(nav.getByRole('button', { name: 'Brain' })).toHaveCount(0)
+    await row.click({ button: 'right' })
+    await expect(page.getByText('Queue for knowledge extraction')).toHaveCount(0)
+    await page.keyboard.press('Escape')
+
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await page.getByRole('button', { name: 'Brain', exact: true }).click()
+    await page.getByRole('switch', { name: 'Brain', exact: true }).click()
+    await expect(page.getByRole('switch', { name: 'Brain', exact: true })).toBeChecked()
+    await expect(page.getByRole('switch', { name: 'Review before saving' })).toBeChecked()
+    await expect(page.getByText('EmbeddingGemma is ready.', { exact: false })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(nav.getByRole('button', { name: 'Brain' })).toBeVisible()
+
+    await row.click({ button: 'right' })
+    await page.getByText('Queue for knowledge extraction', { exact: true }).click()
+    await nav.getByRole('button', { name: 'Brain' }).click()
+    await expect(page.getByText('1 memory to review')).toBeVisible({ timeout: 30_000 })
+    await page.getByRole('button', { name: 'Review', exact: true }).click()
+    await expect(page.getByText('The lane named who owns what.')).toBeVisible()
+    await expect(page.getByText('Nothing is searchable until you approve it.')).toBeVisible()
+    await page.getByRole('button', { name: 'Approve 1', exact: true }).click()
+
+    await expect(page.getByText(fact).first()).toBeVisible()
+    await expect(page.getByLabel('Memory relationships')).toBeVisible()
+    const knowledge = await page.evaluate(() => window.phosphor.invoke('brain:knowledge'))
+    expect(knowledge.memories.map((memory) => memory.summary)).toEqual([fact])
+    expect(knowledge.entities.map((entity) => entity.label).sort()).toEqual([
+      'Harbor ledger export',
+      'Rina Okafor',
+    ])
+
+    await row.click({ button: 'right' })
+    await page.getByText('Queue for knowledge extraction', { exact: true }).click()
     await expect(
-      h.page.getByRole('heading', { name: 'Brain · This Mac', exact: true }),
+      page.getByText('Nothing new in this lane since its last extraction.'),
     ).toBeVisible()
-    await expect(h.page.getByText(/Brain is off by default/)).toBeVisible()
-    const status = await h.page.evaluate(() => window.phosphor.invoke('brain:status'))
-    expect(status.snapshot.prefs.enabled).toBe(false)
-    expect(status.snapshot.counts.evidence).toBe(0)
-    expect(status.snapshot.jobs).toEqual([])
-    await h.page
-      .getByRole('navigation', { name: 'Brain sections' })
-      .getByRole('button', { name: 'Settings', exact: true })
-      .click()
-    await h.page.getByLabel('Accept embedding model terms').check()
-    await expect(
-      h.page.getByRole('button', { name: 'Download local embedding model' }),
-    ).toBeDisabled()
-    await h.page.getByRole('checkbox', { name: 'Enable Brain', exact: true }).check()
-    await h.page.getByRole('textbox', { name: 'Exact provider', exact: true }).fill('openai')
-    await h.page.getByRole('textbox', { name: 'Exact model ID', exact: true }).fill('synthetic')
-    await h.page.getByRole('checkbox', { name: new RegExp(basename(h.workspace)) }).check()
-    await expect(h.page.getByRole('button', { name: 'Save Brain settings' })).toBeDisabled()
-    await h.page.getByRole('checkbox', { name: /I consent to capture/ }).check()
-    await h.page.getByRole('button', { name: 'Save Brain settings' }).click()
-    await expect(h.page.getByText(/Brain is off by default/)).toHaveCount(0)
-    const enabled = await h.page.evaluate(() => window.phosphor.invoke('brain:status'))
-    expect(enabled.snapshot.prefs.enabled).toBe(true)
-    expect(enabled.snapshot.prefs.workspaces).toHaveLength(1)
-    expect(enabled.snapshot.jobs).toEqual([])
-    expect(['missing', 'unsupported']).toContain(enabled.embedding.phase)
-    await h.page.reload()
-    await h.page.getByRole('button', { name: 'Brain', exact: true }).click()
-    await expect(h.page.getByRole('button', { name: 'Explore', exact: true })).toBeVisible()
-    expect(
-      (await h.page.evaluate(() => window.phosphor.invoke('brain:status'))).snapshot.prefs.enabled,
-    ).toBe(true)
-    await h.page
-      .getByRole('navigation', { name: 'Brain sections' })
-      .getByRole('button', { name: 'Settings', exact: true })
-      .click()
-    await h.page.getByRole('checkbox', { name: 'Enable Brain', exact: true }).uncheck()
-    await h.page.getByRole('button', { name: 'Save Brain settings' }).click()
-    await expect(h.page.getByText(/Brain is off by default/)).toBeVisible()
-    await h.page.screenshot({ path: test.info().outputPath('brain-settings.png') })
+
+    await page.getByText(fact).first().click()
+    await page.getByRole('button', { name: 'Forget', exact: true }).click()
+    await expect
+      .poll(async () => (await page.evaluate(() => window.phosphor.invoke('brain:status'))).counts)
+      .toEqual({ memories: 0, entities: 0 })
+    expect(await readFile(source, 'utf8')).toBe(original)
   } finally {
     await shutdown(h)
-  }
-})
-
-test('explicit Host Brain never opens local storage; All is labelled This Mac', async () => {
-  test.setTimeout(REMOTE_TEST_TIMEOUT)
-  const h = await remoteHostFixture()
-  try {
-    await h.signIn()
-    await selectMachine(h, 'bee1')
-    await h.page.getByRole('button', { name: 'Brain', exact: true }).click()
-    await expect(h.page.getByText(/Brain is unavailable on this machine/)).toBeVisible()
-    expect(existsSync(join(h.userData, 'brain'))).toBe(false)
-    await selectMachine(h, 'All machines')
-    await expect(
-      h.page.getByRole('heading', { name: 'Brain · This Mac', exact: true }),
-    ).toBeVisible()
-    await expect(h.page.getByText(/Brain is off by default/)).toBeVisible()
-    expect(existsSync(join(h.userData, 'brain'))).toBe(true)
-  } finally {
-    await h.close()
   }
 })

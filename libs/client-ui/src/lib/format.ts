@@ -48,3 +48,8 @@ export function formatBytes(n: number): string {
   if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
   return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`
 }
+
+/** "1 memory", "3 memories": a count with the right noun. */
+export function formatCount(n: number, singular: string, plural = `${singular}s`): string {
+  return `${n} ${n === 1 ? singular : plural}`
+}

@@ -1,144 +1,86 @@
-import { mkdir, realpath } from 'node:fs/promises'
-import { isAbsolute, join } from 'node:path'
-import type { BrainStatus } from '@phosphor/shared/brain'
-import { createBrainBridge } from './bridge'
-import { createBrainIndexer } from './indexer'
-import { createBrainProcessor } from './processor'
-import { createBrainLearning } from './learning-coordinator'
-import { createBrainWorking } from './working'
-import { createBrainTranscripts } from './transcripts'
-import { createBrainLifecycle } from './service-lifecycle'
-import { createBrainApi } from './controller'
-import type { BrainService, BrainServiceOptions } from './service-types'
-import type { BrainMemoryClient } from './memory-client'
-export type { BrainService, BrainServiceOptions, BrainApi } from './service-types'
+import { mkdir, rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import type { BrainService, BrainServiceOptions } from './types'
+import { ExtractionQueue } from './queue'
+import { extractJob } from './extract'
+import { createRecall } from './recall'
+import { createApi } from './api'
 
-/** Node backend. No startup downloads, ambient auth, or alternative session spawner. */
+/** Setup runs in the background: saving a preference must not wait for a model download. */
+function modelSetup(options: BrainServiceOptions, changed: () => void, kick: () => void) {
+  const pending = new Set<Promise<void>>()
+  function start(run: () => Promise<void>): void {
+    const done = run()
+      .catch((error: unknown) => {
+        options.log?.('Brain model setup failed', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+      })
+      .finally(() => {
+        pending.delete(done)
+        changed()
+        kick()
+      })
+    pending.add(done)
+    changed()
+  }
+  return {
+    start,
+    async settled() {
+      await Promise.all(pending)
+    },
+  }
+}
+
+/** What the default-off prototype wrote. This schema cannot read it, so nothing could show or delete it. */
+const PROTOTYPE_FILES = [
+  'memory.sqlite',
+  'memory.sqlite-wal',
+  'memory.sqlite-shm',
+  'evidence',
+  'learning',
+  'sessions',
+]
+
 export async function createBrainService(options: BrainServiceOptions): Promise<BrainService> {
-  for (const path of [options.directory, ...Object.values(options.resources)])
-    if (!isAbsolute(path)) throw new Error('Brain requires absolute owned resource paths')
-  await mkdir(options.directory, { recursive: true, mode: 0o700 })
-  const store = options.openStore(options.directory)
-  try {
-    return await assembleBrainService(options, store)
-  } catch (error) {
-    await store.close().catch((failure: unknown) => options.onError?.(failure))
-    throw error
+  await mkdir(options.directory, { recursive: true })
+  await Promise.all(
+    PROTOTYPE_FILES.map((name) =>
+      rm(join(options.directory, name), { recursive: true, force: true }),
+    ),
+  )
+  const store = options.openStore(join(options.directory, 'brain.sqlite'))
+  let disposed = false
+  const changed = (): void => {
+    if (!disposed) options.onChange?.()
   }
-}
-
-/** Injectable worker port for focused integration tests; never exposed through IPC. */
-export async function assembleBrainService(
-  options: BrainServiceOptions,
-  store: BrainMemoryClient,
-): Promise<BrainService> {
-  const sessionDir = join(await realpath(options.directory), 'sessions')
-  await mkdir(sessionDir, { recursive: true, mode: 0o700 })
-  const indexer = createBrainIndexer(store, options.embeddings)
-  const learning = options.learningHost
-    ? createBrainLearning({ store, host: options.learningHost, report: options.onError })
-    : undefined
-  const bridge = await createBrainBridge({
-    async allowed(capability) {
-      try {
-        if (capability.kind === 'processor') await processor.authorized(capability)
-        else await working.authority(capability)
-        return true
-      } catch {
-        return false
-      }
-    },
-    invoke(capability, method, params) {
-      return capability.kind === 'processor'
-        ? processor.invoke(capability, method, params)
-        : working.invoke(capability, method, params)
-    },
-  })
-  const processor = createBrainProcessor(options, store, bridge, sessionDir)
-  const working = createBrainWorking(options, store, bridge, indexer)
-  const transcripts = createBrainTranscripts(options, store, sessionDir, processor.cancel)
-  const lifecycle = createBrainLifecycle({
-    revoke: () => {
-      bridge.revokeAll()
-      learning?.abort()
-    },
-    detach: () => working.dispose(),
-    stopEmbeddings: () => options.embeddings.dispose(),
-    stopIndexing: () => indexer.dispose(),
-    stopProcessor: async () => {
-      try {
-        await learning?.dispose()
-      } finally {
-        await processor.dispose()
-      }
-    },
-    purge: () => transcripts.purge(),
-    closeBridge: () => bridge.close(),
-    closeStore: () => store.close(),
-  })
-  async function status(): Promise<BrainStatus> {
-    if (lifecycle.isClosed()) throw new Error('Brain is disposed')
-    await transcripts.purge()
-    return {
-      supported: true,
-      snapshot: await store.snapshot(),
-      embedding: options.embeddings.status(),
-      notice:
-        'Local Desktop prototype. Automatic capture is limited to admitted new user text. Explicit lane learning preserves pi-projected history and requires a qualified source-model/account binding, one private response and manual review. Cache reuse is best effort. The separate evidence processor still requires a selected native API-key model. Embeddings remain local; no model fallback.',
-    }
-  }
-  async function revoke(): Promise<void> {
-    bridge.revokeAll()
-    await learning?.revoke()
-    await processor.revoke()
-  }
-  const api = createBrainApi({
-    options,
+  const queue = new ExtractionQueue({
     store,
-    indexer,
-    processor,
-    learning,
-    transcripts,
-    serialize: lifecycle.serialize,
-    status,
-    revoke,
-    isClosed: lifecycle.isClosed,
+    busy: (path) => options.lanes.busy(path),
+    ready: () => store.snapshot().prefs.enabled && options.embeddings.status().phase === 'ready',
+    run: (job, signal) => extractJob(job, signal, store, options),
+    changed,
+    now: options.now ?? Date.now,
   })
-  await initializeBrain(options, store, indexer, lifecycle)
-  const excludedSource = exclusionReader(store, lifecycle.isClosed)
-  return { api, memory: working.memory, excludedSource, dispose: lifecycle.dispose }
-}
-function exclusionReader(
-  store: BrainMemoryClient,
-  isClosed: () => boolean,
-): BrainService['excludedSource'] {
-  // Move holds a source path: never queue this read behind path-taking preflight work.
-  return async (id) => {
-    if (isClosed()) throw new Error('Brain is disposed')
-    const excluded = await store.excludedSource(id)
-    if (isClosed()) throw new Error('Brain is disposed')
-    return excluded
-  }
-}
-/** Optional derived indexes fail open; authoritative startup failures still dispose owners. */
-async function initializeBrain(
-  options: BrainServiceOptions,
-  store: BrainMemoryClient,
-  indexer: ReturnType<typeof createBrainIndexer>,
-  lifecycle: ReturnType<typeof createBrainLifecycle>,
-): Promise<void> {
-  let enabled: boolean
-  try {
-    await options.learningHost?.recover?.()
-    enabled = (await store.snapshot()).prefs.enabled
-  } catch (error) {
-    await lifecycle.dispose().catch((failure: unknown) => options.onError?.(failure))
-    throw error
-  }
-  try {
-    await options.embeddings.setEnabled(enabled)
-    await indexer.index()
-  } catch (error) {
-    options.onError?.(error)
+  const recall = createRecall(store, options)
+  const setup = modelSetup(options, changed, () => queue.kick())
+  store.requeueInterrupted()
+  if (store.snapshot().prefs.enabled) setup.start(() => options.embeddings.setEnabled(true))
+  else await options.embeddings.setEnabled(false)
+  changed()
+  queue.kick()
+  return {
+    api: createApi({ store, options, queue, changed, startModel: setup.start }),
+    agent: recall.agent,
+    recallLaunch: recall.recallLaunch,
+    async dispose() {
+      if (disposed) return
+      disposed = true
+      options.embeddings.dispose()
+      await queue.dispose()
+      await setup.settled()
+      await recall.dispose()
+      store.close()
+    },
   }
 }

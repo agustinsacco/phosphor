@@ -1,47 +1,27 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { chmod, mkdtemp, rm } from 'node:fs/promises'
 import { createServer, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type {
-  BrainAgentMethod,
-  BrainAgentRequest,
-  BrainAgentResponse,
+import {
+  BRAIN_PROTOCOL,
+  type BrainAgentMethod,
+  type BrainAgentResponse,
 } from '@phosphor/shared/brain'
+import { validateBrainRequest } from '@phosphor/brain-client/validate'
 
-export interface BrainCapability {
-  kind: 'working' | 'processor'
-  scope: string
-  policyEpoch: number
-  sessionId?: string
-  jobId?: string
-  fence?: number
-}
-export interface BrainBridgeRuntime {
-  allowed: (capability: BrainCapability) => Promise<boolean>
-  invoke: (
-    capability: BrainCapability,
-    method: BrainAgentMethod,
-    params: unknown,
-    signal: AbortSignal,
-  ) => Promise<unknown>
-}
 const MAX_BYTES = 512 * 1024
-const METHODS = {
-  working: new Set<BrainAgentMethod>(['search', 'read', 'brief']),
-  processor: new Set<BrainAgentMethod>(['job', 'propose']),
-}
-const digest = (token: string): string => createHash('sha256').update(token).digest('hex')
+export type BridgeInvoke = (method: BrainAgentMethod, params: unknown) => Promise<unknown>
 
-/** Private local transport, never HTTP/TCP. Capabilities narrow authority; payloads cannot widen it. */
-export async function createBrainBridge(runtime: BrainBridgeRuntime) {
+/** One random read-only token per service lifetime, carried only over a private local socket. */
+export async function createBrainBridge(invoke: BridgeInvoke) {
   const directory = await mkdtemp(join(tmpdir(), 'ph-brain-'))
   await chmod(directory, 0o700)
+  const token = randomBytes(32).toString('hex')
   const endpoint =
     process.platform === 'win32'
       ? `\\\\.\\pipe\\phosphor-brain-${randomBytes(12).toString('hex')}`
       : join(directory, 'rpc.sock')
-  const grants = new Map<string, BrainCapability>()
   const sockets = new Set<Socket>()
   const server = createServer((socket) => {
     if (sockets.size >= 32) {
@@ -49,8 +29,8 @@ export async function createBrainBridge(runtime: BrainBridgeRuntime) {
       return
     }
     sockets.add(socket)
-    accept(socket, grants, runtime)
     socket.once('close', () => sockets.delete(socket))
+    accept(socket, token, invoke)
   })
   try {
     await new Promise<void>((resolve, reject) => {
@@ -67,27 +47,9 @@ export async function createBrainBridge(runtime: BrainBridgeRuntime) {
     throw error
   }
   return {
-    issue(capability: BrainCapability) {
-      if (grants.size >= 512) throw new Error('Brain connection capacity reached')
-      const token = randomBytes(32).toString('hex')
-      const key = digest(token)
-      const grant = { ...capability }
-      grants.set(key, grant)
-      return {
-        connection: { endpoint, token },
-        bind(sessionId: string) {
-          grant.sessionId = sessionId
-        },
-        revoke() {
-          grants.delete(key)
-        },
-      }
-    },
-    revokeAll() {
-      grants.clear()
-    },
+    endpoint,
+    token,
     async close() {
-      grants.clear()
       for (const socket of sockets) socket.destroy()
       await new Promise<void>((resolve) => server.close(() => resolve()))
       await rm(directory, { recursive: true, force: true })
@@ -95,19 +57,13 @@ export async function createBrainBridge(runtime: BrainBridgeRuntime) {
   }
 }
 
-function accept(socket: Socket, grants: Map<string, BrainCapability>, runtime: BrainBridgeRuntime) {
-  const abort = new AbortController()
+function accept(socket: Socket, token: string, invoke: BridgeInvoke): void {
   let buffer = Buffer.alloc(0)
   let handled = false
   socket.setTimeout(15_000, () => socket.destroy())
   socket.on('error', () => socket.destroy())
-  socket.once('close', () => abort.abort())
   socket.on('data', (chunk: Buffer) => {
-    if (handled) {
-      socket.destroy()
-      return
-    }
-    if (buffer.length + chunk.length > MAX_BYTES) {
+    if (handled || buffer.length + chunk.length > MAX_BYTES) {
       socket.destroy()
       return
     }
@@ -115,14 +71,13 @@ function accept(socket: Socket, grants: Map<string, BrainCapability>, runtime: B
     const newline = buffer.indexOf(10)
     if (newline < 0) return
     handled = true
-    // Exactly one request, never a pipeline of privileged operations.
     if (newline !== buffer.length - 1) {
       socket.destroy()
       return
     }
-    const request = buffer.subarray(0, newline).toString('utf8')
+    const text = buffer.subarray(0, newline).toString('utf8')
     buffer = Buffer.alloc(0)
-    void respond(request, grants, runtime, abort.signal)
+    respond(text, token, invoke)
       .then((response) => {
         if (socket.destroyed) return
         const body = JSON.stringify(response)
@@ -138,32 +93,28 @@ function accept(socket: Socket, grants: Map<string, BrainCapability>, runtime: B
 
 async function respond(
   text: string,
-  grants: Map<string, BrainCapability>,
-  runtime: BrainBridgeRuntime,
-  signal: AbortSignal,
+  token: string,
+  invoke: BridgeInvoke,
 ): Promise<BrainAgentResponse> {
-  const denied: BrainAgentResponse = { ok: false, error: 'Brain request unavailable' }
   try {
-    const input = JSON.parse(text) as Partial<BrainAgentRequest> | null
+    const input = JSON.parse(text) as {
+      version?: unknown
+      token?: unknown
+      method?: unknown
+      params?: unknown
+    } | null
     if (
       !input ||
-      input.version !== 1 ||
+      input.version !== BRAIN_PROTOCOL ||
       typeof input.token !== 'string' ||
-      !/^[a-f0-9]{64}$/.test(input.token)
+      input.token.length !== token.length ||
+      !timingSafeEqual(Buffer.from(input.token), Buffer.from(token)) ||
+      (input.method !== 'search' && input.method !== 'related')
     )
-      return denied
-    const key = digest(input.token)
-    const grant = grants.get(key)
-    if (!grant || !input.method || !METHODS[grant.kind].has(input.method)) return denied
-    if (!(await runtime.allowed(grant)) || signal.aborted || grants.get(key) !== grant)
-      return denied
-    const data = await runtime.invoke({ ...grant }, input.method, input.params, signal)
-    // Revocation while awaiting disk/inference suppresses the result as well.
-    if (signal.aborted || grants.get(key) !== grant || !(await runtime.allowed(grant)))
-      return denied
-    return { ok: true, data }
+      throw new Error('Denied')
+    const params = validateBrainRequest(input.method, input.params)
+    return { ok: true, data: await invoke(input.method, params) }
   } catch {
-    // Never disclose a path, credential or another scope's existence in an error.
-    return denied
+    return { ok: false, error: 'Brain request unavailable' }
   }
 }

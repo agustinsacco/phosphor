@@ -36,15 +36,14 @@ const laneReload = createLaneReload({
   },
 })
 
-let memory: SessionStartupRuntime['memory']
-/** Trusted Desktop composition only; never renderer input. */
-export function setSessionMemory(value: SessionStartupRuntime['memory']): void {
-  memory = value
+let recall: SessionStartupRuntime['recall']
+/** Brain installs this lazily, so lanes never load it unless it is asked for. */
+export function setSessionRecall(value: SessionStartupRuntime['recall']): void {
+  recall = value
 }
 
 const spawn = createSessionStartup({
   registry,
-  memory: { prepare: (options) => memory?.prepare(options) ?? Promise.resolve(undefined) },
   resolveWorkspace: realPathOrNull,
   launch: prepareDesktopSessionLaunch,
   policy: desktopSessionPolicy,
@@ -57,6 +56,7 @@ const spawn = createSessionStartup({
   accounts: { remember: rememberSpawnAccount, forget: forgetSpawnAccount, hold: holdAccount },
   recordWorkspace,
   laneReload,
+  recall: () => recall?.() ?? Promise.resolve(undefined),
 })
 
 const service = createSessionService<Electron.WebContents>({
@@ -65,13 +65,7 @@ const service = createSessionService<Electron.WebContents>({
   spawn: (options, target, execution = {}) =>
     spawn(
       options,
-      (id) =>
-        desktopSessionSink(
-          id,
-          target,
-          () => execution.unattended ?? false,
-          Boolean(execution.brain || execution.learning),
-        ),
+      (id) => desktopSessionSink(id, target, () => execution.unattended ?? false),
       execution,
     ),
   isStub: () => Boolean(piStubPath()),
@@ -98,7 +92,6 @@ export const desktopSessions = {
     target?: Electron.WebContents,
     execution: SessionExecution = {},
   ) => {
-    if (execution.brain || execution.learning) return service.create(options, target, execution)
     // Record intent before queueing behind a sweep. A resumed conversation is unfinished.
     recordWorkspaceIntent(options.workspacePath)
     if (options.sessionPath) decideSession(options.sessionPath, false)

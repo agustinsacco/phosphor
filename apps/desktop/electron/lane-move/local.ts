@@ -8,12 +8,12 @@ import type {
 } from '@shared/host-protocol-lane-transfer'
 import type { LaneInspection } from '@shared/host-protocol-lane-transfer-calls'
 import { git } from '@phosphor/session-runtime/git/git-exec'
-import { TransferRefusal, refuse } from '@phosphor/session-runtime/lane-transfer/files'
+import { refuse } from '@phosphor/session-runtime/lane-transfer/files'
 import { installLane } from '@phosphor/session-runtime/lane-transfer/install'
 import {
   checkTarget,
   exportLane,
-  readTransferHeader,
+  headerCwd,
   inspectLane,
   prepareImport,
   sessionTaken,
@@ -83,12 +83,7 @@ async function workspaceName(cwd: string): Promise<string> {
 
 async function source(sessionPath: string, crossMachine: boolean): Promise<SourceInput> {
   const sessionFile = await transcriptPath(sessionPath)
-  const { cwd, id } = await readTransferHeader(sessionFile)
-  const { brainSourceExcluded } = await import('../brain/runtime')
-  const excluded = await brainSourceExcluded(id).catch(() =>
-    refuse('Brain exclusion could not be checked. Try again before moving this lane.'),
-  )
-  if (excluded) refuse('This lane is a Brain recipient or private processor and cannot be moved.')
+  const cwd = await headerCwd(sessionFile)
   return {
     sessionFile,
     runtime: localTransferRuntime,
@@ -109,22 +104,14 @@ async function workspaceRoot(workspace: string): Promise<string> {
 /** This Mac as the place a lane leaves from or lands in. */
 export const localLanes = {
   async inspect(sessionPath: string, crossMachine: boolean): Promise<LaneInspection> {
-    try {
-      const input = await source(sessionPath, crossMachine)
-      if (live(input.sessionFile)) return { blockers: [STOP_FIRST] }
-      return inspectLane(input)
-    } catch (error) {
-      if (error instanceof TransferRefusal) return { blockers: [error.message] }
-      throw error
-    }
+    const input = await source(sessionPath, crossMachine)
+    if (live(input.sessionFile)) return { blockers: [STOP_FIRST] }
+    return inspectLane(input)
   },
   /** Write the lane's bundle to `archive`, holding its path so no open starts meanwhile. */
   async export(sessionPath: string, crossMachine: boolean, archive: string) {
-    const sessionFile = await transcriptPath(sessionPath)
-    return withSessionPath(sessionFile, async () => {
-      // Re-read native identity and exclusion after queued opens/mutations, not UI preflight.
-      const input = await source(sessionFile, crossMachine)
-      if (input.sessionFile !== sessionFile) refuse('This lane changed before it could be moved.')
+    const input = await source(sessionPath, crossMachine)
+    return withSessionPath(input.sessionFile, async () => {
       if (live(input.sessionFile)) refuse(STOP_FIRST)
       return exportLane(input, archive)
     })

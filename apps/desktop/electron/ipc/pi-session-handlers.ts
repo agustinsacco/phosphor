@@ -3,7 +3,6 @@ import { handle } from './handle'
 import { remoteLanes } from './hosts-handlers'
 import { isRemoteHandle } from '@phosphor/host-client/remote-lanes'
 import { desktopSessions } from '../pi/session-runtime'
-import { registry } from '../registry'
 import { cachedPiHealth } from '../pi/health'
 import { piAgentDir } from '../pi/pi-paths'
 import { piProcessEnv } from '../pi/shell-env'
@@ -60,7 +59,7 @@ export function registerPiSessionHandlers(): void {
       : desktopSessions.dispose(sessionId),
   )
   handle('pi:listLiveSessions', (event) => [
-    ...desktopSessions.list().filter((session) => !registry.get(session.sessionId)?.owner),
+    ...desktopSessions.list(),
     ...remoteLanes().list(event.sender.id),
   ])
 

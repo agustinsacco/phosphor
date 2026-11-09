@@ -29,7 +29,7 @@ export interface Platform {
   cancelSignIn: boolean
   /** Dictation runs on this device with a local speech model (Settings → Voice). */
   localVoice: boolean
-  /** Personal Brain prototype runs only on this Desktop machine. */
+  /** Brain knowledge and its embedding model live on this Desktop machine. */
   localBrain: boolean
 }
 export const DESKTOP_PLATFORM: Platform = Object.freeze({

@@ -1,117 +1,316 @@
-import { useEffect, useState } from 'react'
-import type { BrainGraph as Graph } from '@shared/brain'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import type { BrainEntity, BrainEntityKind, BrainMemory } from '@shared/brain'
 import { Button } from '@/components/form'
+import {
+  fitGraph,
+  graphEdges,
+  GRAPH_HEIGHT,
+  GRAPH_WIDTH,
+  layoutGraph,
+  separateLabels,
+  svgPoint,
+  worldPoint,
+  zoomView,
+  type GraphEdge,
+  type GraphNode,
+  type Point,
+  type View,
+} from './graphLayout'
 
-export const MAX_BRAIN_NODES = 32
-export const MAX_BRAIN_EDGES = 64
+const COLORS: Record<BrainEntityKind, string> = {
+  person: 'var(--px-accent)',
+  team: 'var(--px-success)',
+  organization: 'var(--px-warning)',
+  project: 'var(--px-text)',
+  component: 'var(--px-text-secondary)',
+  document: 'var(--px-danger)',
+  concept: 'var(--px-text-tertiary)',
+  event: 'var(--px-border-strong)',
+}
+interface Drag {
+  id: string | null
+  start: Point
+  last: Point
+  view: View
+  moved: boolean
+}
+type SetView = Dispatch<SetStateAction<View>>
 
 export function BrainGraph({
-  graph,
-  onEntity,
+  entities,
+  memories,
+  focus,
+  onFocus,
 }: {
-  graph: Graph
-  onEntity: (id: string) => void
+  entities: BrainEntity[]
+  memories: BrainMemory[]
+  focus: string | null
+  onFocus: (id: string) => void
 }): React.JSX.Element {
-  const [paused, setPaused] = useState(false)
-  const [hidden, setHidden] = useState(document.visibilityState === 'hidden')
-  const [reduced, setReduced] = useState(
-    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  )
+  const edges = useMemo(() => graphEdges(memories), [memories])
+  const initial = useMemo(() => layoutGraph(entities, edges), [entities, edges])
+  const [nodes, setNodes] = useState(initial)
+  const [view, setView] = useState(() => fitGraph(initial))
+  const [hover, setHover] = useState<string | null>(null)
+  const svg = useRef<SVGSVGElement>(null)
   useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const motion = (): void => setReduced(query.matches)
-    const visibility = (): void => setHidden(document.visibilityState === 'hidden')
-    query.addEventListener('change', motion)
-    document.addEventListener('visibilitychange', visibility)
-    return () => {
-      query.removeEventListener('change', motion)
-      document.removeEventListener('visibilitychange', visibility)
-    }
-  }, [])
-  const nodes = graph.nodes.slice(0, MAX_BRAIN_NODES)
+    setNodes(initial)
+    setView(fitGraph(initial))
+  }, [initial])
+  const gestures = useGraphDrag(svg, view, setView, setNodes, onFocus)
+  useGraphWheel(svg, setView)
+  const neighbors = new Set([
+    hover,
+    ...edges.flatMap((edge) =>
+      edge.source === hover ? [edge.target] : edge.target === hover ? [edge.source] : [],
+    ),
+  ])
+  const zoom = (factor: number): void =>
+    setView((previous) => zoomView(previous, factor, { x: GRAPH_WIDTH / 2, y: GRAPH_HEIGHT / 2 }))
   return (
-    <section aria-label="Memory relationships" className="brain-card">
-      <h2>Relationships · project-wide</h2>
-      <p>
-        Adjacency is not causation. Connections are project-wide reviewed claims, not proof.
-        Branch-local claims are excluded. Use the keyboard-accessible entity list below.
-      </p>
-      <Button aria-pressed={paused} onClick={() => setPaused(!paused)}>
-        {paused ? 'Resume graph motion' : 'Pause graph motion'}
-      </Button>
-      <RelationshipDiagram graph={graph} paused={paused || hidden || reduced} />
-      {(graph.truncated ||
-        graph.nodes.length > MAX_BRAIN_NODES ||
-        graph.edges.length > MAX_BRAIN_EDGES) && (
-        <p role="status">
-          Truncated graph: showing at most {MAX_BRAIN_NODES} entities and {MAX_BRAIN_EDGES}{' '}
-          connections. Select an entity to narrow the view.
-        </p>
-      )}
-      <ul aria-label="Entities">
-        {nodes.map((n) => (
-          <li key={n.id}>
-            <Button aria-label={`Explore ${n.label}`} onClick={() => onEntity(n.id)}>
-              {n.label} · {n.kind}
-            </Button>
-          </li>
-        ))}
-      </ul>
-      {!nodes.length && <p>No reviewed entities yet.</p>}
+    <section
+      aria-label="Knowledge graph"
+      className="border-border bg-bg-secondary/40 flex min-h-64 flex-1 flex-col rounded-lg border"
+    >
+      <GraphToolbar
+        kinds={[...new Set(entities.map((e) => e.kind))]}
+        zoom={zoom}
+        fit={() => setView(fitGraph(nodes))}
+      />
+      <svg
+        ref={svg}
+        aria-label="Memory relationships"
+        className="min-h-0 w-full flex-1 touch-none select-none"
+        viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`}
+        {...gestures}
+      >
+        <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
+          <GraphEdges nodes={nodes} edges={edges} hover={hover} neighbors={neighbors} />
+          <GraphNodes
+            nodes={nodes}
+            entities={entities}
+            focus={focus}
+            onFocus={onFocus}
+            hover={hover}
+            neighbors={neighbors}
+            setHover={setHover}
+          />
+        </g>
+      </svg>
     </section>
   )
 }
 
-function RelationshipDiagram({
-  graph,
-  paused,
+function useGraphDrag(
+  svg: React.RefObject<SVGSVGElement | null>,
+  view: View,
+  setView: SetView,
+  setNodes: Dispatch<SetStateAction<GraphNode[]>>,
+  onFocus: (id: string) => void,
+): Pick<
+  React.SVGProps<SVGSVGElement>,
+  'onPointerDown' | 'onPointerMove' | 'onPointerUp' | 'onPointerCancel'
+> {
+  const drag = useRef<Drag | null>(null)
+  const point = (event: { clientX: number; clientY: number }): Point =>
+    svgPoint({ x: event.clientX, y: event.clientY }, svg.current!.getBoundingClientRect())
+  return {
+    onPointerDown: (event) => {
+      if (event.button !== 0) return
+      const target = (event.target as Element).closest('[data-node]')
+      drag.current = {
+        id: target?.getAttribute('data-node') ?? null,
+        start: point(event),
+        last: point(event),
+        view,
+        moved: false,
+      }
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    },
+    onPointerMove: (event) => {
+      const current = drag.current
+      if (!current) return
+      const next = point(event)
+      if (Math.hypot(next.x - current.start.x, next.y - current.start.y) > 3) current.moved = true
+      if (!current.moved) return
+      if (current.id) {
+        const nextWorld = worldPoint(next, view)
+        const lastWorld = worldPoint(current.last, view)
+        current.last = next
+        setNodes((previous) =>
+          separateLabels(
+            previous.map((node) =>
+              node.id === current.id
+                ? {
+                    ...node,
+                    x: node.x + nextWorld.x - lastWorld.x,
+                    y: node.y + nextWorld.y - lastWorld.y,
+                  }
+                : node,
+            ),
+          ),
+        )
+      } else
+        setView({
+          ...current.view,
+          x: current.view.x + next.x - current.start.x,
+          y: current.view.y + next.y - current.start.y,
+        })
+    },
+    onPointerUp: () => {
+      const current = drag.current
+      if (current?.id && !current.moved) onFocus(current.id)
+      if (current?.moved && current.id) setNodes(separateLabels)
+      drag.current = null
+    },
+    onPointerCancel: () => {
+      setNodes(separateLabels)
+      drag.current = null
+    },
+  }
+}
+
+function useGraphWheel(svg: React.RefObject<SVGSVGElement | null>, setView: SetView): void {
+  useEffect(() => {
+    const element = svg.current
+    if (!element) return
+    const wheel = (event: WheelEvent): void => {
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+      const anchor = svgPoint(
+        { x: event.clientX, y: event.clientY },
+        element.getBoundingClientRect(),
+      )
+      setView((previous) => zoomView(previous, Math.exp(-event.deltaY * 0.005), anchor))
+    }
+    element.addEventListener('wheel', wheel, { passive: false })
+    return () => element.removeEventListener('wheel', wheel)
+  }, [svg, setView])
+}
+
+function GraphNodes({
+  nodes,
+  entities,
+  focus,
+  onFocus,
+  hover,
+  neighbors,
+  setHover,
 }: {
-  graph: Graph
-  paused: boolean
+  nodes: GraphNode[]
+  entities: BrainEntity[]
+  focus: string | null
+  onFocus: (id: string) => void
+  hover: string | null
+  neighbors: Set<string | null>
+  setHover: (id: string | null) => void
 }): React.JSX.Element {
-  const nodes = graph.nodes.slice(0, MAX_BRAIN_NODES)
-  const points = new Map(
-    nodes.map((n, i) => {
-      const angle = (i * Math.PI * 2) / nodes.length
-      return [n.id, { x: 300 + 240 * Math.cos(angle), y: 160 + 120 * Math.sin(angle) }]
-    }),
-  )
-  const edges = graph.edges
-    .filter((e) => points.has(e.subjectId) && !!e.objectId && points.has(e.objectId))
-    .slice(0, MAX_BRAIN_EDGES)
+  const kinds = new Map(entities.map((entity) => [entity.id, entity.kind]))
   return (
-    <svg
-      className="brain-graph"
-      data-paused={String(paused)}
-      viewBox="0 0 600 320"
-      aria-hidden="true"
-    >
-      {edges.map((e) => {
-        const a = points.get(e.subjectId)!
-        const b = points.get(e.objectId!)!
-        return (
+    <>
+      {nodes.map((node) => (
+        <g
+          key={node.id}
+          data-node={node.id}
+          role="button"
+          tabIndex={0}
+          aria-label={`Focus ${node.label}`}
+          aria-pressed={focus === node.id}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              onFocus(node.id)
+            }
+          }}
+          onMouseEnter={() => setHover(node.id)}
+          onMouseLeave={() => setHover(null)}
+          transform={`translate(${node.x} ${node.y})`}
+          opacity={hover && !neighbors.has(node.id) ? 0.25 : 1}
+          className="cursor-grab"
+        >
+          <rect
+            x={-node.width / 2}
+            y={-14}
+            width={node.width}
+            height={28}
+            rx={7}
+            fill="var(--px-bg)"
+            stroke={focus === node.id ? 'var(--px-accent)' : 'var(--px-border)'}
+          />
+          <circle cx={-node.width / 2 + 12} r={4} fill={COLORS[kinds.get(node.id)!]} />
+          <text x={8} y={5} textAnchor="middle" fill="var(--px-text)" fontSize={14}>
+            {node.label}
+          </text>
+        </g>
+      ))}
+    </>
+  )
+}
+
+function GraphEdges({
+  nodes,
+  edges,
+  hover,
+  neighbors,
+}: {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  hover: string | null
+  neighbors: Set<string | null>
+}): React.JSX.Element {
+  const byId = new Map(nodes.map((node) => [node.id, node]))
+  return (
+    <>
+      {edges.map((edge, index) => {
+        const a = byId.get(edge.source),
+          b = byId.get(edge.target)
+        return a && b ? (
           <line
-            key={e.id}
+            key={index}
             x1={a.x}
             y1={a.y}
             x2={b.x}
             y2={b.y}
-            stroke="currentColor"
-            opacity=".25"
+            stroke="var(--px-border-strong)"
+            strokeWidth={hover && (a.id === hover || b.id === hover) ? 2 : 1}
+            opacity={hover && (!neighbors.has(a.id) || !neighbors.has(b.id)) ? 0.2 : 1}
           />
-        )
+        ) : null
       })}
-      {nodes.map((n) => {
-        const p = points.get(n.id)!
-        return (
-          <g key={n.id} className="brain-node">
-            <circle cx={p.x} cy={p.y} r="5" fill="currentColor" />
-            <text x={p.x} y={p.y + 17} textAnchor="middle" fill="currentColor" fontSize="11">
-              {n.label.slice(0, 26)}
-            </text>
-          </g>
-        )
-      })}
-    </svg>
+    </>
+  )
+}
+
+function GraphToolbar({
+  kinds,
+  zoom,
+  fit,
+}: {
+  kinds: BrainEntityKind[]
+  zoom: (factor: number) => void
+  fit: () => void
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 p-3">
+      <div aria-label="Entity kinds" className="text-text-tertiary flex flex-wrap gap-3 text-sm">
+        {kinds.map((kind) => (
+          <span key={kind} className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full" style={{ background: COLORS[kind] }} />
+            {kind}
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-1">
+        <Button size="xs" aria-label="Zoom out" onClick={() => zoom(1 / 1.2)}>
+          −
+        </Button>
+        <Button size="xs" aria-label="Zoom in" onClick={() => zoom(1.2)}>
+          +
+        </Button>
+        <Button size="xs" onClick={fit}>
+          Fit
+        </Button>
+      </div>
+    </div>
   )
 }

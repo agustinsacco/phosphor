@@ -51,19 +51,7 @@ const shippedFiles = [
 ]
 // Exported for source, build and test consumers; packaged resources carry only
 // their standalone bundles (brain-ext/), never these TypeScript sources.
-const bundleOnlySources = [
-  'brain.ts',
-  'brain-processor.ts',
-  'brain-learning.ts',
-  'brain-learning-context.ts',
-  'brain-learning-result.ts',
-  'brain-learning-provenance.ts',
-  'brain-learning-carrier.ts',
-  'brain-learning-carrier-auth.ts',
-  'brain-learning-carrier-files.ts',
-  'brain-learning-carrier-operation.ts',
-  'brain-learning-carrier-sdk.ts',
-]
+const bundleOnlySources = ['brain.ts', 'brain-fork-guard.ts']
 
 describe('standalone pi extension resources', () => {
   it('exports production source files without exposing tests', () => {

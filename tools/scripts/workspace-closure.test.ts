@@ -86,7 +86,7 @@ describe('workspace installation closure', () => {
       '@phosphor/shared': '0.0.0',
       '@phosphor/session-runtime': '0.0.0',
       '@phosphor/memory-engine': '0.0.0',
-      '@phosphor/pi-extensions': '0.0.0',
+      '@phosphor/brain-client': '0.0.0',
     })
     const lock = json(join(root, 'package-lock.json'))
     expect(lock.packages[''].workspaces).toEqual(libraries)
@@ -101,10 +101,10 @@ describe('workspace installation closure', () => {
     })
   })
 
-  it('exports the memory validation subpath used by the Desktop adapter', () => {
+  it('exports the memory store subpath used by the Desktop adapter', () => {
     const require = createRequire(join(root, 'package.json'))
-    expect(require.resolve('@phosphor/memory-engine/validation')).toBe(
-      join(root, 'libs/memory-engine/src/validation.ts'),
+    expect(require.resolve('@phosphor/memory-engine/store')).toBe(
+      join(root, 'libs/memory-engine/src/store.ts'),
     )
   })
 

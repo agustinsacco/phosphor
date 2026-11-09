@@ -12,6 +12,7 @@ export function sessionFixture() {
     const client = Object.assign(new EventEmitter(), {
       alive: false,
       pid: 123,
+      options,
       sessionFile: options.sessionPath,
       spawn: vi.fn(() => {
         client.alive = true

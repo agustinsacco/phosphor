@@ -1,26 +1,56 @@
 import { expect, expectTypeOf, it } from 'vitest'
 import {
   BRAIN_EMBEDDING_MODEL,
+  BRAIN_ENTITY_KINDS,
+  BRAIN_MEMORY_TYPES,
   BRAIN_PREDICATES,
   BRAIN_PROTOCOL,
   DEFAULT_BRAIN_PREFS,
   type BrainAgentMethod,
 } from './brain'
 
-it('starts disabled without enrolled sources, recall or a billable processor', () => {
-  expect(DEFAULT_BRAIN_PREFS).toEqual({
-    enabled: false,
-    recall: false,
-    workspaces: [],
-    processor: null,
-    retentionDays: 30,
-  })
+it('starts off, with recall and review on for when it is enabled', () => {
+  expect(DEFAULT_BRAIN_PREFS).toEqual({ enabled: false, recall: true, review: true })
 })
 
-it('pins the prototype agent wire and does not expose approval or forgetting to models', () => {
-  expect(BRAIN_PROTOCOL).toBe(1)
-  expectTypeOf<BrainAgentMethod>().toEqualTypeOf<'search' | 'read' | 'brief' | 'job' | 'propose'>()
-  expect(BRAIN_PREDICATES).toEqual(['owns', 'depends_on', 'blocks', 'affects', 'decided', 'about'])
+it('gives lane agents read-only recall and never approval, queueing or forgetting', () => {
+  expect(BRAIN_PROTOCOL).toBe(2)
+  expectTypeOf<BrainAgentMethod>().toEqualTypeOf<'search' | 'related'>()
+})
+
+it('pins the graph schema the extractor, engine and UI share', () => {
+  expect(BRAIN_ENTITY_KINDS).toEqual([
+    'person',
+    'team',
+    'organization',
+    'project',
+    'component',
+    'document',
+    'concept',
+    'event',
+  ])
+  expect(BRAIN_PREDICATES).toEqual([
+    'owns',
+    'works_on',
+    'member_of',
+    'part_of',
+    'depends_on',
+    'uses',
+    'decided',
+    'prefers',
+    'blocks',
+    'affects',
+    'related_to',
+    'about',
+  ])
+  expect(BRAIN_MEMORY_TYPES).toEqual([
+    'decision',
+    'open',
+    'risk',
+    'procedure',
+    'preference',
+    'fact',
+  ])
 })
 
 it('identifies the measured local candidate and its separate use terms', () => {

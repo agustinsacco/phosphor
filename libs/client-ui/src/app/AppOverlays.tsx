@@ -7,9 +7,9 @@ import { PromptHost } from '@/components/PromptHost'
 import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
 import { FeedbackModal } from '@/features/feedback/FeedbackModal'
-import { LaneLearningHost } from '@/features/brain/LaneLearningHost'
+import { useBrainSync } from '@/features/brain/useBrain'
 
-/** Shell-owned overlays survive sidebar visibility changes; learning has one projection owner. */
+/** Shell-owned overlays survive sidebar visibility changes. */
 export function AppOverlays({
   workspacePath,
   ready,
@@ -17,6 +17,7 @@ export function AppOverlays({
   workspacePath: string
   ready: boolean
 }): React.JSX.Element {
+  useBrainSync(ready)
   return (
     <>
       <ContextMenuHost />
@@ -26,7 +27,6 @@ export function AppOverlays({
       <ToastHost />
       <BulkDeleteProgressPopover />
       <SessionRecoveryModals />
-      <LaneLearningHost ready={ready} />
       <CommandPalette key={workspacePath} workspacePath={workspacePath} />
       <SettingsModal />
       <FeedbackModal />

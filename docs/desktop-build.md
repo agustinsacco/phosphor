@@ -64,17 +64,18 @@ App-relative `build/` supplies platform icons, entitlements and the development
 tray. Builder copies the tray to `resources/routine-tray.png`, and the eight
 production TypeScript extension files to `resources/pi-ext` with six entrypoints.
 Tests are excluded; extensions remain readable outside the asar by pi.
-The two optional Brain entrypoints are excluded from this raw TypeScript copy:
+The two Brain entrypoints are excluded from this raw TypeScript copy:
 `tools/scripts/build-brain-extensions.mjs` stages standalone `brain-ext/brain.mjs`
-and `brain-processor.mjs` for Desktop and Host resources. Staging does not enable
-them, and Hosts do not activate Brain.
+(recall) and `brain-fork-guard.mjs` (the knowledge fork's tool guard) for Desktop
+and Host resources. Staging does not enable them, and Hosts do not activate Brain.
+The `brain` skill ships with the other skills under `resources/skills`.
 Development sessions resolve extensions from `../../libs/pi-extensions` relative
 to the app. Packaged sessions still use `process.resourcesPath`.
 
 Builder packages only `out/`, the application manifest and production dependency
 closure. node-pty is unpacked from the asar, with its spawn-helper executable.
-The main bundle has four entries: `out/main/main.js`, `out/main/voice-worker.js`,
-`out/main/brain-memory-worker.js` and `out/main/brain-embedding-worker.js`.
+The main bundle has three entries: `out/main/main.js`, `out/main/voice-worker.js`
+and `out/main/brain-embedding-worker.js`.
 Brain bundles its private source libraries but externalizes Transformers.js.
 ONNX Runtime and `@img` native packages unpack together; target-foreign binaries
 and the unused web/WASM runtime packages are excluded. `.npmrc` suppresses ORT's

@@ -1,6 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { ExtensionUIRequest, PiEvent } from '@shared/rpc'
-import type { SessionPush } from '@shared/models'
 import { sessionEventChannel } from '@shared/ipc'
 import { broadcast } from '../broadcast'
 import { desktopSessionSink } from './session-events'
@@ -39,30 +38,6 @@ it('broadcasts only without a target and never falls back for a destroyed window
   desktopSessionSink('closed', target)(payload)
   expect(target.send).not.toHaveBeenCalled()
   expect(broadcast).toHaveBeenCalledTimes(1)
-})
-
-it('never forwards private Brain processor events to ordinary lane UI', () => {
-  const target = { isDestroyed: () => false, send: vi.fn() }
-  const payloads: SessionPush[] = [
-    { kind: 'event', event: { type: 'agent_start' } },
-    { kind: 'stderr', text: 'private diagnostic' },
-    {
-      kind: 'extension-ui',
-      request: {
-        type: 'extension_ui_request',
-        id: 'audit',
-        method: 'setStatus',
-        statusKey: 'phosphor-brain-audit',
-        statusText: '{"nonce":"private"}',
-      },
-    },
-  ]
-  for (const payload of payloads) {
-    desktopSessionSink('processor', target, () => false, true)(payload)
-    desktopSessionSink('processor', undefined, () => false, true)(payload)
-  }
-  expect(target.send).not.toHaveBeenCalled()
-  expect(broadcast).not.toHaveBeenCalled()
 })
 
 const base = { type: 'extension_ui_request' as const, id: 'ask', title: 'Question' }

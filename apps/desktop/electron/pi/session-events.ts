@@ -7,12 +7,9 @@ export function desktopSessionSink(
   sessionId: string,
   target?: Pick<Electron.WebContents, 'isDestroyed' | 'send'>,
   unattended: () => boolean = () => false,
-  privateProcessor = false,
 ): (payload: SessionPush) => void {
   const channel = sessionEventChannel(sessionId)
   return (payload) => {
-    // Brain owns its live stream; its UI reads controlled transcripts, never lane pushes.
-    if (privateProcessor) return
     // Unattended dialogs stay with the routine runner, not renderer OAuth flows.
     if (
       unattended() &&

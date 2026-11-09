@@ -1,6 +1,3 @@
-import { attachSessionMemory } from './session-memory'
-import type { SessionUserInput, SessionInputReceipt } from './session-input'
-export type { SessionUserInput, SessionInputReceipt } from './session-input'
 import { basename } from 'node:path'
 import type { CreateSessionOptions, LiveSessionInfo, SessionPush } from '@shared/models'
 import { RATE_LIMIT_STATUS_KEY, accountExhaustedUntil } from '@shared/claude-limits'
@@ -18,25 +15,8 @@ import {
 import type { LiveSession, SessionRegistry } from './session-registry'
 import type { LaneReload } from './lane-reload'
 import type { PiSpawnOptions } from './rpc-client'
-import { verifyBrainModel } from './brain-execution-profile'
-
-/** Trusted, opt-in augmentation; its owner revokes successful capabilities on registry disposal. */
-export interface SessionMemoryAugmentation {
-  env?: Record<string, string>
-  extensions?: string[]
-  onCreated: (session: LiveSession) => void | Promise<void>
-  beforeInput?: (command: SessionUserInput) => Promise<SessionInputReceipt | undefined>
-  invalidateInput?: () => void
-  /** Must be idempotent: startup failure and registry disposal may both revoke it. */
-  dispose: () => void | Promise<void>
-}
 
 export interface SessionStartupRuntime {
-  memory?: {
-    prepare: (
-      options: Readonly<CreateSessionOptions>,
-    ) => Promise<SessionMemoryAugmentation | undefined>
-  }
   registry: Pick<SessionRegistry, 'create' | 'dispose'>
   resolveWorkspace: (path: string) => string | null
   launch: () => ReturnType<typeof prepareSessionLaunch>
@@ -50,6 +30,29 @@ export interface SessionStartupRuntime {
   }
   recordWorkspace: (path: string, name: string) => void
   laneReload?: Pick<LaneReload, 'capture' | 'track'>
+  /** Brain recall for lane agents: extra env, extension and skill, or undefined when off. */
+  recall?: () => Promise<SessionRecall | undefined>
+}
+
+export interface SessionRecall {
+  env: Record<string, string>
+  extensions: string[]
+  skills: string[]
+}
+
+/** Optional recall must never prevent an ordinary lane from starting. */
+async function withRecall(
+  runtime: SessionStartupRuntime,
+  spawnOptions: Omit<PiSpawnOptions, 'cwd'>,
+): Promise<void> {
+  const recall = await runtime.recall?.().catch((error: unknown) => {
+    runtime.log('brain', 'recall unavailable', { error: String(error) })
+    return undefined
+  })
+  if (!recall) return
+  spawnOptions.env = { ...spawnOptions.env, ...recall.env }
+  spawnOptions.extensions = [...(spawnOptions.extensions ?? []), ...recall.extensions]
+  spawnOptions.skills = [...(spawnOptions.skills ?? []), ...recall.skills]
 }
 
 export type SessionSink = (sessionId: string) => (payload: SessionPush) => void
@@ -63,11 +66,7 @@ function bindStartupEvents(
   bindSessionEvents(session, {
     emit: sink(session.sessionId),
     log: runtime.log,
-    budget: {
-      ...runtime.budget,
-      ...(session.owner ? { watch: () => {} } : {}),
-      paused: () => runtime.budget.paused(session.sessionId),
-    },
+    budget: { ...runtime.budget, paused: () => runtime.budget.paused(session.sessionId) },
     onExtensionUI: (request) => {
       if (
         accountId &&
@@ -92,84 +91,14 @@ function completeStartup(
   execution.signal?.throwIfAborted()
   if (!session.client.alive) throw new Error('Session stopped during startup.')
   if (accountId) runtime.accounts.remember(session.sessionId, accountId)
-  if (!(execution.brain || execution.learning))
-    runtime.laneReload?.track(session.sessionId, laneConfig, session.client)
+  runtime.laneReload?.track(session.sessionId, laneConfig, session.client)
   // Automation must not replace the user's launch-resume folder.
-  if (!execution.unattended && !(execution.brain || execution.learning))
+  if (!execution.unattended)
     runtime.recordWorkspace(options.workspacePath, basename(options.workspacePath))
-  session.startupComplete = true
   return {
     sessionId: session.sessionId,
     workspacePath: session.workspacePath,
     pid: session.client.pid,
-  }
-}
-
-async function prepareStartup(
-  runtime: SessionStartupRuntime,
-  rawOptions: CreateSessionOptions,
-  execution: SessionExecution,
-) {
-  const options =
-    execution.brain || execution.learning
-      ? rawOptions
-      : {
-          ...rawOptions,
-          workspacePath:
-            runtime.resolveWorkspace(rawOptions.workspacePath) ?? rawOptions.workspacePath,
-        }
-  if (options.sessionPath && !(execution.brain || execution.learning)) {
-    const healed = await healMissingSessionCwd(options.sessionPath, options.workspacePath).catch(
-      () => false,
-    )
-    if (healed) runtime.log('pi', 'repointed session cwd', { path: options.sessionPath })
-  }
-  const launch =
-    execution.brain || execution.learning
-      ? { stub: false, env: {}, extensions: [] }
-      : await runtime.launch()
-  const { spawnOptions, accountId } = await prepareSessionPolicy(
-    options,
-    execution,
-    launch,
-    runtime.policy,
-  )
-  execution.signal?.throwIfAborted()
-  // Read before the spawn: a change landing while pi starts must still count as new.
-  const laneConfig =
-    runtime.laneReload && !launch.stub && !(execution.brain || execution.learning)
-      ? await runtime.laneReload.capture(options.workspacePath)
-      : null
-  execution.signal?.throwIfAborted()
-  const memory =
-    !launch.stub && !(execution.brain || execution.learning) && !execution.unattended
-      ? await runtime.memory?.prepare(options)
-      : undefined
-  if (memory) {
-    if (memory.env) spawnOptions.env = { ...spawnOptions.env, ...memory.env }
-    if (memory.extensions)
-      spawnOptions.extensions = [...(spawnOptions.extensions ?? []), ...memory.extensions]
-  }
-  return { options, launch, spawnOptions, accountId, laneConfig, memory }
-}
-
-async function allocateSession(
-  runtime: SessionStartupRuntime,
-  options: CreateSessionOptions,
-  spawnOptions: Omit<PiSpawnOptions, 'cwd'>,
-  execution: SessionExecution,
-  memory: SessionMemoryAugmentation | undefined,
-): Promise<LiveSession> {
-  try {
-    execution.signal?.throwIfAborted()
-    return runtime.registry.create(
-      options.workspacePath,
-      spawnOptions,
-      (execution.brain ?? execution.learning)?.owner,
-    )
-  } catch (error) {
-    await memory?.dispose()
-    throw error
   }
 }
 
@@ -180,12 +109,31 @@ async function spawnSession(
   execution: SessionExecution = {},
 ): Promise<LiveSessionInfo> {
   execution.signal?.throwIfAborted()
-  const { options, launch, spawnOptions, accountId, laneConfig, memory } = await prepareStartup(
-    runtime,
-    rawOptions,
+  const options = {
+    ...rawOptions,
+    workspacePath: runtime.resolveWorkspace(rawOptions.workspacePath) ?? rawOptions.workspacePath,
+  }
+  if (options.sessionPath) {
+    const healed = await healMissingSessionCwd(options.sessionPath, options.workspacePath).catch(
+      () => false,
+    )
+    if (healed) runtime.log('pi', 'repointed session cwd', { path: options.sessionPath })
+  }
+  const launch = await runtime.launch()
+  const { spawnOptions, accountId } = await prepareSessionPolicy(
+    options,
     execution,
+    launch,
+    runtime.policy,
   )
-  const session = await allocateSession(runtime, options, spawnOptions, execution, memory)
+  if (!launch.stub) await withRecall(runtime, spawnOptions)
+  execution.signal?.throwIfAborted()
+  // Read before the spawn: a change landing while pi starts must still count as new.
+  const laneConfig =
+    runtime.laneReload && !launch.stub
+      ? await runtime.laneReload.capture(options.workspacePath)
+      : null
+  const session = runtime.registry.create(options.workspacePath, spawnOptions)
   const stopOnAbort = (): void => {
     void runtime.registry.dispose(session.sessionId).catch((error: unknown) => {
       runtime.log('pi', 'startup cancellation failed', {
@@ -197,24 +145,15 @@ async function spawnSession(
   execution.signal?.addEventListener('abort', stopOnAbort, { once: true })
   if (execution.signal?.aborted) stopOnAbort()
   try {
-    execution.signal?.throwIfAborted()
-    if (memory) await attachSessionMemory(session, memory, runtime.log)
-    execution.signal?.throwIfAborted()
     bindStartupEvents(runtime, session, sink, accountId)
-    if (execution.brain || execution.learning)
-      await verifyBrainModel(session.client, (execution.brain ?? execution.learning)!)
-    else if (!launch.stub) {
+    if (!launch.stub) {
       await verifyStartupAccount(session.client, runtime.policy.strictAccountSelection, accountId)
       await syncContextBudget(session.client, runtime.budget.read())
     }
     return completeStartup(runtime, session, options, execution, accountId, laneConfig)
   } catch (error) {
-    try {
-      await runtime.registry.dispose(session.sessionId)
-      runtime.accounts.forget(session.sessionId)
-    } finally {
-      await memory?.dispose()
-    }
+    await runtime.registry.dispose(session.sessionId)
+    runtime.accounts.forget(session.sessionId)
     execution.signal?.throwIfAborted()
     throw error
   } finally {

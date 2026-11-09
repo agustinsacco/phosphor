@@ -22,8 +22,3 @@ it('allows ordinary RPC and export defaults but refuses ownership moves and expl
   expect(commandRefusal({ type: 'clone' })).toMatch(/^clone moves pi/)
   expect(commandRefusal({ type: 'toString' } as unknown as RpcCommand)).toBe('not a pi command')
 })
-it('keeps metadata-only auth binding private to Desktop rather than activating the Host/PWA route', () => {
-  expect(commandRefusal({ type: 'get_auth_binding' })).toBe(
-    'get_auth_binding is private to Desktop learning',
-  )
-})

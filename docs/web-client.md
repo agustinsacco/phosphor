@@ -115,8 +115,8 @@ lane's controls (`ChatView`'s `laneControls`), and a list beside its detail, suc
 as Machine files, is the `ListDetail` primitive, one at a time on a phone.
 `localLanes`, `nativeFiles`, `fileEditing`, `splitPanes` and `localBrain` remain false in the
 browser at every width. Modal/menu placement adapts without enabling native
-editors or pane controls. Brain's unavailable page and its fixed `brain:*` IPC
-refusal apply at both widths; no local memory service is invoked. Desktop retains
+editors or pane controls. Brain has no nav entry there; its deep link's
+unavailable page and the fixed `brain:*` IPC refusal apply at both widths; no local memory service is invoked. Desktop retains
 its native sidebar and local workbench.
 Below 900px a lane has one header bar: Back to its Host's lanes, then the lane
 title with "Host · controller" under it (and the pane, when not Chat). The title

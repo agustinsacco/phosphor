@@ -1,53 +1,31 @@
 import type {
-  BrainProcessConsent,
-  BrainStatus,
+  BrainKnowledge,
+  BrainLaneRef,
+  BrainMemoryDetail,
   BrainPrefs,
-  BrainQuery,
-  BrainSearchResult,
-  BrainEvidence,
-  BrainEvidencePage,
-  BrainGraph,
-  BrainJob,
-  BrainRevision,
-  BrainCorrection,
-  BrainForgetResult,
+  BrainProposalView,
+  BrainStatus,
 } from '../brain'
-
-import type {
-  BrainLearningConsent,
-  BrainLearningDetail,
-  BrainLearningJobList,
-  BrainLearningPreview,
-  BrainLearningTarget,
-} from '../brain-learning-jobs'
 
 /** UI commands. Authority comes from the Desktop handler, never this DTO. */
 export interface BrainInvokeMap {
   'brain:status': { args: []; result: BrainStatus }
+  /** Saves at once. Enabling downloads the model if it is missing; disabling keeps it. */
   'brain:setPrefs': { args: [prefs: BrainPrefs]; result: BrainStatus }
-  'brain:download': { args: [acceptTerms: boolean]; result: BrainStatus }
+  /** Retries a failed model download. */
+  'brain:download': { args: []; result: BrainStatus }
   'brain:removeModel': { args: []; result: BrainStatus }
-  'brain:search': { args: [query: BrainQuery]; result: BrainSearchResult }
-  'brain:read': { args: [evidenceId: string]; result: BrainEvidence }
-  'brain:evidence': { args: [scope: string, afterId?: string]; result: BrainEvidencePage }
-  'brain:graph': { args: [entityId?: string]; result: BrainGraph }
-  'brain:process': { args: [scope: string, consent: BrainProcessConsent]; result: BrainJob }
-  'brain:learnPreview': { args: [target: BrainLearningTarget]; result: BrainLearningPreview }
-  'brain:learn': {
-    args: [target: BrainLearningTarget, consent: BrainLearningConsent]
-    result: BrainJob
-  }
-  'brain:learningJobs': { args: [scope?: string]; result: BrainLearningJobList }
-  'brain:learningDetail': { args: [jobId: string]; result: BrainLearningDetail }
-  'brain:cancel': { args: [jobId: string]; result: void }
+  'brain:queue': { args: [lane: BrainLaneRef]; result: BrainStatus }
+  /** Cancels a waiting, queued or running job, or dismisses an empty or failed one. */
+  'brain:cancel': { args: [jobId: string]; result: BrainStatus }
+  'brain:proposal': { args: [jobId: string]; result: BrainProposalView }
+  /** `keep` lists proposal memory indexes to approve; null rejects the whole proposal. */
   'brain:review': {
-    args: [proposalId: string, approve: boolean, revision: BrainRevision]
-    result: void
+    args: [jobId: string, keep: number[] | null, revision: number]
+    result: BrainStatus
   }
-  'brain:correct': {
-    args: [claimId: string, correction: BrainCorrection, revision: BrainRevision]
-    result: void
-  }
-  'brain:forget': { args: [evidenceIds: string[]]; result: BrainForgetResult }
-  'brain:transcript': { args: [jobId: string]; result: string }
+  'brain:knowledge': { args: []; result: BrainKnowledge }
+  'brain:memory': { args: [memoryId: string]; result: BrainMemoryDetail }
+  /** Deletes one memory and any evidence no other memory cites. */
+  'brain:forget': { args: [memoryId: string]; result: BrainStatus }
 }

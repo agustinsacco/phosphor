@@ -97,9 +97,9 @@ Desktop maps that to the Settings dialog. The shell supplies only what a page
 link does (Desktop toggles the page; Machines opens its list) and where a chosen
 scope goes (Desktop: `useRemoteLanesStore.filter`).
 
-[Brain](brain.md) is below Machines. Its local Desktop page labels This Mac and
-All as “Brain · This Mac”; an explicit Host or a browser gets an unavailable
-page, never a fallback to local data or an all-machine memory view.
+[Brain](brain.md) is below Machines, and only while Brain is on in Settings. Its
+page is Desktop-local; a browser gets an unavailable page, never another
+machine's memory.
 
 Signed-in windows show a lane scope control beneath the main navigation
 (`MachineSwitcher`, the only machine-scope control on either client): a

@@ -76,16 +76,7 @@ export function checkSelfTest([query, doc]: number[][]): void {
   if (!(cosine < 0.9999)) throw new Error('Model self-test failed: inputs are not distinguished')
 }
 
-/**
- * Brain's local embeddings in main: the opt-in model setup and the worker.
- *
- * Phases: `off` → (`setEnabled(true)`) `verifying` → `missing` | `testing` →
- * `ready`; `download(true)` → `downloading` → `verifying` → `testing` →
- * `ready`. Enabling only checks what is on disk; only `download` touches the
- * network, and only with the terms accepted. Disabling cancels work and
- * unloads the worker but keeps the files; `remove` deletes them. `embed`
- * needs `ready` and never downloads or verifies.
- */
+/** Downloads on enable, verifies and self-tests before use; disabling only unloads. */
 class EmbeddingController implements BrainEmbeddings {
   private state: BrainEmbeddingStatus
   private enabled = false
@@ -101,7 +92,7 @@ class EmbeddingController implements BrainEmbeddings {
   constructor(private readonly ports: EmbeddingControllerPorts) {
     this.paths = embeddingModelPaths(ports.directory)
     this.state = {
-      phase: ports.supported ? 'off' : 'unsupported',
+      phase: ports.supported ? 'missing' : 'unsupported',
       receivedBytes: 0,
       totalBytes: 0,
       modelId: EMBEDDING_MODEL.id,
@@ -119,7 +110,13 @@ class EmbeddingController implements BrainEmbeddings {
       this.enabled = false
       this.cancelWork()
       this.unload()
-      this.set({ phase: this.restingPhase(), receivedBytes: 0, totalBytes: 0 })
+      const present = await stat(this.paths.model).catch(() => null)
+      if (this.enabled || this.disposed) return
+      this.set({
+        phase: !this.ports.supported ? 'unsupported' : present ? 'ready' : 'missing',
+        receivedBytes: 0,
+        totalBytes: present ? EMBEDDING_TOTAL_BYTES : 0,
+      })
       return
     }
     if (!this.ports.supported) return
@@ -129,10 +126,7 @@ class EmbeddingController implements BrainEmbeddings {
     return this.start('activate', (signal) => this.activate(signal))
   }
 
-  async download(acceptTerms: boolean): Promise<void> {
-    if (acceptTerms !== true) {
-      throw new Error('Accept the Gemma Terms of Use before downloading the model.')
-    }
+  async download(): Promise<void> {
     if (!this.ports.supported) {
       throw new Error('Local embeddings are not supported on this computer.')
     }
@@ -186,12 +180,18 @@ class EmbeddingController implements BrainEmbeddings {
 
   private restingPhase(): BrainEmbeddingStatus['phase'] {
     if (!this.ports.supported) return 'unsupported'
-    return this.enabled ? 'missing' : 'off'
+    return 'missing'
   }
 
   private start(kind: WorkKind, run: (signal: AbortSignal) => Promise<void>): Promise<void> {
     const controller = new AbortController()
     const previous = this.settled
+    // Publish in-flight now: the caller returns this status before the work begins.
+    this.set({
+      phase: kind === 'download' ? 'downloading' : 'verifying',
+      receivedBytes: 0,
+      totalBytes: EMBEDDING_TOTAL_BYTES,
+    })
     const done = (async () => {
       try {
         // A cancelled step or a removal still finishing must not race this one on disk.
@@ -221,7 +221,7 @@ class EmbeddingController implements BrainEmbeddings {
   private async activate(signal: AbortSignal): Promise<void> {
     this.set({ phase: 'verifying', receivedBytes: 0, totalBytes: EMBEDDING_TOTAL_BYTES })
     if (!(await stat(this.paths.model).catch(() => null))) {
-      this.set({ phase: 'missing', receivedBytes: 0, totalBytes: EMBEDDING_TOTAL_BYTES })
+      await this.install(signal)
       return
     }
     const bad = await unverifiedFiles(this.paths.model, EMBEDDING_MODEL.files, signal)

@@ -1,8 +1,4 @@
 import { createSessionDeletion } from '@phosphor/session-runtime/pi/session-deletion'
-import {
-  assertNoBrainControl,
-  assertNotBrainSource,
-} from '@phosphor/session-runtime/pi/brain-session-admission'
 import { registry } from '../registry'
 import { clearDraft } from '../store'
 import { deleteDraftBlobs } from '../drafts-blobs'
@@ -21,14 +17,7 @@ export const deleteLane = createSessionDeletion({
     await cancelRoutineSession(id)
   },
   forgetAccount: forgetSpawnAccount,
-  assertDeletable: (id) => {
-    const live = registry.get(id)
-    if (live) assertNoBrainControl(live)
-  },
-  deleteTranscript: async (path) => {
-    await assertNotBrainSource(path, process.cwd(), registry)
-    await deleteSession(path)
-  },
+  deleteTranscript: deleteSession,
   deleteDraft: async (path) => {
     await deleteDraftBlobs(clearDraft(`session:${path}`))
   },

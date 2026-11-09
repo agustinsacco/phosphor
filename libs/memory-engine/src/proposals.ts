@@ -1,250 +1,141 @@
-import type {
-  BrainClaim,
-  BrainEntity,
-  BrainJob,
-  BrainProposal,
-  BrainProposalInput,
-  BrainRevision,
-} from '@phosphor/shared/brain'
-import { type Data, identifier } from './data'
-import { type Evidence } from './evidence'
-import { type Jobs } from './jobs'
-import { saveEntity } from './entities'
-import * as validate from './validation'
+import type { BrainMemory, BrainProposalView } from '@phosphor/shared/brain'
+import { all, one, run, transaction, type Context } from './database'
+import { entity, referencedEntities } from './entities'
+import { job, updateJob } from './jobs'
+import { quoteContext } from './knowledge'
+import { revision } from './prefs'
+import type { Extraction } from './types'
+import { cosine, decodeVector, encodeVector } from './vectors'
 
-export class Proposals {
-  constructor(
-    readonly data: Data,
-    readonly evidence: Evidence,
-    readonly jobs: Jobs,
-  ) {}
-  validateReferences(input: BrainProposalInput, job: BrainJob, replay = false): void {
-    const allowed = new Set(job.evidenceIds)
-    const source = (id: string) => {
-      validate.check(allowed.has(id), 'Evidence not in processor job')
-      const item = this.evidence.read(id, [job.scope])
-      validate.check(item.scope === job.scope, 'Cross-scope evidence')
-      return item
-    }
-    const keys = new Set(input.entities.map((entity) => entity.key))
-    for (const entity of input.entities) {
-      for (const id of entity.evidenceIds) source(id)
-      if (entity.existingId)
-        validate.check(
-          this.data.require('entities', entity.existingId).scope === job.scope,
-          'Cross-scope entity',
-        )
-    }
-    for (const claim of input.claims) {
-      validate.check(
-        keys.has(claim.subject) && (claim.object === undefined || keys.has(claim.object)),
-        'Unknown entity key',
+export function readProposal(ctx: Context, jobId: string): Extraction {
+  const row = one<{ extraction: string }>(
+    ctx,
+    'SELECT extraction FROM proposals WHERE job_id=?',
+    jobId,
+  )
+  if (!row) throw new Error('Brain proposal not found.')
+  const extraction = JSON.parse(row.extraction) as Extraction
+  extraction.vectors = all<{ vector: Uint8Array }>(
+    ctx,
+    'SELECT vector FROM proposal_vectors WHERE job_id=? ORDER BY idx',
+    jobId,
+  ).map((row) => decodeVector(row.vector))
+  return extraction
+}
+export function propose(
+  ctx: Context,
+  extraction: Extraction,
+): { kept: number; duplicates: number } {
+  if (!job(ctx, extraction.jobId)) throw new Error('Brain job not found.')
+  const active = all<{ memory_id: string; vector: Uint8Array }>(
+    ctx,
+    "SELECT v.* FROM vectors v JOIN memories m ON m.id=v.memory_id WHERE m.state='active'",
+  ).map((row) => ({ id: row.memory_id, vector: decodeVector(row.vector) }))
+  const vectors: Float32Array[] = []
+  const memories = extraction.memories.filter((item, index) => {
+    const vector = extraction.vectors[index]
+    if (!vector) throw new Error('Brain proposal is missing a vector.')
+    encodeVector(vector)
+    const duplicate =
+      active.some((old) => old.id !== item.supersedes && cosine(vector, old.vector) >= 0.86) ||
+      vectors.some((old) => cosine(vector, old) >= 0.86)
+    if (duplicate) return false
+    vectors.push(vector)
+    return true
+  })
+  transaction(ctx, () => {
+    run(ctx, 'DELETE FROM proposals WHERE job_id=?', extraction.jobId)
+    if (memories.length) {
+      run(
+        ctx,
+        'INSERT INTO proposals VALUES (?,?)',
+        extraction.jobId,
+        JSON.stringify({
+          ...extraction,
+          entities: withReused(ctx, extraction, memories),
+          memories,
+          vectors: [],
+        }),
       )
-      for (const citation of claim.citations) {
-        validate.check(
-          source(citation.evidenceId).text.includes(citation.quote),
-          'Quote absent from original evidence',
-        )
-      }
-      if (claim.supersedes) {
-        const old = this.data.require('claims', claim.supersedes)
-        validate.check(
-          old.scope === job.scope && (replay || old.state !== 'superseded'),
-          'Invalid supersession reference',
-        )
-      }
-    }
-  }
-  submit(jobId: string, fence: number, input: BrainProposalInput): BrainProposal {
-    validate.proposal(input)
-    const id = identifier('proposal', jobId, input)
-    const existing = this.data.get('proposals', id)
-    const job = this.jobs.get(jobId)
-    if (existing && job.state === 'proposed') {
-      this.data.consent(job.scope)
-      validate.check(
-        job.policyEpoch === this.data.revision().policyEpoch && job.fence === fence,
-        'Stale consent or fence',
+      vectors.forEach((vector, index) =>
+        run(
+          ctx,
+          'INSERT INTO proposal_vectors VALUES (?,?,?)',
+          extraction.jobId,
+          index,
+          encodeVector(vector),
+        ),
       )
-      this.validateReferences(input, job, true)
-      return existing
     }
-    validate.check(!job.learning, 'Learning results require atomic completion')
-    const proposal = this.prepare(job, fence, input)
-    this.data.transaction(() => {
-      this.data.put('proposals', id, job.scope, proposal)
-      this.data.put('jobs', jobId, job.scope, {
-        ...job,
-        state: 'proposed',
-        updatedAt: this.data.now(),
-      })
+    updateJob(ctx, extraction.jobId, {
+      state: memories.length ? 'review' : 'empty',
+      memories: memories.length,
     })
-    return proposal
+  })
+  return { kept: memories.length, duplicates: extraction.memories.length - memories.length }
+}
+/** Forgetting can delete an entity a pending proposal reuses; approval recreates it from this copy. */
+function withReused(
+  ctx: Context,
+  extraction: Extraction,
+  memories: Extraction['memories'],
+): Extraction['entities'] {
+  const keys = new Set(extraction.entities.map((item) => item.key))
+  const reused = [...new Set(memories.flatMap((item) => [item.subject, item.object]))].flatMap(
+    (key) => {
+      const found = key && !keys.has(key) ? entity(ctx, key) : undefined
+      return found
+        ? [{ key: found.id, label: found.label, kind: found.kind, aliases: found.aliases }]
+        : []
+    },
+  )
+  return [...extraction.entities, ...reused]
+}
+export function proposedMemory(
+  extraction: Extraction,
+  index: number,
+  recordedAt: number,
+): BrainMemory {
+  const item = extraction.memories[index]!
+  return {
+    id: `${extraction.jobId}:${index}`,
+    summary: item.summary,
+    type: item.type,
+    kind: item.kind,
+    subjectId: item.subject,
+    predicate: item.predicate,
+    objectId: item.object,
+    literal: item.literal,
+    scope: extraction.scope,
+    branch: item.branch ? extraction.branch : null,
+    validFrom: item.validFrom,
+    recordedAt,
+    origin: extraction.origin,
   }
-  prepare(job: BrainJob, fence: number, input: BrainProposalInput): BrainProposal {
-    validate.proposal(input)
-    this.jobs.fenced(job.id, fence)
-    validate.check(job.state === 'running', 'Processor is not running')
-    this.validateReferences(input, job)
-    return {
-      id: identifier('proposal', job.id, input),
-      jobId: job.id,
-      scope: job.scope,
-      createdAt: this.data.now(),
-      state: 'pending',
-      input,
-      graphRevision: job.graphRevision,
-      policyEpoch: job.policyEpoch,
-    }
-  }
-  review(id: string, approve: boolean, revision: BrainRevision): void {
-    validate.text(id)
-    validate.revision(revision)
-    validate.check(typeof approve === 'boolean', 'Invalid review choice')
-    const proposal = this.data.require('proposals', id)
-    this.data.consent(proposal.scope)
-    const epoch = this.data.revision().policyEpoch
-    validate.check(
-      revision.policyEpoch === epoch && proposal.policyEpoch === epoch,
-      'Stale consent',
-    )
-    const receiptId = identifier('review', id)
-    const value = identifier(approve, revision.graphRevision, revision.policyEpoch)
-    const receipt = this.data.get('receipts', receiptId)
-    if (receipt) {
-      validate.check(receipt.value === value, 'Conflicting review retry')
-      return
-    }
-    validate.check(proposal.state === 'pending', 'Proposal already reviewed')
-    if (approve) {
-      this.data.assertRevision(revision)
-      this.data.assertRevision(proposal)
-      this.validateReferences(proposal.input, this.jobs.get(proposal.jobId))
-    }
-    this.data.transaction(() => {
-      if (approve) this.apply(proposal)
-      this.data.put('proposals', id, proposal.scope, {
-        ...proposal,
-        state: approve ? 'applied' : 'rejected',
-      })
-      this.data.put('receipts', receiptId, proposal.scope, { id: receiptId, value, result: null })
-      if (approve) this.data.bump()
-    })
-  }
-  private entities(proposal: BrainProposal): Map<string, string> {
-    const ids = new Map<string, string>()
-    for (const entity of proposal.input.entities) {
-      const id =
-        entity.existingId ??
-        identifier(
-          'entity',
-          proposal.scope,
-          entity.kind,
-          entity.label.normalize('NFKC').toLowerCase(),
-        )
-      const next: BrainEntity = {
-        id,
-        scope: proposal.scope,
-        label: entity.label,
-        kind: entity.kind,
-        aliases: [...new Set(entity.aliases)],
-      }
-      saveEntity(this.data, identifier(proposal.id, entity.key), next, entity.evidenceIds)
-      ids.set(entity.key, id)
-    }
-    return ids
-  }
-  private apply(proposal: BrainProposal): void {
-    const ids = this.entities(proposal)
-    for (const proposed of proposal.input.claims) {
-      const sources = proposed.citations
-        .map((citation) => ({
-          quote: citation.quote,
-          roots: this.data.require('evidence', citation.evidenceId).rootIds,
-        }))
-        .sort((a, b) => identifier(a).localeCompare(identifier(b)))
-      const fingerprint = {
-        subject: ids.get(proposed.subject),
-        predicate: proposed.predicate,
-        object: proposed.object ? ids.get(proposed.object) : null,
-        literal: proposed.literal ?? null,
-        summary: proposed.summary,
-        kind: proposed.kind,
-        validFrom: proposed.validFrom,
-        validTo: proposed.validTo,
-        sources,
-      }
-      const claim: BrainClaim = {
-        id: identifier('claim', proposal.scope, fingerprint),
-        scope: proposal.scope,
-        subjectId: ids.get(proposed.subject)!,
-        predicate: proposed.predicate,
-        objectId: proposed.object ? ids.get(proposed.object)! : null,
-        literal: proposed.literal ?? null,
-        summary: proposed.summary,
-        kind: proposed.kind,
-        state: 'active',
-        citations: proposed.citations,
-        conflictIds: [],
-        validFrom: proposed.validFrom,
-        validTo: proposed.validTo,
-        recordedAt: this.data.now(),
-        retractedAt: null,
-        revision: 1,
-      }
-      if (this.data.get('claims', claim.id)) continue
-      if (proposed.supersedes) {
-        const old = this.data.require('claims', proposed.supersedes)
-        validate.check(
-          old.subjectId === claim.subjectId && old.predicate === claim.predicate,
-          'Supersession changes relationship',
-        )
-        this.supersede(old)
-      }
-      this.conflicts(claim)
-      this.data.saveClaim(claim)
-      const entityKeys = new Set([proposed.subject, proposed.object])
-      const provenance = [
-        ...proposed.citations.map((citation) => citation.evidenceId),
-        ...proposal.input.entities
-          .filter((entity) => entityKeys.has(entity.key))
-          .flatMap((entity) => entity.evidenceIds),
-      ]
-      for (const evidenceId of new Set(provenance))
-        this.data.db
-          .prepare('INSERT OR IGNORE INTO claim_sources VALUES (?,?)')
-          .run(claim.id, evidenceId)
-    }
-  }
-  supersede(claim: BrainClaim): void {
-    this.data.saveClaim({
-      ...claim,
-      state: 'superseded',
-      retractedAt: this.data.now(),
-      revision: claim.revision + 1,
-    })
-  }
-  conflicts(claim: BrainClaim): void {
-    for (const other of this.data.all('claims', [claim.scope])) {
-      const overlaps =
-        (other.validTo ?? Infinity) > (claim.validFrom ?? -Infinity) &&
-        (claim.validTo ?? Infinity) > (other.validFrom ?? -Infinity)
-      if (
-        other.state === 'superseded' ||
-        other.subjectId !== claim.subjectId ||
-        other.predicate !== claim.predicate ||
-        !overlaps
-      )
-        continue
-      if (other.objectId === claim.objectId && other.literal === claim.literal) continue
-      claim.state = 'contested'
-      claim.conflictIds.push(other.id)
-      this.data.saveClaim({
-        ...other,
-        state: 'contested',
-        conflictIds: [...new Set([...other.conflictIds, claim.id])],
-        revision: other.revision + 1,
-      })
-    }
+}
+export function proposal(ctx: Context, jobId: string): BrainProposalView {
+  const extraction = readProposal(ctx, jobId)
+  const current = job(ctx, jobId)!
+  const memories = extraction.memories.map((item, index) => ({
+    memory: proposedMemory(extraction, index, current.finishedAt ?? ctx.now()),
+    quotes: item.citations.map((citation) => {
+      const evidence = extraction.evidence[citation.evidence]
+      if (!evidence) throw new Error('Brain citation evidence not found.')
+      return quoteContext(citation.quote, evidence)
+    }),
+  }))
+  const proposedEntities = extraction.entities.map(({ key, ...item }) => ({ ...item, id: key }))
+  const ids = new Set(memories.flatMap(({ memory }) => [memory.subjectId, memory.objectId]))
+  const existing = referencedEntities(
+    ctx,
+    memories.map(({ memory }) => memory),
+  )
+  const allEntities = new Map([...existing, ...proposedEntities].map((item) => [item.id, item]))
+  return {
+    job: current,
+    summary: extraction.summary,
+    revision: revision(ctx),
+    memories,
+    entities: [...allEntities.values()].filter((item) => ids.has(item.id)),
   }
 }

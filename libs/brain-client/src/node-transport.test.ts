@@ -62,19 +62,19 @@ describe('createNodeBrainTransport', () => {
     )
     const transport = createNodeBrainTransport({ endpoint: brain.endpoint, token: TOKEN })
 
-    await expect(transport.request('read', { evidenceId: 'e1' })).resolves.toEqual({
+    await expect(transport.request('search', { query: 'Harbor' })).resolves.toEqual({
       proposalId: 'p1',
     })
-    await transport.request('job', {})
+    await transport.request('search', { query: 'Harbor' })
 
     expect(brain.requests).toHaveLength(2)
     expect(brain.requests[0]!.endsWith('\n')).toBe(true)
     expect(brain.requests[0]!.indexOf('\n')).toBe(brain.requests[0]!.length - 1)
     expect(JSON.parse(brain.requests[0]!)).toEqual({
-      version: 1,
+      version: 2,
       token: TOKEN,
-      method: 'read',
-      params: { evidenceId: 'e1' },
+      method: 'search',
+      params: { query: 'Harbor' },
     })
   })
 
@@ -85,7 +85,7 @@ describe('createNodeBrainTransport', () => {
       setTimeout(() => socket.write(bytes.subarray(21)), 5)
     })
     const transport = createNodeBrainTransport({ endpoint: brain.endpoint, token: TOKEN })
-    await expect(transport.request('read', { evidenceId: 'e' })).resolves.toBe('naïve – ✓')
+    await expect(transport.request('related', { entity: 'Harbor' })).resolves.toBe('naïve – ✓')
   })
 
   it('surfaces a remote error with the capability token redacted', async () => {
@@ -107,13 +107,13 @@ describe('createNodeBrainTransport', () => {
   ])('rejects %s as malformed', async (_label, reply) => {
     const brain = await fakeBrain((socket) => socket.write(reply))
     const transport = createNodeBrainTransport({ endpoint: brain.endpoint, token: TOKEN })
-    expect((await failure(transport.request('job', {}))).code).toBe('malformed')
+    expect((await failure(transport.request('search', { query: 'Harbor' }))).code).toBe('malformed')
   })
 
   it('rejects a connection that closes before a full line', async () => {
     const brain = await fakeBrain((socket) => socket.end('{"ok":true'))
     const transport = createNodeBrainTransport({ endpoint: brain.endpoint, token: TOKEN })
-    expect((await failure(transport.request('job', {}))).code).toBe('malformed')
+    expect((await failure(transport.request('search', { query: 'Harbor' }))).code).toBe('malformed')
   })
 
   it('stops reading a response at 512 KiB without an LF', async () => {
@@ -121,7 +121,7 @@ describe('createNodeBrainTransport', () => {
       socket.write(Buffer.alloc(BRAIN_MAX_FRAME_BYTES, 0x20)),
     )
     const transport = createNodeBrainTransport({ endpoint: brain.endpoint, token: TOKEN })
-    expect((await failure(transport.request('job', {}))).code).toBe('oversized')
+    expect((await failure(transport.request('search', { query: 'Harbor' }))).code).toBe('oversized')
   })
 
   it('refuses an oversized request before connecting', async () => {
@@ -138,7 +138,7 @@ describe('createNodeBrainTransport', () => {
       { endpoint: brain.endpoint, token: TOKEN },
       { timeoutMs: 30 },
     )
-    const error = await failure(transport.request('job', {}))
+    const error = await failure(transport.request('search', { query: 'Harbor' }))
     expect(error.code).toBe('timeout')
     expect(error.message).not.toContain(TOKEN)
   })
@@ -146,11 +146,12 @@ describe('createNodeBrainTransport', () => {
   it('maps a caller timeout signal to timeout and a caller abort to aborted', async () => {
     const brain = await fakeBrain(() => undefined)
     const transport = createNodeBrainTransport({ endpoint: brain.endpoint, token: TOKEN })
-    expect((await failure(transport.request('job', {}, AbortSignal.timeout(20)))).code).toBe(
-      'timeout',
-    )
+    expect(
+      (await failure(transport.request('search', { query: 'Harbor' }, AbortSignal.timeout(20))))
+        .code,
+    ).toBe('timeout')
     const controller = new AbortController()
-    const pending = transport.request('job', {}, controller.signal)
+    const pending = transport.request('search', { query: 'Harbor' }, controller.signal)
     setTimeout(() => controller.abort(), 10)
     expect((await failure(pending)).code).toBe('aborted')
   })
@@ -158,7 +159,9 @@ describe('createNodeBrainTransport', () => {
   it('does not connect when the signal is already aborted', async () => {
     const brain = await fakeBrain(() => undefined)
     const transport = createNodeBrainTransport({ endpoint: brain.endpoint, token: TOKEN })
-    expect((await failure(transport.request('job', {}, AbortSignal.abort()))).code).toBe('aborted')
+    expect(
+      (await failure(transport.request('search', { query: 'Harbor' }, AbortSignal.abort()))).code,
+    ).toBe('aborted')
     expect(brain.requests).toEqual([])
   })
 
@@ -167,7 +170,7 @@ describe('createNodeBrainTransport', () => {
     cleanups.push(() => rmSync(directory, { recursive: true, force: true }))
     const endpoint = join(directory, 'absent')
     const error = await failure(
-      createNodeBrainTransport({ endpoint, token: TOKEN }).request('job', {}),
+      createNodeBrainTransport({ endpoint, token: TOKEN }).request('search', { query: 'Harbor' }),
     )
     expect(error.code).toBe('connection')
     expect(error.message).not.toContain(directory)

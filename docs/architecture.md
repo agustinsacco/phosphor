@@ -127,18 +127,14 @@ interactive sessions remain independent and are not reclaimed by it.
 
 ## Local Brain
 
-The opt-in [Brain](brain.md) separates the Node-only `libs/brain-runtime` service
-from `libs/memory-engine` persistence/retrieval and `libs/brain-client` agent
-transport. Its transport-neutral API and injected storage, embedding and session
-ports have no Electron dependency. Main binds them to database/native-embedding
-utility processes and the existing session service/registry/path locks; Desktop
-owns IPC translation, application paths, provider resolution and shutdown.
-There is no new session manager or cross-machine listener. Its optional private
-input observer can revoke memory without rejecting an ordinary lane. Manual
-processors have an isolated execution profile and private events, unlike
-ordinary sessions. Host activation is not implemented: all `brain:*` IPC remains
-app-local and unavailable in the PWA. Node portability is not browser execution
-or permission to access another machine's memory.
+The opt-in [Brain](brain.md) keeps its logic in two Node-only libraries:
+`libs/memory-engine` (the SQLite store and search) and `libs/brain-runtime` (the
+queue, the private lane fork, quote checks, embeddings and recall).
+`libs/brain-client` carries recall between lane agents and Desktop. Desktop binds
+them to app paths, the embedding utility process, the session registry's busy
+state and each lane's launch environment. Forks are print-mode pi runs, not
+registry sessions, and recall is one optional startup hook that never blocks a
+lane. All `brain:*` IPC is app-local and unavailable in the PWA.
 
 ## Host and control plane
 

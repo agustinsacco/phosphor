@@ -23,6 +23,7 @@ the form factor.
 | Writing          | device            | `writingAssist`     | yes     | no      | Spellcheck switch, autocomplete, learned prompts                                                         | Phosphor prefs; `<userData>/writing/prompts.jsonl`                    |
 | Lanes            | device            | none                | yes     | yes     | Lane markers, PR status, branch prefix and slug length; the worktree switch needs `localLanes`           | Phosphor prefs (browser storage in the browser)                       |
 | Voice            | device            | `localVoice`        | yes     | no      | Dictation on/off and which local speech model                                                            | Phosphor prefs; model files in `<userData>/voice/`                    |
+| Brain            | device            | `localBrain`        | yes     | no      | Brain on/off, recall, review before saving, and the local embedding model                                | Brain store and model in `<userData>/brain/`                          |
 | Keybindings      | device            | `appShortcuts`      | yes     | no      | Static reference sheet                                                                                   | nothing                                                               |
 | Phosphor account | device            | none                | yes     | yes     | The signed-in GitHub account and Sign out (or Sign in)                                                   | `account:*`                                                           |
 | App installation | device            | `installableApp`    | no      | yes     | Install Phosphor, and the in-app attention note                                                          | nothing                                                               |
@@ -862,6 +863,15 @@ Voice input on or off, and the model (Moonshine Tiny or Base, English only).
 Turning it on downloads the model and turning it off deletes it; the tab
 shows progress, readiness or the failure with Retry. Behaviour, download and
 privacy rules are in [voice.md](voice.md).
+
+## Brain
+
+A device section where the client has local Brain (`localBrain`: Desktop, not the
+browser). One switch turns Brain on and off and saves at once; turning it on
+downloads the embedding model with progress. Once on, it adds Recall in lanes,
+Review before saving and a Knowledge row that opens the Brain page. Turning it off
+keeps the model and knowledge; Remove model then deletes the model. Behaviour is
+in [brain.md](brain.md).
 
 ## Advanced
 

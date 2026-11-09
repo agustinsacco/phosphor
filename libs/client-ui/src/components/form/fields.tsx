@@ -113,7 +113,7 @@ export function Row({
   children,
 }: {
   title: string
-  description?: string
+  description?: React.ReactNode
   children: React.ReactNode
 }): React.JSX.Element {
   return (

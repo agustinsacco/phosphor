@@ -1,21 +1,44 @@
 import { app } from 'electron'
 import { join } from 'node:path'
-import { stat } from 'node:fs/promises'
-import type { BrainLearningJobList } from '@phosphor/shared/brain-learning-jobs'
+import { createBrainService } from '@phosphor/brain-runtime/service'
+import type { BrainLanes, BrainService } from '@phosphor/brain-runtime/types'
+import { openBrainStore } from '@phosphor/memory-engine/store'
+import { loadSqlite } from '@phosphor/session-runtime/sqlite'
 import { registry } from '../registry'
-import { desktopSessions, setSessionMemory } from '../pi/session-runtime'
-import { sessionPaths } from '../pi/session-path-lock'
-import { verifyBrainTools } from '@phosphor/brain-runtime/tool-audit'
 import { log } from '../debug-log'
+import { prepareDesktopSessionLaunch } from '../pi/session-launch'
+import { desktopSessionPolicy } from '../pi/session-policy'
+import { setSessionRecall } from '../pi/session-runtime'
 import { createBrainEmbeddings } from './embedding-service'
-import { createBrainService, type BrainService } from '@phosphor/brain-runtime/service'
-import { createDesktopMemory } from './memory-service'
-import { resolveBrainProcessor } from './processor-resolver'
-import { createDesktopLearningHost } from './learning-host'
+import { testEmbeddings } from './test-embeddings'
 
 let pending: Promise<BrainService> | undefined
 let closing = false
-const report = (error: unknown): void => log('brain', 'Brain unavailable', { error: String(error) })
+
+const resources = (): string =>
+  app.isPackaged ? process.resourcesPath : join(app.getAppPath(), '../../libs/pi-extensions')
+
+/** A live lane is busy while its agent works; a fork of it waits until it settles. */
+const lanes: BrainLanes = {
+  busy: (sessionPath) =>
+    registry.list().some((live) => {
+      const client = registry.get(live.sessionId)?.client
+      return client?.sessionFile === sessionPath && client.activity.busy
+    }),
+  async launch(sessionPath) {
+    const launch = await prepareDesktopSessionLaunch()
+    const account = await desktopSessionPolicy.account({ sessionPath })
+    return {
+      binaryPath: launch.binaryPath ?? 'pi',
+      prefixArgs: launch.prefixArgs ?? [],
+      env: {
+        ...launch.env,
+        ...(launch.stub ? {} : desktopSessionPolicy.compressionEnvironment()),
+        ...account?.env,
+      },
+    }
+  },
+}
 
 /** Lazy, after userData redirection. A failed construction can be retried, not cached forever. */
 export function brainService(): Promise<BrainService> {
@@ -26,77 +49,25 @@ export function brainService(): Promise<BrainService> {
   })
   return pending
 }
-/** Metadata checks must not create a database on a fresh profile. Stat errors fail closed. */
-async function existingBrainService(): Promise<BrainService | undefined> {
-  if (closing) throw new Error('Brain is shutting down')
-  if (!pending) {
-    const database = await stat(join(app.getPath('userData'), 'brain/memory.sqlite')).catch(
-      (error: unknown) => {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
-        throw error
-      },
-    )
-    if (!database) return undefined
-    if (!database.isFile()) throw new Error('Brain database is not a regular file')
-  }
-  return brainService()
-}
-/** Historical exclusion applies even when capture/recall is now disabled. No public IPC. */
-export async function brainSourceExcluded(sessionId: string): Promise<boolean> {
-  const service = await existingBrainService()
-  if (!service) return false
-  const excluded = await service.excludedSource(sessionId)
-  if (typeof excluded !== 'boolean') throw new Error('Brain exclusion authority unavailable')
-  return excluded
-}
-/** Shell inventory must not create a database merely because the app started. */
-export async function learningInventory(scope?: string): Promise<BrainLearningJobList> {
-  const service = await existingBrainService()
-  return service
-    ? service.api.learningJobs(scope)
-    : {
-        items: [],
-        truncated: false,
-        policy: { enabled: false, workspaces: [], policyEpoch: 0 },
-      }
-}
+
 async function construct(): Promise<BrainService> {
   const directory = join(app.getPath('userData'), 'brain')
-  const resources = app.isPackaged
-    ? process.resourcesPath
-    : join(app.getAppPath(), '../../libs/pi-extensions')
-  const processorExtension = join(resources, 'brain-ext/brain-processor.mjs')
-  const embeddings = createBrainEmbeddings({
-    directory: join(directory, 'embeddings'),
-    workerPath: join(import.meta.dirname, 'brain-embedding-worker.js'),
-  })
+  const root = resources()
+  const embeddings =
+    testEmbeddings() ??
+    createBrainEmbeddings({
+      directory: join(directory, 'embeddings'),
+      workerPath: join(import.meta.dirname, 'brain-embedding-worker.js'),
+    })
   try {
     return await createBrainService({
       directory,
+      openStore: (path) => openBrainStore({ path, Database: loadSqlite().DatabaseSync }),
       embeddings,
-      openStore: (directory) =>
-        createDesktopMemory(directory, join(import.meta.dirname, 'brain-memory-worker.js')),
-      resources: { workingExtension: join(resources, 'brain-ext/brain.mjs'), processorExtension },
-      learningHost: createDesktopLearningHost({
-        directory: join(directory, 'learning'),
-        extensionPath: join(resources, 'brain-ext/brain-learning-carrier.mjs'),
-      }),
-      sessions: desktopSessions,
-      registry,
-      sessionPaths,
-      processor: {
-        resolve: resolveBrainProcessor,
-        verifyTools: (live) => {
-          if (live.owner?.kind !== 'brain') return Promise.reject(new Error('Brain owner required'))
-          return verifyBrainTools(
-            live.client,
-            live.owner.jobId,
-            processorExtension,
-            AbortSignal.timeout(10_000),
-          )
-        },
-      },
-      onError: report,
+      lanes,
+      guardExtension: join(root, 'brain-ext/brain-fork-guard.mjs'),
+      recall: { extension: join(root, 'brain-ext/brain.mjs'), skill: join(root, 'skills/brain') },
+      log: (message, data) => log('brain', message, data),
     })
   } catch (error) {
     embeddings.dispose()
@@ -104,20 +75,19 @@ async function construct(): Promise<BrainService> {
   }
 }
 
-/** Optional recall must never prevent an ordinary lane from starting. */
-export function installBrainMemory(): void {
-  setSessionMemory({
-    async prepare(options) {
-      try {
-        return await (await brainService()).memory.prepare(options)
-      } catch (error) {
-        report(error)
-        return undefined
-      }
-    },
+/** Every new lane asks once; Brain off or broken means no recall, never a failed lane. */
+export function installBrainRecall(): void {
+  setSessionRecall(async () => {
+    try {
+      return await (await brainService()).recallLaunch()
+    } catch (error) {
+      log('brain', 'Brain unavailable', { error: String(error) })
+      return undefined
+    }
   })
 }
+
 export async function disposeBrain(): Promise<void> {
   closing = true
-  if (pending) await (await pending).dispose()
+  if (pending) await (await pending.catch(() => undefined))?.dispose()
 }

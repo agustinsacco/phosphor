@@ -1,4 +1,5 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
+import { StringDecoder } from 'node:string_decoder'
 
 /** POSIX children lead a group so providers and extensions are cleaned up too. */
 export const OWN_GROUP = process.platform !== 'win32'
@@ -58,6 +59,8 @@ interface PrintRun {
   options: PrintModeOptions
   resolve(result: PrintModeResult): void
   stdout: string
+  stdoutBytes: number
+  decoder: StringDecoder
   stderr: string
   settled: boolean
   timer?: ReturnType<typeof setTimeout>
@@ -76,11 +79,12 @@ function finish(run: PrintRun, result: PrintModeResult): void {
 function captureStdout(run: PrintRun, chunk: Buffer): void {
   if (run.settled) return
   const limit = run.options.maxOutputBytes ?? MAX_OUTPUT_BYTES
-  const text = chunk.toString()
+  // One decoder per run: a character split across two chunks must not become U+FFFD.
+  const text = run.decoder.write(chunk)
+  run.stdoutBytes += chunk.length
   if (run.options.overflow === 'fail') {
-    // Count bytes, not UTF-16 characters, including split UTF-8 replacements.
-    const size = Buffer.byteLength(run.stdout) + chunk.length
-    if (size > limit) {
+    // Count bytes, not UTF-16 characters.
+    if (run.stdoutBytes > limit) {
       finish(run, { stdout: '', error: `stdout exceeded ${limit} bytes`, reason: 'overflow' })
       return
     }
@@ -154,6 +158,8 @@ export async function runPrintMode(
       options,
       resolve,
       stdout: '',
+      stdoutBytes: 0,
+      decoder: new StringDecoder('utf8'),
       stderr: '',
       settled: false,
       abort() {

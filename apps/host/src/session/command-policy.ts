@@ -28,7 +28,6 @@ const COMMANDS: { [K in RpcCommandType]: CommandRule<K> } = {
   abort: null,
   clear_queue: null,
   get_state: null,
-  get_auth_binding: 'is private to Desktop learning',
   get_messages: null,
   set_model: null,
   cycle_model: null,

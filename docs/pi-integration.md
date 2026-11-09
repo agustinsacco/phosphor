@@ -57,32 +57,14 @@ owner-local path-lock instance (§Sessions on disk covers the edits). The
 Node subprocess test exercises this complete path without Electron, using a
 fake pi, not a real provider.
 
-[Brain](brain.md) adds a private, optional input observer to this same service:
-admission/completion receipts and native-session invalidation are never serialized
-through RPC/IPC. Capture failures revoke augmentation, not ordinary startup or
-commands. Its optional working extension is separate from the six defaults.
-Manual Brain processors instead use an isolated execution profile with only the
-audited processor bundle, native API-key auth and persistent owned transcripts.
-Ordinary controls cannot resume, mutate or delete these files. Display limits do
-not limit owned purge; streaming ownership validation runs inside the existing
-path lock, and failed purges remain durably queued.
-
-Selective source learning uses another private profile: a read-only frozen copy,
-zero executable tools and one direct, fenced provider response outside the agent
-scheduler. A live native source supplies its current successful request identity
-through optional `get_auth_binding`, bracketed by source/owner/settled-state
-checks. The caller cannot choose a source session in that command. Stock pi 1.4
-lacks it and refuses this capability; current disk credentials never substitute
-for a live source receipt. This is not historical billing proof. Host explicitly
-refuses the command as Desktop-private. See [Brain](brain.md#learn-from-a-selected-lane)
-for consent, dependency qualification and CLI limitations.
+[Brain](brain.md) adds one optional startup hook to this service: while recall
+is on, a new lane gets Brain's env, recall extension and skill. A failure there
+starts the lane without them. Brain's knowledge forks are not sessions: they are
+`pi -p --fork` runs through `print-mode.ts` that only read the lane's file.
 
 ## RPC commands
 
-`RpcCommand` and `RpcResponseDataMap` mirror the installed protocol plus the
-optional bound-request `get_auth_binding` capability. Its response is unavailable
-or a session-scoped binding/identity fence, never credentials. Ordinary boot does
-not require or probe this capability.
+`RpcCommand` and `RpcResponseDataMap` mirror the installed protocol.
 
 Every other command drives a UI surface except `get_tree` and `get_fork_messages`: those
 are mirrored so the type union stays whole and the `RpcResponseDataMap` guard

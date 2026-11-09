@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  sessions: new Map<
-    string,
-    { client: { sessionFile?: string }; owner?: { kind: 'brain'; jobId: string } }
-  >(),
+  sessions: new Map<string, { client: { sessionFile?: string } }>(),
   dispose: vi.fn(),
   trash: vi.fn(),
   clearDraft: vi.fn(),
@@ -40,16 +37,6 @@ beforeEach(() => {
 const add = (id: string, path?: string) => mocks.sessions.set(id, { client: { sessionFile: path } })
 
 describe('deleteLane', () => {
-  it('never disposes a live Brain processor through ordinary lane deletion', async () => {
-    mocks.sessions.set('brain', {
-      client: {},
-      owner: { kind: 'brain', jobId: 'job-1' },
-    })
-    await expect(deleteLane(undefined, 'brain')).rejects.toThrow(/Brain/)
-    expect(mocks.dispose).not.toHaveBeenCalled()
-    expect(mocks.trash).not.toHaveBeenCalled()
-  })
-
   it('stops all duplicate writers, including unadopted handles, before trashing', async () => {
     add('a', '/session')
     add('b', '/session')

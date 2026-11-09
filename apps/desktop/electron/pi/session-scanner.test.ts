@@ -275,36 +275,6 @@ describe('session scanner', () => {
     }
   })
 
-  it('excludes persisted Brain owners from ordinary work lists and statistics', async () => {
-    const previous = process.env.PI_CODING_AGENT_SESSION_DIR
-    process.env.PI_CODING_AGENT_SESSION_DIR = dir
-    try {
-      const workspace = '/work/brain-exclusion'
-      const folder = join(dir, sessionDirNameForCwd(workspace))
-      await mkdir(folder, { recursive: true })
-      const path = join(folder, 'brain.jsonl')
-      await writeFile(
-        path,
-        SESSION_CONTENT +
-          line({
-            type: 'custom',
-            id: 'owner',
-            customType: 'phosphor-brain-owner',
-            data: { kind: 'brain', jobId: 'job-1' },
-          }),
-      )
-      expect((await parseSessionFile(path, 1))?.brainOwner).toEqual({
-        kind: 'brain',
-        jobId: 'job-1',
-      })
-      expect(await listSessions(workspace)).toEqual([])
-      expect((await workspaceStats(workspace)).sessionCount).toBe(0)
-    } finally {
-      if (previous === undefined) delete process.env.PI_CODING_AGENT_SESSION_DIR
-      else process.env.PI_CODING_AGENT_SESSION_DIR = previous
-    }
-  })
-
   it('lists and aggregates workspace stats through the mangled dir', async () => {
     // listSessions uses the real pi root; simulate by pointing env at our tmp.
     const prevEnv = process.env.PI_CODING_AGENT_SESSION_DIR

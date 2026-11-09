@@ -8,7 +8,7 @@ const { createBrainEmbeddings, embeddingWorkerEnv } = await import('./embedding-
 it('starts off where the native runtime is verified, unsupported elsewhere, and spawns nothing', () => {
   const embeddings = createBrainEmbeddings({ directory: '/nowhere', workerPath: '/out/w.js' })
   const supported = process.platform === 'darwin' && process.arch === 'arm64'
-  expect(embeddings.status().phase).toBe(supported ? 'off' : 'unsupported')
+  expect(embeddings.status().phase).toBe(supported ? 'missing' : 'unsupported')
   expect(fork).not.toHaveBeenCalled()
   embeddings.dispose()
 })

@@ -1,5 +1,5 @@
 import { open, opendir, readdir } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 import {
   LANE_TRANSFER_LIMITS as LIMIT,
   type LaneSourceFacts,
@@ -18,7 +18,7 @@ import {
   type PreparedFolder,
   type WorktreePort,
 } from './target'
-import { parseHeader, type TranscriptHeader } from './transcript'
+import { parseHeader } from './transcript'
 import { runtimeBlockers, type RuntimeProbe } from './runtime'
 
 export interface SourceInput {
@@ -30,8 +30,8 @@ export interface SourceInput {
   attachmentAllowed(path: string): boolean
 }
 
-/** Actual native identity and cwd, validated against the saved transcript's filename. */
-export async function readTransferHeader(sessionFile: string): Promise<TranscriptHeader> {
+/** The cwd a transcript's header records. */
+export async function headerCwd(sessionFile: string): Promise<string> {
   const handle = await open(sessionFile, 'r').catch(() =>
     refuse('This lane has no saved transcript to move.'),
   )
@@ -40,9 +40,8 @@ export async function readTransferHeader(sessionFile: string): Promise<Transcrip
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
     const text = buffer.subarray(0, bytesRead).toString('utf8')
     const header = parseHeader(text.slice(0, Math.max(0, text.indexOf('\n'))))
-    if (!header || !basename(sessionFile).endsWith(`_${header.id}.jsonl`))
-      refuse('This transcript is in a format Phosphor cannot move.')
-    return header
+    if (!header) refuse('This transcript is in a format Phosphor cannot move.')
+    return header.cwd
   } finally {
     await handle.close()
   }
@@ -50,7 +49,7 @@ export async function readTransferHeader(sessionFile: string): Promise<Transcrip
 
 /** Read a stopped lane: its facts, or every reason it cannot leave. Changes nothing. */
 async function readSource(input: SourceInput): Promise<CollectedLane | { blockers: string[] }> {
-  const { cwd } = await readTransferHeader(input.sessionFile)
+  const cwd = await headerCwd(input.sessionFile)
   const git = await inspectSourceGit(cwd)
   if (git.kind === 'unreadable') return { blockers: ['Git could not read this lane’s folder.'] }
   if (git.kind === 'git' && git.blockers.length) return { blockers: git.blockers }

@@ -74,24 +74,26 @@ it('answers each delegated channel group from its owning mock module', async () 
   })
 })
 
-it('dispatches the four typed synthetic learning channels without a manual processor', async () => {
+it('dispatches the Brain v2 queue, review and knowledge channels', async () => {
+  vi.useFakeTimers()
   const { DEFAULT_BRAIN_PREFS } = await import('@shared/brain')
-  await window.phosphor.invoke('brain:setPrefs', {
-    ...DEFAULT_BRAIN_PREFS,
-    enabled: true,
-    workspaces: ['/synthetic'],
-    processor: null,
+  await window.phosphor.invoke('brain:setPrefs', { ...DEFAULT_BRAIN_PREFS, enabled: true })
+  await vi.advanceTimersByTimeAsync(6000)
+  const queued = await window.phosphor.invoke('brain:queue', {
+    sessionPath: '/demo/Harbor/dispatch.jsonl',
+    title: 'Harbor billing',
   })
-  const target = { workspacePath: '/synthetic', sessionPath: '/synthetic/mock.jsonl' }
-  const preview = await window.phosphor.invoke('brain:learnPreview', target)
-  const job = await window.phosphor.invoke('brain:learn', target, {
-    policyEpoch: preview.policyEpoch,
-    fingerprint: preview.fingerprint,
-  })
+  const id = queued.jobs[0]!.id
+  expect((await window.phosphor.invoke('brain:status')).jobs[0]?.state).toBe('running')
+  await vi.advanceTimersByTimeAsync(5000)
+  const proposal = await window.phosphor.invoke('brain:proposal', id)
+  expect(proposal.memories.length).toBeGreaterThan(0)
+  await window.phosphor.invoke('brain:review', id, [0], proposal.revision)
+  const knowledge = await window.phosphor.invoke('brain:knowledge')
+  expect(knowledge.memories).toHaveLength(1)
   expect(
-    (await window.phosphor.invoke('brain:learningJobs')).items.some((item) => item.id === job.id),
-  ).toBe(true)
-  expect((await window.phosphor.invoke('brain:learningDetail', job.id)).outcome?.type).toBe(
-    'no_findings',
-  )
+    (await window.phosphor.invoke('brain:memory', knowledge.memories[0]!.id)).quotes,
+  ).toHaveLength(1)
+  await window.phosphor.invoke('brain:forget', knowledge.memories[0]!.id)
+  expect((await window.phosphor.invoke('brain:knowledge')).memories).toEqual([])
 })
