@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { DEFAULT_LANE_PREFS, type SessionMeta } from '@shared/models'
 import { ContextMenuHost } from '@/components/ContextMenu'
+import { useChatStore } from '@/stores/chat'
+import { useLaneMoveStore } from '@/stores/laneMove'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore } from '@/stores/pullRequests'
 import { useSessionsStore } from '@/stores/sessions'
@@ -59,6 +61,8 @@ beforeEach(() => {
               : null,
     )
   resetSidebarStores()
+  useChatStore.setState({ sessions: {} })
+  useLaneMoveStore.setState({ draft: null })
   useLanePrefsStore.setState({ lanes: DEFAULT_LANE_PREFS })
   usePullRequestsStore.setState({ byRepo: {} })
   useSessionsStore.setState({
@@ -167,12 +171,45 @@ it("characterizes This Mac's menu for a live, unseen lane with a PR and spend", 
     ['Mark read', false, false],
     ['Forknew branch', false, true],
     ['Clone', false, false],
-    ['Move to…Stop this lane first.', true, false],
+    ['Move to…stops it first', false, false],
     ['Export HTML…', false, false],
     ['Copy debug info', false, false],
     ['Copy spend$1.50', false, false],
     ['Deleteto trash', false, true],
   ])
+})
+
+it('refuses Move to… only while a live lane is working', async () => {
+  useSessionsStore.setState({
+    live: { live1: { phosphorId: 'live1', workspacePath: '/repo', diskPath: '/repo/s1.jsonl' } },
+  })
+  useChatStore.getState().ensure('live1')
+  useChatStore.setState((s) => ({
+    sessions: { live1: { ...s.sessions.live1!, isStreaming: true } },
+  }))
+  const rows = await menuRows('Lane 1')
+  expect(rows.find(([label]) => label.startsWith('Move to…'))).toEqual([
+    'Move to…Wait for this lane to finish working.',
+    true,
+    false,
+  ])
+})
+
+it('stops an idle live lane before opening Move to… for it', async () => {
+  useSessionsStore.setState({
+    live: { live1: { phosphorId: 'live1', workspacePath: '/repo', diskPath: '/repo/s1.jsonl' } },
+  })
+  await menuRows('Lane 1')
+  const item = [...document.querySelectorAll('[data-testid=context-menu] button')].find((b) =>
+    b.textContent?.startsWith('Move to…'),
+  ) as HTMLButtonElement
+  await act(async () => item.click())
+  await act(async () => {})
+  expect(invoke).toHaveBeenCalledWith('pi:disposeSession', 'live1')
+  expect(useLaneMoveStore.getState().draft?.source).toEqual({
+    machine: 'local',
+    sessionPath: '/repo/s1.jsonl',
+  })
 })
 
 it("characterizes This Mac's menu for a finished lane whose worktree was removed", async () => {

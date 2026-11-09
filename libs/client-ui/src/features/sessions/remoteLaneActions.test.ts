@@ -9,7 +9,8 @@ import {
   hostLaneContext,
   LANE_MARKS_NEED_UPDATE,
   LANE_MOVE_NEEDS_UPDATE,
-  STOP_BEFORE_MOVE,
+  MOVE_STOPS_LANE,
+  WAIT_BEFORE_MOVE,
   ONLY_WHILE_RUNNING,
   TAKE_CONTROL_FIRST,
   type RemoteLaneActionState,
@@ -106,20 +107,38 @@ describe('hostLaneContext', () => {
     expect(item(items, 'Pin')?.disabled).toBe(false)
   })
 
-  it('offers Move to… only from a stopped lane on a capable Host', () => {
-    const stopped = { ...state().lane, activity: 'stopped' as const }
-    const move = (edit: Partial<RemoteLaneActionState>) =>
-      item(hostMenu(state(edit), handlers()), 'Move to…')
+  it('offers Move to… on a capable Host unless the lane is working', () => {
+    const lane = (activity: RemoteLaneActionState['lane']['activity']) => ({
+      ...state().lane,
+      activity,
+    })
+    const move = (edit: Partial<RemoteLaneActionState>, self = true) =>
+      item(hostMenu(state(edit, self), handlers()), 'Move to…')
     expect(move({})).toMatchObject({ disabled: true, hint: LANE_MOVE_NEEDS_UPDATE })
     const transfer = machineCaps({
       state: 'ready',
       capabilities: ['sessions.control'],
       laneTransfer: true,
     })
-    expect(move({ caps: transfer })).toMatchObject({ disabled: true, hint: STOP_BEFORE_MOVE })
-    expect(move({ caps: transfer, lane: stopped })).toMatchObject({
+    for (const activity of ['stopped', 'failed'] as const)
+      expect(move({ caps: transfer, lane: lane(activity) })).toMatchObject({
+        disabled: false,
+        hint: undefined,
+      })
+    // An idle session is stopped on the way: the export refuses a live one.
+    expect(move({ caps: transfer, lane: lane('idle') })).toMatchObject({
       disabled: false,
-      hint: undefined,
+      hint: MOVE_STOPS_LANE,
+    })
+    for (const activity of ['working', 'needs-input'] as const)
+      expect(move({ caps: transfer, lane: lane(activity) })).toMatchObject({
+        disabled: true,
+        hint: WAIT_BEFORE_MOVE,
+      })
+    // Stopping it needs control, as Stop does.
+    expect(move({ caps: transfer, lane: lane('idle') }, false)).toMatchObject({
+      disabled: true,
+      hint: TAKE_CONTROL_FIRST,
     })
   })
 
