@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { approve, extraction, fixture, vector } from './test-support'
+import type { BrainMemoryType } from '@phosphor/shared/brain'
 import type { BrainStore, Extraction } from './types'
 
 function seed(
   store: BrainStore,
-  entries: { label: string; summary: string; vector: Float32Array; scope?: string }[],
+  entries: {
+    label: string
+    summary: string
+    vector: Float32Array
+    scope?: string
+    observedAt?: number
+    type?: BrainMemoryType
+  }[],
 ): void {
   entries.forEach((entry, index) => {
     const base = extraction('unused')
@@ -20,8 +28,13 @@ function seed(
           object: null,
           predicate: 'about',
           summary: entry.summary,
+          type: entry.type ?? base.memories[0]!.type,
         },
       ],
+      evidence: base.evidence.map((item) => ({
+        ...item,
+        observedAt: entry.observedAt ?? item.observedAt,
+      })),
       vectors: [entry.vector],
     }
     approve(store, data)
@@ -212,5 +225,46 @@ describe('Brain related', () => {
       store.related('Harbor', 12, '/projects/harbor').hits.map((hit) => hit.memory.summary),
     ).toEqual(['Older local note.', 'Newer other note.'])
     expect(store.related('Harbor', 1, null).hits[0]?.memory.summary).toBe('Newer other note.')
+  })
+})
+
+const DAY = 86_400_000
+describe('Brain search by age', () => {
+  it('ranks what a lane said recently above a slightly closer match it said long ago', () => {
+    const { store } = fixture(400 * DAY)
+    seed(store, [
+      {
+        label: 'Old',
+        summary: 'Harbor exports run weekly.',
+        vector: direction(0.92, 1),
+        observedAt: 0,
+      },
+      {
+        label: 'New',
+        summary: 'Harbor exports run nightly.',
+        vector: direction(0.9, 2),
+        observedAt: 399 * DAY,
+      },
+    ])
+    const hits = store.search({ query: 'zzz', vector: vector(1), scope: null, limit: 6 }).hits
+    expect(hits.map((hit) => hit.memory.summary)).toEqual([
+      'Harbor exports run nightly.',
+      'Harbor exports run weekly.',
+    ])
+  })
+  it('lets an old open question sink faster than a fact of the same age, but keeps both', () => {
+    const { store } = fixture(120 * DAY)
+    seed(store, [
+      {
+        label: 'Q',
+        summary: 'Who owns refunds?',
+        vector: direction(0.92, 1),
+        observedAt: 0,
+        type: 'open',
+      },
+      { label: 'F', summary: 'Ama owns refunds.', vector: direction(0.9, 2), observedAt: 0 },
+    ])
+    const hits = store.search({ query: 'zzz', vector: vector(1), scope: null, limit: 6 }).hits
+    expect(hits.map((hit) => hit.memory.type)).toEqual(['fact', 'open'])
   })
 })

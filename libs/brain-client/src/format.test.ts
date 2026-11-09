@@ -38,3 +38,15 @@ it('keeps unavailable distinct from no-match and includes lexical fallback notes
     formatBrainRecall({ ...HARBOR_RECALL, degradation: ['semantic search unavailable'] }),
   ).toContain('Search note: semantic search unavailable')
 })
+
+it('adds the date a memory took effect when its lane named one', () => {
+  const hit = HARBOR_RECALL.hits[0]!
+  const text = formatBrainRecall(
+    {
+      ...HARBOR_RECALL,
+      hits: [{ ...hit, memory: { ...hit.memory, validFrom: Date.parse('2025-03-01') } }],
+    },
+    '/projects/harbor',
+  )
+  expect(text).toContain('· harbor (this project) · 2026-11-06, since 2025-03-01')
+})

@@ -85,4 +85,18 @@ describe('Brain knowledge', () => {
       context.entities.filter((item) => ['Harbor', 'Rina Okafor', 'Tom Lee'].includes(item.label)),
     ).toHaveLength(3)
   })
+  it('dates a memory by when its lane said it, not when it was approved', () => {
+    const { store } = fixture()
+    approve(store)
+    const memories = store.knowledge().memories
+    const said = memories.find((item) => item.summary.startsWith('Rina'))!
+    expect(said.observedAt).toBe(10)
+    expect(said.recordedAt).toBeGreaterThan(1000)
+    expect(store.memory(said.id).memory.observedAt).toBe(10)
+    const { store: undated } = fixture()
+    approve(undated, {
+      evidence: extraction('x').evidence.map((item) => ({ ...item, observedAt: 0 })),
+    })
+    for (const item of undated.knowledge().memories) expect(item.observedAt).toBe(item.recordedAt)
+  })
 })

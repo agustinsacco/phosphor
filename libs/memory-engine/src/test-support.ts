@@ -7,10 +7,10 @@ const stores: BrainStore[] = []
 afterEach(() => {
   for (const store of stores.splice(0)) store.close()
 })
-export function fixture(): { store: BrainStore; db: DatabaseSync } {
+export function fixture(start = 1000): { store: BrainStore; db: DatabaseSync } {
   const databases: DatabaseSync[] = []
   let counter = 0
-  let time = 1000
+  let time = start
   class Database extends DatabaseSync {
     constructor(path: string) {
       super(path)
