@@ -464,6 +464,24 @@ it('refits with the measured pane shape, not the camera aspect the library has y
   expect(wide.z).toBeLessThan(narrow.z)
 })
 
+it('keeps drawing after a resize until the library has applied the new canvas size', async () => {
+  await render()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+  setting<() => void>('onEngineStop')()
+  vi.advanceTimersByTime(10000)
+  graph.pauseAnimation.mockClear()
+  vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValueOnce({
+    width: 450,
+    height: 400,
+  } as DOMRect)
+  resize()
+  vi.advanceTimersByTime(300)
+  expect(graph.pauseAnimation).not.toHaveBeenCalled()
+  vi.advanceTimersByTime(1000)
+  expect(graph.pauseAnimation).toHaveBeenCalled()
+  vi.useRealTimers()
+})
+
 it('does not consume the pending fit when resuming a previously stopped engine before new data', async () => {
   await render()
   setting<() => void>('onEngineStop')()
