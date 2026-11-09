@@ -101,15 +101,26 @@ active memory, or to an earlier memory in the same proposal, is 0.86 or more.
 The Brain page is one view. Its left pane lists the inbox (waiting, queued,
 running, to review, nothing new, failed) and then approved memories grouped by
 type, with a search box. Its right pane shows the open review, otherwise a
-live force graph of the approved entities with the selected memory below it.
-The graph uses kind-coloured circles sized by relationship count and short labels;
-hovering reveals connected predicates and dims unrelated entities. Isolated entities
-remain in a loose cloud. Dragging pins and reheats a node so its neighbours follow;
-release lets it settle. Refreshes preserve existing positions. The graph fits its
-measured pane after the first layout settles; Fit, zoom controls, modifier-wheel
-zoom and background dragging adjust the view. An About chip centres its entity
-with a short pan. Reduced motion settles layouts and centres entities without
-animation; otherwise frames stop once the simulation cools.
+live 3D force graph of the approved memories with the selected memory below it.
+The graph loads `3d-force-graph` (Three.js) lazily, only on a supported Brain page.
+Nodes are entities mentioned by at least one active memory, coloured by kind with
+a legend. Their bubble volume is `1 + memories + degree`: memories counts each
+mentioning memory once, and degree counts distinct linked neighbours. Radius is
+proportional to its cube root. Links aggregate each unordered entity pair, grow
+thicker with memory count, and hold sorted unique predicates; self-links and
+unknown endpoints are omitted. Literal-only entities remain in the cloud.
+The largest twenty nodes always have sprite labels; hovering reveals other
+labels, highlights neighbours and shows connected predicates while dimming the
+rest. Drag nodes to move them, or drag the background to orbit. Zoom controls and
+Fit adjust the camera. Refreshes preserve known positions. Memory search keeps
+matching memories' entities bright and fits them in about 600 ms; clearing it
+fits everything. An About chip flies to its entity. Keyboard users can focus the
+same entities through the graph's accessible list.
+Reduced motion precomputes the layout and disables camera transitions. Rendering
+pauses after cooling and camera movement, and wakes on input or data changes.
+Colours come from theme tokens and update on light/dark changes. If WebGL2 is
+unavailable or graph initialization fails, a quiet message replaces the graph;
+the memory list and keyboard entity focus remain usable.
 A review lists every proposed memory, checked, with its quotes; **Approve N**
 stores the checked ones in one transaction and **Reject all** stores none. Nothing
 is searchable until it is approved. A review opened before another change to Brain

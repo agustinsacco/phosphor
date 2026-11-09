@@ -73,3 +73,15 @@ https://github.com/microsoft/onnxruntime/blob/main/LICENSE.
 
 Use of libraries under the terms of the LGPLv3 is via the "any later version"
 clause of the LGPLv2 or LGPLv2.1. Sources: https://github.com/lovell/sharp-libvips.
+
+## Knowledge graph
+
+Brain's renderer loads its 3D graph separately, only when the knowledge graph is
+opened. These MIT-licensed packages' unchanged `LICENSE` files ship in
+`app.asar` under `node_modules/<package>/`, as above.
+
+| Package            | Version | Licence | Copyright                              |
+| ------------------ | ------- | ------- | -------------------------------------- |
+| `3d-force-graph`   | 1.80.2  | MIT     | Copyright (c) 2017 Vasco Asturiano     |
+| `three`            | 0.187.0 | MIT     | Copyright © 2010-2026 three.js authors |
+| `three-spritetext` | 1.10.0  | MIT     | Copyright (c) 2018 Vasco Asturiano     |

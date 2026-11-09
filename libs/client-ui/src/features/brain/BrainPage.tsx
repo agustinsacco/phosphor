@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BRAIN_MEMORY_TYPES, type BrainKnowledge } from '@shared/brain'
+import { BRAIN_MEMORY_TYPES, type BrainKnowledge, type BrainMemory } from '@shared/brain'
 import { PageShell } from '@/components/PageShell'
 import { ListDetail } from '@/components/ListDetail'
 import { Button, TextInput } from '@/components/form'
@@ -10,7 +10,8 @@ import { useBrain, useBrainSync } from './useBrain'
 import { useBrainResource } from './useBrainResource'
 import { BrainInbox } from './BrainInbox'
 import { BrainReview } from './BrainReview'
-import { BrainGraph } from './BrainGraph'
+import { BrainGraph3D } from './BrainGraph3D'
+import { useMemorySearch } from './useMemorySearch'
 import { BrainMemoryDetail, MEMORY_LABELS, memoryRelation } from './BrainMemory'
 import { formatCount } from '@/lib/format'
 import { relativeTimeShort } from '@/lib/time'
@@ -71,6 +72,7 @@ function BrainContent({ revision }: { revision: number }): React.JSX.Element {
   const [review, setReview] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [focus, setFocus] = useState<string | null>(null)
+  const { query, setQuery, memories: searched, matches } = useMemorySearch(data)
   if (!data)
     return (
       <BrainEmpty title={error || 'Loading knowledge…'}>
@@ -101,6 +103,9 @@ function BrainContent({ revision }: { revision: number }): React.JSX.Element {
           <BrainInbox jobs={jobs} onReview={setReview} />
           <MemoryList
             knowledge={data}
+            searched={searched}
+            query={query}
+            onQuery={setQuery}
             selected={selected}
             focus={focus}
             onClearFocus={() => setFocus(null)}
@@ -123,6 +128,7 @@ function BrainContent({ revision }: { revision: number }): React.JSX.Element {
           ) : (
             <KnowledgeView
               data={data}
+              matches={matches}
               selected={selected}
               focus={focus}
               onFocus={setFocus}
@@ -136,28 +142,30 @@ function BrainContent({ revision }: { revision: number }): React.JSX.Element {
 }
 
 function MemoryList({
+  searched,
+  query,
+  onQuery,
   knowledge,
   selected,
   focus,
   onClearFocus,
   onSelect,
 }: {
+  searched: BrainMemory[]
+  query: string
+  onQuery: (query: string) => void
   knowledge: BrainKnowledge
   selected: string | null
   focus: string | null
   onClearFocus: () => void
   onSelect: (id: string) => void
 }): React.JSX.Element | null {
-  const [query, setQuery] = useState('')
   if (!knowledge.memories.length) return null
   const focused = knowledge.entities.find((entity) => entity.id === focus)
-  const memories = knowledge.memories.filter(
-    (memory) =>
-      (!focused || memory.subjectId === focus || memory.objectId === focus) &&
-      `${memory.summary} ${memoryRelation(memory, knowledge.entities)}`
-        .toLocaleLowerCase()
-        .includes(query.toLocaleLowerCase()),
+  const memories = searched.filter(
+    (memory) => !focused || memory.subjectId === focus || memory.objectId === focus,
   )
+
   return (
     <section aria-label="Memories" className="space-y-3 p-3">
       <TextInput
@@ -165,7 +173,7 @@ function MemoryList({
         placeholder="Search memories"
         className="w-full"
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => onQuery(event.target.value)}
       />
       {focused && (
         <Button size="xs" className="bg-accent-soft" onClick={onClearFocus}>
@@ -223,6 +231,7 @@ function BrainEmpty({
 }
 
 function KnowledgeView({
+  matches,
   data,
   selected,
   focus,
@@ -230,6 +239,7 @@ function KnowledgeView({
   onForget,
 }: {
   data: BrainKnowledge
+  matches: Set<string> | null
   selected: string | null
   focus: string | null
   onFocus: (id: string) => void
@@ -238,7 +248,8 @@ function KnowledgeView({
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-3">
       {data.entities.length > 0 && (
-        <BrainGraph
+        <BrainGraph3D
+          matches={matches}
           entities={data.entities}
           memories={data.memories}
           focus={focus}
